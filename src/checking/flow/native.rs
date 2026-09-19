@@ -156,12 +156,29 @@ impl Walker<'_> {
     ) -> Result<Option<Edges>> {
         let selected = site.text(self.program, self.facts);
         let name = selected.as_str();
+        if name == "is_type?" {
+            if let Some(variants) = self.predicate_arguments(args)? {
+                for arguments in variants.data {
+                    let mut next = state.snapshot(self.ctx)?;
+                    let edges =
+                        self.member_without_collection(&mut next, pc, receiver, site, &arguments)?;
+                    self.member_edges(pc, next, edges)?;
+                }
+                return Ok(Some([None, None]));
+            }
+        }
         let (value, rejected, incomplete, throws) = if let Some(result) =
             builtins::member(self.ctx, self.facts, receiver, site.call, name, args)?
         {
             let mut result = result;
             if name == "is_type?" {
-                self.type_predicate_outcome(state, pc, receiver, args, &mut result)?;
+                let alternatives =
+                    self.type_predicate_outcome(state, pc, receiver, args, &mut result)?;
+                for mut alternative in alternatives.data {
+                    let edges =
+                        self.member_without_collection(&mut alternative, pc, receiver, site, args)?;
+                    self.member_edges(pc, alternative, edges)?;
+                }
             }
             (
                 result.value,

@@ -54,6 +54,7 @@ pub(super) struct Address {
     path: Buffer<Hop>,
 }
 
+#[derive(Clone, Copy)]
 pub(super) enum Change<'a> {
     Store {
         same: bool,

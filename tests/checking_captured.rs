@@ -276,6 +276,13 @@ fn deferred_source_initializers_preserve_alternative_import_histories() {
 }
 
 fn branching_type_options(choice: bool) -> (CallOptions, std::sync::Arc<AtomicUsize>) {
+    branching_type_options_with_initializer(choice, "")
+}
+
+fn branching_type_options_with_initializer(
+    choice: bool,
+    initializer: &str,
+) -> (CallOptions, std::sync::Arc<AtomicUsize>) {
     use std::sync::Arc;
     use vibescript::{HostMethod, Signature};
     let choices = Arc::new(AtomicUsize::new(0));
@@ -294,7 +301,7 @@ fn branching_type_options(choice: bool) -> (CallOptions, std::sync::Arc<AtomicUs
         })
         .unwrap(),
     );
-    let producer = engine.compile("class Remote;trace.push(0);if choose();left;else;right;end;def self.value;7;end;end;def make;Remote;end").unwrap();
+    let producer = engine.compile(&format!("class Remote;{initializer};trace.push(0);if choose();left;else;right;end;def self.value;7;end;end;def make;Remote;end")).unwrap();
     let mut options = CallOptions {
         globals: [
             ("trace".into(), Value::array(vec![])),
@@ -308,6 +315,238 @@ fn branching_type_options(choice: bool) -> (CallOptions, std::sync::Arc<AtomicUs
     options.globals.insert("C".into(), remote);
     choices.store(0, Ordering::Relaxed);
     (options, choices)
+}
+
+#[test]
+fn deferred_property_initializers_preserve_writes_to_other_fields() {
+    for choice in [false, true] {
+        for body in [
+            "@item=nil",
+            "bind(nil)",
+            "@items.push(nil)",
+            "@items[0]=nil",
+            "@items.fill{nil}",
+            "@items << nil",
+        ] {
+            let (mut options, choices) =
+                branching_type_options_with_initializer(choice, "if trace.length>0;box.note=9;end");
+            let producer = Engine::new().compile(&format!("class Holder;property note;property item:C?;property items:array<C?>;def initialize;@note=1;@items=[nil];end;def bind(@item);end;def work;{body};end;end;def make;Holder.new;end")).unwrap();
+            let holder = producer.call("make", &[], options.clone()).unwrap().value;
+            options.globals.insert("box".into(), holder.clone());
+            options
+                .globals
+                .insert("trace".into(), Value::array(vec![Value::int(5)]));
+            choices.store(0, Ordering::Relaxed);
+            let receiver = Engine::new().compile("def run(target)->int;target.work;if target.note==9 && box.note==9 && trace.length==3;7;else;false;end;end").unwrap();
+            accepts(&receiver, &[holder], &options);
+            assert_eq!(choices.load(Ordering::Relaxed), 2, "{body}");
+        }
+    }
+}
+
+#[test]
+fn deferred_property_types_resume_direct_stores_and_completed_mutations() {
+    for choice in [false, true] {
+        for (body, valid, effects) in [
+            (
+                "@item=(begin;trace.push(9);nil;end)",
+                "@item==nil && value==nil",
+                1,
+            ),
+            (
+                "bind(begin;trace.push(9);nil;end)",
+                "@item==nil && value==nil",
+                1,
+            ),
+            (
+                "@items.push(begin;trace.push(9);nil;end)",
+                "@items.length==3 && @items[2]==nil && value.length==3",
+                1,
+            ),
+            (
+                "@items[-1]=(begin;trace.push(9);nil;end)",
+                "@items.length==2 && @items[1]==nil && value==nil",
+                1,
+            ),
+            (
+                "@items.fill{trace.push(9);nil}",
+                "@items.length==2 && @items[0]==nil && @items[1]==nil && value.length==2",
+                2,
+            ),
+            (
+                "@items.delete_if{trace.push(9);true}",
+                "@items.length==0 && value.length==0",
+                2,
+            ),
+            (
+                "@items.push(begin;trace.push(9);nil;end).push(nil)",
+                "@items.length==3 && value.length==4",
+                1,
+            ),
+            (
+                "[1].map{@items.push(begin;trace.push(9);nil;end)}",
+                "@items.length==3 && value.length==1 && value[0].length==3",
+                1,
+            ),
+            (
+                "@items << (begin;trace.push(9);nil;end)",
+                "@items.length==3 && value.length==3",
+                1,
+            ),
+            (
+                "@items.fill{trace.push(9);break 7}",
+                "@items.length==2 && value==7",
+                1,
+            ),
+        ] {
+            let (options, choices) = branching_type_options(choice);
+            let producer = Engine::new().compile(&format!("class Holder;property item:C?;property items:array<C?>;def initialize;@items=[nil,nil];end;def bind(@item);end;def work->int;value=begin;{body};end;if {valid};7;else;false;end;end;end;def make;Holder.new;end")).unwrap();
+            let holder = producer.call("make", &[], options.clone()).unwrap().value;
+            choices.store(0, Ordering::Relaxed);
+            let receiver = Engine::new().compile(&format!("def run(box)->int;n=box.work;C.value;if n==7 && trace.length=={} && trace[0]==9 && trace[{}]==0;7;else;false;end;end", effects + 2, effects)).unwrap();
+            accepts(&receiver, &[holder], &options);
+            assert_eq!(choices.load(Ordering::Relaxed), 2, "{body}");
+        }
+    }
+}
+
+#[test]
+fn deferred_property_rejections_preserve_fields_and_cleanup_on_every_branch() {
+    for choice in [false, true] {
+        for body in [
+            "@item=1",
+            "bind(1)",
+            "@items.push(1)",
+            "@items[0]=1",
+            "@items.fill{1}",
+        ] {
+            let (options, choices) = branching_type_options(choice);
+            let producer = Engine::new().compile(&format!("class Holder;property item:C?;property items:array<C?>;def initialize;@items=[nil,nil];end;def bind(@item);end;def work->int;trace.push(9);begin;{body};false;rescue RuntimeError;if @item==nil && @items.length==2 && @items[0]==nil;7;else;false;end;ensure;trace.push(8);end;end;end;def make;Holder.new;end")).unwrap();
+            let holder = producer.call("make", &[], options.clone()).unwrap().value;
+            choices.store(0, Ordering::Relaxed);
+            let receiver = Engine::new().compile("def run(box)->int;value=box.work;if value==7 && trace[0]==9 && trace.last==8;7;else;false;end;end").unwrap();
+            for _ in 0..2 {
+                let before = choices.load(Ordering::Relaxed);
+                let report = receiver
+                    .check_call("run", std::slice::from_ref(&holder), &options)
+                    .unwrap();
+                assert_eq!(choices.load(Ordering::Relaxed), before);
+                assert!(report.incomplete.is_empty(), "{body}: {report:?}");
+                assert_eq!(report.diagnostics.len(), 1, "{body}: {report:?}");
+                assert!(
+                    report.diagnostics[0].message.contains("Property"),
+                    "{body}: {report:?}"
+                );
+                assert_eq!(
+                    receiver
+                        .call("run", std::slice::from_ref(&holder), options.clone())
+                        .unwrap()
+                        .value
+                        .as_int(),
+                    Some(7)
+                );
+            }
+            assert_eq!(choices.load(Ordering::Relaxed), 2);
+        }
+    }
+}
+
+#[test]
+fn deferred_property_types_resolve_in_the_current_source() {
+    for choice in [false, true] {
+        for method in ["def write;@item=nil;end", "def write(@item=nil);end"] {
+            let (options, choices) = branching_type_options(choice);
+            let script = Engine::new().compile(&format!("class Holder;property item:C?;{method};end;def run->int;box=Holder.new;box.write;if box.item==nil && trace.length==2 && trace[0]==0;7;else;false;end;end")).unwrap();
+            accepts(&script, &[], &options);
+            let report = script.check_function("run", &options).unwrap();
+            assert!(report.is_clean(), "{method}: {report:?}");
+            assert_eq!(choices.load(Ordering::Relaxed), 2);
+        }
+    }
+}
+
+#[test]
+fn deferred_predicates_resume_native_and_namespace_calls() {
+    for choice in [false, true] {
+        for receiver in ["nil", "[1]", "Local", "Local.new", "M"] {
+            for call in ["is_type?(\"C\")", "send(:is_type?, \"C\")"] {
+                let (options, choices) = branching_type_options(choice);
+                let script = Engine::new().compile(&format!("class Local;end;module M;end;def run->int;answer={receiver}.{call};if !answer && trace.length==2 && trace[0]==0;7;else;false;end;end")).unwrap();
+                accepts(&script, &[], &options);
+                let report = script.check_function("run", &options).unwrap();
+                assert!(report.is_clean(), "{receiver}.{call}: {report:?}");
+                assert_eq!(choices.load(Ordering::Relaxed), 2);
+            }
+        }
+    }
+}
+
+#[test]
+fn deferred_predicate_name_alternatives_only_initialize_the_selected_type() {
+    let (mut options, first) = branching_type_options(false);
+    let (other, second) = branching_type_options(true);
+    options
+        .globals
+        .insert("D".into(), other.globals["C"].clone());
+    for receiver in ["nil", "Local.new"] {
+        let script = Engine::new().compile(&format!("class Local;end;def run(flag:bool)->int;name=if flag;\"C\";else;\"D\";end;answer={receiver}.is_type?(begin;trace.push(9);name;end);if !answer && trace.length==3 && trace[0]==9 && trace[1]==0;7;else;false;end;end")).unwrap();
+        for flag in [false, true] {
+            accepts(&script, &[Value::boolean(flag)], &options);
+        }
+        let calls = (
+            first.load(Ordering::Relaxed),
+            second.load(Ordering::Relaxed),
+        );
+        let report = script.check_function("run", &options).unwrap();
+        assert!(report.is_clean(), "{receiver}: {report:?}");
+        assert_eq!(
+            (
+                first.load(Ordering::Relaxed),
+                second.load(Ordering::Relaxed)
+            ),
+            calls
+        );
+    }
+}
+
+#[test]
+fn deferred_predicate_alternatives_preserve_invalid_queries() {
+    for receiver in ["nil", "Local.new"] {
+        for names in [
+            ("\"C\"", "9"),
+            ("9", "\"C\""),
+            ("\"C\"", "\"Missing.Type\""),
+        ] {
+            let (options, choices) = branching_type_options(true);
+            let script = Engine::new().compile(&format!("class Local;end;def run(flag:bool)->int;name=if flag;{};else;{};end;begin;{receiver}.is_type?(name);7;rescue RuntimeError;7;end;end", names.0, names.1)).unwrap();
+            for flag in [false, true] {
+                assert_eq!(
+                    script
+                        .call("run", &[Value::boolean(flag)], options.clone())
+                        .unwrap()
+                        .value
+                        .as_int(),
+                    Some(7)
+                );
+            }
+            let called = choices.load(Ordering::Relaxed);
+            let report = script.check_function("run", &options).unwrap();
+            assert!(
+                report.incomplete.is_empty(),
+                "{receiver}, {names:?}: {report:?}"
+            );
+            assert_eq!(
+                report.diagnostics.len(),
+                1,
+                "{receiver}, {names:?}: {report:?}"
+            );
+            assert!(
+                !report.diagnostics[0].message.contains("Return value"),
+                "{report:?}"
+            );
+            assert_eq!(choices.load(Ordering::Relaxed), called);
+        }
+    }
 }
 
 #[test]

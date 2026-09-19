@@ -350,12 +350,17 @@ impl Walker<'_> {
         pc: usize,
         name: usize,
     ) -> Result<Option<Edges>> {
-        if let Some(name) = self.program.members[name]
+        if let Some(field) = self.program.members[name]
             .strip_prefix('@')
             .filter(|name| !name.starts_with('@'))
         {
             let operand = *state.stack.data.last().unwrap();
-            let Some(value) = self.instance_store(state, pc, name, operand)? else {
+            let result = self.instance_store(state, pc, field, operand)?;
+            for mut alternative in result.alternatives.data {
+                let edges = self.namespace_store(&mut alternative, pc, name)?;
+                self.member_edges(pc, alternative, edges)?;
+            }
+            let Some(value) = result.value else {
                 return Ok(Some([None, None]));
             };
             state.stack.data.last_mut().unwrap().value = value;

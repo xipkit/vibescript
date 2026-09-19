@@ -1,3 +1,4 @@
+use super::super::types::Normalization;
 use super::*;
 
 impl Walker<'_> {
@@ -177,18 +178,41 @@ impl Walker<'_> {
         pc: usize,
         name: &str,
         operand: Operand,
-    ) -> Result<Option<Fact>> {
+    ) -> Result<Normalization> {
         let Some(receiver) = self.receiver else {
             self.namespace_name_error(state, pc)?;
-            return Ok(None);
+            return Ok(Normalization::new(None));
         };
-        let Some(value) = self.normalize_property(state, pc, receiver, name, operand.value)? else {
-            return Ok(None);
+        let mut result = self.normalize_property(state, pc, receiver, name, operand.value)?;
+        let Some(value) = result.value else {
+            return Ok(result);
         };
         if !self.instance_write(state, pc, receiver, name, Operand { value, ..operand })? {
-            return Ok(None);
+            result.value = None;
         }
-        Ok(Some(value))
+        Ok(result)
+    }
+
+    pub(in super::super) fn bind_ivar(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        name: usize,
+        local: usize,
+    ) -> Result<bool> {
+        let actual = state.locals.get(self.ctx, local)?.value;
+        let result =
+            self.instance_store(state, pc, &self.program.members[name], Operand::new(actual))?;
+        for mut alternative in result.alternatives.data {
+            if self.bind_ivar(&mut alternative, pc, name, local)? {
+                self.native_continue(pc, alternative)?;
+            }
+        }
+        let Some(value) = result.value else {
+            return Ok(false);
+        };
+        state.store(self.ctx, self.facts, local, value)?;
+        Ok(true)
     }
 
     pub(super) fn instance_write(
@@ -280,12 +304,13 @@ impl Walker<'_> {
         receiver: Fact,
         name: &str,
         actual: Fact,
-    ) -> Result<Option<Fact>> {
+    ) -> Result<Normalization> {
         let Some((source, ty)) = self.property_type(state, receiver, name)? else {
-            return Ok(Some(actual));
+            return Ok(Normalization::new(Some(actual)));
         };
-        let Some(expected) = self.property_contract(state, pc, source, ty)? else {
-            return Ok(None);
+        let mut result = self.property_contract(state, pc, source, ty)?;
+        let Some(expected) = result.value.take() else {
+            return Ok(result);
         };
         let relation = self.facts.relation(self.ctx, actual, expected)?;
         if relation != Relation::Accepted {
@@ -294,11 +319,12 @@ impl Walker<'_> {
         if relation == Relation::Rejected {
             self.issue(pc, IssueKind::Property { actual, expected })?;
             if !self.facts.overlaps(self.ctx, actual, expected)? {
-                return Ok(None);
+                return Ok(result);
             }
         }
         let value = self.facts.normalized(self.ctx, actual, expected)?;
-        Ok((value != Atom::Never.fact()).then_some(value))
+        result.value = (value != Atom::Never.fact()).then_some(value);
+        Ok(result)
     }
 
     pub(in super::super) fn guard_instance(
@@ -307,11 +333,11 @@ impl Walker<'_> {
         pc: usize,
         address: &Address,
         updated: Fact,
-    ) -> Result<Option<Fact>> {
+    ) -> Result<Normalization> {
         let Some((receiver, key)) = address.instance else {
-            return Ok(Some(updated));
+            return Ok(Normalization::new(Some(updated)));
         };
-        let Some((_, slot)) = self.instance_slot(state, receiver)? else {
+        let Some((root, slot)) = self.instance_slot(state, receiver)? else {
             unreachable!()
         };
         let Node::String(name) = self.facts.node(key) else {
@@ -324,20 +350,28 @@ impl Walker<'_> {
         let value = self
             .facts
             .collection_index(self.ctx, fields.value, &[key])?;
-        let Some(normalized) = self.normalize_property(state, pc, receiver, name, value.value)?
-        else {
-            return Ok(None);
+        let mut result = self.normalize_property(state, pc, receiver, name, value.value)?;
+        let Some(normalized) = result.value.take() else {
+            return Ok(result);
         };
+        // Resolving the property type may initialize a source that writes other fields.
+        let current = state.locals.get(self.ctx, root)?.value;
+        let fields = crate::checking::heaps::read(self.ctx, self.facts, current, index)?;
+        if fields.unsupported {
+            self.incomplete(pc)?;
+            return Ok(result);
+        }
         let fields = self
             .facts
             .collection_write(self.ctx, fields.value, key, normalized)?;
         let heap = self
             .facts
-            .collection_write(self.ctx, updated, index, fields.receiver)?;
+            .collection_write(self.ctx, current, index, fields.receiver)?;
         if fields.unsupported || heap.unsupported {
             self.incomplete(pc)?;
-            return Ok(None);
+            return Ok(result);
         }
-        Ok(Some(heap.receiver))
+        result.value = Some(heap.receiver);
+        Ok(result)
     }
 }

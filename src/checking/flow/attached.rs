@@ -2,22 +2,6 @@ use super::*;
 use crate::checking::facts::{Callable, Node};
 
 impl Walker<'_> {
-    pub(super) fn import_root(
-        &mut self,
-        state: &mut State,
-        pc: usize,
-        slot: usize,
-    ) -> Result<bool> {
-        let Some(alternatives) = self.import_root_branches(state, pc, slot)? else {
-            return Ok(false);
-        };
-        if !alternatives.data.is_empty() {
-            self.incomplete(pc)?;
-            return Ok(false);
-        }
-        Ok(true)
-    }
-
     /// Keeps the first completed read in `state` and returns its distinct continuations.
     pub(super) fn import_root_branches(
         &mut self,

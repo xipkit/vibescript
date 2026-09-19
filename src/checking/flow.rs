@@ -39,12 +39,14 @@ mod member_addresses;
 mod namespaces;
 mod native;
 mod operators;
+mod publication;
 mod rendering;
 mod requires;
 mod roots;
 mod types;
 use handlers::{Phase, Transfer};
 use native::MemberSite;
+use publication::MutationOutput;
 
 // Absence must survive joins with inherited rescued errors.
 pub(super) const NO_ERROR: u16 = 1 << 8;
@@ -1421,80 +1423,6 @@ impl Walker<'_> {
         Ok(())
     }
 
-    fn publish(
-        &mut self,
-        state: &mut State,
-        pc: usize,
-        address: &Address,
-        receiver: Fact,
-        change: Change<'_>,
-    ) -> Result<Option<Edges>> {
-        if !address.supported {
-            return self.incomplete(pc).map(Some);
-        }
-        if address.attached == Attached::No {
-            return Ok(None);
-        }
-        let Some(slot) = address.root else {
-            return self.incomplete(pc).map(Some);
-        };
-        let result = address.rebuild(self.ctx, self.facts, receiver)?;
-        if result.unsupported {
-            return self.incomplete(pc).map(Some);
-        }
-        let Some(mut updated) = self.guard_instance(state, pc, address, result.value)? else {
-            return Ok(Some([None, None]));
-        };
-        if !self.alias_captures(state, pc, address, updated)? {
-            return Ok(Some([None, None]));
-        }
-        let Some((aliased, alias_address)) = self.alias_instances(state, pc, address, updated)?
-        else {
-            return Ok(Some([None, None]));
-        };
-        updated = aliased;
-        let change = match (&alias_address, change) {
-            (
-                Some(address),
-                Change::Mutation {
-                    method,
-                    args,
-                    fresh,
-                    ..
-                },
-            ) => Change::Mutation {
-                address,
-                method,
-                args,
-                fresh,
-            },
-            (_, change) => change,
-        };
-        if address.attached == Attached::Maybe {
-            let current = state.locals.get(self.ctx, slot)?.value;
-            updated = self.facts.union(self.ctx, &[current, updated])?;
-        }
-        if updated == Atom::Never.fact() {
-            return self.incomplete(pc).map(Some);
-        }
-        state.store(self.ctx, self.facts, slot, updated)?;
-        if state.capture_locals && slot < state.global_base {
-            state
-                .captures
-                .as_mut()
-                .unwrap()
-                .refresh(self.ctx, self.facts, slot, updated, &change)?;
-        }
-        state.refresh_globals(self.ctx, self.facts, slot, updated, &change)?;
-        for pending in &mut state.addresses.data {
-            self.ctx.charge(1)?;
-            if pending.root == Some(slot) {
-                pending.refresh(self.ctx, self.facts, updated, &change)?;
-            }
-        }
-        Ok(None)
-    }
-
     fn mutate(
         &mut self,
         state: &mut State,
@@ -1668,28 +1596,20 @@ impl Walker<'_> {
                 fresh,
             }
         };
-        if let Some(edges) = self.publish(state, pc, &address, result.receiver, change)? {
-            return Ok(Some(edges));
-        }
-        if address_result {
-            state
-                .addresses
-                .push(self.ctx, Address::new(None, result.value))?;
+        let output = if address_result {
+            MutationOutput::Address(result.value)
         } else {
             let origin = if returns_receiver {
                 address.origin()
             } else {
                 None
             };
-            state.stack.push(
-                self.ctx,
-                Operand {
-                    origin,
-                    ..Operand::new(result.value)
-                },
-            )?;
-        }
-        Ok(None)
+            MutationOutput::Value(Operand {
+                origin,
+                ..Operand::new(result.value)
+            })
+        };
+        self.publish_result(state, pc, &address, result.receiver, change, output)
     }
 
     fn index_outcome(
@@ -1866,17 +1786,9 @@ impl Walker<'_> {
                     state.stack.push(self.ctx, Operand::new(value))?;
                 }
                 Op::BindIvar(name, local) => {
-                    let actual = state.locals.get(self.ctx, local)?.value;
-                    let Some(value) = self.instance_store(
-                        &mut state,
-                        pc,
-                        &self.program.members[name],
-                        Operand::new(actual),
-                    )?
-                    else {
+                    if !self.bind_ivar(&mut state, pc, name, local)? {
                         return Ok([None, None]);
-                    };
-                    state.store(self.ctx, self.facts, local, value)?;
+                    }
                 }
                 Op::NamespaceConstant(name, next) => {
                     return self.namespace_constant_edges(state, pc, name, next);

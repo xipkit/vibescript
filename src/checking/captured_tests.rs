@@ -173,8 +173,7 @@ fn shared_container_admission_does_not_expand_the_logical_tree() {
     assert_eq!(report.stats.retained_memory_bytes, 0);
 }
 
-#[test]
-fn deferred_branch_continuations_release_storage_at_every_interrupted_boundary() {
+fn deferred_type_fixture() -> (Engine, CallOptions) {
     use crate::{HostMethod, Signature};
     let child = |marker| {
         Engine::new()
@@ -216,6 +215,12 @@ fn deferred_branch_continuations_release_storage_at_every_interrupted_boundary()
     };
     let value = producer.call("make", &[], options.clone()).unwrap().value;
     options.globals.insert("C".into(), value);
+    (engine, options)
+}
+
+#[test]
+fn deferred_branch_continuations_release_storage_at_every_interrupted_boundary() {
+    let (_, options) = deferred_type_fixture();
     let script = Engine::new().compile("def take(x:C?=nil)->C?;nil;end;def run->int;take(nil);take();C.value;if trace.length==1;7;else;false;end;end").unwrap();
     let work = |ctx: &mut CallContext| -> Result<()> {
         let checked = entry::check(
@@ -236,6 +241,10 @@ fn deferred_branch_continuations_release_storage_at_every_interrupted_boundary()
         ));
         Ok(())
     };
+    metered_deferred_analysis(work);
+}
+
+fn metered_deferred_analysis(work: impl Fn(&mut CallContext) -> Result<()>) {
     let mut context = CallContext::new(CallOptions::default());
     work(&mut context).unwrap();
     let stats = context.stats();
@@ -280,4 +289,76 @@ fn deferred_branch_continuations_release_storage_at_every_interrupted_boundary()
         assert_eq!(work(&mut context).unwrap_err().kind, kind);
         assert_eq!(context.stats().retained_memory_bytes, 0);
     }
+}
+
+#[test]
+fn deferred_property_and_predicate_continuations_release_interrupted_storage() {
+    for (body, rejected) in [
+        ("@item=nil", false),
+        ("bind(nil)", false),
+        ("@items.push(nil)", false),
+        ("@items[0]=nil", false),
+        ("@items.fill{nil}", false),
+        ("begin;@items.push(1);rescue RuntimeError;nil;end", true),
+    ] {
+        let (_, options) = deferred_type_fixture();
+        let producer = Engine::new().compile(&format!("class Holder;property item:C?;property items:array<C?>;def initialize;@items=[nil];end;def bind(@item);end;def work;{body};7;end;end;def make;Holder.new;end")).unwrap();
+        let holder = producer.call("make", &[], options.clone()).unwrap().value;
+        let receiver = Engine::new()
+            .compile("def run(box)->int;box.work;end")
+            .unwrap();
+        metered_deferred_analysis(|ctx| {
+            deferred_result(
+                ctx,
+                &receiver,
+                std::slice::from_ref(&holder),
+                &options,
+                rejected,
+            )
+        });
+    }
+    for receiver in ["nil", "Local.new"] {
+        let (engine, options) = deferred_type_fixture();
+        let script = engine.compile(&format!("class Local;end;def run->int;name=if choose();\"C\";else;\"int\";end;{receiver}.is_type?(name);7;end")).unwrap();
+        metered_deferred_analysis(|ctx| deferred_result(ctx, &script, &[], &options, false));
+    }
+}
+
+fn deferred_result(
+    ctx: &mut CallContext,
+    script: &Script,
+    arguments: &[Value],
+    options: &CallOptions,
+    rejected: bool,
+) -> Result<()> {
+    let checked = entry::check(
+        ctx,
+        entry::Call {
+            script,
+            name: "run",
+            arguments,
+            keywords: &[],
+            options,
+        },
+    )?;
+    assert!(checked.analysis.incomplete.data.is_empty(), "{checked:?}");
+    assert_eq!(
+        checked.analysis.issues.data.len(),
+        usize::from(rejected),
+        "{checked:?}"
+    );
+    if rejected {
+        assert!(matches!(
+            checked.analysis.issues.data[0].issue.kind,
+            super::flow::IssueKind::Property { .. }
+        ));
+    }
+    assert!(
+        matches!(
+            checked.facts.node(checked.analysis.returns),
+            Node::Integer(7)
+        ),
+        "{checked:?}"
+    );
+    Ok(())
 }

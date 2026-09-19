@@ -336,6 +336,10 @@ Reading a supplied class or module can initialize several foreign sources. When 
 
 Later reads keep successful and failed source activation states. Pending collection writes retain their selected element when an initializer grows the parent, and later imports run only on paths that have not already loaded that file. The checker preserves contradictions from either alternative and does not invoke host callbacks to choose a path. Continuation buffers, snapshots and interrupted preparation use the existing memory/work accounting and release storage on failure.
 
+Property contracts also retain distinct source-initialization histories. Direct instance-variable writes and parameter bindings resume their prepared values; indexed writes, append operations and mutation blocks publish their completed results without evaluating arguments or blocks again. Type initialization can write other fields on the same object, so publication updates the selected property in the current heap. Rejected writes leave the field unchanged and retain initializer effects, rescue and cleanup.
+
+Literal named `is_type?` calls preserve source histories for native, class, module and instance receivers, including forwarded calls. A finite set of query names takes separate paths so only the selected type initializes. Invalid alternatives remain diagnostics. Names that cannot be resolved statically remain incomplete. Regression tests check concrete execution, generalized query choices, callback counts, exact and interrupted memory/work limits, cancellation, deadlines and storage release.
+
 Property-guard and nominal-predicate continuations still require support when their deferred imports produce incompatible histories. Dynamic type alternatives and structural collection equality also remain unfinished; ordinary runtime execution supports these expressions.
 
 ## Remaining integration

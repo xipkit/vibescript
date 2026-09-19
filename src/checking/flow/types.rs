@@ -11,6 +11,20 @@ pub(super) struct Normalization {
     pub alternatives: Buffer<State>,
 }
 
+pub(super) struct PredicateType {
+    pub value: Option<Resolution>,
+    pub alternatives: Buffer<State>,
+}
+
+impl Normalization {
+    pub fn new(value: Option<Fact>) -> Self {
+        Self {
+            value,
+            alternatives: Buffer::empty(),
+        }
+    }
+}
+
 impl Walker<'_> {
     pub(super) fn normalization_contract(
         &mut self,
@@ -18,29 +32,7 @@ impl Walker<'_> {
         pc: usize,
         ty: usize,
     ) -> Result<Normalization> {
-        let mut alternatives = Buffer::empty();
-        loop {
-            match self.contract(state, pc, ty, true)? {
-                Contract::Value(value) => {
-                    return Ok(Normalization {
-                        value,
-                        alternatives,
-                    });
-                }
-                Contract::Pending(index) => {
-                    let slot = state.global_base + state.source_slots.roots.data[index];
-                    let Some(branches) = self.import_root_branches(state, pc, slot)? else {
-                        return Ok(Normalization {
-                            value: None,
-                            alternatives,
-                        });
-                    };
-                    for branch in branches.data {
-                        alternatives.push(self.ctx, branch)?;
-                    }
-                }
-            }
-        }
+        self.prepared_contract(state, pc, ty, true)
     }
 
     pub(super) fn bind_supplied(
@@ -111,10 +103,11 @@ impl Walker<'_> {
         pc: usize,
         source: SourceId,
         ty: usize,
-    ) -> Result<Option<Fact>> {
+    ) -> Result<Normalization> {
         if source == self.source {
             return self.prepared_contract(state, pc, ty, false);
         }
+        let mut result = Normalization::new(None);
         loop {
             let globals = state.global_call(self.ctx)?;
             let annotation = self
@@ -123,7 +116,8 @@ impl Walker<'_> {
             self.emit_error(state, pc, annotation.throws)?;
             match annotation.resolution {
                 Resolution::Known(value) => {
-                    return Ok((value != Atom::Never.fact()).then_some(value));
+                    result.value = (value != Atom::Never.fact()).then_some(value);
+                    return Ok(result);
                 }
                 failure @ (Resolution::Missing | Resolution::Ambiguous) => {
                     self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
@@ -134,16 +128,19 @@ impl Walker<'_> {
                             ambiguous: failure == Resolution::Ambiguous,
                         },
                     )?;
-                    return Ok(None);
+                    return Ok(result);
                 }
                 Resolution::Dynamic => {
                     self.incomplete(pc)?;
-                    return Ok(None);
+                    return Ok(result);
                 }
                 Resolution::Pending(root) => {
                     let slot = state.global_base + state.source_slots.roots.data[root];
-                    if !self.import_root(state, pc, slot)? {
-                        return Ok(None);
+                    let Some(branches) = self.import_root_branches(state, pc, slot)? else {
+                        return Ok(result);
+                    };
+                    for branch in branches.data {
+                        result.alternatives.push(self.ctx, branch)?;
                     }
                 }
             }
@@ -156,14 +153,21 @@ impl Walker<'_> {
         pc: usize,
         ty: usize,
         lexical: bool,
-    ) -> Result<Option<Fact>> {
+    ) -> Result<Normalization> {
+        let mut result = Normalization::new(None);
         loop {
             match self.contract(state, pc, ty, lexical)? {
-                Contract::Value(value) => return Ok(value),
+                Contract::Value(value) => {
+                    result.value = value;
+                    return Ok(result);
+                }
                 Contract::Pending(index) => {
                     let slot = state.global_base + state.source_slots.roots.data[index];
-                    if !self.import_root(state, pc, slot)? {
-                        return Ok(None);
+                    let Some(branches) = self.import_root_branches(state, pc, slot)? else {
+                        return Ok(result);
+                    };
+                    for branch in branches.data {
+                        result.alternatives.push(self.ctx, branch)?;
                     }
                 }
             }
@@ -427,19 +431,27 @@ impl Walker<'_> {
         state: &mut State,
         pc: usize,
         name: &str,
-    ) -> Result<Option<Resolution>> {
+    ) -> Result<PredicateType> {
+        let mut result = PredicateType {
+            value: None,
+            alternatives: Buffer::empty(),
+        };
         loop {
             let Some((bindings, scopes)) = self.type_environment(state, pc, true, true)? else {
-                return Ok(None);
+                return Ok(result);
             };
             let resolution = bindings.resolve(self.ctx, &scopes.data, name, true)?;
             if let Resolution::Pending(index) = resolution {
                 let slot = state.global_base + state.source_slots.roots.data[index];
-                if !self.import_root(state, pc, slot)? {
-                    return Ok(None);
+                let Some(branches) = self.import_root_branches(state, pc, slot)? else {
+                    return Ok(result);
+                };
+                for branch in branches.data {
+                    result.alternatives.push(self.ctx, branch)?;
                 }
             } else {
-                return Ok(Some(resolution));
+                result.value = Some(resolution);
+                return Ok(result);
             }
         }
     }

@@ -185,9 +185,6 @@ impl Walker<'_> {
                     args: &[],
                     fresh: value.fresh,
                 };
-                if let Some(edges) = self.publish(state, pc, &address, result.receiver, change)? {
-                    return Ok(Some(edges));
-                }
                 let mut value = value;
                 if address.attached != Attached::No {
                     if value.origin == address.root {
@@ -200,7 +197,14 @@ impl Walker<'_> {
                         value.predicate = None;
                     }
                 }
-                state.stack.push(self.ctx, value)?;
+                return self.publish_result(
+                    state,
+                    pc,
+                    &address,
+                    result.receiver,
+                    change,
+                    MutationOutput::Value(value),
+                );
             }
             Op::Binary(_) | Op::AddStore(_) => {
                 let instruction = op;

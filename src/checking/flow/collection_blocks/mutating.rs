@@ -314,14 +314,15 @@ impl Walker<'_> {
             args: &[],
             fresh: false,
         };
-        if self
-            .publish(&mut state, pc, &address, receiver, change)?
-            .is_some()
-        {
-            return Ok(());
-        }
-        state.stack.push(self.ctx, Operand::new(value))?;
-        self.native_continue(pc, state)
+        let edges = self.publish_result(
+            &mut state,
+            pc,
+            &address,
+            receiver,
+            change,
+            MutationOutput::Value(Operand::new(value)),
+        )?;
+        self.member_edges(pc, state, edges)
     }
 
     fn delete_keys(&mut self, receiver: Fact, keys: Fact) -> Result<Fact> {

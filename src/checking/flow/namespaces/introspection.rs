@@ -22,6 +22,17 @@ impl Walker<'_> {
         if !admitted {
             return Ok(Some([None, None]));
         }
+        if name == "is_type?" {
+            if let Some(variants) = self.predicate_arguments(&args)? {
+                for arguments in variants.data {
+                    let mut next = state.snapshot(self.ctx)?;
+                    let edges =
+                        self.namespace_helper(&mut next, pc, receiver, name, implicit, arguments)?;
+                    self.member_edges(pc, next, edges)?;
+                }
+                return Ok(Some([None, None]));
+            }
+        }
         let selected = self.facts.string(self.ctx, name.as_bytes())?;
         let site = MemberSite {
             call: CallSite {
@@ -50,7 +61,20 @@ impl Walker<'_> {
             result.value = self.namespace_responds(state, receiver, implicit, &args)?;
         }
         if name == "is_type?" {
-            self.type_predicate_outcome(state, pc, receiver, &args, &mut result)?;
+            let alternatives =
+                self.type_predicate_outcome(state, pc, receiver, &args, &mut result)?;
+            for mut alternative in alternatives.data {
+                let arguments = args.snapshot(self.ctx)?;
+                let edges = self.namespace_helper(
+                    &mut alternative,
+                    pc,
+                    receiver,
+                    name,
+                    implicit,
+                    arguments,
+                )?;
+                self.member_edges(pc, alternative, edges)?;
+            }
         }
         self.call_effects(state, pc, target, &result)?;
         if result.incomplete {
@@ -63,6 +87,28 @@ impl Walker<'_> {
         Ok(None)
     }
 
+    pub(in super::super) fn predicate_arguments(
+        &mut self,
+        args: &Arguments,
+    ) -> Result<Option<Buffer<Arguments>>> {
+        if args.positional.data.len() != 1 || !args.keywords.data.is_empty() || args.block.is_some()
+        {
+            return Ok(None);
+        }
+        let value = args.positional.data[0];
+        if self.facts.arm_count(value) <= 1 {
+            return Ok(None);
+        }
+        let mut variants = Buffer::empty();
+        for i in 0..self.facts.arm_count(value) {
+            self.ctx.charge(1)?;
+            let mut next = args.snapshot(self.ctx)?;
+            next.positional.data[0] = self.facts.arm(value, i);
+            variants.push(self.ctx, next)?;
+        }
+        Ok(Some(variants))
+    }
+
     pub(in super::super) fn type_predicate_outcome(
         &mut self,
         state: &mut State,
@@ -70,15 +116,17 @@ impl Walker<'_> {
         receiver: Fact,
         args: &Arguments,
         result: &mut crate::checking::calls::Outcome,
-    ) -> Result<()> {
+    ) -> Result<Buffer<State>> {
         use crate::checking::type_bindings::Resolution;
         use crate::members::introspection::Query as Parsed;
         if args.positional.data.len() != 1 || !args.keywords.data.is_empty() || args.block.is_some()
         {
-            return Ok(());
+            return Ok(Buffer::empty());
         }
         let actual = args.positional.data[0];
+        debug_assert!(self.facts.arm_count(actual) <= 1);
         let mut values = Buffer::empty();
+        let mut alternatives = Buffer::empty();
         result.incomplete = false;
         for i in 0..self.facts.arm_count(actual) {
             self.ctx.charge(1)?;
@@ -112,7 +160,11 @@ impl Walker<'_> {
                 }
             };
             let resolved = if query.nominal {
-                match self.predicate_type(state, pc, query.name)? {
+                let resolved = self.predicate_type(state, pc, query.name)?;
+                for alternative in resolved.alternatives.data {
+                    alternatives.push(self.ctx, alternative)?;
+                }
+                match resolved.value {
                     Some(Resolution::Known(value)) => Some(value),
                     Some(Resolution::Missing | Resolution::Ambiguous) => None,
                     Some(Resolution::Dynamic) => {
@@ -194,7 +246,7 @@ impl Walker<'_> {
             }
         }
         result.value = self.facts.union(self.ctx, &values.data)?;
-        Ok(())
+        Ok(alternatives)
     }
 
     fn nominal_receiver(&self, receiver: Fact) -> Option<Fact> {
