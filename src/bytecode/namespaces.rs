@@ -1,5 +1,5 @@
 use super::{Compiler, Op, Program, syntax};
-use crate::{Result, Value, namespace, syntax::modules::Module, value::Kind};
+use crate::{Result, Value, compilation::Name, namespace, syntax::modules::Module, value::Kind};
 
 impl Program {
     pub(super) fn register_module(
@@ -14,16 +14,18 @@ impl Program {
         let name = if qualifier.is_empty() {
             module.name
         } else {
-            format!("{qualifier}::{}", module.name)
+            Name::join(work, &[qualifier, "::", &module.name])?
         };
-        if self.declaration_names.contains_key(&name) || self.names.contains_key(&name) {
+        if self.declaration_names.contains_key(name.as_str())
+            || self.names.contains_key(name.as_str())
+        {
             return Err(syntax::unsupported(
                 "duplicate module or top-level declaration",
             ));
         }
         if module.directives.iter().any(|directive| {
             matches!(directive.as_str(), "public" | "protected")
-                && self.names.contains_key(directive)
+                && self.names.contains_key(directive.as_str())
         }) {
             return Err(syntax::unsupported(
                 "module visibility directive conflicts with a top-level function",
@@ -33,7 +35,7 @@ impl Program {
         for child in module.modules {
             let short = child.name.clone();
             let index = self.register_module(child, &name, functions, contexts, work)?;
-            nested.push((short, index));
+            nested.push((short.into_string(), index));
         }
         let index = self.namespaces.len();
         let mut methods = Vec::<namespace::Method>::new();
@@ -41,16 +43,16 @@ impl Program {
             work.bytes(name.len() + method.name.len())?;
             work.charge(methods.len())?;
             let short = method.name.clone();
-            method.name = format!("{name}.{}", method.name);
+            method.name = Name::join(work, &[&name, ".", &method.name])?;
             let function = functions.len();
             functions.push(work, method)?;
             contexts.push((Some(index), false, false));
-            if let Some(previous) = methods.iter_mut().find(|m| m.name == short) {
+            if let Some(previous) = methods.iter_mut().find(|m| m.name == short.as_str()) {
                 previous.function = function;
                 previous.visibility = visibility;
             } else {
                 methods.push(namespace::Method {
-                    name: short,
+                    name: short.into_string(),
                     function,
                     visibility,
                 });
@@ -61,16 +63,19 @@ impl Program {
             work.bytes(name.len() + method.name.len())?;
             work.charge(instance_methods.len())?;
             let short = method.name.clone();
-            method.name = format!("{name}#{}", method.name);
+            method.name = Name::join(work, &[&name, "#", &method.name])?;
             let function = functions.len();
             functions.push(work, method)?;
             contexts.push((Some(index), false, true));
-            if let Some(previous) = instance_methods.iter_mut().find(|m| m.name == short) {
+            if let Some(previous) = instance_methods
+                .iter_mut()
+                .find(|m| m.name == short.as_str())
+            {
                 previous.function = function;
                 previous.visibility = visibility;
             } else {
                 instance_methods.push(namespace::Method {
-                    name: short,
+                    name: short.into_string(),
                     function,
                     visibility,
                 });
@@ -86,7 +91,7 @@ impl Program {
                     private: true,
                     offset: module.offset,
                     accessor: None,
-                    name: format!("{name}::<body>"),
+                    name: Name::join(work, &[&name, "::<body>"])?,
                     params: crate::compilation::Buffer::new(),
                     body: module.body,
                     return_type: None,
@@ -106,7 +111,7 @@ impl Program {
                         private: true,
                         offset: module.offset,
                         accessor: None,
-                        name: format!("{name}#<initialize>"),
+                        name: Name::join(work, &[&name, "#<initialize>"])?,
                         params: crate::compilation::Buffer::new(),
                         body: crate::compilation::Buffer::new(),
                         return_type: None,
@@ -120,7 +125,7 @@ impl Program {
         };
         let definition = namespace::Definition::new(
             index,
-            name.clone(),
+            name.as_str().to_owned(),
             methods,
             instance_methods,
             constructor,
@@ -128,7 +133,8 @@ impl Program {
             body,
         );
         self.namespaces.push(definition.clone());
-        self.declaration_names.insert(name, self.declarations.len());
+        self.declaration_names
+            .insert(name.into_string(), self.declarations.len());
         self.declarations
             .push(Value(Kind::Namespace(namespace::Namespace::untracked(
                 definition,

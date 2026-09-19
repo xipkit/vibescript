@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{
     Result,
-    compilation::{Boxed, Buffer, Work},
+    compilation::{Boxed, Buffer, Name, Work},
 };
 
 // Alias declarations own separate syntax containers while sharing immutable literals.
@@ -40,14 +40,13 @@ pub(super) fn definition(work: &dyn Work, value: &Definition) -> Result<Definiti
     })
 }
 
-fn name_copy(work: &dyn Work, name: &str) -> Result<String> {
+fn name_copy(work: &dyn Work, name: &Name) -> Result<Name> {
     work.bytes(name.len())?;
-    Ok(name.to_owned())
+    Ok(name.clone())
 }
 
-fn type_copy(work: &dyn Work, ty: &crate::types::Type) -> Result<crate::types::Type> {
-    work.ty(ty)?;
-    Ok(ty.clone())
+fn type_copy(work: &dyn Work, ty: &crate::compilation::Type) -> Result<crate::compilation::Type> {
+    ty.copy(work)
 }
 
 fn body(work: &dyn Work, values: &Buffer<Stmt>) -> Result<Buffer<Stmt>> {

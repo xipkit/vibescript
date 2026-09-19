@@ -400,7 +400,7 @@ fn compile_mode(
     let mut names = HashMap::new();
     for (i, definition) in defs.iter().enumerate() {
         work.bytes(definition.name.len())?;
-        names.insert(definition.name.clone(), i);
+        names.insert(definition.name.as_str().to_owned(), i);
     }
     let mut declarations = Vec::new();
     let mut declaration_names = HashMap::new();
@@ -409,13 +409,19 @@ fn compile_mode(
         for member in &members {
             work.bytes(member.len())?;
         }
-        if declaration_names.contains_key(&name)
-            || names.get(&name).is_some_and(|&index| index != 0)
+        if declaration_names.contains_key(name.as_str())
+            || names.get(name.as_str()).is_some_and(|&index| index != 0)
         {
             return Err(syntax::unsupported("duplicate top-level declaration"));
         }
-        declaration_names.insert(name.clone(), declarations.len());
-        declarations.push(crate::enums::compile(name, members, work)?);
+        declaration_names.insert(name.as_str().to_owned(), declarations.len());
+        declarations.push(crate::enums::compile(
+            name.into_string(),
+            members
+                .into_iter()
+                .map(crate::compilation::Name::into_string),
+            work,
+        )?);
     }
     let enum_definitions = declarations
         .iter()
@@ -499,9 +505,9 @@ fn compile_mode(
                     c.emit(Op::BindIvar(name, slot));
                 }
             }
-            c.parameters.insert(param.name.clone());
+            c.parameters.insert(param.name.as_str().to_owned());
             params.push(Parameter {
-                name: param.name.clone(),
+                name: param.name.as_str().to_owned(),
                 kind: param.kind,
                 default: param.default.is_some(),
                 slot,
@@ -527,10 +533,12 @@ fn compile_mode(
             locations: c.locations,
             trace_name: def.name.rsplit(['.', '#']).next().unwrap().into(),
             instance: contexts[index].2,
-            accessor: def.accessor,
+            accessor: def
+                .accessor
+                .map(|(name, setter)| (name.into_string(), setter)),
             namespace: contexts[index].0,
             initializer: contexts[index].1,
-            name: def.name,
+            name: def.name.into_string(),
             params,
             binds_parameters,
             plain,
@@ -649,7 +657,7 @@ impl Compiler<'_> {
                 {
                     self.slot(name);
                 }
-                self.assigned.insert(name.clone());
+                self.assigned.insert(name.as_str().to_owned());
             }
             Target::Value(e) => self.declare_expr(e)?,
             Target::Tuple(parts) => {
@@ -681,7 +689,7 @@ impl Compiler<'_> {
             }
             Node::Literal(_) | Node::Integer(_) | Node::BigInteger(..) => (),
             Node::Var(name) => {
-                self.reads.insert(name.clone());
+                self.reads.insert(name.as_str().to_owned());
                 self.capture_name(name);
             }
             Node::Array(values) | Node::Yield(values) | Node::Template(values, _) => {
@@ -691,7 +699,7 @@ impl Compiler<'_> {
             }
             Node::Call(name, args, _) => {
                 if name != "it" {
-                    self.reads.insert(name.clone());
+                    self.reads.insert(name.as_str().to_owned());
                 }
                 self.capture_name(name);
                 for arg in args {
@@ -936,7 +944,7 @@ impl Compiler<'_> {
                     .namespaces
                     .iter()
                     .filter(|m| {
-                        m.body.is_some() && (m.name == *name || m.name.starts_with(&prefix))
+                        m.body.is_some() && (m.name == name.as_str() || m.name.starts_with(&prefix))
                     })
                     .map(|m| m.index)
                     .collect();
@@ -1387,18 +1395,19 @@ impl Compiler<'_> {
     }
     fn shape_expression(
         &mut self,
-        ty: &crate::types::Type,
+        ty: &crate::compilation::Type,
         fallback: Option<&Expr>,
-        names: &[String],
+        names: &[crate::compilation::Name],
     ) -> Result<()> {
-        self.work.ty(ty)?;
         self.work.names(names)?;
         let guard = fallback.map(|_| {
             let index = self.program.type_guards.len();
-            self.program.type_guards.push(names.to_vec());
+            self.program
+                .type_guards
+                .push(names.iter().map(|name| name.as_str().to_owned()).collect());
             self.emit(Op::TypeShadowed(index, 0))
         });
-        self.constant(crate::shapes::compile(ty.clone()));
+        self.constant(crate::shapes::compile(ty.compile(self.work)?));
         if let Some(fallback) = fallback {
             let done = self.emit(Op::Jump(0));
             self.patch(guard.unwrap(), self.code.len());
@@ -1509,10 +1518,9 @@ impl Compiler<'_> {
             scope: false,
         }
     }
-    fn annotation(&mut self, ty: &crate::types::Type) -> Result<usize> {
-        self.work.ty(ty)?;
+    fn annotation(&mut self, ty: &crate::compilation::Type) -> Result<usize> {
         let index = self.program.types.len();
-        self.program.types.push(ty.clone());
+        self.program.types.push(ty.compile(self.work)?);
         Ok(index)
     }
     fn global(&mut self, name: &str) -> Option<usize> {
@@ -1608,7 +1616,7 @@ impl Compiler<'_> {
     fn member_receiver(&mut self, receiver: &Expr, auto: bool) -> Result<()> {
         self.work.charge(1)?;
         if let Node::Var(name) = &receiver.node {
-            if let Some(&slot) = self.locals.get(name) {
+            if let Some(&slot) = self.locals.get(name.as_str()) {
                 let bound = self.emit(Op::ReceiverBound(slot, 0));
                 self.expr(receiver)?;
                 self.patch(bound, self.code.len());
@@ -1904,7 +1912,7 @@ impl Compiler<'_> {
     fn address_at(&mut self, receiver: &Expr) -> Result<()> {
         self.work.charge(1)?;
         let root = if let Node::Var(name) = &receiver.node {
-            if !name.starts_with('@') && !self.locals.contains_key(name) {
+            if !name.starts_with('@') && !self.locals.contains_key(name.as_str()) {
                 let name = self.call_site(name, false).name;
                 Some(self.emit(Op::RootAddress(name, 0)))
             } else {
@@ -1915,7 +1923,7 @@ impl Compiler<'_> {
         };
         let file = if self.program.file {
             if let Node::Var(name) = &receiver.node {
-                if !name.starts_with('@') && !self.parameters.contains(name) {
+                if !name.starts_with('@') && !self.parameters.contains(name.as_str()) {
                     let name = self.call_site(name, false).name;
                     Some(self.emit(Op::FileAddress(name, 0)))
                 } else {
@@ -1932,9 +1940,9 @@ impl Compiler<'_> {
                 let name = self.call_site(name, false).name;
                 self.emit(Op::NamespaceAddress(name, true));
             }
-            Node::Var(name) if self.locals.contains_key(name) => {
-                let slot = self.locals[name];
-                if self.parameters.contains(name) {
+            Node::Var(name) if self.locals.contains_key(name.as_str()) => {
+                let slot = self.locals[name.as_str()];
+                if self.parameters.contains(name.as_str()) {
                     self.emit(Op::AddressLocal(slot));
                 } else {
                     let bound = self.emit(Op::AddressBound(slot, 0));

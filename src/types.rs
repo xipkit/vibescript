@@ -2,6 +2,7 @@ use crate::{
     CallContext, Error, ErrorKind, Result, Value, budget::Buffer, hash::Hash, value::Kind,
 };
 
+pub(crate) mod description;
 mod diagnostics;
 pub(crate) use diagnostics::Context;
 pub(crate) use diagnostics::host_resolution;
@@ -36,6 +37,46 @@ pub(crate) enum Scalar {
     Symbol,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BuiltinName {
+    Scalar(Scalar),
+    Array,
+    Hash,
+}
+
+pub(crate) fn builtin_name(name: &str) -> Option<BuiltinName> {
+    let mut folded = [0; 8];
+    let mut length = 0;
+    for c in name.chars() {
+        if length == folded.len() {
+            return None;
+        }
+        let c = crate::casing::map(c, false);
+        if !c.is_ascii() {
+            return None;
+        }
+        folded[length] = c as u8;
+        length += 1;
+    }
+    Some(match &folded[..length] {
+        b"any" => BuiltinName::Scalar(Scalar::Any),
+        b"int" => BuiltinName::Scalar(Scalar::Int),
+        b"float" => BuiltinName::Scalar(Scalar::Float),
+        b"number" => BuiltinName::Scalar(Scalar::Number),
+        b"string" => BuiltinName::Scalar(Scalar::String),
+        b"bool" => BuiltinName::Scalar(Scalar::Bool),
+        b"nil" => BuiltinName::Scalar(Scalar::Nil),
+        b"duration" => BuiltinName::Scalar(Scalar::Duration),
+        b"time" => BuiltinName::Scalar(Scalar::Time),
+        b"money" => BuiltinName::Scalar(Scalar::Money),
+        b"range" => BuiltinName::Scalar(Scalar::Range),
+        b"symbol" => BuiltinName::Scalar(Scalar::Symbol),
+        b"array" => BuiltinName::Array,
+        b"hash" | b"object" => BuiltinName::Hash,
+        _ => return None,
+    })
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct Type {
     pub name: String,
@@ -60,40 +101,19 @@ pub(crate) struct Field {
     pub optional: bool,
 }
 
+#[cfg(test)]
 impl Type {
     pub fn named(name: String) -> Self {
-        let lower: String = name.chars().map(|c| crate::casing::map(c, false)).collect();
-        let kind = match lower.as_str() {
-            "any" => TypeKind::Scalar(Scalar::Any),
-            "int" => TypeKind::Scalar(Scalar::Int),
-            "float" => TypeKind::Scalar(Scalar::Float),
-            "number" => TypeKind::Scalar(Scalar::Number),
-            "string" => TypeKind::Scalar(Scalar::String),
-            "bool" => TypeKind::Scalar(Scalar::Bool),
-            "nil" => TypeKind::Scalar(Scalar::Nil),
-            "duration" => TypeKind::Scalar(Scalar::Duration),
-            "time" => TypeKind::Scalar(Scalar::Time),
-            "money" => TypeKind::Scalar(Scalar::Money),
-            "range" => TypeKind::Scalar(Scalar::Range),
-            "symbol" => TypeKind::Scalar(Scalar::Symbol),
-            "array" => TypeKind::Array(None),
-            "hash" | "object" => TypeKind::Hash(None),
-            _ => TypeKind::Named,
+        let kind = match builtin_name(&name) {
+            Some(BuiltinName::Scalar(scalar)) => TypeKind::Scalar(scalar),
+            Some(BuiltinName::Array) => TypeKind::Array(None),
+            Some(BuiltinName::Hash) => TypeKind::Hash(None),
+            None => TypeKind::Named,
         };
         Self {
             name,
             kind,
             nullable: false,
-        }
-    }
-
-    pub fn captures(&self, hash: bool) -> bool {
-        match &self.kind {
-            TypeKind::Scalar(Scalar::Any) => true,
-            TypeKind::Array(_) => !hash,
-            TypeKind::Hash(_) | TypeKind::Shape(..) => hash,
-            TypeKind::Union(options) => options.iter().any(|option| option.captures(hash)),
-            _ => false,
         }
     }
 }

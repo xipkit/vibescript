@@ -142,7 +142,7 @@ impl Parser<'_> {
 }
 
 fn error_classes(
-    ty: &crate::types::Type,
+    ty: &crate::compilation::Type,
     out: &mut Buffer<crate::ErrorClass>,
     work: &dyn crate::compilation::Work,
     offset: usize,
@@ -150,11 +150,11 @@ fn error_classes(
     work.charge(1)?;
     let invalid = || Error::syntax(offset, "invalid rescue exception type");
     match &ty.kind {
-        crate::types::TypeKind::Named => {
+        crate::compilation::TypeKind::Named => {
             let class = crate::ErrorClass::from_name(&ty.name).ok_or_else(invalid)?;
             out.push(work, class)?;
         }
-        crate::types::TypeKind::Union(options) => {
+        crate::compilation::TypeKind::Union(options) => {
             for ty in options {
                 error_classes(ty, out, work, offset)?;
             }

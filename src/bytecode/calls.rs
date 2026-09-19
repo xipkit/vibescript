@@ -94,7 +94,11 @@ impl Compiler<'_> {
                 if !name.starts_with('@') && !matches!(name.as_str(), "self" | "block_given?") =>
             {
                 self.global(name);
-                let slot = self.locals.get(name).copied().unwrap_or(usize::MAX);
+                let slot = self
+                    .locals
+                    .get(name.as_str())
+                    .copied()
+                    .unwrap_or(usize::MAX);
                 let name = self.call_site(name, false).name;
                 self.emit(Op::CallName(slot, name));
             }
@@ -118,12 +122,13 @@ impl Compiler<'_> {
                 self.emit(Op::CallMember(site));
             }
             Node::Shape(ty, Some(fallback), names) => {
-                self.work.ty(ty)?;
                 self.work.names(names)?;
                 let index = self.program.type_guards.len();
-                self.program.type_guards.push(names.to_vec());
+                self.program
+                    .type_guards
+                    .push(names.iter().map(|name| name.as_str().to_owned()).collect());
                 let guard = self.emit(Op::TypeShadowed(index, 0));
-                self.constant(crate::shapes::compile((**ty).clone()));
+                self.constant(crate::shapes::compile(ty.compile(self.work)?));
                 self.emit(Op::CallValue);
                 let done = self.emit(Op::Jump(0));
                 self.patch(guard, self.code.len());

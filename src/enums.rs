@@ -48,27 +48,7 @@ where
 {
     let members = members.into_iter();
     work.bytes(name.len())?;
-    let lower: String = name.chars().map(|c| crate::casing::map(c, false)).collect();
-    if name.ends_with('?')
-        || matches!(
-            lower.as_str(),
-            "any"
-                | "int"
-                | "float"
-                | "number"
-                | "string"
-                | "bool"
-                | "nil"
-                | "duration"
-                | "time"
-                | "money"
-                | "array"
-                | "hash"
-                | "object"
-                | "range"
-                | "symbol"
-        )
-    {
+    if name.ends_with('?') || crate::types::builtin_name(&name).is_some() {
         return Err(crate::syntax::unsupported(
             "invalid enum name or built-in type conflict",
         ));

@@ -1,6 +1,6 @@
 use crate::{
     Error, Result, Value,
-    compilation::{Boxed, Buffer, Bytes, Text},
+    compilation::{Boxed, Buffer, Bytes, Name, Text},
 };
 use std::collections::HashSet;
 
@@ -29,15 +29,15 @@ pub(crate) enum Node {
     Try(Boxed<Try>),
     Regex(Bytes, u8),
     Shape(
-        Boxed<crate::types::Type>,
+        Boxed<crate::compilation::Type>,
         Option<Boxed<Expr>>,
-        Buffer<String>,
+        Buffer<Name>,
     ),
     Integer(u64),
     BigInteger(Text, u32),
     Literal(Value),
     Template(Buffer<Expr>, bool),
-    Var(String),
+    Var(Name),
     Array(Buffer<Expr>),
     Hash(Buffer<(Bytes, Expr)>),
     Unary(&'static str, Boxed<Expr>),
@@ -46,15 +46,15 @@ pub(crate) enum Node {
     Conditional(Boxed<Expr>, Boxed<Expr>, Boxed<Expr>),
     Case(Option<Boxed<Expr>>, Buffer<When>, Option<Boxed<Expr>>),
     Loop(Boxed<Stmt>),
-    Call(String, Buffer<Argument>, CallForm),
+    Call(Name, Buffer<Argument>, CallForm),
     ComputedCall(Boxed<Expr>, Buffer<Argument>),
     BlockCall(Boxed<Expr>, Block),
     Yield(Buffer<Expr>),
-    Member(Boxed<Expr>, String),
-    SafeMember(Boxed<Expr>, String),
-    Scope(Boxed<Expr>, String, Option<Buffer<Argument>>),
-    Method(Boxed<Expr>, String, Buffer<Argument>, CallForm),
-    SafeMethod(Boxed<Expr>, String, Buffer<Argument>, CallForm),
+    Member(Boxed<Expr>, Name),
+    SafeMember(Boxed<Expr>, Name),
+    Scope(Boxed<Expr>, Name, Option<Buffer<Argument>>),
+    Method(Boxed<Expr>, Name, Buffer<Argument>, CallForm),
+    SafeMethod(Boxed<Expr>, Name, Buffer<Argument>, CallForm),
     Index(Boxed<Expr>, Buffer<Expr>),
 }
 impl Expr {
@@ -101,7 +101,7 @@ pub(crate) struct Try {
 #[derive(Debug)]
 pub(crate) struct Rescue {
     pub classes: Buffer<crate::ErrorClass>,
-    pub binding: Option<String>,
+    pub binding: Option<Name>,
     pub body: Buffer<Stmt>,
     pub offset: u32,
 }
@@ -134,17 +134,17 @@ pub(crate) enum ParamKind {
 }
 #[derive(Debug)]
 pub(crate) struct Parameter {
-    pub ivar: Option<String>,
-    pub name: String,
+    pub ivar: Option<Name>,
+    pub name: Name,
     pub kind: ParamKind,
     pub default: Option<Expr>,
-    pub ty: Option<crate::types::Type>,
+    pub ty: Option<crate::compilation::Type>,
 }
 #[derive(Debug)]
 pub(crate) enum ArgumentKind {
     Positional,
     Splat,
-    Keyword(String),
+    Keyword(Name),
     KeywordSplat,
 }
 #[derive(Debug)]
@@ -161,7 +161,7 @@ pub(crate) struct When {
 pub(crate) enum Target {
     Value(Expr),
     Tuple(Buffer<(Option<Target>, bool)>),
-    Typed(Boxed<Target>, crate::types::Type),
+    Typed(Boxed<Target>, crate::compilation::Type),
 }
 impl Target {
     pub fn offset(&self) -> Option<u32> {
@@ -206,8 +206,8 @@ pub(crate) struct Stmt {
 pub(crate) enum Statement {
     Raise(Option<Boxed<Expr>>, Option<Boxed<Expr>>),
     Retry,
-    Module(String),
-    UnboundClass(String),
+    Module(Name),
+    UnboundClass(Name),
     Expr(Expr),
     Assign(Target, &'static str, Expr),
     If(Expr, Buffer<Stmt>, Buffer<Stmt>),
@@ -248,16 +248,16 @@ impl Stmt {
 pub(crate) struct Definition {
     pub offset: u32,
     pub private: bool,
-    pub accessor: Option<(String, bool)>,
-    pub name: String,
+    pub accessor: Option<(Name, bool)>,
+    pub name: Name,
     pub params: Buffer<Parameter>,
     pub body: Buffer<Stmt>,
-    pub return_type: Option<crate::types::Type>,
+    pub return_type: Option<crate::compilation::Type>,
 }
 
 pub(crate) struct Declarations {
     pub functions: Buffer<Definition>,
-    pub enums: Buffer<(String, Buffer<String>)>,
+    pub enums: Buffer<(Name, Buffer<Name>)>,
     pub modules: Buffer<modules::Module>,
 }
 
@@ -288,7 +288,7 @@ pub(crate) fn parse_type(source: &str) -> Result<crate::types::Type> {
     if !matches!(p.token(), Token::Eof) {
         return p.err("unexpected trailing input in type annotation");
     }
-    Ok(ty)
+    ty.compile(&())
 }
 
 pub(crate) fn parse(source: &str, work: &dyn crate::compilation::Work) -> Result<Declarations> {
@@ -330,13 +330,17 @@ pub(crate) fn parse(source: &str, work: &dyn crate::compilation::Work) -> Result
             p.line_breaks()?;
             let name = p.enum_name()?;
             let mut members = Buffer::new();
+            #[expect(
+                clippy::mutable_key_type,
+                reason = "Name hashes immutable text; budget counters do not affect key identity."
+            )]
             let mut seen = HashSet::new();
             p.lines()?;
             while !matches!(p.token(), Token::Eof)
                 && !matches!(p.token(), Token::Word(w) if w == "end")
             {
                 let member = if p.word("enum") {
-                    "enum".to_owned()
+                    Name::new(work, "enum")?
                 } else {
                     p.enum_name()?
                 };
@@ -363,7 +367,7 @@ pub(crate) fn parse(source: &str, work: &dyn crate::compilation::Work) -> Result
             offset: 0,
             private: true,
             accessor: None,
-            name: "__main__".into(),
+            name: Name::new(work, "__main__")?,
             params: Buffer::new(),
             body: top,
             return_type: None,
@@ -389,7 +393,7 @@ struct Parser<'a> {
     ternaries: Buffer<usize>,
     command_group: usize,
     loop_condition: Option<usize>,
-    locals: HashSet<String>,
+    locals: HashSet<Name>,
     declared_it: bool,
     type_structural_error: bool,
 }
@@ -432,7 +436,11 @@ impl<'a> Parser<'a> {
             if instance && kind != ParamKind::Positional {
                 return self.err("capture parameters must use local names");
             }
-            let name = name.strip_prefix('@').unwrap_or(&name).to_owned();
+            let name = if let Some(name) = name.strip_prefix('@') {
+                Name::new(self.work, name)?
+            } else {
+                name
+            };
             let mut ty = None;
             let default = if self.take_p(':') {
                 if parenthesized {
@@ -625,24 +633,24 @@ impl<'a> Parser<'a> {
         }
         Ok(())
     }
-    fn name(&mut self) -> Result<String> {
+    fn name(&mut self) -> Result<Name> {
         self.work.charge(1)?;
         let offset = self.tokens[self.pos].offset;
         if let Token::Word(w) = self.bump()? {
             if reserved(&w) {
                 return Err(Error::syntax(offset, "reserved name"));
             }
-            Ok(w.as_str().to_owned())
+            Name::new(self.work, &w)
         } else {
             Err(Error::syntax(offset, "expected name"))
         }
     }
-    fn enum_name(&mut self) -> Result<String> {
+    fn enum_name(&mut self) -> Result<Name> {
         self.work.charge(1)?;
         let offset = self.tokens[self.pos].offset;
         match self.bump()? {
             Token::Word(name) if !keyword(&name) && !name.starts_with('@') => {
-                Ok(name.as_str().to_owned())
+                Name::new(self.work, &name)
             }
             _ => Err(Error::syntax(offset, "expected enum identifier")),
         }
@@ -1207,7 +1215,7 @@ impl<'a> Parser<'a> {
             Token::Template(parts) => self.template(parts, false),
             Token::Words(words) => self.words(words.into_inner()),
             Token::Invalid(error) => Err(Error::syntax(error.0, error.1.as_str())),
-            Token::Word(w) => self.word_expression(w.as_str().to_owned(), offset),
+            Token::Word(w) => self.word_expression(w.as_str(), offset),
             Token::P(':') => self.symbol(),
             Token::P('(') => self.group_expression(),
             Token::P('[') => self.array_expression(),
@@ -1242,9 +1250,9 @@ impl<'a> Parser<'a> {
             depth,
         )
     }
-    fn word_expression(&mut self, w: String, offset: u32) -> Result<Expr> {
+    fn word_expression(&mut self, w: &str, offset: u32) -> Result<Expr> {
         self.work.charge(1)?;
-        match w.as_str() {
+        match w {
             "nil" => self.make(Node::Literal(Value::nil()), 1),
             "true" => self.make(Node::Literal(Value::boolean(true)), 1),
             "false" => self.make(Node::Literal(Value::boolean(false)), 1),
@@ -1252,10 +1260,13 @@ impl<'a> Parser<'a> {
             "case" => self.case_expr(),
             "yield" => self.yield_expr(),
             "begin" => self.begin_expression(),
-            "while" | "until" | "for" => self.loop_expression(&w, offset),
-            _ if reserved(&w) => Err(Error::syntax(offset as usize, "expected expression")),
-            _ => self.make(Node::Var(w), 1),
+            "while" | "until" | "for" => self.loop_expression(w, offset),
+            _ if reserved(w) => Err(Error::syntax(offset as usize, "expected expression")),
+            _ => self.variable_name(w),
         }
+    }
+    fn variable_name(&self, name: &str) -> Result<Expr> {
+        self.make(Node::Var(Name::new(self.work, name)?), 1)
     }
     fn begin_expression(&mut self) -> Result<Expr> {
         let body = self.block(&["rescue", "else", "ensure", "end"])?;
@@ -1344,7 +1355,7 @@ impl<'a> Parser<'a> {
             let Some(name) = label else {
                 return self.err("missing value for hash key");
             };
-            Some(self.make_at(Node::Var(name.as_str().to_owned()), 1, offset)?)
+            Some(self.make_at(Node::Var(Name::new(self.work, &name)?), 1, offset)?)
         } else {
             None
         };
@@ -1741,7 +1752,11 @@ impl<'a> Parser<'a> {
             args.iter().map(|arg| arg.value.depth).max().unwrap_or(0)
         }));
         self.make_at(
-            Node::Scope(Boxed::new(self.work, lhs)?, name.as_str().to_owned(), args),
+            Node::Scope(
+                Boxed::new(self.work, lhs)?,
+                Name::new(self.work, &name)?,
+                args,
+            ),
             depth,
             offset,
         )
@@ -1751,12 +1766,7 @@ impl<'a> Parser<'a> {
         let offset = lhs.offset;
         self.bump()?;
         self.line_breaks()?;
-        let name_offset = self.tokens[self.pos].offset;
-        let name = match self.bump()? {
-            Token::Word(name) if !name.starts_with('@') => name.as_str().to_owned(),
-            Token::Op("<=>") => "<=>".to_owned(),
-            _ => return Err(Error::syntax(name_offset, "expected member name")),
-        };
+        let name = self.member_name()?;
         if self.take_p('(') {
             let args = self.call_arguments()?;
             let depth = 1 + lhs
@@ -1779,6 +1789,15 @@ impl<'a> Parser<'a> {
             self.make_at(member(Boxed::new(self.work, lhs)?, name), depth, offset)
         }
     }
+    // Finish fallible name construction before entering recursive argument parsing.
+    fn member_name(&mut self) -> Result<Name> {
+        let offset = self.tokens[self.pos].offset;
+        match self.bump()? {
+            Token::Word(name) if !name.starts_with('@') => Name::new(self.work, &name),
+            Token::Op("<=>") => Name::new(self.work, "<=>"),
+            _ => Err(Error::syntax(offset, "expected member name")),
+        }
+    }
     fn previous(&self) -> Result<&Lexeme<'a>> {
         Ok(self
             .tokens
@@ -1794,6 +1813,10 @@ impl<'a> Parser<'a> {
         for name in &self.locals {
             self.work.bytes(name.len())?;
         }
+        #[expect(
+            clippy::mutable_key_type,
+            reason = "Name hashes immutable text; budget counters do not affect key identity."
+        )]
         let outer = self.locals.clone();
         let outer_it = self.declared_it;
         let infer_it = !outer_it;
@@ -1876,9 +1899,9 @@ impl<'a> Parser<'a> {
             false
         };
         if !explicit {
-            self.locals.insert("it".into());
-            for n in 1..=9 {
-                self.locals.insert(format!("_{n}"));
+            self.locals.insert(Name::new(self.work, "it")?);
+            for n in ["_1", "_2", "_3", "_4", "_5", "_6", "_7", "_8", "_9"] {
+                self.locals.insert(Name::new(self.work, n)?);
             }
         }
         Ok((params, explicit))
@@ -2263,7 +2286,7 @@ impl<'a> Parser<'a> {
                 unreachable!()
             };
             self.bump()?;
-            ArgumentKind::Keyword(name.as_str().to_owned())
+            ArgumentKind::Keyword(Name::new(self.work, &name)?)
         } else if self.token() == &Token::Op("*") {
             self.bump()?;
             ArgumentKind::Splat

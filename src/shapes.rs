@@ -133,10 +133,14 @@ impl TypeWriter for Vec<u8> {
     }
 }
 
-pub(crate) fn format(ty: &Type, out: &mut impl TypeWriter) -> Result<()> {
+pub(crate) fn format(
+    ty: &impl crate::types::description::Description,
+    out: &mut impl TypeWriter,
+) -> Result<()> {
+    use crate::types::description::{FieldDescription, View};
     out.node()?;
-    match &ty.kind {
-        TypeKind::Scalar(scalar) => out.write(match scalar {
+    match ty.view() {
+        View::Scalar(scalar) => out.write(match scalar {
             Scalar::Any => b"any",
             Scalar::Int => b"int",
             Scalar::Float => b"float",
@@ -150,8 +154,8 @@ pub(crate) fn format(ty: &Type, out: &mut impl TypeWriter) -> Result<()> {
             Scalar::Time => b"time",
             Scalar::Range => b"range",
         })?,
-        TypeKind::Named => out.write(ty.name.as_bytes())?,
-        TypeKind::Array(element) => {
+        View::Named => out.write(ty.name().as_bytes())?,
+        View::Array(element) => {
             out.write(b"array")?;
             if let Some(element) = element {
                 out.byte(b'<')?;
@@ -159,9 +163,9 @@ pub(crate) fn format(ty: &Type, out: &mut impl TypeWriter) -> Result<()> {
                 out.byte(b'>')?;
             }
         }
-        TypeKind::Hash(pair) => {
+        View::Hash(pair) => {
             let object = ty
-                .name
+                .name()
                 .chars()
                 .map(|c| crate::casing::map(c, false))
                 .eq("object".chars());
@@ -174,7 +178,7 @@ pub(crate) fn format(ty: &Type, out: &mut impl TypeWriter) -> Result<()> {
                 out.byte(b'>')?;
             }
         }
-        TypeKind::Union(options) => {
+        View::Union(options) => {
             for (index, option) in options.iter().enumerate() {
                 if index > 0 {
                     out.write(b" | ")?;
@@ -183,7 +187,7 @@ pub(crate) fn format(ty: &Type, out: &mut impl TypeWriter) -> Result<()> {
             }
             return Ok(());
         }
-        TypeKind::Shape(fields, open) => {
+        View::Shape(fields, open) => {
             if fields.is_empty() && !open {
                 out.write(b"{}")?;
             } else {
@@ -193,18 +197,18 @@ pub(crate) fn format(ty: &Type, out: &mut impl TypeWriter) -> Result<()> {
                     if index > 0 {
                         out.write(b", ")?;
                     }
-                    if field.name.ends_with(b"?") {
-                        quoted(&field.name, out)?;
+                    if field.name().ends_with(b"?") {
+                        quoted(field.name(), out)?;
                     } else {
-                        out.write(&field.name)?;
+                        out.write(field.name())?;
                     }
-                    if field.optional {
+                    if field.optional() {
                         out.byte(b'?')?;
                     }
                     out.write(b": ")?;
-                    format(&field.ty, out)?;
+                    format(field.ty(), out)?;
                 }
-                if *open {
+                if open {
                     if !fields.is_empty() {
                         out.write(b", ")?;
                     }
@@ -214,7 +218,7 @@ pub(crate) fn format(ty: &Type, out: &mut impl TypeWriter) -> Result<()> {
             }
         }
     }
-    if ty.nullable && !matches!(&ty.kind, TypeKind::Named if ty.name.ends_with('?')) {
+    if ty.nullable() && !matches!(ty.view(), View::Named if ty.name().ends_with('?')) {
         out.byte(b'?')?;
     }
     Ok(())

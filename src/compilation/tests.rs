@@ -105,6 +105,10 @@ fn sources() -> Vec<String> {
             "class Box;def original(n:int=1);{}end;alias copied original;end",
             "begin;x=[1,2,3].map{|a|a+n};rescue=>e;raise e;ensure;nil;end;".repeat(32)
         ),
+        "class Box;property records:array<{name:string,value?:object<symbol,int|string>,...}>;alias copied records;end".into(),
+        format!("def {}({}:int)->int;{};end", "name".repeat(1024), "value".repeat(512), "value".repeat(512)),
+        format!("def take(value:{{{}:array<int>}});value;end", "field".repeat(1024)),
+        "module Outer;module Inner;def self.value=(n:int);n;end;end;end;class Box;property value:int;alias_method(:\"日本語\", :value);end".into(),
     ]
 }
 

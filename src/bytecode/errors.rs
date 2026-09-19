@@ -38,15 +38,15 @@ impl Compiler<'_> {
             let previous = clause
                 .binding
                 .as_ref()
-                .and_then(|name| self.locals.get(name).copied());
+                .and_then(|name| self.locals.get(name.as_str()).copied());
             let parameter = clause
                 .binding
                 .as_ref()
-                .is_some_and(|name| self.parameters.contains(name));
+                .is_some_and(|name| self.parameters.contains(name.as_str()));
             let binding = clause.binding.as_ref().map(|name| {
                 let slot = self.slot(&format!("\0rescue{}:{name}", self.slots));
-                self.locals.insert(name.clone(), slot);
-                self.parameters.insert(name.clone());
+                self.locals.insert(name.as_str().to_owned(), slot);
+                self.parameters.insert(name.as_str().to_owned());
                 slot
             });
             let locals = self
@@ -59,12 +59,12 @@ impl Compiler<'_> {
             self.emit(Op::TryEnd);
             if let Some(name) = &clause.binding {
                 if let Some(slot) = previous {
-                    self.locals.insert(name.clone(), slot);
+                    self.locals.insert(name.as_str().to_owned(), slot);
                 } else {
-                    self.locals.remove(name);
+                    self.locals.remove(name.as_str());
                 }
                 if !parameter {
-                    self.parameters.remove(name);
+                    self.parameters.remove(name.as_str());
                 }
             }
             self.offset = saved_offset;
@@ -123,7 +123,7 @@ impl Compiler<'_> {
                 {
                     Some((
                         self.call_site(name, false).name,
-                        self.locals.get(name).copied(),
+                        self.locals.get(name.as_str()).copied(),
                     ))
                 } else {
                     None

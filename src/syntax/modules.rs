@@ -1,7 +1,7 @@
 use super::{Definition, Parser, Stmt, Token, keyword};
 use crate::{
     Result,
-    compilation::{Boxed, Buffer},
+    compilation::{Boxed, Buffer, Name},
 };
 use std::collections::HashSet;
 
@@ -18,11 +18,11 @@ pub(crate) struct Module {
     pub offset: u32,
     pub is_class: bool,
     pub instance_methods: Buffer<(Definition, Visibility)>,
-    pub name: String,
+    pub name: Name,
     pub methods: Buffer<(Definition, Visibility)>,
     pub body: Buffer<Stmt>,
     pub modules: Buffer<Module>,
-    pub directives: HashSet<String>,
+    pub directives: HashSet<Name>,
 }
 
 impl Parser<'_> {
@@ -32,18 +32,22 @@ impl Parser<'_> {
             && self.tokens[self.pos].line == self.tokens[self.pos + 1].line
     }
 
-    pub(super) fn definition(&mut self, name: String, offset: u32) -> Result<Definition> {
+    pub(super) fn definition(&mut self, name: Name, offset: u32) -> Result<Definition> {
         self.work.charge(1)?;
         self.definition_with_constants(name, false, offset)
     }
 
     pub(super) fn definition_with_constants(
         &mut self,
-        name: String,
+        name: Name,
         module: bool,
         offset: u32,
     ) -> Result<Definition> {
         self.work.charge(1)?;
+        #[expect(
+            clippy::mutable_key_type,
+            reason = "Name hashes immutable text; budget counters do not affect key identity."
+        )]
         let outer_locals = std::mem::take(&mut self.locals);
         if module {
             self.locals.extend(
@@ -103,6 +107,10 @@ impl Parser<'_> {
         if !name.as_bytes().first().is_some_and(u8::is_ascii_uppercase) {
             return self.err("module name must start with an uppercase letter");
         }
+        #[expect(
+            clippy::mutable_key_type,
+            reason = "Name hashes immutable text; budget counters do not affect key identity."
+        )]
         let outer_locals = std::mem::take(&mut self.locals);
         let outer_it = std::mem::replace(&mut self.declared_it, false);
         let mut module = Module {
@@ -127,7 +135,7 @@ impl Parser<'_> {
             {
                 return self.err("private visibility directives do not take parentheses");
             }
-            if let Some((word, level)) = self.visibility() {
+            if let Some((word, level)) = self.visibility()? {
                 self.bump()?;
                 module.directives.insert(word);
                 if self.token() == &Token::P(':') {
@@ -172,7 +180,7 @@ impl Parser<'_> {
                 }
                 if self.token() == &Token::Op("=") {
                     self.bump()?;
-                    name.push('=');
+                    name = Name::join(self.work, &[&name, "="])?;
                 }
                 let definition = self.definition_with_constants(name, true, offset)?;
                 module
@@ -193,18 +201,18 @@ impl Parser<'_> {
         Ok(module)
     }
 
-    pub(super) fn visibility(&self) -> Option<(String, Visibility)> {
+    pub(super) fn visibility(&self) -> Result<Option<(Name, Visibility)>> {
         let Token::Word(word) = self.token() else {
-            return None;
+            return Ok(None);
         };
         if self.tokens[self.pos + 1].token == Token::P('(') {
-            return None;
+            return Ok(None);
         }
         let level = match word.as_str() {
             "public" => Visibility::Public,
             "private" => Visibility::Private,
             "protected" => Visibility::Protected,
-            _ => return None,
+            _ => return Ok(None),
         };
         let next = &self.tokens[self.pos + 1];
         let section = (word == "private" || !self.locals.contains(word.as_str()))
@@ -213,6 +221,10 @@ impl Parser<'_> {
         let inline = next.line == self.tokens[self.pos].line
             && (next.token == Token::P(':')
                 || matches!(&next.token, Token::Word(w) if matches!(w.as_str(), "def" | "property" | "getter" | "setter")));
-        (section || inline).then(|| (word.as_str().to_owned(), level))
+        if section || inline {
+            Ok(Some((Name::new(self.work, word)?, level)))
+        } else {
+            Ok(None)
+        }
     }
 }

@@ -2,9 +2,13 @@ use crate::{CallContext, Error, ErrorKind, Result, budget::Charge};
 use std::cell::RefCell;
 
 mod buffer;
+mod name;
 mod storage;
+mod types;
 pub(crate) use buffer::Buffer;
+pub(crate) use name::Name;
 pub(crate) use storage::{Boxed, Bytes, Text};
+pub(crate) use types::{Field, Type, TypeKind};
 
 pub(crate) trait Work {
     fn charge(&self, steps: usize) -> Result<()>;
@@ -13,8 +17,7 @@ pub(crate) trait Work {
     fn reserve(&self, bytes: usize) -> Result<Option<Charge>>;
     fn allocation_error(&self, message: &str) -> Error;
 
-    fn ty(&self, ty: &crate::types::Type) -> Result<()> {
-        use crate::types::TypeKind;
+    fn ty(&self, ty: &Type) -> Result<()> {
         self.charge(1)?;
         self.bytes(ty.name.len())?;
         match &ty.kind {
@@ -39,7 +42,7 @@ pub(crate) trait Work {
         Ok(())
     }
 
-    fn names(&self, names: &[String]) -> Result<()> {
+    fn names(&self, names: &[Name]) -> Result<()> {
         for name in names {
             self.bytes(name.len())?;
         }

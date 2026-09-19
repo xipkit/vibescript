@@ -1,8 +1,8 @@
 use super::{Expr, Node, Parser, Token, keyword};
 use crate::{
     Result,
-    compilation::{Boxed, Buffer},
-    types::{Field, Scalar, Type, TypeKind},
+    compilation::{Boxed, Buffer, Bytes, Field, Name, Type, TypeKind},
+    types::Scalar,
 };
 
 impl Parser<'_> {
@@ -34,10 +34,11 @@ impl Parser<'_> {
         let mut names = Buffer::new();
         let fallback = if end == start + 1 {
             if let Token::Word(name) = &self.tokens[start].token {
-                names.push(self.work, name.as_str().to_owned())?;
+                let name = Name::new(self.work, name)?;
+                names.push(self.work, name.clone())?;
                 Some(Boxed::new(
                     self.work,
-                    self.make_at(Node::Var(name.as_str().to_owned()), 1, offset)?,
+                    self.make_at(Node::Var(name), 1, offset)?,
                 )?)
             } else {
                 None
@@ -151,7 +152,7 @@ impl Parser<'_> {
 
     // Keep union assembly off the stack while parsing the first atom.
     fn type_union(&mut self, first: Type, depth: usize, block: bool) -> Result<Type> {
-        let mut options = vec![first];
+        let mut options = Buffer::from_array(self.work, [first])?;
         loop {
             let boundary = self.pos;
             self.line_breaks()?;
@@ -161,13 +162,13 @@ impl Parser<'_> {
             }
             self.bump()?;
             self.line_breaks()?;
-            options.push(self.type_atom(depth)?);
+            options.push(self.work, self.type_atom(depth)?)?;
         }
         if options.len() == 1 {
             return Ok(options.pop().unwrap());
         }
         Ok(Type {
-            name: String::new(),
+            name: Name::default(),
             kind: TypeKind::Union(options),
             nullable: false,
         })
@@ -200,18 +201,16 @@ impl Parser<'_> {
         let Token::Word(name) = self.bump()? else {
             return self.err("expected type name");
         };
-        let mut name = name.as_str().to_owned();
-        if keyword(&name) && name != "nil" {
+        let name = name.as_str();
+        if keyword(name) && name != "nil" {
             return self.err("expected type name");
         }
         let nullable = name.ends_with('?');
-        if nullable {
-            name.pop();
-        }
+        let name = name.strip_suffix('?').unwrap_or(name);
         if name.ends_with('?') {
             return self.err("duplicate nullable suffix");
         }
-        let mut ty = Type::named(name);
+        let mut ty = Type::named(Name::new(self.work, name)?);
         ty.nullable = nullable;
         if matches!(ty.kind, TypeKind::Named) && self.take_p('.') {
             if ty.nullable {
@@ -221,19 +220,16 @@ impl Parser<'_> {
             let Token::Word(member) = self.bump()? else {
                 return self.err("expected qualified type name");
             };
-            let mut member = member.as_str().to_owned();
-            if keyword(&member) {
+            let member = member.as_str();
+            if keyword(member) {
                 return self.err("expected qualified type name");
             }
-            if member.ends_with('?') {
-                member.pop();
-                ty.nullable = true;
-            }
+            ty.nullable = member.ends_with('?');
+            let member = member.strip_suffix('?').unwrap_or(member);
             if member.ends_with('?') {
                 return self.err("duplicate nullable suffix");
             }
-            ty.name.push('.');
-            ty.name.push_str(&member);
+            ty.name = Name::join(self.work, &[&ty.name, ".", member])?;
         }
         let boundary = self.pos;
         self.line_breaks()?;
@@ -248,12 +244,12 @@ impl Parser<'_> {
             let first = self.type_expr(depth + 1, false)?;
             self.line_breaks()?;
             ty.kind = if matches!(ty.kind, TypeKind::Array(_)) {
-                TypeKind::Array(Some(Box::new(first)))
+                TypeKind::Array(Some(Boxed::new(self.work, first)?))
             } else {
                 self.expect_p(',')?;
                 let second = self.type_expr(depth + 1, false)?;
                 self.line_breaks()?;
-                TypeKind::Hash(Some(Box::new((first, second))))
+                TypeKind::Hash(Some(Boxed::new(self.work, (first, second))?))
             };
             if self.token() != &Token::Op(">") {
                 return self.err("expected closing type argument bracket");
@@ -267,7 +263,7 @@ impl Parser<'_> {
 
     fn type_shape(&mut self, depth: usize) -> Result<Type> {
         self.work.charge(1)?;
-        let mut fields: Vec<Field> = Vec::new();
+        let mut fields: Buffer<Field> = Buffer::new();
         let mut open = false;
         self.line_breaks()?;
         if !self.take_p('}') {
@@ -279,7 +275,7 @@ impl Parser<'_> {
                     open = true;
                     break;
                 }
-                let (mut name, optional) = self.shape_field_name()?;
+                let (name, optional) = self.shape_field_name()?;
                 let ty = self.type_expr(depth + 1, false)?;
                 self.work.charge(fields.len())?;
                 if let Some(prior) = fields.iter().find(|field| field.name == name) {
@@ -287,11 +283,7 @@ impl Parser<'_> {
                         !self.default_field(&prior.ty) && !self.default_field(&ty);
                     return self.err("duplicate shape field");
                 }
-                fields.push(Field {
-                    name: std::mem::take(&mut name),
-                    ty,
-                    optional,
-                });
+                fields.push(self.work, Field { name, ty, optional })?;
                 self.line_breaks()?;
                 if self.take_p('}') {
                     break;
@@ -307,35 +299,33 @@ impl Parser<'_> {
         }
         fields.sort_unstable_by(|a, b| a.name.cmp(&b.name));
         Ok(Type {
-            name: String::new(),
+            name: Name::default(),
             kind: TypeKind::Shape(fields, open),
             nullable: false,
         })
     }
 
-    fn shape_field_name(&mut self) -> Result<(Vec<u8>, bool)> {
+    fn shape_field_name(&mut self) -> Result<(Bytes, bool)> {
         let symbol = self.token() == &Token::P(':');
         let (name, optional) = match self.bump()? {
             Token::Word(name) => {
-                let mut name = name.as_str().to_owned();
+                let name = name.as_str();
                 let optional = name.ends_with('?');
-                if optional {
-                    name.pop();
-                }
+                let name = name.strip_suffix('?').unwrap_or(name);
                 if name.ends_with('?') {
                     return self.err("duplicate optional shape field suffix");
                 }
-                (name.into_bytes(), optional)
+                (Bytes::from_slice(self.work, name.as_bytes())?, optional)
             }
-            Token::Bytes(bytes) => (bytes.to_vec(), false),
+            Token::Bytes(bytes) => (bytes, false),
             Token::P(':') => {
                 if !self.symbol_start(self.pos - 1) {
                     return self.err("expected symbol shape field");
                 }
                 let name = match self.bump()? {
-                    Token::Word(name) => name.as_bytes().to_vec(),
-                    Token::Bytes(bytes) => bytes.to_vec(),
-                    Token::Op(op) => op.as_bytes().to_vec(),
+                    Token::Word(name) => Bytes::from_slice(self.work, name.as_bytes())?,
+                    Token::Bytes(bytes) => bytes,
+                    Token::Op(op) => Bytes::from_slice(self.work, op.as_bytes())?,
                     _ => return self.err("expected symbol shape field"),
                 };
                 (name, false)
@@ -394,8 +384,10 @@ impl Parser<'_> {
                     Token::P(',' | ')' | ':' | '|') | Token::Op("=") => false,
                     Token::Op("<") => {
                         !matches!(
-                            Type::named(name.as_str().to_owned()).kind,
-                            TypeKind::Array(_) | TypeKind::Hash(_)
+                            crate::types::builtin_name(name),
+                            Some(
+                                crate::types::BuiltinName::Array | crate::types::BuiltinName::Hash
+                            )
                         ) && self.locals.contains(name.as_str())
                     }
                     Token::P('.') => {
@@ -460,7 +452,7 @@ fn builtin_leaves(ty: &Type) -> bool {
 
 fn literal_names(
     ty: &Type,
-    names: &mut Buffer<String>,
+    names: &mut Buffer<Name>,
     work: &dyn crate::compilation::Work,
 ) -> Result<()> {
     match &ty.kind {

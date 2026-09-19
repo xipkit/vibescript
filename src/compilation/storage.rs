@@ -1,17 +1,15 @@
 use super::{Buffer, Work};
 use crate::{Result, Value, budget::Charge, value::Kind};
-use std::{fmt, ops::Deref};
+use std::{fmt, ops::Deref, sync::Arc};
 
 #[derive(Clone)]
-pub(crate) struct Bytes(Value);
+pub(crate) struct Bytes(Arc<crate::value::Bytes>);
 
 impl Bytes {
     pub fn new(work: &dyn Work, bytes: Buffer<u8>) -> Result<Self> {
         let header = work.reserve(crate::value::Bytes::header_bytes())?;
         let (data, storage) = bytes.into_parts();
-        Ok(Self(Value(Kind::Bytes(crate::value::Bytes::from_parts(
-            data, storage, header,
-        )))))
+        Ok(Self(crate::value::Bytes::from_parts(data, storage, header)))
     }
 
     pub fn from_slice(work: &dyn Work, bytes: &[u8]) -> Result<Self> {
@@ -19,17 +17,14 @@ impl Bytes {
     }
 
     pub fn compiler_constant(&self) -> Value {
-        self.0.compiler_constant()
+        Value(Kind::Bytes(self.0.clone())).compiler_constant()
     }
 
     pub fn into_value(self, symbol: bool) -> Value {
-        let Value(Kind::Bytes(bytes)) = self.0 else {
-            unreachable!()
-        };
         Value(if symbol {
-            Kind::Symbol(bytes)
+            Kind::Symbol(self.0)
         } else {
-            Kind::Bytes(bytes)
+            Kind::Bytes(self.0)
         })
     }
 }
@@ -38,7 +33,7 @@ impl Deref for Bytes {
     type Target = [u8];
 
     fn deref(&self) -> &[u8] {
-        self.0.as_bytes().unwrap()
+        self.0.data.as_slice()
     }
 }
 

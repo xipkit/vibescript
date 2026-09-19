@@ -2,7 +2,10 @@ use super::{
     Definition, Expr, Node, ParamKind, Parameter, Parser, Statement, Token, keyword,
     modules::{Module, Visibility},
 };
-use crate::{Result, compilation::Buffer};
+use crate::{
+    Result,
+    compilation::{Buffer, Name},
+};
 use std::collections::HashSet;
 
 impl Parser<'_> {
@@ -17,6 +20,10 @@ impl Parser<'_> {
         if self.token() == &Token::Op("<") {
             return self.err("class inheritance is not supported; call shared module functions");
         }
+        #[expect(
+            clippy::mutable_key_type,
+            reason = "Name hashes immutable text; budget counters do not affect key identity."
+        )]
         let outer_locals = std::mem::take(&mut self.locals);
         let outer_it = std::mem::replace(&mut self.declared_it, false);
         let mut class = Module {
@@ -42,7 +49,7 @@ impl Parser<'_> {
             {
                 return self.err("private visibility directives do not take parentheses");
             }
-            if let Some((word, level)) = self.visibility() {
+            if let Some((word, level)) = self.visibility()? {
                 self.bump()?;
                 class.directives.insert(word);
                 if self.token() == &Token::P(':') {
@@ -157,11 +164,11 @@ impl Parser<'_> {
                     || matches!(&next.token, Token::Word(w) if matches!(w.as_str(), "end" | "else" | "elsif" | "ensure" | "rescue"))))
     }
 
-    fn class_method_name(&mut self, class: bool) -> Result<String> {
+    fn class_method_name(&mut self, class: bool) -> Result<Name> {
         self.work.charge(1)?;
         let (mut name, operator) = if !class && self.take_p('[') {
             self.expect_p(']')?;
-            ("[]".to_owned(), true)
+            (Name::new(self.work, "[]")?, true)
         } else if !class
             && matches!(
                 self.token(),
@@ -186,7 +193,7 @@ impl Parser<'_> {
             let Token::Op(op) = self.bump()? else {
                 unreachable!()
             };
-            (op.to_owned(), true)
+            (Name::new(self.work, op)?, true)
         } else {
             let name = self.name()?;
             if keyword(&name) || name.starts_with('@') {
@@ -196,12 +203,12 @@ impl Parser<'_> {
         };
         if (!operator || name == "[]") && self.token() == &Token::Op("=") {
             self.bump()?;
-            name.push('=');
+            name = Name::join(self.work, &[&name, "="])?;
         }
         Ok(name)
     }
 
-    fn class_alias_name(&mut self, symbol: bool) -> Result<String> {
+    fn class_alias_name(&mut self, symbol: bool) -> Result<Name> {
         self.work.charge(1)?;
         if self.take_p(':') {
             let Expr {
@@ -211,8 +218,11 @@ impl Parser<'_> {
             else {
                 return self.err("expected method symbol");
             };
-            return String::from_utf8(value.as_bytes().unwrap().to_vec())
-                .map_err(|_| super::unsupported("method names must be UTF-8"));
+            let bytes = value.as_bytes().unwrap();
+            self.work.bytes(bytes.len())?;
+            let name = std::str::from_utf8(bytes)
+                .map_err(|_| super::unsupported("method names must be UTF-8"))?;
+            return Name::new(self.work, name);
         }
         if symbol {
             return self.err("expected method name symbol");
@@ -224,7 +234,7 @@ impl Parser<'_> {
         Ok(name)
     }
 
-    fn class_alias(&self, class: &mut Module, new: String, old: String) -> Result<()> {
+    fn class_alias(&self, class: &mut Module, new: Name, old: Name) -> Result<()> {
         self.work.charge(1)?;
         self.work.charge(class.instance_methods.len())?;
         let Some((target, visibility)) = class
@@ -277,12 +287,12 @@ impl Parser<'_> {
                                 self.work,
                                 [Statement::Return(Some(Expr {
                                     offset,
-                                    node: Node::Var(format!("@{name}")),
+                                    node: Node::Var(Name::join(self.work, &["@", &name])?),
                                     depth: 1,
                                 }))
                                 .at(offset)],
                             )?,
-                            return_type: ty.clone(),
+                            return_type: ty.as_ref().map(|ty| ty.copy(self.work)).transpose()?,
                         },
                         visibility,
                     ),
@@ -296,12 +306,12 @@ impl Parser<'_> {
                             private: false,
                             offset,
                             accessor: Some((name.clone(), true)),
-                            name: format!("{name}="),
+                            name: Name::join(self.work, &[&name, "="])?,
                             params: Buffer::from_array(
                                 self.work,
                                 [Parameter {
                                     ivar: Some(name.clone()),
-                                    name: "value".into(),
+                                    name: Name::new(self.work, "value")?,
                                     kind: ParamKind::Positional,
                                     default: None,
                                     ty,
@@ -311,7 +321,7 @@ impl Parser<'_> {
                                 self.work,
                                 [Statement::Return(Some(Expr {
                                     offset,
-                                    node: Node::Var(format!("@{name}")),
+                                    node: Node::Var(Name::join(self.work, &["@", &name])?),
                                     depth: 1,
                                 }))
                                 .at(offset)],
