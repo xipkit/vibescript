@@ -565,3 +565,89 @@ end
         .unwrap();
     assert_eq!(json(&unchanged.value), serde_json::json!([10, 1, true]));
 }
+
+#[test]
+fn incoming_instance_containers_preserve_cycles_aliases_and_call_isolation() {
+    let producer = Engine::new()
+        .compile(
+            r#"
+class Node
+  property links, value
+  def initialize(@value)
+    @links = []
+  end
+end
+def make
+  a = Node.new(1)
+  b = Node.new(2)
+  a.links = [{next: b, again: b}]
+  b.links = [{next: a}]
+  a
+end
+"#,
+        )
+        .unwrap();
+    let original = producer
+        .call("make", &[], CallOptions::default())
+        .unwrap()
+        .value;
+    let source = r#"
+def visit(a)
+  b = a.links[0][:next]
+  b.links[0][:next].value = 4
+  [a.value, b.value, b == a.links[0][:again], b.links[0][:next] == a]
+end
+def positional(a); visit(a); end
+def keyword(a:); visit(a); end
+def global; visit(incoming); end
+def host; visit(fetch()); end
+"#;
+    let supplied = original.clone();
+    let mut engine = Engine::new();
+    engine.register("fetch", move |_, _| Ok(supplied.clone()));
+    let receiver = engine.compile(source).unwrap();
+    for unlimited in [false, true] {
+        let mut options = CallOptions::default();
+        if unlimited {
+            options.limits.memory_bytes = None;
+        }
+        let outputs = [
+            receiver.call(
+                "positional",
+                std::slice::from_ref(&original),
+                options.clone(),
+            ),
+            receiver.call_with_keywords(
+                "keyword",
+                &[],
+                &[("a".into(), original.clone())],
+                options.clone(),
+            ),
+            receiver.call(
+                "global",
+                &[],
+                CallOptions {
+                    globals: [("incoming".into(), original.clone())].into(),
+                    ..options.clone()
+                },
+            ),
+            receiver.call("host", &[], options),
+        ];
+        for output in outputs {
+            let output = output.unwrap();
+            assert_eq!(json(&output.value), serde_json::json!([4, 2, true, true]));
+        }
+    }
+    let read = Engine::new()
+        .compile("def read(a);[a.value,a.links[0][:next].value];end")
+        .unwrap();
+    assert_eq!(
+        json(
+            &read
+                .call("read", &[original], CallOptions::default())
+                .unwrap()
+                .value
+        ),
+        serde_json::json!([1, 2])
+    );
+}

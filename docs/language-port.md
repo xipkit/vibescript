@@ -1384,3 +1384,9 @@ The checker now follows the defining source for classes and modules returned by 
 Required files can read receiving-script classes and enums and use them as fallback types in script and host contracts. Property contracts resolve against their defining file. Runtime witnesses cover these paths, invalid visibility, typed mutations, pending addresses, lexical block receivers and whole-file checks; accounting regressions cover exact limits, interrupted allocations and cleanup. No initializers or host callbacks execute during checking.
 
 Captured foreign heaps and environments from previous public invocations remain incomplete, alongside dynamic imports and type alternatives, native async callbacks, compiler temporary accounting, remaining precision/allocation summaries and the full conformance/platform audit. Production limits and stacks remain unchanged. The full-language goal remains active and performance passes remain deferred.
+
+### Importing instance container fields
+
+Incoming instances now preserve object references nested inside arrays and hashes. Preparing foreign fields had rebuilt those containers with receiving-call ownership before importing their children, so the importer could skip foreign references and reject otherwise valid inputs with an invocation-ownership error. Import now traverses those temporary containers explicitly while keeping source objects rooted against concurrent changes and collection.
+
+Runtime regressions cover positional and keyword arguments, host globals and host results, repeated calls with and without memory limits, cyclic graphs, aliases, nested captured namespaces, object and protection tags, source-memory release, exact quotas and interrupted-import cleanup. Captured-input checker integration remains unfinished; this fixes the runtime behavior needed for its comparison cases. The broader language completion goal remains active.

@@ -556,10 +556,15 @@ impl CallContext {
 
     /// Imports a host value, sharing immutable bytes and charging retained storage to this call.
     pub fn import(&mut self, value: &Value) -> Result<Value> {
-        self.import_depth(value, 0)
+        self.import_depth(value, 0, false)
     }
 
-    fn import_depth(&mut self, value: &Value, depth: usize) -> Result<Value> {
+    /// Imports source-heap references rooted in temporarily allocated containers.
+    pub(crate) fn import_rooted(&mut self, value: &Value) -> Result<Value> {
+        self.import_depth(value, 0, true)
+    }
+
+    fn import_depth(&mut self, value: &Value, depth: usize, rooted: bool) -> Result<Value> {
         self.charge(1)?;
         if depth > MAX_VALUE_DEPTH {
             return self.guard(ErrorKind::Recursion, "value nesting too deep");
@@ -603,24 +608,24 @@ impl CallContext {
                 }))
             }
             Kind::Array(h) => {
-                if self.owns(&h.header) {
+                if !rooted && self.owns(&h.header) {
                     return Ok(value.clone());
                 }
                 let mut buf = Buffer::with_capacity(self, h.buffer.data.len())?;
                 for v in &h.buffer.data {
-                    let v = self.import_depth(v, depth + 1)?;
+                    let v = self.import_depth(v, depth + 1, rooted)?;
                     buf.data.push(v);
                 }
                 Value::from_array(self, buf)
             }
             Kind::Hash(h) => {
-                if self.owns(&h.header) {
+                if !rooted && self.owns(&h.header) {
                     return Ok(value.clone());
                 }
                 let mut buf = Buffer::with_capacity(self, h.buffer.data.len())?;
                 for (k, v) in &h.buffer.data {
-                    let k = self.import_depth(k, depth + 1)?;
-                    let v = self.import_depth(v, depth + 1)?;
+                    let k = self.import_depth(k, depth + 1, rooted)?;
+                    let v = self.import_depth(v, depth + 1, rooted)?;
                     buf.data.push((k, v));
                 }
                 let mut hash = Hash::from_entries(self, buf)?;

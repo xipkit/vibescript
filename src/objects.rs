@@ -564,24 +564,9 @@ pub(crate) fn import(ctx: &mut CallContext, instance: &Arc<Instance>) -> Result<
         let result = import_root(ctx, instance)?;
         while let Some((instance, target)) = ctx.pending_objects.data.pop() {
             ctx.charge(1)?;
-            let source = instance.heap()?;
-            let fields = {
-                let mut data = source.data.lock().unwrap();
-                let entries = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)]
-                    .fields
-                    .buffer
-                    .data;
-                let mut fields = Buffer::with_capacity(ctx, entries.len())?;
-                fields.extend(ctx, entries)?;
-                for (_, value) in &mut fields.data {
-                    *value = data
-                        .map(ctx, &source, value, false, 1)?
-                        .unwrap_or_else(|| value.clone());
-                }
-                fields
-            };
+            let fields = bindings(ctx, &instance)?;
             for (name, value) in fields.data {
-                let value = ctx.import(&value)?;
+                let value = ctx.import_rooted(&value)?;
                 let name = std::str::from_utf8(name.as_bytes().unwrap())
                     .map_err(|_| Error::new(ErrorKind::Type, "instance field name is not UTF-8"))?;
                 set(ctx, &target, name, &value)?;
@@ -773,6 +758,9 @@ mod retirement_tests;
 
 #[cfg(test)]
 mod environments_tests;
+
+#[cfg(test)]
+mod import_tests;
 
 #[cfg(test)]
 mod tests {
