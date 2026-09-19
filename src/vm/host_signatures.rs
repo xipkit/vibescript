@@ -1,6 +1,6 @@
 use super::*;
 
-impl Run<'_> {
+impl Run {
     pub(super) fn host_arguments(
         &mut self,
         ctx: &mut CallContext,
@@ -93,7 +93,15 @@ impl Run<'_> {
         context: crate::types::Context<'_>,
     ) -> Result<Value> {
         crate::types::prepare(ctx, ty, |ctx, name| {
-            match resolve_type(program, ctx, self.frames, self.storage, None, name, false) {
+            match resolve_type(
+                program,
+                ctx,
+                &self.frames,
+                &mut self.storage,
+                None,
+                name,
+                false,
+            ) {
                 Ok(value) => Ok(value),
                 Err(error) => Err(crate::types::host_resolution(ctx, context, name, error)?),
             }

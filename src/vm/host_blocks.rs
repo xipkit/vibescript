@@ -1,6 +1,6 @@
 use super::*;
 
-impl Run<'_> {
+impl Run {
     pub(super) fn host(&mut self, ctx: &mut CallContext) -> Result<Event> {
         let current = self.frames.data.len() - 1;
         let mut args = self.frames.data[current].arguments.data.pop().unwrap();
@@ -40,7 +40,7 @@ impl Run<'_> {
         };
         let value = self.host_result(ctx, &program, &method, value)?;
         let value = method.finish(ctx, value)?;
-        programs::imported(ctx, self.storage, &value)?;
+        programs::imported(ctx, &mut self.storage, &value)?;
         Ok(Event::Control(Control::Return {
             target: current,
             value,
@@ -60,14 +60,14 @@ impl Run<'_> {
             }
             enter_block(
                 ctx,
-                self.frames,
-                self.storage,
+                &mut self.frames,
+                &mut self.storage,
                 block,
                 &args.data,
                 self.stack.data.len(),
             )?;
             for value in &args.data {
-                programs::imported(ctx, self.storage, value)?;
+                programs::imported(ctx, &mut self.storage, value)?;
             }
             self.until(ctx, Some(floor))
         })();
@@ -91,7 +91,7 @@ impl Run<'_> {
         })();
         self.storage.handlers.data.truncate(handlers);
         if self.frames.data.len() > floor {
-            unwind(self.frames, self.storage, self.stack, floor);
+            unwind(&mut self.frames, &mut self.storage, &mut self.stack, floor);
         }
         result
     }

@@ -1408,3 +1408,11 @@ General function and whole-file checks now construct abstract inputs for classes
 Foreign class domains survive nullable and collection types, shapes, optional defaults, positional rest and keyword rest bindings. Possible aliases between inputs and captured globals remain visible, while newly constructed objects and distinct source environments stay separate. Runtime witnesses cover valid calls, invalid property writes and return types, reentrant field targets, equal class names and recursive constructor parameters. Accounting tests cover exact step and memory limits, interrupted cleanup, cancellation and deadlines. Checking executes no host callback, initializer or constructor.
 
 Incompatible deferred import histories, dynamic type alternatives, structural hash dispatch, remaining analysis precision and allocation summaries, native async callbacks, compiler temporary accounting and the full conformance/platform audit remain open. Production limits and stacks are unchanged, and performance passes remain deferred.
+
+### Owned execution and host-call suspension
+
+The VM now owns its frames, stacks, loader and invocation context. Its driver can stop at a framed host call and resume on another worker without borrowing the previous worker's stack. Pending writes, initialization, error handlers and block control transfers remain part of that owned state. Public synchronous calls use the same driver.
+
+An invocation releases its execution state and collects unreachable object cycles when dropped, including during host callback or capability-factory panic unwinding. Host-retained objects and completed callback results remain valid until their last owner releases them. Regression tests cover thread migration, exact quota boundaries, diagnostics, cancellation and deadlines, abandoned calls, cyclic inputs and outputs, partial setup failures, and panic cleanup.
+
+This is the execution-state prerequisite for native async callbacks; host callbacks and attached block invocation are still synchronous. The async callback API, suspension-aware Tokio hosting, the remaining checker and compiler accounting work, and the full conformance/platform audit remain unfinished. Default limits and stacks are unchanged; performance passes remain deferred.

@@ -239,53 +239,7 @@ impl Script {
         keywords: &[(String, Value)],
         options: CallOptions,
     ) -> Result<Outcome> {
-        let mut ctx = CallContext::new(options);
-        ctx.strict_effects = self.inner.strict_effects;
-        ctx.random_source = self.inner.random_source.clone();
-        ctx.output_writer = self.inner.output_writer.clone();
-        ctx.error_writer = self.inner.error_writer.clone();
-        ctx.checkpoint()?;
-        let function = *self
-            .inner
-            .code
-            .program
-            .names
-            .get(name)
-            .ok_or_else(|| Error::new(ErrorKind::Name, format!("unknown function {name}")))?;
-        ctx.code_roots = Some(budget::Buffer::empty());
-        ctx.host_roots = Some(budget::Buffer::empty());
-        let result = vm::execute(
-            &self.inner.code,
-            &self.inner.loader,
-            &mut ctx,
-            function,
-            args,
-            keywords,
-        );
-        ctx.random = None;
-        let value = match result {
-            Ok(value) => value,
-            Err(error) => {
-                objects::cleanup(&mut ctx);
-                ctx.code_roots = None;
-                ctx.host_roots = None;
-                return Err(error);
-            }
-        };
-        if let Err(error) = objects::finish(&mut ctx) {
-            drop(value);
-            objects::cleanup(&mut ctx);
-            ctx.code_roots = None;
-            ctx.host_roots = None;
-            return Err(error);
-        }
-        ctx.code_roots = None;
-        ctx.host_roots = None;
-        ctx.checkpoint()?;
-        Ok(Outcome {
-            value,
-            stats: ctx.stats(),
-        })
+        vm::Execution::new(self, name, args, keywords, options)?.run()
     }
     /// Runs top-level executable statements.
     pub fn run(&self, options: CallOptions) -> Result<Outcome> {

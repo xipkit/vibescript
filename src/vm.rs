@@ -16,6 +16,7 @@ use std::sync::Arc;
 mod call_targets;
 mod capabilities;
 mod dispatch;
+mod execution;
 mod file_bindings;
 #[cfg(test)]
 mod file_bindings_tests;
@@ -32,6 +33,9 @@ mod requires;
 mod scopes;
 #[cfg(test)]
 mod scopes_tests;
+#[cfg(test)]
+mod suspension_tests;
+pub(crate) use execution::Execution;
 use handlers::{Control, Event};
 pub(crate) use programs::Program;
 
@@ -151,40 +155,60 @@ impl LoopState {
     }
 }
 
-pub(crate) fn execute(
-    code: &Arc<crate::code::Code>,
-    loader: &Arc<crate::loading::Loader>,
-    ctx: &mut CallContext,
-    function: usize,
-    args: &[Value],
-    keywords: &[(String, Value)],
-) -> Result<Value> {
-    ctx.checkpoint()?;
-    let mut stack = Buffer::empty();
-    let mut frames = Buffer::empty();
-    let mut storage = Storage {
-        pins: Buffer::empty(),
-        modules: Buffer::empty(),
-        bindings: None,
-        programs: Buffer::empty(),
-        releasing: false,
-        activations: Buffer::empty(),
-        discovered: 0,
-        handlers: Buffer::empty(),
-        namespaces: Buffer::empty(),
-        declarations: Buffer::empty(),
-        texts: Buffer::empty(),
-        iterations: Buffer::empty(),
-        globals: Buffer::empty(),
-        ambient_globals: Buffer::empty(),
-        locals: Buffer::empty(),
-        addresses: Buffer::empty(),
-        bypasses: Buffer::empty(),
-    };
-    ctx.enum_rebind.definitions =
-        (!code.program.file).then(|| code.program.enum_definitions.clone());
-    ctx.enum_rebind.active = true;
-    let result = (|| -> Result<Value> {
+enum Exit {
+    Value(Value),
+    Control(Control),
+}
+
+enum Step {
+    Host,
+    Complete(Exit),
+}
+
+struct Run {
+    root: Arc<Program>,
+    active: Arc<Program>,
+    loader: Arc<crate::loading::Loader>,
+    frames: Buffer<Frame>,
+    storage: Storage,
+    stack: Buffer<Value>,
+    entry: usize,
+    pending_entry: Option<(usize, Arguments)>,
+    initializer: usize,
+}
+
+impl Run {
+    fn new(
+        code: &Arc<crate::code::Code>,
+        loader: &Arc<crate::loading::Loader>,
+        ctx: &mut CallContext,
+        function: usize,
+        args: &[Value],
+        keywords: &[(String, Value)],
+    ) -> Result<Self> {
+        ctx.checkpoint()?;
+        let mut storage = Storage {
+            pins: Buffer::empty(),
+            modules: Buffer::empty(),
+            bindings: None,
+            programs: Buffer::empty(),
+            releasing: false,
+            activations: Buffer::empty(),
+            discovered: 0,
+            handlers: Buffer::empty(),
+            namespaces: Buffer::empty(),
+            declarations: Buffer::empty(),
+            texts: Buffer::empty(),
+            iterations: Buffer::empty(),
+            globals: Buffer::empty(),
+            ambient_globals: Buffer::empty(),
+            locals: Buffer::empty(),
+            addresses: Buffer::empty(),
+            bypasses: Buffer::empty(),
+        };
+        ctx.enum_rebind.definitions =
+            (!code.program.file).then(|| code.program.enum_definitions.clone());
+        ctx.enum_rebind.active = true;
         globals::validate(ctx)?;
         let environment = code
             .program
@@ -215,42 +239,18 @@ pub(crate) fn execute(
         } else {
             0
         };
-        Run {
+        Ok(Self {
             active: root.clone(),
             root,
-            loader,
-            frames: &mut frames,
-            storage: &mut storage,
-            stack: &mut stack,
+            loader: loader.clone(),
+            frames: Buffer::empty(),
+            storage,
+            stack: Buffer::empty(),
             entry: function,
             pending_entry: Some((function, input)),
             initializer,
-        }
-        .run(ctx)
-    })();
-    ctx.enum_rebind = crate::enums::Rebind::default();
-    ctx.capability_names = Buffer::empty();
-    result.map_err(|error| diagnose(&code.program, &frames.data, function, error))
-}
-
-enum Exit {
-    Value(Value),
-    Control(Control),
-}
-
-struct Run<'a> {
-    root: Arc<Program>,
-    active: Arc<Program>,
-    loader: &'a Arc<crate::loading::Loader>,
-    frames: &'a mut Buffer<Frame>,
-    storage: &'a mut Storage,
-    stack: &'a mut Buffer<Value>,
-    entry: usize,
-    pending_entry: Option<(usize, Arguments)>,
-    initializer: usize,
-}
-
-impl Run<'_> {
+        })
+    }
     fn run(&mut self, ctx: &mut CallContext) -> Result<Value> {
         match self.until(ctx, None)? {
             Exit::Value(value) => Ok(value),
@@ -259,22 +259,41 @@ impl Run<'_> {
     }
 
     fn until(&mut self, ctx: &mut CallContext, boundary: Option<usize>) -> Result<Exit> {
+        let mut pending = None;
+        loop {
+            match self.resume(ctx, boundary, pending.take())? {
+                Step::Host => pending = Some(self.host(ctx)),
+                Step::Complete(exit) => return Ok(exit),
+            }
+        }
+    }
+
+    fn resume(
+        &mut self,
+        ctx: &mut CallContext,
+        boundary: Option<usize>,
+        mut pending: Option<Result<Event>>,
+    ) -> Result<Step> {
+        ctx.checkpoint()?;
         let floor = boundary.unwrap_or(0);
         loop {
             if boundary.is_some_and(|floor| self.frames.data.len() == floor) {
                 ctx.checkpoint()?;
-                return Ok(Exit::Value(self.stack.data.pop().unwrap()));
+                return Ok(Step::Complete(Exit::Value(self.stack.data.pop().unwrap())));
             }
-            let event = match self.advance(ctx) {
-                Ok(Event::Host) => self.host(ctx),
-                event => event,
+            let event = match pending.take() {
+                Some(event) => event,
+                None => match self.advance(ctx) {
+                    Ok(Event::Host) => return Ok(Step::Host),
+                    event => event,
+                },
             };
             let program = &*self.root;
             let function = self.entry;
             let pending_entry = &self.pending_entry;
-            let frames = &mut *self.frames;
-            let storage = &mut *self.storage;
-            let stack = &mut *self.stack;
+            let frames = &mut self.frames;
+            let storage = &mut self.storage;
+            let stack = &mut self.stack;
             let outcome = (|| -> Result<Option<Exit>> {
                 match event? {
                     Event::Host => unreachable!(),
@@ -306,7 +325,7 @@ impl Run<'_> {
                 }
             })();
             match outcome {
-                Ok(Some(exit)) => return Ok(exit),
+                Ok(Some(exit)) => return Ok(Step::Complete(exit)),
                 Ok(None) => (),
                 Err(error) => {
                     if ctx.exhausted() || storage.handlers.data.is_empty() {
@@ -331,10 +350,10 @@ impl Run<'_> {
         let active = &mut self.active;
         let initializer = &mut self.initializer;
         let pending_entry = &mut self.pending_entry;
-        let loader = self.loader;
-        let frames = &mut *self.frames;
-        let storage = &mut *self.storage;
-        let stack = &mut *self.stack;
+        let loader = &self.loader;
+        let frames = &mut self.frames;
+        let storage = &mut self.storage;
+        let stack = &mut self.stack;
         loop {
             programs::advance(ctx, frames, storage, stack.data.len())?;
             if frames.data.is_empty() {
