@@ -42,17 +42,16 @@ fn token(ctx: &mut CallContext, input: &[u8]) -> Result<Option<Token>> {
         i += 1;
     }
     let start = i;
-    let mut width = Some(0usize);
+    let mut width = Some(0i64);
     while input.get(i).is_some_and(u8::is_ascii_digit) {
         checkpoint(ctx, i)?;
         width = width
             .and_then(|n| n.checked_mul(10))
-            .and_then(|n| n.checked_add(usize::from(input[i] - b'0')))
-            .filter(|&n| n <= i64::MAX as usize);
+            .and_then(|n| n.checked_add(i64::from(input[i] - b'0')));
         i += 1;
     }
     if i > start {
-        token.width = width;
+        token.width = width.map(|width| usize::try_from(width).unwrap_or(usize::MAX));
     }
     while input.get(i) == Some(&b':') {
         checkpoint(ctx, i)?;
