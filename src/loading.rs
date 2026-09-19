@@ -305,7 +305,11 @@ mod tests {
     #[test]
     fn cached_compilation_releases_the_first_invocations_temporary_storage() {
         let directory = test_support::Directory::new();
-        let source = format!("def unused;{}end;def value;42;end", "1;".repeat(1024));
+        let source = format!(
+            "def unused;{}end;class Box;def original;{}end;alias copied original;end;def value;42;end",
+            "1;".repeat(1024),
+            r#"["text",:symbol,/pattern/,999999999999999999999999,{label:"value"},%W[word#{1}]];"#
+        );
         let path = directory.write("answer.vibe", source.as_bytes());
         let loader = Loader::new(ModuleConfig {
             paths: vec![directory.0.clone()],

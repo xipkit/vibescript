@@ -2,7 +2,9 @@ use crate::{CallContext, Error, ErrorKind, Result, budget::Charge};
 use std::cell::RefCell;
 
 mod buffer;
+mod storage;
 pub(crate) use buffer::Buffer;
+pub(crate) use storage::{Boxed, Bytes, Text};
 
 pub(crate) trait Work {
     fn charge(&self, steps: usize) -> Result<()>;

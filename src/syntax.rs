@@ -1,4 +1,7 @@
-use crate::{Error, Result, Value};
+use crate::{
+    Error, Result, Value,
+    compilation::{Bytes, Text},
+};
 use std::collections::HashSet;
 
 mod classes;
@@ -24,15 +27,15 @@ pub(crate) struct Expr {
 #[derive(Clone, Debug)]
 pub(crate) enum Node {
     Try(Box<Try>),
-    Regex(Vec<u8>, u8),
+    Regex(Bytes, u8),
     Shape(Box<crate::types::Type>, Option<Box<Expr>>, Vec<String>),
     Integer(u64),
-    BigInteger(String, u32),
+    BigInteger(Text, u32),
     Literal(Value),
     Template(Vec<Expr>, bool),
     Var(String),
     Array(Vec<Expr>),
-    Hash(Vec<(Vec<u8>, Expr)>),
+    Hash(Vec<(Bytes, Expr)>),
     Unary(&'static str, Box<Expr>),
     Binary(&'static str, Box<Expr>, Box<Expr>),
     Range(Option<Box<Expr>>, Option<Box<Expr>>, bool),
@@ -372,7 +375,7 @@ struct Parser<'a> {
     work: &'a dyn crate::compilation::Work,
     source: &'a str,
     lex_depth: usize,
-    tokens: Tokens,
+    tokens: Tokens<'a>,
     pos: usize,
     depth: usize,
     groups: usize,
@@ -385,7 +388,7 @@ struct Parser<'a> {
     declared_it: bool,
     type_structural_error: bool,
 }
-impl Parser<'_> {
+impl<'a> Parser<'a> {
     fn parameters(&mut self, parenthesized: bool) -> Result<Vec<Parameter>> {
         self.work.charge(1)?;
         let mut params = Vec::new();
@@ -550,14 +553,14 @@ impl Parser<'_> {
         }
         Ok(params)
     }
-    fn token(&self) -> &Token {
+    fn token(&self) -> &Token<'a> {
         &self.tokens[self.pos].token
     }
     fn err<T>(&self, message: &str) -> Result<T> {
         self.work.charge(1)?;
         Err(Error::syntax(self.tokens[self.pos].offset, message))
     }
-    fn bump(&mut self) -> Result<Token> {
+    fn bump(&mut self) -> Result<Token<'a>> {
         self.work
             .bytes(self.tokens[self.pos].end - self.tokens[self.pos].offset)?;
         let t = self.token().copy(self.work)?;
@@ -621,7 +624,7 @@ impl Parser<'_> {
             if reserved(&w) {
                 return Err(Error::syntax(offset, "reserved name"));
             }
-            Ok(w)
+            Ok(w.as_str().to_owned())
         } else {
             Err(Error::syntax(offset, "expected name"))
         }
@@ -630,7 +633,9 @@ impl Parser<'_> {
         self.work.charge(1)?;
         let offset = self.tokens[self.pos].offset;
         match self.bump()? {
-            Token::Word(name) if !keyword(&name) && !name.starts_with('@') => Ok(name),
+            Token::Word(name) if !keyword(&name) && !name.starts_with('@') => {
+                Ok(name.as_str().to_owned())
+            }
             _ => Err(Error::syntax(offset, "expected enum identifier")),
         }
     }
@@ -695,9 +700,7 @@ impl Parser<'_> {
         self.work.charge(1)?;
         let stmt = self.plain_statement()?;
         let modifier = match self.token() {
-            Token::Word(w) if matches!(w.as_str(), "if" | "unless" | "while" | "until") => {
-                w.clone()
-            }
+            Token::Word(w) if matches!(w.as_str(), "if" | "unless" | "while" | "until") => *w,
             _ => return Ok(stmt),
         };
         if !matches!(
@@ -1177,11 +1180,11 @@ impl Parser<'_> {
             Token::BigInt(text, radix) => self.make(Node::BigInteger(text, radix), 1),
             Token::Float(n) => self.make(Node::Literal(Value::float(n)), 1),
             Token::Regex(pattern, flags) => self.make(Node::Regex(pattern, flags), 1),
-            Token::Bytes(b) => self.make(Node::Literal(Value::bytes(b)), 1),
+            Token::Bytes(b) => self.make(Node::Literal(b.into_value(false)), 1),
             Token::Template(parts) => self.template(parts, false),
-            Token::Words(words) => self.words(*words),
-            Token::Invalid(error) => Err(Error::syntax(error.0, error.1)),
-            Token::Word(w) => self.word_expression(w, offset),
+            Token::Words(words) => self.words(words.into_inner()),
+            Token::Invalid(error) => Err(Error::syntax(error.0, error.1.as_str())),
+            Token::Word(w) => self.word_expression(w.as_str().to_owned(), offset),
             Token::P(':') => self.symbol(),
             Token::P('(') => self.group_expression(),
             Token::P('[') => self.array_expression(),
@@ -1301,10 +1304,10 @@ impl Parser<'_> {
     }
 
     // Keep label temporaries off the recursive value stack.
-    fn hash_label(&mut self) -> Result<(Vec<u8>, Option<Expr>)> {
+    fn hash_label(&mut self) -> Result<(Bytes, Option<Expr>)> {
         let offset = self.tokens[self.pos].offset as u32;
         let (key, label) = match self.bump()? {
-            Token::Word(w) => (w.as_bytes().to_vec(), Some(w)),
+            Token::Word(w) => (Bytes::from_slice(self.work, w.as_bytes())?, Some(w)),
             Token::Bytes(b) => (b, None),
             _ => return self.err("expected hash label"),
         };
@@ -1315,14 +1318,14 @@ impl Parser<'_> {
             let Some(name) = label else {
                 return self.err("missing value for hash key");
             };
-            Some(self.make_at(Node::Var(name), 1, offset)?)
+            Some(self.make_at(Node::Var(name.as_str().to_owned()), 1, offset)?)
         } else {
             None
         };
         Ok((key, shorthand))
     }
 
-    fn words(&mut self, words: lexer::Words) -> Result<Expr> {
+    fn words(&mut self, words: lexer::Words<'a>) -> Result<Expr> {
         self.work.charge(1)?;
         let mut values = Vec::with_capacity(words.entries.len());
         for word in words.entries {
@@ -1332,21 +1335,21 @@ impl Parser<'_> {
         self.make(Node::Array(values), depth)
     }
 
-    fn template(&mut self, parts: Vec<Part>, symbol: bool) -> Result<Expr> {
+    fn template(
+        &mut self,
+        parts: crate::compilation::Buffer<Part<'a>>,
+        symbol: bool,
+    ) -> Result<Expr> {
         self.work.charge(1)?;
         if !parts.iter().any(|part| matches!(part, Part::Expr(_))) {
             let bytes = lexer::plain(parts, self.work)?;
-            let value = if symbol {
-                Value::symbol(bytes)
-            } else {
-                Value::bytes(bytes)
-            };
+            let value = bytes.into_value(symbol);
             return self.make(Node::Literal(value), 1);
         }
         let mut values = Vec::with_capacity(parts.len());
         for part in parts {
             values.push(match part {
-                Part::Text(bytes) => self.make(Node::Literal(Value::bytes(bytes)), 1)?,
+                Part::Text(bytes) => self.make(Node::Literal(bytes.into_value(false)), 1)?,
                 Part::Expr(tokens) => self.interpolation(tokens)?,
             });
         }
@@ -1354,7 +1357,10 @@ impl Parser<'_> {
         self.make(Node::Template(values, symbol), depth)
     }
 
-    fn interpolation(&mut self, mut tokens: crate::compilation::Buffer<Lexeme>) -> Result<Expr> {
+    fn interpolation(
+        &mut self,
+        mut tokens: crate::compilation::Buffer<Lexeme<'a>>,
+    ) -> Result<Expr> {
         self.work.charge(1)?;
         while tokens.len() >= 2 {
             self.work.charge(1)?;
@@ -1429,7 +1435,7 @@ impl Parser<'_> {
 
     fn replace_lexed(
         &mut self,
-        mut tokens: crate::compilation::Buffer<Lexeme>,
+        mut tokens: crate::compilation::Buffer<Lexeme<'a>>,
         limit: usize,
     ) -> Result<()> {
         self.work.charge(1)?;
@@ -1466,23 +1472,23 @@ impl Parser<'_> {
             return self.err("expected symbol");
         }
         let bytes = match self.bump()? {
-            Token::Word(w) => w.into_bytes(),
+            Token::Word(w) => Bytes::from_slice(self.work, w.as_bytes())?,
             Token::Bytes(b) => b,
-            Token::Op(op) => op.as_bytes().to_vec(),
+            Token::Op(op) => Bytes::from_slice(self.work, op.as_bytes())?,
             Token::P('[') => {
                 self.expect_p(']')?;
                 if self.token() == &Token::Op("=")
                     && self.previous()?.end == self.tokens[self.pos].offset
                 {
                     self.bump()?;
-                    b"[]=".to_vec()
+                    Bytes::from_slice(self.work, b"[]=")?
                 } else {
-                    b"[]".to_vec()
+                    Bytes::from_slice(self.work, b"[]")?
                 }
             }
             _ => return self.err("expected symbol"),
         };
-        self.make(Node::Literal(Value::symbol(bytes)), 1)
+        self.make(Node::Literal(bytes.into_value(true)), 1)
     }
     fn parenthesized_call(&mut self, lhs: Expr, args: Vec<Argument>) -> Result<Expr> {
         self.work.charge(1)?;
@@ -1697,7 +1703,11 @@ impl Parser<'_> {
         let depth = 1 + lhs.depth.max(args.as_ref().map_or(0, |args| {
             args.iter().map(|arg| arg.value.depth).max().unwrap_or(0)
         }));
-        self.make_at(Node::Scope(Box::new(lhs), name, args), depth, offset)
+        self.make_at(
+            Node::Scope(Box::new(lhs), name.as_str().to_owned(), args),
+            depth,
+            offset,
+        )
     }
     fn member_expression(&mut self, lhs: Expr, safe: bool) -> Result<Expr> {
         self.work.charge(1)?;
@@ -1706,7 +1716,7 @@ impl Parser<'_> {
         self.line_breaks()?;
         let name_offset = self.tokens[self.pos].offset;
         let name = match self.bump()? {
-            Token::Word(name) if !name.starts_with('@') => name,
+            Token::Word(name) if !name.starts_with('@') => name.as_str().to_owned(),
             Token::Op("<=>") => "<=>".to_owned(),
             _ => return Err(Error::syntax(name_offset, "expected member name")),
         };
@@ -1727,7 +1737,7 @@ impl Parser<'_> {
             self.make_at(member(Box::new(lhs), name), depth, offset)
         }
     }
-    fn previous(&self) -> Result<&Lexeme> {
+    fn previous(&self) -> Result<&Lexeme<'a>> {
         Ok(self
             .tokens
             .find((0..self.pos).rev(), self.work, |t| {
@@ -2205,7 +2215,7 @@ impl Parser<'_> {
                 unreachable!()
             };
             self.bump()?;
-            ArgumentKind::Keyword(name)
+            ArgumentKind::Keyword(name.as_str().to_owned())
         } else if self.token() == &Token::Op("*") {
             self.bump()?;
             ArgumentKind::Splat

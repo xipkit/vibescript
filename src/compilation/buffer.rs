@@ -24,6 +24,16 @@ impl<T> Buffer<T> {
         }
     }
 
+    pub fn with_capacity(work: &dyn Work, capacity: usize) -> Result<Self> {
+        let mut result = Self::new();
+        result.ensure(work, capacity)?;
+        Ok(result)
+    }
+
+    pub fn into_parts(self) -> (Vec<T>, Option<Charge>) {
+        (self.data, self.charge)
+    }
+
     fn ensure(&mut self, work: &dyn Work, capacity: usize) -> Result<()> {
         work.checkpoint()?;
         if capacity <= self.data.capacity() {
@@ -102,6 +112,30 @@ impl<T> Buffer<T> {
             result.data.push(copy(value)?);
         }
         Ok(result)
+    }
+}
+
+impl<T: Copy> Buffer<T> {
+    pub fn from_slice(work: &dyn Work, values: &[T]) -> Result<Self> {
+        let mut result = Self::with_capacity(work, values.len())?;
+        work.bytes(std::mem::size_of_val(values))?;
+        result.data.extend_from_slice(values);
+        Ok(result)
+    }
+
+    pub fn extend_from_slice(&mut self, work: &dyn Work, values: &[T]) -> Result<()> {
+        let capacity = self
+            .data
+            .len()
+            .checked_add(values.len())
+            .ok_or_else(|| work.allocation_error("compiler allocation size overflow"))?;
+        if capacity > self.data.capacity() {
+            let growth = self.data.capacity().checked_mul(2).unwrap_or(capacity);
+            self.ensure(work, capacity.max(growth).max(8))?;
+        }
+        work.bytes(std::mem::size_of_val(values))?;
+        self.data.extend_from_slice(values);
+        Ok(())
     }
 }
 
@@ -247,6 +281,21 @@ mod tests {
         assert_eq!(&*source[0], &[1]);
         assert_eq!(&*source[1], &[2]);
         drop(source);
+        assert_eq!(work.0.borrow().stats().retained_memory_bytes, 0);
+    }
+
+    #[test]
+    fn repeated_small_extensions_keep_copy_work_and_capacity_bounded() {
+        let mut context = CallContext::new(CallOptions::default());
+        let work = Meter(RefCell::new(&mut context));
+        let mut bytes = Buffer::new();
+        for _ in 0..1024 {
+            bytes.extend_from_slice(&work, "日".as_bytes()).unwrap();
+        }
+        assert_eq!(bytes.len(), 3072);
+        assert!(work.0.borrow().stats().steps < 4096);
+        assert!(work.0.borrow().stats().peak_memory_bytes <= 3 * bytes.len());
+        drop(bytes);
         assert_eq!(work.0.borrow().stats().retained_memory_bytes, 0);
     }
 

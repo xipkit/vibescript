@@ -67,11 +67,18 @@ impl Bytes {
     fn new(ctx: &mut CallContext, buffer: Buffer<u8>) -> Result<Arc<Self>> {
         let header = ctx.reserve(Self::header_bytes())?;
         let (data, storage) = buffer.into_parts();
-        Ok(Arc::new(Self {
+        Ok(Self::from_parts(data, storage, header))
+    }
+    pub(crate) fn from_parts(
+        data: Vec<u8>,
+        storage: Option<Charge>,
+        header: Option<Charge>,
+    ) -> Arc<Self> {
+        Arc::new(Self {
             data: Arc::new(data),
             _storage: storage,
             header,
-        }))
+        })
     }
     fn untracked(data: Vec<u8>) -> Arc<Self> {
         Arc::new(Self {
@@ -403,6 +410,26 @@ impl Value {
     }
     pub(crate) fn from_bytes(ctx: &mut CallContext, bytes: Buffer<u8>) -> Result<Self> {
         Ok(Self(Kind::Bytes(Bytes::new(ctx, bytes)?)))
+    }
+    pub(crate) fn compiler_constant(&self) -> Self {
+        let (Kind::Bytes(bytes) | Kind::Symbol(bytes)) = &self.0 else {
+            return self.clone();
+        };
+        if bytes._storage.is_none() && bytes.header.is_none() {
+            return self.clone();
+        }
+        // Compiled constants share the backing bytes, but must not retain the
+        // temporary syntax tree's invocation budget through the module cache.
+        let compiled = Arc::new(Bytes {
+            data: bytes.data.clone(),
+            _storage: None,
+            header: None,
+        });
+        Self(if matches!(self.0, Kind::Symbol(_)) {
+            Kind::Symbol(compiled)
+        } else {
+            Kind::Bytes(compiled)
+        })
     }
     pub(crate) fn from_array(ctx: &mut CallContext, values: Buffer<Value>) -> Result<Self> {
         let mut depth = 1;

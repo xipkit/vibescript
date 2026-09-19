@@ -112,7 +112,8 @@ fn expression(work: &dyn Work, value: &Expr) -> Result<()> {
     match &value.node {
         Node::Integer(_) | Node::Literal(_) => (),
         Node::Regex(bytes, _) => work.bytes(bytes.len())?,
-        Node::BigInteger(text, _) | Node::Var(text) => work.bytes(text.len())?,
+        Node::BigInteger(text, _) => work.bytes(text.len())?,
+        Node::Var(text) => work.bytes(text.len())?,
         Node::Shape(ty, fallback, names) => {
             work.ty(ty)?;
             work.names(names)?;

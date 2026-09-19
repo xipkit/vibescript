@@ -201,12 +201,12 @@ impl Parser<'_> {
             _ => return None,
         };
         let next = &self.tokens[self.pos + 1];
-        let section = (word == "private" || !self.locals.contains(word))
+        let section = (word == "private" || !self.locals.contains(word.as_str()))
             && (matches!(next.token, Token::EndLine | Token::Eof)
                 || matches!(&next.token, Token::Word(w) if w == "end"));
         let inline = next.line == self.tokens[self.pos].line
             && (next.token == Token::P(':')
                 || matches!(&next.token, Token::Word(w) if matches!(w.as_str(), "def" | "property" | "getter" | "setter")));
-        (section || inline).then(|| (word.clone(), level))
+        (section || inline).then(|| (word.as_str().to_owned(), level))
     }
 }

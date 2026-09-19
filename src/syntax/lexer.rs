@@ -1,19 +1,48 @@
 use crate::{
     Error, Result,
-    compilation::{Buffer, Work},
+    compilation::{Boxed, Buffer, Bytes, Text, Work},
 };
 
+#[derive(Clone, Copy, Debug, Eq)]
+pub(super) struct Word<'a>(&'a str);
+
+impl<'a> Word<'a> {
+    pub fn as_str(&self) -> &'a str {
+        self.0
+    }
+}
+
+impl std::ops::Deref for Word<'_> {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        self.0
+    }
+}
+
+impl AsRef<str> for Word<'_> {
+    fn as_ref(&self) -> &str {
+        self.0
+    }
+}
+
+impl<T: AsRef<str> + ?Sized> PartialEq<T> for Word<'_> {
+    fn eq(&self, other: &T) -> bool {
+        self.0 == other.as_ref()
+    }
+}
+
 #[derive(Debug, PartialEq)]
-pub(super) enum Token {
-    Regex(Vec<u8>, u8),
-    Word(String),
+pub(super) enum Token<'a> {
+    Regex(Bytes, u8),
+    Word(Word<'a>),
     Int(u64),
-    BigInt(String, u32),
+    BigInt(Text, u32),
     Float(f64),
-    Bytes(Vec<u8>),
-    Template(Vec<Part>),
-    Words(Box<Words>),
-    Invalid(Box<(usize, String)>),
+    Bytes(Bytes),
+    Template(Buffer<Part<'a>>),
+    Words(Boxed<Words<'a>>),
+    Invalid(Boxed<(usize, Text)>),
     P(char),
     Op(&'static str),
     EndLine,
@@ -21,28 +50,28 @@ pub(super) enum Token {
 }
 
 #[derive(Debug, PartialEq)]
-pub(super) enum Part {
-    Text(Vec<u8>),
-    Expr(Buffer<Lexeme>),
+pub(super) enum Part<'a> {
+    Text(Bytes),
+    Expr(Buffer<Lexeme<'a>>),
 }
 
 #[derive(Debug, PartialEq)]
-pub(super) struct Words {
-    pub entries: Vec<Vec<Part>>,
+pub(super) struct Words<'a> {
+    pub entries: Buffer<Buffer<Part<'a>>>,
     pub symbol: bool,
     pub ambiguous: bool,
 }
 
 #[derive(Debug, PartialEq)]
-pub(super) struct Lexeme {
-    pub token: Token,
+pub(super) struct Lexeme<'a> {
+    pub token: Token<'a>,
     pub offset: usize,
     pub end: usize,
     pub line: usize,
     pub end_line: usize,
 }
 
-impl Lexeme {
+impl Lexeme<'_> {
     fn copy(&self, work: &dyn Work) -> Result<Self> {
         Ok(Self {
             token: self.token.copy(work)?,
@@ -54,30 +83,31 @@ impl Lexeme {
     }
 }
 
-impl Token {
+impl Token<'_> {
     pub(super) fn copy(&self, work: &dyn Work) -> Result<Self> {
         work.checkpoint()?;
         Ok(match self {
             Self::Regex(bytes, flags) => Self::Regex(bytes.clone(), *flags),
-            Self::Word(word) => Self::Word(word.clone()),
+            Self::Word(word) => Self::Word(*word),
             Self::Int(value) => Self::Int(*value),
             Self::BigInt(value, radix) => Self::BigInt(value.clone(), *radix),
             Self::Float(value) => Self::Float(*value),
             Self::Bytes(bytes) => Self::Bytes(bytes.clone()),
             Self::Template(parts) => Self::Template(copy_parts(parts, work)?),
             Self::Words(words) => {
-                let mut entries = Vec::with_capacity(words.entries.len());
-                for parts in &words.entries {
-                    work.charge(1)?;
-                    entries.push(copy_parts(parts, work)?);
-                }
-                Self::Words(Box::new(Words {
-                    entries,
-                    symbol: words.symbol,
-                    ambiguous: words.ambiguous,
-                }))
+                let entries = words
+                    .entries
+                    .copy_with(work, |parts| copy_parts(parts, work))?;
+                Self::Words(Boxed::new(
+                    work,
+                    Words {
+                        entries,
+                        symbol: words.symbol,
+                        ambiguous: words.ambiguous,
+                    },
+                )?)
             }
-            Self::Invalid(error) => Self::Invalid(error.clone()),
+            Self::Invalid(error) => Self::Invalid(Boxed::new(work, (error.0, error.1.clone()))?),
             Self::P(value) => Self::P(*value),
             Self::Op(value) => Self::Op(value),
             Self::EndLine => Self::EndLine,
@@ -86,20 +116,17 @@ impl Token {
     }
 }
 
-fn copy_parts(parts: &[Part], work: &dyn Work) -> Result<Vec<Part>> {
-    let mut result = Vec::with_capacity(parts.len());
-    for part in parts {
-        work.charge(1)?;
-        result.push(match part {
+fn copy_parts<'a>(parts: &Buffer<Part<'a>>, work: &dyn Work) -> Result<Buffer<Part<'a>>> {
+    parts.copy_with(work, |part| {
+        Ok(match part {
             Part::Text(bytes) => Part::Text(bytes.clone()),
             Part::Expr(tokens) => Part::Expr(tokens.copy_with(work, |token| token.copy(work))?),
-        });
-    }
-    Ok(result)
+        })
+    })
 }
 
-struct Lexer<'a> {
-    work: &'a dyn crate::compilation::Work,
+struct Lexer<'a, 'w> {
+    work: &'w dyn crate::compilation::Work,
     source: &'a str,
     pos: usize,
     limit: usize,
@@ -107,7 +134,10 @@ struct Lexer<'a> {
     speculative: usize,
 }
 
-pub(super) fn lex(source: &str, work: &dyn crate::compilation::Work) -> Result<Buffer<Lexeme>> {
+pub(super) fn lex<'a>(
+    source: &'a str,
+    work: &dyn crate::compilation::Work,
+) -> Result<Buffer<Lexeme<'a>>> {
     if source.len() > super::MAX_SOURCE {
         return Err(Error::syntax(0, "source exceeds 8 MiB"));
     }
@@ -122,13 +152,13 @@ pub(super) fn lex(source: &str, work: &dyn crate::compilation::Work) -> Result<B
     .tokens(source.len(), 0, false, false, None)
 }
 
-pub(super) fn modulo(
-    source: &str,
-    start: &Lexeme,
+pub(super) fn modulo<'a>(
+    source: &'a str,
+    start: &Lexeme<'a>,
     limit: usize,
     depth: usize,
     work: &dyn crate::compilation::Work,
-) -> Result<Buffer<Lexeme>> {
+) -> Result<Buffer<Lexeme<'a>>> {
     Lexer {
         work,
         source,
@@ -140,15 +170,15 @@ pub(super) fn modulo(
     .tokens(start.end, start.line, false, true, None)
 }
 
-pub(super) fn resume(
-    source: &str,
-    start: &Lexeme,
+pub(super) fn resume<'a>(
+    source: &'a str,
+    start: &Lexeme<'a>,
     until: usize,
     limit: usize,
     depth: usize,
-    previous: Option<&Lexeme>,
+    previous: Option<&Lexeme<'a>>,
     work: &dyn crate::compilation::Work,
-) -> Result<Buffer<Lexeme>> {
+) -> Result<Buffer<Lexeme<'a>>> {
     Lexer {
         work,
         source,
@@ -160,13 +190,13 @@ pub(super) fn resume(
     .tokens(until, start.line, false, false, previous)
 }
 
-pub(super) fn regex(
-    source: &str,
-    start: &Lexeme,
+pub(super) fn regex<'a>(
+    source: &'a str,
+    start: &Lexeme<'a>,
     limit: usize,
     depth: usize,
     work: &dyn crate::compilation::Work,
-) -> Result<Buffer<Lexeme>> {
+) -> Result<Buffer<Lexeme<'a>>> {
     Lexer {
         work,
         source,
@@ -178,18 +208,18 @@ pub(super) fn regex(
     .tokens(start.offset + 1, start.line, false, false, None)
 }
 
-impl Lexer<'_> {
+impl<'a> Lexer<'a, '_> {
     fn tokens(
         &mut self,
         until: usize,
         mut line: usize,
         interpolation: bool,
         skip_first_percent: bool,
-        previous: Option<&Lexeme>,
-    ) -> Result<Buffer<Lexeme>> {
+        previous: Option<&Lexeme<'a>>,
+    ) -> Result<Buffer<Lexeme<'a>>> {
         let source = self.source;
         let s = &source.as_bytes()[..self.limit];
-        let mut out = Buffer::<Lexeme>::new();
+        let mut out = Buffer::<Lexeme<'a>>::new();
         let mut braces = 0usize;
         let first = self.pos;
         while self.pos < until {
@@ -224,7 +254,7 @@ impl Lexer<'_> {
                 }
                 _ => (),
             }
-            let scanned = (|| -> Result<Token> {
+            let scanned = (|| -> Result<Token<'a>> {
                 let initial = source[i..self.limit].chars().next().unwrap();
                 if initial == '@' {
                     i += 1;
@@ -245,7 +275,7 @@ impl Lexer<'_> {
                         }
                         i += c.len_utf8();
                     }
-                    return Ok(Token::Word(source[start..i].to_owned()));
+                    return Ok(Token::Word(Word(&source[start..i])));
                 }
                 if initial == '_' || super::unicode::letter(initial) {
                     i += initial.len_utf8();
@@ -256,7 +286,7 @@ impl Lexer<'_> {
                         }
                         i += c.len_utf8();
                     }
-                    return Ok(Token::Word(source[start..i].to_owned()));
+                    return Ok(Token::Word(Word(&source[start..i])));
                 }
                 Ok(match s[i] {
                     b'/' if out.last().or(previous).is_none_or(|last| {
@@ -369,7 +399,7 @@ impl Lexer<'_> {
                             {
                                 return Err(Error::syntax(start, "invalid integer literal"));
                             }
-                            integer(text.replace('_', ""), radix, start, 2)?
+                            integer(numeric(self.work, text)?, radix, start, 2, self.work)?
                         } else {
                             while i < self.limit && (s[i].is_ascii_digit() || s[i] == b'_') {
                                 self.work.charge(1)?;
@@ -416,14 +446,16 @@ impl Lexer<'_> {
                                     return Err(Error::syntax(start, "invalid numeric separator"));
                                 }
                             }
-                            let text = raw.replace('_', "");
+                            let text = numeric(self.work, raw)?;
                             if float {
                                 Token::Float(
-                                    text.parse()
+                                    std::str::from_utf8(&text)
+                                        .unwrap()
+                                        .parse()
                                         .map_err(|_| Error::syntax(start, "invalid float"))?,
                                 )
                             } else {
-                                integer(text, 10, start, 0)?
+                                integer(text, 10, start, 0, self.work)?
                             }
                         }
                     }
@@ -476,7 +508,13 @@ impl Lexer<'_> {
                 Err(error) if error.kind == crate::ErrorKind::Syntax && !interpolation => {
                     // Resolving an earlier percent token may require re-lexing this suffix.
                     i = self.limit;
-                    Token::Invalid(Box::new((error.offset.unwrap_or(start), error.message)))
+                    Token::Invalid(Boxed::new(
+                        self.work,
+                        (
+                            error.offset.unwrap_or(start),
+                            Text::new(self.work, &error.message)?,
+                        ),
+                    )?)
                 }
                 Err(error) => return Err(error),
             };
@@ -516,18 +554,18 @@ impl Lexer<'_> {
         Ok(out)
     }
 
-    fn quoted(&mut self, quote: u8, mut line: usize) -> Result<Vec<Part>> {
+    fn quoted(&mut self, quote: u8, mut line: usize) -> Result<Buffer<Part<'a>>> {
         let start = self.pos;
         self.pos += 1;
-        let mut parts = Vec::new();
-        let mut text = Vec::new();
+        let mut parts = Buffer::new();
+        let mut text = Buffer::new();
         while self.pos < self.limit {
             self.work.charge(1)?;
             let before = self.pos;
             match self.source.as_bytes()[self.pos] {
                 b if b == quote => {
                     self.pos += 1;
-                    flush(&mut parts, &mut text);
+                    flush(&mut parts, &mut text, self.work)?;
                     return Ok(parts);
                 }
                 b'\\' if quote == b'"' => self.escape(&mut text, true)?,
@@ -536,21 +574,21 @@ impl Lexer<'_> {
                     if self.pos < self.limit
                         && matches!(self.source.as_bytes()[self.pos], b'\'' | b'\\')
                     {
-                        text.push(self.source.as_bytes()[self.pos]);
+                        text.push(self.work, self.source.as_bytes()[self.pos])?;
                         self.pos += 1;
                     } else {
-                        text.push(b'\\');
+                        text.push(self.work, b'\\')?;
                     }
                 }
                 b'#' if quote == b'"'
                     && self.source.as_bytes().get(self.pos + 1) == Some(&b'{') =>
                 {
-                    flush(&mut parts, &mut text);
-                    parts.push(Part::Expr(self.interpolation(line)?));
+                    flush(&mut parts, &mut text, self.work)?;
+                    parts.push(self.work, Part::Expr(self.interpolation(line)?))?;
                 }
                 0 => return Err(Error::syntax(self.pos, "unterminated string")),
                 byte => {
-                    text.push(byte);
+                    text.push(self.work, byte)?;
                     self.pos += 1;
                 }
             }
@@ -562,7 +600,7 @@ impl Lexer<'_> {
         Err(Error::syntax(start, "unterminated string"))
     }
 
-    fn regex(&mut self) -> Result<Token> {
+    fn regex(&mut self) -> Result<Token<'a>> {
         let start = self.pos;
         let bytes = &self.source.as_bytes()[..self.limit];
         self.pos += 1;
@@ -618,7 +656,7 @@ impl Lexer<'_> {
                     self.pos += 1;
                 }
                 b'/' if !class => {
-                    let pattern = bytes[body..self.pos].to_vec();
+                    let pattern = Bytes::from_slice(self.work, &bytes[body..self.pos])?;
                     self.pos += 1;
                     let mut flags = 0;
                     while bytes.get(self.pos).is_some_and(u8::is_ascii_alphabetic) {
@@ -649,7 +687,7 @@ impl Lexer<'_> {
         Err(Error::syntax(start, "unterminated regex literal"))
     }
 
-    fn interpolation(&mut self, line: usize) -> Result<Buffer<Lexeme>> {
+    fn interpolation(&mut self, line: usize) -> Result<Buffer<Lexeme<'a>>> {
         if self.depth >= 8 {
             return Err(Error::syntax(
                 self.pos,
@@ -686,13 +724,13 @@ impl Lexer<'_> {
         Some((kind, open, close))
     }
 
-    fn words(&mut self, mut line: usize, ambiguous: bool) -> Result<Token> {
+    fn words(&mut self, mut line: usize, ambiguous: bool) -> Result<Token<'a>> {
         let (kind, open, close) = self.percent_kind().unwrap();
         self.pos += 2 + open.len_utf8();
         let mut nesting = 1;
-        let mut words = Vec::new();
-        let mut parts = Vec::new();
-        let mut text = Vec::new();
+        let mut words = Buffer::new();
+        let mut parts = Buffer::new();
+        let mut text = Buffer::new();
         let mut in_word = false;
         let interpolating = kind.is_ascii_uppercase();
         while self.pos < self.limit {
@@ -709,12 +747,12 @@ impl Lexer<'_> {
                     self.pos += 1;
                     if let Some(c) = self.source[self.pos..self.limit].chars().next() {
                         if !(c.is_whitespace() || c == '\\' || c == open || c == close) {
-                            text.push(b'\\');
+                            text.push(self.work, b'\\')?;
                         }
-                        text.extend_from_slice(c.encode_utf8(&mut [0; 4]).as_bytes());
+                        text.extend_from_slice(self.work, c.encode_utf8(&mut [0; 4]).as_bytes())?;
                         self.pos += c.len_utf8();
                     } else {
-                        text.push(b'\\');
+                        text.push(self.work, b'\\')?;
                     }
                 }
                 in_word = true;
@@ -723,8 +761,8 @@ impl Lexer<'_> {
                 && close != '#'
                 && self.source.as_bytes().get(self.pos + 1) == Some(&b'{')
             {
-                flush(&mut parts, &mut text);
-                parts.push(Part::Expr(self.interpolation(line)?));
+                flush(&mut parts, &mut text, self.work)?;
+                parts.push(self.work, Part::Expr(self.interpolation(line)?))?;
                 in_word = true;
             } else {
                 self.pos += c.len_utf8();
@@ -732,26 +770,29 @@ impl Lexer<'_> {
                     nesting -= 1;
                     if nesting == 0 {
                         if in_word {
-                            flush(&mut parts, &mut text);
-                            words.push(parts);
+                            flush(&mut parts, &mut text, self.work)?;
+                            words.push(self.work, parts)?;
                         }
-                        return Ok(Token::Words(Box::new(Words {
-                            entries: words,
-                            symbol: matches!(kind, b'i' | b'I'),
-                            ambiguous,
-                        })));
+                        return Ok(Token::Words(Boxed::new(
+                            self.work,
+                            Words {
+                                entries: words,
+                                symbol: matches!(kind, b'i' | b'I'),
+                                ambiguous,
+                            },
+                        )?));
                     }
                 } else if open != close && c == open {
                     nesting += 1;
                 }
                 if c.is_whitespace() {
                     if in_word {
-                        flush(&mut parts, &mut text);
-                        words.push(std::mem::take(&mut parts));
+                        flush(&mut parts, &mut text, self.work)?;
+                        words.push(self.work, std::mem::take(&mut parts))?;
                         in_word = false;
                     }
                 } else {
-                    text.extend_from_slice(c.encode_utf8(&mut [0; 4]).as_bytes());
+                    text.extend_from_slice(self.work, c.encode_utf8(&mut [0; 4]).as_bytes())?;
                     in_word = true;
                 }
             }
@@ -766,22 +807,22 @@ impl Lexer<'_> {
         ))
     }
 
-    fn escape(&mut self, out: &mut Vec<u8>, strict: bool) -> Result<()> {
+    fn escape(&mut self, out: &mut Buffer<u8>, strict: bool) -> Result<()> {
         self.pos += 1;
         let Some(c) = self.source[self.pos..self.limit].chars().next() else {
-            out.push(b'\\');
+            out.push(self.work, b'\\')?;
             return Ok(());
         };
         self.pos += c.len_utf8();
         match c {
-            'a' => out.push(7),
-            'b' => out.push(8),
-            'e' => out.push(27),
-            'f' => out.push(12),
-            'n' => out.push(b'\n'),
-            'r' => out.push(b'\r'),
-            't' => out.push(b'\t'),
-            'v' => out.push(11),
+            'a' => out.push(self.work, 7)?,
+            'b' => out.push(self.work, 8)?,
+            'e' => out.push(self.work, 27)?,
+            'f' => out.push(self.work, 12)?,
+            'n' => out.push(self.work, b'\n')?,
+            'r' => out.push(self.work, b'\r')?,
+            't' => out.push(self.work, b'\t')?,
+            'v' => out.push(self.work, 11)?,
             'x' | 'u' => {
                 let start = self.pos;
                 let mut value = 0;
@@ -806,43 +847,52 @@ impl Lexer<'_> {
                         return Err(Error::syntax(start, "invalid hexadecimal string escape"));
                     }
                     self.pos = start;
-                    out.push(c as u8);
+                    out.push(self.work, c as u8)?;
                 } else if c == 'x' {
-                    out.push(value as u8);
+                    out.push(self.work, value as u8)?;
                 } else {
                     out.extend_from_slice(
+                        self.work,
                         char::from_u32(value)
                             .unwrap()
                             .encode_utf8(&mut [0; 4])
                             .as_bytes(),
-                    );
+                    )?;
                 }
             }
-            _ => out.extend_from_slice(c.encode_utf8(&mut [0; 4]).as_bytes()),
+            _ => out.extend_from_slice(self.work, c.encode_utf8(&mut [0; 4]).as_bytes())?,
         }
         Ok(())
     }
 }
 
-fn flush(parts: &mut Vec<Part>, text: &mut Vec<u8>) {
+fn flush(parts: &mut Buffer<Part<'_>>, text: &mut Buffer<u8>, work: &dyn Work) -> Result<()> {
     if !text.is_empty() {
-        parts.push(Part::Text(std::mem::take(text)));
+        let bytes = Bytes::new(work, std::mem::take(text))?;
+        parts.push(work, Part::Text(bytes))?;
     }
+    Ok(())
 }
 
-pub(super) fn plain(parts: Vec<Part>, work: &dyn crate::compilation::Work) -> Result<Vec<u8>> {
-    let mut bytes = Vec::new();
+pub(super) fn plain(mut parts: Buffer<Part<'_>>, work: &dyn Work) -> Result<Bytes> {
+    if parts.len() == 1 {
+        let Part::Text(bytes) = parts.pop().unwrap() else {
+            unreachable!()
+        };
+        work.bytes(bytes.len())?;
+        return Ok(bytes);
+    }
+    let mut bytes = Buffer::new();
     for part in parts {
         let Part::Text(text) = part else {
             unreachable!()
         };
-        work.bytes(text.len())?;
-        bytes.extend(text);
+        bytes.extend_from_slice(work, &text)?;
     }
-    Ok(bytes)
+    Bytes::new(work, bytes)
 }
 
-fn ends_expression(token: &Token) -> bool {
+fn ends_expression(token: &Token<'_>) -> bool {
     match token {
         Token::Word(w) => !super::reserved(w) || matches!(w.as_str(), "self" | "end"),
         Token::Int(_)
@@ -857,11 +907,31 @@ fn ends_expression(token: &Token) -> bool {
     }
 }
 
-fn integer(text: String, radix: u32, offset: usize, prefix: usize) -> Result<Token> {
-    if !text.bytes().all(|c| (c as char).is_digit(radix)) {
-        return Err(Error::syntax(offset, "invalid integer literal"));
+fn numeric(work: &dyn Work, text: &str) -> Result<Buffer<u8>> {
+    let mut result = Buffer::with_capacity(work, text.len())?;
+    for byte in text.bytes() {
+        work.charge(1)?;
+        if byte != b'_' {
+            result.push(work, byte)?;
+        }
     }
-    let parsed = u64::from_str_radix(&text, radix);
+    Ok(result)
+}
+
+fn integer(
+    text: Buffer<u8>,
+    radix: u32,
+    offset: usize,
+    prefix: usize,
+    work: &dyn Work,
+) -> Result<Token<'static>> {
+    for &byte in &*text {
+        work.charge(1)?;
+        if !(byte as char).is_digit(radix) {
+            return Err(Error::syntax(offset, "invalid integer literal"));
+        }
+    }
+    let parsed = u64::from_str_radix(std::str::from_utf8(&text).unwrap(), radix);
     if text.len() + prefix > 100_000 && !parsed.as_ref().is_ok_and(|&n| n <= i64::MAX as u64) {
         return Err(Error::syntax(
             offset,
@@ -870,6 +940,32 @@ fn integer(text: String, radix: u32, offset: usize, prefix: usize) -> Result<Tok
     }
     Ok(match parsed {
         Ok(n) => Token::Int(n),
-        Err(_) => Token::BigInt(text, radix),
+        Err(_) => Token::BigInt(Text::from_bytes(Bytes::new(work, text)?).unwrap(), radix),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{CallContext, CallOptions, compilation::Meter};
+    use std::cell::RefCell;
+
+    #[test]
+    fn identifier_tokens_borrow_the_source_without_copying_long_names() {
+        let mut peaks = Vec::new();
+        for length in [1, 8192] {
+            let source = "名".repeat(length);
+            let mut context = CallContext::new(CallOptions::default());
+            let tokens = lex(&source, &Meter(RefCell::new(&mut context))).unwrap();
+            let Token::Word(word) = &tokens[0].token else {
+                panic!("expected identifier");
+            };
+            assert_eq!(word.as_str(), source);
+            assert_eq!(word.as_ptr(), source.as_ptr());
+            peaks.push(context.stats().peak_memory_bytes);
+            drop(tokens);
+            assert_eq!(context.stats().retained_memory_bytes, 0);
+        }
+        assert_eq!(peaks[0], peaks[1]);
+    }
 }

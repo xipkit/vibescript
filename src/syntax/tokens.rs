@@ -4,14 +4,14 @@ use std::ops::{Index, Range};
 
 // Keep a movable gap at the latest edit so disambiguating repeated modulo
 // expressions does not shift the remaining source for every percent token.
-pub(super) struct Tokens {
-    before: Buffer<Lexeme>,
-    after: Buffer<Lexeme>,
+pub(super) struct Tokens<'a> {
+    before: Buffer<Lexeme<'a>>,
+    after: Buffer<Lexeme<'a>>,
 }
 
-impl Tokens {
+impl<'a> Tokens<'a> {
     pub fn new(
-        mut tokens: Buffer<Lexeme>,
+        mut tokens: Buffer<Lexeme<'a>>,
         work: &dyn crate::compilation::Work,
     ) -> crate::Result<Self> {
         for index in 0..tokens.len() / 2 {
@@ -29,19 +29,19 @@ impl Tokens {
         self.before.len() + self.after.len()
     }
 
-    pub fn get(&self, index: usize) -> Option<&Lexeme> {
+    pub fn get(&self, index: usize) -> Option<&Lexeme<'a>> {
         (index < self.len()).then(|| &self[index])
     }
 
-    pub fn last(&self) -> Option<&Lexeme> {
+    pub fn last(&self) -> Option<&Lexeme<'a>> {
         self.len().checked_sub(1).map(|index| &self[index])
     }
 
-    pub fn range(&self, range: Range<usize>) -> impl DoubleEndedIterator<Item = &Lexeme> {
+    pub fn range(&self, range: Range<usize>) -> impl DoubleEndedIterator<Item = &Lexeme<'a>> {
         range.map(|index| &self[index])
     }
 
-    pub fn from(&self, start: usize) -> impl DoubleEndedIterator<Item = &Lexeme> {
+    pub fn from(&self, start: usize) -> impl DoubleEndedIterator<Item = &Lexeme<'a>> {
         self.range(start..self.len())
     }
 
@@ -49,8 +49,8 @@ impl Tokens {
         &self,
         positions: impl Iterator<Item = usize>,
         work: &dyn crate::compilation::Work,
-        predicate: impl Fn(&Lexeme) -> bool,
-    ) -> crate::Result<Option<&Lexeme>> {
+        predicate: impl Fn(&Lexeme<'a>) -> bool,
+    ) -> crate::Result<Option<&Lexeme<'a>>> {
         for index in positions {
             work.charge(1)?;
             let token = &self[index];
@@ -64,7 +64,7 @@ impl Tokens {
     pub fn replace(
         &mut self,
         range: Range<usize>,
-        replacement: Buffer<Lexeme>,
+        replacement: Buffer<Lexeme<'a>>,
         work: &dyn crate::compilation::Work,
     ) -> crate::Result<()> {
         while self.before.len() < range.start {
@@ -84,10 +84,10 @@ impl Tokens {
     }
 }
 
-impl Index<usize> for Tokens {
-    type Output = Lexeme;
+impl<'a> Index<usize> for Tokens<'a> {
+    type Output = Lexeme<'a>;
 
-    fn index(&self, index: usize) -> &Lexeme {
+    fn index(&self, index: usize) -> &Lexeme<'a> {
         if index < self.before.len() {
             &self.before[index]
         } else {

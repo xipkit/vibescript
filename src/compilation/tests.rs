@@ -203,15 +203,15 @@ fn alias_work_includes_copied_method_bodies_before_code_generation() {
 }
 
 #[test]
-fn token_storage_is_bounded_and_released_after_parsing() {
+fn parser_storage_is_bounded_and_released_with_its_output() {
     for source in sources() {
         let mut context = CallContext::new(CallOptions::default());
         let parsed = crate::syntax::parse(&source, &Meter(RefCell::new(&mut context)))
             .unwrap_or_else(|error| panic!("{source}: {error}"));
         let peak = context.stats().peak_memory_bytes;
         assert!(peak > 0, "{source}");
-        assert_eq!(context.stats().retained_memory_bytes, 0, "{source}");
         drop(parsed);
+        assert_eq!(context.stats().retained_memory_bytes, 0, "{source}");
         for limit in [0, 1, peak / 2, peak - 1, peak] {
             let mut options = CallOptions::default();
             options.limits.memory_bytes = Some(limit);
@@ -219,6 +219,7 @@ fn token_storage_is_bounded_and_released_after_parsing() {
             let result = crate::syntax::parse(&source, &Meter(RefCell::new(&mut context)));
             if limit == peak {
                 assert!(result.is_ok(), "limit={limit}: {source}");
+                drop(result);
             } else {
                 assert_eq!(
                     result.err().unwrap().kind,
@@ -232,6 +233,44 @@ fn token_storage_is_bounded_and_released_after_parsing() {
                 0,
                 "limit={limit}: {source}"
             );
+        }
+    }
+}
+
+#[test]
+fn owned_literal_payloads_obey_limits_and_outlive_the_token_stream() {
+    let length = 4096;
+    for source in [
+        format!("\"{}\"", "x".repeat(length)),
+        format!("\"{}\"", "\\xff".repeat(length)),
+        format!(":\"{}\"", "x".repeat(length)),
+        format!("/{}/im", "x".repeat(length)),
+        "9".repeat(length),
+        format!("%w[{}]", "x".repeat(length)),
+        format!("%W[{}#{{1}}]", "x".repeat(length)),
+    ] {
+        let mut context = CallContext::new(CallOptions::default());
+        let memory = std::sync::Arc::downgrade(&context.identity());
+        let parsed = crate::syntax::parse(&source, &Meter(RefCell::new(&mut context))).unwrap();
+        let peak = context.stats().peak_memory_bytes;
+        assert!(context.stats().retained_memory_bytes >= length, "{source}");
+        drop(context);
+        assert!(memory.upgrade().is_some());
+        drop(parsed);
+        assert!(memory.upgrade().is_none());
+        for limit in [length / 2, peak - 1, peak] {
+            let mut options = CallOptions::default();
+            options.limits.memory_bytes = Some(limit);
+            let mut context = CallContext::new(options);
+            let result = crate::syntax::parse(&source, &Meter(RefCell::new(&mut context)));
+            if limit == peak {
+                assert!(result.is_ok(), "limit={limit}: {source}");
+                drop(result);
+            } else {
+                assert_eq!(result.err().unwrap().kind, ErrorKind::Memory);
+                assert_eq!(context.checkpoint().unwrap_err().kind, ErrorKind::Memory);
+            }
+            assert_eq!(context.stats().retained_memory_bytes, 0);
         }
     }
 }

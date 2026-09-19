@@ -151,7 +151,7 @@ impl Parser<'_> {
         (same_line
             && (next.token == Token::P('(')
                 || matches!(&next.token, Token::Word(w) if !keyword(w) || w == "self")))
-            || (!self.locals.contains(word)
+            || (!self.locals.contains(word.as_str())
                 && (!same_line
                     || matches!(next.token, Token::EndLine | Token::Eof | Token::P('}'))
                     || matches!(&next.token, Token::Word(w) if matches!(w.as_str(), "end" | "else" | "elsif" | "ensure" | "rescue"))))

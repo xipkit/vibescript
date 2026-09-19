@@ -33,9 +33,9 @@ impl Parser<'_> {
         let mut names = Vec::new();
         let fallback = if end == start + 1 {
             if let Token::Word(name) = &self.tokens[start].token {
-                names.push(name.clone());
+                names.push(name.as_str().to_owned());
                 Some(Box::new(self.make_at(
-                    Node::Var(name.clone()),
+                    Node::Var(name.as_str().to_owned()),
                     1,
                     offset,
                 )?))
@@ -190,9 +190,10 @@ impl Parser<'_> {
     }
 
     fn named_type(&mut self, depth: usize) -> Result<Type> {
-        let Token::Word(mut name) = self.bump()? else {
+        let Token::Word(name) = self.bump()? else {
             return self.err("expected type name");
         };
+        let mut name = name.as_str().to_owned();
         if keyword(&name) && name != "nil" {
             return self.err("expected type name");
         }
@@ -210,9 +211,10 @@ impl Parser<'_> {
                 return self.err("nullable suffix belongs on qualified member");
             }
             self.line_breaks()?;
-            let Token::Word(mut member) = self.bump()? else {
+            let Token::Word(member) = self.bump()? else {
                 return self.err("expected qualified type name");
             };
+            let mut member = member.as_str().to_owned();
             if keyword(&member) {
                 return self.err("expected qualified type name");
             }
@@ -307,7 +309,8 @@ impl Parser<'_> {
     fn shape_field_name(&mut self) -> Result<(Vec<u8>, bool)> {
         let symbol = self.token() == &Token::P(':');
         let (name, optional) = match self.bump()? {
-            Token::Word(mut name) => {
+            Token::Word(name) => {
+                let mut name = name.as_str().to_owned();
                 let optional = name.ends_with('?');
                 if optional {
                     name.pop();
@@ -317,14 +320,14 @@ impl Parser<'_> {
                 }
                 (name.into_bytes(), optional)
             }
-            Token::Bytes(bytes) => (bytes, false),
+            Token::Bytes(bytes) => (bytes.to_vec(), false),
             Token::P(':') => {
                 if !self.symbol_start(self.pos - 1) {
                     return self.err("expected symbol shape field");
                 }
                 let name = match self.bump()? {
-                    Token::Word(name) => name.into_bytes(),
-                    Token::Bytes(bytes) => bytes,
+                    Token::Word(name) => name.as_bytes().to_vec(),
+                    Token::Bytes(bytes) => bytes.to_vec(),
                     Token::Op(op) => op.as_bytes().to_vec(),
                     _ => return self.err("expected symbol shape field"),
                 };
@@ -384,16 +387,16 @@ impl Parser<'_> {
                     Token::P(',' | ')' | ':' | '|') | Token::Op("=") => false,
                     Token::Op("<") => {
                         !matches!(
-                            Type::named(name.clone()).kind,
+                            Type::named(name.as_str().to_owned()).kind,
                             TypeKind::Array(_) | TypeKind::Hash(_)
-                        ) && self.locals.contains(name)
+                        ) && self.locals.contains(name.as_str())
                     }
                     Token::P('.') => {
-                        if self.locals.contains(name) {
+                        if self.locals.contains(name.as_str()) {
                             return Ok(true);
                         }
                         let saved = self.pos;
-                        let namespace = name.clone();
+                        let namespace = *name;
                         self.bump()?;
                         self.bump()?;
                         let annotation = if let Token::Word(member) = self.bump()? {

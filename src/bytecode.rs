@@ -794,9 +794,9 @@ impl Compiler<'_> {
         self.program.constants.push(v);
         self.emit(Op::Constant(n));
     }
-    fn integer_literal(&mut self, text: &str, radix: u32) {
+    fn integer_literal(&mut self, text: Value, radix: u32) {
         let n = self.program.constants.len();
-        self.program.constants.push(Value::bytes(text.as_bytes()));
+        self.program.constants.push(text);
         self.emit(Op::Integer(n, radix));
     }
     fn block(&mut self, body: &[Stmt]) -> Result<()> {
@@ -1238,7 +1238,7 @@ impl Compiler<'_> {
             Node::Regex(pattern, flags) => {
                 self.work.bytes(pattern.len())?;
                 let index = self.program.constants.len();
-                self.program.constants.push(Value::bytes(pattern.clone()));
+                self.program.constants.push(pattern.compiler_constant());
                 self.emit(Op::Regex(index, *flags));
             }
             Node::Shape(ty, fallback, names) => {
@@ -1248,15 +1248,15 @@ impl Compiler<'_> {
                 if let Ok(n) = i64::try_from(*n) {
                     self.constant(Value::int(n));
                 } else {
-                    self.integer_literal(&n.to_string(), 10);
+                    self.integer_literal(Value::bytes(n.to_string()), 10);
                 }
             }
-            Node::BigInteger(text, radix) => self.integer_literal(text, *radix),
+            Node::BigInteger(text, radix) => self.integer_literal(text.compiler_constant(), *radix),
             Node::Unary("-", value) if matches!(value.node, Node::Integer(n) if n == i64::MAX as u64 + 1) =>
             {
                 self.constant(Value::int(i64::MIN));
             }
-            Node::Literal(v) => self.constant(v.clone()),
+            Node::Literal(v) => self.constant(v.compiler_constant()),
             Node::Var(name) if name.starts_with('@') => {
                 let name = self.call_site(name, false).name;
                 self.emit(Op::NamespaceVariable(name, true));
@@ -1287,7 +1287,7 @@ impl Compiler<'_> {
             }
             Node::Hash(values) => {
                 for (k, v) in values {
-                    self.constant(Value::bytes(k.clone()));
+                    self.constant(k.compiler_constant());
                     self.expr(v)?;
                 }
                 self.emit(Op::Hash(values.len()));
