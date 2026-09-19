@@ -539,6 +539,7 @@ impl Facts {
             ) && !matches!(
                 self.node(other),
                 Node::Union(_)
+                    | Node::Choice(_)
                     | Node::Atom(Atom::Unknown | Atom::Any)
                     | Node::Named(_)
                     | Node::Nominal { .. }

@@ -31,7 +31,7 @@ fn witness(source: &str, warnings: bool) {
                 Relation::Rejected,
                 "{source}: actual {value:?}, {report:?}"
             );
-            let same = facts
+            let (same, _) = facts
                 .scalar_binary(&mut ctx, "==", value, report.returns)
                 .unwrap();
             assert!(

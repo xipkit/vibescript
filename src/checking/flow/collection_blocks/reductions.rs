@@ -583,12 +583,15 @@ impl Walker<'_> {
                     value = self.facts.union(self.ctx, &[value, next])?;
                     continue;
                 }
-                let result = self.facts.scalar_binary(self.ctx, op, left, right)?;
+                let (result, limit) = self.facts.scalar_binary(self.ctx, op, left, right)?;
                 if result.unsupported {
                     self.incomplete(pc)?;
                     continue;
                 }
-                let (errors, stops) = self.binary_errors(op, left, right, result.rejected)?;
+                let (mut errors, stops) = self.binary_errors(op, left, right, result.rejected)?;
+                if limit {
+                    errors |= handlers::bit(ErrorClass::Limit);
+                }
                 self.emit_error(state, pc, errors)?;
                 if result.rejected {
                     self.issue(pc, IssueKind::Binary { op, left, right })?;

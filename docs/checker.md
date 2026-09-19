@@ -340,7 +340,13 @@ Property contracts also retain distinct source-initialization histories. Direct 
 
 Literal named `is_type?` calls preserve source histories for native, class, module and instance receivers, including forwarded calls. A finite set of query names takes separate paths so only the selected type initializes. Invalid alternatives remain diagnostics. Names that cannot be resolved statically remain incomplete. Regression tests check concrete execution, generalized query choices, callback counts, exact and interrupted memory/work limits, cancellation, deadlines and storage release.
 
-Property-guard and nominal-predicate continuations still require support when their deferred imports produce incompatible histories. Dynamic type alternatives and structural collection equality also remain unfinished; ordinary runtime execution supports these expressions.
+Arbitrary dynamic type alternatives still require further analysis support; ordinary runtime execution supports these expressions.
+
+## Structural equality
+
+Ordinary `==` and `!=` now analyze array and hash values. Exact tuples and closed required fields retain matching and mismatching results, including mixed integer/float comparisons without rounding distinct integers, signed zeros, NaN, byte-equivalent hash keys and object/plain-hash distinctions. Computed containers keep their value snapshots while comparison arguments mutate their original bindings. Nested instances compare identity; top-level source operators retain their existing dispatch. General collection types, optional/open fields and unknown values remain conservative rather than treating shared type facts as identical values.
+
+The metered iterative comparison walk memoizes value pairs and their nesting depth. Array mismatches preserve evaluation order and skip later runtime guards. Hash facts do not retain insertion order, so comparisons that could either mismatch or reach the nesting guard retain both outcomes. Interrupted walks release their temporary storage and preserve latched quota, cancellation and deadline failures. Set membership keeps its separate numeric-kind and scalar-NaN policy; `eql?` and `equal?` retain their existing helper behavior and precision.
 
 ## Remaining integration
 

@@ -148,6 +148,9 @@ mod schedule_tests;
 mod selection_tests;
 
 #[cfg(test)]
+mod equality_tests;
+
+#[cfg(test)]
 mod order_tests;
 
 #[cfg(test)]

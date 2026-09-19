@@ -1,15 +1,18 @@
 use super::facts::{Atom, Fact, Facts, HashKind, Node};
+use super::slots::Slots;
 use crate::{CallContext, Result, Value, budget::Buffer};
 
 const NO: u8 = 1;
 const YES: u8 = 2;
 const MAYBE: u8 = NO | YES;
+const LIMIT: u8 = 4;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct Pair {
     left: Fact,
     right: Fact,
     root: bool,
+    depth: usize,
 }
 
 impl Pair {
@@ -19,6 +22,7 @@ impl Pair {
             .wrapping_mul(0x9e3779b1)
             .wrapping_add(self.right.0.wrapping_mul(0x85ebca77))
             .wrapping_add(usize::from(self.root))
+            .wrapping_add(self.depth.wrapping_mul(0xc2b2ae35))
             & mask
     }
 }
@@ -96,7 +100,8 @@ impl Memo {
 enum Task {
     Visit(Pair),
     Save(Pair),
-    All(usize),
+    All(usize, bool),
+    Hash(usize, bool, bool),
     Alternatives(usize),
 }
 
@@ -107,6 +112,36 @@ impl Facts {
         left: Fact,
         right: Fact,
     ) -> Result<Fact> {
+        let value = self.compare_values(ctx, left, right, true)?;
+        self.equality_fact(ctx, value)
+    }
+
+    pub(super) fn value_equal(
+        &mut self,
+        ctx: &mut CallContext,
+        left: Fact,
+        right: Fact,
+    ) -> Result<(Fact, bool)> {
+        let value = self.compare_values(ctx, left, right, false)?;
+        Ok((self.equality_fact(ctx, value)?, value & LIMIT != 0))
+    }
+
+    fn equality_fact(&mut self, ctx: &mut CallContext, value: u8) -> Result<Fact> {
+        match value & MAYBE {
+            0 => Ok(Atom::Never.fact()),
+            NO => self.boolean(ctx, false),
+            YES => self.boolean(ctx, true),
+            _ => Ok(Atom::Bool.fact()),
+        }
+    }
+
+    fn compare_values(
+        &mut self,
+        ctx: &mut CallContext,
+        left: Fact,
+        right: Fact,
+        set: bool,
+    ) -> Result<u8> {
         ctx.checkpoint()?;
         let mut tasks = Buffer::empty();
         let mut values = Buffer::empty();
@@ -116,7 +151,8 @@ impl Facts {
             Task::Visit(Pair {
                 left,
                 right,
-                root: true,
+                root: set,
+                depth: 0,
             }),
         )?;
         while let Some(task) = tasks.data.pop() {
@@ -126,30 +162,65 @@ impl Facts {
                     memo.insert(ctx, pair, *values.data.last().unwrap())?;
                     continue;
                 }
-                Task::All(count) | Task::Alternatives(count) => {
+                Task::All(count, _) | Task::Hash(count, ..) | Task::Alternatives(count) => {
                     let start = values.data.len() - count;
-                    let all = matches!(task, Task::All(_));
+                    let all = !matches!(task, Task::Alternatives(_));
                     let mut result = if all { YES } else { 0 };
                     for &value in &values.data[start..] {
                         ctx.charge(1)?;
                         result = if !all {
                             result | value
+                        } else if matches!(task, Task::All(_, true)) {
+                            // Array comparisons stop before later elements after a mismatch or guard.
+                            (result & (NO | LIMIT)) | if result & YES != 0 { value } else { 0 }
                         } else if result == 0 || value == 0 {
                             0
                         } else {
-                            ((result | value) & NO) | ((result & value) & YES)
+                            ((result | value) & (NO | LIMIT)) | ((result & value) & YES)
                         };
                     }
                     values.data.truncate(start);
+                    if let Task::Hash(_, missing, uncertain_kind) = task {
+                        // Shapes sort keys, so retain both possible outcomes when insertion order
+                        // determines whether a missing/different value or a nesting guard is first.
+                        if missing {
+                            result = (result & LIMIT) | NO;
+                        }
+                        if uncertain_kind {
+                            result |= NO;
+                        }
+                    }
                     result
                 }
                 Task::Visit(pair) => {
+                    if !set && pair.depth > crate::budget::MAX_VALUE_DEPTH {
+                        values.push(ctx, LIMIT)?;
+                        continue;
+                    }
                     if let Some(value) = memo.get(ctx, pair)? {
                         values.push(ctx, value)?;
                         continue;
                     }
                     tasks.push(ctx, Task::Save(pair))?;
-                    let Pair { left, right, root } = pair;
+                    let Pair {
+                        left,
+                        right,
+                        root,
+                        depth,
+                    } = pair;
+                    let child_depth = if set { 0 } else { depth + 1 };
+                    let hash_kind = |value| match self.node(value) {
+                        Node::Hash(_, _, kind) | Node::Shape(_, _, _, kind) => Some(*kind),
+                        _ => None,
+                    };
+                    if !set {
+                        if let (Some(a), Some(b)) = (hash_kind(left), hash_kind(right)) {
+                            if a != b && a != HashKind::Any && b != HashKind::Any {
+                                values.push(ctx, NO)?;
+                                continue;
+                            }
+                        }
+                    }
                     match (self.node(left), self.node(right)) {
                         (Node::Protected(value, _), _) => {
                             tasks.push(
@@ -191,8 +262,8 @@ impl Facts {
                             if a.data.len() != b.data.len() {
                                 NO
                             } else {
-                                tasks.push(ctx, Task::All(a.data.len()))?;
-                                for (&left, &right) in a.data.iter().zip(&b.data) {
+                                tasks.push(ctx, Task::All(a.data.len(), !set))?;
+                                for (&left, &right) in a.data.iter().zip(&b.data).rev() {
                                     ctx.charge(1)?;
                                     tasks.push(
                                         ctx,
@@ -200,23 +271,23 @@ impl Facts {
                                             left,
                                             right,
                                             root: false,
+                                            depth: child_depth,
                                         }),
                                     )?;
                                 }
                                 continue;
                             }
                         }
-                        (
-                            Node::Shape(a, false, _, HashKind::Plain),
-                            Node::Shape(b, false, _, HashKind::Plain),
-                        ) => {
+                        (Node::Shape(a, false, _, ak), Node::Shape(b, false, _, bk))
+                            if !set || (*ak == HashKind::Plain && *bk == HashKind::Plain) =>
+                        {
                             let mut required = true;
                             for field in a.data.iter().chain(&b.data) {
                                 ctx.charge(1)?;
                                 required &= !field.optional;
                             }
                             if !required {
-                                MAYBE
+                                self.uncertain_equality(ctx, left, right, depth, set)?
                             } else if a.data.len() != b.data.len() {
                                 NO
                             } else {
@@ -235,17 +306,24 @@ impl Facts {
                                                 left: field.value,
                                                 right: value,
                                                 root: false,
+                                                depth: child_depth,
                                             },
                                         )?;
                                     } else {
                                         missing = true;
-                                        break;
                                     }
                                 }
-                                if missing {
+                                if missing && set {
                                     NO
                                 } else {
-                                    tasks.push(ctx, Task::All(pairs.data.len()))?;
+                                    tasks.push(
+                                        ctx,
+                                        Task::Hash(
+                                            pairs.data.len(),
+                                            missing,
+                                            !set && (*ak == HashKind::Any || *bk == HashKind::Any),
+                                        ),
+                                    )?;
                                     for pair in pairs.data {
                                         tasks.push(ctx, Task::Visit(pair))?;
                                     }
@@ -253,19 +331,81 @@ impl Facts {
                                 }
                             }
                         }
-                        _ => self.set_scalar_equal(ctx, left, right, root)?,
+                        _ => {
+                            let value = self.set_scalar_equal(ctx, left, right, root)?;
+                            if value == MAYBE {
+                                self.uncertain_equality(ctx, left, right, depth, set)?
+                            } else {
+                                value
+                            }
+                        }
                     }
                 }
             };
             values.push(ctx, value)?;
         }
         assert_eq!(values.data.len(), 1);
-        match values.data[0] {
-            0 => Ok(Atom::Never.fact()),
-            NO => self.boolean(ctx, false),
-            YES => self.boolean(ctx, true),
-            _ => Ok(Atom::Bool.fact()),
+        Ok(values.data[0])
+    }
+
+    fn uncertain_equality(
+        &self,
+        ctx: &mut CallContext,
+        left: Fact,
+        right: Fact,
+        depth: usize,
+        set: bool,
+    ) -> Result<u8> {
+        Ok(
+            if !set
+                && self.equality_may_exceed_depth(ctx, left, depth)?
+                && self.equality_may_exceed_depth(ctx, right, depth)?
+            {
+                MAYBE | LIMIT
+            } else {
+                MAYBE
+            },
+        )
+    }
+
+    fn equality_may_exceed_depth(
+        &self,
+        ctx: &mut CallContext,
+        value: Fact,
+        depth: usize,
+    ) -> Result<bool> {
+        if self.depth(value).saturating_add(depth) > crate::budget::MAX_VALUE_DEPTH {
+            return Ok(true);
         }
+        let mut pending = Buffer::empty();
+        let mut visited = Slots::new(self.len(), false);
+        pending.push(ctx, value)?;
+        while let Some(value) = pending.data.pop() {
+            ctx.charge(1)?;
+            if visited.get(ctx, value.0)? {
+                continue;
+            }
+            visited.set(ctx, value.0, true)?;
+            match self.node(value) {
+                Node::Atom(Atom::Unknown | Atom::Any)
+                | Node::Named(_)
+                | Node::Nominal { .. }
+                | Node::Choice(_)
+                | Node::Shape(_, true, _, _) => return Ok(true),
+                Node::Array(value) | Node::Hash(_, value, _) | Node::Protected(value, _) => {
+                    pending.push(ctx, *value)?;
+                }
+                Node::Tuple(values) | Node::Union(values) => pending.extend(ctx, &values.data)?,
+                Node::Shape(fields, ..) => {
+                    for field in &fields.data {
+                        ctx.charge(1)?;
+                        pending.push(ctx, field.value)?;
+                    }
+                }
+                _ => (),
+            }
+        }
+        Ok(false)
     }
 
     fn set_scalar_equal(

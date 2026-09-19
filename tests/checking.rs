@@ -15,6 +15,188 @@ fn check(source: &str) -> CheckReport {
         .unwrap()
 }
 
+fn equality_branch(setup: &str, expression: &str, expected: bool, options: CallOptions) {
+    let (yes, no) = if expected {
+        ("7", "'wrong'")
+    } else {
+        ("'wrong'", "7")
+    };
+    let source = format!("{setup}; def run -> int; if {expression}; {yes}; else; {no}; end; end");
+    let script = Engine::new().compile(&source).unwrap();
+    let report = script.check_call("run", &[], &options).unwrap();
+    assert!(report.is_clean(), "{source}: {report:?}");
+    assert_eq!(
+        script.call("run", &[], options).unwrap().value.as_int(),
+        Some(7),
+        "{source}"
+    );
+}
+
+#[test]
+fn structural_equality_selects_typed_branches_for_literals_and_computed_values() {
+    for (expression, expected) in [
+        ("[] == []", true),
+        ("[2,3] == [2,3]", true),
+        ("[2,3] != [2,3]", false),
+        ("[2] == [2,3]", false),
+        ("[{a:[1]}] == [{a:[1.0]}]", true),
+        ("[{a:[1]}] != [{a:[1.0]}]", false),
+        ("[9007199254740993] == [9007199254740992.0]", false),
+        ("[9223372036854775807] == [9223372036854775808.0]", false),
+        ("{a:1,b:[2]} == {b:[2.0],\"a\":1.0}", true),
+        ("{a:1} == {b:1}", false),
+        ("{a:1} == {a:1,b:2}", false),
+        ("{a:1} == [1]", false),
+        ("nil == []", false),
+        ("[1] == false", false),
+        ("[:a] == ['a']", false),
+        ("[1,2].map {|n| n+1} == [2,3]", true),
+        ("(begin; a=[1]; a.push(2); a; end) == [1,2]", true),
+        ("(begin; a=[1]; a == a.push(2); end)", false),
+        (
+            "(begin; a={x:[1]}; a == (begin; a.x.push(2); a; end); end)",
+            false,
+        ),
+        ("[1,1.0].uniq == [1,1.0]", true),
+        ("[[1],[1.0]].uniq == [[1]]", true),
+    ] {
+        equality_branch("", expression, expected, CallOptions::default());
+    }
+}
+
+#[test]
+fn structural_equality_preserves_host_object_kinds_and_nan_semantics() {
+    let options = CallOptions {
+        globals: [
+            ("nan".into(), Value::float(f64::NAN)),
+            ("negative_zero".into(), Value::float(-0.0)),
+            (
+                "object".into(),
+                Value::object(vec![(b"a".to_vec(), Value::int(1))]),
+            ),
+            (
+                "other".into(),
+                Value::object(vec![(b"a".to_vec(), Value::float(1.0))]),
+            ),
+        ]
+        .into(),
+        ..CallOptions::default()
+    };
+    for (expression, expected) in [
+        ("[nan] == [nan]", false),
+        ("[nan] != [nan]", true),
+        ("{a:nan} == {a:nan}", false),
+        ("[negative_zero] == [0.0]", true),
+        ("{a:1} == object", false),
+        ("object == {a:1}", false),
+        ("[object] == [other]", true),
+        ("[nan,nan].uniq.length == 1", true),
+        ("[[nan],[nan]].uniq.length == 2", true),
+    ] {
+        equality_branch("", expression, expected, options.clone());
+    }
+}
+
+#[test]
+fn structural_equality_keeps_nested_instances_attached_to_their_identity() {
+    let setup = "class Plain; end; class C; property link; def ==(other); true; end; end";
+    for (body, expected) in [
+        ("Plain.new == []", false),
+        ("[] == Plain.new", false),
+        ("C == []", false),
+        ("[] == C", false),
+        ("C.new == []", true),
+        ("a=C.new; b=C.new; a == b", true),
+        ("a=C.new; b=C.new; [a] == [b]", false),
+        ("a=C.new; a.link=a; [a] == [a.link]", true),
+        ("a=C.new; b=C.new; {x:a} != {x:b}", true),
+        ("a=C.new; [a,a] == [a,a]", true),
+    ] {
+        equality_branch(
+            setup,
+            &format!("(begin; {body}; end)"),
+            expected,
+            CallOptions::default(),
+        );
+    }
+}
+
+#[test]
+fn structural_equality_general_inputs_retain_both_results_without_host_effects() {
+    for op in ["==", "!="] {
+        let source = format!(
+            "class C; def {op}(other); 7; end; end; def make; C.new; end; def run(x:any)->int; if (x {op} []).is_type?(:bool); 7; else; 'wrong'; end; end"
+        );
+        let script = Engine::new().compile(&source).unwrap();
+        let report = script
+            .check_function("run", &CallOptions::default())
+            .unwrap();
+        assert!(
+            !report.is_clean() && !report.incomplete.is_empty(),
+            "{source}: {report:?}"
+        );
+        let receiver = script
+            .call("make", &[], CallOptions::default())
+            .unwrap()
+            .value;
+        assert_eq!(
+            script
+                .call("run", &[receiver], CallOptions::default())
+                .unwrap_err()
+                .kind,
+            ErrorKind::Type
+        );
+    }
+    for parameters in [
+        "a:array<int>,b:array<int>",
+        "a:hash<string,int>,b:hash<string,int>",
+    ] {
+        let source = format!("def run({parameters}) -> bool; a == b; end");
+        let script = Engine::new().compile(&source).unwrap();
+        let report = script
+            .check_function("run", &CallOptions::default())
+            .unwrap();
+        assert!(report.is_clean(), "{source}: {report:?}");
+        let source = format!("def run({parameters}) -> int; if a == b; 7; else; 'wrong'; end; end");
+        let report = Engine::new()
+            .compile(&source)
+            .unwrap()
+            .check_function("run", &CallOptions::default())
+            .unwrap();
+        assert!(
+            report.incomplete.is_empty() && !report.diagnostics.is_empty(),
+            "{source}: {report:?}"
+        );
+    }
+    let calls = Arc::new(AtomicUsize::new(0));
+    let count = calls.clone();
+    let mut engine = Engine::new();
+    engine.register("tick", move |_, _| {
+        count.fetch_add(1, Ordering::Relaxed);
+        Ok(Value::int(7))
+    });
+    let source = "def run(flag:bool) -> int; a=if flag; [1]; else; [2]; end; if a==[1.0]; tick(); else; 7; end; end";
+    let script = engine.compile(source).unwrap();
+    assert!(
+        script
+            .check_function("run", &CallOptions::default())
+            .unwrap()
+            .is_clean()
+    );
+    assert_eq!(calls.load(Ordering::Relaxed), 0);
+    for flag in [true, false] {
+        assert_eq!(
+            script
+                .call("run", &[Value::boolean(flag)], CallOptions::default())
+                .unwrap()
+                .value
+                .as_int(),
+            Some(7)
+        );
+    }
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+}
+
 #[test]
 fn whole_file_check_includes_unused_declarations_and_preserves_call_scopes() {
     let script = Engine::new()

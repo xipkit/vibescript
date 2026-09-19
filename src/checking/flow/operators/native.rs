@@ -214,14 +214,17 @@ impl Walker<'_> {
                 };
                 let right = state.stack.data.pop().unwrap();
                 let left = state.stack.data.pop().unwrap();
-                let result = self
-                    .facts
-                    .scalar_binary(self.ctx, op, left.value, right.value)?;
+                let (result, limit) =
+                    self.facts
+                        .scalar_binary(self.ctx, op, left.value, right.value)?;
                 if result.unsupported {
                     return self.incomplete(pc).map(Some);
                 }
-                let (errors, stops) =
+                let (mut errors, stops) =
                     self.binary_errors(op, left.value, right.value, result.rejected)?;
+                if limit {
+                    errors |= handlers::bit(ErrorClass::Limit);
+                }
                 self.emit_error(state, pc, errors)?;
                 if result.rejected {
                     self.issue(
@@ -233,7 +236,7 @@ impl Walker<'_> {
                         },
                     )?;
                 }
-                if stops {
+                if stops || result.value == Atom::Never.fact() {
                     return Ok(Some([None, None]));
                 }
                 let predicate = if matches!(op, "==" | "!=")

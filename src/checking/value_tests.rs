@@ -479,7 +479,7 @@ fn primitive_operator_facts_contain_temporal_regex_and_comparison_results() {
                 let mut facts = Facts::new(&mut ctx).unwrap();
                 let a = literal_fact(&mut ctx, &mut facts, left);
                 let b = literal_fact(&mut ctx, &mut facts, right);
-                let inferred = facts.scalar_binary(&mut ctx, op, a, b).unwrap();
+                let (inferred, _) = facts.scalar_binary(&mut ctx, op, a, b).unwrap();
                 assert!(!inferred.unsupported, "{left:?} {op} {right:?}");
                 let actual = crate::ops::binary(
                     &mut CallContext::new(CallOptions::default()),

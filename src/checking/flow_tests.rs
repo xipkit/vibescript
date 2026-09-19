@@ -561,7 +561,7 @@ fn scalar_operator_facts_cover_runtime_results_and_type_failures() {
     ] {
         for (left, a) in &values {
             for (right, b) in &values {
-                let inferred = facts
+                let (inferred, _) = facts
                     .scalar_binary(&mut ctx, op, left.fact(), right.fact())
                     .unwrap();
                 assert!(!inferred.unsupported);

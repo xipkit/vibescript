@@ -143,12 +143,13 @@ impl Facts {
         op: &str,
         left: Fact,
         right: Fact,
-    ) -> Result<Operation> {
+    ) -> Result<(Operation, bool)> {
         let mut result = Operation {
             value: Atom::Never.fact(),
             rejected: false,
             unsupported: false,
         };
+        let mut limit = false;
         if !matches!(
             op,
             "+" | "-"
@@ -168,7 +169,7 @@ impl Facts {
                 | "&"
         ) {
             result.unsupported = true;
-            return Ok(result);
+            return Ok((result, limit));
         }
         for a in 0..self.arm_count(left) {
             for b in 0..self.arm_count(right) {
@@ -245,6 +246,40 @@ impl Facts {
                     } else {
                         self.boolean(ctx, (left == right) == (op == "=="))?
                     };
+                    result.value = self.union(ctx, &[result.value, next])?;
+                    continue;
+                }
+                let structural = |value| {
+                    matches!(
+                        self.node(value),
+                        Node::Array(_)
+                            | Node::Tuple(_)
+                            | Node::Hash(..)
+                            | Node::Shape(..)
+                            | Node::Protected(..)
+                    )
+                };
+                if matches!(op, "==" | "!=") && (structural(left) || structural(right)) {
+                    match self.node(left) {
+                        // An unknown receiver may dispatch a source operator with any result type.
+                        Node::Atom(Atom::Unknown | Atom::Any) => {
+                            result.value =
+                                self.union(ctx, &[result.value, Atom::Unknown.fact()])?;
+                            continue;
+                        }
+                        Node::Named(_) | Node::Nominal { .. } | Node::Choice(_) => {
+                            result.unsupported = true;
+                            continue;
+                        }
+                        _ => (),
+                    }
+                    let (mut next, guarded) = self.value_equal(ctx, left, right)?;
+                    limit |= guarded;
+                    if op == "!=" {
+                        if let Node::Boolean(value) = self.node(next) {
+                            next = self.boolean(ctx, !value)?;
+                        }
+                    }
                     result.value = self.union(ctx, &[result.value, next])?;
                     continue;
                 }
@@ -360,7 +395,7 @@ impl Facts {
                 result.value = self.union(ctx, &[result.value, next])?;
             }
         }
-        Ok(result)
+        Ok((result, limit))
     }
 
     pub fn known_non_callable(&self, ctx: &mut CallContext, value: Fact) -> Result<bool> {
