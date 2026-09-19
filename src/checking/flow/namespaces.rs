@@ -5,7 +5,9 @@ use crate::syntax::modules::Visibility;
 
 mod instances;
 mod introspection;
+mod source;
 mod state;
+pub(super) use source::Namespace;
 
 pub(super) enum Selection {
     Call(Target),
@@ -15,12 +17,12 @@ pub(super) enum Selection {
 }
 
 impl Walker<'_> {
-    pub(super) fn standard_nil_receiver(&mut self, value: Fact) -> Result<bool> {
+    pub(super) fn standard_nil_receiver(&mut self, state: &State, value: Fact) -> Result<bool> {
         for i in 0..self.facts.arm_count(value) {
             self.ctx.charge(1)?;
             let arm = self.facts.arm(value, i);
-            if let Some(module) = self.namespace_index(arm) {
-                let definition = &self.program.namespaces[module];
+            if let Some(module) = self.namespace(state, arm)? {
+                let definition = &module.program().namespaces[module.index];
                 let methods = if matches!(self.facts.node(arm), Node::Instance { .. }) {
                     &definition.instance_methods
                 } else {
@@ -111,36 +113,16 @@ impl Walker<'_> {
         Ok(value)
     }
 
-    pub(super) fn namespace_index(&self, receiver: Fact) -> Option<usize> {
-        let ty = match self.facts.node(receiver) {
-            Node::TypeValue(ty) | Node::Instance { class: ty, .. } => *ty,
-            _ => return None,
-        };
-        let Node::Nominal {
-            identity: NominalId::Binding(owner, index),
-            ..
-        } = *self.facts.node(ty)
-        else {
-            return None;
-        };
-        if owner != self.layouts.source_owner {
-            return None;
-        }
-        match &self.program.declarations.get(index)?.0 {
-            Kind::Namespace(namespace) => Some(namespace.definition.index),
-            _ => None,
-        }
-    }
-
     fn namespace_slot(&self, state: &State, module: usize) -> usize {
         state.global_base + state.source_slots.namespace(module)
     }
 
     fn namespace_field(&mut self, state: &State, module: usize, name: &str) -> Result<Selected> {
-        let fields = state
-            .locals
-            .get(self.ctx, self.namespace_slot(state, module))?
-            .value;
+        self.namespace_fields(state, self.namespace_slot(state, module), name)
+    }
+
+    fn namespace_fields(&mut self, state: &State, root: usize, name: &str) -> Result<Selected> {
+        let fields = state.locals.get(self.ctx, root)?.value;
         namespaces::field(self.ctx, self.facts, fields, name)
     }
 
@@ -151,7 +133,16 @@ impl Walker<'_> {
         name: &str,
         present: bool,
     ) -> Result<()> {
-        let slot = self.namespace_slot(state, module);
+        self.refine_namespace_fields(state, self.namespace_slot(state, module), name, present)
+    }
+
+    fn refine_namespace_fields(
+        &mut self,
+        state: &mut State,
+        slot: usize,
+        name: &str,
+        present: bool,
+    ) -> Result<()> {
         let binding = state.locals.get(self.ctx, slot)?;
         let value = namespaces::refine(self.ctx, self.facts, binding.value, name, present)?;
         state
@@ -208,25 +199,25 @@ impl Walker<'_> {
         implicit: bool,
     ) -> Result<Selection> {
         self.ctx.charge(1)?;
-        let Some(module) = self.namespace_index(receiver) else {
+        let Some(module) = self.namespace(state, receiver)? else {
             return Ok(Selection::Incomplete);
         };
-        let definition = &self.program.namespaces[module];
+        let definition = &module.program().namespaces[module.index];
         let instance = matches!(self.facts.node(receiver), Node::Instance { .. });
         if scope {
             return if instance {
                 Ok(Selection::Rejected)
             } else {
-                self.namespace_field_selection(state, module, name)
+                self.namespace_field_selection(state, module.root, name)
             };
         }
         if instance && name == "class" {
-            return Ok(Selection::Field(self.namespace_value(module)?, false));
+            return Ok(Selection::Field(module.value(self.ctx, self.facts)?, false));
         }
         if !instance && name == "new" {
             if let Some((function, _)) = definition.constructor {
                 return Ok(Selection::Call(Target::Method {
-                    function: self.source.callable(function),
+                    function: module.source.callable(function),
                     receiver,
                     constructor: true,
                 }));
@@ -245,19 +236,19 @@ impl Walker<'_> {
                     Visibility::Private => implicit,
                     Visibility::Protected => {
                         implicit
-                            || (self.function.namespace == Some(module)
+                            || (module.local(self.source, self.function.namespace)
                                 && self.function.instance == instance)
                     }
                 };
                 return Ok(if allowed {
                     Selection::Call(if instance {
                         Target::Method {
-                            function: self.source.callable(method.function),
+                            function: module.source.callable(method.function),
                             receiver,
                             constructor: false,
                         }
                     } else {
-                        Target::Function(self.source.callable(method.function))
+                        Target::Function(module.source.callable(method.function))
                     })
                 } else {
                     Selection::Rejected
@@ -288,7 +279,7 @@ impl Walker<'_> {
             let field = if instance {
                 self.instance_field(state, receiver, name)?
             } else {
-                self.namespace_field(state, module, name)?
+                self.namespace_fields(state, module.root, name)?
             };
             return Ok(
                 if field.incomplete || field.missing && field.value != Atom::Never.fact() {
@@ -314,17 +305,17 @@ impl Walker<'_> {
                 Selection::Field(field.value, field.missing)
             })
         } else {
-            self.namespace_field_selection(state, module, name)
+            self.namespace_field_selection(state, module.root, name)
         }
     }
 
     fn namespace_field_selection(
         &mut self,
         state: &State,
-        module: usize,
+        root: usize,
         name: &str,
     ) -> Result<Selection> {
-        let field = self.namespace_field(state, module, name)?;
+        let field = self.namespace_fields(state, root, name)?;
         Ok(if field.incomplete {
             Selection::Incomplete
         } else if field.value == Atom::Never.fact() {

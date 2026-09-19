@@ -14,7 +14,7 @@ impl Walker<'_> {
         pc: usize,
         receiver: Fact,
     ) -> Result<Option<Fact>> {
-        let Some(module) = self.namespace_index(receiver) else {
+        let Some(module) = self.namespace(state, receiver)? else {
             self.incomplete(pc)?;
             return Ok(None);
         };
@@ -22,7 +22,7 @@ impl Walker<'_> {
             self.incomplete(pc)?;
             return Ok(None);
         };
-        let root = self.namespace_slot(state, module) + 2;
+        let root = module.root + 2;
         let heap = state.locals.get(self.ctx, root)?.value;
         // Widened allocation counts cannot identify a fresh singleton object.
         let Node::Tuple(entries) = self.facts.node(heap) else {
@@ -64,13 +64,10 @@ impl Walker<'_> {
         let Node::Instance { slot, .. } = *self.facts.node(receiver) else {
             return Ok(None);
         };
-        let Some(module) = self.namespace_index(receiver) else {
+        let Some(module) = self.namespace(state, receiver)? else {
             return Ok(None);
         };
-        let heap = state
-            .locals
-            .get(self.ctx, self.namespace_slot(state, module) + 2)?
-            .value;
+        let heap = state.locals.get(self.ctx, module.root + 2)?.value;
         let key = self.facts.integer(self.ctx, slot as i64)?;
         let fields = crate::checking::heaps::read(self.ctx, self.facts, heap, key)?;
         Ok((!fields.unsupported).then_some(fields.value))
@@ -123,13 +120,13 @@ impl Walker<'_> {
         let Node::Instance { slot, .. } = *self.facts.node(receiver) else {
             return Ok(None);
         };
-        let Some(module) = self.namespace_index(receiver) else {
+        let Some(module) = self.namespace(state, receiver)? else {
             return Ok(None);
         };
         if self.instance_fields(state, receiver)?.is_none() {
             return Ok(None);
         }
-        let root = self.namespace_slot(state, module) + 2;
+        let root = module.root + 2;
         let heap = state.locals.get(self.ctx, root)?.value;
         let mut address = Address::new(Some(root), heap);
         let key = self.facts.integer(self.ctx, slot as i64)?;
@@ -249,11 +246,19 @@ impl Walker<'_> {
         Ok(None)
     }
 
-    fn property_type(&mut self, receiver: Fact, name: &str) -> Result<Option<usize>> {
-        let Some(module) = self.namespace_index(receiver) else {
+    fn property_type(
+        &mut self,
+        state: &State,
+        receiver: Fact,
+        name: &str,
+    ) -> Result<Option<(SourceId, usize)>> {
+        let Some(module) = self.namespace(state, receiver)? else {
             return Ok(None);
         };
-        namespaces::property_type(self.ctx, self.program, module, name)
+        Ok(
+            namespaces::property_type(self.ctx, module.program(), module.index, name)?
+                .map(|ty| (module.source, ty)),
+        )
     }
 
     fn normalize_property(
@@ -264,10 +269,10 @@ impl Walker<'_> {
         name: &str,
         actual: Fact,
     ) -> Result<Option<Fact>> {
-        let Some(ty) = self.property_type(receiver, name)? else {
+        let Some((source, ty)) = self.property_type(state, receiver, name)? else {
             return Ok(Some(actual));
         };
-        let Some(expected) = self.property_contract(state, pc, ty)? else {
+        let Some(expected) = self.property_contract(state, pc, source, ty)? else {
             return Ok(None);
         };
         let relation = self.facts.relation(self.ctx, actual, expected)?;

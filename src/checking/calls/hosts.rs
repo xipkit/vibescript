@@ -15,11 +15,69 @@ enum Contract {
 
 struct Environment {
     bindings: Bindings,
-    scopes: [Scope; 3],
+    scopes: [Scope; 4],
     count: usize,
 }
 
 impl Solver<'_, '_> {
+    /// Resolves annotations without borrowing the caller's lexical type environment.
+    pub(super) fn source_annotation(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        ty: usize,
+        globals: &Globals,
+    ) -> Result<Annotation> {
+        let expected = self.world.contracts[ty];
+        let mut result = Annotation {
+            expected,
+            resolution: Resolution::Known(expected),
+            throws: 0,
+        };
+        if !self.layouts.named_annotation(ctx, ty)? {
+            return Ok(result);
+        }
+        let mut resolved = Buffer::empty();
+        loop {
+            let environment = self.host_environment(ctx, facts, globals, &resolved.data)?;
+            let mut failure = None;
+            let value = facts.annotation(ctx, &self.world.program.types[ty], |ctx, name| {
+                if failure.is_some() {
+                    return Ok(None);
+                }
+                match environment.bindings.resolve(
+                    ctx,
+                    &environment.scopes[..environment.count],
+                    name,
+                    false,
+                )? {
+                    Resolution::Known(value) => Ok(Some(value)),
+                    resolution => {
+                        failure = Some(resolution);
+                        Ok(None)
+                    }
+                }
+            })?;
+            let Some(Resolution::Pending(root)) = failure else {
+                result.resolution = failure.unwrap_or(Resolution::Known(value));
+                return Ok(result);
+            };
+            let loaded = self.load_root(ctx, facts, root)?;
+            result.throws |= loaded.throws;
+            if loaded.incomplete {
+                result.resolution = Resolution::Dynamic;
+                return Ok(result);
+            }
+            let slot = globals.layout.source(ctx, self.source)?.roots.data[root];
+            let value = facts.union(ctx, &[globals.values.data[slot], loaded.value])?;
+            if value == Atom::Never.fact() {
+                result.resolution = Resolution::Known(value);
+                return Ok(result);
+            }
+            resolved.push(ctx, (root, value))?;
+        }
+    }
+
     fn host_environment(
         &mut self,
         ctx: &mut CallContext,
@@ -103,10 +161,15 @@ impl Solver<'_, '_> {
                     bindings.insert(ctx, file, name.as_bytes().unwrap(), binding)?;
                 }
             }
-            ([file, hosts, source], 3)
+            ([file, hosts, source, source], 3)
         } else {
-            ([hosts, source, source], 2)
+            ([hosts, source, source, source], 2)
         };
+        let (mut scopes, mut count) = (scopes, count);
+        if let Some(receiving) = self.receiving_type_scope(ctx, facts, globals, &mut bindings)? {
+            scopes[count] = receiving;
+            count += 1;
+        }
         Ok(Environment {
             bindings,
             scopes,

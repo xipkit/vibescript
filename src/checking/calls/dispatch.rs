@@ -30,6 +30,73 @@ impl World<'_> {
 }
 
 impl<'a> Solver<'_, 'a> {
+    /// Reads the receiving declaration after its current source bindings are applied.
+    pub(super) fn receiving_value(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        name: &str,
+        globals: &Globals,
+    ) -> Result<Option<Fact>> {
+        let handle = self.root_handle(ctx)?;
+        let root = handle.view();
+        if !self.world.program.file || root.source == self.source {
+            return Ok(None);
+        }
+        ctx.work_bytes(name.len())?;
+        let Some(&index) = root.world.program.declaration_names.get(name) else {
+            return Ok(None);
+        };
+        Self::receiving_declaration_value(ctx, facts, globals, root, index).map(Some)
+    }
+
+    /// Preserves receiving type identities as a fallback for required-file contracts.
+    pub(super) fn receiving_type_scope(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        globals: &Globals,
+        bindings: &mut super::super::type_bindings::Bindings,
+    ) -> Result<Option<super::super::type_bindings::Scope>> {
+        let handle = self.root_handle(ctx)?;
+        let root = handle.view();
+        if !self.world.program.file || root.source == self.source {
+            return Ok(None);
+        }
+        let scope = bindings.scope(ctx)?;
+        for index in 0..root.world.program.declarations.len() {
+            let name = crate::checking::file_bindings::declaration_name(root.world.program, index);
+            let value = Self::receiving_declaration_value(ctx, facts, globals, root, index)?;
+            let binding = bindings.current(ctx, facts, value)?;
+            bindings.insert(ctx, scope, name.as_bytes(), binding)?;
+        }
+        Ok(Some(scope))
+    }
+
+    fn receiving_declaration_value(
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        globals: &Globals,
+        root: worlds::View<'_>,
+        index: usize,
+    ) -> Result<Fact> {
+        let slots = globals.layout.source(ctx, root.source)?;
+        let original = globals.values.data[slots.declarations.start + index];
+        let name = crate::checking::file_bindings::declaration_name(root.world.program, index);
+        if root.world.program.file {
+            if let Some(index) = root.layouts.files.index(ctx, name)? {
+                let slot = slots.files.start + index;
+                let value = globals.values.data[slot];
+                return if globals.missing.data[slot] {
+                    facts.union(ctx, &[value, original])
+                } else {
+                    Ok(value)
+                };
+            }
+        }
+        Ok(original)
+    }
+
     /// Selects supplied bindings from the invocation receiving this source.
     pub(super) fn root_handle(&self, ctx: &mut CallContext) -> Result<Handle<'a>> {
         let source = self

@@ -339,26 +339,22 @@ fn imported_functions_use_receiving_roots_and_preserve_private_rebindings() {
 
 #[test]
 fn receiving_shadows_never_fall_through_to_builtins() {
-    for body in ["JSON", "JSON::One", "JSON.stringify(1)"] {
+    for (body, caller_body, expected, rejected) in [
+        ("JSON", "lib.remote()==JSON", "true", false),
+        ("JSON::One", "lib.remote()==JSON::One", "true", false),
+        (
+            "JSON.stringify(1)",
+            "begin;lib.remote();rescue;9;end",
+            "9",
+            true,
+        ),
+    ] {
         let caller = Engine::new()
-            .compile("enum JSON;One;end;def run;lib.remote();end")
+            .compile(&format!("enum JSON;One;end;def run;{caller_body};end"))
             .unwrap();
         let callee =
             Code::compile_file(&format!("def remote;{body};end"), &Default::default()).unwrap();
-        let mut ctx = CallContext::new(CallOptions::default());
-        let mut facts = Facts::new(&mut ctx).unwrap();
-        let report = analyze_pair(
-            &mut ctx,
-            &mut facts,
-            &caller.inner.code,
-            &callee,
-            Callable::Function(callee.program.names["remote"]),
-        )
-        .unwrap();
-        assert!(!report.incomplete.data.is_empty(), "{report:?}");
-        assert!(report.issues.data.is_empty(), "{report:?}");
-        drop((report, facts));
-        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        check(&caller, &callee, expected, rejected);
     }
     let caller = Engine::new()
         .compile("def JSON;7;end;def run;begin;lib.remote();rescue;9;end;end")

@@ -169,12 +169,12 @@ impl Walker<'_> {
             let mut next = state.snapshot(self.ctx)?;
             let mut value = original;
             if matches!(self.facts.node(original), Node::Instance { .. }) {
-                let Some(module) = self.namespace_index(original) else {
+                let Some(module) = self.namespace(state, original)? else {
                     self.incomplete(pc)?;
                     continue;
                 };
                 let mut function = None;
-                for method in &self.program.namespaces[module].instance_methods {
+                for method in &module.program().namespaces[module.index].instance_methods {
                     self.ctx.work_bytes(method.name.len())?;
                     if method.name == "to_s" {
                         function = Some(method.function);
@@ -182,7 +182,7 @@ impl Walker<'_> {
                     }
                 }
                 if let Some(candidate) = function {
-                    for parameter in &self.program.functions[candidate].params {
+                    for parameter in &module.program().functions[candidate].params {
                         self.ctx.charge(1)?;
                         if matches!(parameter.kind, ParamKind::Positional | ParamKind::Keyword)
                             && !parameter.default
@@ -194,7 +194,7 @@ impl Walker<'_> {
                 }
                 if let Some(function) = function {
                     let target = Target::Method {
-                        function: self.source.callable(function),
+                        function: module.source.callable(function),
                         receiver: original,
                         constructor: false,
                     };

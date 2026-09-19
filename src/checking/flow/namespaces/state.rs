@@ -98,7 +98,7 @@ impl Walker<'_> {
             }
             return Ok(Some([None, None]));
         }
-        if self.namespace_index(receiver).is_none() {
+        if self.namespace(state, receiver)?.is_none() {
             return self.incomplete(pc).map(Some);
         }
         let mut address = Address::new(None, receiver);
@@ -142,12 +142,12 @@ impl Walker<'_> {
             }
             return Ok(Some([None, None]));
         }
-        let Some(module) = self.namespace_index(receiver) else {
+        let Some(module) = self.namespace(state, receiver)? else {
             return self.incomplete(pc).map(Some);
         };
         let field = &self.program.members[name];
         let instance = matches!(self.facts.node(receiver), Node::Instance { .. });
-        let definition = &self.program.namespaces[module];
+        let definition = &module.program().namespaces[module.index];
         let methods = if instance {
             &definition.instance_methods
         } else {
@@ -162,7 +162,7 @@ impl Walker<'_> {
             args.positional.push(self.ctx, operand.value)?;
             if method.visibility == Visibility::Private
                 || (method.visibility == Visibility::Protected
-                    && (self.function.namespace != Some(module)
+                    && (!module.local(self.source, self.function.namespace)
                         || self.function.instance != instance))
             {
                 self.namespace_error(state, pc, receiver, name, &args)?;
@@ -170,12 +170,12 @@ impl Walker<'_> {
             }
             let target = if instance {
                 Target::Method {
-                    function: self.source.callable(method.function),
+                    function: module.source.callable(method.function),
                     receiver,
                     constructor: false,
                 }
             } else {
-                Target::Function(self.source.callable(method.function))
+                Target::Function(module.source.callable(method.function))
             };
             let edges = self.invoke(state, pc, target, args)?;
             if edges.is_none() {
@@ -198,7 +198,7 @@ impl Walker<'_> {
             state.stack.push(self.ctx, Operand::new(operand.value))?;
             return Ok(None);
         }
-        if let Some(edges) = self.namespace_write(state, pc, module, field, operand)? {
+        if let Some(edges) = self.namespace_write_fields(state, pc, module.root, field, operand)? {
             return Ok(Some(edges));
         }
         state.stack.push(self.ctx, Operand::new(operand.value))?;
@@ -298,7 +298,17 @@ impl Walker<'_> {
         name: &str,
         operand: Operand,
     ) -> Result<Option<Edges>> {
-        let slot = self.namespace_slot(state, module);
+        self.namespace_write_fields(state, pc, self.namespace_slot(state, module), name, operand)
+    }
+
+    fn namespace_write_fields(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        slot: usize,
+        name: &str,
+        operand: Operand,
+    ) -> Result<Option<Edges>> {
         let fields = state.locals.get(self.ctx, slot)?.value;
         let key = self.facts.string(self.ctx, name.as_bytes())?;
         let mut address = Address::new(Some(slot), fields);
@@ -345,7 +355,15 @@ impl Walker<'_> {
     }
 
     fn push_field_address(&mut self, state: &mut State, module: usize, name: &str) -> Result<()> {
-        let slot = self.namespace_slot(state, module);
+        self.push_namespace_field_address(state, self.namespace_slot(state, module), name)
+    }
+
+    fn push_namespace_field_address(
+        &mut self,
+        state: &mut State,
+        slot: usize,
+        name: &str,
+    ) -> Result<()> {
         let fields = state.locals.get(self.ctx, slot)?.value;
         let key = self.facts.string(self.ctx, name.as_bytes())?;
         let mut address = Address::new(Some(slot), fields);
@@ -460,10 +478,10 @@ impl Walker<'_> {
             self.namespace_error(state, pc, receiver, site.name, &Arguments::new())?;
             return Ok(Some([None, None]));
         }
-        let Some(module) = self.namespace_index(receiver) else {
+        let Some(module) = self.namespace(state, receiver)? else {
             return self.incomplete(pc).map(Some);
         };
-        let field = self.namespace_field(state, module, name)?;
+        let field = self.namespace_fields(state, module.root, name)?;
         if field.incomplete {
             return self.incomplete(pc).map(Some);
         }
@@ -473,8 +491,8 @@ impl Walker<'_> {
         if field.value == Atom::Never.fact() {
             return Ok(Some([None, None]));
         }
-        self.refine_namespace(state, module, name, true)?;
-        self.push_field_address(state, module, name)?;
+        self.refine_namespace_fields(state, module.root, name, true)?;
+        self.push_namespace_field_address(state, module.root, name)?;
         Ok(None)
     }
 

@@ -56,6 +56,231 @@ fn witness(files: &Files, source: &str, options: CallOptions, expected: &str) {
     }
 }
 
+fn foreign_witness(files: &Files, source: &str, expected: &str) {
+    foreign_report(files, source, expected, false);
+}
+
+fn foreign_report(files: &Files, source: &str, expected: &str, diagnostics: bool) {
+    let script = files.engine().compile(source).unwrap();
+    let options = CallOptions::default();
+    let result = script.call("run", &[], options.clone()).unwrap();
+    let json = stringify_json(&result.value, options.clone()).unwrap();
+    assert_eq!(json.value.as_bytes(), Some(expected.as_bytes()), "{source}");
+    for report in [
+        script.check_call("run", &[], &options).unwrap(),
+        script.check_function("run", &options).unwrap(),
+    ] {
+        assert!(report.incomplete.is_empty(), "{source}: {report:?}");
+        assert_eq!(
+            !report.diagnostics.is_empty(),
+            diagnostics,
+            "{source}: {report:?}"
+        );
+    }
+}
+
+#[test]
+fn foreign_classes_and_instances_keep_their_defining_source_and_heap() {
+    let files = Files::new();
+    files.write("models.vibe", "class Counter;property value:int;def initialize(n:int=3);@value=n;end;def add(n:int)->int;@value+=n;end;def self.kind->string;'counter';end;end;def counter_class;Counter;end;def counter;Counter.new;end");
+    foreign_witness(
+        &files,
+        "def run;m=require(:models);c=m.counter_class();x=c.new(4);x.add(3);[x.value,x.class.kind(),c.kind()];end",
+        "[7,\"counter\",\"counter\"]",
+    );
+    foreign_witness(
+        &files,
+        "def run;m=require(:models);x=m.counter();x.value=8;x.add(2);[x.value,m.counter().value];end",
+        "[10,3]",
+    );
+}
+
+#[test]
+fn foreign_namespace_fields_and_nested_types_share_import_state() {
+    let files = Files::new();
+    files.write("names.vibe", "module Names;K=[2];module Inner;def self.value->int;7;end;end;def self.value->int;K[0];end;end;def namespace;Names;end");
+    foreign_witness(
+        &files,
+        "def run;m=require(:names);n=m.namespace();n::K[0]+=3;[n.value(),n::Inner.value];end",
+        "[5,7]",
+    );
+}
+
+#[test]
+fn foreign_instance_operators_rendering_and_introspection_use_source_methods() {
+    let files = Files::new();
+    files.write("operators.vibe", "class Number;def +(n:int)->int;5+n;end;def [](n:int)->int;10+n;end;def to_s->string;'number';end;end;def number;Number.new;end");
+    foreign_witness(
+        &files,
+        "def run;n=require(:operators).number();[n+2,n[3],\"#{n}\",n.respond_to?(:to_s),n.class.respond_to?(:new)];end",
+        "[7,13,\"number\",true,true]",
+    );
+}
+
+#[test]
+fn foreign_visibility_does_not_share_lexical_authority_with_equal_namespace_indexes() {
+    let files = Files::new();
+    files.write("private.vibe", "class C;protected;def secret;7;end;def +(n);7;end;def value=(n);7;end;public;def own(other);other.secret;end;end;def object;C.new;end");
+    for expression in ["other.secret", "other+1", "begin;other.value=1;end"] {
+        let source = format!(
+            "class C;def use(other);{expression};end;end;def run;other=require(:private).object();begin;C.new.use(other);rescue RuntimeError;9;end;end"
+        );
+        foreign_report(&files, &source, "9", true);
+    }
+    foreign_witness(
+        &files,
+        "def run;m=require(:private);m.object().own(m.object());end",
+        "7",
+    );
+}
+
+#[test]
+fn foreign_instances_keep_typed_mutations_and_pending_addresses() {
+    let files = Files::new();
+    files.write("boxes.vibe", "class Box;getter items:array<int>;def initialize;@items=[1,2];end;def append;@items.push(4);7;end;def work;@items[-1]+=append();@items;end;def bad;@items.push('bad');end;end;def box;Box.new;end");
+    foreign_witness(
+        &files,
+        "def run;require(:boxes).box().work();end",
+        "[1,9,4]",
+    );
+    foreign_report(
+        &files,
+        "def run;b=require(:boxes).box();begin;b.bad();rescue RuntimeError;nil;end;b.items;end",
+        "[1,2]",
+        true,
+    );
+}
+
+#[test]
+fn required_files_read_receiving_declarations_and_resolve_their_contracts() {
+    let files = Files::new();
+    files.write(
+        "forward.vibe",
+        "def make;Local.new(4);end;def take(x:Local)->int;x.value;end",
+    );
+    foreign_witness(
+        &files,
+        "class Local;property value:int;def initialize(@value);end;end;def run;m=require(:forward);m.take(m.make());end",
+        "4",
+    );
+}
+
+#[test]
+fn foreign_nominal_types_do_not_collapse_equal_names_or_heap_indexes() {
+    let files = Files::new();
+    for (name, seed) in [("first.vibe", 3), ("second.vibe", 7)] {
+        files.write(name, &format!("class C;property n:int;def initialize;@n={seed};end;end;def create;C.new;end;def take(x:C)->int;x.n;end"));
+    }
+    foreign_witness(
+        &files,
+        "def run;a=require(:first);b=require(:second);x=a.create();y=b.create();x.n=9;[x.n,y.n,x.class==y.class,a.take(x),b.take(y)];end",
+        "[9,7,false,9,7]",
+    );
+    foreign_report(
+        &files,
+        "def run;a=require(:first);b=require(:second);begin;a.take(b.create());rescue;9;end;end",
+        "9",
+        true,
+    );
+}
+
+#[test]
+fn foreign_method_blocks_keep_lexical_receivers_and_control_transfers() {
+    let files = Files::new();
+    files.write(
+        "iterator.vibe",
+        "class Iterator;def each;yield(3);yield(99);end;end;def iterator;Iterator.new;end",
+    );
+    foreign_witness(
+        &files,
+        "class Receiver;getter n;def initialize;@n=0;end;def work(other);other.each{|n|@n+=n;break 7};@n;end;end;def run;Receiver.new.work(require(:iterator).iterator());end",
+        "3",
+    );
+    foreign_witness(
+        &files,
+        "def run;require(:iterator).iterator().each{|n|return n+2};99;end",
+        "5",
+    );
+}
+
+#[test]
+fn whole_file_analysis_keeps_foreign_constructor_and_method_owners() {
+    let files = Files::new();
+    files.write("whole.vibe", "class C;property n:int;def initialize(n:int=3);@n=n;end;def value->int;@n;end;end;def klass;C;end");
+    let script = files
+        .engine()
+        .compile("m=require(:whole);c=m.klass().new(5);c.n=7;c.value")
+        .unwrap();
+    assert_eq!(
+        script.run(CallOptions::default()).unwrap().value.as_int(),
+        Some(7)
+    );
+    let report = script.check(&CallOptions::default()).unwrap();
+    assert!(report.is_clean(), "{report:?}");
+}
+
+#[test]
+fn required_host_contracts_use_defining_types_then_receiving_declarations_without_effects() {
+    use std::sync::Arc;
+    use vibescript::{HostMethod, Signature, SignatureParam};
+    let files = Files::new();
+    files.write("host.vibe", "def value(x);observe(x);end");
+    files.write(
+        "owned.vibe",
+        "class Local;end;def value(x);observe(x);end;def local;Local.new;end",
+    );
+    let count = Arc::new(AtomicUsize::new(0));
+    let calls = count.clone();
+    let mut engine = files.engine();
+    engine.register_method(
+        "observe",
+        HostMethod::new("observe", move |_, _, _| {
+            calls.fetch_add(1, Ordering::Relaxed);
+            Ok(Value::int(7))
+        })
+        .with_signature(Signature {
+            params: vec![SignatureParam {
+                name: "item".into(),
+                ty: "Local".into(),
+                optional: false,
+            }],
+            result: "int".into(),
+            accepts_block: false,
+        })
+        .unwrap(),
+    );
+    for (body, rejected, expected) in [
+        ("require(:host).value(Local.new)", false, 7),
+        ("m=require(:owned);m.value(m.local())", false, 7),
+        (
+            "begin;require(:owned).value(Local.new);rescue;9;end",
+            true,
+            9,
+        ),
+    ] {
+        let script = engine
+            .compile(&format!("class Local;end;def run->int;{body};end"))
+            .unwrap();
+        let before = count.load(Ordering::Relaxed);
+        let report = script
+            .check_call("run", &[], &CallOptions::default())
+            .unwrap();
+        assert!(report.incomplete.is_empty(), "{body}: {report:?}");
+        assert_eq!(
+            !report.diagnostics.is_empty(),
+            rejected,
+            "{body}: {report:?}"
+        );
+        assert_eq!(count.load(Ordering::Relaxed), before);
+        let output = script.call("run", &[], CallOptions::default()).unwrap();
+        assert_eq!(output.value.as_int(), Some(expected), "{body}");
+        assert_eq!(
+            count.load(Ordering::Relaxed),
+            before + usize::from(!rejected)
+        );
+    }
+}
+
 #[test]
 fn imported_functions_use_private_state_defaults_and_published_names() {
     let files = Files::new();

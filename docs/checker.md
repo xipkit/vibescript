@@ -320,7 +320,15 @@ Different import histories retain separate private-state alternatives through na
 
 Whole-file checks also analyze callable declarations in discovered files. Exact-call and selected-function checks retain their reachable scope. Discovery, layout growth, state alternatives, report storage and retries share the existing work/memory budgets, cancellation token and deadline. Ordinary scripts do not allocate import lifecycle state.
 
-Uncertain alias presence, equality of export objects without functions, foreign namespace/instance selection and captured foreign heap state still require further analysis support. These paths remain explicit rather than producing a clean report.
+Uncertain alias presence, equality of export objects without functions and captured foreign heap state still require further analysis support. These paths remain explicit rather than producing a clean report.
+
+## Foreign namespace and instance ownership
+
+Classes and modules returned by required-file functions keep their defining source during lookup, construction and calls. Namespace constants, nested namespaces and instance fields use that source's storage. Equal declaration indexes or class names in different files do not merge types, heaps or protected-method authority. Operators, rendering, introspection, forwarding, setters and lexical callbacks use the same source identity.
+
+Required files can read classes and enums declared by their receiving script. Those declarations also provide fallback types for script and host contracts, after the defining file's own type scopes. Property annotations resolve in their defining source, without borrowing caller locals. Known invalid accesses and writes remain diagnostics, including when execution rescues the error.
+
+Runtime witnesses cover construction, independent objects, same-named classes from different files, shared namespace state, protected access, typed mutation, pending negative indexes, callbacks and whole-file checking. Resource tests cover exact and interrupted limits and release of temporary metadata. Analysis still never executes initializers or host callbacks. Admitting captured class environments and instance heaps from another public invocation remains incomplete.
 
 ## Remaining integration
 
@@ -329,7 +337,7 @@ Completion still requires:
 - Opaque iterable dispatch, interprocedural block control, general type narrowing, remaining scalar constant propagation and stored predicate relations. Collection-loop, recursive-call and exception-effect precision need further work; value-origin facts must preserve correlations without confusing equivalent types with identical values.
 - Instance allocation summaries, dynamic type atoms, optional helper field alternatives, opaque implicit conversions, remaining builtin helpers, variable-size splats, foreign attached-method environments, opaque value dispatch and unresolved lexical ownership. Known source calls, named-call namespace initialization and state, static and instance operator dispatch, introspection and forwarding, live host signatures, conservative host block schedules and concrete host-call binding are implemented; whole-program integration remains required.
 - Broader mutable-container dispatch, precise attachment correlations and invalidation after unmodeled effects. Ordinary addressed writes and collection-loop widening are integrated internally.
-- Dynamic module names, uncertain alias presence and object identity, foreign class/instance member lookup, and captured foreign environments. Literal required-file discovery, initialization, retries and export calls are integrated without executing initializers.
+- Dynamic module names, uncertain alias presence and object identity, and captured foreign environments. Literal required-file discovery, initialization, retries, export calls and member lookup across prepared sources are integrated without executing initializers.
 - Capability descriptors spanning multiple source environments and accounting for the remaining public checking scopes. Internal strict-effects validation, eager argument binding and deferred root loading share the runtime rules. Signature metadata is inspected without invoking callbacks or validators.
 - Broader reference fixtures, required-file and capability tests, cancellation/quotas at the public boundary, and the remaining temporary compiler allocation accounting.
 

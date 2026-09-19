@@ -69,6 +69,11 @@ fn import_discovery_publication_and_retries_share_exact_limits_and_release_scrat
         "n||=0;n+=1;if flags[0];raise 'retry';end;def value->int;if n==1;7;else;false;end;end",
     )
     .unwrap();
+    fs::write(
+        directory.0.join("objects.vibe"),
+        "class Box;property value:int;def initialize(n:int=3);@value=n;end;def +(n:int)->int;@value+n;end;end;def box_class;Box;end;def receiving(x:Local)->int;x.value;end",
+    )
+    .unwrap();
     let mut engine = Engine::new();
     engine
         .set_module_config(ModuleConfig {
@@ -92,6 +97,7 @@ fn import_discovery_publication_and_retries_share_exact_limits_and_release_scrat
         "def run;require(:outer,as: :M);require(:outer,as: :M);M.value();end",
         "def run;begin;require(:fail);rescue;nil;end;require(:fail).value();end",
         "def run;[0].each{if choose();flags[0]=true;begin;require(:branch);rescue;nil;end;end};flags[0]=false;require(:branch).value();end",
+        "class Local;property value:int;def initialize;@value=4;end;end;def run->int;m=require(:objects);c=m.box_class();b=c.new();b.value+=2;if b+2==7;m.receiving(Local.new);else;false;end;end",
     ] {
         fs::write(
             directory.0.join("fail.vibe"),

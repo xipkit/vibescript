@@ -219,7 +219,7 @@ impl Walker<'_> {
         implicit: bool,
         args: &Arguments,
     ) -> Result<Fact> {
-        let Some(module) = self.namespace_index(receiver) else {
+        let Some(module) = self.namespace(state, receiver)? else {
             return Ok(Atom::Bool.fact());
         };
         let instance = matches!(self.facts.node(receiver), Node::Instance { .. });
@@ -255,7 +255,7 @@ impl Walker<'_> {
                 values.push(self.ctx, value)?;
                 continue;
             };
-            let definition = &self.program.namespaces[module];
+            let definition = &module.program().namespaces[module.index];
             if instance && name == "class"
                 || !instance && name == "new" && definition.constructor.is_some()
             {
@@ -303,7 +303,7 @@ impl Walker<'_> {
                 let field = if instance {
                     self.instance_field(state, receiver, name)?
                 } else {
-                    self.namespace_field(state, module, name)?
+                    self.namespace_fields(state, module.root, name)?
                 };
                 if field.incomplete {
                     values.push(self.ctx, Atom::Bool.fact())?;

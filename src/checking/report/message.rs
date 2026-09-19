@@ -33,6 +33,17 @@ pub(super) fn issue(
             })?;
             crate::shapes::format(&program.types[ty], &mut out)?;
         }
+        IssueKind::TypeFactBinding {
+            expected,
+            ambiguous,
+        } => {
+            out.text(if ambiguous {
+                "Ambiguous type in "
+            } else {
+                "Unknown type in "
+            })?;
+            out.fact(facts, expected)?;
+        }
         IssueKind::MissingBlock => out.text("No block was supplied for yield")?,
         IssueKind::BlockGivenArguments => out.text("block_given? does not accept arguments")?,
         IssueKind::Ordering { name, left, right } => {

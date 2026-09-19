@@ -196,6 +196,19 @@ impl Walker<'_> {
             return Ok(None);
         }
         match self.calls.receiving_binding(self.ctx, name)? {
+            Target::NonCallable => {
+                let globals = state.global_call(self.ctx)?;
+                if let Some(value) = self
+                    .calls
+                    .receiving_declaration(self.ctx, self.facts, name, &globals)?
+                {
+                    state.stack.push(self.ctx, Operand::new(value))?;
+                    Ok(Some(true))
+                } else {
+                    self.incomplete(pc)?;
+                    Ok(Some(false))
+                }
+            }
             Target::Function(function) => self.read_function(state, pc, function).map(Some),
             target @ Target::Host(_) => {
                 self.issue(pc, IssueKind::DetachedValue(target))?;

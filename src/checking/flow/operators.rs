@@ -64,7 +64,7 @@ impl Walker<'_> {
             }
             return Ok(None);
         }
-        let Some(module) = self.namespace_index(receiver) else {
+        let Some(module) = self.namespace(state, receiver)? else {
             return self.incomplete(pc).map(Some);
         };
         let name = match op {
@@ -74,10 +74,10 @@ impl Walker<'_> {
             Op::AddressStore => "[]=",
             _ => "[]",
         };
-        let mut found = self.operator_method(module, name)?;
+        let mut found = self.operator_method(&module, name)?;
         let mut negate = false;
         if found.is_none() && name == "!=" {
-            found = self.operator_method(module, "==")?;
+            found = self.operator_method(&module, "==")?;
             negate = found.is_some();
         }
         let Some((function, visibility)) = found else {
@@ -91,7 +91,7 @@ impl Walker<'_> {
             Visibility::Public => true,
             Visibility::Private => false,
             Visibility::Protected => {
-                self.function.instance && self.function.namespace == Some(module)
+                self.function.instance && module.local(self.source, self.function.namespace)
             }
         };
         if !allowed {
@@ -153,7 +153,7 @@ impl Walker<'_> {
             _ => unreachable!(),
         };
         let target = Target::Method {
-            function: self.source.callable(function),
+            function: module.source.callable(function),
             receiver,
             constructor: false,
         };
@@ -189,10 +189,10 @@ impl Walker<'_> {
 
     fn operator_method(
         &mut self,
-        module: usize,
+        module: &namespaces::Namespace<'_>,
         name: &str,
     ) -> Result<Option<(usize, Visibility)>> {
-        for method in &self.program.namespaces[module].instance_methods {
+        for method in &module.program().namespaces[module.index].instance_methods {
             self.ctx.charge(1)?;
             self.ctx.work_bytes(name.len().max(method.name.len()))?;
             if method.name == name {

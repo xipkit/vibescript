@@ -66,13 +66,15 @@ impl Walker<'_> {
                 self.facts.node(view),
                 Node::Range(..) | Node::Atom(Atom::Range)
             );
+            let namespace = universal
+                && matches!(
+                    self.facts.node(view),
+                    Node::Instance { .. } | Node::TypeValue(_)
+                )
+                && self.namespace(state, arm)?.is_some();
             let supported = match self.facts.node(view) {
                 Node::Atom(Atom::Never) => continue,
-                Node::Instance { .. } | Node::TypeValue(_)
-                    if universal && self.namespace_index(arm).is_some() =>
-                {
-                    true
-                }
+                Node::Instance { .. } | Node::TypeValue(_) if namespace => true,
                 Node::Named(_)
                 | Node::Nominal { .. }
                 | Node::Instance { .. }

@@ -57,6 +57,10 @@ pub(super) enum IssueKind {
         ty: usize,
         ambiguous: bool,
     },
+    TypeFactBinding {
+        expected: Fact,
+        ambiguous: bool,
+    },
     MissingBlock,
     Ordering {
         name: usize,
@@ -1109,14 +1113,17 @@ impl Walker<'_> {
             constructor: true,
         } = target
         {
-            if function.source != self.source {
+            let Some(module) = self.namespace(state, receiver)? else {
                 return self.incomplete(pc).map(Some);
-            }
-            let module = self.program.functions[function.index].namespace.unwrap();
+            };
             let Some(instance) = self.construct(state, pc, receiver)? else {
                 return Ok(Some([None, None]));
             };
-            if !self.program.namespaces[module].constructor.unwrap().1 {
+            if !module.program().namespaces[module.index]
+                .constructor
+                .unwrap()
+                .1
+            {
                 args = Arguments::new();
             }
             target = Target::Method {
@@ -2953,8 +2960,10 @@ impl Walker<'_> {
                 Op::Method(site, 0)
                     if !site.scope
                         && matches!(site.method, Some(Method::IsNil))
-                        && self
-                            .standard_nil_receiver(state.stack.data.last().unwrap().value)? =>
+                        && self.standard_nil_receiver(
+                            &state,
+                            state.stack.data.last().unwrap().value,
+                        )? =>
                 {
                     let operand = state.stack.data.pop().unwrap();
                     let value = self.facts.test_result(self.ctx, operand.value, Test::Nil)?;

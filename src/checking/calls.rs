@@ -95,7 +95,53 @@ impl Outcome {
     }
 }
 
+pub(super) struct Annotation {
+    pub expected: Fact,
+    pub resolution: super::type_bindings::Resolution,
+    pub throws: u8,
+}
+
 pub(super) trait Calls {
+    /// Reads a declaration from the script receiving a required file.
+    fn receiving_declaration(
+        &mut self,
+        ctx: &mut CallContext,
+        _: &mut Facts,
+        _: &str,
+        _: &Globals,
+    ) -> Result<Option<Fact>> {
+        ctx.checkpoint()?;
+        Ok(None)
+    }
+
+    /// Adds receiving declarations after the defining file's own type scopes.
+    fn receiving_types(
+        &mut self,
+        ctx: &mut CallContext,
+        _: &mut Facts,
+        _: &Globals,
+        _: &mut super::type_bindings::Bindings,
+    ) -> Result<Option<super::type_bindings::Scope>> {
+        ctx.checkpoint()?;
+        Ok(None)
+    }
+
+    /// Resolves a property annotation in its defining source and current invocation state.
+    fn annotation(
+        &mut self,
+        ctx: &mut CallContext,
+        _: &mut Facts,
+        _: SourceId,
+        _: usize,
+        _: &Globals,
+    ) -> Result<Annotation> {
+        ctx.checkpoint()?;
+        Ok(Annotation {
+            expected: Atom::Unknown.fact(),
+            resolution: super::type_bindings::Resolution::Dynamic,
+            throws: 0,
+        })
+    }
     /// Loads a reachable source and summarizes its invocation-local initialization.
     fn require(
         &mut self,
@@ -1184,6 +1230,45 @@ impl Solver<'_, '_> {
 }
 
 impl Calls for Solver<'_, '_> {
+    fn receiving_declaration(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        name: &str,
+        globals: &Globals,
+    ) -> Result<Option<Fact>> {
+        self.receiving_value(ctx, facts, name, globals)
+    }
+
+    fn receiving_types(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        globals: &Globals,
+        bindings: &mut super::type_bindings::Bindings,
+    ) -> Result<Option<super::type_bindings::Scope>> {
+        self.receiving_type_scope(ctx, facts, globals, bindings)
+    }
+
+    fn annotation(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        source: SourceId,
+        ty: usize,
+        globals: &Globals,
+    ) -> Result<Annotation> {
+        let Some((index, handle)) = self.callee(ctx, facts, source)? else {
+            return Ok(Annotation {
+                expected: Atom::Unknown.fact(),
+                resolution: super::type_bindings::Resolution::Dynamic,
+                throws: 0,
+            });
+        };
+        self.state
+            .adapter(index, &handle)
+            .source_annotation(ctx, facts, ty, globals)
+    }
     fn require(
         &mut self,
         ctx: &mut CallContext,
