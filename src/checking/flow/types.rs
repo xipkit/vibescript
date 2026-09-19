@@ -6,14 +6,103 @@ enum Contract {
     Pending(usize),
 }
 
+pub(super) struct Normalization {
+    pub value: Option<Fact>,
+    pub alternatives: Buffer<State>,
+}
+
 impl Walker<'_> {
     pub(super) fn normalization_contract(
         &mut self,
         state: &mut State,
         pc: usize,
         ty: usize,
-    ) -> Result<Option<Fact>> {
-        self.prepared_contract(state, pc, ty, true)
+    ) -> Result<Normalization> {
+        let mut alternatives = Buffer::empty();
+        loop {
+            match self.contract(state, pc, ty, true)? {
+                Contract::Value(value) => {
+                    return Ok(Normalization {
+                        value,
+                        alternatives,
+                    });
+                }
+                Contract::Pending(index) => {
+                    let slot = state.global_base + state.source_slots.roots.data[index];
+                    let Some(branches) = self.import_root_branches(state, pc, slot)? else {
+                        return Ok(Normalization {
+                            value: None,
+                            alternatives,
+                        });
+                    };
+                    for branch in branches.data {
+                        alternatives.push(self.ctx, branch)?;
+                    }
+                }
+            }
+        }
+    }
+
+    pub(super) fn bind_supplied(
+        &mut self,
+        mut state: State,
+        pc: usize,
+        index: usize,
+        target: usize,
+        actual: Fact,
+    ) -> Result<Option<State>> {
+        let parameter = &self.function.params[index];
+        let mut value = actual;
+        if let Some(ty) = parameter.ty {
+            let normalized = self.normalization_contract(&mut state, pc, ty)?;
+            for alternative in normalized.alternatives.data {
+                if let Some(next) = self.bind_supplied(alternative, pc, index, target, actual)? {
+                    self.extra.push(self.ctx, (target, next))?;
+                }
+            }
+            let Some(expected) = normalized.value else {
+                return Ok(None);
+            };
+            let actual = if self.general {
+                super::super::arguments::general_input(
+                    self.ctx,
+                    self.facts,
+                    parameter.kind,
+                    Some(expected),
+                )?
+            } else {
+                actual
+            };
+            let relation = self.facts.relation(self.ctx, actual, expected)?;
+            if relation != Relation::Accepted {
+                self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
+            }
+            if relation == Relation::Rejected {
+                self.issue(
+                    pc,
+                    IssueKind::Call {
+                        target: Target::Function(self.source.callable(self.function_index)),
+                        failure: Failure::Type {
+                            parameter: index,
+                            actual,
+                            expected,
+                        },
+                    },
+                )?;
+                if !self.facts.overlaps(self.ctx, actual, expected)? {
+                    return Ok(None);
+                }
+            }
+            value = self.facts.normalized(self.ctx, actual, expected)?;
+        }
+        if self.general {
+            let Some(actual) = self.general_value(&mut state, pc, value)? else {
+                return Ok(None);
+            };
+            value = actual;
+        }
+        state.store(self.ctx, self.facts, parameter.slot, value)?;
+        Ok(Some(state))
     }
 
     pub(super) fn property_contract(

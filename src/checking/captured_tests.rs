@@ -172,3 +172,112 @@ fn shared_container_admission_does_not_expand_the_logical_tree() {
     assert!(report.is_clean(), "{report:?}");
     assert_eq!(report.stats.retained_memory_bytes, 0);
 }
+
+#[test]
+fn deferred_branch_continuations_release_storage_at_every_interrupted_boundary() {
+    use crate::{HostMethod, Signature};
+    let child = |marker| {
+        Engine::new()
+            .compile(&format!(
+                "class Child;trace.push({marker});end;def make;Child;end"
+            ))
+            .unwrap()
+            .call(
+                "make",
+                &[],
+                CallOptions {
+                    globals: [("trace".into(), Value::array(vec![]))].into(),
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+            .value
+    };
+    let mut engine = Engine::new();
+    engine.register_method(
+        "choose",
+        HostMethod::new("choose", |_, _, _| Ok(Value::boolean(true)))
+            .with_signature(Signature {
+                params: vec![],
+                result: "bool".into(),
+                accepts_block: false,
+            })
+            .unwrap(),
+    );
+    let producer = engine.compile("class Remote;if choose();left;else;right;end;def self.value;7;end;end;def make;Remote;end").unwrap();
+    let mut options = CallOptions {
+        globals: [
+            ("trace".into(), Value::array(vec![])),
+            ("left".into(), child(1)),
+            ("right".into(), child(2)),
+        ]
+        .into(),
+        ..Default::default()
+    };
+    let value = producer.call("make", &[], options.clone()).unwrap().value;
+    options.globals.insert("C".into(), value);
+    let script = Engine::new().compile("def take(x:C?=nil)->C?;nil;end;def run->int;take(nil);take();C.value;if trace.length==1;7;else;false;end;end").unwrap();
+    let work = |ctx: &mut CallContext| -> Result<()> {
+        let checked = entry::check(
+            ctx,
+            entry::Call {
+                script: &script,
+                name: "run",
+                arguments: &[],
+                keywords: &[],
+                options: &options,
+            },
+        )?;
+        assert!(checked.analysis.issues.data.is_empty(), "{checked:?}");
+        assert!(checked.analysis.incomplete.data.is_empty(), "{checked:?}");
+        assert!(matches!(
+            checked.facts.node(checked.analysis.returns),
+            Node::Integer(7)
+        ));
+        Ok(())
+    };
+    let mut context = CallContext::new(CallOptions::default());
+    work(&mut context).unwrap();
+    let stats = context.stats();
+    assert_eq!(stats.retained_memory_bytes, 0);
+    for kind in [ErrorKind::Steps, ErrorKind::Memory] {
+        for sample in [0, 1, 4, 8, 12, 15, 16, 17] {
+            let mut limits = Limits::default();
+            if kind == ErrorKind::Steps {
+                limits.steps = Some(if sample == 17 {
+                    stats.steps - 1
+                } else {
+                    stats.steps * sample / 16
+                });
+            } else {
+                limits.memory_bytes = Some(if sample == 17 {
+                    stats.peak_memory_bytes - 1
+                } else {
+                    stats.peak_memory_bytes * sample as usize / 16
+                });
+            }
+            let mut context = CallContext::new(CallOptions {
+                limits,
+                ..Default::default()
+            });
+            let result = work(&mut context);
+            if sample == 16 {
+                result.unwrap();
+            } else {
+                assert_eq!(result.unwrap_err().kind, kind);
+                assert_eq!(context.checkpoint().unwrap_err().kind, kind);
+            }
+            assert_eq!(context.stats().retained_memory_bytes, 0);
+        }
+    }
+    for kind in [ErrorKind::Cancelled, ErrorKind::Deadline] {
+        let mut context = CallContext::new(CallOptions::default());
+        if kind == ErrorKind::Cancelled {
+            context.cancellation().cancel();
+        } else {
+            context.options.deadline = Some(std::time::Instant::now());
+        }
+        assert_eq!(work(&mut context).unwrap_err().kind, kind);
+        assert_eq!(context.stats().retained_memory_bytes, 0);
+    }
+}

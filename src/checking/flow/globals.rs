@@ -114,10 +114,15 @@ impl Walker<'_> {
         receiver: Option<bool>,
     ) -> Result<bool> {
         let slot = state.global_base + index;
-        if state.source_slots.root(self.ctx, index)?.is_some()
-            && !self.import_root(state, pc, slot)?
-        {
-            return Ok(false);
+        if state.source_slots.root(self.ctx, index)?.is_some() {
+            let Some(alternatives) = self.import_root_branches(state, pc, slot)? else {
+                return Ok(false);
+            };
+            for mut next in alternatives.data {
+                if self.read_global(&mut next, pc, index, receiver)? {
+                    self.native_continue(pc, next)?;
+                }
+            }
         }
         let value = state.locals.get(self.ctx, slot)?.value;
         let Some(auto) = receiver else {

@@ -1210,8 +1210,13 @@ impl Walker<'_> {
                     };
                     self.call_effects(state, pc, target, &result)?;
                     let slot = state.global_base + state.source_slots.roots.data[root];
-                    if !self.import_root(state, pc, slot)? {
+                    let Some(alternatives) = self.import_root_branches(state, pc, slot)? else {
                         return Ok(Some([None, None]));
+                    };
+                    for mut next in alternatives.data {
+                        let input = args.as_ref().unwrap().snapshot(self.ctx)?;
+                        let edges = self.invoke(&mut next, pc, target, input)?;
+                        self.member_edges(pc, next, edges)?;
                     }
                 }
             }
@@ -1782,8 +1787,12 @@ impl Walker<'_> {
             };
             if !matches!(op, Op::ResolveCall(..) | Op::CallName(..)) {
                 if let Some(slot) = self.root_read_slot(&state, op)? {
-                    if !self.import_root(&mut state, pc, slot)? {
+                    let Some(alternatives) = self.import_root_branches(&mut state, pc, slot)?
+                    else {
                         return Ok([None, None]);
+                    };
+                    for alternative in alternatives.data {
+                        pending.push(self.ctx, (pc, alternative))?;
                     }
                 }
             }
@@ -2140,70 +2149,16 @@ impl Walker<'_> {
                     self.store(&mut state, pc, slot, operand)?;
                 }
                 Op::Bind(index, target) => {
-                    let parameter = &self.function.params[index];
-                    let mut supplied = state.snapshot(self.ctx)?;
                     let input = self.inputs[index];
-                    let mut value = match input {
-                        Input::Supplied(value) | Input::Either(value) => Some(value),
+                    let supplied = match input {
+                        Input::Supplied(actual) | Input::Either(actual) => {
+                            let supplied = state.snapshot(self.ctx)?;
+                            self.bind_supplied(supplied, pc, index, target, actual)?
+                        }
                         Input::Default => None,
                     };
-                    if let (Some(actual), Some(ty)) = (value, parameter.ty) {
-                        value = if let Some(expected) =
-                            self.normalization_contract(&mut supplied, pc, ty)?
-                        {
-                            let actual = if self.general {
-                                super::arguments::general_input(
-                                    self.ctx,
-                                    self.facts,
-                                    parameter.kind,
-                                    Some(expected),
-                                )?
-                            } else {
-                                actual
-                            };
-                            let relation = self.facts.relation(self.ctx, actual, expected)?;
-                            if relation != Relation::Accepted {
-                                self.emit_error(&supplied, pc, handlers::bit(ErrorClass::Runtime))?;
-                            }
-                            if relation == Relation::Rejected {
-                                self.issue(
-                                    pc,
-                                    IssueKind::Call {
-                                        target: Target::Function(
-                                            self.source.callable(self.function_index),
-                                        ),
-                                        failure: Failure::Type {
-                                            parameter: index,
-                                            actual,
-                                            expected,
-                                        },
-                                    },
-                                )?;
-                            }
-                            if relation == Relation::Rejected
-                                && !self.facts.overlaps(self.ctx, actual, expected)?
-                            {
-                                None
-                            } else {
-                                Some(self.facts.normalized(self.ctx, actual, expected)?)
-                            }
-                        } else {
-                            None
-                        };
-                    }
-                    if let Some(value) = value {
-                        let value = if self.general {
-                            let Some(value) = self.general_value(&mut supplied, pc, value)? else {
-                                return Ok([None, None]);
-                            };
-                            value
-                        } else {
-                            value
-                        };
-                        supplied.store(self.ctx, self.facts, parameter.slot, value)?;
-                    }
                     return Ok([
-                        value.is_some().then_some((target, supplied)),
+                        supplied.map(|state| (target, state)),
                         matches!(input, Input::Default | Input::Either(_))
                             .then_some((pc + 1, state)),
                     ]);
@@ -2211,7 +2166,11 @@ impl Walker<'_> {
                 Op::BindEnd => (),
                 Op::Normalize(ty, _) => {
                     let actual = state.stack.data.last().unwrap().value;
-                    let Some(expected) = self.normalization_contract(&mut state, pc, ty)? else {
+                    let normalized = self.normalization_contract(&mut state, pc, ty)?;
+                    for alternative in normalized.alternatives.data {
+                        pending.push(self.ctx, (pc, alternative))?;
+                    }
+                    let Some(expected) = normalized.value else {
                         return Ok([None, None]);
                     };
                     let relation = self.facts.relation(self.ctx, actual, expected)?;

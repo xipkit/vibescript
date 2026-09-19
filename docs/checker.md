@@ -330,6 +330,14 @@ Required files can read classes and enums declared by their receiving script. Th
 
 Runtime witnesses cover construction, independent objects, same-named classes from different files, shared namespace state, protected access, typed mutation, pending negative indexes, callbacks and whole-file checking. Resource tests cover exact and interrupted limits and release of temporary metadata. Analysis still never executes initializers or host callbacks. Admitting captured class environments and instance heaps from another public invocation remains incomplete.
 
+## Deferred source continuations
+
+Reading a supplied class or module can initialize several foreign sources. When an initializer conditionally loads a file or another supplied source, each successful import history now resumes separately. Ordinary and required-file reads, named call targets, alias validation, function arguments/defaults/returns and host argument/result contracts preserve those histories. Host-block result validation resumes after the block without invoking it again. Return validation resumes after cleanup without repeating `ensure`.
+
+Later reads keep successful and failed source activation states. Pending collection writes retain their selected element when an initializer grows the parent, and later imports run only on paths that have not already loaded that file. The checker preserves contradictions from either alternative and does not invoke host callbacks to choose a path. Continuation buffers, snapshots and interrupted preparation use the existing memory/work accounting and release storage on failure.
+
+Property-guard and nominal-predicate continuations still require support when their deferred imports produce incompatible histories. Dynamic type alternatives and structural collection equality also remain unfinished; ordinary runtime execution supports these expressions.
+
 ## Remaining integration
 
 Completion still requires:
@@ -339,6 +347,6 @@ Completion still requires:
 - Broader mutable-container dispatch, precise attachment correlations and invalidation after unmodeled effects. Ordinary addressed writes and collection-loop widening are integrated internally.
 - Dynamic module names, uncertain alias presence and object identity, and captured foreign environments. Literal required-file discovery, initialization, retries, export calls and member lookup across prepared sources are integrated without executing initializers.
 - Capability descriptors spanning multiple source environments and accounting for the remaining public checking scopes. Internal strict-effects validation, eager argument binding and deferred root loading share the runtime rules. Signature metadata is inspected without invoking callbacks or validators.
-- Broader reference fixtures, required-file and capability tests, cancellation/quotas at the public boundary, and the remaining temporary compiler allocation accounting.
+- Broader reference fixtures, required-file and capability tests, cancellation/quotas at the public boundary, and the remaining checker continuations above. The current compiler allocation boundary is documented in the [compiler audit](compiler-accounting.md).
 
 The full-language goal remains active. The exact-call gate does not complete ADR-004 or the remaining runtime and platform work.

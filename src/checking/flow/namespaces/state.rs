@@ -39,8 +39,12 @@ impl Walker<'_> {
             }
         }
         if let Some(root) = self.root_read_slot(state, op)? {
-            if !self.import_root(state, pc, root)? {
+            let Some(alternatives) = self.import_root_branches(state, pc, root)? else {
                 return Ok(Some([None, None]));
+            };
+            for mut next in alternatives.data {
+                let edges = self.resolve_name(&mut next, pc, op)?;
+                self.member_edges(pc, next, edges)?;
             }
         }
         let Some(target) = self.target(state, pc, slot, name, named)? else {
@@ -416,10 +420,15 @@ impl Walker<'_> {
                 return Ok(false);
             };
             let slot = state.global_base + index;
-            if state.source_slots.root(self.ctx, index)?.is_some()
-                && !self.import_root(state, pc, slot)?
-            {
-                return Ok(false);
+            if state.source_slots.root(self.ctx, index)?.is_some() {
+                let Some(alternatives) = self.import_root_branches(state, pc, slot)? else {
+                    return Ok(false);
+                };
+                for mut next in alternatives.data {
+                    if self.namespace_address_fallback(&mut next, pc, name)? {
+                        self.native_continue(pc, next)?;
+                    }
+                }
             }
             let Some(address) = self.global_address(state, pc, index)? else {
                 return Ok(false);

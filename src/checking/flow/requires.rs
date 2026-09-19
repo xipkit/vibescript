@@ -107,45 +107,57 @@ impl Walker<'_> {
                         continue;
                     }
                 };
-                let mut next = state.snapshot(self.ctx)?;
-                let mut bindings = Buffer::empty();
-                if let Some(alias) = &alias {
-                    let alias = std::str::from_utf8(alias.as_bytes().unwrap()).unwrap();
-                    if let Some(slot) = self.root_index(&next, alias)? {
-                        let slot = next.global_base + slot;
-                        if !self.import_root(&mut next, pc, slot)? {
-                            continue;
-                        }
-                    }
-                    if !self.require_bindings(&next, pc, alias, &mut bindings)? {
-                        continue;
-                    }
-                }
-                let request = Require {
-                    name,
-                    alias: alias.clone(),
-                    bindings,
+                let next = state.snapshot(self.ctx)?;
+                self.require_named(next, pc, name, alias.as_ref())?;
+            }
+        }
+        Ok(())
+    }
+
+    fn require_named(
+        &mut self,
+        mut next: State,
+        pc: usize,
+        name: Value,
+        alias: Option<&Value>,
+    ) -> Result<()> {
+        let mut bindings = Buffer::empty();
+        if let Some(value) = alias {
+            let alias_name = std::str::from_utf8(value.as_bytes().unwrap()).unwrap();
+            if let Some(slot) = self.root_index(&next, alias_name)? {
+                let slot = next.global_base + slot;
+                let Some(alternatives) = self.import_root_branches(&mut next, pc, slot)? else {
+                    return Ok(());
                 };
-                let current_error = next.current_error(self.ctx, self.current_error)?;
-                let globals = next.global_call(self.ctx)?;
-                let result =
-                    self.calls
-                        .require(self.ctx, self.facts, &request, current_error, &globals)?;
-                self.call_effects(
-                    &next,
-                    pc,
-                    Target::Builtin(crate::builtin::Builtin::Require),
-                    &result,
-                )?;
-                if result.incomplete {
-                    self.incomplete(pc)?;
-                }
-                if !result.exits.data.is_empty()
-                    && self.global_exits(&mut next, pc, result.exits)?
-                {
-                    self.native_continue(pc, next)?;
+                for alternative in alternatives.data {
+                    self.require_named(alternative, pc, name.clone(), alias)?;
                 }
             }
+            if !self.require_bindings(&next, pc, alias_name, &mut bindings)? {
+                return Ok(());
+            }
+        }
+        let request = Require {
+            name,
+            alias: alias.cloned(),
+            bindings,
+        };
+        let current_error = next.current_error(self.ctx, self.current_error)?;
+        let globals = next.global_call(self.ctx)?;
+        let result = self
+            .calls
+            .require(self.ctx, self.facts, &request, current_error, &globals)?;
+        self.call_effects(
+            &next,
+            pc,
+            Target::Builtin(crate::builtin::Builtin::Require),
+            &result,
+        )?;
+        if result.incomplete {
+            self.incomplete(pc)?;
+        }
+        if !result.exits.data.is_empty() && self.global_exits(&mut next, pc, result.exits)? {
+            self.native_continue(pc, next)?;
         }
         Ok(())
     }

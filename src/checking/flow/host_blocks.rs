@@ -31,8 +31,12 @@ impl Walker<'_> {
             };
             self.call_effects(state, pc, target, &guard)?;
             let slot = state.global_base + state.source_slots.roots.data[root];
-            if !self.import_root(state, pc, slot)? {
+            let Some(alternatives) = self.import_root_branches(state, pc, slot)? else {
                 return Ok(());
+            };
+            for mut next in alternatives.data {
+                let args = args.snapshot(self.ctx)?;
+                self.host_block(&mut next, pc, index, args)?;
             }
         };
         self.call_effects(state, pc, target, &guard)?;
@@ -183,8 +187,11 @@ impl Walker<'_> {
             };
             self.call_effects(&state, pc, Target::Host(index), &result)?;
             let slot = state.global_base + state.source_slots.roots.data[root];
-            if !self.import_root(&mut state, pc, slot)? {
+            let Some(alternatives) = self.import_root_branches(&mut state, pc, slot)? else {
                 return Ok(());
+            };
+            for next in alternatives.data {
+                self.host_finish(&next, pc, index, value)?;
             }
         };
         self.call_effects(&state, pc, Target::Host(index), &result)?;

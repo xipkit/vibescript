@@ -252,6 +252,280 @@ fn deferred_sources_initialize_at_the_read_and_unused_sources_stay_unread() {
 }
 
 #[test]
+fn deferred_source_initializers_preserve_alternative_import_histories() {
+    let files = Files::new();
+    files.write("left.vibe", "trace.push(1);def value;1;end");
+    files.write("right.vibe", "trace.push(2);def value;2;end");
+    let producer = files.engine().compile("class Remote;if choose;require(:left);else;require(:right);end;def self.value;7;end;end;def make;Remote;end").unwrap();
+    let mut options = CallOptions {
+        globals: [
+            ("trace".into(), Value::array(vec![])),
+            ("choose".into(), Value::boolean(false)),
+        ]
+        .into(),
+        ..Default::default()
+    };
+    let remote = producer.call("make", &[], options.clone()).unwrap().value;
+    options.globals.insert("remote".into(), remote);
+    let receiver = files.engine().compile("def run(flag:bool)->int;choose=flag;remote.value;remote.value;if trace.length==1;7;else;false;end;end").unwrap();
+    for flag in [false, true] {
+        accepts(&receiver, &[Value::boolean(flag)], &options);
+    }
+    let report = receiver.check_function("run", &options).unwrap();
+    assert!(report.is_clean(), "{report:?}");
+}
+
+fn branching_type_options(choice: bool) -> (CallOptions, std::sync::Arc<AtomicUsize>) {
+    use std::sync::Arc;
+    use vibescript::{HostMethod, Signature};
+    let choices = Arc::new(AtomicUsize::new(0));
+    let called = choices.clone();
+    let mut engine = Engine::new();
+    engine.register_method(
+        "choose",
+        HostMethod::new("choose", move |_, _, _| {
+            called.fetch_add(1, Ordering::Relaxed);
+            Ok(Value::boolean(choice))
+        })
+        .with_signature(Signature {
+            params: vec![],
+            result: "bool".into(),
+            accepts_block: false,
+        })
+        .unwrap(),
+    );
+    let producer = engine.compile("class Remote;trace.push(0);if choose();left;else;right;end;def self.value;7;end;end;def make;Remote;end").unwrap();
+    let mut options = CallOptions {
+        globals: [
+            ("trace".into(), Value::array(vec![])),
+            ("left".into(), traced_namespace(1)),
+            ("right".into(), traced_namespace(2)),
+        ]
+        .into(),
+        ..Default::default()
+    };
+    let remote = producer.call("make", &[], options.clone()).unwrap().value;
+    options.globals.insert("C".into(), remote);
+    choices.store(0, Ordering::Relaxed);
+    (options, choices)
+}
+
+#[test]
+fn deferred_type_branches_resume_supplied_default_and_return_boundaries() {
+    for choice in [false, true] {
+        for (definitions, call, length, first) in [
+            ("def target(x:C?);7;end", "target(nil)", 2, 0),
+            ("def target(x:C?=nil);7;end", "target()", 2, 0),
+            ("def target->C?;nil;end", "target()", 2, 0),
+            (
+                "def target->C?;begin;nil;ensure;trace.push(9);end;end",
+                "target()",
+                3,
+                9,
+            ),
+        ] {
+            let (options, choices) = branching_type_options(choice);
+            let script = Engine::new().compile(&format!("{definitions};def run->int;{call};C.value;if trace.length=={length} && trace[0]=={first};7;else;false;end;end")).unwrap();
+            accepts(&script, &[], &options);
+            assert_eq!(choices.load(Ordering::Relaxed), 2);
+            for function in ["run", "target"] {
+                let report = script.check_function(function, &options).unwrap();
+                assert!(report.is_clean(), "{definitions}, {function}: {report:?}");
+            }
+            assert_eq!(choices.load(Ordering::Relaxed), 2);
+        }
+    }
+}
+
+#[test]
+fn deferred_host_contract_branches_resume_without_repeating_callbacks_or_blocks() {
+    use std::sync::Arc;
+    use vibescript::{HostMethod, Signature, SignatureParam};
+    for choice in [false, true] {
+        for result_type in [false, true] {
+            for body in [None, Some("nil"), Some("break nil")] {
+                let (options, choices) = branching_type_options(choice);
+                let calls = Arc::new(AtomicUsize::new(0));
+                let blocks = Arc::new(AtomicUsize::new(0));
+                let called = calls.clone();
+                let mut engine = Engine::new();
+                let method = if body.is_some() {
+                    let entered = blocks.clone();
+                    HostMethod::new_with_block("probe", move |call, _, _| {
+                        called.fetch_add(1, Ordering::Relaxed);
+                        entered.fetch_add(1, Ordering::Relaxed);
+                        call.call_block(&[])?;
+                        Ok(Value::nil())
+                    })
+                } else {
+                    HostMethod::new("probe", move |_, _, _| {
+                        called.fetch_add(1, Ordering::Relaxed);
+                        Ok(Value::nil())
+                    })
+                };
+                engine.register_method(
+                    "probe",
+                    method
+                        .with_signature(Signature {
+                            params: if result_type {
+                                vec![]
+                            } else {
+                                vec![SignatureParam {
+                                    name: "value".into(),
+                                    ty: "C?".into(),
+                                    optional: false,
+                                }]
+                            },
+                            result: if result_type { "C?" } else { "nil" }.into(),
+                            accepts_block: body.is_some(),
+                        })
+                        .unwrap(),
+                );
+                let args = if result_type { "" } else { "nil" };
+                let block = body.map_or(String::new(), |body| format!("{{{body}}}"));
+                let script = engine.compile(&format!("def run->int;probe({args}){block};C.value;if trace.length==2 && trace[0]==0;7;else;false;end;end")).unwrap();
+                accepts(&script, &[], &options);
+                assert_eq!(choices.load(Ordering::Relaxed), 2);
+                assert_eq!(calls.load(Ordering::Relaxed), 2);
+                assert_eq!(
+                    blocks.load(Ordering::Relaxed),
+                    if body.is_some() { 2 } else { 0 }
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn deferred_import_branches_preserve_failed_activation_and_rescue_effects() {
+    let files = Files::new();
+    files.write("left.vibe", "trace.push(1);raise(\"failed import\")");
+    files.write("right.vibe", "trace.push(2);def value;2;end");
+    let producer = files.engine().compile("class Remote;if choose;require(:left);else;require(:right);end;def self.value;7;end;end;def make;Remote;end").unwrap();
+    let mut options = CallOptions {
+        globals: [
+            ("trace".into(), Value::array(vec![])),
+            ("choose".into(), Value::boolean(false)),
+        ]
+        .into(),
+        ..Default::default()
+    };
+    let remote = producer.call("make", &[], options.clone()).unwrap().value;
+    options.globals.insert("remote".into(), remote);
+    let receiver = files.engine().compile("def run(flag:bool)->int;choose=flag;n=0;begin;remote.value;rescue;n+=1;end;begin;remote.value;rescue;n+=1;end;if trace.length==1 && (n==0 || n==2);7;else;false;end;end").unwrap();
+    for flag in [false, true] {
+        accepts(&receiver, &[Value::boolean(flag)], &options);
+    }
+    let report = receiver.check_function("run", &options).unwrap();
+    assert!(report.is_clean(), "{report:?}");
+}
+
+#[test]
+fn deferred_import_branches_keep_pending_mutations_and_later_imports() {
+    let files = Files::new();
+    files.write("left.vibe", "trace.push(1);items.push(1);def value;1;end");
+    files.write("right.vibe", "trace.push(2);items.push(2);def value;2;end");
+    let producer = files.engine().compile("class Remote;if choose;require(:left);else;require(:right);end;def self.value;7;end;end;def make;Remote;end").unwrap();
+    let mut options = CallOptions {
+        globals: [
+            ("trace".into(), Value::array(vec![])),
+            (
+                "items".into(),
+                Value::array(vec![Value::int(1), Value::int(2)]),
+            ),
+            ("choose".into(), Value::boolean(false)),
+        ]
+        .into(),
+        ..Default::default()
+    };
+    let remote = producer.call("make", &[], options.clone()).unwrap().value;
+    options.globals.insert("remote".into(), remote);
+    for body in [
+        "items[-1]+=begin;remote.value;1;end;if items.length==3 && items[1]==3 && trace.length==1;7;else;false;end",
+        "remote.value;require(:left);require(:right);if items.length==4 && trace.length==2;7;else;false;end",
+        "values=[1,2].map do |n|;remote.value;n+1;end;if values.length==2 && values[0]==2 && values[1]==3 && trace.length==1;7;else;false;end",
+    ] {
+        let receiver = files
+            .engine()
+            .compile(&format!("def run(flag:bool)->int;choose=flag;{body};end"))
+            .unwrap();
+        for flag in [false, true] {
+            accepts(&receiver, &[Value::boolean(flag)], &options);
+        }
+        let report = receiver.check_function("run", &options).unwrap();
+        assert!(report.is_clean(), "{body}: {report:?}");
+    }
+}
+
+#[test]
+fn deferred_import_branches_resume_file_reads_and_alias_conflicts() {
+    let files = Files::new();
+    files.write("consumer.vibe", "def value;C.value;end");
+    files.write("replacement.vibe", "trace.push(9);def value;7;end");
+    for choice in [false, true] {
+        for conflict in [false, true] {
+            let (options, choices) = branching_type_options(choice);
+            let source = if conflict {
+                "def run->int;begin;require(:replacement,as: :C);0;rescue;7;end;end"
+            } else {
+                "def run->int;m=require(:consumer);m.value();if trace.length==2 && trace[0]==0;7;else;false;end;end"
+            };
+            let receiver = files.engine().compile(source).unwrap();
+            for _ in 0..2 {
+                assert_eq!(
+                    receiver
+                        .call("run", &[], options.clone())
+                        .unwrap()
+                        .value
+                        .as_int(),
+                    Some(7)
+                );
+                let report = receiver.check_call("run", &[], &options).unwrap();
+                assert!(report.incomplete.is_empty(), "{report:?}");
+                if conflict {
+                    assert_eq!(report.diagnostics.len(), 1, "{report:?}");
+                    assert!(
+                        report.diagnostics[0]
+                            .message
+                            .contains("alias already defined"),
+                        "{report:?}"
+                    );
+                } else {
+                    assert!(report.is_clean(), "{report:?}");
+                }
+            }
+            assert_eq!(choices.load(Ordering::Relaxed), 2);
+        }
+    }
+}
+
+#[test]
+fn deferred_source_continuations_keep_contradictions_from_either_history() {
+    let script = Engine::new()
+        .compile("def run->int;C.value;if trace[1]==1;7;else;false;end;end")
+        .unwrap();
+    for choice in [false, true] {
+        let (options, choices) = branching_type_options(choice);
+        let report = script.check_call("run", &[], &options).unwrap();
+        assert!(report.incomplete.is_empty(), "{report:?}");
+        assert!(
+            report.diagnostics.iter().any(|issue| issue
+                .message
+                .contains("Return value: expected int, got bool")),
+            "{report:?}"
+        );
+        assert_eq!(choices.load(Ordering::Relaxed), 0);
+        let result = script.call("run", &[], options);
+        if choice {
+            assert_eq!(result.unwrap().value.as_int(), Some(7));
+        } else {
+            assert_eq!(result.unwrap_err().kind, vibescript::ErrorKind::Type);
+        }
+        assert_eq!(choices.load(Ordering::Relaxed), 1);
+    }
+}
+
+#[test]
 fn captured_private_bindings_are_read_without_reexecuting_the_file() {
     let files = Files::new();
     files.write("saved.vibe", "seed=4;class Saved;def self.read;seed;end;def self.bump;seed+=1;end;end;seed+=1;def saved;Saved;end");

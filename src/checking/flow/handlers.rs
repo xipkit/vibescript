@@ -370,7 +370,14 @@ impl Walker<'_> {
                     actual
                 };
                 if let Some(ty) = self.function.return_type.filter(|_| !self.constructor) {
-                    let Some(expected) = self.normalization_contract(&mut state, pc, ty)? else {
+                    let normalized = self.normalization_contract(&mut state, pc, ty)?;
+                    for alternative in normalized.alternatives.data {
+                        let edges = self.transfer(alternative, pc, transfer)?;
+                        for edge in edges.into_iter().flatten() {
+                            self.extra.push(self.ctx, edge)?;
+                        }
+                    }
+                    let Some(expected) = normalized.value else {
                         return Ok([None, None]);
                     };
                     let relation = self.facts.relation(self.ctx, actual, expected)?;

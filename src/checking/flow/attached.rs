@@ -8,13 +8,31 @@ impl Walker<'_> {
         pc: usize,
         slot: usize,
     ) -> Result<bool> {
+        let Some(alternatives) = self.import_root_branches(state, pc, slot)? else {
+            return Ok(false);
+        };
+        if !alternatives.data.is_empty() {
+            self.incomplete(pc)?;
+            return Ok(false);
+        }
+        Ok(true)
+    }
+
+    /// Keeps the first completed read in `state` and returns its distinct continuations.
+    pub(super) fn import_root_branches(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        slot: usize,
+    ) -> Result<Option<Buffer<State>>> {
         let Some(root) = state
             .source_slots
             .root(self.ctx, slot - state.global_base)?
         else {
-            return Ok(true);
+            return Ok(Some(Buffer::empty()));
         };
-        let mut binding = state.locals.get(self.ctx, slot)?;
+        let binding = state.locals.get(self.ctx, slot)?;
+        let mut alternatives = Buffer::empty();
         if binding.missing {
             let globals = state.global_call(self.ctx)?;
             let current_error = state.current_error(self.ctx, self.current_error)?;
@@ -24,7 +42,7 @@ impl Walker<'_> {
             self.emit_error(state, pc, loaded.throws)?;
             if loaded.incomplete {
                 self.incomplete(pc)?;
-                return Ok(false);
+                return Ok(None);
             }
             if !loaded.exits.data.is_empty() {
                 let mut normal: Option<State> = None;
@@ -35,10 +53,16 @@ impl Walker<'_> {
                         blocks::Completion::Value => {
                             if let Some(normal) = &mut normal {
                                 if !normal.compatible(self.ctx, &next)? {
-                                    self.incomplete(pc)?;
-                                    return Ok(false);
+                                    alternatives.push(self.ctx, next)?;
+                                } else {
+                                    normal.join(
+                                        self.ctx,
+                                        self.facts,
+                                        &next,
+                                        false,
+                                        self.program,
+                                    )?;
                                 }
-                                normal.join(self.ctx, self.facts, &next, false, self.program)?;
                             } else {
                                 normal = Some(next);
                             }
@@ -51,17 +75,36 @@ impl Walker<'_> {
                     }
                 }
                 let Some(normal) = normal else {
-                    return Ok(false);
+                    return Ok(None);
                 };
                 *state = normal;
             }
             let value = self.facts.union(self.ctx, &[binding.value, loaded.value])?;
             if value == Atom::Never.fact() {
-                return Ok(false);
+                return Ok(None);
             }
             state.store(self.ctx, self.facts, slot, value)?;
-            binding = state.locals.get(self.ctx, slot)?;
+            for alternative in &mut alternatives.data {
+                alternative.store(self.ctx, self.facts, slot, value)?;
+            }
         }
+        let mut ready = Buffer::empty();
+        for mut alternative in alternatives.data {
+            if self.imported_root_value(&mut alternative, pc, slot)? {
+                ready.push(self.ctx, alternative)?;
+            }
+        }
+        if !self.imported_root_value(state, pc, slot)? {
+            let Some(next) = ready.data.pop() else {
+                return Ok(None);
+            };
+            *state = next;
+        }
+        Ok(Some(ready))
+    }
+
+    fn imported_root_value(&mut self, state: &mut State, pc: usize, slot: usize) -> Result<bool> {
+        let binding = state.locals.get(self.ctx, slot)?;
         if !self.facts.escapes(binding.value) {
             return Ok(true);
         }

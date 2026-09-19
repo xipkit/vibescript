@@ -289,8 +289,14 @@ impl<'a> Walker<'a> {
         } else if address || self.file_declared_target(name)?.is_none() {
             if let Some(index) = self.root_index(&state, name)? {
                 let slot = state.global_base + index;
-                if !self.import_root(&mut state, pc, slot)? {
+                let Some(alternatives) = self.import_root_branches(&mut state, pc, slot)? else {
                     return Ok([None, None]);
+                };
+                for alternative in alternatives.data {
+                    let edges = self.file_edges(alternative, pc, name_index, next, address)?;
+                    for edge in edges.into_iter().flatten() {
+                        self.extra.push(self.ctx, edge)?;
+                    }
                 }
                 Some(slot)
             } else {
