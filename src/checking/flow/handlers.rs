@@ -124,6 +124,24 @@ impl State {
             || self.texts.data.len() != other.texts.data.len()
             || self.attempts.data.len() != other.attempts.data.len()
             || !self.global_pending.compatible(ctx, &other.global_pending)?
+            || !self.global_layout.same_imports(
+                ctx,
+                &other.global_layout,
+                |ctx, slot| {
+                    if slot < self.global_count {
+                        Ok(Some(self.locals.get(ctx, self.global_base + slot)?.value))
+                    } else {
+                        Ok(None)
+                    }
+                },
+                |ctx, slot| {
+                    if slot < other.global_count {
+                        Ok(Some(other.locals.get(ctx, other.global_base + slot)?.value))
+                    } else {
+                        Ok(None)
+                    }
+                },
+            )?
         {
             return Ok(false);
         }

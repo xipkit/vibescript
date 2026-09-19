@@ -50,21 +50,14 @@ impl Walker<'_> {
             pair: None,
         };
         let depth = self.collection_depth(&initial, driver, Atom::Nil.fact())?;
-        let Some(mut current) = self.collection_step(initial, pc, driver, item, depth)? else {
-            return Ok(());
-        };
-        let depth = self.collection_depth(&current, driver, Atom::Nil.fact())?;
-        current.state.widening.get_or_insert(depth);
-        loop {
-            self.ctx.charge(1)?;
-            let before = current.snapshot(self.ctx)?;
-            let Some(next) = self.collection_step(before, pc, driver, item, depth)? else {
-                break;
-            };
-            if !current.join(self.ctx, self.facts, &next, true, depth, self.program)? {
-                break;
-            }
-        }
+        let first = self.collection_step(initial, pc, driver, item, depth)?;
+        self.iteration_loop(
+            first,
+            driver,
+            Atom::Nil.fact(),
+            |walker, current, depth| walker.collection_step(current, pc, driver, item, depth),
+            |_, _| Ok(true),
+        )?;
         Ok(())
     }
 }

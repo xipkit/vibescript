@@ -104,6 +104,7 @@ impl Fixture {
             ctx,
             facts,
             World {
+                loader: None,
                 inputs: &[],
                 program,
                 source_owner: 0,

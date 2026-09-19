@@ -13,7 +13,19 @@ pub(super) fn find(ctx: &mut CallContext, roots: &[Root], name: &str) -> Result<
 
 impl Walker<'_> {
     pub(super) fn root_index(&mut self, state: &State, name: &str) -> Result<Option<usize>> {
-        Ok(find(self.ctx, self.roots, name)?.map(|index| state.source_slots.roots.data[index]))
+        let Some(slot) = state
+            .global_layout
+            .root(self.ctx, state.source_slots.receiving, name)?
+        else {
+            return Ok(None);
+        };
+        if state.source_slots.root(self.ctx, slot)?.is_some()
+            || state.locals.get(self.ctx, state.global_base + slot)?.value != Atom::Never.fact()
+        {
+            Ok(Some(slot))
+        } else {
+            Ok(None)
+        }
     }
 
     pub(super) fn global_index(&mut self, state: &State, index: usize) -> Result<Option<usize>> {

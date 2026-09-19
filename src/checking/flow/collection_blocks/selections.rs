@@ -136,78 +136,78 @@ impl Walker<'_> {
                 previous: Atom::Never.fact(),
             };
             let depth = self.collection_depth(&initial, driver, arm)?;
-            let mut current = Some(initial);
+            let mut current = initial.alternatives(self.ctx)?;
             let count = if method == Method::Fetch { 1 } else { count };
             for index in 0..count {
                 self.ctx.charge(1)?;
-                let Some(before) = current else { break };
-                let mut after: Option<IterationState> = None;
+                if current.data.is_empty() {
+                    break;
+                }
+                let mut after = Buffer::empty();
                 let key = args.positional.data[index];
-                for k in 0..self.facts.arm_count(key) {
-                    self.ctx.charge(1)?;
-                    let input = self.facts.arm(key, k);
-                    let key =
-                        self.lookup_key(&before.state, pc, (arm, site, &args), kind, input)?;
-                    if key == Atom::Never.fact() {
-                        continue;
-                    }
-                    let (found, missing) = self.lookup_value(view, kind, key)?;
-                    if found != Atom::Never.fact() {
-                        let mut hit = before.snapshot(self.ctx)?;
-                        hit.output = if method == Method::Fetch {
-                            found
-                        } else {
-                            self.group_append(hit.output, found)?
-                        };
-                        if let Some(after) = &mut after {
-                            after.join(self.ctx, self.facts, &hit, false, depth, self.program)?;
-                        } else {
-                            after = Some(hit);
+                for before in current.data {
+                    for k in 0..self.facts.arm_count(key) {
+                        self.ctx.charge(1)?;
+                        let input = self.facts.arm(key, k);
+                        let key =
+                            self.lookup_key(&before.state, pc, (arm, site, &args), kind, input)?;
+                        if key == Atom::Never.fact() {
+                            continue;
                         }
-                    }
-                    if !missing {
-                        continue;
-                    }
-                    let next = if args.block.is_some() {
-                        let item = Item {
-                            arguments: [key, Atom::Nil.fact()],
-                            count: 1,
-                            element: key,
-                            index: Atom::Int.fact(),
-                            pair: None,
-                        };
-                        let missing = before.snapshot(self.ctx)?;
-                        self.collection_step(missing, pc, driver, item, depth)?
-                    } else if method == Method::Fetch && args.positional.data.len() == 2 {
-                        let mut next = before.snapshot(self.ctx)?;
-                        next.output = args.positional.data[1];
-                        Some(next)
-                    } else {
-                        if found == Atom::Never.fact() {
-                            self.collection_error(
-                                &before.state,
-                                pc,
-                                arm,
-                                site,
-                                &args,
-                                ErrorClass::Runtime,
-                            )?;
-                        } else {
-                            self.emit_error(&before.state, pc, handlers::bit(ErrorClass::Runtime))?;
+                        let (found, missing) = self.lookup_value(view, kind, key)?;
+                        if found != Atom::Never.fact() {
+                            let mut hit = before.snapshot(self.ctx)?;
+                            hit.output = if method == Method::Fetch {
+                                found
+                            } else {
+                                self.group_append(hit.output, found)?
+                            };
+                            self.iteration_join(&mut after, hit, depth)?;
                         }
-                        None
-                    };
-                    if let Some(next) = next {
-                        if let Some(after) = &mut after {
-                            after.join(self.ctx, self.facts, &next, false, depth, self.program)?;
+                        if !missing {
+                            continue;
+                        }
+                        let next = if args.block.is_some() {
+                            let item = Item {
+                                arguments: [key, Atom::Nil.fact()],
+                                count: 1,
+                                element: key,
+                                index: Atom::Int.fact(),
+                                pair: None,
+                            };
+                            let missing = before.snapshot(self.ctx)?;
+                            self.collection_step(missing, pc, driver, item, depth)?
+                        } else if method == Method::Fetch && args.positional.data.len() == 2 {
+                            let mut next = before.snapshot(self.ctx)?;
+                            next.output = args.positional.data[1];
+                            next.alternatives(self.ctx)?
                         } else {
-                            after = Some(next);
+                            if found == Atom::Never.fact() {
+                                self.collection_error(
+                                    &before.state,
+                                    pc,
+                                    arm,
+                                    site,
+                                    &args,
+                                    ErrorClass::Runtime,
+                                )?;
+                            } else {
+                                self.emit_error(
+                                    &before.state,
+                                    pc,
+                                    handlers::bit(ErrorClass::Runtime),
+                                )?;
+                            }
+                            Buffer::empty()
+                        };
+                        for next in next.data {
+                            self.iteration_join(&mut after, next, depth)?;
                         }
                     }
                 }
                 current = after;
             }
-            if let Some(current) = current {
+            for current in current.data {
                 self.collection_done(current, pc, method, arm)?;
             }
         }

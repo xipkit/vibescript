@@ -52,6 +52,10 @@ pub(super) struct Arguments {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Failure {
+    Require {
+        message: Fact,
+        class: crate::ErrorClass,
+    },
     NonCallable,
     Undefined,
     HostArity,

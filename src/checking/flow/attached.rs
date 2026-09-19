@@ -8,12 +8,14 @@ impl Walker<'_> {
         pc: usize,
         slot: usize,
     ) -> Result<bool> {
+        let Some(root) = state
+            .source_slots
+            .root(self.ctx, slot - state.global_base)?
+        else {
+            return Ok(true);
+        };
         let mut binding = state.locals.get(self.ctx, slot)?;
         if binding.missing {
-            let root = state
-                .source_slots
-                .root(self.ctx, slot - state.global_base)?
-                .unwrap();
             let loaded = self.calls.load_root(self.ctx, self.facts, root)?;
             self.emit_error(state, pc, loaded.throws)?;
             if loaded.incomplete {
@@ -202,10 +204,10 @@ impl Walker<'_> {
             if readable {
                 if let Some(normal) = &mut normal {
                     if !normal.compatible(self.ctx, &next)? {
-                        self.incomplete(pc)?;
-                        return Ok(false);
+                        self.native_continue(pc, next)?;
+                    } else {
+                        normal.join(self.ctx, self.facts, &next, false, self.program)?;
                     }
-                    normal.join(self.ctx, self.facts, &next, false, self.program)?;
                 } else {
                     normal = Some(next);
                 }

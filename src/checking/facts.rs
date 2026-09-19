@@ -193,6 +193,17 @@ impl Facts {
         self.sources.owner(ctx, code, environment)
     }
 
+    /// Separates private environments for imports and retries within each invocation.
+    pub fn import_owner(
+        &mut self,
+        ctx: &mut CallContext,
+        code: &std::sync::Arc<crate::code::Code>,
+        receiving: super::sources::SourceId,
+        attempt: usize,
+    ) -> Result<usize> {
+        self.sources.import_owner(ctx, code, receiving, attempt)
+    }
+
     /// Returns a deterministic source key for call summaries and diagnostics.
     pub fn source_id(
         &self,

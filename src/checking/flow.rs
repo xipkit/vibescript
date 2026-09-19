@@ -40,6 +40,7 @@ mod namespaces;
 mod native;
 mod operators;
 mod rendering;
+mod requires;
 mod roots;
 mod types;
 use handlers::{Phase, Transfer};
@@ -1080,6 +1081,10 @@ impl Walker<'_> {
         mut target: Target,
         mut args: Arguments,
     ) -> Result<Option<Edges>> {
+        if target == Target::Builtin(crate::builtin::Builtin::Require) {
+            self.require_file(state, pc, args)?;
+            return Ok(Some([None, None]));
+        }
         if let Target::Builtin(
             builtin @ (crate::builtin::Builtin::Output(_) | crate::builtin::Builtin::Format(_)),
         ) = target
@@ -1214,6 +1219,7 @@ impl Walker<'_> {
         for &failure in &result.failures.data {
             self.ctx.charge(1)?;
             classes |= handlers::bit(match failure {
+                Failure::Require { class, .. } => class,
                 Failure::Type { .. }
                 | Failure::DetachedValue(_)
                 | Failure::NonCallable
@@ -1673,16 +1679,59 @@ impl Walker<'_> {
         Ok((result.value == Atom::Never.fact()).then_some([None, None]))
     }
 
-    fn block(&mut self, block: &Block, mut state: State) -> Result<Edges> {
+    fn block(&mut self, block: &Block, state: State) -> Result<Edges> {
+        let mut pending = Buffer::empty();
+        let edges = self.block_segment(block, state, &mut pending)?;
+        while let Some((start, state)) = pending.data.pop() {
+            self.ctx.charge(1)?;
+            let suffix = Block {
+                start,
+                end: block.end,
+                exit: block.exit,
+            };
+            for edge in self
+                .block_segment(&suffix, state, &mut pending)?
+                .into_iter()
+                .flatten()
+            {
+                self.extra.push(self.ctx, edge)?;
+            }
+        }
+        Ok(edges)
+    }
+
+    fn block_segment(
+        &mut self,
+        block: &Block,
+        state: State,
+        pending: &mut Buffer<(usize, State)>,
+    ) -> Result<Edges> {
+        let mut index = self.extra.data.len();
+        let edges = self.block_instructions(block, state, pending)?;
+        while index < self.extra.data.len() {
+            self.ctx.charge(1)?;
+            let pc = self.extra.data[index].0;
+            if pc > block.start && pc < block.end {
+                let edge = self.extra.data.swap_remove(index);
+                pending.push(self.ctx, edge)?;
+            } else {
+                index += 1;
+            }
+        }
+        Ok(edges)
+    }
+
+    fn block_instructions(
+        &mut self,
+        block: &Block,
+        mut state: State,
+        pending: &mut Buffer<(usize, State)>,
+    ) -> Result<Edges> {
         for pc in block.start..block.end {
             self.ctx.charge(1)?;
             if let Some(variants) = self.file_variants(&state, self.function.code[pc])? {
-                debug_assert_eq!(block.end, pc + 1);
                 for variant in variants {
-                    let edges = self.block(block, variant)?;
-                    for edge in edges.into_iter().flatten() {
-                        self.extra.push(self.ctx, edge)?;
-                    }
+                    pending.push(self.ctx, (pc, variant))?;
                 }
                 return Ok([None, None]);
             }

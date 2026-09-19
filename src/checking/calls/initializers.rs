@@ -78,8 +78,11 @@ impl Solver<'_, '_> {
         function: usize,
         inputs: &[Input],
         initial: &Context,
-        general: bool,
+        current_error: u16,
     ) -> Result<Report> {
+        let Kind::Entry { general } = initial.kind else {
+            unreachable!()
+        };
         let globals = &initial.globals;
         let mut report = Report {
             returns: Atom::Never.fact(),
@@ -89,51 +92,55 @@ impl Solver<'_, '_> {
             incomplete: Buffer::empty(),
             block_exits: Buffer::empty(),
         };
-        let mut globals = globals.snapshot(ctx)?;
+        let mut alternatives = Buffer::empty();
+        let globals = globals.snapshot(ctx)?;
+        alternatives.push(ctx, globals)?;
         for module in 0..self.world.program.namespaces.len() {
             ctx.charge(1)?;
             let Some(body) = self.world.program.namespaces[module].body else {
                 continue;
             };
-            let flag = globals.layout.source(ctx, self.source)?.namespace(module) + 1;
-            let initialized = globals.values.data[flag];
-            let yes = facts.filter(ctx, initialized, Test::Truth, true)?;
-            let no = facts.filter(ctx, initialized, Test::Truth, false)?;
-            if no == Atom::Never.fact() {
-                continue;
-            }
-            let mut normal = if yes == Atom::Never.fact() {
-                None
-            } else {
-                let mut skipped = globals.snapshot(ctx)?;
-                skipped.values.data[flag] = yes;
-                Some(skipped)
-            };
-            let mut context = Context::plain();
-            context.globals = globals;
-            context.globals.values.data[flag] = no;
-            let index = self.request(ctx, facts, body, &[], flow::NO_ERROR, &context)?;
-            self.depend(ctx, index)?;
-            report.throws |= self.state.jobs.data[index].throws;
-            if let Some(result) = &self.state.jobs.data[index].report {
-                for exit in &result.block_exits.data {
-                    ctx.charge(1)?;
-                    if exit.completion == blocks::Completion::Value {
-                        if let Some(normal) = &mut normal {
-                            normal.join(ctx, facts, &exit.globals, None)?;
+            let mut normal = Buffer::empty();
+            for globals in alternatives.data {
+                ctx.charge(1)?;
+                let flag = globals.layout.source(ctx, self.source)?.namespace(module) + 1;
+                let initialized = globals.values.data[flag];
+                let yes = facts.filter(ctx, initialized, Test::Truth, true)?;
+                let no = facts.filter(ctx, initialized, Test::Truth, false)?;
+                if no == Atom::Never.fact() {
+                    globals.join_into(ctx, facts, &mut normal)?;
+                    continue;
+                }
+                if yes != Atom::Never.fact() {
+                    let mut skipped = globals.snapshot(ctx)?;
+                    skipped.values.data[flag] = yes;
+                    skipped.join_into(ctx, facts, &mut normal)?;
+                }
+                let mut context = Context::plain();
+                context.globals = globals;
+                context.globals.values.data[flag] = no;
+                let index = self.request(ctx, facts, body, &[], current_error, &context)?;
+                self.depend(ctx, index)?;
+                report.throws |= self.state.jobs.data[index].throws;
+                if let Some(result) = &self.state.jobs.data[index].report {
+                    for exit in &result.block_exits.data {
+                        ctx.charge(1)?;
+                        if exit.completion == blocks::Completion::Value {
+                            let mut globals = exit.globals.snapshot(ctx)?;
+                            globals.inherit_writes(ctx, &context.globals)?;
+                            globals.join_into(ctx, facts, &mut normal)?;
                         } else {
-                            normal = Some(exit.globals.snapshot(ctx)?);
+                            let mut exit = exit.snapshot(ctx)?;
+                            exit.globals.inherit_writes(ctx, &context.globals)?;
+                            report.block_exits.push(ctx, exit)?;
                         }
-                    } else {
-                        let exit = exit.snapshot(ctx)?;
-                        report.block_exits.push(ctx, exit)?;
                     }
                 }
             }
-            let Some(next) = normal else {
+            if normal.data.is_empty() {
                 return Ok(report);
-            };
-            globals = next;
+            }
+            alternatives = normal;
         }
         // Runtime initializes namespaces before binding the entry's argument shape.
         let failures = &self.state.worlds.entries.data[self.world_index]
@@ -156,22 +163,29 @@ impl Solver<'_, '_> {
             report.throws |= 1 << crate::ErrorClass::Argument as u8;
             return Ok(report);
         }
-        let mut context = Context::plain();
-        if general {
-            context.kind = Kind::General;
-        }
-        context.globals = globals;
-        context.constructor = initial.constructor;
-        context.scope = initial.scope;
-        let index = self.request(ctx, facts, function, inputs, flow::NO_ERROR, &context)?;
-        self.depend(ctx, index)?;
-        report.normal_returns = self.state.jobs.data[index].returns;
-        report.throws |= self.state.jobs.data[index].throws;
-        if let Some(result) = &self.state.jobs.data[index].report {
-            report.returns = result.returns;
-            for exit in &result.block_exits.data {
-                let exit = exit.snapshot(ctx)?;
-                report.block_exits.push(ctx, exit)?;
+        for globals in alternatives.data {
+            ctx.charge(1)?;
+            let mut context = Context::plain();
+            if general {
+                context.kind = Kind::General;
+            }
+            context.globals = globals;
+            context.constructor = initial.constructor;
+            context.scope = initial.scope;
+            let index = self.request(ctx, facts, function, inputs, current_error, &context)?;
+            self.depend(ctx, index)?;
+            report.normal_returns = facts.union(
+                ctx,
+                &[report.normal_returns, self.state.jobs.data[index].returns],
+            )?;
+            report.throws |= self.state.jobs.data[index].throws;
+            if let Some(result) = &self.state.jobs.data[index].report {
+                report.returns = facts.union(ctx, &[report.returns, result.returns])?;
+                for exit in &result.block_exits.data {
+                    let mut exit = exit.snapshot(ctx)?;
+                    exit.globals.inherit_writes(ctx, &context.globals)?;
+                    report.block_exits.push(ctx, exit)?;
+                }
             }
         }
         Ok(report)

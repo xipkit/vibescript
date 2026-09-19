@@ -47,6 +47,7 @@ fn analyze_pair(
         }
     }
     let caller_world = World {
+        loader: None,
         program: &caller.program,
         source_owner: caller_owner,
         contracts: &caller_contracts.data,
@@ -55,6 +56,7 @@ fn analyze_pair(
         inputs: &inputs,
     };
     let callee_world = World {
+        loader: None,
         program: &callee.program,
         source_owner: callee_owner,
         contracts: &callee_contracts.data,

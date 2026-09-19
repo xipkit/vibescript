@@ -51,6 +51,7 @@ pub(super) fn analyze_source(
         ctx,
         facts,
         World {
+            loader: None,
             inputs: &[],
             source_owner,
             program,
@@ -636,6 +637,7 @@ fn host_return_contracts_produce_enum_values_without_executing_callbacks() {
             &mut ctx,
             &mut facts,
             World {
+                loader: None,
                 inputs: &[],
                 source_owner: 0,
                 program,

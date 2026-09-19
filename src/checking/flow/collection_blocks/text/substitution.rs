@@ -248,27 +248,35 @@ impl Walker<'_> {
         matcher: &mut CallbackPattern,
     ) -> Result<()> {
         let (method, pattern, receiver) = call;
-        let mut current = self.substitution_initial(state)?;
-        let depth = self.collection_depth(&current, driver, receiver)?;
+        let initial = self.substitution_initial(state)?;
+        let depth = self.collection_depth(&initial, driver, receiver)?;
+        let mut current = initial.alternatives(self.ctx)?;
         let mut appended = 0;
         let mut matched = false;
         loop {
             self.ctx.charge(1)?;
+            if current.data.is_empty() {
+                return Ok(());
+            }
             let location = match matcher.next(self.ctx, text.as_bytes().unwrap()) {
                 Ok(location) => location,
-                Err(error) => return self.text_native_error(&current.state, pc, error),
+                Err(error) => return self.text_alternative_error(&current.data, pc, error),
             };
             let Some([start, end]) = location else { break };
             matched = true;
             let prefix = self.substitution_bytes(&text.as_bytes().unwrap()[appended..start])?;
-            if method.replaces_all() || !pattern.regex {
-                current.output =
-                    self.substitution_append(&current.state, pc, current.output, prefix)?;
-                if current.output == Atom::Never.fact() {
-                    return Ok(());
+            let mut ready = Buffer::empty();
+            for mut current in current.data {
+                if method.replaces_all() || !pattern.regex {
+                    current.output =
+                        self.substitution_append(&current.state, pc, current.output, prefix)?;
+                    if current.output == Atom::Never.fact() {
+                        continue;
+                    }
+                } else {
+                    current.auxiliary = prefix.value;
                 }
-            } else {
-                current.auxiliary = prefix.value;
+                ready.push(self.ctx, current)?;
             }
             let element = if !pattern.regex {
                 pattern.value
@@ -278,31 +286,31 @@ impl Walker<'_> {
                 self.facts
                     .string(self.ctx, &text.as_bytes().unwrap()[start..end])?
             };
-            let Some(next) =
-                self.collection_step(current, pc, driver, Self::text_item(element), depth)?
-            else {
+            current = self.iteration_next(ready, pc, driver, Self::text_item(element), depth)?;
+            if current.data.is_empty() {
                 return Ok(());
-            };
-            current = next;
+            }
             appended = end;
             if !method.replaces_all() {
                 break;
             }
         }
         let suffix = self.substitution_bytes(&text.as_bytes().unwrap()[appended..])?;
-        let output = self.substitution_append(&current.state, pc, current.output, suffix)?;
-        if output == Atom::Never.fact() {
-            return Ok(());
+        for current in current.data {
+            let output = self.substitution_append(&current.state, pc, current.output, suffix)?;
+            if output != Atom::Never.fact() {
+                self.collection_terminal(
+                    current.state,
+                    pc,
+                    if !matched && method.bang() {
+                        Atom::Nil.fact()
+                    } else {
+                        output
+                    },
+                )?;
+            }
         }
-        self.collection_terminal(
-            current.state,
-            pc,
-            if !matched && method.bang() {
-                Atom::Nil.fact()
-            } else {
-                output
-            },
-        )
+        Ok(())
     }
 
     fn substitution_repeat(
@@ -356,29 +364,23 @@ impl Walker<'_> {
         };
         let item = Self::text_item(element);
         let depth = self.collection_depth(&initial, driver, receiver)?;
-        let Some(mut current) = self.collection_step(initial, pc, driver, item, depth)? else {
-            return Ok(());
-        };
-        let depth = self.collection_depth(&current, driver, receiver)?;
-        current.state.widening.get_or_insert(depth);
-        loop {
-            self.ctx.charge(1)?;
-            self.emit_error(&current.state, pc, handlers::bit(ErrorClass::Limit))?;
-            let state = current.state.snapshot(self.ctx)?;
-            self.collection_terminal(state, pc, Atom::String.fact())?;
-            if !method.replaces_all() {
-                break;
-            }
-            let mut before = current.snapshot(self.ctx)?;
-            let prefix = self.substitution_string(Atom::String.fact())?;
-            before.output = self.substitution_append(&before.state, pc, before.output, prefix)?;
-            let Some(next) = self.collection_step(before, pc, driver, item, depth)? else {
-                break;
-            };
-            if !current.join(self.ctx, self.facts, &next, true, depth, self.program)? {
-                break;
-            }
-        }
+        let first = self.collection_step(initial, pc, driver, item, depth)?;
+        self.iteration_loop(
+            first,
+            driver,
+            receiver,
+            |walker, mut current, depth| {
+                let prefix = walker.substitution_string(Atom::String.fact())?;
+                current.output =
+                    walker.substitution_append(&current.state, pc, current.output, prefix)?;
+                walker.collection_step(current, pc, driver, item, depth)
+            },
+            |walker, current| {
+                walker.emit_error(&current.state, pc, handlers::bit(ErrorClass::Limit))?;
+                walker.collection_terminal(current.state, pc, Atom::String.fact())?;
+                Ok(method.replaces_all())
+            },
+        )?;
         Ok(())
     }
 }

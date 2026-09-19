@@ -119,6 +119,24 @@ impl Walker<'_> {
             };
             bindings.insert(self.ctx, hosts, root.name.as_bytes().unwrap(), binding)?;
         }
+        for (receiving, name, slot) in state.global_layout.roots() {
+            self.ctx.charge(1)?;
+            if *receiving != state.source_slots.receiving
+                || state.source_slots.root(self.ctx, *slot)?.is_some()
+            {
+                continue;
+            }
+            let value = state.locals.get(self.ctx, state.global_base + slot)?;
+            if value.value == Atom::Never.fact() {
+                continue;
+            }
+            let binding = bindings.current(self.ctx, self.facts, value.value)?;
+            if value.missing {
+                bindings.optional(self.ctx, hosts, name.as_bytes().unwrap(), binding)?;
+            } else {
+                bindings.insert(self.ctx, hosts, name.as_bytes().unwrap(), binding)?;
+            }
+        }
         let sources = if lexical {
             self.layouts.type_sources(self.ctx, self.function_index)?
         } else {

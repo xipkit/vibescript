@@ -111,18 +111,18 @@ impl Walker<'_> {
             }
             if let Node::Tuple(items) = self.facts.node(source) {
                 let length = items.data.len();
-                let mut current = Some(initial);
+                let mut current = initial.alternatives(self.ctx)?;
                 for index in 0..length {
                     self.ctx.charge(1)?;
-                    let Some(before) = current else {
+                    if current.data.is_empty() {
                         break;
-                    };
+                    }
                     let element = self.ordered_element(source, index)?;
                     let index = self.facts.integer(self.ctx, index as i64)?;
                     let item = self.collection_item(Receiver::Array, driver, element, index)?;
-                    current = self.collection_step(before, pc, driver, item, depth)?;
+                    current = self.iteration_next(current, pc, driver, item, depth)?;
                 }
-                if let Some(current) = current {
+                for current in current.data {
                     self.ordered_finish(current, pc, driver, source)?;
                 }
             } else {
@@ -140,24 +140,19 @@ impl Walker<'_> {
                     iteration.item,
                     Atom::Int.fact(),
                 )?;
-                let Some(mut current) = self.collection_step(initial, pc, driver, item, depth)?
-                else {
-                    continue;
-                };
-                let depth = self.collection_depth(&current, driver, source)?;
-                current.state.widening.get_or_insert(depth);
-                loop {
-                    self.ctx.charge(1)?;
-                    let done = current.snapshot(self.ctx)?;
-                    self.ordered_finish(done, pc, driver, source)?;
-                    let before = current.snapshot(self.ctx)?;
-                    let Some(next) = self.collection_step(before, pc, driver, item, depth)? else {
-                        break;
-                    };
-                    if !current.join(self.ctx, self.facts, &next, true, depth, self.program)? {
-                        break;
-                    }
-                }
+                let first = self.collection_step(initial, pc, driver, item, depth)?;
+                self.iteration_loop(
+                    first,
+                    driver,
+                    source,
+                    |walker, current, depth| {
+                        walker.collection_step(current, pc, driver, item, depth)
+                    },
+                    |walker, current| {
+                        walker.ordered_finish(current, pc, driver, source)?;
+                        Ok(true)
+                    },
+                )?;
             }
         }
         Ok(())
@@ -398,6 +393,10 @@ impl Walker<'_> {
             if hash == *previous
                 && run.comparison == entry.comparison
                 && run.sort.same(self.ctx, &entry.sort)?
+                && run
+                    .current
+                    .state
+                    .compatible(self.ctx, &entry.current.state)?
             {
                 if entry.current.join(
                     self.ctx,
@@ -453,12 +452,32 @@ impl Walker<'_> {
                                 index: Atom::Int.fact(),
                                 pair: None,
                             };
-                            let Some(current) =
-                                self.collection_step(run.current, pc, driver, item, depth)?
-                            else {
+                            let mut alternatives =
+                                self.collection_step(run.current, pc, driver, item, depth)?;
+                            let Some(current) = alternatives.data.pop() else {
                                 break;
                             };
                             run.current = current;
+                            for current in alternatives.data {
+                                let order = self.ordered_sign(current.previous)?;
+                                for (mask, comparison) in
+                                    [(LESS, Ordering::Less), (EQUAL | GREATER, Ordering::Equal)]
+                                {
+                                    if order & mask != 0 {
+                                        let alternative = Sorting {
+                                            sort: run.sort.snapshot(self.ctx)?,
+                                            current: current.snapshot(self.ctx)?,
+                                            comparison: Some(comparison),
+                                        };
+                                        self.ordered_enqueue(
+                                            &mut seen,
+                                            &mut pending,
+                                            alternative,
+                                            depth,
+                                        )?;
+                                    }
+                                }
+                            }
                             self.ordered_sign(run.current.previous)?
                         } else {
                             let keys = if driver.method == Method::SortBy {
@@ -529,23 +548,17 @@ impl Walker<'_> {
             index: Atom::Int.fact(),
             pair: None,
         };
-        let Some(mut current) = self.collection_step(initial, pc, driver, item, depth)? else {
-            return Ok(());
-        };
-        let depth = self.collection_depth(&current, driver, source)?;
-        current.state.widening.get_or_insert(depth);
-        loop {
-            self.ctx.charge(1)?;
-            let done = current.snapshot(self.ctx)?;
-            self.collection_done(done, pc, driver.method, source)?;
-            let before = current.snapshot(self.ctx)?;
-            let Some(next) = self.collection_step(before, pc, driver, item, depth)? else {
-                break;
-            };
-            if !current.join(self.ctx, self.facts, &next, true, depth, self.program)? {
-                break;
-            }
-        }
+        let first = self.collection_step(initial, pc, driver, item, depth)?;
+        self.iteration_loop(
+            first,
+            driver,
+            source,
+            |walker, current, depth| walker.collection_step(current, pc, driver, item, depth),
+            |walker, current| {
+                walker.collection_done(current, pc, driver.method, source)?;
+                Ok(true)
+            },
+        )?;
         Ok(())
     }
 }

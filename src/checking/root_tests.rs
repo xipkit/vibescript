@@ -51,6 +51,7 @@ fn analyze_roots(
         ctx,
         facts,
         World {
+            loader: None,
             inputs: &[],
             program,
             source_owner: 0,

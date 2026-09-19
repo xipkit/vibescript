@@ -351,6 +351,7 @@ fn supplied(source: &str, input: Value, exact: bool, rejected: bool) -> Value {
         &mut ctx,
         &mut facts,
         World {
+            loader: None,
             inputs: &[],
             source_owner: 0,
             program: &program,

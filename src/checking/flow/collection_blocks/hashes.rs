@@ -55,7 +55,7 @@ impl Walker<'_> {
                 site: Some(site),
             };
             if method == Method::DeepTransformKeys {
-                if let Some(done) = self.deep_hash(state, pc, driver, view)? {
+                for done in self.deep_hash(state, pc, driver, view)?.data {
                     self.collection_terminal(done.state, pc, done.output)?;
                 }
                 continue;
@@ -117,12 +117,21 @@ impl Walker<'_> {
                 auxiliary: Atom::Never.fact(),
                 previous: Atom::Never.fact(),
             };
-            let mut current = Some(initial);
+            let mut current = initial.alternatives(self.ctx)?;
             for source in sources.data {
-                let Some(before) = current else { break };
-                current = self.merge_source(before, pc, driver, source)?;
+                if current.data.is_empty() {
+                    break;
+                }
+                let mut next = Buffer::empty();
+                for before in current.data {
+                    for current in self.merge_source(before, pc, driver, source)?.data {
+                        let depth = self.collection_depth(&current, driver, source)?;
+                        self.iteration_join(&mut next, current, depth)?;
+                    }
+                }
+                current = next;
             }
-            if let Some(done) = current {
+            for done in current.data {
                 self.collection_terminal(done.state, pc, done.output)?;
             }
         }
@@ -141,86 +150,64 @@ impl Walker<'_> {
         self.facts.hash_as(self.ctx, input, HashKind::Plain)
     }
 
-    fn hash_join(
-        &mut self,
-        target: &mut Option<IterationState>,
-        value: IterationState,
-        depth: usize,
-    ) -> Result<()> {
-        if let Some(target) = target {
-            target.join(self.ctx, self.facts, &value, false, depth, self.program)?;
-        } else {
-            *target = Some(value);
-        }
-        Ok(())
-    }
-
     fn merge_source(
         &mut self,
         initial: IterationState,
         pc: usize,
         driver: Driver<'_>,
         source: Fact,
-    ) -> Result<Option<IterationState>> {
+    ) -> Result<Buffer<IterationState>> {
         let depth = self.collection_depth(&initial, driver, source)?;
         let base = initial.output;
-        let mut result = None;
+        let mut result = Buffer::empty();
         for index in 0..self.facts.arm_count(source) {
             self.ctx.charge(1)?;
             let arm = self.facts.arm(source, index);
             if let Some(done) = self.merge_passive(&initial, driver, arm, depth)? {
-                self.hash_join(&mut result, done, depth)?;
+                self.iteration_join(&mut result, done, depth)?;
                 continue;
             }
             let iteration = self.facts.iteration(self.ctx, arm)?;
             if iteration.empty != Atom::Never.fact() {
                 let empty = initial.snapshot(self.ctx)?;
-                self.hash_join(&mut result, empty, depth)?;
+                self.iteration_join(&mut result, empty, depth)?;
             }
             if iteration.item == Atom::Never.fact() {
                 continue;
             }
-            let Some(mut current) =
-                self.merge_round(&initial, pc, driver, base, iteration.item, depth)?
-            else {
-                continue;
-            };
-            if iteration.repeat != Atom::Never.fact() {
+            let first = self.merge_round(&initial, pc, driver, base, iteration.item, depth)?;
+            let current = self.iteration_loop(
+                first,
+                driver,
+                source,
+                |walker, current, depth| {
+                    walker.merge_round(&current, pc, driver, base, iteration.item, depth)
+                },
+                |_, _| Ok(iteration.repeat != Atom::Never.fact()),
+            )?;
+            for mut current in current.data {
+                if let Node::Shape(fields, _, _, _) = self.facts.node(arm) {
+                    let length = fields.data.len();
+                    for index in 0..length {
+                        self.ctx.charge(1)?;
+                        let Node::Shape(fields, ..) = self.facts.node(arm) else {
+                            unreachable!()
+                        };
+                        let field = &fields.data[index];
+                        if field.optional {
+                            continue;
+                        }
+                        let name = field.name.clone();
+                        let key = self.facts.string(self.ctx, name.as_bytes().unwrap())?;
+                        current.output = self.hash_require_key(current.output, key)?;
+                    }
+                }
+                if current.output == Atom::Never.fact() {
+                    continue;
+                }
                 let depth = self.collection_depth(&current, driver, source)?;
-                current.state.widening.get_or_insert(depth);
-                loop {
-                    self.ctx.charge(1)?;
-                    let Some(next) =
-                        self.merge_round(&current, pc, driver, base, iteration.item, depth)?
-                    else {
-                        break;
-                    };
-                    if !current.join(self.ctx, self.facts, &next, true, depth, self.program)? {
-                        break;
-                    }
-                }
+                self.iteration_join(&mut result, current, depth)?;
             }
-            if let Node::Shape(fields, _, _, _) = self.facts.node(arm) {
-                let length = fields.data.len();
-                for index in 0..length {
-                    self.ctx.charge(1)?;
-                    let Node::Shape(fields, ..) = self.facts.node(arm) else {
-                        unreachable!()
-                    };
-                    let field = &fields.data[index];
-                    if field.optional {
-                        continue;
-                    }
-                    let name = field.name.clone();
-                    let key = self.facts.string(self.ctx, name.as_bytes().unwrap())?;
-                    current.output = self.hash_require_key(current.output, key)?;
-                }
-            }
-            if current.output == Atom::Never.fact() {
-                continue;
-            }
-            let depth = self.collection_depth(&current, driver, source)?;
-            self.hash_join(&mut result, current, depth)?;
         }
         Ok(result)
     }
@@ -301,8 +288,8 @@ impl Walker<'_> {
         base: Fact,
         entries: Fact,
         depth: usize,
-    ) -> Result<Option<IterationState>> {
-        let mut result = None;
+    ) -> Result<Buffer<IterationState>> {
+        let mut result = Buffer::empty();
         for i in 0..self.facts.arm_count(entries) {
             self.ctx.charge(1)?;
             let entry = self.facts.arm(entries, i);
@@ -324,7 +311,7 @@ impl Walker<'_> {
                         .facts
                         .collection_write(self.ctx, next.output, key, value)?
                         .receiver;
-                    self.hash_join(&mut result, next, depth)?;
+                    self.iteration_join(&mut result, next, depth)?;
                 }
                 if found == Atom::Never.fact() || driver.block().is_none() {
                     continue;
@@ -337,8 +324,8 @@ impl Walker<'_> {
                     pair: Some((key, value)),
                 };
                 let before = before.snapshot(self.ctx)?;
-                if let Some(next) = self.collection_step(before, pc, driver, item, depth)? {
-                    self.hash_join(&mut result, next, depth)?;
+                for next in self.collection_step(before, pc, driver, item, depth)?.data {
+                    self.iteration_join(&mut result, next, depth)?;
                 }
             }
         }

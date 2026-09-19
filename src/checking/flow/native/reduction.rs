@@ -10,7 +10,7 @@ struct Request {
 
 struct Child {
     values: [Fact; 3],
-    output: Option<(State, Fact)>,
+    output: Buffer<(State, Fact)>,
 }
 
 pub(in crate::checking::flow) struct NativeFrame {
@@ -41,18 +41,19 @@ impl Walker<'_> {
         pc: usize,
         site: MemberSite,
         values: [Fact; 3],
-    ) -> Result<Option<(State, Fact)>> {
+    ) -> Result<Buffer<(State, Fact)>> {
         self.ctx.charge(1)?;
         if let Some(frame) = &mut self.native_frame {
             let index = frame.cursor;
             frame.cursor += 1;
             if let Some(child) = frame.children.data.get(index) {
                 assert_eq!(child.values, values);
-                return child
-                    .output
-                    .as_ref()
-                    .map(|(state, value)| Ok((state.snapshot(self.ctx)?, *value)))
-                    .transpose();
+                let mut result = Buffer::empty();
+                for (state, value) in &child.output.data {
+                    let state = state.snapshot(self.ctx)?;
+                    result.push(self.ctx, (state, *value))?;
+                }
+                return Ok(result);
             }
             if frame.pending.is_none() {
                 frame.pending = Some(Request {
@@ -62,7 +63,7 @@ impl Walker<'_> {
                     values,
                 });
             }
-            return Ok(None);
+            return Ok(Buffer::empty());
         }
 
         let mut tasks = Buffer::empty();
@@ -124,13 +125,13 @@ impl Walker<'_> {
         pc: usize,
         site: MemberSite,
         values: [Fact; 3],
-    ) -> Result<Option<(State, Fact)>> {
+    ) -> Result<Buffer<(State, Fact)>> {
         let [receiver, operation, argument] = values;
         let selected = match self.facts.node(operation) {
             Node::String(value) | Node::Symbol(value) => value.clone(),
             _ => {
                 self.incomplete(pc)?;
-                return Ok(None);
+                return Ok(Buffer::empty());
             }
         };
         let name =
@@ -155,20 +156,25 @@ impl Walker<'_> {
         let result = self.forwarded_member(&detached, pc, receiver, site, &args);
         let results = std::mem::replace(&mut self.native_results, outer).unwrap();
         result?;
-        let mut joined: Option<State> = None;
-        let mut value = Atom::Never.fact();
+        let mut joined: Buffer<(State, Fact)> = Buffer::empty();
         for mut next in results.data {
             self.ctx.charge(1)?;
             let output = next.stack.data.pop().unwrap().value;
             assert_eq!(next.stack.data.len(), state.stack.data.len());
             assert_eq!(next.addresses.data.len(), state.addresses.data.len());
-            value = self.facts.union(self.ctx, &[value, output])?;
-            if let Some(joined) = &mut joined {
-                joined.join(self.ctx, self.facts, &next, false, self.program)?;
-            } else {
-                joined = Some(next);
+            let mut found = false;
+            for (current, value) in &mut joined.data {
+                if current.compatible(self.ctx, &next)? {
+                    current.join(self.ctx, self.facts, &next, false, self.program)?;
+                    *value = self.facts.union(self.ctx, &[*value, output])?;
+                    found = true;
+                    break;
+                }
+            }
+            if !found {
+                joined.push(self.ctx, (next, output))?;
             }
         }
-        Ok(joined.map(|state| (state, value)))
+        Ok(joined)
     }
 }

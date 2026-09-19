@@ -237,15 +237,16 @@ impl Walker<'_> {
 
     pub(super) fn collection_input(
         &mut self,
-        current: &mut IterationState,
+        current: IterationState,
         pc: usize,
         driver: Driver<'_>,
         item: Item,
-    ) -> Result<Fact> {
-        match driver.callback {
+    ) -> Result<Buffer<(IterationState, Fact)>> {
+        let mut results = Buffer::empty();
+        let value = match driver.callback {
             Callback::Block(_) => unreachable!(),
-            Callback::Identity => Ok(item.element),
-            Callback::Equal(pattern) => self.collection_equal(item.element, pattern),
+            Callback::Identity => item.element,
+            Callback::Equal(pattern) => self.collection_equal(item.element, pattern)?,
             Callback::Match(pattern) => {
                 let result =
                     self.facts
@@ -253,12 +254,10 @@ impl Walker<'_> {
                 if result.unsupported {
                     self.incomplete(pc)?;
                 }
-                Ok(result.value)
+                result.value
             }
             Callback::Operation(operation) => {
-                let before = current.state.snapshot(self.ctx)?;
-                let mut after: Option<State> = None;
-                let mut output = Atom::Never.fact();
+                let before = &current.state;
                 for i in 0..self.facts.arm_count(operation) {
                     self.ctx.charge(1)?;
                     let arm = self.facts.arm(operation, i);
@@ -282,40 +281,43 @@ impl Walker<'_> {
                     };
                     let next = if let Some(op) = op {
                         let value = self.collection_binary(
-                            &before,
+                            before,
                             pc,
                             (op, false),
                             current.output,
                             item.element,
                         )?;
                         if value == Atom::Never.fact() {
-                            None
+                            Buffer::empty()
                         } else {
-                            Some((before.snapshot(self.ctx)?, value))
+                            let mut result = Buffer::empty();
+                            let state = before.snapshot(self.ctx)?;
+                            result.push(self.ctx, (state, value))?;
+                            result
                         }
                     } else {
                         self.native_reduction(
-                            &before,
+                            before,
                             pc,
                             driver.site.unwrap(),
                             [current.output, arm, item.element],
                         )?
                     };
-                    if let Some((state, value)) = next {
-                        output = self.facts.union(self.ctx, &[output, value])?;
-                        if let Some(after) = &mut after {
-                            after.join(self.ctx, self.facts, &state, false, self.program)?;
-                        } else {
-                            after = Some(state);
-                        }
+                    for (state, value) in next.data {
+                        let next = IterationState {
+                            state,
+                            output: current.output,
+                            auxiliary: current.auxiliary,
+                            previous: current.previous,
+                        };
+                        results.push(self.ctx, (next, value))?;
                     }
                 }
-                if let Some(after) = after {
-                    current.state = after;
-                }
-                Ok(output)
+                return Ok(results);
             }
-        }
+        };
+        results.push(self.ctx, (current, value))?;
+        Ok(results)
     }
 
     fn collection_equal(&mut self, left: Fact, right: Fact) -> Result<Fact> {

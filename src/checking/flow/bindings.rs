@@ -247,7 +247,11 @@ impl Walker<'_> {
         )?;
         if self.read_fallback(state, pc, name)? {
             if let Some(present) = present {
-                state.join(self.ctx, self.facts, &present, false, self.program)?;
+                if state.compatible(self.ctx, &present)? {
+                    state.join(self.ctx, self.facts, &present, false, self.program)?;
+                } else {
+                    self.native_continue(pc, present)?;
+                }
             }
             Ok(true)
         } else if let Some(present) = present {

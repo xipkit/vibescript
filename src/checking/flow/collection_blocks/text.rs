@@ -233,26 +233,28 @@ impl Walker<'_> {
         driver: Driver<'_>,
         mut schedule: Schedule<'_>,
     ) -> Result<()> {
-        let mut current = self.text_initial(state)?;
-        let depth = self.collection_depth(&current, driver, receiver)?;
+        let initial = self.text_initial(state)?;
+        let depth = self.collection_depth(&initial, driver, receiver)?;
+        let mut current = initial.alternatives(self.ctx)?;
         loop {
             self.ctx.charge(1)?;
+            if current.data.is_empty() {
+                return Ok(());
+            }
             let progress = match schedule.advance(self.ctx) {
                 Ok(progress) => progress,
-                Err(error) => return self.text_native_error(&current.state, pc, error),
+                Err(error) => return self.text_alternative_error(&current.data, pc, error),
             };
             let Progress::Yield([value, _, _], 1) = progress else {
                 assert!(matches!(progress, Progress::Done(_)));
-                return self.collection_done(current, pc, driver.method, receiver);
+                for current in current.data {
+                    self.collection_done(current, pc, driver.method, receiver)?;
+                }
+                return Ok(());
             };
             let element = self.text_yield_fact(&value)?;
             drop(value);
-            let Some(next) =
-                self.collection_step(current, pc, driver, Self::text_item(element), depth)?
-            else {
-                return Ok(());
-            };
-            current = next;
+            current = self.iteration_next(current, pc, driver, Self::text_item(element), depth)?;
         }
     }
 
@@ -270,25 +272,34 @@ impl Walker<'_> {
         self.collection_done(empty, pc, driver.method, receiver)?;
         let depth = self.collection_depth(&initial, driver, receiver)?;
         let item = Self::text_item(element);
-        let Some(mut current) = self.collection_step(initial, pc, driver, item, depth)? else {
-            return Ok(());
+        let first = self.collection_step(initial, pc, driver, item, depth)?;
+        self.iteration_loop(
+            first,
+            driver,
+            receiver,
+            |walker, current, depth| walker.collection_step(current, pc, driver, item, depth),
+            |walker, current| {
+                walker.collection_done(current, pc, driver.method, receiver)?;
+                Ok(!single)
+            },
+        )?;
+        Ok(())
+    }
+
+    fn text_alternative_error(
+        &mut self,
+        states: &[IterationState],
+        pc: usize,
+        error: Error,
+    ) -> Result<()> {
+        if self.ctx.exhausted() {
+            return Err(error);
+        }
+        let Some(class) = error.class() else {
+            return Err(error);
         };
-        let depth = self.collection_depth(&current, driver, receiver)?;
-        current.state.widening.get_or_insert(depth);
-        loop {
-            self.ctx.charge(1)?;
-            let done = current.snapshot(self.ctx)?;
-            self.collection_done(done, pc, driver.method, receiver)?;
-            if single {
-                break;
-            }
-            let before = current.snapshot(self.ctx)?;
-            let Some(next) = self.collection_step(before, pc, driver, item, depth)? else {
-                break;
-            };
-            if !current.join(self.ctx, self.facts, &next, true, depth, self.program)? {
-                break;
-            }
+        for current in states {
+            self.emit_error(&current.state, pc, handlers::bit(class))?;
         }
         Ok(())
     }

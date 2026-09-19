@@ -475,12 +475,12 @@ impl Walker<'_> {
 
     fn schedule_pass(
         &mut self,
-        mut current: IterationState,
+        current: IterationState,
         pc: usize,
         driver: Driver<'_>,
         pass: Pass,
         depth: usize,
-    ) -> Result<Option<IterationState>> {
+    ) -> Result<Buffer<IterationState>> {
         match pass {
             Pass::Item(element) => {
                 let item =
@@ -492,6 +492,7 @@ impl Walker<'_> {
                 width,
                 stride,
             } => {
+                let mut current = current.alternatives(self.ctx)?;
                 let Node::Tuple(items) = self.facts.node(source) else {
                     unreachable!()
                 };
@@ -519,13 +520,13 @@ impl Walker<'_> {
                     };
                     let item =
                         self.collection_item(Receiver::Array, driver, element, Atom::Int.fact())?;
-                    let Some(next) = self.collection_step(current, pc, driver, item, depth)? else {
-                        return Ok(None);
-                    };
-                    current = next;
+                    current = self.iteration_next(current, pc, driver, item, depth)?;
+                    if current.data.is_empty() {
+                        return Ok(current);
+                    }
                     index = index.saturating_add(stride);
                 }
-                Ok(Some(current))
+                Ok(current)
             }
         }
     }
@@ -543,38 +544,46 @@ impl Walker<'_> {
             return self.collection_done(initial, pc, driver.method, source);
         }
         let depth = self.collection_depth(&initial, driver, source)?;
-        let Some(mut current) = self.schedule_pass(initial, pc, driver, pass, depth)? else {
-            return Ok(());
-        };
+        let mut current = self.schedule_pass(initial, pc, driver, pass, depth)?;
         if let Repetitions::Exact(remaining) = &mut count {
             *remaining -= 1;
         }
         // Freeze from the first completed pass; large counts converge by widening.
-        let depth = self.collection_depth(&current, driver, source)?;
-        current.state.widening.get_or_insert(depth);
+        let depth = self.iteration_depth(&mut current.data, driver, source)?;
         loop {
             self.ctx.charge(1)?;
             // Infinite cycles keep callback exits without inventing a normal return.
             if matches!(count, Repetitions::Exact(0) | Repetitions::Finite) {
-                let done = current.snapshot(self.ctx)?;
-                self.collection_done(done, pc, driver.method, source)?;
+                for done in self.iteration_snapshot(&current.data)?.data {
+                    self.collection_done(done, pc, driver.method, source)?;
+                }
                 if matches!(count, Repetitions::Exact(0)) {
                     return Ok(());
                 }
             }
-            let before = current.snapshot(self.ctx)?;
-            let Some(next) = self.schedule_pass(before, pc, driver, pass, depth)? else {
+            let mut next = Buffer::empty();
+            for before in self.iteration_snapshot(&current.data)?.data {
+                for after in self.schedule_pass(before, pc, driver, pass, depth)?.data {
+                    self.iteration_join(&mut next, after, depth)?;
+                }
+            }
+            if next.data.is_empty() {
                 return Ok(());
-            };
+            }
             if let Repetitions::Exact(remaining) = &mut count {
                 *remaining -= 1;
                 if *remaining == 0 {
-                    return self.collection_done(next, pc, driver.method, source);
+                    for next in next.data {
+                        self.collection_done(next, pc, driver.method, source)?;
+                    }
+                    return Ok(());
                 }
             }
-            if !current.join(self.ctx, self.facts, &next, true, depth, self.program)? {
+            if !self.iteration_widen(&mut current, next, depth)? {
                 if !matches!(count, Repetitions::Infinite) {
-                    self.collection_done(current, pc, driver.method, source)?;
+                    for current in current.data {
+                        self.collection_done(current, pc, driver.method, source)?;
+                    }
                 }
                 return Ok(());
             }

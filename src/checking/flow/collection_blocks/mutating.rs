@@ -183,19 +183,21 @@ impl Walker<'_> {
         let depth = self.collection_depth(&initial, driver, source)?;
         if let Node::Tuple(items) = self.facts.node(source) {
             let count = items.data.len();
-            let mut current = Some(initial);
+            let mut current = initial.alternatives(self.ctx)?;
             for position in 0..count {
                 self.ctx.charge(1)?;
-                let Some(before) = current else { break };
+                if current.data.is_empty() {
+                    break;
+                }
                 let Node::Tuple(items) = self.facts.node(source) else {
                     unreachable!()
                 };
                 let element = items.data[position];
                 let index = self.facts.integer(self.ctx, position as i64)?;
                 let item = self.collection_item(kind, driver, element, index)?;
-                current = self.collection_step(before, pc, driver, item, depth)?;
+                current = self.iteration_next(current, pc, driver, item, depth)?;
             }
-            if let Some(current) = current {
+            for current in current.data {
                 self.mutable_done(current, pc, source, driver.mutation.unwrap())?;
             }
             return Ok(());
@@ -209,26 +211,17 @@ impl Walker<'_> {
             return Ok(());
         }
         let item = self.collection_item(kind, driver, iteration.item, Atom::Int.fact())?;
-        let Some(mut current) = self.collection_step(initial, pc, driver, item, depth)? else {
-            return Ok(());
-        };
-        let depth = self.collection_depth(&current, driver, source)?;
-        current.state.widening.get_or_insert(depth);
-        loop {
-            self.ctx.charge(1)?;
-            let done = current.snapshot(self.ctx)?;
-            self.mutable_done(done, pc, source, driver.mutation.unwrap())?;
-            if iteration.repeat == Atom::Never.fact() {
-                break;
-            }
-            let before = current.snapshot(self.ctx)?;
-            let Some(next) = self.collection_step(before, pc, driver, item, depth)? else {
-                break;
-            };
-            if !current.join(self.ctx, self.facts, &next, true, depth, self.program)? {
-                break;
-            }
-        }
+        let first = self.collection_step(initial, pc, driver, item, depth)?;
+        self.iteration_loop(
+            first,
+            driver,
+            source,
+            |walker, current, depth| walker.collection_step(current, pc, driver, item, depth),
+            |walker, current| {
+                walker.mutable_done(current, pc, source, driver.mutation.unwrap())?;
+                Ok(iteration.repeat != Atom::Never.fact())
+            },
+        )?;
         Ok(())
     }
 
@@ -413,7 +406,7 @@ impl Walker<'_> {
                     index: Atom::Int.fact(),
                     pair: None,
                 };
-                if let Some(current) = self.collection_step(initial, pc, driver, item, depth)? {
+                for current in self.collection_step(initial, pc, driver, item, depth)?.data {
                     self.mutable_done(current, pc, source, Mutation::Missing)?;
                 }
             }

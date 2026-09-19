@@ -2,6 +2,7 @@ use super::*;
 use crate::checking::facts::{HashKind, Node};
 use blocks::{Closure, Completion, Parent};
 
+mod alternatives;
 mod grouping;
 mod hashes;
 mod loops;
@@ -336,10 +337,12 @@ impl Walker<'_> {
             let depth = self.collection_depth(&initial, driver, arm)?;
             if let Node::Tuple(items) = self.facts.node(view) {
                 let length = items.data.len();
-                let mut current = Some(initial);
+                let mut current = initial.alternatives(self.ctx)?;
                 for index in 0..length {
                     self.ctx.charge(1)?;
-                    let Some(before) = current else { break };
+                    if current.data.is_empty() {
+                        break;
+                    }
                     let position = if matches!(method, ReverseEach | Rindex) {
                         length - 1 - index
                     } else {
@@ -351,9 +354,9 @@ impl Walker<'_> {
                     let element = items.data[position];
                     let index = self.facts.integer(self.ctx, position as i64)?;
                     let item = self.collection_item(kind, driver, element, index)?;
-                    current = self.collection_step(before, pc, driver, item, depth)?;
+                    current = self.iteration_next(current, pc, driver, item, depth)?;
                 }
-                if let Some(current) = current {
+                for current in current.data {
                     self.collection_done(current, pc, method, arm)?;
                 }
             } else {
@@ -375,36 +378,19 @@ impl Walker<'_> {
                     continue;
                 }
                 let item = self.collection_item(kind, driver, iteration.item, Atom::Int.fact())?;
-                let Some(mut current) = self.collection_step(initial, pc, driver, item, depth)?
-                else {
-                    continue;
-                };
-                // Callback jobs arrive over several solver passes. Freeze from this
-                // loop's first completed iteration, not the growing global fact arena.
-                let depth = self.collection_depth(&current, driver, arm)?;
-                current.state.widening.get_or_insert(depth);
-                loop {
-                    self.ctx.charge(1)?;
-                    let done = current.snapshot(self.ctx)?;
-                    self.collection_done(done, pc, method, arm)?;
-                    if iteration.repeat == Atom::Never.fact() {
-                        break;
-                    }
-                    let before = current.snapshot(self.ctx)?;
-                    let Some(next) = self.collection_step(before, pc, driver, item, depth)? else {
-                        break;
-                    };
-                    let output = current.output;
-                    let changed =
-                        current.join(self.ctx, self.facts, &next, true, depth, self.program)?;
-                    // Counts need scalar widening; structural widening preserves literals.
-                    if method == Count && current.output != output {
-                        current.output = Atom::Int.fact();
-                    }
-                    if !changed {
-                        break;
-                    }
-                }
+                let first = self.collection_step(initial, pc, driver, item, depth)?;
+                self.iteration_loop(
+                    first,
+                    driver,
+                    arm,
+                    |walker, current, depth| {
+                        walker.collection_step(current, pc, driver, item, depth)
+                    },
+                    |walker, current| {
+                        walker.collection_done(current, pc, method, arm)?;
+                        Ok(iteration.repeat != Atom::Never.fact())
+                    },
+                )?;
             }
         }
         Ok(())
@@ -523,16 +509,16 @@ impl Walker<'_> {
         driver: Driver<'_>,
         mut item: Item,
         depth: usize,
-    ) -> Result<Option<IterationState>> {
+    ) -> Result<Buffer<IterationState>> {
         let method = driver.method;
         if matches!(method, Method::SliceWhen | Method::ChunkWhile)
             && before.previous == Atom::Never.fact()
         {
             before.previous = item.element;
             before.auxiliary = self.facts.tuple(self.ctx, &[item.element])?;
-            return Ok(Some(before));
+            return before.alternatives(self.ctx);
         }
-        let mut after = None;
+        let mut after = Buffer::empty();
         if matches!(method, Method::Grep | Method::GrepV) {
             let pattern = driver.pattern.unwrap();
             let keep = self.facts.case_filter(
@@ -550,7 +536,8 @@ impl Walker<'_> {
                 method != Method::Grep,
             )?;
             if discard != Atom::Never.fact() {
-                after = Some(before.snapshot(self.ctx)?);
+                let discarded = before.snapshot(self.ctx)?;
+                after.push(self.ctx, discarded)?;
             }
             if keep == Atom::Never.fact() {
                 return Ok(after);
@@ -569,7 +556,7 @@ impl Walker<'_> {
                 let mut next = before.snapshot(self.ctx)?;
                 next.auxiliary = self.facts.boolean(self.ctx, false)?;
                 next.output = self.group_append(next.output, item.element)?;
-                after = Some(next);
+                after.push(self.ctx, next)?;
             }
             if invoking == Atom::Never.fact() {
                 return Ok(after);
@@ -578,15 +565,14 @@ impl Walker<'_> {
         }
         if method == Method::Reduce && before.output == Atom::Never.fact() {
             before.output = item.element;
-            return Ok(Some(before));
+            return before.alternatives(self.ctx);
         }
         let Some(block) = driver.block() else {
-            let value = self.collection_input(&mut before, pc, driver, item)?;
-            if let Some(next) = self.collection_result(before, pc, driver, item, value, depth)? {
-                if let Some(after) = &mut after {
-                    after.join(self.ctx, self.facts, &next, false, depth, self.program)?;
-                } else {
-                    after = Some(next);
+            for (before, value) in self.collection_input(before, pc, driver, item)?.data {
+                if let Some(next) =
+                    self.collection_result(before, pc, driver, item, value, depth)?
+                {
+                    self.iteration_join(&mut after, next, depth)?;
                 }
             }
             return Ok(after);
@@ -660,11 +646,7 @@ impl Walker<'_> {
                     if let Some(next) =
                         self.collection_result(next, pc, driver, item, exit.value, depth)?
                     {
-                        if let Some(after) = &mut after {
-                            after.join(self.ctx, self.facts, &next, false, depth, self.program)?;
-                        } else {
-                            after = Some(next);
-                        }
+                        self.iteration_join(&mut after, next, depth)?;
                     }
                 }
             }

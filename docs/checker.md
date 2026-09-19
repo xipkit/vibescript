@@ -20,7 +20,7 @@ Local-state snapshots share metered radix-tree nodes. Assignments copy only shar
 
 The flow corpus contains 60 scripts checked by both implementations. Nine decisions intentionally differ from Go v0.70.0: Rust preserves known default and loop-assignment facts and follows reachable loop exits. Each difference includes a Rust execution witness, including default-quota exhaustion for an unconditional loop whose trailing return is unreachable. These are checker-decision fixtures, separate from the runtime compatibility audit. A further 972 scalar operand/operator combinations compare inferred outcomes with the Rust runtime.
 
-The walker reports incomplete analysis at reachable operations it cannot model. General members, opaque iterable dispatch, blocks, required files and stateful namespace scopes remain unfinished. A partial return summary or an empty diagnostic list is not sufficient to approve a script. The public exact-call gate enforces that distinction; unsupported paths prevent checked execution.
+The walker reports incomplete analysis at reachable operations it cannot model. Opaque iterable dispatch, dynamic required-file discovery and the remaining paths listed below remain unfinished. A partial return summary or an empty diagnostic list is not sufficient to approve a script. The public exact-call gate enforces that distinction; unsupported paths prevent checked execution.
 
 ## Function calls
 
@@ -42,7 +42,7 @@ Cycle discovery walks the recorded call graph iteratively with metered scratch s
 
 Twelve tests cover growing arrays and hashes in arguments and results, mutual recursion, shared contexts, positional/keyword defaults, rest arguments, preserved known contradictions, separate call specializations, incomplete paths, exact quotas, sampled allocation failures, cleanup and cancellation. A 200-function recursive cycle and the existing 1,000-function ordinary chain run on the default Rust stack under normal limits. Three initial regression tests exhausted the default checker step quota before this change; they now converge.
 
-The [recursion reference corpus](../tests/checker-recursion.json) retains all 23 comparison scripts. Go v0.70.0 completed 21, with six decisions that differ from Rust and have explicit runtime witnesses. Standalone checks of two recursively nested rest-argument cases did not finish within five seconds; their Go decisions remain unresolved, and both remain Rust execution and inference regressions. Widened recursive facts can still lose correlations and cause conservative diagnostics. This work does not expose the checker publicly or complete the remaining analysis paths.
+The [recursion reference corpus](../tests/checker-recursion.json) retains all 23 comparison scripts. Go v0.70.0 completed 21, with six decisions that differ from Rust and have explicit runtime witnesses. Standalone checks of two recursively nested rest-argument cases did not finish within five seconds; their Go decisions remain unresolved, and both remain Rust execution and inference regressions. Widened recursive facts can still lose correlations and cause conservative diagnostics. The remaining analysis paths are listed below.
 
 ## Collection reads
 
@@ -82,7 +82,7 @@ The iteration source remains an immutable value snapshot when the body changes i
 
 Thirteen tests include 200 destructuring and 192 loop-control comparisons with runtime values, source/binding mutations, optional hash fields, nested growth, integer endpoints, exact quotas, failure cleanup and cancellation. Fifty reference scripts retain 49 Go checker decisions, with 22 explained differences, plus one separate Go parser rejection for a nested binding. Every reference script has a Rust execution witness. One checker difference retains the existing type-changing reassignment warning for a script that succeeds at runtime; it is not described as a runtime type error.
 
-Iteration order and exact trip counts beyond a singleton are not tracked. Compact literal range bounds distinguish empty, singleton and repeated iteration, including descending ranges and integer endpoints, without expanding the range. Known open-ended ranges report the runtime's iteration error; dynamic endpoints retain general integer range facts. Generalized array lengths, optional fields and joined iteration states can lose correlations and produce conservative diagnostics. Opaque hash/capability iteration and unsupported body operations remain explicitly incomplete. Public checking is still unavailable.
+Iteration order and exact trip counts beyond a singleton are not tracked. Compact literal range bounds distinguish empty, singleton and repeated iteration, including descending ranges and integer endpoints, without expanding the range. Known open-ended ranges report the runtime's iteration error; dynamic endpoints retain general integer range facts. Generalized array lengths, optional fields and joined iteration states can lose correlations and produce conservative diagnostics. Opaque hash/capability iteration and unsupported body operations remain explicitly incomplete.
 
 ## Case matching and conditional narrowing
 
@@ -108,7 +108,7 @@ Handler state, saved outcomes, work queues, call contexts and error-value facts 
 
 Eighteen focused tests cover 225 combinations of errors, returns, loop exits and cleanup, plus scope, retry, call summaries, inherited rethrows, saved predicates, receiver preservation and host-effect isolation. Exact quotas, sampled allocation failures, reclamation, cancellation and deadlines are checked. An out-of-range float-index regression first demonstrated a missing rescue path before its correction. Three previously incomplete syntax fixtures now have runtime witnesses; tests still retain reachable unmodeled handler bodies as incomplete.
 
-The [exception reference corpus](../tests/checker-exceptions.json) records 43 Go v0.70.0 checker decisions with five explained differences and Rust execution witnesses. One avoids an unreachable rescue after a callee returns from ensure; four retain known-invalid operation diagnostics that Go omits. This remains gradual analysis: generalized native inputs can conservatively reach extra error paths, and invalid typed returns can retain provisional success facts alongside their diagnostics. Precise error-message values, general dispatch and required-file checking need further work; later sections describe the implemented block and whole-file scopes. Known error-object protection is modeled as described below.
+The [exception reference corpus](../tests/checker-exceptions.json) records 43 Go v0.70.0 checker decisions with five explained differences and Rust execution witnesses. One avoids an unreachable rescue after a callee returns from ensure; four retain known-invalid operation diagnostics that Go omits. This remains gradual analysis: generalized native inputs can conservatively reach extra error paths, and invalid typed returns can retain provisional success facts alongside their diagnostics. Precise error-message values and general dispatch need further work; later sections describe the implemented block, whole-file and required-file scopes. Known error-object protection is modeled as described below.
 
 ## Builtins and type literals
 
@@ -300,7 +300,7 @@ Each callable declaration is analyzed with an incoming block absent and present.
 
 Whole-file instance domains use constructor analysis to distinguish initialized properties from fields that a successful constructor can leave unset. This includes parameter binding, helper calls, conditional assignments, early returns, blocks and cleanup. Constructor analysis does not execute callbacks or writers. Existing class inputs remain gradual during constructor summaries, preventing a copy constructor from assuming its own output or inventing an unset field. Standalone `check_function` retains its existing conservative receiver domains; changing allocation counts and unsupported field relationships still produce incomplete analysis.
 
-Whole-file checking does not make the runtime statically typed or eliminate dynamic failures. Required-file environments, remaining helper and collection dispatch, and the other limits below still apply. The CLI exposes this scope as `vibes check FILE`, with `vibes check --function NAME FILE` selecting general declaration checking. Both commands reject concrete argument flags before reading the source and preserve separate error and incomplete report entries. Step and memory limits, deadlines and analysis counters use the public checking context. The execution call-depth setting is accepted, but recursive analysis uses summaries under the work and memory budgets rather than execution frames.
+Whole-file checking does not make the runtime statically typed or eliminate dynamic failures. Captured foreign environments, remaining helper and collection dispatch, and the other limits below still apply. The CLI exposes this scope as `vibes check FILE`, with `vibes check --function NAME FILE` selecting general declaration checking. Both commands reject concrete argument flags before reading the source and preserve separate error and incomplete report entries. Step and memory limits, deadlines and analysis counters use the public checking context. The execution call-depth setting is accepted, but recursive analysis uses summaries under the work and memory budgets rather than execution frames.
 
 ## Private file bindings
 
@@ -308,7 +308,19 @@ The internal walker can analyze a compiled file program with its own private bin
 
 Whole-file checks use the file's top-level state for declaration analysis; standalone named-call checks omit ordinary top-level statements. Checking never executes the file, a host callback or an initializer. Binding names, state snapshots and summaries share the existing step, memory, cancellation and deadline accounting.
 
-This is the single-source foundation for required-file analysis. Source discovery, import initialization, exports and captured foreign environments remain incomplete. General analysis can also lose correlations between a conditional private binding and mutation of its fallback: both concrete calls may check cleanly while the broader declaration check conservatively reports a missing member.
+Required files use the same private binding store and share receiving roots. Captured foreign environments remain incomplete. General analysis can also lose correlations between a conditional private binding and mutation of its fallback: both concrete calls may check cleanly while the broader declaration check conservatively reports a missing member.
+
+## Required files
+
+Reachable literal `require` calls use the engine's existing module roots, allow/deny policy, source-size limit and compilation cache. Relative paths use the calling file's origin and the receiving invocation's policy. Checking reads and compiles source but never executes file bodies, namespace initializers, host callbacks or output writers to discover values. Invalid requests, unavailable files, parse failures, disallowed effects and cycles produce diagnostics; module names that remain dynamic produce incomplete analysis.
+
+Namespace initialization precedes the required file body, matching execution. Import state belongs to each path: successful imports retain their exports and private bindings, circular imports fail, and failed initialization permits a retry with fresh private state. Published names respect receiving declarations, supplied roots and builtins. Aliases use the current binding state. Calls use the defining file's parameters, defaults, types and diagnostics, while callbacks and pending writes retain their caller state.
+
+Different import histories retain separate private-state alternatives through namespace initializers, collection callbacks, reductions and whole-file declaration checks. A branch that never loaded a file cannot inherit bindings from another branch's failed initialization. Native iteration joins and widens only compatible histories, and nested initializers preserve the writes made before their bodies run. Optional binding reads resume each alternative at the following instruction without changing ordinary control-flow graphs.
+
+Whole-file checks also analyze callable declarations in discovered files. Exact-call and selected-function checks retain their reachable scope. Discovery, layout growth, state alternatives, report storage and retries share the existing work/memory budgets, cancellation token and deadline. Ordinary scripts do not allocate import lifecycle state.
+
+Uncertain alias presence, equality of export objects without functions, foreign namespace/instance selection and captured foreign heap state still require further analysis support. These paths remain explicit rather than producing a clean report.
 
 ## Remaining integration
 
@@ -317,7 +329,7 @@ Completion still requires:
 - Opaque iterable dispatch, interprocedural block control, general type narrowing, remaining scalar constant propagation and stored predicate relations. Collection-loop, recursive-call and exception-effect precision need further work; value-origin facts must preserve correlations without confusing equivalent types with identical values.
 - Instance allocation summaries, dynamic type atoms, optional helper field alternatives, opaque implicit conversions, remaining builtin helpers, variable-size splats, foreign attached-method environments, opaque value dispatch and unresolved lexical ownership. Known source calls, named-call namespace initialization and state, static and instance operator dispatch, introspection and forwarding, live host signatures, conservative host block schedules and concrete host-call binding are implemented; whole-program integration remains required.
 - Broader mutable-container dispatch, precise attachment correlations and invalidation after unmodeled effects. Ordinary addressed writes and collection-loop widening are integrated internally.
-- Required-file source discovery and export analysis without executing initializers, plus the selected source and root binding rules.
+- Dynamic module names, uncertain alias presence and object identity, foreign class/instance member lookup, and captured foreign environments. Literal required-file discovery, initialization, retries and export calls are integrated without executing initializers.
 - Capability descriptors spanning multiple source environments and accounting for the remaining public checking scopes. Internal strict-effects validation, eager argument binding and deferred root loading share the runtime rules. Signature metadata is inspected without invoking callbacks or validators.
 - Broader reference fixtures, required-file and capability tests, cancellation/quotas at the public boundary, and the remaining temporary compiler allocation accounting.
 

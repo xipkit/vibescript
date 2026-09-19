@@ -80,6 +80,7 @@ fn witness(body: &str, expected: &str, rejected: bool) {
         &mut ctx,
         &mut facts,
         World {
+            loader: None,
             inputs: &[],
             program,
             source_owner: 0,
@@ -291,6 +292,7 @@ fn verify_script_args(
         &mut ctx,
         &mut facts,
         World {
+            loader: None,
             inputs: &[],
             program,
             source_owner: 0,
@@ -548,6 +550,7 @@ fn method_owners_cannot_resolve_to_an_unrelated_world_with_the_same_index() {
             &mut ctx,
             &mut facts,
             World {
+                loader: None,
                 inputs: &[],
                 program: &program,
                 source_owner: 0,
@@ -580,6 +583,7 @@ fn work(ctx: &mut CallContext, program: &bytecode::Program) -> Result<()> {
         ctx,
         &mut facts,
         World {
+            loader: None,
             inputs: &[],
             program,
             source_owner: 0,
@@ -696,6 +700,7 @@ fn supplied_arguments_reject_nested_methods_before_an_unused_parameter_body_runs
             &mut ctx,
             &mut facts,
             World {
+                loader: None,
                 inputs: &[],
                 program,
                 source_owner: 0,

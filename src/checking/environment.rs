@@ -18,6 +18,7 @@ pub(super) enum Incomplete {
 /// A metadata snapshot for analysis; this does not bind grants or execute initializers.
 pub(super) struct Environment {
     code: Arc<Code>,
+    loader: Arc<crate::loading::Loader>,
     owner: usize,
     contracts: Buffer<Fact>,
     hosts: Buffer<Host>,
@@ -39,9 +40,37 @@ impl Environment {
             crate::globals::validate(ctx, &options.globals)?;
         }
         let code = &script.inner.code;
+        let owner = facts.source_owner(ctx, code, None)?;
+        let mut result = Self::module(ctx, facts, code, owner, &script.inner.loader)?;
+        for capability in &options.capabilities {
+            let name = ctx.bytes(capability.name.as_bytes())?;
+            result
+                .incomplete
+                .push(ctx, Incomplete::Capability(name.clone()))?;
+            result.bind(ctx, name, Target::Value(Atom::Unknown.fact()))?;
+        }
+        for (name, value) in &options.globals {
+            let name = ctx.bytes(name.as_bytes())?;
+            let index = result.values.data.len();
+            result.values.push(ctx, value.clone())?;
+            result.bind(ctx, name, Target::Deferred(index))?;
+        }
+        Ok(result)
+    }
+
+    /// Prepares loaded source metadata without constructing or executing a runtime environment.
+    pub fn module(
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        code: &Arc<Code>,
+        owner: usize,
+        loader: &Arc<crate::loading::Loader>,
+    ) -> Result<Self> {
+        ctx.checkpoint()?;
         let mut result = Self {
             code: code.clone(),
-            owner: facts.source_owner(ctx, code, None)?,
+            loader: loader.clone(),
+            owner,
             contracts: Buffer::empty(),
             hosts: Buffer::empty(),
             values: Buffer::empty(),
@@ -55,19 +84,6 @@ impl Environment {
         for ty in &code.program.types {
             let contract = facts.annotation(ctx, ty, |_, _| Ok(None))?;
             result.contracts.push(ctx, contract)?;
-        }
-        for capability in &options.capabilities {
-            let name = ctx.bytes(capability.name.as_bytes())?;
-            result
-                .incomplete
-                .push(ctx, Incomplete::Capability(name.clone()))?;
-            result.bind(ctx, name, Target::Value(Atom::Unknown.fact()))?;
-        }
-        for (name, value) in &options.globals {
-            let name = ctx.bytes(name.as_bytes())?;
-            let index = result.values.data.len();
-            result.values.push(ctx, value.clone())?;
-            result.bind(ctx, name, Target::Deferred(index))?;
         }
         Ok(result)
     }
@@ -85,6 +101,7 @@ impl Environment {
     /// Exposes an immutable view for the interprocedural solver.
     pub fn world(&self) -> World<'_> {
         World {
+            loader: Some(&self.loader),
             program: &self.code.program,
             source_owner: self.owner,
             contracts: &self.contracts.data,

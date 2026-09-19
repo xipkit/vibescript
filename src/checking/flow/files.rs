@@ -46,6 +46,7 @@ impl<'a> Walker<'a> {
             Op::FileValue(name, _)
             | Op::FileAddress(name, _)
             | Op::RootAddress(name, _)
+            | Op::RootCall(name, _)
             | Op::Unbound(name)
             | Op::ResolveCall(_, name, _)
             | Op::CallName(_, name) => Some(&self.program.members[name]),
@@ -61,14 +62,14 @@ impl<'a> Walker<'a> {
     }
 
     pub(super) fn file_variants(&mut self, state: &State, op: Op) -> Result<Option<[State; 2]>> {
-        if !self.program.file || !file_bindings::branches(op) {
+        if !file_bindings::branches(op) {
             return Ok(None);
         }
         let local = file_bindings::local(op).or(match op {
             Op::ResolveCall(slot, _, _) | Op::CallName(slot, _) if slot != usize::MAX => Some(slot),
             _ => None,
         });
-        if let Some(slot) = local {
+        if let Some(slot) = local.filter(|_| self.program.file) {
             if let Some(states) = self.split_file_presence(state, slot)? {
                 return Ok(Some(states));
             }
@@ -76,6 +77,20 @@ impl<'a> Walker<'a> {
         let Some(name) = self.file_name(op) else {
             return Ok(None);
         };
+        if let Some(slot) =
+            state
+                .global_layout
+                .root(self.ctx, state.source_slots.receiving, name)?
+        {
+            if state.source_slots.root(self.ctx, slot)?.is_none() {
+                if let Some(variants) = self.split_file_presence(state, state.global_base + slot)? {
+                    return Ok(Some(variants));
+                }
+            }
+        }
+        if !self.program.file {
+            return Ok(None);
+        }
         let name = name.as_bytes();
         let mut file = None;
         for (index, candidate) in self.layouts.files.names.data.iter().enumerate() {
@@ -121,9 +136,10 @@ impl<'a> Walker<'a> {
         Ok(Some([present, absent]))
     }
 
-    fn file_root_bound(&mut self, name: &str) -> Result<bool> {
+    fn file_root_bound(&mut self, state: &State, name: &str) -> Result<bool> {
         self.ctx.work_bytes(name.len())?;
-        Ok(self.file_declared_target(name)?.is_some()
+        Ok(self.root_index(state, name)?.is_some()
+            || self.file_declared_target(name)?.is_some()
             || crate::builtin::Global::parse(name).is_some()
             || self.calls.global(self.ctx, name)?
             || self.calls.receiving_binding(self.ctx, name)? != Target::Undefined)
@@ -150,7 +166,7 @@ impl<'a> Walker<'a> {
         {
             return Ok(false);
         }
-        Ok(self.file_binding(state, name)?.is_some() || self.file_root_bound(name)?)
+        Ok(self.file_binding(state, name)?.is_some() || self.file_root_bound(state, name)?)
     }
 
     /// Redirects only bindings owned by the file; a skipped declaration does not shadow a root.
@@ -167,7 +183,7 @@ impl<'a> Walker<'a> {
         let name = &self.function.local_names[slot];
         if matches!(op, Op::Declare(_))
             && self.file_binding(state, name)?.is_none()
-            && self.file_root_bound(name)?
+            && self.file_root_bound(state, name)?
         {
             return Ok(None);
         }

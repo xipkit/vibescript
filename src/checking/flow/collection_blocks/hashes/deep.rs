@@ -4,21 +4,28 @@ struct Frame {
     input: Fact,
     initial: State,
     arm: usize,
-    result: Option<IterationState>,
+    result: Buffer<IterationState>,
     walk: Option<Walk>,
+}
+
+struct Visit {
+    input: Fact,
+    current: IterationState,
+    key: Option<Fact>,
+    choice: usize,
 }
 
 struct Walk {
     source: Fact,
     schedule: Schedule,
-    current: Option<IterationState>,
-    stable: Option<IterationState>,
-    seed: Option<IterationState>,
-    after: Option<IterationState>,
-    choice: usize,
+    current: Buffer<IterationState>,
+    stable: Buffer<IterationState>,
+    after: Buffer<IterationState>,
+    pending: Buffer<Visit>,
+    active: Option<Visit>,
     targets: Buffer<Fact>,
     position: usize,
-    key: Option<Fact>,
+    started: bool,
     depth: usize,
 }
 
@@ -33,8 +40,8 @@ enum Schedule {
 }
 
 enum Advance {
-    Child(Fact, State),
-    Done(Option<IterationState>),
+    Child,
+    Done(Buffer<IterationState>),
 }
 
 impl Walker<'_> {
@@ -44,7 +51,7 @@ impl Walker<'_> {
         pc: usize,
         driver: Driver<'_>,
         input: Fact,
-    ) -> Result<Option<IterationState>> {
+    ) -> Result<Buffer<IterationState>> {
         let mut frames = Buffer::empty();
         let initial = state.snapshot(self.ctx)?;
         frames.push(
@@ -53,7 +60,7 @@ impl Walker<'_> {
                 input,
                 initial,
                 arm: 0,
-                result: None,
+                result: Buffer::empty(),
                 walk: None,
             },
         )?;
@@ -63,22 +70,25 @@ impl Walker<'_> {
             let frame = frames.data.last_mut().unwrap();
             if let Some(walk) = &mut frame.walk {
                 match self.deep_advance(walk, pc, driver)? {
-                    Advance::Child(input, state) => {
+                    Advance::Child => {
+                        let visit = walk.active.as_ref().unwrap();
+                        let input = visit.input;
+                        let initial = visit.current.state.snapshot(self.ctx)?;
                         frames.push(
                             self.ctx,
                             Frame {
                                 input,
-                                initial: state,
+                                initial,
                                 arm: 0,
-                                result: None,
+                                result: Buffer::empty(),
                                 walk: None,
                             },
                         )?;
                     }
                     Advance::Done(done) => {
-                        if let Some(done) = done {
+                        for done in done.data {
                             let depth = self.collection_depth(&done, driver, frame.input)?;
-                            self.hash_join(&mut frame.result, done, depth)?;
+                            self.iteration_join(&mut frame.result, done, depth)?;
                         }
                         frame.walk = None;
                     }
@@ -105,9 +115,10 @@ impl Walker<'_> {
                     continue;
                 }
                 if let Node::Atom(Atom::Unknown | Atom::Any) = self.facts.node(arm) {
-                    let done = self.deep_unknown(&frame.initial, pc, driver, arm)?;
-                    let depth = self.collection_depth(&done, driver, arm)?;
-                    self.hash_join(&mut frame.result, done, depth)?;
+                    for done in self.deep_unknown(&frame.initial, pc, driver, arm)?.data {
+                        let depth = self.collection_depth(&done, driver, arm)?;
+                        self.iteration_join(&mut frame.result, done, depth)?;
+                    }
                     continue;
                 }
                 let (schedule, empty, output) = match self.facts.node(arm) {
@@ -156,7 +167,7 @@ impl Walker<'_> {
                             previous: Atom::Never.fact(),
                         };
                         let depth = self.collection_depth(&done, driver, arm)?;
-                        self.hash_join(&mut frame.result, done, depth)?;
+                        self.iteration_join(&mut frame.result, done, depth)?;
                         continue;
                     }
                 };
@@ -169,19 +180,28 @@ impl Walker<'_> {
                 let depth = self.collection_depth(&initial, driver, arm)?;
                 if empty {
                     let done = initial.snapshot(self.ctx)?;
-                    self.hash_join(&mut frame.result, done, depth)?;
+                    self.iteration_join(&mut frame.result, done, depth)?;
+                }
+                let mut targets = Buffer::empty();
+                if let Schedule::Repeated {
+                    item, hash: true, ..
+                } = schedule
+                {
+                    for _ in 0..self.facts.arm_count(item) {
+                        targets.push(self.ctx, Atom::Never.fact())?;
+                    }
                 }
                 frame.walk = Some(Walk {
                     source: arm,
                     schedule,
-                    current: Some(initial),
-                    stable: None,
-                    seed: None,
-                    after: None,
-                    choice: 0,
-                    targets: Buffer::empty(),
+                    current: initial.alternatives(self.ctx)?,
+                    stable: Buffer::empty(),
+                    after: Buffer::empty(),
+                    pending: Buffer::empty(),
+                    active: None,
+                    targets,
                     position: 0,
-                    key: None,
+                    started: false,
                     depth,
                 });
                 continue;
@@ -191,177 +211,199 @@ impl Walker<'_> {
                 return Ok(done);
             };
             let walk = parent.walk.as_mut().unwrap();
-            let before = walk.current.take().unwrap();
-            walk.position += 1;
-            if let Some(mut child) = done {
-                child.output = if let Some(key) = walk.key.take() {
-                    let previous = walk.targets.data[walk.choice];
-                    walk.targets.data[walk.choice] =
+            let visit = walk.active.take().unwrap();
+            for mut child in done.data {
+                child.output = if let Some(key) = visit.key {
+                    let previous = walk.targets.data[visit.choice];
+                    walk.targets.data[visit.choice] =
                         self.facts.union(self.ctx, &[previous, key])?;
                     self.facts
-                        .collection_write(self.ctx, before.output, key, child.output)?
+                        .collection_write(self.ctx, visit.current.output, key, child.output)?
                         .receiver
                 } else {
-                    self.group_append(before.output, child.output)?
+                    self.group_append(visit.current.output, child.output)?
                 };
-                walk.current = Some(child);
+                self.iteration_join(&mut walk.after, child, walk.depth)?;
             }
         }
     }
 
     fn deep_advance(&mut self, walk: &mut Walk, pc: usize, driver: Driver<'_>) -> Result<Advance> {
-        if let Schedule::Tuple(length) = walk.schedule {
-            let Some(current) = walk.current.take() else {
-                return Ok(Advance::Done(None));
-            };
-            if walk.position == length {
-                return Ok(Advance::Done(Some(current)));
-            }
-            let Node::Tuple(items) = self.facts.node(walk.source) else {
-                unreachable!()
-            };
-            let input = items.data[walk.position];
-            let state = current.state.snapshot(self.ctx)?;
-            walk.current = Some(current);
-            return Ok(Advance::Child(input, state));
-        }
-        let Schedule::Repeated {
-            item: entries,
-            hash,
-            repeat,
-        } = walk.schedule
-        else {
-            unreachable!()
-        };
-        if entries == Atom::Never.fact() {
-            return Ok(Advance::Done(None));
-        }
-        if walk.seed.is_none() {
-            walk.seed = walk.current.take();
-            for _ in 0..self.facts.arm_count(entries) {
-                walk.targets.push(self.ctx, Atom::Never.fact())?;
-            }
-        }
-        if walk.position != 0 {
-            if let Some(current) = walk.current.take() {
-                self.hash_join(&mut walk.after, current, walk.depth)?;
-            }
-            walk.position = 0;
-            walk.choice += 1;
-        }
         loop {
             self.ctx.charge(1)?;
-            if walk.choice == self.facts.arm_count(entries) {
-                let Some(mut current) = walk.after.take() else {
-                    let done = walk.stable.take();
-                    return self.deep_done(walk, done);
-                };
-                if !repeat {
-                    return self.deep_done(walk, Some(current));
-                }
-                let changed = if let Some(stable) = &mut walk.stable {
-                    stable.join(
-                        self.ctx,
-                        self.facts,
-                        &current,
-                        true,
-                        walk.depth,
-                        self.program,
-                    )?
-                } else {
-                    walk.depth = self.collection_depth(&current, driver, walk.source)?;
-                    current.state.widening.get_or_insert(walk.depth);
-                    walk.stable = Some(current);
-                    true
-                };
-                if !changed {
-                    let done = walk.stable.take();
-                    return self.deep_done(walk, done);
-                }
-                walk.seed = Some(walk.stable.as_ref().unwrap().snapshot(self.ctx)?);
-                walk.choice = 0;
+            if matches!(walk.schedule, Schedule::Repeated { item, .. } if item == Atom::Never.fact())
+            {
+                return Ok(Advance::Done(Buffer::empty()));
             }
-            let entry = self.facts.arm(entries, walk.choice);
-            let mut current = walk.seed.as_ref().unwrap().snapshot(self.ctx)?;
-            let input = if hash {
-                let key = self
-                    .facts
-                    .extract(self.ctx, entry, crate::bytecode::Selection::At(0))?;
-                let value =
-                    self.facts
-                        .extract(self.ctx, entry, crate::bytecode::Selection::At(1))?;
-                let parent = current.output;
-                let item = Item {
-                    arguments: [key, Atom::Nil.fact()],
-                    count: 1,
-                    element: key,
-                    index: Atom::Int.fact(),
-                    pair: None,
-                };
-                let Some(mut next) = self.collection_step(current, pc, driver, item, walk.depth)?
-                else {
-                    walk.choice += 1;
-                    continue;
-                };
-                let key =
-                    self.canonical_group_keys(&next.state, pc, driver.site.unwrap(), next.output)?;
-                if key == Atom::Never.fact() {
-                    walk.choice += 1;
-                    continue;
+            if let Some(visit) = walk.pending.data.pop() {
+                assert!(walk.active.is_none());
+                walk.active = Some(visit);
+                return Ok(Advance::Child);
+            }
+            if walk.started {
+                let after = std::mem::replace(&mut walk.after, Buffer::empty());
+                match walk.schedule {
+                    Schedule::Tuple(_) => {
+                        walk.current = after;
+                        walk.position += 1;
+                    }
+                    Schedule::Repeated { repeat, .. } => {
+                        if after.data.is_empty() {
+                            let done = std::mem::replace(&mut walk.stable, Buffer::empty());
+                            return self.deep_done(walk, done);
+                        }
+                        if !repeat {
+                            return self.deep_done(walk, after);
+                        }
+                        if walk.stable.data.is_empty() {
+                            walk.stable = after;
+                            walk.depth =
+                                self.iteration_depth(&mut walk.stable.data, driver, walk.source)?;
+                        } else if !self.iteration_widen(&mut walk.stable, after, walk.depth)? {
+                            let done = std::mem::replace(&mut walk.stable, Buffer::empty());
+                            return self.deep_done(walk, done);
+                        }
+                        walk.current = self.iteration_snapshot(&walk.stable.data)?;
+                    }
                 }
-                next.output = parent;
-                current = next;
-                walk.key = Some(key);
-                value
-            } else {
-                entry
-            };
-            let state = current.state.snapshot(self.ctx)?;
-            walk.current = Some(current);
-            return Ok(Advance::Child(input, state));
+            }
+            if walk.current.data.is_empty()
+                || matches!(walk.schedule, Schedule::Tuple(length) if walk.position == length)
+            {
+                let done = std::mem::replace(&mut walk.current, Buffer::empty());
+                return self.deep_done(walk, done);
+            }
+            walk.started = true;
+            let current = std::mem::replace(&mut walk.current, Buffer::empty());
+            for current in current.data {
+                self.ctx.charge(1)?;
+                match walk.schedule {
+                    Schedule::Tuple(_) => {
+                        let Node::Tuple(items) = self.facts.node(walk.source) else {
+                            unreachable!()
+                        };
+                        walk.pending.push(
+                            self.ctx,
+                            Visit {
+                                input: items.data[walk.position],
+                                current,
+                                key: None,
+                                choice: 0,
+                            },
+                        )?;
+                    }
+                    Schedule::Repeated {
+                        item: entries,
+                        hash,
+                        ..
+                    } => {
+                        for choice in 0..self.facts.arm_count(entries) {
+                            let entry = self.facts.arm(entries, choice);
+                            let before = current.snapshot(self.ctx)?;
+                            if !hash {
+                                walk.pending.push(
+                                    self.ctx,
+                                    Visit {
+                                        input: entry,
+                                        current: before,
+                                        key: None,
+                                        choice,
+                                    },
+                                )?;
+                                continue;
+                            }
+                            let key = self.facts.extract(
+                                self.ctx,
+                                entry,
+                                crate::bytecode::Selection::At(0),
+                            )?;
+                            let input = self.facts.extract(
+                                self.ctx,
+                                entry,
+                                crate::bytecode::Selection::At(1),
+                            )?;
+                            let parent = before.output;
+                            let item = Item {
+                                arguments: [key, Atom::Nil.fact()],
+                                count: 1,
+                                element: key,
+                                index: Atom::Int.fact(),
+                                pair: None,
+                            };
+                            for mut next in self
+                                .collection_step(before, pc, driver, item, walk.depth)?
+                                .data
+                            {
+                                let key = self.canonical_group_keys(
+                                    &next.state,
+                                    pc,
+                                    driver.site.unwrap(),
+                                    next.output,
+                                )?;
+                                if key == Atom::Never.fact() {
+                                    continue;
+                                }
+                                next.output = parent;
+                                walk.pending.push(
+                                    self.ctx,
+                                    Visit {
+                                        input,
+                                        current: next,
+                                        key: Some(key),
+                                        choice,
+                                    },
+                                )?;
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
-    fn deep_done(&mut self, walk: &Walk, done: Option<IterationState>) -> Result<Advance> {
-        let Some(mut done) = done else {
-            return Ok(Advance::Done(None));
-        };
+    fn deep_done(&mut self, walk: &Walk, done: Buffer<IterationState>) -> Result<Advance> {
         let Schedule::Repeated {
             item, hash: true, ..
         } = walk.schedule
         else {
-            return Ok(Advance::Done(Some(done)));
+            return Ok(Advance::Done(done));
         };
-        // Normal completion has visited every required source field, even though
-        // the fact lattice does not retain the hash's insertion order.
-        for (index, &target) in walk.targets.data.iter().enumerate() {
-            self.ctx.charge(1)?;
-            let entry = self.facts.arm(item, index);
-            let key = self
-                .facts
-                .extract(self.ctx, entry, crate::bytecode::Selection::At(0))?;
-            let (Node::String(name) | Node::Symbol(name)) = self.facts.node(key) else {
-                continue;
-            };
-            let name = name.clone();
-            if !self
-                .facts
-                .selected_field(self.ctx, walk.source, name.as_bytes().unwrap())?
-                .is_some_and(|(_, optional)| !optional)
-            {
-                continue;
-            }
-            if target == Atom::Never.fact() {
-                return Ok(Advance::Done(None));
-            }
-            if matches!(self.facts.node(target), Node::String(_)) {
-                done.output = self.hash_require_key(done.output, target)?;
-                if done.output == Atom::Never.fact() {
-                    return Ok(Advance::Done(None));
+        let mut result = Buffer::empty();
+        for mut done in done.data {
+            // Normal completion visits every required field, even when insertion order is abstract.
+            for (index, &target) in walk.targets.data.iter().enumerate() {
+                self.ctx.charge(1)?;
+                let entry = self.facts.arm(item, index);
+                let key = self
+                    .facts
+                    .extract(self.ctx, entry, crate::bytecode::Selection::At(0))?;
+                let (Node::String(name) | Node::Symbol(name)) = self.facts.node(key) else {
+                    continue;
+                };
+                let name = name.clone();
+                if !self
+                    .facts
+                    .selected_field(self.ctx, walk.source, name.as_bytes().unwrap())?
+                    .is_some_and(|(_, optional)| !optional)
+                {
+                    continue;
+                }
+                if target == Atom::Never.fact() {
+                    done.output = Atom::Never.fact();
+                    break;
+                }
+                if matches!(self.facts.node(target), Node::String(_)) {
+                    done.output = self.hash_require_key(done.output, target)?;
+                    if done.output == Atom::Never.fact() {
+                        break;
+                    }
                 }
             }
+            if done.output != Atom::Never.fact() {
+                result.push(self.ctx, done)?;
+            }
         }
-        Ok(Advance::Done(Some(done)))
+        Ok(Advance::Done(result))
     }
 
     fn deep_unknown(
@@ -370,10 +412,9 @@ impl Walker<'_> {
         pc: usize,
         driver: Driver<'_>,
         input: Fact,
-    ) -> Result<IterationState> {
-        // An unknown child can be a scalar or contain any number of hash keys.
-        // Summarize those visits without unfolding an unbounded recursive type.
-        let mut current = IterationState {
+    ) -> Result<Buffer<IterationState>> {
+        // Unknown children may be scalar or contain arbitrarily many nested hash keys.
+        let current = IterationState {
             state: state.snapshot(self.ctx)?,
             output: input,
             auxiliary: Atom::Never.fact(),
@@ -389,29 +430,31 @@ impl Walker<'_> {
             index: Atom::Int.fact(),
             pair: None,
         };
-        let mut depth = self.collection_depth(&current, driver, input)?;
-        let mut first = true;
-        loop {
-            self.ctx.charge(1)?;
-            let before = current.snapshot(self.ctx)?;
-            let Some(mut next) = self.collection_step(before, pc, driver, item, depth)? else {
-                break;
-            };
-            let key =
-                self.canonical_group_keys(&next.state, pc, driver.site.unwrap(), next.output)?;
-            if key == Atom::Never.fact() {
-                break;
-            }
-            next.output = input;
-            if first {
-                depth = self.collection_depth(&next, driver, input)?;
-                current.state.widening.get_or_insert(depth);
-                first = false;
-            }
-            if !current.join(self.ctx, self.facts, &next, true, depth, self.program)? {
-                break;
-            }
-        }
-        Ok(current)
+        let first = current.alternatives(self.ctx)?;
+        self.iteration_loop(
+            first,
+            driver,
+            input,
+            |walker, current, depth| {
+                let mut result = Buffer::empty();
+                for mut next in walker
+                    .collection_step(current, pc, driver, item, depth)?
+                    .data
+                {
+                    let key = walker.canonical_group_keys(
+                        &next.state,
+                        pc,
+                        driver.site.unwrap(),
+                        next.output,
+                    )?;
+                    if key != Atom::Never.fact() {
+                        next.output = input;
+                        result.push(walker.ctx, next)?;
+                    }
+                }
+                Ok(result)
+            },
+            |_, _| Ok(true),
+        )
     }
 }

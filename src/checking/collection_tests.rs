@@ -92,6 +92,7 @@ pub(super) fn analyze(ctx: &mut CallContext, facts: &mut Facts, source: &str) ->
         ctx,
         facts,
         World {
+            loader: None,
             inputs: &[],
             source_owner: 0,
             program: &program,

@@ -18,6 +18,7 @@ pub(in crate::checking) struct Source {
     pub files: Range<usize>,
     pub declarations: Range<usize>,
     pub namespaces: Range<usize>,
+    pub import: Option<usize>,
     _charge: Option<Charge>,
 }
 
@@ -46,6 +47,7 @@ struct Lineage {
 
 #[derive(Debug)]
 struct Data {
+    version: usize,
     lineage: Arc<Lineage>,
     sources: Buffer<Arc<Source>>,
     initial: Buffer<Initial>,
@@ -64,7 +66,7 @@ impl Layout {
     }
 
     pub fn version(&self) -> usize {
-        self.0.as_ref().map_or(0, |data| data.sources.data.len())
+        self.0.as_ref().map_or(0, |data| data.version)
     }
 
     pub fn same(&self, other: &Self) -> bool {
@@ -102,6 +104,27 @@ impl Layout {
         self.0.as_ref().map_or(&[], |data| &data.sources.data)
     }
 
+    /// Keeps import lifetimes correlated with their private bindings across flow joins.
+    pub fn same_imports(
+        &self,
+        ctx: &mut CallContext,
+        other: &Self,
+        mut left: impl FnMut(&mut CallContext, usize) -> Result<Option<Fact>>,
+        mut right: impl FnMut(&mut CallContext, usize) -> Result<Option<Fact>>,
+    ) -> Result<bool> {
+        let layout = self.latest(ctx, other)?;
+        for source in layout.sources() {
+            ctx.charge(1)?;
+            if let Some(slot) = source.import {
+                let initial = layout.initial(slot).value;
+                if left(ctx, slot)?.unwrap_or(initial) != right(ctx, slot)?.unwrap_or(initial) {
+                    return Ok(false);
+                }
+            }
+        }
+        Ok(true)
+    }
+
     pub fn find(&self, ctx: &mut CallContext, source: SourceId) -> Result<Option<Arc<Source>>> {
         ctx.checkpoint()?;
         for entry in self.sources() {
@@ -120,6 +143,33 @@ impl Layout {
                 "checker source state is not prepared",
             )
         })
+    }
+
+    pub fn roots(&self) -> &[(SourceId, Value, usize)] {
+        self.0.as_ref().map_or(&[], |data| &data.roots.data)
+    }
+
+    /// Finds a receiving binding, including names published after source preparation.
+    pub fn root(
+        &self,
+        ctx: &mut CallContext,
+        receiving: SourceId,
+        name: &str,
+    ) -> Result<Option<usize>> {
+        ctx.checkpoint()?;
+        if let Some(data) = &self.0 {
+            for (source, key, slot) in &data.roots.data {
+                ctx.charge(1)?;
+                if *source == receiving {
+                    let key = key.as_bytes().unwrap();
+                    ctx.work_bytes(key.len().max(name.len()))?;
+                    if key == name.as_bytes() {
+                        return Ok(Some(*slot));
+                    }
+                }
+            }
+        }
+        Ok(None)
     }
 
     pub(in crate::checking) fn initial(&self, index: usize) -> Initial {
@@ -187,6 +237,7 @@ impl Storage {
             Arc::new(Lineage { _charge: charge })
         };
         let mut data = Data {
+            version: self.layout.version() + 1,
             lineage,
             sources: Buffer::empty(),
             initial: Buffer::empty(),
@@ -208,6 +259,7 @@ impl Storage {
             files: 0..0,
             declarations: 0..0,
             namespaces: 0..0,
+            import: None,
             _charge: ctx.reserve(size_of::<Source>() + 2 * size_of::<usize>())?,
         };
         for (global, value) in &program.globals {
@@ -281,9 +333,39 @@ impl Storage {
             }
         }
         mapped.namespaces = start..data.initial.data.len();
+        if program.file && receiving != source {
+            mapped.import = Some(data.push(ctx, Atom::Nil.fact(), false)?);
+        }
         data.sources.push(ctx, Arc::new(mapped))?;
         self.layout = Layout(Some(Arc::new(data)));
         Ok(self.layout.clone())
+    }
+
+    /// Allocates a shared name without publishing a value on unrelated paths.
+    pub fn root(&mut self, ctx: &mut CallContext, source: SourceId, name: &str) -> Result<usize> {
+        let receiving = self.layout.source(ctx, source)?.receiving;
+        if let Some(slot) = self.layout.root(ctx, receiving, name)? {
+            return Ok(slot);
+        }
+        let previous = self.layout.0.as_ref().unwrap();
+        let mut data = Data {
+            version: previous.version + 1,
+            lineage: previous.lineage.clone(),
+            sources: Buffer::empty(),
+            initial: Buffer::empty(),
+            builtins: Buffer::empty(),
+            roots: Buffer::empty(),
+            _charge: ctx.reserve(size_of::<Data>() + 2 * size_of::<usize>())?,
+        };
+        data.sources.extend(ctx, &previous.sources.data)?;
+        data.initial.extend(ctx, &previous.initial.data)?;
+        data.builtins.extend(ctx, &previous.builtins.data)?;
+        data.roots.extend(ctx, &previous.roots.data)?;
+        let slot = data.push(ctx, Atom::Never.fact(), true)?;
+        let name = ctx.bytes(name.as_bytes())?;
+        data.roots.push(ctx, (receiving, name, slot))?;
+        self.layout = Layout(Some(Arc::new(data)));
+        Ok(slot)
     }
 }
 

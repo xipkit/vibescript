@@ -504,12 +504,19 @@ fn conditional_file_builtins_keep_present_and_absent_paths() {
 }
 
 #[test]
-fn file_binding_support_does_not_approve_required_or_foreign_sources() {
+fn missing_required_files_are_diagnosed_and_captured_foreign_sources_remain_incomplete() {
     let script = file(&Engine::new(), "require('dependency')");
     let report = script
         .check_call("__main__", &[], &CallOptions::default())
         .unwrap();
-    assert!(!report.incomplete.is_empty(), "{report:?}");
+    assert!(report.incomplete.is_empty(), "{report:?}");
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("module paths not configured")),
+        "{report:?}"
+    );
     let foreign = file(&Engine::new(), "x=7;module M;def self.read;x;end;end;M")
         .run(CallOptions::default())
         .unwrap()

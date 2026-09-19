@@ -395,7 +395,11 @@ impl Captures {
         let (pc, completion, value) = completion;
         for exit in &mut exits.data {
             ctx.charge(1)?;
-            if exit.pc == pc && exit.completion == completion {
+            if exit.pc == pc
+                && exit.completion == completion
+                && exit.pending.compatible(ctx, &self.pending)?
+                && exit.globals.compatible(ctx, &globals)?
+            {
                 exit.pending.join(ctx, facts, &self.pending, None)?;
                 exit.globals.join(ctx, facts, &globals, None)?;
                 exit.value = facts.union(ctx, &[exit.value, value])?;

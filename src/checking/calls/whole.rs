@@ -46,60 +46,26 @@ pub(in crate::checking) fn analyze(
         if solver.whole_reached(ctx, &entries.data, source, body)? {
             continue;
         }
-        let mut context = solver.whole_initializer(ctx, body)?;
-        context.globals = globals.snapshot(ctx)?;
-        let index = solver.request(ctx, facts, body, &[], flow::NO_ERROR, &context)?;
-        entries.push(ctx, index)?;
-        solver.solve(ctx, facts)?;
-        globals = solver.whole_globals(ctx, facts, index, &globals)?;
+        let mut next = Buffer::empty();
+        for globals in globals.data {
+            ctx.charge(1)?;
+            let mut context = solver.whole_initializer(ctx, body)?;
+            context.globals = globals;
+            let index = solver.request(ctx, facts, body, &[], flow::NO_ERROR, &context)?;
+            entries.push(ctx, index)?;
+            solver.solve(ctx, facts)?;
+            for globals in solver
+                .whole_globals(ctx, facts, index, &context.globals)?
+                .data
+            {
+                globals.join_into(ctx, facts, &mut next)?;
+            }
+        }
+        globals = next;
     }
 
-    let mut selected = Buffer::with_capacity(ctx, program.functions.len())?;
-    ctx.charge(program.functions.len() as u64)?;
-    selected.data.resize(program.functions.len(), 0u8);
-    for &function in program.names.values() {
-        ctx.charge(1)?;
-        selected.data[function] |= 1;
-    }
-    for namespace in &program.namespaces {
-        ctx.charge(1)?;
-        for method in namespace.methods.iter().chain(&namespace.instance_methods) {
-            ctx.charge(1)?;
-            if program.functions[method.function].accessor.is_none() {
-                selected.data[method.function] |= 1;
-            }
-        }
-        if let Some((function, _)) = namespace.constructor {
-            selected.data[function] |= 2;
-        }
-    }
-    selected.data[0] = 0;
-    for (function, &modes) in selected.data.iter().enumerate() {
-        ctx.charge(1)?;
-        if modes == 0 {
-            continue;
-        }
-        let inputs = super::super::arguments::general_inputs(
-            ctx,
-            facts,
-            &program.functions[function].params,
-            solver.world.contracts,
-        )?;
-        for (mode, constructor) in [(1, false), (2, true)] {
-            if modes & mode == 0 {
-                continue;
-            }
-            for given in [false, true] {
-                let mut context = Context::plain();
-                context.kind = Kind::General;
-                context.constructor = constructor;
-                context.scope = blocks::Scope::Declaration { given };
-                context.globals = globals.snapshot(ctx)?;
-                let index =
-                    solver.request(ctx, facts, function, &inputs.data, flow::NO_ERROR, &context)?;
-                entries.push(ctx, index)?;
-            }
-        }
+    for globals in globals.data {
+        solver.queue_declarations(ctx, facts, &globals, &mut entries)?;
     }
     solver.solve(ctx, facts)?;
     let analysis = Analysis {
@@ -116,6 +82,134 @@ pub(in crate::checking) fn analyze(
 }
 
 impl Solver<'_, '_> {
+    pub(super) fn queue_declarations(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        globals: &Globals,
+        entries: &mut Buffer<usize>,
+    ) -> Result<()> {
+        let program = self.world.program;
+        let mut selected = Buffer::with_capacity(ctx, program.functions.len())?;
+        ctx.charge(program.functions.len() as u64)?;
+        selected.data.resize(program.functions.len(), 0u8);
+        for &function in program.names.values() {
+            ctx.charge(1)?;
+            selected.data[function] |= 1;
+        }
+        for namespace in &program.namespaces {
+            ctx.charge(1)?;
+            for method in namespace.methods.iter().chain(&namespace.instance_methods) {
+                ctx.charge(1)?;
+                if program.functions[method.function].accessor.is_none() {
+                    selected.data[method.function] |= 1;
+                }
+            }
+            if let Some((function, _)) = namespace.constructor {
+                selected.data[function] |= 2;
+            }
+        }
+        selected.data[0] = 0;
+        for (function, &modes) in selected.data.iter().enumerate() {
+            ctx.charge(1)?;
+            if modes == 0 {
+                continue;
+            }
+            let inputs = super::super::arguments::general_inputs(
+                ctx,
+                facts,
+                &program.functions[function].params,
+                self.world.contracts,
+            )?;
+            for (mode, constructor) in [(1, false), (2, true)] {
+                if modes & mode == 0 {
+                    continue;
+                }
+                for given in [false, true] {
+                    let mut context = Context::plain();
+                    context.kind = Kind::General;
+                    context.constructor = constructor;
+                    context.scope = blocks::Scope::Declaration { given };
+                    context.globals = globals.snapshot(ctx)?;
+                    let index =
+                        self.request(ctx, facts, function, &inputs.data, flow::NO_ERROR, &context)?;
+                    entries.push(ctx, index)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn required_declarations(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        globals: &Globals,
+    ) -> Result<()> {
+        if !self.state.whole {
+            return Ok(());
+        }
+        let mut alternatives = Buffer::empty();
+        let globals = globals.snapshot(ctx)?;
+        alternatives.push(ctx, globals)?;
+        let mut bodies = Buffer::empty();
+        for namespace in &self.world.program.namespaces {
+            ctx.charge(1)?;
+            if let Some(body) = namespace.body {
+                bodies.push(ctx, body)?;
+            }
+        }
+        ctx.charge(
+            bodies
+                .data
+                .len()
+                .saturating_mul(bodies.data.len().max(1).ilog2() as usize + 1) as u64,
+        )?;
+        bodies
+            .data
+            .sort_unstable_by_key(|&body| self.world.program.functions[body].offset);
+        for body in bodies.data {
+            let module = self.world.program.functions[body].namespace.unwrap();
+            let mut next = Buffer::empty();
+            for globals in alternatives.data {
+                ctx.charge(1)?;
+                let flag = globals.layout.source(ctx, self.source)?.namespace(module) + 1;
+                if facts.filter(
+                    ctx,
+                    globals.values.data[flag],
+                    super::super::scalar::Test::Truth,
+                    true,
+                )? != Atom::Never.fact()
+                {
+                    globals.join_into(ctx, facts, &mut next)?;
+                    continue;
+                }
+                let mut context = self.whole_initializer(ctx, body)?;
+                context.globals = globals;
+                let index = self.request(ctx, facts, body, &[], flow::NO_ERROR, &context)?;
+                self.depend(ctx, index)?;
+                if self.state.jobs.data[index].report.is_none() {
+                    return Ok(());
+                }
+                for globals in self
+                    .whole_globals(ctx, facts, index, &context.globals)?
+                    .data
+                {
+                    globals.join_into(ctx, facts, &mut next)?;
+                }
+            }
+            alternatives = next;
+        }
+        let mut entries = Buffer::empty();
+        for globals in alternatives.data {
+            self.queue_declarations(ctx, facts, &globals, &mut entries)?;
+        }
+        for entry in entries.data {
+            self.depend(ctx, entry)?;
+        }
+        Ok(())
+    }
+
     pub(super) fn whole_reached(
         &self,
         ctx: &mut CallContext,
@@ -226,7 +320,7 @@ impl Solver<'_, '_> {
         facts: &mut Facts,
         index: usize,
         initial: &Globals,
-    ) -> Result<Globals> {
+    ) -> Result<Buffer<Globals>> {
         let report = self.state.jobs.data[index].report.as_ref().unwrap();
         ctx.charge(report.block_exits.data.len() as u64)?;
         let normal = report
@@ -234,22 +328,21 @@ impl Solver<'_, '_> {
             .data
             .iter()
             .any(|exit| exit.completion == blocks::Completion::Value);
-        let mut globals: Option<Globals> = None;
+        let mut globals = Buffer::empty();
         for exit in &report.block_exits.data {
             ctx.charge(1)?;
             if normal && exit.completion != blocks::Completion::Value {
                 continue;
             }
-            if let Some(globals) = &mut globals {
-                globals.join(ctx, facts, &exit.globals, None)?;
-            } else {
-                globals = Some(exit.globals.snapshot(ctx)?);
-            }
+            exit.globals
+                .snapshot(ctx)?
+                .join_into(ctx, facts, &mut globals)?;
         }
-        match globals {
-            Some(globals) => Ok(globals),
-            None => initial.snapshot(ctx),
+        if globals.data.is_empty() {
+            let initial = initial.snapshot(ctx)?;
+            globals.push(ctx, initial)?;
         }
+        Ok(globals)
     }
 
     fn whole_initializer(&self, ctx: &mut CallContext, function: usize) -> Result<Context> {

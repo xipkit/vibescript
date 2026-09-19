@@ -31,8 +31,14 @@ impl SourceId {
 #[derive(Debug)]
 struct Source {
     code: Arc<Code>,
-    scope: Option<u64>,
+    scope: Scope,
     _charge: Option<Charge>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Scope {
+    Runtime(Option<u64>),
+    Import(SourceId, usize),
 }
 
 #[derive(Debug)]
@@ -54,8 +60,31 @@ impl Sources {
         code: &Arc<Code>,
         environment: Option<&Instance>,
     ) -> Result<usize> {
+        self.scoped_owner(
+            ctx,
+            code,
+            Scope::Runtime(environment.map(Instance::checking_id)),
+        )
+    }
+
+    /// Gives each receiving invocation and retry its own private analysis environment.
+    pub fn import_owner(
+        &mut self,
+        ctx: &mut CallContext,
+        code: &Arc<Code>,
+        receiving: SourceId,
+        attempt: usize,
+    ) -> Result<usize> {
+        self.scoped_owner(ctx, code, Scope::Import(receiving, attempt))
+    }
+
+    fn scoped_owner(
+        &mut self,
+        ctx: &mut CallContext,
+        code: &Arc<Code>,
+        scope: Scope,
+    ) -> Result<usize> {
         ctx.checkpoint()?;
-        let scope = environment.map(Instance::checking_id);
         for entry in &self.entries.data {
             ctx.charge(1)?;
             if Arc::ptr_eq(&entry.code, code) && entry.scope == scope {

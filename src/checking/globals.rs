@@ -83,9 +83,14 @@ impl Globals {
         let layout = self.layout.latest(ctx, &other.layout)?;
         for source in layout.sources() {
             ctx.charge(1)?;
-            for root in source.namespaces.clone().step_by(super::namespaces::WIDTH) {
+            for flag in source
+                .namespaces
+                .clone()
+                .step_by(super::namespaces::WIDTH)
+                .map(|root| root + 1)
+                .chain(source.import)
+            {
                 ctx.charge(1)?;
-                let flag = root + 1;
                 let initial = layout.initial(flag).value;
                 if self.values.data.get(flag).copied().unwrap_or(initial)
                     != other.values.data.get(flag).copied().unwrap_or(initial)
@@ -95,6 +100,33 @@ impl Globals {
             }
         }
         Ok(true)
+    }
+
+    /// Replaces a shared binding and refreshes suspended indexed writes.
+    pub fn store(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        slot: usize,
+        value: Fact,
+    ) -> Result<()> {
+        ctx.charge(1)?;
+        let same = self.values.data[slot] == value;
+        self.values.data[slot] = value;
+        self.missing.data[slot] = false;
+        self.written.data[slot] = true;
+        for address in &mut self.pending.addresses.data {
+            ctx.charge(1)?;
+            if address.root == Some(slot) {
+                address.refresh(
+                    ctx,
+                    facts,
+                    value,
+                    &super::addresses::Change::Store { same, fresh: false },
+                )?;
+            }
+        }
+        Ok(())
     }
 
     pub fn equal(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
@@ -113,10 +145,41 @@ impl Globals {
 
     pub fn compatible(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
         ctx.charge(1)?;
-        Ok(
-            self.layout.compatible(&other.layout)
-                && self.pending.compatible(ctx, &other.pending)?,
-        )
+        Ok(self.layout.compatible(&other.layout)
+            && self.pending.compatible(ctx, &other.pending)?
+            && self.layout.same_imports(
+                ctx,
+                &other.layout,
+                |_, slot| Ok(self.values.data.get(slot).copied()),
+                |_, slot| Ok(other.values.data.get(slot).copied()),
+            )?)
+    }
+
+    /// Combines compatible states without mixing distinct import lifetimes.
+    pub fn join_into(
+        self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        alternatives: &mut Buffer<Self>,
+    ) -> Result<()> {
+        for current in &mut alternatives.data {
+            ctx.charge(1)?;
+            if current.compatible(ctx, &self)? {
+                current.join(ctx, facts, &self, None)?;
+                return Ok(());
+            }
+        }
+        alternatives.push(ctx, self)
+    }
+
+    /// Preserves writes from earlier stages of a composed call.
+    pub fn inherit_writes(&mut self, ctx: &mut CallContext, earlier: &Self) -> Result<()> {
+        self.expand(ctx, &earlier.layout)?;
+        for (current, earlier) in self.written.data.iter_mut().zip(&earlier.written.data) {
+            ctx.charge(1)?;
+            *current |= earlier;
+        }
+        Ok(())
     }
 
     pub fn join(

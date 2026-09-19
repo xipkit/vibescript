@@ -82,7 +82,11 @@ impl Walker<'_> {
                 blocks::Completion::Value => {
                     next.stack.push(self.ctx, Operand::new(exit.value))?;
                     if let Some(normal) = &mut normal {
-                        normal.join(self.ctx, self.facts, &next, false, self.program)?;
+                        if normal.compatible(self.ctx, &next)? {
+                            normal.join(self.ctx, self.facts, &next, false, self.program)?;
+                        } else {
+                            self.native_continue(pc, next)?;
+                        }
                     } else {
                         normal = Some(next);
                     }

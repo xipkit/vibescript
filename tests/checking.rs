@@ -79,14 +79,21 @@ fn whole_file_checks_constructor_and_block_domains_without_host_effects() {
 }
 
 #[test]
-fn whole_file_reports_unfinished_require_analysis_without_running_it() {
+fn whole_file_reports_missing_required_files_without_running_them() {
     let report = Engine::new()
         .compile("def unused;require('missing');end")
         .unwrap()
         .check(&CallOptions::default())
         .unwrap();
     assert!(!report.is_clean());
-    assert!(!report.incomplete.is_empty(), "{report:?}");
+    assert!(report.incomplete.is_empty(), "{report:?}");
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("module paths not configured")),
+        "{report:?}"
+    );
 }
 
 fn executed(outcome: CheckedOutcome) -> vibescript::Outcome {

@@ -469,6 +469,7 @@ fn host_failure_paths_are_analyzed_without_running_callbacks_or_validators() {
         &mut ctx,
         &mut facts,
         World {
+            loader: None,
             inputs: &[],
             source_owner: 0,
             program,

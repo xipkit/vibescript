@@ -46,6 +46,22 @@ impl Solver<'_, '_> {
             };
             bindings.insert(ctx, hosts, root.name.as_bytes().unwrap(), binding)?;
         }
+        for (receiving, name, slot) in globals.layout.roots() {
+            ctx.charge(1)?;
+            if *receiving != slots.receiving || slots.root(ctx, *slot)?.is_some() {
+                continue;
+            }
+            let value = globals.values.data[*slot];
+            if value == Atom::Never.fact() {
+                continue;
+            }
+            let binding = bindings.current(ctx, facts, value)?;
+            if globals.missing.data[*slot] {
+                bindings.optional(ctx, hosts, name.as_bytes().unwrap(), binding)?;
+            } else {
+                bindings.insert(ctx, hosts, name.as_bytes().unwrap(), binding)?;
+            }
+        }
         let source = bindings.source(ctx, facts, self.world.program, self.world.source_owner)?;
         if self.world.program.file {
             for index in 0..self.world.program.declarations.len() {

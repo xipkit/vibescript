@@ -18,12 +18,14 @@ mod context;
 mod dispatch;
 mod hosts;
 mod initializers;
+mod requires;
 #[cfg(test)]
 mod source_tests;
 mod whole;
 mod worlds;
 use context::{Context, Kind};
 use hosts::HostTarget;
+pub(super) use requires::{Request as Require, failure as require_failure};
 pub(super) use whole::analyze as analyze_whole;
 use worlds::{Handle, Registry};
 
@@ -94,6 +96,21 @@ impl Outcome {
 }
 
 pub(super) trait Calls {
+    /// Loads a reachable source and summarizes its invocation-local initialization.
+    fn require(
+        &mut self,
+        ctx: &mut CallContext,
+        _: &mut Facts,
+        _: &Require,
+        _: u16,
+        _: &Globals,
+    ) -> Result<Outcome> {
+        ctx.checkpoint()?;
+        Ok(Outcome {
+            incomplete: true,
+            ..Outcome::empty()
+        })
+    }
     /// Summarizes constructor fields for whole-file declaration roots without execution.
     fn receiver_fields(
         &mut self,
@@ -365,6 +382,7 @@ impl Host {
 
 #[derive(Clone, Copy)]
 pub(super) struct World<'a> {
+    pub loader: Option<&'a Arc<crate::loading::Loader>>,
     pub program: &'a Program,
     /// Identity owner used when constructing the source declaration contracts.
     pub source_owner: usize,
@@ -426,6 +444,7 @@ struct Job {
 }
 
 struct Scheduler<'a> {
+    imports: requires::Imports,
     whole: bool,
     worlds: Registry<'a>,
     storage: super::globals::layout::Storage,
@@ -449,6 +468,7 @@ struct Solver<'s, 'a> {
 impl<'a> Scheduler<'a> {
     fn new(values: super::inputs::Values, whole: bool) -> Self {
         Self {
+            imports: requires::Imports::new(),
             whole,
             worlds: Registry::new(),
             storage: super::globals::layout::Storage::new(),
@@ -800,8 +820,15 @@ impl Solver<'_, '_> {
             layouts: Some(self.layouts),
             globals: Some(&context.globals),
         };
-        let mut report = if let Kind::Entry { general } = context.kind {
-            self.initialize_entry(ctx, facts, function, &inputs.data, &context, general)?
+        let mut report = if matches!(context.kind, Kind::Entry { .. }) {
+            self.initialize_entry(
+                ctx,
+                facts,
+                function,
+                &inputs.data,
+                &context,
+                self.state.jobs.data[index].current_error,
+            )?
         } else {
             flow::analyze_body(ctx, facts, body, self)?
         };
@@ -823,7 +850,11 @@ impl Solver<'_, '_> {
                 for exit in &mut report.block_exits.data {
                     for before in &previous.block_exits.data {
                         ctx.charge(1)?;
-                        if exit.pc == before.pc && exit.completion == before.completion {
+                        if exit.pc == before.pc
+                            && exit.completion == before.completion
+                            && exit.pending.compatible(ctx, &before.pending)?
+                            && exit.globals.compatible(ctx, &before.globals)?
+                        {
                             exit.widen(ctx, facts, before, depth)?;
                         }
                     }
@@ -1153,6 +1184,16 @@ impl Solver<'_, '_> {
 }
 
 impl Calls for Solver<'_, '_> {
+    fn require(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        request: &Require,
+        current_error: u16,
+        globals: &Globals,
+    ) -> Result<Outcome> {
+        self.require_file(ctx, facts, request, current_error, globals)
+    }
     fn receiver_fields(
         &mut self,
         ctx: &mut CallContext,

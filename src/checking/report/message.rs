@@ -269,6 +269,12 @@ fn call(
             out.mismatch(facts, actual, expected)
         }
         Failure::BuiltinValue => out.text("invalid argument value"),
+        Failure::Require { message, .. } => {
+            let super::super::facts::Node::String(value) = facts.node(message) else {
+                unreachable!()
+            };
+            out.text(std::str::from_utf8(value.as_bytes().unwrap()).unwrap())
+        }
         Failure::DetachedValue(_) => out.text("attached methods cannot be used as values"),
         Failure::TypeLiteral(actual) => {
             out.text("expected a type expression, got ")?;

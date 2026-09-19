@@ -3,6 +3,7 @@ use crate::{CallOptions, ErrorKind, code::Code};
 
 fn world(code: &Code, owner: usize) -> World<'_> {
     World {
+        loader: None,
         program: &code.program,
         source_owner: owner,
         contracts: &[],

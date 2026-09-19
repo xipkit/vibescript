@@ -121,8 +121,9 @@ fn assert_stats_line(line: &str) {
 
 const ADD: &str = "puts \"top\"\ndef run(x:int) -> int\n  puts \"ran\"\n  x + 1\nend\n";
 const ADD_FRAME: &str = "  --> line 2, column 1\n 2 | def run(x:int) -> int\n   | ^\n";
-const INCOMPLETE: &str = "def run\n  puts \"ran\"\n  require(\"x\")\nend\n";
-const INCOMPLETE_FRAME: &str = "  --> line 3, column 3\n 3 |   require(\"x\")\n   |   ^\n";
+const INCOMPLETE: &str = "def run\n  puts \"ran\"\n  require(JSON.parse('null'))\nend\n";
+const INCOMPLETE_FRAME: &str =
+    "  --> line 3, column 3\n 3 |   require(JSON.parse('null'))\n   |   ^\n";
 
 #[test]
 fn runs_top_level_statements_and_prints_the_final_value_as_json() {
@@ -1086,7 +1087,7 @@ fn check_command_reports_incomplete_analysis_distinctly_and_never_executes() {
     assert_stats_line(stats.trim_end_matches('\n'));
     let mixed = files.write(
         "mixed.vibe",
-        "puts \"top\"\nrequire(\"x\")\ndef bad -> int\n  puts \"bad\"\n  false\nend\n",
+        "puts \"top\"\nrequire(JSON.parse('null'))\ndef bad -> int\n  puts \"bad\"\n  false\nend\n",
     );
     let run = vibes(&["check", &mixed]);
     assert_eq!(run.status, Some(1));
@@ -1112,7 +1113,7 @@ fn check_command_reports_incomplete_analysis_distinctly_and_never_executes() {
         "",
         &format!(
             "{mixed}:2:1: incomplete in __main__: Analysis of this expression is not implemented\n  \
-             --> line 2, column 1\n 2 | require(\"x\")\n   | ^\n\
+             --> line 2, column 1\n 2 | require(JSON.parse('null'))\n   | ^\n\
              {mixed}: check of __main__ found 1 incomplete path\n"
         ),
     );

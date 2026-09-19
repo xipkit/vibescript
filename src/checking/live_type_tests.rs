@@ -403,6 +403,7 @@ fn host_type_replacements_stay_dynamic_without_running_capability_factories() {
         &mut ctx,
         &mut facts,
         World {
+            loader: None,
             inputs: &[],
             source_owner: 0,
             program,

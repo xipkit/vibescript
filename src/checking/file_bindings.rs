@@ -72,6 +72,7 @@ pub(super) fn branches(op: Op) -> bool {
             Op::FileValue(..)
                 | Op::FileAddress(..)
                 | Op::RootAddress(..)
+                | Op::RootCall(..)
                 | Op::Global(_)
                 | Op::GlobalReceiver(..)
                 | Op::AddressGlobal(_)

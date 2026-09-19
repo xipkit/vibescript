@@ -298,6 +298,7 @@ fn registered_builtin_overrides_use_signatures_without_executing_host_code() {
         &mut ctx,
         &mut facts,
         World {
+            loader: None,
             inputs: &[],
             source_owner: 0,
             program,
@@ -362,6 +363,7 @@ fn root_overrides_do_not_reuse_builtin_implementations_or_namespace_facts() {
             &mut ctx,
             &mut facts,
             World {
+                loader: None,
                 inputs: &[],
                 source_owner: 0,
                 program: &program,

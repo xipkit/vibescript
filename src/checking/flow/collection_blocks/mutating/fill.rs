@@ -304,20 +304,21 @@ impl Walker<'_> {
         let mut initial = self.mutable_initial(state)?;
         initial.auxiliary = self.facts.boolean(self.ctx, true)?;
         let depth = self.collection_depth(&initial, driver, source)?;
-        let mut current = Some(initial);
+        let mut current = initial.alternatives(self.ctx)?;
         for position in 0..span.length {
             self.ctx.charge(1)?;
-            let Some(mut before) = current else {
+            if current.data.is_empty() {
                 break;
-            };
+            }
             let index = self.facts.integer(self.ctx, position as i64)?;
             if position < span.start || position >= span.end {
                 let value = self
                     .facts
                     .collection_index(self.ctx, source, &[index])?
                     .value;
-                before.output = self.group_append(before.output, value)?;
-                current = Some(before);
+                for before in &mut current.data {
+                    before.output = self.group_append(before.output, value)?;
+                }
             } else {
                 let item = Item {
                     arguments: [index, Atom::Nil.fact()],
@@ -326,10 +327,10 @@ impl Walker<'_> {
                     index,
                     pair: None,
                 };
-                current = self.collection_step(before, pc, driver, item, depth)?;
+                current = self.iteration_next(current, pc, driver, item, depth)?;
             }
         }
-        if let Some(current) = current {
+        for current in current.data {
             self.mutable_done(current, pc, source, Mutation::Fill)?;
         }
         Ok(())
@@ -370,32 +371,33 @@ impl Walker<'_> {
             pair: None,
         };
         let depth = self.collection_depth(&current, driver, source)?;
-        let Some(mut current) = self.collection_step(current, pc, driver, item, depth)? else {
-            return Ok(());
-        };
+        let mut current = self.collection_step(current, pc, driver, item, depth)?;
         if let Some(count) = &mut iterations {
             *count -= 1;
         }
-        let depth = self.collection_depth(&current, driver, source)?;
-        current.state.widening.get_or_insert(depth);
+        let depth = self.iteration_depth(&mut current.data, driver, source)?;
         loop {
             self.ctx.charge(1)?;
             if iterations.is_none() || iterations == Some(0) {
-                let done = current.snapshot(self.ctx)?;
-                self.mutable_done(done, pc, source, Mutation::Fill)?;
+                for done in self.iteration_snapshot(&current.data)?.data {
+                    self.mutable_done(done, pc, source, Mutation::Fill)?;
+                }
                 if iterations == Some(0) {
                     break;
                 }
             }
-            let before = current.snapshot(self.ctx)?;
-            let Some(next) = self.collection_step(before, pc, driver, item, depth)? else {
+            let before = self.iteration_snapshot(&current.data)?;
+            let next = self.iteration_next(before, pc, driver, item, depth)?;
+            if next.data.is_empty() {
                 break;
-            };
+            }
             if let Some(count) = &mut iterations {
                 *count -= 1;
             }
-            if !current.join(self.ctx, self.facts, &next, true, depth, self.program)? {
-                self.mutable_done(current, pc, source, Mutation::Fill)?;
+            if !self.iteration_widen(&mut current, next, depth)? {
+                for current in current.data {
+                    self.mutable_done(current, pc, source, Mutation::Fill)?;
+                }
                 break;
             }
         }
