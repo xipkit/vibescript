@@ -23,7 +23,7 @@ impl Program {
                 "duplicate module or top-level declaration",
             ));
         }
-        if module.directives.iter().any(|directive| {
+        if module.directives.iter(work)?.any(|(directive, _)| {
             matches!(directive.as_str(), "public" | "protected")
                 && self.names.contains_key(directive.as_str())
         }) {

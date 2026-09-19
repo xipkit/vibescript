@@ -76,9 +76,16 @@ impl Parser<'_> {
         if let Ok(ty) = &candidate {
             self.work.ty(ty)?;
         }
-        let candidate = candidate.ok().filter(|ty| {
-            self.token() != &Token::P('?') && !self.default_field(ty) && builtin_leaves(ty)
-        });
+        let candidate = match candidate {
+            Ok(ty)
+                if self.token() != &Token::P('?')
+                    && !self.default_field(&ty)?
+                    && builtin_leaves(&ty) =>
+            {
+                Some(ty)
+            }
+            _ => None,
+        };
         Ok((candidate, end, malformed))
     }
 
@@ -280,7 +287,7 @@ impl Parser<'_> {
                 self.work.charge(fields.len())?;
                 if let Some(prior) = fields.iter().find(|field| field.name == name) {
                     self.type_structural_error =
-                        !self.default_field(&prior.ty) && !self.default_field(&ty);
+                        !self.default_field(&prior.ty)? && !self.default_field(&ty)?;
                     return self.err("duplicate shape field");
                 }
                 fields.push(self.work, Field { name, ty, optional })?;
@@ -371,7 +378,7 @@ impl Parser<'_> {
                 let structural = self.type_structural_error;
                 self.type_structural_error = false;
                 let annotation = match self.type_expr(1, false) {
-                    Ok(ty) => !self.default_field(&ty) && self.type_boundary(parenthesized)?,
+                    Ok(ty) => !self.default_field(&ty)? && self.type_boundary(parenthesized)?,
                     Err(_) => self.type_structural_error,
                 };
                 self.pos = saved;
@@ -388,10 +395,10 @@ impl Parser<'_> {
                             Some(
                                 crate::types::BuiltinName::Array | crate::types::BuiltinName::Hash
                             )
-                        ) && self.locals.contains(name.as_str())
+                        ) && self.locals.contains(self.work, name.as_str())?
                     }
                     Token::P('.') => {
-                        if self.locals.contains(name.as_str()) {
+                        if self.locals.contains(self.work, name.as_str())? {
                             return Ok(true);
                         }
                         let saved = self.pos;
@@ -424,18 +431,27 @@ impl Parser<'_> {
         Ok(result)
     }
 
-    fn default_field(&self, ty: &Type) -> bool {
-        match &ty.kind {
+    fn default_field(&self, ty: &Type) -> Result<bool> {
+        self.work.charge(1)?;
+        Ok(match &ty.kind {
             TypeKind::Shape(fields, false) => {
-                fields.is_empty() || fields.iter().any(|field| self.default_field(&field.ty))
+                if fields.is_empty() {
+                    return Ok(true);
+                }
+                for field in fields {
+                    if self.default_field(&field.ty)? {
+                        return Ok(true);
+                    }
+                }
+                false
             }
             TypeKind::Scalar(Scalar::Nil) => true,
             TypeKind::Scalar(_)
             | TypeKind::Named
             | TypeKind::Array(None)
-            | TypeKind::Hash(None) => !ty.nullable && self.locals.contains(&ty.name),
+            | TypeKind::Hash(None) => !ty.nullable && self.locals.contains(self.work, &ty.name)?,
             _ => false,
-        }
+        })
     }
 }
 

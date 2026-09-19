@@ -1,9 +1,8 @@
 use super::{Definition, Parser, Stmt, Token, keyword};
 use crate::{
     Result,
-    compilation::{Boxed, Buffer, Name},
+    compilation::{Boxed, Buffer, Name, Table},
 };
-use std::collections::HashSet;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum Visibility {
@@ -22,7 +21,7 @@ pub(crate) struct Module {
     pub methods: Buffer<(Definition, Visibility)>,
     pub body: Buffer<Stmt>,
     pub modules: Buffer<Module>,
-    pub directives: HashSet<Name>,
+    pub directives: Table<()>,
 }
 
 impl Parser<'_> {
@@ -44,18 +43,13 @@ impl Parser<'_> {
         offset: u32,
     ) -> Result<Definition> {
         self.work.charge(1)?;
-        #[expect(
-            clippy::mutable_key_type,
-            reason = "Name hashes immutable text; budget counters do not affect key identity."
-        )]
         let outer_locals = std::mem::take(&mut self.locals);
         if module {
-            self.locals.extend(
-                outer_locals
-                    .iter()
-                    .filter(|name| name.chars().next().is_some_and(super::unicode::upper))
-                    .cloned(),
-            );
+            for (name, _) in outer_locals.iter(self.work)? {
+                if name.chars().next().is_some_and(super::unicode::upper) {
+                    self.locals.insert(self.work, name.clone(), ())?;
+                }
+            }
         }
         let outer_it = std::mem::replace(&mut self.declared_it, false);
         let parenthesized = self.take_p('(');
@@ -107,10 +101,6 @@ impl Parser<'_> {
         if !name.as_bytes().first().is_some_and(u8::is_ascii_uppercase) {
             return self.err("module name must start with an uppercase letter");
         }
-        #[expect(
-            clippy::mutable_key_type,
-            reason = "Name hashes immutable text; budget counters do not affect key identity."
-        )]
         let outer_locals = std::mem::take(&mut self.locals);
         let outer_it = std::mem::replace(&mut self.declared_it, false);
         let mut module = Module {
@@ -121,7 +111,7 @@ impl Parser<'_> {
             methods: Buffer::new(),
             body: Buffer::new(),
             modules: Buffer::new(),
-            directives: HashSet::new(),
+            directives: Table::new(),
         };
         let mut visibility = Visibility::Public;
         self.lines()?;
@@ -137,7 +127,7 @@ impl Parser<'_> {
             }
             if let Some((word, level)) = self.visibility()? {
                 self.bump()?;
-                module.directives.insert(word);
+                module.directives.insert(self.work, word, ())?;
                 if self.token() == &Token::P(':') {
                     loop {
                         self.expect_p(':')?;
@@ -215,7 +205,7 @@ impl Parser<'_> {
             _ => return Ok(None),
         };
         let next = &self.tokens[self.pos + 1];
-        let section = (word == "private" || !self.locals.contains(word.as_str()))
+        let section = (word == "private" || !self.locals.contains(self.work, word.as_str())?)
             && (matches!(next.token, Token::EndLine | Token::Eof)
                 || matches!(&next.token, Token::Word(w) if w == "end"));
         let inline = next.line == self.tokens[self.pos].line

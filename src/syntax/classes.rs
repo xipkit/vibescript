@@ -4,9 +4,8 @@ use super::{
 };
 use crate::{
     Result,
-    compilation::{Buffer, Name},
+    compilation::{Buffer, Name, Table},
 };
-use std::collections::HashSet;
 
 impl Parser<'_> {
     pub(super) fn class(&mut self) -> Result<Module> {
@@ -20,10 +19,6 @@ impl Parser<'_> {
         if self.token() == &Token::Op("<") {
             return self.err("class inheritance is not supported; call shared module functions");
         }
-        #[expect(
-            clippy::mutable_key_type,
-            reason = "Name hashes immutable text; budget counters do not affect key identity."
-        )]
         let outer_locals = std::mem::take(&mut self.locals);
         let outer_it = std::mem::replace(&mut self.declared_it, false);
         let mut class = Module {
@@ -34,7 +29,7 @@ impl Parser<'_> {
             methods: Buffer::new(),
             body: Buffer::new(),
             modules: Buffer::new(),
-            directives: HashSet::new(),
+            directives: Table::new(),
         };
         let mut visibility = Visibility::Public;
         self.lines()?;
@@ -51,7 +46,7 @@ impl Parser<'_> {
             }
             if let Some((word, level)) = self.visibility()? {
                 self.bump()?;
-                class.directives.insert(word);
+                class.directives.insert(self.work, word, ())?;
                 if self.token() == &Token::P(':') {
                     loop {
                         let name = self.class_alias_name(true)?;
@@ -131,7 +126,7 @@ impl Parser<'_> {
                 }
                 let old = self.class_alias_name(false)?;
                 self.class_alias(&mut class, new, old)?;
-            } else if self.removed_mixin() {
+            } else if self.removed_mixin()? {
                 return self
                     .err("include and extend are not supported; call shared module functions");
             } else {
@@ -146,22 +141,22 @@ impl Parser<'_> {
         Ok(class)
     }
 
-    fn removed_mixin(&self) -> bool {
+    fn removed_mixin(&self) -> Result<bool> {
         let Token::Word(word) = self.token() else {
-            return false;
+            return Ok(false);
         };
         if !matches!(word.as_str(), "include" | "extend") {
-            return false;
+            return Ok(false);
         }
         let next = &self.tokens[self.pos + 1];
         let same_line = next.line == self.tokens[self.pos].line;
-        (same_line
+        Ok((same_line
             && (next.token == Token::P('(')
                 || matches!(&next.token, Token::Word(w) if !keyword(w) || w == "self")))
-            || (!self.locals.contains(word.as_str())
+            || (!self.locals.contains(self.work, word.as_str())?
                 && (!same_line
                     || matches!(next.token, Token::EndLine | Token::Eof | Token::P('}'))
-                    || matches!(&next.token, Token::Word(w) if matches!(w.as_str(), "end" | "else" | "elsif" | "ensure" | "rescue"))))
+                    || matches!(&next.token, Token::Word(w) if matches!(w.as_str(), "end" | "else" | "elsif" | "ensure" | "rescue")))))
     }
 
     fn class_method_name(&mut self, class: bool) -> Result<Name> {

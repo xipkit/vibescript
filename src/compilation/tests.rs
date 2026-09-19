@@ -5,6 +5,8 @@ use std::{cell::Cell, time::Instant};
 struct Interrupt {
     context: RefCell<CallContext>,
     visits: Cell<usize>,
+    largest_bytes: Cell<usize>,
+    byte_visits: Cell<usize>,
     at: usize,
     deadline: bool,
 }
@@ -16,6 +18,8 @@ impl Interrupt {
         Self {
             context: RefCell::new(CallContext::new(options)),
             visits: Cell::new(0),
+            largest_bytes: Cell::new(0),
+            byte_visits: Cell::new(0),
             at,
             deadline,
         }
@@ -43,6 +47,8 @@ impl Work for Interrupt {
     }
 
     fn bytes(&self, bytes: usize) -> Result<()> {
+        self.largest_bytes.set(self.largest_bytes.get().max(bytes));
+        self.byte_visits.set(self.byte_visits.get() + 1);
         self.visit()?;
         self.context.borrow_mut().work_bytes(bytes)
     }
@@ -109,6 +115,17 @@ fn sources() -> Vec<String> {
         format!("def {}({}:int)->int;{};end", "name".repeat(1024), "value".repeat(512), "value".repeat(512)),
         format!("def take(value:{{{}:array<int>}});value;end", "field".repeat(1024)),
         "module Outer;module Inner;def self.value=(n:int);n;end;end;end;class Box;property value:int;alias_method(:\"日本語\", :value);end".into(),
+        format!(
+            "def f;{}[1].map{{|n|[2].map{{|m|v0+v63+n+m}}}};end;f",
+            (0..64).map(|i| format!("v{i}={i};")).collect::<String>()
+        ),
+        format!(
+            "module M;{}def self.value;N0+N63;end;end;M.value",
+            (0..64).map(|i| format!("N{i}={i};")).collect::<String>()
+        ),
+        (0..64)
+            .map(|i| format!("begin;1;rescue=>error{i};error{i};end;"))
+            .collect(),
     ]
 }
 
@@ -324,5 +341,82 @@ fn alias_compilation_preserves_supported_tree_depth() {
                 .unwrap();
         assert_eq!(context.stats().retained_memory_bytes, 0);
         drop(code);
+    }
+}
+
+#[test]
+fn interrupted_name_table_updates_leave_the_original_scope_intact() {
+    let long_name = "名".repeat(4097);
+    let names = [long_name.as_str(), "name_1", "name_2", "name_3"];
+    let initial = || {
+        let mut table = Table::new();
+        for (i, name) in names.iter().enumerate() {
+            table.insert(&(), Name::new(&(), name).unwrap(), i).unwrap();
+        }
+        table
+    };
+    for operation in ["insert", "replace", "remove", "lookup", "copy"] {
+        let run = |table: &mut Table<usize>, work: &dyn Work| match operation {
+            "copy" => table.copy(work).map(drop),
+            "insert" => table
+                .insert(work, Name::new(&(), "added").unwrap(), 4)
+                .map(drop),
+            "replace" => table
+                .insert(work, Name::new(&(), &long_name).unwrap(), 99)
+                .map(drop),
+            "remove" => table.remove(work, &long_name).map(drop),
+            "lookup" => table.get(work, &long_name).map(drop),
+            _ => unreachable!(),
+        };
+        let mut table = initial();
+        let baseline = Interrupt::new(usize::MAX, false);
+        run(&mut table, &baseline).unwrap();
+        drop(table);
+        assert_eq!(baseline.context.borrow().stats().retained_memory_bytes, 0);
+        assert!(baseline.largest_bytes.get() <= 4096);
+        if matches!(operation, "replace" | "remove" | "lookup") {
+            assert!(baseline.byte_visits.get() >= 2 * long_name.len().div_ceil(4096));
+        }
+        let check_original = |table: &Table<usize>| {
+            assert_eq!(table.get(&(), "added").unwrap(), None);
+            for (i, name) in names.iter().enumerate() {
+                assert_eq!(table.get(&(), name).unwrap(), Some(&i));
+            }
+        };
+        let steps = baseline.context.borrow().stats().steps;
+        for limit in [0, steps / 2, steps - 1, steps] {
+            let work = Interrupt::new(usize::MAX, false);
+            work.context.borrow_mut().options.limits.steps = Some(limit);
+            let mut table = initial();
+            let result = run(&mut table, &work);
+            if limit == steps {
+                result.unwrap();
+            } else {
+                assert_eq!(result.unwrap_err().kind, ErrorKind::Steps);
+                assert_eq!(work.checkpoint().unwrap_err().kind, ErrorKind::Steps);
+                check_original(&table);
+            }
+            drop(table);
+            assert_eq!(work.context.borrow().stats().retained_memory_bytes, 0);
+        }
+        let visits = baseline.visits.get();
+        for at in [0, visits / 4, visits / 2, visits - 1] {
+            for deadline in [false, true] {
+                let interrupted = Interrupt::new(at, deadline);
+                let mut table = initial();
+                let kind = if deadline {
+                    ErrorKind::Deadline
+                } else {
+                    ErrorKind::Cancelled
+                };
+                assert_eq!(run(&mut table, &interrupted).unwrap_err().kind, kind);
+                assert_eq!(interrupted.checkpoint().unwrap_err().kind, kind);
+                assert_eq!(
+                    interrupted.context.borrow().stats().retained_memory_bytes,
+                    0
+                );
+                check_original(&table);
+            }
+        }
     }
 }

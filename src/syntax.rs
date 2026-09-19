@@ -1,8 +1,7 @@
 use crate::{
     Error, Result, Value,
-    compilation::{Boxed, Buffer, Bytes, Name, Text},
+    compilation::{Boxed, Buffer, Bytes, Name, Table, Text},
 };
-use std::collections::HashSet;
 
 mod classes;
 mod errors;
@@ -275,7 +274,7 @@ fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result
         ternaries: Buffer::new(),
         command_group: 0,
         loop_condition: None,
-        locals: HashSet::new(),
+        locals: Table::new(),
         declared_it: false,
         type_structural_error: false,
     })
@@ -330,11 +329,7 @@ pub(crate) fn parse(source: &str, work: &dyn crate::compilation::Work) -> Result
             p.line_breaks()?;
             let name = p.enum_name()?;
             let mut members = Buffer::new();
-            #[expect(
-                clippy::mutable_key_type,
-                reason = "Name hashes immutable text; budget counters do not affect key identity."
-            )]
-            let mut seen = HashSet::new();
+            let mut seen = Table::new();
             p.lines()?;
             while !matches!(p.token(), Token::Eof)
                 && !matches!(p.token(), Token::Word(w) if w == "end")
@@ -344,7 +339,7 @@ pub(crate) fn parse(source: &str, work: &dyn crate::compilation::Work) -> Result
                 } else {
                     p.enum_name()?
                 };
-                if !seen.insert(member.clone()) {
+                if seen.insert(work, member.clone(), ())?.is_some() {
                     return p.err("duplicate enum member");
                 }
                 members.push(work, member)?;
@@ -393,7 +388,7 @@ struct Parser<'a> {
     ternaries: Buffer<usize>,
     command_group: usize,
     loop_condition: Option<usize>,
-    locals: HashSet<Name>,
+    locals: Table<()>,
     declared_it: bool,
     type_structural_error: bool,
 }
@@ -541,7 +536,7 @@ impl<'a> Parser<'a> {
                 }
                 _ => (),
             }
-            self.locals.insert(name.clone());
+            self.locals.insert(self.work, name.clone(), ())?;
             self.declared_it |= name == "it";
             params.push(
                 self.work,
@@ -676,7 +671,7 @@ impl<'a> Parser<'a> {
                 node: Node::Var(name),
                 ..
             }) => {
-                self.locals.insert(name.clone());
+                self.locals.insert(self.work, name.clone(), ())?;
                 self.declared_it |= name == "it";
             }
             Target::Tuple(parts) => {
@@ -1810,14 +1805,7 @@ impl<'a> Parser<'a> {
         self.work.charge(1)?;
         self.bump()?;
         self.lines()?;
-        for name in &self.locals {
-            self.work.bytes(name.len())?;
-        }
-        #[expect(
-            clippy::mutable_key_type,
-            reason = "Name hashes immutable text; budget counters do not affect key identity."
-        )]
-        let outer = self.locals.clone();
+        let outer = self.locals.copy(self.work)?;
         let outer_it = self.declared_it;
         let infer_it = !outer_it;
         let (params, explicit) = self.block_parameters()?;
@@ -1899,9 +1887,11 @@ impl<'a> Parser<'a> {
             false
         };
         if !explicit {
-            self.locals.insert(Name::new(self.work, "it")?);
+            self.locals
+                .insert(self.work, Name::new(self.work, "it")?, ())?;
             for n in ["_1", "_2", "_3", "_4", "_5", "_6", "_7", "_8", "_9"] {
-                self.locals.insert(Name::new(self.work, n)?);
+                self.locals
+                    .insert(self.work, Name::new(self.work, n)?, ())?;
             }
         }
         Ok((params, explicit))
@@ -2072,7 +2062,7 @@ impl<'a> Parser<'a> {
         }
         let local = match &lhs.node {
             Node::Var(name) if name == "self" => return Ok(false),
-            Node::Var(name) => self.locals.contains(name),
+            Node::Var(name) => self.locals.contains(self.work, name)?,
             _ => false,
         };
         let previous = self.previous()?;

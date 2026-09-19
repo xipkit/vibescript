@@ -57,18 +57,19 @@ impl Parser<'_> {
                     return self.err("rescue binding must use =>");
                 }
             }
-            let existed = binding
-                .as_ref()
-                .is_some_and(|name| self.locals.contains(name));
+            let existed = match &binding {
+                Some(name) => self.locals.contains(self.work, name)?,
+                None => false,
+            };
             let declared_it = self.declared_it;
             if let Some(name) = &binding {
-                self.locals.insert(name.clone());
+                self.locals.insert(self.work, name.clone(), ())?;
                 self.declared_it |= name == "it";
             }
             let rescue_body = self.block(&["rescue", "else", "ensure", "end"])?;
             if let Some(name) = &binding {
                 if !existed {
-                    self.locals.remove(name);
+                    self.locals.remove(self.work, name)?;
                 }
             }
             if binding.as_deref() == Some("it") {

@@ -4,10 +4,12 @@ use std::cell::RefCell;
 mod buffer;
 mod name;
 mod storage;
+mod table;
 mod types;
 pub(crate) use buffer::Buffer;
 pub(crate) use name::Name;
 pub(crate) use storage::{Boxed, Bytes, Text};
+pub(crate) use table::Table;
 pub(crate) use types::{Field, Type, TypeKind};
 
 pub(crate) trait Work {
