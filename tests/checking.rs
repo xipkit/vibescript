@@ -1354,3 +1354,160 @@ fn checked_top_level_preserves_source_order_and_tracks_ambient_captures() {
     assert!(report.incomplete.is_empty());
     assert_eq!(effects.load(Ordering::Relaxed), 3);
 }
+
+#[test]
+fn opaque_left_equality_does_not_assume_native_boolean_results() {
+    let options = CallOptions::default();
+    // An opaque receiver may dispatch a source ==/!= returning any type, so the
+    // checker must not prove the branch that returns a string unreachable.
+    for source in [
+        "class Plain;end;class C;def ==(other);7;end;end;def make;C.new;end;def run(x:any)->int;if (x==Plain.new).is_type?(:bool);7;else;'wrong';end;end",
+        "class Plain;end;class C;def ==(other);7;end;end;def make;C.new;end;def run(x)->int;if (x==Plain).is_type?(:bool);7;else;'wrong';end;end",
+        "class Plain;end;class C;def !=(other);7;end;end;def make;C.new;end;def run(x:any)->int;if (x != Plain.new).is_type?(:bool);7;else;'wrong';end;end",
+        "class Plain;end;class C;def !=(other);7;end;end;def make;C.new;end;def run(x)->int;if (x != Plain).is_type?(:bool);7;else;'wrong';end;end",
+    ] {
+        let script = Engine::new().compile(source).unwrap();
+        let report = script.check_function("run", &options).unwrap();
+        assert!(!report.is_clean(), "{source}: {report:?}");
+        let made = script.call("make", &[], options.clone()).unwrap().value;
+        assert_eq!(
+            script
+                .call("run", &[made], options.clone())
+                .unwrap_err()
+                .kind,
+            ErrorKind::Type,
+            "{source}"
+        );
+    }
+    // A missing != falls back to a negated ==, but the receiver's class is
+    // unknown, so the result still must not be assumed boolean.
+    let script = Engine::new()
+        .compile("class Plain;end;class C;def ==(other);7;end;end;def run(x:any)->int;if (x != Plain.new).is_type?(:bool);7;else;'wrong';end;end")
+        .unwrap();
+    assert!(!script.check_function("run", &options).unwrap().is_clean());
+    // Controls: a known native receiver with an unknown right operand keeps a
+    // boolean result, and known instance identity and overrides are preserved.
+    for source in [
+        "class Plain;end;def run(x:any)->bool;Plain.new==x;end",
+        "class Plain;end;def run(x)->bool;Plain.new != x;end",
+        "class Plain;end;def run(x:any)->bool;Plain==x;end",
+        "class Plain;end;def run(x)->bool;Plain != x;end",
+        "class Plain;end;def run->bool;a=Plain.new;a==a;end",
+        "class Plain;end;def run->bool;Plain.new != Plain.new;end",
+        "class Plain;end;def run->bool;Plain==Plain;end",
+        "class Plain;end;class C;def ==(other);7;end;end;def run->int;C.new==Plain.new;end",
+        "class Plain;end;class C;def !=(other);7;end;end;def run->int;C.new != Plain;end",
+    ] {
+        let script = Engine::new().compile(source).unwrap();
+        let report = script.check_function("run", &options).unwrap();
+        assert!(report.is_clean(), "{source}: {report:?}");
+    }
+}
+
+#[test]
+fn primitive_equality_selects_typed_branches_without_rounding_or_nan_shortcuts() {
+    for (expression, expected) in [
+        ("1 == 1.0", true),
+        ("1 != 1.0", false),
+        ("9007199254740993 == 9007199254740992.0", false),
+        ("9223372036854775807 == 9223372036854775808.0", false),
+        ("(-9223372036854775807-1) == -9223372036854775808.0", true),
+        ("-0.0 == 0.0", true),
+        ("1.5 == 1.0", false),
+        ("'a' == 'a'", true),
+        ("'a' != 'b'", true),
+        ("'a' == :a", false),
+        (":a == :a", true),
+        ("false == false", true),
+        ("true != false", true),
+        ("nil == nil", true),
+        ("nil == 0", false),
+        ("(1..3) == (1..3)", true),
+        ("(1..3) == (1...3)", false),
+        ("/a/i == /a/i", true),
+        ("/a/i == /a/", false),
+        ("money_cents(100,'USD') == 100", false),
+        ("money_cents(100,'USD') == 100.0", false),
+        ("Duration.build(1) == 1", false),
+        ("Time.at(0) == 0", false),
+    ] {
+        equality_branch("", expression, expected, CallOptions::default());
+    }
+    let options = CallOptions {
+        globals: [
+            ("nan".into(), Value::float(f64::NAN)),
+            ("infinity".into(), Value::float(f64::INFINITY)),
+            ("bytes".into(), Value::bytes([0, 255, b'a'])),
+            ("same".into(), Value::bytes([0, 255, b'a'])),
+            ("different".into(), Value::bytes([0, 254, b'a'])),
+        ]
+        .into(),
+        ..CallOptions::default()
+    };
+    for (expression, expected) in [
+        ("nan == nan", false),
+        ("nan != nan", true),
+        ("nan == 7", false),
+        ("infinity == infinity", true),
+        ("infinity == 9223372036854775807", false),
+        ("bytes == same", true),
+        ("bytes == different", false),
+    ] {
+        equality_branch("", expression, expected, options.clone());
+    }
+}
+
+#[test]
+fn primitive_equality_keeps_abstract_alternatives_and_receiver_dispatch() {
+    for source in [
+        "def run(x:float)->int;if x==x;7;else;'wrong';end;end",
+        "def run(x:string,y:string)->int;if x==y;7;else;'wrong';end;end",
+        "def run(x:int)->int;if x==1.0;7;else;'wrong';end;end",
+        "def run(x:int|float)->int;if x==1;7;else;'wrong';end;end",
+    ] {
+        let report = Engine::new()
+            .compile(source)
+            .unwrap()
+            .check_function("run", &CallOptions::default())
+            .unwrap();
+        assert!(
+            report.incomplete.is_empty() && !report.diagnostics.is_empty(),
+            "{source}: {report:?}"
+        );
+    }
+    for left in ["1", "1.0", "'a'", "nil", "true", ":a"] {
+        let source =
+            format!("def run(x:any)->int;if ({left}==x).is_type?(:bool);7;else;'wrong';end;end");
+        let script = Engine::new().compile(&source).unwrap();
+        let report = script
+            .check_function("run", &CallOptions::default())
+            .unwrap();
+        assert!(report.is_clean(), "{source}: {report:?}");
+        for argument in [Value::nil(), Value::int(7), Value::array(vec![])] {
+            assert_eq!(
+                script
+                    .call("run", &[argument], CallOptions::default())
+                    .unwrap()
+                    .value
+                    .as_int(),
+                Some(7)
+            );
+        }
+    }
+    let source = "class C;def ==(other);7;end;end;def run -> int; C.new=='a'; end";
+    let script = Engine::new().compile(source).unwrap();
+    assert!(
+        script
+            .check_call("run", &[], &CallOptions::default())
+            .unwrap()
+            .is_clean()
+    );
+    assert_eq!(
+        script
+            .call("run", &[], CallOptions::default())
+            .unwrap()
+            .value
+            .as_int(),
+        Some(7)
+    );
+}

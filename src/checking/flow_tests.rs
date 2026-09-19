@@ -19,6 +19,56 @@ fn contracts(
     Ok(contracts)
 }
 
+#[test]
+fn equality_receiver_uncertainty_does_not_become_native_identity() {
+    use super::facts::Node;
+    let mut ctx = CallContext::new(CallOptions::default());
+    let mut facts = Facts::new(&mut ctx).unwrap();
+    let class = facts.type_value(&mut ctx, Atom::Int.fact()).unwrap();
+    let instance = facts.instance(&mut ctx, class, 0).unwrap();
+    let choice = facts
+        .choice(&mut ctx, &[instance, Atom::Any.fact()])
+        .unwrap();
+    assert!(matches!(facts.node(choice), Node::Choice(_)));
+    let enumeration = crate::Engine::new()
+        .compile("enum E; A; end; E")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap()
+        .value;
+    let enumeration = facts.enumeration(&mut ctx, &enumeration).unwrap();
+    let member = facts.enum_member(&mut ctx, enumeration, 0).unwrap();
+    for op in ["==", "!="] {
+        for known in [enumeration, member] {
+            let (result, guarded) = facts.scalar_binary(&mut ctx, op, choice, known).unwrap();
+            assert!(result.unsupported && !result.rejected && !guarded);
+            assert_eq!(result.value, Atom::Never.fact());
+        }
+        for known in [instance, class] {
+            for opaque in [Atom::Unknown.fact(), Atom::Any.fact()] {
+                let (left, guarded) = facts.scalar_binary(&mut ctx, op, opaque, known).unwrap();
+                assert!(!left.unsupported && !left.rejected && !guarded);
+                assert_eq!(left.value, Atom::Unknown.fact());
+                let (right, guarded) = facts.scalar_binary(&mut ctx, op, known, opaque).unwrap();
+                assert!(!right.unsupported && !right.rejected && !guarded);
+                assert_eq!(right.value, Atom::Bool.fact());
+            }
+            let (left, _) = facts.scalar_binary(&mut ctx, op, choice, known).unwrap();
+            assert!(left.unsupported);
+            let (right, _) = facts.scalar_binary(&mut ctx, op, known, choice).unwrap();
+            assert!(!right.unsupported && !right.rejected);
+            assert_eq!(right.value, Atom::Bool.fact());
+            for (left, right) in [(known, Atom::Never.fact()), (Atom::Never.fact(), known)] {
+                let (result, guarded) = facts.scalar_binary(&mut ctx, op, left, right).unwrap();
+                assert_eq!(result.value, Atom::Never.fact());
+                assert!(!guarded);
+            }
+        }
+    }
+    drop(facts);
+    assert_eq!(ctx.stats().retained_memory_bytes, 0);
+}
+
 fn analyze(ctx: &mut CallContext, facts: &mut Facts, source: &str) -> Result<Report> {
     let program = bytecode::compile(source, Vec::new(), &()).unwrap();
     let contracts = contracts(ctx, facts, &program)?;

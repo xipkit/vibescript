@@ -168,27 +168,16 @@ pub(super) fn member(
             "nil?" => facts.boolean(ctx, receiver == Atom::Nil.fact())?,
             "frozen?" => facts.boolean(ctx, true)?,
             "eql?" | "equal?" => {
-                if matches!(
-                    facts.node(receiver),
-                    Node::Enumeration { .. }
-                        | Node::EnumMember { .. }
-                        | Node::Instance { .. }
-                        | Node::TypeValue(_)
-                ) {
-                    return Ok(outcome(facts.set_equal(
-                        ctx,
-                        receiver,
-                        args.positional.data[0],
-                    )?));
-                }
                 if let Some(result) = literal_call(ctx, facts, receiver, site, name, args)? {
                     return Ok(result);
                 }
-                // Equality never invokes user methods, but structural operands can
-                // encounter the native value-depth guard.
-                let mut result = outcome(Atom::Bool.fact());
-                result.throws = LIMIT;
-                return Ok(result);
+                return equality(
+                    ctx,
+                    facts,
+                    receiver,
+                    args.positional.data[0],
+                    name == "eql?",
+                );
             }
             _ => receiver,
         };
@@ -206,6 +195,26 @@ pub(super) fn member(
             Atom::String.fact()
         })),
     }
+}
+
+/// Models the native `eql?` (strict) or `equal?` (identity) helper for any
+/// admitted receiver without invoking user methods.
+///
+/// The Limit class is reported only when some comparison path can actually reach
+/// the native value-depth guard; scalar and shallow operands throw nothing.
+pub(super) fn equality(
+    ctx: &mut CallContext,
+    facts: &mut Facts,
+    receiver: Fact,
+    argument: Fact,
+    strict: bool,
+) -> Result<Outcome> {
+    let (value, guarded) = facts.helper_equal(ctx, receiver, argument, strict)?;
+    let mut result = outcome(value);
+    if guarded {
+        result.throws = LIMIT;
+    }
+    Ok(result)
 }
 
 fn literal(ctx: &mut CallContext, facts: &Facts, fact: Fact) -> Result<Option<Value>> {

@@ -240,10 +240,18 @@ pub(in crate::checking) fn member(
         if args.positional.data.len() != usize::from(matches!(name, "eql?" | "equal?")) {
             return reject(ctx, Failure::BuiltinArity);
         }
+        if matches!(name, "eql?" | "equal?") {
+            return super::primitives::equality(
+                ctx,
+                facts,
+                receiver,
+                args.positional.data[0],
+                name == "eql?",
+            );
+        }
         return Ok(outcome(match name {
             "frozen?" => facts.boolean(ctx, true)?,
             "nil?" => facts.boolean(ctx, false)?,
-            "eql?" | "equal?" => Atom::Bool.fact(),
             "inspect" => Atom::String.fact(),
             _ => receiver,
         }));

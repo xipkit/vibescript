@@ -93,10 +93,18 @@ pub(super) fn member(
         if !args.keywords.data.is_empty() {
             return reject(ctx, Failure::BuiltinKeywords);
         }
+        if matches!(name, "eql?" | "equal?") {
+            return super::primitives::equality(
+                ctx,
+                facts,
+                receiver,
+                args.positional.data[0],
+                name == "eql?",
+            );
+        }
         let value = match name {
             "nil?" => facts.boolean(ctx, false)?,
             "frozen?" => facts.boolean(ctx, true)?,
-            "eql?" | "equal?" => Atom::Bool.fact(),
             _ => receiver,
         };
         return Ok(outcome(value));

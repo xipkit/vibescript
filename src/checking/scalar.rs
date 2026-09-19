@@ -225,14 +225,23 @@ impl Facts {
                     && (matches!(self.node(left), Node::Instance { .. } | Node::TypeValue(_))
                         || matches!(self.node(right), Node::Instance { .. } | Node::TypeValue(_)))
                 {
-                    let next = if [left, right].iter().any(|&value| {
-                        matches!(
-                            self.node(value),
-                            Node::Atom(Atom::Unknown | Atom::Any)
-                                | Node::Named(_)
-                                | Node::Nominal { .. }
-                        )
-                    }) {
+                    if matches!(
+                        self.node(left),
+                        Node::Named(_) | Node::Nominal { .. } | Node::Choice(_)
+                    ) {
+                        result.unsupported = true;
+                        continue;
+                    }
+                    // Only the receiver can dispatch a source operator with an arbitrary result.
+                    let next = if matches!(self.node(left), Node::Atom(Atom::Unknown | Atom::Any)) {
+                        Atom::Unknown.fact()
+                    } else if matches!(
+                        self.node(right),
+                        Node::Atom(Atom::Unknown | Atom::Any)
+                            | Node::Named(_)
+                            | Node::Nominal { .. }
+                            | Node::Choice(_)
+                    ) {
                         Atom::Bool.fact()
                     } else if left == Atom::Never.fact() || right == Atom::Never.fact() {
                         Atom::Never.fact()
@@ -293,7 +302,7 @@ impl Facts {
                     let other = if enumeration(left) { right } else { left };
                     let next = match self.node(other) {
                         Node::Atom(Atom::Never) => Atom::Never.fact(),
-                        Node::Named(_) | Node::Nominal { .. } => {
+                        Node::Named(_) | Node::Nominal { .. } | Node::Choice(_) => {
                             result.unsupported = true;
                             continue;
                         }
@@ -354,16 +363,19 @@ impl Facts {
                 }
                 let next = if a == Atom::Never || b == Atom::Never {
                     Atom::Never.fact()
-                } else if matches!(a, Atom::Any | Atom::Unknown)
-                    || matches!(b, Atom::Any | Atom::Unknown)
-                {
+                } else if matches!(a, Atom::Any | Atom::Unknown) {
                     Atom::Unknown.fact()
                 } else if matches!(op, "==" | "!=") {
-                    if a == Atom::Nil || b == Atom::Nil {
-                        self.boolean(ctx, (a == b) == (op == "=="))?
-                    } else {
-                        Atom::Bool.fact()
+                    let (mut value, guarded) = self.value_equal(ctx, left, right)?;
+                    limit |= guarded;
+                    if op == "!=" {
+                        if let Node::Boolean(equal) = self.node(value) {
+                            value = self.boolean(ctx, !equal)?;
+                        }
                     }
+                    value
+                } else if matches!(b, Atom::Any | Atom::Unknown) {
+                    Atom::Unknown.fact()
                 } else if op == "<=>" {
                     if a == Atom::Nil && b == Atom::Nil {
                         self.integer(ctx, 0)?

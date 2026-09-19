@@ -1,4 +1,4 @@
-use super::facts::{Atom, Fact, Facts, HashKind, Node};
+use super::facts::{Atom, Callable, Fact, Facts, HashKind, Node};
 use super::slots::Slots;
 use crate::{CallContext, Result, Value, budget::Buffer};
 
@@ -6,6 +6,71 @@ const NO: u8 = 1;
 const YES: u8 = 2;
 const MAYBE: u8 = NO | YES;
 const LIMIT: u8 = 4;
+
+/// Selects which runtime comparison a structural equality solve models.
+///
+/// Every solve uses one policy for its whole graph walk, so memo keys only need
+/// the pair, the root flag and the depth to stay exact.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Policy {
+    /// `==` and `!=`: numeric kinds compare by value at every depth and NaN never matches.
+    Value,
+    /// Set membership: root numeric kinds must match, root NaN matches itself, and
+    /// abstract graphs are walked without a depth cutoff.
+    Set,
+    /// `eql?`: every visited pair must share a runtime type and NaN never matches.
+    Strict,
+    /// `equal?`: the root compares by identity (runtime type, NaN reflexivity, big
+    /// integer payloads, nominal enum identity) and nested values use ordinary equality.
+    Identity,
+}
+
+impl Policy {
+    fn set(self) -> bool {
+        self == Self::Set
+    }
+
+    /// Whether a pair at this position must share a runtime type to compare equal.
+    fn typed(self, root: bool) -> bool {
+        match self {
+            Self::Value => false,
+            Self::Strict => true,
+            Self::Set | Self::Identity => root,
+        }
+    }
+
+    /// Whether NaN compares equal to itself at this position.
+    fn nan_reflexive(self, root: bool) -> bool {
+        root && matches!(self, Self::Set | Self::Identity)
+    }
+}
+
+/// A runtime type class that is known to differ from every other class under
+/// every comparison policy. Classes are finer than runtime type names where the
+/// runtime never treats members of two classes as equal.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Class {
+    Nil,
+    Bool,
+    Int,
+    Float,
+    String,
+    Symbol,
+    Duration,
+    Time,
+    Money,
+    Range,
+    Regex,
+    Array,
+    Hash,
+    Instance,
+    Enumeration,
+    EnumMember,
+    Builtin,
+    Offset,
+    Function,
+    Host,
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct Pair {
@@ -112,7 +177,7 @@ impl Facts {
         left: Fact,
         right: Fact,
     ) -> Result<Fact> {
-        let value = self.compare_values(ctx, left, right, true)?;
+        let value = self.compare_values(ctx, left, right, Policy::Set)?;
         self.equality_fact(ctx, value)
     }
 
@@ -122,7 +187,37 @@ impl Facts {
         left: Fact,
         right: Fact,
     ) -> Result<(Fact, bool)> {
-        let value = self.compare_values(ctx, left, right, false)?;
+        self.policy_equal(ctx, left, right, Policy::Value)
+    }
+
+    /// Models the native `eql?` (strict) or `equal?` (identity) helper.
+    ///
+    /// Returns the boolean result fact and whether some path can reach the native
+    /// value-depth guard. Neither helper ever invokes user methods.
+    pub(super) fn helper_equal(
+        &mut self,
+        ctx: &mut CallContext,
+        left: Fact,
+        right: Fact,
+        strict: bool,
+    ) -> Result<(Fact, bool)> {
+        let policy = if strict {
+            Policy::Strict
+        } else {
+            Policy::Identity
+        };
+        self.policy_equal(ctx, left, right, policy)
+    }
+
+    /// Compares two facts under an explicit policy, reporting possible depth guards.
+    pub(super) fn policy_equal(
+        &mut self,
+        ctx: &mut CallContext,
+        left: Fact,
+        right: Fact,
+        policy: Policy,
+    ) -> Result<(Fact, bool)> {
+        let value = self.compare_values(ctx, left, right, policy)?;
         Ok((self.equality_fact(ctx, value)?, value & LIMIT != 0))
     }
 
@@ -140,9 +235,10 @@ impl Facts {
         ctx: &mut CallContext,
         left: Fact,
         right: Fact,
-        set: bool,
+        policy: Policy,
     ) -> Result<u8> {
         ctx.checkpoint()?;
+        let set = policy.set();
         let mut tasks = Buffer::empty();
         let mut values = Buffer::empty();
         let mut memo = Memo::new();
@@ -151,7 +247,7 @@ impl Facts {
             Task::Visit(Pair {
                 left,
                 right,
-                root: set,
+                root: true,
                 depth: 0,
             }),
         )?;
@@ -287,7 +383,7 @@ impl Facts {
                                 required &= !field.optional;
                             }
                             if !required {
-                                self.uncertain_equality(ctx, left, right, depth, set)?
+                                self.uncertain_equality(ctx, left, right, depth, policy)?
                             } else if a.data.len() != b.data.len() {
                                 NO
                             } else {
@@ -332,9 +428,9 @@ impl Facts {
                             }
                         }
                         _ => {
-                            let value = self.set_scalar_equal(ctx, left, right, root)?;
+                            let value = self.scalar_equal(ctx, left, right, policy, root)?;
                             if value == MAYBE {
-                                self.uncertain_equality(ctx, left, right, depth, set)?
+                                self.uncertain_equality(ctx, left, right, depth, policy)?
                             } else {
                                 value
                             }
@@ -354,10 +450,10 @@ impl Facts {
         left: Fact,
         right: Fact,
         depth: usize,
-        set: bool,
+        policy: Policy,
     ) -> Result<u8> {
         Ok(
-            if !set
+            if !policy.set()
                 && self.equality_may_exceed_depth(ctx, left, depth)?
                 && self.equality_may_exceed_depth(ctx, right, depth)?
             {
@@ -408,24 +504,62 @@ impl Facts {
         Ok(false)
     }
 
-    fn set_scalar_equal(
+    /// Classifies a fact by the runtime type its values must have, or none when
+    /// the fact may describe several classes or an unadmitted value.
+    fn equality_class(&self, value: Fact) -> Option<Class> {
+        Some(match self.node(value) {
+            Node::Array(_) | Node::Tuple(_) => Class::Array,
+            Node::Hash(..) | Node::Shape(..) | Node::Protected(..) => Class::Hash,
+            Node::Instance { .. } => Class::Instance,
+            Node::Enumeration { .. } => Class::Enumeration,
+            Node::EnumMember { .. } => Class::EnumMember,
+            Node::Builtin(_) => Class::Builtin,
+            Node::Offset(_) => Class::Offset,
+            Node::Callable {
+                target: Callable::Function(_),
+                ..
+            } => Class::Function,
+            Node::Callable {
+                target: Callable::Host(_),
+                ..
+            } => Class::Host,
+            _ => match self.atom(value)? {
+                Atom::Never | Atom::Unknown | Atom::Any => return None,
+                Atom::Nil => Class::Nil,
+                Atom::Bool => Class::Bool,
+                Atom::Int => Class::Int,
+                Atom::Float => Class::Float,
+                Atom::String => Class::String,
+                Atom::Symbol => Class::Symbol,
+                Atom::Duration => Class::Duration,
+                Atom::Time => Class::Time,
+                Atom::Money => Class::Money,
+                Atom::Range => Class::Range,
+                Atom::Regex => Class::Regex,
+            },
+        })
+    }
+
+    fn scalar_equal(
         &self,
         ctx: &mut CallContext,
         left: Fact,
         right: Fact,
+        policy: Policy,
         root: bool,
     ) -> Result<u8> {
         if left == Atom::Never.fact() || right == Atom::Never.fact() {
             return Ok(0);
         }
         let truth = |value| if value { YES } else { NO };
-        if root
-            && matches!(
-                (self.atom(left), self.atom(right)),
-                (Some(Atom::Int), Some(Atom::Float)) | (Some(Atom::Float), Some(Atom::Int))
-            )
-        {
-            return Ok(NO);
+        if policy.typed(root) {
+            // Typed positions reject any known runtime type mismatch, including the
+            // numeric kinds that ordinary equality compares by value.
+            if let (Some(a), Some(b)) = (self.equality_class(left), self.equality_class(right)) {
+                if a != b {
+                    return Ok(NO);
+                }
+            }
         }
         let number = |value| match self.node(value) {
             Node::Integer(value) => Some(Value::int(*value)),
@@ -434,14 +568,18 @@ impl Facts {
         };
         let nan =
             |value| matches!(self.node(value), Node::Float(bits) if f64::from_bits(*bits).is_nan());
-        if root && nan(left) && nan(right) {
-            return Ok(YES);
+        let reflexive = policy.nan_reflexive(root);
+        if nan(left) && nan(right) {
+            return Ok(truth(reflexive));
         }
-        if !root && (nan(left) || nan(right)) {
+        if !reflexive && (nan(left) || nan(right)) {
             return Ok(NO);
         }
         if let (Some(a), Some(b)) = (number(left), number(right)) {
             return Ok(truth(crate::ops::equal(ctx, &a, &b, 0)?));
+        }
+        if let (Node::Builtin(a), Node::Builtin(b)) = (self.node(left), self.node(right)) {
+            return Ok(truth(a == b));
         }
         Ok(self.definitely_equal(left, right).map_or(MAYBE, truth))
     }
