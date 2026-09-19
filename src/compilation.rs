@@ -1,10 +1,15 @@
-use crate::{CallContext, Result};
+use crate::{CallContext, Error, ErrorKind, Result, budget::Charge};
 use std::cell::RefCell;
+
+mod buffer;
+pub(crate) use buffer::Buffer;
 
 pub(crate) trait Work {
     fn charge(&self, steps: usize) -> Result<()>;
     fn bytes(&self, bytes: usize) -> Result<()>;
     fn checkpoint(&self) -> Result<()>;
+    fn reserve(&self, bytes: usize) -> Result<Option<Charge>>;
+    fn allocation_error(&self, message: &str) -> Error;
 
     fn ty(&self, ty: &crate::types::Type) -> Result<()> {
         use crate::types::TypeKind;
@@ -50,6 +55,12 @@ impl Work for () {
     fn checkpoint(&self) -> Result<()> {
         Ok(())
     }
+    fn reserve(&self, _: usize) -> Result<Option<Charge>> {
+        Ok(None)
+    }
+    fn allocation_error(&self, message: &str) -> Error {
+        Error::new(ErrorKind::Memory, message)
+    }
 }
 
 pub(crate) struct Meter<'a>(pub RefCell<&'a mut CallContext>);
@@ -63,6 +74,16 @@ impl Work for Meter<'_> {
     }
     fn checkpoint(&self) -> Result<()> {
         self.0.borrow_mut().checkpoint()
+    }
+    fn reserve(&self, bytes: usize) -> Result<Option<Charge>> {
+        self.0.borrow_mut().reserve(bytes)
+    }
+    fn allocation_error(&self, message: &str) -> Error {
+        let mut context = self.0.borrow_mut();
+        context
+            .checkpoint()
+            .err()
+            .unwrap_or_else(|| context.fail::<()>(ErrorKind::Memory, message).unwrap_err())
     }
 }
 

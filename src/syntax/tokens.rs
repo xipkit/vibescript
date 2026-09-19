@@ -1,16 +1,17 @@
 use super::lexer::Lexeme;
+use crate::compilation::Buffer;
 use std::ops::{Index, Range};
 
 // Keep a movable gap at the latest edit so disambiguating repeated modulo
 // expressions does not shift the remaining source for every percent token.
 pub(super) struct Tokens {
-    before: Vec<Lexeme>,
-    after: Vec<Lexeme>,
+    before: Buffer<Lexeme>,
+    after: Buffer<Lexeme>,
 }
 
 impl Tokens {
     pub fn new(
-        mut tokens: Vec<Lexeme>,
+        mut tokens: Buffer<Lexeme>,
         work: &dyn crate::compilation::Work,
     ) -> crate::Result<Self> {
         for index in 0..tokens.len() / 2 {
@@ -19,7 +20,7 @@ impl Tokens {
             tokens.swap(index, end);
         }
         Ok(Self {
-            before: Vec::new(),
+            before: Buffer::new(),
             after: tokens,
         })
     }
@@ -63,21 +64,21 @@ impl Tokens {
     pub fn replace(
         &mut self,
         range: Range<usize>,
-        replacement: Vec<Lexeme>,
+        replacement: Buffer<Lexeme>,
         work: &dyn crate::compilation::Work,
     ) -> crate::Result<()> {
         while self.before.len() < range.start {
             work.charge(1)?;
-            self.before.push(self.after.pop().unwrap());
+            self.before.push(work, self.after.pop().unwrap())?;
         }
         while self.before.len() > range.start {
             work.charge(1)?;
-            self.after.push(self.before.pop().unwrap());
+            self.after.push(work, self.before.pop().unwrap())?;
         }
         self.after.truncate(self.after.len() - range.len());
         for token in replacement {
             work.charge(1)?;
-            self.before.push(token);
+            self.before.push(work, token)?;
         }
         Ok(())
     }

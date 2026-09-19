@@ -1,6 +1,9 @@
-use crate::{Error, Result};
+use crate::{
+    Error, Result,
+    compilation::{Buffer, Work},
+};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub(super) enum Token {
     Regex(Vec<u8>, u8),
     Word(String),
@@ -17,26 +20,82 @@ pub(super) enum Token {
     Eof,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub(super) enum Part {
     Text(Vec<u8>),
-    Expr(Vec<Lexeme>),
+    Expr(Buffer<Lexeme>),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub(super) struct Words {
     pub entries: Vec<Vec<Part>>,
     pub symbol: bool,
     pub ambiguous: bool,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub(super) struct Lexeme {
     pub token: Token,
     pub offset: usize,
     pub end: usize,
     pub line: usize,
     pub end_line: usize,
+}
+
+impl Lexeme {
+    fn copy(&self, work: &dyn Work) -> Result<Self> {
+        Ok(Self {
+            token: self.token.copy(work)?,
+            offset: self.offset,
+            end: self.end,
+            line: self.line,
+            end_line: self.end_line,
+        })
+    }
+}
+
+impl Token {
+    pub(super) fn copy(&self, work: &dyn Work) -> Result<Self> {
+        work.checkpoint()?;
+        Ok(match self {
+            Self::Regex(bytes, flags) => Self::Regex(bytes.clone(), *flags),
+            Self::Word(word) => Self::Word(word.clone()),
+            Self::Int(value) => Self::Int(*value),
+            Self::BigInt(value, radix) => Self::BigInt(value.clone(), *radix),
+            Self::Float(value) => Self::Float(*value),
+            Self::Bytes(bytes) => Self::Bytes(bytes.clone()),
+            Self::Template(parts) => Self::Template(copy_parts(parts, work)?),
+            Self::Words(words) => {
+                let mut entries = Vec::with_capacity(words.entries.len());
+                for parts in &words.entries {
+                    work.charge(1)?;
+                    entries.push(copy_parts(parts, work)?);
+                }
+                Self::Words(Box::new(Words {
+                    entries,
+                    symbol: words.symbol,
+                    ambiguous: words.ambiguous,
+                }))
+            }
+            Self::Invalid(error) => Self::Invalid(error.clone()),
+            Self::P(value) => Self::P(*value),
+            Self::Op(value) => Self::Op(value),
+            Self::EndLine => Self::EndLine,
+            Self::Eof => Self::Eof,
+        })
+    }
+}
+
+fn copy_parts(parts: &[Part], work: &dyn Work) -> Result<Vec<Part>> {
+    let mut result = Vec::with_capacity(parts.len());
+    for part in parts {
+        work.charge(1)?;
+        result.push(match part {
+            Part::Text(bytes) => Part::Text(bytes.clone()),
+            Part::Expr(tokens) => Part::Expr(tokens.copy_with(work, |token| token.copy(work))?),
+        });
+    }
+    Ok(result)
 }
 
 struct Lexer<'a> {
@@ -48,7 +107,7 @@ struct Lexer<'a> {
     speculative: usize,
 }
 
-pub(super) fn lex(source: &str, work: &dyn crate::compilation::Work) -> Result<Vec<Lexeme>> {
+pub(super) fn lex(source: &str, work: &dyn crate::compilation::Work) -> Result<Buffer<Lexeme>> {
     if source.len() > super::MAX_SOURCE {
         return Err(Error::syntax(0, "source exceeds 8 MiB"));
     }
@@ -69,7 +128,7 @@ pub(super) fn modulo(
     limit: usize,
     depth: usize,
     work: &dyn crate::compilation::Work,
-) -> Result<Vec<Lexeme>> {
+) -> Result<Buffer<Lexeme>> {
     Lexer {
         work,
         source,
@@ -89,7 +148,7 @@ pub(super) fn resume(
     depth: usize,
     previous: Option<&Lexeme>,
     work: &dyn crate::compilation::Work,
-) -> Result<Vec<Lexeme>> {
+) -> Result<Buffer<Lexeme>> {
     Lexer {
         work,
         source,
@@ -107,7 +166,7 @@ pub(super) fn regex(
     limit: usize,
     depth: usize,
     work: &dyn crate::compilation::Work,
-) -> Result<Vec<Lexeme>> {
+) -> Result<Buffer<Lexeme>> {
     Lexer {
         work,
         source,
@@ -127,10 +186,10 @@ impl Lexer<'_> {
         interpolation: bool,
         skip_first_percent: bool,
         previous: Option<&Lexeme>,
-    ) -> Result<Vec<Lexeme>> {
+    ) -> Result<Buffer<Lexeme>> {
         let source = self.source;
         let s = &source.as_bytes()[..self.limit];
-        let mut out = Vec::<Lexeme>::new();
+        let mut out = Buffer::<Lexeme>::new();
         let mut braces = 0usize;
         let first = self.pos;
         while self.pos < until {
@@ -138,13 +197,16 @@ impl Lexer<'_> {
             let start = self.pos;
             let mut i = start;
             if interpolation && s[i] == b'}' && braces == 0 {
-                out.push(Lexeme {
-                    token: Token::Eof,
-                    offset: i,
-                    end: i,
-                    line,
-                    end_line: line,
-                });
+                out.push(
+                    self.work,
+                    Lexeme {
+                        token: Token::Eof,
+                        offset: i,
+                        end: i,
+                        line,
+                        end_line: line,
+                    },
+                )?;
                 self.pos += 1;
                 return Ok(out);
             }
@@ -426,25 +488,31 @@ impl Lexer<'_> {
                 Token::P('}') => braces = braces.saturating_sub(1),
                 _ => (),
             }
-            out.push(Lexeme {
-                token,
-                offset: start,
-                end: i,
-                line: start_line,
-                end_line: line,
-            });
+            out.push(
+                self.work,
+                Lexeme {
+                    token,
+                    offset: start,
+                    end: i,
+                    line: start_line,
+                    end_line: line,
+                },
+            )?;
             self.pos = i;
         }
         if interpolation {
             return Err(Error::syntax(self.pos, "unterminated string interpolation"));
         }
-        out.push(Lexeme {
-            token: Token::Eof,
-            offset: self.pos,
-            end: self.pos,
-            line,
-            end_line: line,
-        });
+        out.push(
+            self.work,
+            Lexeme {
+                token: Token::Eof,
+                offset: self.pos,
+                end: self.pos,
+                line,
+                end_line: line,
+            },
+        )?;
         Ok(out)
     }
 
@@ -581,7 +649,7 @@ impl Lexer<'_> {
         Err(Error::syntax(start, "unterminated regex literal"))
     }
 
-    fn interpolation(&mut self, line: usize) -> Result<Vec<Lexeme>> {
+    fn interpolation(&mut self, line: usize) -> Result<Buffer<Lexeme>> {
         if self.depth >= 8 {
             return Err(Error::syntax(
                 self.pos,

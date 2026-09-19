@@ -560,7 +560,7 @@ impl Parser<'_> {
     fn bump(&mut self) -> Result<Token> {
         self.work
             .bytes(self.tokens[self.pos].end - self.tokens[self.pos].offset)?;
-        let t = self.token().clone();
+        let t = self.token().copy(self.work)?;
         if !matches!(t, Token::Eof) {
             self.pos += 1;
         }
@@ -1354,7 +1354,7 @@ impl Parser<'_> {
         self.make(Node::Template(values, symbol), depth)
     }
 
-    fn interpolation(&mut self, mut tokens: Vec<Lexeme>) -> Result<Expr> {
+    fn interpolation(&mut self, mut tokens: crate::compilation::Buffer<Lexeme>) -> Result<Expr> {
         self.work.charge(1)?;
         while tokens.len() >= 2 {
             self.work.charge(1)?;
@@ -1427,7 +1427,11 @@ impl Parser<'_> {
         self.replace_lexed(tokens, limit)
     }
 
-    fn replace_lexed(&mut self, mut tokens: Vec<Lexeme>, limit: usize) -> Result<()> {
+    fn replace_lexed(
+        &mut self,
+        mut tokens: crate::compilation::Buffer<Lexeme>,
+        limit: usize,
+    ) -> Result<()> {
         self.work.charge(1)?;
         let mut cursor = tokens.pop().unwrap();
         let mut finish = self.pos + 1;
@@ -1450,7 +1454,7 @@ impl Parser<'_> {
                 self.work,
             )?;
             cursor = suffix.pop().unwrap();
-            tokens.extend(suffix);
+            tokens.extend(self.work, suffix)?;
         }
         self.tokens.replace(self.pos..finish, tokens, self.work)?;
         Ok(())

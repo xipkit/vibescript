@@ -173,7 +173,7 @@ fn require_denied(error: &Error) {
 }
 
 #[test]
-fn cold_compilation_obeys_work_limits_without_publishing_or_initializing() {
+fn cold_compilation_obeys_limits_without_publishing_or_initializing() {
     let files = Files::new();
     let source = format!(
         "initialized();def unused;{}end;def value;42;end",
@@ -204,30 +204,45 @@ fn cold_compilation_obeys_work_limits_without_publishing_or_initializing() {
     assert_eq!(cold.value.as_int(), Some(42));
     assert_eq!(warm.value.as_int(), Some(42));
     assert!(cold.stats.steps > warm.stats.steps * 4);
-    engine.clear_module_cache();
-    initialized.store(0, Ordering::SeqCst);
-    unwound.store(0, Ordering::SeqCst);
-    let mut limited = unlimited.clone();
-    limited.limits.steps = Some(cold.stats.steps / 2);
-    assert_eq!(script.run(limited).unwrap_err().kind, ErrorKind::Steps);
-    assert_eq!(initialized.load(Ordering::SeqCst), 0);
-    assert_eq!(unwound.load(Ordering::SeqCst), 0);
-    fs::remove_file(files.0.join("answer.vibe")).unwrap();
-    assert_eq!(
-        probe.run(unlimited.clone()).unwrap_err().kind,
-        ErrorKind::Name
-    );
-    files.write("answer.vibe", &source);
-    let mut exact = unlimited.clone();
-    exact.limits.steps = Some(cold.stats.steps);
-    let retried = script.run(exact).unwrap();
-    assert_eq!(retried.value.as_int(), Some(42));
-    assert_eq!(retried.stats.steps, cold.stats.steps);
-    assert_eq!(initialized.load(Ordering::SeqCst), 1);
-    assert_eq!(unwound.load(Ordering::SeqCst), 1);
-    let mut cached = unlimited;
-    cached.limits.steps = Some(warm.stats.steps);
-    assert_eq!(script.run(cached).unwrap().value.as_int(), Some(42));
+    assert!(cold.stats.peak_memory_bytes > warm.stats.peak_memory_bytes * 4);
+    assert_eq!(cold.stats.retained_memory_bytes, 0);
+    for kind in [ErrorKind::Steps, ErrorKind::Memory] {
+        engine.clear_module_cache();
+        initialized.store(0, Ordering::SeqCst);
+        unwound.store(0, Ordering::SeqCst);
+        let mut limited = unlimited.clone();
+        if kind == ErrorKind::Memory {
+            limited.limits.memory_bytes = Some(cold.stats.peak_memory_bytes - 1);
+        } else {
+            limited.limits.steps = Some(cold.stats.steps / 2);
+        }
+        assert_eq!(script.run(limited).unwrap_err().kind, kind);
+        assert_eq!(initialized.load(Ordering::SeqCst), 0);
+        assert_eq!(unwound.load(Ordering::SeqCst), 0);
+        fs::remove_file(files.0.join("answer.vibe")).unwrap();
+        assert_eq!(
+            probe.run(unlimited.clone()).unwrap_err().kind,
+            ErrorKind::Name
+        );
+        files.write("answer.vibe", &source);
+        let mut exact = unlimited.clone();
+        exact.limits.steps = Some(cold.stats.steps);
+        exact.limits.memory_bytes = Some(cold.stats.peak_memory_bytes);
+        let retried = script.run(exact).unwrap();
+        assert_eq!(retried.value.as_int(), Some(42));
+        assert_eq!(retried.stats.steps, cold.stats.steps);
+        assert_eq!(
+            retried.stats.peak_memory_bytes,
+            cold.stats.peak_memory_bytes
+        );
+        assert_eq!(retried.stats.retained_memory_bytes, 0);
+        assert_eq!(initialized.load(Ordering::SeqCst), 1);
+        assert_eq!(unwound.load(Ordering::SeqCst), 1);
+        let mut cached = unlimited.clone();
+        cached.limits.steps = Some(warm.stats.steps);
+        cached.limits.memory_bytes = Some(warm.stats.peak_memory_bytes);
+        assert_eq!(script.run(cached).unwrap().value.as_int(), Some(42));
+    }
 }
 
 #[test]

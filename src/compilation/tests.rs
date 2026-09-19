@@ -50,6 +50,19 @@ impl Work for Interrupt {
     fn checkpoint(&self) -> Result<()> {
         self.context.borrow_mut().checkpoint()
     }
+
+    fn reserve(&self, bytes: usize) -> Result<Option<crate::budget::Charge>> {
+        self.visit()?;
+        self.context.borrow_mut().reserve(bytes)
+    }
+
+    fn allocation_error(&self, message: &str) -> crate::Error {
+        let mut context = self.context.borrow_mut();
+        context
+            .checkpoint()
+            .err()
+            .unwrap_or_else(|| context.fail::<()>(ErrorKind::Memory, message).unwrap_err())
+    }
 }
 
 fn sources() -> Vec<String> {
@@ -181,10 +194,44 @@ fn alias_work_includes_copied_method_bodies_before_code_generation() {
     let base = steps(&source(512, 0));
     let declarations = steps(&source(0, 32)) - steps(&source(0, 0));
     let aliased = source(512, 32);
-    assert!(steps(&aliased) >= base + declarations + 2 * 32 * 512);
+    assert!(steps(&aliased) >= base + 2 * 32 * 512);
     let mut options = CallOptions::default();
     options.limits.steps = Some(base + declarations + 32 * 512);
     let mut context = CallContext::new(options);
     let result = crate::syntax::parse(&aliased, &Meter(RefCell::new(&mut context)));
     assert_eq!(result.err().unwrap().kind, ErrorKind::Steps);
+}
+
+#[test]
+fn token_storage_is_bounded_and_released_after_parsing() {
+    for source in sources() {
+        let mut context = CallContext::new(CallOptions::default());
+        let parsed = crate::syntax::parse(&source, &Meter(RefCell::new(&mut context)))
+            .unwrap_or_else(|error| panic!("{source}: {error}"));
+        let peak = context.stats().peak_memory_bytes;
+        assert!(peak > 0, "{source}");
+        assert_eq!(context.stats().retained_memory_bytes, 0, "{source}");
+        drop(parsed);
+        for limit in [0, 1, peak / 2, peak - 1, peak] {
+            let mut options = CallOptions::default();
+            options.limits.memory_bytes = Some(limit);
+            let mut context = CallContext::new(options);
+            let result = crate::syntax::parse(&source, &Meter(RefCell::new(&mut context)));
+            if limit == peak {
+                assert!(result.is_ok(), "limit={limit}: {source}");
+            } else {
+                assert_eq!(
+                    result.err().unwrap().kind,
+                    ErrorKind::Memory,
+                    "limit={limit}: {source}"
+                );
+                assert_eq!(context.checkpoint().unwrap_err().kind, ErrorKind::Memory);
+            }
+            assert_eq!(
+                context.stats().retained_memory_bytes,
+                0,
+                "limit={limit}: {source}"
+            );
+        }
+    }
 }

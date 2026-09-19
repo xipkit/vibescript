@@ -303,6 +303,42 @@ mod tests {
     use crate::{CallOptions, CancellationToken, Limits};
 
     #[test]
+    fn cached_compilation_releases_the_first_invocations_temporary_storage() {
+        let directory = test_support::Directory::new();
+        let source = format!("def unused;{}end;def value;42;end", "1;".repeat(1024));
+        let path = directory.write("answer.vibe", source.as_bytes());
+        let loader = Loader::new(ModuleConfig {
+            paths: vec![directory.0.clone()],
+            ..ModuleConfig::default()
+        })
+        .unwrap();
+        let receiving = crate::code::Code::compile("nil", &Default::default()).unwrap();
+        let mut context = CallContext::new(CallOptions::default());
+        let memory = Arc::downgrade(&context.identity());
+        let mut pins = Buffer::empty();
+        let code = loader
+            .load(&mut context, &mut pins, b"answer", None, &receiving)
+            .unwrap();
+        let peak = context.stats().peak_memory_bytes;
+        assert!(peak > source.len() * 4);
+        drop(pins);
+        assert_eq!(context.stats().retained_memory_bytes, 0);
+        drop(context);
+        assert!(memory.upgrade().is_none());
+
+        std::fs::remove_file(path).unwrap();
+        let mut context = CallContext::new(CallOptions::default());
+        let mut pins = Buffer::empty();
+        let cached = loader
+            .load(&mut context, &mut pins, b"answer", None, &receiving)
+            .unwrap();
+        assert!(Arc::ptr_eq(&code, &cached));
+        assert!(context.stats().peak_memory_bytes < peak);
+        drop(pins);
+        assert_eq!(context.stats().retained_memory_bytes, 0);
+    }
+
+    #[test]
     fn requests_preserve_relative_intent_and_filename_bytes() {
         let cases: &[(&[u8], &[u8], bool)] = &[
             (b" tool ", b"tool.vibe", false),
