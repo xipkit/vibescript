@@ -409,6 +409,61 @@ fn compiler_diagnostics_can_account_shared_and_untracked_input_errors() {
 }
 
 #[test]
+fn compiled_builtin_namespaces_retain_sorted_unique_members_without_the_budget() {
+    let mut context = CallContext::new(CallOptions::default());
+    let budget = std::sync::Arc::downgrade(&context.identity());
+    let program = crate::bytecode::compile(
+        "[Hash, Regexp, Regex, Time, Duration, JSON, Math]",
+        Vec::new(),
+        &Meter(RefCell::new(&mut context)),
+    )
+    .unwrap();
+    assert_eq!(context.stats().retained_memory_bytes, 0);
+    drop(context);
+    assert!(budget.upgrade().is_none());
+    let expected: &[(&str, &[&str])] = &[
+        ("Hash", &["new"]),
+        ("Regexp", &["escape", "last_match", "new", "quote", "union"]),
+        ("Regex", &["match", "replace", "replace_all"]),
+        (
+            "Time",
+            &["at", "gm", "local", "mktime", "new", "now", "parse", "utc"],
+        ),
+        ("Duration", &["build", "parse"]),
+        ("JSON", &["parse", "parse_as", "stringify"]),
+        (
+            "Math",
+            &[
+                "E", "PI", "acos", "asin", "atan", "atan2", "cbrt", "cos", "exp", "hypot", "log",
+                "log10", "log2", "sin", "sqrt", "tan",
+            ],
+        ),
+    ];
+    assert_eq!(program.globals.len(), expected.len());
+    for ((global, value), &(name, members)) in program.globals.iter().zip(expected) {
+        assert_eq!(global.name(), name);
+        let crate::value::Kind::Hash(hash) = &value.0 else {
+            panic!("expected namespace {name}")
+        };
+        assert!(hash.object);
+        assert_eq!(hash.depth, 1);
+        let fields = &hash.buffer.data;
+        assert_eq!(fields.len(), members.len());
+        for ((key, value), member) in fields.iter().zip(members) {
+            assert_eq!(key.as_bytes(), Some(member.as_bytes()), "{name}");
+            match (name, *member, &value.0) {
+                ("Math", "E", _) => assert_eq!(value.as_float(), Some(std::f64::consts::E)),
+                ("Math", "PI", _) => assert_eq!(value.as_float(), Some(std::f64::consts::PI)),
+                (_, _, crate::value::Kind::Builtin(builtin)) => {
+                    assert_eq!(builtin.name(), format!("{name}.{member}"))
+                }
+                _ => panic!("unexpected field {name}.{member}"),
+            }
+        }
+    }
+}
+
+#[test]
 fn alias_work_includes_copied_method_bodies_before_code_generation() {
     let source = |statements: usize, aliases: usize| {
         format!(

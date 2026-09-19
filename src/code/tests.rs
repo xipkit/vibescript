@@ -37,7 +37,7 @@ fn compiler_diagnostics_preserve_latched_control_errors() {
     let mut context = CallContext::new(unlimited.clone());
     let error = super::Code::compile_mode(
         &source,
-        &registered,
+        registered.iter(),
         true,
         None,
         &crate::compilation::Meter(std::cell::RefCell::new(&mut context)),
@@ -52,7 +52,7 @@ fn compiler_diagnostics_preserve_latched_control_errors() {
         let mut context = CallContext::new(options);
         let error = super::Code::compile_mode(
             &source,
-            &registered,
+            registered.iter(),
             true,
             None,
             &crate::compilation::Meter(std::cell::RefCell::new(&mut context)),
@@ -62,6 +62,127 @@ fn compiler_diagnostics_preserve_latched_control_errors() {
         assert!(error.diagnostic.is_none());
         assert_eq!(context.checkpoint().unwrap_err().kind, ErrorKind::Steps);
     }
+}
+
+#[test]
+fn compilation_preserves_borrowed_host_order_identity_and_partial_failure_cleanup() {
+    use crate::{capability::Registered, compilation::Meter};
+    use std::{
+        cell::{Cell, RefCell},
+        collections::BTreeMap,
+        time::Instant,
+    };
+
+    let retired = Arc::new(AtomicUsize::new(0));
+    let called = Arc::new(AtomicUsize::new(0));
+    let registered: BTreeMap<_, _> = (0..32)
+        .map(|index| {
+            let guard = Retired(retired.clone());
+            let called = called.clone();
+            let callback: crate::HostCallback = Arc::new(move |_, _, _| {
+                let _ = &guard;
+                called.fetch_add(1, Ordering::SeqCst);
+                Ok(Value::int(index))
+            });
+            (format!("host_{index:02}"), Registered::Callback(callback))
+        })
+        .collect();
+    let source = "def value; [host_00(), host_31()]; end";
+    let run = |context: &mut CallContext| {
+        super::Code::compile_mode(
+            source,
+            registered.iter().rev(),
+            true,
+            None,
+            &Meter(RefCell::new(context)),
+        )
+    };
+    let mut context = CallContext::new(CallOptions::default());
+    let budget = Arc::downgrade(&context.identity());
+    let code = run(&mut context).unwrap();
+    assert_eq!(called.load(Ordering::SeqCst), 0);
+    assert_eq!(
+        code.program.hosts,
+        registered.keys().rev().cloned().collect::<Vec<_>>()
+    );
+    for (index, (name, callback)) in code.program.hosts.iter().zip(&code.hosts).enumerate() {
+        let (Registered::Callback(original), Registered::Callback(callback)) =
+            (&registered[name], callback)
+        else {
+            panic!("expected plain host callbacks");
+        };
+        assert!(Arc::ptr_eq(original, callback));
+        assert_eq!(
+            callback(&mut context, &[], &[]).unwrap().as_int(),
+            Some(31 - index as i64)
+        );
+    }
+    let stats = context.stats();
+    assert_eq!(stats.retained_memory_bytes, 0);
+    drop(context);
+    assert!(budget.upgrade().is_none());
+    drop(code);
+    for memory in [false, true] {
+        for short in [0, 1] {
+            let mut options = CallOptions::default();
+            if memory {
+                options.limits.memory_bytes = Some(stats.peak_memory_bytes - short);
+            } else {
+                options.limits.steps = Some(stats.steps - short as u64);
+            }
+            let mut context = CallContext::new(options);
+            let result = run(&mut context);
+            if short == 0 {
+                drop(result.unwrap());
+            } else {
+                let kind = if memory {
+                    ErrorKind::Memory
+                } else {
+                    ErrorKind::Steps
+                };
+                assert_eq!(result.unwrap_err().kind, kind);
+                assert_eq!(context.checkpoint().unwrap_err().kind, kind);
+            }
+            assert_eq!(context.stats().retained_memory_bytes, 0);
+        }
+    }
+    for deadline in [false, true] {
+        for at in [0, 15, 31, 32, 47, 63] {
+            let mut context = CallContext::new(CallOptions::default());
+            let visited = Cell::new(0);
+            let work = Meter(RefCell::new(&mut context));
+            let input = registered.iter().rev().inspect(|_| {
+                if visited.get() == at {
+                    let context = &mut *work.0.borrow_mut();
+                    if deadline {
+                        context.options.deadline = Some(Instant::now());
+                    } else {
+                        context.cancellation().cancel();
+                    }
+                }
+                visited.set(visited.get() + 1);
+            });
+            let error = super::Code::compile_mode(source, input, true, None, &work).unwrap_err();
+            let kind = if deadline {
+                ErrorKind::Deadline
+            } else {
+                ErrorKind::Cancelled
+            };
+            assert_eq!(error.kind, kind, "host visit {at}");
+            assert_eq!(context.checkpoint().unwrap_err().kind, kind);
+            assert_eq!(context.stats().retained_memory_bytes, 0);
+            for callback in registered.values() {
+                let Registered::Callback(callback) = callback else {
+                    unreachable!()
+                };
+                assert_eq!(Arc::strong_count(callback), 1);
+            }
+        }
+    }
+    assert_eq!(retired.load(Ordering::SeqCst), 0);
+    assert_eq!(called.load(Ordering::SeqCst), 32);
+    drop(registered);
+    assert_eq!(retired.load(Ordering::SeqCst), 32);
 }
 
 struct Retired(Arc<AtomicUsize>);

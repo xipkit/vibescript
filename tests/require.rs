@@ -1505,6 +1505,49 @@ fn cached_compilation_preserves_each_scripts_registered_callbacks() {
 }
 
 #[test]
+fn cold_compilation_inherits_mixed_hosts_through_nested_requires() {
+    let files = Files::new();
+    files.write(
+        "leaf.vibe",
+        "def value;[alpha(),middle(zeta()){ |n| n+1 },zeta()];end",
+    );
+    files.write(
+        "parent.vibe",
+        "leaf=require(:leaf);def value;leaf.value;end",
+    );
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut engine = files.engine();
+    for (name, value) in [("zeta", 30), ("alpha", 10)] {
+        let calls = calls.clone();
+        engine.register(name, move |_, _| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            Ok(Value::int(value))
+        });
+    }
+    engine.register_method(
+        "middle",
+        vibescript::HostMethod::new_with_block("middle", |call, args, _| call.call_block(args)),
+    );
+    let source = "require(:parent).value";
+    let original = engine.compile(source).unwrap();
+    engine.register("alpha", |_, _| Ok(Value::int(100)));
+    engine.register("zeta", |_, _| Ok(Value::int(300)));
+    let replacement = engine.compile(source).unwrap();
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    for _ in 0..2 {
+        assert_eq!(
+            json(&original.run(CallOptions::default()).unwrap().value),
+            serde_json::json!([10, 31, 30])
+        );
+        assert_eq!(
+            json(&replacement.run(CallOptions::default()).unwrap().value),
+            serde_json::json!([100, 301, 300])
+        );
+    }
+    assert_eq!(calls.load(Ordering::SeqCst), 6);
+}
+
+#[test]
 fn alias_rejections_release_unpublished_scopes_without_running_initializers() {
     let files = Files::new();
     files.write(

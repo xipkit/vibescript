@@ -163,20 +163,17 @@ impl Loader {
                     continue;
                 };
                 let source_text = std::str::from_utf8(source.contents.as_bytes().unwrap())
-                    .map_err(|_| Error::new(ErrorKind::Syntax, "required source must be UTF-8"))?;
+                    .map_err(|_| {
+                        crate::compilation::error(
+                            &crate::compilation::Meter(std::cell::RefCell::new(&mut *ctx)),
+                            None,
+                            format_args!("required source must be UTF-8"),
+                        )
+                    })?;
                 ctx.work_bytes(source_text.len())?;
-                let mut registered = std::collections::BTreeMap::new();
-                for (name, host) in receiving.program.hosts.iter().zip(&receiving.hosts) {
-                    ctx.work_bytes(name.len())?;
-                    registered.insert(name.clone(), host.clone());
-                }
                 let origin = candidate.origin();
-                let compiled = crate::code::Code::compile_module(
-                    ctx,
-                    source_text,
-                    &registered,
-                    origin.clone(),
-                );
+                let compiled =
+                    crate::code::Code::compile_module(ctx, source_text, receiving, origin.clone());
                 ctx.checkpoint()?;
                 let code = compiled?;
                 self.cache
@@ -301,6 +298,60 @@ fn clean(input: &[u8], output: &mut Vec<u8>) {
 mod tests {
     use super::*;
     use crate::{CallOptions, CancellationToken, Limits};
+
+    #[test]
+    fn invalid_source_compilation_accounts_rejection_and_never_caches_it() {
+        let directory = test_support::Directory::new();
+        let path = directory.write("answer.vibe", &[0xff]);
+        let loader = Loader::new(ModuleConfig {
+            paths: vec![directory.0.clone()],
+            ..ModuleConfig::default()
+        })
+        .unwrap();
+        let receiving = crate::code::Code::compile("nil", &Default::default()).unwrap();
+        let run = |ctx: &mut CallContext| {
+            loader.load(ctx, &mut Buffer::empty(), b"answer", None, &receiving)
+        };
+        let mut context = CallContext::new(CallOptions::default());
+        let error = run(&mut context).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Syntax);
+        assert_eq!(error.message, "required source must be UTF-8");
+        assert!(error.retained_charge.is_some());
+        let stats = context.stats();
+        assert!(stats.retained_memory_bytes >= error.message.capacity());
+        drop(error);
+        assert_eq!(context.stats().retained_memory_bytes, 0);
+        for memory in [false, true] {
+            for short in [0, 1] {
+                let mut options = CallOptions::default();
+                if memory {
+                    options.limits.memory_bytes = Some(stats.peak_memory_bytes - short);
+                } else {
+                    options.limits.steps = Some(stats.steps - short as u64);
+                }
+                let mut context = CallContext::new(options);
+                let error = run(&mut context).unwrap_err();
+                let kind = if short == 0 {
+                    ErrorKind::Syntax
+                } else if memory {
+                    ErrorKind::Memory
+                } else {
+                    ErrorKind::Steps
+                };
+                assert_eq!(error.kind, kind);
+                if short != 0 {
+                    assert_eq!(context.checkpoint().unwrap_err().kind, kind);
+                }
+                drop(error);
+                assert_eq!(context.stats().retained_memory_bytes, 0);
+            }
+        }
+        std::fs::write(&path, "def answer;42;end").unwrap();
+        let code = run(&mut context).unwrap();
+        std::fs::remove_file(path).unwrap();
+        assert!(Arc::ptr_eq(&code, &run(&mut context).unwrap()));
+        assert_eq!(context.stats().retained_memory_bytes, 0);
+    }
 
     #[test]
     fn cached_compilation_releases_the_first_invocations_temporary_storage() {

@@ -33,7 +33,7 @@ impl Code {
     }
 
     pub fn compile(source: &str, registered: &BTreeMap<String, Registered>) -> Result<Arc<Self>> {
-        Self::compile_mode(source, registered, false, None, &())
+        Self::compile_mode(source, registered.iter(), false, None, &())
     }
 
     #[cfg(test)]
@@ -41,34 +41,34 @@ impl Code {
         source: &str,
         registered: &BTreeMap<String, Registered>,
     ) -> Result<Arc<Self>> {
-        Self::compile_mode(source, registered, true, None, &())
+        Self::compile_mode(source, registered.iter(), true, None, &())
     }
 
     pub fn compile_module(
         ctx: &mut CallContext,
         source: &str,
-        registered: &BTreeMap<String, Registered>,
+        receiving: &Self,
         origin: crate::loading::Origin,
     ) -> Result<Arc<Self>> {
         Self::compile_mode(
             source,
-            registered,
+            receiving.program.hosts.iter().zip(&receiving.hosts),
             true,
             Some(origin),
             &crate::compilation::Meter(std::cell::RefCell::new(ctx)),
         )
     }
 
-    fn compile_mode(
+    fn compile_mode<'a>(
         source: &str,
-        registered: &BTreeMap<String, Registered>,
+        registered: impl Iterator<Item = (&'a String, &'a Registered)> + Clone,
         file: bool,
         origin: Option<crate::loading::Origin>,
         work: &dyn crate::compilation::Work,
     ) -> Result<Arc<Self>> {
         work.checkpoint()?;
         let mut names = Vec::new();
-        for name in registered.keys() {
+        for (name, _) in registered.clone() {
             work.bytes(name.len())?;
             names.push(name.clone());
         }
@@ -81,9 +81,9 @@ impl Code {
         .map_err(|error| crate::source::parse_error(source, filename.as_ref(), error, work))?;
         program.source.filename = filename;
         let mut hosts = Vec::new();
-        for name in &program.hosts {
+        for (name, host) in registered {
             work.bytes(name.len())?;
-            hosts.push(registered[name].clone());
+            hosts.push(host.clone());
         }
         let mut exports = Vec::new();
         if file {

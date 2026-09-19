@@ -123,13 +123,14 @@ impl Global {
 
     pub fn value(self) -> Value {
         use Builtin::*;
+        let field = |name: &str, value| (Value::bytes(name.as_bytes()), value);
         let mut entries = match self {
             Self::Require => return Value(Kind::Builtin(Require)),
             Self::Output(kind) => return Value(Kind::Builtin(Output(kind))),
             Self::Format(function) => return Value(Kind::Builtin(Format(function))),
             Self::Assert => return Value(Kind::Builtin(Assert)),
             Self::Loop => return Value(Kind::Builtin(Loop)),
-            Self::Hash => vec![("new", Value(Kind::Builtin(HashNew)))],
+            Self::Hash => vec![field("new", Value(Kind::Builtin(HashNew)))],
             Self::Regexp => [
                 crate::regex::value::Constructor::New,
                 crate::regex::value::Constructor::Union,
@@ -139,22 +140,22 @@ impl Global {
             ]
             .into_iter()
             .map(|constructor| {
-                (
+                field(
                     constructor.member(),
                     Value(Kind::Builtin(Regexp(constructor))),
                 )
             })
             .collect(),
             Self::Regex => vec![
-                (
+                field(
                     "match",
                     Value(Kind::Builtin(Regex(crate::regex::Utility::Match))),
                 ),
-                (
+                field(
                     "replace",
                     Value(Kind::Builtin(Regex(crate::regex::Utility::Replace))),
                 ),
-                (
+                field(
                     "replace_all",
                     Value(Kind::Builtin(Regex(crate::regex::Utility::ReplaceAll))),
                 ),
@@ -171,7 +172,7 @@ impl Global {
             ]
             .into_iter()
             .map(|constructor| {
-                (
+                field(
                     constructor.name().strip_prefix("Time.").unwrap(),
                     Value(Kind::Builtin(Time(constructor))),
                 )
@@ -180,22 +181,22 @@ impl Global {
             Self::Now => return Value(Kind::Builtin(Now)),
             Self::Random(method) => return Value(Kind::Builtin(Random(method))),
             Self::Duration => vec![
-                ("build", Value(Kind::Builtin(DurationBuild))),
-                ("parse", Value(Kind::Builtin(DurationParse))),
+                field("build", Value(Kind::Builtin(DurationBuild))),
+                field("parse", Value(Kind::Builtin(DurationParse))),
             ],
             Self::Money => return Value(Kind::Builtin(Builtin::Money)),
             Self::MoneyCents => return Value(Kind::Builtin(Builtin::MoneyCents)),
             Self::ToInt => return Value(Kind::Builtin(Builtin::ToInt)),
             Self::ToFloat => return Value(Kind::Builtin(Builtin::ToFloat)),
             Self::Json => vec![
-                ("parse", Value(Kind::Builtin(JsonParse))),
-                ("parse_as", Value(Kind::Builtin(JsonParseAs))),
-                ("stringify", Value(Kind::Builtin(JsonStringify))),
+                field("parse", Value(Kind::Builtin(JsonParse))),
+                field("parse_as", Value(Kind::Builtin(JsonParseAs))),
+                field("stringify", Value(Kind::Builtin(JsonStringify))),
             ],
             Self::Math => {
                 let mut entries = vec![
-                    ("PI", Value::float(std::f64::consts::PI)),
-                    ("E", Value::float(std::f64::consts::E)),
+                    field("PI", Value::float(std::f64::consts::PI)),
+                    field("E", Value::float(std::f64::consts::E)),
                 ];
                 for method in [
                     crate::builtin::Math::Sqrt,
@@ -214,7 +215,7 @@ impl Global {
                     crate::builtin::Math::Log,
                 ] {
                     let builtin = Math(method);
-                    entries.push((
+                    entries.push(field(
                         builtin.name().strip_prefix("Math.").unwrap(),
                         Value(Kind::Builtin(builtin)),
                     ));
@@ -222,18 +223,17 @@ impl Global {
                 entries
             }
         };
-        entries.sort_by_key(|(key, _)| *key);
-        let mut value = Value::hash(
-            entries
-                .into_iter()
-                .map(|(key, value)| (key.as_bytes().to_vec(), value))
-                .collect(),
-        );
-        let Kind::Hash(hash) = &mut value.0 else {
-            unreachable!()
-        };
-        Arc::get_mut(hash).unwrap().object = true;
-        value
+        entries.sort_unstable_by(|(left, _), (right, _)| {
+            left.as_bytes().unwrap().cmp(right.as_bytes().unwrap())
+        });
+        let depth = 1 + entries
+            .iter()
+            .map(|(_, value)| value.depth())
+            .max()
+            .unwrap_or(0);
+        let mut hash = crate::hash::Hash::untracked(entries, depth);
+        Arc::get_mut(&mut hash).unwrap().object = true;
+        Value(Kind::Hash(hash))
     }
 }
 
