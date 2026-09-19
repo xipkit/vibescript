@@ -294,12 +294,40 @@ pub(crate) fn parse_error(
             }
             advance(&mut position, ch);
         }
-        error.diagnostic = Some(Arc::new(Diagnostic {
-            filename: filename.cloned(),
-            position,
-            code_frame: frame(source, offset, position, filename.map(|name| &**name)),
-            frames: Vec::new(),
-        }));
+        let build = || {
+            let mut charge = match error.retained_charge.take() {
+                Some(charge) => match Arc::try_unwrap(charge) {
+                    Ok(charge) => Some(charge),
+                    Err(shared) => work.reserve(shared.bytes())?,
+                },
+                None => work.reserve(
+                    error.allocation_bytes() + size_of::<Charge>() + 2 * size_of::<usize>(),
+                )?,
+            };
+            Charge::merge(
+                &mut charge,
+                work.reserve(
+                    size_of::<Diagnostic>()
+                        + 2 * size_of::<usize>()
+                        + filename.map_or(0, |name| name.len() + 2 * size_of::<usize>()),
+                )?,
+            );
+            work.bytes(WINDOW * 12)?;
+            work.bytes(filename.map_or(0, |name| name.len()))?;
+            let snippet = Snippet::new(source, offset, position, filename.map(|name| &**name));
+            let (code_frame, storage) =
+                crate::compilation::formatted(work, format_args!("{snippet}"))?;
+            Charge::merge(&mut charge, storage);
+            error.diagnostic = Some(Arc::new(Diagnostic {
+                filename: filename.cloned(),
+                position,
+                code_frame,
+                frames: Vec::new(),
+            }));
+            error.retained_charge = charge.map(Arc::new);
+            Ok::<_, Error>(error)
+        };
+        return build().unwrap_or_else(|error| error);
     }
     error
 }

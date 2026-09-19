@@ -416,7 +416,7 @@ fn compile_mode(
         if declaration_names.contains_key(name.as_str())
             || names.get(name.as_str()).is_some_and(|&index| index != 0)
         {
-            return Err(syntax::unsupported("duplicate top-level declaration"));
+            return Err(syntax::unsupported(work, "duplicate top-level declaration"));
         }
         declaration_names.insert(name.as_str().to_owned(), declarations.len());
         declarations.push(crate::enums::compile(
@@ -1073,7 +1073,7 @@ impl Compiler<'_> {
                             }
                         }
                     }
-                    _ => return Err(syntax::unsupported("invalid assignment target")),
+                    _ => return Err(syntax::unsupported(self.work, "invalid assignment target")),
                 }
             }
             Statement::If(cond, yes, no) => {
@@ -1254,7 +1254,7 @@ impl Compiler<'_> {
                     self.emit(Op::Pop);
                 }
             }
-            _ => return Err(syntax::unsupported("invalid assignment target")),
+            _ => return Err(syntax::unsupported(self.work, "invalid assignment target")),
         }
         Ok(())
     }
@@ -1906,7 +1906,7 @@ impl Compiler<'_> {
                 let site = self.call_site(name, true);
                 self.emit(Op::AddressMemberTarget(site, read));
             }
-            _ => return Err(syntax::unsupported("invalid assignment target")),
+            _ => return Err(syntax::unsupported(self.work, "invalid assignment target")),
         }
         Ok(())
     }

@@ -139,7 +139,7 @@ pub(super) fn lex<'a>(
     work: &dyn crate::compilation::Work,
 ) -> Result<Buffer<Lexeme<'a>>> {
     if source.len() > super::MAX_SOURCE {
-        return Err(Error::syntax(0, "source exceeds 8 MiB"));
+        return Err(Error::syntax(work, 0, "source exceeds 8 MiB"));
     }
     Lexer {
         work,
@@ -262,10 +262,18 @@ impl<'a> Lexer<'a, '_> {
                         i += 1;
                     }
                     let Some(first) = source[i..self.limit].chars().next() else {
-                        return Err(Error::syntax(start, "expected variable name after @"));
+                        return Err(Error::syntax(
+                            self.work,
+                            start,
+                            "expected variable name after @",
+                        ));
                     };
                     if first != '_' && !super::unicode::letter(first) {
-                        return Err(Error::syntax(start, "expected variable name after @"));
+                        return Err(Error::syntax(
+                            self.work,
+                            start,
+                            "expected variable name after @",
+                        ));
                     }
                     i += first.len_utf8();
                     while let Some(c) = source[i..self.limit].chars().next() {
@@ -389,7 +397,11 @@ impl<'a> Lexer<'a, '_> {
                                 .next()
                                 .is_some_and(super::unicode::letter)
                             {
-                                return Err(Error::syntax(start, "invalid integer literal"));
+                                return Err(Error::syntax(
+                                    self.work,
+                                    start,
+                                    "invalid integer literal",
+                                ));
                             }
                             let text = &source[digits..i];
                             if text.is_empty()
@@ -397,7 +409,11 @@ impl<'a> Lexer<'a, '_> {
                                 || text.ends_with('_')
                                 || text.contains("__")
                             {
-                                return Err(Error::syntax(start, "invalid integer literal"));
+                                return Err(Error::syntax(
+                                    self.work,
+                                    start,
+                                    "invalid integer literal",
+                                ));
                             }
                             integer(numeric(self.work, text)?, radix, start, 2, self.work)?
                         } else {
@@ -432,7 +448,11 @@ impl<'a> Lexer<'a, '_> {
                                 .next()
                                 .is_some_and(|c| super::unicode::letter(c) || c == '_')
                             {
-                                return Err(Error::syntax(start, "invalid numeric literal"));
+                                return Err(Error::syntax(
+                                    self.work,
+                                    start,
+                                    "invalid numeric literal",
+                                ));
                             }
                             let raw = &source[start..i];
                             for (j, b) in raw.bytes().enumerate() {
@@ -443,17 +463,18 @@ impl<'a> Lexer<'a, '_> {
                                         || !raw.as_bytes()[j - 1].is_ascii_digit()
                                         || !raw.as_bytes()[j + 1].is_ascii_digit())
                                 {
-                                    return Err(Error::syntax(start, "invalid numeric separator"));
+                                    return Err(Error::syntax(
+                                        self.work,
+                                        start,
+                                        "invalid numeric separator",
+                                    ));
                                 }
                             }
                             let text = numeric(self.work, raw)?;
                             if float {
-                                Token::Float(
-                                    std::str::from_utf8(&text)
-                                        .unwrap()
-                                        .parse()
-                                        .map_err(|_| Error::syntax(start, "invalid float"))?,
-                                )
+                                Token::Float(std::str::from_utf8(&text).unwrap().parse().map_err(
+                                    |_| Error::syntax(self.work, start, "invalid float"),
+                                )?)
                             } else {
                                 integer(text, 10, start, 0, self.work)?
                             }
@@ -497,7 +518,13 @@ impl<'a> Lexer<'a, '_> {
                                 b'&' => Token::Op("&"),
                                 b'(' | b')' | b'[' | b']' | b'{' | b'}' | b',' | b'.' | b':'
                                 | b'?' | b'|' => Token::P(s[start] as char),
-                                _ => return Err(Error::syntax(start, "unsupported character")),
+                                _ => {
+                                    return Err(Error::syntax(
+                                        self.work,
+                                        start,
+                                        "unsupported character",
+                                    ));
+                                }
                             }
                         }
                     }
@@ -539,7 +566,11 @@ impl<'a> Lexer<'a, '_> {
             self.pos = i;
         }
         if interpolation {
-            return Err(Error::syntax(self.pos, "unterminated string interpolation"));
+            return Err(Error::syntax(
+                self.work,
+                self.pos,
+                "unterminated string interpolation",
+            ));
         }
         out.push(
             self.work,
@@ -586,7 +617,7 @@ impl<'a> Lexer<'a, '_> {
                     flush(&mut parts, &mut text, self.work)?;
                     parts.push(self.work, Part::Expr(self.interpolation(line)?))?;
                 }
-                0 => return Err(Error::syntax(self.pos, "unterminated string")),
+                0 => return Err(Error::syntax(self.work, self.pos, "unterminated string")),
                 byte => {
                     text.push(self.work, byte)?;
                     self.pos += 1;
@@ -597,7 +628,7 @@ impl<'a> Lexer<'a, '_> {
                 .filter(|&&b| b == b'\n')
                 .count();
         }
-        Err(Error::syntax(start, "unterminated string"))
+        Err(Error::syntax(self.work, start, "unterminated string"))
     }
 
     fn regex(&mut self) -> Result<Token<'a>> {
@@ -664,10 +695,16 @@ impl<'a> Lexer<'a, '_> {
                         let bit = match bytes[self.pos] {
                             b'i' => 1,
                             b'm' => 2,
-                            _ => return Err(Error::syntax(start, "unsupported regex flag")),
+                            _ => {
+                                return Err(Error::syntax(
+                                    self.work,
+                                    start,
+                                    "unsupported regex flag",
+                                ));
+                            }
                         };
                         if flags & bit != 0 {
-                            return Err(Error::syntax(start, "repeated regex flag"));
+                            return Err(Error::syntax(self.work, start, "repeated regex flag"));
                         }
                         flags |= bit;
                         self.pos += 1;
@@ -684,12 +721,17 @@ impl<'a> Lexer<'a, '_> {
                 }
             }
         }
-        Err(Error::syntax(start, "unterminated regex literal"))
+        Err(Error::syntax(
+            self.work,
+            start,
+            "unterminated regex literal",
+        ))
     }
 
     fn interpolation(&mut self, line: usize) -> Result<Buffer<Lexeme<'a>>> {
         if self.depth >= 8 {
             return Err(Error::syntax(
+                self.work,
                 self.pos,
                 "string interpolation nesting exceeds 8",
             ));
@@ -802,6 +844,7 @@ impl<'a> Lexer<'a, '_> {
                 .count();
         }
         Err(Error::syntax(
+            self.work,
             self.pos,
             "unterminated percent array literal",
         ))
@@ -844,7 +887,11 @@ impl<'a> Lexer<'a, '_> {
                 };
                 if !valid {
                     if strict {
-                        return Err(Error::syntax(start, "invalid hexadecimal string escape"));
+                        return Err(Error::syntax(
+                            self.work,
+                            start,
+                            "invalid hexadecimal string escape",
+                        ));
                     }
                     self.pos = start;
                     out.push(self.work, c as u8)?;
@@ -928,12 +975,13 @@ fn integer(
     for &byte in &*text {
         work.charge(1)?;
         if !(byte as char).is_digit(radix) {
-            return Err(Error::syntax(offset, "invalid integer literal"));
+            return Err(Error::syntax(work, offset, "invalid integer literal"));
         }
     }
     let parsed = u64::from_str_radix(std::str::from_utf8(&text).unwrap(), radix);
     if text.len() + prefix > 100_000 && !parsed.as_ref().is_ok_and(|&n| n <= i64::MAX as u64) {
         return Err(Error::syntax(
+            work,
             offset,
             "integer literal exceeds 100000 digits",
         ));
@@ -948,6 +996,28 @@ fn integer(
 mod tests {
     use super::*;
     use crate::{CallContext, CallOptions, compilation::Meter};
+
+    #[test]
+    fn compilation_invalid_token_copies_share_the_accounted_message() {
+        let mut context = CallContext::new(CallOptions::default());
+        let work = Meter(std::cell::RefCell::new(&mut context));
+        let tokens = lex("$", &work).unwrap();
+        let copy = tokens[0].token.copy(&work).unwrap();
+        let (Token::Invalid(original), Token::Invalid(duplicate)) = (&tokens[0].token, &copy)
+        else {
+            panic!("expected deferred lexer errors");
+        };
+        assert_eq!(original.1.as_str(), "unsupported character");
+        assert_eq!(original.1.as_ptr(), duplicate.1.as_ptr());
+        drop(tokens);
+        assert!(context.stats().retained_memory_bytes > 0);
+        let Token::Invalid(duplicate) = &copy else {
+            unreachable!()
+        };
+        assert_eq!(duplicate.1.as_str(), "unsupported character");
+        drop(copy);
+        assert_eq!(context.stats().retained_memory_bytes, 0);
+    }
     use std::cell::RefCell;
 
     #[test]

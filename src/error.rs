@@ -264,11 +264,12 @@ impl Error {
         })
     }
 
-    pub(crate) fn syntax(offset: usize, message: impl Into<String>) -> Self {
-        Self {
-            offset: Some(offset),
-            ..Self::new(ErrorKind::Syntax, message)
-        }
+    pub(crate) fn syntax(
+        work: &dyn crate::compilation::Work,
+        offset: usize,
+        message: impl fmt::Display,
+    ) -> Self {
+        crate::compilation::error(work, Some(offset), format_args!("{message}"))
     }
 
     pub(crate) fn limit(kind: ErrorKind, message: impl Into<String>) -> Self {

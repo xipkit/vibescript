@@ -75,10 +75,11 @@ impl SavedError {
         entry: usize,
         mut error: Error,
     ) -> Result<Arc<Self>> {
+        // The saved error assumes ownership of these allocations below.
+        error.retained_charge = None;
         ctx.work_bytes(error.message_bytes().len())?;
         let mut charge =
             ctx.reserve(size_of::<Self>() + 2 * size_of::<usize>() + error.allocation_bytes())?;
-        error.retained_charge = None;
         if let Some(diagnostic) = &error.diagnostic {
             Charge::merge(
                 &mut charge,

@@ -1,6 +1,6 @@
 use crate::{
     Error, Result, Value,
-    compilation::{Boxed, Buffer, Bytes, Name, Table, Text},
+    compilation::{Boxed, Buffer, Bytes, Name, Table, Text, Work},
 };
 
 mod classes;
@@ -567,9 +567,13 @@ impl<'a> Parser<'a> {
     fn token(&self) -> &Token<'a> {
         &self.tokens[self.pos].token
     }
-    fn err<T>(&self, message: &str) -> Result<T> {
+    fn err<T>(&self, message: impl std::fmt::Display) -> Result<T> {
         self.work.charge(1)?;
-        Err(Error::syntax(self.tokens[self.pos].offset, message))
+        Err(Error::syntax(
+            self.work,
+            self.tokens[self.pos].offset,
+            message,
+        ))
     }
     fn bump(&mut self) -> Result<Token<'a>> {
         self.work
@@ -593,7 +597,7 @@ impl<'a> Parser<'a> {
         if self.word(w) {
             Ok(())
         } else {
-            self.err(&format!("expected {w}"))
+            self.err(format_args!("expected {w}"))
         }
     }
     fn take_p(&mut self, c: char) -> bool {
@@ -609,7 +613,7 @@ impl<'a> Parser<'a> {
         if self.take_p(c) {
             Ok(())
         } else {
-            self.err(&format!("expected {c}"))
+            self.err(format_args!("expected {c}"))
         }
     }
     fn lines(&mut self) -> Result<()> {
@@ -633,11 +637,11 @@ impl<'a> Parser<'a> {
         let offset = self.tokens[self.pos].offset;
         if let Token::Word(w) = self.bump()? {
             if reserved(&w) {
-                return Err(Error::syntax(offset, "reserved name"));
+                return Err(Error::syntax(self.work, offset, "reserved name"));
             }
             Name::new(self.work, &w)
         } else {
-            Err(Error::syntax(offset, "expected name"))
+            Err(Error::syntax(self.work, offset, "expected name"))
         }
     }
     fn enum_name(&mut self) -> Result<Name> {
@@ -647,7 +651,7 @@ impl<'a> Parser<'a> {
             Token::Word(name) if !keyword(&name) && !name.starts_with('@') => {
                 Name::new(self.work, &name)
             }
-            _ => Err(Error::syntax(offset, "expected enum identifier")),
+            _ => Err(Error::syntax(self.work, offset, "expected enum identifier")),
         }
     }
     fn at_end(&self) -> bool {
@@ -1209,7 +1213,7 @@ impl<'a> Parser<'a> {
             Token::Bytes(b) => self.make(Node::Literal(b.into_value(false)), 1),
             Token::Template(parts) => self.template(parts, false),
             Token::Words(words) => self.words(words.into_inner()),
-            Token::Invalid(error) => Err(Error::syntax(error.0, error.1.as_str())),
+            Token::Invalid(error) => Err(Error::syntax(self.work, error.0, error.1.as_str())),
             Token::Word(w) => self.word_expression(w.as_str(), offset),
             Token::P(':') => self.symbol(),
             Token::P('(') => self.group_expression(),
@@ -1217,7 +1221,11 @@ impl<'a> Parser<'a> {
             Token::P('{') => self.hash_expr(),
             Token::Op(op @ (".." | "...")) => self.open_range_expression(op),
             Token::Op(op @ ("-" | "+" | "!")) => self.unary_prefix(op),
-            _ => Err(Error::syntax(offset as usize, "expected expression")),
+            _ => Err(Error::syntax(
+                self.work,
+                offset as usize,
+                "expected expression",
+            )),
         }
     }
     fn group_expression(&mut self) -> Result<Expr> {
@@ -1256,7 +1264,11 @@ impl<'a> Parser<'a> {
             "yield" => self.yield_expr(),
             "begin" => self.begin_expression(),
             "while" | "until" | "for" => self.loop_expression(w, offset),
-            _ if reserved(w) => Err(Error::syntax(offset as usize, "expected expression")),
+            _ if reserved(w) => Err(Error::syntax(
+                self.work,
+                offset as usize,
+                "expected expression",
+            )),
             _ => self.variable_name(w),
         }
     }
@@ -1733,10 +1745,18 @@ impl<'a> Parser<'a> {
         self.line_breaks()?;
         let name_offset = self.tokens[self.pos].offset;
         let Token::Word(name) = self.bump()? else {
-            return Err(Error::syntax(name_offset, "expected scoped member name"));
+            return Err(Error::syntax(
+                self.work,
+                name_offset,
+                "expected scoped member name",
+            ));
         };
         if name.starts_with('@') || (keyword(&name) && name != "enum") {
-            return Err(Error::syntax(name_offset, "expected scoped member name"));
+            return Err(Error::syntax(
+                self.work,
+                name_offset,
+                "expected scoped member name",
+            ));
         }
         let args = if self.take_p('(') {
             Some(self.call_arguments()?)
@@ -1790,7 +1810,7 @@ impl<'a> Parser<'a> {
         match self.bump()? {
             Token::Word(name) if !name.starts_with('@') => Name::new(self.work, &name),
             Token::Op("<=>") => Name::new(self.work, "<=>"),
-            _ => Err(Error::syntax(offset, "expected member name")),
+            _ => Err(Error::syntax(self.work, offset, "expected member name")),
         }
     }
     fn previous(&self) -> Result<&Lexeme<'a>> {
@@ -2397,6 +2417,6 @@ pub(crate) fn keyword(w: &str) -> bool {
                 | "nil"
         )
 }
-pub(crate) fn unsupported(message: &str) -> Error {
-    Error::new(crate::ErrorKind::Syntax, message)
+pub(crate) fn unsupported(work: &dyn Work, message: &str) -> Error {
+    crate::compilation::error(work, None, format_args!("{message}"))
 }

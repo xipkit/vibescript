@@ -20,6 +20,7 @@ impl Program {
             || self.names.contains_key(name.as_str())
         {
             return Err(syntax::unsupported(
+                work,
                 "duplicate module or top-level declaration",
             ));
         }
@@ -28,6 +29,7 @@ impl Program {
                 && self.names.contains_key(directive.as_str())
         }) {
             return Err(syntax::unsupported(
+                work,
                 "module visibility directive conflicts with a top-level function",
             ));
         }

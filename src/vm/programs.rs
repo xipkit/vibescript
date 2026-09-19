@@ -531,3 +531,51 @@ pub(super) fn advance(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod compilation_tests {
+    use super::*;
+    use crate::{CallOptions, ErrorClass, compilation::Meter, vm::handlers::SavedError};
+    use std::cell::RefCell;
+
+    #[test]
+    fn compilation_errors_transfer_to_rescue_without_duplicate_storage_charges() {
+        let program = Program {
+            code: Code::compile("0", &Default::default()).unwrap(),
+            environment: None,
+            index: 0,
+            global_base: 0,
+            global_len: 0,
+            _charge: None,
+        };
+        let message = "failure ".repeat(4096);
+        let run = |ctx: &mut CallContext| {
+            let work = Meter(RefCell::new(&mut *ctx));
+            let error = Error::syntax(&work, 0, &message).in_required_file();
+            let mut error = crate::source::parse_error("$", None, error, &work);
+            for _ in 0..3 {
+                let saved = SavedError::new(&program, ctx, &[], 0, error).unwrap();
+                assert_eq!(saved.error.message, message);
+                assert_eq!(saved.error.class(), Some(ErrorClass::Runtime));
+                assert_eq!(
+                    saved.error.diagnostic.as_ref().unwrap().code_frame,
+                    "  --> line 1, column 1\n 1 | $\n   | ^"
+                );
+                error = saved.into_error(ctx).unwrap();
+            }
+            error
+        };
+        let mut context = CallContext::new(CallOptions::default());
+        let error = run(&mut context);
+        let peak = context.stats().peak_memory_bytes;
+        assert!(peak < message.len() * 3 / 2);
+        assert!(context.stats().retained_memory_bytes >= message.len());
+        drop(error);
+        assert_eq!(context.stats().retained_memory_bytes, 0);
+        let mut options = CallOptions::default();
+        options.limits.memory_bytes = Some(peak);
+        let mut context = CallContext::new(options);
+        drop(run(&mut context));
+        assert_eq!(context.stats().retained_memory_bytes, 0);
+    }
+}

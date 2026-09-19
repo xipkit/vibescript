@@ -149,7 +149,7 @@ fn error_classes(
     offset: usize,
 ) -> Result<()> {
     work.charge(1)?;
-    let invalid = || Error::syntax(offset, "invalid rescue exception type");
+    let invalid = || Error::syntax(work, offset, "invalid rescue exception type");
     match &ty.kind {
         crate::compilation::TypeKind::Named => {
             let class = crate::ErrorClass::from_name(&ty.name).ok_or_else(invalid)?;

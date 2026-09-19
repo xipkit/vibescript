@@ -51,6 +51,7 @@ where
     work.bytes(name.len())?;
     if name.ends_with('?') || crate::types::builtin_name(&name).is_some() {
         return Err(crate::syntax::unsupported(
+            work,
             "invalid enum name or built-in type conflict",
         ));
     }
@@ -64,6 +65,7 @@ where
             .is_some()
         {
             return Err(crate::syntax::unsupported(
+                work,
                 "enum members have the same normalized symbol",
             ));
         }

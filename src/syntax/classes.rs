@@ -216,7 +216,7 @@ impl Parser<'_> {
             let bytes = value.as_bytes().unwrap();
             self.work.bytes(bytes.len())?;
             let name = std::str::from_utf8(bytes)
-                .map_err(|_| super::unsupported("method names must be UTF-8"))?;
+                .map_err(|_| super::unsupported(self.work, "method names must be UTF-8"))?;
             return Name::new(self.work, name);
         }
         if symbol {

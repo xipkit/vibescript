@@ -209,6 +209,206 @@ fn malformed_speculation_preserves_termination() {
 }
 
 #[test]
+fn compiler_diagnostic_messages_reserve_before_formatting_and_release_on_failure() {
+    let message = "日本語".repeat(4096);
+    let run = |work: &dyn Work| Error::syntax(work, 7, format_args!("expected {message}"));
+    let baseline = Interrupt::new(usize::MAX, false);
+    let error = run(&baseline);
+    assert_eq!(error.kind, ErrorKind::Syntax);
+    assert_eq!(error.offset, Some(7));
+    assert_eq!(error.message, format!("expected {message}"));
+    let stats = baseline.context.borrow().stats();
+    assert!(stats.retained_memory_bytes >= error.message.capacity());
+    assert!(stats.peak_memory_bytes < message.len() * 2);
+    assert!(baseline.largest_bytes.get() <= 4096);
+    drop(error);
+    assert_eq!(baseline.context.borrow().stats().retained_memory_bytes, 0);
+    for memory in [false, true] {
+        for short in [0, 1] {
+            let mut options = CallOptions::default();
+            if memory {
+                options.limits.memory_bytes = Some(stats.peak_memory_bytes - short);
+            } else {
+                options.limits.steps = Some(stats.steps - short as u64);
+            }
+            let mut context = CallContext::new(options);
+            let error = run(&Meter(RefCell::new(&mut context)));
+            if short == 0 {
+                assert_eq!(error.kind, ErrorKind::Syntax);
+            } else {
+                let kind = if memory {
+                    ErrorKind::Memory
+                } else {
+                    ErrorKind::Steps
+                };
+                assert_eq!(error.kind, kind);
+                assert_eq!(context.checkpoint().unwrap_err().kind, kind);
+            }
+            drop(error);
+            assert_eq!(context.stats().retained_memory_bytes, 0);
+        }
+    }
+    for deadline in [false, true] {
+        for at in 0..baseline.visits.get() {
+            let work = Interrupt::new(at, deadline);
+            let error = run(&work);
+            let kind = if deadline {
+                ErrorKind::Deadline
+            } else {
+                ErrorKind::Cancelled
+            };
+            assert_eq!(error.kind, kind, "visit {at}");
+            assert!(error.diagnostic.is_none());
+            assert_eq!(work.context.borrow_mut().checkpoint().unwrap_err(), error);
+            assert_eq!(work.context.borrow().stats().retained_memory_bytes, 0);
+        }
+    }
+}
+
+#[test]
+fn compiler_source_diagnostics_keep_exact_text_and_account_for_partial_construction() {
+    let source = "head\n\t日本$";
+    let filename: std::sync::Arc<[u8]> = ["pkg/日本語".as_bytes(), b"\n\xff.vibe"].concat().into();
+    let run = |work: &dyn Work| {
+        let error = Error::syntax(work, source.find('$').unwrap(), "expected expression");
+        crate::source::parse_error(source, Some(&filename), error, work)
+    };
+    let expected = "  --> pkg/日本語\\n\\xff.vibe:2:4\n 2 | \t日本$\n   | \t  ^";
+    let baseline = Interrupt::new(usize::MAX, false);
+    let error = run(&baseline);
+    assert_eq!(error.kind, ErrorKind::Syntax);
+    let diagnostic = error.diagnostic.as_ref().unwrap();
+    assert_eq!(diagnostic.position, crate::Position { line: 2, column: 4 });
+    assert_eq!(diagnostic.code_frame, expected);
+    assert!(diagnostic.frames.is_empty());
+    assert!(std::sync::Arc::ptr_eq(
+        diagnostic.filename.as_ref().unwrap(),
+        &filename
+    ));
+    let stats = baseline.context.borrow().stats();
+    let visits = baseline.visits.get();
+    assert!(
+        stats.retained_memory_bytes > error.message.capacity() + diagnostic.code_frame.capacity()
+    );
+    let budget = std::sync::Arc::downgrade(&baseline.context.borrow().identity());
+    drop(baseline);
+    assert!(budget.upgrade().is_some());
+    drop(error);
+    assert!(budget.upgrade().is_none());
+    assert_eq!(run(&()).diagnostic.unwrap().code_frame, expected);
+    for memory in [false, true] {
+        for short in [0, 1] {
+            let mut options = CallOptions::default();
+            if memory {
+                options.limits.memory_bytes = Some(stats.peak_memory_bytes - short);
+            } else {
+                options.limits.steps = Some(stats.steps - short as u64);
+            }
+            let mut context = CallContext::new(options);
+            let error = run(&Meter(RefCell::new(&mut context)));
+            if short == 0 {
+                assert_eq!(error.diagnostic.as_ref().unwrap().code_frame, expected);
+            } else {
+                let kind = if memory {
+                    ErrorKind::Memory
+                } else {
+                    ErrorKind::Steps
+                };
+                assert_eq!(error.kind, kind);
+                assert!(error.diagnostic.is_none());
+                assert_eq!(context.checkpoint().unwrap_err().kind, kind);
+            }
+            drop(error);
+            assert_eq!(context.stats().retained_memory_bytes, 0);
+        }
+    }
+    for deadline in [false, true] {
+        for at in 0..visits {
+            let work = Interrupt::new(at, deadline);
+            let error = run(&work);
+            let kind = if deadline {
+                ErrorKind::Deadline
+            } else {
+                ErrorKind::Cancelled
+            };
+            assert_eq!(error.kind, kind, "visit {at}");
+            assert!(error.diagnostic.is_none());
+            assert_eq!(work.context.borrow_mut().checkpoint().unwrap_err(), error);
+            assert_eq!(work.context.borrow().stats().retained_memory_bytes, 0);
+        }
+    }
+}
+
+#[test]
+fn compiler_rejection_routes_retain_accounted_messages() {
+    for source in [
+        "@",
+        "0xQ",
+        "1__2",
+        "\"\\xzz\"",
+        "/x/z",
+        "%w[unfinished",
+        "$",
+        "def f(",
+        "if true; 1",
+        "a=[];a.1",
+        "a::1",
+        "begin;1;rescue int;2;end",
+        "class C;alias :'\\xff' :x;end",
+        "enum int;A;end",
+        "enum C;FooBar;Foo_Bar;end",
+        "def C;1;end;module C;end",
+        "1=2",
+    ] {
+        let baseline = Interrupt::new(usize::MAX, false);
+        let error = crate::bytecode::compile_file(source, Vec::new(), &baseline).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Syntax, "{source}: {error}");
+        assert!(!error.message.is_empty());
+        assert!(
+            baseline.context.borrow().stats().retained_memory_bytes >= error.message.capacity()
+        );
+        assert!(error.retained_charge.is_some(), "{source}");
+        let at = baseline.visits.get() - 1;
+        drop(error);
+        assert_eq!(baseline.context.borrow().stats().retained_memory_bytes, 0);
+        let cancelled = Interrupt::new(at, false);
+        assert_eq!(
+            crate::bytecode::compile_file(source, Vec::new(), &cancelled)
+                .unwrap_err()
+                .kind,
+            ErrorKind::Cancelled
+        );
+        assert_eq!(cancelled.context.borrow().stats().retained_memory_bytes, 0);
+    }
+}
+
+#[test]
+fn compiler_diagnostics_can_account_shared_and_untracked_input_errors() {
+    for shared in [false, true] {
+        let mut context = CallContext::new(CallOptions::default());
+        let work = Meter(RefCell::new(&mut context));
+        let mut input = if shared {
+            Error::syntax(&work, 0, "expected expression")
+        } else {
+            Error::new(ErrorKind::Syntax, "expected expression")
+        };
+        input.offset = Some(0);
+        let alias = shared.then(|| input.clone());
+        let error = crate::source::parse_error("$", None, input, &work);
+        assert_eq!(error.kind, ErrorKind::Syntax);
+        assert_eq!(
+            error.diagnostic.as_ref().unwrap().code_frame,
+            "  --> line 1, column 1\n 1 | $\n   | ^"
+        );
+        let held = error.retained_charge.as_ref().unwrap().bytes();
+        drop(alias);
+        assert_eq!(context.stats().retained_memory_bytes, held);
+        drop(error);
+        assert_eq!(context.stats().retained_memory_bytes, 0);
+    }
+}
+
+#[test]
 fn alias_work_includes_copied_method_bodies_before_code_generation() {
     let source = |statements: usize, aliases: usize| {
         format!(
