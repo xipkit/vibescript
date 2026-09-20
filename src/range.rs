@@ -145,9 +145,10 @@ impl Range {
 }
 
 fn open_error(kind: &str) -> Error {
+    let article = if kind == "endless" { "an" } else { "a" };
     Error::new(
         ErrorKind::Argument,
-        format!("cannot iterate a {kind} range"),
+        format!("cannot iterate {article} {kind} range"),
     )
 }
 

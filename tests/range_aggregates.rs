@@ -104,7 +104,7 @@ fn invalid_calls_fail_before_iteration_or_block_effects() {
         ),
         ("(1..).min{effect()}", "range.min does not accept a block"),
         ("(..3).sum", "cannot iterate a beginless range"),
-        ("(1..).max", "cannot iterate a endless range"),
+        ("(1..).max", "cannot iterate an endless range"),
         (
             "(1...1).sum('bad')",
             "range.sum expects an integer initial value",
