@@ -18,6 +18,207 @@ fn forms(receiver: &str, method: &str, arguments: &str) -> [String; 3] {
 }
 
 #[test]
+fn invalid_native_members_preserve_argument_effects_and_rescue_classes() {
+    for receiver in ["65", "1.5", "true", "nil", "'abc'", "1..3"] {
+        for name in ["missing_native", "chr"] {
+            if receiver == "'abc'" && name == "chr" {
+                continue;
+            }
+            for call in forms(receiver, name, "(begin;count += 1;end)") {
+                witness(
+                    &format!(
+                        "def run -> int;count=0;begin;{call} {{ count += 100; missing_in_block }};rescue ArgumentError;'wrong';rescue RuntimeError;count += 10;ensure;count += 1000;end;count;end"
+                    ),
+                    Some("1011"),
+                    true,
+                );
+            }
+        }
+    }
+    witness(
+        "def run -> int;begin;65.missing_native((begin;return 7;end));rescue RuntimeError;'wrong';end;end",
+        Some("7"),
+        false,
+    );
+    witness(
+        "def run -> int;begin;65.chr;rescue ArgumentError;'wrong';rescue RuntimeError;7;end;end",
+        Some("7"),
+        true,
+    );
+}
+
+#[test]
+fn rejected_scalar_native_calls_fail_in_runtime() {
+    use super::{arguments::Arguments, builtins, collection_tests::literal_fact, facts::Atom};
+    use crate::{
+        arguments,
+        bytecode::{CallSite, Method},
+    };
+
+    let names = [
+        "missing_native",
+        "chr",
+        "ord",
+        "length",
+        "size",
+        "bytesize",
+        "at",
+        "slice",
+        "first",
+        "last",
+        "to_a",
+        "to_h",
+        "include?",
+        "index",
+        "find_index",
+        "rindex",
+        "empty?",
+        "abs",
+        "even?",
+        "odd?",
+        "nan?",
+        "finite?",
+        "succ",
+        "pred",
+        "round",
+        "floor",
+        "ceil",
+        "div",
+        "divmod",
+        "clamp",
+        "between?",
+        "to_s",
+        "string",
+        "to_i",
+        "to_f",
+        "inspect",
+        "to_sym",
+        "intern",
+        "push",
+        "append",
+        "prepend",
+        "unshift",
+        "pop",
+        "shift",
+        "insert",
+        "clear",
+        "store",
+        "replace",
+        "delete",
+        "sum",
+        "join",
+        "split",
+        "keys",
+        "values",
+        "each",
+        "times",
+        "upto",
+        "step",
+        "bytes",
+        "chars",
+        "lines",
+        "codepoints",
+        "cover?",
+        "member?",
+        "exclude_end?",
+        "second",
+        "nil?",
+        "itself",
+        "dup",
+        "clone",
+        "freeze",
+        "frozen?",
+        "eql?",
+        "equal?",
+        "is_type?",
+        "respond_to?",
+    ];
+    let receivers = [
+        Value::nil(),
+        Value::boolean(true),
+        Value::int(65),
+        Value::float(1.5),
+        Value::bytes("abc"),
+        Value::bytes(""),
+        Value::symbol("65"),
+        Value::range(Some(1), Some(3), false),
+    ];
+    let arguments = [
+        vec![],
+        vec![Value::nil()],
+        vec![Value::int(0)],
+        vec![Value::int(2)],
+        vec![Value::bytes("a")],
+        vec![Value::symbol("int")],
+        vec![Value::int(1), Value::int(3)],
+        vec![Value::bytes("a"), Value::bytes("z")],
+    ];
+    let mut rejected = 0;
+    for receiver in &receivers {
+        for name in names {
+            for values in &arguments {
+                for general in [false, true] {
+                    let label = format!("{receiver:?}.{name}({values:?}), general={general}");
+                    let mut ctx = CallContext::new(CallOptions::default());
+                    let mut facts = Facts::new(&mut ctx).unwrap();
+                    let mut root = literal_fact(&mut ctx, &mut facts, receiver);
+                    if general {
+                        root = facts.atom(root).unwrap().fact();
+                    }
+                    let mut inputs = Arguments::new();
+                    for value in values {
+                        let fact = literal_fact(&mut ctx, &mut facts, value);
+                        inputs.positional.push(&mut ctx, fact).unwrap();
+                    }
+                    let site = CallSite {
+                        name: 0,
+                        method: Method::parse(name),
+                        auto: false,
+                        parenthesized: true,
+                        scope: false,
+                    };
+                    let inferred =
+                        builtins::member(&mut ctx, &mut facts, root, site, name, &inputs).unwrap();
+                    if let Some(inferred) = &inferred {
+                        if !inferred.incomplete
+                            && inferred.value == Atom::Never.fact()
+                            && !inferred.failures.data.is_empty()
+                        {
+                            let mut runtime = CallContext::new(CallOptions::default());
+                            let actual_receiver = runtime.import(receiver).unwrap();
+                            let mut actual_args = arguments::Arguments::empty();
+                            for value in values {
+                                let value = runtime.import(value).unwrap();
+                                actual_args.positional.push(&mut runtime, value).unwrap();
+                            }
+                            let error = crate::members::call_keywords(
+                                &mut runtime,
+                                site,
+                                name,
+                                actual_receiver,
+                                &actual_args,
+                            )
+                            .expect_err(&label);
+                            assert_ne!(
+                                inferred.throws & (1 << error.class().unwrap() as u8),
+                                0,
+                                "{label}: {error}"
+                            );
+                            drop(actual_args);
+                            assert_eq!(runtime.stats().retained_memory_bytes, 0, "{label}");
+                            rejected += 1;
+                        }
+                    }
+                    drop((inferred, inputs, facts));
+                    assert_eq!(ctx.stats().retained_memory_bytes, 0, "{label}");
+                }
+            }
+        }
+    }
+    assert!(rejected > 1000, "{rejected}");
+}
+
+#[test]
 fn numeric_methods_share_direct_and_forwarded_result_contracts() {
     for (receiver, method, arguments, ty, output) in [
         ("-7", "abs", "", "int", "7"),
@@ -509,6 +710,15 @@ fn native_reducers_use_primitive_contracts_without_callbacks() {
 }
 
 fn accounting(ctx: &mut CallContext) -> crate::Result<()> {
+    let mut facts = Facts::new(ctx)?;
+    let invalid = analyze(
+        ctx,
+        &mut facts,
+        "def run -> int;begin;65.chr;rescue ArgumentError;'wrong';rescue RuntimeError;7;ensure;'cleanup'.upcase;end;end",
+    )?;
+    assert!(invalid.incomplete.data.is_empty(), "{invalid:?}");
+    assert_eq!(invalid.issues.data.len(), 1, "{invalid:?}");
+    drop((facts, invalid));
     let mut facts = Facts::new(ctx)?;
     let report = analyze(
         ctx,

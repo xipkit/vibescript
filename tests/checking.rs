@@ -1007,6 +1007,8 @@ fn call_failures_and_unresolved_contracts_have_actionable_messages() {
         ("def run(x:Missing=7);x;end", "Unknown type"),
         ("def run;\"abc\".center(5,extra:7);end", "center"),
         ("def run;x=1;x=[];x;end", "Reassignment"),
+        ("def run;(-1).chr;end", "chr"),
+        ("def run;1.foo;end", "foo"),
     ] {
         let report = check(source);
         assert!(
@@ -1017,12 +1019,122 @@ fn call_failures_and_unresolved_contracts_have_actionable_messages() {
             "{source}: {report:?}"
         );
     }
-    for source in ["def run;(-1).chr;end", "def run;1.foo;end"] {
-        let report = check(source);
-        assert!(!report.is_clean());
-        assert!(report.diagnostics.is_empty());
-        assert!(!report.incomplete.is_empty());
+}
+
+#[test]
+fn invalid_scalar_members_are_diagnosed_in_each_checking_scope() {
+    for (ty, value, name) in [
+        ("int", Value::int(65), "chr"),
+        ("float", Value::float(1.5), "chr"),
+        ("bool", Value::boolean(true), "abs"),
+        ("nil", Value::nil(), "first"),
+        ("string", Value::bytes("abc"), "even?"),
+        ("int", Value::int(7), "missing_native"),
+        (
+            "range",
+            Value::range(Some(1), Some(3), false),
+            "missing_native",
+        ),
+    ] {
+        for tail in ["", "()", "(1)", "(extra:1)", "() { missing_in_block }"] {
+            let (parameter, receiver, args) = if ty == "nil" {
+                (String::new(), "nil", Vec::new())
+            } else {
+                (format!("value:{ty}"), "value", vec![value.clone()])
+            };
+            let source = format!("def run({parameter});({receiver}).{name}{tail};end");
+            let script = Engine::new().compile(&source).unwrap();
+            let options = CallOptions::default();
+            let error = script.call("run", &args, options.clone()).unwrap_err();
+            assert_eq!(
+                error.class(),
+                Some(vibescript::ErrorClass::Runtime),
+                "{source}: {error}"
+            );
+            for report in [
+                script.check_call("run", &args, &options).unwrap(),
+                script.check_function("run", &options).unwrap(),
+                script.check(&options).unwrap(),
+            ] {
+                assert!(report.incomplete.is_empty(), "{source}: {report:?}");
+                assert_eq!(report.diagnostics.len(), 1, "{source}: {report:?}");
+                assert!(
+                    report.diagnostics[0].message.contains(name),
+                    "{source}: {report:?}"
+                );
+            }
+            let outcome = script.checked_call("run", &args, options).unwrap();
+            assert!(matches!(outcome, CheckedOutcome::Rejected(_)), "{source}");
+        }
     }
+}
+
+#[test]
+fn invalid_native_checked_calls_reject_before_argument_effects() {
+    for method in ["chr", "missing_native"] {
+        let writes = Arc::new(AtomicUsize::new(0));
+        let output = writes.clone();
+        let mut engine = Engine::new();
+        engine.set_output_writer(move |_, _| {
+            output.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        });
+        let source =
+            format!("def run;65.{method}((begin;puts('argument');7;end)) {{ puts('block') }};end");
+        let script = engine.compile(&source).unwrap();
+        let outcome = script
+            .checked_call("run", &[], CallOptions::default())
+            .unwrap();
+        let CheckedOutcome::Rejected(report) = outcome else {
+            panic!("{source}: invalid call was approved");
+        };
+        assert!(report.incomplete.is_empty(), "{report:?}");
+        assert_eq!(report.diagnostics.len(), 1, "{report:?}");
+        assert_eq!(writes.load(Ordering::SeqCst), 0);
+        let error = script.call("run", &[], CallOptions::default()).unwrap_err();
+        assert_eq!(error.class(), Some(vibescript::ErrorClass::Runtime));
+        assert_eq!(writes.load(Ordering::SeqCst), 1);
+    }
+}
+
+#[test]
+fn native_member_diagnosis_preserves_unions_and_source_overrides() {
+    let source = "def run(value:int|string)->string;value.chr;end";
+    let script = Engine::new().compile(source).unwrap();
+    let options = CallOptions::default();
+    let general = script.check_function("run", &options).unwrap();
+    assert!(general.incomplete.is_empty(), "{general:?}");
+    assert_eq!(general.diagnostics.len(), 1, "{general:?}");
+    let exact = script
+        .check_call("run", &[Value::bytes("abc")], &options)
+        .unwrap();
+    assert!(exact.is_clean(), "{exact:?}");
+    let exact = script
+        .check_call("run", &[Value::int(65)], &options)
+        .unwrap();
+    assert!(exact.incomplete.is_empty(), "{exact:?}");
+    assert_eq!(exact.diagnostics.len(), 1, "{exact:?}");
+
+    for source in [
+        "class Letter;def chr -> string;'a';end;end;def run -> string;Letter.new.chr;end",
+        "module Letter;def self.chr -> string;'a';end;end;def run -> string;Letter.chr;end",
+        "def run -> int;:abc.bytesize;end",
+    ] {
+        let script = Engine::new().compile(source).unwrap();
+        let report = script.check_call("run", &[], &options).unwrap();
+        assert!(report.is_clean(), "{source}: {report:?}");
+        assert!(matches!(
+            script.checked_call("run", &[], options.clone()).unwrap(),
+            CheckedOutcome::Executed(_)
+        ));
+    }
+    // An opaque receiver still needs dispatch analysis; it is not known to lack the method.
+    let script = Engine::new()
+        .compile("def run(value);value.missing_native;end")
+        .unwrap();
+    let report = script.check_function("run", &options).unwrap();
+    assert!(report.diagnostics.is_empty(), "{report:?}");
+    assert!(!report.incomplete.is_empty(), "{report:?}");
 }
 
 #[test]

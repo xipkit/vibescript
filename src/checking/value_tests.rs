@@ -718,7 +718,7 @@ fn native_member_facts_contain_runtime_values_and_ordinary_errors() {
             }
         }
     }
-    assert_eq!(cases, 11_232);
+    assert_eq!(cases, 14_904);
     drop((arguments, values));
     assert_eq!(owner.stats().retained_memory_bytes, 0);
 }

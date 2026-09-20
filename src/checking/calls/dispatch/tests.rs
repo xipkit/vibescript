@@ -371,8 +371,9 @@ fn receiving_shadows_never_fall_through_to_builtins() {
         Callable::Function(callee.program.names["remote"]),
     )
     .unwrap();
-    // Unknown numeric members remain incomplete; the checker must not infer the JSON builtin's result.
-    assert!(!report.incomplete.data.is_empty(), "{report:?}");
+    // The receiving function returns an integer, which has no stringify member.
+    assert!(report.incomplete.data.is_empty(), "{report:?}");
+    assert_eq!(report.issues.data.len(), 1, "{report:?}");
     let output = caller
         .call(
             "run",

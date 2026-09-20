@@ -265,7 +265,7 @@ fn incomplete_analysis_never_looks_like_a_clean_complete_check() {
     for source in [
         "def run; [1, 2].map { _1 }; end",
         "def run; begin; 1; rescue; 2; ensure; [1].map { _1 }; end; end",
-        "def run; for x in 1..3; x.no_such_method; end; end",
+        "def run(x); for _ in 1..3; x.no_such_method; end; end",
         "def run; missing; end",
         "def run(x); x.nil?; end",
         "def run(x: hash); x::nil?; end",
@@ -278,6 +278,7 @@ fn incomplete_analysis_never_looks_like_a_clean_complete_check() {
         let report = analyze(&mut ctx, &mut facts, source).unwrap();
         assert!(!report.incomplete.data.is_empty(), "{source}: {report:?}");
     }
+    check("def run;for x in 1..3;x.no_such_method;end;end", 1);
 }
 
 #[test]

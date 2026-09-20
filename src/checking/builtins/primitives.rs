@@ -42,12 +42,35 @@ fn universal(name: &str) -> bool {
         )
 }
 
+fn missing(facts: &Facts, value: Fact, name: &str) -> bool {
+    use crate::members::names::{self, Receiver};
+
+    let Some(kind) = receiver(facts, value) else {
+        return false;
+    };
+    // Symbols also reach byte-oriented runtime fallbacks that are not advertised
+    // by introspection. Absence from their method list is not proof of failure.
+    matches!(
+        kind,
+        Receiver::Nil
+            | Receiver::Bool
+            | Receiver::Int
+            | Receiver::Float
+            | Receiver::Bytes
+            | Receiver::Range
+    ) && !names::universal(name)
+        && !kind.available(name)
+}
+
 pub(super) fn supported(
     ctx: &mut CallContext,
     facts: &Facts,
     receiver: Fact,
     name: &str,
 ) -> Result<bool> {
+    if missing(facts, receiver, name) {
+        return Ok(true);
+    }
     if universal(name) {
         return Ok(match facts.node(receiver) {
             Node::Named(_) | Node::Nominal { .. } => false,
@@ -85,7 +108,7 @@ pub(super) fn member(
     name: &str,
     args: &Arguments,
 ) -> Result<Outcome> {
-    if site.scope {
+    if site.scope || missing(facts, receiver, name) {
         return reject(ctx, Failure::Undefined);
     }
     let kind = facts.atom(receiver);

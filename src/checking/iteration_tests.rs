@@ -202,16 +202,31 @@ fn destructuring_in_loops_and_assignments_keeps_positions_rest_and_nil_padding()
 }
 
 #[test]
-fn iterable_loops_keep_unsupported_reachable_paths_visible() {
-    for source in [
-        "def run; for x in [7]; x.no_such_method; end; end",
-        "def run(h: hash<string,int>); for k,v in h; v; end; end",
-        "def run; for x in [7]; begin; x; ensure; [1].map! { _1 }; end; end; end",
+fn iterable_loops_keep_invalid_and_unsupported_reachable_paths_visible() {
+    for (source, diagnosed) in [
+        ("def run; for x in [7]; x.no_such_method; end; end", true),
+        (
+            "def run(xs:array);for x in xs;x.no_such_method;end;end",
+            false,
+        ),
+        (
+            "def run(h: hash<string,int>); for k,v in h; v; end; end",
+            false,
+        ),
+        (
+            "def run; for x in [7]; begin; x; ensure; [1].map! { _1 }; end; end; end",
+            false,
+        ),
     ] {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
         let result = analyze(&mut ctx, &mut facts, source).unwrap();
-        assert!(!result.incomplete.data.is_empty(), "{source}: {result:?}");
+        if diagnosed {
+            assert!(result.incomplete.data.is_empty(), "{source}: {result:?}");
+            assert_eq!(result.issues.data.len(), 1, "{source}: {result:?}");
+        } else {
+            assert!(!result.incomplete.data.is_empty(), "{source}: {result:?}");
+        }
         drop((result, facts));
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }

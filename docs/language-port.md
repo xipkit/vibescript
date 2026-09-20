@@ -1488,3 +1488,9 @@ JSON parsing and encoding now support the documented 10,000-container depth, inc
 The affected walks use charged explicit frames, and destruction uses links reserved in container headers so it can release partial and shared values after cancellation or quota exhaustion. Tests cover default budgets, lower native stacks, concurrent final owners, field updates, cyclic instance references and interrupted cleanup. Captured-input analysis indexes shared containers by height to avoid rescanning every ancestor. Expensive static analysis can still reach the normal memory or work quota at a valid depth; [the depth contract](json-depth.md) distinguishes those resource limits from nesting rejection.
 
 The remaining checker behavior, documented signature audit and native/browser platform validation still prevent declaring the full port complete. The experimental WASI branch remains separate from the native implementation. Performance passes remain deferred.
+
+### Invalid native member diagnostics
+
+Checking now diagnoses calls to definitely absent native members on nil, boolean, integer, float, string and range values. Calls such as `65.chr` and `1.missing_native` previously stopped with an incomplete report even though their receiver types prove they fail. Argument evaluation and early control transfers remain ordered before the call, rejected blocks stay inert, and ordinary failures enter the runtime error handler. Receiver unions preserve valid alternatives; source overrides and dynamic objects keep their existing dispatch.
+
+Runtime comparisons exercise rejected calls across scalar types, method names and argument shapes. Public checks cover exact calls, declarations, whole files and checked execution, including rejection before output effects. Existing quota, cancellation and cleanup tests now include diagnosed native failures. The remaining checker and platform work is still open; performance passes remain deferred.
