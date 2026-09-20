@@ -2,9 +2,11 @@
 //!
 //! The library owns every semantic decision. This module validates the whole
 //! command line before reading the source, routes inputs through the public
-//! call and check APIs, and renders reports with the input filename.
+//! call and check APIs, and renders reports with the input filename or the
+//! `<eval>` label of inline source.
 
 use std::{
+    borrow::Cow,
     ffi::OsString,
     fmt, fs,
     io::{self, Write},
@@ -20,27 +22,36 @@ use vibescript::{
 /// The usage text printed by `--help`.
 pub const HELP: &str = "\
 Usage: vibes [OPTIONS] FILE
+       vibes [OPTIONS] -e SOURCE
        vibes [OPTIONS] --function NAME [--arg JSON]... [--kwarg NAME=JSON]... FILE
        vibes check [OPTIONS] [--function NAME] FILE
+       vibes check [OPTIONS] [--function NAME] -e SOURCE
 
-Runs the top-level statements of FILE, or calls one of its functions with JSON
-arguments, and prints the final value as JSON on stdout. Script output from
-puts, print and p goes to stdout; warn goes to stderr.
+Runs the top-level statements of FILE or of the inline SOURCE, or calls one of
+its functions with JSON arguments, and prints the final value as JSON on
+stdout. Script output from puts, print and p goes to stdout; warn goes to
+stderr.
 
 Options:
+  -e, --eval SOURCE  Use the inline SOURCE instead of FILE, exactly once and
+                     never together with FILE. Reports name it <eval>, and
+                     require searches the working directory first.
   --function NAME    Call NAME instead of running the top-level statements.
   --module-path DIR  Add a module search directory (repeatable). The input
-                     file's directory is searched first.
+                     file's directory, or the working directory for -e, is
+                     searched first.
   --arg JSON         Append a positional argument. Requires --function.
   --kwarg NAME=JSON  Add a keyword argument. A repeated NAME binds its last
                      value; every value is still checked. Requires --function.
   --check            Analyze the call selected by --function, --arg and --kwarg
                      without executing any script or host code. Success prints
                      nothing. Known errors and incomplete analysis are printed
-                     on stderr and exit with status 1. Requires --function.
-  --checked          Run the same analysis, then execute the call only when it
-                     is clean. A rejected call prints the report instead of a
-                     result. Requires --function.
+                     on stderr and exit with status 1. With -e and no
+                     --function, checks the whole snippet instead, exactly as
+                     vibes check -e SOURCE does; a FILE requires --function.
+  --checked          Run the same exact-call analysis, then execute the call
+                     only when it is clean. A rejected call prints the report
+                     instead of a result. Requires --function.
   --steps N          Step quota; 0 disables it (default 1000000).
   --memory N         Memory quota in bytes; 0 disables it (default 16777216).
   --recursion N      Maximum call depth (default 256).
@@ -55,18 +66,19 @@ Commands:
   check FILE         Check the whole file without executing anything: the
                      top-level statements, then every function and method
                      declaration, including unused ones, for its declared
-                     parameter types and defaults.
+                     parameter types and defaults. check -e SOURCE checks the
+                     whole snippet the same way.
   check --function NAME FILE
                      Check one declaration the same way, without a concrete
                      call. NAME may be a function, Class#method,
                      Namespace.method or Class.new. See vibes check --help.
 
---check and --checked cover exactly one call: the named function with the
-supplied values, and whatever that call reaches. They do not check unused
-functions or the file as a whole. Selecting __main__ checks the top-level
-statements; other named calls omit them. The check command covers the whole
-file or one declaration for its declared parameter types rather than supplied
-values, and is recognized only as the first argument.
+--check with --function and --checked cover exactly one call: the named
+function with the supplied values, and whatever that call reaches. They do not
+check unused functions or the file as a whole. Selecting __main__ checks the
+top-level statements; other named calls omit them. The check command covers the
+whole file or snippet, or one declaration for its declared parameter types
+rather than supplied values, and is recognized only as the first argument.
 No clean result proves that the script is type safe, and analysis that the
 checker cannot finish is reported as incomplete rather than assumed clean.
 
@@ -78,15 +90,17 @@ or execution fails, 2 for usage errors.
 pub const CHECK_HELP: &str = "\
 Usage: vibes check [OPTIONS] FILE
        vibes check [OPTIONS] --function NAME FILE
+       vibes check [OPTIONS] [--function NAME] -e SOURCE
 
-Checks FILE without executing any script or host code, defaults or
-initializers, and prints no result value. Without --function, the whole file
-is checked: the top-level statements in source order, then every function and
-method declaration, including unused ones, for its declared parameter types
-and defaults. With --function, only the selected declaration and whatever it
-reaches are checked. Annotated parameters enter with their declared types,
-unannotated parameters stay dynamic and optional defaults are analyzed; no
-concrete call with supplied values is involved.
+Checks FILE, or the inline SOURCE given by -e, without executing any script or
+host code, defaults or initializers, and prints no result value. Without
+--function, the whole file or snippet is checked: the top-level statements in
+source order, then every function and method declaration, including unused
+ones, for its declared parameter types and defaults. With --function, only the
+selected declaration and whatever it reaches are checked. Annotated parameters
+enter with their declared types, unannotated parameters stay dynamic and
+optional defaults are analyzed; no concrete call with supplied values is
+involved.
 
 A clean check prints nothing and exits with status 0. Known errors and
 analysis that the checker cannot finish are printed on stderr as separate
@@ -96,12 +110,16 @@ reported as incomplete rather than assumed clean. Resolved module files are
 read and analyzed without executing their initializers.
 
 Options:
+  -e, --eval SOURCE  Check the inline SOURCE instead of FILE, exactly once and
+                     never together with FILE. Reports name it <eval>, and
+                     require searches the working directory first.
   --function NAME    Check one declaration instead of the whole file: a
                      top-level function, Class#method for an instance method,
                      Namespace.method for a static or module method, or
                      Class.new for a constructor.
   --module-path DIR  Add a module search directory (repeatable). The input
-                     file's directory is searched first.
+                     file's directory, or the working directory for -e, is
+                     searched first.
   --steps N          Analysis step quota; 0 disables it (default 1000000).
   --memory N         Analysis memory quota in bytes; 0 disables it
                      (default 16777216).
@@ -122,6 +140,9 @@ recognized only as the first argument; vibes -- check runs a file named check.
 Exit status: 0 for a clean check, 1 when reading, parsing or analysis fails or
 the report has errors or incomplete paths, 2 for usage errors.
 ";
+
+/// The name reports use for inline source supplied by `-e` or `--eval`.
+pub const EVAL_LABEL: &str = "<eval>";
 
 /// The action selected by the command line.
 #[derive(Debug)]
@@ -157,11 +178,42 @@ impl Mode {
     }
 }
 
+/// Where the main source comes from.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Input {
+    /// A source file, read only after the whole command line is validated.
+    File(PathBuf),
+    /// Inline source from `-e` or `--eval`, reported as [`EVAL_LABEL`].
+    Inline(String),
+}
+
+impl Input {
+    /// The name that reports and failures use for this input.
+    pub fn label(&self) -> Cow<'_, str> {
+        match self {
+            Self::File(file) => Cow::Owned(file.display().to_string()),
+            Self::Inline(_) => Cow::Borrowed(EVAL_LABEL),
+        }
+    }
+
+    /// The first module root: the file's directory, or the working directory
+    /// for inline source.
+    fn root(&self) -> &Path {
+        match self {
+            Self::File(file) => file
+                .parent()
+                .filter(|path| !path.as_os_str().is_empty())
+                .unwrap_or_else(|| Path::new(".")),
+            Self::Inline(_) => Path::new("."),
+        }
+    }
+}
+
 /// A validated command line whose JSON values and numbers are already parsed.
 #[derive(Debug)]
 pub struct Invocation {
-    pub file: PathBuf,
-    /// Additional module roots in command-line order, after the input directory.
+    pub input: Input,
+    /// Additional module roots in command-line order, after the input root.
     pub module_paths: Vec<PathBuf>,
     pub function: Option<String>,
     /// Positional arguments in command-line order.
@@ -176,8 +228,8 @@ pub struct Invocation {
 /// A validated `vibes check` command line. It carries no concrete arguments.
 #[derive(Debug)]
 pub struct Analysis {
-    pub file: PathBuf,
-    /// Additional module roots in command-line order, after the input directory.
+    pub input: Input,
+    /// Additional module roots in command-line order, after the input root.
     pub module_paths: Vec<PathBuf>,
     /// The declaration selector, or `None` for the whole file.
     pub function: Option<String>,
@@ -194,6 +246,18 @@ pub enum Scope<'a> {
     Declaration(&'a str),
     /// The top-level statements and every declaration in the file.
     File,
+    /// The top-level statements and every declaration in an inline snippet.
+    Snippet,
+}
+
+impl Scope<'_> {
+    /// The whole-input scope for a file or an inline snippet.
+    fn whole(input: &Input) -> Self {
+        match input {
+            Input::File(_) => Self::File,
+            Input::Inline(_) => Self::Snippet,
+        }
+    }
 }
 
 impl fmt::Display for Scope<'_> {
@@ -204,6 +268,7 @@ impl fmt::Display for Scope<'_> {
                 write!(f, "check of {name} for its declared parameter types")
             }
             Self::File => f.write_str("check of the whole file"),
+            Self::Snippet => f.write_str("check of the whole snippet"),
         }
     }
 }
@@ -256,16 +321,18 @@ fn usage(message: impl Into<String>) -> Failure {
 /// A first argument of `check` selects the check command; anywhere else,
 /// `check` is an ordinary file name, and `--` always ends option parsing.
 /// Options may appear in any order around FILE, and every option value is
-/// consumed verbatim, so `--arg -1` is valid JSON. Positional and keyword
-/// inputs keep their command-line order, including repeated keyword names:
-/// the library checks every supplied value and binds the last one, exactly as
-/// `Script::call_with_keywords` does. All JSON and numeric values, and every
-/// option combination, are validated here, before any file is read.
+/// consumed verbatim, so `--arg -1` is valid JSON and `-e -7` is a snippet.
+/// The source is either FILE or one `-e`/`--eval` SOURCE, never both.
+/// Positional and keyword inputs keep their command-line order, including
+/// repeated keyword names: the library checks every supplied value and binds
+/// the last one, exactly as `Script::call_with_keywords` does. All JSON and
+/// numeric values, and every option combination, are validated here, before
+/// any file or module directory is read.
 pub fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Command, Failure> {
     let mut args = args.into_iter().peekable();
     let subcommand = args.next_if(|arg| arg.as_os_str() == "check").is_some();
     let help = if subcommand { CHECK_HELP } else { HELP };
-    let mut file = None;
+    let mut input = None;
     let mut module_paths = Vec::new();
     let mut function = None;
     let mut arguments = Vec::new();
@@ -277,13 +344,19 @@ pub fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Command, Failur
     while let Some(arg) = args.next() {
         let text = arg.to_string_lossy().into_owned();
         if only_files || !text.starts_with('-') {
-            select_file(&mut file, arg.into())?;
+            select_input(&mut input, Input::File(arg.into()))?;
             continue;
         }
         match text.as_str() {
             "--help" | "-h" => return Ok(Command::Help(help)),
             "--version" => return Ok(Command::Version),
             "--" => only_files = true,
+            "-e" | "--eval" => {
+                select_input(
+                    &mut input,
+                    Input::Inline(value(&mut args, &text, "SOURCE")?),
+                )?;
+            }
             "--function" => function = Some(value(&mut args, "--function", "NAME")?),
             "--module-path" => module_paths.push(
                 args.next()
@@ -324,16 +397,16 @@ pub fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Command, Failur
             _ => return Err(usage(format!("unknown option {text}"))),
         }
     }
-    let Some(file) = file else {
+    let Some(input) = input else {
         return Err(usage(if subcommand {
-            "expected source file; use vibes check --help"
+            "expected source file or -e SOURCE; use vibes check --help"
         } else {
-            "expected source file; use --help"
+            "expected source file or -e SOURCE; use --help"
         }));
     };
     if subcommand {
         return Ok(Command::Check(Box::new(Analysis {
-            file,
+            input,
             module_paths,
             function,
             options,
@@ -341,7 +414,10 @@ pub fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Command, Failur
         })));
     }
     if function.is_none() {
-        if mode != Mode::Execute {
+        // Only an inline snippet may be checked as a whole through --check;
+        // a file keeps requiring --function, as vibes check FILE covers it.
+        let whole_snippet = mode == Mode::Check && matches!(input, Input::Inline(_));
+        if mode != Mode::Execute && !whole_snippet {
             return Err(usage(format!("{} requires --function", mode.flag())));
         }
         if !arguments.is_empty() {
@@ -352,7 +428,7 @@ pub fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Command, Failur
         }
     }
     Ok(Command::Run(Box::new(Invocation {
-        file,
+        input,
         module_paths,
         function,
         arguments,
@@ -363,10 +439,18 @@ pub fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Command, Failur
     })))
 }
 
-fn select_file(file: &mut Option<PathBuf>, path: PathBuf) -> Result<(), Failure> {
-    if file.replace(path).is_some() {
-        return Err(usage("expected one source file"));
+fn select_input(current: &mut Option<Input>, requested: Input) -> Result<(), Failure> {
+    match (current.as_ref(), &requested) {
+        (None, _) => {}
+        (Some(Input::File(_)), Input::File(_)) => return Err(usage("expected one source file")),
+        (Some(Input::Inline(_)), Input::Inline(_)) => {
+            return Err(usage(
+                "expected one inline source; -e or --eval was given twice",
+            ));
+        }
+        (Some(_), _) => return Err(usage("expected FILE or -e SOURCE, not both")),
     }
+    *current = Some(requested);
     Ok(())
 }
 
@@ -415,15 +499,17 @@ fn keyword(raw: &str) -> Result<(String, Value), Failure> {
     Ok((name.to_owned(), json(&format!("--kwarg {name}"), text)?))
 }
 
-/// Reads and compiles the file, then executes or checks it as requested.
+/// Compiles the input, then executes or checks it as requested.
 ///
 /// Output writers are attached before compilation so that `puts`, `print`,
 /// `p` and `warn` reach the process streams during execution; analysis never
 /// invokes them. Results are printed as JSON on stdout. Reports, counters and
 /// errors go to stderr through the returned [`Failure`] or `--stats` line.
+/// Without `--function`, `--check` covers an inline snippet as a whole, the
+/// same scope as `vibes check -e SOURCE`.
 pub fn run(invocation: Invocation) -> Result<(), Failure> {
     let Invocation {
-        file,
+        input,
         module_paths,
         function,
         arguments,
@@ -432,9 +518,17 @@ pub fn run(invocation: Invocation) -> Result<(), Failure> {
         mode,
         stats,
     } = invocation;
-    let script = load(&file, &module_paths)?;
+    let script = load(&input, &module_paths)?;
+    let label = input.label();
     let Some(name) = function else {
-        return print_outcome(&script.run(options)?, stats);
+        return match mode {
+            Mode::Execute => print_outcome(&script.run(options)?, stats),
+            Mode::Check => {
+                let report = script.check(&options)?;
+                accept(&label, Scope::whole(&input), &report, mode, stats)
+            }
+            Mode::Checked => Err(usage("--checked requires --function")),
+        };
     };
     let scope = Scope::Call(&name);
     match mode {
@@ -444,20 +538,20 @@ pub fn run(invocation: Invocation) -> Result<(), Failure> {
         ),
         Mode::Check => {
             let report = script.check_call_with_keywords(&name, &arguments, &keywords, &options)?;
-            accept(&file, scope, &report, mode, stats)
+            accept(&label, scope, &report, mode, stats)
         }
         Mode::Checked => {
             match script.checked_call_with_keywords(&name, &arguments, &keywords, options)? {
                 CheckedOutcome::Executed(outcome) => print_outcome(&outcome, stats),
                 CheckedOutcome::Rejected(report) => {
-                    Err(rejection(&file, scope, &report, mode, stats))
+                    Err(rejection(&label, scope, &report, mode, stats))
                 }
             }
         }
     }
 }
 
-/// Reads and compiles the file, then checks the whole file or one declaration.
+/// Compiles the input, then checks the whole file or snippet, or one declaration.
 ///
 /// Nothing is executed: no top-level statement, default, initializer, host
 /// callback or output writer runs, and no value is printed. A clean report
@@ -465,46 +559,48 @@ pub fn run(invocation: Invocation) -> Result<(), Failure> {
 /// `--stats` line always shows analysis counters.
 pub fn check(analysis: Analysis) -> Result<(), Failure> {
     let Analysis {
-        file,
+        input,
         module_paths,
         function,
         options,
         stats,
     } = analysis;
-    let script = load(&file, &module_paths)?;
+    let script = load(&input, &module_paths)?;
     let (report, scope) = match &function {
-        None => (script.check(&options)?, Scope::File),
+        None => (script.check(&options)?, Scope::whole(&input)),
         Some(name) => (
             script.check_function(name, &options)?,
             Scope::Declaration(name),
         ),
     };
-    accept(&file, scope, &report, Mode::Check, stats)
+    accept(&input.label(), scope, &report, Mode::Check, stats)
 }
 
-/// Reads and compiles one source file with the process streams attached.
-fn load(file: &Path, extra_paths: &[PathBuf]) -> Result<Script, Failure> {
-    let source = fs::read_to_string(file)
-        .map_err(|error| Failure::Failed(format!("cannot read {}: {error}", file.display())))?;
+/// Reads a file or takes the inline source, and compiles it with the process
+/// streams attached. Inline source never touches the file system except
+/// through the configured module roots.
+fn load(input: &Input, extra_paths: &[PathBuf]) -> Result<Script, Failure> {
+    let source = match input {
+        Input::File(file) => Cow::Owned(fs::read_to_string(file).map_err(|error| {
+            Failure::Failed(format!("cannot read {}: {error}", file.display()))
+        })?),
+        Input::Inline(source) => Cow::Borrowed(source.as_str()),
+    };
     let mut engine = Engine::new();
     engine.set_module_config(ModuleConfig {
-        paths: module_paths(file, extra_paths)?,
+        paths: module_paths(input.root(), extra_paths)?,
         ..ModuleConfig::default()
     })?;
     engine.set_output_writer(|_, bytes| forward(io::stdout().lock(), bytes));
     engine.set_error_writer(|_, bytes| forward(io::stderr().lock(), bytes));
     engine
         .compile(&source)
-        .map_err(|error| Failure::Failed(compile_failure(file, &error)))
+        .map_err(|error| Failure::Failed(compile_failure(&input.label(), &error)))
 }
 
-fn module_paths(file: &Path, extras: &[PathBuf]) -> Result<Vec<PathBuf>, Failure> {
-    let parent = file
-        .parent()
-        .filter(|path| !path.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."));
+fn module_paths(root: &Path, extras: &[PathBuf]) -> Result<Vec<PathBuf>, Failure> {
     let mut paths = Vec::new();
-    for path in std::iter::once(parent).chain(extras.iter().map(PathBuf::as_path)) {
+    for path in std::iter::once(root).chain(extras.iter().map(PathBuf::as_path)) {
         let canonical = fs::canonicalize(path).map_err(|error| {
             Failure::Failed(format!(
                 "cannot open module path {}: {error}",
@@ -555,14 +651,14 @@ fn stats_line(stats: &Stats) -> String {
 
 /// Finishes an analysis-only mode: a clean report prints at most its counters.
 fn accept(
-    file: &Path,
+    label: &str,
     scope: Scope<'_>,
     report: &CheckReport,
     mode: Mode,
     stats: bool,
 ) -> Result<(), Failure> {
     if !report.is_clean() {
-        return Err(rejection(file, scope, report, mode, stats));
+        return Err(rejection(label, scope, report, mode, stats));
     }
     if stats {
         eprintln!("{}", stats_line(&report.stats));
@@ -571,13 +667,13 @@ fn accept(
 }
 
 fn rejection(
-    file: &Path,
+    label: &str,
     scope: Scope<'_>,
     report: &CheckReport,
     mode: Mode,
     stats: bool,
 ) -> Failure {
-    let mut text = render_report(file, scope, report, mode);
+    let mut text = render_report(label, scope, report, mode);
     if stats {
         text.push('\n');
         text.push_str(&stats_line(&report.stats));
@@ -589,20 +685,20 @@ fn rejection(
 ///
 /// Known contradictions are rendered as `error` entries and unfinished
 /// analysis as `incomplete` entries, in the report's source order. Each entry
-/// names the input file (or the required module that owns the diagnostic),
-/// the one-based line and column, the containing function, the message and
-/// the library's code frame. The summary names the checked [`Scope`], counts
-/// both kinds separately and, in [`Mode::Checked`], states that nothing was
-/// executed.
-pub fn render_report(file: &Path, scope: Scope<'_>, report: &CheckReport, mode: Mode) -> String {
+/// names the input label: the file, `<eval>` for inline source, or the
+/// required module that owns the diagnostic. It then gives the one-based line
+/// and column, the containing function, the message and the library's code
+/// frame. The summary names the checked [`Scope`], counts both kinds
+/// separately and, in [`Mode::Checked`], states that nothing was executed.
+pub fn render_report(label: &str, scope: Scope<'_>, report: &CheckReport, mode: Mode) -> String {
     let mut text = String::new();
     for diagnostic in &report.diagnostics {
-        entry(&mut text, file, "error", diagnostic);
+        entry(&mut text, label, "error", diagnostic);
     }
     for diagnostic in &report.incomplete {
-        entry(&mut text, file, "incomplete", diagnostic);
+        entry(&mut text, label, "incomplete", diagnostic);
     }
-    text.push_str(&format!("{}: {scope} found ", file.display()));
+    text.push_str(&format!("{label}: {scope} found "));
     let errors = report.diagnostics.len();
     let incomplete = report.incomplete.len();
     if errors > 0 {
@@ -620,10 +716,10 @@ pub fn render_report(file: &Path, scope: Scope<'_>, report: &CheckReport, mode: 
     text
 }
 
-fn entry(text: &mut String, file: &Path, kind: &str, diagnostic: &CheckDiagnostic) {
+fn entry(text: &mut String, label: &str, kind: &str, diagnostic: &CheckDiagnostic) {
     match &diagnostic.filename {
         Some(name) => text.push_str(&module_filename(name)),
-        None => text.push_str(&file.display().to_string()),
+        None => text.push_str(label),
     }
     text.push_str(&format!(
         ":{}:{}: {kind} in {}: {}\n{}\n",
@@ -652,19 +748,18 @@ fn count(n: usize, singular: &str, plural: &str) -> String {
     format!("{n} {}", if n == 1 { singular } else { plural })
 }
 
-/// Renders a compile failure with the input filename. Located parse errors use
+/// Renders a compile failure with the input label. Located parse errors use
 /// the library's position and code frame; other failures keep their display.
-fn compile_failure(file: &Path, error: &Error) -> String {
+fn compile_failure(label: &str, error: &Error) -> String {
     match &error.diagnostic {
         Some(diagnostic) if error.kind == ErrorKind::Syntax => format!(
-            "{}:{}:{}: parse error: {}\n{}",
-            file.display(),
+            "{label}:{}:{}: parse error: {}\n{}",
             diagnostic.position.line,
             diagnostic.position.column,
             error.message,
             diagnostic.code_frame
         ),
-        _ => format!("{}: {error}", file.display()),
+        _ => format!("{label}: {error}"),
     }
 }
 
@@ -745,7 +840,7 @@ mod tests {
             "--checked",
             "--stats",
         ]);
-        assert_eq!(invocation.file, PathBuf::from("f.vibe"));
+        assert_eq!(invocation.input, Input::File(PathBuf::from("f.vibe")));
         assert_eq!(invocation.function.as_deref(), Some("run"));
         let arguments: Vec<_> = invocation.arguments.iter().map(Value::as_int).collect();
         assert_eq!(arguments, [Some(7), Some(-1)]);
@@ -774,7 +869,7 @@ mod tests {
             "--",
             "-x",
         ]);
-        assert_eq!(invocation.file, PathBuf::from("-x"));
+        assert_eq!(invocation.input, Input::File(PathBuf::from("-x")));
         assert_eq!(invocation.options.limits.steps, None);
         assert_eq!(invocation.options.limits.memory_bytes, None);
         assert_eq!(invocation.options.limits.recursion, 3);
@@ -794,7 +889,7 @@ mod tests {
     #[test]
     fn malformed_inputs_are_rejected_before_any_file_is_read() {
         for (args, message) in [
-            (&[][..], "expected source file; use --help"),
+            (&[][..], "expected source file or -e SOURCE; use --help"),
             (&["f", "--function"], "--function requires NAME"),
             (&["f", "--check"], "--check requires --function"),
             (&["f", "--checked"], "--checked requires --function"),
@@ -825,24 +920,119 @@ mod tests {
     }
 
     #[test]
+    fn inline_source_replaces_the_file_in_both_command_forms() {
+        let inline = invocation(&["-e", "-7", "--stats"]);
+        assert_eq!(inline.input, Input::Inline("-7".to_owned()));
+        assert_eq!(inline.mode, Mode::Execute);
+        assert!(inline.stats);
+        let inline = invocation(&["--function", "run", "--eval", "--check", "--check"]);
+        assert_eq!(inline.input, Input::Inline("--check".to_owned()));
+        assert_eq!(inline.mode, Mode::Check);
+        let whole = invocation(&["-e", "", "--check"]);
+        assert_eq!(whole.input, Input::Inline(String::new()));
+        assert_eq!(whole.function, None);
+        assert_eq!(whole.mode, Mode::Check);
+        let whole = analysis(&["check", "-e", "x = 1\n\"é\""]);
+        assert_eq!(whole.input, Input::Inline("x = 1\n\"é\"".to_owned()));
+        assert_eq!(whole.function, None);
+        let declaration = analysis(&["check", "--function", "C#read", "--eval", "7"]);
+        assert_eq!(declaration.input, Input::Inline("7".to_owned()));
+        assert_eq!(declaration.function.as_deref(), Some("C#read"));
+        assert_eq!(
+            invocation(&["--", "-e"]).input,
+            Input::File(PathBuf::from("-e"))
+        );
+        assert_eq!(
+            analysis(&["check", "-e", "check", "--"]).input,
+            Input::Inline("check".to_owned())
+        );
+        assert_eq!(Input::Inline("7".to_owned()).label(), EVAL_LABEL);
+        assert_eq!(Input::Inline("7".to_owned()).root(), Path::new("."));
+        assert_eq!(Input::File(PathBuf::from("f")).root(), Path::new("."));
+        assert_eq!(Input::File(PathBuf::from("dir/f")).root(), Path::new("dir"));
+    }
+
+    #[test]
+    fn inline_source_combinations_are_rejected_before_any_file_is_read() {
+        for (args, message) in [
+            (&["-e"][..], "-e requires SOURCE"),
+            (&["--eval"], "--eval requires SOURCE"),
+            (&["check", "-e"], "-e requires SOURCE"),
+            (
+                &["-e", "1", "-e", "2"],
+                "expected one inline source; -e or --eval was given twice",
+            ),
+            (
+                &["check", "--eval", "1", "-e", "1"],
+                "expected one inline source; -e or --eval was given twice",
+            ),
+            (&["f", "-e", "1"], "expected FILE or -e SOURCE, not both"),
+            (&["-e", "1", "f"], "expected FILE or -e SOURCE, not both"),
+            (
+                &["-e", "1", "--", "-e"],
+                "expected FILE or -e SOURCE, not both",
+            ),
+            (
+                &["check", "f", "-e", "1"],
+                "expected FILE or -e SOURCE, not both",
+            ),
+            (&["-e", "1", "--checked"], "--checked requires --function"),
+            (&["-e", "1", "--arg", "1"], "--arg requires --function"),
+            (
+                &["-e", "1", "--kwarg", "x=1"],
+                "--kwarg requires --function",
+            ),
+            (&["f", "--check"], "--check requires --function"),
+            (
+                &["-e", "1", "--function", "run", "--check", "--checked"],
+                "--check and --checked are mutually exclusive",
+            ),
+        ] {
+            assert_eq!(usage_error(args), message, "{args:?}");
+        }
+        assert!(
+            usage_error(&["check", "-e", "1", "--arg", "1"])
+                .starts_with("vibes check does not accept --arg; ")
+        );
+        assert!(matches!(
+            parsed(&["-e", "1", "--help"]),
+            Ok(Command::Help(HELP))
+        ));
+        #[cfg(unix)]
+        {
+            use std::os::unix::ffi::OsStringExt;
+            let args = [
+                OsString::from("-e"),
+                OsString::from_vec(b"puts 1\xff".to_vec()),
+            ];
+            match parse(args) {
+                Err(Failure::Usage(message)) => {
+                    assert_eq!(message, "-e value is not valid UTF-8");
+                }
+                other => panic!("{other:?}"),
+            }
+        }
+    }
+
+    #[test]
     fn check_command_selects_scopes_only_as_the_first_argument() {
         let whole = analysis(&["check", "--steps", "0", "--stats", "--", "-x"]);
-        assert_eq!(whole.file, PathBuf::from("-x"));
+        assert_eq!(whole.input, Input::File(PathBuf::from("-x")));
         assert_eq!(whole.function, None);
         assert_eq!(whole.options.limits.steps, None);
         assert_eq!(whole.options.limits.memory_bytes, Some(16 << 20));
         assert_eq!(whole.options.limits.recursion, 256);
         assert!(whole.stats);
         let declaration = analysis(&["check", "--function", "C#read", "check", "--recursion", "3"]);
-        assert_eq!(declaration.file, PathBuf::from("check"));
+        assert_eq!(declaration.input, Input::File(PathBuf::from("check")));
         assert_eq!(declaration.function.as_deref(), Some("C#read"));
         assert_eq!(declaration.options.limits.recursion, 3);
         assert!(!declaration.stats);
         let literal = invocation(&["--", "check"]);
-        assert_eq!(literal.file, PathBuf::from("check"));
+        assert_eq!(literal.input, Input::File(PathBuf::from("check")));
         assert_eq!(literal.mode, Mode::Execute);
         let literal = invocation(&["--stats", "check"]);
-        assert_eq!(literal.file, PathBuf::from("check"));
+        assert_eq!(literal.input, Input::File(PathBuf::from("check")));
         assert!(literal.stats);
         assert_eq!(usage_error(&["f", "check"]), "expected one source file");
         assert!(matches!(
@@ -872,7 +1062,7 @@ mod tests {
         for (args, message) in [
             (
                 &["check"][..],
-                "expected source file; use vibes check --help",
+                "expected source file or -e SOURCE; use vibes check --help",
             ),
             (&["check", "--function"], "--function requires NAME"),
             (&["check", "a", "b"], "expected one source file"),
@@ -894,12 +1084,7 @@ mod tests {
         let report = script
             .check_call("run", &[], &CallOptions::default())
             .unwrap();
-        let text = render_report(
-            Path::new("dir/x.vibe"),
-            Scope::Call("run"),
-            &report,
-            Mode::Checked,
-        );
+        let text = render_report("dir/x.vibe", Scope::Call("run"), &report, Mode::Checked);
         assert_eq!(
             text,
             "dir/x.vibe:2:3: error in run: Return value: expected int, got string\n  \
@@ -907,20 +1092,21 @@ mod tests {
              dir/x.vibe: check of run found 1 error; nothing was executed"
         );
         let report = script.check(&CallOptions::default()).unwrap();
-        let text = render_report(Path::new("x.vibe"), Scope::File, &report, Mode::Check);
+        let text = render_report("x.vibe", Scope::File, &report, Mode::Check);
         assert!(
             text.ends_with("\nx.vibe: check of the whole file found 1 error"),
+            "{text}"
+        );
+        let text = render_report(EVAL_LABEL, Scope::Snippet, &report, Mode::Check);
+        assert!(text.starts_with("<eval>:2:3: error in run: "), "{text}");
+        assert!(
+            text.ends_with("\n<eval>: check of the whole snippet found 1 error"),
             "{text}"
         );
         let report = script
             .check_function("run", &CallOptions::default())
             .unwrap();
-        let text = render_report(
-            Path::new("x.vibe"),
-            Scope::Declaration("run"),
-            &report,
-            Mode::Check,
-        );
+        let text = render_report("x.vibe", Scope::Declaration("run"), &report, Mode::Check);
         assert!(
             text.ends_with("\nx.vibe: check of run for its declared parameter types found 1 error"),
             "{text}"

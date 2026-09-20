@@ -8,7 +8,7 @@
 
 Keyword values follow `Script::call_with_keywords`: they bind by name rather than forming a trailing options hash, and a repeated name binds its last value. Every command-line value is parsed and validated before the file is read, so malformed JSON, numbers or option combinations never execute anything.
 
-The binary offers four ways to analyze or run a file:
+The binary offers these ways to analyze or run a file:
 
 | Invocation | Library entry | Scope | Executes |
 | --- | --- | --- | --- |
@@ -16,12 +16,29 @@ The binary offers four ways to analyze or run a file:
 | `vibes check --function NAME FILE` | `Script::check_function` | One declaration and whatever it reaches, for its declared parameter types and defaults; no concrete argument values. | Nothing. |
 | `vibes FILE --function NAME [--arg JSON]... --check` | `Script::check_call_with_keywords` | One concrete call with the supplied values and whatever it reaches. | Nothing. |
 | `vibes FILE --function NAME [--arg JSON]... --checked` | `Script::checked_call_with_keywords` | The same concrete call. | The call, only when its check is clean. |
+| `vibes -e SOURCE --check` | `Script::check` | The whole inline snippet, like `vibes check -e SOURCE`. | Nothing. |
 
 Analysis never executes script code, host callbacks, defaults or initializers. A clean `vibes check` or `--check` prints nothing unless `--stats` is requested and exits with status 0; a clean `--checked` proceeds to execution and prints its result. Unsupported analysis is reported as `incomplete`. Dynamic values retain their runtime contracts, so a clean report can still be followed by an execution error.
 
+## Inline source
+
+`-e SOURCE` or `--eval SOURCE` supplies the source on the command line instead of FILE, in both command forms. The value is taken verbatim, so `-e -7` prints `-7` and `vibes -- -e` runs a file named `-e`. It may be given once, never together with FILE, and must be valid UTF-8; empty source is valid and evaluates to `null`. These rules are checked with the rest of the command line, before any file or module directory is read. No temporary file is written.
+
+```sh
+vibes -e 'x = 2
+y = 3
+x * y'                                                  # 6
+vibes -e 'def run(x:int) -> int; x + 1; end' --function run --arg 41 --checked
+vibes check -e 'def unused(n:string) -> int; n; end'    # rejects the unused declaration
+```
+
+Reports and parse errors name inline source `<eval>`; diagnostics from required modules keep their own filenames. A whole-snippet summary reads `check of the whole snippet`.
+
+Every scope is available for inline source. `--function NAME` with `--check` or `--checked` keeps its exact-call meaning, and `vibes check -e SOURCE --function NAME` checks one declaration. Without `--function`, `vibes -e SOURCE --check` checks the whole snippet, exactly as `vibes check -e SOURCE` does, so unused functions and methods are covered as ADR-004 of the reference implementation requires for snippets; `vibes FILE --check` still requires `--function`, because `vibes check FILE` already covers the whole file. `--checked` requires `--function` in every case.
+
 ## Required modules
 
-The CLI searches the input file's directory first for calls such as `require(:helpers)`. Repeatable `--module-path DIR` options append search roots in the order supplied. Relative option paths are resolved from the process working directory; the script directory remains first even when the command runs elsewhere. Duplicate directory paths are collapsed, and missing paths or ordinary files are rejected before execution.
+The CLI searches the input file's directory first for calls such as `require(:helpers)`; for inline source, the process working directory is searched first instead. Repeatable `--module-path DIR` options append search roots in the order supplied. Relative option paths are resolved from the process working directory; the script directory remains first even when the command runs elsewhere. Duplicate directory paths are collapsed, and missing paths or ordinary files are rejected before execution.
 
 ```sh
 vibes --module-path shared --module-path vendor app/main.vibe
@@ -104,7 +121,7 @@ add.vibe:1:1: error in run: "run": argument "x": expected int, got string
 add.vibe: check of run found 1 error; nothing was executed
 ```
 
-The summary reads `check of the whole file` for `vibes check FILE`, `check of NAME for its declared parameter types` for `vibes check --function NAME FILE` and `check of NAME` for an exact call; a rejected `--checked` call adds `; nothing was executed`. Incomplete analysis is never treated as clean and never causes the checker to execute source code to discover types; a `require` the checker cannot analyze stays an `incomplete` entry in every mode. Both kinds exit with status 1.
+The summary reads `check of the whole file` for `vibes check FILE`, `check of the whole snippet` for a whole `-e` check, `check of NAME for its declared parameter types` for `vibes check --function NAME FILE` and `check of NAME` for an exact call; a rejected `--checked` call adds `; nothing was executed`. Incomplete analysis is never treated as clean and never causes the checker to execute source code to discover types; a `require` the checker cannot analyze stays an `incomplete` entry in every mode. Both kinds exit with status 1.
 
 ## Limits and counters
 
