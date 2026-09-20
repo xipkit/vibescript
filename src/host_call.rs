@@ -3,6 +3,7 @@ use crate::{CallContext, Result, Value};
 pub(crate) trait Backend {
     fn context(&mut self) -> &mut CallContext;
     fn block_given(&self) -> bool;
+    fn receiver(&mut self) -> Result<Option<Value>>;
     fn call_block(&mut self, args: &[Value]) -> Result<Value>;
 }
 
@@ -49,6 +50,50 @@ impl<'a> HostCall<'a> {
     /// Reports whether the script attached a block to this method call.
     pub fn block_given(&self) -> bool {
         self.backend.block_given()
+    }
+
+    /// Returns an isolated, accounted snapshot of this call's member receiver.
+    ///
+    /// The receiver is the object or hash the script selected the method from,
+    /// such as `cap` in `cap.send(1)`, `cap[:send](1)` or `cap::send(1)`, as
+    /// it was when the callee was resolved, before the arguments ran. Later
+    /// script writes replace the receiver's binding and never show through the
+    /// snapshot; the host may keep the value. A method reached without a member
+    /// lookup, such as a registered global or a granted bare descriptor, has no
+    /// receiver and returns `None`. Descriptors inside the snapshot keep this
+    /// invocation's grant and cannot authorize a later call. Cancellation and
+    /// latched quota errors surface here like any other boundary crossing.
+    ///
+    /// ```
+    /// use vibescript::{CallOptions, Capability, Engine, HostMethod, Value};
+    /// let read = HostMethod::new_with_block("counter.read", |call, _, _| {
+    ///     let receiver = call.receiver()?.expect("member call");
+    ///     let value = receiver
+    ///         .as_hash()
+    ///         .and_then(|entries| {
+    ///             entries
+    ///                 .iter()
+    ///                 .find(|(key, _)| key.as_bytes() == Some(b"value".as_slice()))
+    ///         })
+    ///         .map(|(_, value)| value.clone());
+    ///     Ok(value.unwrap_or_else(Value::nil))
+    /// });
+    /// let counter = Capability::new("counter", move |_| {
+    ///     Ok(Value::object(vec![
+    ///         (b"value".to_vec(), Value::int(5)),
+    ///         (b"read".to_vec(), read.value()),
+    ///     ]))
+    /// });
+    /// let script = Engine::new().compile("counter.read()")?;
+    /// let result = script.run(CallOptions {
+    ///     capabilities: vec![counter],
+    ///     ..CallOptions::default()
+    /// })?;
+    /// assert_eq!(result.value.as_int(), Some(5));
+    /// # Ok::<(), vibescript::Error>(())
+    /// ```
+    pub fn receiver(&mut self) -> Result<Option<Value>> {
+        self.backend.receiver()
     }
 
     /// Runs the attached block synchronously with isolated, accounted arguments.

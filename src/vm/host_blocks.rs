@@ -9,6 +9,7 @@ pub(super) struct HostRequest {
 
 pub(super) struct HostControl {
     pub block: Option<Block>,
+    receiver: Option<Value>,
     pending: Option<Control>,
 }
 
@@ -16,6 +17,7 @@ impl HostControl {
     pub fn new(request: &HostRequest) -> Self {
         Self {
             block: request.args.block,
+            receiver: request.args.receiver.clone(),
             pending: None,
         }
     }
@@ -27,6 +29,18 @@ impl HostControl {
         }
         self.block
             .ok_or_else(|| Error::new(ErrorKind::Argument, "block required"))
+    }
+
+    /// Returns an accounted snapshot of the member receiver, if the call has one.
+    ///
+    /// The snapshot crosses the boundary through the ordinary import, so an
+    /// invocation-owned value is shared and anything else is copied and charged.
+    pub fn receiver(&self, ctx: &mut CallContext) -> Result<Option<Value>> {
+        ctx.checkpoint()?;
+        self.receiver
+            .as_ref()
+            .map(|receiver| ctx.import(receiver))
+            .transpose()
     }
 
     pub fn completed(&mut self, result: Result<Exit>) -> Result<Value> {
@@ -59,6 +73,10 @@ impl crate::host_call::Backend for Borrowed<'_> {
 
     fn block_given(&self) -> bool {
         self.control.block.is_some()
+    }
+
+    fn receiver(&mut self) -> Result<Option<Value>> {
+        self.control.receiver(self.context)
     }
 
     fn call_block(&mut self, args: &[Value]) -> Result<Value> {

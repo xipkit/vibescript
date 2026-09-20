@@ -67,6 +67,24 @@ impl AsyncHostCall {
         self.control.as_ref().unwrap().block.is_some()
     }
 
+    /// Returns an isolated, accounted snapshot of this call's member receiver.
+    ///
+    /// The receiver is the object or hash the script selected the method from,
+    /// captured when the callee was resolved. It stays available across waits
+    /// and after block calls; a method reached without a member lookup returns
+    /// `None`. Reading follows the same retiring and latched-error rules as
+    /// [`Self::context`]. See [`crate::HostCall::receiver`] for the value rules.
+    pub fn receiver(&mut self) -> Result<Option<Value>> {
+        if let Some(error) = &self.failure {
+            return Err(error.clone());
+        }
+        let execution = self.execution.as_mut().ok_or_else(retiring)?;
+        self.control
+            .as_ref()
+            .unwrap()
+            .receiver(&mut execution.execution.context)
+    }
+
     /// Runs the attached block with owned arguments on the receiving runner.
     ///
     /// Arguments are isolated and accounted before script execution. `break`
@@ -475,6 +493,11 @@ impl crate::host_call::Backend for Synchronous {
 
     fn block_given(&self) -> bool {
         self.control.block.is_some()
+    }
+
+    fn receiver(&mut self) -> Result<Option<Value>> {
+        let execution = &mut *self.execution.as_mut().unwrap().execution;
+        self.control.receiver(&mut execution.context)
     }
 
     fn call_block(&mut self, args: &[Value]) -> Result<Value> {

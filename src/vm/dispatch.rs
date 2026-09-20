@@ -82,13 +82,19 @@ fn invoke(
     };
     let method = match method {
         Some(method) => Some(method),
-        None => capabilities::member(ctx, site, name, receiver)?,
+        None => capabilities::member(ctx, site, name, receiver)?.map(|method| {
+            crate::capability::SelectedMethod {
+                method,
+                receiver: receiver.clone(),
+            }
+        }),
     };
     if let Some(method) = method {
-        let value = capabilities::call(
+        let value = capabilities::call_on(
             ctx,
             storage,
-            &method,
+            &method.method,
+            Some(&method.receiver),
             &args.positional.data,
             &args.keywords.buffer.data,
             args.block,
@@ -153,10 +159,12 @@ fn invoke(
             return Ok(());
         }
         namespaces::Member::Value(value) => {
-            let value = capabilities::field(
+            let receiver = receiver.clone();
+            let value = capabilities::field_on(
                 ctx,
                 storage,
                 site,
+                Some(&receiver),
                 value,
                 &args.positional.data,
                 &args.keywords.buffer.data,
@@ -378,10 +386,11 @@ pub(super) fn reduce(
                     parenthesized: false,
                     scope: false,
                 };
-                let value = capabilities::field(
+                let value = capabilities::field_on(
                     ctx,
                     storage,
                     site,
+                    Some(&receiver),
                     hash.buffer.data[index].1.clone(),
                     &args.positional.data,
                     &[],

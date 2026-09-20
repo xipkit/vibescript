@@ -31,6 +31,9 @@ pub(crate) struct Arguments {
     pub options_hash: bool,
     pub target: Option<Target>,
     pub block: Option<Block>,
+    /// The value a host method was selected from, kept only for the duration
+    /// of that one invocation so a shared descriptor never learns a receiver.
+    pub receiver: Option<Value>,
 }
 
 #[derive(Clone, Copy)]
@@ -47,6 +50,7 @@ impl Arguments {
             options_hash: true,
             target: None,
             block: None,
+            receiver: None,
         }
     }
 
@@ -62,6 +66,16 @@ impl Arguments {
         self.options_hash =
             !parenthesized || !matches!(&target, Target::Method(call) if !call.constructor);
         self.target = Some(target);
+    }
+
+    /// Keeps a pending member receiver only when the resolved callee is a host
+    /// method; every other callee drops it.
+    pub fn keep_receiver(&mut self, receiver: Option<Value>) {
+        self.receiver = if matches!(self.target, Some(Target::Capability(_))) {
+            receiver
+        } else {
+            None
+        };
     }
 
     pub fn skip(&mut self, ctx: &mut CallContext, count: usize) -> Result<()> {

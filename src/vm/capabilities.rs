@@ -61,10 +61,40 @@ pub(super) fn bind(ctx: &mut CallContext, storage: &mut Storage) -> Result<()> {
     result
 }
 
+/// Selects the member receiver a host callback may snapshot.
+///
+/// A bare descriptor reached without a member lookup, or through another bare
+/// descriptor, has no receiver.
+fn member_receiver(receiver: Option<&Value>) -> Option<Value> {
+    receiver
+        .filter(|value| !matches!(value.0, Kind::Host(_)))
+        .cloned()
+}
+
+/// Calls a bound method without a member receiver.
 pub(super) fn call(
     ctx: &mut CallContext,
     storage: &mut Storage,
     method: &Arc<crate::capability::BoundMethod>,
+    args: &[Value],
+    keywords: &[(Value, Value)],
+    block: Option<Block>,
+    auto: bool,
+) -> Result<Call> {
+    call_on(ctx, storage, method, None, args, keywords, block, auto)
+}
+
+/// Calls a bound method selected from `receiver`.
+///
+/// The receiver rides on the transient frame arguments of block-capable and
+/// signed methods only; plain callbacks never observe it, and it is released
+/// with the invocation.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn call_on(
+    ctx: &mut CallContext,
+    storage: &mut Storage,
+    method: &Arc<crate::capability::BoundMethod>,
+    receiver: Option<&Value>,
     args: &[Value],
     keywords: &[(Value, Value)],
     block: Option<Block>,
@@ -80,6 +110,7 @@ pub(super) fn call(
         }
         saved.block = block;
         saved.target = Some(crate::arguments::Target::Capability(method.clone()));
+        saved.receiver = member_receiver(receiver);
         return Ok(Call::Block(saved));
     }
     let value = method.call(ctx, args, keywords, block.is_some())?;
@@ -131,6 +162,7 @@ pub(super) fn member(
     Ok(None)
 }
 
+/// Calls a stored field value without a member receiver.
 pub(super) fn field(
     ctx: &mut CallContext,
     storage: &mut Storage,
@@ -140,8 +172,25 @@ pub(super) fn field(
     keywords: &[(Value, Value)],
     block: Option<Block>,
 ) -> Result<Call> {
+    field_on(ctx, storage, site, None, value, args, keywords, block)
+}
+
+/// Calls a field value selected from `receiver`; host methods keep the receiver.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn field_on(
+    ctx: &mut CallContext,
+    storage: &mut Storage,
+    site: crate::bytecode::CallSite,
+    receiver: Option<&Value>,
+    value: Value,
+    args: &[Value],
+    keywords: &[(Value, Value)],
+    block: Option<Block>,
+) -> Result<Call> {
     if let Kind::Host(method) = &value.0 {
-        call(ctx, storage, method, args, keywords, block, site.auto)
+        call_on(
+            ctx, storage, method, receiver, args, keywords, block, site.auto,
+        )
     } else {
         members::field_call(ctx, site, value, args, keywords, block.is_some()).map(Call::Value)
     }

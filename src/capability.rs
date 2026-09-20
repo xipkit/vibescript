@@ -185,6 +185,10 @@ impl HostMethod {
     /// The scoped [`crate::HostCall`] supplies the original invocation's context
     /// and enforces the block's lifetime. The callback also runs when no block is
     /// attached; use its `block_given` method or a block contract to require one.
+    /// The same handle exposes the member receiver the script called the method
+    /// on through [`crate::HostCall::receiver`], so a descriptor installed into
+    /// several objects can read the fields of whichever object was used. The
+    /// receiver belongs to the invocation, never to this descriptor.
     pub fn new_with_block(
         name: impl Into<String>,
         callback: impl Fn(&mut crate::HostCall<'_>, &[Value], &[(Value, Value)]) -> Result<Value>
@@ -206,7 +210,8 @@ impl HostMethod {
     /// Creates an async method hosted by [`crate::asynchronous::Runner`].
     ///
     /// The future may borrow its scoped handle and arguments across waits. Use
-    /// the handle's `call_block` to run an attached block on a bounded worker.
+    /// the handle's `call_block` to run an attached block on a bounded worker,
+    /// and its `receiver` to snapshot the object the method was called on.
     /// Script-owned values and block storage remain accounted while suspended.
     /// The host must account its own work and keep each future poll bounded.
     /// A synchronous script call reports a catchable host error at this method.
@@ -369,6 +374,12 @@ impl fmt::Debug for Definition {
             .field("name", &self.name)
             .finish_non_exhaustive()
     }
+}
+
+#[derive(Clone)]
+pub(crate) struct SelectedMethod {
+    pub method: Arc<BoundMethod>,
+    pub receiver: Value,
 }
 
 #[derive(Debug)]

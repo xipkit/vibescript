@@ -735,12 +735,16 @@ impl Run {
                             members::prepare(ctx, site, &program.members[site.name], receiver)?;
                         match field {
                             Some(Value(Kind::Host(method))) if mutating => {
+                                let selected = crate::capability::SelectedMethod {
+                                    method,
+                                    receiver: receiver.clone(),
+                                };
                                 storage.addresses.data.last_mut().unwrap().capability =
-                                    Some(method);
+                                    Some(selected);
                             }
-                            Some(value @ Value(Kind::Host(_))) => {
-                                *stack.data.last_mut().unwrap() = value;
-                            }
+                            // The receiver stays on the stack so the call can snapshot
+                            // it; dispatch selects the same field from the same value.
+                            Some(Value(Kind::Host(_))) => (),
                             Some(Value(Kind::Function(function))) if mutating => {
                                 storage.addresses.data.last_mut().unwrap().exported =
                                     Some(function);
@@ -1535,6 +1539,22 @@ impl Run {
                     } else {
                         crate::sequence::slice(ctx, root, args, false)?
                     };
+                    if matches!(value.0, Kind::Host(_))
+                        && matches!(root.0, Kind::Hash(_))
+                        && matches!(
+                            program.functions[frame.function.unwrap()]
+                                .code
+                                .get(frame.ip),
+                            Some(Op::CallValue)
+                        )
+                    {
+                        // `receiver[:name](...)` selects its callee here, before the
+                        // arguments run; CallValue keeps the root only for host methods.
+                        let receiver = root.clone();
+                        if let Some(pending) = frame.arguments.data.last_mut() {
+                            pending.receiver = Some(receiver);
+                        }
+                    }
                     stack.data.truncate(base);
                     stack.push(ctx, value)?;
                 }
@@ -1981,13 +2001,18 @@ impl Run {
                             &program.members[site.name],
                             &address.value,
                         )?
+                        .map(|method| crate::capability::SelectedMethod {
+                            method,
+                            receiver: address.value.clone(),
+                        })
                     };
                     if let Some(method) = method {
                         let base = stack.data.len() - n;
-                        let value = capabilities::call(
+                        let value = capabilities::call_on(
                             ctx,
                             storage,
-                            &method,
+                            &method.method,
+                            Some(&method.receiver),
                             &stack.data[base..],
                             &[],
                             None,
@@ -2046,10 +2071,11 @@ impl Run {
                                 continue;
                             }
                             namespaces::Member::Value(value) => {
-                                let value = capabilities::field(
+                                let value = capabilities::field_on(
                                     ctx,
                                     storage,
                                     site,
+                                    Some(receiver),
                                     value,
                                     &stack.data[base..],
                                     &[],
@@ -2308,15 +2334,15 @@ impl Run {
                 }
                 Op::CallValue => {
                     let value = stack.data.pop().unwrap();
-                    frame
-                        .arguments
-                        .data
-                        .last_mut()
-                        .unwrap()
-                        .resolve(value_invocation(&value), true);
+                    let args = frame.arguments.data.last_mut().unwrap();
+                    // An immediate `receiver[:name](...)` left its root here.
+                    let pending = args.receiver.take();
+                    args.resolve(value_invocation(&value), true);
+                    args.keep_receiver(pending);
                 }
                 Op::CallMember(site) => {
                     let receiver = stack.data.pop().unwrap();
+                    let selected = receiver.clone();
                     let target = call_targets::member(
                         program,
                         ctx,
@@ -2326,12 +2352,9 @@ impl Run {
                         namespace,
                         self_value.is_some(),
                     )?;
-                    frame
-                        .arguments
-                        .data
-                        .last_mut()
-                        .unwrap()
-                        .resolve(target, site.parenthesized);
+                    let args = frame.arguments.data.last_mut().unwrap();
+                    args.resolve(target, site.parenthesized);
+                    args.keep_receiver(Some(selected));
                 }
                 Op::ResolveCall(slot, name, parenthesized) => {
                     let name_index = name;
@@ -2425,10 +2448,11 @@ impl Run {
                     };
                     let target = match target {
                         crate::arguments::Target::Capability(method) => {
-                            let value = capabilities::call(
+                            let value = capabilities::call_on(
                                 ctx,
                                 storage,
                                 &method,
+                                args.receiver.as_ref(),
                                 &args.positional.data,
                                 &args.keywords.buffer.data,
                                 args.block,
@@ -2678,10 +2702,11 @@ impl Run {
                     if let Some(method) =
                         capabilities::member(ctx, site, &program.members[site.name], &root)?
                     {
-                        let value = capabilities::call(
+                        let value = capabilities::call_on(
                             ctx,
                             storage,
                             &method,
+                            Some(&root),
                             &stack.data[base + 1..],
                             &[],
                             None,
@@ -2731,10 +2756,11 @@ impl Run {
                                 continue;
                             }
                             namespaces::Member::Value(value) => {
-                                let value = capabilities::field(
+                                let value = capabilities::field_on(
                                     ctx,
                                     storage,
                                     site,
+                                    Some(receiver),
                                     value,
                                     &stack.data[base + 1..],
                                     &[],

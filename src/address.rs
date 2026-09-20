@@ -52,7 +52,7 @@ pub(crate) struct Address {
     pub selectors: Buffer<Value>,
     pub member_target: bool,
     pub exported: Option<std::sync::Arc<crate::exports::Function>>,
-    pub capability: Option<std::sync::Arc<crate::capability::BoundMethod>>,
+    pub capability: Option<crate::capability::SelectedMethod>,
 }
 
 impl Address {
