@@ -830,6 +830,7 @@ fn normalization_honors_exact_quotas_and_releases_interrupted_work() {
             "def consume(h:{{{fields}}})->int;if h.empty?;0;else;\"bad\";end;end;def run(h:hash<string,string?>)->int;consume(h);end"
         ),
         "def consume(h:hash<int,int>)->int;\"bad\";end;def run(h)->int;begin;consume(h);\"unreachable\";rescue RuntimeError;0;end;end".into(),
+        "def run;a=[1,2,3,4];[a.shuffle,a.rotate,a.sample(2),a.product(a),a.combination(2),a.permutation(2),a.repeated_combination(2),a.repeated_permutation(2)];end".into(),
     ] {
         let program = bytecode::compile(&source, Vec::new(), &()).unwrap();
         normalization_quotas(&program);

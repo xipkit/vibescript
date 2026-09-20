@@ -209,6 +209,16 @@ pub(crate) fn call_keywords(
     )? {
         return Ok((receiver, result));
     }
+    if let Some(result) = crate::combinatorics::call(
+        ctx,
+        name,
+        &receiver,
+        &args.positional.data,
+        !args.keywords.buffer.data.is_empty(),
+        args.block.is_some(),
+    )? {
+        return Ok((receiver, result));
+    }
     if let Some(result) = crate::text::charset::call(
         ctx,
         name,
@@ -338,6 +348,9 @@ pub(crate) fn call(
         return Ok((receiver, result));
     }
     if let Some(result) = crate::sets::call(ctx, name, &receiver, args, false)? {
+        return Ok((receiver, result));
+    }
+    if let Some(result) = crate::combinatorics::call(ctx, name, &receiver, args, false, false)? {
         return Ok((receiver, result));
     }
     if let Some(result) = crate::text::charset::call(ctx, name, &receiver, args, false, false)? {

@@ -220,6 +220,25 @@ impl CallContext {
         Ok(())
     }
 
+    /// Fails with latched step exhaustion when `steps` further units cannot fit
+    /// the quota, without consuming them. Materializers use it to reject work
+    /// whose size is known up front before allocating or iterating.
+    pub(crate) fn check_steps(&mut self, steps: u64) -> Result<()> {
+        if let Some(err) = &self.exhausted {
+            return Err(err.clone());
+        }
+        if let Some(limit) = self.options.limits.steps {
+            if self
+                .steps
+                .checked_add(steps)
+                .is_none_or(|total| total > limit)
+            {
+                return self.fail(ErrorKind::Steps, "step quota exceeded");
+            }
+        }
+        self.checkpoint()
+    }
+
     /// Checks cancellation, deadline, and previously latched exhaustion immediately.
     pub fn checkpoint(&mut self) -> Result<()> {
         if let Some(err) = &self.exhausted {

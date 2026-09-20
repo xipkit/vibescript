@@ -103,7 +103,10 @@ fn next(ctx: &mut CallContext) -> Result<u64> {
     }
 }
 
-fn bounded(ctx: &mut CallContext, bound: u64) -> Result<u64> {
+/// Draws a uniform integer below `bound` from the call's seeded sequence or its
+/// entropy source, exactly as `rand(bound)` does, so array sampling shares the
+/// call-local random state and its determinism under a fixed seed.
+pub(crate) fn bounded(ctx: &mut CallContext, bound: u64) -> Result<u64> {
     debug_assert!(bound > 0);
     if ctx.random.is_some() && bound <= i64::MAX as u64 {
         if bound.is_power_of_two() {

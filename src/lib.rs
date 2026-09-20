@@ -20,6 +20,7 @@ mod casing;
 mod checking;
 mod code;
 mod collections;
+mod combinatorics;
 mod compilation;
 mod conversion;
 mod duration;

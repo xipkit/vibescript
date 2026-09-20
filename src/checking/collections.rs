@@ -1,8 +1,23 @@
 use super::{
     facts::{Atom, Fact, Facts, HashKind, Node},
+    integers::Bounds,
     scalar::{Operation, Test},
 };
 use crate::{CallContext, Result, Value, budget::Buffer, bytecode::CallSite};
+
+/// One arm of a count argument after the runtime's integer conversion.
+enum Count {
+    /// Converts to exactly this integer (literal integers and finite floats).
+    Exact(i64),
+    /// An integer whose sign or size is only bounded.
+    Bounded(Bounds),
+    /// A float that converts only when finite and within the integer range.
+    Float,
+    Invalid,
+    Unknown,
+    Never,
+    Unsupported,
+}
 
 fn outcome(value: Fact) -> Operation {
     Operation {
@@ -585,6 +600,9 @@ impl Facts {
             // has already analyzed the stored value or its absence.
             return Ok(outcome(Atom::Never.fact()));
         }
+        if array && crate::combinatorics::method(name) {
+            return self.combinatoric_member(ctx, receiver, name, args);
+        }
         let arity = match name {
             "to_a" if hash => 0..=0,
             "length" | "size" | "bytesize" | "empty?" | "keys" | "values" | "reverse"
@@ -643,7 +661,7 @@ impl Facts {
                     },
                     Node::Array(_) => self.integer_range(
                         ctx,
-                        super::integers::Bounds {
+                        Bounds {
                             min: Some(0),
                             max: None,
                         },
@@ -768,6 +786,274 @@ impl Facts {
             }
             _ => Ok(rejected()),
         }
+    }
+
+    /// Models the natively materialized array members (`sample`, `shuffle`,
+    /// `rotate`, `product` and the tuple generators). Counts must be numeric
+    /// and product dimensions must be arrays; every result aliases the
+    /// receiver's elements without narrowing them. Literal lengths select the
+    /// known-empty and single-empty-row results the runtime produces.
+    fn combinatoric_member(
+        &mut self,
+        ctx: &mut CallContext,
+        receiver: Fact,
+        name: &str,
+        args: &[Fact],
+    ) -> Result<Operation> {
+        let arity = match name {
+            "shuffle" => 0..=0,
+            "sample" | "rotate" | "permutation" => 0..=1,
+            "combination" | "repeated_combination" | "repeated_permutation" => 1..=1,
+            _ => 0..=usize::MAX,
+        };
+        if !arity.contains(&args.len()) {
+            return Ok(rejected());
+        }
+        let element = self.elements(ctx, receiver)?;
+        let length = match self.node(receiver) {
+            Node::Tuple(values) => Some(values.data.len()),
+            _ => None,
+        };
+        let empty = length == Some(0);
+        if name == "product" {
+            return self.product_member(ctx, element, args);
+        }
+        let same_elements = |facts: &mut Self, ctx: &mut CallContext| -> Result<Fact> {
+            if empty {
+                facts.tuple(ctx, &[])
+            } else {
+                facts.array(ctx, element)
+            }
+        };
+        if args.is_empty() {
+            return Ok(outcome(match name {
+                "shuffle" | "rotate" => self.combinatoric_array(ctx, element, length)?,
+                "sample" => {
+                    if empty {
+                        Atom::Nil.fact()
+                    } else if length.is_some() {
+                        element
+                    } else {
+                        self.nullable(ctx, element)?
+                    }
+                }
+                _ => {
+                    if empty {
+                        let row = self.tuple(ctx, &[])?;
+                        self.tuple(ctx, &[row])?
+                    } else {
+                        let row = self.array(ctx, element)?;
+                        self.array(ctx, row)?
+                    }
+                }
+            }));
+        }
+        let mut result = outcome(Atom::Never.fact());
+        for i in 0..self.arm_count(args[0]) {
+            ctx.charge(1)?;
+            let count = self.arm(args[0], i);
+            let (bounds, uncertain) = match self.count_arm(count, name == "sample") {
+                Count::Exact(value) => (Some(Bounds::point(value)), false),
+                Count::Bounded(bounds) => {
+                    (Some(bounds), bounds.min.is_none() || bounds.max.is_none())
+                }
+                Count::Float => (None, true),
+                Count::Unknown => {
+                    let value = match name {
+                        "rotate" => self.combinatoric_array(ctx, element, length)?,
+                        "sample" => same_elements(self, ctx)?,
+                        _ => {
+                            let row = self.array(ctx, element)?;
+                            self.array(ctx, row)?
+                        }
+                    };
+                    self.merge_operation(
+                        ctx,
+                        &mut result,
+                        Operation {
+                            throws: true,
+                            ..outcome(value)
+                        },
+                    )?;
+                    continue;
+                }
+                Count::Never => continue,
+                Count::Invalid => {
+                    self.merge_operation(ctx, &mut result, rejected())?;
+                    continue;
+                }
+                Count::Unsupported => {
+                    self.merge_operation(ctx, &mut result, unsupported())?;
+                    continue;
+                }
+            };
+            let negative = bounds.is_some_and(|b| b.max.is_some_and(|max| max < 0));
+            let non_negative = bounds.is_some_and(|b| b.min.is_some_and(|min| min >= 0));
+            let zero = bounds == Some(Bounds::point(0));
+            let exact = bounds.and_then(|b| b.min.filter(|_| b.min == b.max));
+            let mut next = match name {
+                "rotate" => outcome(self.combinatoric_array(ctx, element, length)?),
+                "sample" => {
+                    if negative {
+                        rejected()
+                    } else if zero {
+                        outcome(self.tuple(ctx, &[])?)
+                    } else if let (Some(count), Some(length)) = (exact, length) {
+                        let count = usize::try_from(count).unwrap_or(usize::MAX).min(length);
+                        outcome(self.combinatoric_array(ctx, element, Some(count))?)
+                    } else {
+                        // A count that may still be negative fails only at runtime.
+                        Operation {
+                            throws: !non_negative,
+                            ..outcome(same_elements(self, ctx)?)
+                        }
+                    }
+                }
+                _ => {
+                    let repeated = name.starts_with("repeated_");
+                    let min = bounds.and_then(|b| b.min);
+                    let known_empty = negative
+                        || (repeated && empty && min.is_some_and(|min| min > 0))
+                        || (!repeated
+                            && length.is_some_and(|length| {
+                                min.is_some_and(|min| {
+                                    u64::try_from(min).is_ok_and(|v| v > length as u64)
+                                })
+                            }));
+                    if known_empty {
+                        outcome(self.tuple(ctx, &[])?)
+                    } else if zero {
+                        let row = self.tuple(ctx, &[])?;
+                        outcome(self.tuple(ctx, &[row])?)
+                    } else {
+                        let row = self.array(ctx, element)?;
+                        outcome(self.array(ctx, row)?)
+                    }
+                }
+            };
+            // A broad integer domain includes big integers; floats must be
+            // finite. Keep their possible index-conversion failures.
+            next.throws |= uncertain;
+            self.merge_operation(ctx, &mut result, next)?;
+        }
+        Ok(result)
+    }
+
+    fn combinatoric_array(
+        &mut self,
+        ctx: &mut CallContext,
+        element: Fact,
+        length: Option<usize>,
+    ) -> Result<Fact> {
+        let Some(length) = length else {
+            return self.array(ctx, element);
+        };
+        let mut values = Buffer::with_capacity(ctx, length)?;
+        for _ in 0..length {
+            ctx.charge(1)?;
+            values.data.push(element);
+        }
+        self.tuple(ctx, &values.data)
+    }
+
+    /// Classifies one count argument arm the way the runtime's integer
+    /// conversion does. `sample` additionally accepts a float equal to
+    /// `2^63`, which the other members reject.
+    fn count_arm(&self, count: Fact, sample: bool) -> Count {
+        const LIMIT: f64 = 9_223_372_036_854_775_808.0;
+        match self.node(count) {
+            Node::Integer(value) => Count::Exact(*value),
+            Node::IntegerBounds(bounds) => Count::Bounded(*bounds),
+            Node::Atom(Atom::Int) => Count::Bounded(Bounds::ALL),
+            Node::Float(bits) => {
+                let value = f64::from_bits(*bits);
+                if !value.is_finite() || value < i64::MIN as f64 {
+                    Count::Invalid
+                } else if value < LIMIT {
+                    Count::Exact(value as i64)
+                } else if sample && value == LIMIT {
+                    Count::Exact(i64::MAX)
+                } else {
+                    Count::Invalid
+                }
+            }
+            Node::Atom(Atom::Float) => Count::Float,
+            Node::Atom(Atom::Unknown | Atom::Any) => Count::Unknown,
+            Node::Atom(Atom::Never) => Count::Never,
+            Node::Array(_)
+            | Node::Tuple(_)
+            | Node::Hash(..)
+            | Node::Shape(..)
+            | Node::Protected(..) => Count::Invalid,
+            _ if self.atom(count).is_some() => Count::Invalid,
+            _ => Count::Unsupported,
+        }
+    }
+
+    /// Models `product`: every supplied dimension is validated before any
+    /// empty shortcut applies, mirroring the runtime. Valid and failing arms
+    /// of each argument are recorded independently so a rejected alternative
+    /// neither hides a later invalid argument nor erases the successful
+    /// result; unknown dimensions admit the call without dropping known
+    /// failures.
+    fn product_member(
+        &mut self,
+        ctx: &mut CallContext,
+        element: Fact,
+        args: &[Fact],
+    ) -> Result<Operation> {
+        let mut result = outcome(Atom::Never.fact());
+        let mut dims = Buffer::empty();
+        dims.push(ctx, element)?;
+        let mut vacant = element == Atom::Never.fact();
+        let mut viable = true;
+        for &arg in args {
+            ctx.charge(1)?;
+            let mut alternatives = Buffer::empty();
+            let mut admitted = false;
+            let mut certainly_empty = true;
+            for i in 0..self.arm_count(arg) {
+                ctx.charge(1)?;
+                let arm = self.arm(arg, i);
+                match self.node(arm) {
+                    Node::Array(_) | Node::Tuple(_) => {
+                        let items = self.elements(ctx, arm)?;
+                        admitted = true;
+                        certainly_empty &= items == Atom::Never.fact();
+                        alternatives.push(ctx, items)?;
+                    }
+                    Node::Atom(Atom::Unknown | Atom::Any) => {
+                        admitted = true;
+                        certainly_empty = false;
+                        result.throws = true;
+                        alternatives.push(ctx, Atom::Unknown.fact())?;
+                    }
+                    Node::Atom(Atom::Never) => (),
+                    Node::Hash(..) | Node::Shape(..) | Node::Protected(..) => {
+                        result.rejected = true;
+                    }
+                    _ if self.atom(arm).is_some() => result.rejected = true,
+                    _ => result.unsupported = true,
+                }
+            }
+            if !admitted {
+                viable = false;
+                continue;
+            }
+            vacant |= certainly_empty;
+            let dim = self.union(ctx, &alternatives.data)?;
+            dims.push(ctx, dim)?;
+        }
+        if !viable {
+            return Ok(result);
+        }
+        result.value = if vacant {
+            self.tuple(ctx, &[])?
+        } else {
+            let row = self.tuple(ctx, &dims.data)?;
+            self.array(ctx, row)?
+        };
+        Ok(result)
     }
 
     fn array_end(
