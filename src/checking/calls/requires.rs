@@ -377,7 +377,7 @@ impl Solver<'_, '_> {
             return failure(
                 ctx,
                 facts,
-                Error::argument("require: alias already defined"),
+                Error::new(ErrorKind::Argument, "require: alias already defined"),
             )
             .map(Some);
         }
@@ -404,7 +404,7 @@ impl Solver<'_, '_> {
             return failure(
                 ctx,
                 facts,
-                Error::argument("require: alias already defined"),
+                Error::new(ErrorKind::Argument, "require: alias already defined"),
             )
             .map(Some);
         }

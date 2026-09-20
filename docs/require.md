@@ -27,6 +27,8 @@ Argument expressions run before the permission check. A denied `require` raises 
 
 `require` takes one string or symbol, an optional `as:` alias and no block. It returns an object containing the file's public top-level functions and enums. Ordinary `def` and `export def` are public; `private def`, classes and file variables stay private. Export names are also made available in the receiving execution root when they do not overwrite an existing binding. An alias must be an identifier and must not conflict with the root or current scope. Requiring the same file with the same alias is allowed.
 
+Invalid arguments and aliases raise `RuntimeError`, matching the Go reference's script-visible exception class. Rust hosts can still identify these failures by `ErrorKind::Argument`. Static checking follows the same rescue selection as execution.
+
 ```vibescript
 counter = require("counter", as: :Counter)
 counter.add(2)

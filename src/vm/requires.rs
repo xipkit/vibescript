@@ -139,15 +139,21 @@ fn alias(ctx: &mut CallContext, args: &Arguments) -> Result<Option<Value>> {
     for (name, value) in &args.keywords.buffer.data {
         ctx.charge(1)?;
         if name.as_bytes() != Some(b"as") {
-            return Err(Error::argument("require: unknown keyword argument"));
+            return Err(Error::new(
+                ErrorKind::Argument,
+                "require: unknown keyword argument",
+            ));
         }
         if !matches!(value.0, Kind::Bytes(_) | Kind::Symbol(_)) {
-            return Err(Error::argument("require: alias must be a string or symbol"));
+            return Err(Error::new(
+                ErrorKind::Argument,
+                "require: alias must be a string or symbol",
+            ));
         }
         let bytes = value.require_bytes()?;
         ctx.work_bytes(bytes.len())?;
         let name = std::str::from_utf8(bytes)
-            .map_err(|_| Error::argument("require: invalid alias"))?
+            .map_err(|_| Error::new(ErrorKind::Argument, "require: invalid alias"))?
             .trim();
         let mut chars = name.chars();
         if !chars
@@ -160,7 +166,7 @@ fn alias(ctx: &mut CallContext, args: &Arguments) -> Result<Option<Value>> {
             })
             || crate::syntax::keyword(name)
         {
-            return Err(Error::argument("require: invalid alias"));
+            return Err(Error::new(ErrorKind::Argument, "require: invalid alias"));
         }
         result = Some(ctx.bytes(name.as_bytes())?);
     }
@@ -196,10 +202,16 @@ fn check_alias(
     };
     if let Some(value) = get(ctx, storage, name)? {
         if !same(ctx, &value)? {
-            return Err(Error::argument("require: alias already defined"));
+            return Err(Error::new(
+                ErrorKind::Argument,
+                "require: alias already defined",
+            ));
         }
     } else if root_bound(ctx, storage, name)? {
-        return Err(Error::argument("require: alias already defined"));
+        return Err(Error::new(
+            ErrorKind::Argument,
+            "require: alias already defined",
+        ));
     }
     if let Some(frame) = frames.data.last() {
         let function = &frame.program.functions[frame.function.unwrap()];
@@ -207,20 +219,29 @@ fn check_alias(
             let slot = resolve_slot(ctx, frames, storage, frames.data.len() - 1, slot, false)?;
             if let Some(value) = &storage.locals.data[slot] {
                 if !same(ctx, value)? {
-                    return Err(Error::argument("require: alias already defined"));
+                    return Err(Error::new(
+                        ErrorKind::Argument,
+                        "require: alias already defined",
+                    ));
                 }
             }
         }
         if let Some(value) = file_bindings::get(&frame.program, ctx, name)? {
             if !same(ctx, &value)? {
-                return Err(Error::argument("require: alias already defined"));
+                return Err(Error::new(
+                    ErrorKind::Argument,
+                    "require: alias already defined",
+                ));
             }
         }
         if let Some(value) =
             namespaces::constant(&frame.program, ctx, storage, function.namespace, name)?
         {
             if !same(ctx, &value)? {
-                return Err(Error::argument("require: alias already defined"));
+                return Err(Error::new(
+                    ErrorKind::Argument,
+                    "require: alias already defined",
+                ));
             }
         }
     }
@@ -244,17 +265,22 @@ pub(super) fn start(
         ));
     }
     if args.positional.data.len() != 1 {
-        return Err(Error::argument(
+        return Err(Error::new(
+            ErrorKind::Argument,
             "require expects a single module name argument",
         ));
     }
     if args.block.is_some() {
-        return Err(Error::argument("require does not accept blocks"));
+        return Err(Error::new(
+            ErrorKind::Argument,
+            "require does not accept blocks",
+        ));
     }
     let alias = alias(ctx, &args)?;
     let input = &args.positional.data[0];
     if !matches!(input.0, Kind::Bytes(_) | Kind::Symbol(_)) {
-        return Err(Error::argument(
+        return Err(Error::new(
+            ErrorKind::Argument,
             "require expects a string or symbol module name",
         ));
     }

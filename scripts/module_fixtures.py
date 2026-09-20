@@ -17,6 +17,24 @@ def cases():
                 })
 
     answer = {"answer.vibe": "def answer;42;end"}
+    for name, expression in [
+        ("missing", "require()"),
+        ("nil", "require(nil)"),
+        ("integer", "require(1)"),
+        ("extra", "require(:answer, :extra)"),
+        ("block", "require(:answer) { 1 }"),
+        ("keyword", "require(:answer, unknown: true)"),
+        ("nil_alias", "require(:answer, as: nil)"),
+        ("boolean_alias", "require(:answer, as: true)"),
+        ("invalid_alias", "require(:answer, as: 'bad-name')"),
+        ("empty_alias", "require(:answer, as: '')"),
+        ("invalid_utf8_alias", 'require(:answer, as: "\\xFF")'),
+        ("builtin_alias", "require(:answer, as: :Math)"),
+        ("existing_alias", "Taken=1; require(:answer, as: :Taken)"),
+    ]:
+        add("argument_error_class/"+name,
+            "begin; "+expression+"; nil; rescue ArgumentError; 'wrong handler'; rescue RuntimeError => e; [e.class.to_s,e.message.start_with?('require')]; end",
+            ["RuntimeError", True], {"answer.vibe":"raise 'initializer ran'; def answer;42;end"})
     for name, body in [
         ("direct", 'require("answer").answer'),
         ("symbol", "require(:answer).answer"),

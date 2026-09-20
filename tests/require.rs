@@ -66,6 +66,77 @@ fn json(value: &Value) -> serde_json::Value {
 }
 
 #[test]
+fn require_argument_and_alias_errors_have_the_reference_runtime_class() {
+    let files = Files::new();
+    files.write("module.vibe", "effect(); def value; 7; end");
+    let effects = Arc::new(AtomicUsize::new(0));
+    for strict in [false, true] {
+        let mut engine = files.engine();
+        engine.set_strict_effects(strict);
+        let captured = effects.clone();
+        engine.register("effect", move |_, _| {
+            captured.fetch_add(1, Ordering::SeqCst);
+            Ok(Value::nil())
+        });
+        let options = CallOptions {
+            allow_require: true,
+            ..CallOptions::default()
+        };
+        for source in [
+            "require()",
+            "require(nil)",
+            "require(1)",
+            "require(:module, :extra)",
+            "require(:module) { 1 }",
+            "require(:module, unknown: true)",
+            "require(:module, as: nil)",
+            "require(:module, as: true)",
+            "require(:module, as: 'bad-name')",
+            "require(:module, as: '')",
+            "require(:module, as: \"\\xFF\")",
+            "require(:module, as: :Math)",
+            "Taken=1; require(:module, as: :Taken)",
+        ] {
+            let error = engine
+                .compile(source)
+                .unwrap()
+                .run(options.clone())
+                .unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Argument, "{source}: {error:?}");
+            assert_eq!(
+                error.class(),
+                Some(ErrorClass::Runtime),
+                "{source}: {error:?}"
+            );
+
+            let source = format!(
+                "def run -> int; begin; {source}; 0; rescue ArgumentError; 'wrong handler'; rescue RuntimeError; 7; end; end"
+            );
+            let script = engine.compile(&source).unwrap();
+            for report in [
+                script.check_call("run", &[], &options).unwrap(),
+                script.check_function("run", &options).unwrap(),
+            ] {
+                // The rejected require call remains a diagnostic. Its rescue
+                // path must not also produce a false return-type diagnostic.
+                assert!(report.incomplete.is_empty(), "{source}: {report:?}");
+                assert_eq!(report.diagnostics.len(), 1, "{source}: {report:?}");
+                assert!(report.diagnostics[0].message.contains("require"));
+            }
+            let vibescript::CheckedOutcome::Rejected(report) =
+                script.checked_call("run", &[], options.clone()).unwrap()
+            else {
+                panic!("checked call ignored the known require failure: {source}");
+            };
+            assert_eq!(report.diagnostics.len(), 1, "{source}: {report:?}");
+            let outcome = script.call("run", &[], options.clone()).unwrap();
+            assert_eq!(outcome.value.as_int(), Some(7), "{source}");
+            assert_eq!(effects.load(Ordering::SeqCst), 0, "{source}");
+        }
+    }
+}
+
+#[test]
 fn host_signatures_resolve_required_source_types_defaults_and_root_fallbacks() {
     use vibescript::{HostMethod, Signature, SignatureParam};
     let files = Files::new();
@@ -508,11 +579,7 @@ fn require_permission_follows_argument_evaluation_and_precedes_builtin_validatio
         assert_eq!(
             json(&output.value),
             serde_json::json!([
-                if allow {
-                    "ArgumentError"
-                } else {
-                    "RuntimeError"
-                },
+                "RuntimeError",
                 if allow {
                     "require does not accept blocks"
                 } else {

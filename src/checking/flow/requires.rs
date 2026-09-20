@@ -32,14 +32,17 @@ impl Walker<'_> {
             return self.require_error(
                 state,
                 pc,
-                Error::argument("require expects a single module name argument"),
+                Error::new(
+                    ErrorKind::Argument,
+                    "require expects a single module name argument",
+                ),
             );
         }
         if args.block.is_some() {
             return self.require_error(
                 state,
                 pc,
-                Error::argument("require does not accept blocks"),
+                Error::new(ErrorKind::Argument, "require does not accept blocks"),
             );
         }
         let mut aliases = Buffer::empty();
@@ -57,7 +60,7 @@ impl Walker<'_> {
                 return self.require_error(
                     state,
                     pc,
-                    Error::argument("require: unknown keyword argument"),
+                    Error::new(ErrorKind::Argument, "require: unknown keyword argument"),
                 );
             }
             aliases.data.clear();
@@ -74,16 +77,21 @@ impl Walker<'_> {
                         self.require_error(
                             state,
                             pc,
-                            Error::argument("require: alias must be a string or symbol"),
+                            Error::new(
+                                ErrorKind::Argument,
+                                "require: alias must be a string or symbol",
+                            ),
                         )?;
                         continue;
                     }
                 };
                 match alias(self.ctx, &value)? {
                     Some(name) => aliases.push(self.ctx, Some(name))?,
-                    None => {
-                        self.require_error(state, pc, Error::argument("require: invalid alias"))?
-                    }
+                    None => self.require_error(
+                        state,
+                        pc,
+                        Error::new(ErrorKind::Argument, "require: invalid alias"),
+                    )?,
                 }
             }
         }
@@ -102,7 +110,10 @@ impl Walker<'_> {
                         self.require_error(
                             state,
                             pc,
-                            Error::argument("require expects a string or symbol module name"),
+                            Error::new(
+                                ErrorKind::Argument,
+                                "require expects a string or symbol module name",
+                            ),
                         )?;
                         continue;
                     }
