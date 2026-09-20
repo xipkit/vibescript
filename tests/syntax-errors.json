@@ -12986,5 +12986,113 @@
     "name": "loop_binding_3",
     "source": "\ndef run(input)\nbegin\nloop {|*rest|break rest}\nrescue RuntimeError => e\n[e.type,e.message]\nend\nend",
     "go_error": "parse error at 4:8: expected block parameter, got \"*\""
+  },
+  {
+    "name": "numeric_keyword_invalid_0",
+    "body": "5ifx",
+    "go_error": "parse error at 2:1: malformed numeric literal: identifier cannot immediately follow a number",
+    "source": "def run(input)\n5ifx\nend"
+  },
+  {
+    "name": "numeric_keyword_invalid_1",
+    "body": "5if_foo",
+    "go_error": "parse error at 2:1: malformed numeric literal: identifier cannot immediately follow a number",
+    "source": "def run(input)\n5if_foo\nend"
+  },
+  {
+    "name": "numeric_keyword_invalid_2",
+    "body": "5if?",
+    "go_error": "parse error at 2:1: malformed numeric literal: identifier cannot immediately follow a number",
+    "source": "def run(input)\n5if?\nend"
+  },
+  {
+    "name": "numeric_keyword_invalid_3",
+    "body": "5end!",
+    "go_error": "parse error at 2:1: malformed numeric literal: identifier cannot immediately follow a number",
+    "source": "def run(input)\n5end!\nend"
+  },
+  {
+    "name": "numeric_keyword_invalid_4",
+    "body": "5ifé",
+    "go_error": "parse error at 2:1: malformed numeric literal: identifier cannot immediately follow a number",
+    "source": "def run(input)\n5ifé\nend"
+  },
+  {
+    "name": "numeric_keyword_invalid_5",
+    "body": "5end名",
+    "go_error": "parse error at 2:1: malformed numeric literal: identifier cannot immediately follow a number",
+    "source": "def run(input)\n5end名\nend"
+  },
+  {
+    "name": "numeric_keyword_invalid_6",
+    "body": "5elf",
+    "go_error": "parse error at 2:1: malformed numeric literal: identifier cannot immediately follow a number",
+    "source": "def run(input)\n5elf\nend"
+  },
+  {
+    "name": "numeric_keyword_invalid_7",
+    "body": "5_if",
+    "go_error": "parse error at 2:1: malformed numeric literal: identifier cannot immediately follow a number",
+    "source": "def run(input)\n5_if\nend"
+  },
+  {
+    "name": "numeric_keyword_invalid_8",
+    "body": "123abc",
+    "go_error": "parse error at 2:1: malformed numeric literal: identifier cannot immediately follow a number",
+    "source": "def run(input)\n123abc\nend"
+  },
+  {
+    "name": "numeric_keyword_invalid_9",
+    "body": "1.5x",
+    "go_error": "parse error at 2:1: malformed numeric literal: identifier cannot immediately follow a number",
+    "source": "def run(input)\n1.5x\nend"
+  },
+  {
+    "name": "numeric_keyword_invalid_10",
+    "body": "1e3foo",
+    "go_error": "parse error at 2:1: malformed numeric literal: identifier cannot immediately follow a number",
+    "source": "def run(input)\n1e3foo\nend"
+  },
+  {
+    "name": "numeric_keyword_invalid_11",
+    "body": "1e",
+    "go_error": "parse error at 2:1: malformed numeric literal: identifier cannot immediately follow a number",
+    "source": "def run(input)\n1e\nend"
+  },
+  {
+    "name": "numeric_keyword_invalid_12",
+    "body": "1e_3",
+    "go_error": "parse error at 2:1: malformed numeric literal: identifier cannot immediately follow a number",
+    "source": "def run(input)\n1e_3\nend"
+  },
+  {
+    "name": "numeric_keyword_invalid_13",
+    "body": "1e+",
+    "go_error": "parse error at 2:1: malformed exponent in numeric literal: expected digits after 'e'",
+    "source": "def run(input)\n1e+\nend"
+  },
+  {
+    "name": "numeric_keyword_invalid_14",
+    "body": "1e+end",
+    "go_error": "parse error at 2:1: malformed exponent in numeric literal: expected digits after 'e'",
+    "source": "def run(input)\n1e+end\nend"
+  },
+  {
+    "name": "numeric_keyword_invalid_15",
+    "body": "1e3_",
+    "go_error": "parse error at 2:1: malformed exponent in numeric literal: underscore must sit between exponent digits",
+    "source": "def run(input)\n1e3_\nend"
+  },
+  {
+    "name": "numeric_keyword_invalid_16",
+    "body": "1e3__4",
+    "go_error": "parse error at 2:1: malformed exponent in numeric literal: underscore must sit between exponent digits",
+    "source": "def run(input)\n1e3__4\nend"
+  },
+  {
+    "name": "numeric_keyword_invalid_17",
+    "body": "0x5if",
+    "go_error": "parse error at 2:1: invalid numeric literal",
+    "source": "def run(input)\n0x5if\nend"
   }
 ]

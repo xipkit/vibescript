@@ -266,6 +266,53 @@ fn interpolation_publishes_loop_bindings_without_publishing_block_locals() {
 }
 
 #[test]
+fn numbers_may_abut_keywords_but_not_identifiers() {
+    let run = |source: &str| {
+        Engine::new()
+            .compile(source)
+            .unwrap()
+            .run(CallOptions::default())
+            .unwrap()
+            .value
+    };
+    for (source, expected) in [
+        ("x = 5if true\nx", 5),
+        ("x = 5unless false\nx", 5),
+        ("x = 0\nx += 1while x < 3\nx", 3),
+        ("if true then 5end", 5),
+        ("if false then 1else 2end", 2),
+        ("if false then 1elsif true then 3end", 3),
+        ("begin\n7ensure\nnil\nend", 7),
+        ("-5if true", -5),
+        ("2 * 3if true", 6),
+    ] {
+        assert_eq!(run(source).as_int(), Some(expected), "{source}");
+    }
+    for (source, expected) in [
+        ("x = 1e3if true\nx", 1000.0),
+        ("1E-2unless false", 0.01),
+        ("if true then 2.5end", 2.5),
+        ("-1e3if true", -1000.0),
+        ("2 * 1.5e1if true", 30.0),
+    ] {
+        let value = run(source);
+        assert_eq!(value.type_name(), "float", "{source}");
+        assert_eq!(value.as_float(), Some(expected), "{source}");
+    }
+    for source in [
+        "5ifx", "5if_foo", "5if?", "5ifé", "5elf", "123abc", "1.5x", "1e3foo", "1e", "1e_3", "1e+",
+        "1e3_", "0x5if",
+    ] {
+        let error = Engine::new()
+            .compile(&format!("x = {source} true\nx"))
+            .err()
+            .unwrap();
+        assert_eq!(error.kind, ErrorKind::Syntax, "{source}");
+        assert_eq!(error.offset, Some(4), "{source}: {error}");
+    }
+}
+
+#[test]
 fn float_interpolation_uses_reference_special_values_and_exponents() {
     let script = Engine::new()
         .compile("def run(input)\n\"#{input}\"\nend")

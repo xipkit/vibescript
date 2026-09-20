@@ -432,7 +432,12 @@ impl<'a> Lexer<'a, '_> {
                                     i += 1;
                                 }
                             }
-                            if s.get(i).is_some_and(|b| matches!(b, b'e' | b'E')) {
+                            // An e/E only opens an exponent before a sign or digit; otherwise
+                            // it starts a trailing name such as the `end` in `5end`.
+                            if s.get(i).is_some_and(|b| matches!(b, b'e' | b'E'))
+                                && s.get(i + 1)
+                                    .is_some_and(|b| b.is_ascii_digit() || matches!(b, b'+' | b'-'))
+                            {
                                 float = true;
                                 i += 1;
                                 if s.get(i).is_some_and(|b| matches!(b, b'+' | b'-')) {
@@ -443,16 +448,31 @@ impl<'a> Lexer<'a, '_> {
                                     i += 1;
                                 }
                             }
-                            if source[i..self.limit]
+                            if let Some(c) = source[i..self.limit]
                                 .chars()
                                 .next()
-                                .is_some_and(|c| super::unicode::letter(c) || c == '_')
+                                .filter(|&c| super::unicode::letter(c) || c == '_')
                             {
-                                return Err(Error::syntax(
-                                    self.work,
-                                    start,
-                                    "invalid numeric literal",
-                                ));
+                                // A name may abut a number only when the whole name is a
+                                // keyword (`5if cond`, `1e3end`); `5ifx` and `123abc` are
+                                // malformed literals rather than a number and an identifier.
+                                let mut end = i + c.len_utf8();
+                                while let Some(c) = source[end..self.limit].chars().next() {
+                                    self.work.charge(1)?;
+                                    if !matches!(c, '_' | '?' | '!')
+                                        && !super::unicode::letter_or_digit(c)
+                                    {
+                                        break;
+                                    }
+                                    end += c.len_utf8();
+                                }
+                                if !super::keyword(&source[i..end]) {
+                                    return Err(Error::syntax(
+                                        self.work,
+                                        start,
+                                        "invalid numeric literal",
+                                    ));
+                                }
                             }
                             let raw = &source[start..i];
                             for (j, b) in raw.bytes().enumerate() {
@@ -1019,6 +1039,93 @@ mod tests {
         assert_eq!(context.stats().retained_memory_bytes, 0);
     }
     use std::cell::RefCell;
+
+    #[test]
+    fn numbers_abutting_keywords_split_before_the_keyword() {
+        for (source, number, keyword) in [
+            ("5if", Token::Int(5), "if"),
+            ("5end", Token::Int(5), "end"),
+            ("5else", Token::Int(5), "else"),
+            ("5elsif", Token::Int(5), "elsif"),
+            ("5ensure", Token::Int(5), "ensure"),
+            ("5enum", Token::Int(5), "enum"),
+            ("5true", Token::Int(5), "true"),
+            ("1_0unless", Token::Int(10), "unless"),
+            ("1e3if", Token::Float(1000.0), "if"),
+            ("1E+3end", Token::Float(1000.0), "end"),
+            ("1e1_0if", Token::Float(1e10), "if"),
+            ("2.5end", Token::Float(2.5), "end"),
+            ("2.5e-1while", Token::Float(0.25), "while"),
+        ] {
+            let mut context = CallContext::new(CallOptions::default());
+            let tokens = lex(source, &Meter(RefCell::new(&mut context))).unwrap();
+            assert_eq!(tokens.len(), 3, "{source}");
+            assert_eq!(tokens[0].token, number, "{source}");
+            assert_eq!(tokens[0].offset, 0, "{source}");
+            assert_eq!(tokens[0].end, source.len() - keyword.len(), "{source}");
+            assert_eq!(tokens[1].token, Token::Word(Word(keyword)), "{source}");
+            assert_eq!(tokens[1].offset, source.len() - keyword.len(), "{source}");
+            assert_eq!(tokens[1].end, source.len(), "{source}");
+            assert_eq!(tokens[2].token, Token::Eof, "{source}");
+        }
+    }
+
+    #[test]
+    fn numbers_abutting_names_or_malformed_exponents_stay_invalid() {
+        for (source, message) in [
+            ("5ifx", "invalid numeric literal"),
+            ("5if_foo", "invalid numeric literal"),
+            ("5if?", "invalid numeric literal"),
+            ("5end!", "invalid numeric literal"),
+            ("5ifé", "invalid numeric literal"),
+            ("5end名", "invalid numeric literal"),
+            ("5elf", "invalid numeric literal"),
+            ("5_if", "invalid numeric separator"),
+            ("123abc", "invalid numeric literal"),
+            ("1.5x", "invalid numeric literal"),
+            ("1e3foo", "invalid numeric literal"),
+            ("1e", "invalid numeric literal"),
+            ("1e_3", "invalid numeric literal"),
+            ("1e+", "invalid float"),
+            ("1e+end", "invalid float"),
+            ("1e3_", "invalid numeric separator"),
+            ("1e3__4", "invalid numeric separator"),
+            ("0x5if", "invalid integer literal"),
+        ] {
+            let mut context = CallContext::new(CallOptions::default());
+            let input = format!("{source} 1");
+            let tokens = lex(&input, &Meter(RefCell::new(&mut context))).unwrap();
+            let Token::Invalid(invalid) = &tokens[0].token else {
+                panic!(
+                    "{source}: expected an invalid literal, got {:?}",
+                    tokens[0].token
+                );
+            };
+            assert_eq!(invalid.0, 0, "{source}");
+            assert_eq!(invalid.1.as_str(), message, "{source}");
+        }
+    }
+
+    #[test]
+    fn long_numeric_suffixes_obey_work_limits_and_release_storage() {
+        for source in [
+            format!("1{}", "x".repeat(4096)),
+            format!("1e3{}", "if".repeat(2048)),
+            format!("5{}", "名".repeat(4096)),
+        ] {
+            let mut context = CallContext::new(CallOptions {
+                limits: crate::Limits {
+                    steps: Some(64),
+                    ..crate::Limits::default()
+                },
+                ..CallOptions::default()
+            });
+            let error = lex(&source, &Meter(RefCell::new(&mut context))).unwrap_err();
+            assert_eq!(error.kind, crate::ErrorKind::Steps);
+            assert_eq!(context.charge(0).unwrap_err().kind, crate::ErrorKind::Steps);
+            assert_eq!(context.stats().retained_memory_bytes, 0);
+        }
+    }
 
     #[test]
     fn identifier_tokens_borrow_the_source_without_copying_long_names() {
