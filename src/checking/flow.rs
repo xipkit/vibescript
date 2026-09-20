@@ -2986,7 +2986,7 @@ impl Walker<'_> {
                 } => {
                     let iteration = if iterable {
                         let value = state.stack.data.pop().unwrap().value;
-                        let iteration = self.facts.iteration(self.ctx, value)?;
+                        let iteration = self.facts.for_iteration(self.ctx, value)?;
                         if iteration.rejected {
                             self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                             self.issue(pc, IssueKind::Iterate { value })?;

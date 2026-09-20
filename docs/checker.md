@@ -20,7 +20,7 @@ Local-state snapshots share metered radix-tree nodes. Assignments copy only shar
 
 The flow corpus contains 60 scripts checked by both implementations. Nine decisions intentionally differ from Go v0.70.0: Rust preserves known default and loop-assignment facts and follows reachable loop exits. Each difference includes a Rust execution witness, including default-quota exhaustion for an unconditional loop whose trailing return is unreachable. These are checker-decision fixtures, separate from the runtime compatibility audit. A further 972 scalar operand/operator combinations compare inferred outcomes with the Rust runtime.
 
-The walker reports incomplete analysis at reachable operations it cannot model. Opaque iterable dispatch, dynamic required-file discovery and the remaining paths listed below remain unfinished. A partial return summary or an empty diagnostic list is not sufficient to approve a script. The public exact-call gate enforces that distinction; unsupported paths prevent checked execution.
+The walker reports incomplete analysis at reachable operations it cannot model. Opaque member dispatch, dynamic required-file discovery and the remaining paths listed below remain unfinished. A partial return summary or an empty diagnostic list is not sufficient to approve a script. The public exact-call gate enforces that distinction; unsupported paths prevent checked execution.
 
 ## Function calls
 
@@ -82,7 +82,9 @@ The iteration source remains an immutable value snapshot when the body changes i
 
 Thirteen tests include 200 destructuring and 192 loop-control comparisons with runtime values, source/binding mutations, optional hash fields, nested growth, integer endpoints, exact quotas, failure cleanup and cancellation. Fifty reference scripts retain 49 Go checker decisions, with 22 explained differences, plus one separate Go parser rejection for a nested binding. Every reference script has a Rust execution witness. One checker difference retains the existing type-changing reassignment warning for a script that succeeds at runtime; it is not described as a runtime type error.
 
-Iteration order and exact trip counts beyond a singleton are not tracked. Compact literal range bounds distinguish empty, singleton and repeated iteration, including descending ranges and integer endpoints, without expanding the range. Known open-ended ranges report the runtime's iteration error; dynamic endpoints retain general integer range facts. Generalized array lengths, optional fields and joined iteration states can lose correlations and produce conservative diagnostics. Opaque hash/capability iteration and unsupported body operations remain explicitly incomplete.
+Iteration order and exact trip counts beyond a singleton are not tracked. Compact literal range bounds distinguish empty, singleton and repeated iteration, including descending ranges and integer endpoints, without expanding the range. Known open-ended ranges report the runtime's iteration error; dynamic endpoints retain general integer range facts. Generalized array lengths, optional fields and joined iteration states can lose correlations and produce conservative diagnostics. Unsupported body operations remain explicitly incomplete.
+
+Direct `for` traversal accepts general hash and shape contracts, including contracts that admit both plain hashes and host objects. Traversal reads stored entries without invoking `each` or other members. Key/value types, required and optional fields, destructuring, empty paths and loop-result snapshots remain available to analysis. Known class instances produce an iteration diagnostic even if they define an `each` method. Member calls such as `h.each` still need their own dispatch analysis when a structural contract cannot distinguish native behavior from an override.
 
 ## Case matching and conditional narrowing
 
@@ -362,7 +364,7 @@ Opaque left receivers can dispatch custom `==` or `!=` operators with arbitrary 
 
 Completion still requires:
 
-- Opaque iterable dispatch, interprocedural block control, general type narrowing, remaining scalar constant propagation and stored predicate relations. Collection-loop, recursive-call and exception-effect precision need further work; value-origin facts must preserve correlations without confusing equivalent types with identical values.
+- Opaque collection member dispatch, interprocedural block control, general type narrowing, remaining scalar constant propagation and stored predicate relations. Collection-loop, recursive-call and exception-effect precision need further work; value-origin facts must preserve correlations without confusing equivalent types with identical values.
 - Instance allocation summaries, dynamic type atoms, optional helper field alternatives, opaque implicit conversions, remaining builtin helpers, variable-size splats, foreign attached-method environments, opaque value dispatch and unresolved lexical ownership. Known source calls, named-call namespace initialization and state, static and instance operator dispatch, introspection and forwarding, live host signatures, conservative host block schedules and concrete host-call binding are implemented; whole-program integration remains required.
 - Broader mutable-container dispatch, precise attachment correlations and invalidation after unmodeled effects. Ordinary addressed writes and collection-loop widening are integrated internally.
 - Dynamic module names, uncertain alias presence and object identity, and captured foreign environments. Literal required-file discovery, initialization, retries, export calls and member lookup across prepared sources are integrated without executing initializers.

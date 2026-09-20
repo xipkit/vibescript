@@ -11,7 +11,22 @@ pub(super) struct Iteration {
 }
 
 impl Facts {
+    /// Describes iteration after native member dispatch has been resolved.
     pub fn iteration(&mut self, ctx: &mut CallContext, source: Fact) -> Result<Iteration> {
+        self.iteration_mode(ctx, source, false)
+    }
+
+    /// Describes `for`, which reads stored entries without invoking members.
+    pub fn for_iteration(&mut self, ctx: &mut CallContext, source: Fact) -> Result<Iteration> {
+        self.iteration_mode(ctx, source, true)
+    }
+
+    fn iteration_mode(
+        &mut self,
+        ctx: &mut CallContext,
+        source: Fact,
+        direct: bool,
+    ) -> Result<Iteration> {
         ctx.checkpoint()?;
         let mut result = Iteration {
             empty: Atom::Never.fact(),
@@ -52,7 +67,7 @@ impl Facts {
                     let length = items.data.len();
                     (self.elements(ctx, arm)?, length == 0, length > 1)
                 }
-                Node::Hash(keys, values, HashKind::Plain | HashKind::Object) => {
+                Node::Hash(keys, values, kind) if direct || *kind != HashKind::Any => {
                     let pair = [*keys, *values];
                     let item = if pair.contains(&Atom::Never.fact()) {
                         Atom::Never.fact()
@@ -61,7 +76,7 @@ impl Facts {
                     };
                     (item, true, true)
                 }
-                Node::Shape(fields, open, keys, HashKind::Plain | HashKind::Object) => {
+                Node::Shape(fields, open, keys, kind) if direct || *kind != HashKind::Any => {
                     let (length, open, keys) = (fields.data.len(), *open, *keys);
                     let mut empty = true;
                     let mut items = Buffer::empty();
@@ -86,6 +101,10 @@ impl Facts {
                         items.push(ctx, item)?;
                     }
                     (self.union(ctx, &items.data)?, empty, open || length > 1)
+                }
+                Node::Instance { .. } if direct => {
+                    result.rejected = true;
+                    continue;
                 }
                 Node::Named(_)
                 | Node::Nominal { .. }

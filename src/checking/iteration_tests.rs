@@ -86,6 +86,7 @@ fn for_loops_infer_items_and_bindings_without_an_empty_path_for_nonempty_literal
         ("def run; for x in 7; x; end; end", true),
         ("def run; for x in \"abc\"; x; end; end", true),
         ("def run; for x in nil; x; end; end", true),
+        ("class Box;end;def run;for x in Box.new;x;end;end", true),
         ("def run(xs); for x in xs; x; end; end", false),
         (
             "def run(xs, flag: bool); for x in (if flag; xs; else; 7; end); x; end; end",
@@ -94,6 +95,107 @@ fn for_loops_infer_items_and_bindings_without_an_empty_path_for_nonempty_literal
         ("def run; for x in []; x.no_such_method; end; 7; end", false),
     ] {
         check(source, rejected);
+    }
+}
+
+#[test]
+fn structural_hash_loops_preserve_keys_values_and_known_contradictions() {
+    for (source, rejected) in [
+        (
+            "def run(h:hash<string,int>)->int;total=0;for key,value in h;total+=value;end;total;end",
+            false,
+        ),
+        (
+            "def run(h:{a:int,b:int})->int;for key,value in h;value;end;end",
+            false,
+        ),
+        (
+            "def run(h:{a?:int})->int?;for key,value in h;value;end;end",
+            false,
+        ),
+        (
+            "def run(h:{a?:int})->int;for key,value in h;value;end;end",
+            true,
+        ),
+        (
+            "def run(h:{a:int,...})->int;for key,value in h;value;end;end",
+            false,
+        ),
+        (
+            "def take(n:int);n;end;def run(h:{a:string,...});for key,value in h;take(value);end;end",
+            true,
+        ),
+        (
+            "def run(h:hash<string,int>)->string?;for key,value in h;key;end;end",
+            false,
+        ),
+        (
+            "def run(h:hash<string,int>)->int?;for key,value in h;key;end;end",
+            true,
+        ),
+        (
+            "def take(values:array<int>);values;end;def run(h:hash<string,int>);for key,*values in h;take(values);end;end",
+            false,
+        ),
+        (
+            "def run(h:hash<string,int>)->hash<string,int>;(for key,value in h;value;end);end",
+            false,
+        ),
+        (
+            "def run(h:hash<string,int>|int);for key,value in h;value;end;end",
+            true,
+        ),
+    ] {
+        check(source, rejected);
+    }
+}
+
+#[test]
+fn structural_hash_loop_summaries_contain_runtime_control_results() {
+    for object in [false, true] {
+        for entries in [
+            vec![],
+            vec![(b"a".to_vec(), Value::int(7))],
+            vec![
+                (b"a".to_vec(), Value::int(7)),
+                (b"b".to_vec(), Value::int(8)),
+            ],
+        ] {
+            let hash = if object {
+                Value::object(entries)
+            } else {
+                Value::hash(entries)
+            };
+            for body in [
+                "value",
+                "next",
+                "next 9",
+                "break",
+                "break 9",
+                "if flag;break 9;else;next;end",
+            ] {
+                for expression in [false, true] {
+                    let loop_source = format!("for key,value in h;{body};end");
+                    let source = format!(
+                        "def run(h:hash<string,int>,flag:bool);{};end",
+                        if expression {
+                            format!("({loop_source})")
+                        } else {
+                            loop_source
+                        }
+                    );
+                    for flag in [false, true] {
+                        inferred_runtime(&source, &[hash.clone(), Value::boolean(flag)], false);
+                    }
+                }
+            }
+            let result = inferred_runtime(
+                "def run(h:hash<string,int>)->hash<string,int>;(for key,value in h;h={};end);end",
+                std::slice::from_ref(&hash),
+                false,
+            );
+            assert_eq!(result.to_string(), hash.to_string());
+        }
     }
 }
 
@@ -207,10 +309,6 @@ fn iterable_loops_keep_invalid_and_unsupported_reachable_paths_visible() {
         ("def run; for x in [7]; x.no_such_method; end; end", true),
         (
             "def run(xs:array);for x in xs;x.no_such_method;end;end",
-            false,
-        ),
-        (
-            "def run(h: hash<string,int>); for k,v in h; v; end; end",
             false,
         ),
         (
@@ -418,6 +516,15 @@ fn optional_hash_entries_and_growing_nested_results_converge() {
 }
 
 fn accounting(ctx: &mut CallContext) -> Result<()> {
+    let mut facts = Facts::new(ctx)?;
+    let structural = analyze(
+        ctx,
+        &mut facts,
+        "def run(h:hash<string,array<int>>)->int;total=0;for key,values in h;for value in values;total+=value;end;end;total;end",
+    )?;
+    assert!(structural.incomplete.data.is_empty(), "{structural:?}");
+    assert!(structural.issues.data.is_empty(), "{structural:?}");
+    drop((structural, facts));
     let mut facts = Facts::new(ctx)?;
     let source = "def run -> array<int>; out=[]; for a,*b,c in [[7,8,9],[10,11,12]]; for x in b; out.push(a+x+c); end; end; out; end";
     let result = analyze(ctx, &mut facts, source)?;

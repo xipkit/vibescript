@@ -1138,6 +1138,99 @@ fn native_member_diagnosis_preserves_unions_and_source_overrides() {
 }
 
 #[test]
+fn structural_hash_iteration_works_in_each_public_checking_scope() {
+    for annotation in ["hash<string,int>", "{a:int,b:int}", "{a:int,b?:int}"] {
+        let source = format!(
+            "def run(h:{annotation})->int;total=0;for key,value in h;total+=value;end;total;end"
+        );
+        let script = Engine::new().compile(&source).unwrap();
+        for object in [false, true] {
+            let entries = vec![
+                (b"a".to_vec(), Value::int(7)),
+                (b"b".to_vec(), Value::int(8)),
+            ];
+            let value = if object {
+                Value::object(entries)
+            } else {
+                Value::hash(entries)
+            };
+            let args = [value];
+            let options = CallOptions::default();
+            for report in [
+                script.check_call("run", &args, &options).unwrap(),
+                script.check_function("run", &options).unwrap(),
+                script.check(&options).unwrap(),
+            ] {
+                assert!(report.is_clean(), "{source}: {report:?}");
+            }
+            let CheckedOutcome::Executed(result) =
+                script.checked_call("run", &args, options).unwrap()
+            else {
+                panic!("{source}: checked call rejected a valid loop");
+            };
+            assert_eq!(result.value.as_int(), Some(15));
+        }
+    }
+}
+
+#[test]
+fn for_traversal_does_not_assume_native_method_dispatch() {
+    let source =
+        "def run(h:hash<string,int>)->int;total=0;for key,value in h;total+=value;end;total;end";
+    let script = Engine::new().compile(source).unwrap();
+    let args = [Value::object(vec![(b"each".to_vec(), Value::int(7))])];
+    assert!(
+        script
+            .check_function("run", &CallOptions::default())
+            .unwrap()
+            .is_clean()
+    );
+    let CheckedOutcome::Executed(outcome) = script
+        .checked_call("run", &args, CallOptions::default())
+        .unwrap()
+    else {
+        panic!("for traversal was rejected");
+    };
+    assert_eq!(outcome.value.as_int(), Some(7));
+
+    let script = Engine::new()
+        .compile("def run(h:hash<string,int>);h.each {|key,value| value};end")
+        .unwrap();
+    let report = script
+        .check_function("run", &CallOptions::default())
+        .unwrap();
+    assert!(!report.incomplete.is_empty(), "{report:?}");
+    assert!(script.call("run", &args, CallOptions::default()).is_err());
+}
+
+#[test]
+fn known_instance_iteration_is_diagnosed_before_constructor_effects() {
+    let writes = Arc::new(AtomicUsize::new(0));
+    let output = writes.clone();
+    let mut engine = Engine::new();
+    engine.set_output_writer(move |_, _| {
+        output.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    });
+    let script = engine.compile("class Box;def initialize;puts('constructed');end;def each;puts('called');end;end;def run;for value in Box.new;value;end;end").unwrap();
+    let report = script
+        .check_function("run", &CallOptions::default())
+        .unwrap();
+    assert!(report.incomplete.is_empty(), "{report:?}");
+    assert_eq!(report.diagnostics.len(), 1, "{report:?}");
+    assert!(matches!(
+        script
+            .checked_call("run", &[], CallOptions::default())
+            .unwrap(),
+        CheckedOutcome::Rejected(_)
+    ));
+    assert_eq!(writes.load(Ordering::SeqCst), 0);
+    let error = script.call("run", &[], CallOptions::default()).unwrap_err();
+    assert_eq!(error.class(), Some(vibescript::ErrorClass::Runtime));
+    assert_eq!(writes.load(Ordering::SeqCst), 1);
+}
+
+#[test]
 fn general_scope_checks_defaults_and_all_declared_parameter_values() {
     for (source, argument) in [
         ("def run(x:int=false)->int;x;end", Value::int(7)),
