@@ -204,6 +204,17 @@ impl Facts {
                 }
                 Task::Hash(keys, plain) => {
                     let item = values.data.pop().unwrap();
+                    if keys == Atom::Never.fact() || item.value == Atom::Never.fact() {
+                        let value = self.shape_fields(
+                            ctx,
+                            Buffer::empty(),
+                            false,
+                            Atom::Never.fact(),
+                            plain,
+                        )?;
+                        values.push(ctx, Normalized::value(value))?;
+                        continue;
+                    }
                     let value = self.hash_kind(ctx, keys, item.value, plain)?;
                     Normalized {
                         value,
@@ -481,11 +492,19 @@ impl Facts {
                                         }
                                     }
                                     Some(Node::Hash(actual_keys, actual_value, actual_plain)) => {
-                                        tasks.push(ctx, Task::Hash(*actual_keys, *actual_plain))?;
+                                        let (actual_keys, actual_value, actual_plain) =
+                                            (*actual_keys, *actual_value, *actual_plain);
+                                        let keys =
+                                            if self.key_domain(ctx, keys)? == Atom::Never.fact() {
+                                                Atom::Never.fact()
+                                            } else {
+                                                actual_keys
+                                            };
+                                        tasks.push(ctx, Task::Hash(keys, actual_plain))?;
                                         tasks.push(
                                             ctx,
                                             Task::Visit(Key {
-                                                actual: Some(*actual_value),
+                                                actual: Some(actual_value),
                                                 expected: element,
                                             }),
                                         )?;
@@ -506,6 +525,57 @@ impl Facts {
                             }
                             Node::Shape(_, open, keys, plain) => {
                                 let (open, mut keys, plain) = (*open, *keys, *plain);
+                                let generic =
+                                    key.actual.and_then(|actual| match self.node(actual) {
+                                        Node::Hash(actual_keys, actual_value, actual_plain) => {
+                                            Some((*actual_keys, *actual_value, *actual_plain))
+                                        }
+                                        _ => None,
+                                    });
+                                if let Some((actual_keys, actual_value, actual_plain)) = generic {
+                                    // A generic hash only reaches a shape through its own value
+                                    // domain: every named field either holds one of the hash's
+                                    // values or is absent, and no field can exist at all when
+                                    // the hash cannot carry string keys.
+                                    let member = if self.key_domain(ctx, actual_keys)?
+                                        == Atom::Never.fact()
+                                    {
+                                        Atom::Never.fact()
+                                    } else {
+                                        actual_value
+                                    };
+                                    let Node::Shape(fields, ..) = self.node(expected) else {
+                                        unreachable!()
+                                    };
+                                    let mut output = Buffer::with_capacity(ctx, fields.data.len())?;
+                                    let mut children =
+                                        Buffer::with_capacity(ctx, fields.data.len())?;
+                                    for field in &fields.data {
+                                        output.push(
+                                            ctx,
+                                            Field {
+                                                name: field.name.clone(),
+                                                value: field.value,
+                                                optional: field.optional,
+                                            },
+                                        )?;
+                                        children.push(
+                                            ctx,
+                                            Key {
+                                                actual: Some(member),
+                                                expected: field.value,
+                                            },
+                                        )?;
+                                    }
+                                    tasks.push(
+                                        ctx,
+                                        Task::Shape(output, open, actual_keys, actual_plain),
+                                    )?;
+                                    for &child in children.data.iter().rev() {
+                                        tasks.push(ctx, Task::Visit(child))?;
+                                    }
+                                    continue;
+                                }
                                 if key.actual.is_none() {
                                     keys = self.key_domain(ctx, keys)?;
                                 }

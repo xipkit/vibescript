@@ -818,9 +818,26 @@ fn accounting(ctx: &mut CallContext, program: &bytecode::Program) -> Result<()> 
 
 #[test]
 fn normalization_honors_exact_quotas_and_releases_interrupted_work() {
-    let program = bytecode::compile(&format!("{SOURCE} def convert(x:array<{{state:Status|symbol,extra?:Status?,...}}>); x; end; def run(input:Status); result=convert([{{state: :draft,extra: :sent}},{{state: :unknown}}]); result.map {{ |x| x.state }}; case input; when Status::Draft; 1; when Status::Sent; 2; else; input.name; end; end"), Vec::new(), &()).unwrap();
+    let fields = (0..80)
+        .map(|i| format!("x{i}?:int"))
+        .collect::<Vec<_>>()
+        .join(",");
+    for source in [
+        format!(
+            "{SOURCE} def convert(x:array<{{state:Status|symbol,extra?:Status?,...}}>); x; end; def run(input:Status); result=convert([{{state: :draft,extra: :sent}},{{state: :unknown}}]); result.map {{ |x| x.state }}; case input; when Status::Draft; 1; when Status::Sent; 2; else; input.name; end; end"
+        ),
+        format!(
+            "def consume(h:{{{fields}}})->int;if h.empty?;0;else;\"bad\";end;end;def run(h:hash<string,string?>)->int;consume(h);end"
+        ),
+    ] {
+        let program = bytecode::compile(&source, Vec::new(), &()).unwrap();
+        normalization_quotas(&program);
+    }
+}
+
+fn normalization_quotas(program: &bytecode::Program) {
     let mut ctx = CallContext::new(CallOptions::default());
-    accounting(&mut ctx, &program).unwrap();
+    accounting(&mut ctx, program).unwrap();
     let stats = ctx.stats();
     assert_eq!(stats.retained_memory_bytes, 0);
     for (memory, steps, error) in [
@@ -844,7 +861,7 @@ fn normalization_honors_exact_quotas_and_releases_interrupted_work() {
             },
             ..CallOptions::default()
         });
-        assert_eq!(accounting(&mut ctx, &program).err().map(|e| e.kind), error);
+        assert_eq!(accounting(&mut ctx, program).err().map(|e| e.kind), error);
         if let Some(kind) = error {
             assert_eq!(ctx.checkpoint().unwrap_err().kind, kind);
         }
@@ -872,7 +889,7 @@ fn normalization_honors_exact_quotas_and_releases_interrupted_work() {
             } else {
                 ErrorKind::Steps
             };
-            assert_eq!(accounting(&mut ctx, &program).unwrap_err().kind, kind);
+            assert_eq!(accounting(&mut ctx, program).unwrap_err().kind, kind);
             assert_eq!(ctx.checkpoint().unwrap_err().kind, kind);
             assert_eq!(ctx.stats().retained_memory_bytes, 0);
         }
