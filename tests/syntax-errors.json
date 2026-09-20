@@ -13124,5 +13124,55 @@
     "name": "begin_modifier_boundary_plain_ensure",
     "source": "def run(_)\nbegin\n1\nensure\n2\nend unless false\nend",
     "go_error": "parse error at 6:5: modifier unless is only supported after expression or assignment statements, or leaf control-flow statements\n  --> line 6, column 5\n 6 | end unless false\n   |     ^"
+  },
+  {
+    "name": "symbol_variable_boundary_instance_bare",
+    "source": "def pass(x);x;end\ndef run(_)\n:@x\nend",
+    "go_error": "parse error at 3:1: unexpected token \":\"\n  --> line 3, column 1\n 3 | :@x\n   | ^"
+  },
+  {
+    "name": "symbol_variable_boundary_instance_array",
+    "source": "def pass(x);x;end\ndef run(_)\n[:@x]\nend",
+    "go_error": "parse error at 3:2: unexpected token \":\"\n  --> line 3, column 2\n 3 | [:@x]\n   |  ^\n\nparse error at 3:3: expected \"]\", got instance variable\n  --> line 3, column 3\n 3 | [:@x]\n   |   ^\n\nparse error at 3:5: unexpected token \"]\"\n  --> line 3, column 5\n 3 | [:@x]\n   |     ^"
+  },
+  {
+    "name": "symbol_variable_boundary_instance_hash",
+    "source": "def pass(x);x;end\ndef run(_)\n{key: :@x}\nend",
+    "go_error": "parse error at 3:7: unexpected token \":\"\n  --> line 3, column 7\n 3 | {key: :@x}\n   |       ^"
+  },
+  {
+    "name": "symbol_variable_boundary_instance_argument",
+    "source": "def pass(x);x;end\ndef run(_)\npass(:@x)\nend",
+    "go_error": "parse error at 3:6: unexpected token \":\"\n  --> line 3, column 6\n 3 | pass(:@x)\n   |      ^\n\nparse error at 3:7: expected \")\", got instance variable\n  --> line 3, column 7\n 3 | pass(:@x)\n   |       ^\n\nparse error at 3:9: unexpected token \")\"\n  --> line 3, column 9\n 3 | pass(:@x)\n   |         ^"
+  },
+  {
+    "name": "symbol_variable_boundary_instance_command",
+    "source": "def pass(x);x;end\ndef run(_)\npass :@x\nend",
+    "go_error": "parse error at 3:6: unexpected token \":\"\n  --> line 3, column 6\n 3 | pass :@x\n   |      ^"
+  },
+  {
+    "name": "symbol_variable_boundary_class_bare",
+    "source": "def pass(x);x;end\ndef run(_)\n:@@x\nend",
+    "go_error": "parse error at 3:1: unexpected token \":\"\n  --> line 3, column 1\n 3 | :@@x\n   | ^"
+  },
+  {
+    "name": "symbol_variable_boundary_class_array",
+    "source": "def pass(x);x;end\ndef run(_)\n[:@@x]\nend",
+    "go_error": "parse error at 3:2: unexpected token \":\"\n  --> line 3, column 2\n 3 | [:@@x]\n   |  ^\n\nparse error at 3:3: expected \"]\", got class variable\n  --> line 3, column 3\n 3 | [:@@x]\n   |   ^\n\nparse error at 3:6: unexpected token \"]\"\n  --> line 3, column 6\n 3 | [:@@x]\n   |      ^"
+  },
+  {
+    "name": "symbol_variable_boundary_class_hash",
+    "source": "def pass(x);x;end\ndef run(_)\n{key: :@@x}\nend",
+    "go_error": "parse error at 3:7: unexpected token \":\"\n  --> line 3, column 7\n 3 | {key: :@@x}\n   |       ^"
+  },
+  {
+    "name": "symbol_variable_boundary_class_argument",
+    "source": "def pass(x);x;end\ndef run(_)\npass(:@@x)\nend",
+    "go_error": "parse error at 3:6: unexpected token \":\"\n  --> line 3, column 6\n 3 | pass(:@@x)\n   |      ^\n\nparse error at 3:7: expected \")\", got class variable\n  --> line 3, column 7\n 3 | pass(:@@x)\n   |       ^\n\nparse error at 3:10: unexpected token \")\"\n  --> line 3, column 10\n 3 | pass(:@@x)\n   |          ^"
+  },
+  {
+    "name": "symbol_variable_boundary_class_command",
+    "source": "def pass(x);x;end\ndef run(_)\npass :@@x\nend",
+    "go_error": "parse error at 3:6: unexpected token \":\"\n  --> line 3, column 6\n 3 | pass :@@x\n   |      ^"
   }
 ]

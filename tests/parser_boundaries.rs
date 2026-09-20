@@ -50,3 +50,34 @@ fn begin_values_preserve_expression_modifiers() {
         assert_eq!(result.value.as_int(), Some(expected), "{source}");
     }
 }
+
+#[test]
+fn instance_variable_names_require_quoted_symbols() {
+    for symbol in [":@x", ":@@x"] {
+        for source in [
+            symbol.to_string(),
+            format!("[{symbol}]"),
+            format!("{{key: {symbol}}}"),
+            format!("def pass(x);x;end;pass({symbol})"),
+            format!("def pass(x);x;end;pass {symbol}"),
+        ] {
+            let error = Engine::new().compile(&source).err().unwrap();
+            assert_eq!(error.kind, ErrorKind::Syntax, "{source}: {error}");
+        }
+    }
+    let source = r#"[:"@x", :'@@x', %i[@x @@x][0], %i[@x @@x][1], :name?, :if, :+ ]"#;
+    let result = Engine::new()
+        .compile(source)
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap();
+    let symbols = result.value.as_array().unwrap();
+    assert_eq!(symbols.len(), 7);
+    for (symbol, expected) in symbols
+        .iter()
+        .zip(["@x", "@@x", "@x", "@@x", "name?", "if", "+"])
+    {
+        assert_eq!(symbol.type_name(), "symbol");
+        assert_eq!(symbol.as_bytes(), Some(expected.as_bytes()));
+    }
+}

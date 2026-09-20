@@ -2161,7 +2161,8 @@ impl<'a> Parser<'a> {
         }
         self.tokens.get(pos + 1).is_some_and(|t| {
             t.offset == colon.end
-                && (matches!(t.token, Token::Word(_) | Token::Bytes(_))
+                && (matches!(&t.token, Token::Word(word) if !word.starts_with('@'))
+                    || matches!(t.token, Token::Bytes(_))
                     || matches!(
                         t.token,
                         Token::Op(
