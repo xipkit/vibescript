@@ -55,6 +55,7 @@ impl Files {
 
     fn write(&self, name: &str, source: &str) -> String {
         let path = self.0.join(name);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(&path, source).unwrap();
         path.to_str().unwrap().to_owned()
     }
@@ -103,6 +104,129 @@ fn vibes_in(dir: Option<&Path>, args: &[&str]) -> Run {
 
 fn vibes(args: &[&str]) -> Run {
     vibes_in(None, args)
+}
+
+#[test]
+fn sibling_modules_work_for_execution_and_every_checking_mode() {
+    let files = Files::new();
+    let elsewhere = Files::new();
+    let path = files.write(
+        "main.vibe",
+        "def run -> int; require(:helper).answer; end; run",
+    );
+    files.write(
+        "helper.vibe",
+        "puts 'helper initialized'; def answer -> int; 42; end",
+    );
+    for flags in [
+        vec![],
+        vec!["--function", "run"],
+        vec!["--function", "run", "--checked"],
+    ] {
+        let mut args = vec![path.as_str()];
+        args.extend(flags);
+        vibes_in(Some(&elsewhere.0), &args).expect(0, "helper initialized\n42\n", "");
+    }
+    for args in [
+        vec![path.as_str(), "--function", "run", "--check"],
+        vec!["check", path.as_str()],
+        vec!["check", "--function", "run", path.as_str()],
+    ] {
+        vibes_in(Some(&elsewhere.0), &args).expect(0, "", "");
+    }
+}
+
+#[test]
+fn extra_module_paths_are_repeatable_ordered_and_relative_to_the_working_directory() {
+    let files = Files::new();
+    let elsewhere = Files::new();
+    let path = files.write(
+        "main.vibe",
+        "def run -> array<int>; [require(:priority).value,require(:extra).value]; end; run",
+    );
+    files.write("priority.vibe", "def value -> int; 7; end");
+    elsewhere.write("first/priority.vibe", "def value -> int; 99; end");
+    elsewhere.write("first/extra.vibe", "def value -> int; 41; end");
+    elsewhere.write("second/priority.vibe", "def value -> int; 88; end");
+    elsewhere.write("second/extra.vibe", "def value -> int; 42; end");
+    for (first, second, expected) in [
+        ("first", "second", "[7,41]\n"),
+        ("second", "first", "[7,42]\n"),
+    ] {
+        let flags = [
+            "--module-path",
+            first,
+            "--module-path",
+            first,
+            "--module-path",
+            second,
+        ];
+        let mut args = vec![path.as_str()];
+        args.extend(flags);
+        vibes_in(Some(&elsewhere.0), &args).expect(0, expected, "");
+        args.extend(["--function", "run", "--checked"]);
+        vibes_in(Some(&elsewhere.0), &args).expect(0, expected, "");
+        let mut args = vec!["check", path.as_str()];
+        args.extend(flags);
+        vibes_in(Some(&elsewhere.0), &args).expect(0, "", "");
+        args.extend(["--function", "run"]);
+        vibes_in(Some(&elsewhere.0), &args).expect(0, "", "");
+    }
+}
+
+#[test]
+fn invalid_module_roots_fail_before_script_output_in_both_command_forms() {
+    let files = Files::new();
+    let path = files.write("main.vibe", "puts 'ran'; 7");
+    let ordinary_file = files.write("regular-file", "data");
+    for root in [files.missing("missing-directory"), ordinary_file] {
+        for prefix in [vec![], vec!["check"]] {
+            let mut args = prefix;
+            args.extend([path.as_str(), "--module-path", root.as_str()]);
+            let run = vibes(&args);
+            assert_eq!(run.status, Some(1), "{}", run.stderr);
+            assert!(run.stdout.is_empty());
+            assert!(run.stderr.contains("module path"), "{}", run.stderr);
+            assert!(run.stderr.contains(&root), "{}", run.stderr);
+        }
+    }
+    for args in [
+        vec![path.as_str(), "--module-path"],
+        vec!["check", path.as_str(), "--module-path"],
+    ] {
+        let run = vibes(&args);
+        assert_eq!(run.status, Some(2));
+        assert!(run.stdout.is_empty());
+        assert!(run.stderr.contains("--module-path requires DIR"));
+    }
+}
+
+#[test]
+fn required_files_resolve_nested_imports_within_the_script_directory() {
+    let files = Files::new();
+    let elsewhere = Files::new();
+    let path = files.write("scripts/main.vibe", "require(:helper).value");
+    files.write(
+        "scripts/helper.vibe",
+        "def value; inner=require('./nested/child').value; denied=begin;require('../outside');false;rescue;true;end;[inner,denied];end",
+    );
+    files.write("scripts/nested/child.vibe", "def value; 7; end");
+    files.write("outside.vibe", "puts 'escaped'; def value; 99; end");
+    vibes_in(Some(&elsewhere.0), &[&path]).expect(0, "[7,true]\n", "");
+
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(
+            files.0.join("outside.vibe"),
+            files.0.join("scripts/leak.vibe"),
+        )
+        .unwrap();
+        let path = files.write(
+            "scripts/linked.vibe",
+            "begin; require(:leak); false; rescue; true; end",
+        );
+        vibes_in(Some(&elsewhere.0), &[&path]).expect(0, "true\n", "");
+    }
 }
 
 fn assert_stats_line(line: &str) {

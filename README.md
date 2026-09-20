@@ -13,6 +13,8 @@ This checkout lives on `/Volumes/AI/Work/xipkit/vibescript.rs`. The original sib
 
 The [CLI](docs/cli.md) writes `puts`, `print`, and `p` to stdout and `warn` to stderr, then prints the final result as JSON. Use `vibes check FILE` to analyze the whole file, or `vibes check --function NAME FILE` to check one function or method for its declared parameter types and defaults. Flat invocations accept `--kwarg NAME=JSON` for named arguments, `--check --function NAME` to analyze a concrete call without execution, or `--checked --function NAME` to execute only after a clean check. Run `--help` for step, memory, recursion, and deadline options. Defaults are one million logical steps, 16 MiB of tracked memory, and 256 call frames. `./scripts/check` runs the full local validation gate.
 
+The CLI searches the input file's directory for required modules. Add other roots with repeatable `--module-path DIR` options; the same paths apply to execution and checking.
+
 ## Embed it
 
 ```rust

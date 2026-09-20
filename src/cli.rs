@@ -13,8 +13,8 @@ use std::{
     time::{Duration, Instant},
 };
 use vibescript::{
-    CallOptions, CheckDiagnostic, CheckReport, CheckedOutcome, Engine, Error, ErrorKind, Outcome,
-    Script, Stats, Value, parse_json, stringify_json,
+    CallOptions, CheckDiagnostic, CheckReport, CheckedOutcome, Engine, Error, ErrorKind,
+    ModuleConfig, Outcome, Script, Stats, Value, parse_json, stringify_json,
 };
 
 /// The usage text printed by `--help`.
@@ -29,6 +29,8 @@ puts, print and p goes to stdout; warn goes to stderr.
 
 Options:
   --function NAME    Call NAME instead of running the top-level statements.
+  --module-path DIR  Add a module search directory (repeatable). The input
+                     file's directory is searched first.
   --arg JSON         Append a positional argument. Requires --function.
   --kwarg NAME=JSON  Add a keyword argument. A repeated NAME binds its last
                      value; every value is still checked. Requires --function.
@@ -90,13 +92,16 @@ A clean check prints nothing and exits with status 0. Known errors and
 analysis that the checker cannot finish are printed on stderr as separate
 error and incomplete entries and exit with status 1; incomplete analysis is
 never assumed clean. Required files that the checker cannot analyze are
-reported as incomplete rather than loaded or executed.
+reported as incomplete rather than assumed clean. Resolved module files are
+read and analyzed without executing their initializers.
 
 Options:
   --function NAME    Check one declaration instead of the whole file: a
                      top-level function, Class#method for an instance method,
                      Namespace.method for a static or module method, or
                      Class.new for a constructor.
+  --module-path DIR  Add a module search directory (repeatable). The input
+                     file's directory is searched first.
   --steps N          Analysis step quota; 0 disables it (default 1000000).
   --memory N         Analysis memory quota in bytes; 0 disables it
                      (default 16777216).
@@ -156,6 +161,8 @@ impl Mode {
 #[derive(Debug)]
 pub struct Invocation {
     pub file: PathBuf,
+    /// Additional module roots in command-line order, after the input directory.
+    pub module_paths: Vec<PathBuf>,
     pub function: Option<String>,
     /// Positional arguments in command-line order.
     pub arguments: Vec<Value>,
@@ -170,6 +177,8 @@ pub struct Invocation {
 #[derive(Debug)]
 pub struct Analysis {
     pub file: PathBuf,
+    /// Additional module roots in command-line order, after the input directory.
+    pub module_paths: Vec<PathBuf>,
     /// The declaration selector, or `None` for the whole file.
     pub function: Option<String>,
     pub options: CallOptions,
@@ -257,6 +266,7 @@ pub fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Command, Failur
     let subcommand = args.next_if(|arg| arg.as_os_str() == "check").is_some();
     let help = if subcommand { CHECK_HELP } else { HELP };
     let mut file = None;
+    let mut module_paths = Vec::new();
     let mut function = None;
     let mut arguments = Vec::new();
     let mut keywords = Vec::new();
@@ -275,6 +285,11 @@ pub fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Command, Failur
             "--version" => return Ok(Command::Version),
             "--" => only_files = true,
             "--function" => function = Some(value(&mut args, "--function", "NAME")?),
+            "--module-path" => module_paths.push(
+                args.next()
+                    .map(PathBuf::from)
+                    .ok_or_else(|| usage("--module-path requires DIR"))?,
+            ),
             "--arg" | "--kwarg" | "--check" | "--checked" if subcommand => {
                 return Err(usage(format!(
                     "vibes check does not accept {text}; it takes no concrete call. \
@@ -319,6 +334,7 @@ pub fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Command, Failur
     if subcommand {
         return Ok(Command::Check(Box::new(Analysis {
             file,
+            module_paths,
             function,
             options,
             stats,
@@ -337,6 +353,7 @@ pub fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Command, Failur
     }
     Ok(Command::Run(Box::new(Invocation {
         file,
+        module_paths,
         function,
         arguments,
         keywords,
@@ -407,6 +424,7 @@ fn keyword(raw: &str) -> Result<(String, Value), Failure> {
 pub fn run(invocation: Invocation) -> Result<(), Failure> {
     let Invocation {
         file,
+        module_paths,
         function,
         arguments,
         keywords,
@@ -414,7 +432,7 @@ pub fn run(invocation: Invocation) -> Result<(), Failure> {
         mode,
         stats,
     } = invocation;
-    let script = load(&file)?;
+    let script = load(&file, &module_paths)?;
     let Some(name) = function else {
         return print_outcome(&script.run(options)?, stats);
     };
@@ -448,11 +466,12 @@ pub fn run(invocation: Invocation) -> Result<(), Failure> {
 pub fn check(analysis: Analysis) -> Result<(), Failure> {
     let Analysis {
         file,
+        module_paths,
         function,
         options,
         stats,
     } = analysis;
-    let script = load(&file)?;
+    let script = load(&file, &module_paths)?;
     let (report, scope) = match &function {
         None => (script.check(&options)?, Scope::File),
         Some(name) => (
@@ -464,15 +483,45 @@ pub fn check(analysis: Analysis) -> Result<(), Failure> {
 }
 
 /// Reads and compiles one source file with the process streams attached.
-fn load(file: &Path) -> Result<Script, Failure> {
+fn load(file: &Path, extra_paths: &[PathBuf]) -> Result<Script, Failure> {
     let source = fs::read_to_string(file)
         .map_err(|error| Failure::Failed(format!("cannot read {}: {error}", file.display())))?;
     let mut engine = Engine::new();
+    engine.set_module_config(ModuleConfig {
+        paths: module_paths(file, extra_paths)?,
+        ..ModuleConfig::default()
+    })?;
     engine.set_output_writer(|_, bytes| forward(io::stdout().lock(), bytes));
     engine.set_error_writer(|_, bytes| forward(io::stderr().lock(), bytes));
     engine
         .compile(&source)
         .map_err(|error| Failure::Failed(compile_failure(file, &error)))
+}
+
+fn module_paths(file: &Path, extras: &[PathBuf]) -> Result<Vec<PathBuf>, Failure> {
+    let parent = file
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let mut paths = Vec::new();
+    for path in std::iter::once(parent).chain(extras.iter().map(PathBuf::as_path)) {
+        let canonical = fs::canonicalize(path).map_err(|error| {
+            Failure::Failed(format!(
+                "cannot open module path {}: {error}",
+                path.display()
+            ))
+        })?;
+        if !canonical.is_dir() {
+            return Err(Failure::Failed(format!(
+                "module path {} is not a directory",
+                path.display()
+            )));
+        }
+        if !paths.contains(&canonical) {
+            paths.push(canonical);
+        }
+    }
+    Ok(paths)
 }
 
 fn forward(mut stream: impl Write, bytes: &[u8]) -> vibescript::Result<()> {
@@ -645,6 +694,35 @@ mod tests {
         match parsed(args) {
             Err(Failure::Usage(message)) => message,
             other => panic!("{other:?}"),
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn module_path_options_preserve_non_utf8_bytes_in_both_command_forms() {
+        use std::os::unix::ffi::OsStringExt;
+        let root = OsString::from_vec(b"modules-\xff".to_vec());
+        for check in [false, true] {
+            let mut args = Vec::new();
+            if check {
+                args.push(OsString::from("check"));
+            }
+            args.extend([
+                OsString::from("main.vibe"),
+                OsString::from("--module-path"),
+                root.clone(),
+                OsString::from("--module-path"),
+                OsString::from("fallback"),
+            ]);
+            let paths = match parse(args).unwrap() {
+                Command::Run(invocation) => invocation.module_paths,
+                Command::Check(analysis) => analysis.module_paths,
+                other => panic!("{other:?}"),
+            };
+            assert_eq!(
+                paths,
+                [PathBuf::from(root.clone()), PathBuf::from("fallback")]
+            );
         }
     }
 

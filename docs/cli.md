@@ -19,6 +19,18 @@ The binary offers four ways to analyze or run a file:
 
 Analysis never executes script code, host callbacks, defaults or initializers. A clean `vibes check` or `--check` prints nothing unless `--stats` is requested and exits with status 0; a clean `--checked` proceeds to execution and prints its result. Unsupported analysis is reported as `incomplete`. Dynamic values retain their runtime contracts, so a clean report can still be followed by an execution error.
 
+## Required modules
+
+The CLI searches the input file's directory first for calls such as `require(:helpers)`. Repeatable `--module-path DIR` options append search roots in the order supplied. Relative option paths are resolved from the process working directory; the script directory remains first even when the command runs elsewhere. Duplicate directory paths are collapsed, and missing paths or ordinary files are rejected before execution.
+
+```sh
+vibes --module-path shared --module-path vendor app/main.vibe
+vibes check --module-path shared app/main.vibe
+vibes app/main.vibe --module-path shared --function run --checked
+```
+
+All execution and checking modes use the same configured roots and the engine's directory-handle confinement. Required files can make relative imports within their root, such as `require('./helpers')`; a relative import from the main script still requires a module caller, as in the Go reference. Checking reads and analyzes resolved modules without executing their initializers or output helpers.
+
 ## Whole-file checking
 
 `vibes check FILE` analyzes the whole file through `Script::check`. The top-level statements are checked in source order, then every effective function and method declaration is checked against its declared parameter types and defaults, including declarations that nothing calls. Declarations use namespace state from the top-level analysis, so a module constant assigned from a top-level variable keeps its known type. No result value is printed, and `puts`, `print`, `p` and `warn` never run.
