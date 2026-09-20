@@ -252,7 +252,7 @@ fn empty_literal_containers_are_not_unknown_containers() {
     let typed_hash = annotation(&mut facts, &mut ctx, "hash<int, bool>");
     assert_eq!(
         facts.relation(&mut ctx, empty_hash, typed_hash).unwrap(),
-        Relation::Accepted
+        Relation::Rejected
     );
 }
 

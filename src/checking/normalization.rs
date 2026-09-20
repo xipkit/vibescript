@@ -313,6 +313,13 @@ impl Facts {
                     }
                     tasks.push(ctx, Task::Save(key))?;
                     let expected = key.expected;
+                    // Unsupported builtin key contracts reject the container itself,
+                    // including empty hashes, before any unchanged-value shortcut.
+                    if matches!(self.node(expected), Node::Hash(keys, ..) if self.impossible_keys(*keys))
+                    {
+                        values.push(ctx, Normalized::value(Atom::Never.fact()))?;
+                        continue;
+                    }
                     if let Some(actual) = key.actual {
                         if actual == Atom::Never.fact() {
                             values.push(ctx, Normalized::value(actual))?;

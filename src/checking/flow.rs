@@ -2122,8 +2122,11 @@ impl Walker<'_> {
                             return Ok([None, None]);
                         }
                     }
-                    *state.stack.data.last_mut().unwrap() =
-                        Operand::new(self.facts.normalized(self.ctx, actual, expected)?);
+                    let value = self.facts.normalized(self.ctx, actual, expected)?;
+                    if value == Atom::Never.fact() {
+                        return Ok([None, None]);
+                    }
+                    *state.stack.data.last_mut().unwrap() = Operand::new(value);
                 }
                 Op::Pop => {
                     state.stack.data.pop().unwrap();

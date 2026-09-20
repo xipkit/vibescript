@@ -10,6 +10,8 @@ Unknown values and explicit `any` remain separate from known alternatives. Joini
 
 Boundary relations distinguish acceptance, gradual uncertainty and known rejection. They inspect every known alternative, including container contents and shape fields. Hash key contracts preserve the shared string/symbol keyspace and the distinction between a known literal key representation and an annotation's unspecified representation. Optional fields can be absent; finite shape and literal-array alternatives are split when several declared alternatives collectively cover them. Expansion checks for a counterexample before exploring further combinations and remains subject to normal quotas.
 
+Successful normalization distinguishes unsupported builtin hash keys from nominal key checks. A contract such as `hash<int,int>` rejects even an empty hash; a nominal key contract checks stored keys individually and can admit an empty hash. The checker diagnoses concrete rejected inputs and excludes successful continuations when normalization admits no value, including supplied parameters and defaults. Ordinary errors still reach rescue handlers. Empty outer collections can satisfy nested contracts without visiting an element, and ordered unions still try valid alternatives.
+
 The current reference corpus contains 1,156 boundary pairs generated from 34 type spellings. Go v0.70.0 checks each pair through an annotated producer and return boundary; Rust checks the corresponding facts. The Go test regenerates the decisions from the pinned interpreter. This validates boundary decisions, not whole-script checking, diagnostic wording, control flow or host binding.
 
 ## Control flow

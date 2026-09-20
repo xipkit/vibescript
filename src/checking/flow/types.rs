@@ -86,6 +86,9 @@ impl Walker<'_> {
                 }
             }
             value = self.facts.normalized(self.ctx, actual, expected)?;
+            if value == Atom::Never.fact() {
+                return Ok(None);
+            }
         }
         if self.general {
             let Some(actual) = self.general_value(&mut state, pc, value)? else {

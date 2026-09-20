@@ -829,6 +829,7 @@ fn normalization_honors_exact_quotas_and_releases_interrupted_work() {
         format!(
             "def consume(h:{{{fields}}})->int;if h.empty?;0;else;\"bad\";end;end;def run(h:hash<string,string?>)->int;consume(h);end"
         ),
+        "def consume(h:hash<int,int>)->int;\"bad\";end;def run(h)->int;begin;consume(h);\"unreachable\";rescue RuntimeError;0;end;end".into(),
     ] {
         let program = bytecode::compile(&source, Vec::new(), &()).unwrap();
         normalization_quotas(&program);
@@ -997,6 +998,53 @@ fn general_hash_contracts_describe_stored_string_keys() {
             actual
         );
         drop((output, facts));
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+}
+
+#[test]
+fn invalid_builtin_hash_keys_have_no_successful_normalized_values() {
+    let program = bytecode::compile(SOURCE, Vec::new(), &()).unwrap();
+    for spelling in [
+        "hash<int,int>",
+        "hash<int?,int>",
+        "hash<int|bool,int>",
+        "hash<array,int>",
+    ] {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let mut facts = Facts::new(&mut ctx).unwrap();
+        let ty = syntax::parse_type(spelling).unwrap();
+        let expected = contract(&mut ctx, &mut facts, &program, &ty);
+        assert_eq!(
+            facts.value_domain(&mut ctx, expected).unwrap(),
+            Atom::Never.fact()
+        );
+        for actual in [expected, Atom::Unknown.fact(), Atom::Any.fact()] {
+            assert_eq!(
+                facts.normalized(&mut ctx, actual, expected).unwrap(),
+                Atom::Never.fact(),
+                "{spelling}"
+            );
+        }
+        for input in [
+            Value::hash(Vec::new()),
+            Value::hash(vec![(b"x".to_vec(), Value::int(1))]),
+        ] {
+            let actual = observed(&mut ctx, &mut facts, &program, &input);
+            assert_eq!(
+                facts.normalized(&mut ctx, actual, expected).unwrap(),
+                Atom::Never.fact(),
+                "{spelling}"
+            );
+            assert_eq!(
+                runtime_normalize(&mut ctx, &program, &ty, input)
+                    .unwrap_err()
+                    .kind,
+                ErrorKind::Type,
+                "{spelling}"
+            );
+        }
+        drop(facts);
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
 }

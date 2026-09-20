@@ -117,6 +117,17 @@ impl Facts {
         self.compare(ctx, source, target, false)
     }
 
+    /// Reports hash key contracts that runtime normalization rejects before it
+    /// inspects any stored key, so even an empty hash fails them.
+    ///
+    /// Builtin key annotations other than `string`, `symbol` and `any`, such as
+    /// `hash<int, int>`, answer this way. Nominal keys instead validate each stored
+    /// key, which admits the empty hash. A never key fact is not a contract; it
+    /// describes a hash known to be empty and keeps its ordinary comparison.
+    pub(super) fn impossible_keys(&self, key: Fact) -> bool {
+        key != Atom::Never.fact() && self.string_key(key) == Some(false)
+    }
+
     pub fn overlaps(&mut self, ctx: &mut CallContext, source: Fact, target: Fact) -> Result<bool> {
         ctx.charge(1)?;
         Ok(source != Atom::Never.fact()
@@ -465,6 +476,18 @@ impl Facts {
                         {
                             Relation::Accepted
                         }
+                        // Runtime rejects every hash, empty or not, against a key contract
+                        // such as hash<int, int> before it looks at stored keys or values.
+                        // Only sources with known key provenance are decided here; unknown
+                        // keys keep their gradual comparison below.
+                        (
+                            Node::Hash(source_keys, _, _) | Node::Shape(_, _, source_keys, _),
+                            Node::Hash(key, _, _),
+                        ) if self.impossible_keys(*key)
+                            && self.string_key(*source_keys).is_some() =>
+                        {
+                            Relation::Rejected
+                        }
                         (Node::Hash(..), Node::Hash(..)) if pair.overlap => Relation::Gradual,
                         (Node::Hash(sk, sv, _), Node::Hash(tk, tv, _)) => {
                             tasks.push(ctx, Task::All(2))?;
@@ -490,7 +513,14 @@ impl Facts {
                         }
                         (Node::Shape(source, open, source_keys, _), Node::Hash(key, value, _)) => {
                             if source.data.is_empty() && !open {
-                                Relation::Accepted
+                                // An empty closed shape with unknown key provenance cannot
+                                // be promised to pass a key contract that rejects every
+                                // hash; known keys were already rejected above.
+                                if self.impossible_keys(*key) {
+                                    Relation::Gradual
+                                } else {
+                                    Relation::Accepted
+                                }
                             } else {
                                 ctx.charge(source.data.len() as u64)?;
                                 let count = source
