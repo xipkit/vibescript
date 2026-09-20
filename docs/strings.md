@@ -4,6 +4,8 @@ Strings contain arbitrary bytes and preserve value semantics. These methods comp
 
 ## Concatenation and conversion
 
+Binary `+` combines a range with a string in either order: `"r=" + (1..3)` returns `"r=1..3"`, and `(1...3) + "!"` returns `"1...3!"`. Open and descending ranges use the same range notation.
+
 `concat` accepts any number of strings and returns their concatenation in argument order. The receiver's binding remains unchanged. With no arguments, or only empty strings, it reuses the receiver.
 
 ```vibescript

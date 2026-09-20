@@ -86,6 +86,7 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
                     | Kind::Zoned(_)
                     | Kind::EnumMember(_)
                     | Kind::Regex(_)
+                    | Kind::Range(_)
             )
         };
         if !scalar(&a) || !scalar(&b) {

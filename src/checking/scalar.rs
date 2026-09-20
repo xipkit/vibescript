@@ -562,7 +562,7 @@ fn primitive_binary(op: &str, a: Atom, b: Atom) -> Option<Atom> {
     let printable = |atom| {
         matches!(
             atom,
-            Bool | Int | Float | String | Symbol | Duration | Time | Money | Regex
+            Bool | Int | Float | String | Symbol | Duration | Time | Money | Regex | Range
         )
     };
     let numeric = if a == Int && b == Int { Int } else { Float };
