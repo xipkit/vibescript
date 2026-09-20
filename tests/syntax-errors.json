@@ -13094,5 +13094,35 @@
     "body": "0x5if",
     "go_error": "parse error at 2:1: invalid numeric literal",
     "source": "def run(input)\n0x5if\nend"
+  },
+  {
+    "name": "begin_modifier_boundary_plain_if",
+    "source": "def run(_)\ni=5\nbegin\n i += 1\nend if true\ni\nend",
+    "go_error": "parse error at 5:5: modifier if is only supported after expression or assignment statements, or leaf control-flow statements\n  --> line 5, column 5\n 5 | end if true\n   |     ^"
+  },
+  {
+    "name": "begin_modifier_boundary_plain_unless",
+    "source": "def run(_)\ni=5\nbegin\n i += 1\nend unless false\ni\nend",
+    "go_error": "parse error at 5:5: modifier unless is only supported after expression or assignment statements, or leaf control-flow statements\n  --> line 5, column 5\n 5 | end unless false\n   |     ^"
+  },
+  {
+    "name": "begin_modifier_boundary_plain_while",
+    "source": "def run(_)\ni=5\nbegin\n i += 1\nend while i < 3\ni\nend",
+    "go_error": "parse error at 5:5: modifier while is only supported after expression or assignment statements, or leaf control-flow statements\n  --> line 5, column 5\n 5 | end while i < 3\n   |     ^"
+  },
+  {
+    "name": "begin_modifier_boundary_plain_until",
+    "source": "def run(_)\ni=5\nbegin\n i += 1\nend until i > 3\ni\nend",
+    "go_error": "parse error at 5:5: modifier until is only supported after expression or assignment statements, or leaf control-flow statements\n  --> line 5, column 5\n 5 | end until i > 3\n   |     ^"
+  },
+  {
+    "name": "begin_modifier_boundary_plain_rescue",
+    "source": "def run(_)\nbegin\nraise \"x\"\nrescue\n3\nend if true\nend",
+    "go_error": "parse error at 6:5: modifier if is only supported after expression or assignment statements, or leaf control-flow statements\n  --> line 6, column 5\n 6 | end if true\n   |     ^"
+  },
+  {
+    "name": "begin_modifier_boundary_plain_ensure",
+    "source": "def run(_)\nbegin\n1\nensure\n2\nend unless false\nend",
+    "go_error": "parse error at 6:5: modifier unless is only supported after expression or assignment statements, or leaf control-flow statements\n  --> line 6, column 5\n 6 | end unless false\n   |     ^"
   }
 ]

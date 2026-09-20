@@ -713,21 +713,26 @@ impl<'a> Parser<'a> {
     }
     fn modified_statement(&mut self, offset: u32) -> Result<Statement> {
         self.work.charge(1)?;
+        let starts_begin = matches!(self.token(), Token::Word(word) if word == "begin");
         let stmt = self.plain_statement()?;
         let modifier = match self.token() {
             Token::Word(w) if matches!(w.as_str(), "if" | "unless" | "while" | "until") => *w,
             _ => return Ok(stmt),
         };
-        if !matches!(
-            stmt,
-            Statement::Expr(_)
-                | Statement::Raise(..)
-                | Statement::Retry
-                | Statement::Assign(..)
-                | Statement::Return(_)
-                | Statement::Break(_)
-                | Statement::Next(_)
-        ) {
+        let bare_begin = starts_begin
+            && matches!(&stmt, Statement::Expr(Expr { node: Node::Try(attempt), .. }) if !attempt.modifier);
+        if bare_begin
+            || !matches!(
+                stmt,
+                Statement::Expr(_)
+                    | Statement::Raise(..)
+                    | Statement::Retry
+                    | Statement::Assign(..)
+                    | Statement::Return(_)
+                    | Statement::Break(_)
+                    | Statement::Next(_)
+            )
+        {
             return self
                 .err("modifier requires an expression, assignment, or leaf control statement");
         }
