@@ -41,6 +41,12 @@ impl Walker<'_> {
             }
             let mut state = state.snapshot(self.ctx)?;
             state.addresses.data.last_mut().unwrap().value = source;
+            if matches!(self.facts.atom(source), Some(Atom::Unknown | Atom::Any)) {
+                let args = args.snapshot(self.ctx)?;
+                let edges = self.dynamic_mutation(&mut state, pc, site, args, false)?;
+                self.member_edges(pc, state, edges)?;
+                continue;
+            }
             if matches!(
                 crate::checking::objects::select(self.ctx, self.facts, source, site.call, name)?,
                 Some(

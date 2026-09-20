@@ -29,7 +29,7 @@ impl Walker<'_> {
         if !admitted {
             return Ok([None, None]);
         }
-        self.unknown_block_effects(&mut state, pc)?;
+        self.unknown_call_effects(&mut state, pc)?;
         self.emit_error(&state, pc, u8::MAX)?;
         let escape = state.snapshot(self.ctx)?;
         self.callback_escape(escape, pc, Atom::Unknown.fact())?;
@@ -61,9 +61,9 @@ impl Walker<'_> {
         Ok([Some((pc + 1, state)), None])
     }
 
-    fn unknown_block_effects(&mut self, state: &mut State, pc: usize) -> Result<()> {
-        // Incoming blocks cannot rebind this declaration's locals, but can reach
-        // globals and objects shared with the caller. A no-op block remains possible.
+    pub(super) fn unknown_call_effects(&mut self, state: &mut State, pc: usize) -> Result<()> {
+        // Unknown callees cannot rebind this frame's locals without its attached
+        // block, but can reach shared globals and objects. A no-op remains possible.
         let layout = state.global_layout.clone();
         for source in layout.sources() {
             self.ctx.charge(1)?;

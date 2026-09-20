@@ -2,7 +2,77 @@ use super::*;
 use crate::checking::calls::{HostBoundary, Outcome};
 use blocks::{Closure, Completion};
 
+#[derive(Clone, Copy)]
+enum CallbackTarget {
+    Host(CallableId),
+    Dynamic,
+    Mutation { address: bool },
+}
+
+impl CallbackTarget {
+    fn dynamic(self) -> bool {
+        !matches!(self, Self::Host(_))
+    }
+}
+
 impl Walker<'_> {
+    pub(super) fn dynamic_call(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        args: Arguments,
+    ) -> Result<Option<Edges>> {
+        self.dynamic_invoke(state, pc, args, CallbackTarget::Dynamic)
+    }
+
+    pub(super) fn dynamic_mutation(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        site: MemberSite,
+        args: Arguments,
+        address: bool,
+    ) -> Result<Option<Edges>> {
+        let selected = state.addresses.data.last().unwrap();
+        let protection = selected.protection(self.ctx, self.facts)?;
+        if protection != Attached::No {
+            self.collection_error(state, pc, selected.value, site, &args, ErrorClass::Runtime)?;
+            if protection == Attached::Yes {
+                return Ok(Some([None, None]));
+            }
+        }
+        self.dynamic_invoke(state, pc, args, CallbackTarget::Mutation { address })
+    }
+
+    fn dynamic_invoke(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        mut args: Arguments,
+        target: CallbackTarget,
+    ) -> Result<Option<Edges>> {
+        let mut admission = Outcome::empty();
+        let admitted = args.admit(self.ctx, self.facts, &mut admission.failures)?;
+        self.call_effects(state, pc, Target::Dynamic, &admission)?;
+        if !admitted {
+            return Ok(Some([None, None]));
+        }
+        if let Some(block) = args.block {
+            self.callback_schedule(state, pc, target, &block)?;
+            return Ok(Some([None, None]));
+        }
+        if matches!(target, CallbackTarget::Mutation { .. }) {
+            self.callback_finish(state, pc, target, None)?;
+            return Ok(Some([None, None]));
+        }
+        self.unknown_call_effects(state, pc)?;
+        self.emit_error(state, pc, u8::MAX)?;
+        state
+            .stack
+            .push(self.ctx, Operand::new(Atom::Unknown.fact()))?;
+        Ok(None)
+    }
+
     pub(super) fn host_block(
         &mut self,
         state: &mut State,
@@ -48,10 +118,20 @@ impl Walker<'_> {
             return Ok(());
         }
         if !self.calls.host_uses_block(self.ctx, index)? {
-            return self.host_finish(state, pc, index, None);
+            return self.callback_finish(state, pc, CallbackTarget::Host(index), None);
         }
         let block = args.block.as_ref().unwrap();
-        let first = self.host_step(state, pc, index, block)?;
+        self.callback_schedule(state, pc, CallbackTarget::Host(index), block)
+    }
+
+    fn callback_schedule(
+        &mut self,
+        state: &State,
+        pc: usize,
+        target: CallbackTarget,
+        block: &Closure,
+    ) -> Result<()> {
+        let first = self.callback_step(state, pc, target, block)?;
         // Keep the zero-invocation state separate from repeated invocations, just
         // as native collection loops retain their first completed iteration.
         let mut depth = self.host_depth(state, block)?;
@@ -66,7 +146,7 @@ impl Walker<'_> {
         while let Some(position) = pending.data.pop() {
             self.ctx.charge(1)?;
             let state = states.data[position].snapshot(self.ctx)?;
-            for next in self.host_step(&state, pc, index, block)?.data {
+            for next in self.callback_step(&state, pc, target, block)?.data {
                 self.host_enqueue(&mut states, &mut pending, next, depth)?;
             }
         }
@@ -117,14 +197,22 @@ impl Walker<'_> {
         states.push(self.ctx, next)
     }
 
-    fn host_step(
+    fn callback_step(
         &mut self,
         state: &State,
         pc: usize,
-        index: CallableId,
+        target: CallbackTarget,
         block: &Closure,
     ) -> Result<Buffer<State>> {
-        self.host_finish(state, pc, index, None)?;
+        let entry = if target.dynamic() {
+            let mut entry = state.snapshot(self.ctx)?;
+            self.dynamic_effects(&mut entry, pc, target)?;
+            Some(entry)
+        } else {
+            None
+        };
+        let state = entry.as_ref().unwrap_or(state);
+        self.callback_finish(state, pc, target, None)?;
         let mut callback = block.snapshot(self.ctx)?;
         self.prepare_callback(state, &mut callback)?;
         let mut args = Arguments::new();
@@ -151,28 +239,65 @@ impl Walker<'_> {
             self.ctx.charge(1)?;
             let mut next = self.capture_exit(state, &callback, &exit)?;
             next.apply_globals(self.ctx, self.facts, &exit.globals)?;
+            // Unknown script cleanup can replace a transfer or yield again.
+            // Known host callbacks keep transfers latched instead.
             match exit.completion {
                 Completion::Value | Completion::Error(_) => {
                     // A host can ignore an ordinary block error and invoke the
                     // block again with the writes completed before that error.
                     repeat.push(self.ctx, next)?;
                 }
-                Completion::Break(_) => self.host_finish(&next, pc, index, Some(exit.value))?,
-                Completion::Return(depth) => self.callback_return(next, pc, depth, exit.value)?,
-                Completion::Escape => self.callback_escape(next, pc, exit.value)?,
+                Completion::Break(_) => {
+                    self.callback_finish(&next, pc, target, Some(exit.value))?;
+                    if target.dynamic() {
+                        repeat.push(self.ctx, next)?;
+                    }
+                }
+                Completion::Return(depth) => {
+                    if target.dynamic() {
+                        self.dynamic_effects(&mut next, pc, target)?;
+                        self.emit_error(&next, pc, u8::MAX)?;
+                        let cleanup = next.snapshot(self.ctx)?;
+                        repeat.push(self.ctx, cleanup)?;
+                    }
+                    self.callback_return(next, pc, depth, exit.value)?;
+                }
+                Completion::Escape => {
+                    if target.dynamic() {
+                        self.dynamic_effects(&mut next, pc, target)?;
+                        self.emit_error(&next, pc, u8::MAX)?;
+                        let cleanup = next.snapshot(self.ctx)?;
+                        repeat.push(self.ctx, cleanup)?;
+                    }
+                    self.callback_escape(next, pc, exit.value)?;
+                }
             }
         }
         Ok(repeat)
     }
 
-    fn host_finish(
+    fn callback_finish(
         &mut self,
         state: &State,
         pc: usize,
-        index: CallableId,
+        target: CallbackTarget,
         value: Option<Fact>,
     ) -> Result<()> {
         let mut state = state.snapshot(self.ctx)?;
+        let CallbackTarget::Host(index) = target else {
+            self.dynamic_effects(&mut state, pc, target)?;
+            self.emit_error(&state, pc, u8::MAX)?;
+            let value = value.unwrap_or(Atom::Unknown.fact());
+            if let CallbackTarget::Mutation { address } = target {
+                state.addresses.data.pop().unwrap();
+                if address {
+                    state.addresses.push(self.ctx, Address::new(None, value))?;
+                    return self.native_continue(pc, state);
+                }
+            }
+            state.stack.push(self.ctx, Operand::new(value))?;
+            return self.native_continue(pc, state);
+        };
         let result = loop {
             let globals = state.global_call(self.ctx)?;
             let result = self.calls.host_boundary(
@@ -191,7 +316,7 @@ impl Walker<'_> {
                 return Ok(());
             };
             for next in alternatives.data {
-                self.host_finish(&next, pc, index, value)?;
+                self.callback_finish(&next, pc, target, value)?;
             }
         };
         self.call_effects(&state, pc, Target::Host(index), &result)?;
@@ -201,6 +326,29 @@ impl Walker<'_> {
         if result.value != Atom::Never.fact() {
             state.stack.push(self.ctx, Operand::new(result.value))?;
             self.native_continue(pc, state)?;
+        }
+        Ok(())
+    }
+
+    fn dynamic_effects(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        target: CallbackTarget,
+    ) -> Result<()> {
+        self.unknown_call_effects(state, pc)?;
+        if matches!(target, CallbackTarget::Mutation { .. }) {
+            if let Some(root) = state.addresses.data.last().unwrap().root {
+                if root < state.global_base {
+                    // The unknown method can write before, between or after callbacks.
+                    // Broaden the addressed local too, including a parent rebound by a block.
+                    let before = state.locals.get(self.ctx, root)?.value;
+                    let value = self
+                        .facts
+                        .union(self.ctx, &[before, Atom::Unknown.fact()])?;
+                    self.store(state, pc, root, Operand::new(value))?;
+                }
+            }
         }
         Ok(())
     }

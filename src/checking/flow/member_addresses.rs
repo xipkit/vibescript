@@ -20,6 +20,9 @@ impl Walker<'_> {
             }
             return Ok(Some([None, None]));
         }
+        if matches!(self.facts.atom(receiver), Some(Atom::Unknown | Atom::Any)) {
+            return self.member_address(state, pc, receiver, site);
+        }
         if self.namespace_receiver(receiver)? {
             if namespace {
                 return self.namespace_scope_address(state, pc, site);

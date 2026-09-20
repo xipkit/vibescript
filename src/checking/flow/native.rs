@@ -92,6 +92,9 @@ impl Walker<'_> {
             }
             return Ok(Some([None, None]));
         }
+        if matches!(self.facts.atom(receiver), Some(Atom::Unknown | Atom::Any)) {
+            return self.dynamic_call(state, pc, args);
+        }
         if self.namespace_receiver(receiver)? {
             return self.namespace_member(state, pc, receiver, site, args, false);
         }
@@ -103,7 +106,7 @@ impl Walker<'_> {
                         return Ok(None);
                     }
                     if self.dynamic(field)? {
-                        return self.incomplete(pc).map(Some);
+                        return self.dynamic_call(state, pc, Arguments::new());
                     }
                     return Ok(if self.read_value(state, pc, field, None)? {
                         None

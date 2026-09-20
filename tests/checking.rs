@@ -132,7 +132,7 @@ fn structural_equality_general_inputs_retain_both_results_without_host_effects()
             .check_function("run", &CallOptions::default())
             .unwrap();
         assert!(
-            !report.is_clean() && !report.incomplete.is_empty(),
+            !report.diagnostics.is_empty() && report.incomplete.is_empty(),
             "{source}: {report:?}"
         );
         let receiver = script
@@ -1128,13 +1128,136 @@ fn native_member_diagnosis_preserves_unions_and_source_overrides() {
             CheckedOutcome::Executed(_)
         ));
     }
-    // An opaque receiver still needs dispatch analysis; it is not known to lack the method.
+    // An unknown receiver defers dispatch validation to runtime.
     let script = Engine::new()
         .compile("def run(value);value.missing_native;end")
         .unwrap();
     let report = script.check_function("run", &options).unwrap();
     assert!(report.diagnostics.is_empty(), "{report:?}");
-    assert!(!report.incomplete.is_empty(), "{report:?}");
+    assert!(report.incomplete.is_empty(), "{report:?}");
+}
+
+#[test]
+fn unknown_member_callbacks_work_in_each_public_checking_scope_without_execution() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let observed = calls.clone();
+    let method = vibescript::HostMethod::new_with_block("visit", move |call, _, _| {
+        observed.fetch_add(1, Ordering::SeqCst);
+        for _ in 0..3 {
+            call.call_block(&[Value::int(7)])?;
+        }
+        Ok(Value::int(13))
+    });
+    let args = [Value::object(vec![(b"visit".to_vec(), method.value())])];
+    let script = Engine::new()
+        .compile("def run(value);n=0;result=value.visit {|item|n+=1};[result,n];end")
+        .unwrap();
+    let options = CallOptions::default();
+    for report in [
+        script.check_function("run", &options).unwrap(),
+        script.check(&options).unwrap(),
+        script.check_call("run", &args, &options).unwrap(),
+    ] {
+        assert!(report.is_clean(), "{report:?}");
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+    }
+    let CheckedOutcome::Executed(output) = script.checked_call("run", &args, options).unwrap()
+    else {
+        panic!("dynamic callback was rejected");
+    };
+    assert_eq!(output.value.to_string(), "[13, 3]");
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn unknown_callback_bodies_report_known_type_errors_before_host_execution() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let observed = calls.clone();
+    let method = vibescript::HostMethod::new_with_block("visit", move |call, _, _| {
+        observed.fetch_add(1, Ordering::SeqCst);
+        call.call_block(&[])
+    });
+    let args = [Value::object(vec![(b"visit".to_vec(), method.value())])];
+    let script = Engine::new()
+        .compile("def take(n:int);n;end;def run(value);value.visit {take('bad')};end")
+        .unwrap();
+    let options = CallOptions::default();
+    for report in [
+        script.check_function("run", &options).unwrap(),
+        script.check(&options).unwrap(),
+        script.check_call("run", &args, &options).unwrap(),
+    ] {
+        assert!(report.incomplete.is_empty(), "{report:?}");
+        assert!(!report.diagnostics.is_empty(), "{report:?}");
+    }
+    assert!(matches!(
+        script.checked_call("run", &args, options).unwrap(),
+        CheckedOutcome::Rejected(_)
+    ));
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn unknown_script_callee_cleanup_can_replace_block_control_transfers() {
+    for transfer in ["break 8", "return 8"] {
+        for (cleanup, visits) in [("return 9", 1), ("begin;yield;ensure;return 9;end", 2)] {
+            let source = format!(
+                "class C;def visit;begin;yield;ensure;{cleanup};end;end;end;def run(value)->int;n=0;result=value.visit {{n+=1;{transfer}}};if n=={visits} && result==9;'wrong';else;0;end;end;def execute;run(C.new);end"
+            );
+            let script = Engine::new().compile(&source).unwrap();
+            let options = CallOptions::default();
+            let report = script.check_function("run", &options).unwrap();
+            assert!(report.incomplete.is_empty(), "{source}: {report:?}");
+            assert!(!report.diagnostics.is_empty(), "{source}: {report:?}");
+            assert_eq!(
+                script.call("execute", &[], options).unwrap_err().kind,
+                ErrorKind::Type,
+                "{source}"
+            );
+        }
+    }
+}
+
+#[test]
+fn unknown_member_lookup_errors_preserve_argument_evaluation_order() {
+    for (member, fails_before_arguments) in [("foo", true), ("push", true), ("clear", false)] {
+        let source = format!(
+            "def run(value)->int;n=0;begin;value.{member}((begin;n=7;9;end));rescue RuntimeError;if n==0;'wrong';else;0;end;end;end"
+        );
+        let script = Engine::new().compile(&source).unwrap();
+        let options = CallOptions::default();
+        let report = script.check_function("run", &options).unwrap();
+        assert!(report.incomplete.is_empty(), "{source}: {report:?}");
+        assert_eq!(
+            !report.diagnostics.is_empty(),
+            fails_before_arguments,
+            "{source}: {report:?}"
+        );
+        let result = script.call("run", &[Value::hash(vec![])], options);
+        if fails_before_arguments {
+            assert_eq!(result.unwrap_err().kind, ErrorKind::Type, "{source}");
+        } else {
+            assert_eq!(result.unwrap().value.as_int(), Some(0), "{source}");
+        }
+    }
+}
+
+#[test]
+fn unknown_member_results_defer_to_runtime_contracts_and_exact_call_checks() {
+    let script = Engine::new()
+        .compile("def run(value)->int;value.foo;end")
+        .unwrap();
+    let options = CallOptions::default();
+    let report = script.check_function("run", &options).unwrap();
+    assert!(report.is_clean(), "{report:?}");
+    let args = [Value::hash(vec![(b"foo".to_vec(), Value::bytes("bad"))])];
+    let report = script.check_call("run", &args, &options).unwrap();
+    assert!(report.incomplete.is_empty(), "{report:?}");
+    assert!(!report.diagnostics.is_empty(), "{report:?}");
+    assert_eq!(
+        script.call("run", &args, options).unwrap_err().kind,
+        ErrorKind::Type
+    );
 }
 
 #[test]

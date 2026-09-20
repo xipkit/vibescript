@@ -12,6 +12,8 @@ mod calls;
 mod captured_tests;
 mod cases;
 mod collections;
+#[cfg(test)]
+mod dynamic_call_tests;
 mod entry;
 #[cfg(test)]
 mod entry_tests;

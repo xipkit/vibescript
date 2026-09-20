@@ -16,7 +16,7 @@ impl Walker<'_> {
                 Node::Builtin(_) | Node::Callable { .. }
             );
         }
-        if builtins && self.facts.arm_count(value) > 1 {
+        if self.facts.arm_count(value) > 1 && (builtins || self.dynamic(value)?) {
             for i in 0..self.facts.arm_count(value) {
                 self.ctx.charge(1)?;
                 let arm = self.facts.arm(value, i);
@@ -46,6 +46,11 @@ impl Walker<'_> {
             return Ok(Some([None, None]));
         }
         let name = &self.program.members[site.name];
+        if matches!(self.facts.atom(receiver), Some(Atom::Unknown | Atom::Any)) {
+            self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+            state.arguments.data.last_mut().unwrap().target = Target::Dynamic;
+            return Ok(None);
+        }
         if self.namespace_receiver(receiver)? {
             return self.namespace_call_target(state, pc, receiver, site);
         }

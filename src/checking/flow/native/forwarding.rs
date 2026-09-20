@@ -249,6 +249,17 @@ impl Walker<'_> {
         }
         while let Some(call) = pending.data.pop() {
             self.ctx.charge(1)?;
+            if matches!(
+                self.facts.atom(call.receiver),
+                Some(Atom::Unknown | Atom::Any)
+            ) {
+                let mut next = state.snapshot(self.ctx)?;
+                next.addresses.data.last_mut().unwrap().value = call.receiver;
+                let args = self.forward_arguments(args, call.consumed)?;
+                let edges = self.dynamic_mutation(&mut next, pc, call.site, args, false)?;
+                self.member_edges(pc, next, edges)?;
+                continue;
+            }
             let selected = call.site.text(self.program, self.facts);
             let bytes = selected.as_bytes();
             let name = crate::members::introspection::method_name(self.ctx, bytes)?;

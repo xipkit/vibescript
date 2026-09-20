@@ -63,7 +63,9 @@ impl Walker<'_> {
         receiver: Fact,
         name: &str,
     ) -> Result<Option<Buffer<Fact>>> {
-        if self.facts.arm_count(receiver) > 1 && self.namespace_receiver(receiver)? {
+        if self.facts.arm_count(receiver) > 1
+            && (self.namespace_receiver(receiver)? || self.dynamic(receiver)?)
+        {
             let mut variants = Buffer::empty();
             for i in 0..self.facts.arm_count(receiver) {
                 self.ctx.charge(1)?;

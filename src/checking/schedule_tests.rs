@@ -577,7 +577,6 @@ fn schedule_analysis_preserves_latched_cancellation_and_deadlines() {
 #[test]
 fn unmodeled_receivers_callbacks_and_pending_addresses_stay_explicit() {
     for source in [
-        "def run(v); v.tap {|n| n}; end",
         "def run(h:hash<string,int>); h.tap {|n| n}; end",
         "def run; {tap:7}.tap {missing}; end",
         "def run; [7,9].map! {|n| n}; end",

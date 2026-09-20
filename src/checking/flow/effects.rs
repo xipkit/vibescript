@@ -99,6 +99,31 @@ impl Walker<'_> {
             Op::AddressIndex(count) | Op::AddressTarget(count, _) => {
                 &state.stack.data[state.stack.data.len() - count..]
             }
+            Op::PrepareMember(site, addressed) => {
+                let name = &self.program.members[site.name];
+                if !site.scope
+                    && (crate::members::names::universal(name)
+                        || crate::members::names::Receiver::Hash.available(name))
+                {
+                    return Ok(0);
+                }
+                let receiver = if addressed {
+                    state.addresses.data.last().unwrap().value
+                } else {
+                    top().unwrap()
+                };
+                for i in 0..self.facts.arm_count(receiver) {
+                    self.ctx.charge(1)?;
+                    if matches!(
+                        self.facts.atom(self.facts.arm(receiver, i)),
+                        Some(Atom::Unknown | Atom::Any)
+                    ) {
+                        // A missing hash member fails before arguments run.
+                        return Ok(runtime);
+                    }
+                }
+                return Ok(0);
+            }
             Op::Method(site, count) => {
                 let base = state.stack.data.len() - count - 1;
                 let receiver = state.stack.data[base].value;

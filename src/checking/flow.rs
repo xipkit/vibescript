@@ -1088,6 +1088,9 @@ impl Walker<'_> {
         mut target: Target,
         mut args: Arguments,
     ) -> Result<Option<Edges>> {
+        if target == Target::Dynamic {
+            return self.dynamic_call(state, pc, args);
+        }
         if target == Target::Builtin(crate::builtin::Builtin::Require) {
             self.require_file(state, pc, args)?;
             return Ok(Some([None, None]));
@@ -1468,6 +1471,11 @@ impl Walker<'_> {
                 self.member_edges(pc, next, edges)?;
             }
             return Ok(Some([None, None]));
+        }
+        if matches!(self.facts.atom(receiver), Some(Atom::Unknown | Atom::Any)) {
+            let mut arguments = Arguments::new();
+            arguments.positional.extend(self.ctx, args)?;
+            return self.dynamic_mutation(state, pc, site, arguments, address_result);
         }
         if self.namespace_receiver(receiver)? {
             let mut arguments = Arguments::new();
@@ -2527,6 +2535,17 @@ impl Walker<'_> {
                         return Ok([None, None]);
                     }
                     let args = pending.arguments;
+                    if matches!(
+                        self.facts.atom(state.addresses.data.last().unwrap().value),
+                        Some(Atom::Unknown | Atom::Any)
+                    ) {
+                        if let Some(edges) =
+                            self.dynamic_mutation(&mut state, pc, site.into(), args, false)?
+                        {
+                            return Ok(edges);
+                        }
+                        continue;
+                    }
                     if self.namespace_receiver(state.addresses.data.last().unwrap().value)? {
                         if let Some(edges) =
                             self.namespace_address_call(&mut state, pc, site.into(), args, false)?
@@ -2914,7 +2933,12 @@ impl Walker<'_> {
                     ) && !self.namespace_receiver(operand.value)?
                         && !super::objects::contains(self.ctx, self.facts, operand.value)?
                     {
-                        return self.incomplete(pc);
+                        if let Some(edges) =
+                            self.member(&mut state, pc, operand.value, site, Arguments::new())?
+                        {
+                            return Ok(edges);
+                        }
+                        continue;
                     }
                     for nil in [true, false] {
                         let mut next = state.snapshot(self.ctx)?;

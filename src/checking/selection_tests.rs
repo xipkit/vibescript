@@ -675,7 +675,6 @@ fn selection_analysis_preserves_latched_cancellation_and_deadlines() {
 #[test]
 fn unsupported_selection_receivers_and_retained_addresses_remain_explicit() {
     for source in [
-        "def run(xs); xs.grep(7) {|n| n}; end",
         "def run(h:hash<string,int>); h.fetch(:a) {7}; end",
         "def run(h:hash<string,int>); h.fetch_values(:a) {7}; end",
         "def run; [7,9].map! {|n| n}; end",
