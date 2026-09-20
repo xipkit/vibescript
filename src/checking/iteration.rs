@@ -1,4 +1,4 @@
-use super::facts::{Atom, Fact, Facts, HashKind, Node};
+use super::facts::{Atom, Fact, Facts, Node};
 use crate::{CallContext, Result, budget::Buffer, bytecode::Selection};
 
 pub(super) struct Iteration {
@@ -67,7 +67,7 @@ impl Facts {
                     let length = items.data.len();
                     (self.elements(ctx, arm)?, length == 0, length > 1)
                 }
-                Node::Hash(keys, values, kind) if direct || *kind != HashKind::Any => {
+                Node::Hash(keys, values, kind) if direct || kind.single() => {
                     let pair = [*keys, *values];
                     let item = if pair.contains(&Atom::Never.fact()) {
                         Atom::Never.fact()
@@ -76,7 +76,7 @@ impl Facts {
                     };
                     (item, true, true)
                 }
-                Node::Shape(fields, open, keys, kind) if direct || *kind != HashKind::Any => {
+                Node::Shape(fields, open, keys, kind) if direct || kind.single() => {
                     let (length, open, keys) = (fields.data.len(), *open, *keys);
                     let mut empty = true;
                     let mut items = Buffer::empty();

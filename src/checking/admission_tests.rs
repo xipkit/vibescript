@@ -129,7 +129,7 @@ fn admitted_hash_keys_preserve_string_symbol_and_raw_byte_representations() {
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let result = admission::value(&mut ctx, &mut facts, &input, |_, _, _| Ok(None)).unwrap();
-    let Node::Shape(fields, false, keys, HashKind::Plain) = facts.node(result.value) else {
+    let Node::Shape(fields, false, keys, HashKind::PLAIN) = facts.node(result.value) else {
         panic!("{result:?}")
     };
     assert_eq!(fields.data[0].name.as_bytes(), Some(&[0xff, 0][..]));

@@ -292,8 +292,9 @@ impl Walker<'_> {
             let kind = match self.facts.node(view) {
                 Node::Atom(Atom::Never) => continue,
                 Node::Tuple(_) | Node::Array(_) => Receiver::Array,
-                Node::Shape(_, _, _, HashKind::Plain | HashKind::Object)
-                | Node::Hash(_, _, HashKind::Plain | HashKind::Object) => Receiver::Hash,
+                Node::Shape(_, _, _, kind) | Node::Hash(_, _, kind) if kind.single() => {
+                    Receiver::Hash
+                }
                 Node::Range(..) | Node::Atom(Atom::Range) => Receiver::Range,
                 Node::Named(_)
                 | Node::Nominal { .. }

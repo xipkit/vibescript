@@ -156,15 +156,14 @@ fn conversion(ctx: &mut CallContext, facts: &Facts, value: Fact) -> Result<bool>
     let mut incomplete = false;
     for i in 0..facts.arm_count(value) {
         ctx.charge(1)?;
-        incomplete |= matches!(
-            facts.node(facts.arm(value, i)),
+        incomplete |= match facts.node(facts.arm(value, i)) {
             Node::Atom(Atom::Unknown | Atom::Any)
-                | Node::Named(_)
-                | Node::Nominal { symbols: None, .. }
-                | Node::Instance { .. }
-                | Node::Hash(_, _, HashKind::Any | HashKind::Object)
-                | Node::Shape(_, _, _, HashKind::Any | HashKind::Object)
-        );
+            | Node::Named(_)
+            | Node::Nominal { symbols: None, .. }
+            | Node::Instance { .. } => true,
+            Node::Hash(_, _, kind) | Node::Shape(_, _, _, kind) => !kind.plain(),
+            _ => false,
+        };
     }
     Ok(incomplete)
 }

@@ -52,11 +52,11 @@ impl Facts {
     pub(super) fn plain_hash(&self, value: Fact) -> bool {
         matches!(
             self.node(value),
-            Node::Shape(_, _, _, HashKind::Plain) | Node::Hash(_, _, HashKind::Plain)
+            Node::Shape(_, _, _, HashKind::PLAIN) | Node::Hash(_, _, HashKind::PLAIN)
         )
     }
 
-    /// Distinguishes plain hashes, namespace objects, and uncertain provenance.
+    /// The set of provenances a hash fact may have.
     pub(super) fn hash_mode(&self, value: Fact) -> HashKind {
         match self.node(value) {
             Node::Hash(_, _, kind) | Node::Shape(_, _, _, kind) => *kind,
@@ -64,7 +64,8 @@ impl Facts {
         }
     }
 
-    /// Copies hash facts while preserving fields and replacing their dispatch provenance.
+    /// Copies hash facts while preserving fields and replacing their provenance
+    /// set; a plain or object copy therefore drops every protected possibility.
     pub(super) fn hash_as(
         &mut self,
         ctx: &mut CallContext,

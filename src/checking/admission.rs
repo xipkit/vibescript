@@ -98,9 +98,9 @@ pub(super) fn value<'a>(
                             false,
                             keys,
                             if hash.object {
-                                HashKind::Object
+                                HashKind::OBJECT
                             } else {
-                                HashKind::Plain
+                                HashKind::PLAIN
                             },
                         )?;
                         if hash.tag.protected() {

@@ -38,8 +38,7 @@ pub(super) fn member(
                 Node::Atom(Atom::Unknown | Atom::Any) | Node::Named(_) | Node::Nominal { .. }
             ) || matches!(
                 facts.node(value),
-                Node::Hash(_, _, HashKind::Any | HashKind::Object)
-                    | Node::Shape(_, _, _, HashKind::Any | HashKind::Object)
+                Node::Hash(_, _, kind) | Node::Shape(_, _, _, kind) if !kind.plain()
             ) && !namespace(ctx, facts, value)?;
             possible |= unknown;
             invalid |= !unknown;

@@ -112,9 +112,9 @@ pub(super) fn observed(
                     false,
                     Atom::String.fact(),
                     if hash.object {
-                        HashKind::Object
+                        HashKind::OBJECT
                     } else {
-                        HashKind::Plain
+                        HashKind::PLAIN
                     },
                 )
                 .unwrap();

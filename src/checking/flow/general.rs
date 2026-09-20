@@ -74,7 +74,7 @@ impl Model<'_> {
             fields,
             kind != InstanceKind::Concrete,
             Atom::String.fact(),
-            crate::checking::facts::HashKind::Plain,
+            crate::checking::facts::HashKind::PLAIN,
         )
     }
 }

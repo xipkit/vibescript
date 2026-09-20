@@ -56,17 +56,55 @@ pub(super) enum NominalId {
     Enumeration(usize),
 }
 
+/// The set of runtime provenances a hash fact may have.
+///
+/// Bits are only added by joins and removed by evidence (plain or object
+/// copies). A kind lacking a tag bit is never that protected object at
+/// runtime, so a join of untagged hashes never admits protected values.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(super) enum HashKind {
-    Plain,
-    Object,
-    // Structural contracts and joins may describe either dispatch behavior.
-    Any,
+pub(super) struct HashKind(u8);
+
+impl HashKind {
+    pub const PLAIN: Self = Self(0b0001);
+    pub const OBJECT: Self = Self(0b0010);
+    pub const MATCH: Self = Self(0b0100);
+    pub const ERROR: Self = Self(0b1000);
+    /// Structural annotations without concrete values admit every provenance.
+    pub const ANY: Self = Self(0b1111);
+
+    /// Certainly a plain hash.
+    pub fn plain(self) -> bool {
+        self == Self::PLAIN
+    }
+
+    /// Certainly an untagged host object.
+    pub fn object(self) -> bool {
+        self == Self::OBJECT
+    }
+
+    /// Exactly one untagged dispatch provenance, so member dispatch is uniform.
+    pub fn single(self) -> bool {
+        self.plain() || self.object()
+    }
+
+    /// May be a protected match or error object.
+    pub fn tagged(self) -> bool {
+        self.0 & (Self::MATCH.0 | Self::ERROR.0) != 0
+    }
+
+    /// Whether the two sets share a possible runtime provenance.
+    pub fn overlaps(self, other: Self) -> bool {
+        self.0 & other.0 != 0
+    }
+
+    pub fn join(self, other: Self) -> Self {
+        Self(self.0 | other.0)
+    }
 }
 
 impl From<bool> for HashKind {
     fn from(plain: bool) -> Self {
-        if plain { Self::Plain } else { Self::Any }
+        if plain { Self::PLAIN } else { Self::ANY }
     }
 }
 
@@ -363,7 +401,7 @@ impl Facts {
                 ctx.charge(values.data.len() as u64)?;
                 values.data.iter().all(|&value| self.singleton(value))
             }
-            Node::Shape(fields, false, keys, HashKind::Plain) if *keys == Atom::String.fact() => {
+            Node::Shape(fields, false, keys, HashKind::PLAIN) if *keys == Atom::String.fact() => {
                 ctx.charge(fields.data.len() as u64)?;
                 fields
                     .data

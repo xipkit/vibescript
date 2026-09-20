@@ -62,9 +62,11 @@ impl Walker<'_> {
                 Node::Atom(Atom::Unknown | Atom::Any)
                 | Node::Named(_)
                 | Node::Nominal { .. }
-                | Node::Instance { .. }
-                | Node::Shape(_, _, _, HashKind::Any | HashKind::Object)
-                | Node::Hash(_, _, HashKind::Any | HashKind::Object) => {
+                | Node::Instance { .. } => {
+                    self.incomplete(pc)?;
+                    continue;
+                }
+                Node::Shape(_, _, _, kind) | Node::Hash(_, _, kind) if !kind.plain() => {
                     self.incomplete(pc)?;
                     continue;
                 }

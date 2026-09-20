@@ -56,7 +56,7 @@ impl Walker<'_> {
         // Addressed chains select stored fields; an explicit helper call selects a copy.
         if matches!(
             self.facts.node(receiver),
-            Node::Shape(_, _, _, HashKind::Plain | HashKind::Object)
+            Node::Shape(_, _, _, kind) if kind.single()
         ) {
             if let Some((field, false)) =
                 self.facts

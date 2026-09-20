@@ -40,7 +40,7 @@ impl Walker<'_> {
             Buffer::empty(),
             false,
             Atom::String.fact(),
-            HashKind::Plain,
+            HashKind::PLAIN,
         )?;
         entries.push(self.ctx, fields)?;
         let updated = self.facts.tuple(self.ctx, &entries.data)?;

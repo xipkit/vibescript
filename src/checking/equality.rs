@@ -1,4 +1,4 @@
-use super::facts::{Atom, Callable, Fact, Facts, HashKind, Node};
+use super::facts::{Atom, Callable, Fact, Facts, Node};
 use super::slots::Slots;
 use crate::{CallContext, Result, Value, budget::Buffer};
 
@@ -311,7 +311,7 @@ impl Facts {
                     };
                     if !set {
                         if let (Some(a), Some(b)) = (hash_kind(left), hash_kind(right)) {
-                            if a != b && a != HashKind::Any && b != HashKind::Any {
+                            if !a.overlaps(b) {
                                 values.push(ctx, NO)?;
                                 continue;
                             }
@@ -375,7 +375,7 @@ impl Facts {
                             }
                         }
                         (Node::Shape(a, false, _, ak), Node::Shape(b, false, _, bk))
-                            if !set || (*ak == HashKind::Plain && *bk == HashKind::Plain) =>
+                            if !set || (ak.plain() && bk.plain()) =>
                         {
                             let mut required = true;
                             for field in a.data.iter().chain(&b.data) {
@@ -417,7 +417,7 @@ impl Facts {
                                         Task::Hash(
                                             pairs.data.len(),
                                             missing,
-                                            !set && (*ak == HashKind::Any || *bk == HashKind::Any),
+                                            !set && (!ak.single() || !bk.single()),
                                         ),
                                     )?;
                                     for pair in pairs.data {

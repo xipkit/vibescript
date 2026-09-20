@@ -18,8 +18,7 @@ impl Walker<'_> {
             let view = self.hash_view(arm);
             match self.facts.node(view) {
                 Node::Atom(Atom::Never) => continue,
-                Node::Shape(_, _, _, HashKind::Plain | HashKind::Object)
-                | Node::Hash(_, _, HashKind::Plain | HashKind::Object) => (),
+                Node::Shape(_, _, _, kind) | Node::Hash(_, _, kind) if kind.single() => (),
                 Node::Named(_)
                 | Node::Nominal { .. }
                 | Node::Instance { .. }
@@ -69,8 +68,8 @@ impl Walker<'_> {
                     self.ctx.charge(1)?;
                     let candidate = self.hash_view(self.facts.arm(source, j));
                     let value = match self.facts.node(candidate) {
-                        Node::Shape(_, _, _, HashKind::Plain)
-                        | Node::Hash(_, _, HashKind::Plain) => candidate,
+                        Node::Shape(_, _, _, HashKind::PLAIN)
+                        | Node::Hash(_, _, HashKind::PLAIN) => candidate,
                         Node::Atom(Atom::Never) => continue,
                         Node::Atom(Atom::Unknown | Atom::Any) => {
                             self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
@@ -80,10 +79,7 @@ impl Walker<'_> {
                             self.facts
                                 .hash_kind(self.ctx, keys, Atom::Unknown.fact(), true)?
                         }
-                        Node::Hash(_, _, HashKind::Any | HashKind::Object)
-                        | Node::Shape(_, _, _, HashKind::Any | HashKind::Object) => {
-                            self.plain_hash_data(candidate)?
-                        }
+                        Node::Hash(..) | Node::Shape(..) => self.plain_hash_data(candidate)?,
                         Node::Named(_) | Node::Nominal { .. } | Node::Instance { .. } => {
                             self.incomplete(pc)?;
                             continue;
@@ -148,7 +144,7 @@ impl Walker<'_> {
     }
 
     fn plain_hash_data(&mut self, input: Fact) -> Result<Fact> {
-        self.facts.hash_as(self.ctx, input, HashKind::Plain)
+        self.facts.hash_as(self.ctx, input, HashKind::PLAIN)
     }
 
     fn merge_source(

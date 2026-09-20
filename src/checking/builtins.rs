@@ -95,7 +95,7 @@ pub(super) fn global(ctx: &mut CallContext, facts: &mut Facts, value: &Value) ->
             },
         )?;
     }
-    facts.shape_fields(ctx, fields, false, Atom::String.fact(), HashKind::Object)
+    facts.shape_fields(ctx, fields, false, Atom::String.fact(), HashKind::OBJECT)
 }
 
 fn parameter(
@@ -375,7 +375,7 @@ pub(super) fn namespace(ctx: &mut CallContext, facts: &Facts, value: Fact) -> Re
     ctx.charge(1)?;
     Ok(matches!(
         facts.node(value),
-        Node::Shape(_, false, _, HashKind::Object)
+        Node::Shape(_, false, _, HashKind::OBJECT)
     ))
 }
 

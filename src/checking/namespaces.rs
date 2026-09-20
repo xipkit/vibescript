@@ -38,7 +38,7 @@ pub(super) fn initial(
             },
         )?;
     }
-    facts.shape_fields(ctx, fields, false, Atom::String.fact(), HashKind::Plain)
+    facts.shape_fields(ctx, fields, false, Atom::String.fact(), HashKind::PLAIN)
 }
 
 pub(super) struct Selected {

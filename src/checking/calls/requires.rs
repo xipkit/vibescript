@@ -276,7 +276,7 @@ impl Solver<'_, '_> {
                 )?;
             }
             let exports =
-                facts.shape_fields(ctx, fields, false, Atom::String.fact(), HashKind::Object)?;
+                facts.shape_fields(ctx, fields, false, Atom::String.fact(), HashKind::OBJECT)?;
             let index = self.state.imports.modules.data.len();
             self.state.imports.modules.push(
                 ctx,

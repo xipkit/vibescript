@@ -18,7 +18,7 @@ fn analyze_pair(
     let callee_layouts = Layouts::new(ctx, &callee.program, callee_owner)?;
     let callable = facts.callable(ctx, callee_owner, exported)?;
     let fields = facts.shape(ctx, &[(b"remote", callable, false)], false)?;
-    let object = facts.hash_as(ctx, fields, HashKind::Object)?;
+    let object = facts.hash_as(ctx, fields, HashKind::OBJECT)?;
     let roots = [
         (ctx.bytes(b"lib")?, Target::Value(object)),
         (ctx.bytes(b"seed")?, Target::Deferred(0)),

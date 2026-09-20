@@ -10,12 +10,12 @@ impl Facts {
         Ok(match node {
             Node::Callable { .. } => true,
             Node::Array(value) | Node::Protected(value, _) => self.escapes(*value),
-            Node::Hash(_, value, HashKind::Plain | HashKind::Any) => self.escapes(*value),
+            Node::Hash(_, value, kind) if !kind.object() => self.escapes(*value),
             Node::Tuple(values) | Node::Union(values) | Node::Choice(values) => {
                 ctx.charge(values.data.len() as u64)?;
                 values.data.iter().any(|&value| self.escapes(value))
             }
-            Node::Shape(fields, _, _, HashKind::Plain | HashKind::Any) => {
+            Node::Shape(fields, _, _, kind) if !kind.object() => {
                 ctx.charge(fields.data.len() as u64)?;
                 fields.data.iter().any(|field| self.escapes(field.value))
             }
@@ -89,10 +89,12 @@ impl Facts {
                     let plain = if child == Atom::Never.fact() {
                         self.shape(ctx, &[], false)?
                     } else {
-                        self.hash_kind(ctx, key, child, HashKind::Plain)?
+                        self.hash_kind(ctx, key, child, HashKind::PLAIN)?
                     };
-                    if kind == HashKind::Any {
-                        let object = self.hash_as(ctx, value, HashKind::Object)?;
+                    // The exported plain copy is plain; every other possible
+                    // provenance keeps its methods as an object copy.
+                    if !kind.plain() {
+                        let object = self.hash_as(ctx, value, HashKind::OBJECT)?;
                         self.union(ctx, &[plain, object])?
                     } else {
                         plain
@@ -138,10 +140,10 @@ impl Facts {
                     let plain = if missing {
                         Atom::Never.fact()
                     } else {
-                        self.shape_fields(ctx, next, open, keys, HashKind::Plain)?
+                        self.shape_fields(ctx, next, open, keys, HashKind::PLAIN)?
                     };
-                    if kind == HashKind::Any {
-                        let object = self.hash_as(ctx, value, HashKind::Object)?;
+                    if !kind.plain() {
+                        let object = self.hash_as(ctx, value, HashKind::OBJECT)?;
                         self.union(ctx, &[plain, object])?
                     } else {
                         plain

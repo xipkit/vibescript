@@ -67,9 +67,9 @@ fn exact(ctx: &mut CallContext, facts: &mut Facts, value: &Value) -> Fact {
                     false,
                     Atom::String.fact(),
                     if hash.object {
-                        HashKind::Object
+                        HashKind::OBJECT
                     } else {
-                        HashKind::Plain
+                        HashKind::PLAIN
                     },
                 )
                 .unwrap()
@@ -168,7 +168,7 @@ fn structural_equality_keeps_abstract_values_and_hash_kinds_uncertain() {
             &mut ctx,
             Atom::String.fact(),
             Atom::Int.fact(),
-            HashKind::Any,
+            HashKind::ANY,
         )
         .unwrap();
     let either = facts.union(&mut ctx, &[Atom::Nil.fact(), tuple]).unwrap();

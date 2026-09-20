@@ -200,7 +200,7 @@ impl Walker<'_> {
         let kind = match node {
             Node::Union(_) => Some(Join::Union),
             Node::Tuple(_) => Some(Join::Tuple),
-            Node::Shape(fields, false, _, HashKind::Plain) => {
+            Node::Shape(fields, false, _, HashKind::PLAIN) => {
                 let mut required = true;
                 for field in &fields.data {
                     self.ctx.charge(1)?;

@@ -396,7 +396,7 @@ impl Values {
                     )?;
                 }
                 self.captured.objects.data[snapshot.object].fields =
-                    facts.shape_fields(ctx, fields, false, Atom::String.fact(), HashKind::Plain)?;
+                    facts.shape_fields(ctx, fields, false, Atom::String.fact(), HashKind::PLAIN)?;
             }
             let mut value = self.describe(ctx, facts, world, value)?;
             value.incomplete |= incomplete;

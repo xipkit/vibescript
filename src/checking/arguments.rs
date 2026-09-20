@@ -394,7 +394,7 @@ pub(super) fn general_input(
             ctx,
             Atom::String.fact(),
             Atom::Unknown.fact(),
-            HashKind::Plain,
+            HashKind::PLAIN,
         ),
         _ => contract.map_or(Ok(Atom::Unknown.fact()), |expected| {
             facts.value_domain(ctx, expected)

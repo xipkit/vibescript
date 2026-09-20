@@ -88,7 +88,7 @@ impl Walker<'_> {
         let field = if protected
             || matches!(
                 self.facts.node(fields),
-                Node::Shape(_, false, _, HashKind::Any | HashKind::Object)
+                Node::Shape(_, false, _, kind) if !kind.plain()
             ) {
             self.facts
                 .selected_field(self.ctx, fields, name.as_bytes())?

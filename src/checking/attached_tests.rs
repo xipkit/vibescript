@@ -238,7 +238,7 @@ fn exported_fact_projection_preserves_objects_and_filters_nested_data_iterativel
     let plain = facts
         .shape(&mut ctx, &[(b"method", callable, false)], false)
         .unwrap();
-    let object = facts.hash_as(&mut ctx, plain, HashKind::Object).unwrap();
+    let object = facts.hash_as(&mut ctx, plain, HashKind::OBJECT).unwrap();
     assert_eq!(facts.exported(&mut ctx, plain).unwrap(), Atom::Never.fact());
     assert_eq!(facts.exported(&mut ctx, object).unwrap(), object);
     let mut nested = callable;
@@ -544,7 +544,7 @@ fn method_owners_cannot_resolve_to_an_unrelated_world_with_the_same_index() {
         let plain = facts
             .shape(&mut ctx, &[(b"method", method, false)], false)
             .unwrap();
-        let object = facts.hash_as(&mut ctx, plain, HashKind::Object).unwrap();
+        let object = facts.hash_as(&mut ctx, plain, HashKind::OBJECT).unwrap();
         let host = Host::new(&mut ctx, &mut facts, None).unwrap();
         let report = calls::analyze(
             &mut ctx,
@@ -576,7 +576,7 @@ fn work(ctx: &mut CallContext, program: &bytecode::Program) -> Result<()> {
     let mut facts = Facts::new(ctx)?;
     let method = facts.callable(ctx, 0, Callable::Host(0))?;
     let shape = facts.shape(ctx, &[(b"deliver", method, false)], false)?;
-    let object = facts.hash_as(ctx, shape, HashKind::Object)?;
+    let object = facts.hash_as(ctx, shape, HashKind::OBJECT)?;
     let host = Host::new(ctx, &mut facts, None)?;
     let name = ctx.bytes(b"sms")?;
     let report = calls::analyze(
@@ -742,9 +742,14 @@ fn optional_and_uncertain_hash_projections_keep_the_object_alternatives() {
     let required = facts
         .shape(&mut ctx, &[(b"method", method, false)], false)
         .unwrap();
-    let uncertain = facts.hash_as(&mut ctx, required, HashKind::Any).unwrap();
-    let object = facts.hash_as(&mut ctx, required, HashKind::Object).unwrap();
+    let uncertain = facts.hash_as(&mut ctx, required, HashKind::ANY).unwrap();
+    let object = facts.hash_as(&mut ctx, required, HashKind::OBJECT).unwrap();
     assert_eq!(facts.exported(&mut ctx, uncertain).unwrap(), object);
+    // A proven plain-or-object join exports the same way without tag bits.
+    let joined = facts
+        .hash_as(&mut ctx, required, HashKind::PLAIN.join(HashKind::OBJECT))
+        .unwrap();
+    assert_eq!(facts.exported(&mut ctx, joined).unwrap(), object);
     let values = facts.union(&mut ctx, &[method, Atom::Int.fact()]).unwrap();
     let tuple = facts.tuple(&mut ctx, &[values, values]).unwrap();
     let expected = facts

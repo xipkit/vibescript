@@ -1,4 +1,4 @@
-use super::facts::{Atom, Fact, Facts, Field, HashKind, Node};
+use super::facts::{Atom, Fact, Facts, Field, Node};
 use crate::{
     CallContext, Result,
     budget::Buffer,
@@ -313,7 +313,7 @@ impl Facts {
                 return self.string_mutation(ctx, receiver, method, args);
             }
             Node::Hash(..) | Node::Shape(..) => {
-                if self.hash_mode(receiver) == HashKind::Any {
+                if !self.hash_mode(receiver).single() {
                     return Ok(Mutation::unsupported());
                 }
                 return self.hash_mutation(ctx, receiver, method, args);
@@ -765,10 +765,10 @@ impl Facts {
                     ctx.charge(1)?;
                     let value = self.arm(args[0], i);
                     let next = match self.node(value) {
-                        Node::Protected(..) if self.hash_mode(receiver) == HashKind::Object => {
+                        Node::Protected(..) if self.hash_mode(receiver).object() => {
                             Mutation::updated(value)
                         }
-                        Node::Hash(_, _, HashKind::Any) | Node::Shape(_, _, _, HashKind::Any) => {
+                        Node::Hash(_, _, kind) | Node::Shape(_, _, _, kind) if !kind.single() => {
                             Mutation::unsupported()
                         }
                         Node::Hash(..) | Node::Shape(..) => {

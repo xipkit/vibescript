@@ -6,7 +6,7 @@ pub(super) fn contains(ctx: &mut CallContext, facts: &Facts, value: Fact) -> Res
         ctx.charge(1)?;
         if matches!(
             facts.node(facts.arm(value, i)),
-            Node::Shape(_, _, _, HashKind::Object) | Node::Hash(_, _, HashKind::Object)
+            Node::Shape(_, _, _, HashKind::OBJECT) | Node::Hash(_, _, HashKind::OBJECT)
         ) {
             return Ok(true);
         }
@@ -41,13 +41,15 @@ fn admits_field_kind(
 /// Conservatively identifies structural contracts that may admit protected
 /// match or error objects. Their metadata cannot be replaced by plain/object
 /// dispatch alternatives without losing mutation and nested-address guards.
+/// Only kinds carrying a tag bit qualify: a join of proven plain and object
+/// hashes is never reclassified as possibly protected.
 pub(super) fn may_be_protected(ctx: &mut CallContext, facts: &Facts, value: Fact) -> Result<bool> {
     let (fields, open) = match facts.node(value) {
-        Node::Hash(_, values, HashKind::Any) => {
+        Node::Hash(_, values, kind) if kind.tagged() => {
             return Ok(admits_field_kind(ctx, facts, *values, true)?
                 && admits_field_kind(ctx, facts, *values, false)?);
         }
-        Node::Shape(fields, open, _, HashKind::Any) => (fields, *open),
+        Node::Shape(fields, open, _, kind) if kind.tagged() => (fields, *open),
         _ => return Ok(false),
     };
     for names in [
@@ -126,8 +128,8 @@ fn splits(
             Node::Shape(_, _, _, kind) | Node::Hash(_, _, kind) => *kind,
             _ => continue,
         };
-        if kind == HashKind::Object
-            || (kind == HashKind::Any && provenance_sensitive(name, scope))
+        if kind.object()
+            || (!kind.single() && provenance_sensitive(name, scope))
             || scope
             || !crate::members::hash_builtin(name)
         {
@@ -163,19 +165,19 @@ pub(super) fn variants(
     }
     if matches!(
         facts.node(receiver),
-        Node::Shape(_, _, _, HashKind::Any) | Node::Hash(_, _, HashKind::Any)
+        Node::Shape(_, _, _, kind) | Node::Hash(_, _, kind) if !kind.single()
     ) {
         if !provenance_sensitive(name, scope) {
             return Ok(None);
         }
         let mut variants = Buffer::empty();
-        let plain = facts.hash_as(ctx, receiver, HashKind::Plain)?;
+        let plain = facts.hash_as(ctx, receiver, HashKind::PLAIN)?;
         variants.push(ctx, plain)?;
-        let object = facts.hash_as(ctx, receiver, HashKind::Object)?;
+        let object = facts.hash_as(ctx, receiver, HashKind::OBJECT)?;
         variants.push(ctx, object)?;
         return Ok(Some(variants));
     }
-    let Node::Shape(fields, _, _, HashKind::Object) = facts.node(receiver) else {
+    let Node::Shape(fields, _, _, HashKind::OBJECT) = facts.node(receiver) else {
         return Ok(None);
     };
     let Some((value, optional)) = facts.selected_field(ctx, receiver, name.as_bytes())? else {
@@ -258,7 +260,7 @@ pub(super) fn select(
         ),
         _ => return Ok(None),
     };
-    if kind != HashKind::Object {
+    if !kind.object() {
         if site.scope {
             return Ok(Some(Selection::Missing));
         }

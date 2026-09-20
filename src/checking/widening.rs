@@ -300,13 +300,7 @@ impl Facts {
         for &hash in hashes {
             ctx.charge(1)?;
             let kind = self.hash_mode(hash);
-            plain = Some(plain.map_or(kind, |previous| {
-                if previous == kind {
-                    kind
-                } else {
-                    HashKind::Any
-                }
-            }));
+            plain = Some(plain.map_or(kind, |previous: HashKind| previous.join(kind)));
             match self.node(hash) {
                 Node::Hash(key, element, _) => {
                     shapes = false;
@@ -326,7 +320,7 @@ impl Facts {
                 _ => unreachable!(),
             }
         }
-        let plain = plain.unwrap_or(HashKind::Any);
+        let plain = plain.unwrap_or(HashKind::ANY);
         let keys = self.union(ctx, &keys.data)?;
         if depth == 0 {
             let value = self.hash_kind(ctx, keys, Atom::Unknown.fact(), plain)?;

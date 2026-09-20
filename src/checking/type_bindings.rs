@@ -137,7 +137,7 @@ impl Bindings {
             ctx.charge(1)?;
             let value = facts.arm(value, index);
             let binding = match facts.node(value) {
-                Node::Shape(fields, open, _, HashKind::Object) => {
+                Node::Shape(fields, open, _, HashKind::OBJECT) => {
                     let scope = self.scope(ctx)?;
                     for field in &fields.data {
                         ctx.charge(1)?;
@@ -155,7 +155,7 @@ impl Bindings {
                     }
                     Binding::Exports(scope)
                 }
-                Node::Hash(_, _, HashKind::Object) => {
+                Node::Hash(_, _, HashKind::OBJECT) => {
                     let scope = self.scope(ctx)?;
                     self.open(ctx, scope)?;
                     Binding::Exports(scope)
@@ -173,8 +173,9 @@ impl Bindings {
             ctx.charge(1)?;
             let value = facts.arm(value, index);
             let binding = match facts.node(value) {
-                Node::Shape(_, _, _, HashKind::Any | HashKind::Object)
-                | Node::Hash(_, _, HashKind::Any | HashKind::Object) => Binding::Other,
+                Node::Shape(_, _, _, kind) | Node::Hash(_, _, kind) if !kind.plain() => {
+                    Binding::Other
+                }
                 _ => Self::value(ctx, facts, value)?,
             };
             result = Some(result.map_or(binding, |before: Binding| before.merge(binding)));
@@ -207,10 +208,10 @@ impl Bindings {
                     fact: *nominal,
                     enumeration: true,
                 },
-                Node::Atom(Atom::Unknown | Atom::Any)
-                | Node::Named(_)
-                | Node::Shape(_, _, _, HashKind::Any | HashKind::Object)
-                | Node::Hash(_, _, HashKind::Any | HashKind::Object) => Binding::Unknown,
+                Node::Atom(Atom::Unknown | Atom::Any) | Node::Named(_) => Binding::Unknown,
+                Node::Shape(_, _, _, kind) | Node::Hash(_, _, kind) if !kind.plain() => {
+                    Binding::Unknown
+                }
                 _ => Binding::Other,
             };
             result = Some(result.map_or(binding, |previous: Binding| previous.merge(binding)));
