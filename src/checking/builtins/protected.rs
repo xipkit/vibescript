@@ -268,6 +268,8 @@ pub(in crate::checking) fn member(
     result.incomplete = operation.unsupported;
     if operation.rejected {
         result.failures.push(ctx, Failure::BuiltinValue)?;
+    }
+    if operation.rejected || operation.throws {
         result.throws |= RUNTIME;
     }
     Ok(result)
@@ -289,6 +291,7 @@ pub(in crate::checking) fn index(
             value: Atom::Never.fact(),
             rejected: true,
             unsupported: false,
+            throws: false,
         });
     }
     if tag == Tag::Match {
@@ -310,6 +313,7 @@ pub(in crate::checking) fn index(
                 value,
                 rejected: false,
                 unsupported: false,
+                throws: false,
             });
         }
         if let Node::String(name) | Node::Symbol(name) = facts.node(key) {
@@ -320,6 +324,7 @@ pub(in crate::checking) fn index(
                     value,
                     rejected: false,
                     unsupported: false,
+                    throws: false,
                 });
             }
             let named = facts
@@ -338,6 +343,7 @@ pub(in crate::checking) fn index(
                 value,
                 rejected: false,
                 unsupported: false,
+                throws: false,
             });
         }
     }

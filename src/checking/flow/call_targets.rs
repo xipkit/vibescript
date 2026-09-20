@@ -37,7 +37,9 @@ impl Walker<'_> {
         receiver: Fact,
         site: CallSite,
     ) -> Result<Option<Edges>> {
-        if let Some(variants) = self.member_variants(receiver, &self.program.members[site.name])? {
+        if let Some(variants) =
+            self.member_variants(receiver, &self.program.members[site.name], site.scope)?
+        {
             for receiver in variants.data {
                 let mut next = state.snapshot(self.ctx)?;
                 let edges = self.call_member(&mut next, pc, receiver, site)?;

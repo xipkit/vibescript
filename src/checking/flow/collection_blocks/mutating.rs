@@ -23,7 +23,7 @@ impl Walker<'_> {
         let selected = site.text(self.program, self.facts);
         let name = selected.as_str();
         if let Some(variants) =
-            crate::checking::objects::variants(self.ctx, self.facts, receiver, name)?
+            crate::checking::objects::variants(self.ctx, self.facts, receiver, name, site.scope)?
         {
             for receiver in variants.data {
                 self.ctx.charge(1)?;
@@ -47,19 +47,32 @@ impl Walker<'_> {
                 self.member_edges(pc, state, edges)?;
                 continue;
             }
-            if matches!(
-                crate::checking::objects::select(self.ctx, self.facts, source, site.call, name)?,
-                Some(
-                    crate::checking::objects::Selection::Field(_)
-                        | crate::checking::objects::Selection::Missing
-                        | crate::checking::objects::Selection::Incomplete
-                )
-            ) {
-                state.addresses.data.pop().unwrap();
-                let arguments = args.snapshot(self.ctx)?;
-                let edges = self.member(&mut state, pc, source, site, arguments)?;
-                self.member_edges(pc, state, edges)?;
-                continue;
+            use crate::checking::objects::{Selection, absent_is_native};
+            match crate::checking::objects::select(self.ctx, self.facts, source, site.call, name)? {
+                Some(Selection::UnmodeledProtection) => {
+                    self.incomplete(pc)?;
+                    continue;
+                }
+                Some(Selection::Field(_) | Selection::Missing) => {
+                    state.addresses.data.pop().unwrap();
+                    let arguments = args.snapshot(self.ctx)?;
+                    let edges = self.member(&mut state, pc, source, site, arguments)?;
+                    self.member_edges(pc, state, edges)?;
+                    continue;
+                }
+                Some(Selection::Uncertain(field)) => {
+                    let mut present = state.snapshot(self.ctx)?;
+                    present.addresses.data.pop().unwrap();
+                    let arguments = args.snapshot(self.ctx)?;
+                    let edges =
+                        self.member_field(&mut present, pc, field, site, arguments, false)?;
+                    self.member_edges(pc, present, edges)?;
+                    if !absent_is_native(site.call, name) {
+                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
+                        continue;
+                    }
+                }
+                Some(Selection::Native) | None => (),
             }
             let protection = state
                 .addresses

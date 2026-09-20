@@ -222,7 +222,14 @@ impl Address {
         args: &[Fact],
     ) -> Result<Operation> {
         self.protected = self.protection(ctx, facts)?;
-        let result = facts.collection_index(ctx, self.value, args)?;
+        let mut result = facts.collection_index(ctx, self.value, args)?;
+        for i in 0..facts.arm_count(self.value) {
+            ctx.charge(1)?;
+            if super::objects::may_be_protected(ctx, facts, facts.arm(self.value, i))? {
+                self.supported = false;
+                result.unsupported = true;
+            }
+        }
         if let [key] = args {
             let stored = stored(ctx, facts, self.value, *key)?;
             let key = captured(ctx, facts, self.value, *key)?;
@@ -317,6 +324,7 @@ impl Address {
             value,
             rejected: false,
             unsupported,
+            throws: false,
         })
     }
 

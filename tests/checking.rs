@@ -1322,7 +1322,12 @@ fn for_traversal_does_not_assume_native_method_dispatch() {
     let report = script
         .check_function("run", &CallOptions::default())
         .unwrap();
-    assert!(!report.incomplete.is_empty(), "{report:?}");
+    assert!(report.is_clean(), "{report:?}");
+    let exact = script
+        .check_call("run", &args, &CallOptions::default())
+        .unwrap();
+    assert!(exact.incomplete.is_empty(), "{exact:?}");
+    assert!(!exact.diagnostics.is_empty(), "{exact:?}");
     assert!(script.call("run", &args, CallOptions::default()).is_err());
 }
 

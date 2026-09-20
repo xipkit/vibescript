@@ -62,6 +62,7 @@ impl Walker<'_> {
         &mut self,
         receiver: Fact,
         name: &str,
+        scope: bool,
     ) -> Result<Option<Buffer<Fact>>> {
         if self.facts.arm_count(receiver) > 1
             && (self.namespace_receiver(receiver)? || self.dynamic(receiver)?)
@@ -73,7 +74,7 @@ impl Walker<'_> {
             }
             return Ok(Some(variants));
         }
-        super::super::objects::variants(self.ctx, self.facts, receiver, name)
+        super::super::objects::variants(self.ctx, self.facts, receiver, name, scope)
     }
 
     pub(super) fn namespace_value(&mut self, module: usize) -> Result<Fact> {

@@ -335,13 +335,10 @@ fn hash_member_reads_keep_field_and_builtin_precedence_separate() {
 }
 
 #[test]
-fn blocks_and_capability_object_dispatch_remain_explicitly_incomplete() {
+fn unmodeled_collection_operations_remain_explicitly_incomplete() {
     for source in [
         "def run; [7].map! { _1 }; end",
-        "def run(x: {size: string}); x.size; end",
-        "def run(x: hash<string,int>); x.keys; end",
         "def run(x: hash); x[0]; end",
-        "def run(x: hash); x.store(:key, 7); end",
         "def run(x: {to_s: string, named_captures: hash}); x[:capture]; end",
         "def run; [7].first(n: 1); end",
     ] {

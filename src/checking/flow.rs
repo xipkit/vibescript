@@ -1462,7 +1462,7 @@ impl Walker<'_> {
             }
             return Ok(Some([None, None]));
         }
-        if let Some(variants) = self.member_variants(receiver, name)? {
+        if let Some(variants) = self.member_variants(receiver, name, site.scope)? {
             for receiver in variants.data {
                 self.ctx.charge(1)?;
                 let mut next = state.snapshot(self.ctx)?;
@@ -1482,29 +1482,46 @@ impl Walker<'_> {
             arguments.positional.extend(self.ctx, args)?;
             return self.namespace_address_call(state, pc, site, arguments, address_result);
         }
-        if matches!(
-            super::objects::select(self.ctx, self.facts, receiver, site.call, name)?,
-            Some(
-                super::objects::Selection::Field(_)
-                    | super::objects::Selection::Missing
-                    | super::objects::Selection::Incomplete
-            )
-        ) {
-            state.addresses.data.pop().unwrap();
-            let mut arguments = Arguments::new();
-            arguments.positional.extend(self.ctx, args)?;
-            let edges = self.member(state, pc, receiver, site, arguments)?;
-            if edges.is_none() && address_result {
-                let value = state.stack.data.pop().unwrap().value;
-                state.addresses.push(self.ctx, Address::new(None, value))?;
-            }
-            return Ok(edges);
-        }
         if matches!(name, "delete_if" | "keep_if") {
             let mut arguments = Arguments::new();
             arguments.positional.extend(self.ctx, args)?;
             self.mutable_block(state, pc, site, &arguments)?;
             return Ok(Some([None, None]));
+        }
+        match super::objects::select(self.ctx, self.facts, receiver, site.call, name)? {
+            Some(super::objects::Selection::UnmodeledProtection) => {
+                return self.incomplete(pc).map(Some);
+            }
+            Some(super::objects::Selection::Field(_) | super::objects::Selection::Missing) => {
+                state.addresses.data.pop().unwrap();
+                let mut arguments = Arguments::new();
+                arguments.positional.extend(self.ctx, args)?;
+                let edges = self.member(state, pc, receiver, site, arguments)?;
+                if edges.is_none() && address_result {
+                    let value = state.stack.data.pop().unwrap().value;
+                    state.addresses.push(self.ctx, Address::new(None, value))?;
+                }
+                return Ok(edges);
+            }
+            Some(super::objects::Selection::Uncertain(field)) => {
+                let mut present = state.snapshot(self.ctx)?;
+                present.addresses.data.pop().unwrap();
+                let mut arguments = Arguments::new();
+                arguments.positional.extend(self.ctx, args)?;
+                let edges = self.member_field(&mut present, pc, field, site, arguments, false)?;
+                if edges.is_none() && address_result {
+                    let value = present.stack.data.pop().unwrap().value;
+                    present
+                        .addresses
+                        .push(self.ctx, Address::new(None, value))?;
+                }
+                self.member_edges(pc, present, edges)?;
+                if !super::objects::absent_is_native(site.call, name) {
+                    self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+                    return Ok(Some([None, None]));
+                }
+            }
+            Some(super::objects::Selection::Native) | None => (),
         }
         let address = state.addresses.data.pop().unwrap();
         let protection = address.protection(self.ctx, self.facts)?;
@@ -1545,8 +1562,10 @@ impl Walker<'_> {
             name,
             args,
         )?;
-        if result.rejected {
+        if result.rejected || result.throws {
             self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+        }
+        if result.rejected {
             let arguments = self.facts.tuple(self.ctx, args)?;
             self.issue(
                 pc,
@@ -2455,8 +2474,10 @@ impl Walker<'_> {
                         let result =
                             self.facts
                                 .collection_member(self.ctx, receiver, site, name, &[])?;
-                        if result.rejected {
+                        if result.rejected || result.throws {
                             self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
+                        }
+                        if result.rejected {
                             let arguments = self.facts.tuple(self.ctx, &[])?;
                             self.issue(
                                 pc,
@@ -2486,8 +2507,10 @@ impl Walker<'_> {
                         receiver,
                         &self.program.members[site.name],
                     )?;
-                    if result.rejected {
+                    if result.rejected || result.throws {
                         self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
+                    }
+                    if result.rejected {
                         let arguments = self.facts.tuple(self.ctx, &[])?;
                         self.issue(
                             pc,
@@ -2903,8 +2926,10 @@ impl Walker<'_> {
                         receiver,
                         &self.program.members[site.name],
                     )?;
-                    if result.rejected {
+                    if result.rejected || result.throws {
                         self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
+                    }
+                    if result.rejected {
                         let arguments = self.facts.tuple(self.ctx, &[])?;
                         self.issue(
                             pc,

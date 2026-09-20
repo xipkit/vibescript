@@ -19,6 +19,8 @@ pub(super) struct Operation {
     pub value: Fact,
     pub rejected: bool,
     pub unsupported: bool,
+    /// A possible ordinary runtime failure that is not a known contradiction.
+    pub throws: bool,
 }
 
 impl Facts {
@@ -99,6 +101,7 @@ impl Facts {
             value: Atom::Never.fact(),
             rejected: false,
             unsupported: false,
+            throws: false,
         };
         for index in 0..self.arm_count(value) {
             ctx.charge(1)?;
@@ -148,6 +151,7 @@ impl Facts {
             value: Atom::Never.fact(),
             rejected: false,
             unsupported: false,
+            throws: false,
         };
         let mut limit = false;
         if !matches!(

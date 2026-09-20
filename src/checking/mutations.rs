@@ -11,6 +11,8 @@ pub(super) struct Mutation {
     pub value: Fact,
     pub rejected: bool,
     pub unsupported: bool,
+    /// A possible ordinary runtime failure that is not a known contradiction.
+    pub throws: bool,
 }
 
 impl Mutation {
@@ -20,6 +22,7 @@ impl Mutation {
             value,
             rejected: false,
             unsupported: false,
+            throws: false,
         }
     }
 
@@ -60,6 +63,8 @@ impl Facts {
         for i in 0..self.arm_count(receiver) {
             ctx.charge(1)?;
             let arm = self.arm(receiver, i);
+            // Callers analyze a possibly overriding field before the native mutation,
+            // so an uncertain selection continues natively here.
             let hash_field = (matches!(self.node(arm), Node::Hash(..) | Node::Shape(..))
                 && !crate::members::hash_builtin(name))
                 || matches!(
@@ -67,7 +72,7 @@ impl Facts {
                     Some(
                         super::objects::Selection::Field(_)
                             | super::objects::Selection::Missing
-                            | super::objects::Selection::Incomplete
+                            | super::objects::Selection::UnmodeledProtection
                     )
                 );
             let next =
@@ -84,6 +89,7 @@ impl Facts {
                         value: next.value,
                         rejected: next.rejected,
                         unsupported: next.unsupported,
+                        throws: next.throws,
                     }
                 } else if let Some(method) = site.method {
                     self.collection_mutate(ctx, arm, method, args)?
@@ -105,6 +111,7 @@ impl Facts {
         into.value = self.union(ctx, &[into.value, next.value])?;
         into.rejected |= next.rejected;
         into.unsupported |= next.unsupported;
+        into.throws |= next.throws;
         Ok(())
     }
 
@@ -212,6 +219,9 @@ impl Facts {
         index: Fact,
         value: Fact,
     ) -> Result<Mutation> {
+        if super::objects::may_be_protected(ctx, self, receiver)? {
+            return Ok(Mutation::unsupported());
+        }
         match self.atom(index) {
             Some(Atom::String | Atom::Symbol | Atom::Unknown | Atom::Any) => (),
             None if matches!(

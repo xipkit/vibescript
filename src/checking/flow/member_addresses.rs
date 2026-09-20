@@ -11,7 +11,7 @@ impl Walker<'_> {
     ) -> Result<Option<Edges>> {
         let name = &self.program.members[site.name];
         let receiver = state.addresses.data.last().unwrap().value;
-        if let Some(variants) = self.member_variants(receiver, name)? {
+        if let Some(variants) = self.member_variants(receiver, name, site.scope)? {
             for receiver in variants.data {
                 let mut next = state.snapshot(self.ctx)?;
                 next.addresses.data.last_mut().unwrap().value = receiver;
@@ -87,24 +87,40 @@ impl Walker<'_> {
                 return self.index_outcome(state, pc, receiver, &[key], &result);
             }
         }
-        match super::super::objects::select(self.ctx, self.facts, receiver, site, name)? {
-            Some(super::super::objects::Selection::Native)
-                if crate::bytecode::mutating_member(name) && !namespace =>
-            {
-                return self.mutate(state, pc, site, &[], true, false);
+        use super::super::objects::{Selection, absent_is_native};
+        let selection = super::super::objects::select(self.ctx, self.facts, receiver, site, name)?;
+        if matches!(selection, Some(Selection::Native | Selection::Uncertain(_)))
+            && crate::bytecode::mutating_member(name)
+            && !namespace
+        {
+            return self.mutate(state, pc, site, &[], true, false);
+        }
+        if let Some(Selection::Uncertain(field)) = selection {
+            // The stored field may override the member; analyze that path separately.
+            let mut present = state.snapshot(self.ctx)?;
+            let edges = if site.scope || self.facts.known_non_callable(self.ctx, field)? {
+                self.address_field(&mut present, pc, receiver, name)?
+            } else {
+                self.address_result(&mut present, pc, |walker, state| {
+                    walker.member_field(state, pc, field, site.into(), Arguments::new(), false)
+                })?
+            };
+            self.member_edges(pc, present, edges)?;
+            if !absent_is_native(site, name) {
+                self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+                return Ok(Some([None, None]));
             }
-            Some(super::super::objects::Selection::Field(field))
+        }
+        match selection {
+            Some(Selection::Field(field))
                 if site.scope || self.facts.known_non_callable(self.ctx, field)? =>
             {
-                let key = self.facts.string(self.ctx, name.as_bytes())?;
-                let result =
-                    state
-                        .addresses
-                        .data
-                        .last_mut()
-                        .unwrap()
-                        .index(self.ctx, self.facts, &[key])?;
-                return self.index_outcome(state, pc, receiver, &[key], &result);
+                return self.address_field(state, pc, receiver, name);
+            }
+            Some(Selection::Uncertain(_)) => {
+                return self.address_result(state, pc, |walker, state| {
+                    walker.member_native(state, pc, receiver, site.into(), Arguments::new())
+                });
             }
             Some(_) => return self.member_address(state, pc, receiver, site),
             None => (),
@@ -202,8 +218,10 @@ impl Walker<'_> {
             let result = self
                 .facts
                 .collection_member(self.ctx, receiver, site, name, &[])?;
-            if result.rejected {
+            if result.rejected || result.throws {
                 self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+            }
+            if result.rejected {
                 let arguments = self.facts.tuple(self.ctx, &[])?;
                 self.issue(
                     pc,
@@ -232,9 +250,40 @@ impl Walker<'_> {
         receiver: Fact,
         site: CallSite,
     ) -> Result<Option<Edges>> {
+        self.address_result(state, pc, |walker, state| {
+            walker.member(state, pc, receiver, site, Arguments::new())
+        })
+    }
+
+    /// Selects the stored field named by an address chain member.
+    fn address_field(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        receiver: Fact,
+        name: &str,
+    ) -> Result<Option<Edges>> {
+        let key = self.facts.string(self.ctx, name.as_bytes())?;
+        let result =
+            state
+                .addresses
+                .data
+                .last_mut()
+                .unwrap()
+                .index(self.ctx, self.facts, &[key])?;
+        self.index_outcome(state, pc, receiver, &[key], &result)
+    }
+
+    /// Replaces the selected address with the value produced by a member evaluation.
+    fn address_result(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        evaluate: impl FnOnce(&mut Self, &mut State) -> Result<Option<Edges>>,
+    ) -> Result<Option<Edges>> {
         state.addresses.data.pop().unwrap();
         let outer = self.native_results.replace(Buffer::empty());
-        let result = self.member(state, pc, receiver, site, Arguments::new());
+        let result = evaluate(self, state);
         let results = std::mem::replace(&mut self.native_results, outer).unwrap();
         let edges = result?;
         for mut next in results.data {

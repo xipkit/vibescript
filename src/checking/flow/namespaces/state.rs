@@ -93,7 +93,7 @@ impl Walker<'_> {
     ) -> Result<Option<Edges>> {
         let receiver = state.addresses.data.last().unwrap().value;
         let name = &self.program.members[site.name];
-        if let Some(variants) = self.member_variants(receiver, name)? {
+        if let Some(variants) = self.member_variants(receiver, name, site.scope)? {
             for receiver in variants.data {
                 let mut next = state.snapshot(self.ctx)?;
                 next.addresses.data.last_mut().unwrap().value = receiver;
@@ -146,7 +146,9 @@ impl Walker<'_> {
         name: usize,
         operand: Operand,
     ) -> Result<Option<Edges>> {
-        if let Some(variants) = self.member_variants(receiver, &self.program.members[name])? {
+        if let Some(variants) =
+            self.member_variants(receiver, &self.program.members[name], false)?
+        {
             for receiver in variants.data {
                 let mut next = state.snapshot(self.ctx)?;
                 let edges = self.namespace_member_store(&mut next, pc, receiver, name, operand)?;

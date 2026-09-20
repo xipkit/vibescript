@@ -32,6 +32,8 @@ mod flow;
 mod foreign_input_tests;
 mod globals;
 mod graph;
+#[cfg(test)]
+mod hash_dispatch_tests;
 mod heaps;
 #[cfg(test)]
 mod input_tests;

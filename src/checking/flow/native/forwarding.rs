@@ -7,8 +7,12 @@ enum Resolution {
     Native,
     Call(Target),
     Field(Fact),
+    /// A field that may be present with this value.
+    Possible(Fact),
     Property,
     Missing,
+    /// The member may be absent, which fails without proving a contradiction.
+    Absent,
     Failed,
     Incomplete,
 }
@@ -34,6 +38,10 @@ impl Walker<'_> {
         implicit: bool,
     ) -> Result<Buffer<Resolution>> {
         let mut output = Buffer::empty();
+        if crate::checking::objects::may_be_protected(self.ctx, self.facts, receiver)? {
+            output.push(self.ctx, Resolution::Incomplete)?;
+            return Ok(output);
+        }
         if self.namespace_receiver(receiver)? {
             use crate::checking::flow::namespaces::Selection;
             let selected = if let Some(name) = name {
@@ -73,55 +81,73 @@ impl Walker<'_> {
         };
         let hash = matches!(self.facts.node(view), Node::Shape(..) | Node::Hash(..));
         let plain = view != receiver || self.facts.plain_hash(view);
-        if hash && !plain && !builtins::namespace(self.ctx, self.facts, view)? {
-            output.push(self.ctx, Resolution::Incomplete)?;
-            return Ok(output);
-        }
         if hash && plain && (data_safe || name.is_some_and(|n| kind.typed(n).is_some())) {
             output.push(self.ctx, Resolution::Native)?;
             return Ok(output);
         }
-        let mut absent = true;
+        // Presence of the field: known, impossible, or uncertain.
+        let mut absent = Some(true);
         if hash {
-            match self.facts.node(view) {
+            let stored = match self.facts.node(view) {
                 Node::Shape(_, open, _, _) => {
                     let open = *open;
-                    if let Some((value, optional)) =
-                        self.facts.selected_field(self.ctx, view, bytes)?
-                    {
-                        absent = optional;
-                        for i in 0..self.facts.arm_count(value) {
-                            self.ctx.charge(1)?;
-                            let arm = self.facts.arm(value, i);
-                            if arm == Atom::Never.fact() {
-                                continue;
-                            }
-                            let callable = matches!(
-                                self.facts.node(arm),
-                                Node::Builtin(_) | Node::Offset(_) | Node::Callable { .. }
-                            );
-                            if !data_safe || callable {
-                                output.push(self.ctx, Resolution::Field(arm))?;
-                            } else if self.dynamic(arm)? {
-                                output.push(self.ctx, Resolution::Incomplete)?;
-                            } else {
-                                output.push(self.ctx, Resolution::Native)?;
-                            }
+                    match self.facts.selected_field(self.ctx, view, bytes)? {
+                        Some((value, optional)) => {
+                            absent = if optional { None } else { Some(false) };
+                            Some(value)
                         }
-                    } else if open {
-                        output.push(self.ctx, Resolution::Incomplete)?;
+                        None if open => {
+                            absent = None;
+                            Some(Atom::Unknown.fact())
+                        }
+                        None => None,
                     }
                 }
-                Node::Hash(..) => output.push(self.ctx, Resolution::Incomplete)?,
+                Node::Hash(_, value, _) => {
+                    absent = None;
+                    Some(*value)
+                }
                 _ => unreachable!(),
+            };
+            if let Some(value) = stored {
+                for i in 0..self.facts.arm_count(value) {
+                    self.ctx.charge(1)?;
+                    let arm = self.facts.arm(value, i);
+                    if arm == Atom::Never.fact() {
+                        continue;
+                    }
+                    let callable = matches!(
+                        self.facts.node(arm),
+                        Node::Builtin(_) | Node::Offset(_) | Node::Callable { .. }
+                    );
+                    if !data_safe || callable {
+                        output.push(
+                            self.ctx,
+                            if absent == Some(false) {
+                                Resolution::Field(arm)
+                            } else {
+                                Resolution::Possible(arm)
+                            },
+                        )?;
+                    } else if self.dynamic(arm)? {
+                        // An unknown stored value may be a callable override of the
+                        // helper or data that leaves the native helper in place.
+                        output.push(self.ctx, Resolution::Possible(arm))?;
+                        absent = None;
+                    } else {
+                        output.push(self.ctx, Resolution::Native)?;
+                    }
+                }
             }
         }
-        if absent {
+        if absent != Some(false) {
             let resolution = if let Some(name) = name {
                 if !hash && kind.property(name) {
                     Resolution::Property
                 } else if universal || kind.available(name) {
                     Resolution::Native
+                } else if absent.is_none() {
+                    Resolution::Absent
                 } else {
                     Resolution::Missing
                 }
@@ -264,9 +290,13 @@ impl Walker<'_> {
             let bytes = selected.as_bytes();
             let name = crate::members::introspection::method_name(self.ctx, bytes)?;
             if let Some(name) = name {
-                if let Some(variants) =
-                    crate::checking::objects::variants(self.ctx, self.facts, call.receiver, name)?
-                {
+                if let Some(variants) = crate::checking::objects::variants(
+                    self.ctx,
+                    self.facts,
+                    call.receiver,
+                    name,
+                    call.site.scope,
+                )? {
                     for receiver in variants.data {
                         pending.push(self.ctx, Forward { receiver, ..call })?;
                     }
@@ -382,9 +412,26 @@ impl Walker<'_> {
                         )?;
                         continue;
                     }
+                    Resolution::Absent => {
+                        self.emit_error(&next, pc, handlers::bit(ErrorClass::Runtime))?;
+                        continue;
+                    }
                     Resolution::Field(field) => {
                         next.addresses.data.pop().unwrap();
                         let target = self.value_target(field)?;
+                        self.invoke(&mut next, pc, target, args)?
+                    }
+                    Resolution::Possible(field) => {
+                        next.addresses.data.pop().unwrap();
+                        let target = self.value_target(field)?;
+                        if matches!(target, Target::NonCallable)
+                            && name.is_some_and(|name| {
+                                crate::checking::objects::absent_is_native(call.site.call, name)
+                            })
+                        {
+                            self.emit_error(&next, pc, handlers::bit(ErrorClass::Runtime))?;
+                            continue;
+                        }
                         self.invoke(&mut next, pc, target, args)?
                     }
                     Resolution::Property => {

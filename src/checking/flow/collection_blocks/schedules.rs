@@ -79,8 +79,6 @@ impl Walker<'_> {
                 | Node::Nominal { .. }
                 | Node::Instance { .. }
                 | Node::Atom(Atom::Unknown | Atom::Any)
-                | Node::Shape(_, _, _, HashKind::Any)
-                | Node::Hash(_, _, HashKind::Any | HashKind::Object)
                 | Node::Builtin(_)
                 | Node::TypeValue(_)
                 | Node::Offset(_) => {
@@ -94,32 +92,9 @@ impl Walker<'_> {
                 Node::Integer(_) | Node::IntegerBounds(_) | Node::Atom(Atom::Int) => {
                     universal || matches!(method, Times | Upto | Downto | Step)
                 }
-                Node::Hash(..) => {
-                    if universal {
-                        self.incomplete(pc)?;
-                        continue;
-                    }
-                    false
-                }
-                Node::Shape(_, open, _, _) if universal => {
-                    if *open {
-                        self.incomplete(pc)?;
-                        continue;
-                    }
-                    if self
-                        .facts
-                        .selected_field(
-                            self.ctx,
-                            view,
-                            site.text(self.program, self.facts).as_str().as_bytes(),
-                        )?
-                        .is_some()
-                    {
-                        self.collection_fallback(state, pc, arm, site, &args)?;
-                        continue;
-                    }
-                    true
-                }
+                // Member dispatch resolved stored `tap`/`yield_self` overrides before
+                // reaching the native schedule.
+                Node::Hash(..) | Node::Shape(..) => universal,
                 _ => universal,
             };
             if !supported {

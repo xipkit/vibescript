@@ -456,9 +456,8 @@ fn native_collection_analysis_observes_latched_cancellation_and_deadlines() {
 }
 
 #[test]
-fn structural_objects_and_remaining_methods_stay_explicit() {
+fn remaining_collection_methods_stay_explicit() {
     for source in [
-        "def run(h:hash<string,int>); h.each {|k,v| v}; end",
         "def run; [1,2].map! {|n| n}; end",
         "def run; [1,2].map! {|n| true}; end",
     ] {

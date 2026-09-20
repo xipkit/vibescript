@@ -576,11 +576,8 @@ fn schedule_analysis_preserves_latched_cancellation_and_deadlines() {
 
 #[test]
 fn unmodeled_receivers_callbacks_and_pending_addresses_stay_explicit() {
-    for source in [
-        "def run(h:hash<string,int>); h.tap {|n| n}; end",
-        "def run; {tap:7}.tap {missing}; end",
-        "def run; [7,9].map! {|n| n}; end",
-    ] {
+    {
+        let source = "def run; [7,9].map! {|n| n}; end";
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
         let report = analyze(&mut ctx, &mut facts, source).unwrap();
@@ -588,6 +585,11 @@ fn unmodeled_receivers_callbacks_and_pending_addresses_stay_explicit() {
         drop((report, facts));
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
+    super::native_tests::witness(
+        "def run; begin; {tap:7}.tap {missing}; rescue; 9; end; end",
+        Some("9"),
+        true,
+    );
 }
 
 #[test]

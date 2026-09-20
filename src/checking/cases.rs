@@ -17,6 +17,7 @@ impl Facts {
             value: Atom::Never.fact(),
             rejected: false,
             unsupported: false,
+            throws: false,
         };
         for t in 0..target.map_or(1, |target| self.arm_count(target)) {
             let target = target.map(|target| self.arm(target, t));

@@ -268,6 +268,7 @@ fn incomplete_analysis_never_looks_like_a_clean_complete_check() {
         "def run; missing; end",
         "def run(x: hash); x::nil?; end",
         "def run(x: hash); x::nil?(); end",
+        "def run(x: hash<string,int>); x::nil?(); end",
         "def run; begin; missing; rescue; 7; end; end",
         "def run; [1] <=> [2]; end",
     ] {
@@ -279,6 +280,7 @@ fn incomplete_analysis_never_looks_like_a_clean_complete_check() {
     check("def run;for x in 1..3;x.no_such_method;end;end", 1);
     check("def run(x);for _ in 1..3;x.no_such_method;end;end", 0);
     check("def run(x);x.nil?;end", 0);
+    check("def run(x: hash<string,int>); x::nil?; end", 1);
 }
 
 #[test]

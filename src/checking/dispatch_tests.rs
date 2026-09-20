@@ -502,11 +502,9 @@ fn nested_dispatch_errors_keep_pending_writes_rescue_retry_and_ensure() {
 }
 
 #[test]
-fn unresolved_names_and_structural_object_dispatch_stay_explicit() {
+fn unresolved_forwarding_names_stay_explicit() {
     for source in [
         "def run(name:string); [1].send(name); end",
-        "def run(value:{call:int}); value.send(:call); end",
-        "def run(value:hash<string,int>); value.send(:size); end",
         "def run(op:string); [[1],2].reduce(op); end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());

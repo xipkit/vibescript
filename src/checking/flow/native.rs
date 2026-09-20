@@ -82,7 +82,7 @@ impl Walker<'_> {
         let site = site.into();
         let selected = site.text(self.program, self.facts);
         let name = selected.as_str();
-        if let Some(variants) = self.member_variants(receiver, name)? {
+        if let Some(variants) = self.member_variants(receiver, name, site.scope)? {
             for receiver in variants.data {
                 self.ctx.charge(1)?;
                 let mut next = state.snapshot(self.ctx)?;
@@ -98,34 +98,83 @@ impl Walker<'_> {
         if self.namespace_receiver(receiver)? {
             return self.namespace_member(state, pc, receiver, site, args, false);
         }
+        use crate::checking::objects::Selection;
         match crate::checking::objects::select(self.ctx, self.facts, receiver, site.call, name)? {
-            Some(crate::checking::objects::Selection::Field(field)) => {
-                if site.auto {
-                    if site.scope {
-                        state.stack.push(self.ctx, Operand::new(field))?;
-                        return Ok(None);
-                    }
-                    if self.dynamic(field)? {
-                        return self.dynamic_call(state, pc, Arguments::new());
-                    }
-                    return Ok(if self.read_value(state, pc, field, None)? {
-                        None
-                    } else {
-                        Some([None, None])
-                    });
-                }
-                let target = self.value_target(field)?;
-                return self.invoke(state, pc, target, args);
+            Some(Selection::Field(field)) => {
+                return self.member_field(state, pc, field, site, args, true);
             }
-            Some(crate::checking::objects::Selection::Missing) => {
+            Some(Selection::Missing) => {
                 self.collection_error(state, pc, receiver, site, &args, ErrorClass::Runtime)?;
                 return Ok(Some([None, None]));
             }
-            Some(crate::checking::objects::Selection::Incomplete) => {
-                return self.incomplete(pc).map(Some);
+            Some(Selection::UnmodeledProtection) => return self.incomplete(pc).map(Some),
+            Some(Selection::Uncertain(field)) => {
+                let mut present = state.snapshot(self.ctx)?;
+                let arguments = args.snapshot(self.ctx)?;
+                let edges = self.member_field(&mut present, pc, field, site, arguments, false)?;
+                self.member_edges(pc, present, edges)?;
+                if !crate::checking::objects::absent_is_native(site.call, name) {
+                    self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+                    return Ok(Some([None, None]));
+                }
             }
-            _ => (),
+            Some(Selection::Native) | None => (),
         }
+        self.member_native(state, pc, receiver, site, args)
+    }
+
+    /// Reads or invokes a stored object field selected for a member site.
+    ///
+    /// An uncertain non-callable field can still admit a native fallback. With
+    /// no such fallback, both the present and absent paths fail.
+    pub(super) fn member_field(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        field: Fact,
+        site: MemberSite,
+        args: Arguments,
+        certain: bool,
+    ) -> Result<Option<Edges>> {
+        if site.auto {
+            if site.scope {
+                state.stack.push(self.ctx, Operand::new(field))?;
+                return Ok(None);
+            }
+            if self.dynamic(field)? {
+                return self.dynamic_call(state, pc, Arguments::new());
+            }
+            return Ok(if self.read_value(state, pc, field, None)? {
+                None
+            } else {
+                Some([None, None])
+            });
+        }
+        let target = self.value_target(field)?;
+        if !certain
+            && matches!(target, Target::NonCallable)
+            && crate::checking::objects::absent_is_native(
+                site.call,
+                site.text(self.program, self.facts).as_str(),
+            )
+        {
+            self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+            return Ok(Some([None, None]));
+        }
+        self.invoke(state, pc, target, args)
+    }
+
+    /// Dispatches a member natively after field overrides have been resolved.
+    pub(super) fn member_native(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        receiver: Fact,
+        site: MemberSite,
+        args: Arguments,
+    ) -> Result<Option<Edges>> {
+        let selected = site.text(self.program, self.facts);
+        let name = selected.as_str();
         if let Some(method) = collection_blocks::text::TextMethod::parse(name) {
             if method.materializes() {
                 let mut strings = true;
@@ -193,14 +242,19 @@ impl Walker<'_> {
             if !args.keywords.data.is_empty() || args.block.is_some() {
                 return self.incomplete(pc).map(Some);
             }
-            let result = self.facts.collection_member(
+            let result = self.facts.native_member(
                 self.ctx,
                 receiver,
                 site.call,
                 name,
                 &args.positional.data,
             )?;
-            (result.value, result.rejected, result.unsupported, 0)
+            let throws = if result.throws {
+                handlers::bit(ErrorClass::Runtime)
+            } else {
+                0
+            };
+            (result.value, result.rejected, result.unsupported, throws)
         };
         self.emit_error(
             state,

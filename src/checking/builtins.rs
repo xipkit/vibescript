@@ -426,7 +426,8 @@ pub(super) fn member(
             next.incomplete = true;
             next
         } else {
-            let operation = facts.collection_member(ctx, arm, site, name, &args.positional.data)?;
+            // Callers resolve stored-field overrides before reaching these summaries.
+            let operation = facts.native_member(ctx, arm, site, name, &args.positional.data)?;
             let missing = operation.unsupported
                 && matches!(
                     name,
@@ -451,6 +452,9 @@ pub(super) fn member(
             }
             if operation.rejected || missing {
                 next.failures.push(ctx, Failure::NonCallable)?;
+            }
+            if operation.rejected || operation.throws {
+                next.throws |= RUNTIME;
             }
             next
         };

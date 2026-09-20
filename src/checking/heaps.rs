@@ -65,5 +65,6 @@ pub(super) fn read(
         value: facts.union(ctx, &values.data)?,
         rejected: false,
         unsupported,
+        throws: false,
     })
 }

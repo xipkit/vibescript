@@ -273,11 +273,9 @@ fn global_mutations_preserve_existing_arguments_and_skip_noop_replacements() {
 }
 
 #[test]
-fn global_analysis_keeps_expanding_pending_contexts_and_descriptor_objects_explicit() {
-    for source in [
-        "def walk(n:int); if n>0; Math.push(walk(n-1)); end; 7; end; def run; Math=[]; walk(3); Math; end",
-        "def run; JSON={parse:Math::sqrt}; JSON.parse(9); end",
-    ] {
+fn global_analysis_keeps_expanding_pending_contexts_explicit() {
+    {
+        let source = "def walk(n:int); if n>0; Math.push(walk(n-1)); end; 7; end; def run; Math=[]; walk(3); Math; end";
         let program = bytecode::compile(source, Vec::new(), &()).unwrap();
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
@@ -286,6 +284,12 @@ fn global_analysis_keeps_expanding_pending_contexts_and_descriptor_objects_expli
         drop((report, facts));
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
+    witness(
+        "def run; JSON={parse:Math::sqrt}; JSON.parse(9); end",
+        &[],
+        "3",
+        false,
+    );
     witness(
         "def run;to_int=Math::sqrt;to_int.nil?;end",
         &[],

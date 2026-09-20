@@ -9,6 +9,7 @@ fn outcome(value: Fact) -> Operation {
         value,
         rejected: false,
         unsupported: false,
+        throws: false,
     }
 }
 
@@ -26,6 +27,14 @@ fn unsupported() -> Operation {
     }
 }
 
+/// A path that may fail at runtime without proving a contradiction.
+fn throws() -> Operation {
+    Operation {
+        throws: true,
+        ..outcome(Atom::Never.fact())
+    }
+}
+
 impl Facts {
     fn merge_operation(
         &mut self,
@@ -36,6 +45,7 @@ impl Facts {
         into.value = self.union(ctx, &[into.value, next.value])?;
         into.rejected |= next.rejected;
         into.unsupported |= next.unsupported;
+        into.throws |= next.throws;
         Ok(())
     }
 
@@ -343,6 +353,11 @@ impl Facts {
         Ok(outcome(self.nullable(ctx, value)?))
     }
 
+    /// Models the lookup the runtime performs before evaluating call arguments.
+    ///
+    /// Missing non-builtin members fail here. Open shapes and general hashes
+    /// retain the possible failure without proving it. Scoped calls do not
+    /// prepare their member, so their lookup failures follow the arguments.
     pub fn prepare_collection_member(
         &mut self,
         ctx: &mut CallContext,
@@ -350,37 +365,52 @@ impl Facts {
         name: &str,
     ) -> Result<Operation> {
         let mut result = outcome(Atom::Never.fact());
-        if let Some(variants) = super::objects::variants(ctx, self, receiver, name)? {
+        if let Some(variants) = super::objects::variants(ctx, self, receiver, name, false)? {
             for receiver in variants.data {
                 let next = self.prepare_collection_member(ctx, receiver, name)?;
                 self.merge_operation(ctx, &mut result, next)?;
             }
             return Ok(result);
         }
+        let looked_up =
+            !crate::members::hash_builtin(name) && !matches!(name, "tap" | "yield_self");
         for i in 0..self.arm_count(receiver) {
             ctx.charge(1)?;
             let arm = self.arm(receiver, i);
             let next = match self.node(arm) {
-                Node::Protected(shape, _)
-                    if !crate::members::hash_builtin(name)
-                        && !matches!(name, "tap" | "yield_self") =>
-                {
+                Node::Protected(shape, _) if looked_up => {
                     if self.selected_field(ctx, *shape, name.as_bytes())?.is_none() {
                         rejected()
                     } else {
                         outcome(arm)
                     }
                 }
-                Node::Shape(_, false, _, _)
-                    if !crate::members::hash_builtin(name)
-                        && !matches!(name, "tap" | "yield_self") =>
-                {
-                    if self.selected_field(ctx, arm, name.as_bytes())?.is_none() {
-                        rejected()
-                    } else {
-                        outcome(arm)
+                Node::Shape(_, false, _, _) if looked_up => {
+                    match self.selected_field(ctx, arm, name.as_bytes())? {
+                        None => rejected(),
+                        Some((_, optional)) => Operation {
+                            throws: optional,
+                            ..outcome(arm)
+                        },
                     }
                 }
+                Node::Shape(_, true, _, _) if looked_up => {
+                    if self
+                        .selected_field(ctx, arm, name.as_bytes())?
+                        .is_some_and(|(_, optional)| !optional)
+                    {
+                        outcome(arm)
+                    } else {
+                        Operation {
+                            throws: true,
+                            ..outcome(arm)
+                        }
+                    }
+                }
+                Node::Hash(..) if looked_up => Operation {
+                    throws: true,
+                    ..outcome(arm)
+                },
                 Node::Named(_) | Node::Nominal { .. } => unsupported(),
                 _ => outcome(arm),
             };
@@ -399,6 +429,13 @@ impl Facts {
     ) -> Result<Operation> {
         ctx.checkpoint()?;
         let mut result = outcome(Atom::Never.fact());
+        if let Some(variants) = super::objects::variants(ctx, self, receiver, name, site.scope)? {
+            for receiver in variants.data {
+                let next = self.collection_member(ctx, receiver, site, name, args)?;
+                self.merge_operation(ctx, &mut result, next)?;
+            }
+            return Ok(result);
+        }
         for i in 0..self.arm_count(receiver) {
             ctx.charge(1)?;
             let arm = self.arm(receiver, i);
@@ -406,6 +443,92 @@ impl Facts {
             self.merge_operation(ctx, &mut result, next)?;
         }
         Ok(result)
+    }
+
+    /// Reads or calls a stored field without executing it.
+    ///
+    /// `certain` distinguishes a field known to be present from one that may be
+    /// absent: calling non-callable data is a contradiction only in the first case.
+    fn field_operation(
+        &mut self,
+        ctx: &mut CallContext,
+        site: CallSite,
+        field: Fact,
+        certain: bool,
+    ) -> Result<Operation> {
+        let data = self.known_non_callable(ctx, field)?;
+        Ok(if site.auto && (site.scope || data) {
+            outcome(field)
+        } else if !site.auto && data {
+            if certain { rejected() } else { throws() }
+        } else if site.auto && !certain && field == Atom::Unknown.fact() {
+            // A possibly present unknown field reads as a gradual value; a stored
+            // host method or offset would fail the bare read instead.
+            Operation {
+                throws: true,
+                ..outcome(field)
+            }
+        } else {
+            unsupported()
+        })
+    }
+
+    /// Dispatches a member after the caller has resolved stored-field overrides.
+    ///
+    /// The flow walker analyzes possible field paths itself, so this entry skips
+    /// [`super::objects::select`] and models only the native alternative.
+    pub fn native_member(
+        &mut self,
+        ctx: &mut CallContext,
+        receiver: Fact,
+        site: CallSite,
+        name: &str,
+        args: &[Fact],
+    ) -> Result<Operation> {
+        ctx.checkpoint()?;
+        let mut result = outcome(Atom::Never.fact());
+        for i in 0..self.arm_count(receiver) {
+            ctx.charge(1)?;
+            let arm = self.arm(receiver, i);
+            let next = match self.member_guards(ctx, arm, site, name, args)? {
+                Some(next) => next,
+                None => self.native_member_arm(ctx, arm, site, name, args)?,
+            };
+            self.merge_operation(ctx, &mut result, next)?;
+        }
+        Ok(result)
+    }
+
+    fn member_guards(
+        &mut self,
+        ctx: &mut CallContext,
+        receiver: Fact,
+        site: CallSite,
+        name: &str,
+        args: &[Fact],
+    ) -> Result<Option<Operation>> {
+        if matches!(self.node(receiver), Node::Protected(..)) {
+            let mut arguments = super::arguments::Arguments::new();
+            arguments.positional.extend(ctx, args)?;
+            let result =
+                super::builtins::protected::member(ctx, self, receiver, site, name, &arguments)?;
+            return Ok(Some(Operation {
+                value: result.value,
+                rejected: !result.failures.data.is_empty(),
+                unsupported: result.incomplete,
+                throws: result.throws != 0 && result.failures.data.is_empty(),
+            }));
+        }
+        if receiver == Atom::Never.fact() {
+            return Ok(Some(outcome(receiver)));
+        }
+        if matches!(
+            self.node(receiver),
+            Node::Named(_) | Node::Nominal { .. } | Node::Instance { .. }
+        ) {
+            return Ok(Some(unsupported()));
+        }
+        Ok(None)
     }
 
     fn member_arm(
@@ -416,76 +539,50 @@ impl Facts {
         name: &str,
         args: &[Fact],
     ) -> Result<Operation> {
-        if matches!(self.node(receiver), Node::Protected(..)) {
-            let mut arguments = super::arguments::Arguments::new();
-            arguments.positional.extend(ctx, args)?;
-            let result =
-                super::builtins::protected::member(ctx, self, receiver, site, name, &arguments)?;
-            return Ok(Operation {
-                value: result.value,
-                rejected: !result.failures.data.is_empty(),
-                unsupported: result.incomplete,
-            });
-        }
-        if receiver == Atom::Never.fact() {
-            return Ok(outcome(receiver));
-        }
-        if matches!(
-            self.node(receiver),
-            Node::Named(_) | Node::Nominal { .. } | Node::Instance { .. }
-        ) {
-            return Ok(unsupported());
+        if let Some(result) = self.member_guards(ctx, receiver, site, name, args)? {
+            return Ok(result);
         }
         match super::objects::select(ctx, self, receiver, site, name)? {
             Some(super::objects::Selection::Field(field)) => {
-                return Ok(
-                    if site.auto && (site.scope || self.known_non_callable(ctx, field)?) {
-                        outcome(field)
-                    } else if !site.auto && self.known_non_callable(ctx, field)? {
-                        rejected()
-                    } else {
-                        unsupported()
-                    },
-                );
+                return self.field_operation(ctx, site, field, true);
             }
             Some(super::objects::Selection::Missing) => return Ok(rejected()),
-            Some(super::objects::Selection::Incomplete) => return Ok(unsupported()),
-            _ => (),
+            Some(super::objects::Selection::UnmodeledProtection) => return Ok(unsupported()),
+            Some(super::objects::Selection::Uncertain(field)) => {
+                let native = super::objects::absent_is_native(site, name);
+                let mut result = self.field_operation(ctx, site, field, !native)?;
+                let absent = if native {
+                    self.native_member_arm(ctx, receiver, site, name, args)?
+                } else {
+                    throws()
+                };
+                self.merge_operation(ctx, &mut result, absent)?;
+                return Ok(result);
+            }
+            Some(super::objects::Selection::Native) | None => (),
         }
+        self.native_member_arm(ctx, receiver, site, name, args)
+    }
+
+    fn native_member_arm(
+        &mut self,
+        ctx: &mut CallContext,
+        receiver: Fact,
+        site: CallSite,
+        name: &str,
+        args: &[Fact],
+    ) -> Result<Operation> {
         let array = matches!(self.node(receiver), Node::Array(_) | Node::Tuple(_));
         let hash = matches!(self.node(receiver), Node::Hash(..) | Node::Shape(..));
         let string = self.atom(receiver) == Some(Atom::String);
         let unknown = matches!(self.atom(receiver), Some(Atom::Unknown | Atom::Any));
         if site.scope {
-            return Ok(if unknown || (hash && !self.plain_hash(receiver)) {
-                unsupported()
-            } else {
-                rejected()
-            });
+            return Ok(if unknown { unsupported() } else { rejected() });
         }
         if hash && !crate::members::hash_builtin(name) {
-            let value = match self.node(receiver) {
-                Node::Shape(_, open, _, _) => {
-                    match self.selected_field(ctx, receiver, name.as_bytes())? {
-                        Some((value, _)) => value,
-                        None if *open => Atom::Unknown.fact(),
-                        None => return Ok(rejected()),
-                    }
-                }
-                Node::Hash(_, value, _) => *value,
-                _ => unreachable!(),
-            };
-            return Ok(if site.auto {
-                outcome(value)
-            } else if self.known_non_callable(ctx, value)? {
-                rejected()
-            } else {
-                unsupported()
-            });
-        }
-        // Structural contracts can also describe capability objects whose fields override builtins.
-        if hash && self.hash_mode(receiver) == HashKind::Any {
-            return Ok(unsupported());
+            // Reached only when the caller resolved the field itself; the walker
+            // has already analyzed the stored value or its absence.
+            return Ok(outcome(Atom::Never.fact()));
         }
         let arity = match name {
             "to_a" if hash => 0..=0,

@@ -563,10 +563,8 @@ fn grouping_analysis_keeps_real_cancellation_and_deadlines_latched() {
 
 #[test]
 fn unmodeled_dispatch_callbacks_and_pending_capture_addresses_remain_explicit() {
-    for source in [
-        "def run(h:hash<string,int>); h.transform_values {|n| n}; end",
-        "def run; [7,9].map! {|n| n}; end",
-    ] {
+    {
+        let source = "def run; [7,9].map! {|n| n}; end";
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
         let report = analyze(&mut ctx, &mut facts, source).unwrap();
