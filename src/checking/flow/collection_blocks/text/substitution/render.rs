@@ -343,7 +343,7 @@ impl Walker<'_> {
                     .data
                     .get(frame.index)
                     .map(|field| (field.value, Some(field.name.clone()))),
-                Node::Protected(shape, _) if frame.index == 0 => self
+                Node::Protected(shape, ..) if frame.index == 0 => self
                     .facts
                     .selected_field(self.ctx, *shape, b"to_s")?
                     .map(|(value, _)| (value, None)),
@@ -458,7 +458,7 @@ impl Walker<'_> {
                     .data
                     .get(frame.index)
                     .map(|field| (field.value, Some(field.name.clone()))),
-                Node::Protected(shape, _) if frame.index == 0 => self
+                Node::Protected(shape, ..) if frame.index == 0 => self
                     .facts
                     .selected_field(self.ctx, *shape, b"to_s")?
                     .map(|(value, _)| (value, None)),

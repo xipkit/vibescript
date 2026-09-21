@@ -56,7 +56,7 @@ impl Walker<'_> {
         for i in 0..self.facts.arm_count(receiver) {
             self.ctx.charge(1)?;
             let arm = self.facts.arm(receiver, i);
-            let view = if let Node::Protected(shape, _) = self.facts.node(arm) {
+            let view = if let Node::Protected(shape, ..) = self.facts.node(arm) {
                 *shape
             } else {
                 arm

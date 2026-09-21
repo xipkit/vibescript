@@ -225,7 +225,13 @@ fn contracts_admitting_protected_hashes_do_not_approve_mutation_paths() {
                 let script = engine.compile(&source).unwrap();
                 let options = CallOptions::default();
                 let general = script.check_function("run", &options).unwrap();
-                assert!(!general.incomplete.is_empty(), "{source}: {general:?}");
+                assert!(general.incomplete.is_empty(), "{source}: {general:?}");
+                assert!(
+                    general.diagnostics.iter().any(|diagnostic| diagnostic
+                        .message
+                        .contains("Return value: expected int")),
+                    "{source}: {general:?}"
+                );
                 let exact = script
                     .check_call("run", std::slice::from_ref(&input), &options)
                     .unwrap();

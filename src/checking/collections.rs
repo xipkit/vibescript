@@ -375,7 +375,7 @@ impl Facts {
             ctx.charge(1)?;
             let arm = self.arm(receiver, i);
             let next = match self.node(arm) {
-                Node::Protected(shape, _) if looked_up => {
+                Node::Protected(shape, ..) if looked_up => {
                     if self.selected_field(ctx, *shape, name.as_bytes())?.is_none() {
                         rejected()
                     } else {
@@ -544,7 +544,6 @@ impl Facts {
                 return self.field_operation(ctx, site, field, true);
             }
             Some(super::objects::Selection::Missing) => return Ok(rejected()),
-            Some(super::objects::Selection::UnmodeledProtection) => return Ok(unsupported()),
             Some(super::objects::Selection::Uncertain(field)) => {
                 let native = super::objects::absent_is_native(site, name);
                 let mut result = self.field_operation(ctx, site, field, !native)?;
@@ -592,6 +591,7 @@ impl Facts {
             | "itself" | "dup" | "nil?" => 0..=0,
             "at" | "getbyte" | "take" | "drop" => 1..=1,
             "include?" | "member?" if array => 1..=1,
+            "key?" | "has_key?" | "include?" | "member?" if hash => 1..=1,
             "first" | "last" => 0..=1,
             "slice" if !hash => 1..=2,
             _ => return Ok(unsupported()),
@@ -603,6 +603,9 @@ impl Facts {
             return Ok(outcome(Atom::Unknown.fact()));
         }
         match name {
+            "key?" | "has_key?" | "include?" | "member?" if hash => {
+                self.hash_membership(ctx, receiver, args[0])
+            }
             "compact" if array => self.compact_member(ctx, receiver),
             "chunk" if array => self.chunk_member(ctx, receiver, args[0]),
             "to_a" if hash => {

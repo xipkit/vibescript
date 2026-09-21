@@ -35,9 +35,13 @@ impl Walker<'_> {
     ) -> Result<Option<Edges>> {
         let selected = state.addresses.data.last().unwrap();
         let protection = selected.protection(self.ctx, self.facts)?;
-        if protection != Attached::No {
-            self.collection_error(state, pc, selected.value, site, &args, ErrorClass::Runtime)?;
-            if protection == Attached::Yes {
+        if protection.readonly != Attached::No {
+            if protection.report {
+                self.collection_error(state, pc, selected.value, site, &args, ErrorClass::Runtime)?;
+            } else {
+                self.protected_error(state, pc, selected)?;
+            }
+            if protection.readonly == Attached::Yes {
                 return Ok(Some([None, None]));
             }
         }

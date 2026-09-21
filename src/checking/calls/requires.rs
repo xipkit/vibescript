@@ -95,6 +95,7 @@ fn success(ctx: &mut CallContext, globals: Globals, value: Fact) -> Result<Outco
             value,
             captures: Slots::new(0, Atom::Never.fact()),
             written: Slots::new(0, false),
+            refined: Slots::new(0, false),
             pending: Pending::new(),
             globals,
         },

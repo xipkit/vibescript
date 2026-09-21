@@ -114,18 +114,20 @@ impl Walker<'_> {
                     }
                 }
                 let protection = address.protection(self.ctx, self.facts)?;
-                if protection != Attached::No {
-                    self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
-                    let selectors = self.facts.tuple(self.ctx, &address.selectors.data)?;
-                    self.issue(
-                        pc,
-                        IssueKind::Write {
-                            receiver: address.value,
-                            selectors,
-                            value: value.value,
-                        },
-                    )?;
-                    if protection == Attached::Yes {
+                if protection.readonly != Attached::No {
+                    self.protected_error(state, pc, &address)?;
+                    if protection.report {
+                        let selectors = self.facts.tuple(self.ctx, &address.selectors.data)?;
+                        self.issue(
+                            pc,
+                            IssueKind::Write {
+                                receiver: address.value,
+                                selectors,
+                                value: value.value,
+                            },
+                        )?;
+                    }
+                    if protection.readonly == Attached::Yes {
                         return Ok(Some([None, None]));
                     }
                 }

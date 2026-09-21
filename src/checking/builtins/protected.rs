@@ -191,6 +191,12 @@ fn invoke_offset(
     Ok(result)
 }
 
+/// Dispatches a member on a protected object.
+///
+/// A contract alternative keeps every runtime failure of the known form but
+/// none is a static contradiction: the receiver may equally be a plain hash
+/// or host object on which the member succeeds, so its failures become
+/// ordinary runtime error paths.
 pub(in crate::checking) fn member(
     ctx: &mut CallContext,
     facts: &mut Facts,
@@ -199,7 +205,28 @@ pub(in crate::checking) fn member(
     name: &str,
     args: &Arguments,
 ) -> Result<Outcome> {
-    let Node::Protected(shape, _) = facts.node(receiver) else {
+    let Node::Protected(_, _, certainty) = facts.node(receiver) else {
+        unreachable!()
+    };
+    let certainty = *certainty;
+    let mut result = known_member(ctx, facts, receiver, site, name, args)?;
+    if certainty == crate::checking::facts::Certainty::Contract && !result.failures.data.is_empty()
+    {
+        result.failures.data.clear();
+        result.throws |= RUNTIME;
+    }
+    Ok(result)
+}
+
+fn known_member(
+    ctx: &mut CallContext,
+    facts: &mut Facts,
+    receiver: Fact,
+    site: CallSite,
+    name: &str,
+    args: &Arguments,
+) -> Result<Outcome> {
+    let Node::Protected(shape, ..) = facts.node(receiver) else {
         unreachable!()
     };
     let shape = *shape;
@@ -282,7 +309,7 @@ pub(in crate::checking) fn index(
     key: Fact,
     length: Option<Fact>,
 ) -> Result<Operation> {
-    let Node::Protected(shape, tag) = facts.node(receiver) else {
+    let Node::Protected(shape, tag, _) = facts.node(receiver) else {
         unreachable!()
     };
     let (shape, tag) = (*shape, *tag);

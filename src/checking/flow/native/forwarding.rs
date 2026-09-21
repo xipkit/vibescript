@@ -38,10 +38,6 @@ impl Walker<'_> {
         implicit: bool,
     ) -> Result<Buffer<Resolution>> {
         let mut output = Buffer::empty();
-        if crate::checking::objects::may_be_protected(self.ctx, self.facts, receiver)? {
-            output.push(self.ctx, Resolution::Incomplete)?;
-            return Ok(output);
-        }
         if self.namespace_receiver(receiver)? {
             use crate::checking::flow::namespaces::Selection;
             let selected = if let Some(name) = name {
@@ -74,7 +70,7 @@ impl Walker<'_> {
         };
         let universal = name.is_some_and(names::universal);
         let data_safe = universal && !matches!(name, Some("tap" | "yield_self"));
-        let view = if let Node::Protected(shape, _) = self.facts.node(receiver) {
+        let view = if let Node::Protected(shape, ..) = self.facts.node(receiver) {
             *shape
         } else {
             receiver

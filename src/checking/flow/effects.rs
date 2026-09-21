@@ -35,7 +35,7 @@ impl Walker<'_> {
                 | Node::Named(_)
                 | Node::Nominal { .. }
                 | Node::Shape(_, true, _, _) => return Ok(true),
-                Node::Array(element) | Node::Hash(_, element, _) | Node::Protected(element, _) => {
+                Node::Array(element) | Node::Hash(_, element, _) | Node::Protected(element, ..) => {
                     pending.push(self.ctx, *element)?
                 }
                 Node::Tuple(values) | Node::Union(values) => {

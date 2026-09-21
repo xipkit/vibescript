@@ -1,5 +1,5 @@
 use super::{
-    facts::{Atom, Fact, Facts, Field, HashKind, Node},
+    facts::{Atom, Certainty, Fact, Facts, Field, HashKind, Node},
     relation::Relation,
 };
 use crate::{CallContext, ErrorKind, Result, budget::Buffer, value::Kind};
@@ -114,7 +114,7 @@ enum Task {
     Tuple(usize),
     Hash(Fact, HashKind),
     Shape(Buffer<Field>, bool, Fact, HashKind),
-    Protected(crate::hash::Tag),
+    Protected(crate::hash::Tag, Certainty),
     Options(Fact, Buffer<Fact>, usize, Normalized),
     Candidate(Fact, Buffer<Fact>, usize, Normalized, bool),
 }
@@ -232,6 +232,10 @@ impl Facts {
                         ctx.charge(1)?;
                         if item.value == Atom::Never.fact() {
                             possible &= field.optional;
+                            if open && field.optional {
+                                field.value = item.value;
+                                output.push(ctx, field)?;
+                            }
                             continue;
                         }
                         unchanged &= field.optional || item.unchanged;
@@ -250,14 +254,14 @@ impl Facts {
                         Normalized::value(Atom::Never.fact())
                     }
                 }
-                Task::Protected(tag) => {
+                Task::Protected(tag, certainty) => {
                     let item = values.data.pop().unwrap();
                     let mut variants = Buffer::empty();
                     if item.unchanged {
                         for i in 0..self.arm_count(item.value) {
                             let arm = self.arm(item.value, i);
                             if arm != Atom::Never.fact() {
-                                let protected = self.protected(ctx, arm, tag)?;
+                                let protected = self.protected_as(ctx, arm, tag, certainty)?;
                                 variants.push(ctx, protected)?;
                             }
                         }
@@ -358,8 +362,8 @@ impl Facts {
                             }
                             continue;
                         }
-                        if let Node::Protected(shape, tag) = self.node(actual) {
-                            tasks.push(ctx, Task::Protected(*tag))?;
+                        if let Node::Protected(shape, tag, certainty) = self.node(actual) {
+                            tasks.push(ctx, Task::Protected(*tag, *certainty))?;
                             tasks.push(
                                 ctx,
                                 Task::Visit(Key {

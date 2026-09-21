@@ -192,6 +192,7 @@ pub(super) struct Exit {
     pub value: Fact,
     pub captures: Slots<Fact>,
     pub written: Slots<bool>,
+    pub refined: Slots<bool>,
     pub pending: Pending,
     pub globals: Globals,
 }
@@ -205,6 +206,7 @@ impl Exit {
             globals: self.globals.snapshot(ctx)?,
             captures: self.captures.snapshot(ctx)?,
             written: self.written.snapshot(ctx)?,
+            refined: self.refined.snapshot(ctx)?,
             pending: self.pending.snapshot(ctx)?,
         })
     }
@@ -216,6 +218,7 @@ impl Exit {
             && self.value == other.value
             && self.captures.equal(ctx, &other.captures)?
             && self.written.equal(ctx, &other.written)?
+            && self.refined.equal(ctx, &other.refined)?
             && self.pending.equal(ctx, &other.pending)?
             && self.globals.equal(ctx, &other.globals)?)
     }
@@ -237,6 +240,8 @@ impl Exit {
         })?;
         self.written
             .merge(ctx, &previous.written, |_, a, b| Ok(a || b))?;
+        self.refined
+            .merge(ctx, &previous.refined, |_, a, b| Ok(a || b))?;
         Ok(())
     }
 }
@@ -248,6 +253,7 @@ pub(super) struct Captures {
     owners: Slots<Owner>,
     attached: Slots<Attached>,
     written: Slots<bool>,
+    refined: Slots<bool>,
     pub pending: Pending,
 }
 
@@ -259,6 +265,7 @@ impl Captures {
             owners: Slots::new(locals, Owner::Unknown),
             attached: Slots::new(locals, Attached::No),
             written: Slots::new(locals, false),
+            refined: Slots::new(locals, false),
             pending: Pending::new(),
         };
         for input in inputs {
@@ -285,6 +292,7 @@ impl Captures {
             owners: self.owners.snapshot(ctx)?,
             attached: self.attached.snapshot(ctx)?,
             written: self.written.snapshot(ctx)?,
+            refined: self.refined.snapshot(ctx)?,
             pending: self.pending.snapshot(ctx)?,
         })
     }
@@ -323,6 +331,21 @@ impl Captures {
 
     pub fn shadow(&mut self, ctx: &mut CallContext, slot: usize) -> Result<()> {
         self.attached.set(ctx, slot, Attached::No)
+    }
+
+    /// Records a path constraint without publishing a write to the enclosing scope.
+    pub fn refine(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        slot: usize,
+        value: Fact,
+    ) -> Result<()> {
+        if self.attached.get(ctx, slot)? == Attached::Yes {
+            self.values.set(ctx, slot, value)?;
+            self.refined.set(ctx, slot, true)?;
+        }
+        self.refresh(ctx, facts, slot, value, &Change::Refine)
     }
 
     pub fn store(
@@ -380,8 +403,11 @@ impl Captures {
         let written = self
             .written
             .merge(ctx, &other.written, |_, a, b| Ok(a || b))?;
+        let refined = self
+            .refined
+            .merge(ctx, &other.refined, |_, a, b| Ok(a || b))?;
         let pending = self.pending.join(ctx, facts, &other.pending, depth)?;
-        Ok(values || missing || owners || attached || written || pending)
+        Ok(values || missing || owners || attached || written || refined || pending)
     }
 
     pub fn record(
@@ -407,11 +433,14 @@ impl Captures {
                     .merge(ctx, &self.values, |ctx, a, b| facts.union(ctx, &[a, b]))?;
                 exit.written
                     .merge(ctx, &self.written, |_, a, b| Ok(a || b))?;
+                exit.refined
+                    .merge(ctx, &self.refined, |_, a, b| Ok(a || b))?;
                 return Ok(());
             }
         }
         let captures = self.values.snapshot(ctx)?;
         let written = self.written.snapshot(ctx)?;
+        let refined = self.refined.snapshot(ctx)?;
         let pending = self.pending.snapshot(ctx)?;
         exits.push(
             ctx,
@@ -421,6 +450,7 @@ impl Captures {
                 value,
                 captures,
                 written,
+                refined,
                 pending,
                 globals,
             },

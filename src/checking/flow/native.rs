@@ -108,7 +108,6 @@ impl Walker<'_> {
                 self.collection_error(state, pc, receiver, site, &args, ErrorClass::Runtime)?;
                 return Ok(Some([None, None]));
             }
-            Some(Selection::UnmodeledProtection) => return self.incomplete(pc).map(Some),
             Some(Selection::Uncertain(field)) => {
                 let mut present = state.snapshot(self.ctx)?;
                 let arguments = args.snapshot(self.ctx)?;

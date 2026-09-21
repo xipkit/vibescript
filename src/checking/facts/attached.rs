@@ -9,7 +9,7 @@ impl Facts {
         ctx.charge(1)?;
         Ok(match node {
             Node::Callable { .. } => true,
-            Node::Array(value) | Node::Protected(value, _) => self.escapes(*value),
+            Node::Array(value) | Node::Protected(value, ..) => self.escapes(*value),
             Node::Hash(_, value, kind) if !kind.object() => self.escapes(*value),
             Node::Tuple(values) | Node::Union(values) | Node::Choice(values) => {
                 ctx.charge(values.data.len() as u64)?;
@@ -49,7 +49,7 @@ impl Facts {
             if !ready {
                 pending.push(ctx, (value, true))?;
                 match self.node(value) {
-                    Node::Array(child) | Node::Protected(child, _) | Node::Hash(_, child, _) => {
+                    Node::Array(child) | Node::Protected(child, ..) | Node::Hash(_, child, _) => {
                         pending.push(ctx, (*child, false))?;
                     }
                     Node::Tuple(children) | Node::Union(children) | Node::Choice(children) => {
@@ -68,12 +68,12 @@ impl Facts {
             }
             let filtered = match *self.node(value) {
                 Node::Callable { .. } => Atom::Never.fact(),
-                Node::Protected(child, tag) => {
+                Node::Protected(child, tag, certainty) => {
                     let child = self.exported_child(child);
                     if child == Atom::Never.fact() {
                         child
                     } else {
-                        self.protected(ctx, child, tag)?
+                        self.protected_as(ctx, child, tag, certainty)?
                     }
                 }
                 Node::Array(child) => {
@@ -92,9 +92,11 @@ impl Facts {
                         self.hash_kind(ctx, key, child, HashKind::PLAIN)?
                     };
                     // The exported plain copy is plain; every other possible
-                    // provenance keeps its methods as an object copy.
+                    // provenance, including a still possible protected object,
+                    // keeps its methods as the remaining copy.
                     if !kind.plain() {
-                        let object = self.hash_as(ctx, value, HashKind::OBJECT)?;
+                        let object = self.hash_as(ctx, value, kind.without(HashKind::PLAIN))?;
+                        let object = self.pruned_contract(ctx, object)?;
                         self.union(ctx, &[plain, object])?
                     } else {
                         plain
@@ -143,7 +145,8 @@ impl Facts {
                         self.shape_fields(ctx, next, open, keys, HashKind::PLAIN)?
                     };
                     if !kind.plain() {
-                        let object = self.hash_as(ctx, value, HashKind::OBJECT)?;
+                        let object = self.hash_as(ctx, value, kind.without(HashKind::PLAIN))?;
+                        let object = self.pruned_contract(ctx, object)?;
                         self.union(ctx, &[plain, object])?
                     } else {
                         plain

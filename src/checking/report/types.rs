@@ -149,7 +149,7 @@ impl<'a> Writer<'a> {
             Node::Regex(_) => self.text("regex"),
             Node::Builtin(_) | Node::Offset(_) => self.text("builtin"),
             Node::Callable { .. } => self.text("attached method"),
-            Node::Protected(value, _) => self.describe(facts, *value, depth + 1),
+            Node::Protected(value, ..) => self.describe(facts, *value, depth + 1),
             Node::TypeValue(value) => {
                 self.text("type<")?;
                 self.describe(facts, *value, depth + 1)?;
@@ -246,7 +246,7 @@ fn nominal(facts: &Facts, mut fact: Fact) -> Option<NominalId> {
         match facts.node(fact) {
             Node::Nominal { identity, .. } => return Some(*identity),
             Node::Instance { class, .. } => fact = *class,
-            Node::Protected(inner, _) => fact = *inner,
+            Node::Protected(inner, ..) => fact = *inner,
             Node::Enumeration { nominal, .. } => fact = *nominal,
             Node::EnumMember { enumeration, .. } => fact = *enumeration,
             _ => return None,

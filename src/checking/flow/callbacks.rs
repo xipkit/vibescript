@@ -231,6 +231,16 @@ impl Walker<'_> {
                         .unwrap()
                         .store(self.ctx, self.facts, parent, value)?,
                 }
+            } else if exit.refined.get(self.ctx, link.slot)? {
+                let value = exit.captures.get(self.ctx, link.slot)?;
+                match link.parent {
+                    Parent::Local(parent) => next.refine(self.ctx, self.facts, parent, value)?,
+                    Parent::Capture(parent) => next
+                        .captures
+                        .as_mut()
+                        .unwrap()
+                        .refine(self.ctx, self.facts, parent, value)?,
+                }
             }
         }
         assert_eq!(

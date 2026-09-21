@@ -319,7 +319,7 @@ impl Facts {
                                 Relation::Rejected
                             }
                         }
-                        (Node::Protected(source, _), _) => {
+                        (Node::Protected(source, ..), _) => {
                             tasks.push(
                                 ctx,
                                 Task::Visit(Pair {
@@ -329,7 +329,7 @@ impl Facts {
                             )?;
                             continue;
                         }
-                        (_, Node::Protected(target, _)) => {
+                        (_, Node::Protected(target, ..)) => {
                             tasks.push(
                                 ctx,
                                 Task::Visit(Pair {

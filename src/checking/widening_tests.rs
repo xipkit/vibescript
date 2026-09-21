@@ -173,11 +173,13 @@ fn hash_joins_preserve_optional_fields_and_plain_provenance() {
 
 #[test]
 fn plain_and_object_joins_never_admit_protected_dispatch() {
-    use super::objects::{self, Selection};
+    use super::{facts::Certainty, objects};
+    use crate::hash::Tag;
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     // The fields a protected match object also carries, so a structural
-    // contract with them stays conservatively guarded.
+    // contract with them admits the match profile while a join of proven
+    // plain and object data never does.
     let plain = facts
         .shape(
             &mut ctx,
@@ -195,52 +197,51 @@ fn plain_and_object_joins_never_admit_protected_dispatch() {
     assert!(!facts.plain_hash(joined));
     assert!(!facts.hash_mode(joined).tagged());
     assert!(facts.hash_mode(contract).tagged());
-    assert!(objects::may_be_protected(&mut ctx, &facts, contract).unwrap());
-    assert!(!objects::may_be_protected(&mut ctx, &facts, joined).unwrap());
-    let site = crate::bytecode::CallSite {
-        name: 0,
-        method: Method::parse("clear"),
-        auto: true,
-        parenthesized: false,
-        scope: false,
-    };
-    assert!(matches!(
-        objects::select(&mut ctx, &facts, contract, site, "clear").unwrap(),
-        Some(Selection::UnmodeledProtection)
-    ));
     // A provenance-sensitive member splits the join into its exact plain and
     // object copies instead of abandoning dispatch.
     let variants = objects::variants(&mut ctx, &mut facts, joined, "clear", false)
         .unwrap()
         .unwrap();
     assert_eq!(variants.data, [plain, object]);
-    assert!(
-        objects::variants(&mut ctx, &mut facts, contract, "clear", false)
-            .unwrap()
-            .is_none()
+    // The contract also expands the match alternative its fields admit; the
+    // error profile lacks the declared match fields and is never expanded.
+    let expanded = objects::variants(&mut ctx, &mut facts, contract, "clear", false)
+        .unwrap()
+        .unwrap();
+    assert_eq!(&expanded.data[..2], &[plain, object]);
+    assert_eq!(expanded.data.len(), 3);
+    assert!(matches!(
+        facts.node(expanded.data[2]),
+        Node::Protected(_, Tag::Match, Certainty::Contract)
+    ));
+    assert_eq!(
+        facts
+            .protected_variant(&mut ctx, contract, Tag::Error)
+            .unwrap(),
+        Atom::Never.fact()
     );
-    // Indexed writes stay modeled on the join and preserve its provenance set,
-    // while the contract keeps its guard.
+    // Indexed writes stay modeled on both: the join preserves its provenance
+    // set and a successful write on the contract proves it unprotected.
     let key = facts.symbol(&mut ctx, b"x").unwrap();
     let write = facts
         .collection_write(&mut ctx, joined, key, Atom::Int.fact())
         .unwrap();
     assert!(!write.unsupported && !write.rejected, "{write:?}");
     assert_eq!(facts.hash_mode(write.receiver), facts.hash_mode(joined));
-    assert!(
-        facts
-            .collection_write(&mut ctx, contract, key, Atom::Int.fact())
-            .unwrap()
-            .unsupported
+    let write = facts
+        .collection_write(&mut ctx, contract, key, Atom::Int.fact())
+        .unwrap();
+    assert!(!write.unsupported && !write.rejected, "{write:?}");
+    assert_eq!(
+        facts.hash_mode(write.receiver),
+        HashKind::PLAIN.join(HashKind::OBJECT)
     );
     // Exact protected data alongside the join keeps its tag.
-    let protected = facts
-        .protected(&mut ctx, object, crate::hash::Tag::Match)
-        .unwrap();
+    let protected = facts.protected(&mut ctx, object, Tag::Match).unwrap();
     let mixed = facts.union(&mut ctx, &[joined, protected]).unwrap();
     assert_eq!(facts.arm_count(mixed), 2);
     assert!((0..2).any(|i| facts.arm(mixed, i) == protected));
-    drop(variants);
+    drop((variants, expanded));
     drop(facts);
     assert_eq!(ctx.stats().retained_memory_bytes, 0);
 }

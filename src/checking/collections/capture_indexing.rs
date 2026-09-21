@@ -15,6 +15,41 @@ struct Field {
 }
 
 impl Facts {
+    pub(super) fn hash_membership(
+        &mut self,
+        ctx: &mut CallContext,
+        receiver: Fact,
+        keys: Fact,
+    ) -> Result<Operation> {
+        let mut result = outcome(Atom::Never.fact());
+        for i in 0..self.arm_count(keys) {
+            ctx.charge(1)?;
+            let key = self.arm(keys, i);
+            let next = match self.atom(key) {
+                Some(Atom::Never) => outcome(Atom::Never.fact()),
+                Some(Atom::String | Atom::Symbol) => {
+                    let field = self.stored_capture_field(ctx, receiver, key)?;
+                    let value = if field.value == Atom::Never.fact() {
+                        self.boolean(ctx, false)?
+                    } else if !field.missing {
+                        self.boolean(ctx, true)?
+                    } else {
+                        Atom::Bool.fact()
+                    };
+                    outcome(value)
+                }
+                Some(Atom::Any | Atom::Unknown) => Operation {
+                    throws: true,
+                    ..outcome(Atom::Bool.fact())
+                },
+                _ if matches!(self.node(key), Node::Named(_) | Node::Choice(_)) => unsupported(),
+                _ => rejected(),
+            };
+            self.merge_operation(ctx, &mut result, next)?;
+        }
+        Ok(result)
+    }
+
     // Address::index follows a successful lookup with stored_child. For a
     // rooted hash this requires a byte key, even when numeric capture lookup
     // itself succeeds, and fails before evaluating mutation arguments.
@@ -67,7 +102,7 @@ impl Facts {
         mut receiver: Fact,
         key: Fact,
     ) -> Result<Field> {
-        while let Node::Protected(shape, _) = self.node(receiver) {
+        while let Node::Protected(shape, ..) = self.node(receiver) {
             ctx.charge(1)?;
             receiver = *shape;
         }

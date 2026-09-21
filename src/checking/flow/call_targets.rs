@@ -79,7 +79,7 @@ impl Walker<'_> {
             self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
             return Ok(Some([None, None]));
         }
-        let fields = if let Node::Protected(shape, _) = self.facts.node(receiver) {
+        let fields = if let Node::Protected(shape, ..) = self.facts.node(receiver) {
             *shape
         } else {
             receiver

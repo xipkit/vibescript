@@ -590,6 +590,45 @@ impl State {
         Ok(())
     }
 
+    fn refine(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        slot: usize,
+        value: Fact,
+    ) -> Result<()> {
+        let binding = self.locals.get(ctx, slot)?;
+        self.locals.set(ctx, slot, Binding { value, ..binding })?;
+        for operand in &mut self.stack.data {
+            ctx.charge(1)?;
+            if operand.origin == Some(slot) {
+                operand.value = value;
+            }
+        }
+        for attempt in &mut self.attempts.data {
+            ctx.charge(1)?;
+            if let Some(Transfer::Value(operand)) = &mut attempt.pending {
+                if operand.origin == Some(slot) {
+                    operand.value = value;
+                }
+            }
+        }
+        if self.capture_locals && slot < self.global_base {
+            self.captures
+                .as_mut()
+                .unwrap()
+                .refine(ctx, facts, slot, value)?;
+        }
+        self.refresh_globals(ctx, facts, slot, value, &Change::Refine)?;
+        for address in &mut self.addresses.data {
+            ctx.charge(1)?;
+            if address.root == Some(slot) {
+                address.refresh(ctx, facts, value, &Change::Refine)?;
+            }
+        }
+        Ok(())
+    }
+
     fn narrow(
         &mut self,
         ctx: &mut CallContext,
@@ -1371,6 +1410,29 @@ impl Walker<'_> {
         Ok([None, None])
     }
 
+    /// Emits the runtime error edge of a write to a possibly protected receiver.
+    ///
+    /// The edge exists only because the receiver may be a protected object, so
+    /// when the receiver is an unsplit local its rescue state sees the admitted
+    /// protected alternatives rather than the whole contract domain. Ordinary
+    /// write failures emit their own edges with the unnarrowed state.
+    fn protected_error(&mut self, state: &State, pc: usize, address: &Address) -> Result<()> {
+        let classes = handlers::bit(ErrorClass::Runtime);
+        let Some(slot) = address.root else {
+            return self.emit_error(state, pc, classes);
+        };
+        let Some(value) = address.protected_root(self.ctx, self.facts)? else {
+            return self.emit_error(state, pc, classes);
+        };
+        let current = state.locals.get(self.ctx, slot)?.value;
+        if value == current {
+            return self.emit_error(state, pc, classes);
+        }
+        let mut narrowed = state.snapshot(self.ctx)?;
+        narrowed.refine(self.ctx, self.facts, slot, value)?;
+        self.emit_error(&narrowed, pc, classes)
+    }
+
     fn branch(
         &mut self,
         state: State,
@@ -1489,9 +1551,6 @@ impl Walker<'_> {
             return Ok(Some([None, None]));
         }
         match super::objects::select(self.ctx, self.facts, receiver, site.call, name)? {
-            Some(super::objects::Selection::UnmodeledProtection) => {
-                return self.incomplete(pc).map(Some);
-            }
             Some(super::objects::Selection::Field(_) | super::objects::Selection::Missing) => {
                 state.addresses.data.pop().unwrap();
                 let mut arguments = Arguments::new();
@@ -1525,18 +1584,20 @@ impl Walker<'_> {
         }
         let address = state.addresses.data.pop().unwrap();
         let protection = address.protection(self.ctx, self.facts)?;
-        if protection != Attached::No {
-            self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
-            let arguments = self.facts.tuple(self.ctx, args)?;
-            self.issue(
-                pc,
-                IssueKind::Member {
-                    name: site.name,
-                    receiver: address.value,
-                    arguments,
-                },
-            )?;
-            if protection == Attached::Yes {
+        if protection.readonly != Attached::No {
+            self.protected_error(state, pc, &address)?;
+            if protection.report {
+                let arguments = self.facts.tuple(self.ctx, args)?;
+                self.issue(
+                    pc,
+                    IssueKind::Member {
+                        name: site.name,
+                        receiver: address.value,
+                        arguments,
+                    },
+                )?;
+            }
+            if protection.readonly == Attached::Yes {
                 return Ok(Some([None, None]));
             }
         }
@@ -2594,24 +2655,23 @@ impl Walker<'_> {
                     }
                     let receiver = state.addresses.data.last().unwrap().value;
                     if !args.keywords.data.is_empty() {
-                        let protection = state
-                            .addresses
-                            .data
-                            .last()
-                            .unwrap()
-                            .protection(self.ctx, self.facts)?;
-                        if protection != Attached::No {
-                            self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
-                            let arguments = self.facts.tuple(self.ctx, &args.positional.data)?;
-                            self.issue(
-                                pc,
-                                IssueKind::Member {
-                                    name: site.name,
-                                    receiver,
-                                    arguments,
-                                },
-                            )?;
-                            if protection == Attached::Yes {
+                        let address = state.addresses.data.last().unwrap();
+                        let protection = address.protection(self.ctx, self.facts)?;
+                        if protection.readonly != Attached::No {
+                            self.protected_error(&state, pc, address)?;
+                            if protection.report {
+                                let arguments =
+                                    self.facts.tuple(self.ctx, &args.positional.data)?;
+                                self.issue(
+                                    pc,
+                                    IssueKind::Member {
+                                        name: site.name,
+                                        receiver,
+                                        arguments,
+                                    },
+                                )?;
+                            }
+                            if protection.readonly == Attached::Yes {
                                 return Ok([None, None]);
                             }
                         }
@@ -2813,7 +2873,7 @@ impl Walker<'_> {
                         }
                         ArgumentOp::KeywordSplat => {
                             let mut keywords = Buffer::empty();
-                            let value = if let super::facts::Node::Protected(shape, _) =
+                            let value = if let super::facts::Node::Protected(shape, ..) =
                                 self.facts.node(operand.value)
                             {
                                 *shape

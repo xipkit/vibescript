@@ -1,4 +1,4 @@
-use super::facts::{Atom, Fact, Facts, Field, Node};
+use super::facts::{Atom, Fact, Facts, Field, HashKind, Node};
 use crate::{
     CallContext, Result,
     budget::Buffer,
@@ -69,11 +69,7 @@ impl Facts {
                 && !crate::members::hash_builtin(name))
                 || matches!(
                     super::objects::select(ctx, self, arm, site, name)?,
-                    Some(
-                        super::objects::Selection::Field(_)
-                            | super::objects::Selection::Missing
-                            | super::objects::Selection::UnmodeledProtection
-                    )
+                    Some(super::objects::Selection::Field(_) | super::objects::Selection::Missing)
                 );
             let next =
                 if self.atom(arm) == Some(Atom::String) && matches!(name, "unshift" | "append") {
@@ -212,6 +208,9 @@ impl Facts {
         }
     }
 
+    // A successful write proves the receiver was not a protected object, so the
+    // result keeps only its plain and object provenances; callers model the
+    // protected rejection through the address before reaching here.
     fn hash_write(
         &mut self,
         ctx: &mut CallContext,
@@ -219,9 +218,6 @@ impl Facts {
         index: Fact,
         value: Fact,
     ) -> Result<Mutation> {
-        if super::objects::may_be_protected(ctx, self, receiver)? {
-            return Ok(Mutation::unsupported());
-        }
         match self.atom(index) {
             Some(Atom::String | Atom::Symbol | Atom::Unknown | Atom::Any) => (),
             None if matches!(
@@ -258,14 +254,15 @@ impl Facts {
                 },
             )?;
             let keys = self.union(ctx, &[keys, Atom::String.fact()])?;
-            let updated = self.shape_fields(ctx, copied, open, keys, plain)?;
+            let updated = self.shape_fields(ctx, copied, open, keys, plain.untagged())?;
             return Ok(Mutation::new(updated, value));
         }
         let (keys, values) = self.hash_contents(ctx, receiver)?;
         let keys = self.union(ctx, &[keys, Atom::String.fact()])?;
         let values = self.union(ctx, &[values, value])?;
+        let kind = self.hash_mode(receiver).untagged();
         Ok(Mutation::new(
-            self.hash_kind(ctx, keys, values, self.hash_mode(receiver))?,
+            self.hash_kind(ctx, keys, values, kind)?,
             value,
         ))
     }
@@ -768,11 +765,34 @@ impl Facts {
                         Node::Protected(..) if self.hash_mode(receiver).object() => {
                             Mutation::updated(value)
                         }
-                        Node::Hash(_, _, kind) | Node::Shape(_, _, _, kind) if !kind.single() => {
-                            Mutation::unsupported()
-                        }
-                        Node::Hash(..) | Node::Shape(..) => {
-                            Mutation::updated(self.hash_as(ctx, value, self.hash_mode(receiver))?)
+                        // Plain and object sources copy their entries under the
+                        // receiver's provenance. A source that may still be a
+                        // protected object replaces an object receiver with that
+                        // admitted alternative and fails on a plain receiver, so
+                        // both outcomes stay modeled without a static verdict.
+                        Node::Hash(_, _, kind) | Node::Shape(_, _, _, kind) => {
+                            let kind = *kind;
+                            let mode = self.hash_mode(receiver);
+                            let mut next = Mutation::updated(self.hash_as(ctx, value, mode)?);
+                            for (tag, bit) in [
+                                (crate::hash::Tag::Match, HashKind::MATCH),
+                                (crate::hash::Tag::Error, HashKind::ERROR),
+                            ] {
+                                ctx.charge(1)?;
+                                if !kind.has(bit) {
+                                    continue;
+                                }
+                                if !mode.object() {
+                                    next.throws = true;
+                                    continue;
+                                }
+                                let variant = self.protected_variant(ctx, value, tag)?;
+                                if variant != Atom::Never.fact() {
+                                    next.receiver = self.union(ctx, &[next.receiver, variant])?;
+                                    next.value = self.union(ctx, &[next.value, variant])?;
+                                }
+                            }
+                            next
                         }
                         Node::Named(_)
                         | Node::Nominal { .. }

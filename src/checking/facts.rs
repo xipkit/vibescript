@@ -92,6 +92,11 @@ impl HashKind {
         self.0 & (Self::MATCH.0 | Self::ERROR.0) != 0
     }
 
+    /// Whether every provenance in `other` is possible here.
+    pub fn has(self, other: Self) -> bool {
+        self.0 & other.0 == other.0
+    }
+
     /// Whether the two sets share a possible runtime provenance.
     pub fn overlaps(self, other: Self) -> bool {
         self.0 & other.0 != 0
@@ -100,6 +105,26 @@ impl HashKind {
     pub fn join(self, other: Self) -> Self {
         Self(self.0 | other.0)
     }
+
+    pub fn without(self, other: Self) -> Self {
+        Self(self.0 & !other.0)
+    }
+
+    /// The provenances that survive a successful mutation: protected objects
+    /// reject every write, so only plain and object copies remain.
+    pub fn untagged(self) -> Self {
+        self.without(Self::MATCH).without(Self::ERROR)
+    }
+}
+
+/// Whether a protected fact describes a value known to be a match or error
+/// object, or one alternative that a structural contract may admit. Only the
+/// known form is a static contradiction when mutated; the contract form still
+/// rejects the mutation at runtime but is not reportable.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) enum Certainty {
+    Known,
+    Contract,
 }
 
 impl From<bool> for HashKind {
@@ -140,7 +165,7 @@ pub(super) enum Node {
         target: Callable,
     },
     Offset(Fact),
-    Protected(Fact, crate::hash::Tag),
+    Protected(Fact, crate::hash::Tag, Certainty),
     TypeValue(Fact),
     Instance {
         class: Fact,
@@ -191,6 +216,10 @@ pub(super) struct Facts {
     enumerations: Buffer<Fact>,
     sources: super::sources::Sources,
     max_depth: usize,
+    /// The match and error object profiles, built on first use.
+    pub(super) profiles: [Fact; 2],
+    /// Protected alternatives admitted by structural contracts, by contract and tag.
+    pub(super) variants: super::profiles::Memo,
 }
 
 impl Facts {
@@ -201,6 +230,8 @@ impl Facts {
             enumerations: Buffer::empty(),
             sources: super::sources::Sources::new(),
             max_depth: 0,
+            profiles: [Fact(EMPTY); 2],
+            variants: super::profiles::Memo::new(),
         };
         for atom in [
             Atom::Never,
@@ -374,7 +405,7 @@ impl Facts {
         };
         let normalizes = match &node {
             Node::Choice(_) => true,
-            Node::Protected(value, _) | Node::Offset(value) => self.normalizes(*value),
+            Node::Protected(value, ..) | Node::Offset(value) => self.normalizes(*value),
             Node::Named(_) | Node::Nominal { .. } => true,
             Node::Array(element) => self.normalizes(*element),
             Node::Hash(key, value, _) => self.normalizes(*key) || self.normalizes(*value),
@@ -389,7 +420,7 @@ impl Facts {
             _ => false,
         };
         let unresolved = match &node {
-            Node::Protected(value, _) | Node::Offset(value) => self.unresolved(*value),
+            Node::Protected(value, ..) | Node::Offset(value) => self.unresolved(*value),
             Node::Named(_) => true,
             Node::TypeValue(ty) => self.unresolved(*ty),
             Node::Array(element) => self.unresolved(*element),
@@ -431,7 +462,7 @@ impl Facts {
             _ => false,
         };
         let depth = match &node {
-            Node::Protected(value, _) | Node::Offset(value) => self.depth(*value),
+            Node::Protected(value, ..) | Node::Offset(value) => self.depth(*value),
             Node::Array(element) => self.depth(*element).saturating_add(1),
             Node::Hash(key, value, _) => self.depth(*key).max(self.depth(*value)).saturating_add(1),
             Node::Tuple(values) | Node::Union(values) | Node::Choice(values) => {
@@ -537,14 +568,25 @@ impl Facts {
         self.intern(ctx, Node::Instance { class, slot, kind })
     }
 
+    /// A value known to be a protected match or error object.
     pub(super) fn protected(
         &mut self,
         ctx: &mut CallContext,
         shape: Fact,
         tag: crate::hash::Tag,
     ) -> Result<Fact> {
+        self.protected_as(ctx, shape, tag, Certainty::Known)
+    }
+
+    pub(super) fn protected_as(
+        &mut self,
+        ctx: &mut CallContext,
+        shape: Fact,
+        tag: crate::hash::Tag,
+        certainty: Certainty,
+    ) -> Result<Fact> {
         assert!(tag.protected());
-        self.intern(ctx, Node::Protected(shape, tag))
+        self.intern(ctx, Node::Protected(shape, tag, certainty))
     }
 
     pub(super) fn offset(&mut self, ctx: &mut CallContext, values: Fact) -> Result<Fact> {
@@ -931,7 +973,9 @@ impl Facts {
                             continue;
                         }
                         TypeKind::Hash(None) => {
-                            self.hash(ctx, Atom::Unknown.fact(), Atom::Unknown.fact())?
+                            let hash =
+                                self.hash(ctx, Atom::Unknown.fact(), Atom::Unknown.fact())?;
+                            self.pruned_contract(ctx, hash)?
                         }
                         TypeKind::Hash(Some(pair)) => {
                             tasks.push(ctx, Task::Hash)?;
@@ -976,7 +1020,8 @@ impl Facts {
                 Task::Hash => {
                     let value = values.data.pop().unwrap();
                     let key = values.data.pop().unwrap();
-                    self.hash(ctx, key, value)?
+                    let hash = self.hash(ctx, key, value)?;
+                    self.pruned_contract(ctx, hash)?
                 }
                 Task::Shape(fields, open) => {
                     let start = values.data.len() - fields.len();
@@ -993,7 +1038,9 @@ impl Facts {
                         )?;
                     }
                     values.data.truncate(start);
-                    self.shape_fields(ctx, result, open, Atom::Unknown.fact(), false)?
+                    let shape =
+                        self.shape_fields(ctx, result, open, Atom::Unknown.fact(), false)?;
+                    self.pruned_contract(ctx, shape)?
                 }
                 Task::Union(count) => {
                     let start = values.data.len() - count;
@@ -1140,7 +1187,9 @@ impl Node {
             Self::Builtin(value) => value.name().hash(&mut hash),
             Self::Callable { owner, target } => (sources.key(ctx, *owner)?, target).hash(&mut hash),
             Self::Offset(value) => value.hash(&mut hash),
-            Self::Protected(value, tag) => (value, *tag as u8).hash(&mut hash),
+            Self::Protected(value, tag, certainty) => {
+                (value, *tag as u8, certainty).hash(&mut hash)
+            }
             Self::TypeValue(value) => value.hash(&mut hash),
             Self::Instance { class, slot, kind } => (class, slot, kind).hash(&mut hash),
             Self::Enumeration { nominal, .. } => nominal.hash(&mut hash),
@@ -1210,7 +1259,9 @@ impl Node {
                 },
             ) => a == b && at == bt,
             (Self::Offset(a), Self::Offset(b)) => a == b,
-            (Self::Protected(a, at), Self::Protected(b, bt)) => a == b && at == bt,
+            (Self::Protected(a, at, ac), Self::Protected(b, bt, bc)) => {
+                a == b && at == bt && ac == bc
+            }
             (Self::TypeValue(a), Self::TypeValue(b)) => a == b,
             (
                 Self::Instance {

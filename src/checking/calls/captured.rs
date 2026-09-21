@@ -25,6 +25,7 @@ fn exit(globals: Globals, completion: blocks::Completion, value: Fact) -> blocks
         value,
         captures: Slots::new(0, Atom::Never.fact()),
         written: Slots::new(0, false),
+        refined: Slots::new(0, false),
         pending: Pending::new(),
         globals,
     }

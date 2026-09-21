@@ -266,8 +266,6 @@ fn incomplete_analysis_never_looks_like_a_clean_complete_check() {
         "def run; [1, 2].map { _1 }; end",
         "def run; begin; 1; rescue; 2; ensure; [1].map { _1 }; end; end",
         "def run; missing; end",
-        "def run(x: hash); x::nil?; end",
-        "def run(x: hash); x::nil?(); end",
         "def run(x: hash<string,int>); x::nil?(); end",
         "def run; begin; missing; rescue; 7; end; end",
         "def run; [1] <=> [2]; end",
@@ -281,6 +279,22 @@ fn incomplete_analysis_never_looks_like_a_clean_complete_check() {
     check("def run(x);for _ in 1..3;x.no_such_method;end;end", 0);
     check("def run(x);x.nil?;end", 0);
     check("def run(x: hash<string,int>); x::nil?; end", 1);
+}
+
+#[test]
+fn scoped_hash_helpers_have_complete_dispatch_after_profile_expansion() {
+    for source in [
+        "def run(x: hash); x::nil?; end",
+        "def run(x: hash); x::nil?(); end",
+    ] {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let mut facts = Facts::new(&mut ctx).unwrap();
+        let report = analyze(&mut ctx, &mut facts, source).unwrap();
+        assert!(report.incomplete.data.is_empty(), "{source}: {report:?}");
+        assert!(!report.issues.data.is_empty(), "{source}: {report:?}");
+        drop((report, facts));
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
 }
 
 #[test]

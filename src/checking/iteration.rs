@@ -39,7 +39,7 @@ impl Facts {
         for i in 0..self.arm_count(source) {
             ctx.charge(1)?;
             let arm = self.arm(source, i);
-            let view = if let Node::Protected(shape, _) = self.node(arm) {
+            let view = if let Node::Protected(shape, ..) = self.node(arm) {
                 *shape
             } else {
                 arm

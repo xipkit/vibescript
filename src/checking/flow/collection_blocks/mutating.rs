@@ -49,10 +49,6 @@ impl Walker<'_> {
             }
             use crate::checking::objects::{Selection, absent_is_native};
             match crate::checking::objects::select(self.ctx, self.facts, source, site.call, name)? {
-                Some(Selection::UnmodeledProtection) => {
-                    self.incomplete(pc)?;
-                    continue;
-                }
                 Some(Selection::Field(_) | Selection::Missing) => {
                     state.addresses.data.pop().unwrap();
                     let arguments = args.snapshot(self.ctx)?;
@@ -80,9 +76,13 @@ impl Walker<'_> {
                 .last()
                 .unwrap()
                 .protection(self.ctx, self.facts)?;
-            if protection != Attached::No {
-                self.collection_error(&state, pc, source, site, args, ErrorClass::Runtime)?;
-                if protection == Attached::Yes {
+            if protection.readonly != Attached::No {
+                if protection.report {
+                    self.collection_error(&state, pc, source, site, args, ErrorClass::Runtime)?;
+                } else {
+                    self.protected_error(&state, pc, state.addresses.data.last().unwrap())?;
+                }
+                if protection.readonly == Attached::Yes {
                     continue;
                 }
             }

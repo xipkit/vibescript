@@ -129,7 +129,7 @@ impl Walker<'_> {
         for i in 0..self.facts.arm_count(receiver) {
             self.ctx.charge(1)?;
             let arm = self.facts.arm(receiver, i);
-            let Node::Protected(shape, _) = self.facts.node(arm) else {
+            let Node::Protected(shape, ..) = self.facts.node(arm) else {
                 protected_field = false;
                 break;
             };
@@ -170,7 +170,7 @@ impl Walker<'_> {
             self.ctx.charge(1)?;
             let arm = self.facts.arm(receiver, i);
             match self.facts.node(arm) {
-                Node::Protected(shape, _) => {
+                Node::Protected(shape, ..) => {
                     let selected = self
                         .facts
                         .selected_field(self.ctx, *shape, name.as_bytes())?;

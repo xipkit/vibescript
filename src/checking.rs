@@ -59,6 +59,7 @@ mod objects;
 mod optional_capture_tests;
 mod ordering;
 mod pending;
+mod profiles;
 mod public;
 mod relation;
 mod report;
@@ -198,3 +199,9 @@ mod host_type_tests;
 
 #[cfg(test)]
 mod host_block_tests;
+
+#[cfg(test)]
+mod protected_contract_tests;
+
+#[cfg(test)]
+mod profile_consistency_tests;

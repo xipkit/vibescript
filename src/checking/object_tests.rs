@@ -7,28 +7,18 @@ use crate::{CallContext, CallOptions, Engine, ErrorKind, Limits, Result, Value, 
 #[test]
 fn uncertain_replacement_sources_do_not_lose_possible_protection() {
     let source = "def sample; /(a)/.match(\"a\"); end; def run(input:hash); Math.replace(input); begin; Math.clear; 7; rescue; 9; end; end";
-    let script = Engine::new().compile(source).unwrap();
-    let protected = script
+    let protected = Engine::new()
+        .compile(source)
+        .unwrap()
         .call("sample", &[], CallOptions::default())
         .unwrap()
         .value;
+    // A bare hash contract admits plain data and protected objects alike, so
+    // the replaced namespace keeps both the successful and the rejected clear
+    // without a static verdict on either.
     for (input, expected) in [(Value::hash(vec![]), "7"), (protected, "9")] {
-        assert_eq!(
-            script
-                .call("run", &[input], CallOptions::default())
-                .unwrap()
-                .value
-                .to_string(),
-            expected
-        );
+        witness(source, &[input], expected, false);
     }
-    let program = bytecode::compile(source, Vec::new(), &()).unwrap();
-    let mut ctx = CallContext::new(CallOptions::default());
-    let mut facts = Facts::new(&mut ctx).unwrap();
-    let report = analyze(&mut ctx, &mut facts, &program).unwrap();
-    assert!(!report.incomplete.data.is_empty(), "{report:?}");
-    drop((report, facts));
-    assert_eq!(ctx.stats().retained_memory_bytes, 0);
 }
 
 fn accounting_program() -> bytecode::Program {

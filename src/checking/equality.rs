@@ -318,7 +318,7 @@ impl Facts {
                         }
                     }
                     match (self.node(left), self.node(right)) {
-                        (Node::Protected(value, _), _) => {
+                        (Node::Protected(value, ..), _) => {
                             tasks.push(
                                 ctx,
                                 Task::Visit(Pair {
@@ -328,7 +328,7 @@ impl Facts {
                             )?;
                             continue;
                         }
-                        (_, Node::Protected(value, _)) => {
+                        (_, Node::Protected(value, ..)) => {
                             tasks.push(
                                 ctx,
                                 Task::Visit(Pair {
@@ -488,7 +488,7 @@ impl Facts {
                 | Node::Nominal { .. }
                 | Node::Choice(_)
                 | Node::Shape(_, true, _, _) => return Ok(true),
-                Node::Array(value) | Node::Hash(_, value, _) | Node::Protected(value, _) => {
+                Node::Array(value) | Node::Hash(_, value, _) | Node::Protected(value, ..) => {
                     pending.push(ctx, *value)?;
                 }
                 Node::Tuple(values) | Node::Union(values) => pending.extend(ctx, &values.data)?,

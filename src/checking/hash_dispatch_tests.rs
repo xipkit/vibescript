@@ -72,6 +72,10 @@ fn closed_shape_contracts_dispatch_builtins_natively_for_both_provenances() {
         "def run(h:{a:int})->int;h.length;end",
         "def run(h:{a:int})->bool;h.empty?;end",
         "def run(h:{a:int})->bool;h.nil?;end",
+        "def run(h:{a:int})->bool;h.key?(:a);end",
+        "def run(h:{a:int})->bool;h.has_key?('a');end",
+        "def run(h:{a:int})->bool;h.include?(:missing);end",
+        "def run(h:{a:int})->bool;h.member?('missing');end",
         "def run(h:{a:int});h.keys;end",
         "def run(h:{a:int})->array<int>;h.values;end",
         "def run(h:{a:int});h.to_a;end",
@@ -589,13 +593,16 @@ fn accounting(ctx: &mut CallContext) -> Result<()> {
         let report = analyze(ctx, &mut facts, source)?;
         assert!(report.incomplete.data.is_empty(), "{report:?}");
     }
+    // A contract that may admit a protected match keeps the runtime failure of
+    // the nested write as an error path without a static verdict.
     let mut facts = Facts::new(ctx)?;
     let report = analyze(
         ctx,
         &mut facts,
         "def run(h:{captures:array<string?>,...});h.captures.push('x');end",
     )?;
-    assert!(!report.incomplete.data.is_empty(), "{report:?}");
+    assert!(report.incomplete.data.is_empty(), "{report:?}");
+    assert!(report.issues.data.is_empty(), "{report:?}");
     Ok(())
 }
 
@@ -671,5 +678,32 @@ fn hash_dispatch_is_metered_and_releases_interrupted_analysis() {
             }
         );
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+}
+
+#[test]
+fn hash_membership_checks_stored_keys_without_capture_fallback() {
+    for (source, expected, rejected) in [
+        (
+            "h={x:nil};[h.key?(:x),h.has_key?('x'),h.include?(:x),h.member?('x'),h.key?(:y)]",
+            "[true, true, true, true, false]",
+            false,
+        ),
+        (
+            "m='a'.match('(?<x>a)');[m.key?(:x),m[:x],m.named_captures.key?(:x)]",
+            "[false, a, true]",
+            false,
+        ),
+        ("begin;{}.key?(1);rescue RuntimeError;7;end", "7", true),
+        ("begin;{}.has_key?;rescue RuntimeError;7;end", "7", true),
+    ] {
+        super::scope_tests::top(source, expected, rejected);
+    }
+    for source in [
+        "def run(h:{x:nil|int})->int;if h.key?(:x);0;else;'bad';end;end",
+        "def run(h:{x?:nil|int})->bool;h.key?(:x);end",
+        "def run(h:{x:int})->int;if h.key?(:y);'bad';else;0;end;end",
+    ] {
+        check(source, false);
     }
 }

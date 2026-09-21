@@ -506,6 +506,7 @@ mod tests {
                             value: Atom::Int.fact(),
                             captures: Slots::new(0, Atom::Never.fact()),
                             written: Slots::new(0, false),
+                            refined: Slots::new(0, false),
                         };
                         exit(1).equal(&mut ctx, &exit(2)).unwrap_err()
                     }

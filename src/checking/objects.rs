@@ -14,96 +14,6 @@ pub(super) fn contains(ctx: &mut CallContext, facts: &Facts, value: Fact) -> Res
     Ok(false)
 }
 
-fn admits_field_kind(
-    ctx: &mut CallContext,
-    facts: &Facts,
-    value: Fact,
-    string: bool,
-) -> Result<bool> {
-    for i in 0..facts.arm_count(value) {
-        ctx.charge(1)?;
-        let admitted = match facts.node(facts.arm(value, i)) {
-            Node::Atom(Atom::Unknown | Atom::Any)
-            | Node::Named(_)
-            | Node::Nominal { .. }
-            | Node::Choice(_) => true,
-            Node::Atom(Atom::String) | Node::String(_) => string,
-            Node::Array(_) | Node::Tuple(_) => !string,
-            _ => false,
-        };
-        if admitted {
-            return Ok(true);
-        }
-    }
-    Ok(false)
-}
-
-/// Conservatively identifies structural contracts that may admit protected
-/// match or error objects. Their metadata cannot be replaced by plain/object
-/// dispatch alternatives without losing mutation and nested-address guards.
-/// Only kinds carrying a tag bit qualify: a join of proven plain and object
-/// hashes is never reclassified as possibly protected.
-pub(super) fn may_be_protected(ctx: &mut CallContext, facts: &Facts, value: Fact) -> Result<bool> {
-    let (fields, open) = match facts.node(value) {
-        Node::Hash(_, values, kind) if kind.tagged() => {
-            return Ok(admits_field_kind(ctx, facts, *values, true)?
-                && admits_field_kind(ctx, facts, *values, false)?);
-        }
-        Node::Shape(fields, open, _, kind) if kind.tagged() => (fields, *open),
-        _ => return Ok(false),
-    };
-    for names in [
-        &[
-            "begin",
-            "captures",
-            "end",
-            "named_captures",
-            "post_match",
-            "pre_match",
-            "to_s",
-        ][..],
-        &[
-            "type",
-            "class",
-            "message",
-            "to_s",
-            "code_frame",
-            "backtrace",
-        ][..],
-    ] {
-        let mut possible = true;
-        for field in &fields.data {
-            ctx.charge(1)?;
-            let name = field.name.as_bytes().unwrap();
-            ctx.work_bytes(name.len())?;
-            if !field.optional && !names.iter().any(|known| known.as_bytes() == name) {
-                possible = false;
-                break;
-            }
-        }
-        if !possible {
-            continue;
-        }
-        if let Some((value, _)) = facts.selected_field(ctx, value, b"to_s")? {
-            if !admits_field_kind(ctx, facts, value, true)? {
-                continue;
-            }
-        }
-        if !open {
-            for name in names {
-                if facts.selected_field(ctx, value, name.as_bytes())?.is_none() {
-                    possible = false;
-                    break;
-                }
-            }
-        }
-        if possible {
-            return Ok(true);
-        }
-    }
-    Ok(false)
-}
-
 /// Whether plain-hash and host-object dispatch can differ for this member.
 ///
 /// Builtin names on plain hashes never read stored fields, while object fields
@@ -141,9 +51,14 @@ fn splits(
 
 /// Splits a receiver into alternatives whose member dispatch is uniform.
 ///
-/// Uncertain hash provenance becomes separate plain and object copies, and an
-/// object field with optional presence or several possible values becomes one
-/// variant per alternative. Returns `None` when no split is needed.
+/// Uncertain hash provenance becomes separate plain and object copies plus one
+/// protected alternative per admitted tag, and an object field with optional
+/// presence or several possible values becomes one variant per alternative.
+/// Returns `None` when no split is needed.
+///
+/// Reads of declared fields agree across provenances and stay unsplit, except
+/// the match offset fields: a bare `begin` or `end` read fails on a match
+/// object where a plain hash returns its stored field.
 pub(super) fn variants(
     ctx: &mut CallContext,
     facts: &mut Facts,
@@ -152,9 +67,6 @@ pub(super) fn variants(
     scope: bool,
 ) -> Result<Option<Buffer<Fact>>> {
     ctx.charge(1)?;
-    if may_be_protected(ctx, facts, receiver)? {
-        return Ok(None);
-    }
     if let Node::Union(arms) = facts.node(receiver) {
         if splits(ctx, facts, receiver, name, scope)? {
             let mut variants = Buffer::empty();
@@ -163,19 +75,42 @@ pub(super) fn variants(
         }
         return Ok(None);
     }
-    if matches!(
-        facts.node(receiver),
-        Node::Shape(_, _, _, kind) | Node::Hash(_, _, kind) if !kind.single()
-    ) {
-        if !provenance_sensitive(name, scope) {
-            return Ok(None);
+    if let Node::Shape(_, _, _, kind) | Node::Hash(_, _, kind) = facts.node(receiver) {
+        let kind = *kind;
+        if !kind.single() {
+            let offset = kind.has(HashKind::MATCH)
+                && matches!(name, "begin" | "end")
+                && matches!(facts.node(receiver), Node::Shape(..))
+                && facts
+                    .selected_field(ctx, receiver, name.as_bytes())?
+                    .is_some();
+            if !provenance_sensitive(name, scope) && !offset {
+                return Ok(None);
+            }
+            let mut variants = Buffer::empty();
+            if kind.has(HashKind::PLAIN) {
+                let plain = facts.hash_as(ctx, receiver, HashKind::PLAIN)?;
+                variants.push(ctx, plain)?;
+            }
+            if kind.has(HashKind::OBJECT) {
+                let object = facts.hash_as(ctx, receiver, HashKind::OBJECT)?;
+                variants.push(ctx, object)?;
+            }
+            for (tag, bit) in [
+                (crate::hash::Tag::Match, HashKind::MATCH),
+                (crate::hash::Tag::Error, HashKind::ERROR),
+            ] {
+                ctx.charge(1)?;
+                if !kind.has(bit) {
+                    continue;
+                }
+                let protected = facts.protected_variant(ctx, receiver, tag)?;
+                if protected != Atom::Never.fact() {
+                    variants.push(ctx, protected)?;
+                }
+            }
+            return Ok(Some(variants));
         }
-        let mut variants = Buffer::empty();
-        let plain = facts.hash_as(ctx, receiver, HashKind::PLAIN)?;
-        variants.push(ctx, plain)?;
-        let object = facts.hash_as(ctx, receiver, HashKind::OBJECT)?;
-        variants.push(ctx, object)?;
-        return Ok(Some(variants));
     }
     let Node::Shape(fields, _, _, HashKind::OBJECT) = facts.node(receiver) else {
         return Ok(None);
@@ -219,7 +154,6 @@ pub(super) enum Selection {
     /// [`absent_is_native`].
     Uncertain(Fact),
     Missing,
-    UnmodeledProtection,
 }
 
 /// Whether a member absent from an object dispatches natively instead of failing.
@@ -238,8 +172,10 @@ fn callable(facts: &Facts, value: Fact) -> bool {
 ///
 /// Plain hashes only read fields for non-builtin names and reject scoped
 /// access; object fields override builtins except non-callable universal
-/// helpers. Uncertain provenance must be split by [`variants`] first when the
-/// name is provenance-sensitive; otherwise both provenances agree.
+/// helpers. Uncertain provenance, including possibly protected contracts,
+/// must be split by [`variants`] first when the name is provenance-sensitive;
+/// otherwise both provenances agree. Protected alternatives are not selected
+/// here: their members dispatch through the protected builtin summaries.
 pub(super) fn select(
     ctx: &mut CallContext,
     facts: &Facts,
@@ -248,9 +184,6 @@ pub(super) fn select(
     name: &str,
 ) -> Result<Option<Selection>> {
     ctx.charge(1)?;
-    if may_be_protected(ctx, facts, receiver)? {
-        return Ok(Some(Selection::UnmodeledProtection));
-    }
     let (field, open, kind) = match facts.node(receiver) {
         Node::Hash(_, value, kind) => (Some((*value, true)), true, *kind),
         Node::Shape(_, open, _, kind) => (

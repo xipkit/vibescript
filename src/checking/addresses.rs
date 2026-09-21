@@ -1,9 +1,11 @@
 use super::{
-    facts::{Atom, Fact, Facts, Node, same_bytes},
+    facts::{Atom, Certainty, Fact, Facts, Node, same_bytes},
     scalar::Operation,
 };
 use crate::{CallContext, Result, budget::Buffer, bytecode::Method};
 use std::hash::{Hash, Hasher};
+
+mod protection;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum Attached {
@@ -33,6 +35,41 @@ impl Attached {
     }
 }
 
+/// How a selected value responds to mutation, on two independent axes.
+///
+/// `readonly` is whether the runtime rejects the write: certainly for a known
+/// or contract-admitted protected object, possibly for an unsplit receiver
+/// that may still be one. `report` is whether that rejection contradicts a
+/// known value; a contract alternative fails at runtime without being a static
+/// diagnostic. A certainly read-only selection never publishes a mutation
+/// result, whatever its reportability.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) struct Protection {
+    pub readonly: Attached,
+    pub report: bool,
+}
+
+impl Protection {
+    pub const NONE: Self = Self {
+        readonly: Attached::No,
+        report: false,
+    };
+
+    fn or(self, other: Self) -> Self {
+        Self {
+            readonly: self.readonly.or(other.readonly),
+            report: self.report || other.report,
+        }
+    }
+
+    fn join(self, other: Self) -> Self {
+        Self {
+            readonly: self.readonly.join(other.readonly),
+            report: self.report || other.report,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct Hop {
     container: Fact,
@@ -42,7 +79,7 @@ struct Hop {
 
 #[derive(Debug)]
 pub(super) struct Address {
-    protected: Attached,
+    protected: Protection,
     pub root: Option<usize>,
     pub attached: Attached,
     pub value: Fact,
@@ -56,6 +93,7 @@ pub(super) struct Address {
 
 #[derive(Clone, Copy)]
 pub(super) enum Change<'a> {
+    Refine,
     Store {
         same: bool,
         fresh: bool,
@@ -117,7 +155,7 @@ impl Address {
 
     pub fn new(root: Option<usize>, value: Fact) -> Self {
         Self {
-            protected: Attached::No,
+            protected: Protection::NONE,
             root,
             value,
             attached: if root.is_some() {
@@ -222,7 +260,7 @@ impl Address {
         args: &[Fact],
     ) -> Result<Operation> {
         self.protected = self.protection(ctx, facts)?;
-        let mut result = if self.attached == Attached::Yes {
+        let result = if self.attached == Attached::Yes {
             facts.stored_collection_index(ctx, self.value, args)?
         } else {
             let mut result = facts.collection_index(ctx, self.value, args)?;
@@ -233,13 +271,6 @@ impl Address {
             }
             result
         };
-        for i in 0..facts.arm_count(self.value) {
-            ctx.charge(1)?;
-            if super::objects::may_be_protected(ctx, facts, facts.arm(self.value, i))? {
-                self.supported = false;
-                result.unsupported = true;
-            }
-        }
         if let [key] = args {
             let stored = stored(ctx, facts, self.value, *key)?;
             let key = captured(ctx, facts, self.value, *key)?;
@@ -281,7 +312,12 @@ impl Address {
         Ok(())
     }
 
-    pub fn protection(&self, ctx: &mut CallContext, facts: &Facts) -> Result<Attached> {
+    /// The protection of the selected value joined with its addressed ancestry.
+    ///
+    /// A known protected object is certainly read-only and reportable; a
+    /// contract alternative is certainly read-only but not reportable; an
+    /// unsplit hash that may still be protected is possibly read-only.
+    pub fn protection(&self, ctx: &mut CallContext, facts: &Facts) -> Result<Protection> {
         let mut protected = None;
         for i in 0..facts.arm_count(self.value) {
             ctx.charge(1)?;
@@ -289,14 +325,26 @@ impl Address {
             if value == Atom::Never.fact() {
                 continue;
             }
-            let next = if matches!(facts.node(value), Node::Protected(..)) {
-                Attached::Yes
-            } else {
-                Attached::No
+            let next = match facts.node(value) {
+                Node::Protected(_, _, Certainty::Known) => Protection {
+                    readonly: Attached::Yes,
+                    report: true,
+                },
+                Node::Protected(_, _, Certainty::Contract) => Protection {
+                    readonly: Attached::Yes,
+                    report: false,
+                },
+                Node::Hash(_, _, kind) | Node::Shape(_, _, _, kind) if kind.tagged() => {
+                    Protection {
+                        readonly: Attached::Maybe,
+                        report: false,
+                    }
+                }
+                _ => Protection::NONE,
             };
-            protected = Some(protected.map_or(next, |previous: Attached| previous.join(next)));
+            protected = Some(protected.map_or(next, |previous: Protection| previous.join(next)));
         }
-        Ok(self.protected.or(protected.unwrap_or(Attached::No)))
+        Ok(self.protected.or(protected.unwrap_or(Protection::NONE)))
     }
 
     pub fn target(
@@ -349,6 +397,7 @@ impl Address {
             return Ok(());
         }
         let retention = match change {
+            Change::Refine => Attached::Yes,
             Change::Store { same: true, .. } => Attached::Yes,
             Change::Store { fresh: true, .. } => Attached::No,
             Change::Store { .. } => Attached::Maybe,
@@ -365,9 +414,11 @@ impl Address {
         }
         let mut selected = root;
         let mut updated = Buffer::empty();
+        let mut protected = Protection::NONE;
         let mut attached = self.attached.and(retention);
         for hop in &self.path.data {
             ctx.charge(1)?;
+            protected = protected.or(Self::new(None, selected).protection(ctx, facts)?);
             if !hop.instance {
                 attached = attached.and(stored(ctx, facts, selected, hop.key)?);
             }
@@ -394,6 +445,7 @@ impl Address {
         if attached == Attached::Yes {
             self.value = selected;
             self.path = updated;
+            self.protected = protected;
         } else {
             selected = compatible_storage(ctx, facts, self.value, selected)?;
             if selected == Atom::Never.fact() {
@@ -405,6 +457,7 @@ impl Address {
                 ctx.charge(1)?;
                 hop.container = facts.union(ctx, &[hop.container, updated.container])?;
             }
+            self.protected = self.protected.join(protected);
         }
         self.attached = attached;
         Ok(())
@@ -494,7 +547,11 @@ fn stored(
     for i in 0..facts.arm_count(receiver) {
         for j in 0..facts.arm_count(selector) {
             ctx.charge(1)?;
-            let receiver = facts.arm(receiver, i);
+            let mut receiver = facts.arm(receiver, i);
+            while let Node::Protected(shape, ..) = facts.node(receiver) {
+                ctx.charge(1)?;
+                receiver = *shape;
+            }
             let selector = facts.arm(selector, j);
             let next = match (facts.node(receiver), facts.node(selector)) {
                 (Node::Tuple(values), _) if values.data.is_empty() => Attached::No,
@@ -562,7 +619,7 @@ fn compatible_storage(
 ) -> Result<Fact> {
     let family = |facts: &Facts, value| match facts.node(value) {
         Node::Array(_) | Node::Tuple(_) => Some(100),
-        Node::Hash(..) | Node::Shape(..) => Some(101),
+        Node::Hash(..) | Node::Shape(..) | Node::Protected(..) => Some(101),
         _ => facts
             .atom(value)
             .filter(|atom| !matches!(atom, Atom::Unknown | Atom::Any))

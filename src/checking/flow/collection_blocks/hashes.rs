@@ -136,7 +136,7 @@ impl Walker<'_> {
     }
 
     fn hash_view(&self, value: Fact) -> Fact {
-        if let Node::Protected(shape, _) = self.facts.node(value) {
+        if let Node::Protected(shape, ..) = self.facts.node(value) {
             *shape
         } else {
             value

@@ -148,7 +148,7 @@ fn responds(
         return facts.boolean(ctx, true);
     }
     let kind = super::receiver(facts, receiver).unwrap();
-    let view = if let Node::Protected(shape, _) = facts.node(receiver) {
+    let view = if let Node::Protected(shape, ..) = facts.node(receiver) {
         *shape
     } else {
         receiver

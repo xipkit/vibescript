@@ -340,7 +340,7 @@ fn json_value(ctx: &mut CallContext, facts: &Facts, value: Fact) -> Result<Encod
             continue;
         }
         match facts.node(value) {
-            Node::Protected(shape, _) => pending.push(ctx, *shape)?,
+            Node::Protected(shape, ..) => pending.push(ctx, *shape)?,
             Node::Array(element) => pending.push(ctx, *element)?,
             Node::Tuple(values) | Node::Union(values) => pending.extend(ctx, &values.data)?,
             Node::Hash(_, value, _) => pending.push(ctx, *value)?,
@@ -419,7 +419,7 @@ pub(super) fn member(
     for i in 0..facts.arm_count(receiver) {
         ctx.charge(1)?;
         let arm = facts.arm(receiver, i);
-        let next = if let Some(next) = member_arm(ctx, facts, arm, site, name, args)? {
+        let mut next = if let Some(next) = member_arm(ctx, facts, arm, site, name, args)? {
             next
         } else if !args.keywords.data.is_empty() || args.block.is_some() {
             let mut next = outcome(Atom::Never.fact());
@@ -458,6 +458,14 @@ pub(super) fn member(
             }
             next
         };
+        if matches!(
+            facts.node(arm),
+            Node::Protected(_, _, super::facts::Certainty::Contract)
+        ) && !next.failures.data.is_empty()
+        {
+            next.failures.data.clear();
+            next.throws |= RUNTIME;
+        }
         result.value = facts.union(ctx, &[result.value, next.value])?;
         result.throws |= next.throws;
         result.incomplete |= next.incomplete;
