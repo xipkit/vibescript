@@ -222,7 +222,17 @@ impl Address {
         args: &[Fact],
     ) -> Result<Operation> {
         self.protected = self.protection(ctx, facts)?;
-        let mut result = facts.collection_index(ctx, self.value, args)?;
+        let mut result = if self.attached == Attached::Yes {
+            facts.stored_collection_index(ctx, self.value, args)?
+        } else {
+            let mut result = facts.collection_index(ctx, self.value, args)?;
+            if self.attached == Attached::Maybe {
+                let stored = facts.stored_collection_index(ctx, self.value, args)?;
+                result.throws |= stored.rejected || stored.throws;
+                result.unsupported |= stored.unsupported;
+            }
+            result
+        };
         for i in 0..facts.arm_count(self.value) {
             ctx.charge(1)?;
             if super::objects::may_be_protected(ctx, facts, facts.arm(self.value, i))? {

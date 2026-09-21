@@ -5,6 +5,7 @@ use super::{
 };
 use crate::{CallContext, Result, Value, budget::Buffer, bytecode::CallSite};
 
+mod capture_indexing;
 mod reshaping;
 
 /// One arm of a count argument after the runtime's integer conversion.
@@ -112,18 +113,6 @@ impl Facts {
         }
     }
 
-    fn object_index(&self, ctx: &mut CallContext, value: Fact, member: &[u8]) -> Result<bool> {
-        if self.plain_hash(value) {
-            return Ok(false);
-        }
-        match self.node(value) {
-            Node::Hash(..) | Node::Shape(_, true, _, _) => Ok(true),
-            Node::Shape(..) => Ok(self.selected_field(ctx, value, b"to_s")?.is_some()
-                && self.selected_field(ctx, value, member)?.is_some()),
-            _ => Ok(false),
-        }
-    }
-
     pub(super) fn nullable(&mut self, ctx: &mut CallContext, value: Fact) -> Result<Fact> {
         self.union(ctx, &[value, Atom::Nil.fact()])
     }
@@ -192,6 +181,25 @@ impl Facts {
         receiver: Fact,
         args: &[Fact],
     ) -> Result<Operation> {
+        self.collection_index_mode(ctx, receiver, args, false)
+    }
+
+    pub(super) fn stored_collection_index(
+        &mut self,
+        ctx: &mut CallContext,
+        receiver: Fact,
+        args: &[Fact],
+    ) -> Result<Operation> {
+        self.collection_index_mode(ctx, receiver, args, true)
+    }
+
+    fn collection_index_mode(
+        &mut self,
+        ctx: &mut CallContext,
+        receiver: Fact,
+        args: &[Fact],
+        stored: bool,
+    ) -> Result<Operation> {
         ctx.checkpoint()?;
         if args.is_empty() || args.len() > 2 {
             return Ok(rejected());
@@ -204,7 +212,14 @@ impl Facts {
                     let root = self.arm(receiver, r);
                     let index = self.arm(args[0], a);
                     let length = args.get(1).map(|&arg| self.arm(arg, b));
-                    let next = self.index_arm(ctx, root, index, length)?;
+                    let next = if stored
+                        && length.is_none()
+                        && matches!(self.node(root), Node::Hash(..) | Node::Shape(..))
+                    {
+                        self.stored_hash_index(ctx, root, index)?
+                    } else {
+                        self.index_arm(ctx, root, index, length)?
+                    };
                     self.merge_operation(ctx, &mut result, next)?;
                 }
             }
@@ -240,43 +255,7 @@ impl Facts {
             return Ok(outcome(Atom::Never.fact()));
         }
         if length.is_none() && matches!(self.node(receiver), Node::Hash(..) | Node::Shape(..)) {
-            if matches!(selector, Some(Atom::Int | Atom::Float))
-                && self.object_index(ctx, receiver, b"captures")?
-            {
-                return Ok(unsupported());
-            }
-            if !unknown(selector) && !matches!(selector, Some(Atom::String | Atom::Symbol)) {
-                return Ok(if matches!(self.node(index), Node::Named(_)) {
-                    unsupported()
-                } else {
-                    rejected()
-                });
-            }
-            let value = match self.node(receiver) {
-                Node::Hash(_, value, _) => self.nullable(ctx, *value)?,
-                Node::Shape(_, open, _, _) => {
-                    let open = *open;
-                    if let Node::String(key) | Node::Symbol(key) = self.node(index) {
-                        let field = self.selected_field(ctx, receiver, key.as_bytes().unwrap())?;
-                        if (!open || field.is_some())
-                            && field.is_none_or(|(_, optional)| optional)
-                            && self.object_index(ctx, receiver, b"named_captures")?
-                        {
-                            return Ok(unsupported());
-                        }
-                        match field {
-                            Some((value, false)) => value,
-                            Some((value, true)) => self.nullable(ctx, value)?,
-                            None if open => Atom::Unknown.fact(),
-                            None => Atom::Nil.fact(),
-                        }
-                    } else {
-                        self.shape_values(ctx, receiver, true)?
-                    }
-                }
-                _ => unreachable!(),
-            };
-            return Ok(outcome(value));
+            return self.hash_index(ctx, receiver, index);
         }
         let array = matches!(self.node(receiver), Node::Array(_) | Node::Tuple(_));
         let string = self.atom(receiver) == Some(Atom::String);

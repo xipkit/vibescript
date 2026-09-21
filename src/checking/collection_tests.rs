@@ -338,14 +338,22 @@ fn hash_member_reads_keep_field_and_builtin_precedence_separate() {
 fn unmodeled_collection_operations_remain_explicitly_incomplete() {
     for source in [
         "def run; [7].map! { _1 }; end",
-        "def run(x: hash); x[0]; end",
-        "def run(x: {to_s: string, named_captures: hash}); x[:capture]; end",
         "def run; [7].first(n: 1); end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
         let result = analyze(&mut ctx, &mut facts, source).unwrap();
         assert!(!result.incomplete.data.is_empty(), "{source}: {result:?}");
+    }
+}
+
+#[test]
+fn structural_hash_capture_reads_are_modeled() {
+    for source in [
+        "def run(x: hash); x[0]; end",
+        "def run(x: {to_s: string, named_captures: hash}); x[:capture]; end",
+    ] {
+        check(source, false);
     }
 }
 
@@ -703,8 +711,9 @@ fn structural_hash_inputs_can_have_match_data_indexing() {
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let result = analyze(&mut ctx, &mut facts, source).unwrap();
-    assert!(!result.incomplete.data.is_empty());
+    assert!(result.incomplete.data.is_empty());
     assert!(result.issues.data.is_empty());
+    assert_ne!(result.throws, 0);
     let script = crate::Engine::new().compile(source).unwrap();
     let matched = script
         .call("make", &[], CallOptions::default())

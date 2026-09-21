@@ -1647,8 +1647,10 @@ impl Walker<'_> {
         args: &[Fact],
         result: &super::scalar::Operation,
     ) -> Result<Option<Edges>> {
-        if result.rejected {
+        if result.rejected || result.throws {
             self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+        }
+        if result.rejected {
             let arguments = self.facts.tuple(self.ctx, args)?;
             self.issue(
                 pc,

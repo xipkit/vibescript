@@ -25,22 +25,8 @@ impl Walker<'_> {
                 let result = self
                     .facts
                     .collection_index(self.ctx, receiver, &args.data)?;
-                if result.rejected {
-                    self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
-                    let arguments = self.facts.tuple(self.ctx, &args.data)?;
-                    self.issue(
-                        pc,
-                        IssueKind::Index {
-                            receiver,
-                            arguments,
-                        },
-                    )?;
-                }
-                if result.unsupported {
-                    return self.incomplete(pc).map(Some);
-                }
-                if result.value == Atom::Never.fact() {
-                    return Ok(Some([None, None]));
+                if let Some(edges) = self.index_outcome(state, pc, receiver, &args.data, &result)? {
+                    return Ok(Some(edges));
                 }
                 state.stack.data.truncate(base);
                 state.stack.push(self.ctx, Operand::new(result.value))?;
