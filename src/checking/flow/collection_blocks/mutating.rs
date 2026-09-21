@@ -118,6 +118,22 @@ impl Walker<'_> {
                 }
                 _ => None,
             };
+            // An attached block on `clear` always fails before any mutation.
+            let native = match kind {
+                Some(Receiver::Array) => Some(crate::members::names::Receiver::Array),
+                Some(Receiver::Hash) => Some(crate::members::names::Receiver::Hash),
+                _ => None,
+            };
+            if args.block.is_some()
+                && native
+                    .and_then(|kind| {
+                        kind.rejects_block(site.method, !args.positional.data.is_empty(), name)
+                    })
+                    .is_some()
+            {
+                self.collection_error(&state, pc, source, site, args, ErrorClass::Runtime)?;
+                continue;
+            }
             let specialized = match (name, kind) {
                 ("delete_if" | "keep_if", Some(_)) => true,
                 ("delete", Some(_)) => args.block.is_some(),

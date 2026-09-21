@@ -88,6 +88,32 @@ impl Receiver {
         }
     }
 
+    /// Returns the block rejection after leaving ordinary arity errors to
+    /// the caller. A block selects chunk's grouping form, which takes no size.
+    pub(crate) fn rejects_block(
+        self,
+        method: Option<crate::bytecode::Method>,
+        arguments: bool,
+        name: &str,
+    ) -> Option<&'static str> {
+        use crate::bytecode::Method::*;
+        match (self, method?) {
+            (Self::Array, Chunk) if arguments => {
+                Some("array.chunk does not take arguments when a block is supplied")
+            }
+            (Self::Array, Clear) if !arguments => Some("array.clear does not accept a block"),
+            (Self::Array, Compact) if !arguments => Some("array.compact does not accept a block"),
+            (Self::Array, Reverse) if !arguments => Some("array.reverse does not accept a block"),
+            (Self::Array, ToString) if !arguments => Some(if name == "string" {
+                "array.string does not take a block"
+            } else {
+                "array.to_s does not take a block"
+            }),
+            (Self::Hash, Clear) if !arguments => Some("hash.clear does not accept a block"),
+            _ => None,
+        }
+    }
+
     pub(crate) fn typed(self, name: &str) -> Option<&'static str> {
         match self {
             Self::Bytes

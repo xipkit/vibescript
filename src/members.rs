@@ -275,6 +275,18 @@ pub(crate) fn call_keywords(
             ));
         }
     }
+    // Resolve stored-field overrides before rejecting a native block, and
+    // reject before `call` can mutate the receiver.
+    if args.block.is_some() {
+        let rejection = names::Receiver::of(&receiver).rejects_block(
+            site.method,
+            !args.positional.data.is_empty(),
+            name,
+        );
+        if let Some(message) = rejection {
+            return Err(Error::new(ErrorKind::Argument, message));
+        }
+    }
     call(ctx, site, name, receiver, &args.positional.data)
 }
 

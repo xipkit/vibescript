@@ -228,13 +228,12 @@ fn invalid_arguments_and_missing_blocks_fail_before_callbacks() {
 }
 
 #[test]
-fn ordinary_native_mutators_leave_attached_blocks_unused() {
+fn native_mutator_blocks_follow_each_method_contract() {
     for call in [
         "a.push(3)",
         "a.prepend(3)",
         "a.pop",
         "a.shift",
-        "a.clear",
         "a.insert(0,3)",
     ] {
         witness(
@@ -243,11 +242,18 @@ fn ordinary_native_mutators_leave_attached_blocks_unused() {
             false,
         );
     }
-    for call in ["a.store(:b,3)", "a.replace({b:3})", "a.clear"] {
+    for call in ["a.store(:b,3)", "a.replace({b:3})"] {
         witness(
             &format!("def run; a={{a:1}}; result={call} {{missing}}; [a,result]; end"),
             true,
             false,
+        );
+    }
+    for receiver in ["[1,2]", "{a:1}"] {
+        witness(
+            &format!("def run; a={receiver}; begin; a.clear {{missing}}; rescue; a; end; end"),
+            true,
+            true,
         );
     }
 }

@@ -222,7 +222,12 @@ impl Walker<'_> {
                     name,
                     "center" | "ljust" | "rjust" | "partition" | "rpartition"
                 );
-        if (args.block.is_some() && block_rejected) || (keywords && keyword_rejected) {
+        let block_guard = args.block.is_some()
+            && kind
+                .rejects_block(site.method, !args.positional.data.is_empty(), name)
+                .is_some();
+        if (args.block.is_some() && block_rejected) || block_guard || (keywords && keyword_rejected)
+        {
             self.collection_error(state, pc, receiver, site, args, ErrorClass::Runtime)?;
             return Ok(false);
         }

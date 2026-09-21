@@ -176,6 +176,10 @@ impl Walker<'_> {
     ) -> Result<Option<Edges>> {
         let selected = site.text(self.program, self.facts);
         let name = selected.as_str();
+        if self.rejects_block(receiver, site, &args, name)? {
+            self.collection_error(state, pc, receiver, site, &args, ErrorClass::Runtime)?;
+            return Ok(Some([None, None]));
+        }
         if let Some(method) = collection_blocks::text::TextMethod::parse(name) {
             if method.materializes() {
                 let mut strings = true;
@@ -197,6 +201,44 @@ impl Walker<'_> {
             return Ok(Some([None, None]));
         }
         self.member_without_collection(state, pc, receiver, site, &args)
+    }
+
+    /// Reports whether every arm of `receiver` is a collection whose member
+    /// always rejects the attached block, mirroring the runtime guard in
+    /// `members::call_keywords`. Mixed unions and object receivers stay on
+    /// their existing paths; field overrides are resolved by the caller.
+    pub(super) fn rejects_block(
+        &mut self,
+        receiver: Fact,
+        site: MemberSite,
+        args: &Arguments,
+        name: &str,
+    ) -> Result<bool> {
+        use crate::members::names::Receiver;
+        if args.block.is_none() {
+            return Ok(false);
+        }
+        let arguments = !args.positional.data.is_empty();
+        let mut arms = 0;
+        for i in 0..self.facts.arm_count(receiver) {
+            self.ctx.charge(1)?;
+            let arm = self.facts.arm(receiver, i);
+            if arm == Atom::Never.fact() {
+                continue;
+            }
+            let kind = match self.facts.node(arm) {
+                Node::Tuple(_) | Node::Array(_) => Receiver::Array,
+                Node::Hash(_, _, kind) | Node::Shape(_, _, _, kind) if kind.plain() => {
+                    Receiver::Hash
+                }
+                _ => return Ok(false),
+            };
+            if kind.rejects_block(site.method, arguments, name).is_none() {
+                return Ok(false);
+            }
+            arms += 1;
+        }
+        Ok(arms > 0)
     }
 
     pub(super) fn member_without_collection(
