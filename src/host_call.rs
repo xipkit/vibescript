@@ -55,10 +55,12 @@ impl<'a> HostCall<'a> {
     /// Returns an isolated, accounted snapshot of this call's member receiver.
     ///
     /// The receiver is the object or hash the script selected the method from,
-    /// such as `cap` in `cap.send(1)`, `cap[:send](1)` or `cap::send(1)`, as
-    /// it was when the callee was resolved, before the arguments ran. Later
-    /// script writes replace the receiver's binding and never show through the
-    /// snapshot; the host may keep the value. A method reached without a member
+    /// such as `cap` in `cap.send(1)`, `cap[:send](1)` or `cap::send(1)`.
+    /// The script selects that receiver before evaluating arguments; later
+    /// assignments to its binding do not replace the selected object. Each read
+    /// snapshots its current data, including instances and captured module state.
+    /// Later mutations do not change an earlier snapshot, which the host may keep.
+    /// A method reached without a member
     /// lookup, such as a registered global or a granted bare descriptor, has no
     /// receiver and returns `None`. Descriptors inside the snapshot keep this
     /// invocation's grant and cannot authorize a later call. Cancellation and

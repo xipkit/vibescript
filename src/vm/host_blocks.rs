@@ -33,13 +33,13 @@ impl HostControl {
 
     /// Returns an accounted snapshot of the member receiver, if the call has one.
     ///
-    /// The snapshot crosses the boundary through the ordinary import, so an
-    /// invocation-owned value is shared and anything else is copied and charged.
+    /// Captured instances and module environments are copied even when the
+    /// receiver already belongs to this invocation.
     pub fn receiver(&self, ctx: &mut CallContext) -> Result<Option<Value>> {
         ctx.checkpoint()?;
         self.receiver
             .as_ref()
-            .map(|receiver| ctx.import(receiver))
+            .map(|receiver| ctx.snapshot(receiver))
             .transpose()
     }
 

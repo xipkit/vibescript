@@ -631,6 +631,17 @@ impl CallContext {
     pub(crate) fn import_rooted(&mut self, value: &Value) -> Result<Value> {
         self.import_value(value, true)
     }
+
+    /// Copies mutable state with a fresh graph memo, preserving aliases and cycles
+    /// within this snapshot without sharing the invocation's ordinary import cache.
+    pub(crate) fn snapshot(&mut self, value: &Value) -> Result<Value> {
+        self.checkpoint()?;
+        debug_assert!(!self.importing_objects);
+        let previous = self.snapshot_objects.replace(Buffer::empty());
+        let result = self.import_rooted(value);
+        self.snapshot_objects = previous;
+        result
+    }
 }
 
 impl fmt::Display for Value {

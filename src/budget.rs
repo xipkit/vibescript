@@ -158,6 +158,7 @@ pub struct CallContext {
     pub(crate) pending_objects:
         Buffer<(Arc<crate::objects::Instance>, Arc<crate::objects::Instance>)>,
     pub(crate) importing_objects: bool,
+    pub(crate) snapshot_objects: Option<Buffer<(u64, Arc<crate::objects::Instance>)>>,
     pub(crate) namespace_depth: usize,
     pub(crate) scoped_sources: bool,
     pub(crate) has_exports: bool,
@@ -182,6 +183,7 @@ impl CallContext {
             objects: None,
             pending_objects: Buffer::empty(),
             importing_objects: false,
+            snapshot_objects: None,
             namespace_depth: 0,
             scoped_sources: false,
             has_exports: false,

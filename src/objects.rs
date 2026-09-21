@@ -612,6 +612,9 @@ pub(crate) fn set_slot(
 }
 
 fn import_root(ctx: &mut CallContext, instance: &Arc<Instance>) -> Result<Arc<Instance>> {
+    if ctx.snapshot_objects.is_some() {
+        return snapshot_root(ctx, instance);
+    }
     let source = instance.heap()?;
     if Arc::ptr_eq(&source.owner, &ctx.identity()) {
         return if matches!(instance.owner, Owner::External(_)) {
@@ -646,6 +649,34 @@ fn import_root(ctx: &mut CallContext, instance: &Arc<Instance>) -> Result<Arc<In
         .unwrap()
         .imports
         .push(ctx, (instance.identity.id, result.identity.clone()))?;
+    queue_import(ctx, instance, result)
+}
+
+fn snapshot_root(ctx: &mut CallContext, instance: &Arc<Instance>) -> Result<Arc<Instance>> {
+    let mut index = 0;
+    while index < ctx.snapshot_objects.as_ref().unwrap().data.len() {
+        ctx.charge(1)?;
+        let (source, target) = &ctx.snapshot_objects.as_ref().unwrap().data[index];
+        // Importing already copied fields and class environments must reuse the
+        // new identities instead of making snapshots of the snapshot itself.
+        if *source == instance.identity.id || target.same(instance) {
+            return Ok(target.clone());
+        }
+        index += 1;
+    }
+    let result = new(ctx, instance.class())?;
+    let mut copies = ctx.snapshot_objects.take().unwrap();
+    let saved = copies.push(ctx, (instance.identity.id, result.clone()));
+    ctx.snapshot_objects = Some(copies);
+    saved?;
+    queue_import(ctx, instance, result)
+}
+
+fn queue_import(
+    ctx: &mut CallContext,
+    instance: &Arc<Instance>,
+    result: Arc<Instance>,
+) -> Result<Arc<Instance>> {
     let mut pending = std::mem::replace(&mut ctx.pending_objects, Buffer::empty());
     let queued = pending.push(ctx, (instance.clone(), result.clone()));
     ctx.pending_objects = pending;
@@ -929,6 +960,9 @@ mod environments_tests;
 
 #[cfg(test)]
 mod import_tests;
+
+#[cfg(test)]
+mod snapshot_tests;
 
 #[cfg(test)]
 mod tests {
