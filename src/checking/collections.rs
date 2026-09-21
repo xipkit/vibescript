@@ -5,6 +5,8 @@ use super::{
 };
 use crate::{CallContext, Result, Value, budget::Buffer, bytecode::CallSite};
 
+mod reshaping;
+
 /// One arm of a count argument after the runtime's integer conversion.
 enum Count {
     /// Converts to exactly this integer (literal integers and finite floats).
@@ -604,6 +606,8 @@ impl Facts {
             return self.combinatoric_member(ctx, receiver, name, args);
         }
         let arity = match name {
+            "compact" if array => 0..=0,
+            "chunk" if array => 1..=1,
             "to_a" if hash => 0..=0,
             "length" | "size" | "bytesize" | "empty?" | "keys" | "values" | "reverse"
             | "itself" | "dup" | "nil?" => 0..=0,
@@ -620,6 +624,8 @@ impl Facts {
             return Ok(outcome(Atom::Unknown.fact()));
         }
         match name {
+            "compact" if array => self.compact_member(ctx, receiver),
+            "chunk" if array => self.chunk_member(ctx, receiver, args[0]),
             "to_a" if hash => {
                 let iteration = self.iteration(ctx, receiver)?;
                 if iteration.unsupported {

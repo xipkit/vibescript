@@ -1,4 +1,5 @@
 use super::*;
+use crate::checking::facts::Node;
 
 mod forwarding;
 mod reduction;
@@ -239,7 +240,18 @@ impl Walker<'_> {
                 result.throws,
             )
         } else {
-            if !args.keywords.data.is_empty() || args.block.is_some() {
+            let reshaping = matches!(self.facts.node(receiver), Node::Array(_) | Node::Tuple(_))
+                && matches!(name, "compact" | "chunk");
+            if reshaping
+                && name == "compact"
+                && (!args.keywords.data.is_empty() || args.block.is_some())
+            {
+                self.collection_error(state, pc, receiver, site, args, ErrorClass::Runtime)?;
+                return Ok(Some([None, None]));
+            }
+            if (!args.keywords.data.is_empty() && !(reshaping && name == "chunk"))
+                || args.block.is_some()
+            {
                 return self.incomplete(pc).map(Some);
             }
             let result = self.facts.native_member(
@@ -249,6 +261,13 @@ impl Walker<'_> {
                 name,
                 &args.positional.data,
             )?;
+            if reshaping
+                && name == "chunk"
+                && result.value != Atom::Never.fact()
+                && self.wrapping_guard(receiver)?
+            {
+                self.emit_error(state, pc, handlers::bit(ErrorClass::Limit))?;
+            }
             let throws = if result.throws {
                 handlers::bit(ErrorClass::Runtime)
             } else {
