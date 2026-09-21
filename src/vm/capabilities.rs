@@ -113,7 +113,16 @@ pub(super) fn call_on(
         saved.receiver = member_receiver(receiver);
         return Ok(Call::Block(saved));
     }
-    let value = method.call(ctx, args, keywords, block.is_some())?;
+    let args = snapshot_arguments(ctx, storage, args, keywords)?;
+    method.begin(
+        ctx,
+        &args.positional.data,
+        &args.keywords.buffer.data,
+        block.is_some(),
+    )?;
+    let value = method.invoke_plain(ctx, &args.positional.data, &args.keywords.buffer.data)?;
+    let value = ctx.snapshot(&value)?;
+    let value = method.finish(ctx, value)?;
     programs::imported(ctx, storage, &value)?;
     Ok(Call::Value(value))
 }
@@ -129,9 +138,10 @@ pub(super) fn registered(
     match host {
         crate::capability::Registered::Callback(callback) => {
             ctx.checkpoint()?;
-            let result = callback(ctx, args, keywords);
+            let args = snapshot_arguments(ctx, storage, args, keywords)?;
+            let result = callback(ctx, &args.positional.data, &args.keywords.buffer.data);
             ctx.checkpoint()?;
-            let value = ctx.import(&result?)?;
+            let value = ctx.snapshot(&result?)?;
             crate::exports::check(ctx, &value)?;
             programs::imported(ctx, storage, &value)?;
             Ok(Call::Value(value))
@@ -143,6 +153,25 @@ pub(super) fn registered(
             call(ctx, storage, &method, args, keywords, block, false)
         }
     }
+}
+
+fn snapshot_arguments(
+    ctx: &mut CallContext,
+    storage: &Storage,
+    args: &[Value],
+    keywords: &[(Value, Value)],
+) -> Result<Arguments> {
+    let mut args = Arguments::from_values(ctx, args)?;
+    for (key, value) in keywords {
+        args.keywords.insert(ctx, key.clone(), value.clone())?;
+    }
+    programs::snapshot_arguments(
+        ctx,
+        storage,
+        &mut args.positional.data,
+        &mut args.keywords.buffer.data,
+    )?;
+    Ok(args)
 }
 
 pub(super) fn member(

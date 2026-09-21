@@ -228,6 +228,26 @@ impl Facts {
         &self.entries.data[fact.0].node
     }
 
+    /// Compares declared types without merging the state of captured snapshots.
+    pub fn same_nominal(&self, ctx: &mut CallContext, left: Fact, right: Fact) -> Result<bool> {
+        if left == right {
+            return Ok(true);
+        }
+        match (self.node(left), self.node(right)) {
+            (
+                Node::Nominal {
+                    identity: NominalId::Binding(a, ai),
+                    ..
+                },
+                Node::Nominal {
+                    identity: NominalId::Binding(b, bi),
+                    ..
+                },
+            ) if ai == bi => self.sources.same_type(ctx, *a, *b),
+            _ => Ok(false),
+        }
+    }
+
     /// Identifies source code and captured scope without retaining the scope's mutable heap.
     pub fn source_owner(
         &mut self,

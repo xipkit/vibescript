@@ -88,6 +88,7 @@ impl AsyncHostCall {
 
     /// Runs the attached block with owned arguments on the receiving runner.
     ///
+    /// Each result is an isolated snapshot that later block calls cannot change.
     /// Arguments are isolated and accounted before script execution. `break`
     /// and nonlocal `return` remain pending even if the host ignores the returned
     /// control-flow error. Cancellation and exhausted limits cannot be swallowed.

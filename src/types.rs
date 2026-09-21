@@ -249,7 +249,7 @@ fn visit(
             }
             let found = found.unwrap();
             if let Kind::Namespace(class) = &found.0 {
-                let matches = matches!(&value.0, Kind::Instance(instance) if instance.class().same_binding(class));
+                let matches = matches!(&value.0, Kind::Instance(instance) if instance.class().same_type(class));
                 return Ok(matches.then_some((value, false)));
             }
             let Kind::Enum(enumeration) = &found.0 else {

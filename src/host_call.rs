@@ -100,6 +100,8 @@ impl<'a> HostCall<'a> {
     }
 
     /// Runs the attached block synchronously with isolated, accounted arguments.
+    /// Its returned value is also an isolated snapshot; later block calls cannot
+    /// change a result retained by the host.
     ///
     /// Ordinary errors may be handled by the callback. A block's `break` or
     /// nonlocal `return` produces [`crate::ErrorKind::ControlFlow`]; the engine

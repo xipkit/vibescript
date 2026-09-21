@@ -186,6 +186,19 @@ impl Namespace {
         Arc::ptr_eq(&self.definition, &other.definition)
             && same_environment(self.environment.as_ref(), other.environment.as_ref())
     }
+
+    /// Compares declaration identity while allowing isolated copies of its state.
+    pub fn same_type(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.definition, &other.definition)
+            && self
+                .environment
+                .as_ref()
+                .map_or(0, |env| env.nominal_scope())
+                == other
+                    .environment
+                    .as_ref()
+                    .map_or(0, |env| env.nominal_scope())
+    }
 }
 
 pub(crate) fn same_environment(

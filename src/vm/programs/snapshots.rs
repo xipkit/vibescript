@@ -30,9 +30,9 @@ struct Walk {
 }
 
 impl Walk {
-    fn new(ctx: &mut CallContext, value: &Value) -> Result<Self> {
+    fn new(ctx: &mut CallContext, roots: &[Value]) -> Result<Self> {
         let mut values = Buffer::empty();
-        values.push(ctx, value.clone())?;
+        values.extend(ctx, roots)?;
         Ok(Self {
             values,
             instances: Buffer::empty(),
@@ -91,9 +91,9 @@ impl Walk {
     }
 }
 
-fn materialize(ctx: &mut CallContext, storage: &Storage, value: &Value) -> Result<Bindings> {
+fn materialize(ctx: &mut CallContext, storage: &Storage, values: &[Value]) -> Result<Bindings> {
     let mut bindings = Buffer::empty();
-    let mut walk = Walk::new(ctx, value)?;
+    let mut walk = Walk::new(ctx, values)?;
     while let Some(source) = walk.next(ctx)? {
         if source.environment.is_some() {
             continue;
@@ -110,7 +110,7 @@ fn materialize(ctx: &mut CallContext, storage: &Storage, value: &Value) -> Resul
         if found {
             continue;
         }
-        let environment = crate::objects::environment(ctx)?;
+        let environment = crate::objects::snapshot_environment(ctx)?;
         bindings.push(ctx, (code.clone(), environment.clone()))?;
         if let Some(program) = registered(ctx, storage, code, None)? {
             for state in &storage.namespaces.data {
@@ -134,9 +134,9 @@ fn materialize(ctx: &mut CallContext, storage: &Storage, value: &Value) -> Resul
     Ok(bindings)
 }
 
-fn seal(ctx: &mut CallContext, value: &Value) -> Result<()> {
+fn seal(ctx: &mut CallContext, values: &[Value]) -> Result<()> {
     let mut environments: Bindings = Buffer::empty();
-    let mut walk = Walk::new(ctx, value)?;
+    let mut walk = Walk::new(ctx, values)?;
     while let Some(source) = walk.next(ctx)? {
         let Some(environment) = &source.environment else {
             continue;
@@ -164,13 +164,22 @@ fn seal(ctx: &mut CallContext, value: &Value) -> Result<()> {
 }
 
 pub(super) fn snapshot(ctx: &mut CallContext, storage: &Storage, value: &Value) -> Result<Value> {
-    let bindings = materialize(ctx, storage, value)?;
+    let mut values = [value.clone()];
+    snapshot_values(ctx, storage, &mut values)?;
+    Ok(std::mem::take(&mut values[0]))
+}
+
+pub(super) fn snapshot_values(
+    ctx: &mut CallContext,
+    storage: &Storage,
+    values: &mut [Value],
+) -> Result<()> {
+    let bindings = materialize(ctx, storage, values)?;
     let previous = ctx.snapshot_namespaces.replace(bindings);
-    let result = ctx.snapshot(value);
+    let result = ctx.snapshot_values(values);
     ctx.snapshot_namespaces = previous;
-    let value = result?;
-    seal(ctx, &value)?;
-    Ok(value)
+    result?;
+    seal(ctx, values)
 }
 
 #[cfg(test)]

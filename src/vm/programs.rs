@@ -8,6 +8,41 @@ pub(super) fn snapshot(ctx: &mut CallContext, storage: &Storage, value: &Value) 
     snapshots::snapshot(ctx, storage, value)
 }
 
+pub(super) fn snapshot_values(
+    ctx: &mut CallContext,
+    storage: &Storage,
+    values: &mut [Value],
+) -> Result<()> {
+    snapshots::snapshot_values(ctx, storage, values)
+}
+
+pub(super) fn snapshot_arguments(
+    ctx: &mut CallContext,
+    storage: &Storage,
+    positional: &mut [Value],
+    keywords: &mut [(Value, Value)],
+) -> Result<()> {
+    let count = positional
+        .len()
+        .saturating_add(keywords.len().saturating_mul(2));
+    let mut values = Buffer::with_capacity(ctx, count)?;
+    values.extend(ctx, positional)?;
+    for (key, value) in keywords.iter() {
+        values.push(ctx, key.clone())?;
+        values.push(ctx, value.clone())?;
+    }
+    snapshot_values(ctx, storage, &mut values.data)?;
+    let mut values = values.data.into_iter();
+    for value in positional {
+        *value = values.next().unwrap();
+    }
+    for (key, value) in keywords {
+        *key = values.next().unwrap();
+        *value = values.next().unwrap();
+    }
+    Ok(())
+}
+
 pub(crate) struct Program {
     pub code: Arc<Code>,
     pub environment: Option<Arc<crate::objects::Instance>>,

@@ -635,10 +635,20 @@ impl CallContext {
     /// Copies mutable state with a fresh graph memo, preserving aliases and cycles
     /// within this snapshot without sharing the invocation's ordinary import cache.
     pub(crate) fn snapshot(&mut self, value: &Value) -> Result<Value> {
+        let mut values = [value.clone()];
+        self.snapshot_values(&mut values)?;
+        Ok(std::mem::take(&mut values[0]))
+    }
+
+    /// Copies several roots with one memo, so aliases crossing argument slots survive.
+    pub(crate) fn snapshot_values(&mut self, values: &mut [Value]) -> Result<()> {
         self.checkpoint()?;
         debug_assert!(!self.importing_objects);
         let previous = self.snapshot_objects.replace(Buffer::empty());
-        let result = self.import_rooted(value);
+        let result = values.iter_mut().try_for_each(|value| {
+            *value = self.import_rooted(value)?;
+            Ok(())
+        });
         self.snapshot_objects = previous;
         result
     }

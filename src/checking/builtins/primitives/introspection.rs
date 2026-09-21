@@ -25,7 +25,9 @@ pub(super) fn member(
             if let Node::TypeValue(class) = *facts.node(value) {
                 if matches!(facts.node(class), Node::Nominal { symbols: None, .. }) {
                     let belongs = match facts.node(receiver) {
-                        Node::Instance { class: actual, .. } => *actual == class,
+                        Node::Instance { class: actual, .. } => {
+                            facts.same_nominal(ctx, *actual, class)?
+                        }
                         _ => false,
                     };
                     let value = facts.boolean(ctx, belongs)?;

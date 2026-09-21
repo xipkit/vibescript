@@ -169,6 +169,8 @@ impl Engine {
     ///
     /// Keyword keys are byte-string values. Both argument collections are accounted to
     /// the current call; the callback validates its own names, types, and required values.
+    /// Arguments and results are isolated snapshots of instance and module state,
+    /// so retaining a value does not expose later script mutations.
     pub fn register_with_keywords(
         &mut self,
         name: impl Into<String>,

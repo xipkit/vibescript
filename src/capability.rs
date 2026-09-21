@@ -155,6 +155,9 @@ impl fmt::Debug for Capability {
 /// Methods accept positional and keyword arguments. They cannot be detached into
 /// script values. Block-capable methods use [`Self::new_with_block`]. Callbacks and validators
 /// must cooperate with cancellation and account their work through the context.
+/// Arguments and results cross the host boundary as isolated snapshots, including
+/// mutable instance and module state. Aliases within one argument list are preserved;
+/// later script mutations do not change values retained by a callback or validator.
 #[derive(Clone)]
 pub struct HostMethod {
     definition: Arc<Definition>,
@@ -445,20 +448,18 @@ impl BoundMethod {
             }
     }
 
-    pub fn call(
+    pub fn invoke_plain(
         &self,
         ctx: &mut CallContext,
         args: &[Value],
         keywords: &[(Value, Value)],
-        block: bool,
     ) -> Result<Value> {
-        self.begin(ctx, args, keywords, block)?;
         let Callback::Plain(callback) = &self.definition.callback else {
             unreachable!()
         };
         let result = callback(ctx, args, keywords);
         ctx.checkpoint()?;
-        self.finish(ctx, result?)
+        result
     }
 
     pub fn supports_block(&self) -> bool {
@@ -548,11 +549,14 @@ impl BoundMethod {
     }
 
     pub fn finish(&self, ctx: &mut CallContext, value: Value) -> Result<Value> {
-        let value = ctx.import(&value)?;
+        let mut value = ctx.import(&value)?;
         if let Some(validate) = &self.definition.result {
             let result = validate(ctx, &value);
             ctx.checkpoint()?;
             result?;
+            // A validator may retain its argument. Script mutations must not
+            // modify that retained copy after this boundary returns.
+            value = ctx.snapshot(&value)?;
         }
         crate::exports::check(ctx, &value)?;
         Ok(value)

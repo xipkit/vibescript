@@ -114,6 +114,7 @@ struct Entry {
 
 struct Identity {
     id: u64,
+    nominal_scope: u64,
     roots: AtomicUsize,
     marked: AtomicBool,
     slot: AtomicUsize,
@@ -152,6 +153,11 @@ impl Instance {
     /// Supplies stable scope identity without retaining the mutable instance heap.
     pub(crate) fn checking_id(&self) -> u64 {
         self.identity.id
+    }
+
+    /// Identifies a type scope independently of copies of its mutable state.
+    pub(crate) fn nominal_scope(&self) -> u64 {
+        self.identity.nominal_scope
     }
 
     pub fn class(&self) -> &Arc<Namespace> {
@@ -232,8 +238,17 @@ fn local(ctx: &mut CallContext) -> Result<Arc<Heap>> {
 }
 
 pub(crate) fn environment(ctx: &mut CallContext) -> Result<Arc<Instance>> {
+    new(ctx, environment_class())
+}
+
+/// Captures an unbound program's state without changing its declaration types.
+pub(crate) fn snapshot_environment(ctx: &mut CallContext) -> Result<Arc<Instance>> {
+    new_scoped(ctx, environment_class(), Some(0))
+}
+
+fn environment_class() -> &'static Arc<Namespace> {
     static TEMPLATE: std::sync::OnceLock<Arc<Namespace>> = std::sync::OnceLock::new();
-    let template = TEMPLATE.get_or_init(|| {
+    TEMPLATE.get_or_init(|| {
         Namespace::untracked(crate::namespace::Definition::new(
             usize::MAX,
             "<environment>".into(),
@@ -243,11 +258,18 @@ pub(crate) fn environment(ctx: &mut CallContext) -> Result<Arc<Instance>> {
             Vec::new(),
             None,
         ))
-    });
-    new(ctx, template)
+    })
 }
 
 pub(crate) fn new(ctx: &mut CallContext, class: &Arc<Namespace>) -> Result<Arc<Instance>> {
+    new_scoped(ctx, class, None)
+}
+
+fn new_scoped(
+    ctx: &mut CallContext,
+    class: &Arc<Namespace>,
+    nominal_scope: Option<u64>,
+) -> Result<Arc<Instance>> {
     let heap = local(ctx)?;
     if heap.data.lock().unwrap().allocations >= 32 {
         collect(ctx, &heap, false)?;
@@ -293,6 +315,7 @@ pub(crate) fn new(ctx: &mut CallContext, class: &Arc<Namespace>) -> Result<Arc<I
     }
     let identity = Arc::new(Identity {
         id,
+        nominal_scope: nominal_scope.unwrap_or(id),
         roots: AtomicUsize::new(1),
         marked: AtomicBool::new(false),
         slot: AtomicUsize::new(data.entries.data.len()),
@@ -640,7 +663,7 @@ fn import_root(ctx: &mut CallContext, instance: &Arc<Instance>) -> Result<Arc<In
             return data.root(ctx, &target, &identity);
         }
     }
-    let result = new(ctx, instance.class())?;
+    let result = new_scoped(ctx, instance.class(), Some(instance.nominal_scope()))?;
     target
         .data
         .lock()
@@ -662,7 +685,7 @@ fn snapshot_root(ctx: &mut CallContext, instance: &Arc<Instance>) -> Result<Arc<
         }
         index += 1;
     }
-    let result = new(ctx, instance.class())?;
+    let result = new_scoped(ctx, instance.class(), Some(instance.nominal_scope()))?;
     let mut copies = ctx.snapshot_objects.take().unwrap();
     let saved = copies.push(ctx, (instance.identity.id, result.clone()));
     ctx.snapshot_objects = Some(copies);

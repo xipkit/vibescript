@@ -552,15 +552,21 @@ class C
 end
 def add
   c = C.new
-  capture(c)
-  c += 1
-  effect()
+  begin
+    c += 1
+    effect()
+  ensure
+    capture(c)
+  end
 end
 def write
   c = C.new
-  capture(c)
-  c[0] = 7
-  effect()
+  begin
+    c[0] = 7
+    effect()
+  ensure
+    capture(c)
+  end
 end
 def read(c)
   c.state

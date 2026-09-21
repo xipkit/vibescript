@@ -263,15 +263,22 @@ impl Facts {
                         | (_, Node::Named(_)) => Relation::Gradual,
                         _ if pair.source == pair.target => Relation::Accepted,
                         (Node::Instance { class, .. }, Node::Nominal { .. }) => {
-                            if *class == pair.target {
+                            if self.same_nominal(ctx, *class, pair.target)? {
                                 Relation::Accepted
                             } else {
                                 Relation::Rejected
                             }
                         }
                         (Node::Nominal { .. }, Node::Instance { class, .. }) => {
-                            if pair.source == *class {
+                            if self.same_nominal(ctx, pair.source, *class)? {
                                 Relation::Gradual
+                            } else {
+                                Relation::Rejected
+                            }
+                        }
+                        (Node::Nominal { .. }, Node::Nominal { .. }) => {
+                            if self.same_nominal(ctx, pair.source, pair.target)? {
+                                Relation::Accepted
                             } else {
                                 Relation::Rejected
                             }

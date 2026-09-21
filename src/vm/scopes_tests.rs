@@ -541,7 +541,7 @@ fn captured_initializers_obey_receiving_budgets_cancellation_and_cleanup() {
 }
 
 #[test]
-fn failed_initializers_only_poison_their_own_scope_in_the_current_call() {
+fn failed_initializers_do_not_poison_fresh_host_result_snapshots() {
     let calls = Arc::new(AtomicUsize::new(0));
     let observed = calls.clone();
     let mut producer = Engine::new();
@@ -570,7 +570,7 @@ def run
   end
   other=second().current
   begin
-    first().current
+    again=first().current
   rescue => error
     again=error.message
   end
@@ -583,13 +583,13 @@ def retry_scope; first().current; end
     let result = caller.call("run", &[], CallOptions::default()).unwrap();
     assert_eq!(
         json(&result.value),
-        serde_json::json!(["scope failed", 7, "source script initialization failed"])
+        serde_json::json!(["scope failed", 7, 7])
     );
-    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    assert_eq!(calls.load(Ordering::SeqCst), 3);
     let result = caller
         .call("retry_scope", &[], CallOptions::default())
         .unwrap();
     assert_eq!(result.value.as_int(), Some(7));
-    assert_eq!(calls.load(Ordering::SeqCst), 3);
+    assert_eq!(calls.load(Ordering::SeqCst), 4);
     assert_eq!(result.stats.retained_memory_bytes, 0);
 }

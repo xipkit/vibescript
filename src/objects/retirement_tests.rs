@@ -19,7 +19,15 @@ impl Drop for RetiredCode {
             .store(if unlocked { 2 } else { 1 }, Ordering::SeqCst);
         if unlocked {
             let data = heap.data.lock().unwrap();
-            assert_eq!(data.entries.data.len(), 1);
+            assert!(!data.entries.data.is_empty());
+            // Host-held snapshots can add live instances and environments.
+            // Callback retirement must still happen after sweeping dead entries.
+            assert!(
+                data.entries
+                    .data
+                    .iter()
+                    .all(|entry| { entry.internal.identity.marked.load(Ordering::Relaxed) })
+            );
         }
         if let Some(cancellation) = &self.cancellation {
             cancellation.cancel();

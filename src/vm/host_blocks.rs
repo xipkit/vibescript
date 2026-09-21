@@ -109,6 +109,12 @@ impl Run {
         let Some(crate::arguments::Target::Capability(method)) = args.target.take() else {
             unreachable!()
         };
+        programs::snapshot_arguments(
+            ctx,
+            &self.storage,
+            &mut args.positional.data,
+            &mut args.keywords.buffer.data,
+        )?;
         method.begin(
             ctx,
             &args.positional.data,
@@ -135,9 +141,11 @@ impl Run {
         ctx.checkpoint()?;
         let current = request.current;
         let value = match control.pending {
-            Some(Control::Return { target, value, .. }) if target == current => value,
+            Some(Control::Return { target, value, .. }) if target == current => {
+                programs::snapshot(ctx, &self.storage, &value)?
+            }
             Some(control) => return Ok(Event::Control(control)),
-            None => result?,
+            None => ctx.snapshot(&result?)?,
         };
         let value = self.host_result(ctx, &request.program, &request.method, value)?;
         let value = request.method.finish(ctx, value)?;
@@ -168,6 +176,7 @@ impl Run {
             crate::exports::check(ctx, &value)?;
             args.data.push(value);
         }
+        ctx.snapshot_values(&mut args.data)?;
         enter_block(
             ctx,
             &mut self.frames,
@@ -198,6 +207,9 @@ impl Run {
         result: Result<Exit>,
     ) -> Result<Exit> {
         let result = (|| match result {
+            Ok(Exit::Value(value)) => {
+                programs::snapshot(ctx, &self.storage, &value).map(Exit::Value)
+            }
             Err(error) if !ctx.exhausted() => {
                 let error = handlers::SavedError::new(
                     &self.root,

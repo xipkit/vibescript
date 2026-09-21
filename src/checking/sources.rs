@@ -32,6 +32,7 @@ impl SourceId {
 struct Source {
     code: Arc<Code>,
     scope: Scope,
+    nominal_scope: Scope,
     _charge: Option<Charge>,
 }
 
@@ -64,6 +65,11 @@ impl Sources {
             ctx,
             code,
             Scope::Runtime(environment.map(Instance::checking_id)),
+            Scope::Runtime(
+                environment
+                    .map(Instance::nominal_scope)
+                    .filter(|id| *id != 0),
+            ),
         )
     }
 
@@ -75,7 +81,8 @@ impl Sources {
         receiving: SourceId,
         attempt: usize,
     ) -> Result<usize> {
-        self.scoped_owner(ctx, code, Scope::Import(receiving, attempt))
+        let scope = Scope::Import(receiving, attempt);
+        self.scoped_owner(ctx, code, scope, scope)
     }
 
     fn scoped_owner(
@@ -83,6 +90,7 @@ impl Sources {
         ctx: &mut CallContext,
         code: &Arc<Code>,
         scope: Scope,
+        nominal_scope: Scope,
     ) -> Result<usize> {
         ctx.checkpoint()?;
         for entry in &self.entries.data {
@@ -96,11 +104,33 @@ impl Sources {
         let entry = Box::new(Source {
             code: code.clone(),
             scope,
+            nominal_scope,
             _charge: charge,
         });
         let owner = &*entry as *const Source as usize;
         self.entries.push(ctx, entry)?;
         Ok(owner)
+    }
+
+    /// Keeps type compatibility across snapshots without combining their state.
+    pub fn same_type(&self, ctx: &mut CallContext, left: usize, right: usize) -> Result<bool> {
+        if left == right {
+            return Ok(true);
+        }
+        let mut a = None;
+        let mut b = None;
+        for entry in &self.entries.data {
+            ctx.charge(1)?;
+            let owner = &**entry as *const Source as usize;
+            if owner == left {
+                a = Some(entry);
+            }
+            if owner == right {
+                b = Some(entry);
+            }
+        }
+        Ok(matches!((a, b), (Some(a), Some(b)) if
+            Arc::ptr_eq(&a.code, &b.code) && a.nominal_scope == b.nominal_scope))
     }
 
     /// Uses registration order for hashing while preserving the stable identity.

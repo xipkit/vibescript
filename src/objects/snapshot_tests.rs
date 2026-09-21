@@ -198,8 +198,13 @@ fn snapshot_traversal_and_drop_support_the_full_container_depth() {
 fn snapshot_limits_latch_and_release_partial_graphs_without_changing_sources() {
     let mut source = CallContext::new(CallOptions::default());
     let original = graph(&mut source, 8);
+    let other = graph(&mut source, 12);
+    let roots = [original.clone(), original.clone(), other];
     let mut measure = CallContext::new(CallOptions::default());
-    let copied = measure.snapshot(&original).unwrap();
+    let mut copied = roots.clone();
+    measure.snapshot_values(&mut copied).unwrap();
+    assert!(instance(&copied[0]).same(instance(&copied[1])));
+    assert!(!instance(&copied[0]).same(instance(&copied[2])));
     let stats = measure.stats();
     drop(copied);
     cleanup(&mut measure);
@@ -245,11 +250,13 @@ fn snapshot_limits_latch_and_release_partial_graphs_without_changing_sources() {
     }
     for (options, kind) in cases {
         let mut ctx = CallContext::new(options);
-        assert_eq!(ctx.snapshot(&original).unwrap_err().kind, kind);
+        let mut copies = roots.clone();
+        assert_eq!(ctx.snapshot_values(&mut copies).unwrap_err().kind, kind);
         assert!(ctx.snapshot_objects.is_none());
         assert!(ctx.pending_objects.data.is_empty());
         assert!(!ctx.importing_objects);
-        assert_eq!(ctx.snapshot(&original).unwrap_err().kind, kind);
+        assert_eq!(ctx.snapshot_values(&mut copies).unwrap_err().kind, kind);
+        drop(copies);
         cleanup(&mut ctx);
         assert_eq!(ctx.stats().retained_memory_bytes, 0, "{kind:?}");
     }
@@ -261,7 +268,8 @@ fn snapshot_limits_latch_and_release_partial_graphs_without_changing_sources() {
         },
         ..CallOptions::default()
     });
-    let copy = exact.snapshot(&original).unwrap();
+    let mut copy = roots.clone();
+    exact.snapshot_values(&mut copy).unwrap();
     assert_eq!(exact.stats().steps, stats.steps);
     drop(copy);
     cleanup(&mut exact);
