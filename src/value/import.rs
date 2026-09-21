@@ -13,30 +13,27 @@ use crate::{
     hash::Hash,
     range::Range,
 };
+use std::sync::Arc;
 
-enum Frame<'a> {
+enum Frame {
     Array {
-        source: &'a Heap<Value>,
+        source: Arc<Heap<Value>>,
         out: Buffer<Value>,
     },
     Hash {
-        source: &'a Hash,
+        source: Arc<Hash>,
         out: Buffer<(Value, Value)>,
         key: Option<Value>,
     },
 }
 
-impl<'a> Frame<'a> {
-    fn next_child(&self) -> Option<&'a Value> {
+impl Frame {
+    fn next_child(&self) -> Option<Value> {
         match self {
-            Self::Array { source, out } => {
-                let source: &'a Heap<Value> = source;
-                source.buffer.data.get(out.data.len())
-            }
+            Self::Array { source, out } => source.buffer.data.get(out.data.len()).cloned(),
             Self::Hash { source, out, key } => {
-                let source: &'a Hash = source;
                 let (k, v) = source.buffer.data.get(out.data.len())?;
-                Some(if key.is_none() { k } else { v })
+                Some(if key.is_none() { k } else { v }.clone())
             }
         }
     }
@@ -71,7 +68,7 @@ impl CallContext {
         if value.depth() > MAX_VALUE_DEPTH {
             return self.guard(ErrorKind::Recursion, "value nesting too deep");
         }
-        let mut frames: Buffer<Frame<'_>> = Buffer::empty();
+        let mut frames: Buffer<Frame> = Buffer::empty();
         let mut produced = self.open(value, rooted, &mut frames)?;
         while let Some(frame) = frames.data.last_mut() {
             if let Some(value) = produced.take() {
@@ -80,7 +77,7 @@ impl CallContext {
             match frame.next_child() {
                 Some(child) => {
                     self.charge(1)?;
-                    produced = self.open(child, rooted, &mut frames)?;
+                    produced = self.open(&child, rooted, &mut frames)?;
                 }
                 None => {
                     let frame = frames.data.pop().unwrap();
@@ -95,11 +92,11 @@ impl CallContext {
     }
 
     /// Imports a leaf, shares a container already charged to this call, or opens a frame.
-    fn open<'a>(
+    fn open(
         &mut self,
-        value: &'a Value,
+        value: &Value,
         rooted: bool,
-        frames: &mut Buffer<Frame<'a>>,
+        frames: &mut Buffer<Frame>,
     ) -> Result<Option<Value>> {
         match &value.0 {
             Kind::Array(heap) => {
@@ -107,7 +104,13 @@ impl CallContext {
                     return Ok(Some(value.clone()));
                 }
                 let out = Buffer::with_capacity(self, heap.buffer.data.len())?;
-                frames.push(self, Frame::Array { source: heap, out })?;
+                frames.push(
+                    self,
+                    Frame::Array {
+                        source: heap.clone(),
+                        out,
+                    },
+                )?;
                 Ok(None)
             }
             Kind::Hash(hash) => {
@@ -118,7 +121,7 @@ impl CallContext {
                 frames.push(
                     self,
                     Frame::Hash {
-                        source: hash,
+                        source: hash.clone(),
                         out,
                         key: None,
                     },
