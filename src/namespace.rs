@@ -82,7 +82,11 @@ impl Namespace {
 
     pub fn import(ctx: &mut CallContext, value: &Arc<Self>) -> Result<Arc<Self>> {
         ctx.checkpoint()?;
-        let environment = if let Some(environment) = &value.environment {
+        let source = match &value.environment {
+            Some(environment) => Some(environment.clone()),
+            None => Self::snapshot_environment(ctx, value)?,
+        };
+        let environment = if let Some(environment) = &source {
             if ctx.namespace_depth >= crate::budget::MAX_ENVIRONMENT_DEPTH {
                 return ctx.guard(
                     crate::ErrorKind::Recursion,
@@ -104,7 +108,11 @@ impl Namespace {
                 .is_some_and(|charge| ctx.owns_charge(charge))
         {
             return match (&value.environment, environment) {
-                (Some(previous), Some(environment)) if !Arc::ptr_eq(previous, &environment) => {
+                (previous, Some(environment))
+                    if previous
+                        .as_ref()
+                        .is_none_or(|previous| !Arc::ptr_eq(previous, &environment)) =>
+                {
                     Self::with_environment(ctx, value, environment)
                 }
                 _ => Ok(value.clone()),
@@ -128,6 +136,34 @@ impl Namespace {
             header,
             _metadata: metadata,
         }))
+    }
+
+    fn snapshot_environment(
+        ctx: &mut CallContext,
+        value: &Self,
+    ) -> Result<Option<Arc<crate::objects::Instance>>> {
+        if ctx.snapshot_objects.is_none() {
+            return Ok(None);
+        }
+        let Some(owner) = value
+            .owner
+            .clone()
+            .or_else(|| value.definition.owner.get().and_then(Weak::upgrade))
+        else {
+            return Ok(None);
+        };
+        let count = ctx
+            .snapshot_namespaces
+            .as_ref()
+            .map_or(0, |bindings| bindings.data.len());
+        for index in 0..count {
+            ctx.charge(1)?;
+            let (code, environment) = &ctx.snapshot_namespaces.as_ref().unwrap().data[index];
+            if Arc::ptr_eq(code, &owner) {
+                return Ok(Some(environment.clone()));
+            }
+        }
+        Ok(None)
     }
 
     pub fn with_environment(

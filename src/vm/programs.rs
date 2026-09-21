@@ -2,6 +2,12 @@ use super::*;
 use crate::{budget::Charge, code::Code};
 use std::{ops::Deref, sync::Arc};
 
+mod snapshots;
+
+pub(super) fn snapshot(ctx: &mut CallContext, storage: &Storage, value: &Value) -> Result<Value> {
+    snapshots::snapshot(ctx, storage, value)
+}
+
 pub(crate) struct Program {
     pub code: Arc<Code>,
     pub environment: Option<Arc<crate::objects::Instance>>,

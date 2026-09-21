@@ -252,10 +252,8 @@ pub(crate) fn new(ctx: &mut CallContext, class: &Arc<Namespace>) -> Result<Arc<I
     if heap.data.lock().unwrap().allocations >= 32 {
         collect(ctx, &heap, false)?;
     }
-    let imported = class
-        .environment
-        .as_ref()
-        .map(|_| Namespace::import(ctx, class))
+    let imported = (class.environment.is_some() || ctx.snapshot_namespaces.is_some())
+        .then(|| Namespace::import(ctx, class))
         .transpose()?;
     let class = imported.as_ref().unwrap_or(class);
     let known = {

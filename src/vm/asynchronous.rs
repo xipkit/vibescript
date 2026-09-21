@@ -79,10 +79,11 @@ impl AsyncHostCall {
             return Err(error.clone());
         }
         let execution = self.execution.as_mut().ok_or_else(retiring)?;
-        self.control
-            .as_ref()
-            .unwrap()
-            .receiver(&mut execution.execution.context)
+        let execution = &mut *execution.execution;
+        self.control.as_ref().unwrap().receiver(
+            &mut execution.context,
+            &execution.run.as_ref().unwrap().storage,
+        )
     }
 
     /// Runs the attached block with owned arguments on the receiving runner.
@@ -497,7 +498,10 @@ impl crate::host_call::Backend for Synchronous {
 
     fn receiver(&mut self) -> Result<Option<Value>> {
         let execution = &mut *self.execution.as_mut().unwrap().execution;
-        self.control.receiver(&mut execution.context)
+        self.control.receiver(
+            &mut execution.context,
+            &execution.run.as_ref().unwrap().storage,
+        )
     }
 
     fn call_block(&mut self, args: &[Value]) -> Result<Value> {

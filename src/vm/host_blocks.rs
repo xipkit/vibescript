@@ -35,11 +35,11 @@ impl HostControl {
     ///
     /// Captured instances and module environments are copied even when the
     /// receiver already belongs to this invocation.
-    pub fn receiver(&self, ctx: &mut CallContext) -> Result<Option<Value>> {
+    pub fn receiver(&self, ctx: &mut CallContext, storage: &Storage) -> Result<Option<Value>> {
         ctx.checkpoint()?;
         self.receiver
             .as_ref()
-            .map(|receiver| ctx.snapshot(receiver))
+            .map(|receiver| programs::snapshot(ctx, storage, receiver))
             .transpose()
     }
 
@@ -76,7 +76,7 @@ impl crate::host_call::Backend for Borrowed<'_> {
     }
 
     fn receiver(&mut self) -> Result<Option<Value>> {
-        self.control.receiver(self.context)
+        self.control.receiver(self.context, &self.run.storage)
     }
 
     fn call_block(&mut self, args: &[Value]) -> Result<Value> {

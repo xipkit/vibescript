@@ -58,8 +58,9 @@ impl<'a> HostCall<'a> {
     /// such as `cap` in `cap.send(1)`, `cap[:send](1)` or `cap::send(1)`.
     /// The script selects that receiver before evaluating arguments; later
     /// assignments to its binding do not replace the selected object. Each read
-    /// snapshots its current data, including instances and captured module state.
+    /// snapshots its current data, including instances and module state.
     /// Later mutations do not change an earlier snapshot, which the host may keep.
+    /// Using a snapshot does not replay module or class body initialization.
     /// A method reached without a member
     /// lookup, such as a registered global or a granted bare descriptor, has no
     /// receiver and returns `None`. Descriptors inside the snapshot keep this
