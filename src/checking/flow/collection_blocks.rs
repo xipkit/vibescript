@@ -47,6 +47,7 @@ pub(super) enum Method {
     TransformValues,
     SliceWhen,
     ChunkWhile,
+    Chunk,
     EachSlice,
     EachCons,
     Cycle,
@@ -109,6 +110,7 @@ impl Method {
             "transform_values" => Self::TransformValues,
             "slice_when" => Self::SliceWhen,
             "chunk_while" => Self::ChunkWhile,
+            "chunk" => Self::Chunk,
             "each_slice" => Self::EachSlice,
             "each_cons" => Self::EachCons,
             "cycle" => Self::Cycle,
@@ -134,6 +136,13 @@ impl Method {
             "deep_transform_keys" => Self::DeepTransformKeys,
             _ => return None,
         })
+    }
+
+    /// Resolves a member call to its block-driven form. `chunk` is only a
+    /// collection block when a block is attached; the sized spelling stays on
+    /// the plain member path.
+    pub fn parse_call(name: &str, block: bool) -> Option<Self> {
+        Self::parse(name).filter(|method| *method != Self::Chunk || block)
     }
 
     fn returns_receiver(self) -> bool {
@@ -348,13 +357,17 @@ impl Walker<'_> {
                 state: state.snapshot(self.ctx)?,
                 output,
                 auxiliary: match method {
-                    GroupStable | SliceWhen | ChunkWhile | Uniq => {
+                    GroupStable | SliceWhen | ChunkWhile | Chunk | Uniq => {
                         self.facts.tuple(self.ctx, &[])?
                     }
                     DropWhile => self.facts.boolean(self.ctx, true)?,
                     _ => Atom::Never.fact(),
                 },
-                previous: Atom::Never.fact(),
+                previous: if method == Chunk {
+                    Atom::Nil.fact()
+                } else {
+                    Atom::Never.fact()
+                },
             };
             let depth = self.collection_depth(&initial, driver, arm)?;
             if let Node::Tuple(items) = self.facts.node(view) {
@@ -431,7 +444,7 @@ impl Walker<'_> {
         let state = &current.state;
         let block = driver.block();
         let extra = match driver.method {
-            Method::GroupStable => 2,
+            Method::GroupStable | Method::Chunk => 2,
             Method::GroupBy | Method::Partition | Method::SliceWhen | Method::ChunkWhile => 1,
             _ => 0,
         };
@@ -774,8 +787,8 @@ impl Walker<'_> {
             }
             Find | Index | Rindex | Reduce | Count | Any | All | NoneMatch | One | Sum
             | TakeWhile | DropWhile | Partition | GroupBy | GroupStable | Tally | ToHash
-            | TransformKeys | TransformValues | SliceWhen | ChunkWhile | Uniq | Sort | SortBy
-            | Min | Max | Minmax | MinBy | MaxBy | Merge | Substitute => unreachable!(),
+            | TransformKeys | TransformValues | SliceWhen | ChunkWhile | Chunk | Uniq | Sort
+            | SortBy | Min | Max | Minmax | MinBy | MaxBy | Merge | Substitute => unreachable!(),
             FilterMap | Select | Reject => {
                 let keep = self
                     .facts
@@ -829,6 +842,14 @@ impl Walker<'_> {
             && current.previous != Atom::Never.fact()
         {
             self.group_flush(&current.state, pc, current.output, current.auxiliary)?
+        } else if method == Method::Chunk {
+            self.chunk_flush(
+                &current.state,
+                pc,
+                current.output,
+                current.previous,
+                current.auxiliary,
+            )?
         } else {
             self.collection_identity(method, current.output)?
         };

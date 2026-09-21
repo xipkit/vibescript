@@ -69,6 +69,7 @@ impl Walker<'_> {
                     | ToHash
                     | SliceWhen
                     | ChunkWhile
+                    | Chunk
                     | Uniq
             )
             || (kind == Receiver::Hash && method == Map);
@@ -454,7 +455,7 @@ impl Walker<'_> {
             }
             Uniq => return self.unique_result(current, item, value, depth),
             DropWhile | Partition | GroupBy | GroupStable | Tally | ToHash | TransformKeys
-            | TransformValues | SliceWhen | ChunkWhile => {
+            | TransformValues | SliceWhen | ChunkWhile | Chunk => {
                 return self.group_result(current, pc, driver, item, value, depth);
             }
             Reduce => current.output = value,

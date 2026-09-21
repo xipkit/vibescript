@@ -231,6 +231,11 @@ impl Walker<'_> {
             self.collection_error(state, pc, receiver, site, args, ErrorClass::Runtime)?;
             return Ok(false);
         }
+        // `send(:chunk) { }` is the block-driven grouping form; keep the block
+        // so the native path models it instead of the sized spelling.
+        if matches!(kind, Receiver::Array) && name == "chunk" && args.block.is_some() {
+            return Ok(true);
+        }
         args.block = None;
         if !builtins::value_member(self.ctx, self.facts, receiver, name)?
             || matches!(kind, Receiver::Regex) && matches!(name, "source" | "flags")

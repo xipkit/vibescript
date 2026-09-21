@@ -298,9 +298,172 @@ impl Walker<'_> {
                 current.auxiliary = pending;
                 current.previous = item.element;
             }
+            Chunk => return self.chunk_result(current, pc, item, value, depth),
             _ => unreachable!(),
         }
         Ok((current.output != Atom::Never.fact()).then_some(current))
+    }
+
+    /// Models one `array.chunk` block key. `previous` is the open group's key
+    /// (`Nil` when no group is open), `auxiliary` its members and `output`
+    /// the finished `[key, group]` rows. Nil and `:_separator` close the open
+    /// group and skip the item, `:_alone` emits the item on its own, other
+    /// symbols starting with `_` raise, and any other key either extends the
+    /// open group or closes it and opens a new one; when the checker cannot
+    /// decide equality both continuations are kept.
+    fn chunk_result(
+        &mut self,
+        mut current: IterationState,
+        pc: usize,
+        item: Item,
+        value: Fact,
+        depth: usize,
+    ) -> Result<Option<IterationState>> {
+        #[derive(Clone, Copy)]
+        struct Control {
+            separator: bool,
+            alone: bool,
+            normal: bool,
+            invalid: bool,
+        }
+        let never = Atom::Never.fact();
+        let active = self
+            .facts
+            .filter(self.ctx, current.previous, Test::Nil, false)?;
+        let closed = self
+            .facts
+            .filter(self.ctx, current.previous, Test::Nil, true)?
+            != never;
+        let mut flushed = None;
+        let empty = self.facts.tuple(self.ctx, &[])?;
+        let single = self.facts.tuple(self.ctx, &[item.element])?;
+        let mut output = never;
+        let mut pending = never;
+        let mut key = never;
+        let item_deep = self.wrapping_depth(item.element, 3)?;
+        for i in 0..self.facts.arm_count(value) {
+            self.ctx.charge(1)?;
+            let arm = self.facts.arm(value, i);
+            let control = match self.facts.node(arm) {
+                Node::Atom(Atom::Never) => continue,
+                Node::Atom(Atom::Nil) => Control {
+                    separator: true,
+                    alone: false,
+                    normal: false,
+                    invalid: false,
+                },
+                Node::Symbol(name) => {
+                    let name = name.as_bytes().unwrap();
+                    let (separator, alone) = (name == b"_separator", name == b"_alone");
+                    let invalid = !separator && !alone && name.first() == Some(&b'_');
+                    Control {
+                        separator,
+                        alone,
+                        normal: !separator && !alone && !invalid,
+                        invalid,
+                    }
+                }
+                Node::Atom(Atom::Symbol | Atom::Unknown | Atom::Any) => Control {
+                    separator: true,
+                    alone: true,
+                    normal: true,
+                    invalid: true,
+                },
+                Node::Named(_) | Node::Nominal { .. } | Node::Instance { .. } => {
+                    self.incomplete(pc)?;
+                    continue;
+                }
+                _ => Control {
+                    separator: false,
+                    alone: false,
+                    normal: true,
+                    invalid: false,
+                },
+            };
+            if control.invalid {
+                self.emit_error(&current.state, pc, handlers::bit(ErrorClass::Runtime))?;
+            }
+            if !control.separator && !control.alone && !control.normal {
+                continue;
+            }
+            let flushed = match flushed {
+                Some(value) => value,
+                None => {
+                    let value = self.chunk_flush(
+                        &current.state,
+                        pc,
+                        current.output,
+                        current.previous,
+                        current.auxiliary,
+                    )?;
+                    flushed = Some(value);
+                    value
+                }
+            };
+            if control.separator {
+                output = self.facts.widen(self.ctx, output, flushed, depth)?;
+                pending = self.facts.widen(self.ctx, pending, empty, depth)?;
+                key = self.facts.union(self.ctx, &[key, Atom::Nil.fact()])?;
+            }
+            if (control.alone || control.normal) && (item_deep || self.wrapping_depth(arm, 2)?) {
+                self.emit_error(&current.state, pc, handlers::bit(ErrorClass::Limit))?;
+            }
+            if control.alone {
+                let row = self.facts.tuple(self.ctx, &[arm, single])?;
+                let next = self.group_append(flushed, row)?;
+                output = self.facts.widen(self.ctx, output, next, depth)?;
+                pending = self.facts.widen(self.ctx, pending, empty, depth)?;
+                key = self.facts.union(self.ctx, &[key, Atom::Nil.fact()])?;
+            }
+            if control.normal {
+                let same = if active != never {
+                    self.facts.definitely_equal(arm, active)
+                } else {
+                    Some(false)
+                };
+                if same != Some(false) {
+                    let grown = self.group_append(current.auxiliary, item.element)?;
+                    output = self.facts.widen(self.ctx, output, current.output, depth)?;
+                    pending = self.facts.widen(self.ctx, pending, grown, depth)?;
+                    key = self.facts.widen(self.ctx, key, active, depth)?;
+                }
+                if same != Some(true) || closed {
+                    output = self.facts.widen(self.ctx, output, flushed, depth)?;
+                    pending = self.facts.widen(self.ctx, pending, single, depth)?;
+                    key = self.facts.widen(self.ctx, key, arm, depth)?;
+                }
+            }
+        }
+        current.output = output;
+        current.auxiliary = pending;
+        current.previous = key;
+        Ok((current.output != never).then_some(current))
+    }
+
+    // Nil preserves the no-open-group alternative when iteration states join.
+    pub(super) fn chunk_flush(
+        &mut self,
+        state: &State,
+        pc: usize,
+        output: Fact,
+        key: Fact,
+        pending: Fact,
+    ) -> Result<Fact> {
+        let closed = self.facts.filter(self.ctx, key, Test::Nil, true)? != Atom::Never.fact();
+        let key = self.facts.filter(self.ctx, key, Test::Nil, false)?;
+        if key == Atom::Never.fact() {
+            return Ok(output);
+        }
+        let row = self.facts.tuple(self.ctx, &[key, pending])?;
+        if self.wrapping_guard(row)? {
+            self.emit_error(state, pc, handlers::bit(ErrorClass::Limit))?;
+        }
+        let appended = self.group_append(output, row)?;
+        if closed {
+            self.facts.union(self.ctx, &[output, appended])
+        } else {
+            Ok(appended)
+        }
     }
 
     fn group_pair(

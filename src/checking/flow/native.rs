@@ -196,7 +196,7 @@ impl Walker<'_> {
             self.text_block(state, pc, receiver, site, args, method)?;
             return Ok(Some([None, None]));
         }
-        if let Some(method) = collection_blocks::Method::parse(name) {
+        if let Some(method) = collection_blocks::Method::parse_call(name, args.block.is_some()) {
             self.collection_block(state, pc, receiver, site, args, method)?;
             return Ok(Some([None, None]));
         }

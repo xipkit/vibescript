@@ -32,6 +32,10 @@ enum MethodKind {
     DropWhile,
     SliceWhen,
     ChunkWhile,
+    // `array.chunk { |item| key }`: consecutive equal keys form `[key, group]`
+    // rows. Not parsed by name: the blockless spelling is the sized form
+    // in `collections`, so `start` resolves this only for arrays with a block.
+    Chunk,
     Find,
     Index,
     Rindex,
@@ -336,7 +340,9 @@ pub(crate) fn start(
         };
         return Err(hash.tag.mutation_error());
     }
-    let Some(method) = MethodKind::parse(name) else {
+    let chunk_by_block =
+        name == "chunk" && block_arity.is_some() && matches!(receiver.0, Kind::Array(_));
+    let Some(method) = MethodKind::parse(name).or(chunk_by_block.then_some(Chunk)) else {
         return Ok(None);
     };
     let universal = matches!(method, Tap | YieldSelf);
@@ -393,6 +399,18 @@ pub(crate) fn start(
     if is_range && matches!(method, Sum | Min | Max) {
         bounds::aggregate(name, method, args, keywords, has_block)?;
     }
+    if method == Chunk {
+        // Reference order: positional arguments, then keywords, before the
+        // block runs or the receiver is read.
+        if !args.is_empty() {
+            return Err(argument(
+                "array.chunk does not take arguments when a block is supplied",
+            ));
+        }
+        if keywords {
+            return Err(argument("array.chunk does not take keyword arguments"));
+        }
+    }
     if !has_block
         && matches!(
             method,
@@ -429,6 +447,7 @@ pub(crate) fn start(
                 | Delete
                 | SliceWhen
                 | ChunkWhile
+                | Chunk
         )
         || (is_hash && method == Map);
     if keywords && rejects_keywords {
@@ -885,6 +904,7 @@ impl Loop {
                     self.flush_adjacent(ctx, self.pending_index as usize)?;
                 }
             }
+            Chunk => self.accept_chunk_key(ctx, value)?,
             Find | Index | Rindex if truthy => {
                 self.accumulator = Some(if self.method == Find {
                     self.pending[0].clone()
@@ -1003,6 +1023,78 @@ impl Loop {
         Ok(false)
     }
 
+    /// Applies one `chunk` block result. `accumulator` holds the active
+    /// group's key (`None` when no group is open) and `other` its members;
+    /// finished rows are `[key, group]` pairs in `output`.
+    fn accept_chunk_key(&mut self, ctx: &mut CallContext, key: Value) -> Result<()> {
+        enum Control {
+            Normal,
+            Separator,
+            Alone,
+        }
+        let control = match &key.0 {
+            Kind::Nil => Control::Separator,
+            Kind::Symbol(_) => {
+                let name = key.as_bytes().unwrap();
+                ctx.work_bytes(name.len())?;
+                match name {
+                    b"_separator" => Control::Separator,
+                    b"_alone" => Control::Alone,
+                    _ if name.first() == Some(&b'_') => {
+                        let mut message = Buffer::empty();
+                        message.extend(ctx, b"array.chunk reserved key :")?;
+                        message.extend(ctx, name)?;
+                        let mut error = Error::from_bytes(ctx, &message.data)?;
+                        error.kind = ErrorKind::Argument;
+                        return Err(error);
+                    }
+                    _ => Control::Normal,
+                }
+            }
+            _ => Control::Normal,
+        };
+        match control {
+            Control::Separator => self.flush_chunk(ctx),
+            Control::Alone => {
+                self.flush_chunk(ctx)?;
+                self.chunk_depth_guard(ctx, &key)?;
+                self.accumulator = Some(key);
+                self.other.push(ctx, self.pending[0].clone())?;
+                self.flush_chunk(ctx)
+            }
+            Control::Normal => {
+                self.chunk_depth_guard(ctx, &key)?;
+                let same = match &self.accumulator {
+                    Some(current) => ops::equal(ctx, &key, current, 0)?,
+                    None => false,
+                };
+                if !same {
+                    self.flush_chunk(ctx)?;
+                    self.accumulator = Some(key);
+                }
+                self.other.push(ctx, self.pending[0].clone())
+            }
+        }
+    }
+
+    // The result nests keys two levels and items three levels deep.
+    fn chunk_depth_guard(&self, ctx: &mut CallContext, key: &Value) -> Result<()> {
+        let depth = key.depth().max(self.pending[0].depth() + 1) + 2;
+        if depth > MAX_VALUE_DEPTH {
+            return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
+        }
+        Ok(())
+    }
+
+    fn flush_chunk(&mut self, ctx: &mut CallContext) -> Result<()> {
+        let Some(key) = self.accumulator.take() else {
+            return Ok(());
+        };
+        let group = Value::from_array(ctx, std::mem::replace(&mut self.other, Buffer::empty()))?;
+        let row = array_copy(ctx, &[key, group])?;
+        self.output.push(ctx, row)
+    }
+
     fn flush_adjacent(&mut self, ctx: &mut CallContext, end: usize) -> Result<()> {
         let array = self.receiver.as_array().unwrap();
         let part = array_copy(ctx, &array[self.start as usize..end])?;
@@ -1018,6 +1110,9 @@ impl Loop {
         use MethodKind::*;
         if matches!(self.method, SliceWhen | ChunkWhile) && self.length != 0 {
             self.flush_adjacent(ctx, self.length as usize)?;
+        }
+        if self.method == Chunk {
+            self.flush_chunk(ctx)?;
         }
         match self.method {
             Tap | Each | EachIndex | EachKey | EachValue | ReverseEach | Times | Upto | Downto
@@ -1098,4 +1193,38 @@ fn array_copy(ctx: &mut CallContext, values: &[Value]) -> Result<Value> {
     let mut output = Buffer::empty();
     output.extend(ctx, values)?;
     Value::from_array(ctx, output)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{CallOptions, Limits};
+
+    #[test]
+    fn chunk_reserved_key_diagnostics_preflight_memory() {
+        let mut ctx = CallContext::new(CallOptions {
+            limits: Limits {
+                memory_bytes: Some(100_000),
+                ..Limits::default()
+            },
+            ..CallOptions::default()
+        });
+        let receiver = ctx.array(&[Value::int(1)]).unwrap();
+        let key = ctx.import(&Value::symbol(vec![b'_'; 8192])).unwrap();
+        let mut state = start(&mut ctx, "chunk", &receiver, &[], &[], Some(0))
+            .unwrap()
+            .unwrap();
+        assert!(matches!(
+            state.advance(&mut ctx, None).unwrap(),
+            Progress::Yield(..)
+        ));
+        ctx.options.limits.memory_bytes = Some(ctx.stats().retained_memory_bytes + 1);
+        let Err(error) = state.advance(&mut ctx, Some(key)) else {
+            panic!("reserved key accepted")
+        };
+        assert_eq!(error.kind, ErrorKind::Memory);
+        assert_eq!(ctx.charge(1).unwrap_err().kind, ErrorKind::Memory);
+        drop((state, receiver));
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
 }
