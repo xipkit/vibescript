@@ -1,6 +1,4 @@
-use crate::{
-    CallContext, Error, ErrorKind, Result, Value, bytecode::Method, json, math, ops, value::Kind,
-};
+use crate::{CallContext, Error, ErrorKind, Result, Value, json, math, ops, value::Kind};
 use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -419,6 +417,27 @@ impl Builtin {
             return crate::money::Money::new(cents, &bytes.data)
                 .map(|value| Value(Kind::Money(value)));
         }
+        if let Self::Math(method) = self {
+            return call_math(self.name(), method, args, !keywords.is_empty(), block);
+        }
+        if matches!(self, Self::ToInt | Self::ToFloat) {
+            // Go checks the argument count before keywords and blocks here.
+            let refused = if args.len() != 1 {
+                "expects a single value argument"
+            } else if !keywords.is_empty() {
+                "does not accept keyword arguments"
+            } else if block {
+                "does not accept blocks"
+            } else {
+                ""
+            };
+            if !refused.is_empty() {
+                return Err(Error::new(
+                    ErrorKind::Argument,
+                    format!("{} {refused}", self.name()),
+                ));
+            }
+        }
         if !keywords.is_empty() || block {
             return Err(Error::new(
                 ErrorKind::Argument,
@@ -428,40 +447,32 @@ impl Builtin {
                 ),
             ));
         }
-        if let Self::Math(method) = self {
-            return call_math(method, args);
-        }
         ops::arity(args, if self == Self::JsonParseAs { 2 } else { 1 })?;
         let value = &args[0];
         match self {
-            Self::ToInt => {
-                if let Kind::Float(number) = value.0 {
-                    if number.trunc() != number {
-                        return Err(Error::new(
-                            ErrorKind::Argument,
-                            "to_int cannot convert a fractional float",
-                        ));
-                    }
-                }
-                if !matches!(
-                    value.0,
-                    Kind::Int(_) | Kind::Big(_) | Kind::Float(_) | Kind::Bytes(_)
-                ) {
-                    return Err(Error::new(
-                        ErrorKind::Type,
-                        "to_int expects an int, float or string",
-                    ));
-                }
-                ops::method(ctx, Method::ToInt, value.clone(), &[])
-            }
+            Self::ToInt => match &value.0 {
+                Kind::Int(_) | Kind::Big(_) => Ok(value.clone()),
+                Kind::Float(number) if number.trunc() != *number => Err(Error::new(
+                    ErrorKind::Argument,
+                    "to_int cannot convert non-integer float",
+                )),
+                Kind::Float(number) => crate::integer::from_float(ctx, *number, "to_int"),
+                Kind::Bytes(bytes) => crate::conversion::integer(ctx, &bytes.data, "to_int"),
+                _ => Err(Error::new(
+                    ErrorKind::Type,
+                    "to_int expects int, float, or string",
+                )),
+            },
             Self::ToFloat => match &value.0 {
                 Kind::Int(_) | Kind::Big(_) | Kind::Float(_) => {
                     Ok(Value::float(value.as_float().unwrap()))
                 }
-                Kind::Bytes(bytes) => crate::conversion::float(ctx, &bytes.data).map(Value::float),
+                Kind::Bytes(bytes) => {
+                    crate::conversion::float(ctx, &bytes.data, "to_float").map(Value::float)
+                }
                 _ => Err(Error::new(
                     ErrorKind::Type,
-                    "to_float expects an int, float or string",
+                    "to_float expects int, float, or string",
                 )),
             },
             Self::JsonParse => {
@@ -513,29 +524,58 @@ impl Builtin {
     }
 }
 
-fn call_math(method: Math, args: &[Value]) -> Result<Value> {
+fn call_math(
+    name: &str,
+    method: Math,
+    args: &[Value],
+    keywords: bool,
+    block: bool,
+) -> Result<Value> {
     use Math::*;
-    let arity = if matches!(method, Atan2 | Hypot) {
-        2
+    if keywords || block {
+        return Err(Error::new(
+            ErrorKind::Argument,
+            if keywords {
+                format!("{name} does not accept keyword arguments")
+            } else {
+                format!("{name} does not accept a block")
+            },
+        ));
+    }
+    let expected = if method == Log {
+        (1..=2).contains(&args.len()).then_some(args.len())
+    } else if matches!(method, Atan2 | Hypot) {
+        Some(2)
     } else {
-        1
+        Some(1)
     };
-    if !(method == Log && args.len() == 2) {
-        ops::arity(args, arity)?;
+    if expected != Some(args.len()) {
+        return Err(Error::new(
+            ErrorKind::Argument,
+            match method {
+                Log => format!("Math.log expects 1 or 2 arguments, got {}", args.len()),
+                Atan2 | Hypot => format!("{name} expects 2 arguments, got {}", args.len()),
+                _ => format!("{name} expects 1 argument, got {}", args.len()),
+            },
+        ));
     }
     let number = |value: &Value| {
-        value
-            .as_float()
-            .ok_or_else(|| Error::new(ErrorKind::Type, "Math expects numeric arguments"))
+        value.as_float().ok_or_else(|| {
+            Error::new(
+                ErrorKind::Type,
+                format!(
+                    "{name} expects a numeric argument, got {}",
+                    value.type_name()
+                ),
+            )
+        })
     };
+    let domain = || Error::new(ErrorKind::Arithmetic, format!("{name} out of domain"));
     let x = number(&args[0])?;
     if matches!(method, Sqrt | Log | Log2 | Log10) && x < 0.0
         || matches!(method, Asin | Acos) && (x < -1.0 || x > 1.0)
     {
-        return Err(Error::new(
-            ErrorKind::Arithmetic,
-            "Math argument is outside the function's domain",
-        ));
+        return Err(domain());
     }
     let result = match method {
         Sqrt => x.sqrt(),
@@ -555,10 +595,7 @@ fn call_math(method: Math, args: &[Value]) -> Result<Value> {
         Log => {
             let base = number(&args[1])?;
             if base < 0.0 {
-                return Err(Error::new(
-                    ErrorKind::Arithmetic,
-                    "Math.log base is outside its domain",
-                ));
+                return Err(domain());
             }
             math::log(x) / math::log(base)
         }

@@ -889,16 +889,8 @@ pub(crate) fn method(
             arity(args, 0)?;
             match &value.0 {
                 Kind::Int(_) | Kind::Big(_) => Ok(value),
-                Kind::Float(n) => crate::integer::from_float(ctx, *n),
-                _ => {
-                    let bytes = value.require_bytes()?;
-                    let (start, end) = trim(ctx, bytes)?;
-                    let text = std::str::from_utf8(&bytes[start..end]).map_err(|_| type_error())?;
-                    for chunk in text.as_bytes().chunks(CHUNK) {
-                        ctx.work_bytes(chunk.len())?;
-                    }
-                    crate::integer::parse(ctx, text.as_bytes(), 10)
-                }
+                Kind::Float(n) => crate::integer::from_float(ctx, *n, "float.to_i"),
+                _ => crate::conversion::integer(ctx, value.require_bytes()?, "string.to_i"),
             }
         }
     }

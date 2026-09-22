@@ -25,15 +25,72 @@ pub(crate) fn int64(value: &Value) -> Result<i64> {
 }
 
 fn invalid() -> Error {
-    Error::new(
-        ErrorKind::Argument,
-        "to_float expects a finite numeric string",
-    )
+    Error::new(ErrorKind::Argument, "invalid float string")
 }
 
-pub(crate) fn float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
+/// Parses a float string for `name` (`to_float` or `string.to_f`), rejecting it
+/// in Go's words: an infinity or NaN spelled out is not finite, and anything
+/// else unparsable, including an overflowing literal, is not numeric.
+pub(crate) fn float(ctx: &mut CallContext, input: &[u8], name: &str) -> Result<f64> {
     let (start, end) = ops::trim(ctx, input)?;
     let input = &input[start..end];
+    trimmed_float(ctx, input).map_err(|error| {
+        if error.kind != ErrorKind::Argument {
+            return error;
+        }
+        let unsigned = input
+            .strip_prefix(b"+")
+            .or_else(|| input.strip_prefix(b"-"))
+            .unwrap_or(input);
+        let special = unsigned.eq_ignore_ascii_case(b"inf")
+            || unsigned.eq_ignore_ascii_case(b"infinity")
+            || input.eq_ignore_ascii_case(b"nan");
+        Error::new(
+            ErrorKind::Argument,
+            if special {
+                format!("{name} expects a finite numeric string")
+            } else {
+                format!("{name} expects a numeric string")
+            },
+        )
+    })
+}
+
+/// Converts a base-10 integer string for `name` (`string.to_i` or `to_int`),
+/// rejecting it in Go's words.
+pub(crate) fn integer(ctx: &mut CallContext, input: &[u8], name: &str) -> Result<Value> {
+    let (start, end) = ops::trim(ctx, input)?;
+    let text = &input[start..end];
+    let malformed = || format!("{name} expects a base-10 integer string");
+    if std::str::from_utf8(text).is_err() {
+        return Err(Error::new(ErrorKind::Type, malformed()));
+    }
+    for chunk in text.chunks(crate::budget::CHUNK) {
+        ctx.work_bytes(chunk.len())?;
+    }
+    if text.is_empty() {
+        return Err(Error::new(
+            ErrorKind::Argument,
+            format!("{name} expects a numeric string"),
+        ));
+    }
+    let digits = text.len() - usize::from(matches!(text.first(), Some(b'-' | b'+')));
+    if digits > 100_000 {
+        return ctx.guard(
+            ErrorKind::Argument,
+            &format!("{name} exceeds the 100000 digit conversion limit"),
+        );
+    }
+    crate::integer::parse(ctx, text, 10).map_err(|error| {
+        if error.kind == ErrorKind::Argument {
+            Error::new(ErrorKind::Argument, malformed())
+        } else {
+            error
+        }
+    })
+}
+
+fn trimmed_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
     let mut underscores = false;
     for chunk in input.chunks(1024) {
         ctx.work_bytes(chunk.len())?;

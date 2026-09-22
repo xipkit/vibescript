@@ -1,7 +1,6 @@
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::Buffer,
-    bytecode::Method,
     ops,
     value::{Bytes, Kind},
 };
@@ -48,12 +47,14 @@ pub(crate) fn call(
         "concat" => concat(ctx, receiver, args)?,
         "index" | "rindex" => super::index::call(ctx, &bytes.data, args, name == "rindex")?,
         "hex" | "oct" => {
-            ops::arity(args, 0)?;
+            if !args.is_empty() {
+                return Err(argument(&format!("string.{name} does not take arguments")));
+            }
             inum(ctx, &bytes.data, name == "oct")?
         }
         "clamp" => clamp(ctx, receiver, args)?,
         "between?" => {
-            ops::arity(args, 2)?;
+            crate::arguments::between("string.between?", args, false, false)?;
             let lower = ops::compare(ctx, &args[0], receiver)?;
             let within = matches!(lower, Some(Ordering::Less | Ordering::Equal))
                 && matches!(
@@ -67,8 +68,8 @@ pub(crate) fn call(
             match name {
                 "to_sym" | "intern" => Value(Kind::Symbol(bytes.clone())),
                 "to_s" | "string" => receiver.clone(),
-                "to_i" => ops::method(ctx, Method::ToInt, receiver.clone(), &[])?,
-                "to_f" => Value::float(crate::conversion::float(ctx, &bytes.data)?),
+                "to_i" => crate::conversion::integer(ctx, &bytes.data, "string.to_i")?,
+                "to_f" => Value::float(crate::conversion::float(ctx, &bytes.data, "string.to_f")?),
                 _ => unreachable!(),
             }
         }
@@ -107,16 +108,18 @@ fn concat(ctx: &mut CallContext, receiver: &Value, args: &[Value]) -> Result<Val
 }
 
 fn clamp(ctx: &mut CallContext, receiver: &Value, args: &[Value]) -> Result<Value> {
-    ops::arity(args, 2)?;
+    if args.len() != 2 {
+        return Err(argument("string.clamp expects min and max"));
+    }
     for value in args {
         if !matches!(value.0, Kind::Bytes(_) | Kind::Nil) {
-            return Err(argument("string clamp bounds must be strings or nil"));
+            return Err(argument("string.clamp bounds must be strings or nil"));
         }
     }
     let lower = !matches!(args[0].0, Kind::Nil);
     let upper = !matches!(args[1].0, Kind::Nil);
     if lower && upper && ops::compare(ctx, &args[0], &args[1])? == Some(Ordering::Greater) {
-        return Err(argument("string clamp minimum exceeds maximum"));
+        return Err(argument("string.clamp min must be <= max"));
     }
     if lower && ops::compare(ctx, receiver, &args[0])? == Some(Ordering::Less) {
         return Ok(args[0].clone());
@@ -128,6 +131,16 @@ fn clamp(ctx: &mut CallContext, receiver: &Value, args: &[Value]) -> Result<Valu
 }
 
 fn inum(ctx: &mut CallContext, text: &[u8], detect_base: bool) -> Result<Value> {
+    let overflow = || {
+        Error::new(
+            ErrorKind::Arithmetic,
+            if detect_base {
+                "string.oct integer out of range"
+            } else {
+                "string.hex integer out of range"
+            },
+        )
+    };
     let mut position = 0;
     while position < text.len() && super::split::space(text[position]) {
         ctx.charge(1)?;
@@ -176,12 +189,7 @@ fn inum(ctx: &mut CallContext, text: &[u8], detect_base: bool) -> Result<Value> 
         magnitude = magnitude
             .checked_mul(base)
             .and_then(|n| n.checked_add(digit))
-            .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::Arithmetic,
-                    "hexadecimal or octal integer overflow",
-                )
-            })?;
+            .ok_or_else(overflow)?;
         parsed = true;
         underscore = false;
         position += 1;
@@ -191,12 +199,7 @@ fn inum(ctx: &mut CallContext, text: &[u8], detect_base: bool) -> Result<Value> 
     } else {
         magnitude as i128
     };
-    i64::try_from(value).map(Value::int).map_err(|_| {
-        Error::new(
-            ErrorKind::Arithmetic,
-            "hexadecimal or octal integer overflow",
-        )
-    })
+    i64::try_from(value).map(Value::int).map_err(|_| overflow())
 }
 
 #[cfg(test)]

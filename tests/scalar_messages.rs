@@ -678,3 +678,266 @@ fn time_parse_explains_rejections_with_go_parse_errors() {
         ),
     ]);
 }
+
+#[test]
+fn numeric_members_and_conversions_use_go_wording() {
+    use ErrorClass::{Limit, Runtime, ZeroDivision};
+    rejects(&[
+        ("def run\n  5.div(0)\nend", ZeroDivision, "int.div by zero"),
+        (
+            "def run\n  5.0.modulo(0)\nend",
+            ZeroDivision,
+            "float.modulo by zero",
+        ),
+        (
+            "def run\n  7.modulo(0)\nend",
+            ZeroDivision,
+            "int.modulo by zero",
+        ),
+        (
+            "def run\n  5.divmod(0.0)\nend",
+            ZeroDivision,
+            "int.divmod by zero",
+        ),
+        (
+            "def run\n  5.div\nend",
+            Runtime,
+            "int.div expects one numeric argument",
+        ),
+        (
+            "def run\n  5.remainder(\"x\")\nend",
+            Runtime,
+            "int.remainder expects a numeric argument",
+        ),
+        (
+            "def run\n  (1.0/0).to_i\nend",
+            Runtime,
+            "float.to_i result out of int64 range",
+        ),
+        (
+            "def run\n  0.0.div(0.0/0.0)\nend",
+            Runtime,
+            "float.div result out of int64 range",
+        ),
+        (
+            "def run\n  1.5.round(1.5)\nend",
+            Runtime,
+            "float.round precision must be an Integer",
+        ),
+        (
+            "def run\n  1.round(2**40)\nend",
+            Runtime,
+            "int.round precision 1099511627776 too big to convert to int",
+        ),
+        (
+            "def run\n  1.floor(-(2**70))\nend",
+            Runtime,
+            "int.floor precision too small to convert to int",
+        ),
+        (
+            "def run\n  1.ceil(1, 2)\nend",
+            Runtime,
+            "int.ceil expects at most one precision argument",
+        ),
+        (
+            "def run\n  (0.0/0.0).floor\nend",
+            Runtime,
+            "float.floor result out of int64 range",
+        ),
+        (
+            "def run\n  5.clamp(10, 0)\nend",
+            Runtime,
+            "int.clamp min must be <= max",
+        ),
+        (
+            "def run\n  5.clamp(1...3)\nend",
+            Runtime,
+            "int.clamp cannot clamp with exclusive range",
+        ),
+        (
+            "def run\n  5.clamp(1)\nend",
+            Runtime,
+            "int.clamp expects min and max or range",
+        ),
+        (
+            "def run\n  5.5.clamp(\"x\", 1)\nend",
+            Runtime,
+            "float.clamp bounds must be numeric or nil",
+        ),
+        (
+            "def run\n  5.clamp(0.0/0.0, nil)\nend",
+            Runtime,
+            "int.clamp values must not be NaN",
+        ),
+        (
+            "def run\n  5.between?(1)\nend",
+            Runtime,
+            "int.between? expects min and max",
+        ),
+        (
+            "def run\n  5.zero?(1)\nend",
+            Runtime,
+            "int.zero? does not take arguments",
+        ),
+        (
+            "def run\n  1.5.nan?(1)\nend",
+            Runtime,
+            "float.nan? does not take arguments",
+        ),
+        (
+            "def run\n  to_int(1.5)\nend",
+            Runtime,
+            "to_int cannot convert non-integer float",
+        ),
+        (
+            "def run\n  to_int(1.0/0)\nend",
+            Runtime,
+            "to_int result out of int64 range",
+        ),
+        (
+            "def run\n  to_int(\"abc\")\nend",
+            Runtime,
+            "to_int expects a base-10 integer string",
+        ),
+        (
+            "def run\n  to_int(\"\")\nend",
+            Runtime,
+            "to_int expects a numeric string",
+        ),
+        (
+            "def run\n  to_int(nil)\nend",
+            Runtime,
+            "to_int expects int, float, or string",
+        ),
+        (
+            "def run\n  to_int(1, 2)\nend",
+            Runtime,
+            "to_int expects a single value argument",
+        ),
+        (
+            "def run\n  to_float(\"1e400\")\nend",
+            Runtime,
+            "to_float expects a numeric string",
+        ),
+        (
+            "def run\n  to_float(\"Infinity\")\nend",
+            Runtime,
+            "to_float expects a finite numeric string",
+        ),
+        (
+            "def run\n  to_float(\"nan\")\nend",
+            Runtime,
+            "to_float expects a finite numeric string",
+        ),
+        (
+            "def run\n  \"12a\".to_i\nend",
+            Runtime,
+            "string.to_i expects a base-10 integer string",
+        ),
+        (
+            "def run\n  (\"1\" * 100001).to_i\nend",
+            Limit,
+            "string.to_i exceeds the 100000 digit conversion limit",
+        ),
+        (
+            "def run\n  \"-inf\".to_f\nend",
+            Runtime,
+            "string.to_f expects a finite numeric string",
+        ),
+        (
+            "def run\n  \"ffffffffffffffffffff\".hex\nend",
+            Runtime,
+            "string.hex integer out of range",
+        ),
+        (
+            "def run\n  \"7777777777777777777777777\".oct\nend",
+            Runtime,
+            "string.oct integer out of range",
+        ),
+        (
+            "def run\n  \"a\".hex(1)\nend",
+            Runtime,
+            "string.hex does not take arguments",
+        ),
+        (
+            "def run\n  Math.sqrt(-1)\nend",
+            Runtime,
+            "Math.sqrt out of domain",
+        ),
+        (
+            "def run\n  Math.log(1, -2)\nend",
+            Runtime,
+            "Math.log out of domain",
+        ),
+        (
+            "def run\n  Math.atan2(1)\nend",
+            Runtime,
+            "Math.atan2 expects 2 arguments, got 1",
+        ),
+        (
+            "def run\n  Math.log(1, 2, 3)\nend",
+            Runtime,
+            "Math.log expects 1 or 2 arguments, got 3",
+        ),
+        (
+            "def run\n  Math.sqrt(\"x\")\nend",
+            Runtime,
+            "Math.sqrt expects a numeric argument, got string",
+        ),
+        (
+            "def run\n  Math.sqrt(1) { 2 }\nend",
+            Runtime,
+            "Math.sqrt does not accept a block",
+        ),
+        (
+            "def run\n  \"a\".center(1e20)\nend",
+            Runtime,
+            "string.center width is out of range",
+        ),
+        (
+            "def run\n  \"a\".center(\"x\")\nend",
+            Runtime,
+            "string.center width must be integer",
+        ),
+        (
+            "def run\n  \"a\".ljust(5, 1)\nend",
+            Runtime,
+            "string.ljust pad must be string",
+        ),
+        (
+            "def run\n  \"a\".rjust(5, \"\")\nend",
+            Runtime,
+            "string.rjust pad must not be empty",
+        ),
+        (
+            "def run\n  \"a\".center(5, x: 1)\nend",
+            Runtime,
+            "string.center does not accept keyword arguments",
+        ),
+        (
+            "def run\n  \"a\".partition(1)\nend",
+            Runtime,
+            "string.partition separator must be string",
+        ),
+        (
+            "def run\n  \"a\".rpartition(\"a\", \"b\")\nend",
+            Runtime,
+            "string.rpartition expects exactly one separator",
+        ),
+        (
+            "def run\n  \"a\".clamp(\"b\", \"a\")\nend",
+            Runtime,
+            "string.clamp min must be <= max",
+        ),
+        (
+            "def run\n  \"a\".clamp(1, nil)\nend",
+            Runtime,
+            "string.clamp bounds must be strings or nil",
+        ),
+        (
+            "def run\n  \"a\".between?(1)\nend",
+            Runtime,
+            "string.between? expects min and max",
+        ),
+    ]);
+}

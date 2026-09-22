@@ -702,11 +702,13 @@ pub(crate) fn divmod(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<(Val
     ))
 }
 
-pub(crate) fn from_float(ctx: &mut CallContext, value: f64) -> Result<Value> {
+/// Converts a float truncated toward zero; `method` names a non-finite value's
+/// failure as Go does.
+pub(crate) fn from_float(ctx: &mut CallContext, value: f64, method: &str) -> Result<Value> {
     if !value.is_finite() {
         return Err(Error::new(
             ErrorKind::Arithmetic,
-            "cannot convert a non-finite float to integer",
+            format!("{method} result out of int64 range"),
         ));
     }
     if value >= i64::MIN as f64 && value < 9223372036854775808.0 {

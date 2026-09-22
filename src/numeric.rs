@@ -10,9 +10,20 @@ pub(crate) fn call(
     if !matches!(receiver.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_)) {
         return Ok(None);
     }
+    let kind = receiver.type_name();
+    let nullary = || {
+        if args.is_empty() {
+            Ok(())
+        } else {
+            Err(Error::new(
+                ErrorKind::Argument,
+                format!("{kind}.{name} does not take arguments"),
+            ))
+        }
+    };
     let value = match name {
         "zero?" | "positive?" | "negative?" | "nonzero?" => {
-            ops::arity(args, 0)?;
+            nullary()?;
             let number = receiver.as_float().unwrap();
             match name {
                 "zero?" => Value::boolean(number == 0.0),
@@ -23,7 +34,7 @@ pub(crate) fn call(
             }
         }
         "nan?" | "infinite?" | "finite?" if matches!(receiver.0, Kind::Float(_)) => {
-            ops::arity(args, 0)?;
+            nullary()?;
             let number = receiver.as_float().unwrap();
             match name {
                 "nan?" => Value::boolean(number.is_nan()),
@@ -33,7 +44,7 @@ pub(crate) fn call(
             }
         }
         "next" | "succ" | "pred" if receiver.is_integer() => {
-            ops::arity(args, 0)?;
+            nullary()?;
             calculate(
                 ctx,
                 if name == "pred" { "-" } else { "+" },
@@ -41,20 +52,26 @@ pub(crate) fn call(
                 &Value::int(1),
             )?
         }
-        "round" | "floor" | "ceil" => round(ctx, receiver, args, name)?,
+        "round" | "floor" | "ceil" => round(ctx, receiver, args, &format!("{kind}.{name}"))?,
         "div" | "divmod" | "fdiv" | "remainder" | "modulo" => {
-            ops::arity(args, 1)?;
+            let method = format!("{kind}.{name}");
+            if args.len() != 1 {
+                return Err(Error::new(
+                    ErrorKind::Argument,
+                    format!("{method} expects one numeric argument"),
+                ));
+            }
             if args[0].as_float().is_none() {
                 return Err(Error::new(
                     ErrorKind::Type,
-                    "division expects a numeric argument",
+                    format!("{method} expects a numeric argument"),
                 ));
             }
-            division(ctx, name, receiver, &args[0])?
+            division(ctx, &method, receiver, &args[0])?
         }
-        "clamp" => clamp(ctx, receiver, args)?,
+        "clamp" => clamp(ctx, &format!("{kind}.clamp"), receiver, args)?,
         "between?" => {
-            ops::arity(args, 2)?;
+            crate::arguments::between(&format!("{kind}.between?"), args, false, false)?;
             let lower = ops::compare(ctx, &args[0], receiver)?;
             let inside = matches!(lower, Some(Ordering::Less | Ordering::Equal))
                 && matches!(
@@ -72,16 +89,20 @@ fn calculate(ctx: &mut CallContext, op: &'static str, a: &Value, b: &Value) -> R
     ops::binary(ctx, op, a.clone(), b.clone())
 }
 
-fn division(ctx: &mut CallContext, name: &str, a: &Value, b: &Value) -> Result<Value> {
+/// Runs a numeric division member; `method` is its full name, such as `int.div`.
+fn division(ctx: &mut CallContext, method: &str, a: &Value, b: &Value) -> Result<Value> {
+    let name = method.rsplit('.').next().unwrap_or(method);
     if name == "fdiv" {
         return Ok(Value::float(a.as_float().unwrap() / b.as_float().unwrap()));
+    }
+    if b.as_float() == Some(0.0) {
+        return Err(zero_division(method));
     }
     if a.is_integer() && b.is_integer() {
         return match name {
             "div" => calculate(ctx, "/", a, b),
             "modulo" => calculate(ctx, "%", a, b),
             "remainder" => match (a.as_int(), b.as_int()) {
-                (_, Some(0)) => Err(zero_division()),
                 (Some(a), Some(b)) => Ok(Value::int(a.checked_rem(b).unwrap_or(0))),
                 _ => integer::binary(ctx, "remainder", a, b),
             },
@@ -98,11 +119,8 @@ fn division(ctx: &mut CallContext, name: &str, a: &Value, b: &Value) -> Result<V
     }
     let a = a.as_float().unwrap();
     let b = b.as_float().unwrap();
-    if b == 0.0 {
-        return Err(zero_division());
-    }
     if name == "div" {
-        return integer::from_float(ctx, (a / b).floor());
+        return integer::from_float(ctx, (a / b).floor(), method);
     }
     let remainder = a % b;
     if name == "remainder" {
@@ -133,17 +151,17 @@ fn division(ctx: &mut CallContext, name: &str, a: &Value, b: &Value) -> Result<V
             0
         })
     } else {
-        integer::from_float(ctx, ((a - modulo) / b).round())?
+        integer::from_float(ctx, ((a - modulo) / b).round(), method)?
     };
     ctx.array(&[quotient, Value::float(modulo)])
 }
 
-fn zero_division() -> Error {
-    Error::new(ErrorKind::Arithmetic, "division by zero")
+fn zero_division(method: &str) -> Error {
+    Error::new(ErrorKind::Arithmetic, format!("{method} by zero"))
         .with_class(crate::ErrorClass::ZeroDivision)
 }
 
-fn exact_order(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Ordering> {
+fn exact_order(ctx: &mut CallContext, method: &str, a: &Value, b: &Value) -> Result<Ordering> {
     let order = match (&a.0, &b.0) {
         (Kind::Int(_) | Kind::Big(_), Kind::Float(b)) => integer::compare_float(ctx, a, *b)?,
         (Kind::Float(a), Kind::Int(_) | Kind::Big(_)) => {
@@ -151,13 +169,24 @@ fn exact_order(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Ordering> 
         }
         _ => ops::compare(ctx, a, b)?,
     };
-    order.ok_or_else(|| Error::new(ErrorKind::Argument, "clamp values must not be NaN"))
+    order.ok_or_else(|| {
+        Error::new(
+            ErrorKind::Argument,
+            format!("{method} values must not be NaN"),
+        )
+    })
 }
 
-fn clamp(ctx: &mut CallContext, receiver: &Value, args: &[Value]) -> Result<Value> {
+fn clamp(ctx: &mut CallContext, method: &str, receiver: &Value, args: &[Value]) -> Result<Value> {
     let (lower, upper) = match args {
         [Value(Kind::Range(range))] if !range.exclusive => {
             (range.start.map(Value::int), range.end.map(Value::int))
+        }
+        [Value(Kind::Range(_))] => {
+            return Err(Error::new(
+                ErrorKind::Argument,
+                format!("{method} cannot clamp with exclusive range"),
+            ));
         }
         [lower, upper] => {
             let bound = |value: &Value| match &value.0 {
@@ -165,7 +194,7 @@ fn clamp(ctx: &mut CallContext, receiver: &Value, args: &[Value]) -> Result<Valu
                 Kind::Int(_) | Kind::Big(_) | Kind::Float(_) => Ok(Some(value.clone())),
                 _ => Err(Error::new(
                     ErrorKind::Type,
-                    "clamp bounds must be numeric or nil",
+                    format!("{method} bounds must be numeric or nil"),
                 )),
             };
             (bound(lower)?, bound(upper)?)
@@ -173,25 +202,25 @@ fn clamp(ctx: &mut CallContext, receiver: &Value, args: &[Value]) -> Result<Valu
         _ => {
             return Err(Error::new(
                 ErrorKind::Argument,
-                "clamp expects two bounds or an inclusive range",
+                format!("{method} expects min and max or range"),
             ));
         }
     };
     if let (Some(lower), Some(upper)) = (&lower, &upper) {
-        if exact_order(ctx, lower, upper)? == Ordering::Greater {
+        if exact_order(ctx, method, lower, upper)? == Ordering::Greater {
             return Err(Error::new(
                 ErrorKind::Argument,
-                "clamp minimum exceeds maximum",
+                format!("{method} min must be <= max"),
             ));
         }
     }
     if let Some(lower) = lower {
-        if exact_order(ctx, receiver, &lower)? == Ordering::Less {
+        if exact_order(ctx, method, receiver, &lower)? == Ordering::Less {
             return Ok(lower);
         }
     }
     if let Some(upper) = upper {
-        if exact_order(ctx, receiver, &upper)? == Ordering::Greater {
+        if exact_order(ctx, method, receiver, &upper)? == Ordering::Greater {
             return Ok(upper);
         }
     }
@@ -205,29 +234,43 @@ enum Rounding {
     Ceil,
 }
 
-fn round(ctx: &mut CallContext, receiver: &Value, args: &[Value], name: &str) -> Result<Value> {
+/// Rounds a number for `method`, such as `float.round`, reading its precision as Go does.
+fn round(ctx: &mut CallContext, receiver: &Value, args: &[Value], method: &str) -> Result<Value> {
+    let range = |direction: &str, value: Option<i64>| {
+        Error::new(
+            ErrorKind::Argument,
+            match value {
+                Some(value) => {
+                    format!("{method} precision {value} too {direction} to convert to int")
+                }
+                None => format!("{method} precision too {direction} to convert to int"),
+            },
+        )
+    };
     let digits = match args {
         [] => 0,
-        [n] if n.is_integer() => {
-            n.as_int()
-                .and_then(|n| i32::try_from(n).ok())
-                .ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Argument,
-                        "rounding precision must fit a signed 32-bit integer",
-                    )
-                })?
+        [Value(Kind::Int(n))] => {
+            i32::try_from(*n).map_err(|_| range(if *n > 0 { "big" } else { "small" }, Some(*n)))?
+        }
+        [Value(Kind::Big(n))] => {
+            return Err(range(if n.negative { "small" } else { "big" }, None));
+        }
+        [_] => {
+            return Err(Error::new(
+                ErrorKind::Argument,
+                format!("{method} precision must be an Integer"),
+            ));
         }
         _ => {
             return Err(Error::new(
                 ErrorKind::Argument,
-                "rounding expects at most one integer precision",
+                format!("{method} expects at most one precision argument"),
             ));
         }
     };
-    let mode = match name {
-        "floor" => Rounding::Floor,
-        "ceil" => Rounding::Ceil,
+    let mode = match method.rsplit('.').next() {
+        Some("floor") => Rounding::Floor,
+        Some("ceil") => Rounding::Ceil,
         _ => Rounding::Nearest,
     };
     if receiver.is_integer() {
@@ -243,7 +286,7 @@ fn round(ctx: &mut CallContext, receiver: &Value, args: &[Value], name: &str) ->
         Rounding::Nearest if digits == 0 => number.round(),
         Rounding::Nearest => number.trunc(),
     };
-    let whole = integer::from_float(ctx, whole)?;
+    let whole = integer::from_float(ctx, whole, method)?;
     integer_round(ctx, &whole, digits, mode)
 }
 
@@ -274,7 +317,7 @@ fn integer_round(
         return Ok(Value::int(0));
     }
     let bucket = pow10(ctx, digits)?;
-    let remainder = division(ctx, "remainder", value, &bucket)?;
+    let remainder = division(ctx, "int.remainder", value, &bucket)?;
     let base = calculate(ctx, "-", value, &remainder)?;
     let round_away = if matches!(mode, Rounding::Nearest) {
         let twice = calculate(

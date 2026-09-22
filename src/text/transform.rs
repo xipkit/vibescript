@@ -3,7 +3,7 @@ use crate::{
     scan, sequence, value::Kind,
 };
 
-fn argument(message: &str) -> Error {
+fn argument(message: impl Into<String>) -> Error {
     Error::new(ErrorKind::Argument, message)
 }
 
@@ -191,18 +191,25 @@ fn write_pad(ctx: &mut CallContext, output: &mut Buffer<u8>, pad: &[u8], plan: P
 
 fn padding(ctx: &mut CallContext, name: &str, receiver: &Value, args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(argument("padding expects width and an optional pad string"));
+        return Err(argument(format!(
+            "string.{name} expects width and optional pad string"
+        )));
     }
     let width = sequence::integer(&args[0]).map_err(|_| {
-        argument("padding width must be a finite number within the 64-bit integer range")
+        if matches!(args[0].0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_)) {
+            argument(format!("string.{name} width is out of range"))
+        } else {
+            argument(format!("string.{name} width must be integer"))
+        }
     })?;
     let pad = if args.len() == 2 {
-        string(&args[1])?
+        string(&args[1])
+            .map_err(|error| Error::new(error.kind, format!("string.{name} pad must be string")))?
     } else {
         b" "
     };
     if pad.is_empty() {
-        return Err(argument("padding string must not be empty"));
+        return Err(argument(format!("string.{name} pad must not be empty")));
     }
     let bytes = string(receiver)?;
     let length = ops::runes(ctx, bytes)?.0;
@@ -273,17 +280,26 @@ pub(crate) fn call(
         "center" | "ljust" | "rjust" | "partition" | "rpartition"
     ) {
         ctx.charge(1)?;
-        if keywords {
-            return Err(argument(
-                "padding and partition do not accept keyword arguments",
-            ));
+        if matches!(name, "partition" | "rpartition") {
+            if keywords || args.len() != 1 {
+                return Err(argument(format!(
+                    "string.{name} expects exactly one separator"
+                )));
+            }
+            let separator = string(&args[0]).map_err(|error| {
+                Error::new(
+                    error.kind,
+                    format!("string.{name} separator must be string"),
+                )
+            })?;
+            return partition(ctx, receiver, separator, name == "rpartition").map(Some);
         }
-        return if matches!(name, "partition" | "rpartition") {
-            ops::arity(args, 1)?;
-            partition(ctx, receiver, string(&args[0])?, name == "rpartition").map(Some)
-        } else {
-            padding(ctx, name, receiver, args).map(Some)
-        };
+        if keywords {
+            return Err(argument(format!(
+                "string.{name} does not accept keyword arguments"
+            )));
+        }
+        return padding(ctx, name, receiver, args).map(Some);
     }
     let bang = name.ends_with('!');
     let name = name.strip_suffix('!').unwrap_or(name);
