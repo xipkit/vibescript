@@ -183,7 +183,7 @@ pub(crate) fn binary(op: &str, left: &Value, right: &Value) -> Result<Value> {
         (Kind::Money(_), Kind::Big(_), "*" | "/") | (Kind::Big(_), Kind::Money(_), "*") => {
             return Err(overflow());
         }
-        _ => return Err(Error::new(ErrorKind::Type, "unsupported money operands")),
+        _ => return Err(ops::unsupported(op)),
     };
     Ok(Value(Kind::Money(value)))
 }

@@ -209,8 +209,8 @@ fn finite_floats_truncate_at_integer_sites() {
         ("(1..1e19)", "float 1e+19 is out of integer range"),
         ("(1..2**64)", "range endpoints must fit in a 64-bit integer"),
         ("[[1]].dig(0, 0.5)", "array.dig array index must be integer"),
-        ("\"ab\" * -1.5", "negative repeat count"),
-        ("\"ab\" * (1.0/0)", "unsupported operand types"),
+        ("\"ab\" * -1.5", "negative argument for string repetition"),
+        ("\"ab\" * (1.0/0)", "unsupported multiplication operands"),
     ] {
         let script = Engine::new().compile(source).unwrap();
         let error = script.run(CallOptions::default()).unwrap_err();

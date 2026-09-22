@@ -13,6 +13,25 @@ fn type_error() -> Error {
     Error::new(ErrorKind::Type, "unsupported operand types")
 }
 
+/// Refuses operands that `op` cannot combine, naming the operation as Go does.
+pub(crate) fn unsupported(op: &str) -> Error {
+    Error::new(
+        ErrorKind::Type,
+        match op {
+            "+" => "unsupported addition operands",
+            "-" => "unsupported subtraction operands",
+            "*" => "unsupported multiplication operands",
+            "/" => "unsupported division operands",
+            "%" => "unsupported modulo operands",
+            "**" => "unsupported exponentiation operands",
+            "<<" => "unsupported shovel operands",
+            "&" => "unsupported intersection operands",
+            "<" | "<=" | ">" | ">=" | "<=>" => "unsupported comparison operands",
+            _ => "unsupported operator",
+        },
+    )
+}
+
 pub(crate) fn unary(ctx: &mut CallContext, op: &str, value: Value) -> Result<Value> {
     match (op, &value.0) {
         ("!", _) => Ok(Value::boolean(!value.truthy())),
@@ -20,7 +39,9 @@ pub(crate) fn unary(ctx: &mut CallContext, op: &str, value: Value) -> Result<Val
         ("-", Kind::Int(n)) if *n != i64::MIN => Ok(Value::int(-n)),
         ("-", Kind::Int(_) | Kind::Big(_)) => crate::integer::negate(ctx, &value, false),
         ("-", Kind::Float(n)) => Ok(Value::float(-n)),
-        _ => Err(type_error()),
+        ("-", _) => Err(Error::new(ErrorKind::Type, "unsupported unary - operand")),
+        ("+", _) => Err(Error::new(ErrorKind::Type, "unsupported unary + operand")),
+        _ => Err(Error::new(ErrorKind::Type, "unsupported unary operator")),
     }
 }
 
@@ -60,9 +81,16 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
         }));
     }
     if op == "<<" {
+        if !matches!(a.0, Kind::Array(_)) {
+            return Err(unsupported(op));
+        }
         return a.push(ctx, &[b]);
     }
     if op == "&" || (op == "-" && matches!(a.0, Kind::Array(_))) {
+        if !matches!(a.0, Kind::Array(_)) || !matches!(b.0, Kind::Array(_)) {
+            ctx.checkpoint()?;
+            return Err(unsupported(op));
+        }
         return crate::sets::binary(ctx, op, &a, &b);
     }
     if op == "+" && matches!(a.0, Kind::Array(_)) {
@@ -90,7 +118,7 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
             )
         };
         if !scalar(&a) || !scalar(&b) {
-            return Err(type_error());
+            return Err(unsupported(op));
         }
         let a = to_string(ctx, &a)?;
         let b = to_string(ctx, &b)?;
@@ -116,8 +144,7 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
                 "*" => a.checked_mul(*b),
                 "/" | "%" => {
                     if *b == 0 {
-                        return Err(Error::new(ErrorKind::Arithmetic, "division by zero")
-                            .with_class(crate::ErrorClass::ZeroDivision));
+                        return Err(zero_division(op));
                     }
                     let Some(q) = a.checked_div(*b) else {
                         return crate::integer::binary(ctx, op, &Value::int(*a), &Value::int(*b));
@@ -140,13 +167,14 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
                         .ok()
                         .and_then(|power| a.checked_pow(power))
                 }
-                _ => return Err(type_error()),
+                _ => return Err(unsupported(op)),
             };
             match n {
                 Some(n) => Ok(Value::int(n)),
                 None => crate::integer::binary(ctx, op, &Value::int(*a), &Value::int(*b)),
             }
         }
+        (Kind::Big(_), Kind::Int(0)) if op == "%" => Err(zero_division(op)),
         (Kind::Int(_) | Kind::Big(_), Kind::Int(_) | Kind::Big(_)) => {
             crate::integer::binary(ctx, op, &a, &b)
         }
@@ -164,14 +192,16 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
                 "-" => a - b,
                 "*" => a * b,
                 "/" => a / b,
-                _ => return Err(type_error()),
+                _ => return Err(unsupported(op)),
             }))
+        }
+        (Kind::Bytes(_), Kind::Big(count)) if op == "*" && count.negative => {
+            Err(negative_repetition())
         }
         (Kind::Bytes(s), Kind::Int(_) | Kind::Float(_)) if op == "*" => {
             // A float count truncates toward zero, so a fraction above -1 repeats zero times.
-            let n = crate::sequence::integer(&b).map_err(|_| type_error())?;
-            let n = usize::try_from(n)
-                .map_err(|_| Error::new(ErrorKind::Argument, "negative repeat count"))?;
+            let n = crate::sequence::integer(&b).map_err(|_| unsupported(op))?;
+            let n = usize::try_from(n).map_err(|_| negative_repetition())?;
             let len = s
                 .data
                 .len()
@@ -193,8 +223,28 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
             }
             Value::from_bytes(ctx, out)
         }
-        _ => Err(type_error()),
+        _ => Err(unsupported(op)),
     }
+}
+
+/// Refuses a zero divisor, naming modulo apart from division as Go does.
+pub(crate) fn zero_division(op: &str) -> Error {
+    Error::new(
+        ErrorKind::Arithmetic,
+        if op == "%" {
+            "modulo by zero"
+        } else {
+            "division by zero"
+        },
+    )
+    .with_class(crate::ErrorClass::ZeroDivision)
+}
+
+fn negative_repetition() -> Error {
+    Error::new(
+        ErrorKind::Argument,
+        "negative argument for string repetition",
+    )
 }
 
 pub(crate) fn float_power(base: f64, exponent: f64) -> Result<Value> {
@@ -247,9 +297,10 @@ pub(crate) fn case_matches(
 
 pub(crate) fn compare(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Option<Ordering>> {
     match (&a.0, &b.0) {
-        (Kind::Money(a), Kind::Money(b)) => a.order(*b).map(Some).ok_or_else(|| {
-            Error::new(ErrorKind::Type, "cannot compare different money currencies")
-        }),
+        (Kind::Money(a), Kind::Money(b)) => a
+            .order(*b)
+            .map(Some)
+            .ok_or_else(|| Error::new(ErrorKind::Type, "money currency mismatch for comparison")),
         (Kind::Duration(a), Kind::Duration(b)) => Ok(Some(crate::duration::order(*a, *b))),
         (Kind::Time(_) | Kind::Zoned(_), Kind::Time(_) | Kind::Zoned(_)) => Ok(Some(
             crate::time::stamp(a)
@@ -277,7 +328,7 @@ pub(crate) fn compare(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Opt
             }
             Ok(Some(a.data.len().cmp(&b.data.len())))
         }
-        _ => Err(type_error()),
+        _ => Err(unsupported("<")),
     }
 }
 

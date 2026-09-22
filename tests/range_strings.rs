@@ -125,13 +125,16 @@ fn ranges_do_not_widen_the_other_rejected_operand_forms() {
         assert!(!report.is_clean(), "{source}: {report:?}");
         let error = script.call("run", &[], CallOptions::default()).unwrap_err();
         assert_eq!(error.kind, ErrorKind::Type, "{expression}");
-        assert_eq!(error.message, "unsupported operand types", "{expression}");
+        assert_eq!(
+            error.message, "unsupported addition operands",
+            "{expression}"
+        );
     }
     let error = compile("class Plain; end\ndef run; \"a\" + Plain.new; end")
         .call("run", &[], CallOptions::default())
         .unwrap_err();
     assert_eq!(error.kind, ErrorKind::Type);
-    assert_eq!(error.message, "unsupported operand types");
+    assert_eq!(error.message, "unsupported addition operands");
     // `sum` keeps its own compatibility guard even though `"a" + (1..2)` is
     // now a valid binary expression.
     for expression in ["[\"a\", (1..2)].sum(\"\")", "[(1..2)].sum(\"\")"] {

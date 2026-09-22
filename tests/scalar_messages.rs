@@ -15,6 +15,13 @@ fn fail(source: &str, args: &[Value], limits: Limits) -> vibescript::Error {
     }
 }
 
+/// Asserts the message and class of each script's failure when calling `run`.
+fn rejects(cases: &[(&str, ErrorClass, &str)]) {
+    for (source, class, message) in cases {
+        limited(source, &[], Limits::default(), *class, message);
+    }
+}
+
 fn limited(source: &str, args: &[Value], limits: Limits, class: ErrorClass, message: &str) {
     let error = fail(source, args, limits);
     assert_eq!(error.message, message, "{source}");
@@ -63,4 +70,128 @@ fn guard_limits_name_the_configured_limit() {
         ErrorClass::Limit,
         "recursion depth exceeded (limit 4)",
     );
+}
+
+#[test]
+fn operators_name_the_operation_they_refuse() {
+    use ErrorClass::{Argument, Limit, Runtime, ZeroDivision};
+    rejects(&[
+        (
+            "def run\n  \"a\" + nil\nend",
+            Runtime,
+            "unsupported addition operands",
+        ),
+        (
+            "def run\n  (1..2) + 1\nend",
+            Runtime,
+            "unsupported addition operands",
+        ),
+        (
+            "def run\n  [1] - 1\nend",
+            Runtime,
+            "unsupported subtraction operands",
+        ),
+        (
+            "def run\n  1.second - Time.now\nend",
+            Runtime,
+            "unsupported subtraction operands",
+        ),
+        (
+            "def run\n  Time.now * 2\nend",
+            Runtime,
+            "unsupported multiplication operands",
+        ),
+        (
+            "def run\n  \"ab\" * (2**70)\nend",
+            Runtime,
+            "unsupported multiplication operands",
+        ),
+        (
+            "def run\n  money(\"1.00 USD\") * 1.5\nend",
+            Runtime,
+            "unsupported multiplication operands",
+        ),
+        (
+            "def run\n  nil / 2\nend",
+            Runtime,
+            "unsupported division operands",
+        ),
+        (
+            "def run\n  1.5 % 2.0\nend",
+            Runtime,
+            "unsupported modulo operands",
+        ),
+        (
+            "def run\n  1.second % 2\nend",
+            Runtime,
+            "unsupported modulo operands",
+        ),
+        (
+            "def run\n  1.second ** 2\nend",
+            Runtime,
+            "unsupported exponentiation operands",
+        ),
+        (
+            "def run\n  x = 1\n  x << 2\nend",
+            Runtime,
+            "unsupported shovel operands",
+        ),
+        (
+            "def run\n  1 << 2\nend",
+            Runtime,
+            "unsupported shovel operands",
+        ),
+        (
+            "def run\n  [1] & 1\nend",
+            Runtime,
+            "unsupported intersection operands",
+        ),
+        (
+            "def run\n  1 < \"a\"\nend",
+            Argument,
+            "unsupported comparison operands",
+        ),
+        (
+            "def run\n  -\"a\"\nend",
+            Runtime,
+            "unsupported unary - operand",
+        ),
+        (
+            "def run\n  +nil\nend",
+            Runtime,
+            "unsupported unary + operand",
+        ),
+        (
+            "def run\n  money(\"1.00 USD\") < money(\"1.00 EUR\")\nend",
+            Argument,
+            "money currency mismatch for comparison",
+        ),
+        ("def run\n  1 % 0\nend", ZeroDivision, "modulo by zero"),
+        (
+            "def run\n  (2**70) % 0\nend",
+            ZeroDivision,
+            "modulo by zero",
+        ),
+        (
+            "def run\n  1.second % 0.seconds\nend",
+            ZeroDivision,
+            "modulo by zero",
+        ),
+        ("def run\n  1 / 0\nend", ZeroDivision, "division by zero"),
+        (
+            "def run\n  \"ab\" * -1.5\nend",
+            Runtime,
+            "negative argument for string repetition",
+        ),
+        (
+            "def run\n  \"ab\" * -(2**70)\nend",
+            Runtime,
+            "negative argument for string repetition",
+        ),
+        (
+            "def run\n  2 ** (2**70)\nend",
+            Limit,
+            "integer exponentiation exponent is too large",
+        ),
+    ]);
 }

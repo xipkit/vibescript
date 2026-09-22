@@ -527,7 +527,7 @@ pub(crate) fn binary(
     } else if stamp(right).is_some() && op == "+" {
         (right, left, false)
     } else {
-        return Err(Error::new(ErrorKind::Type, "unsupported time operands"));
+        return Err(ops::unsupported(op));
     };
     let delta = match number.0 {
         Kind::Int(n) | Kind::Duration(n) => {
@@ -540,7 +540,7 @@ pub(crate) fn binary(
         }
         Kind::Float(n) => scaled_float(if negate { -n } else { n }, NANOS as u32)?,
         Kind::Big(_) => return Err(overflow()),
-        _ => return Err(Error::new(ErrorKind::Type, "unsupported time operands")),
+        _ => return Err(ops::unsupported(op)),
     };
     value(ctx, stamp(time).unwrap().add(delta), zone(time))
 }

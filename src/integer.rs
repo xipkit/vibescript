@@ -639,7 +639,10 @@ fn power(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Value> {
         }));
     }
     let Some(mut exponent) = b.as_int().map(|n| n as u64) else {
-        return ctx.guard(ErrorKind::Arithmetic, "exponent is too large");
+        return ctx.guard(
+            ErrorKind::Arithmetic,
+            "integer exponentiation exponent is too large",
+        );
     };
     let bits = parts(a).1.bits() as u128;
     let projected = (bits - 1) * exponent as u128 + 1;

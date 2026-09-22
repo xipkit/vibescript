@@ -1502,9 +1502,7 @@ impl Run {
                             "<<",
                             (namespace, caller_instance),
                         )?
-                        .ok_or_else(|| {
-                            Error::new(ErrorKind::Type, "unsupported append operands")
-                        })?;
+                        .ok_or_else(|| ops::unsupported("<<"))?;
                         let args = Arguments::from_values(ctx, &[value])?;
                         enter_arguments(
                             program,
@@ -1518,7 +1516,7 @@ impl Run {
                         continue;
                     }
                     if !matches!(address.value.0, Kind::Array(_)) {
-                        return Err(Error::new(ErrorKind::Type, "unsupported append operands"));
+                        return Err(ops::unsupported("<<"));
                     }
                     let guard_program = programs::address(ctx, storage, &address)?;
                     let guard =

@@ -201,8 +201,7 @@ pub(crate) fn binary(op: &str, left: &Value, right: &Value) -> Result<Value> {
         (Kind::Duration(a), Kind::Duration(b), "-") => a.checked_sub(*b).ok_or_else(overflow)?,
         (Kind::Duration(a), Kind::Duration(b), "/" | "%") => {
             if *b == 0 {
-                return Err(Error::new(ErrorKind::Arithmetic, "division by zero")
-                    .with_class(crate::ErrorClass::ZeroDivision));
+                return Err(ops::zero_division(op));
             }
             if op == "/" {
                 return Ok(Value::float(*a as f64 / *b as f64));
@@ -236,7 +235,7 @@ pub(crate) fn binary(op: &str, left: &Value, right: &Value) -> Result<Value> {
             }
             seconds.checked_div(divisor).ok_or_else(overflow)?
         }
-        _ => return Err(Error::new(ErrorKind::Type, "unsupported duration operands")),
+        _ => return Err(ops::unsupported(op)),
     };
     Ok(Value::duration(seconds))
 }
