@@ -162,11 +162,8 @@ fn location(
 }
 
 fn raw_int(value: f64) -> i64 {
-    // Match the reference toolchain's conversion of optional calendar fields.
-    #[cfg(target_arch = "x86_64")]
-    if !(-9_223_372_036_854_775_808.0..9_223_372_036_854_775_808.0).contains(&value) {
-        return i64::MIN;
-    }
+    // Go's conversion of an out-of-range float depends on the CPU; every
+    // platform uses the reference's arm64 result, which saturates.
     value as i64
 }
 

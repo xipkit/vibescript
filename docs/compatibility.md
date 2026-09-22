@@ -18,6 +18,10 @@ Rust's `vibes check` is deliberately stricter than Go's, as selected on 2026-09-
 
 Rust also fails the gate when it reaches an expression it does not yet analyze, reporting it as incomplete; Go treats such a value as unknown. Of the 277 site, example and upstream test programs, 158 are clean and 16 fail in both checkers. Fifty pass Go's check but report union-alternative errors in Rust. The remaining differences come from unanalyzed expressions and checker budget use, which are being closed rather than accepted.
 
+## Out-of-range float calendar fields
+
+Go converts a float calendar field or `Time.at` argument that does not fit a 64-bit integer with its implementation-defined conversion, which differs by CPU. On arm64 it saturates, so `Time.utc(2024, 1e100, 1)` normalizes from the largest month; on amd64 it wraps to the smallest integer, giving another date, and `Time.at(9.223372036854776e18)` raises. The Rust port uses the arm64 result on every platform, as selected on 2026-09-22, so a script's result does not depend on the host CPU. The shared corpus was recorded on arm64; on amd64 Go differs from it in six such cases.
+
 ## Host signature boundaries
 
 Published signatures follow the documented runtime type contract and the selected consistent binding rules. Named types resolve through the active source before the call root, including required-file defaults and qualified file aliases. Go v0.70.0 can substitute a same-named root enum or class and fail an otherwise valid call, or fail to find a file's type alias. The signature audit records twenty-four such cases across registered methods, capabilities and ordinary globals, where allowed by strict effects.
