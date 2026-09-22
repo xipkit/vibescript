@@ -77,6 +77,6 @@ For reference compatibility, `concat`, `hex`, `oct`, `index`, `rindex` and `spli
 
 Concatenation and splitting project complete result storage before allocating output. Split fields copy proper byte windows so a small retained field does not retain a large input; a whole-input field reuses its source. Discarded trailing fields allocate no output strings. The call's memory limit bounds output and search scratch.
 
-Substring search stores the needle's decoded characters and search table, then streams the subject. It does not construct a normalized copy of the subject. Symbol conversion shares immutable bytes within the call; importing the result into another call receives an independent memory charge.
+Substring search stores the needle's decoded characters and search table, then streams the subject. Searches for `split`, `partition`, `rpartition`, `index`, `rindex`, `include?` and string-pattern `sub`, `gsub` and `scan` charge the bytes they read and their table transitions as bulk byte work, one step per 64 units, like copies. Repetition with `*` copies by doubling what it has written and is charged per byte copied. It does not construct a normalized copy of the subject. Symbol conversion shares immutable bytes within the call; importing the result into another call receives an independent memory charge.
 
 Numeric parsing, comparisons, searching, projection and copies observe step limits, cancellation and deadlines. Exhaustion remains latched, and temporary storage is released on failure.

@@ -178,10 +178,17 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
                 .checked_mul(n)
                 .ok_or_else(|| Error::new(ErrorKind::Memory, "string size overflow"))?;
             let mut out = Buffer::with_capacity(ctx, len)?;
-            if !s.data.is_empty() {
-                for _ in 0..n {
+            if !s.data.is_empty() && n != 0 {
+                out.extend(ctx, &s.data)?;
+                // Each pass copies everything written so far, doubling it.
+                while out.data.len() < len {
                     ctx.charge(1)?;
-                    out.extend(ctx, &s.data)?;
+                    let count = out.data.len().min(len - out.data.len());
+                    for start in (0..count).step_by(CHUNK) {
+                        let end = count.min(start + CHUNK);
+                        ctx.work_bytes(end - start)?;
+                        out.data.extend_from_within(start..end);
+                    }
                 }
             }
             Value::from_bytes(ctx, out)
@@ -906,6 +913,9 @@ pub(crate) fn trim(ctx: &mut CallContext, bytes: &[u8]) -> Result<(usize, usize)
     Ok((start, end))
 }
 
+/// Finds the first, or with `last` the final, occurrence of `needle` with a
+/// Knuth-Morris-Pratt scan. Each byte read and each table transition is one
+/// unit of byte work, charged in chunks.
 pub(crate) fn find(
     ctx: &mut CallContext,
     bytes: &[u8],
@@ -918,13 +928,14 @@ pub(crate) fn find(
     if needle.len() > bytes.len() {
         return Ok(None);
     }
+    let mut pending = 0;
     let mut table = Buffer::with_capacity(ctx, needle.len())?;
     table.data.push(0usize);
     let mut matched = 0;
     for i in 1..needle.len() {
-        ctx.charge(1)?;
+        ctx.scan_bytes(&mut pending, 1)?;
         while matched > 0 && needle[i] != needle[matched] {
-            ctx.charge(1)?;
+            ctx.scan_bytes(&mut pending, 1)?;
             matched = table.data[matched - 1];
         }
         if needle[i] == needle[matched] {
@@ -935,9 +946,9 @@ pub(crate) fn find(
     let mut matched = 0;
     let mut found = None;
     for (i, &b) in bytes.iter().enumerate() {
-        ctx.charge(1)?;
+        ctx.scan_bytes(&mut pending, 1)?;
         while matched > 0 && b != needle[matched] {
-            ctx.charge(1)?;
+            ctx.scan_bytes(&mut pending, 1)?;
             matched = table.data[matched - 1];
         }
         if b == needle[matched] {
@@ -951,6 +962,7 @@ pub(crate) fn find(
             matched = table.data[matched - 1];
         }
     }
+    ctx.settle_bytes(&mut pending)?;
     Ok(found)
 }
 

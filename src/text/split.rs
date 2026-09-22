@@ -59,10 +59,11 @@ impl<'a> Split<'a> {
                 table.ensure(ctx, needle.len())?;
                 table.data.push(0);
                 let mut matched = 0;
+                let mut pending = 0;
                 for i in 1..needle.len() {
-                    ctx.charge(1)?;
+                    ctx.scan_bytes(&mut pending, 1)?;
                     while matched > 0 && needle[i] != needle[matched] {
-                        ctx.charge(1)?;
+                        ctx.scan_bytes(&mut pending, 1)?;
                         matched = table.data[matched - 1];
                     }
                     if needle[i] == needle[matched] {
@@ -70,6 +71,7 @@ impl<'a> Split<'a> {
                     }
                     table.data.push(matched);
                 }
+                ctx.settle_bytes(&mut pending)?;
             }
         }
         Ok(Self { mode, limit, table })
@@ -137,12 +139,14 @@ impl<'a> Split<'a> {
                     emit(ctx, 0, text.len())?;
                     return Ok(());
                 }
+                // Byte reads and table transitions are charged as byte work.
                 let mut start = 0;
                 let mut matched = 0;
+                let mut pending = 0;
                 for (index, &byte) in text.iter().enumerate() {
-                    ctx.charge(1)?;
+                    ctx.scan_bytes(&mut pending, 1)?;
                     while matched > 0 && byte != needle[matched] {
-                        ctx.charge(1)?;
+                        ctx.scan_bytes(&mut pending, 1)?;
                         matched = self.table.data[matched - 1];
                     }
                     if byte == needle[matched] {
@@ -150,17 +154,19 @@ impl<'a> Split<'a> {
                     }
                     if matched == needle.len() {
                         if !emit(ctx, start, index + 1 - needle.len())? {
-                            return Ok(());
+                            return ctx.settle_bytes(&mut pending);
                         }
                         start = index + 1;
                         matched = 0;
                         count += 1;
                         if self.limit > 0 && count as u64 == self.limit as u64 - 1 {
+                            ctx.settle_bytes(&mut pending)?;
                             emit(ctx, start, text.len())?;
                             return Ok(());
                         }
                     }
                 }
+                ctx.settle_bytes(&mut pending)?;
                 emit(ctx, start, text.len())?;
             }
         }

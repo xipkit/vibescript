@@ -359,3 +359,96 @@ fn cancellation_deadlines_and_work_limits_stop_before_followup_effects() {
     }
     assert_eq!(calls.load(Ordering::SeqCst), 0);
 }
+
+fn steps(source: &str, limits: Limits) -> Result<u64, ErrorKind> {
+    Engine::new()
+        .compile(source)
+        .unwrap()
+        .run(CallOptions {
+            limits,
+            ..CallOptions::default()
+        })
+        .map(|outcome| outcome.stats.steps)
+        .map_err(|error| error.kind)
+}
+
+#[test]
+fn byte_scans_and_repetition_are_charged_as_bulk_byte_work() {
+    assert_eq!(
+        evaluate(
+            "s = \"ab,\" * 5\n[s, (\"é\" * 3).size, \"\" * 4, \"x\" * 0, s.split(\",\"), s.split(\",\", 2), \
+             s.partition(\"b,a\"), s.rpartition(\"b,a\"), s.index(\"b,\"), s.rindex(\"b,\"), s.index(\"a\", 4), \
+             s.include?(\",,\"), s.sub(\",\", \";\"), s.gsub(\",a\", \"-\")]"
+        ),
+        serde_json::json!([
+            "ab,ab,ab,ab,ab,",
+            3,
+            "",
+            "",
+            ["ab", "ab", "ab", "ab", "ab"],
+            ["ab", "ab,ab,ab,ab,"],
+            ["a", "b,a", "b,ab,ab,ab,"],
+            ["ab,ab,ab,a", "b,a", "b,"],
+            1,
+            13,
+            6,
+            false,
+            "ab;ab,ab,ab,ab,",
+            "ab-b-b-b-b,"
+        ])
+    );
+    let unlimited = Limits {
+        steps: None,
+        ..Limits::default()
+    };
+    let base = |n: usize| {
+        steps(
+            &format!("big = \"abcdefghij\" * {n} + \"|zzz\"\nnil"),
+            unlimited.clone(),
+        )
+        .unwrap()
+    };
+    for operation in [
+        "big.split(\"|\").size",
+        "big.partition(\"|\").size",
+        "big.rpartition(\"a|\").size",
+        "big.index(\"zzz\")",
+        "big.rindex(\"zzz\", 5)",
+        "big.include?(\"zz|\")",
+        "big.sub(\"zzz\", \"y\").size",
+        "big.gsub(\"|z\", \"\").size",
+        "big.scan(\"zzz\").size",
+    ] {
+        let cost = |n: usize| {
+            let source = format!("big = \"abcdefghij\" * {n} + \"|zzz\"\n{operation}");
+            steps(&source, unlimited.clone()).unwrap() - base(n)
+        };
+        // One megabyte scans in a few steps per 64 bytes.
+        let (small, large) = (cost(50_000), cost(100_000));
+        assert!(large < 100_000, "{operation}: {large}");
+        assert!(large < small * 9 / 4, "{operation}: {small} then {large}");
+    }
+    // Repetition copies by doubling.
+    let repeat = |n: usize| steps(&format!("x = \"x\" * {n}\nnil"), unlimited.clone()).unwrap();
+    assert!(repeat(1 << 20) < 20_000);
+    assert!(repeat(1 << 20) < 2 * repeat(1 << 19) + 100);
+    let exact = repeat(1 << 20);
+    let limited = |steps| Limits {
+        steps: Some(steps),
+        ..Limits::default()
+    };
+    let source = format!("x = \"x\" * {}\nnil", 1 << 20);
+    assert_eq!(steps(&source, limited(exact)), Ok(exact));
+    assert_eq!(steps(&source, limited(exact - 1)), Err(ErrorKind::Steps));
+    let cancellation = CancellationToken::new();
+    cancellation.cancel();
+    let error = Engine::new()
+        .compile("x = \"x\" * 4000000\nnil")
+        .unwrap()
+        .run(CallOptions {
+            cancellation,
+            ..CallOptions::default()
+        })
+        .unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Cancelled);
+}

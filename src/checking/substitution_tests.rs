@@ -533,20 +533,34 @@ fn shared_rendered_values_fail_before_later_callbacks() {
 }
 
 #[test]
-fn default_work_exhaustion_cannot_be_rescued_as_an_output_limit() {
+fn work_exhaustion_cannot_be_rescued_as_an_output_limit() {
+    // Scanning the oversized subject costs about 16,400 steps before the
+    // output limit could apply.
+    let steps = 8_000;
     for call in ["text.sub(\"z\") {7}", "text.sub(text) {7}"] {
         let source = format!("def run(text); begin; {call}; rescue LimitError; 9; end; end");
         let input = Value::bytes(vec![b'a'; crate::regex::MAX_TEXT + 1]);
         let error = Engine::new()
             .compile(&source)
             .unwrap()
-            .call("run", std::slice::from_ref(&input), CallOptions::default())
+            .call(
+                "run",
+                std::slice::from_ref(&input),
+                CallOptions {
+                    limits: crate::Limits {
+                        steps: Some(steps),
+                        ..crate::Limits::default()
+                    },
+                    ..CallOptions::default()
+                },
+            )
             .unwrap_err();
         assert_eq!(error.kind, crate::ErrorKind::Steps);
         let program = crate::bytecode::compile(&source, Vec::new(), &()).unwrap();
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
         let input = literal_fact(&mut ctx, &mut facts, &input);
+        ctx.options.limits.steps = Some(ctx.stats().steps + steps);
         let error = calls::analyze(
             &mut ctx,
             &mut facts,

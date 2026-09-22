@@ -61,19 +61,21 @@ pub(super) fn call(
     ctx.check_memory(storage)?;
     let mut pattern = Buffer::with_capacity(ctx, count)?;
     let mut table = Buffer::with_capacity(ctx, count)?;
+    // Decoded bytes and table transitions are charged as byte work.
+    let mut pending = 0;
     let mut position = 0;
     while position < needle.len() {
-        ctx.charge(1)?;
         let (rune, width, _) = scan::rune(&needle[position..]);
+        ctx.scan_bytes(&mut pending, width)?;
         pattern.data.push(rune);
         position += width;
     }
     table.data.push(0usize);
     let mut matched = 0;
     for i in 1..count {
-        ctx.charge(1)?;
+        ctx.scan_bytes(&mut pending, 1)?;
         while matched > 0 && pattern.data[i] != pattern.data[matched] {
-            ctx.charge(1)?;
+            ctx.scan_bytes(&mut pending, 1)?;
             matched = table.data[matched - 1];
         }
         if pattern.data[i] == pattern.data[matched] {
@@ -91,11 +93,11 @@ pub(super) fn call(
     matched = 0;
     let mut found = Value::nil();
     for index in start..end {
-        ctx.charge(1)?;
         let (rune, width, _) = scan::rune(&text[position..]);
+        ctx.scan_bytes(&mut pending, width)?;
         position += width;
         while matched > 0 && rune != pattern.data[matched] {
-            ctx.charge(1)?;
+            ctx.scan_bytes(&mut pending, 1)?;
             matched = table.data[matched - 1];
         }
         if rune == pattern.data[matched] {
@@ -109,6 +111,7 @@ pub(super) fn call(
             matched = table.data[matched - 1];
         }
     }
+    ctx.settle_bytes(&mut pending)?;
     Ok(found)
 }
 
@@ -154,7 +157,8 @@ mod tests {
         needle[1023] = b'b';
         let needle = ctx.bytes(&needle).unwrap();
         let baseline = ctx.stats();
-        ctx.options.limits.steps = Some(baseline.steps + 10000);
+        // Reads and table transitions cost about 2,000 steps.
+        ctx.options.limits.steps = Some(baseline.steps + 1000);
         assert_eq!(
             call(&mut ctx, &text, std::slice::from_ref(&needle), false)
                 .unwrap_err()

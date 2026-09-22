@@ -295,6 +295,30 @@ impl CallContext {
         self.checkpoint()
     }
 
+    /// Records `units` of byte-sized scanning work, charging it like
+    /// [`Self::work_bytes`] once a chunk has accumulated.
+    ///
+    /// A scan that examines one byte per loop iteration charges through
+    /// `pending` rather than a step per byte; [`Self::settle_bytes`] charges
+    /// the remainder when the scan stops.
+    pub(crate) fn scan_bytes(&mut self, pending: &mut usize, units: usize) -> Result<()> {
+        *pending += units;
+        if *pending >= CHUNK {
+            let units = std::mem::take(pending);
+            self.work_bytes(units)?;
+        }
+        Ok(())
+    }
+
+    /// Charges scanning work left pending by [`Self::scan_bytes`].
+    pub(crate) fn settle_bytes(&mut self, pending: &mut usize) -> Result<()> {
+        let units = std::mem::take(pending);
+        if units == 0 {
+            return Ok(());
+        }
+        self.work_bytes(units)
+    }
+
     pub(crate) fn fail<T>(&mut self, kind: ErrorKind, message: &str) -> Result<T> {
         let err = Error::new(kind, message);
         if matches!(
