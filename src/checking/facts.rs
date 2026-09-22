@@ -1428,7 +1428,8 @@ fn distinct(ctx: &mut CallContext, facts: Buffer<Fact>) -> Result<Buffer<Fact>> 
     let mut kept = Buffer::with_capacity(ctx, facts.data.len())?;
     for fact in facts.data {
         ctx.charge(1)?;
-        let mut slot = fact.0.wrapping_mul(0x9e37_79b9_7f4a_7c15) & (capacity - 1);
+        let mut slot =
+            (fact.0 as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15) as usize & (capacity - 1);
         loop {
             match seen.data[slot] {
                 existing if existing == fact => break,
