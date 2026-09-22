@@ -47,7 +47,7 @@ static ZONEINFO: OnceLock<Option<std::ffi::OsString>> = OnceLock::new();
     windows,
     target_os = "android",
     target_os = "ios",
-    target_family = "wasm"
+    all(target_family = "wasm", not(target_os = "wasi"))
 )))]
 static LOCAL_TZ: OnceLock<Option<std::ffi::OsString>> = OnceLock::new();
 
@@ -408,21 +408,29 @@ impl Zone {
         windows::local(ctx)
     }
 
-    #[cfg(any(target_os = "android", target_os = "ios", target_family = "wasm"))]
+    #[cfg(any(
+        target_os = "android",
+        target_os = "ios",
+        all(target_family = "wasm", not(target_os = "wasi"))
+    ))]
     pub fn local(ctx: &mut CallContext) -> Result<Arc<Self>> {
         Self::fixed(ctx, b"UTC", 0)
     }
 
+    /// Unix and WASI select the local zone from `TZ`. A WASI guest has no
+    /// system zone, so it uses UTC when `TZ` is unset rather than reading an
+    /// `/etc/localtime` that a host happened to expose.
     #[cfg(not(any(
         windows,
         target_os = "android",
         target_os = "ios",
-        target_family = "wasm"
+        all(target_family = "wasm", not(target_os = "wasi"))
     )))]
     pub fn local(ctx: &mut CallContext) -> Result<Arc<Self>> {
         let tz = LOCAL_TZ.get_or_init(|| std::env::var_os("TZ"));
         let _config = ctx.reserve(tz.as_ref().map_or(0, |v| v.len()))?;
         if tz.is_none() {
+            #[cfg(not(target_os = "wasi"))]
             if let Some(zone) = Self::file(ctx, Path::new("/etc/localtime"))? {
                 return Ok(zone);
             }
@@ -430,12 +438,15 @@ impl Zone {
             let tz = tz.as_encoded_bytes();
             let tz = tz.strip_prefix(b":").unwrap_or(tz);
             if tz.starts_with(b"/") {
-                #[cfg(unix)]
+                #[cfg(any(unix, target_os = "wasi"))]
                 let path = {
+                    #[cfg(unix)]
                     use std::os::unix::ffi::OsStrExt;
+                    #[cfg(target_os = "wasi")]
+                    use std::os::wasi::ffi::OsStrExt;
                     Some(Path::new(std::ffi::OsStr::from_bytes(tz)))
                 };
-                #[cfg(not(unix))]
+                #[cfg(not(any(unix, target_os = "wasi")))]
                 let path = std::str::from_utf8(tz).ok().map(Path::new);
                 if let Some(zone) = match path {
                     Some(path) => Self::file(ctx, path)?,

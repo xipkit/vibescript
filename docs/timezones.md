@@ -3,7 +3,7 @@
 Named zones use the first source that contains valid TZif data:
 
 1. `ZONEINFO`, when nonempty, naming a directory or an uncompressed `.zip` archive.
-2. Installed platform sources: the usual Unix zoneinfo directories, Android's packed `tzdata` databases, or an iOS app's `zoneinfo.zip`.
+2. Installed platform sources: the usual Unix zoneinfo directories, Android's packed `tzdata` databases, or an iOS app's `zoneinfo.zip`. WASI has no platform source, so a guest uses `ZONEINFO` or the bundled database.
 3. The bundled IANA 2026c database, containing 598 zones in 408,467 bytes.
 
 An absent, unreadable, unsupported or malformed source falls through to the next source. Quota exhaustion and cancellation propagate immediately. ZIP loading follows Go's time-package archive conventions, including stored entries and an end record without a ZIP comment. Entry names preserve their bytes. Windows filesystem paths preserve WTF-8 surrogates and replace other invalid bytes individually, matching Go; Unix paths preserve their original bytes.
@@ -15,9 +15,9 @@ Local timezone selection depends on the platform:
 | Unix | `TZ`, including a leading colon, a zone name or an absolute TZif path; `/etc/localtime` when unset; UTC when empty or unavailable |
 | Windows | Win32 timezone information, with English abbreviation mappings and capital-letter fallback for unknown names |
 | Android and iOS | UTC, matching Go's local-zone implementation |
-| WASI | UTC |
+| WASI | `TZ` as on Unix, with names resolved through `ZONEINFO` or the bundled database and absolute paths read from the host's preopens; UTC when unset, empty or unavailable |
 
-`ZONEINFO` affects named lookup; it does not override Unix `TZ` selection. The configuration is captured on first use. Zone data is accounted independently for each call. Windows captures the operating system's current rules and expands them over 100 years on either side of initialization, matching Go's historical behavior. Standard bias is ignored when daylight saving time is disabled. The Windows ABI and APIs follow [TIME_ZONE_INFORMATION](https://learn.microsoft.com/en-us/windows/win32/api/timezoneapi/ns-timezoneapi-time_zone_information), [DYNAMIC_TIME_ZONE_INFORMATION](https://learn.microsoft.com/en-us/windows/win32/api/timezoneapi/ns-timezoneapi-dynamic_time_zone_information) and [EnumDynamicTimeZoneInformation](https://learn.microsoft.com/en-us/windows/win32/api/timezoneapi/nf-timezoneapi-enumdynamictimezoneinformation).
+`ZONEINFO` affects named lookup; it does not override Unix `TZ` selection. A WASI guest sees only the environment its host passes, so the local zone stays UTC unless the host sets `TZ`, for example with `wasmtime run --env TZ=America/New_York`. Go's `wasip1` port always uses UTC; honoring `TZ` is a deliberate hosting convenience. The configuration is captured on first use. Zone data is accounted independently for each call. Windows captures the operating system's current rules and expands them over 100 years on either side of initialization, matching Go's historical behavior. Standard bias is ignored when daylight saving time is disabled. The Windows ABI and APIs follow [TIME_ZONE_INFORMATION](https://learn.microsoft.com/en-us/windows/win32/api/timezoneapi/ns-timezoneapi-time_zone_information), [DYNAMIC_TIME_ZONE_INFORMATION](https://learn.microsoft.com/en-us/windows/win32/api/timezoneapi/ns-timezoneapi-dynamic_time_zone_information) and [EnumDynamicTimeZoneInformation](https://learn.microsoft.com/en-us/windows/win32/api/timezoneapi/nf-timezoneapi-enumdynamictimezoneinformation).
 
 ZIP and Android readers scan metadata using fixed buffers and allocate only the selected payload. Standalone TZif files retain the existing 10 MiB source limit; archive payloads are bounded by the archive and the call's memory budget. File reads, seeks, metadata scans, rule construction and copies check cancellation and charge work. These checkpoints cannot preempt a blocking operating-system call. Source failures release temporary allocations; returned times retain only their timezone data and headers.
 
