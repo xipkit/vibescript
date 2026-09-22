@@ -130,7 +130,7 @@ mod tests {
                 assert_eq!(pairs.get(i * step, 7), Some(i));
                 assert_eq!(pairs.get(i * step, 8), None);
             }
-            assert!(ctx.stats().retained_memory_bytes >= 2048 * 24);
+            assert!(ctx.stats().retained_memory_bytes >= 2048 * size_of::<(usize, usize, usize)>());
             pairs.clear(&mut ctx).unwrap();
             assert_eq!(pairs.get(step, 7), None);
             assert_eq!(ctx.stats().retained_memory_bytes, 0);

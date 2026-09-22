@@ -236,7 +236,8 @@ mod tests {
             .push(&mut ctx, Frame::new(Entries::Hash(&entries), Some(order)))
             .unwrap();
         let scratch = support::bytes::<Option<Buffer<usize>>>(1);
-        assert_eq!(ctx.stats().retained_memory_bytes, scratch + 64);
+        let order = size_of::<[usize; 8]>();
+        assert_eq!(ctx.stats().retained_memory_bytes, scratch + order);
         let (key, _) = stack.top().unwrap().entries.get(0);
         assert_eq!(key.unwrap().as_bytes(), Some(b"k".as_slice()));
         assert_eq!(stack.top().unwrap().entries.closing(), b"}");
