@@ -15,7 +15,7 @@ impl Directory {
             .join(".cache/tmp")
             .join(format!(
                 "require-accounting-{}-{}",
-                std::process::id(),
+                crate::loading::test_support::process_id(),
                 NEXT.fetch_add(1, Ordering::Relaxed)
             ));
         fs::create_dir(&path).unwrap();

@@ -214,41 +214,36 @@ fn field_snapshots_keep_source_references_alive_until_import_finishes() {
 
 #[test]
 fn deepest_fields_keep_cycles_alive_across_import_and_exhausted_cleanup() {
-    std::thread::Builder::new()
-        .stack_size(256 << 10)
-        .spawn(|| {
-            let mut source = CallContext::new(CallOptions::default());
-            let root = new(&mut source, &class("Node")).unwrap();
-            let mut value = Value(Kind::Instance(root.clone()));
-            for _ in 0..MAX_VALUE_DEPTH {
-                value = Value::array(vec![value]);
-            }
-            set(&mut source, &root, "links", &value).unwrap();
-            drop(value);
-            finish(&mut source).unwrap();
+    crate::ops::testing::on_small_stack(|| {
+        let mut source = CallContext::new(CallOptions::default());
+        let root = new(&mut source, &class("Node")).unwrap();
+        let mut value = Value(Kind::Instance(root.clone()));
+        for _ in 0..MAX_VALUE_DEPTH {
+            value = Value::array(vec![value]);
+        }
+        set(&mut source, &root, "links", &value).unwrap();
+        drop(value);
+        finish(&mut source).unwrap();
 
-            let mut target = CallContext::new(CallOptions::default());
-            let copied = import(&mut target, &root).unwrap();
-            let links = field(&mut target, &copied, "links").unwrap().unwrap();
-            let mut leaf = &links;
-            for _ in 0..MAX_VALUE_DEPTH {
-                leaf = &leaf.as_array().unwrap()[0];
-            }
-            let Kind::Instance(back) = &leaf.0 else {
-                panic!("missing instance")
-            };
-            assert!(back.same(&copied));
-            drop(links);
-            assert_eq!(target.charge(u64::MAX).unwrap_err().kind, ErrorKind::Steps);
-            cleanup(&mut target);
-            drop(copied);
-            assert_eq!(target.stats().retained_memory_bytes, 0);
-            drop(root);
-            assert_eq!(source.stats().retained_memory_bytes, 0);
-        })
-        .unwrap()
-        .join()
-        .unwrap();
+        let mut target = CallContext::new(CallOptions::default());
+        let copied = import(&mut target, &root).unwrap();
+        let links = field(&mut target, &copied, "links").unwrap().unwrap();
+        let mut leaf = &links;
+        for _ in 0..MAX_VALUE_DEPTH {
+            leaf = &leaf.as_array().unwrap()[0];
+        }
+        let Kind::Instance(back) = &leaf.0 else {
+            panic!("missing instance")
+        };
+        assert!(back.same(&copied));
+        drop(links);
+        assert_eq!(target.charge(u64::MAX).unwrap_err().kind, ErrorKind::Steps);
+        cleanup(&mut target);
+        drop(copied);
+        assert_eq!(target.stats().retained_memory_bytes, 0);
+        drop(root);
+        assert_eq!(source.stats().retained_memory_bytes, 0);
+    });
 }
 
 #[test]

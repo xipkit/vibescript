@@ -7,6 +7,10 @@ const STACK: usize = 256 << 10;
 const DEEP: usize = 10_001;
 
 fn on_small_stack<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
+    // WASI has no threads, so this runs within the default wasm stack.
+    if cfg!(target_os = "wasi") {
+        return work();
+    }
     thread::Builder::new()
         .stack_size(STACK)
         .spawn(work)
@@ -95,6 +99,7 @@ fn shared_branches_are_unlinked_once_by_their_last_owner() {
 }
 
 #[test]
+#[cfg_attr(target_os = "wasi", ignore = "WASI has no threads")]
 fn concurrent_last_owners_release_deep_subtrees() {
     for _ in 0..8 {
         let value = mixed_chain(DEEP);

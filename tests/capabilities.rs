@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicUsize, Ordering},
@@ -176,7 +178,7 @@ fn capability_factories_create_fresh_state_for_each_concurrent_invocation() {
     let script = Engine::new()
         .compile("[counter.bump(), counter.bump()]")
         .unwrap();
-    std::thread::scope(|scope| {
+    common::scope(|scope| {
         let workers: Vec<_> = (0..6)
             .map(|_| {
                 scope.spawn(|| {

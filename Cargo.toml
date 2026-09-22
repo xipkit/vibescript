@@ -29,6 +29,9 @@ libc = "0.2"
 
 [dev-dependencies]
 serde_json = { version = "1", features = ["arbitrary_precision"] }
+
+# WASI preview 1 has no threads, so its tests build without the Tokio runner.
+[target.'cfg(not(target_os = "wasi"))'.dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
 
 [[bin]]

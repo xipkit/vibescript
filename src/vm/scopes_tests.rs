@@ -118,6 +118,8 @@ def discard(m); m.bump; nil; end
     assert_eq!(initialized.load(Ordering::SeqCst), 1);
     drop(source);
     drop(engine);
+    // WASI has no threads.
+    #[cfg(not(target_os = "wasi"))]
     std::thread::scope(|threads| {
         for _ in 0..4 {
             let caller = &caller;

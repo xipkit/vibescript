@@ -1,3 +1,5 @@
+mod common;
+
 use std::{
     fs,
     path::PathBuf,
@@ -11,7 +13,7 @@ fn payload() -> Value {
         .join(".cache/tmp")
         .join(format!(
             "snapshot-{}-{}",
-            std::process::id(),
+            common::process_id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
     fs::create_dir_all(&dir).unwrap();

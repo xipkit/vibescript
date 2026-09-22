@@ -185,6 +185,7 @@ fn a_compilation_started_before_clear_does_not_repopulate_the_cleared_cache() {
 }
 
 #[test]
+#[cfg_attr(target_os = "wasi", ignore = "WASI has no threads")]
 fn concurrent_compilations_publish_one_shared_entry() {
     let (_directory, resolver) = fixture();
     let cache = Cache::new(1);

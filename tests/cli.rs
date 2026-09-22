@@ -1,3 +1,6 @@
+// These tests run the vibes binary as a subprocess, which WASI cannot spawn.
+#![cfg(not(target_os = "wasi"))]
+
 use std::{
     fs,
     path::{Path, PathBuf},

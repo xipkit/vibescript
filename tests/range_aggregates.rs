@@ -209,6 +209,7 @@ fn quota_failures_are_latched_and_release_temporary_state() {
 }
 
 #[test]
+#[cfg_attr(target_os = "wasi", ignore = "WASI has no threads")]
 fn cancellation_interrupts_all_range_aggregates() {
     for method in ["sum", "min", "max"] {
         let token = CancellationToken::new();

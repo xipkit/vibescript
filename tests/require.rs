@@ -1,3 +1,5 @@
+mod common;
+
 use std::{
     fs,
     path::PathBuf,
@@ -22,7 +24,7 @@ impl Files {
         loop {
             let path = base.join(format!(
                 "require-{}-{}",
-                std::process::id(),
+                common::process_id(),
                 NEXT.fetch_add(1, Ordering::Relaxed)
             ));
             match fs::create_dir(&path) {
@@ -448,7 +450,7 @@ fn require_permission_is_per_call_and_engine_modes_are_snapshotted() {
             assert_eq!(effects.load(Ordering::SeqCst), expected);
         }
     }
-    std::thread::scope(|scope| {
+    common::scope(|scope| {
         let mut calls = Vec::new();
         for allow in [false, true, true, false, false, true] {
             let script = restricted.clone();

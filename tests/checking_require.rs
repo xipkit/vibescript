@@ -1,3 +1,5 @@
+mod common;
+
 use std::{
     fs,
     path::PathBuf,
@@ -14,7 +16,7 @@ impl Files {
         loop {
             let path = base.join(format!(
                 "checking-require-{}-{}",
-                std::process::id(),
+                common::process_id(),
                 NEXT.fetch_add(1, Ordering::Relaxed)
             ));
             match fs::create_dir(&path) {

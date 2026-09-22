@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -35,7 +37,7 @@ fn globals_are_isolated_and_mutations_remain_visible_within_each_call() {
         .compile("def update;before=settings;settings.items.push(2);[before,settings];end")
         .unwrap();
     let opts = options(&[("settings", input.clone())]);
-    std::thread::scope(|scope| {
+    common::scope(|scope| {
         let workers: Vec<_> = (0..8)
             .map(|_| {
                 scope.spawn(|| {

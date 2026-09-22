@@ -339,6 +339,7 @@ fn promoting_nested_namespaces_keeps_stable_retained_storage() {
 }
 
 #[test]
+#[cfg_attr(target_os = "wasi", ignore = "WASI has no threads")]
 fn concurrent_imports_copy_captured_state_independently() {
     let mut source = CallContext::new(CallOptions::default());
     let environment = new(&mut source, &template("Scope")).unwrap();

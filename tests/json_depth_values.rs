@@ -5,6 +5,10 @@ use vibescript::{CallOptions, Engine, ErrorClass, ErrorKind, Value};
 const DEEP: usize = 10_001;
 
 fn on_small_stack<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
+    // WASI has no threads, so this runs within the default wasm stack.
+    if cfg!(target_os = "wasi") {
+        return work();
+    }
     std::thread::Builder::new()
         .stack_size(256 << 10)
         .spawn(work)

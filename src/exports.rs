@@ -347,16 +347,21 @@ mod check_tests {
             nested(MAX_VALUE_DEPTH, Value::int(1)),
             nested_hash(MAX_VALUE_DEPTH, Value::int(2)),
         ];
+        let deep = || {
+            for input in &inputs {
+                let mut ctx = exporting();
+                check(&mut ctx, input).unwrap();
+                assert_eq!(ctx.stats().retained_memory_bytes, 0);
+            }
+        };
+        // WASI has no threads, so this runs within the default wasm stack.
+        if cfg!(target_os = "wasi") {
+            return deep();
+        }
         std::thread::scope(|scope| {
             std::thread::Builder::new()
                 .stack_size(96 << 10)
-                .spawn_scoped(scope, || {
-                    for input in &inputs {
-                        let mut ctx = exporting();
-                        check(&mut ctx, input).unwrap();
-                        assert_eq!(ctx.stats().retained_memory_bytes, 0);
-                    }
-                })
+                .spawn_scoped(scope, deep)
                 .unwrap()
                 .join()
                 .unwrap();

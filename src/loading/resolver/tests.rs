@@ -1,4 +1,4 @@
-use super::super::test_support::Directory;
+use super::super::test_support::{Directory, canonical};
 use super::*;
 use crate::{CallOptions, CancellationToken, Limits};
 use std::fs;
@@ -46,7 +46,7 @@ fn search_preserves_root_precedence_and_falls_through_absent_or_misspelled_files
         let (origin, source) = resolve(&resolver, &mut ctx, name.as_bytes(), None)
             .unwrap()
             .unwrap();
-        assert_eq!(origin.root.path(), fs::canonicalize(expected_root).unwrap());
+        assert_eq!(origin.root.path(), canonical(expected_root));
         assert_eq!(source.contents.as_bytes().unwrap(), expected);
         assert_eq!(source.stamp.size, expected.len() as u64);
         drop(source);

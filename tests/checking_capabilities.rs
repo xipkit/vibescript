@@ -1,3 +1,5 @@
+mod common;
+
 use std::{
     fs,
     path::PathBuf,
@@ -288,7 +290,7 @@ fn value_templates_keep_call_forms_attachment_and_repeated_grants() {
         .stats
         .retained_memory_bytes;
     assert!(retained > 0);
-    std::thread::scope(|scope| {
+    common::scope(|scope| {
         for _ in 0..4 {
             scope.spawn(|| {
                 for _ in 0..3 {
@@ -408,7 +410,7 @@ impl Files {
         loop {
             let path = base.join(format!(
                 "checking-capabilities-{}-{}",
-                std::process::id(),
+                common::process_id(),
                 NEXT.fetch_add(1, Ordering::Relaxed)
             ));
             match fs::create_dir(&path) {

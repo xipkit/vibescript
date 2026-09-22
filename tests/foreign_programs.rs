@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -72,7 +74,7 @@ end
 "##,
         )
         .unwrap();
-    std::thread::scope(|scope| {
+    common::scope(|scope| {
         let jobs: Vec<_> = (0..4)
             .map(|_| {
                 scope.spawn(|| {

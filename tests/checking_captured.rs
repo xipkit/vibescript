@@ -1,3 +1,5 @@
+mod common;
+
 use std::{
     fs,
     path::PathBuf,
@@ -15,7 +17,7 @@ impl Files {
         fs::create_dir_all(&root).unwrap();
         let path = root.join(format!(
             "captured-check-{}-{}",
-            std::process::id(),
+            common::process_id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
         fs::create_dir(&path).unwrap();

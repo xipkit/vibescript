@@ -35,7 +35,7 @@ fn migrated(script: &Script, options: CallOptions) -> (Result<Outcome>, usize) {
     let mut pending = None;
     let mut pauses = 0;
     loop {
-        let (next, step) = std::thread::spawn(move || {
+        let resume = move || {
             let step =
                 execution
                     .run
@@ -43,9 +43,13 @@ fn migrated(script: &Script, options: CallOptions) -> (Result<Outcome>, usize) {
                     .unwrap()
                     .resume(&mut execution.context, None, pending);
             (execution, step)
-        })
-        .join()
-        .unwrap();
+        };
+        // WASI has no threads, so each step resumes on the calling thread.
+        let (next, step) = if cfg!(target_os = "wasi") {
+            resume()
+        } else {
+            std::thread::spawn(resume).join().unwrap()
+        };
         execution = next;
         match step {
             Ok(Step::Host) => {
@@ -285,6 +289,7 @@ fn completed_host_results_can_outlive_an_abandoned_execution() {
 }
 
 #[test]
+#[cfg_attr(not(panic = "unwind"), ignore = "catching a panic requires unwinding")]
 fn host_panics_release_the_invocation_heap_and_accounting() {
     for framed in [false, true] {
         let memory = Arc::new(Mutex::new(Weak::new()));
@@ -319,6 +324,7 @@ fn host_panics_release_the_invocation_heap_and_accounting() {
 }
 
 #[test]
+#[cfg_attr(not(panic = "unwind"), ignore = "catching a panic requires unwinding")]
 fn failed_or_panicked_preparation_releases_imported_cycles() {
     for panicked in [false, true] {
         let foreign = Engine::new()

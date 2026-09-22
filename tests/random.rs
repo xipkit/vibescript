@@ -1,3 +1,5 @@
+mod common;
+
 use std::{
     sync::{
         Arc,
@@ -79,7 +81,7 @@ end
             .unwrap()
             .value,
     );
-    std::thread::scope(|scope| {
+    common::scope(|scope| {
         let jobs = (0..8)
             .map(|_| scope.spawn(|| script.call("seeded", &[], CallOptions::default()).unwrap()))
             .collect::<Vec<_>>();

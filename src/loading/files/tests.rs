@@ -269,8 +269,7 @@ fn directory_fallback_charges_each_entry_and_releases_its_workspace() {
     for i in 0..32 {
         directory.write(&format!("entry-{i}.vibe"), b"");
     }
-    let parent =
-        cap_std::fs::Dir::open_ambient_dir(&directory.0, cap_std::ambient_authority()).unwrap();
+    let (parent, _) = platform::open_root(&directory.0).unwrap();
     let target = Path::new("entry-17.vibe");
     let mut ctx = CallContext::new(CallOptions::default());
     assert!(spelling_from_directory(&mut ctx, &parent, target.file_name().unwrap()).unwrap());
@@ -352,8 +351,7 @@ fn non_regular_sources_use_nonblocking_close_on_exec_descriptors() {
     let c_path = CString::new(path.as_os_str().as_bytes()).unwrap();
     // SAFETY: c_path is NUL-terminated and belongs to this test's temporary directory.
     assert_eq!(unsafe { libc::mkfifo(c_path.as_ptr(), 0o600) }, 0);
-    let parent =
-        cap_std::fs::Dir::open_ambient_dir(&directory.0, cap_std::ambient_authority()).unwrap();
+    let (parent, _) = platform::open_root(&directory.0).unwrap();
     let file = platform::open(&parent, path.file_name().unwrap()).unwrap();
     // SAFETY: the descriptor is open, and these fcntl commands have no third argument.
     let flags = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_GETFL) };

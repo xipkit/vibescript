@@ -1,3 +1,5 @@
+mod common;
+
 use vibescript::{CallOptions, Engine, ErrorKind, Value, stringify_json};
 
 fn json(value: &Value) -> serde_json::Value {
@@ -539,7 +541,7 @@ end
         )
         .unwrap();
     let initial = script.call("make", &[], CallOptions::default()).unwrap();
-    std::thread::scope(|scope| {
+    common::scope(|scope| {
         let jobs: Vec<_> = (1..=8)
             .map(|n| {
                 let value = initial.value.clone();

@@ -197,7 +197,7 @@ impl Loader {
 }
 
 #[cfg(test)]
-mod test_support;
+pub(crate) mod test_support;
 
 pub(crate) struct Name {
     pub normalized: Value,

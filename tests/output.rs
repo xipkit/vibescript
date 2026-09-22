@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicUsize, Ordering},
@@ -629,7 +631,7 @@ fn concurrent_calls_isolate_cancellation_and_pending_rendering() {
         Ok(Value::nil())
     });
     let script=engine.compile("class C\nproperty n\ndef initialize(n)\n@n=n\nend\ndef to_s\ncheck(@n);@n.to_s\nend\nend\ndef run(n)\nputs(C.new(n));n\nend").unwrap();
-    std::thread::scope(|scope| {
+    common::scope(|scope| {
         let jobs = (0..8)
             .map(|n| {
                 let script = &script;

@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{Arc, Mutex};
 use vibescript::{
     CallOptions, CancellationToken, Capability, Engine, Error, ErrorKind, HostMethod, Limits, Value,
@@ -564,7 +566,7 @@ fn foreign_block_arguments_keep_their_program_types_and_isolated_state() {
         ..CallOptions::default()
     };
     let script = Engine::new().compile("def run; visit { |pair| box=pair[0]; m=pair[1]; box.add; begin; box.items.push(\"bad\"); rescue; nil; end; begin; m.captures.push(\"bad\"); rescue; nil; end; [box.items,m.captures] }; end").unwrap();
-    std::thread::scope(|scope| {
+    common::scope(|scope| {
         let jobs: Vec<_> = (0..4)
             .map(|_| scope.spawn(|| script.call("run", &[], opts.clone()).unwrap()))
             .collect();

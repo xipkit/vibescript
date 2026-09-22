@@ -1,3 +1,5 @@
+mod common;
+
 use std::{
     fs,
     path::PathBuf,
@@ -211,7 +213,7 @@ fn captured_file_snapshots_do_not_resume_or_replay_source_initializers() {
         .join(".cache/tmp")
         .join(format!(
             "vm-snapshot-{}-{}",
-            std::process::id(),
+            common::process_id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
     fs::create_dir_all(&dir).unwrap();

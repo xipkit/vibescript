@@ -1,3 +1,5 @@
+mod common;
+
 use std::{
     fs,
     path::PathBuf,
@@ -306,7 +308,7 @@ fn required_scripts_see_the_receiver_of_the_receiving_calls_grant() {
     static NEXT: AtomicUsize = AtomicUsize::new(0);
     let dir = base.join(format!(
         "receivers-{}-{}",
-        std::process::id(),
+        common::process_id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
     fs::create_dir_all(&dir).unwrap();

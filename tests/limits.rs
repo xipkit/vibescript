@@ -130,6 +130,7 @@ fn shared_inputs_charge_spare_capacity_and_release_it_for_small_results() {
 }
 
 #[test]
+#[cfg_attr(target_os = "wasi", ignore = "WASI has no threads")]
 fn running_script_observes_cancellation() {
     let token = CancellationToken::new();
     let signal = token.clone();

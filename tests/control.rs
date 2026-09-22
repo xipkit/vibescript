@@ -97,6 +97,7 @@ fn empty_loops_and_pattern_comparisons_consume_steps() {
 }
 
 #[test]
+#[cfg_attr(target_os = "wasi", ignore = "WASI has no threads")]
 fn running_for_loop_observes_cancellation() {
     let token = CancellationToken::new();
     let signal = token.clone();

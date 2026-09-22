@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -313,7 +315,7 @@ fn initializers_run_once_per_call_and_release_their_state() {
     let script = engine
         .compile("module M\n @@n=0\n def self.advance;@@n+=1;@@n;end\nend\ndef run;M.advance;end")
         .unwrap();
-    std::thread::scope(|scope| {
+    common::scope(|scope| {
         let jobs = (0..8)
             .map(|_| scope.spawn(|| script.call("run", &[], CallOptions::default()).unwrap()))
             .collect::<Vec<_>>();
