@@ -113,7 +113,7 @@ impl Address {
         let value = if args.len() == 1 {
             ops::index(ctx, &self.value, &args[0])?
         } else {
-            crate::sequence::slice(ctx, &self.value, args, false)?
+            ops::index_many(ctx, &self.value, args)?
         };
         if let Kind::Hash(hash) = &self.value.0 {
             if hash.tag.protected() {
@@ -146,7 +146,7 @@ impl Address {
             self.selectors.data[0] = captured_key(&self.value, key)?;
             Ok(value)
         } else {
-            crate::sequence::slice(ctx, &self.value, &self.selectors.data, false)
+            ops::index_many(ctx, &self.value, &self.selectors.data)
         }
     }
 
@@ -160,10 +160,20 @@ impl Address {
         let selectors = std::mem::replace(&mut self.selectors, Buffer::empty());
         self.apply(ctx, bindings, pending, |ctx, receiver| {
             let [key] = selectors.data.as_slice() else {
-                return Err(Error::new(
-                    ErrorKind::Argument,
-                    "index assignment expects a single selector",
-                ));
+                return Err(match &receiver.0 {
+                    Kind::Array(_) => Error::new(
+                        ErrorKind::Argument,
+                        "array index assignment expects a single index",
+                    ),
+                    Kind::Hash(_) => Error::new(
+                        ErrorKind::Argument,
+                        format!(
+                            "{} index assignment expects a single key",
+                            receiver.type_name()
+                        ),
+                    ),
+                    _ => ops::cannot_index(&receiver),
+                });
             };
             let receiver = ops::set_index(ctx, receiver, key.clone(), value.clone())?;
             Ok((receiver, value))

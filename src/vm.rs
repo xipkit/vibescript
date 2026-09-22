@@ -1603,7 +1603,7 @@ impl Run {
                     let value = if n == 1 {
                         ops::index(ctx, root, &args[0])?
                     } else {
-                        crate::sequence::slice(ctx, root, args, false)?
+                        ops::index_many(ctx, root, args)?
                     };
                     if matches!(value.0, Kind::Host(_))
                         && matches!(root.0, Kind::Hash(_))

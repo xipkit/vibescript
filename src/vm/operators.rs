@@ -74,7 +74,16 @@ pub(super) fn index(
 ) -> Result<Call> {
     resolve(program, ctx, receiver, name, caller)?
         .map(|resolved| resolved.call)
-        .ok_or_else(|| Error::new(ErrorKind::Name, format!("instance does not define {name}")))
+        .ok_or_else(|| {
+            let class = match &receiver.0 {
+                Kind::Instance(instance) => instance.class().definition.name.as_str(),
+                _ => "",
+            };
+            Error::new(
+                ErrorKind::Name,
+                format!("cannot index instance: {class} does not define {name}"),
+            )
+        })
 }
 
 pub(super) fn string(ctx: &mut CallContext, receiver: &Value) -> Result<Option<Call>> {

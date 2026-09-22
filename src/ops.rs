@@ -567,13 +567,35 @@ fn equal_step<'a>(
     })
 }
 
+/// Converts one `value[...]` selector to an integer index as the reference
+/// does: a whole or fractional float truncates, and anything else is rejected.
+pub(crate) fn index_selector(value: &Value) -> Result<i64> {
+    match value.0 {
+        Kind::Big(_) => Err(Error::new(
+            ErrorKind::Type,
+            "index must fit in a 64-bit integer",
+        )),
+        _ => crate::sequence::integer(value)
+            .map_err(|_| Error::new(ErrorKind::Type, "index must be integer")),
+    }
+}
+
+/// Rejects `value[...]` on a kind that has no index operator.
+pub(crate) fn cannot_index(value: &Value) -> Error {
+    Error::new(
+        ErrorKind::Type,
+        format!("cannot index {}", value.type_name()),
+    )
+}
+
+/// Reads `value[selector]`.
 pub(crate) fn index(ctx: &mut CallContext, value: &Value, index: &Value) -> Result<Value> {
-    if matches!(index.0, Kind::Range(_)) {
+    if matches!(index.0, Kind::Range(_)) && matches!(value.0, Kind::Array(_) | Kind::Bytes(_)) {
         return crate::sequence::slice(ctx, value, std::slice::from_ref(index), false);
     }
     match &value.0 {
         Kind::Array(h) => {
-            let n = normalized(crate::sequence::integer(index)?, h.buffer.data.len());
+            let n = normalized(index_selector(index)?, h.buffer.data.len());
             Ok(n.and_then(|n| h.buffer.data.get(n))
                 .cloned()
                 .unwrap_or_default())
@@ -589,7 +611,7 @@ pub(crate) fn index(ctx: &mut CallContext, value: &Value, index: &Value) -> Resu
         }
         Kind::Bytes(h) => {
             let bytes = &h.data;
-            let n = crate::sequence::integer(index)?;
+            let n = index_selector(index)?;
             let n = if n < 0 {
                 let (count, _) = runes(ctx, bytes)?;
                 normalized(n, count)
@@ -616,7 +638,35 @@ pub(crate) fn index(ctx: &mut CallContext, value: &Value, index: &Value) -> Resu
             }
             Ok(Value::nil())
         }
-        _ => Err(type_error()),
+        _ => Err(cannot_index(value)),
+    }
+}
+
+/// Reads `value[start, length]`, the only form with more than one selector.
+pub(crate) fn index_many(ctx: &mut CallContext, value: &Value, args: &[Value]) -> Result<Value> {
+    match &value.0 {
+        Kind::Array(_) | Kind::Bytes(_) => {
+            let [start, length] = args else {
+                return Err(Error::new(
+                    ErrorKind::Argument,
+                    format!(
+                        "{} index expects one index, a start and length, or a range",
+                        value.type_name()
+                    ),
+                ));
+            };
+            if matches!(start.0, Kind::Range(_)) {
+                return Err(Error::new(ErrorKind::Argument, "index must be integer"));
+            }
+            index_selector(start)?;
+            index_selector(length)?;
+            crate::sequence::slice(ctx, value, args, false)
+        }
+        Kind::Hash(_) => Err(Error::new(
+            ErrorKind::Type,
+            format!("{} index expects a single key", value.type_name()),
+        )),
+        _ => Err(cannot_index(value)),
     }
 }
 
@@ -636,8 +686,8 @@ pub(crate) fn set_index(
 ) -> Result<Value> {
     match &root.0 {
         Kind::Array(h) => {
-            let n = normalized(crate::sequence::integer(&key)?, h.buffer.data.len())
-                .ok_or_else(|| Error::new(ErrorKind::Argument, "array index too small"))?;
+            let n = normalized(index_selector(&key)?, h.buffer.data.len())
+                .ok_or_else(|| Error::new(ErrorKind::Argument, "array index out of bounds"))?;
             let len = h.buffer.data.len();
             if n >= len {
                 return Err(Error::new(ErrorKind::Argument, "array index out of bounds"));
@@ -653,7 +703,7 @@ pub(crate) fn set_index(
             key.hash_key()?;
             root.set_hash_index(ctx, key, value)
         }
-        _ => Err(type_error()),
+        _ => Err(cannot_index(&root)),
     }
 }
 

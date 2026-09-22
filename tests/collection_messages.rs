@@ -212,3 +212,50 @@ fn missing_names_read_as_undefined_variables_or_unknown_members() {
         assert_eq!(function_message(source, "run"), expected, "{source}");
     }
 }
+
+#[test]
+fn index_operator_errors_name_the_selector_or_receiver() {
+    let cases = [
+        ("x = [1]\nx[\"a\"]", "index must be integer"),
+        ("x = [1]\nx[2 ** 70]", "index must fit in a 64-bit integer"),
+        ("\"abc\"[nil]", "index must be integer"),
+        ("x = [1]\nx[\"a\", 3]", "index must be integer"),
+        ("5[1]", "cannot index int"),
+        ("nil[0]", "cannot index nil"),
+        (
+            "x = [1, 2, 3]\nx[1, 2, 3]",
+            "array index expects one index, a start and length, or a range",
+        ),
+        (
+            "\"abc\"[1, 2, 3]",
+            "string index expects one index, a start and length, or a range",
+        ),
+        ("{a: 1}[1, 2]", "hash index expects a single key"),
+        ("x = [1]\nx[5] = 1", "array index out of bounds"),
+        ("x = [1]\nx[-5] = 1", "array index out of bounds"),
+        (
+            "x = [1]\nx[0, 1] = 1",
+            "array index assignment expects a single index",
+        ),
+        (
+            "x = {a: 1}\nx[:a, 1] = 1",
+            "hash index assignment expects a single key",
+        ),
+        ("x = \"abc\"\nx[0] = \"z\"", "cannot index string"),
+    ];
+    for (body, expected) in cases {
+        assert_eq!(message(body), expected, "{body}");
+    }
+    let plain = "class Plain\nend\n";
+    assert_eq!(
+        function_message(&format!("{plain}def run\n  Plain.new[1]\nend"), "run"),
+        "cannot index instance: Plain does not define []"
+    );
+    assert_eq!(
+        function_message(
+            &format!("{plain}def run\n  p = Plain.new\n  p[1] = 2\nend"),
+            "run"
+        ),
+        "cannot index instance: Plain does not define []="
+    );
+}
