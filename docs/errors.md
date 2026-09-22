@@ -49,7 +49,7 @@ end
 
 This returns `[42, 3, 1]`.
 
-Rescued objects expose `type`, `class`, `message`, `to_s`, `code_frame`, and `backtrace`. Interpolation and `to_s` render the message. Nested writes and duplicates preserve protection and special rendering, including after host transfer. Message strings preserve arbitrary bytes; the Rust host API provides `Error::message_bytes()` for those bytes, while `message` and Display replace invalid UTF-8 for display.
+Rescued objects expose `backtrace`, `class`, `code_frame`, `message`, `to_s` and `type`; `keys` and iteration return them in that sorted order, as in Go. Interpolation and `to_s` render the message. Nested writes and duplicates preserve protection and special rendering, including after host transfer. Message strings preserve arbitrary bytes; the Rust host API provides `Error::message_bytes()` for those bytes, while `message` and Display replace invalid UTF-8 for display.
 
 Saved errors, bound objects, handler storage, pending return values and diagnostic capacities remain accounted while execution continues. Resuming after failure releases discarded call frames, temporary arguments, addresses and interpolation buffers. Error diagnostics retain no script or host callback. See [source diagnostics](diagnostics.md) for position and trace conventions.
 

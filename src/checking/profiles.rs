@@ -168,12 +168,12 @@ impl Facts {
             }
             Tag::Error => {
                 let backtrace = self.array(ctx, string)?;
-                push(ctx, "type", string)?;
+                push(ctx, "backtrace", backtrace)?;
                 push(ctx, "class", string)?;
+                push(ctx, "code_frame", string)?;
                 push(ctx, "message", string)?;
                 push(ctx, "to_s", string)?;
-                push(ctx, "code_frame", string)?;
-                push(ctx, "backtrace", backtrace)?;
+                push(ctx, "type", string)?;
             }
             Tag::None => unreachable!(),
         }

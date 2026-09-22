@@ -413,3 +413,22 @@ fn invalid_block_returns_run_cleanup_before_the_caller_rescues() {
         .unwrap();
     assert_eq!(*events.lock().unwrap(), vec![2, 3]);
 }
+
+#[test]
+fn rescued_error_fields_iterate_in_sorted_order() {
+    let fields = serde_json::json!([
+        "backtrace",
+        "class",
+        "code_frame",
+        "message",
+        "to_s",
+        "type"
+    ]);
+    for source in [
+        "begin\nraise \"boom\"\nrescue => e\ne.keys\nend",
+        "begin\n1/0\nrescue ZeroDivisionError => e\ne.map { |k, v| k }\nend",
+        "begin\n[].fetch(1)\nrescue => e\nkeys=[]\ne.dup.each { |k, v| keys.push(k) }\nkeys\nend",
+    ] {
+        assert_eq!(result(source), fields, "{source}");
+    }
+}

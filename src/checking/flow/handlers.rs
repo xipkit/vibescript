@@ -498,12 +498,12 @@ impl Walker<'_> {
         let backtrace = self.facts.array(self.ctx, string)?;
         let mut fields = Buffer::empty();
         for (name, value) in [
-            ("type", class),
+            ("backtrace", backtrace),
             ("class", class),
+            ("code_frame", string),
             ("message", string),
             ("to_s", string),
-            ("code_frame", string),
-            ("backtrace", backtrace),
+            ("type", class),
         ] {
             let name = self.ctx.bytes(name.as_bytes())?;
             fields.push(

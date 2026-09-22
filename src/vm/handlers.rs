@@ -235,13 +235,14 @@ impl SavedError {
             }
         }
         let trace = Value::from_array(ctx, trace)?;
+        // Fields are stored in sorted order, as Go exposes them to iteration.
         for (key, value) in [
-            ("type", class.clone()),
-            ("class", class),
+            ("backtrace", trace),
+            ("class", class.clone()),
+            ("code_frame", code),
             ("message", message.clone()),
             ("to_s", message),
-            ("code_frame", code),
-            ("backtrace", trace),
+            ("type", class),
         ] {
             let key = ctx.bytes(key.as_bytes())?;
             hash.insert(ctx, key, value)?;
