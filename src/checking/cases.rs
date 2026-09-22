@@ -108,30 +108,12 @@ impl Facts {
                             && end.is_none_or(|b| if *exclusive { *value < b } else { *value <= b })
                     })
                 } else if let Node::Float(bits) = self.node(target) {
-                    let value = f64::from_bits(*bits);
-                    let descending = matches!((start,end), (Some(a),Some(b)) if a>b);
-                    Some(
-                        !value.is_nan()
-                            && if descending {
-                                start.is_none_or(|a| value <= a as f64)
-                                    && end.is_none_or(|b| {
-                                        if *exclusive {
-                                            value > b as f64
-                                        } else {
-                                            value >= b as f64
-                                        }
-                                    })
-                            } else {
-                                start.is_none_or(|a| value >= a as f64)
-                                    && end.is_none_or(|b| {
-                                        if *exclusive {
-                                            value < b as f64
-                                        } else {
-                                            value <= b as f64
-                                        }
-                                    })
-                            },
-                    )
+                    Some(crate::range::contains_float(
+                        *start,
+                        *end,
+                        *exclusive,
+                        f64::from_bits(*bits),
+                    ))
                 } else if numeric || gradual {
                     None
                 } else {

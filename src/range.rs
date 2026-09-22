@@ -76,30 +76,7 @@ impl Range {
                             .is_none_or(|b| if self.exclusive { n < b } else { n <= b })
                 }
             }
-            Kind::Float(n) => {
-                if n.is_nan() {
-                    return false;
-                }
-                if descending {
-                    self.start.is_none_or(|a| n <= a as f64)
-                        && self.end.is_none_or(|b| {
-                            if self.exclusive {
-                                n > b as f64
-                            } else {
-                                n >= b as f64
-                            }
-                        })
-                } else {
-                    self.start.is_none_or(|a| n >= a as f64)
-                        && self.end.is_none_or(|b| {
-                            if self.exclusive {
-                                n < b as f64
-                            } else {
-                                n <= b as f64
-                            }
-                        })
-                }
-            }
+            Kind::Float(n) => contains_float(self.start, self.end, self.exclusive, n),
             _ => false,
         }
     }
@@ -141,6 +118,36 @@ impl Range {
             current += direction;
         }
         Value::from_array(ctx, out)
+    }
+}
+
+const INTEGER_FLOOR: f64 = -9223372036854775808.0;
+const INTEGER_CEILING: f64 = 9223372036854775808.0;
+
+/// Reports whether a float lies within integer bounds. The comparison uses the
+/// float's floor and ceiling as integers, so it stays exact beyond 2^53.
+pub(crate) fn contains_float(
+    start: Option<i64>,
+    end: Option<i64>,
+    exclusive: bool,
+    value: f64,
+) -> bool {
+    if value.is_nan() {
+        return false;
+    }
+    if value < INTEGER_FLOOR {
+        return start.is_none();
+    }
+    if value >= INTEGER_CEILING {
+        return end.is_none();
+    }
+    let (floor, ceil) = (value.floor() as i64, value.ceil() as i64);
+    match (start, end) {
+        (Some(a), Some(b)) if a > b => ceil <= a && if exclusive { ceil > b } else { floor >= b },
+        _ => {
+            start.is_none_or(|a| floor >= a)
+                && end.is_none_or(|b| if exclusive { floor < b } else { ceil <= b })
+        }
     }
 }
 

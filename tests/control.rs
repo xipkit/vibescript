@@ -229,3 +229,45 @@ fn malformed_control_syntax_is_rejected() {
         );
     }
 }
+
+#[test]
+fn float_range_membership_is_exact_beyond_double_precision() {
+    for (source, expected) in [
+        (
+            "(9007199254740993..9007199254740993).include?(9007199254740992.0)",
+            false,
+        ),
+        (
+            "(9007199254740992..9007199254740992).include?(9007199254740993.0)",
+            true,
+        ),
+        ("(9007199254740993..).cover?(9007199254740992.0)", false),
+        ("(..9007199254740991).member?(9007199254740992.0)", false),
+        ("(...9007199254740993) === 9007199254740992.0", true),
+        (
+            "(9007199254740995...9007199254740992).include?(9007199254740992.0)",
+            false,
+        ),
+        (
+            "case 9007199254740992.0\nwhen 9007199254740993..9007199254740993 then true\nelse false\nend",
+            false,
+        ),
+        (
+            "case 9223372036854775807.0\nwhen 9223372036854775807.. then true\nelse false\nend",
+            true,
+        ),
+        ("(1..).include?(1.0/0) && !(1..3).include?(1.0/0)", true),
+        ("(3...1).include?(1.5) && !(3...1).include?(1.0)", true),
+    ] {
+        assert_eq!(result_json(source), serde_json::json!(expected), "{source}");
+    }
+    let script = Engine::new()
+        .compile(
+            "def run -> int\ncase 9007199254740992.0\nwhen 9007199254740993..9007199254740993 then 'wrong'\nelse 7\nend\nend",
+        )
+        .unwrap();
+    let report = script
+        .check_function("run", &CallOptions::default())
+        .unwrap();
+    assert!(report.is_clean(), "{report:?}");
+}
