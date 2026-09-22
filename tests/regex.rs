@@ -261,3 +261,40 @@ Regex={match:7}
     let result = script.run(CallOptions::default()).unwrap();
     assert_eq!(json(&result.value), serde_json::json!(["a", 7, "XbX"]));
 }
+
+#[test]
+fn maximal_literal_patterns_match_within_the_default_step_quota() {
+    // The reference matches a 16 KiB case-insensitive literal against 16 KiB
+    // of uppercase text under its default quota.
+    let pattern = "a".repeat(16 << 10);
+    let script = Engine::new()
+        .compile(&format!(
+            "def match_op(t)\n  t =~ /{pattern}/i\nend\n\
+             def string_match_q(t)\n  t.match?(/{pattern}/i)\nend\n\
+             def string_sub(t)\n  t.sub(/{pattern}/i, \"X\")\nend\n\
+             def regex_match_q(t)\n  /{pattern}/i.match?(t)\nend\n\
+             def near_misses(t)\n  (\"a\" * 16383 + \"c\") * 2 =~ /{near}b/\nend",
+            near = &pattern[1..]
+        ))
+        .unwrap();
+    let text = Value::bytes("A".repeat(16 << 10));
+    let options = || CallOptions {
+        limits: Limits {
+            memory_bytes: Some(64 << 20),
+            ..Limits::default()
+        },
+        ..CallOptions::default()
+    };
+    for (function, expected) in [
+        ("match_op", serde_json::json!(0)),
+        ("string_match_q", serde_json::json!(true)),
+        ("string_sub", serde_json::json!("X")),
+        ("regex_match_q", serde_json::json!(true)),
+        ("near_misses", serde_json::Value::Null),
+    ] {
+        let outcome = script
+            .call(function, std::slice::from_ref(&text), options())
+            .unwrap();
+        assert_eq!(json(&outcome.value), expected, "{function}");
+    }
+}
