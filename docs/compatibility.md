@@ -8,6 +8,10 @@ Both ordinary and block-capable host methods follow the selected ADR-006 restric
 
 The host-block audit records the explicitly selected control-flow preservation rule. Rust preserves a pending `break` or nonlocal `return` when a callback ignores `ErrorKind::ControlFlow`, and prevents another invocation of that block from executing script. Go allows the callback to swallow the signal, rerun the block and replace its result. The two examples are checked in all four strict-effects/accounting combinations. Ordinary block exceptions remain available for host recovery and repeated invocation.
 
+## Capability receiver publication
+
+Go's builtin callbacks receive the capability object as a live `receiver` map: a write into it is visible to the script, and every script alias of the object observes it, because the object keeps a shared mutable identity for the call. Rust follows ADR-006's collection value semantics and publishes into the binding instead, as selected on 2026-09-22. `HostCall::set_receiver_field` writes to the capability binding that holds the receiver, so the capability name and its nested hashes observe the write, while copies the script took earlier stay unchanged. Only block-capable and async methods receive the handle, publication cannot replace a method field, and fields cannot be deleted. The documented pattern, where a factory method installs data and the script then reads it through the capability, behaves the same in both implementations.
+
 ## Host signature boundaries
 
 Published signatures follow the documented runtime type contract and the selected consistent binding rules. Named types resolve through the active source before the call root, including required-file defaults and qualified file aliases. Go v0.70.0 can substitute a same-named root enum or class and fail an otherwise valid call, or fail to find a file's type alias. The signature audit records twenty-four such cases across registered methods, capabilities and ordinary globals, where allowed by strict effects.
