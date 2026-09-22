@@ -8,6 +8,7 @@ mod classes;
 mod errors;
 mod lexer;
 pub(crate) mod modules;
+mod teardown;
 mod tokens;
 mod types;
 pub(crate) mod unicode;
@@ -61,6 +62,12 @@ pub(crate) enum Node {
     Index(Boxed<Expr>, Buffer<Expr>),
 }
 impl Expr {
+    /// Moves the node out of an expression, which cannot be destructured
+    /// because it drops its subtree without recursion.
+    fn into_node(mut self) -> Node {
+        std::mem::replace(&mut self.node, Node::Integer(0))
+    }
+
     fn safe_assignment_target(&self) -> bool {
         let mut current = self;
         loop {
@@ -1691,7 +1698,8 @@ impl<'a> Parsing<'a> {
         p.command_group = group;
         p.command_depth -= 1;
         let depth = 1 + call_depth(&lhs).max(args.iter().map(|a| a.value.depth).max().unwrap_or(0));
-        let node = match lhs.node {
+        let offset = lhs.offset;
+        let node = match lhs.into_node() {
             Node::Var(name) => Node::Call(name, args, CallForm::Bare),
             Node::Member(receiver, name) => Node::Method(receiver, name, args, CallForm::Bare),
             Node::SafeMember(receiver, name) => {
@@ -1699,14 +1707,17 @@ impl<'a> Parsing<'a> {
             }
             _ => unreachable!(),
         };
-        p.make_at(node, depth, lhs.offset)
+        p.make_at(node, depth, offset)
     }
 
     async fn block_expression(&self, mut lhs: Expr, brace: bool) -> Result<Expr> {
         self.p().work.charge(1)?;
         let offset = lhs.offset;
         let block = self.attached_block(brace).await?;
-        if let Node::BlockCall(call, _) = lhs.node {
+        if matches!(lhs.node, Node::BlockCall(..)) {
+            let Node::BlockCall(call, _) = lhs.into_node() else {
+                unreachable!()
+            };
             lhs = call.into_inner();
         }
         // Go counts the block literal as a node below its call.
@@ -2611,7 +2622,14 @@ impl<'a> Parser<'a> {
         let origin = lhs.offset;
         let argument_depth = args.iter().map(|a| a.value.depth).max().unwrap_or(0);
         let d = 1 + call_depth(&lhs).max(argument_depth);
-        let node = match lhs.node {
+        if !matches!(
+            lhs.node,
+            Node::Var(_) | Node::Member(..) | Node::SafeMember(..) | Node::Scope(_, _, None)
+        ) {
+            let node = Node::ComputedCall(Boxed::new(self.work, lhs)?, args);
+            return self.make_at(node, d, origin);
+        }
+        let node = match lhs.into_node() {
             Node::Var(name) => Node::Call(name, args, CallForm::Parenthesized),
             Node::Member(receiver, name) => {
                 Node::Method(receiver, name, args, CallForm::Parenthesized)
@@ -2620,7 +2638,7 @@ impl<'a> Parser<'a> {
                 Node::SafeMethod(receiver, name, args, CallForm::Parenthesized)
             }
             Node::Scope(receiver, name, None) => Node::Scope(receiver, name, Some(args)),
-            _ => Node::ComputedCall(Boxed::new(self.work, lhs)?, args),
+            _ => unreachable!(),
         };
         self.make_at(node, d, origin)
     }

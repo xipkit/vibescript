@@ -252,11 +252,7 @@ impl Parser<'_> {
     fn class_alias_name(&mut self, symbol: bool) -> Result<Name> {
         self.work.charge(1)?;
         if self.take_p(':') {
-            let Expr {
-                node: Node::Literal(value),
-                ..
-            } = self.symbol()?
-            else {
+            let Node::Literal(value) = self.symbol()?.into_node() else {
                 return self.err("expected method symbol");
             };
             let bytes = value.as_bytes().unwrap();
