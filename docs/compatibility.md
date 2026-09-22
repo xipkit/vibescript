@@ -12,6 +12,12 @@ The host-block audit records the explicitly selected control-flow preservation r
 
 Go's builtin callbacks receive the capability object as a live `receiver` map: a write into it is visible to the script, and every script alias of the object observes it, because the object keeps a shared mutable identity for the call. Rust follows ADR-006's collection value semantics and publishes into the binding instead, as selected on 2026-09-22. `HostCall::set_receiver_field` writes to the capability binding that holds the receiver, so the capability name and its nested hashes observe the write, while copies the script took earlier stay unchanged. Only block-capable and async methods receive the handle, publication cannot replace a method field, and fields cannot be deleted. The documented pattern, where a factory method installs data and the script then reads it through the capability, behaves the same in both implementations.
 
+## Static checker strictness
+
+Rust's `vibes check` is deliberately stricter than Go's, as selected on 2026-09-22. Both report a typed boundary when any known alternative of the value fails it, such as passing an `int?` to an `int` parameter. For operators and member calls, Go v0.70.0 reports only when every alternative fails: `nil + 1` is an error, while `v + 1` with `v: int?`, `"x" + items[i]` and `v.upcase` with `v: string?` pass. Rust also reports these whenever a finite known alternative, including `nil` from an index or an empty array before a loop fills it, cannot succeed. Unknown and `any` values stay gradual in both.
+
+Rust also fails the gate when it reaches an expression it does not yet analyze, reporting it as incomplete; Go treats such a value as unknown. Of the 277 site, example and upstream test programs, 158 are clean and 16 fail in both checkers. Fifty pass Go's check but report union-alternative errors in Rust. The remaining differences come from unanalyzed expressions and checker budget use, which are being closed rather than accepted.
+
 ## Host signature boundaries
 
 Published signatures follow the documented runtime type contract and the selected consistent binding rules. Named types resolve through the active source before the call root, including required-file defaults and qualified file aliases. Go v0.70.0 can substitute a same-named root enum or class and fail an otherwise valid call, or fail to find a file's type alias. The signature audit records twenty-four such cases across registered methods, capabilities and ordinary globals, where allowed by strict effects.
