@@ -280,7 +280,7 @@ fn ignored_quota_errors_keep_their_original_block_diagnostics() {
     };
     let error = run("visit {\n while true\n  1\n end\n}\n99", opts).unwrap_err();
     assert_eq!(error.kind, ErrorKind::Steps);
-    assert_eq!(error.message, "step quota exceeded");
+    assert_eq!(error.message, "step quota exceeded (2000)");
     let diagnostic = error.diagnostic.unwrap();
     assert!(
         (3..=4).contains(&diagnostic.position.line),

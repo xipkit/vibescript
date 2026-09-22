@@ -762,7 +762,7 @@ fn limits_deadlines_and_unknown_functions_fail_with_nonzero_status() {
         "--steps",
         "1",
     ])
-    .expect(1, "", "step quota exceeded\n");
+    .expect(1, "", "step quota exceeded (1)\n");
     vibes(&[
         &file,
         "--function",
@@ -773,7 +773,7 @@ fn limits_deadlines_and_unknown_functions_fail_with_nonzero_status() {
         "--memory",
         "1",
     ])
-    .expect(1, "", "memory quota exceeded\n");
+    .expect(1, "", "memory quota exceeded (1 bytes)\n");
     vibes(&[
         &file,
         "--function",
@@ -818,7 +818,7 @@ fn limits_deadlines_and_unknown_functions_fail_with_nonzero_status() {
         assert_eq!(run.stdout, "", "{mode:?}");
         assert!(
             run.stderr
-                .starts_with("step quota exceeded\n  --> line 4, column 5\n"),
+                .starts_with("step quota exceeded (10000)\n  --> line 4, column 5\n"),
             "{mode:?}: {}",
             run.stderr
         );
@@ -836,7 +836,8 @@ fn limits_deadlines_and_unknown_functions_fail_with_nonzero_status() {
     assert_eq!(run.status, Some(1));
     assert_eq!(run.stdout, "");
     assert!(
-        run.stderr.starts_with("recursion limit exceeded\n"),
+        run.stderr
+            .starts_with("recursion depth exceeded (limit 3)\n"),
         "{}",
         run.stderr
     );
@@ -1259,8 +1260,8 @@ fn check_command_applies_limits_deadlines_and_stats_to_analysis() {
         let mut base = vec!["check", file.as_str()];
         base.extend(&scope);
         for (option, value, message) in [
-            ("--steps", "1", "step quota exceeded\n"),
-            ("--memory", "1", "memory quota exceeded\n"),
+            ("--steps", "1", "step quota exceeded (1)\n"),
+            ("--memory", "1", "memory quota exceeded (1 bytes)\n"),
             ("--timeout-ms", "0", "execution deadline exceeded\n"),
         ] {
             let mut args = base.clone();
@@ -1799,9 +1800,13 @@ fn inline_source_honors_quotas_deadlines_and_stats() {
         "--steps",
         "1",
     ])
-    .expect(1, "", "step quota exceeded\n");
-    vibes(&["-e", ADD, "--check", "--steps", "1"]).expect(1, "", "step quota exceeded\n");
-    vibes(&["check", "-e", ADD, "--memory", "1"]).expect(1, "", "memory quota exceeded\n");
+    .expect(1, "", "step quota exceeded (1)\n");
+    vibes(&["-e", ADD, "--check", "--steps", "1"]).expect(1, "", "step quota exceeded (1)\n");
+    vibes(&["check", "-e", ADD, "--memory", "1"]).expect(
+        1,
+        "",
+        "memory quota exceeded (1 bytes)\n",
+    );
     vibes(&["check", "--function", "run", "-e", ADD, "--timeout-ms", "0"]).expect(
         1,
         "",
@@ -1837,7 +1842,7 @@ fn inline_source_honors_quotas_deadlines_and_stats() {
         assert_eq!(run.stdout, "", "{mode:?}");
         assert!(
             run.stderr
-                .starts_with("step quota exceeded\n  --> line 4, column 5\n"),
+                .starts_with("step quota exceeded (10000)\n  --> line 4, column 5\n"),
             "{mode:?}: {}",
             run.stderr
         );
@@ -1855,7 +1860,8 @@ fn inline_source_honors_quotas_deadlines_and_stats() {
     assert_eq!(run.status, Some(1));
     assert_eq!(run.stdout, "");
     assert!(
-        run.stderr.starts_with("recursion limit exceeded\n"),
+        run.stderr
+            .starts_with("recursion depth exceeded (limit 3)\n"),
         "{}",
         run.stderr
     );

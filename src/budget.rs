@@ -10,6 +10,16 @@ use std::{
 };
 
 pub(crate) const CHUNK: usize = 4096;
+
+/// Names the configured step quota, as Go reports it.
+pub(crate) fn step_quota_message(limit: u64) -> String {
+    format!("step quota exceeded ({limit})")
+}
+
+/// Names the configured memory quota, as Go reports it.
+pub(crate) fn memory_quota_message(limit: usize) -> String {
+    format!("memory quota exceeded ({limit} bytes)")
+}
 pub(crate) const MAX_VALUE_DEPTH: usize = 10_000;
 pub(crate) const MAX_ENVIRONMENT_DEPTH: usize = 128;
 
@@ -211,13 +221,13 @@ impl CallContext {
             Some(n) => n,
             None => return self.fail(ErrorKind::Steps, "step counter overflow"),
         };
-        if self
+        if let Some(limit) = self
             .options
             .limits
             .steps
-            .is_some_and(|limit| self.steps > limit)
+            .filter(|&limit| self.steps > limit)
         {
-            return self.fail(ErrorKind::Steps, "step quota exceeded");
+            return self.fail(ErrorKind::Steps, step_quota_message(limit));
         }
         if old == 0 || old / 16 != self.steps / 16 {
             self.checkpoint()?;
@@ -238,7 +248,7 @@ impl CallContext {
                 .checked_add(steps)
                 .is_none_or(|total| total > limit)
             {
-                return self.fail(ErrorKind::Steps, "step quota exceeded");
+                return self.fail(ErrorKind::Steps, step_quota_message(limit));
             }
         }
         self.checkpoint()
@@ -319,7 +329,7 @@ impl CallContext {
         self.work_bytes(units)
     }
 
-    pub(crate) fn fail<T>(&mut self, kind: ErrorKind, message: &str) -> Result<T> {
+    pub(crate) fn fail<T>(&mut self, kind: ErrorKind, message: impl Into<String>) -> Result<T> {
         let err = Error::new(kind, message);
         if matches!(
             kind,
@@ -365,13 +375,13 @@ impl CallContext {
         let Some(next) = used.checked_add(bytes) else {
             return self.fail(ErrorKind::Memory, "memory size overflow");
         };
-        if self
+        if let Some(limit) = self
             .options
             .limits
             .memory_bytes
-            .is_some_and(|limit| next > limit)
+            .filter(|&limit| next > limit)
         {
-            return self.fail(ErrorKind::Memory, "memory quota exceeded");
+            return self.fail(ErrorKind::Memory, memory_quota_message(limit));
         }
         Ok(())
     }

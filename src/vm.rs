@@ -165,6 +165,15 @@ enum Exit {
     Control(Control),
 }
 
+/// Refuses a frame beyond the configured recursion limit, naming the limit as Go does.
+pub(crate) fn recursion_exceeded<T>(ctx: &mut CallContext) -> Result<T> {
+    let limit = ctx.options.limits.recursion;
+    ctx.guard(
+        ErrorKind::Recursion,
+        &format!("recursion depth exceeded (limit {limit})"),
+    )
+}
+
 enum Step {
     Host,
     Complete(Exit),
@@ -3569,7 +3578,7 @@ fn enter(
     }
     ctx.charge(1)?;
     if frames.data.len() >= ctx.options.limits.recursion {
-        return ctx.guard(ErrorKind::Recursion, "recursion limit exceeded");
+        return recursion_exceeded(ctx);
     }
     if args.len() != fun.params.len() {
         return Err(Error::argument(format!(
@@ -3642,7 +3651,7 @@ fn enter_arguments(
     }
     ctx.charge(1)?;
     if frames.data.len() >= ctx.options.limits.recursion {
-        return ctx.guard(ErrorKind::Recursion, "recursion limit exceeded");
+        return recursion_exceeded(ctx);
     }
     let block = arguments.block;
     let binding = Binding::new(ctx, &fun.params, arguments)?;
@@ -3673,7 +3682,7 @@ fn enter_iteration(
 ) -> Result<()> {
     ctx.charge(1)?;
     if frames.data.len() >= ctx.options.limits.recursion {
-        return ctx.guard(ErrorKind::Recursion, "recursion limit exceeded");
+        return recursion_exceeded(ctx);
     }
     let mut frame = new_frame(ctx, program, storage, None, base)?;
     frame.block = args.block;
@@ -3779,7 +3788,7 @@ fn enter_block(
 ) -> Result<()> {
     ctx.charge(1)?;
     if frames.data.len() >= ctx.options.limits.recursion {
-        return ctx.guard(ErrorKind::Recursion, "recursion limit exceeded");
+        return recursion_exceeded(ctx);
     }
     let program = frames.data[block.parent].program.clone();
     let mut frame = new_frame(ctx, &program, storage, Some(block.function), base)?;

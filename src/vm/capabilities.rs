@@ -24,7 +24,7 @@ impl Call {
             Self::Block(args) => {
                 ctx.charge(1)?;
                 if frames.data.len() >= ctx.options.limits.recursion {
-                    return ctx.guard(ErrorKind::Recursion, "recursion limit exceeded");
+                    return super::recursion_exceeded(ctx);
                 }
                 let mut frame = new_frame(ctx, program, storage, None, stack.data.len())?;
                 frame.host = true;
