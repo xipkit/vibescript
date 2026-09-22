@@ -47,7 +47,8 @@ pub(crate) enum Node {
     /// Conditions tested in order with their results, then the alternate.
     Conditional(Buffer<(Expr, Expr)>, Boxed<Expr>),
     Case(Option<Boxed<Expr>>, Buffer<When>, Option<Boxed<Expr>>),
-    Loop(Boxed<Stmt>),
+    /// A loop, or an if continued past its `end`, used as an expression.
+    Compound(Boxed<Stmt>),
     Call(Name, Buffer<Argument>, CallForm),
     ComputedCall(Boxed<Expr>, Buffer<Argument>),
     BlockCall(Boxed<Expr>, Block),
@@ -825,11 +826,17 @@ impl<'a> Parsing<'a> {
     async fn modified_statement(&self, offset: u32) -> Result<Statement> {
         self.p().work.charge(1)?;
         let starts_begin = matches!(self.p().token(), Token::Word(word) if word == "begin");
-        let stmt = if starts_begin {
+        let mut stmt = if starts_begin {
             Box::pin(self.begin_statement()).await?
         } else {
             self.plain_statement().await?
         };
+        if matches!(
+            stmt,
+            Statement::If(..) | Statement::While(..) | Statement::For(..)
+        ) {
+            stmt = Box::pin(self.continued_statement(stmt, offset)).await?;
+        }
         let modifier = match self.p().token() {
             Token::Word(w) if matches!(w.as_str(), "if" | "unless" | "while" | "until") => *w,
             _ => return Ok(stmt),
@@ -868,6 +875,32 @@ impl<'a> Parsing<'a> {
                 Buffer::new(),
             )
         })
+    }
+
+    // Like Go, an operator or member access after a compound statement's
+    // `end` on the same line continues the statement as an expression.
+    async fn continued_statement(&self, stmt: Statement, offset: u32) -> Result<Statement> {
+        let expr = {
+            let mut p = self.p();
+            p.work.charge(1)?;
+            let next = &p.tokens[p.pos];
+            let continues = match next.token {
+                Token::P('.' | '(' | '[' | '{' | '?') | Token::Op("&." | "::") => true,
+                Token::Op(op) => binding_power(op).is_some(),
+                Token::Word(ref w) => matches!(w.as_str(), "do" | "rescue"),
+                _ => false,
+            };
+            if !continues || next.line != p.previous()?.end_line {
+                return Ok(stmt);
+            }
+            let stmt = stmt.at(offset);
+            let depth = stmt.depth;
+            p.line_exprs += 1;
+            p.make_at(Node::Compound(Boxed::new(p.work, stmt)?), depth, offset)?
+        };
+        let result = self.expr_tail(expr, 0, None).await;
+        self.p().line_exprs -= 1;
+        Ok(Statement::Expr(result?))
     }
 
     // Go parses a statement-position begin as a statement, which costs no
@@ -1434,7 +1467,7 @@ impl<'a> Parsing<'a> {
         let stmt = stmt.at(offset);
         let depth = stmt.depth;
         let p = self.p();
-        p.make(Node::Loop(Boxed::new(p.work, stmt)?), depth)
+        p.make(Node::Compound(Boxed::new(p.work, stmt)?), depth)
     }
 
     async fn unary_prefix(&self, op: &'static str) -> Result<Expr> {

@@ -118,3 +118,28 @@ fn then_names_a_local_except_where_it_ends_a_condition() {
         .unwrap();
     assert_eq!(error.kind, ErrorKind::Syntax);
 }
+
+#[test]
+fn compound_statements_continue_as_expressions_after_end() {
+    let source = "def run\n  a = []\n  a << if true then 5 end\n  if true\n    [5]\n  end.map { |v| v + 1 }\nend";
+    assert_eq!(result(source), serde_json::json!([6]));
+    // These once parsed as two statements and silently discarded the first.
+    for (statement, expected) in [
+        ("if true then 5 end + 1", serde_json::json!(6)),
+        ("if true then [5] end [0]", serde_json::json!(5)),
+        ("while false; end.to_s", serde_json::json!("")),
+        ("until true; end.nil?", serde_json::json!(true)),
+        ("for i in [1, 2] do end.size", serde_json::json!(2)),
+    ] {
+        assert_eq!(
+            result(&format!("def run\n  {statement}\nend")),
+            expected,
+            "{statement}"
+        );
+    }
+    let error = Engine::new()
+        .compile("def run\n  if true\n    1\n  end\n    .to_s\nend")
+        .err()
+        .unwrap();
+    assert_eq!(error.kind, ErrorKind::Syntax);
+}

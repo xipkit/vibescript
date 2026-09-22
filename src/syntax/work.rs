@@ -351,7 +351,7 @@ impl<'x> Copying<'_, 'x> {
                 }
                 Node::Case(value, copies, self.optional_box(alternate).await?)
             }
-            Node::Loop(stmt) => Node::Loop(Boxed::new(work, self.stmt(stmt).await?)?),
+            Node::Compound(stmt) => Node::Compound(Boxed::new(work, self.stmt(stmt).await?)?),
             Node::Call(name, args, form) => {
                 Node::Call(self.name(name)?, self.arguments(args).await?, *form)
             }

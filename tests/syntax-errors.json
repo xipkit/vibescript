@@ -13204,5 +13204,10 @@
     "name": "then_ends_a_range_in_a_condition_group",
     "source": "def run(input)\n  then = 2\n  if (1..then) === 2 then \"in\" end\nend",
     "go_error": "parse error at 3:10: expected \")\", got 'then'"
+  },
+  {
+    "name": "compound_statement_continuation_stays_on_the_end_line",
+    "source": "def run(input)\n  if true\n    1\n  end\n    .to_s\nend",
+    "go_error": "parse error at 5:5: unexpected token \".\""
   }
 ]

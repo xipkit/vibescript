@@ -712,7 +712,7 @@ impl<'x> Item<'x> {
                     items.push(work, Item::Expr(e))?;
                 }
             }
-            Node::Loop(stmt) => items.push(work, Item::Stmt(stmt))?,
+            Node::Compound(stmt) => items.push(work, Item::Stmt(stmt))?,
             Node::Method(recv, _, args, _) | Node::SafeMethod(recv, _, args, _) => {
                 items.push(work, Item::Expr(recv))?;
                 for arg in args {
@@ -1858,7 +1858,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     c.patch(done, end);
                 }
             }
-            Node::Loop(stmt) => Box::pin(self.stmt(stmt, true)).await?,
+            Node::Compound(stmt) => Box::pin(self.stmt(stmt, true)).await?,
             Node::Case(target, clauses, alternate) => {
                 return Box::pin(self.case_expression(
                     target.as_deref(),
