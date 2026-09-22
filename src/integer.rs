@@ -133,6 +133,22 @@ impl Magnitude<'_> {
     }
 }
 
+impl<'a> Magnitude<'a> {
+    /// Returns the words, using `scratch` to hold a compact magnitude's.
+    fn slice<'b>(self, scratch: &'b mut [u32; 2]) -> &'b [u32]
+    where
+        'a: 'b,
+    {
+        match self {
+            Self::Small(n) => {
+                *scratch = [n as u32, (n >> 32) as u32];
+                &scratch[..self.len()]
+            }
+            Self::Words(words) => words,
+        }
+    }
+}
+
 fn parts(value: &Value) -> (bool, Magnitude<'_>) {
     match &value.0 {
         Kind::Int(n) => (*n < 0, Magnitude::Small(n.unsigned_abs())),
@@ -323,6 +339,9 @@ fn subtract(ctx: &mut CallContext, a: &mut [u32], b: Magnitude<'_>) -> Result<()
     Ok(())
 }
 
+/// Operands shorter than this many words multiply by the schoolbook method.
+const KARATSUBA: usize = 64;
+
 fn multiply(ctx: &mut CallContext, a: Magnitude<'_>, b: Magnitude<'_>) -> Result<Buffer<u32>> {
     if a.len() == 0 || b.len() == 0 {
         return Ok(Buffer::empty());
@@ -332,18 +351,112 @@ fn multiply(ctx: &mut CallContext, a: Magnitude<'_>, b: Magnitude<'_>) -> Result
         .checked_add(b.len())
         .ok_or_else(|| Error::new(ErrorKind::Memory, "integer size overflow"))?;
     let mut out = zeros(ctx, length)?;
-    for i in 0..a.len() {
-        ctx.charge(1)?;
-        let mut carry = 0u64;
-        for j in 0..b.len() {
-            work(ctx, j, b.len())?;
-            carry += a.word(i) as u64 * b.word(j) as u64 + out.data[i + j] as u64;
-            out.data[i + j] = carry as u32;
-            carry >>= 32;
-        }
-        out.data[i + b.len()] = carry as u32;
-    }
+    let (mut x, mut y) = ([0; 2], [0; 2]);
+    multiply_into(ctx, &mut out.data, a.slice(&mut x), b.slice(&mut y))?;
     Ok(out)
+}
+
+/// Returns `a * b` in a new buffer of `a.len() + b.len()` words.
+fn product(ctx: &mut CallContext, a: &[u32], b: &[u32]) -> Result<Buffer<u32>> {
+    let mut out = zeros(ctx, a.len() + b.len())?;
+    multiply_into(ctx, &mut out.data, a, b)?;
+    Ok(out)
+}
+
+/// Adds `a * b` into `out`, which must hold the sum.
+///
+/// Short operands use the schoolbook method, charged one step per row and
+/// one per sixteen word products. Longer ones split Karatsuba-style into
+/// three half-size products, so an n-word product costs O(n^1.59) work.
+fn multiply_into(ctx: &mut CallContext, out: &mut [u32], a: &[u32], b: &[u32]) -> Result<()> {
+    // `b` is the shorter operand.
+    let (a, b) = if a.len() < b.len() { (b, a) } else { (a, b) };
+    if b.is_empty() {
+        return Ok(());
+    }
+    if b.len() < KARATSUBA {
+        for (i, &y) in b.iter().enumerate() {
+            ctx.charge(1)?;
+            let mut carry = 0u64;
+            for (j, &x) in a.iter().enumerate() {
+                work(ctx, j, a.len())?;
+                carry += x as u64 * y as u64 + out[i + j] as u64;
+                out[i + j] = carry as u32;
+                carry >>= 32;
+            }
+            if carry != 0 {
+                add_into(ctx, &mut out[i + a.len()..], &[carry as u32])?;
+            }
+        }
+        return Ok(());
+    }
+    if a.len() >= 2 * b.len() {
+        for (index, chunk) in a.chunks(b.len()).enumerate() {
+            multiply_into(ctx, &mut out[index * b.len()..], chunk, b)?;
+        }
+        return Ok(());
+    }
+    let half = b.len() / 2;
+    let (a0, a1) = a.split_at(half);
+    let (b0, b1) = b.split_at(half);
+    let low = product(ctx, a0, b0)?;
+    let high = product(ctx, a1, b1)?;
+    let mut middle = {
+        let x = sum(ctx, a0, a1)?;
+        let y = sum(ctx, b0, b1)?;
+        product(ctx, significant(&x.data), significant(&y.data))?
+    };
+    // (a0 + a1)(b0 + b1) - a0 b0 - a1 b1 = a0 b1 + a1 b0 >= 0.
+    subtract(
+        ctx,
+        &mut middle.data,
+        Magnitude::Words(significant(&low.data)),
+    )?;
+    subtract(
+        ctx,
+        &mut middle.data,
+        Magnitude::Words(significant(&high.data)),
+    )?;
+    add_into(ctx, out, significant(&low.data))?;
+    add_into(ctx, &mut out[half..], significant(&middle.data))?;
+    add_into(ctx, &mut out[2 * half..], significant(&high.data))
+}
+
+/// Returns `a + b` in a new buffer one word longer than the longer operand.
+fn sum(ctx: &mut CallContext, a: &[u32], b: &[u32]) -> Result<Buffer<u32>> {
+    add(ctx, Magnitude::Words(a), Magnitude::Words(b))
+}
+
+/// Drops high zero words without charging; callers charge the words they then read.
+fn significant(words: &[u32]) -> &[u32] {
+    let length = words
+        .iter()
+        .rposition(|&word| word != 0)
+        .map_or(0, |i| i + 1);
+    &words[..length]
+}
+
+/// Adds `value` into `out`, propagating the carry; `out` must hold the sum.
+fn add_into(ctx: &mut CallContext, out: &mut [u32], value: &[u32]) -> Result<()> {
+    let mut carry = 0u64;
+    for (i, &word) in value.iter().enumerate() {
+        work(ctx, i, value.len())?;
+        carry += out[i] as u64 + word as u64;
+        out[i] = carry as u32;
+        carry >>= 32;
+    }
+    // A carry ripples through words that were all ones, at the same rate.
+    let mut i = value.len();
+    while carry != 0 {
+        if (i - value.len()) % 16 == 0 {
+            ctx.charge(1)?;
+        }
+        carry += out[i] as u64;
+        out[i] = carry as u32;
+        carry >>= 32;
+        i += 1;
+    }
+    Ok(())
 }
 
 fn divide_small(ctx: &mut CallContext, words: &mut Vec<u32>, divisor: u32) -> Result<u32> {
@@ -376,27 +489,83 @@ fn divide(
         let remainder = divide_small(ctx, &mut quotient.data, b.word(0))?;
         return Ok((quotient, copy(ctx, Magnitude::Small(remainder as u64))?));
     }
-    let mut quotient = zeros(ctx, a.len())?;
-    let mut remainder = Buffer::with_capacity(ctx, b.len() + 1)?;
-    for bit in (0..a.bits()).rev() {
-        ctx.charge(1)?;
-        let mut carry = a.word(bit / 32) >> (bit % 32) & 1;
-        let length = remainder.data.len();
-        for i in 0..length {
-            work(ctx, i, length)?;
-            let word = remainder.data[i];
-            remainder.data[i] = word << 1 | carry;
-            carry = word >> 31;
-        }
-        if carry != 0 {
-            remainder.data.push(carry);
-        }
-        if compare_magnitude(ctx, Magnitude::Words(&remainder.data), b)? != Ordering::Less {
-            subtract(ctx, &mut remainder.data, b)?;
-            trim(ctx, &mut remainder.data)?;
-            quotient.data[bit / 32] |= 1 << (bit % 32);
+    let (mut x, mut y) = ([0; 2], [0; 2]);
+    long_divide(ctx, a.slice(&mut x), b.slice(&mut y))
+}
+
+/// Shifts `words` left by `shift` bits below 32 into a new buffer of
+/// `length` words, which must hold the result.
+fn shifted(ctx: &mut CallContext, words: &[u32], shift: u32, length: usize) -> Result<Buffer<u32>> {
+    let mut out = zeros(ctx, length)?;
+    for (i, &word) in words.iter().enumerate() {
+        work(ctx, i, words.len())?;
+        let wide = (word as u64) << shift;
+        out.data[i] |= wide as u32;
+        if (wide >> 32) != 0 {
+            out.data[i + 1] = (wide >> 32) as u32;
         }
     }
+    Ok(out)
+}
+
+/// Divides by a divisor of at least two words with Knuth's algorithm D,
+/// estimating one quotient word at a time from the leading words. Each
+/// quotient word costs one step and a charged pass over the divisor, so the
+/// work is proportional to the product of the quotient and divisor lengths.
+fn long_divide(ctx: &mut CallContext, a: &[u32], b: &[u32]) -> Result<(Buffer<u32>, Buffer<u32>)> {
+    let n = b.len();
+    let m = a.len() - n;
+    // Normalizing puts the divisor's top bit in its leading word.
+    let shift = b[n - 1].leading_zeros();
+    let divisor = shifted(ctx, b, shift, n)?;
+    let mut rest = shifted(ctx, a, shift, a.len() + 1)?;
+    let (v, u) = (&divisor.data, &mut rest.data);
+    let mut quotient = zeros(ctx, m + 1)?;
+    for j in (0..=m).rev() {
+        ctx.charge(1)?;
+        let top = (u[j + n] as u64) << 32 | u[j + n - 1] as u64;
+        let mut estimate = top / v[n - 1] as u64;
+        let mut remainder = top % v[n - 1] as u64;
+        while estimate > u32::MAX as u64
+            || estimate * v[n - 2] as u64 > (remainder << 32 | u[j + n - 2] as u64)
+        {
+            estimate -= 1;
+            remainder += v[n - 1] as u64;
+            if remainder > u32::MAX as u64 {
+                break;
+            }
+        }
+        let mut borrow = 0i64;
+        for i in 0..n {
+            work(ctx, i, n)?;
+            let product = estimate * v[i] as u64;
+            let difference = u[i + j] as i64 - borrow - (product & u32::MAX as u64) as i64;
+            u[i + j] = difference as u32;
+            borrow = (product >> 32) as i64 - (difference >> 32);
+        }
+        let difference = u[j + n] as i64 - borrow;
+        u[j + n] = difference as u32;
+        if difference < 0 {
+            // The estimate was one too large: add the divisor back.
+            estimate -= 1;
+            let mut carry = 0u64;
+            for i in 0..n {
+                work(ctx, i, n)?;
+                carry += u[i + j] as u64 + v[i] as u64;
+                u[i + j] = carry as u32;
+                carry >>= 32;
+            }
+            u[j + n] = u[j + n].wrapping_add(carry as u32);
+        }
+        quotient.data[j] = estimate as u32;
+    }
+    let mut remainder = zeros(ctx, n)?;
+    for i in 0..n {
+        work(ctx, i, n)?;
+        let wide = (u[i + 1] as u64) << 32 | u[i] as u64;
+        remainder.data[i] = (wide >> shift) as u32;
+    }
+    trim(ctx, &mut remainder.data)?;
     Ok((quotient, remainder))
 }
 
@@ -685,6 +854,97 @@ mod tests {
         assert_eq!(second.stats().retained_memory_bytes, retained);
         drop(imported);
         assert_eq!(second.stats().retained_memory_bytes, 0);
+    }
+
+    /// Deterministic xorshift words, so failures reproduce.
+    struct Words(u64);
+
+    impl Words {
+        fn next(&mut self) -> u32 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            (self.0 >> 16) as u32
+        }
+
+        /// Returns `length` words shaped to reach carry, borrow and correction paths.
+        fn take(&mut self, length: usize) -> Vec<u32> {
+            let shape = self.next() % 4;
+            let mut words: Vec<u32> = (0..length)
+                .map(|_| match shape {
+                    0 => u32::MAX,
+                    1 => self.next() | 0x8000_0000,
+                    2 => self.next() & 0x0000_ffff,
+                    _ => self.next(),
+                })
+                .collect();
+            if let Some(last) = words.last_mut() {
+                *last |= 1;
+            }
+            words
+        }
+    }
+
+    fn schoolbook(a: &[u32], b: &[u32]) -> Vec<u32> {
+        let mut out = vec![0u32; a.len() + b.len()];
+        for (i, &x) in a.iter().enumerate() {
+            let mut carry = 0u64;
+            for (j, &y) in b.iter().enumerate() {
+                carry += x as u64 * y as u64 + out[i + j] as u64;
+                out[i + j] = carry as u32;
+                carry >>= 32;
+            }
+            out[i + b.len()] = carry as u32;
+        }
+        while out.last() == Some(&0) {
+            out.pop();
+        }
+        out
+    }
+
+    fn trimmed(mut words: Vec<u32>) -> Vec<u32> {
+        while words.last() == Some(&0) {
+            words.pop();
+        }
+        words
+    }
+
+    #[test]
+    fn split_products_and_long_division_agree_with_schoolbook_arithmetic() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let mut words = Words(0x9e37_79b9_7f4a_7c15);
+        let sizes = [1, 2, 3, 31, 63, 64, 65, 100, 127, 128, 129, 200, 257, 400];
+        for &x in &sizes {
+            for &y in &sizes {
+                let (a, b) = (words.take(x), words.take(y));
+                let product =
+                    multiply(&mut ctx, Magnitude::Words(&a), Magnitude::Words(&b)).unwrap();
+                let expected = schoolbook(&a, &b);
+                assert_eq!(trimmed(product.data.clone()), expected, "{x} x {y}");
+                // Dividing the product plus a smaller remainder recovers both.
+                let remainder = trimmed(words.take(y.min(x)));
+                let remainder = if compare_magnitude(
+                    &mut ctx,
+                    Magnitude::Words(&remainder),
+                    Magnitude::Words(&b),
+                )
+                .unwrap()
+                    == Ordering::Less
+                {
+                    remainder
+                } else {
+                    Vec::new()
+                };
+                let mut dividend = product.data.clone();
+                add_into(&mut ctx, &mut dividend, &remainder).unwrap();
+                let dividend = trimmed(dividend);
+                let (quotient, rest) =
+                    divide(&mut ctx, Magnitude::Words(&dividend), Magnitude::Words(&b)).unwrap();
+                assert_eq!(trimmed(quotient.data), trimmed(a.clone()), "{x} / {y}");
+                assert_eq!(rest.data, remainder, "{x} % {y}");
+            }
+        }
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
 
     #[test]
