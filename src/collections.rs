@@ -87,17 +87,33 @@ pub(crate) fn method(
             if args.is_empty() {
                 return Err(argument("dig expects at least one key"));
             }
-            if !matches!(value.0, Kind::Array(_) | Kind::Hash(_)) {
-                return Err(wrong_type());
-            }
+            let receiver = match value.0 {
+                Kind::Array(_) => "array",
+                Kind::Hash(_) => "hash",
+                _ => return Err(wrong_type()),
+            };
             let mut current = value;
             for key in args {
                 ctx.charge(1)?;
                 if !matches!(current.0, Kind::Array(_) | Kind::Hash(_)) {
                     return Ok(Value::nil());
                 }
-                if matches!(current.0, Kind::Array(_)) && key.require_int()? < 0 {
-                    return Ok(Value::nil());
+                if matches!(current.0, Kind::Array(_)) {
+                    // Whole floats select an element; fractional indexes are rejected.
+                    let whole = !matches!(key.0, Kind::Float(f) if f.trunc() != f);
+                    match integer(key) {
+                        Ok(index) if whole => {
+                            if index < 0 {
+                                return Ok(Value::nil());
+                            }
+                        }
+                        _ => {
+                            return Err(Error::new(
+                                ErrorKind::Type,
+                                format!("{receiver}.dig array index must be integer"),
+                            ));
+                        }
+                    }
                 }
                 current = lookup(ctx, &current, key, false)?.unwrap_or_default();
             }

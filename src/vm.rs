@@ -1504,17 +1504,15 @@ impl Run {
                     let value = Value::from_hash(ctx, values)?;
                     stack.push(ctx, value)?;
                 }
+                Op::RangeStart => {
+                    let start = stack.data.last_mut().unwrap();
+                    *start = Value::int(crate::range::endpoint(start)?);
+                }
                 Op::Range(start, end, exclusive) => {
-                    let end = if end {
-                        Some(stack.data.pop().unwrap().require_int()?)
-                    } else {
-                        None
-                    };
-                    let start = if start {
-                        Some(stack.data.pop().unwrap().require_int()?)
-                    } else {
-                        None
-                    };
+                    let end = end.then(|| stack.data.pop().unwrap());
+                    let start = start.then(|| stack.data.pop().unwrap());
+                    let start = start.as_ref().map(crate::range::endpoint).transpose()?;
+                    let end = end.as_ref().map(crate::range::endpoint).transpose()?;
                     let value = Value(Kind::Range(Range::new(ctx, start, end, exclusive)?));
                     stack.push(ctx, value)?;
                 }

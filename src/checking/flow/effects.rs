@@ -76,6 +76,7 @@ impl Walker<'_> {
                 return Ok(0);
             }
             Op::Normalize(..) => return Ok(0),
+            Op::RangeStart => &state.stack.data[state.stack.data.len() - 1..],
             Op::Range(start, end, _) => {
                 let n = usize::from(start) + usize::from(end);
                 &state.stack.data[state.stack.data.len() - n..]
@@ -326,14 +327,26 @@ impl Walker<'_> {
                         | handlers::bit(ErrorClass::Argument)
                         | handlers::bit(ErrorClass::Limit);
                 }
-                if op == "*" && x == Some(Atom::String) && y == Some(Atom::Int) {
-                    match self.facts.node(b) {
-                        Node::Integer(n) if *n < 0 => {
+                if op == "*"
+                    && x == Some(Atom::String)
+                    && matches!(y, Some(Atom::Int | Atom::Float))
+                {
+                    // A float count truncates toward zero before the sign check; one
+                    // outside the 64-bit range always fails, like a negative count.
+                    let count = match self.facts.node(b) {
+                        Node::Integer(n) => Some(*n),
+                        Node::Float(bits) => {
+                            Some(crate::range::truncate(f64::from_bits(*bits)).unwrap_or(-1))
+                        }
+                        _ => None,
+                    };
+                    match count {
+                        Some(n) if n < 0 => {
                             errors |= runtime;
                             stops = true;
                         }
-                        Node::Integer(_) => (),
-                        _ => errors |= runtime,
+                        Some(_) => (),
+                        None => errors |= runtime,
                     }
                 }
                 all_stop &= stops;

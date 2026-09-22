@@ -167,8 +167,10 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
                 _ => return Err(type_error()),
             }))
         }
-        (Kind::Bytes(s), Kind::Int(n)) if op == "*" => {
-            let n = usize::try_from(*n)
+        (Kind::Bytes(s), Kind::Int(_) | Kind::Float(_)) if op == "*" => {
+            // A float count truncates toward zero, so a fraction above -1 repeats zero times.
+            let n = crate::sequence::integer(&b).map_err(|_| type_error())?;
+            let n = usize::try_from(n)
                 .map_err(|_| Error::new(ErrorKind::Argument, "negative repeat count"))?;
             let len = s
                 .data

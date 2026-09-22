@@ -76,6 +76,7 @@ pub(crate) enum Op {
     TextPart,
     TextEnd(bool),
     Hash(usize),
+    RangeStart,
     Range(bool, bool, bool),
     Index(usize),
     AddressLocal(usize),
@@ -1334,6 +1335,10 @@ impl Compiler<'_> {
             Node::Range(start, end, exclusive) => {
                 if let Some(start) = start {
                     self.expr(start)?;
+                    if end.is_some() {
+                        // The start converts before the end runs, as in Go.
+                        self.emit(Op::RangeStart);
+                    }
                 }
                 if let Some(end) = end {
                     self.expr(end)?;

@@ -1074,6 +1074,29 @@ struct Walker<'a> {
 }
 
 impl Walker<'_> {
+    /// Reports a range endpoint that cannot convert and returns its known bound.
+    /// Finite floats truncate toward zero; other known floats cannot convert.
+    fn range_endpoint(&mut self, state: &State, pc: usize, value: Fact) -> Result<Option<i64>> {
+        let numeric = self
+            .facts
+            .union(self.ctx, &[Atom::Int.fact(), Atom::Float.fact()])?;
+        let mut rejected = self.facts.relation(self.ctx, value, numeric)? == Relation::Rejected;
+        for i in 0..self.facts.arm_count(value) {
+            self.ctx.charge(1)?;
+            if let super::facts::Node::Float(bits) = self.facts.node(self.facts.arm(value, i)) {
+                rejected |= crate::range::truncate(f64::from_bits(*bits)).is_none();
+            }
+        }
+        if rejected {
+            self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+            self.issue(pc, IssueKind::Range { value })?;
+        }
+        Ok(match self.facts.node(value) {
+            super::facts::Node::Integer(n) => Some(*n),
+            super::facts::Node::Float(bits) => crate::range::truncate(f64::from_bits(*bits)),
+            _ => None,
+        })
+    }
     fn case_compare(
         &mut self,
         state: &mut State,
@@ -2237,30 +2260,29 @@ impl Walker<'_> {
                         },
                     )?;
                 }
+                Op::RangeStart => {
+                    let start = state.stack.data.pop().unwrap().value;
+                    // A converted start is an integer on every continuing path.
+                    let value = match self.range_endpoint(&state, pc, start)? {
+                        Some(n) => self.facts.integer(self.ctx, n)?,
+                        None => Atom::Int.fact(),
+                    };
+                    state.stack.push(self.ctx, Operand::new(value))?;
+                }
                 Op::Range(start, end, exclusive) => {
                     let end = end.then(|| state.stack.data.pop().unwrap().value);
                     let start = start.then(|| state.stack.data.pop().unwrap().value);
+                    let mut bounds = [None, None];
                     let mut known = true;
-                    for value in start.into_iter().chain(end) {
-                        known &= matches!(self.facts.node(value), super::facts::Node::Integer(_));
-                        if self.facts.relation(self.ctx, value, Atom::Int.fact())?
-                            == Relation::Rejected
-                        {
-                            self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
-                            self.issue(pc, IssueKind::Range { value })?;
+                    for (bound, value) in bounds.iter_mut().zip([start, end]) {
+                        if let Some(value) = value {
+                            *bound = self.range_endpoint(&state, pc, value)?;
+                            known &= bound.is_some();
                         }
                     }
                     let value = if known {
-                        let endpoint = |value: Option<Fact>| {
-                            value.map(|value| {
-                                let super::facts::Node::Integer(n) = self.facts.node(value) else {
-                                    unreachable!()
-                                };
-                                *n
-                            })
-                        };
                         self.facts
-                            .range(self.ctx, endpoint(start), endpoint(end), exclusive)?
+                            .range(self.ctx, bounds[0], bounds[1], exclusive)?
                     } else {
                         Atom::Range.fact()
                     };

@@ -123213,5 +123213,85 @@
     "name": "range_aggregate_sum_float",
     "body": "(1..3).sum(1.5)",
     "go_error": "range.sum expects an integer initial value"
+  },
+  {
+    "name": "float_range_endpoint_nan_start",
+    "body": "((0.0 / 0.0)..1)",
+    "go_error": "cannot convert NaN to integer"
+  },
+  {
+    "name": "float_range_endpoint_nan_end",
+    "body": "(1..(0.0 / 0.0))",
+    "go_error": "cannot convert NaN to integer"
+  },
+  {
+    "name": "float_range_endpoint_infinite_start",
+    "body": "((1.0 / 0)..1)",
+    "go_error": "cannot convert Infinity to integer"
+  },
+  {
+    "name": "float_range_endpoint_negative_infinite_end",
+    "body": "(1..(-1.0 / 0))",
+    "go_error": "cannot convert -Infinity to integer"
+  },
+  {
+    "name": "float_range_endpoint_out_of_range",
+    "body": "(1..1e19)",
+    "go_error": "float 1e+19 is out of integer range"
+  },
+  {
+    "name": "float_range_endpoint_out_of_range_start",
+    "body": "(-9.3e18..1)",
+    "go_error": "float -9.3e+18 is out of integer range"
+  },
+  {
+    "name": "float_range_endpoint_int64_ceiling",
+    "body": "(9223372036854775807.0..1)",
+    "go_error": "float 9.223372036854776e+18 is out of integer range"
+  },
+  {
+    "name": "float_range_endpoint_nan_before_infinite",
+    "body": "((0.0 / 0.0)..(1.0 / 0))",
+    "go_error": "cannot convert NaN to integer"
+  },
+  {
+    "name": "float_range_endpoint_big_integer",
+    "body": "(1..(2**64))",
+    "go_error": "range endpoints must fit in a 64-bit integer"
+  },
+  {
+    "name": "dig_fractional_float_index",
+    "body": "[[1, 2, 3]].dig(0, 2.5)",
+    "go_error": "array.dig array index must be integer"
+  },
+  {
+    "name": "dig_nan_float_index",
+    "body": "[[1, 2, 3]].dig(0, 0.0 / 0.0)",
+    "go_error": "array.dig array index must be integer"
+  },
+  {
+    "name": "hash_dig_fractional_array_index",
+    "body": "{a: [1]}.dig(:a, 0.5)",
+    "go_error": "hash.dig array index must be integer"
+  },
+  {
+    "name": "string_repetition_negative_float",
+    "body": "\"ab\" * -1.5",
+    "go_error": "negative argument for string repetition"
+  },
+  {
+    "name": "string_repetition_nan",
+    "body": "\"ab\" * (0.0 / 0.0)",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "string_repetition_infinite",
+    "body": "\"ab\" * (1.0 / 0)",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "array_fetch_fractional_float",
+    "body": "[1, 2, 3].fetch(1.5)",
+    "go_error": "array.fetch index must be integer"
   }
 ]

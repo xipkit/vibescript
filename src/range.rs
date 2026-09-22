@@ -124,6 +124,37 @@ impl Range {
 const INTEGER_FLOOR: f64 = -9223372036854775808.0;
 const INTEGER_CEILING: f64 = 9223372036854775808.0;
 
+/// Truncates a float toward zero when the result fits a 64-bit integer.
+pub(crate) fn truncate(value: f64) -> Option<i64> {
+    (INTEGER_FLOOR..INTEGER_CEILING)
+        .contains(&value)
+        .then_some(value as i64)
+}
+
+/// Converts a range literal endpoint. Finite floats truncate toward zero, as at
+/// other integer sites; big integers, non-finite floats and other values fail.
+pub(crate) fn endpoint(value: &Value) -> Result<i64> {
+    let message = match value.0 {
+        Kind::Int(n) => return Ok(n),
+        Kind::Float(n) => {
+            if let Some(n) = truncate(n) {
+                return Ok(n);
+            }
+            let mut text = crate::json::Number::new();
+            crate::ops::format_float(&mut text, n);
+            let text = std::str::from_utf8(text.bytes()).unwrap();
+            if n.is_finite() {
+                format!("float {text} is out of integer range")
+            } else {
+                format!("cannot convert {text} to integer")
+            }
+        }
+        Kind::Big(_) => "range endpoints must fit in a 64-bit integer".to_owned(),
+        _ => "expected integer".to_owned(),
+    };
+    Err(Error::new(ErrorKind::Type, message))
+}
+
 /// Reports whether a float lies within integer bounds. The comparison uses the
 /// float's floor and ceiling as integers, so it stays exact beyond 2^53.
 pub(crate) fn contains_float(

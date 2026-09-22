@@ -95,7 +95,9 @@ pub(super) fn issue(
             out.fact(facts, arguments)?;
         }
         IssueKind::Range { value } => {
-            out.text("Range endpoint must be int; got ")?;
+            out.text(
+                "Range endpoint must be int or a float within the 64-bit integer range; got ",
+            )?;
             out.fact(facts, value)?;
         }
         IssueKind::Iterate { value } => {

@@ -6,6 +6,8 @@ Strings contain arbitrary bytes and preserve value semantics. These methods comp
 
 Binary `+` combines a range with a string in either order: `"r=" + (1..3)` returns `"r=1..3"`, and `(1...3) + "!"` returns `"1...3!"`. Open and descending ranges use the same range notation.
 
+Binary `*` repeats a string. A float count truncates toward zero, so `"ab" * 2.5` returns `"abab"` and `"ab" * -0.5` returns `""`. A negative truncated count, a non-finite float or one outside the 64-bit range is an error.
+
 `concat` accepts any number of strings and returns their concatenation in argument order. The receiver's binding remains unchanged. With no arguments, or only empty strings, it reuses the receiver.
 
 ```vibescript
