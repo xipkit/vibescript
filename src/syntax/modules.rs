@@ -228,7 +228,18 @@ impl Parsing<'_> {
                         name = Name::join(work, &[&name, "="])?;
                     }
                     Member::Method(name, offset)
-                } else if matches!(p.token(), Token::Word(w) if matches!(w.as_str(), "class" | "enum" | "property" | "getter" | "setter" | "alias" | "include" | "extend"))
+                } else if p.alias_ahead()
+                    || matches!(p.token(), Token::Word(w) if w == "alias_method")
+                {
+                    let Token::Word(word) = p.token() else {
+                        unreachable!()
+                    };
+                    return p.err(format_args!(
+                        "{} in module {} is not supported; a module has no instance methods to rename, so define module functions with def self.name and call them on the module (Naming.display_name(person))",
+                        word.as_str(),
+                        module.name
+                    ));
+                } else if matches!(p.token(), Token::Word(w) if matches!(w.as_str(), "class" | "enum" | "property" | "getter" | "setter" | "include" | "extend"))
                 {
                     return p.err("modules declare methods with def self.name and do not support classes, enums, accessors, aliases, or mixins");
                 } else {

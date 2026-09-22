@@ -558,6 +558,20 @@ impl<'a> Parsing<'a> {
                 p.check_depth(definition.depth())?;
                 p.depth -= 1;
                 defs.push(work, definition)?;
+            } else if self.p().alias_ahead() {
+                // Go resolves a top-level alias against the functions declared before it.
+                let mut p = self.p();
+                let (name, target) = p.alias_names()?;
+                work.charge(defs.len())?;
+                if defs.iter().any(|d: &Definition| d.name == name) || name == "__main__" {
+                    return p.err("duplicate or reserved function name");
+                }
+                let Some(original) = defs.iter().rev().find(|d| d.name == target) else {
+                    return p.err("alias target function is not defined");
+                };
+                let mut definition = work::definition(work, original)?;
+                definition.name = name;
+                defs.push(work, definition)?;
             } else if self.p().word("enum") {
                 let mut p = self.p();
                 p.line_breaks()?;
@@ -932,6 +946,11 @@ impl<'a> Parsing<'a> {
         let keyword = {
             let mut p = self.p();
             p.work.charge(1)?;
+            if p.alias_ahead() {
+                return p.err(
+                    "alias declarations are only supported at the top level or in class bodies",
+                );
+            }
             let keyword = [
                 "raise", "retry", "class", "if", "unless", "while", "until", "for", "return",
                 "break", "next",

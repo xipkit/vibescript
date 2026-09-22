@@ -118,19 +118,8 @@ impl Parsing<'_> {
                     }
                     p.class_alias(&mut class, new, old)?;
                     Member::Declared
-                } else if matches!(p.token(), Token::Word(w) if w == "alias")
-                    && p.tokens[p.pos].line == p.tokens[p.pos + 1].line
-                    && matches!(&p.tokens[p.pos + 1].token, Token::Word(w) if !keyword(w))
-                    || matches!(p.token(), Token::Word(w) if w == "alias")
-                        && p.tokens[p.pos + 1].token == Token::P(':')
-                {
-                    p.bump()?;
-                    let line = p.previous()?.line;
-                    let new = p.class_alias_name(false)?;
-                    if p.tokens[p.pos].line != line {
-                        return p.err("alias names must be on the same line");
-                    }
-                    let old = p.class_alias_name(false)?;
+                } else if p.alias_ahead() {
+                    let (new, old) = p.alias_names()?;
                     p.class_alias(&mut class, new, old)?;
                     Member::Declared
                 } else if p.removed_mixin()? {
@@ -236,6 +225,28 @@ impl Parser<'_> {
             name = Name::join(self.work, &[&name, "="])?;
         }
         Ok(name)
+    }
+
+    /// Reports whether `alias` starts a declaration. Go requires a name or
+    /// symbol on the same line and otherwise reads `alias` as an identifier.
+    pub(super) fn alias_ahead(&self) -> bool {
+        let next = &self.tokens[self.pos + 1];
+        matches!(self.token(), Token::Word(w) if w == "alias")
+            && (next.line == self.tokens[self.pos].line
+                && matches!(&next.token, Token::Word(w) if !keyword(w) && !w.starts_with('@'))
+                || next.token == Token::P(':'))
+    }
+
+    pub(super) fn alias_names(&mut self) -> Result<(Name, Name)> {
+        self.work.charge(1)?;
+        self.bump()?;
+        let line = self.previous()?.line;
+        let new = self.class_alias_name(false)?;
+        if self.tokens[self.pos].line != line {
+            return self.err("alias names must be on the same line");
+        }
+        let old = self.class_alias_name(false)?;
+        Ok((new, old))
     }
 
     fn class_alias_name(&mut self, symbol: bool) -> Result<Name> {

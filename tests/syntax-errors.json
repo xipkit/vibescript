@@ -13214,5 +13214,40 @@
     "name": "rescue_label_after_a_call_result_needs_a_fallback",
     "source": "def boom\n  raise \"x\"\nend\n\ndef run(input)\n  x = boom() rescue :fb\n  x\nend",
     "go_error": "parse error at 6:14: rescue modifier requires fallback expression"
+  },
+  {
+    "name": "alias_inside_a_function_is_rejected",
+    "source": "def foo\n  1\nend\n\ndef run(input)\n  alias bar foo\nend",
+    "go_error": "parse error at 6:3: alias declarations are only supported at the top level or in class bodies"
+  },
+  {
+    "name": "alias_inside_a_statement_body_is_rejected",
+    "source": "def foo\n  1\nend\nif true\n  alias bar foo\nend\ndef run(input)\n  1\nend",
+    "go_error": "parse error at 5:3: alias declarations are only supported at the top level or in class bodies"
+  },
+  {
+    "name": "alias_inside_a_block_is_rejected",
+    "source": "def run(input)\n  [1].map { alias x y }\nend",
+    "go_error": "parse error at 2:13: alias declarations are only supported at the top level or in class bodies"
+  },
+  {
+    "name": "alias_method_in_a_module_is_rejected",
+    "source": "module Naming\n  def self.tag\n    1\n  end\n  alias_method :label, :tag\nend\ndef run(input)\n  1\nend",
+    "go_error": "parse error at 5:3: alias_method in module Naming is not supported; a module has no instance methods to rename, so define module functions with def self.name and call them on the module (Naming.display_name(person))"
+  },
+  {
+    "name": "alias_in_a_module_is_rejected",
+    "source": "module Naming\n  def self.tag\n    1\n  end\n  alias label tag\nend\ndef run(input)\n  1\nend",
+    "go_error": "parse error at 5:3: alias in module Naming is not supported; a module has no instance methods to rename, so define module functions with def self.name and call them on the module (Naming.display_name(person))"
+  },
+  {
+    "name": "top_level_alias_needs_an_earlier_target",
+    "source": "alias full_name name\ndef name()\n  \"Ada\"\nend\ndef run(input)\n  full_name()\nend",
+    "go_error": "alias target function name is not defined"
+  },
+  {
+    "name": "top_level_alias_cannot_replace_a_function",
+    "source": "def name\n  1\nend\ndef other\n  2\nend\nalias other name\ndef run(input)\n  other\nend",
+    "go_error": "duplicate function other"
   }
 ]

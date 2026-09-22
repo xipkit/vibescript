@@ -180,3 +180,18 @@ fn one_line_definitions_start_their_body_after_a_bare_name() {
     let source = "def at [1, 2, 3].fetch(1) end\ndef literal 42 end\ndef sum a, b = 2 a + b end\ndef run\n  [at, literal, sum(1)]\nend";
     assert_eq!(result(source), serde_json::json!([2, 42, 3]));
 }
+
+#[test]
+fn aliases_declare_top_level_functions_and_nowhere_but_classes() {
+    let source = "def name()\n  \"Ada\"\nend\nalias full_name name\nclass User\n  def name()\n    \"Grace\"\n  end\n  alias_method :full_name, :name\nend\ndef run()\n  [full_name(), User.new.full_name]\nend";
+    assert_eq!(result(source), serde_json::json!(["Ada", "Grace"]));
+    for source in [
+        "def foo\n  1\nend\ndef run\n  alias bar foo\nend",
+        "def run\n  [1].map { alias x y }\nend",
+        "module Naming\n  def self.tag\n    1\n  end\n  alias_method :label, :tag\nend",
+        "alias full_name name\ndef name\n  1\nend",
+    ] {
+        let error = Engine::new().compile(source).err().unwrap();
+        assert_eq!(error.kind, ErrorKind::Syntax, "{source}: {error}");
+    }
+}

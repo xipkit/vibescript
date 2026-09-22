@@ -134,4 +134,8 @@ fn elsif_chains_and_deep_aliases_do_not_nest() {
     );
     let script = Engine::new().compile(&source).unwrap();
     script.call("run", &[], CallOptions::default()).unwrap();
+    let body = format!("{}1{}", "[".repeat(1018), "]".repeat(1018));
+    let source = format!("def original\n{body}\nend\nalias copied original\ndef run\ncopied\nend");
+    let script = Engine::new().compile(&source).unwrap();
+    script.call("run", &[], CallOptions::default()).unwrap();
 }
