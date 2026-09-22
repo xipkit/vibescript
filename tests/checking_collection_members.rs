@@ -1,5 +1,7 @@
 use std::{fs, path::Path};
-use vibescript::{CallOptions, CheckReport, Engine, Limits, Script, Value};
+use vibescript::{
+    CallOptions, CheckReport, CheckedOutcome, Engine, ErrorClass, Limits, Script, Value,
+};
 
 fn compile(source: &str) -> Script {
     Engine::new()
@@ -359,5 +361,94 @@ fn previously_unanalyzed_site_programs_finish_checking() {
         script
             .call("run", &[], options)
             .unwrap_or_else(|error| panic!("{path}: {error}"));
+    }
+}
+
+/// `fetch` and `fetch_values` raise on a missing key as documented. Site
+/// programs that rescue or report that failure check cleanly, and checked calls
+/// execute both the hit and the miss.
+#[test]
+fn fetch_misses_are_runtime_errors_in_each_public_checking_scope() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/site");
+    let options = CallOptions::default();
+    let mut scripts = Vec::new();
+    for path in [
+        "showcase/reliability/resilient_parse.vibe",
+        "showcase/collections/hash_projection.vibe",
+    ] {
+        let script = compile(&fs::read_to_string(root.join(path)).unwrap());
+        let report = script.check(&options).unwrap();
+        assert!(report.is_clean(), "{path}: {report:?}");
+        script
+            .call("run", &[], options.clone())
+            .unwrap_or_else(|error| panic!("{path}: {error}"));
+        scripts.push(script);
+    }
+    let prices = Value::hash(vec![
+        (b"small".to_vec(), Value::int(5)),
+        (b"large".to_vec(), Value::int(9)),
+    ]);
+    for (key, expected) in [("small", 5), ("huge", 0)] {
+        let args = [prices.clone(), Value::symbol(key), Value::int(0)];
+        assert!(
+            scripts[0]
+                .check_call("lookup_or", &args, &options)
+                .unwrap()
+                .is_clean()
+        );
+        let CheckedOutcome::Executed(outcome) = scripts[0]
+            .checked_call("lookup_or", &args, options.clone())
+            .unwrap()
+        else {
+            panic!("lookup_or({key}) was rejected");
+        };
+        assert_eq!(outcome.value.as_int(), Some(expected));
+    }
+    let complete = Value::hash(vec![
+        (b"id".to_vec(), Value::int(7)),
+        (b"email".to_vec(), Value::bytes("a@b")),
+    ]);
+    let partial = Value::hash(vec![(b"id".to_vec(), Value::int(7))]);
+    for record in [&complete, &partial] {
+        let args = [record.clone()];
+        assert!(
+            scripts[1]
+                .check_call("required_fields", &args, &options)
+                .unwrap()
+                .is_clean()
+        );
+    }
+    let CheckedOutcome::Executed(outcome) = scripts[1]
+        .checked_call("required_fields", &[complete], options.clone())
+        .unwrap()
+    else {
+        panic!("required_fields was rejected");
+    };
+    assert_eq!(outcome.value.to_string(), "[7, a@b]");
+    let error = scripts[1]
+        .checked_call("required_fields", &[partial], options.clone())
+        .unwrap_err();
+    assert_eq!(error.class(), Some(ErrorClass::Runtime), "{error}");
+    for source in [
+        "def run; {a: 1}.fetch(:b); end",
+        "def run; [1].fetch(5); end",
+        "def run; {a: 1}.fetch_values(:a, :b); end",
+    ] {
+        let script = compile(source);
+        for report in [
+            script.check_function("run", &options).unwrap(),
+            script.check(&options).unwrap(),
+            script.check_call("run", &[], &options).unwrap(),
+        ] {
+            assert!(report.is_clean(), "{source}: {report:?}");
+        }
+        let error = script
+            .checked_call("run", &[], options.clone())
+            .unwrap_err();
+        assert_eq!(
+            error.class(),
+            Some(ErrorClass::Runtime),
+            "{source}: {error}"
+        );
     }
 }

@@ -368,12 +368,23 @@ fn general_hash_members_keep_the_declared_value_type_when_present() {
         }
         let script = Engine::new().compile(source).unwrap();
         let missing = both();
-        for input in present.iter().chain(missing.iter()) {
+        for (input, absent) in present
+            .iter()
+            .map(|input| (input, false))
+            .chain(missing.iter().map(|input| (input, true)))
+        {
             let exact = script
                 .check_call("run", std::slice::from_ref(input), &CallOptions::default())
                 .unwrap();
             assert!(exact.incomplete.is_empty(), "{source}: {exact:?}");
-            assert!(!exact.diagnostics.is_empty(), "{source}: {exact:?}");
+            // `fetch` raises its documented miss before a result reaches the
+            // return contract, while `h.b` reads an unknown member.
+            let raises = absent && source.contains("fetch");
+            assert_eq!(exact.diagnostics.is_empty(), raises, "{source}: {exact:?}");
+            if raises {
+                let error = runtime_error(source, std::slice::from_ref(input));
+                assert!(error.contains("not found"), "{source}: {error}");
+            }
         }
         check(source, true);
     }

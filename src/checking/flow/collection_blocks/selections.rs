@@ -184,22 +184,9 @@ impl Walker<'_> {
                             next.output = args.positional.data[1];
                             next.alternatives(self.ctx)?
                         } else {
-                            if found == Atom::Never.fact() {
-                                self.collection_error(
-                                    &before.state,
-                                    pc,
-                                    arm,
-                                    site,
-                                    &args,
-                                    ErrorClass::Runtime,
-                                )?;
-                            } else {
-                                self.emit_error(
-                                    &before.state,
-                                    pc,
-                                    handlers::bit(ErrorClass::Runtime),
-                                )?;
-                            }
+                            // Raising on a miss is the documented lookup behavior, so
+                            // even a key known to be absent is an ordinary error path.
+                            self.emit_error(&before.state, pc, handlers::bit(ErrorClass::Runtime))?;
                             Buffer::empty()
                         };
                         for next in next.data {

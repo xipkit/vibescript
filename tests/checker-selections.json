@@ -484,30 +484,27 @@
       "runtime": {
         "display": "[]"
       },
-      "rust_rejected": true,
+      "rust_rejected": false,
       "go_warnings": [],
-      "go_rejected": false,
-      "difference": "Rust retains a diagnostic for the invalid native call or block parameter, even when rescue catches its runtime error."
+      "go_rejected": false
     },
     {
       "source": "def run; x=[]; begin; {}.fetch(:a); rescue RuntimeError; x; end; end",
       "runtime": {
         "display": "[]"
       },
-      "rust_rejected": true,
+      "rust_rejected": false,
       "go_warnings": [],
-      "go_rejected": false,
-      "difference": "Rust retains a diagnostic for the invalid native call or block parameter, even when rescue catches its runtime error."
+      "go_rejected": false
     },
     {
       "source": "def run; x=[]; begin; {}.fetch_values(:a); rescue RuntimeError; x; end; end",
       "runtime": {
         "display": "[]"
       },
-      "rust_rejected": true,
+      "rust_rejected": false,
       "go_warnings": [],
-      "go_rejected": false,
-      "difference": "Rust retains a diagnostic for the invalid native call or block parameter, even when rescue catches its runtime error."
+      "go_rejected": false
     },
     {
       "source": "def run; x=[]; begin; [7,9].grep(7) {|n:string| x.push(9)}; rescue RuntimeError; x; end; end",

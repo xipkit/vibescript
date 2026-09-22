@@ -114,9 +114,15 @@ fn invalid_selection_calls_fail_before_callbacks_and_keep_previous_effects() {
         "[7].fetch(\"bad\") {x.push(9)}",
         "{a:7}.fetch(0) {x.push(9)}",
         "{a:7}.fetch_values(0) {x.push(9)}",
-        "[7].fetch(9)",
-        "{}.fetch(:a)",
-        "{}.fetch_values(:a)",
+        "[7].fetch(0.5)",
+        "[7].fetch(\"bad\")",
+        "[7].fetch",
+        "{a:7}.fetch(:a,1,2)",
+        "{a:7}.fetch(nil)",
+        "{a:7}.fetch_values(:a,0)",
+        "[7].fetch_values(0)",
+        "\"abc\".fetch(1)",
+        "7.fetch(0)",
     ] {
         witness(
             &format!("def run; x=[]; begin; {call}; rescue RuntimeError; x; end; end"),
@@ -145,6 +151,215 @@ fn invalid_selection_calls_fail_before_callbacks_and_keep_previous_effects() {
             &format!("def run; {call} {{|n:string| missing}}; end"),
             true,
             false,
+        );
+    }
+}
+
+/// The escaping-error summary bit for `RuntimeError`, which failed lookups raise.
+const RUNTIME: u8 = 1 << crate::ErrorClass::Runtime as u8;
+
+/// Checks `source`, then runs it with every argument list in `inputs`. The
+/// report must be clean and must predict exactly the escaping error classes in
+/// `throws` and, with `returns`, a success path. Every runtime failure must
+/// belong to `throws`, and each predicted path must be reached by some input.
+fn lookup_paths(source: &str, inputs: &[Vec<Value>], throws: u8, returns: bool) {
+    use super::relation::Relation;
+    let script = crate::Engine::new()
+        .compile(source)
+        .unwrap_or_else(|e| panic!("{source}: {e}"));
+    let mut ctx = CallContext::new(CallOptions::default());
+    let mut facts = Facts::new(&mut ctx).unwrap();
+    let report = analyze(&mut ctx, &mut facts, source).unwrap_or_else(|e| panic!("{source}: {e}"));
+    assert!(report.incomplete.data.is_empty(), "{source}: {report:?}");
+    assert!(report.issues.data.is_empty(), "{source}: {report:?}");
+    assert_eq!(report.throws, throws, "{source}");
+    assert_eq!(report.returns != Atom::Never.fact(), returns, "{source}");
+    let (mut failed, mut succeeded) = (false, false);
+    for args in inputs {
+        match script.call("run", args, CallOptions::default()) {
+            Ok(outcome) => {
+                succeeded = true;
+                let concrete = literal_fact(&mut ctx, &mut facts, &outcome.value);
+                assert_ne!(
+                    facts.relation(&mut ctx, concrete, report.returns).unwrap(),
+                    Relation::Rejected,
+                    "{source} {args:?}: {:?}",
+                    facts.node(report.returns)
+                );
+            }
+            Err(error) => {
+                failed = true;
+                let class = error.class().unwrap_or_else(|| panic!("{source}: {error}"));
+                assert_ne!(throws & (1 << class as u8), 0, "{source}: {error}");
+            }
+        }
+    }
+    assert_eq!((failed, succeeded), (throws != 0, returns), "{source}");
+    drop((report, facts));
+    assert_eq!(ctx.stats().retained_memory_bytes, 0);
+}
+
+#[test]
+fn missing_lookup_keys_are_runtime_error_paths_rather_than_diagnostics() {
+    let none = || vec![vec![]];
+    let hash = |fields: &[(&str, Value)]| {
+        Value::hash(
+            fields
+                .iter()
+                .map(|(key, value)| (key.as_bytes().to_vec(), value.clone()))
+                .collect(),
+        )
+    };
+    // Known misses fail without a success value; rescue handles that failure.
+    for (body, throws, returns) in [
+        ("{a:7}.fetch(:b)", RUNTIME, false),
+        ("{}.fetch(\"a\")", RUNTIME, false),
+        ("[7].fetch(9)", RUNTIME, false),
+        ("[7,9].fetch(-3)", RUNTIME, false),
+        ("[7].fetch(1.0)", RUNTIME, false),
+        ("{a:7}.fetch_values(:a,:b)", RUNTIME, false),
+        ("{a:{b:7}}.fetch(:a).fetch(:c)", RUNTIME, false),
+        ("{a:{b:[7]}}.fetch(:a).fetch(:b).fetch(3)", RUNTIME, false),
+        ("{a:{b:7}}.fetch(:a).fetch_values(:b,:c)", RUNTIME, false),
+        ("{a:7}.send(:fetch,:b)", RUNTIME, false),
+        ("{a:7}.public_send(:fetch_values,:b)", RUNTIME, false),
+        (
+            "begin; raise \"x\"; rescue => e; e.fetch(:missing); end",
+            RUNTIME,
+            false,
+        ),
+        (
+            "begin; {}.fetch(:a); rescue ArgumentError; 7; end",
+            RUNTIME,
+            false,
+        ),
+        (
+            "begin; {}.fetch(:a); rescue LimitError; 7; end",
+            RUNTIME,
+            false,
+        ),
+        ("{a:7}.fetch(:b) rescue 9", 0, true),
+        ("({a:7}.fetch(:b) rescue \"s\").upcase", 0, true),
+        (
+            "begin; [7].fetch(9); rescue RuntimeError => e; e.message; end",
+            0,
+            true,
+        ),
+        (
+            "begin; {a:{b:7}}.fetch(:a).fetch(:c); rescue StandardError; :fallback; end",
+            0,
+            true,
+        ),
+        ("{a:{b:[7]}}.fetch(:a).fetch(:b).fetch(0)", 0, true),
+        ("{a:7}.fetch(:b,9)", 0, true),
+        ("{a:7}.fetch(:b,nil)", 0, true),
+        ("{a:7}.fetch(:b) {|key| key}", 0, true),
+        ("[7].fetch(9) {|index| index+1}", 0, true),
+        ("[7].fetch(9,3) {|index| index}", 0, true),
+        ("{a:7}.fetch_values(:a,:b) {|key| 0}", 0, true),
+    ] {
+        lookup_paths(&format!("def run; {body}; end"), &none(), throws, returns);
+    }
+    // Only the failure path reaches the rescue, and a present key has no failure path.
+    witness(
+        "def run; x=({a:7}.fetch(:b) rescue \"s\"); x; end",
+        true,
+        false,
+    );
+    witness(
+        "def run; x=({a:7}.fetch(:a) rescue \"s\"); x; end",
+        true,
+        false,
+    );
+    witness(
+        "def run; {a:{b:[7]}}.fetch(:a).fetch(:b).fetch(-1); end",
+        true,
+        false,
+    );
+    // Matching can reach a regex guard, so match data only needs a clean witness.
+    witness(
+        "def run; m=/(a)/.match(\"a\"); if m; m.fetch_values(:captures,:missing) rescue :missing; end; end",
+        false,
+        false,
+    );
+    // Possible misses keep both the value and the failure path. A bare `hash`
+    // contract also admits host objects, whose members may raise any class.
+    let flags = vec![vec![Value::boolean(true)], vec![Value::boolean(false)]];
+    for (source, inputs, throws) in [
+        (
+            "def run(key:symbol); {a:7}.fetch(key); end",
+            vec![vec![Value::symbol("a")], vec![Value::symbol("b")]],
+            RUNTIME,
+        ),
+        (
+            "def run(i:int); [7,9].fetch(i); end",
+            vec![vec![Value::int(-1)], vec![Value::int(5)]],
+            RUNTIME,
+        ),
+        (
+            "def run(h:hash<string,int>); h.fetch(\"a\"); end",
+            vec![vec![hash(&[("a", Value::int(7))])], vec![hash(&[])]],
+            RUNTIME,
+        ),
+        (
+            "def run(h:{a:{b?:int}}); h.fetch(:a).fetch(:b); end",
+            vec![
+                vec![hash(&[("a", hash(&[("b", Value::int(7))]))])],
+                vec![hash(&[("a", hash(&[]))])],
+            ],
+            RUNTIME,
+        ),
+        (
+            "def run(h:{a:{b?:int}}); h.fetch(:a).fetch_values(:b,:b); end",
+            vec![
+                vec![hash(&[("a", hash(&[("b", Value::int(7))]))])],
+                vec![hash(&[("a", hash(&[]))])],
+            ],
+            RUNTIME,
+        ),
+        (
+            "def run(flag:bool); h=if flag; {a:7}; else; {}; end; h.fetch(:a); end",
+            flags.clone(),
+            RUNTIME,
+        ),
+        (
+            "def run(record:hash); record.fetch_values(:id,:email); end",
+            vec![
+                vec![hash(&[
+                    ("id", Value::int(7)),
+                    ("email", Value::bytes("a@b")),
+                ])],
+                vec![hash(&[("id", Value::int(7))])],
+            ],
+            u8::MAX,
+        ),
+    ] {
+        lookup_paths(source, &inputs, throws, true);
+    }
+    lookup_paths(
+        "def run(flag:bool); h=if flag; {a:7}; else; {}; end; h.fetch(:a) rescue nil; end",
+        &flags,
+        0,
+        true,
+    );
+    // Any native member with a generalized argument keeps a conservative error
+    // path, so these fallbacks only need clean, sound witnesses.
+    for source in [
+        "def run(key:symbol); ({a:7}.fetch(key) rescue 0)+1; end",
+        "def run(key:symbol); {a:7}.fetch(key,0); end",
+        "def run(key:symbol); {a:7}.fetch(key) {|k| k}; end",
+        "def run(key:symbol); {a:7}.fetch_values(:a,key) {|k| k}; end",
+    ] {
+        for key in ["a", "b"] {
+            inferred_runtime(source, &[Value::symbol(key)], false);
+        }
+    }
+    // A known type contradiction in one alternative is still reported.
+    for flag in [false, true] {
+        inferred_runtime(
+            "def run(flag:bool); h=if flag; {a:7}; else; 7; end; begin; h.fetch(:a); rescue; 9; end; end",
+            &[Value::boolean(flag)],
+            true,
         );
     }
 }
@@ -703,5 +918,5 @@ fn selection_reference_decisions_have_independent_runtime_witnesses() {
             differences += 1;
         }
     }
-    assert_eq!(differences, 26);
+    assert_eq!(differences, 23);
 }
