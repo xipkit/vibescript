@@ -2826,7 +2826,14 @@ impl<'a> Parser<'a> {
                 false
             }
             Token::P('[') => !local && previous.end != next.offset,
-            Token::Words(..) | Token::Regex(..) => !local && previous.end != next.offset,
+            // Only a declared local makes `%w` a modulo. An implicit block `it`
+            // still calls a function named `it`, as in Go.
+            Token::Words(..) => {
+                let implicit =
+                    matches!(&lhs.node, Node::Var(name) if name == "it") && !self.declared_it;
+                (!local || implicit) && previous.end != next.offset
+            }
+            Token::Regex(..) => !local && previous.end != next.offset,
             Token::Op("/") => {
                 !local
                     && previous.end != next.offset

@@ -155,3 +155,16 @@ fn reserved_words_label_parenless_keyword_arguments() {
     let error = Engine::new().compile(source).err().unwrap();
     assert_eq!(error.kind, ErrorKind::Syntax);
 }
+
+#[test]
+fn an_implicit_it_still_calls_a_function_with_a_percent_array() {
+    let source = "def it(values)\n  values.join(\"-\")\nend\ndef run\n  [[1].map { it %w[a b] }, [5].map { it % 2 }]\nend";
+    assert_eq!(result(source), serde_json::json!([["a-b"], [1]]));
+    for source in [
+        "def run\n  it = 7\n  it %w[a b]\nend",
+        "def run\n  [5].map { _1 %w[a] }\nend",
+    ] {
+        let script = Engine::new().compile(source).unwrap();
+        assert!(script.call("run", &[], CallOptions::default()).is_err());
+    }
+}
