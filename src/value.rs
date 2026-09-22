@@ -608,6 +608,22 @@ impl Value {
         self.as_bytes()
             .ok_or_else(|| Error::new(ErrorKind::Type, "expected string or symbol"))
     }
+    /// Returns the entry name a hash key addresses. Strings and symbols share one
+    /// keyspace; every other kind is rejected, naming what a key must be.
+    pub(crate) fn hash_key(&self) -> Result<&[u8]> {
+        self.as_bytes()
+            .ok_or_else(|| Error::new(ErrorKind::Type, UnsupportedKey(self).to_string()))
+    }
+    /// Like [`Self::hash_key`], naming the member input that supplied the key, as
+    /// in `hash.fetch key is an`. The site is rendered only on failure.
+    pub(crate) fn hash_key_for(&self, site: impl fmt::Display) -> Result<&[u8]> {
+        self.as_bytes().ok_or_else(|| {
+            Error::new(
+                ErrorKind::Type,
+                format!("{site} unsupported hash key: {}", UnsupportedKey(self)),
+            )
+        })
+    }
     pub(crate) fn require_int(&self) -> Result<i64> {
         self.as_int()
             .ok_or_else(|| Error::new(ErrorKind::Type, "expected integer"))
@@ -658,6 +674,19 @@ impl CallContext {
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         render::display(self, f)
+    }
+}
+
+/// The reason a value cannot key a hash, naming its kind.
+struct UnsupportedKey<'a>(&'a Value);
+
+impl fmt::Display for UnsupportedKey<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "unsupported hash key type {}: hash keys must be strings or symbols; convert the key with to_s",
+            self.0.type_name()
+        )
     }
 }
 

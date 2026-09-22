@@ -107,10 +107,12 @@ pub(crate) fn call(
         }
         (Kind::Hash(_), Delete) => {
             ops::arity(args, 1)?;
+            args[0].hash_key_for("hash.delete key is an")?;
             receiver.delete_hash(ctx, &args[0])
         }
         (Kind::Hash(_), Store) => {
             ops::arity(args, 2)?;
+            args[0].hash_key_for("hash.store key is an")?;
             let value = ops::set_index(ctx, receiver, args[0].clone(), args[1].clone())?;
             Ok((value, args[1].clone()))
         }

@@ -18,11 +18,14 @@ fn wrong_type() -> Error {
     )
 }
 
+/// Reads one array element or hash entry. `site` names the member input that
+/// supplied a hash key, for an unsupported key's message.
 pub(crate) fn lookup(
     ctx: &mut CallContext,
     value: &Value,
     key: &Value,
     strict: bool,
+    site: Option<&str>,
 ) -> Result<Option<Value>> {
     ctx.charge(1)?;
     match &value.0 {
@@ -41,9 +44,13 @@ pub(crate) fn lookup(
                 .and_then(|n| h.buffer.data.get(n))
                 .cloned())
         }
-        Kind::Hash(h) => Ok(h
-            .find(ctx, key.require_bytes()?)?
-            .map(|i| h.buffer.data[i].1.clone())),
+        Kind::Hash(h) => {
+            let key = match site {
+                Some(site) => key.hash_key_for(site)?,
+                None => key.hash_key()?,
+            };
+            Ok(h.find(ctx, key)?.map(|i| h.buffer.data[i].1.clone()))
+        }
         _ => Err(wrong_type()),
     }
 }
@@ -51,6 +58,7 @@ pub(crate) fn lookup(
 pub(crate) fn method(
     ctx: &mut CallContext,
     method: Method,
+    name: &str,
     value: Value,
     args: &[Value],
 ) -> Result<Value> {
@@ -66,7 +74,14 @@ pub(crate) fn method(
                 if let (Kind::Array(array), Kind::Range(range)) = (&value.0, &selector.0) {
                     values_at_range(ctx, &array.buffer.data, range, &mut out)?;
                 } else {
-                    let selected = lookup(ctx, &value, selector, false)?.unwrap_or_default();
+                    let selected = lookup(
+                        ctx,
+                        &value,
+                        selector,
+                        false,
+                        Some("hash.values_at key is an"),
+                    )?
+                    .unwrap_or_default();
                     out.push(ctx, selected)?;
                 }
             }
@@ -76,7 +91,8 @@ pub(crate) fn method(
             if args.is_empty() || args.len() > 2 {
                 return Err(argument("fetch expects a key and optional default"));
             }
-            if let Some(found) = lookup(ctx, &value, &args[0], true)? {
+            if let Some(found) = lookup(ctx, &value, &args[0], true, Some("hash.fetch key is an"))?
+            {
                 return Ok(found);
             }
             args.get(1)
@@ -115,7 +131,7 @@ pub(crate) fn method(
                         }
                     }
                 }
-                current = lookup(ctx, &current, key, false)?.unwrap_or_default();
+                current = lookup(ctx, &current, key, false, None)?.unwrap_or_default();
             }
             Ok(current)
         }
@@ -124,9 +140,8 @@ pub(crate) fn method(
             let Kind::Hash(h) = &value.0 else {
                 return Err(wrong_type());
             };
-            Ok(Value::boolean(
-                h.find(ctx, args[0].require_bytes()?)?.is_some(),
-            ))
+            let key = args[0].hash_key_for(format_args!("hash.{name} key is an"))?;
+            Ok(Value::boolean(h.find(ctx, key)?.is_some()))
         }
         HasValue => {
             ops::arity(args, 1)?;
@@ -145,7 +160,10 @@ pub(crate) fn method(
             let mut excluded = Hash::empty();
             for key in args {
                 ctx.charge(1)?;
-                if hash.find(ctx, key.require_bytes()?)?.is_some() {
+                if hash
+                    .find(ctx, key.hash_key_for("hash.except key is an")?)?
+                    .is_some()
+                {
                     excluded.insert(ctx, key.clone(), Value::nil())?;
                 }
             }
@@ -190,7 +208,8 @@ pub(crate) fn method(
             for (key, value) in entries {
                 ctx.charge(1)?;
                 let key = if let Some(index) = mapping.find(ctx, key.require_bytes()?)? {
-                    ctx.bytes(mapping.buffer.data[index].1.require_bytes()?)?
+                    let mapped = &mapping.buffer.data[index].1;
+                    ctx.bytes(mapped.hash_key_for("hash.remap_keys mapping value is an")?)?
                 } else {
                     key.clone()
                 };
@@ -212,8 +231,8 @@ pub(crate) fn method(
         Slice if matches!(value.0, Kind::Hash(_)) => {
             let mut out = Hash::empty();
             for key in args {
-                if let Some(v) = lookup(ctx, &value, key, false)? {
-                    let key = ctx.bytes(key.require_bytes()?)?;
+                if let Some(v) = lookup(ctx, &value, key, false, Some("hash.slice key is an"))? {
+                    let key = ctx.bytes(key.hash_key()?)?;
                     out.insert(ctx, key, v)?;
                 }
             }
@@ -412,7 +431,7 @@ fn array_method(
                 if pair.len() != 2 {
                     return Err(argument("to_h requires two-element pairs"));
                 }
-                let key = ctx.bytes(pair[0].require_bytes()?)?;
+                let key = ctx.bytes(pair[0].hash_key_for("array.to_h pair key is an")?)?;
                 out.insert(ctx, key, pair[1].clone())?;
             }
             Value::from_hash(ctx, out)
@@ -497,7 +516,7 @@ mod tests {
     }
 
     fn flattened(ctx: &mut CallContext, value: &Value, args: &[Value]) -> Result<String> {
-        method(ctx, Method::Flatten, value.clone(), args).map(|value| value.to_string())
+        method(ctx, Method::Flatten, "flatten", value.clone(), args).map(|value| value.to_string())
     }
 
     #[test]
@@ -612,8 +631,14 @@ mod tests {
                 b"k".to_vec(),
                 nested(MAX_VALUE_DEPTH, Value::int(1)),
             )]);
-            let hash_full = method(&mut ctx, Method::Flatten, hash.clone(), &[Value::int(-1)])
-                .map(|value| value.to_string());
+            let hash_full = method(
+                &mut ctx,
+                Method::Flatten,
+                "flatten",
+                hash.clone(),
+                &[Value::int(-1)],
+            )
+            .map(|value| value.to_string());
             let too_deep = Value::hash(vec![(
                 b"k".to_vec(),
                 nested(MAX_VALUE_DEPTH + 1, Value::int(1)),
@@ -621,6 +646,7 @@ mod tests {
             let hash_failed = method(
                 &mut ctx,
                 Method::Flatten,
+                "flatten",
                 too_deep.clone(),
                 &[Value::int(-1)],
             )

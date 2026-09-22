@@ -612,7 +612,9 @@ pub(crate) fn start(
         } else {
             args[0].clone()
         };
-        if let Some(value) = collections::lookup(ctx, receiver, &key, true)? {
+        if let Some(value) =
+            collections::lookup(ctx, receiver, &key, true, Some("hash.fetch key is an"))?
+        {
             state.accumulator = Some(value);
             state.length = 0;
         } else {
@@ -703,7 +705,13 @@ impl Loop {
                 continue;
             }
             if self.method == FetchValues {
-                if let Some(value) = collections::lookup(ctx, &self.receiver, &args[0], true)? {
+                if let Some(value) = collections::lookup(
+                    ctx,
+                    &self.receiver,
+                    &args[0],
+                    true,
+                    Some("hash.fetch_values key is an"),
+                )? {
                     self.output.push(ctx, value)?;
                     continue;
                 }
@@ -943,21 +951,27 @@ impl Loop {
                 if pair.len() != 2 {
                     return Err(argument("to_h requires two-element pairs"));
                 }
-                let key = ctx.bytes(pair[0].require_bytes()?)?;
+                let key = ctx.bytes(pair[0].hash_key_for("array.to_h pair key is an")?)?;
                 self.hash.insert(ctx, key, pair[1].clone())?;
             }
             TransformKeys | TransformValues => {
                 let (key, original) =
                     &self.receiver.as_hash().unwrap()[self.pending_index as usize];
                 let (key, value) = if self.method == TransformKeys {
-                    (ctx.bytes(value.require_bytes()?)?, original.clone())
+                    let key = value.hash_key_for("hash.transform_keys block returned an")?;
+                    (ctx.bytes(key)?, original.clone())
                 } else {
                     (key.clone(), value)
                 };
                 self.hash.insert(ctx, key, value)?;
             }
             GroupBy | GroupStable | Tally => {
-                let existing = self.hash.find(ctx, value.require_bytes()?)?;
+                let site = match self.method {
+                    GroupBy => "array.group_by block returned an",
+                    GroupStable => "array.group_by_stable block returned an",
+                    _ => "array.tally value is an",
+                };
+                let existing = self.hash.find(ctx, value.hash_key_for(site)?)?;
                 let (key, group) = if let Some(index) = existing {
                     let (key, group) = &mut self.hash.buffer.data[index];
                     (key.clone(), std::mem::take(group))
@@ -966,7 +980,7 @@ impl Loop {
                         self.other.push(ctx, value.clone())?;
                     }
                     (
-                        ctx.bytes(value.require_bytes()?)?,
+                        ctx.bytes(value.hash_key()?)?,
                         if self.method == Tally {
                             Value::int(0)
                         } else {

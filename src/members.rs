@@ -424,7 +424,7 @@ pub(crate) fn call(
     ) {
         return crate::mutate::call(ctx, method, receiver, args);
     }
-    let result = ops::method(ctx, method, receiver.clone(), args)?;
+    let result = ops::method(ctx, method, name, receiver.clone(), args)?;
     Ok((receiver, result))
 }
 

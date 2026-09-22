@@ -264,7 +264,7 @@ fn stored_child(ctx: &mut CallContext, value: &Value, key: &Value) -> Result<Opt
         .and_then(|i| h.buffer.data.get(i))
         .cloned()),
         Kind::Hash(h) => Ok(h
-            .find(ctx, key.require_bytes()?)?
+            .find(ctx, key.hash_key()?)?
             .map(|i| h.buffer.data[i].1.clone())),
         _ => Ok(None),
     }

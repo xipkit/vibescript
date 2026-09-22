@@ -582,7 +582,7 @@ pub(crate) fn index(ctx: &mut CallContext, value: &Value, index: &Value) -> Resu
             if let Some(value) = crate::regex::matches::index(ctx, h, index)? {
                 return Ok(value);
             }
-            let key = index.require_bytes()?;
+            let key = index.hash_key()?;
             Ok(h.find(ctx, key)?
                 .map(|i| h.buffer.data[i].1.clone())
                 .unwrap_or_default())
@@ -646,11 +646,11 @@ pub(crate) fn set_index(
         }
         Kind::Hash(_) => {
             let key = if matches!(key.0, Kind::Symbol(_)) {
-                ctx.bytes(key.require_bytes()?)?
+                ctx.bytes(key.hash_key()?)?
             } else {
                 key
             };
-            key.require_bytes()?;
+            key.hash_key()?;
             root.set_hash_index(ctx, key, value)
         }
         _ => Err(type_error()),
@@ -717,6 +717,7 @@ fn array_index(
 pub(crate) fn method(
     ctx: &mut CallContext,
     method: Method,
+    name: &str,
     value: Value,
     args: &[Value],
 ) -> Result<Value> {
@@ -781,10 +782,10 @@ pub(crate) fn method(
         }
         Reverse | Take | Drop | Compact | Uniq | Flatten | Chunk | Window | Zip | Transpose
         | ToHash | Fetch | ValuesAt | Dig | Key | HasValue | Member | RemapKeys | Except => {
-            crate::collections::method(ctx, method, value, args)
+            crate::collections::method(ctx, method, name, value, args)
         }
         Slice if matches!(value.0, Kind::Hash(_)) => {
-            crate::collections::method(ctx, method, value, args)
+            crate::collections::method(ctx, method, name, value, args)
         }
         At | Slice | ByteSlice | GetByte | First | Last | ToArray => {
             crate::sequence::method(ctx, method, value, args)
@@ -807,7 +808,7 @@ pub(crate) fn method(
         Include | Index | Rindex => {
             if matches!(method, Include) && matches!(value.0, Kind::Hash(_)) {
                 arity(args, 1)?;
-                return crate::collections::method(ctx, Key, value, args);
+                return crate::collections::method(ctx, Key, name, value, args);
             }
             let found = if let Some(array) = value.as_array() {
                 if matches!(method, Include) {
