@@ -31,7 +31,7 @@ fn witness(input: &Value, expression: &str, expected: &str, rejected: bool) {
     let program = &script.inner.code.program;
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
-    let value = admission::value(&mut ctx, &mut facts, input, |_, _, _| Ok(None)).unwrap();
+    let value = admission::value(&mut ctx, &mut facts, input, false, |_, _, _| Ok(None)).unwrap();
     assert!(!value.incomplete, "{input:?}");
     let mut contracts = Buffer::empty();
     for ty in &program.types {
@@ -100,7 +100,8 @@ fn admitted_scalars_preserve_literals_and_execute_known_operations() {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
         let source = Value::float(value);
-        let result = admission::value(&mut ctx, &mut facts, &source, |_, _, _| Ok(None)).unwrap();
+        let result =
+            admission::value(&mut ctx, &mut facts, &source, false, |_, _, _| Ok(None)).unwrap();
         assert!(!result.incomplete);
         assert!(matches!(facts.node(result.value), Node::Float(bits) if *bits == value.to_bits()));
     }
@@ -128,7 +129,7 @@ fn admitted_hash_keys_preserve_string_symbol_and_raw_byte_representations() {
     let input = Value::hash(vec![(vec![0xff, 0], Value::int(7))]);
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
-    let result = admission::value(&mut ctx, &mut facts, &input, |_, _, _| Ok(None)).unwrap();
+    let result = admission::value(&mut ctx, &mut facts, &input, false, |_, _, _| Ok(None)).unwrap();
     let Node::Shape(fields, false, keys, HashKind::PLAIN) = facts.node(result.value) else {
         panic!("{result:?}")
     };
@@ -179,7 +180,7 @@ fn admitted_ranges_keep_bounds_and_extreme_endpoints() {
     let input = Value::range(None, Some(3), true);
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
-    let value = admission::value(&mut ctx, &mut facts, &input, |_, _, _| Ok(None)).unwrap();
+    let value = admission::value(&mut ctx, &mut facts, &input, false, |_, _, _| Ok(None)).unwrap();
     assert!(matches!(
         facts.node(value.value),
         Node::Range(None, Some(3), true)
@@ -193,7 +194,8 @@ fn admitted_regexes_retain_patterns_flags_and_capture_structure() {
     witness(&input, "input.match(\"AA\")&.captures", "[AA]", false);
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
-    let admitted = admission::value(&mut ctx, &mut facts, &input, |_, _, _| Ok(None)).unwrap();
+    let admitted =
+        admission::value(&mut ctx, &mut facts, &input, false, |_, _, _| Ok(None)).unwrap();
     let Node::Regex(value) = facts.node(admitted.value) else {
         panic!()
     };
@@ -231,8 +233,8 @@ fn admitted_enums_keep_definition_identity_across_imported_copies() {
     let mut ctx = CallContext::new(CallOptions::default());
     let copy = ctx.import(&input).unwrap();
     let mut facts = Facts::new(&mut ctx).unwrap();
-    let first = admission::value(&mut ctx, &mut facts, &input, |_, _, _| Ok(None)).unwrap();
-    let second = admission::value(&mut ctx, &mut facts, &copy, |_, _, _| Ok(None)).unwrap();
+    let first = admission::value(&mut ctx, &mut facts, &input, false, |_, _, _| Ok(None)).unwrap();
+    let second = admission::value(&mut ctx, &mut facts, &copy, false, |_, _, _| Ok(None)).unwrap();
     assert_eq!(first.value, second.value);
     let Node::Tuple(elements) = facts.node(first.value) else {
         panic!()
@@ -255,7 +257,8 @@ fn admitted_type_literals_preserve_contracts_and_flag_unresolved_names() {
         let value = crate::shapes::compile(ty);
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
-        let admitted = admission::value(&mut ctx, &mut facts, &value, |_, _, _| Ok(None)).unwrap();
+        let admitted =
+            admission::value(&mut ctx, &mut facts, &value, false, |_, _, _| Ok(None)).unwrap();
         assert_eq!(admitted.incomplete, incomplete, "{spelling}");
         assert!(matches!(facts.node(admitted.value), Node::TypeValue(_)));
     }
@@ -278,7 +281,7 @@ fn unresolved_nominal_values_stay_explicit_without_running_initializers() {
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let mut resolutions = 0;
-    let result = admission::value(&mut ctx, &mut facts, &input, |_, _, _| {
+    let result = admission::value(&mut ctx, &mut facts, &input, false, |_, _, _| {
         resolutions += 1;
         Ok(None)
     })
@@ -303,7 +306,7 @@ fn shared_host_graphs_are_walked_once_without_callbacks_or_native_recursion() {
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let mut resolutions = 0;
-    let result = admission::value(&mut ctx, &mut facts, &input, |ctx, facts, _| {
+    let result = admission::value(&mut ctx, &mut facts, &input, false, |ctx, facts, _| {
         resolutions += 1;
         facts.callable(ctx, 42, Callable::Host(0)).map(Some)
     })
@@ -334,7 +337,7 @@ fn identical_storage_with_distinct_value_kinds_does_not_share_a_fact() {
     let input = Value::array(vec![string, symbol]);
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
-    let result = admission::value(&mut ctx, &mut facts, &input, |_, _, _| Ok(None)).unwrap();
+    let result = admission::value(&mut ctx, &mut facts, &input, false, |_, _, _| Ok(None)).unwrap();
     let Node::Tuple(elements) = facts.node(result.value) else {
         panic!()
     };
@@ -351,12 +354,13 @@ fn excessive_value_depth_is_recoverable_and_never_hidden_by_shared_storage() {
     }
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
-    let error = admission::value(&mut ctx, &mut facts, &input, |_, _, _| Ok(None)).unwrap_err();
+    let error =
+        admission::value(&mut ctx, &mut facts, &input, false, |_, _, _| Ok(None)).unwrap_err();
     assert_eq!(error.kind, ErrorKind::Recursion);
     ctx.checkpoint().unwrap();
     let good = Value::int(7);
     assert!(
-        !admission::value(&mut ctx, &mut facts, &good, |_, _, _| Ok(None))
+        !admission::value(&mut ctx, &mut facts, &good, false, |_, _, _| Ok(None))
             .unwrap()
             .incomplete
     );
@@ -378,7 +382,7 @@ fn accounting_input() -> Value {
 
 fn work(ctx: &mut CallContext, input: &Value) -> Result<()> {
     let mut facts = Facts::new(ctx)?;
-    let value = admission::value(ctx, &mut facts, input, |_, _, _| Ok(None))?;
+    let value = admission::value(ctx, &mut facts, input, false, |_, _, _| Ok(None))?;
     assert!(!value.incomplete);
     Ok(())
 }
@@ -457,7 +461,7 @@ fn admission_preserves_cancelled_and_expired_contexts_before_allocating() {
         };
         let before = ctx.stats().peak_memory_bytes;
         assert_eq!(
-            admission::value(&mut ctx, &mut facts, &input, |_, _, _| panic!())
+            admission::value(&mut ctx, &mut facts, &input, false, |_, _, _| panic!())
                 .unwrap_err()
                 .kind,
             expected
@@ -475,14 +479,14 @@ fn metadata_resolution_errors_release_work_and_allow_a_fresh_analysis() {
     let input = Value::array(vec![Value::bytes(vec![b'x'; 1024]), method.clone(), method]);
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
-    let error = admission::value(&mut ctx, &mut facts, &input, |_, _, _| {
+    let error = admission::value(&mut ctx, &mut facts, &input, false, |_, _, _| {
         Err(Error::new(ErrorKind::Type, "unknown owner"))
     })
     .unwrap_err();
     assert_eq!(error.kind, ErrorKind::Type);
     ctx.checkpoint().unwrap();
     let mut calls = 0;
-    let result = admission::value(&mut ctx, &mut facts, &input, |ctx, facts, _| {
+    let result = admission::value(&mut ctx, &mut facts, &input, false, |ctx, facts, _| {
         calls += 1;
         facts.callable(ctx, 42, Callable::Host(0)).map(Some)
     })

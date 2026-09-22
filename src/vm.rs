@@ -33,6 +33,7 @@ mod namespaces;
 mod operators;
 mod output;
 mod programs;
+mod publication;
 mod requires;
 mod scopes;
 #[cfg(test)]

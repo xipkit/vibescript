@@ -86,6 +86,24 @@ impl AsyncHostCall {
         )
     }
 
+    /// Stores a field in this call's member receiver and publishes it to the script.
+    ///
+    /// Follows the same rules as [`crate::HostCall::set_receiver_field`], and
+    /// the same retiring and latched-error rules as [`Self::context`].
+    pub fn set_receiver_field(&mut self, key: &[u8], value: &Value) -> Result<bool> {
+        if let Some(error) = &self.failure {
+            return Err(error.clone());
+        }
+        let execution = self.execution.as_mut().ok_or_else(retiring)?;
+        let execution = &mut *execution.execution;
+        self.control.as_mut().unwrap().set_receiver_field(
+            &mut execution.context,
+            &mut execution.run.as_mut().unwrap().storage,
+            key,
+            value,
+        )
+    }
+
     /// Runs the attached block with owned arguments on the receiving runner.
     ///
     /// Each result is an isolated snapshot that later block calls cannot change.
@@ -502,6 +520,16 @@ impl crate::host_call::Backend for Synchronous {
         self.control.receiver(
             &mut execution.context,
             &execution.run.as_ref().unwrap().storage,
+        )
+    }
+
+    fn set_receiver_field(&mut self, key: &[u8], value: &Value) -> Result<bool> {
+        let execution = &mut *self.execution.as_mut().unwrap().execution;
+        self.control.set_receiver_field(
+            &mut execution.context,
+            &mut execution.run.as_mut().unwrap().storage,
+            key,
+            value,
         )
     }
 

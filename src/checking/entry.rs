@@ -94,7 +94,7 @@ pub(super) fn check(ctx: &mut CallContext, call: Call<'_>) -> Result<Check> {
     let mut keyword_sources = Buffer::empty();
     for (name, value) in call.keywords {
         let name = facts.symbol(ctx, name.as_bytes())?;
-        let (value, batch) = values.admit(ctx, &mut facts, &world, value)?;
+        let (value, batch) = values.admit(ctx, &mut facts, &world, value, false)?;
         if value.incomplete {
             return unfinished(
                 ctx,

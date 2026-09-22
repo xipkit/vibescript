@@ -133,7 +133,7 @@ impl Values {
             ctx.charge((index + 1 - loaded.data.len()) as u64)?;
             loaded.data.resize(index + 1, None);
         }
-        let value = match self.admit(ctx, facts, world, source) {
+        let value = match self.admit(ctx, facts, world, source, true) {
             Ok((value, captured)) => Loaded {
                 value: value.value,
                 incomplete: value.incomplete,
@@ -165,7 +165,7 @@ impl Values {
         world: &World<'_>,
         value: &Value,
     ) -> Result<admission::Admitted> {
-        let (value, batch) = self.admit(ctx, facts, world, value)?;
+        let (value, batch) = self.admit(ctx, facts, world, value, false)?;
         if let Some(batch) = batch {
             self.captured.eager(ctx, batch)?;
         }
@@ -178,8 +178,9 @@ impl Values {
         facts: &mut Facts,
         world: &World<'_>,
         value: &Value,
+        root: bool,
     ) -> Result<admission::Admitted> {
-        admission::value(ctx, facts, value, |ctx, facts, value| {
+        admission::value(ctx, facts, value, root, |ctx, facts, value| {
             Ok(Some(match &value.0 {
                 Kind::Host(method) => {
                     let home = self.source(ctx, world)?;

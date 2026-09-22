@@ -4,6 +4,7 @@ pub(crate) trait Backend {
     fn context(&mut self) -> &mut CallContext;
     fn block_given(&self) -> bool;
     fn receiver(&mut self) -> Result<Option<Value>>;
+    fn set_receiver_field(&mut self, key: &[u8], value: &Value) -> Result<bool>;
     fn call_block(&mut self, args: &[Value]) -> Result<Value>;
 }
 
@@ -57,7 +58,9 @@ impl<'a> HostCall<'a> {
     /// The receiver is the object or hash the script selected the method from,
     /// such as `cap` in `cap.send(1)`, `cap[:send](1)` or `cap::send(1)`.
     /// The script selects that receiver before evaluating arguments; later
-    /// assignments to its binding do not replace the selected object. Each read
+    /// assignments to its binding do not replace the selected object. Once
+    /// [`Self::set_receiver_field`] publishes, later reads follow the capability
+    /// binding, including script writes made since. Each read
     /// snapshots its current data, including instances and module state.
     /// Later mutations do not change an earlier snapshot, which the host may keep.
     /// Using a snapshot does not replay module or class body initialization.
@@ -97,6 +100,46 @@ impl<'a> HostCall<'a> {
     /// ```
     pub fn receiver(&mut self) -> Result<Option<Value>> {
         self.backend.receiver()
+    }
+
+    /// Stores `value` under `key` in this call's member receiver and publishes
+    /// it to the script.
+    ///
+    /// A granted capability object is the host's live state for the duration
+    /// of one invocation. When the receiver is a capability object, or a hash
+    /// nested inside one, the write lands in that capability's binding at once,
+    /// as if the script had assigned `cap[key] = value`: later script reads,
+    /// blocks this method runs and later host calls all observe it, and it
+    /// ends with the invocation. Returns `true` in that case.
+    ///
+    /// Copies the script took earlier, such as `c = cap`, are independent
+    /// values and do not change. A receiver no capability binding holds, such
+    /// as a copy the script has since modified, only changes for this method's
+    /// later [`Self::receiver`] reads, and the call returns `false`.
+    ///
+    /// The value is imported into this invocation's accounting and must be data
+    /// or [`crate::HostMethod`] descriptors, as in a capability binding. A method
+    /// reached without a member lookup has no receiver and returns an error.
+    ///
+    /// ```
+    /// use vibescript::{CallOptions, Capability, Engine, HostMethod, Value};
+    /// let install = HostMethod::new_with_block("config.install", |call, _, _| {
+    ///     call.set_receiver_field(b"limit", &Value::int(10))?;
+    ///     Ok(Value::nil())
+    /// });
+    /// let config = Capability::new("config", move |_| {
+    ///     Ok(Value::object(vec![(b"install".to_vec(), install.value())]))
+    /// });
+    /// let script = Engine::new().compile("config.install()\nconfig[:limit] + 1")?;
+    /// let result = script.run(CallOptions {
+    ///     capabilities: vec![config],
+    ///     ..CallOptions::default()
+    /// })?;
+    /// assert_eq!(result.value.as_int(), Some(11));
+    /// # Ok::<(), vibescript::Error>(())
+    /// ```
+    pub fn set_receiver_field(&mut self, key: &[u8], value: &Value) -> Result<bool> {
+        self.backend.set_receiver_field(key, value)
     }
 
     /// Runs the attached block synchronously with isolated, accounted arguments.

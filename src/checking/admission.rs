@@ -31,11 +31,14 @@ enum Task<'a> {
 }
 
 /// Describes a host value without executing its methods or declaration bodies.
-/// The resolver admits source identities and callable metadata only.
+/// The resolver admits source identities and callable metadata only. A `root`
+/// binding, such as a capability template, admits any data into hashes holding
+/// block-capable or async methods, which may publish fields into them.
 pub(super) fn value<'a>(
     ctx: &mut CallContext,
     facts: &mut Facts,
     value: &'a Value,
+    root: bool,
     mut resolve: impl FnMut(&mut CallContext, &mut Facts, &'a Value) -> Result<Option<Fact>>,
 ) -> Result<Admitted> {
     ctx.checkpoint()?;
@@ -65,9 +68,21 @@ pub(super) fn value<'a>(
                         facts.tuple(ctx, &elements.data)?
                     }
                     Kind::Hash(hash) => {
+                        // A block-capable or async method may publish fields into the
+                        // hash it is called on, so that hash admits any data.
+                        let mut publishes = false;
+                        if root {
+                            for (_, value) in &hash.buffer.data {
+                                ctx.charge(1)?;
+                                publishes |= matches!(
+                                    &value.0,
+                                    Kind::Host(method) if method.supports_block()
+                                );
+                            }
+                        }
                         let mut fields = Buffer::with_capacity(ctx, children.len())?;
                         let mut keys = Buffer::with_capacity(ctx, children.len())?;
-                        for ((key, _), child) in hash.buffer.data.iter().zip(children) {
+                        for ((key, value), child) in hash.buffer.data.iter().zip(children) {
                             ctx.charge(1)?;
                             let (name, key) = match &key.0 {
                                 Kind::Bytes(bytes) => {
@@ -82,20 +97,29 @@ pub(super) fn value<'a>(
                             };
                             keys.push(ctx, key)?;
                             let name = ctx.bytes(name)?;
+                            let value = if publishes && !matches!(value.0, Kind::Host(_)) {
+                                Atom::Unknown.fact()
+                            } else {
+                                child.value
+                            };
                             fields.push(
                                 ctx,
                                 Field {
                                     name,
-                                    value: child.value,
+                                    value,
                                     optional: false,
                                 },
                             )?;
                         }
-                        let keys = facts.union(ctx, &keys.data)?;
+                        let keys = if publishes {
+                            Atom::String.fact()
+                        } else {
+                            facts.union(ctx, &keys.data)?
+                        };
                         let value = facts.shape_fields(
                             ctx,
                             fields,
-                            false,
+                            publishes,
                             keys,
                             if hash.object {
                                 HashKind::OBJECT

@@ -173,3 +173,52 @@ async fn receiver_reads_fail_once_an_abandoned_block_retires_the_call() {
     assert_eq!(result.unwrap_err().kind, ErrorKind::Cancelled);
     assert_eq!(runner.available_slots(), 1);
 }
+
+#[tokio::test]
+async fn async_and_bridged_sync_methods_publish_across_waits_and_blocks() {
+    let publish = HostMethod::new_async("cap.publish", |call, _, _| {
+        Box::pin(async move {
+            call.set_receiver_field(b"a", &Value::int(1))?;
+            tokio::task::yield_now().await;
+            let inner = if call.block_given() {
+                call.call_block(vec![]).await?
+            } else {
+                Value::nil()
+            };
+            tokio::task::yield_now().await;
+            call.set_receiver_field(b"c", &Value::int(3))?;
+            Ok(inner)
+        })
+    });
+    let bridged = HostMethod::new_with_block("cap.bridged", |call, _, _| {
+        call.set_receiver_field(b"d", &Value::int(4))?;
+        Ok(Value::nil())
+    });
+    let options = CallOptions {
+        capabilities: vec![Capability::new("cap", move |_| {
+            Ok(Value::object(vec![
+                (b"publish".to_vec(), publish.value()),
+                (b"bridged".to_vec(), bridged.value()),
+            ]))
+        })],
+        ..CallOptions::default()
+    };
+    let runner = Runner::new(1).unwrap();
+    let engine = Engine::new();
+    for (body, expected) in [
+        ("cap.publish()\n[cap[:a], cap[:c]]", "[1, 3]"),
+        ("cap.publish { cap[:a] }", "1"),
+        (
+            "cap.publish { cap[:b] = 2 }\n[cap[:a], cap[:b], cap[:c]]",
+            "[1, 2, 3]",
+        ),
+        ("c = cap\ncap.publish()\n[c[:a], cap[:a]]", "[nil, 1]"),
+        ("cap.bridged()\ncap[:d]", "4"),
+    ] {
+        assert_eq!(
+            run(&runner, &engine, body, options.clone()).await,
+            expected,
+            "{body}"
+        );
+    }
+}

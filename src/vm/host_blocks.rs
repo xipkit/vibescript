@@ -10,6 +10,7 @@ pub(super) struct HostRequest {
 pub(super) struct HostControl {
     pub block: Option<Block>,
     receiver: Option<Value>,
+    location: Option<publication::Location>,
     pending: Option<Control>,
 }
 
@@ -18,6 +19,7 @@ impl HostControl {
         Self {
             block: request.args.block,
             receiver: request.args.receiver.clone(),
+            location: None,
             pending: None,
         }
     }
@@ -41,6 +43,25 @@ impl HostControl {
             .as_ref()
             .map(|receiver| programs::snapshot(ctx, storage, receiver))
             .transpose()
+    }
+
+    /// Stores a field in the member receiver, publishing it to the capability
+    /// binding that holds the receiver.
+    pub fn set_receiver_field(
+        &mut self,
+        ctx: &mut CallContext,
+        storage: &mut Storage,
+        key: &[u8],
+        value: &Value,
+    ) -> Result<bool> {
+        let Some(receiver) = &mut self.receiver else {
+            ctx.checkpoint()?;
+            return Err(Error::new(
+                ErrorKind::Argument,
+                "host method has no member receiver",
+            ));
+        };
+        publication::set_field(ctx, storage, receiver, &mut self.location, key, value)
     }
 
     pub fn completed(&mut self, result: Result<Exit>) -> Result<Value> {
@@ -77,6 +98,11 @@ impl crate::host_call::Backend for Borrowed<'_> {
 
     fn receiver(&mut self) -> Result<Option<Value>> {
         self.control.receiver(self.context, &self.run.storage)
+    }
+
+    fn set_receiver_field(&mut self, key: &[u8], value: &Value) -> Result<bool> {
+        self.control
+            .set_receiver_field(self.context, &mut self.run.storage, key, value)
     }
 
     fn call_block(&mut self, args: &[Value]) -> Result<Value> {

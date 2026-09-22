@@ -99,6 +99,32 @@ A block's `next` returns to the driver. Its `break` terminates the receiving cal
 
 The explicitly selected control-flow policy preserves a pending `break` or `return` even if a host callback ignores `ErrorKind::ControlFlow`. Further block calls cannot execute script after that transfer. Go v0.70.0 permits swallowing these signals and running the block again. This behavior is explicitly selected and recorded separately in the compatibility audit.
 
+## Publishing into the receiver
+
+A granted capability object is the host's live state for the duration of one invocation. A block-capable method publishes into it with `HostCall::set_receiver_field(key, value)`; async methods use the same method on `AsyncHostCall`. The write lands immediately in the capability binding that holds the receiver, whether that is the capability object itself or a hash nested inside it, exactly as if the script had assigned `cap[key] = value`. Later script reads, blocks the method runs and later host calls all observe it. Script writes made between two publications are kept. Publication ends with the invocation; the next call binds a fresh capability.
+
+```rust
+use vibescript::{CallOptions, Capability, Engine, HostMethod, Value};
+
+let install = HostMethod::new_with_block("config.install", |call, _, _| {
+    call.set_receiver_field(b"limit", &Value::int(10))?;
+    call.call_block(&[])
+});
+let script = Engine::new().compile("config.install { config[:limit] }")?;
+let result = script.run(CallOptions {
+    capabilities: vec![Capability::new("config", move |_| {
+        Ok(Value::object(vec![(b"install".to_vec(), install.value())]))
+    })],
+    ..CallOptions::default()
+})?;
+assert_eq!(result.value.as_int(), Some(10));
+# Ok::<(), vibescript::Error>(())
+```
+
+Values the script extracted earlier, such as `data = config[:data]` or a copy `c = config`, are independent values and do not change. A method called through an unmodified copy still publishes to the capability binding, and the copy itself stays as it was. A receiver that no capability binding holds, such as a copy the script has since changed, only changes for that method's later `receiver()` reads, and `set_receiver_field` returns `false`. Published values are imported into the invocation's accounting and must be data or `HostMethod` descriptors; a published descriptor receives the invocation's grant. Publication cannot replace a field that holds a method, and plain `HostMethod::new` callbacks, which have no receiver handle, cannot publish.
+
+The checker models this conservatively. A capability hash that directly holds a block-capable or async method admits any additional field, and its data fields are unknown; its method fields keep their published signatures.
+
 ## Published signatures
 
 `HostMethod::with_signature` declares positional parameters with `SignatureParam { name, ty, optional }`, a result type, and whether a block is accepted. Type strings use the script annotation grammar, including unions, nullable values, typed containers, shapes, enums and classes. Empty strings leave slots unconstrained. Malformed types and required parameters after optional ones fail when the descriptor is created. `signature()` exposes immutable metadata for host tooling and the gradual script checker.
@@ -111,7 +137,7 @@ Use `Engine::register_method(name, method)` to register a descriptor, including 
 
 ## Async methods
 
-With the `tokio` feature, `HostMethod::new_async` accepts a callback returning `asynchronous::HostFuture`. Its scoped `AsyncHostCall` and arguments may be borrowed across awaits. Use `context()?` for accounting and cancellation, `block_given()` to inspect block presence, and `call_block(Vec<Value>).await` to invoke the attached block with isolated arguments. Rust prevents overlapping block calls and handles that outlive the callback. Methods keep their ordinary signatures, validators, per-call grants and attachment restrictions. Static checking reads their published contracts without constructing or polling host futures.
+With the `tokio` feature, `HostMethod::new_async` accepts a callback returning `asynchronous::HostFuture`. Its scoped `AsyncHostCall` and arguments may be borrowed across awaits. Use `context()?` for accounting and cancellation, `block_given()` to inspect block presence, `receiver()` and `set_receiver_field(key, value)` to read and publish into the member receiver, and `call_block(Vec<Value>).await` to invoke the attached block with isolated arguments. Rust prevents overlapping block calls and handles that outlive the callback. Methods keep their ordinary signatures, validators, per-call grants and attachment restrictions. Static checking reads their published contracts without constructing or polling host futures.
 
 ```rust
 use vibescript::{CallOptions, Engine, HostMethod, asynchronous::Runner};

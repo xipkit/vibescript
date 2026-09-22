@@ -374,6 +374,7 @@ impl Values {
         facts: &mut Facts,
         world: &World<'_>,
         value: &Value,
+        root: bool,
     ) -> Result<(admission::Admitted, Option<usize>)> {
         let previous_objects = self.captured.objects.data.len();
         let previous_sources = self.captured.sources.data.len();
@@ -383,7 +384,7 @@ impl Values {
             for snapshot in snapshots.data {
                 let mut fields = Buffer::empty();
                 for (name, value) in snapshot.fields.data {
-                    let value = self.describe(ctx, facts, world, &value)?;
+                    let value = self.describe(ctx, facts, world, &value, false)?;
                     incomplete |= value.incomplete;
                     let name = ctx.bytes(name.as_bytes().unwrap())?;
                     fields.push(
@@ -398,7 +399,7 @@ impl Values {
                 self.captured.objects.data[snapshot.object].fields =
                     facts.shape_fields(ctx, fields, false, Atom::String.fact(), HashKind::PLAIN)?;
             }
-            let mut value = self.describe(ctx, facts, world, value)?;
+            let mut value = self.describe(ctx, facts, world, value, root)?;
             value.incomplete |= incomplete;
             let batch = if needed.data.is_empty() {
                 None

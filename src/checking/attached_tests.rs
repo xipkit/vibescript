@@ -39,7 +39,7 @@ pub(super) fn admitted(
     hosts: &mut Buffer<Host>,
     value: &Value,
 ) -> Result<Fact> {
-    let admitted = super::admission::value(ctx, facts, value, |ctx, facts, value| {
+    let admitted = super::admission::value(ctx, facts, value, false, |ctx, facts, value| {
         Ok(Some(match &value.0 {
             Kind::Host(method) => {
                 let index = hosts.data.len();
