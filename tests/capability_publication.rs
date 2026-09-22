@@ -387,3 +387,48 @@ fn publication_cannot_replace_a_method_field() {
     );
     check(&[("cap.put(:k, 1)\ncap.get(:k)", "1")]);
 }
+
+#[test]
+fn the_shallowest_binding_that_holds_the_receiver_wins() {
+    let options = CallOptions {
+        capabilities: vec![
+            Capability::new("other", |_| Ok(Value::object(methods("other")))),
+            capability(),
+        ],
+        ..CallOptions::default()
+    };
+    let result = run(
+        "other[:x] = cap\ncap.put(:k, 1)\n[cap[:k], other[:x][:k]]",
+        options,
+    )
+    .unwrap();
+    assert_eq!(result.value.to_string(), "[1, nil]");
+}
+
+#[test]
+fn later_publications_in_a_call_land_at_the_same_binding_path() {
+    check(&[(
+        "cap.inner.around { cap[:inner] = {x: 9} }\n[cap.inner[:a], cap.inner[:c], cap.inner[:x]]",
+        "[nil, 3, 9]",
+    )]);
+}
+
+#[test]
+fn host_globals_holding_methods_are_live_like_capabilities() {
+    let install = HostMethod::new_with_block("g.install", |call, _, _| {
+        Ok(Value::boolean(
+            call.set_receiver_field(b"limit", &Value::int(10))?,
+        ))
+    });
+    let mut options = CallOptions::default();
+    options.globals.insert(
+        "g".into(),
+        Value::object(vec![(b"install".to_vec(), install.value())]),
+    );
+    let script = Engine::new()
+        .compile("def run\npublished = g.install()\n[published, g[:limit] + 1]\nend")
+        .unwrap();
+    assert!(script.check_call("run", &[], &options).unwrap().is_clean());
+    let result = script.call("run", &[], options).unwrap();
+    assert_eq!(result.value.to_string(), "[true, 11]");
+}

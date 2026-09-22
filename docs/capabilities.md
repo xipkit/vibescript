@@ -101,7 +101,7 @@ The explicitly selected control-flow policy preserves a pending `break` or `retu
 
 ## Publishing into the receiver
 
-A granted capability object is the host's live state for the duration of one invocation. A block-capable method publishes into it with `HostCall::set_receiver_field(key, value)`; async methods use the same method on `AsyncHostCall`. The write lands immediately in the capability binding that holds the receiver, whether that is the capability object itself or a hash nested inside it, exactly as if the script had assigned `cap[key] = value`. Later script reads, blocks the method runs and later host calls all observe it. Script writes made between two publications are kept. Publication ends with the invocation; the next call binds a fresh capability.
+A granted capability object, like a call global holding host methods, is the host's live state for the duration of one invocation. A block-capable method publishes into it with `HostCall::set_receiver_field(key, value)`; async methods use the same method on `AsyncHostCall`. The write lands immediately in the binding that holds the receiver, whether that is the capability object itself or a hash nested inside it, exactly as if the script had assigned `cap[key] = value`. Later script reads, blocks the method runs and later host calls all observe it. The first publication in a host call finds the shallowest binding path holding the receiver; later publications in the same call write to that path, keeping script writes made there in between. Publication ends with the invocation; the next call binds a fresh capability.
 
 ```rust
 use vibescript::{CallOptions, Capability, Engine, HostMethod, Value};
@@ -123,7 +123,7 @@ assert_eq!(result.value.as_int(), Some(10));
 
 Values the script extracted earlier, such as `data = config[:data]` or a copy `c = config`, are independent values and do not change. A method called through an unmodified copy still publishes to the capability binding, and the copy itself stays as it was. A receiver that no capability binding holds, such as a copy the script has since changed, only changes for that method's later `receiver()` reads, and `set_receiver_field` returns `false`. Published values are imported into the invocation's accounting and must be data or `HostMethod` descriptors; a published descriptor receives the invocation's grant. Publication cannot replace a field that holds a method, and plain `HostMethod::new` callbacks, which have no receiver handle, cannot publish.
 
-The checker models this conservatively. A capability hash that directly holds a block-capable or async method admits any additional field, and its data fields are unknown; its method fields keep their published signatures.
+The checker models this conservatively. A capability or global hash that directly holds a block-capable or async method admits any additional field, and its data fields are unknown; its method fields keep their published signatures.
 
 ## Published signatures
 

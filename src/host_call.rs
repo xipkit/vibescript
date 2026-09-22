@@ -105,17 +105,19 @@ impl<'a> HostCall<'a> {
     /// Stores `value` under `key` in this call's member receiver and publishes
     /// it to the script.
     ///
-    /// A granted capability object is the host's live state for the duration
-    /// of one invocation. When the receiver is a capability object, or a hash
-    /// nested inside one, the write lands in that capability's binding at once,
-    /// as if the script had assigned `cap[key] = value`: later script reads,
-    /// blocks this method runs and later host calls all observe it, and it
-    /// ends with the invocation. Returns `true` in that case.
+    /// A granted capability object, or a call global holding host methods, is
+    /// the host's live state for the duration of one invocation. When the
+    /// receiver is such an object, or a hash nested inside one, the write lands
+    /// in that binding at once, as if the script had assigned `cap[key] = value`:
+    /// later script reads, blocks this method runs and later host calls all
+    /// observe it, and it ends with the invocation. Returns `true` in that case.
+    /// The first publication finds the shallowest binding path holding the
+    /// receiver; later publications in the same host call write to that path.
     ///
     /// Copies the script took earlier, such as `c = cap`, are independent
-    /// values and do not change. A receiver no capability binding holds, such
-    /// as a copy the script has since modified, only changes for this method's
-    /// later [`Self::receiver`] reads, and the call returns `false`.
+    /// values and do not change. A receiver no binding holds, such as a copy
+    /// the script has since modified, only changes for this method's later
+    /// [`Self::receiver`] reads, and the call returns `false`.
     ///
     /// The value is imported into this invocation's accounting and must be data
     /// or [`crate::HostMethod`] descriptors, as in a capability binding. A method

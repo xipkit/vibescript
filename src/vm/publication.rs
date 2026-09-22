@@ -1,24 +1,25 @@
 //! Host writes into a capability object during the call that granted it.
 //!
-//! A capability binding is the host's live state for one invocation. A host
-//! method publishes by storing a field in the object it was called on; the
-//! write lands in the capability binding that currently holds that object, so
-//! later script reads, blocks and host calls observe it. Copies the script made
-//! earlier stay independent values.
+//! A capability binding, or a host global holding host methods, is the host's
+//! live state for one invocation. A host method publishes by storing a field in
+//! the object it was called on. The first publication finds the binding path
+//! that holds that object; the write and every later publication in the same
+//! host call land at that path, so later script reads, blocks and host calls
+//! observe them. Copies the script made earlier stay independent values.
 
 use super::*;
 
-/// The capability binding and nested hash keys that lead to a receiver.
+/// The root binding and nested hash keys that lead to a receiver.
 pub(super) struct Location {
-    name: String,
+    name: Value,
     path: Buffer<Value>,
 }
 
-/// Stores `key: value` in `receiver`, publishing the write to the capability
-/// binding that holds it. Returns whether a binding received the write.
+/// Stores `key: value` in `receiver`, publishing the write to the binding path
+/// that holds it. Returns whether a binding received the write.
 ///
 /// `location` caches where the receiver was found, so writes the script makes
-/// to the binding between two publications do not detach the receiver.
+/// at that path between two publications are kept.
 pub(super) fn set_field(
     ctx: &mut CallContext,
     storage: &mut Storage,
@@ -28,11 +29,58 @@ pub(super) fn set_field(
     value: &Value,
 ) -> Result<bool> {
     ctx.checkpoint()?;
-    let Kind::Hash(hash) = &receiver.0 else {
+    if !matches!(receiver.0, Kind::Hash(_)) {
         return Err(Error::new(
             ErrorKind::Type,
             "host receiver does not accept fields",
         ));
+    }
+    if location.is_none() {
+        *location = locate(ctx, storage, receiver)?;
+    }
+    let target = match location {
+        Some(found) => read(ctx, storage, found)?,
+        None => None,
+    };
+    if target.is_none() {
+        *location = None;
+    }
+    reject_method_field(ctx, target.as_ref().unwrap_or(receiver), key)?;
+    let key = ctx.bytes(key)?;
+    let value = ctx.snapshot(value)?;
+    if !matches!(value.0, Kind::Host(_)) {
+        crate::exports::check(ctx, &value)?;
+    }
+    programs::imported(ctx, storage, &value)?;
+    if let Some(found) = location {
+        let mut address = open(ctx, storage, found)?;
+        address.selectors.push(ctx, key)?;
+        address.assign(
+            ctx,
+            address::Bindings {
+                guard: None,
+                recover: true,
+                locals: &mut storage.locals.data,
+                globals: &mut storage.globals.data,
+                namespaces: &mut storage.namespaces.data,
+            },
+            &mut storage.addresses.data,
+            value,
+        )?;
+        if let Some(current) = read(ctx, storage, found)? {
+            *receiver = current;
+        }
+        return Ok(true);
+    }
+    *receiver = ops::set_index(ctx, receiver.clone(), key, value)?;
+    Ok(false)
+}
+
+/// Rejects replacing a field that holds a host method; methods are the
+/// capability's interface, not published state.
+fn reject_method_field(ctx: &mut CallContext, node: &Value, key: &[u8]) -> Result<()> {
+    let Kind::Hash(hash) = &node.0 else {
+        return Ok(());
     };
     if let Some(index) = hash.find(ctx, key)? {
         if matches!(hash.buffer.data[index].1.0, Kind::Host(_)) {
@@ -45,109 +93,118 @@ pub(super) fn set_field(
             ));
         }
     }
-    let key = ctx.bytes(key)?;
-    let value = ctx.snapshot(value)?;
-    if !matches!(value.0, Kind::Host(_)) {
-        crate::exports::check(ctx, &value)?;
-    }
-    programs::imported(ctx, storage, &value)?;
-    if location.is_none() {
-        *location = locate(ctx, storage, receiver)?;
-    }
-    if let Some(found) = location {
-        if let Some(mut address) = open(ctx, storage, found)? {
-            address.selectors.push(ctx, key.clone())?;
-            address.assign(
-                ctx,
-                address::Bindings {
-                    guard: None,
-                    recover: true,
-                    locals: &mut storage.locals.data,
-                    globals: &mut storage.globals.data,
-                    namespaces: &mut storage.namespaces.data,
-                },
-                &mut storage.addresses.data,
-                value.clone(),
-            )?;
-            if let Some(current) = read(ctx, storage, found)? {
-                *receiver = current;
-                return Ok(true);
-            }
-        }
-        *location = None;
-    }
-    *receiver = ops::set_index(ctx, std::mem::take(receiver), key, value)?;
-    Ok(false)
+    Ok(())
 }
 
-/// Finds the capability binding holding `receiver`, by identity.
+/// One hash visited while searching root bindings breadth first.
+struct Node {
+    root: usize,
+    parent: usize,
+    key: Value,
+    hash: Arc<Hash>,
+    depth: usize,
+}
+
+/// Finds the root binding that holds `receiver` by identity, preferring the
+/// shallowest path, then capabilities in grant order, then host globals.
 fn locate(ctx: &mut CallContext, storage: &Storage, receiver: &Value) -> Result<Option<Location>> {
     let (Kind::Hash(target), Some(bindings)) = (&receiver.0, &storage.bindings) else {
         return Ok(None);
     };
+    let mut names = Buffer::empty();
     for index in 0..ctx.capability_names.data.len() {
-        ctx.charge(1)?;
         let name = ctx.capability_names.data[index].clone();
-        let name = String::from_utf8_lossy(name.as_bytes().unwrap()).into_owned();
-        let Some(root) = crate::objects::field(ctx, bindings, &name)? else {
-            continue;
-        };
-        if let Some(path) = find(ctx, &root, target)? {
-            return Ok(Some(Location { name, path }));
+        names.push(ctx, name)?;
+    }
+    let globals = std::mem::take(&mut ctx.options.globals);
+    let listed = (|| {
+        for name in globals.keys() {
+            let name = ctx.bytes(name.as_bytes())?;
+            names.push(ctx, name)?;
         }
-    }
-    Ok(None)
-}
-
-/// Searches nested hashes below `root` for `target`, returning the keys that
-/// reach it.
-fn find(ctx: &mut CallContext, root: &Value, target: &Arc<Hash>) -> Result<Option<Buffer<Value>>> {
-    let Kind::Hash(root) = &root.0 else {
-        return Ok(None);
-    };
-    let mut path = Buffer::empty();
-    if Arc::ptr_eq(root, target) {
-        return Ok(Some(path));
-    }
-    let mut pending: Buffer<(Arc<Hash>, usize)> = Buffer::empty();
-    pending.push(ctx, (root.clone(), 0))?;
-    while let Some((hash, next)) = pending.data.last_mut() {
+        Ok(())
+    })();
+    ctx.options.globals = globals;
+    listed?;
+    let mut nodes: Buffer<Node> = Buffer::empty();
+    for (root, name) in names.data.iter().enumerate() {
         ctx.charge(1)?;
-        let entry = hash.buffer.data.get(*next).cloned();
-        *next += 1;
-        let Some((key, child)) = entry else {
-            pending.data.pop();
-            path.data.pop();
+        let Some(Value(Kind::Hash(hash))) = crate::objects::field(ctx, bindings, text(name))?
+        else {
             continue;
         };
-        let Kind::Hash(child) = child.0 else {
-            continue;
-        };
-        let found = Arc::ptr_eq(&child, target);
-        if !found && pending.data.len() >= crate::budget::MAX_VALUE_DEPTH {
-            continue;
+        if Arc::ptr_eq(&hash, target) {
+            return Ok(Some(Location {
+                name: name.clone(),
+                path: Buffer::empty(),
+            }));
         }
-        path.push(ctx, key)?;
-        if found {
-            return Ok(Some(path));
+        nodes.push(
+            ctx,
+            Node {
+                root,
+                parent: usize::MAX,
+                key: Value::nil(),
+                hash,
+                depth: 0,
+            },
+        )?;
+    }
+    let mut next = 0;
+    while next < nodes.data.len() {
+        let (hash, depth) = (nodes.data[next].hash.clone(), nodes.data[next].depth);
+        if depth + 1 < crate::budget::MAX_VALUE_DEPTH {
+            for (key, child) in &hash.buffer.data {
+                ctx.charge(1)?;
+                let Kind::Hash(child) = &child.0 else {
+                    continue;
+                };
+                if Arc::ptr_eq(child, target) {
+                    let mut path = Buffer::with_capacity(ctx, depth + 1)?;
+                    path.data.push(key.clone());
+                    let mut at = next;
+                    while nodes.data[at].parent != usize::MAX {
+                        path.data.push(nodes.data[at].key.clone());
+                        at = nodes.data[at].parent;
+                    }
+                    path.data.reverse();
+                    return Ok(Some(Location {
+                        name: names.data[nodes.data[at].root].clone(),
+                        path,
+                    }));
+                }
+                let root = nodes.data[next].root;
+                nodes.push(
+                    ctx,
+                    Node {
+                        root,
+                        parent: next,
+                        key: key.clone(),
+                        hash: child.clone(),
+                        depth: depth + 1,
+                    },
+                )?;
+            }
         }
-        pending.push(ctx, (child, 0))?;
+        next += 1;
     }
     Ok(None)
 }
 
-/// Opens a write address at the located receiver, or `None` if the binding no
-/// longer reaches a hash there.
-fn open(ctx: &mut CallContext, storage: &Storage, location: &Location) -> Result<Option<Address>> {
-    if read(ctx, storage, location)?.is_none() {
-        return Ok(None);
-    }
+/// Root binding names are UTF-8: they come from grant names and global keys.
+fn text(name: &Value) -> &str {
+    std::str::from_utf8(name.as_bytes().unwrap_or_default()).unwrap_or_default()
+}
+
+/// Opens a write address at a location `read` has just confirmed.
+fn open(ctx: &mut CallContext, storage: &Storage, location: &Location) -> Result<Address> {
     let bindings = storage.bindings.as_ref().unwrap();
-    let mut address = crate::objects::address(ctx, bindings, &location.name)?.in_environment();
+    let mut address =
+        crate::objects::address(ctx, bindings, text(&location.name))?.in_environment();
     for key in &location.path.data {
         address.index(ctx, std::slice::from_ref(key))?;
     }
-    Ok(address.has_binding().then_some(address))
+    Ok(address)
 }
 
 /// Reads the hash currently stored at `location`.
@@ -155,7 +212,7 @@ fn read(ctx: &mut CallContext, storage: &Storage, location: &Location) -> Result
     let Some(bindings) = &storage.bindings else {
         return Ok(None);
     };
-    let Some(mut value) = crate::objects::field(ctx, bindings, &location.name)? else {
+    let Some(mut value) = crate::objects::field(ctx, bindings, text(&location.name))? else {
         return Ok(None);
     };
     for key in &location.path.data {
