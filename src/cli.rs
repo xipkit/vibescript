@@ -588,7 +588,7 @@ fn load(input: &Input, extra_paths: &[PathBuf]) -> Result<Script, Failure> {
     };
     let mut engine = Engine::new();
     engine.set_module_config(ModuleConfig {
-        paths: module_paths(input.root(), extra_paths)?,
+        paths: module_paths(implicit_root(input), extra_paths)?,
         ..ModuleConfig::default()
     })?;
     engine.set_output_writer(|_, bytes| forward(io::stdout().lock(), bytes));
@@ -598,10 +598,20 @@ fn load(input: &Input, extra_paths: &[PathBuf]) -> Result<Script, Failure> {
         .map_err(|error| Failure::Failed(compile_failure(&input.label(), &error)))
 }
 
-fn module_paths(root: &Path, extras: &[PathBuf]) -> Result<Vec<PathBuf>, Failure> {
+/// The input's own module root. A WASI guest has a working directory only when
+/// the host exposes one, so inline source there may run without it.
+fn implicit_root(input: &Input) -> Option<&Path> {
+    let root = input.root();
+    if cfg!(target_os = "wasi") && matches!(input, Input::Inline(_)) && !root.is_dir() {
+        return None;
+    }
+    Some(root)
+}
+
+fn module_paths(root: Option<&Path>, extras: &[PathBuf]) -> Result<Vec<PathBuf>, Failure> {
     let mut paths = Vec::new();
-    for path in std::iter::once(root).chain(extras.iter().map(PathBuf::as_path)) {
-        let canonical = fs::canonicalize(path).map_err(|error| {
+    for path in root.into_iter().chain(extras.iter().map(PathBuf::as_path)) {
+        let canonical = canonical(path).map_err(|error| {
             Failure::Failed(format!(
                 "cannot open module path {}: {error}",
                 path.display()
@@ -618,6 +628,19 @@ fn module_paths(root: &Path, extras: &[PathBuf]) -> Result<Vec<PathBuf>, Failure
         }
     }
     Ok(paths)
+}
+
+#[cfg(not(target_os = "wasi"))]
+fn canonical(path: &Path) -> io::Result<PathBuf> {
+    fs::canonicalize(path)
+}
+
+/// WASI's `realpath` fails beneath a preopen whose guest ancestors the host
+/// does not expose. The library resolves links when it opens each root, so
+/// duplicates are only collapsed by their absolute spelling here.
+#[cfg(target_os = "wasi")]
+fn canonical(path: &Path) -> io::Result<PathBuf> {
+    std::path::absolute(path)
 }
 
 fn forward(mut stream: impl Write, bytes: &[u8]) -> vibescript::Result<()> {

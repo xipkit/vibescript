@@ -48,6 +48,8 @@ vibes app/main.vibe --module-path shared --function run --checked
 
 All execution and checking modes use the same configured roots and the engine's directory-handle confinement. Required files can make relative imports within their root, such as `require('./helpers')`; a relative import from the main script still requires a module caller, as in the Go reference. Checking reads and analyzes resolved modules without executing their initializers or output helpers.
 
+Under WASI, `vibes.wasm` sees only the directories its host preopens, and every path is a guest path. Duplicate module paths are collapsed by their absolute spelling, because WASI cannot canonicalize a path beneath a preopen whose ancestors are hidden; the engine still resolves links when it opens each root. Inline source runs without the working-directory root when the host exposes no working directory. See [platform support](platforms.md) for an example.
+
 ## Whole-file checking
 
 `vibes check FILE` analyzes the whole file through `Script::check`. The top-level statements are checked in source order, then every effective function and method declaration is checked against its declared parameter types and defaults, including declarations that nothing calls. Declarations use namespace state from the top-level analysis, so a module constant assigned from a top-level variable keeps its known type. No result value is printed, and `puts`, `print`, `p` and `warn` never run.
