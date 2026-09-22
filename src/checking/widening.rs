@@ -337,41 +337,75 @@ impl Facts {
                 }),
             );
         }
-        let mut source = Buffer::empty();
-        let mut work = 0usize;
+        // Group fields by name with a metered hash table; only the distinct names are sorted.
+        let mut total = 0usize;
+        for &hash in hashes {
+            let Node::Shape(fields, ..) = self.node(hash) else {
+                unreachable!()
+            };
+            total = total.saturating_add(fields.data.len());
+        }
+        let Some(capacity) = total.max(1).checked_mul(2).map(usize::next_power_of_two) else {
+            return ctx.fail(
+                crate::ErrorKind::Memory,
+                "checker widening table size overflow",
+            );
+        };
+        let mut table = Buffer::with_capacity(ctx, capacity)?;
+        ctx.charge(capacity as u64)?;
+        table.data.resize(capacity, usize::MAX);
+        let mut groups: Buffer<(Value, Buffer<Fact>, bool, usize)> = Buffer::empty();
         for &hash in hashes {
             let Node::Shape(fields, ..) = self.node(hash) else {
                 unreachable!()
             };
             for field in &fields.data {
                 ctx.charge(1)?;
-                work = work.saturating_add(field.name.as_bytes().unwrap().len().saturating_add(1));
-                source.push(ctx, (field.name.clone(), field.value, field.optional))?;
+                let name = field.name.as_bytes().unwrap();
+                ctx.work_bytes(name.len())?;
+                let mut hasher = std::hash::DefaultHasher::new();
+                std::hash::Hash::hash(name, &mut hasher);
+                let mut slot = std::hash::Hasher::finish(&hasher) as usize & (capacity - 1);
+                loop {
+                    let group = table.data[slot];
+                    if group == usize::MAX {
+                        table.data[slot] = groups.data.len();
+                        let mut values = Buffer::empty();
+                        values.push(ctx, field.value)?;
+                        groups.push(ctx, (field.name.clone(), values, field.optional, 1))?;
+                        break;
+                    }
+                    if same_bytes(ctx, &groups.data[group].0, &field.name)? {
+                        let (_, values, maybe, count) = &mut groups.data[group];
+                        values.push(ctx, field.value)?;
+                        *maybe |= field.optional;
+                        *count += 1;
+                        break;
+                    }
+                    ctx.charge(1)?;
+                    slot = (slot + 1) & (capacity - 1);
+                }
             }
         }
-        ctx.charge(work.saturating_mul(source.data.len().max(1).ilog2() as usize + 1) as u64)?;
-        source
+        let mut work = 0usize;
+        for (name, ..) in &groups.data {
+            ctx.charge(1)?;
+            work = work.saturating_add(name.as_bytes().unwrap().len().saturating_add(1));
+        }
+        ctx.charge(work.saturating_mul(groups.data.len().max(1).ilog2() as usize + 1) as u64)?;
+        groups
             .data
             .sort_unstable_by(|a, b| a.0.as_bytes().cmp(&b.0.as_bytes()));
         let mut fields = Buffer::empty();
-        let mut current: Option<(Value, Fact, bool, usize)> = None;
-        for (name, value, optional) in source.data {
-            ctx.charge(1)?;
-            if let Some((key, into, maybe, count)) = &mut current {
-                if same_bytes(ctx, key, &name)? {
-                    *into = self.union(ctx, &[*into, value])?;
-                    *maybe |= optional;
-                    *count += 1;
-                    continue;
-                }
-            }
-            if let Some(field) = current.take() {
-                self.widen_field(ctx, &mut fields, field, hashes.len(), open)?;
-            }
-            current = Some((name, value, optional, 1));
-        }
-        if let Some(field) = current {
-            self.widen_field(ctx, &mut fields, field, hashes.len(), open)?;
+        for (name, values, optional, count) in groups.data {
+            let value = self.union(ctx, &values.data)?;
+            self.widen_field(
+                ctx,
+                &mut fields,
+                (name, value, optional, count),
+                hashes.len(),
+                open,
+            )?;
         }
         let mut children = Buffer::empty();
         for field in &fields.data {
