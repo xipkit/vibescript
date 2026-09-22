@@ -561,19 +561,17 @@ fn infallible_native_calls_do_not_make_dead_rescues_reachable() {
 }
 
 #[test]
-fn opaque_string_conversions_and_remaining_dynamic_work_are_explicitly_incomplete() {
-    for source in [
-        "def run(x:any); format(\"%s\",x); end",
-        "def run(x:any); puts(x); end",
-        "def run; require(\"missing\"); end",
-    ] {
-        let mut ctx = CallContext::new(CallOptions::default());
-        let mut facts = Facts::new(&mut ctx).unwrap();
-        let report = analyze(&mut ctx, &mut facts, source).unwrap();
-        assert!(!report.incomplete.data.is_empty(), "{source}: {report:?}");
-        drop((facts, report));
-        assert_eq!(ctx.stats().retained_memory_bytes, 0);
-    }
+fn gradual_string_conversions_are_analyzed_and_dynamic_work_stays_incomplete() {
+    let source = "def run; require(\"missing\"); end";
+    let mut ctx = CallContext::new(CallOptions::default());
+    let mut facts = Facts::new(&mut ctx).unwrap();
+    let report = analyze(&mut ctx, &mut facts, source).unwrap();
+    assert!(!report.incomplete.data.is_empty(), "{source}: {report:?}");
+    drop((facts, report));
+    assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    // A gradual value may run an unknown `to_s`; its conversion still renders text.
+    check("def run(x:any); format(\"%s\",x); end", false);
+    check("def run(x:any); puts(x); end", false);
     check("def run(x:{name:string}); sprintf(\"%s\",x); end", false);
     witness(
         "def run; sprintf(\"%s\",{name:\"a\"}); end",

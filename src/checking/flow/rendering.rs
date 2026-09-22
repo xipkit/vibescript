@@ -159,14 +159,30 @@ impl Walker<'_> {
             }
             if matches!(
                 self.facts.node(original),
-                Node::Atom(Atom::Unknown | Atom::Any)
-                    | Node::Named(_)
-                    | Node::Nominal { symbols: None, .. }
+                Node::Named(_) | Node::Nominal { symbols: None, .. }
             ) {
                 self.incomplete(pc)?;
                 continue;
             }
             let mut next = state.snapshot(self.ctx)?;
+            if matches!(
+                self.facts.node(original),
+                Node::Atom(Atom::Unknown | Atom::Any)
+            ) {
+                // A gradual value may be a source instance whose eligible `to_s`
+                // runs with the effects and errors of an unknown call. Every other
+                // value renders natively, so the rendered text is still a string.
+                self.unknown_call_effects(&mut next, pc)?;
+                self.emit_error(&next, pc, u8::MAX)?;
+                converted.push(
+                    self.ctx,
+                    Converted {
+                        state: next,
+                        value: original,
+                    },
+                )?;
+                continue;
+            }
             let mut value = original;
             if matches!(self.facts.node(original), Node::Instance { .. }) {
                 let Some(module) = self.namespace(state, original)? else {
