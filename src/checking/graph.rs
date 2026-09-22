@@ -55,6 +55,7 @@ impl Graph {
                 | Op::ReceiverBound(_, target)
                 | Op::AddressBound(_, target)
                 | Op::NamespaceConstant(_, target)
+                | Op::NamespaceConstantAddress(_, target)
                 | Op::AmbientValue(_, target)
                 | Op::AmbientAddress(_, target)
                 | Op::FileValue(_, target)

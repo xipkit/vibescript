@@ -178,7 +178,7 @@ impl Compiler<'_> {
                 site.scope = true;
                 self.emit(Op::AddressNamespaceField(site));
             }
-            _ => self.address(receiver)?,
+            _ => self.address_root(receiver, true)?,
         }
         Ok(())
     }

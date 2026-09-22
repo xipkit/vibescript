@@ -1904,7 +1904,10 @@ impl Walker<'_> {
                     }
                 }
                 Op::NamespaceConstant(name, next) => {
-                    return self.namespace_constant_edges(state, pc, name, next);
+                    return self.namespace_constant_edges(state, pc, name, next, false);
+                }
+                Op::NamespaceConstantAddress(name, next) => {
+                    return self.namespace_constant_edges(state, pc, name, next, true);
                 }
                 Op::NamespaceVariable(name, optional) => {
                     if !self.namespace_variable(&mut state, pc, name, optional)? {

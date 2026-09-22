@@ -223,12 +223,14 @@ impl Walker<'_> {
         Ok(None)
     }
 
+    /// Reads a present namespace constant, or with `address` pushes its field address.
     pub(in super::super) fn namespace_constant_edges(
         &mut self,
         mut state: State,
         pc: usize,
         name: usize,
         next: usize,
+        address: bool,
     ) -> Result<Edges> {
         let name = &self.program.members[name];
         let Some(field) = self.namespace_constant(&state, name, false)? else {
@@ -246,7 +248,11 @@ impl Walker<'_> {
             None
         };
         self.refine_namespace(&mut state, module, name, true)?;
-        state.stack.push(self.ctx, Operand::new(field.value))?;
+        if address {
+            self.push_field_address(&mut state, module, name)?;
+        } else {
+            state.stack.push(self.ctx, Operand::new(field.value))?;
+        }
         Ok([Some((next, state)), missing])
     }
 

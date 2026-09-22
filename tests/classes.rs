@@ -653,6 +653,72 @@ def host; visit(fetch()); end
 }
 
 #[test]
+fn instance_methods_write_class_constants_in_place() {
+    let script = Engine::new()
+        .compile(
+            r#"
+class Consts
+  LIST = [1, [2, 3]]
+  H = {a: 1}
+  def poke() -> int
+    LIST[0] = 9
+    LIST[1][0] = 20
+    H[:b] = 2
+    H.a = 5
+    [1].each { LIST[0] += 1 }
+    LIST[0]
+  end
+  def shadow
+    LIST = [3]
+    LIST[0] = 4
+    LIST.push(5)
+    LIST
+  end
+  def mutate
+    LIST.push(6)
+    LIST.size
+  end
+  def self.read
+    [LIST, H]
+  end
+end
+def run
+  c = Consts.new
+  [c.poke, c.shadow, c.mutate, Consts.read, Consts::LIST]
+end
+def exact -> int
+  if Consts.new.poke == 10
+    7
+  else
+    "wrong"
+  end
+end
+"#,
+        )
+        .unwrap();
+    for _ in 0..2 {
+        let output = script.call("run", &[], CallOptions::default()).unwrap();
+        assert_eq!(
+            json(&output.value),
+            serde_json::json!([
+                10,
+                [4, 5],
+                2,
+                [[10, [20, 3]], {"a": 5, "b": 2}],
+                [10, [20, 3]]
+            ])
+        );
+    }
+    // The checker writes through the same class field, so the updated element is known.
+    let report = script
+        .check_function("exact", &CallOptions::default())
+        .unwrap();
+    assert!(report.is_clean(), "{report:?}");
+    let output = script.call("exact", &[], CallOptions::default()).unwrap();
+    assert_eq!(output.value.as_int(), Some(7));
+}
+
+#[test]
 fn block_break_replaces_the_constructor_result() {
     let script = Engine::new()
         .compile(

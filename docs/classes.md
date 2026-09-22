@@ -79,7 +79,7 @@ def run(input)
 end
 ```
 
-This returns `2` on every call. Uppercase assignments in a class body or class method write class constants. In instance methods, assignments normally create method locals; explicitly referring to a class member accesses the class state.
+This returns `2` on every call. Uppercase assignments in a class body or class method write class constants. In instance methods, assignments normally create method locals; explicitly referring to a class member accesses the class state. An indexed or member assignment rooted at a class constant, such as `LIST[0] = 9`, writes that constant in place unless a method local of the same name is bound, as in Go. Mutating calls such as `LIST.push(9)` still leave the constant unchanged.
 
 Methods and accessors support public, private and protected sections, inline modifiers and symbol directives. Ordinary private calls require an implicit receiver. Protected instance methods allow callers from the same class's instances; protected class methods allow callers from that class's class methods. [Dynamic `send`](forwarding.md) can reach private and protected methods; `public_send` retains normal explicit-receiver visibility. Aliases preserve the target definition and its visibility at the alias declaration.
 

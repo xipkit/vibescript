@@ -774,6 +774,16 @@ impl Run {
                         frames.data[current].ip = next;
                     }
                 }
+                Op::NamespaceConstantAddress(name, next) => {
+                    let module = namespace.unwrap();
+                    let name = &program.members[name];
+                    if namespaces::field(program, ctx, storage, module, name)?.is_some() {
+                        let address =
+                            namespaces::address(program, ctx, storage, module, name, false)?;
+                        storage.addresses.push(ctx, address)?;
+                        frames.data[current].ip = next;
+                    }
+                }
                 Op::NamespaceVariable(name, optional) => {
                     let raw = &program.members[name];
                     if raw.starts_with('@') && !raw.starts_with("@@") {

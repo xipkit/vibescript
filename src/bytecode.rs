@@ -28,6 +28,7 @@ pub(crate) enum Op {
     BindIvar(usize, usize),
     NamespaceSelf(usize),
     NamespaceConstant(usize, usize),
+    NamespaceConstantAddress(usize, usize),
     NamespaceVariable(usize, bool),
     NamespaceStore(usize),
     NamespaceAddress(usize, bool),
@@ -800,6 +801,7 @@ impl Compiler<'_> {
             | Op::AddressJumpNil(n, _)
             | Op::Bind(_, n)
             | Op::NamespaceConstant(_, n)
+            | Op::NamespaceConstantAddress(_, n)
             | Op::FileValue(_, n)
             | Op::FileAddress(_, n)
             | Op::RootAddress(_, n)
@@ -1934,14 +1936,39 @@ impl Compiler<'_> {
         )
     }
     fn address(&mut self, receiver: &Expr) -> Result<()> {
+        self.address_root(receiver, false)
+    }
+    /// Addresses `receiver`. An assignment root in an instance method sets `constant`
+    /// so that it writes an existing class constant in place, unless a bound local
+    /// of the same name takes precedence.
+    pub(super) fn address_root(&mut self, receiver: &Expr, constant: bool) -> Result<()> {
         self.work.charge(1)?;
         let previous = std::mem::replace(&mut self.offset, receiver.offset);
-        let result = self.address_at(receiver);
+        let result = self.address_at(receiver, constant);
         self.offset = previous;
         result
     }
-    fn address_at(&mut self, receiver: &Expr) -> Result<()> {
+    fn address_at(&mut self, receiver: &Expr, constant: bool) -> Result<()> {
         self.work.charge(1)?;
+        let constant = match &receiver.node {
+            Node::Var(name)
+                if constant
+                    && self.instance
+                    && self.namespace.is_some()
+                    && name.chars().next().is_some_and(syntax::unicode::upper)
+                    && !self.parameters.contains(self.work, name.as_str())? =>
+            {
+                Some(self.call_site(name, false).name)
+            }
+            _ => None,
+        };
+        let local = match &receiver.node {
+            Node::Var(name) => self.locals.contains(self.work, name.as_str())?,
+            _ => false,
+        };
+        let early = constant
+            .filter(|_| !local)
+            .map(|name| self.emit(Op::NamespaceConstantAddress(name, 0)));
         let root = if let Node::Var(name) = &receiver.node {
             if !name.starts_with('@') && !self.locals.contains(self.work, name.as_str())? {
                 let name = self.call_site(name, false).name;
@@ -1977,6 +2004,8 @@ impl Compiler<'_> {
                     self.emit(Op::AddressLocal(slot));
                 } else {
                     let bound = self.emit(Op::AddressBound(slot, 0));
+                    let constant =
+                        constant.map(|name| self.emit(Op::NamespaceConstantAddress(name, 0)));
                     let ambient = self.namespace.map(|_| {
                         let name = self.call_site(name, false).name;
                         self.emit(Op::AmbientAddress(name, 0))
@@ -1988,8 +2017,8 @@ impl Compiler<'_> {
                         self.emit(Op::AddressValue);
                     }
                     self.patch(bound, self.code.len());
-                    if let Some(ambient) = ambient {
-                        self.patch(ambient, self.code.len());
+                    for jump in constant.into_iter().chain(ambient) {
+                        self.patch(jump, self.code.len());
                     }
                 }
             }
@@ -2030,11 +2059,8 @@ impl Compiler<'_> {
                 self.emit(Op::AddressValue);
             }
         }
-        if let Some(root) = root {
-            self.patch(root, self.code.len());
-        }
-        if let Some(file) = file {
-            self.patch(file, self.code.len());
+        for jump in [early, root, file].into_iter().flatten() {
+            self.patch(jump, self.code.len());
         }
         Ok(())
     }
