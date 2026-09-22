@@ -622,9 +622,14 @@ impl<'a> Parsing<'a> {
                 p.groups += 1;
                 p.lines()?;
             }
-            if (parenthesized && p.take_p(')'))
-                || (!parenthesized && matches!(p.token(), Token::EndLine | Token::Op("->")))
-            {
+            // Without parentheses, a signature needs a parameter on the def's
+            // line; anything else starts the body, as in `def run [1, 2].first end`.
+            let bare = match p.token() {
+                Token::Word(w) => !keyword(w) && !w.starts_with("@@"),
+                Token::Op("*" | "**" | "&") => true,
+                _ => false,
+            };
+            if (parenthesized && p.take_p(')')) || (!parenthesized && !bare) {
                 if parenthesized {
                     p.groups -= 1;
                 }
@@ -762,7 +767,7 @@ impl<'a> Parsing<'a> {
                     p.groups -= 1;
                     break;
                 }
-            } else if matches!(p.token(), Token::EndLine | Token::Eof | Token::Op("->")) {
+            } else if p.token() != &Token::P(',') {
                 break;
             }
             p.expect_p(',')?;

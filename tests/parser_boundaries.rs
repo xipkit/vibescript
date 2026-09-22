@@ -174,3 +174,9 @@ fn instance_and_class_variable_names_may_end_like_predicates() {
     let source = "class Record\n  def initialize\n    @respond_to? = 1\n    @done! = 2\n  end\n  def state\n    [@respond_to?, @done!]\n  end\nend\nclass Widget\n  @@respond_to? = 3\n  def self.build\n    @@respond_to?\n  end\nend\ndef run\n  [Record.new.respond_to?(:state), Record.new.state, Widget.respond_to?(:build), Widget.build]\nend";
     assert_eq!(result(source), serde_json::json!([true, [1, 2], true, 3]));
 }
+
+#[test]
+fn one_line_definitions_start_their_body_after_a_bare_name() {
+    let source = "def at [1, 2, 3].fetch(1) end\ndef literal 42 end\ndef sum a, b = 2 a + b end\ndef run\n  [at, literal, sum(1)]\nend";
+    assert_eq!(result(source), serde_json::json!([2, 42, 3]));
+}
