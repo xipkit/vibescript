@@ -1,5 +1,5 @@
 use super::*;
-use crate::checking::facts::Node;
+use crate::checking::facts::{Computation, Node};
 
 impl Walker<'_> {
     pub(super) fn dynamic(&mut self, value: Fact) -> Result<bool> {
@@ -250,9 +250,7 @@ impl Walker<'_> {
         right: Fact,
         rejected: bool,
     ) -> Result<(u8, bool)> {
-        let runtime = handlers::bit(ErrorClass::Runtime);
-        let zero = handlers::bit(ErrorClass::ZeroDivision);
-        let mut errors = if rejected {
+        let rejected = if rejected {
             handlers::bit(if matches!(op, "<" | "<=" | ">" | ">=") {
                 ErrorClass::Argument
             } else {
@@ -261,6 +259,26 @@ impl Walker<'_> {
         } else {
             0
         };
+        let Some(code) = crate::checking::scalar::binary_code(op) else {
+            let (errors, stops) = self.operand_errors(op, left, right)?;
+            return Ok((errors | rejected, stops));
+        };
+        // Loops apply the same operators to the same operands on every walk.
+        let key = Computation::Errors(code, left, right);
+        if let Some((_, flags)) = self.facts.remembered(self.ctx, key)? {
+            return Ok((flags as u8 | rejected, flags & 0x100 != 0));
+        }
+        let (errors, stops) = self.operand_errors(op, left, right)?;
+        let flags = u16::from(errors) | u16::from(stops) << 8;
+        self.facts
+            .remember(self.ctx, key, (Atom::Never.fact(), flags))?;
+        Ok((errors | rejected, stops))
+    }
+
+    fn operand_errors(&mut self, op: &str, left: Fact, right: Fact) -> Result<(u8, bool)> {
+        let runtime = handlers::bit(ErrorClass::Runtime);
+        let zero = handlers::bit(ErrorClass::ZeroDivision);
+        let mut errors = 0;
         if self.dynamic(left)? || self.dynamic(right)? {
             return Ok((u8::MAX, false));
         }

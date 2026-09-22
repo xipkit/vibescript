@@ -1,5 +1,9 @@
 use super::*;
-use crate::{Value, checking::facts::Node, syntax::ParamKind};
+use crate::{
+    Value,
+    checking::facts::{Computation, Node},
+    syntax::ParamKind,
+};
 
 struct Converted {
     state: State,
@@ -299,6 +303,11 @@ impl Walker<'_> {
     }
 
     fn append_text(&mut self, before: Fact, value: Fact) -> Result<Fact> {
+        // Loops interpolate the same text alternatives on every walk.
+        let key = Computation::Append(before, value);
+        if let Some((text, _)) = self.facts.remembered(self.ctx, key)? {
+            return Ok(text);
+        }
         let mut joined = Buffer::empty();
         for i in 0..self.facts.arm_count(before) {
             for j in 0..self.facts.arm_count(value) {
@@ -321,7 +330,9 @@ impl Walker<'_> {
                 joined.push(self.ctx, value)?;
             }
         }
-        self.facts.union(self.ctx, &joined.data)
+        let text = self.facts.union(self.ctx, &joined.data)?;
+        self.facts.remember(self.ctx, key, (text, 0))?;
+        Ok(text)
     }
 
     pub(super) fn text_part(&mut self, mut state: State, pc: usize) -> Result<Edges> {

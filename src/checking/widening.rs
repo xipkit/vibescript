@@ -1,4 +1,4 @@
-use super::facts::{Atom, Fact, Facts, Field, HashKind, Node, same_bytes};
+use super::facts::{Atom, Computation, Fact, Facts, Field, HashKind, Node, same_bytes};
 use crate::{CallContext, Result, Value, budget::Buffer};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -116,6 +116,23 @@ impl Facts {
         if a == b {
             return Ok(a);
         }
+        // Fixed points widen the same pairs again whenever they walk a loop or call cycle.
+        let key = Computation::Widen(a, b, depth);
+        if let Some((value, _)) = self.remembered(ctx, key)? {
+            return Ok(value);
+        }
+        let value = self.widen_uncached(ctx, a, b, depth)?;
+        self.remember(ctx, key, (value, 0))?;
+        Ok(value)
+    }
+
+    fn widen_uncached(
+        &mut self,
+        ctx: &mut CallContext,
+        a: Fact,
+        b: Fact,
+        depth: usize,
+    ) -> Result<Fact> {
         if let (Some(a), Some(b)) = (self.integer_hull(ctx, a)?, self.integer_hull(ctx, b)?) {
             return self.integer_range(ctx, a.widen(b));
         }

@@ -9,6 +9,8 @@ const EMPTY: usize = usize::MAX;
 
 mod attached;
 mod joins;
+mod memo;
+pub(super) use memo::Computation;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum Callable {
@@ -219,8 +221,11 @@ pub(super) struct Facts {
     max_depth: usize,
     /// The match and error object profiles, built on first use.
     pub(super) profiles: [Fact; 2],
+    /// The false and true facts, interned on first use.
+    booleans: [Fact; 2],
     /// Protected alternatives admitted by structural contracts, by contract and tag.
     pub(super) variants: super::profiles::Memo,
+    memo: memo::Memo,
 }
 
 impl Facts {
@@ -232,7 +237,9 @@ impl Facts {
             sources: super::sources::Sources::new(),
             max_depth: 0,
             profiles: [Fact(EMPTY); 2],
+            booleans: [Fact(EMPTY); 2],
             variants: super::profiles::Memo::new(),
+            memo: memo::Memo::new(),
         };
         for atom in [
             Atom::Never,
@@ -529,7 +536,14 @@ impl Facts {
     }
 
     pub fn boolean(&mut self, ctx: &mut CallContext, value: bool) -> Result<Fact> {
-        self.intern(ctx, Node::Boolean(value))
+        // Comparisons over unions produce the same two facts many times.
+        let slot = usize::from(value);
+        if self.booleans[slot] == Fact(EMPTY) {
+            self.booleans[slot] = self.intern(ctx, Node::Boolean(value))?;
+        } else {
+            ctx.charge(1)?;
+        }
+        Ok(self.booleans[slot])
     }
 
     pub fn builtin(

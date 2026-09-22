@@ -1,4 +1,4 @@
-use super::*;
+use super::{memo::Computation, *};
 
 impl Facts {
     /// Joins two facts, the common case of [`Self::union`].
@@ -12,10 +12,15 @@ impl Facts {
         if a == Atom::Never.fact() {
             return Ok(b);
         }
-        if self.covers(ctx, a, b)? {
-            Ok(a)
+        // Unions are commutative, so one ordered key serves both argument orders.
+        let (a, b) = (a.min(b), a.max(b));
+        if let Some((value, _)) = self.memo.get(ctx, Computation::Union(a, b))? {
+            return Ok(value);
+        }
+        let value = if self.covers(ctx, a, b)? {
+            a
         } else if self.covers(ctx, b, a)? {
-            Ok(b)
+            b
         } else {
             let (left, right) = (self.arms(&a), self.arms(&b));
             ctx.charge((left.len() + right.len()) as u64)?;
@@ -40,8 +45,11 @@ impl Facts {
                 };
                 arms.data.push(next);
             }
-            self.union_of(ctx, arms)
-        }
+            self.union_of(ctx, arms)?
+        };
+        self.memo
+            .insert(ctx, Computation::Union(a, b), (value, 0))?;
+        Ok(value)
     }
 
     /// Returns the sorted alternatives of a fact other than `never`.

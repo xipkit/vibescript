@@ -1,4 +1,4 @@
-use super::facts::{Atom, Fact, Facts, Field, HashKind, Node};
+use super::facts::{Atom, Computation, Fact, Facts, Field, HashKind, Node};
 use crate::{
     CallContext, Result,
     budget::Buffer,
@@ -123,12 +123,35 @@ impl Facts {
         if value == Atom::Never.fact() {
             return Ok(result);
         }
+        // Loops write the same values into the same collections on every walk. A write's
+        // result is either the written value or never, so one flag restores it.
+        let key = Computation::Write(receiver, index, value);
+        if let Some((updated, flags)) = self.remembered(ctx, key)? {
+            return Ok(Mutation {
+                receiver: updated,
+                value: if flags & 8 != 0 {
+                    value
+                } else {
+                    Atom::Never.fact()
+                },
+                rejected: flags & 1 != 0,
+                unsupported: flags & 2 != 0,
+                throws: flags & 4 != 0,
+            });
+        }
         for i in 0..self.arm_count(receiver) {
             for j in 0..self.arm_count(index) {
                 ctx.charge(1)?;
                 let next = self.write_arm(ctx, self.arm(receiver, i), self.arm(index, j), value)?;
                 self.merge_mutation(ctx, &mut result, next)?;
             }
+        }
+        if result.value == value || result.value == Atom::Never.fact() {
+            let flags = u16::from(result.rejected)
+                | u16::from(result.unsupported) << 1
+                | u16::from(result.throws) << 2
+                | u16::from(result.value == value) << 3;
+            self.remember(ctx, key, (result.receiver, flags))?;
         }
         Ok(result)
     }

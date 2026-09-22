@@ -1,5 +1,5 @@
 use super::{
-    facts::{Atom, Fact, Facts, HashKind, Node},
+    facts::{Atom, Computation, Fact, Facts, HashKind, Node},
     integers::Bounds,
     scalar::{Operation, Test},
 };
@@ -209,6 +209,26 @@ impl Facts {
         args: &[Fact],
         stored: bool,
     ) -> Result<Operation> {
+        // Loops read the same collections with the same selectors on every walk.
+        let &[selector] = args else {
+            return self.collection_index_uncached(ctx, receiver, args, stored);
+        };
+        let key = Computation::Index(receiver, selector, stored);
+        if let Some((value, flags)) = self.remembered(ctx, key)? {
+            return Ok(Operation::remembered(value, flags));
+        }
+        let result = self.collection_index_uncached(ctx, receiver, args, stored)?;
+        self.remember(ctx, key, (result.value, result.flags()))?;
+        Ok(result)
+    }
+
+    fn collection_index_uncached(
+        &mut self,
+        ctx: &mut CallContext,
+        receiver: Fact,
+        args: &[Fact],
+        stored: bool,
+    ) -> Result<Operation> {
         ctx.checkpoint()?;
         if args.is_empty() || args.len() > 2 {
             return Ok(rejected());
@@ -223,13 +243,27 @@ impl Facts {
                     let root = self.arm(receiver, r);
                     let index = self.arm(args[0], a);
                     let length = args.get(1).map(|&arg| self.arm(arg, b));
-                    let next = if stored
+                    // Selector unions that share alternatives read the same tuple positions.
+                    let key = Computation::Index(root, index, stored);
+                    let tuple = length.is_none() && matches!(self.node(root), Node::Tuple(_));
+                    let remembered = if tuple {
+                        self.remembered(ctx, key)?
+                    } else {
+                        None
+                    };
+                    let next = if let Some((value, flags)) = remembered {
+                        Operation::remembered(value, flags)
+                    } else if stored
                         && length.is_none()
                         && matches!(self.node(root), Node::Hash(..) | Node::Shape(..))
                     {
                         self.stored_hash_index(ctx, root, index)?
                     } else {
-                        self.index_arm(ctx, root, index, length)?
+                        let next = self.index_arm(ctx, root, index, length)?;
+                        if tuple {
+                            self.remember(ctx, key, (next.value, next.flags()))?;
+                        }
+                        next
                     };
                     values.push(ctx, next.value)?;
                     result.rejected |= next.rejected;

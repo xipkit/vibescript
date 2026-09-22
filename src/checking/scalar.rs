@@ -1,5 +1,18 @@
-use super::facts::{Atom, Fact, Facts, Node};
+use super::facts::{Atom, Computation, Fact, Facts, Node};
 use crate::{CallContext, Result, budget::Buffer};
+
+/// The primitive binary operators that scalar analysis models.
+const BINARY: [&str; 16] = [
+    "+", "-", "*", "/", "%", "**", "==", "!=", "<", "<=", ">", ">=", "<=>", "=~", "!~", "&",
+];
+
+/// Identifies a modeled primitive binary operator for [`Computation`] keys.
+pub(super) fn binary_code(op: &str) -> Option<u8> {
+    BINARY
+        .iter()
+        .position(|&known| known == op)
+        .map(|code| code as u8)
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Test {
@@ -21,6 +34,23 @@ pub(super) struct Operation {
     pub unsupported: bool,
     /// A possible ordinary runtime failure that is not a known contradiction.
     pub throws: bool,
+}
+
+impl Operation {
+    /// Packs the outcome flags for [`Facts::remember`].
+    pub fn flags(&self) -> u16 {
+        u16::from(self.rejected) | u16::from(self.unsupported) << 1 | u16::from(self.throws) << 2
+    }
+
+    /// Restores an outcome remembered with [`Self::flags`].
+    pub fn remembered(value: Fact, flags: u16) -> Self {
+        Self {
+            value,
+            rejected: flags & 1 != 0,
+            unsupported: flags & 2 != 0,
+            throws: flags & 4 != 0,
+        }
+    }
 }
 
 impl Facts {
@@ -82,13 +112,24 @@ impl Facts {
     }
 
     pub fn test_result(&mut self, ctx: &mut CallContext, value: Fact, test: Test) -> Result<Fact> {
-        if self.filter(ctx, value, test, true)? == Atom::Never.fact() {
-            self.boolean(ctx, false)
-        } else if self.filter(ctx, value, test, false)? == Atom::Never.fact() {
-            self.boolean(ctx, true)
-        } else {
-            Ok(Atom::Bool.fact())
+        // Every edge between blocks tests the truthiness of its top operand.
+        let key = (test == Test::Truth).then_some(Computation::Truth(value));
+        if let Some(key) = key {
+            if let Some((result, _)) = self.remembered(ctx, key)? {
+                return Ok(result);
+            }
         }
+        let result = if self.filter(ctx, value, test, true)? == Atom::Never.fact() {
+            self.boolean(ctx, false)?
+        } else if self.filter(ctx, value, test, false)? == Atom::Never.fact() {
+            self.boolean(ctx, true)?
+        } else {
+            Atom::Bool.fact()
+        };
+        if let Some(key) = key {
+            self.remember(ctx, key, (result, 0))?;
+        }
+        Ok(result)
     }
 
     pub fn scalar_unary(
@@ -151,6 +192,27 @@ impl Facts {
         left: Fact,
         right: Fact,
     ) -> Result<(Operation, bool)> {
+        let Some(code) = binary_code(op) else {
+            return self.binary_uncached(ctx, op, left, right);
+        };
+        // Loops and repeated block walks apply the same operator to the same facts again.
+        let key = Computation::Binary(code, left, right);
+        if let Some((value, flags)) = self.remembered(ctx, key)? {
+            return Ok((Operation::remembered(value, flags), flags & 8 != 0));
+        }
+        let (result, limit) = self.binary_uncached(ctx, op, left, right)?;
+        let flags = result.flags() | u16::from(limit) << 3;
+        self.remember(ctx, key, (result.value, flags))?;
+        Ok((result, limit))
+    }
+
+    fn binary_uncached(
+        &mut self,
+        ctx: &mut CallContext,
+        op: &str,
+        left: Fact,
+        right: Fact,
+    ) -> Result<(Operation, bool)> {
         let mut result = Operation {
             value: Atom::Never.fact(),
             rejected: false,
@@ -160,24 +222,7 @@ impl Facts {
         let mut limit = false;
         // Collect the pairwise results for one union instead of interning every partial join.
         let mut values = Buffer::empty();
-        if !matches!(
-            op,
-            "+" | "-"
-                | "*"
-                | "/"
-                | "%"
-                | "**"
-                | "=="
-                | "!="
-                | "<"
-                | "<="
-                | ">"
-                | ">="
-                | "<=>"
-                | "=~"
-                | "!~"
-                | "&"
-        ) {
+        if !BINARY.contains(&op) {
             result.unsupported = true;
             return Ok((result, limit));
         }
