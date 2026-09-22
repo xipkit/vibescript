@@ -534,7 +534,16 @@ pub(crate) fn anchor(
     let start = match args {
         [] => Stamp::now(),
         [input] => match &input.0 {
-            Kind::Bytes(bytes) => parse::rfc3339(ctx, &bytes.data)?,
+            Kind::Bytes(bytes) => {
+                parse::rfc3339(ctx, &bytes.data).map_err(|error| match parse::rfc3339_rejection(
+                    &bytes.data,
+                )
+                .filter(|_| error.kind == ErrorKind::Argument)
+                {
+                    Some(text) => Error::new(ErrorKind::Argument, format!("invalid time: {text}")),
+                    None => error,
+                })?
+            }
             _ => stamp(input).ok_or_else(|| {
                 Error::new(
                     ErrorKind::Type,

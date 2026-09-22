@@ -631,3 +631,50 @@ fn time_constructors_and_members_use_go_wording() {
         ),
     ]);
 }
+
+#[test]
+fn time_parse_explains_rejections_with_go_parse_errors() {
+    use ErrorClass::Runtime;
+    rejects(&[
+        (
+            "def run\n  Time.parse(\"2024-13-01\", \"2006-01-02\")\nend",
+            Runtime,
+            "Time.parse could not parse time: parsing time \"2024-13-01\": month out of range",
+        ),
+        (
+            "def run\n  Time.parse(\"2024-01-01 junk\", \"2006-01-02\")\nend",
+            Runtime,
+            "Time.parse could not parse time: parsing time \"2024-01-01 junk\": extra text: \" junk\"",
+        ),
+        (
+            "def run\n  Time.parse(\"x2024\", \"2006\")\nend",
+            Runtime,
+            "Time.parse could not parse time: parsing time \"x2024\" as \"2006\": cannot parse \"x2024\" as \"2006\"",
+        ),
+        (
+            "def run\n  Time.parse(\"2024-02-30\", \"2006-01-02\")\nend",
+            Runtime,
+            "Time.parse could not parse time: parsing time \"2024-02-30\": day out of range",
+        ),
+        (
+            "def run\n  Time.parse(\"2024 +2500\", \"2006 -0700\")\nend",
+            Runtime,
+            "Time.parse could not parse time: parsing time \"2024 +2500\": time zone offset hour out of range",
+        ),
+        (
+            "def run\n  Time.parse(\"\u{e9}2024\", \"2006\")\nend",
+            Runtime,
+            "Time.parse could not parse time: parsing time \"\\xc3\\xa92024\" as \"2006\": cannot parse \"\\xc3\\xa92024\" as \"2006\"",
+        ),
+        (
+            "def run\n  1.hour.after(\"nope\")\nend",
+            Runtime,
+            "invalid time: parsing time \"nope\" as \"2006-01-02T15:04:05Z07:00\": cannot parse \"nope\" as \"2006\"",
+        ),
+        (
+            "def run\n  1.hour.after(\"2024-02-30T00:00:00Z\")\nend",
+            Runtime,
+            "invalid time: parsing time \"2024-02-30T00:00:00Z\": day out of range",
+        ),
+    ]);
+}

@@ -27,6 +27,16 @@ fn unparsed() -> Error {
     Error::new(ErrorKind::Argument, "Time.parse could not parse time")
 }
 
+/// Explains why `input` is not an RFC 3339 time with Go's `time.ParseError` text,
+/// by rerunning Go's general layout parser outside the caller's budget.
+pub(super) fn rfc3339_rejection(input: &[u8]) -> Option<String> {
+    const LAYOUT: &[u8] = b"2006-01-02T15:04:05Z07:00";
+    let mut rejection = None;
+    let mut ctx = crate::integer::unlimited_context();
+    layout(&mut ctx, LAYOUT, input, &mut rejection).err()?;
+    rejection.map(|rejection| rejection.describe(LAYOUT, input))
+}
+
 fn number(input: &mut &[u8], minimum: usize, maximum: usize) -> Result<i64> {
     let mut result = 0;
     let mut length = 0;
@@ -193,13 +203,14 @@ fn signed(mut bytes: &[u8]) -> Result<i64> {
     Ok(if negative { -result } else { result })
 }
 
-fn fraction(input: &mut &[u8], length: usize) -> Result<u32> {
+fn fraction(input: &mut &[u8], length: usize, range: &mut Option<&'static str>) -> Result<u32> {
     if input.len() < length || !matches!(input.first(), Some(b'.' | b',')) {
         return Err(invalid());
     }
     let digits = (length - 1).min(9);
     let nanos = signed(&input[1..=digits])?;
     if nanos < 0 {
+        *range = Some("fractional second");
         return Err(invalid());
     }
     *input = &input[length..];
@@ -212,7 +223,7 @@ fn has_fraction(input: &[u8]) -> bool {
 
 fn variable_fraction(ctx: &mut CallContext, input: &mut &[u8]) -> Result<u32> {
     let length = 1 + run(ctx, &input[1..], |b| b.is_ascii_digit())?;
-    fraction(input, length)
+    fraction(input, length, &mut None)
 }
 
 fn name(input: &mut &[u8], part: Part, full: bool) -> Result<i64> {
@@ -234,32 +245,81 @@ fn name(input: &mut &[u8], part: Part, full: bool) -> Result<i64> {
     Err(invalid())
 }
 
-fn numeric_zone(input: &mut &[u8], zone: NumericZone) -> Result<i32> {
-    let negative = input.first() == Some(&b'-');
-    if !matches!(input.first(), Some(b'+' | b'-')) {
+/// Reads a numeric zone offset in the order Go's parser checks it, naming
+/// an out-of-range field in `range`.
+fn numeric_zone(
+    input: &mut &[u8],
+    zone: NumericZone,
+    range: &mut Option<&'static str>,
+) -> Result<i32> {
+    let value = *input;
+    let (sign, fields, rest): (u8, [&[u8]; 3], &[u8]) = if zone.colon && !zone.seconds {
+        if value.len() < 6 || value[3] != b':' {
+            return Err(invalid());
+        }
+        (value[0], [&value[1..3], &value[4..6], b"00"], &value[6..])
+    } else if zone.short {
+        if value.len() < 3 {
+            return Err(invalid());
+        }
+        (value[0], [&value[1..3], b"00", b"00"], &value[3..])
+    } else if zone.colon {
+        if value.len() < 9 || value[3] != b':' || value[6] != b':' {
+            return Err(invalid());
+        }
+        (
+            value[0],
+            [&value[1..3], &value[4..6], &value[7..9]],
+            &value[9..],
+        )
+    } else if zone.seconds {
+        if value.len() < 7 {
+            return Err(invalid());
+        }
+        (
+            value[0],
+            [&value[1..3], &value[3..5], &value[5..7]],
+            &value[7..],
+        )
+    } else {
+        if value.len() < 5 {
+            return Err(invalid());
+        }
+        (value[0], [&value[1..3], &value[3..5], b"00"], &value[5..])
+    };
+    *input = rest;
+    let mut parts = [0i64; 3];
+    let mut bad = false;
+    for (part, field) in parts.iter_mut().zip(fields) {
+        if !field.iter().all(u8::is_ascii_digit) {
+            bad = true;
+            break;
+        }
+        *part = i64::from(field[0] - b'0') * 10 + i64::from(field[1] - b'0');
+    }
+    let [hours, minutes, seconds] = parts;
+    for (value, name) in [
+        (hours, "time zone offset hour"),
+        (minutes, "time zone offset minute"),
+        (seconds, "time zone offset second"),
+    ] {
+        if value > if name.ends_with("hour") { 24 } else { 60 } {
+            *range = Some(name);
+        }
+    }
+    let offset = ((hours * 60 + minutes) * 60 + seconds) as i32;
+    let offset = match sign {
+        b'+' => offset,
+        b'-' => -offset,
+        _ => {
+            bad = true;
+            offset
+        }
+    };
+    if bad || range.is_some() {
         return Err(invalid());
     }
-    *input = &input[1..];
-    let hours = number(input, 2, 2)?;
-    let mut minutes = 0;
-    let mut seconds = 0;
-    if !zone.short {
-        if zone.colon {
-            separator(input, b':')?;
-        }
-        minutes = number(input, 2, 2)?;
-    }
-    if zone.seconds {
-        if zone.colon {
-            separator(input, b':')?;
-        }
-        seconds = number(input, 2, 2)?;
-    }
-    if hours > 24 || minutes > 60 || seconds > 60 {
-        return Err(invalid());
-    }
-    let seconds = ((hours * 60 + minutes) * 60 + seconds) as i32;
-    Ok(if negative { -seconds } else { seconds })
+    Ok(offset)
 }
 
 fn signed_zone(ctx: &mut CallContext, input: &[u8]) -> Result<usize> {
@@ -332,7 +392,87 @@ struct Fields<'a> {
     zone_name: &'a [u8],
 }
 
-fn layout<'a>(ctx: &mut CallContext, mut layout: &[u8], mut input: &'a [u8]) -> Result<Fields<'a>> {
+/// Why a layout rejected its input, located the way Go's `time.ParseError` reports it.
+#[derive(Clone, Copy)]
+pub(super) struct Rejection {
+    /// The layout element Go names, as a byte range of the layout.
+    element: (usize, usize),
+    /// The start of the rejected input suffix.
+    value: usize,
+    reason: Reason,
+}
+
+#[derive(Clone, Copy)]
+enum Reason {
+    CannotParse,
+    OutOfRange(&'static str),
+    ExtraText,
+    Other(&'static str),
+}
+
+impl Rejection {
+    /// Renders Go's `ParseError` text for this rejection.
+    pub(super) fn describe(self, layout: &[u8], input: &[u8]) -> String {
+        let mut out = String::from("parsing time ");
+        quote(&mut out, input);
+        let value = &input[self.value..];
+        match self.reason {
+            Reason::CannotParse => {
+                out.push_str(" as ");
+                quote(&mut out, layout);
+                out.push_str(": cannot parse ");
+                quote(&mut out, value);
+                out.push_str(" as ");
+                quote(&mut out, &layout[self.element.0..self.element.1]);
+            }
+            Reason::OutOfRange(field) => {
+                out.push_str(": ");
+                out.push_str(field);
+                out.push_str(" out of range");
+            }
+            Reason::ExtraText => {
+                out.push_str(": extra text: ");
+                quote(&mut out, value);
+            }
+            Reason::Other(message) => out.push_str(message),
+        }
+        out
+    }
+}
+
+/// Quotes bytes as Go's time package does in parse errors: printable ASCII
+/// stays literal, and every other byte of a rune is written as `\xNN`.
+fn quote(out: &mut String, bytes: &[u8]) {
+    out.push('"');
+    let mut at = 0;
+    while at < bytes.len() {
+        let (rune, width, valid) = crate::scan::rune(&bytes[at..]);
+        if valid && (' '..'\u{80}').contains(&rune) {
+            if matches!(rune, '"' | '\\') {
+                out.push('\\');
+            }
+            out.push(rune);
+        } else {
+            let width = if valid { width } else { 1 };
+            for byte in &bytes[at..at + width] {
+                out.push_str(&format!("\\x{byte:02x}"));
+            }
+            at += width;
+            continue;
+        }
+        at += width;
+    }
+    out.push('"');
+}
+
+fn layout<'a>(
+    ctx: &mut CallContext,
+    whole: &[u8],
+    original: &'a [u8],
+    rejection: &mut Option<Rejection>,
+) -> Result<Fields<'a>> {
+    let mut layout = whole;
+    let mut input = original;
     let mut fields = Fields {
         parts: [0, -1, -1, 0, 0, 0],
         nanos: 0,
@@ -342,111 +482,176 @@ fn layout<'a>(ctx: &mut CallContext, mut layout: &[u8], mut input: &'a [u8]) -> 
     };
     let mut yearday = -1;
     let (mut am, mut pm) = (false, false);
+    let offset = |rest: &[u8], whole: &[u8]| whole.len() - rest.len();
+    let mut reject = |element: (usize, usize), value: &[u8], reason: Reason| {
+        *rejection = Some(Rejection {
+            element,
+            value: offset(value, original),
+            reason,
+        });
+        invalid()
+    };
     loop {
         ctx.charge(1)?;
         let (prefix, token, end) = format::next(ctx, layout)?;
-        skip(ctx, &mut input, &layout[..prefix])?;
+        let start = offset(layout, whole);
+        if let Err(error) = skip(ctx, &mut input, &layout[..prefix]) {
+            if error.kind != ErrorKind::Argument {
+                return Err(error);
+            }
+            return Err(reject((start, start + prefix), input, Reason::CannotParse));
+        }
         let Some(token) = token else {
             if !input.is_empty() {
-                return Err(invalid());
+                return Err(reject((start, start), input, Reason::ExtraText));
             }
             break;
         };
         layout = &layout[end..];
-        match token {
-            Token::Number(part, width, pad) => {
-                let n = match part {
-                    Part::YearShort => {
-                        let bytes = input.get(..2).ok_or_else(invalid)?;
-                        let year = signed(bytes)?;
-                        input = &input[2..];
-                        year + if year >= 69 { 1900 } else { 2000 }
-                    }
-                    Part::Year => number(&mut input, 4, 4)?,
-                    _ => {
-                        if pad == b' ' {
-                            for _ in 1..width {
-                                if input.first() == Some(&b' ') {
-                                    input = &input[1..];
+        let element = (start + prefix, start + end);
+        let hold = input;
+        let mut range = None;
+        let parsed: Result<()> = 'token: {
+            match token {
+                Token::Number(part, width, pad) => {
+                    let n = match part {
+                        Part::YearShort => {
+                            let Some(bytes) = input.get(..2) else {
+                                break 'token Err(invalid());
+                            };
+                            let year = match signed(bytes) {
+                                Ok(year) => year,
+                                Err(error) => break 'token Err(error),
+                            };
+                            input = &input[2..];
+                            year + if year >= 69 { 1900 } else { 2000 }
+                        }
+                        Part::Year => match number(&mut input, 4, 4) {
+                            Ok(year) => year,
+                            Err(error) => break 'token Err(error),
+                        },
+                        _ => {
+                            if pad == b' ' {
+                                for _ in 1..width {
+                                    if input.first() == Some(&b' ') {
+                                        input = &input[1..];
+                                    }
                                 }
                             }
+                            let max = if matches!(part, Part::YearDay) { 3 } else { 2 };
+                            let min = if pad == b'0' && width != 0 && !matches!(part, Part::Hour) {
+                                width
+                            } else {
+                                1
+                            };
+                            match number(&mut input, min, max) {
+                                Ok(n) => n,
+                                Err(error) => break 'token Err(error),
+                            }
                         }
-                        let max = if matches!(part, Part::YearDay) { 3 } else { 2 };
-                        let min = if pad == b'0' && width != 0 && !matches!(part, Part::Hour) {
-                            width
-                        } else {
-                            1
-                        };
-                        number(&mut input, min, max)?
-                    }
-                };
-                let index = match part {
-                    Part::Year | Part::YearShort => 0,
-                    Part::Month if (1..=12).contains(&n) => 1,
-                    Part::Day => 2,
-                    Part::YearDay => {
-                        yearday = n;
-                        continue;
-                    }
-                    Part::Hour if n < 24 => 3,
-                    Part::Hour12 if n <= 12 => 3,
-                    Part::Minute if n < 60 => 4,
-                    Part::Second if n < 60 => {
-                        if has_fraction(input)
-                            && !matches!(format::next(ctx, layout)?.1, Some(Token::Fraction(..)))
-                        {
-                            fields.nanos = variable_fraction(ctx, &mut input)?;
+                    };
+                    let index = match part {
+                        Part::Year | Part::YearShort => 0,
+                        Part::Month if (1..=12).contains(&n) => 1,
+                        Part::Day => 2,
+                        Part::YearDay => {
+                            yearday = n;
+                            break 'token Ok(());
                         }
-                        5
+                        Part::Hour if n < 24 => 3,
+                        Part::Hour12 if n <= 12 => 3,
+                        Part::Minute if n < 60 => 4,
+                        Part::Second if n < 60 => {
+                            let next = match format::next(ctx, layout) {
+                                Ok((_, next, _)) => next,
+                                Err(error) => break 'token Err(error),
+                            };
+                            if has_fraction(input) && !matches!(next, Some(Token::Fraction(..))) {
+                                fields.nanos = match variable_fraction(ctx, &mut input) {
+                                    Ok(nanos) => nanos,
+                                    Err(error) => break 'token Err(error),
+                                };
+                            }
+                            5
+                        }
+                        _ => {
+                            range = Some(match part {
+                                Part::Month => "month",
+                                Part::Minute => "minute",
+                                Part::Second => "second",
+                                _ => "hour",
+                            });
+                            break 'token Err(invalid());
+                        }
+                    };
+                    fields.parts[index] = n;
+                    Ok(())
+                }
+                Token::Name(part, full) => name(&mut input, part, full).map(|n| {
+                    if matches!(part, Part::Month) {
+                        fields.parts[1] = n;
                     }
-                    _ => return Err(invalid()),
-                };
-                fields.parts[index] = n;
-            }
-            Token::Name(part, full) => {
-                let n = name(&mut input, part, full)?;
-                if matches!(part, Part::Month) {
-                    fields.parts[1] = n;
+                }),
+                Token::Meridian(upper) => {
+                    let Some(text) = input.get(..2) else {
+                        break 'token Err(invalid());
+                    };
+                    if text == if upper { b"AM" } else { b"am" } {
+                        am = true;
+                    } else if text == if upper { b"PM" } else { b"pm" } {
+                        pm = true;
+                    } else {
+                        break 'token Err(invalid());
+                    }
+                    input = &input[2..];
+                    Ok(())
+                }
+                Token::Zone(zone) => {
+                    if zone.iso && input.first() == Some(&b'Z') {
+                        fields.utc = true;
+                        input = &input[1..];
+                        Ok(())
+                    } else {
+                        numeric_zone(&mut input, zone, &mut range)
+                            .map(|offset| fields.offset = offset)
+                    }
+                }
+                Token::ZoneName => {
+                    if input.starts_with(b"UTC") {
+                        fields.utc = true;
+                        input = &input[3..];
+                        Ok(())
+                    } else {
+                        zone_name(ctx, input).map(|length| {
+                            fields.zone_name = &input[..length];
+                            input = &input[length..];
+                        })
+                    }
+                }
+                Token::Fraction(_, digits, trim) => {
+                    if !trim {
+                        fraction(&mut input, digits + 1, &mut range).map(|nanos| {
+                            fields.nanos = nanos;
+                        })
+                    } else if has_fraction(input) {
+                        variable_fraction(ctx, &mut input).map(|nanos| fields.nanos = nanos)
+                    } else {
+                        Ok(())
+                    }
                 }
             }
-            Token::Meridian(upper) => {
-                let text = input.get(..2).ok_or_else(invalid)?;
-                if text == if upper { b"AM" } else { b"am" } {
-                    am = true;
-                } else if text == if upper { b"PM" } else { b"pm" } {
-                    pm = true;
-                } else {
-                    return Err(invalid());
-                }
-                input = &input[2..];
+        };
+        if let Err(error) = parsed {
+            if error.kind != ErrorKind::Argument {
+                return Err(error);
             }
-            Token::Zone(zone) => {
-                if zone.iso && input.first() == Some(&b'Z') {
-                    fields.utc = true;
-                    input = &input[1..];
-                } else {
-                    fields.offset = numeric_zone(&mut input, zone)?;
-                }
-            }
-            Token::ZoneName => {
-                if input.starts_with(b"UTC") {
-                    fields.utc = true;
-                    input = &input[3..];
-                } else {
-                    let length = zone_name(ctx, input)?;
-                    fields.zone_name = &input[..length];
-                    input = &input[length..];
-                }
-            }
-            Token::Fraction(_, digits, trim) => {
-                if !trim {
-                    fields.nanos = fraction(&mut input, digits + 1)?;
-                } else if has_fraction(input) {
-                    fields.nanos = variable_fraction(ctx, &mut input)?;
-                }
-            }
+            return Err(match range {
+                Some(field) => reject(element, input, Reason::OutOfRange(field)),
+                None => reject(element, hold, Reason::CannotParse),
+            });
         }
     }
+    let end = (whole.len(), whole.len());
     let [year, month, day, hour, _, _] = &mut fields.parts;
     if pm && *hour < 12 {
         *hour += 12;
@@ -455,15 +660,30 @@ fn layout<'a>(ctx: &mut CallContext, mut layout: &[u8], mut input: &'a [u8]) -> 
     }
     if yearday >= 0 {
         if !(1..=365 + i64::from(calendar::leap(*year))).contains(&yearday) {
-            return Err(invalid());
+            return Err(reject(
+                end,
+                input,
+                Reason::Other(": day-of-year out of range"),
+            ));
         }
         let mut m = 1;
         while yearday > calendar::days_in(*year, m) {
             yearday -= calendar::days_in(*year, m);
             m += 1;
         }
-        if (*month >= 0 && *month != m) || (*day >= 0 && *day != yearday) {
-            return Err(invalid());
+        if *month >= 0 && *month != m {
+            return Err(reject(
+                end,
+                input,
+                Reason::Other(": day-of-year does not match month"),
+            ));
+        }
+        if *day >= 0 && *day != yearday {
+            return Err(reject(
+                end,
+                input,
+                Reason::Other(": day-of-year does not match day"),
+            ));
         }
         *month = m;
         *day = yearday;
@@ -476,7 +696,7 @@ fn layout<'a>(ctx: &mut CallContext, mut layout: &[u8], mut input: &'a [u8]) -> 
         }
     }
     if !(1..=calendar::days_in(*year, *month)).contains(day) {
-        return Err(invalid());
+        return Err(reject(end, input, Reason::Other(": day out of range")));
     }
     Ok(fields)
 }
@@ -581,12 +801,18 @@ pub(super) fn call(
         }
     };
     let (fields, host_zone) = if let Some(custom) = custom {
-        let fields = layout(ctx, custom, input).map_err(|error| {
-            if error.kind == ErrorKind::Argument {
-                unparsed()
-            } else {
-                error
-            }
+        let mut rejection = None;
+        let fields = layout(ctx, custom, input, &mut rejection).map_err(|error| match rejection
+            .filter(|_| error.kind == ErrorKind::Argument)
+        {
+            Some(rejection) => Error::new(
+                ErrorKind::Argument,
+                format!(
+                    "Time.parse could not parse time: {}",
+                    rejection.describe(custom, input)
+                ),
+            ),
+            None => error,
         })?;
         let mut host = false;
         if !overridden && !fields.utc {
@@ -605,7 +831,7 @@ pub(super) fn call(
     } else {
         let mut parsed = None;
         for (index, candidate) in DEFAULT_LAYOUTS.iter().enumerate() {
-            match layout(ctx, candidate, input) {
+            match layout(ctx, candidate, input, &mut None) {
                 Ok(fields) => {
                     parsed = Some((fields, index < 2 || (index == 3 && !overridden)));
                     break;
@@ -682,7 +908,7 @@ mod tests {
         let text = format!("{prefix}1970 ABC");
         let format = format!("{prefix}2006 MST");
         let mut ctx = CallContext::new(CallOptions::default());
-        let fields = layout(&mut ctx, format.as_bytes(), text.as_bytes()).unwrap();
+        let fields = layout(&mut ctx, format.as_bytes(), text.as_bytes(), &mut None).unwrap();
         let result = fields
             .finish(&mut ctx, None, None, text.as_bytes())
             .unwrap();
