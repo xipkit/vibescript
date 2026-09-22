@@ -600,7 +600,9 @@ impl Facts {
             "compact" if array || hash => 0..=0,
             "chunk" | "window" if array => 1..=1,
             "inspect" if array || hash => 0..=0,
-            "to_a" if hash || range => 0..=0,
+            "to_a" | "size" | "exclude_end?" if range => 0..=0,
+            "include?" | "cover?" | "member?" if range => 1..=1,
+            "to_a" if hash => 0..=0,
             "join" | "flatten" if array => 0..=1,
             "transpose" if array => 0..=0,
             "zip" if array => 0..=usize::MAX,
@@ -630,7 +632,12 @@ impl Facts {
             "chunk" if array => self.chunk_member(ctx, receiver, args[0], false),
             "window" if array => self.chunk_member(ctx, receiver, args[0], true),
             "inspect" if array || hash => self.inspect_member(ctx, receiver),
-            "to_a" if range => self.range_array(ctx, receiver),
+            "to_a" | "size" | "exclude_end?" | "include?" | "cover?" | "member?" | "first"
+            | "last"
+                if range =>
+            {
+                self.range_member(ctx, receiver, name, args)
+            }
             "join" if array => self.join_member(ctx, receiver, args),
             "flatten" if array => self.flatten_member(ctx, receiver, args),
             "transpose" if array => self.transpose_member(ctx, receiver),

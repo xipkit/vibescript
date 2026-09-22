@@ -378,7 +378,11 @@ impl Walker<'_> {
                         }
                     }
                 }
-                Node::Atom(Atom::Range) if name == "to_a" && args.is_empty() => return Ok(true),
+                Node::Range(..) | Node::Atom(Atom::Range)
+                    if name == "to_a" && args.is_empty() && self.facts.range_array_limit(arm) =>
+                {
+                    return Ok(true);
+                }
                 _ => (),
             }
         }

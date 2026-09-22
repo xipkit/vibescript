@@ -211,3 +211,6 @@ mod projection_tests;
 
 #[cfg(test)]
 mod text_member_tests;
+
+#[cfg(test)]
+mod range_tests;

@@ -2,6 +2,7 @@ use super::*;
 
 mod introspection;
 mod number;
+mod range;
 mod template;
 mod text;
 
@@ -85,7 +86,10 @@ pub(super) fn supported(
     Ok(match facts.atom(receiver) {
         Some(Atom::Int | Atom::Float) => number::supported(name),
         Some(Atom::String) => text::supported(name),
-        Some(Atom::Nil | Atom::Bool | Atom::Range) => matches!(name, "inspect" | "to_s" | "string"),
+        Some(Atom::Nil | Atom::Bool) => matches!(name, "inspect" | "to_s" | "string"),
+        Some(Atom::Range) => {
+            matches!(name, "inspect" | "to_s" | "string") || range::supported(name)
+        }
         Some(Atom::Symbol) => {
             matches!(name, "inspect" | "to_s" | "string" | "id2name" | "to_sym")
         }
@@ -133,7 +137,9 @@ pub(super) fn member(
                     | "squeeze"
                     | "squeeze!"
             );
+    let ranged = kind == Some(Atom::Range) && range::supported(name);
     let keywords = strict
+        || ranged
         || matches!(name, "to_s" | "string")
         || kind == Some(Atom::String)
             && matches!(
@@ -157,6 +163,7 @@ pub(super) fn member(
         match kind {
             Some(Atom::Int | Atom::Float) => number::arity(name, count),
             Some(Atom::String) => text::arity(name, count),
+            Some(Atom::Range) => range::arity(name, count),
             _ => count == 0,
         }
     };
@@ -205,6 +212,10 @@ pub(super) fn member(
             _ => receiver,
         };
         return Ok(outcome(value));
+    }
+    // Materializing members stay symbolic rather than running on literals.
+    if ranged {
+        return range::member(ctx, facts, receiver, name, args);
     }
     if let Some(result) = literal_call(ctx, facts, receiver, site, name, args)? {
         return Ok(result);
