@@ -1631,10 +1631,12 @@ fn alias_rejections_release_unpublished_scopes_without_running_initializers() {
     let script = engine
         .compile("def taken;7;end;def run(n);n.times{begin;require(:rejected,as: :taken);rescue;nil;end};taken;end")
         .unwrap();
+    // Module lookup scratch scales with the platform's PATH_MAX, so leave room
+    // for it; a per-iteration leak would still exhaust this across 1,000 calls.
     for count in [100, 1000] {
         let mut options = CallOptions::default();
         options.limits.steps = None;
-        options.limits.memory_bytes = Some(64 << 10);
+        options.limits.memory_bytes = Some(128 << 10);
         let output = script.call("run", &[Value::int(count)], options).unwrap();
         assert_eq!(output.value.as_int(), Some(7));
         assert_eq!(output.stats.retained_memory_bytes, 0);
