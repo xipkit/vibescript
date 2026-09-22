@@ -14,8 +14,21 @@ struct Token {
     toggle: bool,
 }
 
-fn invalid() -> Error {
-    Error::new(ErrorKind::Argument, "invalid strftime format")
+/// Quotes at most 256 bytes of a strftime format for a diagnostic, as Go does.
+fn diagnostic(prefix: &str, format: &[u8], suffix: &str) -> Error {
+    let mut message = prefix.as_bytes().to_vec();
+    if format.len() > 256 {
+        let mut shown = format[..256].to_vec();
+        shown.extend_from_slice(b"...");
+        crate::shapes::quote(&shown, &mut message);
+    } else {
+        crate::shapes::quote(format, &mut message);
+    }
+    message.extend_from_slice(suffix.as_bytes());
+    Error::new(
+        ErrorKind::Argument,
+        String::from_utf8_lossy(&message).into_owned(),
+    )
 }
 
 fn checkpoint(ctx: &mut CallContext, index: usize) -> Result<()> {
@@ -353,7 +366,7 @@ fn directive(
             // Fixed sub-formats nest at most twice and render fewer than 512 bytes.
             let mut buffer = [0; 512];
             let mut fixed = Output::fixed(&mut buffer);
-            render(ctx, view, text, token.upper || inherited, &mut fixed)?;
+            render(ctx, view, text, text, token.upper || inherited, &mut fixed)?;
             let length = fixed.len();
             padded(
                 ctx,
@@ -393,9 +406,11 @@ fn directive(
     }
 }
 
+/// Renders `input`, a suffix of the caller's `source` format.
 fn render(
     ctx: &mut CallContext,
     view: &View<'_>,
+    source: &[u8],
     mut input: &[u8],
     inherited: bool,
     out: &mut Output<'_>,
@@ -412,7 +427,8 @@ fn render(
             input = &input[n..];
             continue;
         }
-        let token = token(ctx, input)?.ok_or_else(invalid)?;
+        let token = token(ctx, input)?
+            .ok_or_else(|| diagnostic("time.strftime invalid format: ", source, ""))?;
         if supported(token) {
             directive(ctx, view, token, inherited, out)?;
         } else {
@@ -429,20 +445,21 @@ pub(super) fn format(ctx: &mut CallContext, value: &Value, input: &[u8]) -> Resu
         if input.len() > OUTPUT_LIMIT {
             return ctx.guard(
                 ErrorKind::OutputLimit,
-                "time formatting output limit exceeded",
+                "output limit exceeded: time.strftime output exceeds limit 1048576 bytes",
             );
         }
         let mut compare = Output::compare(input, 64 * OUTPUT_LIMIT);
         format::render(ctx, &view, input, &mut compare)?;
         if !compare.matches() {
-            return Err(Error::new(
-                ErrorKind::Argument,
-                "time.strftime expects percent directives; use format for Go layouts",
+            return Err(diagnostic(
+                "time.strftime expects a percent format such as \"%Y-%m-%d\"; ",
+                input,
+                " is a Go layout, use format for that",
             ));
         }
     }
     let mut out = Output::buffer(OUTPUT_LIMIT);
-    render(ctx, &view, input, false, &mut out)?;
+    render(ctx, &view, input, input, false, &mut out)?;
     out.finish(ctx)
 }
 
@@ -558,7 +575,14 @@ mod tests {
         let peak = ctx.stats().peak_memory_bytes;
         let error = format(&mut ctx, &value, layout.as_bytes()).unwrap_err();
         assert_eq!(error.kind, ErrorKind::Argument);
-        assert!(error.message.len() < 256);
+        // Go quotes only the first 256 bytes of the format.
+        assert_eq!(
+            error.message,
+            format!(
+                "time.strftime expects a percent format such as \"%Y-%m-%d\"; \"2006{}...\" is a Go layout, use format for that",
+                "MST".repeat(84)
+            )
+        );
         assert_eq!(ctx.stats().peak_memory_bytes, peak);
         let layout = format!("2006{}", "MST".repeat(2049));
         assert_eq!(

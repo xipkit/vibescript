@@ -135,9 +135,6 @@ fn offset<'a>(ctx: &mut CallContext, value: &'a Value) -> Result<zone::Offset<'a
     }
 }
 
-fn invalid() -> Error {
-    Error::new(ErrorKind::Argument, "invalid time arguments")
-}
 fn overflow() -> Error {
     Error::new(ErrorKind::Arithmetic, "time offset out of 64-bit range")
 }
@@ -204,12 +201,108 @@ fn scaled_float(value: f64, factor: u32) -> Result<i64> {
     } as i64)
 }
 
-fn scaled(value: &Value, factor: u32) -> Result<i64> {
+/// Scales a subsecond number; the error names a non-numeric value, a
+/// non-finite float or a result beyond 64-bit nanoseconds.
+fn scaled(value: &Value, factor: u32) -> std::result::Result<i64, Subsecond> {
     match value.0 {
-        Kind::Int(n) => n.checked_mul(i64::from(factor)).ok_or_else(overflow),
-        Kind::Float(n) => scaled_float(n, factor),
-        Kind::Big(_) => Err(overflow()),
-        _ => Err(invalid()),
+        Kind::Int(n) => n
+            .checked_mul(i64::from(factor))
+            .ok_or(Subsecond::OutOfRange),
+        Kind::Float(n) if !n.is_finite() => Err(Subsecond::NotFinite),
+        Kind::Float(n) => scaled_float(n, factor).map_err(|_| Subsecond::OutOfRange),
+        Kind::Big(_) => Err(Subsecond::OutOfRange),
+        _ => Err(Subsecond::NotNumeric),
+    }
+}
+
+enum Subsecond {
+    NotNumeric,
+    NotFinite,
+    OutOfRange,
+}
+
+fn argument(message: impl Into<String>) -> Error {
+    Error::new(ErrorKind::Argument, message)
+}
+
+/// Reads the optional fractional-digit precision of `method`, as Go's
+/// `timeISO8601Precision` and `timeRoundingUnit` do.
+fn precision(method: &str, args: &[Value], keywords: bool) -> Result<i64> {
+    if keywords {
+        return Err(argument(format!(
+            "{method} does not accept keyword arguments"
+        )));
+    }
+    let Some(arg) = args.first() else {
+        return Ok(0);
+    };
+    if args.len() > 1 {
+        return Err(argument(format!(
+            "{method} expects at most one precision argument"
+        )));
+    }
+    let precision = match arg.0 {
+        Kind::Int(n) => n,
+        Kind::Big(_) => {
+            return Err(Error::new(
+                ErrorKind::Type,
+                format!("{method} precision must fit in a 64-bit integer"),
+            ));
+        }
+        _ => {
+            return Err(Error::new(
+                ErrorKind::Type,
+                format!("{method} precision must be an Integer"),
+            ));
+        }
+    };
+    if precision < 0 {
+        return Err(argument(format!("{method} precision must be non-negative")));
+    }
+    Ok(precision)
+}
+
+/// Names a `Time.at` unit Go does not accept, rendering at most 64 bytes of it.
+fn unexpected_unit(ctx: &mut CallContext, unit: &Value) -> Result<Error> {
+    if crate::text::bounded::measure(ctx, unit, 65, true)? > 64 {
+        return Ok(argument(format!(
+            "unexpected unit of type {}",
+            unit.type_name()
+        )));
+    }
+    let rendered = crate::text::bounded::prefix(ctx, unit, 64)?;
+    Ok(argument(format!(
+        "unexpected unit: {}",
+        String::from_utf8_lossy(rendered.as_bytes().unwrap_or_default())
+    )))
+}
+
+/// Reads the required year of a Time constructor, as Go's `requiredYear` does.
+fn required_year(year: &Value) -> Result<i64> {
+    match year.0 {
+        Kind::Int(n) => Ok(n),
+        Kind::Float(n) if n.is_finite() && n > i64::MIN as f64 && n < i64::MAX as f64 => {
+            Ok(n as i64)
+        }
+        Kind::Float(n) if n.is_nan() => {
+            Err(argument("Time constructor year must be finite, got NaN"))
+        }
+        Kind::Float(n) if n.is_infinite() => Err(argument(format!(
+            "Time constructor year must be finite, got {}Inf",
+            if n > 0.0 { '+' } else { '-' }
+        ))),
+        Kind::Float(n) => {
+            let mut text = json::Number::new();
+            ops::format_float(&mut text, n);
+            Err(argument(format!(
+                "Time constructor year {} is out of range",
+                String::from_utf8_lossy(text.bytes())
+            )))
+        }
+        _ => Err(argument(format!(
+            "Time constructor year must be numeric, got {}",
+            year.type_name()
+        ))),
     }
 }
 
@@ -248,29 +341,41 @@ impl Constructor {
         keywords: &[(Value, Value)],
     ) -> Result<Value> {
         if self == Self::Parse && !(1..=2).contains(&args.len()) {
-            return Err(invalid());
+            return Err(parse::shape());
         }
+        let at_shape = || {
+            argument("Time.at expects seconds since epoch with optional subsecond value and unit")
+        };
         let mut zone_input = None;
         for (key, val) in keywords {
             ctx.charge(1)?;
             if key.as_bytes() == Some(b"in") {
                 zone_input = Some(val);
             } else if matches!(self, Self::At | Self::Parse) {
-                return Err(invalid());
+                if self == Self::At && !(1..=3).contains(&args.len()) {
+                    return Err(at_shape());
+                }
+                return Err(argument(format!(
+                    "{} unknown keyword argument {}",
+                    self.name(),
+                    String::from_utf8_lossy(key.as_bytes().unwrap_or_default())
+                )));
             }
         }
         if self == Self::Parse {
             return parse::call(ctx, args, zone_input);
         }
         if self == Self::Now {
-            ops::arity(args, 0)?;
+            if !args.is_empty() {
+                return Err(argument("Time.now does not take positional arguments"));
+            }
             let zone = location(ctx, zone_input, false)?;
             ctx.checkpoint()?;
             return value(ctx, Stamp::now(), zone);
         }
         if self == Self::At {
             if !(1..=3).contains(&args.len()) {
-                return Err(invalid());
+                return Err(at_shape());
             }
             let zone = location(ctx, zone_input, true)?;
             let (seconds, mut nanos) = match args[0].0 {
@@ -279,29 +384,45 @@ impl Constructor {
                     let whole = raw_int(n);
                     (whole, raw_int((n - whole as f64) * NANOS as f64))
                 }
-                _ => return Err(invalid()),
+                Kind::Float(_) => return Err(argument("Time.at expects a finite numeric epoch")),
+                Kind::Big(_) => {
+                    return Err(argument("Time.at seconds must fit in a 64-bit integer"));
+                }
+                _ => return Err(argument("Time.at expects numeric seconds")),
+            };
+            let out_of_range = || {
+                Error::new(
+                    ErrorKind::Arithmetic,
+                    "Time.at subsecond value out of range",
+                )
             };
             if args.len() >= 2 {
                 let factor = if let Some(unit) = args.get(2) {
-                    let Kind::Symbol(unit) = &unit.0 else {
-                        return Err(invalid());
+                    let Kind::Symbol(name) = &unit.0 else {
+                        return Err(unexpected_unit(ctx, unit)?);
                     };
-                    match unit.data.as_slice() {
+                    match name.data.as_slice() {
                         b"microsecond" | b"usec" => 1000,
                         b"millisecond" => 1_000_000,
                         b"nanosecond" | b"nsec" => 1,
-                        _ => return Err(invalid()),
+                        _ => return Err(unexpected_unit(ctx, unit)?),
                     }
                 } else {
                     1000
                 };
-                nanos = nanos
-                    .checked_add(scaled(&args[1], factor)?)
-                    .ok_or_else(overflow)?;
+                let subsecond = scaled(&args[1], factor).map_err(|error| match error {
+                    Subsecond::NotNumeric => argument("Time.at subsecond value must be numeric"),
+                    Subsecond::NotFinite => Error::new(
+                        ErrorKind::Arithmetic,
+                        "Time.at expects a finite subsecond value",
+                    ),
+                    Subsecond::OutOfRange => out_of_range(),
+                })?;
+                nanos = nanos.checked_add(subsecond).ok_or_else(out_of_range)?;
             }
             let seconds = seconds
                 .checked_add(nanos.div_euclid(NANOS))
-                .ok_or_else(overflow)?;
+                .ok_or_else(out_of_range)?;
             return value(
                 ctx,
                 Stamp::new(seconds, nanos.rem_euclid(NANOS) as u32),
@@ -314,25 +435,28 @@ impl Constructor {
         } else {
             None
         };
+        let context = if self == Self::New {
+            "Time.new"
+        } else {
+            "Time constructor"
+        };
         if args.is_empty() {
-            return Err(invalid());
+            return Err(argument(format!("{context} expects at least a year")));
         }
         for arg in args {
             ctx.charge(1)?;
             if matches!(arg.0, Kind::Big(_)) {
-                return Err(invalid());
+                return Err(argument(format!(
+                    "{context} parts must fit in a 64-bit integer"
+                )));
             }
         }
         if self != Self::New && args.len() > 7 {
-            return Err(invalid());
+            return Err(argument(
+                "Time constructor expects at most year, month, day, hour, minute, second, microsecond",
+            ));
         }
-        let year = match args[0].0 {
-            Kind::Int(n) => n,
-            Kind::Float(n) if n.is_finite() && n > i64::MIN as f64 && n < i64::MAX as f64 => {
-                n as i64
-            }
-            _ => return Err(invalid()),
-        };
+        let year = required_year(&args[0])?;
         let mut parts = [year, 1, 1, 0, 0, 0];
         for (i, part) in parts.iter_mut().enumerate().skip(1) {
             if let Some(arg) = args.get(i) {
@@ -355,12 +479,26 @@ impl Constructor {
         } else {
             if let Some(micros) = args.get(6) {
                 if !matches!(micros.0, Kind::Nil) {
+                    let out_of_range = || {
+                        argument(
+                            "Time constructor microsecond argument out of range (must be within one second)",
+                        )
+                    };
                     if micros.as_float().is_some_and(|n| n < 0.0) {
-                        return Err(invalid());
+                        return Err(out_of_range());
                     }
-                    nanos = scaled(micros, 1000)?;
+                    nanos = scaled(micros, 1000).map_err(|error| match error {
+                        Subsecond::NotNumeric => {
+                            argument("Time constructor microsecond argument must be numeric")
+                        }
+                        Subsecond::NotFinite | Subsecond::OutOfRange => {
+                            let mut error = out_of_range();
+                            error.kind = ErrorKind::Arithmetic;
+                            error
+                        }
+                    })?;
                     if !(0..NANOS).contains(&nanos) {
-                        return Err(invalid());
+                        return Err(out_of_range());
                     }
                 }
             }
@@ -378,7 +516,9 @@ impl Constructor {
 }
 
 pub(crate) fn now(ctx: &mut CallContext, args: &[Value]) -> Result<Value> {
-    ops::arity(args, 0)?;
+    if !args.is_empty() {
+        return Err(argument("now does not take arguments"));
+    }
     ctx.checkpoint()?;
     text(ctx, &Value(Kind::Time(Stamp::now())), Some(0))
 }
@@ -583,28 +723,49 @@ pub(crate) fn member(
     if site.scope {
         return Ok(None);
     }
-    if keywords {
-        return Err(invalid());
-    }
     let result = match name {
-        "nil?" | "itself" | "dup" | "<=>" => {
-            if block && name != "<=>" {
-                return Err(invalid());
-            }
-            ops::arity(args, usize::from(name == "<=>"))?;
-            if name == "<=>" {
-                stamp(&args[0]).map_or(Value::nil(), |other| Value::int(time.order(other) as i64))
-            } else if name == "nil?" {
-                Value::boolean(false)
+        "nil?" => {
+            crate::arguments::nullary("time.nil?", args, keywords, block)?;
+            Value::boolean(false)
+        }
+        "itself" => {
+            let refused = if keywords {
+                "does not accept keyword arguments".to_owned()
+            } else if block {
+                "does not accept a block".to_owned()
+            } else if !args.is_empty() {
+                format!("expects 0 arguments, got {}", args.len())
             } else {
-                receiver.clone()
+                return Ok(Some(receiver.clone()));
+            };
+            return Err(argument(format!("time.itself {refused}")));
+        }
+        "dup" => {
+            let refused = if !args.is_empty() {
+                "does not take arguments"
+            } else if keywords {
+                "does not take keyword arguments"
+            } else if block {
+                "does not accept blocks"
+            } else {
+                return Ok(Some(receiver.clone()));
+            };
+            return Err(argument(format!("dup {refused}")));
+        }
+        "<=>" => {
+            if keywords {
+                return Err(argument("time.<=> does not accept keyword arguments"));
             }
+            if args.len() != 1 {
+                return Err(argument(format!(
+                    "time.<=> expects 1 argument, got {}",
+                    args.len()
+                )));
+            }
+            stamp(&args[0]).map_or(Value::nil(), |other| Value::int(time.order(other) as i64))
         }
         "between?" => {
-            if block {
-                return Err(invalid());
-            }
-            ops::arity(args, 2)?;
+            crate::arguments::between("time.between?", args, keywords, block)?;
             Value::boolean(
                 matches!(
                     ops::compare(ctx, receiver, &args[0])?,
@@ -616,22 +777,29 @@ pub(crate) fn member(
             )
         }
         "to_s" | "string" | "inspect" => {
-            if block {
-                return Err(invalid());
-            }
-            ops::arity(args, 0)?;
+            crate::arguments::nullary(&format!("time.{name}"), args, keywords, block)?;
             text(ctx, receiver, None)?
         }
         "format" | "strftime" => {
             if site.auto && !block {
                 return Err(Error::new(
                     ErrorKind::Type,
-                    "time formatter requires a call",
+                    format!(
+                        "{name} is a method and cannot be used as a value; call it with {name}(...)"
+                    ),
                 ));
             }
-            ops::arity(args, 1)?;
-            let Kind::Bytes(layout) = &args[0].0 else {
-                return Err(invalid());
+            if keywords {
+                return Err(argument(format!(
+                    "time.{name} does not accept keyword arguments"
+                )));
+            }
+            let layout = match args {
+                [Value(Kind::Bytes(layout))] => layout,
+                _ if name == "format" => {
+                    return Err(argument("format expects a Go layout string"));
+                }
+                _ => return Err(argument("time.strftime expects a format string")),
             };
             if name == "format" {
                 format::format(ctx, receiver, &layout.data)?
@@ -640,45 +808,52 @@ pub(crate) fn member(
             }
         }
         "iso8601" | "xmlschema" | "rfc3339" => {
-            if args.len() > 1 {
-                return Err(invalid());
-            }
-            let precision = if let Some(arg) = args.first() {
-                arg.require_int()?
-            } else {
-                0
-            };
-            if precision < 0 {
-                return Err(invalid());
-            }
+            let precision = precision(&format!("time.{name}"), args, keywords)?;
             if precision > 100 {
-                return ctx.guard(ErrorKind::OutputLimit, "time precision exceeds 100 digits");
+                return ctx.guard(
+                    ErrorKind::OutputLimit,
+                    &format!("time.{name} precision exceeds maximum 100 digits"),
+                );
             }
             text(ctx, receiver, Some(precision as usize))?
         }
         "httpdate" | "rfc2822" | "rfc822" => {
-            ops::arity(args, 0)?;
+            if keywords {
+                return Err(argument(format!(
+                    "time.{name} does not accept keyword arguments"
+                )));
+            }
+            if !args.is_empty() {
+                return Err(argument(format!("time.{name} does not accept arguments")));
+            }
             mail_date(ctx, receiver, name == "httpdate")?
         }
         "getlocal" | "localtime" => {
+            if keywords {
+                return Err(argument(format!(
+                    "{name} does not take keyword arguments; pass the offset positionally"
+                )));
+            }
             if args.len() > 1 {
-                return Err(invalid());
+                return Err(argument(format!(
+                    "{name} expects at most one timezone offset argument"
+                )));
             }
             let zone = location(ctx, args.first(), true)?;
             value(ctx, time, zone)?
         }
         "round" | "ceil" | "floor" => {
-            if args.len() > usize::from(name == "round") {
-                return Err(invalid());
-            }
-            let precision = if let Some(arg) = args.first() {
-                arg.require_int()?
+            let precision = if name == "round" {
+                precision("time.round", args, keywords)?
+            } else if keywords {
+                return Err(argument(format!(
+                    "time.{name} does not accept keyword arguments"
+                )));
+            } else if !args.is_empty() {
+                return Err(argument(format!("{name} does not accept precision")));
             } else {
                 0
             };
-            if precision < 0 {
-                return Err(invalid());
-            }
             let unit = 10i64.pow(9 - precision.min(9) as u32);
             let remainder = i64::from(time.nanos()) % unit;
             let delta = if name == "floor" || (name == "round" && remainder * 2 < unit) {

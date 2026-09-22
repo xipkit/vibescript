@@ -79,7 +79,11 @@ impl<'a> Output<'a> {
         if end > self.limit {
             return ctx.guard(
                 ErrorKind::OutputLimit,
-                "time formatting output limit exceeded",
+                if matches!(self.destination, Destination::Compare(..)) {
+                    "output limit exceeded: time.strftime layout diagnostic exceeds limit"
+                } else {
+                    "output limit exceeded: time.strftime output exceeds limit 1048576 bytes"
+                },
             );
         }
         if let Destination::Buffer(buffer) = &mut self.destination {
@@ -394,9 +398,13 @@ pub(super) fn render(
 
 pub(super) fn format(ctx: &mut CallContext, value: &Value, layout: &[u8]) -> Result<Value> {
     if super::strftime::recognized(ctx, layout)? {
+        // The directive scan has already charged for reading the whole layout.
+        let mut message = b"time.format expects a Go layout such as \"2006-01-02\"; ".to_vec();
+        crate::shapes::quote(layout, &mut message);
+        message.extend_from_slice(b" is a strftime format, use strftime for that");
         return Err(Error::new(
             ErrorKind::Argument,
-            "time.format expects a Go layout; use strftime for percent directives",
+            String::from_utf8_lossy(&message).into_owned(),
         ));
     }
     let view = View::new(ctx, value)?;

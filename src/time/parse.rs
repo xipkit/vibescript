@@ -15,6 +15,18 @@ fn invalid() -> Error {
     Error::new(ErrorKind::Argument, "invalid time string or layout")
 }
 
+/// Refuses a `Time.parse` call without a time string and optional layout.
+pub(super) fn shape() -> Error {
+    Error::new(
+        ErrorKind::Argument,
+        "Time.parse expects a time string and optional layout",
+    )
+}
+
+fn unparsed() -> Error {
+    Error::new(ErrorKind::Argument, "Time.parse could not parse time")
+}
+
 fn number(input: &mut &[u8], minimum: usize, maximum: usize) -> Result<i64> {
     let mut result = 0;
     let mut length = 0;
@@ -555,16 +567,27 @@ pub(super) fn call(
     let requested = location(ctx, zone_input, false)?;
     let overridden = zone_input.is_some_and(|v| !absent_zone(v));
     let Kind::Bytes(input) = &args[0].0 else {
-        return Err(invalid());
+        return Err(shape());
     };
     let input = input.data.as_slice();
     let custom = match args.get(1).map(|v| &v.0) {
         None | Some(Kind::Nil) => None,
         Some(Kind::Bytes(bytes)) => Some(bytes.data.as_slice()),
-        _ => return Err(invalid()),
+        _ => {
+            return Err(Error::new(
+                ErrorKind::Argument,
+                "Time.parse layout must be string",
+            ));
+        }
     };
     let (fields, host_zone) = if let Some(custom) = custom {
-        let fields = layout(ctx, custom, input)?;
+        let fields = layout(ctx, custom, input).map_err(|error| {
+            if error.kind == ErrorKind::Argument {
+                unparsed()
+            } else {
+                error
+            }
+        })?;
         let mut host = false;
         if !overridden && !fields.utc {
             for (i, bytes) in custom.windows(3).enumerate() {
@@ -591,7 +614,7 @@ pub(super) fn call(
                 Err(error) => return Err(error),
             }
         }
-        parsed.ok_or_else(invalid)?
+        parsed.ok_or_else(unparsed)?
     };
     let local = if host_zone && !fields.utc && !(overridden && fields.offset != -1) {
         Some(Zone::local(ctx)?)

@@ -384,3 +384,250 @@ fn duration_parsing_and_members_use_go_wording() {
         ),
     ]);
 }
+
+#[test]
+fn time_constructors_and_members_use_go_wording() {
+    use ErrorClass::{Limit, Runtime};
+    rejects(&[
+        (
+            "def run\n  Time.utc(nil)\nend",
+            Runtime,
+            "Time constructor year must be numeric, got nil",
+        ),
+        (
+            "def run\n  Time.utc(0.0/0.0)\nend",
+            Runtime,
+            "Time constructor year must be finite, got NaN",
+        ),
+        (
+            "def run\n  Time.utc(-1.0/0)\nend",
+            Runtime,
+            "Time constructor year must be finite, got -Inf",
+        ),
+        (
+            "def run\n  Time.utc(1e300)\nend",
+            Runtime,
+            "Time constructor year 1e+300 is out of range",
+        ),
+        (
+            "def run\n  Time.new(2**70)\nend",
+            Runtime,
+            "Time.new parts must fit in a 64-bit integer",
+        ),
+        (
+            "def run\n  Time.utc(2024, 1, 1, 0, 0, 0, 0, 1)\nend",
+            Runtime,
+            "Time constructor expects at most year, month, day, hour, minute, second, microsecond",
+        ),
+        (
+            "def run\n  Time.utc(2024, 1, 1, 0, 0, 0, \"x\")\nend",
+            Runtime,
+            "Time constructor microsecond argument must be numeric",
+        ),
+        (
+            "def run\n  Time.utc(2024, 1, 1, 0, 0, 0, 1e6)\nend",
+            Runtime,
+            "Time constructor microsecond argument out of range (must be within one second)",
+        ),
+        (
+            "def run\n  Time.at(1, 2, 3, 4, bogus: 1)\nend",
+            Runtime,
+            "Time.at expects seconds since epoch with optional subsecond value and unit",
+        ),
+        (
+            "def run\n  Time.at(1, bogus: 1)\nend",
+            Runtime,
+            "Time.at unknown keyword argument bogus",
+        ),
+        (
+            "def run\n  Time.at(0.0/0.0)\nend",
+            Runtime,
+            "Time.at expects a finite numeric epoch",
+        ),
+        (
+            "def run\n  Time.at(nil)\nend",
+            Runtime,
+            "Time.at expects numeric seconds",
+        ),
+        (
+            "def run\n  Time.at(0, nil, :usec)\nend",
+            Runtime,
+            "Time.at subsecond value must be numeric",
+        ),
+        (
+            "def run\n  Time.at(0, 1, :picosecond)\nend",
+            Runtime,
+            "unexpected unit: picosecond",
+        ),
+        (
+            "def run\n  Time.at(0, 1, [1, 2])\nend",
+            Runtime,
+            "unexpected unit: [1, 2]",
+        ),
+        (
+            "def run\n  Time.at(0, 1, \"x\" * 100)\nend",
+            Runtime,
+            "unexpected unit of type string",
+        ),
+        (
+            "def run\n  Time.at(0, 2**70)\nend",
+            Runtime,
+            "Time.at subsecond value out of range",
+        ),
+        (
+            "def run\n  Time.parse(1)\nend",
+            Runtime,
+            "Time.parse expects a time string and optional layout",
+        ),
+        (
+            "def run\n  Time.parse(\"x\", 1)\nend",
+            Runtime,
+            "Time.parse layout must be string",
+        ),
+        (
+            "def run\n  Time.parse(\"x\", foo: 1)\nend",
+            Runtime,
+            "Time.parse unknown keyword argument foo",
+        ),
+        (
+            "def run\n  Time.parse(\"x\")\nend",
+            Runtime,
+            "Time.parse could not parse time",
+        ),
+        (
+            "def run\n  Time.now(1)\nend",
+            Runtime,
+            "Time.now does not take positional arguments",
+        ),
+        (
+            "def run\n  now(1)\nend",
+            Runtime,
+            "now does not take arguments",
+        ),
+        (
+            "def run\n  Time.new(2024, in: 5)\nend",
+            Runtime,
+            "invalid timezone spec",
+        ),
+        (
+            "def run\n  Time.at(0).getlocal(\"+0x:00\")\nend",
+            Runtime,
+            "invalid timezone offset",
+        ),
+        (
+            "def run\n  Time.at(0).localtime(\"Not/AZone\")\nend",
+            Runtime,
+            "invalid timezone \"Not/AZone\"",
+        ),
+        (
+            "def run\n  Time.at(0).getlocal(x: 1)\nend",
+            Runtime,
+            "getlocal does not take keyword arguments; pass the offset positionally",
+        ),
+        (
+            "def run\n  Time.at(0).localtime(\"a\", \"b\")\nend",
+            Runtime,
+            "localtime expects at most one timezone offset argument",
+        ),
+        (
+            "def run\n  Time.at(0).format(\"%Y-%m-%d\")\nend",
+            Runtime,
+            "time.format expects a Go layout such as \"2006-01-02\"; \"%Y-%m-%d\" is a strftime format, use strftime for that",
+        ),
+        (
+            "def run\n  Time.at(0).strftime(\"2006-01-02\")\nend",
+            Runtime,
+            "time.strftime expects a percent format such as \"%Y-%m-%d\"; \"2006-01-02\" is a Go layout, use format for that",
+        ),
+        (
+            "def run\n  Time.at(0).strftime(\"%Y%\")\nend",
+            Runtime,
+            "time.strftime invalid format: \"%Y%\"",
+        ),
+        (
+            "def run\n  Time.at(0).strftime(1)\nend",
+            Runtime,
+            "time.strftime expects a format string",
+        ),
+        (
+            "def run\n  Time.at(0).format(1)\nend",
+            Runtime,
+            "format expects a Go layout string",
+        ),
+        (
+            "def run\n  Time.at(0).format\nend",
+            Runtime,
+            "format is a method and cannot be used as a value; call it with format(...)",
+        ),
+        (
+            "def run\n  Time.at(0).iso8601(1.5)\nend",
+            Runtime,
+            "time.iso8601 precision must be an Integer",
+        ),
+        (
+            "def run\n  Time.at(0).rfc3339(-1)\nend",
+            Runtime,
+            "time.rfc3339 precision must be non-negative",
+        ),
+        (
+            "def run\n  Time.at(0).iso8601(101)\nend",
+            Limit,
+            "time.iso8601 precision exceeds maximum 100 digits",
+        ),
+        (
+            "def run\n  Time.at(0).round(1, 2)\nend",
+            Runtime,
+            "time.round expects at most one precision argument",
+        ),
+        (
+            "def run\n  Time.at(0).ceil(1)\nend",
+            Runtime,
+            "ceil does not accept precision",
+        ),
+        (
+            "def run\n  Time.at(0).floor(x: 1)\nend",
+            Runtime,
+            "time.floor does not accept keyword arguments",
+        ),
+        (
+            "def run\n  Time.at(0).httpdate(1)\nend",
+            Runtime,
+            "time.httpdate does not accept arguments",
+        ),
+        (
+            "def run\n  Time.at(0).to_s(1) { 2 }\nend",
+            Runtime,
+            "time.to_s does not take arguments",
+        ),
+        (
+            "def run\n  Time.at(0).<=>(1, 2)\nend",
+            Runtime,
+            "time.<=> expects 1 argument, got 2",
+        ),
+        (
+            "def run\n  Time.at(0).nil?(x: 1)\nend",
+            Runtime,
+            "time.nil? does not take keyword arguments",
+        ),
+        (
+            "def run\n  Time.at(0).itself(1)\nend",
+            Runtime,
+            "time.itself expects 0 arguments, got 1",
+        ),
+        (
+            "def run\n  Time.at(0).dup { 1 }\nend",
+            Runtime,
+            "dup does not accept blocks",
+        ),
+        (
+            "def run\n  Time.at(0).year(x: 1)\nend",
+            Runtime,
+            "attempted to call non-callable value",
+        ),
+        (
+            "def run\n  1.hour.ago\nend",
+            Runtime,
+            "ago is a method and cannot be used as a value; call it with ago(...)",
+        ),
+    ]);
+}

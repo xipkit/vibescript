@@ -343,7 +343,9 @@ pub(crate) fn member(
             if site.auto && !block {
                 return Err(Error::new(
                     ErrorKind::Type,
-                    "duration anchor is a method and requires a call",
+                    format!(
+                        "{name} is a method and cannot be used as a value; call it with {name}(...)"
+                    ),
                 ));
             }
             if keywords {

@@ -468,7 +468,16 @@ impl Zone {
         let bytes = match &value.0 {
             Kind::Nil => return Ok(None),
             Kind::Bytes(b) => b.data.as_slice(),
-            _ => return Err(invalid()),
+            _ => return Err(Error::new(ErrorKind::Argument, "invalid timezone spec")),
+        };
+        // Go quotes the unknown name; the scan below has already charged for reading it.
+        let unknown = || {
+            let mut message = b"invalid timezone ".to_vec();
+            crate::shapes::quote(bytes, &mut message);
+            Error::new(
+                ErrorKind::Argument,
+                String::from_utf8_lossy(&message).into_owned(),
+            )
         };
         let mut previous = 0;
         for chunk in bytes.chunks(1024) {
@@ -476,14 +485,14 @@ impl Zone {
             ctx.checkpoint()?;
             for &byte in chunk {
                 if byte == b'.' && previous == b'.' {
-                    return Err(invalid());
+                    return Err(unknown());
                 }
                 previous = byte;
             }
         }
         // Installed zone databases use filesystem paths; longer paths cannot name an entry.
         if bytes.len() > 4096 {
-            return Err(invalid());
+            return Err(unknown());
         }
         if bytes.is_empty()
             || [b"UTC".as_slice(), b"GMT", b"Z"]
@@ -500,18 +509,18 @@ impl Zone {
                 std::str::from_utf8(part)
                     .ok()
                     .and_then(|s| s.parse().ok())
-                    .ok_or_else(invalid)
+                    .ok_or_else(|| Error::new(ErrorKind::Argument, "invalid timezone offset"))
             };
             let offset = (pair(&bytes[1..3])? * 3600 + pair(&bytes[4..])? * 60)
                 * if bytes[0] == b'-' { -1 } else { 1 };
             return Self::fixed(ctx, bytes, offset).map(Some);
         }
         if matches!(bytes.first(), Some(b'/' | b'\\')) {
-            return Err(invalid());
+            return Err(unknown());
         }
         Self::search(ctx, bytes, true)?
             .map(Some)
-            .ok_or_else(invalid)
+            .ok_or_else(unknown)
     }
 
     pub fn lookup(&self, ctx: &mut CallContext, seconds: i64) -> Result<Offset<'_>> {
