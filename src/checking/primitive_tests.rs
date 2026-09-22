@@ -926,6 +926,9 @@ fn primitive_contracts_contain_runtime_results_for_literal_and_general_inputs() 
         "tr!",
         "squeeze",
         "squeeze!",
+        "include?",
+        "concat",
+        "template",
     ];
     let arguments = [
         vec![],
@@ -1058,7 +1061,7 @@ fn primitive_contracts_contain_runtime_results_for_literal_and_general_inputs() 
             }
         }
     }
-    assert_eq!(cases, 70_560);
+    assert_eq!(cases, 72_576);
 }
 
 #[test]

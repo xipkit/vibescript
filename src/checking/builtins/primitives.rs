@@ -2,6 +2,7 @@ use super::*;
 
 mod introspection;
 mod number;
+mod template;
 mod text;
 
 pub(super) fn receiver(facts: &Facts, value: Fact) -> Option<crate::members::names::Receiver> {

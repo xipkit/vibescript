@@ -161,13 +161,22 @@ fn field<'a>(ctx: &mut CallContext, value: &'a Value, key: &[u8]) -> Result<Opti
     Ok(hash.find(ctx, key)?.map(|index| &hash.buffer.data[index].1))
 }
 
-struct Placeholder {
+/// One `{{ key }}` placeholder: its full byte span and the trimmed key.
+pub(crate) struct Placeholder {
     open: usize,
-    key: std::ops::Range<usize>,
+    pub(crate) key: std::ops::Range<usize>,
     end: usize,
 }
 
-fn next(ctx: &mut CallContext, bytes: &[u8], scan: &mut usize) -> Result<Option<Placeholder>> {
+/// Finds the next placeholder at or after `scan`, advancing `scan` past it.
+///
+/// The static checker uses the same scanner so both agree on which keys a
+/// template reads.
+pub(crate) fn next(
+    ctx: &mut CallContext,
+    bytes: &[u8],
+    scan: &mut usize,
+) -> Result<Option<Placeholder>> {
     let mut visited = 0;
     while *scan < bytes.len() {
         scan_step(ctx, &mut visited)?;

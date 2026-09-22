@@ -1,4 +1,4 @@
-use vibescript::{CallOptions, CheckReport, Engine, Script};
+use vibescript::{CallOptions, CheckReport, Engine, Script, Value};
 
 fn compile(source: &str) -> Script {
     Engine::new()
@@ -19,6 +19,161 @@ fn returns_bad_type(report: &CheckReport) -> bool {
         .diagnostics
         .iter()
         .any(|d| d.message.starts_with("Return value:"))
+}
+
+fn text(script: &Script, args: &[Value]) -> String {
+    let value = script
+        .call("run", args, CallOptions::default())
+        .unwrap()
+        .value;
+    String::from_utf8(value.as_bytes().unwrap().to_vec()).unwrap()
+}
+
+#[test]
+fn templates_render_nested_paths_scalars_and_enum_members() {
+    for (source, args, expected) in [
+        (
+            "def run -> string; \"Player {{user.name}} scored {{user.score}}\".template({ user: { name: \"Alex\", score: 42 } }); end",
+            vec![],
+            "Player Alex scored 42",
+        ),
+        (
+            "def run -> string; \"Hello {{missing}}\".template({ name: \"Alex\" }); end",
+            vec![],
+            "Hello {{missing}}",
+        ),
+        (
+            "enum Status\n  Draft\nend\ndef run -> string; draft = Status::Draft; \"status={{value}}\".template({ value: draft }); end",
+            vec![],
+            "status=draft",
+        ),
+        (
+            "def run(id) -> string; \"Order {{id}}\".template({ id: id }); end",
+            vec![Value::int(7)],
+            "Order 7",
+        ),
+        (
+            "def run(id: string) -> string; \"{{a}}/{{ b }}\".template({ a: id, b: nil }, strict: true); end",
+            vec![Value::bytes("x")],
+            "x/",
+        ),
+        (
+            "def run -> string; \"plain\".template({}, strict: true); end",
+            vec![],
+            "plain",
+        ),
+    ] {
+        let script = compile(source);
+        let report = check(&script, source);
+        assert!(report.diagnostics.is_empty(), "{source}: {report:?}");
+        assert_eq!(text(&script, &args), expected, "{source}");
+    }
+}
+
+#[test]
+fn template_contradictions_are_diagnosed_and_fail_at_runtime() {
+    for expression in [
+        "\"{{x}}\".template(1)",
+        "\"{{x}}\".template(nil)",
+        "\"{{x}}\".template({}, {})",
+        "\"{{x}}\".template({ x: [1] })",
+        "\"{{x.y}}\".template({ x: { y: { z: 1 } } })",
+        "\"{{x}}\".template({}, strict: true)",
+        "\"{{x}}\".template({ x: 1 }, strict: 1)",
+        "\"{{x}}\".template({ x: 1 }, other: true)",
+        "\"a\".include?(1)",
+        "\"a\".include?(nil)",
+        "\"a\".include?(\"a\", \"b\")",
+        "\"a\".concat(:b)",
+        "\"a\".concat(\"b\", 1)",
+    ] {
+        let source = format!("def run; {expression}; end");
+        let script = compile(&source);
+        let report = check(&script, &source);
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("does not accept")),
+            "{source}: {report:?}"
+        );
+        assert!(
+            script.call("run", &[], CallOptions::default()).is_err(),
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn gradual_template_inputs_keep_their_failure_paths() {
+    for source in [
+        "def run(context) -> int; begin; \"{{x}}\".template(context); 0; rescue; 'bad'; end; end",
+        "def run(text: string) -> int; begin; text.template({ x: [1] }); 0; rescue; 'bad'; end; end",
+        "def run(strict: bool) -> int; begin; \"{{x}}\".template({}, strict: strict); 0; rescue; 'bad'; end; end",
+        "def run(h: hash) -> int; begin; \"{{x}}\".template(h); 0; rescue; 'bad'; end; end",
+    ] {
+        let script = compile(source);
+        assert!(returns_bad_type(&check(&script, source)), "{source}");
+    }
+    for source in [
+        "def run -> int; begin; \"{{x}} {{y}}\".template({ x: 1 }); 0; rescue; 'bad'; end; end",
+        "def run(x: int) -> int; begin; \"{{x}}\".template({ x: x }, strict: true); 0; rescue; 'bad'; end; end",
+    ] {
+        let script = compile(source);
+        let report = check(&script, source);
+        assert!(report.diagnostics.is_empty(), "{source}: {report:?}");
+    }
+    let source = "def run(context) -> string; \"{{x}}\".template(context); end";
+    let script = compile(source);
+    let error = script
+        .call("run", &[Value::int(1)], CallOptions::default())
+        .unwrap_err();
+    assert!(error.message.contains("hash or object"), "{error}");
+}
+
+#[test]
+fn include_and_concat_follow_the_string_contracts() {
+    for (source, args, expected) in [
+        (
+            "def run(id: string) -> bool; id.include?(\"-\"); end",
+            vec![Value::bytes("a-b")],
+            "true",
+        ),
+        (
+            "def run(id: string) -> bool; id.include?(:b); end",
+            vec![Value::bytes("a-b")],
+            "true",
+        ),
+        (
+            "def run(id: string) -> bool; id.include?(\"\"); end",
+            vec![Value::bytes("")],
+            "true",
+        ),
+        (
+            "def run(id: string) -> string; id.concat(\"llo\", \"!\"); end",
+            vec![Value::bytes("he")],
+            "hello!",
+        ),
+        (
+            "def run(id: string) -> string; id.concat; end",
+            vec![Value::bytes("he")],
+            "he",
+        ),
+    ] {
+        let script = compile(source);
+        let report = check(&script, source);
+        assert!(report.diagnostics.is_empty(), "{source}: {report:?}");
+        let value = script
+            .call("run", &args, CallOptions::default())
+            .unwrap()
+            .value;
+        assert_eq!(value.to_string(), expected, "{source}");
+    }
+    // A literal empty needle is always found, so the false branch is unreachable.
+    let source = "def run(id: string) -> int; id.include?(\"\") ? 1 : 'bad'; end";
+    let script = compile(source);
+    let report = check(&script, source);
+    assert!(report.diagnostics.is_empty(), "{source}: {report:?}");
 }
 
 #[test]

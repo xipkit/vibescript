@@ -60,20 +60,22 @@ pub(super) fn supported(name: &str) -> bool {
             | "tr!"
             | "squeeze"
             | "squeeze!"
+            | "include?"
+            | "template"
+            | "concat"
     )
 }
 
 pub(super) fn arity(name: &str, count: usize) -> bool {
     match name.trim_end_matches('!') {
         "start_with?" | "end_with?" | "count" | "delete" => count >= 1,
-        "squeeze" => true,
+        "squeeze" | "concat" => true,
         "split" => count <= 2,
         "center" | "ljust" | "rjust" | "index" | "rindex" => (1..=2).contains(&count),
         "upcase" | "downcase" | "capitalize" | "swapcase" | "chomp" => count <= 1,
         "clamp" | "between?" | "tr" => count == 2,
-        "casecmp" | "casecmp?" | "partition" | "rpartition" | "delete_prefix" | "delete_suffix" => {
-            count == 1
-        }
+        "casecmp" | "casecmp?" | "partition" | "rpartition" | "delete_prefix" | "delete_suffix"
+        | "include?" | "template" => count == 1,
         _ => count == 0,
     }
 }
@@ -92,6 +94,39 @@ pub(super) fn member(
     let base = name.trim_end_matches('!');
     let value = match base {
         "start_with?" | "end_with?" => return affixes(ctx, facts, receiver, name, positional),
+        "template" => return super::template::member(ctx, facts, receiver, args),
+        "concat" => {
+            // Only strings concatenate; appending nothing returns the receiver.
+            let mut unchanged = true;
+            for (index, &value) in positional.iter().enumerate() {
+                possible &= parameter(ctx, facts, &mut result, index, value, string)?;
+                unchanged &= matches!(
+                    facts.node(value),
+                    Node::String(text) if text.as_bytes().unwrap().is_empty()
+                );
+            }
+            if unchanged { receiver } else { string }
+        }
+        "include?" => {
+            // The runtime accepts a string or symbol needle; an empty needle
+            // is found in every receiver.
+            let needle = facts.union(ctx, &[string, Atom::Symbol.fact()])?;
+            possible &= parameter(ctx, facts, &mut result, 0, positional[0], needle)?;
+            let mut empty = true;
+            for i in 0..facts.arm_count(positional[0]) {
+                ctx.charge(1)?;
+                empty &= matches!(
+                    facts.node(facts.arm(positional[0], i)),
+                    Node::String(value) | Node::Symbol(value)
+                        if value.as_bytes().unwrap().is_empty()
+                );
+            }
+            if empty {
+                facts.boolean(ctx, true)?
+            } else {
+                Atom::Bool.fact()
+            }
+        }
         "casecmp" | "casecmp?" => {
             let mut returns = Buffer::empty();
             for i in 0..facts.arm_count(positional[0]) {
