@@ -310,6 +310,61 @@ struct Pending {
 }
 
 impl State {
+    /// Collects the binding and capture values that differ from `entry`, each with the value
+    /// it replaced.
+    fn changed_values(
+        &self,
+        ctx: &mut CallContext,
+        entry: &Self,
+        values: &mut Buffer<(Fact, Fact)>,
+    ) -> Result<()> {
+        self.locals
+            .changed(ctx, &entry.locals, &mut |ctx, _, binding, previous| {
+                values.push(ctx, (binding.value, previous.value))
+            })?;
+        if let (Some(captures), Some(before)) = (&self.captures, &entry.captures) {
+            let mut changed = Buffer::empty();
+            captures.changed(ctx, before, &mut changed)?;
+            for (_, value, previous) in changed.data {
+                values.push(ctx, (value, previous))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Merges the structural alternatives of the binding and capture values that gained
+    /// collection alternatives since `entry`, as a loop backedge widens them.
+    fn generalize_changed(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        entry: &Self,
+        depth: usize,
+    ) -> Result<()> {
+        let mut bindings = Buffer::empty();
+        self.locals
+            .changed(ctx, &entry.locals, &mut |ctx, slot, binding, previous| {
+                bindings.push(ctx, (slot, binding, previous.value))
+            })?;
+        for (slot, binding, previous) in bindings.data {
+            if facts.alternatives(binding.value) > facts.alternatives(previous) {
+                let value = facts.generalize(ctx, binding.value, depth)?;
+                self.locals.set(ctx, slot, Binding { value, ..binding })?;
+            }
+        }
+        if let (Some(captures), Some(before)) = (&mut self.captures, &entry.captures) {
+            let mut changed = Buffer::empty();
+            captures.changed(ctx, before, &mut changed)?;
+            for (slot, value, previous) in changed.data {
+                if facts.alternatives(value) > facts.alternatives(previous) {
+                    let value = facts.generalize(ctx, value, depth)?;
+                    captures.replace(ctx, slot, value)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn polarity(&self, ctx: &mut CallContext, facts: &mut Facts) -> Result<usize> {
         let Some(operand) = self.stack.data.last() else {
             return Ok(0);

@@ -13,6 +13,11 @@ mod schedules;
 mod selections;
 pub(super) mod text;
 
+/// Bounds the collection alternatives that exact passes over a known collection accumulate in
+/// the values they change. Ordinary exact iterations stay below it; blocks that fork a changed
+/// collection on every element double its alternatives each pass.
+const FORKS: usize = 8;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Method {
     Each,
@@ -381,6 +386,7 @@ impl Walker<'_> {
             let depth = self.collection_depth(&initial, driver, arm)?;
             if let Node::Tuple(items) = self.facts.node(view) {
                 let length = items.data.len();
+                let entry = initial.state.snapshot(self.ctx)?;
                 let (start, mut current) = match self.resume.take() {
                     Some(resume) if resume.pc == pc && resume.arm == i => {
                         (resume.pass, resume.states)
@@ -413,7 +419,7 @@ impl Walker<'_> {
                     // repeating all of them.
                     let settled = !self.calls.unsettled() && self.pending_outputs() == outputs;
                     let before = self.iteration_snapshot(&current.data)?;
-                    current = self.iteration_next(current, pc, driver, item, depth)?;
+                    current = self.iteration_pass(current, &entry, (pc, driver, item), depth)?;
                     if settled && self.calls.unsettled() {
                         self.resume = Some(Resume {
                             pc,

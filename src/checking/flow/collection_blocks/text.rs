@@ -236,6 +236,7 @@ impl Walker<'_> {
     ) -> Result<()> {
         let initial = self.text_initial(state)?;
         let depth = self.collection_depth(&initial, driver, receiver)?;
+        let entry = initial.state.snapshot(self.ctx)?;
         let mut current = initial.alternatives(self.ctx)?;
         loop {
             self.ctx.charge(1)?;
@@ -255,7 +256,8 @@ impl Walker<'_> {
             };
             let element = self.text_yield_fact(&value)?;
             drop(value);
-            current = self.iteration_next(current, pc, driver, Self::text_item(element), depth)?;
+            let item = Self::text_item(element);
+            current = self.iteration_pass(current, &entry, (pc, driver, item), depth)?;
         }
     }
 

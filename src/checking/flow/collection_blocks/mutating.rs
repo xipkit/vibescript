@@ -220,6 +220,7 @@ impl Walker<'_> {
         let depth = self.collection_depth(&initial, driver, source)?;
         if let Node::Tuple(items) = self.facts.node(source) {
             let count = items.data.len();
+            let entry = initial.state.snapshot(self.ctx)?;
             let mut current = initial.alternatives(self.ctx)?;
             for position in 0..count {
                 self.ctx.charge(1)?;
@@ -232,7 +233,7 @@ impl Walker<'_> {
                 let element = items.data[position];
                 let index = self.facts.integer(self.ctx, position as i64)?;
                 let item = self.collection_item(kind, driver, element, index)?;
-                current = self.iteration_next(current, pc, driver, item, depth)?;
+                current = self.iteration_pass(current, &entry, (pc, driver, item), depth)?;
             }
             for current in current.data {
                 self.mutable_done(current, pc, source, driver.mutation.unwrap())?;

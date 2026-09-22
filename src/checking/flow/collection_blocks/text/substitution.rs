@@ -251,6 +251,7 @@ impl Walker<'_> {
         let (method, pattern, receiver) = call;
         let initial = self.substitution_initial(state)?;
         let depth = self.collection_depth(&initial, driver, receiver)?;
+        let entry = initial.state.snapshot(self.ctx)?;
         let mut current = initial.alternatives(self.ctx)?;
         let mut appended = 0;
         let mut matched = false;
@@ -287,7 +288,8 @@ impl Walker<'_> {
                 self.facts
                     .string(self.ctx, &text.as_bytes().unwrap()[start..end])?
             };
-            current = self.iteration_next(ready, pc, driver, Self::text_item(element), depth)?;
+            let item = Self::text_item(element);
+            current = self.iteration_pass(ready, &entry, (pc, driver, item), depth)?;
             if current.data.is_empty() {
                 return Ok(());
             }

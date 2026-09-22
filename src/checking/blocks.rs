@@ -371,6 +371,24 @@ impl Captures {
         self.values.get(ctx, slot)
     }
 
+    /// Collects the captured slots, values and previous values that differ from `other`.
+    pub fn changed(
+        &self,
+        ctx: &mut CallContext,
+        other: &Self,
+        values: &mut Buffer<(usize, Fact, Fact)>,
+    ) -> Result<()> {
+        self.values
+            .changed(ctx, &other.values, &mut |ctx, slot, value, previous| {
+                values.push(ctx, (slot, value, previous))
+            })
+    }
+
+    /// Replaces one captured value without changing its other metadata.
+    pub fn replace(&mut self, ctx: &mut CallContext, slot: usize, value: Fact) -> Result<()> {
+        self.values.set(ctx, slot, value)
+    }
+
     /// Reports whether the original enclosing binding may be absent.
     pub fn missing(&self, ctx: &mut CallContext, slot: usize) -> Result<bool> {
         self.missing.get(ctx, slot)

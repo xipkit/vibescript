@@ -126,6 +126,21 @@ impl Facts {
         Ok(value)
     }
 
+    /// Merges the structural alternatives of a fact as widening it against itself at a loop
+    /// backedge would: tuples of different lengths become arrays, alternative hashes merge and
+    /// collections nested beyond `depth` become gradual.
+    pub fn generalize(&mut self, ctx: &mut CallContext, value: Fact, depth: usize) -> Result<Fact> {
+        ctx.checkpoint()?;
+        // `widen` never remembers a fact joined with itself, so this key is free.
+        let key = Computation::Widen(value, value, depth);
+        if let Some((value, _)) = self.remembered(ctx, key)? {
+            return Ok(value);
+        }
+        let generalized = self.widen_uncached(ctx, value, value, depth)?;
+        self.remember(ctx, key, (generalized, 0))?;
+        Ok(generalized)
+    }
+
     fn widen_uncached(
         &mut self,
         ctx: &mut CallContext,

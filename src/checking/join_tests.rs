@@ -171,3 +171,116 @@ fn join_caches_obey_exact_limits_and_release_their_tables() {
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
 }
+
+fn analyze(
+    ctx: &mut CallContext,
+    facts: &mut Facts,
+    program: &crate::bytecode::Program,
+) -> crate::Result<super::calls::Analysis> {
+    let mut contracts = Vec::new();
+    for ty in &program.types {
+        contracts.push(facts.annotation(ctx, ty, |_, _| Ok(None))?);
+    }
+    let function = program.names["run"];
+    let inputs = super::arguments::general_inputs(
+        ctx,
+        facts,
+        &program.functions[function].params,
+        &contracts,
+    )?;
+    super::calls::analyze(
+        ctx,
+        facts,
+        super::calls::World {
+            loader: None,
+            inputs: &[],
+            source_owner: 0,
+            program,
+            contracts: &contracts,
+            hosts: &[],
+            globals: &[],
+        },
+        function,
+        &inputs.data,
+    )
+}
+
+fn forking(body: &str, count: usize) -> String {
+    let words = (0..count)
+        .map(|index| format!("\"{}\"", "w".repeat(index % 5 + 1) + &index.to_string()))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("def pick(words)\n{body}\nend\ndef run\n  pick([{words}])\nend\n")
+}
+
+#[test]
+fn forking_exact_iterations_stay_linear_and_contain_runtime_results() {
+    let bodies = [
+        "kept = []\nwords.each do |word|\n  if word.length > 3\n    kept << word\n  end\nend\nkept",
+        "groups = {}\nwords.each do |word|\n  key = word.downcase\n  if groups[key] == nil\n    \
+         groups[key] = []\n  end\n  groups[key] << word\nend\ngroups",
+        "kept = []\nwords.each_with_index do |word, i|\n  if word.length > i\n    \
+         kept << [i, word]\n  end\nend\nkept",
+        "kept = []\nwords.map do |word|\n  if word.length > 3\n    kept << word\n  end\n  \
+         word\nend\nkept",
+        "kept = []\nwords.reverse_each do |word|\n  if word.length > 3\n    \
+         kept = kept + [word]\n  end\nend\nkept",
+        "kept = []\nwords.select do |word|\n  if word.length > 3\n    kept << kept.length\n  \
+         end\n  true\nend\nkept",
+    ];
+    for body in bodies {
+        let mut previous = 0;
+        for count in [12, 24] {
+            let source = forking(body, count);
+            let program = crate::bytecode::compile(&source, Vec::new(), &()).unwrap();
+            let mut ctx = CallContext::new(CallOptions::default());
+            let mut facts = Facts::new(&mut ctx).unwrap();
+            let result = analyze(&mut ctx, &mut facts, &program).unwrap();
+            assert!(result.incomplete.data.is_empty(), "{source}: {result:?}");
+            // Each pass once doubled the collections it forked, so 12 elements exhausted the
+            // default quota; doubling the length now roughly doubles the work.
+            let steps = ctx.stats().steps;
+            assert!(steps < 200_000, "{source}: {steps}");
+            if previous > 0 {
+                assert!(steps < previous * 3, "{source}: {previous} then {steps}");
+            }
+            previous = steps;
+            let actual = crate::Engine::new()
+                .compile(&source)
+                .unwrap()
+                .call("run", &[], CallOptions::default())
+                .unwrap()
+                .value;
+            let actual = super::collection_tests::literal_fact(&mut ctx, &mut facts, &actual);
+            assert_ne!(
+                facts.relation(&mut ctx, actual, result.returns).unwrap(),
+                super::relation::Relation::Rejected,
+                "{source}"
+            );
+            drop((result, facts));
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        }
+    }
+}
+
+#[test]
+fn ordinary_exact_iterations_keep_literal_results() {
+    let source = forking(
+        "kept = []\ntotal = 0\nwords.each do |word|\n  kept << word\n  total = total + 1\nend\n\
+         [kept, total]",
+        12,
+    );
+    let program = crate::bytecode::compile(&source, Vec::new(), &()).unwrap();
+    let mut ctx = CallContext::new(CallOptions::default());
+    let mut facts = Facts::new(&mut ctx).unwrap();
+    let result = analyze(&mut ctx, &mut facts, &program).unwrap();
+    let actual = crate::Engine::new()
+        .compile(&source)
+        .unwrap()
+        .call("run", &[], CallOptions::default())
+        .unwrap()
+        .value;
+    // Nothing forks, so every pass stays exact and the result is the runtime value itself.
+    let actual = super::collection_tests::literal_fact(&mut ctx, &mut facts, &actual);
+    assert_eq!(result.returns, actual);
+}

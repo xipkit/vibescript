@@ -123,6 +123,7 @@ impl Walker<'_> {
             }
             if let Node::Tuple(items) = self.facts.node(source) {
                 let length = items.data.len();
+                let entry = initial.state.snapshot(self.ctx)?;
                 let mut current = initial.alternatives(self.ctx)?;
                 for index in 0..length {
                     self.ctx.charge(1)?;
@@ -132,7 +133,7 @@ impl Walker<'_> {
                     let element = self.ordered_element(source, index)?;
                     let index = self.facts.integer(self.ctx, index as i64)?;
                     let item = self.collection_item(Receiver::Array, driver, element, index)?;
-                    current = self.iteration_next(current, pc, driver, item, depth)?;
+                    current = self.iteration_pass(current, &entry, (pc, driver, item), depth)?;
                 }
                 for current in current.data {
                     self.ordered_finish(current, pc, driver, source)?;

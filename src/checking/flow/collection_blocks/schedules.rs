@@ -470,6 +470,7 @@ impl Walker<'_> {
                 width,
                 stride,
             } => {
+                let entry = current.state.snapshot(self.ctx)?;
                 let mut current = current.alternatives(self.ctx)?;
                 let Node::Tuple(items) = self.facts.node(source) else {
                     unreachable!()
@@ -498,7 +499,7 @@ impl Walker<'_> {
                     };
                     let item =
                         self.collection_item(Receiver::Array, driver, element, Atom::Int.fact())?;
-                    current = self.iteration_next(current, pc, driver, item, depth)?;
+                    current = self.iteration_pass(current, &entry, (pc, driver, item), depth)?;
                     if current.data.is_empty() {
                         return Ok(current);
                     }

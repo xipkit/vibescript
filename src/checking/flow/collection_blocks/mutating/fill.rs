@@ -304,6 +304,7 @@ impl Walker<'_> {
         let mut initial = self.mutable_initial(state)?;
         initial.auxiliary = self.facts.boolean(self.ctx, true)?;
         let depth = self.collection_depth(&initial, driver, source)?;
+        let entry = initial.state.snapshot(self.ctx)?;
         let mut current = initial.alternatives(self.ctx)?;
         for position in 0..span.length {
             self.ctx.charge(1)?;
@@ -327,7 +328,7 @@ impl Walker<'_> {
                     index,
                     pair: None,
                 };
-                current = self.iteration_next(current, pc, driver, item, depth)?;
+                current = self.iteration_pass(current, &entry, (pc, driver, item), depth)?;
             }
         }
         for current in current.data {

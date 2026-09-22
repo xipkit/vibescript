@@ -44,6 +44,76 @@ impl Walker<'_> {
         Ok(depth)
     }
 
+    /// Analyzes one exact pass over a known collection element.
+    ///
+    /// Each pass can fork every collection it changes. Once the passes have added more than
+    /// [`FORKS`] collection alternatives since `entry`, the changed values merge their
+    /// structural alternatives as the loop's widening would, keeping the iteration linear in
+    /// its length.
+    pub(super) fn iteration_pass(
+        &mut self,
+        current: Buffer<IterationState>,
+        entry: &State,
+        (pc, driver, item): (usize, Driver<'_>, Item),
+        depth: usize,
+    ) -> Result<Buffer<IterationState>> {
+        let mut current = self.iteration_next(current, pc, driver, item, depth)?;
+        if self.iteration_forks(&current.data, entry)? > FORKS {
+            self.iteration_generalize(&mut current.data, entry, depth)?;
+        }
+        Ok(current)
+    }
+
+    /// Counts the collection alternatives that iteration states added to their results and to
+    /// the values they changed since `entry`.
+    fn iteration_forks(&mut self, states: &[IterationState], entry: &State) -> Result<usize> {
+        let mut values = Buffer::empty();
+        for current in states {
+            self.ctx.charge(1)?;
+            for value in [current.output, current.auxiliary, current.previous] {
+                values.push(self.ctx, (value, Atom::Never.fact()))?;
+            }
+            current.state.changed_values(self.ctx, entry, &mut values)?;
+        }
+        let mut forks = 0usize;
+        for &(value, before) in &values.data {
+            self.ctx.charge(1)?;
+            let added = self
+                .facts
+                .alternatives(value)
+                .saturating_sub(self.facts.alternatives(before));
+            forks = forks.saturating_add(added);
+        }
+        Ok(forks)
+    }
+
+    /// Merges the structural alternatives of the results and changed values that gained
+    /// collection alternatives since `entry`, as the iteration's loop widening would, without
+    /// joining earlier states.
+    fn iteration_generalize(
+        &mut self,
+        states: &mut [IterationState],
+        entry: &State,
+        depth: usize,
+    ) -> Result<()> {
+        for current in states {
+            self.ctx.charge(1)?;
+            for value in [
+                &mut current.output,
+                &mut current.auxiliary,
+                &mut current.previous,
+            ] {
+                if self.facts.alternatives(*value) > 0 {
+                    *value = self.facts.generalize(self.ctx, *value, depth)?;
+                }
+            }
+            current
+                .state
+                .generalize_changed(self.ctx, self.facts, entry, depth)?;
+        }
+        Ok(())
+    }
+
     pub(super) fn iteration_widen(
         &mut self,
         states: &mut Buffer<IterationState>,

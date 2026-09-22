@@ -16,6 +16,8 @@ struct Node<T> {
     _charge: Option<Charge>,
 }
 
+type Child<T> = Option<Arc<Node<T>>>;
+
 #[derive(Debug)]
 pub(super) struct Slots<T> {
     len: usize,
@@ -169,6 +171,81 @@ impl<T: Copy + Eq> Slots<T> {
             return Ok(false);
         }
         Self::equal_nodes(ctx, &self.root, &other.root, self.shift, self.empty)
+    }
+
+    /// Visits the indices, values and previous values that differ from `other`, skipping
+    /// shared subtrees. Indices beyond `other` compare with its empty value.
+    pub fn changed(
+        &self,
+        ctx: &mut CallContext,
+        other: &Self,
+        visit: &mut impl FnMut(&mut CallContext, usize, T, T) -> Result<()>,
+    ) -> Result<()> {
+        ctx.checkpoint()?;
+        if self.len != other.len || self.shift != other.shift || self.empty != other.empty {
+            for index in 0..self.len {
+                let value = self.get(ctx, index)?;
+                let previous = if index < other.len {
+                    other.get(ctx, index)?
+                } else {
+                    other.empty
+                };
+                if previous != value {
+                    visit(ctx, index, value, previous)?;
+                }
+            }
+            return Ok(());
+        }
+        Self::changed_nodes(
+            ctx,
+            (&self.root, &other.root),
+            (self.shift, 0),
+            self.empty,
+            visit,
+        )
+    }
+
+    // Recursion is bounded by the number of radix digits in a machine index.
+    fn changed_nodes(
+        ctx: &mut CallContext,
+        (left, right): (&Child<T>, &Child<T>),
+        (shift, base): (u32, usize),
+        empty: T,
+        visit: &mut impl FnMut(&mut CallContext, usize, T, T) -> Result<()>,
+    ) -> Result<()> {
+        ctx.charge(1)?;
+        if same(left, right) {
+            return Ok(());
+        }
+        if shift == 0 {
+            let leaf = |node: &Child<T>| match node.as_deref().map(|n| &n.data) {
+                Some(Data::Leaf(values)) => *values,
+                None => [empty; WIDTH],
+                _ => unreachable!(),
+            };
+            ctx.charge(WIDTH as u64)?;
+            for (i, (value, previous)) in leaf(left).into_iter().zip(leaf(right)).enumerate() {
+                if value != previous {
+                    visit(ctx, base + i, value, previous)?;
+                }
+            }
+            return Ok(());
+        }
+        for i in 0..WIDTH {
+            let child = |node: &Child<T>| match node.as_deref().map(|n| &n.data) {
+                Some(Data::Branch(children)) => children[i].clone(),
+                None => None,
+                _ => unreachable!(),
+            };
+            Self::changed_nodes(
+                ctx,
+                (&child(left), &child(right)),
+                (shift - BITS, base + (i << shift)),
+                empty,
+                visit,
+            )?;
+        }
+        Ok(())
     }
 
     fn equal_nodes(

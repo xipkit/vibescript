@@ -208,6 +208,8 @@ struct Entry {
     unresolved: bool,
     singleton: bool,
     depth: usize,
+    // Structural union alternatives within the fact, counting each occurrence and saturating.
+    alternatives: u32,
     escapes: bool,
     exported: Fact,
 }
@@ -354,6 +356,12 @@ impl Facts {
         self.entries.data[fact.0].depth
     }
 
+    /// Counts the collection alternatives of unions within a fact, once per occurrence and
+    /// saturating. Scalar alternatives are bounded by the program's literals and do not count.
+    pub(super) fn alternatives(&self, fact: Fact) -> usize {
+        self.entries.data[fact.0].alternatives as usize
+    }
+
     pub(super) fn max_depth(&self) -> usize {
         self.max_depth
     }
@@ -469,31 +477,69 @@ impl Facts {
             }
             _ => false,
         };
-        let depth = match &node {
-            Node::Protected(value, ..) | Node::Offset(value) => self.depth(*value),
-            Node::Array(element) => self.depth(*element).saturating_add(1),
-            Node::Hash(key, value, _) => self.depth(*key).max(self.depth(*value)).saturating_add(1),
+        let alternatives = |values: &mut dyn Iterator<Item = Fact>| {
+            values.fold(0u32, |total, value| {
+                total.saturating_add(self.entries.data[value.0].alternatives)
+            })
+        };
+        let (depth, alternatives) = match &node {
+            Node::Protected(value, ..) | Node::Offset(value) => {
+                (self.depth(*value), self.alternatives(*value) as u32)
+            }
+            Node::Array(element) => (
+                self.depth(*element).saturating_add(1),
+                self.alternatives(*element) as u32,
+            ),
+            Node::Hash(key, value, _) => (
+                self.depth(*key).max(self.depth(*value)).saturating_add(1),
+                alternatives(&mut [*key, *value].into_iter()),
+            ),
             Node::Tuple(values) | Node::Union(values) | Node::Choice(values) => {
                 ctx.charge(values.data.len() as u64)?;
-                values
+                let depth = values
                     .data
                     .iter()
                     .map(|&value| self.depth(value))
                     .max()
                     .unwrap_or(0)
-                    .saturating_add(usize::from(matches!(node, Node::Tuple(_))))
+                    .saturating_add(usize::from(matches!(node, Node::Tuple(_))));
+                // Scalar alternatives are bounded by the program's literals; structural ones can
+                // combine without bound.
+                let own = if matches!(node, Node::Tuple(_)) {
+                    0
+                } else {
+                    values.data.iter().fold(0u32, |count, &value| {
+                        count.saturating_add(u32::from(matches!(
+                            self.node(value),
+                            Node::Tuple(_)
+                                | Node::Array(_)
+                                | Node::Hash(..)
+                                | Node::Shape(..)
+                                | Node::Protected(..)
+                        )))
+                    })
+                };
+                (
+                    depth,
+                    alternatives(&mut values.data.iter().copied()).saturating_add(own),
+                )
             }
-            Node::Shape(fields, ..) => {
+            Node::Shape(fields, _, keys, _) => {
                 ctx.charge(fields.data.len() as u64)?;
-                fields
+                let depth = fields
                     .data
                     .iter()
                     .map(|field| self.depth(field.value))
                     .max()
                     .unwrap_or(0)
-                    .saturating_add(1)
+                    .saturating_add(1);
+                let values = &mut fields.data.iter().map(|field| field.value);
+                (
+                    depth,
+                    alternatives(values).saturating_add(self.alternatives(*keys) as u32),
+                )
             }
-            _ => 0,
+            _ => (0, 0),
         };
         let escapes = self.node_escapes(ctx, &node)?;
         self.entries.push(
@@ -508,6 +554,7 @@ impl Facts {
                 unresolved,
                 singleton,
                 depth,
+                alternatives,
                 escapes,
                 exported: Fact(EMPTY),
             },

@@ -188,6 +188,32 @@ fn settled_contexts_and_join_caches_obey_exact_and_sampled_limits() {
     }
 }
 
+#[test]
+fn forking_exact_iterations_check_anagrams_within_a_fraction_of_the_budget() {
+    // Each pass over the literal word list could add or extend a group under an unknown key,
+    // doubling the alternatives of the captured hash; checking once needed 51.9M steps.
+    let source = include_str!("site/rosettacode/popular/anagrams.vibe");
+    let script = Engine::new().compile(source).unwrap();
+    let expected = script.check(&unlimited()).unwrap();
+    assert!(
+        expected.stats.steps < DEFAULT_STEPS / 5,
+        "{:?}",
+        expected.stats
+    );
+    // The known nil alternatives of the grouped hash stay diagnosed at each use.
+    let lines: Vec<_> = expected
+        .diagnostics
+        .iter()
+        .map(|entry| entry.position.line)
+        .collect();
+    for line in [23, 28, 29] {
+        assert!(lines.contains(&line), "{line}: {expected:?}");
+    }
+    let report = script.check(&CallOptions::default()).unwrap();
+    same_report(&report, &expected);
+    exact_limits(&script);
+}
+
 fn literal_each(count: usize) -> String {
     let words = (0..count)
         .map(|index| format!("\"w{index}\""))
