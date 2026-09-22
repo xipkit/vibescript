@@ -646,6 +646,18 @@ fn power(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Value> {
     // Reject impossible growth before starting repeated squaring.
     drop(ctx.reserve(bytes)?);
     ctx.charge(u64::try_from(projected.div_ceil(256)).unwrap_or(u64::MAX))?;
+    let (negative, magnitude) = parts(a);
+    let low_zero_bits = match &a.0 {
+        Kind::Big(big) => big.zeros,
+        _ => magnitude.word(0).trailing_zeros() as usize,
+    };
+    if low_zero_bits + 1 == magnitude.bits() {
+        // A power of two raised to a power is a single bit, set directly.
+        let bit = (projected - 1) as usize;
+        let mut words = zeros(ctx, bit / 32 + 1)?;
+        words.data[bit / 32] = 1 << (bit % 32);
+        return finish(ctx, negative && exponent & 1 != 0, words);
+    }
     let mut result = Value::int(1);
     let mut base = a.clone();
     while exponent != 0 {
@@ -945,6 +957,30 @@ mod tests {
             }
         }
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+
+    #[test]
+    fn powers_of_two_raise_to_a_single_bit() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        for (base, exponent) in [
+            (2, 64),
+            (-2, 65),
+            (-2, 64),
+            (8, 100),
+            (1 << 40, 3),
+            (i64::MIN, 3),
+        ] {
+            let fast = binary(&mut ctx, "**", &Value::int(base), &Value::int(exponent)).unwrap();
+            let mut slow = Value::int(1);
+            for _ in 0..exponent {
+                slow = binary(&mut ctx, "*", &slow, &Value::int(base)).unwrap();
+            }
+            assert_eq!(
+                compare(&mut ctx, &fast, &slow).unwrap(),
+                Ordering::Equal,
+                "{base}**{exponent}"
+            );
+        }
     }
 
     #[test]
