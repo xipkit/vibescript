@@ -940,7 +940,21 @@ impl Run {
                 }
                 Op::TypeShadowed(guard, next) => {
                     for name in &program.type_guards[guard] {
-                        if runtime_bound(program, ctx, frames, storage, current, name)? {
+                        // A method reachable through implicit self also turns
+                        // the braced group back into a hash, as a bare call.
+                        if runtime_bound(program, ctx, frames, storage, current, name)?
+                            || matches!(
+                                namespaces::implicit(
+                                    program,
+                                    ctx,
+                                    storage,
+                                    namespace,
+                                    self_value.as_ref(),
+                                    name,
+                                )?,
+                                namespaces::Member::Function(_)
+                            )
+                        {
                             frames.data[current].ip = next;
                             break;
                         }

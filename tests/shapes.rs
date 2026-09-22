@@ -134,6 +134,50 @@ fn literal_fallback_uses_bound_names_and_current_lexical_scopes() {
 }
 
 #[test]
+fn implicit_self_methods_keep_braced_groups_as_hashes() {
+    // Go's TestShapeLiteralImplicitSelfShadowKeepsHashSemantics.
+    let script = Engine::new()
+        .compile(
+            r#"class Formatter
+  def string
+    "fmt"
+  end
+
+  def build
+    h = { name: string }
+    h[:name]
+  end
+
+  def self.int
+    3
+  end
+
+  def self.counted
+    { n: int }
+  end
+end
+
+class Builder
+  def schema
+    { name: string }
+  end
+end
+
+def run
+  body = JSON.parse_as("{\"name\": \"Ada\"}", Builder.new.schema)
+  [Formatter.new.build, Formatter.counted, body["name"]]
+end"#,
+        )
+        .unwrap();
+    assert!(script.check(&CallOptions::default()).unwrap().is_clean());
+    let result = script.call("run", &[], CallOptions::default()).unwrap();
+    let output = stringify_json(&result.value, CallOptions::default()).unwrap();
+    let output: serde_json::Value =
+        serde_json::from_slice(output.value.as_bytes().unwrap()).unwrap();
+    assert_eq!(output, serde_json::json!(["fmt", {"n": 3}, "Ada"]));
+}
+
+#[test]
 fn hosts_can_retain_import_and_reuse_types_after_the_script_is_dropped() {
     assert_eq!(size_of::<Value>(), 16);
     let script = Engine::new().compile("{name:string}").unwrap();
