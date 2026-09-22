@@ -2,7 +2,7 @@
 
 Unary plus is the identity for integers, floats and strings. String bytes and their backing storage are preserved, including non-UTF-8 host input. Other operand types retain their existing errors.
 
-Integer arithmetic supports arbitrary precision. Iteration counts, limits and strides must fit the iterator's 64-bit representation. Oversized values raise a recoverable `LimitError`; validation order follows each method's contract:
+Integer arithmetic supports arbitrary precision. Products of long integers use Karatsuba multiplication, division estimates one quotient word at a time and powers of two are set directly. Parsing splits long digit strings in halves around a power of the radix, and power-of-two radixes convert bits directly in both directions. Work is charged per word operation, so parsing grows as n^1.6 in the number of digits while division and rendering in other radixes remain quadratic. Iteration counts, limits and strides must fit the iterator's 64-bit representation. Oversized values raise a recoverable `LimitError`; validation order follows each method's contract:
 
 | Operation | Validation before the oversized-value guard |
 | --- | --- |

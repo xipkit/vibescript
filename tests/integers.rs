@@ -307,3 +307,29 @@ fn nonfinite_powers_fail_during_execution_before_following_effects() {
         assert_eq!(effects.load(Ordering::SeqCst), 0);
     }
 }
+
+#[test]
+fn reference_sized_integers_fit_the_default_quota() {
+    // The reference evaluates each of these under its default step quota.
+    let sixty = (0..60)
+        .map(|i| format!("k{i}: 2 ** {}", 900_000 + i))
+        .collect::<Vec<_>>()
+        .join(", ");
+    for (source, expected) in [
+        (format!("x = {}\nx % 7", "9".repeat(20_000)), 1),
+        (format!("x = {}\nx % 1000003", "9".repeat(50_000)), 754_969),
+        ("x = 2 ** 400000\nx % 1000".to_owned(), 376),
+        ("x = 3 ** 50000\n(x * x) % 1000003".to_owned(), 799_099),
+        (format!("{{{sixty}}}.length"), 60),
+    ] {
+        let outcome = Engine::new()
+            .compile(&source)
+            .unwrap()
+            .run(CallOptions::default())
+            .unwrap();
+        assert_eq!(outcome.value.as_int(), Some(expected), "{}", &source[..40]);
+    }
+    // Rendering 100,000 bits still converts within the quota.
+    let outcome = run("(2 ** 100000).to_s.size");
+    assert_eq!(outcome.value.as_int(), Some(30_103));
+}

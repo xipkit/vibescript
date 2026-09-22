@@ -5,6 +5,8 @@ use crate::{
 };
 use std::{cmp::Ordering, mem::size_of, sync::Arc};
 
+mod radix;
+
 const CHUNK: usize = 256;
 
 pub(crate) fn unlimited_context() -> CallContext {
@@ -746,49 +748,31 @@ pub(crate) fn parse_digits(ctx: &mut CallContext, text: &[u8], radix: u32) -> Re
     if text.is_empty() {
         return Err(Error::new(ErrorKind::Argument, "invalid integer"));
     }
-    let mut words = Buffer::empty();
     let mut compact = Some(0u64);
     for &byte in text {
         ctx.charge(1)?;
         let digit = (byte as char)
             .to_digit(radix)
             .ok_or_else(|| Error::new(ErrorKind::Argument, "invalid integer digit"))?;
-        if let Some(value) = compact {
-            if let Some(next) = value
-                .checked_mul(radix as u64)
-                .and_then(|n| n.checked_add(digit as u64))
-            {
-                compact = Some(next);
-                continue;
-            }
-            words = copy(ctx, Magnitude::Small(value))?;
-            compact = None;
-        }
-        let mut carry = digit as u64;
-        let length = words.data.len();
-        for i in 0..length {
-            work(ctx, i, length)?;
-            carry += words.data[i] as u64 * radix as u64;
-            words.data[i] = carry as u32;
-            carry >>= 32;
-        }
-        if carry != 0 {
-            words.push(ctx, carry as u32)?;
-        }
+        compact = compact
+            .and_then(|value| value.checked_mul(radix as u64))
+            .and_then(|value| value.checked_add(digit as u64));
     }
-    if let Some(value) = compact {
-        if value <= i64::MAX as u64 {
-            return Ok(Value::int(if negative {
-                -(value as i64)
-            } else {
-                value as i64
-            }));
-        }
-        if negative && value == 1u64 << 63 {
-            return Ok(Value::int(i64::MIN));
-        }
-        words = copy(ctx, Magnitude::Small(value))?;
+    let Some(value) = compact else {
+        let words = radix::parse(ctx, text, radix)?;
+        return finish(ctx, negative, words);
+    };
+    if value <= i64::MAX as u64 {
+        return Ok(Value::int(if negative {
+            -(value as i64)
+        } else {
+            value as i64
+        }));
     }
+    if negative && value == 1u64 << 63 {
+        return Ok(Value::int(i64::MIN));
+    }
+    let words = copy(ctx, Magnitude::Small(value))?;
     finish(ctx, negative, words)
 }
 
@@ -802,6 +786,20 @@ pub(crate) fn format(ctx: &mut CallContext, value: &Value, radix: u32) -> Result
     let (negative, magnitude) = parts(value);
     let capacity = magnitude.bits() / radix.ilog2() as usize + 2;
     let mut out = Buffer::with_capacity(ctx, capacity)?;
+    if radix.is_power_of_two() && magnitude.len() > radix::DIRECT {
+        // Long magnitudes read their digits' bits directly.
+        if negative {
+            out.data.push(b'-');
+        }
+        let mut scratch = [0; 2];
+        radix::format_bits(
+            ctx,
+            magnitude.slice(&mut scratch),
+            radix.trailing_zeros(),
+            &mut out,
+        )?;
+        return Ok(out);
+    }
     let mut words = copy(ctx, magnitude)?;
     let mut power = radix;
     let mut width = 1;
@@ -960,6 +958,65 @@ mod tests {
     }
 
     #[test]
+    fn digit_conversions_round_trip_in_every_radix() {
+        let mut ctx = CallContext::new(CallOptions {
+            limits: crate::Limits {
+                steps: None,
+                ..crate::Limits::default()
+            },
+            ..CallOptions::default()
+        });
+        let mut words = Words(0x2545_f491_4f6c_dd1d);
+        for radix in 2..=36 {
+            for length in [3, 33, 70, 150] {
+                let digits = (0..length * 12)
+                    .map(|i| {
+                        let digit = if i == 0 {
+                            1 + words.next() % (radix - 1)
+                        } else {
+                            words.next() % radix
+                        };
+                        char::from_digit(digit, radix).unwrap() as u8
+                    })
+                    .collect::<Vec<_>>();
+                let value = parse(&mut ctx, &digits, radix).unwrap();
+                let text = format(&mut ctx, &value, radix).unwrap();
+                assert_eq!(text.data, digits, "radix {radix}");
+                // The reference path: one digit at a time.
+                let mut expected = Vec::<u32>::new();
+                for &byte in &digits {
+                    let mut carry = (byte as char).to_digit(radix).unwrap() as u64;
+                    for word in &mut expected {
+                        carry += *word as u64 * radix as u64;
+                        *word = carry as u32;
+                        carry >>= 32;
+                    }
+                    if carry != 0 {
+                        expected.push(carry as u32);
+                    }
+                }
+                let (_, magnitude) = parts(&value);
+                let actual = (0..magnitude.len())
+                    .map(|i| magnitude.word(i))
+                    .collect::<Vec<_>>();
+                assert_eq!(actual, expected, "radix {radix}");
+                let negative = negate(&mut ctx, &value, false).unwrap();
+                let text = format(&mut ctx, &negative, radix).unwrap();
+                assert_eq!(text.data[0], b'-');
+                assert_eq!(&text.data[1..], digits);
+            }
+        }
+        // Zero chunks inside and at the ends convert without losing padding.
+        for text in [
+            "1".to_owned() + &"0".repeat(5000),
+            "9".repeat(3000) + &"0".repeat(3000) + "7",
+        ] {
+            let value = parse(&mut ctx, text.as_bytes(), 10).unwrap();
+            assert_eq!(format(&mut ctx, &value, 10).unwrap().data, text.as_bytes());
+        }
+    }
+
+    #[test]
     fn powers_of_two_raise_to_a_single_bit() {
         let mut ctx = CallContext::new(CallOptions::default());
         for (base, exponent) in [
@@ -981,6 +1038,44 @@ mod tests {
                 "{base}**{exponent}"
             );
         }
+    }
+
+    #[test]
+    fn long_conversions_stay_subquadratic_and_observe_limits() {
+        let cost = |digits: usize| {
+            let mut ctx = CallContext::new(CallOptions::default());
+            ctx.options.limits.steps = None;
+            let text = "7".repeat(digits);
+            parse(&mut ctx, text.as_bytes(), 10).unwrap();
+            ctx.stats().steps
+        };
+        let (small, large) = (cost(20_000), cost(40_000));
+        // Quadrupling would be the schoolbook conversion; Karatsuba gives about three.
+        assert!(large < small * 7 / 2, "{small} then {large}");
+        // A 20,000-digit literal parses within the default quota.
+        assert!(small < 250_000);
+        let text = "7".repeat(20_000);
+        for kind in [ErrorKind::Steps, ErrorKind::Memory, ErrorKind::Cancelled] {
+            let mut ctx = CallContext::new(CallOptions::default());
+            match kind {
+                ErrorKind::Steps => ctx.options.limits.steps = Some(50_000),
+                ErrorKind::Memory => ctx.options.limits.memory_bytes = Some(16_384),
+                _ => ctx.cancellation().cancel(),
+            }
+            let error = parse(&mut ctx, text.as_bytes(), 10).unwrap_err();
+            assert_eq!(error.kind, kind);
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+            assert_eq!(ctx.checkpoint().unwrap_err(), error);
+        }
+        let mut ctx = CallContext::new(CallOptions::default());
+        let value = parse(&mut ctx, text.as_bytes(), 10).unwrap();
+        let retained = ctx.stats().retained_memory_bytes;
+        ctx.options.limits.memory_bytes = Some(retained + 30_000);
+        assert_eq!(
+            format(&mut ctx, &value, 10).unwrap_err().kind,
+            ErrorKind::Memory
+        );
+        assert_eq!(ctx.stats().retained_memory_bytes, retained);
     }
 
     #[test]
