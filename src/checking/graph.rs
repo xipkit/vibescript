@@ -18,6 +18,8 @@ pub(super) struct Block {
 #[derive(Debug)]
 pub(super) struct Graph {
     pub blocks: Buffer<Block>,
+    // The block starting at each instruction, for the edges that every walk resolves.
+    starts: Buffer<usize>,
 }
 
 impl Graph {
@@ -128,6 +130,9 @@ impl Graph {
         }
         assert!(loops.data.is_empty());
         let mut blocks = Buffer::empty();
+        let mut starts = Buffer::with_capacity(ctx, code.len() + 1)?;
+        starts.data.resize(code.len() + 1, usize::MAX);
+        starts.data[0] = 0;
         let mut start = 0;
         for end in 1..=code.len() {
             ctx.charge(1)?;
@@ -140,24 +145,18 @@ impl Graph {
                         exit: exits.data[end - 1],
                     },
                 )?;
+                starts.data[end] = blocks.data.len();
                 start = end;
             }
         }
-        Ok(Self { blocks })
+        Ok(Self { blocks, starts })
     }
 
     pub fn at(&self, ctx: &mut CallContext, pc: usize) -> Result<usize> {
-        let mut low = 0;
-        let mut high = self.blocks.data.len();
-        while low < high {
-            ctx.charge(1)?;
-            let middle = low + (high - low) / 2;
-            match self.blocks.data[middle].start.cmp(&pc) {
-                std::cmp::Ordering::Less => low = middle + 1,
-                std::cmp::Ordering::Greater => high = middle,
-                std::cmp::Ordering::Equal => return Ok(middle),
-            }
+        ctx.charge(1)?;
+        match self.starts.data.get(pc) {
+            Some(&index) if index < self.blocks.data.len() => Ok(index),
+            _ => panic!("jump target {pc} is not a basic block"),
         }
-        panic!("jump target {pc} is not a basic block");
     }
 }

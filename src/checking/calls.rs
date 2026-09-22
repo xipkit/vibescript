@@ -937,11 +937,25 @@ impl Solver<'_, '_> {
         if job.cyclic {
             if let Some(previous) = &job.report {
                 let depth = *job.return_depth.get_or_insert(facts.max_depth());
+                // Visit earlier exits at the same instruction in record order, not every pair.
+                let befores = &previous.block_exits.data;
+                let mut order = Buffer::with_capacity(ctx, befores.len())?;
+                order
+                    .data
+                    .extend(befores.iter().enumerate().map(|(i, before)| (before.pc, i)));
+                let search = befores.len().max(1).ilog2() as u64 + 1;
+                ctx.charge((befores.len() as u64).saturating_mul(search))?;
+                order.data.sort_unstable();
                 for exit in &mut report.block_exits.data {
-                    for before in &previous.block_exits.data {
+                    ctx.charge(search)?;
+                    let start = order.data.partition_point(|&(pc, _)| pc < exit.pc);
+                    for &(pc, position) in &order.data[start..] {
                         ctx.charge(1)?;
-                        if exit.pc == before.pc
-                            && exit.completion == before.completion
+                        if pc != exit.pc {
+                            break;
+                        }
+                        let before = &befores[position];
+                        if exit.completion == before.completion
                             && exit.pending.compatible(ctx, &before.pending)?
                             && exit.globals.compatible(ctx, &before.globals)?
                         {

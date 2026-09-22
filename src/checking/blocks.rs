@@ -414,13 +414,16 @@ impl Captures {
         &self,
         ctx: &mut CallContext,
         facts: &mut Facts,
-        exits: &mut Buffer<Exit>,
+        (exits, index): (&mut Buffer<Exit>, &mut ExitIndex),
         completion: (usize, Completion, Fact),
         globals: Globals,
     ) -> Result<()> {
         let (pc, completion, value) = completion;
-        for exit in &mut exits.data {
+        let mut cursor = index.first(exits, pc);
+        while let Some(position) = cursor {
             ctx.charge(1)?;
+            cursor = index.after(exits, pc, position);
+            let exit = &mut exits.data[position];
             if exit.pc == pc
                 && exit.completion == completion
                 && exit.pending.compatible(ctx, &self.pending)?
@@ -442,6 +445,7 @@ impl Captures {
         let written = self.written.snapshot(ctx)?;
         let refined = self.refined.snapshot(ctx)?;
         let pending = self.pending.snapshot(ctx)?;
+        index.link(ctx, exits, pc)?;
         exits.push(
             ctx,
             Exit {
@@ -455,6 +459,75 @@ impl Captures {
                 globals,
             },
         )
+    }
+}
+
+/// Chains recorded block exits by program counter in record order, so recording an exit
+/// visits only the earlier exits at the same instruction instead of every exit.
+#[derive(Debug)]
+pub(super) struct ExitIndex {
+    // The first and last exits at each program counter, and the next exit at the same one.
+    first: Buffer<usize>,
+    last: Buffer<usize>,
+    next: Buffer<usize>,
+}
+
+impl ExitIndex {
+    pub fn new() -> Self {
+        Self {
+            first: Buffer::empty(),
+            last: Buffer::empty(),
+            next: Buffer::empty(),
+        }
+    }
+
+    // An exit list extended elsewhere is scanned in full rather than trusting stale chains.
+    fn indexed(&self, exits: &Buffer<Exit>) -> bool {
+        self.next.data.len() == exits.data.len()
+    }
+
+    fn first(&self, exits: &Buffer<Exit>, pc: usize) -> Option<usize> {
+        if !self.indexed(exits) {
+            return (!exits.data.is_empty()).then_some(0);
+        }
+        self.first
+            .data
+            .get(pc)
+            .copied()
+            .filter(|&position| position != usize::MAX)
+    }
+
+    fn after(&self, exits: &Buffer<Exit>, pc: usize, position: usize) -> Option<usize> {
+        let next = if self.indexed(exits) && exits.data[position].pc == pc {
+            self.next.data[position]
+        } else {
+            position + 1
+        };
+        (next < exits.data.len()).then_some(next)
+    }
+
+    fn link(&mut self, ctx: &mut CallContext, exits: &Buffer<Exit>, pc: usize) -> Result<()> {
+        if !self.indexed(exits) {
+            return Ok(());
+        }
+        if pc >= self.first.data.len() {
+            let Some(length) = pc.checked_add(1) else {
+                return ctx.fail(crate::ErrorKind::Memory, "checker exit index size overflow");
+            };
+            let capacity = length.max(self.first.data.len().saturating_mul(2));
+            ctx.charge((2 * (capacity - self.first.data.len())) as u64)?;
+            self.first.ensure(ctx, capacity)?;
+            self.last.ensure(ctx, capacity)?;
+            self.first.data.resize(capacity, usize::MAX);
+            self.last.data.resize(capacity, usize::MAX);
+        }
+        let position = exits.data.len();
+        match self.last.data[pc] {
+            usize::MAX => self.first.data[pc] = position,
+            previous => self.next.data[previous] = position,
+        }
+        self.last.data[pc] = position;
+        self.next.push(ctx, usize::MAX)
     }
 }
 

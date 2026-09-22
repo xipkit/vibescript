@@ -220,7 +220,7 @@ impl Walker<'_> {
             captures.record(
                 self.ctx,
                 self.facts,
-                &mut report.block_exits,
+                (&mut report.block_exits, &mut self.exits),
                 (pc, completion, value),
                 globals,
             )?;
