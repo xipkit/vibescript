@@ -506,6 +506,14 @@ fn mail_date(ctx: &mut CallContext, receiver: &Value, http: bool) -> Result<Valu
     ctx.bytes(out.bytes())
 }
 
+/// Reports an offset outside the 64-bit nanosecond domain, naming the operation as Go does.
+fn range_error(method: &str) -> Error {
+    Error::new(
+        ErrorKind::Arithmetic,
+        format!("{method} result out of int64 range"),
+    )
+}
+
 pub(crate) fn binary(
     ctx: &mut CallContext,
     op: &str,
@@ -516,7 +524,7 @@ pub(crate) fn binary(
         let seconds = left
             .seconds()
             .checked_sub(right.seconds())
-            .ok_or_else(overflow)?;
+            .ok_or_else(|| range_error("time subtraction"))?;
         return Ok(Value::float(
             seconds as f64
                 + (i64::from(left.nanos()) - i64::from(right.nanos())) as f64 / NANOS as f64,
@@ -529,6 +537,13 @@ pub(crate) fn binary(
     } else {
         return Err(ops::unsupported(op));
     };
+    let overflow = || {
+        range_error(if negate {
+            "time subtraction"
+        } else {
+            "time addition"
+        })
+    };
     let delta = match number.0 {
         Kind::Int(n) | Kind::Duration(n) => {
             let n = if negate {
@@ -538,7 +553,9 @@ pub(crate) fn binary(
             };
             n.checked_mul(NANOS).ok_or_else(overflow)?
         }
-        Kind::Float(n) => scaled_float(if negate { -n } else { n }, NANOS as u32)?,
+        Kind::Float(n) => {
+            scaled_float(if negate { -n } else { n }, NANOS as u32).map_err(|_| overflow())?
+        }
         Kind::Big(_) => return Err(overflow()),
         _ => return Err(ops::unsupported(op)),
     };

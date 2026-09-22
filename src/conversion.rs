@@ -1,4 +1,28 @@
-use crate::{CallContext, Error, ErrorKind, Result, budget::Buffer, json, ops};
+use crate::{CallContext, Error, ErrorKind, Result, Value, budget::Buffer, json, ops, value::Kind};
+
+/// Converts a number to a 64-bit integer as Go's `ValueToInt64` does: finite
+/// floats truncate toward zero, and each rejection names its reason.
+pub(crate) fn int64(value: &Value) -> Result<i64> {
+    let message = match value.0 {
+        Kind::Int(n) => return Ok(n),
+        Kind::Big(_) => "integer must fit in a 64-bit integer".to_owned(),
+        Kind::Float(n) => {
+            if let Some(n) = crate::range::truncate(n) {
+                return Ok(n);
+            }
+            let mut text = json::Number::new();
+            ops::format_float(&mut text, n);
+            let text = std::str::from_utf8(text.bytes()).unwrap();
+            if n.is_finite() {
+                format!("float {text} is out of integer range")
+            } else {
+                format!("cannot convert {text} to integer")
+            }
+        }
+        _ => "expected integer value".to_owned(),
+    };
+    Err(Error::new(ErrorKind::Type, message))
+}
 
 fn invalid() -> Error {
     Error::new(

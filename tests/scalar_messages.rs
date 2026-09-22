@@ -195,3 +195,70 @@ fn operators_name_the_operation_they_refuse() {
         ),
     ]);
 }
+
+#[test]
+fn temporal_arithmetic_names_the_overflowing_operation() {
+    use ErrorClass::Runtime;
+    rejects(&[
+        (
+            "def run\n  Duration.build(9223372036854775807) + 1.second\nend",
+            Runtime,
+            "duration addition result out of int64 range",
+        ),
+        (
+            "def run\n  Duration.build(-9223372036854775807) - 2.seconds\nend",
+            Runtime,
+            "duration subtraction result out of int64 range",
+        ),
+        (
+            "def run\n  1.hour * 1e300\nend",
+            Runtime,
+            "duration multiplication result out of int64 range",
+        ),
+        (
+            "def run\n  1.hour * (2**70)\nend",
+            Runtime,
+            "duration multiplication result out of int64 range",
+        ),
+        (
+            "def run\n  1.hour / 1e-300\nend",
+            Runtime,
+            "duration division result out of int64 range",
+        ),
+        (
+            "def run\n  1.hour * (0.0/0.0)\nend",
+            Runtime,
+            "cannot convert NaN to integer",
+        ),
+        (
+            "def run\n  1.hour * (1.0/0)\nend",
+            Runtime,
+            "cannot convert Infinity to integer",
+        ),
+        (
+            "def run\n  1.second + 1e19\nend",
+            Runtime,
+            "float 1e+19 is out of integer range",
+        ),
+        (
+            "def run\n  Time.at(0) + (2**70)\nend",
+            Runtime,
+            "time addition result out of int64 range",
+        ),
+        (
+            "def run\n  Time.at(0) + (0.0/0.0)\nend",
+            Runtime,
+            "time addition result out of int64 range",
+        ),
+        (
+            "def run\n  Time.at(0) - 9223372036854775807\nend",
+            Runtime,
+            "time subtraction result out of int64 range",
+        ),
+        (
+            "def run\n  (2**70).seconds\nend",
+            Runtime,
+            "int.seconds result out of int64 range",
+        ),
+    ]);
+}

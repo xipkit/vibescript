@@ -9,9 +9,22 @@ mod parse;
 fn invalid() -> Error {
     Error::new(ErrorKind::Argument, "invalid duration literal")
 }
-fn overflow() -> Error {
-    Error::new(ErrorKind::Arithmetic, "duration result out of 64-bit range")
+/// Reports a result outside the 64-bit seconds domain, naming the operation as Go does.
+fn range_error(method: &str) -> Error {
+    Error::new(
+        ErrorKind::Arithmetic,
+        format!("{method} result out of int64 range"),
+    )
 }
+
+/// Reads an arithmetic operand; a big integer is outside the domain of `method`.
+fn operand(value: &Value, method: &str) -> Result<i64> {
+    if matches!(value.0, Kind::Big(_)) {
+        return Err(range_error(method));
+    }
+    crate::conversion::int64(value)
+}
+
 fn numeric(value: &Value) -> Result<i64> {
     crate::sequence::integer(value).map_err(|_| {
         Error::new(
@@ -144,15 +157,19 @@ fn rounded_ratio(numerator: u128, denominator: u128) -> u128 {
 
 fn scale(seconds: i64, factor: f64, divide: bool) -> Result<i64> {
     if !factor.is_finite() {
-        return Err(Error::new(
-            ErrorKind::Type,
-            "duration factor must be finite",
-        ));
+        return crate::conversion::int64(&Value::float(factor));
     }
     if divide && factor == 0.0 {
         return Err(Error::new(ErrorKind::Arithmetic, "division by zero")
             .with_class(crate::ErrorClass::ZeroDivision));
     }
+    let overflow = || {
+        range_error(if divide {
+            "duration division"
+        } else {
+            "duration multiplication"
+        })
+    };
     if seconds == 0 || factor == 0.0 {
         return Ok(0);
     }
@@ -196,6 +213,13 @@ fn scale(seconds: i64, factor: f64, divide: bool) -> Result<i64> {
 }
 
 pub(crate) fn binary(op: &str, left: &Value, right: &Value) -> Result<Value> {
+    let method = match op {
+        "+" => "duration addition",
+        "-" => "duration subtraction",
+        "*" => "duration multiplication",
+        _ => "duration division",
+    };
+    let overflow = || range_error(method);
     let seconds = match (&left.0, &right.0, op) {
         (Kind::Duration(a), Kind::Duration(b), "+") => a.checked_add(*b).ok_or_else(overflow)?,
         (Kind::Duration(a), Kind::Duration(b), "-") => a.checked_sub(*b).ok_or_else(overflow)?,
@@ -208,27 +232,27 @@ pub(crate) fn binary(op: &str, left: &Value, right: &Value) -> Result<Value> {
             }
             a.checked_rem(*b).unwrap_or(0)
         }
-        (Kind::Duration(seconds), Kind::Int(_) | Kind::Big(_) | Kind::Float(_), "+") => {
-            seconds.checked_add(numeric(right)?).ok_or_else(overflow)?
-        }
-        (Kind::Int(_) | Kind::Big(_) | Kind::Float(_), Kind::Duration(seconds), "+") => {
-            seconds.checked_add(numeric(left)?).ok_or_else(overflow)?
-        }
-        (Kind::Duration(seconds), Kind::Int(_) | Kind::Big(_) | Kind::Float(_), "-") => {
-            seconds.checked_sub(numeric(right)?).ok_or_else(overflow)?
-        }
+        (Kind::Duration(seconds), Kind::Int(_) | Kind::Big(_) | Kind::Float(_), "+") => seconds
+            .checked_add(operand(right, method)?)
+            .ok_or_else(overflow)?,
+        (Kind::Int(_) | Kind::Big(_) | Kind::Float(_), Kind::Duration(seconds), "+") => seconds
+            .checked_add(operand(left, method)?)
+            .ok_or_else(overflow)?,
+        (Kind::Duration(seconds), Kind::Int(_) | Kind::Big(_) | Kind::Float(_), "-") => seconds
+            .checked_sub(operand(right, method)?)
+            .ok_or_else(overflow)?,
         (Kind::Duration(seconds), Kind::Float(factor), "*" | "/") => {
             scale(*seconds, *factor, op == "/")?
         }
         (Kind::Float(factor), Kind::Duration(seconds), "*") => scale(*seconds, *factor, false)?,
-        (Kind::Duration(seconds), Kind::Int(_) | Kind::Big(_), "*") => {
-            seconds.checked_mul(numeric(right)?).ok_or_else(overflow)?
-        }
-        (Kind::Int(_) | Kind::Big(_), Kind::Duration(seconds), "*") => {
-            seconds.checked_mul(numeric(left)?).ok_or_else(overflow)?
-        }
+        (Kind::Duration(seconds), Kind::Int(_) | Kind::Big(_), "*") => seconds
+            .checked_mul(operand(right, method)?)
+            .ok_or_else(overflow)?,
+        (Kind::Int(_) | Kind::Big(_), Kind::Duration(seconds), "*") => seconds
+            .checked_mul(operand(left, method)?)
+            .ok_or_else(overflow)?,
         (Kind::Duration(seconds), Kind::Int(_) | Kind::Big(_), "/") => {
-            let divisor = numeric(right)?;
+            let divisor = operand(right, method)?;
             if divisor == 0 {
                 return Err(Error::new(ErrorKind::Arithmetic, "division by zero")
                     .with_class(crate::ErrorClass::ZeroDivision));
@@ -277,6 +301,9 @@ pub(crate) fn member(
     if matches!(receiver.0, Kind::Int(_) | Kind::Big(_)) {
         if let Some(factor) = unit(name) {
             property(site, keywords, block)?;
+            if matches!(receiver.0, Kind::Big(_)) {
+                return Err(range_error(&format!("int.{name}")));
+            }
             return Ok(Some(Value::duration(
                 numeric(receiver)?.wrapping_mul(factor),
             )));
