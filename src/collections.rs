@@ -304,20 +304,20 @@ fn array_method(
                 &array[n..]
             })
         }
-        Compact | Uniq => {
+        Compact => {
             ops::arity(args, 0)?;
             let mut out = Buffer::empty();
             for v in array {
                 ctx.charge(1)?;
-                if matches!(method, Compact) {
-                    if !matches!(v.0, Kind::Nil) {
-                        out.push(ctx, v.clone())?;
-                    }
-                } else if !crate::sets::contains(ctx, &out.data, v)? {
+                if !matches!(v.0, Kind::Nil) {
                     out.push(ctx, v.clone())?;
                 }
             }
             Value::from_array(ctx, out)
+        }
+        Uniq => {
+            ops::arity(args, 0)?;
+            crate::sets::unique(ctx, array)
         }
         Flatten => {
             if args.len() > 1 {

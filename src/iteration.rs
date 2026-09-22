@@ -249,6 +249,8 @@ pub(crate) struct Loop {
     other: Buffer<Value>,
     inputs: Buffer<Value>,
     hash: Hash,
+    /// Block keys already seen by `uniq`, indexing `other`.
+    keys: crate::sets::Index,
 }
 
 fn argument(message: &str) -> Error {
@@ -498,6 +500,7 @@ pub(crate) fn start(
         other: Buffer::empty(),
         inputs: Buffer::empty(),
         hash: Hash::empty(),
+        keys: crate::sets::Index::new(),
     };
     if matches!(
         method,
@@ -990,8 +993,12 @@ impl Loop {
                 self.hash.insert(ctx, key, next)?;
             }
             Uniq => {
-                if !crate::sets::contains(ctx, &self.other.data, &value)? {
+                let hash = crate::sets::key_hash(ctx, &value)?;
+                if let crate::sets::Entry::Vacant(slot) =
+                    self.keys.entry(ctx, &self.other.data, &value, hash)?
+                {
                     self.other.push(ctx, value)?;
+                    self.keys.fill(slot, hash, self.other.data.len() - 1);
                     self.output.push(ctx, self.pending[0].clone())?;
                 }
             }

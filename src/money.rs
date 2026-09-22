@@ -7,7 +7,7 @@ use std::{
 };
 
 // Byte alignment leaves room for the enum tag within the existing 16-byte Value.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct Money([u8; 11]);
 
 fn invalid() -> Error {

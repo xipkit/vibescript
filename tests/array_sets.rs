@@ -178,15 +178,17 @@ fn repeated_results_release_storage_and_exhausted_work_stops_before_host_effects
         counter.fetch_add(1, Ordering::Relaxed);
         Ok(Value::nil())
     });
+    // Building the input costs about 4,100 steps and each operation several
+    // steps per element, so the quota runs out inside the operation.
     for operation in ["a.union", "a.uniq{|x|x}", "a & a", "a - a"] {
         let script = engine
-            .compile(&format!("a=(0..127).to_a;{operation};mark()"))
+            .compile(&format!("a=(0..2047).to_a;{operation};mark()"))
             .unwrap();
         assert_eq!(
             script
                 .run(CallOptions {
                     limits: Limits {
-                        steps: Some(2048),
+                        steps: Some(8192),
                         ..Limits::default()
                     },
                     ..CallOptions::default()
@@ -197,5 +199,86 @@ fn repeated_results_release_storage_and_exhausted_work_stops_before_host_effects
             "{operation}"
         );
         assert_eq!(calls.load(Ordering::Relaxed), 0);
+    }
+}
+
+fn steps(source: &str, limits: Limits) -> Result<u64, ErrorKind> {
+    Engine::new()
+        .compile(source)
+        .unwrap()
+        .run(CallOptions {
+            limits,
+            ..CallOptions::default()
+        })
+        .map(|outcome| outcome.stats.steps)
+        .map_err(|error| error.kind)
+}
+
+#[test]
+fn set_operations_scale_linearly_and_fit_default_quotas() {
+    let operations = [
+        "a.uniq.size",
+        "a.uniq { |x| x }.size",
+        "(a - a.reverse).size",
+        "(a & a).size",
+        "a.union(a).size",
+        "a.difference(a.reverse).size",
+        "a.map { |x| x.to_s }.uniq.size",
+        "a.map { |x| [x % 97, x.to_s] }.uniq.size",
+    ];
+    for operation in operations {
+        let unlimited = Limits {
+            steps: None,
+            ..Limits::default()
+        };
+        let cost = |n: u64| {
+            let base = steps(&format!("a = (1..{n}).to_a\na.size"), unlimited.clone()).unwrap();
+            steps(
+                &format!("a = (1..{n}).to_a\n{operation}"),
+                unlimited.clone(),
+            )
+            .unwrap()
+                - base
+        };
+        let (small, large) = (cost(4000), cost(8000));
+        assert!(large < small * 9 / 4, "{operation}: {small} then {large}");
+        // The reference runs these 20,000-element cases within its default quota.
+        let source = format!("a = (1..20000).to_a\n{operation}");
+        assert!(
+            steps(&source, Limits::default()).is_ok(),
+            "{operation} exceeds the default quota"
+        );
+    }
+    assert!(steps("(1..1500).to_a.uniq.size", Limits::default()).is_ok());
+}
+
+#[test]
+fn set_operation_quotas_are_exact() {
+    for operation in [
+        "a.uniq",
+        "a & b",
+        "a - b",
+        "a.union(b)",
+        "a.uniq { |x| x % 7 }",
+    ] {
+        let source = format!("a = (1..300).to_a\nb = (150..450).to_a\n({operation}).size");
+        let exact = steps(
+            &source,
+            Limits {
+                steps: None,
+                ..Limits::default()
+            },
+        )
+        .unwrap();
+        let limited = |steps| Limits {
+            steps: Some(steps),
+            ..Limits::default()
+        };
+        assert_eq!(steps(&source, limited(exact)), Ok(exact), "{operation}");
+        assert_eq!(
+            steps(&source, limited(exact - 1)),
+            Err(ErrorKind::Steps),
+            "{operation}"
+        );
     }
 }

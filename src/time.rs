@@ -21,7 +21,7 @@ mod zone;
 
 const NANOS: i64 = 1_000_000_000;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct Stamp([u8; 12]);
 
 impl Stamp {

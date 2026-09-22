@@ -51,6 +51,17 @@ impl Big {
         }))
     }
 
+    /// Returns the float equal to this integer, when one exists.
+    pub(crate) fn exact_float(&self) -> Option<f64> {
+        let bits = Magnitude::Words(&self.words).bits();
+        (bits <= 1024 && bits - self.zeros <= 53).then(|| self.to_float())
+    }
+
+    /// Returns the magnitude's little-endian words, without high zero words.
+    pub(crate) fn words(&self) -> &[u32] {
+        &self.words
+    }
+
     pub fn to_float(&self) -> f64 {
         let magnitude = Magnitude::Words(&self.words);
         let bits = magnitude.bits();
