@@ -123293,5 +123293,10 @@
     "name": "array_fetch_fractional_float",
     "body": "[1, 2, 3].fetch(1.5)",
     "go_error": "array.fetch index must be integer"
+  },
+  {
+    "name": "constructor_block_break_typed_caller",
+    "source": "class C\n  def initialize\n    yield\n  end\nend\n\ndef run(input) -> int\n  C.new { break \"x\" }\nend\n",
+    "go_error": "return value for run expected int, got string"
   }
 ]

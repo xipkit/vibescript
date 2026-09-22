@@ -795,7 +795,8 @@ pub(super) fn loop_control(
     Ok(Control::Return {
         target,
         value: value.unwrap_or_default(),
-        normalize: true,
+        // A break replaces a constructor's instance and skips its return type.
+        normalize: !frames.data[target].constructor,
     })
 }
 

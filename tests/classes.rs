@@ -651,3 +651,56 @@ def host; visit(fetch()); end
         serde_json::json!([1, 2])
     );
 }
+
+#[test]
+fn block_break_replaces_the_constructor_result() {
+    let script = Engine::new()
+        .compile(
+            r#"
+class Built
+  def initialize() -> int
+    begin
+      yield
+    ensure
+      @cleaned = true
+    end
+    5
+  end
+  def self.make
+    new { break 9 }
+  end
+end
+def run
+  [Built.new { break 7 }, Built.new { break }, Built.new { break "x" }, Built.make,
+   Built.new { 1 }.class == Built]
+end
+def typed -> int
+  Built.new { break 7 }
+end
+def mistyped -> int
+  Built.new { break "x" }
+end
+"#,
+        )
+        .unwrap();
+    let output = script.call("run", &[], CallOptions::default()).unwrap();
+    assert_eq!(
+        json(&output.value),
+        serde_json::json!([7, null, "x", 9, true])
+    );
+    let report = script
+        .check_function("typed", &CallOptions::default())
+        .unwrap();
+    assert!(report.is_clean(), "{report:?}");
+    let report = script
+        .check_function("mistyped", &CallOptions::default())
+        .unwrap();
+    assert!(
+        report.diagnostics[0].message.contains("Return value"),
+        "{report:?}"
+    );
+    let error = script
+        .call("mistyped", &[], CallOptions::default())
+        .unwrap_err();
+    assert!(error.message.contains("expected int"), "{}", error.message);
+}

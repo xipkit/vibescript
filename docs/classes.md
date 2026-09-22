@@ -24,7 +24,7 @@ def run(input)
 end
 ```
 
-This returns `[13, true]`. Constructors forward positional arguments, keywords and an attached block to `initialize`. The constructor returns the new instance regardless of the initializer's return value or return annotation. With no initializer, arguments are evaluated and ignored; an attached block is ignored. A written `initialize` method is private by default.
+This returns `[13, true]`. Constructors forward positional arguments, keywords and an attached block to `initialize`. The constructor returns the new instance regardless of the initializer's return value or return annotation. A `break` from the attached block instead becomes the result of `new`, unchecked by that annotation: with `def initialize; yield; end`, `C.new { break 7 }` returns `7`. With no initializer, arguments are evaluated and ignored; an attached block is ignored. A written `initialize` method is private by default.
 
 ## Fields and accessors
 

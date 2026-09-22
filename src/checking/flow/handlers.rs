@@ -31,6 +31,11 @@ pub(super) enum Transfer {
         pc: usize,
         value: Fact,
     },
+    // A block's break returning from the function that yielded to it.
+    BlockBreak {
+        pc: usize,
+        value: Fact,
+    },
     Block {
         pc: usize,
         completion: blocks::Completion,
@@ -51,7 +56,8 @@ impl Transfer {
     fn compatible(self, other: Self) -> bool {
         match (self, other) {
             (Self::Value(_), Self::Value(_)) | (Self::Error(_), Self::Error(_)) => true,
-            (Self::Return { pc: a, .. }, Self::Return { pc: b, .. }) => a == b,
+            (Self::Return { pc: a, .. }, Self::Return { pc: b, .. })
+            | (Self::BlockBreak { pc: a, .. }, Self::BlockBreak { pc: b, .. }) => a == b,
             (
                 Self::Block {
                     pc: a,
@@ -95,6 +101,7 @@ impl Transfer {
         match (&mut *self, other) {
             (Self::Value(a), Self::Value(b)) => *a = a.join(ctx, facts, b, depth)?,
             (Self::Return { value: a, .. }, Self::Return { value: b, .. })
+            | (Self::BlockBreak { value: a, .. }, Self::BlockBreak { value: b, .. })
             | (Self::Block { value: a, .. }, Self::Block { value: b, .. })
             | (Self::Jump { value: a, .. }, Self::Jump { value: b, .. }) => {
                 *a = facts.joined(ctx, *a, b, depth)?
@@ -347,7 +354,10 @@ impl Walker<'_> {
         }
         while let Some(attempt) = state.attempts.data.last().copied() {
             let exits = match transfer {
-                Transfer::Return { .. } | Transfer::Block { .. } | Transfer::InvalidJump => true,
+                Transfer::Return { .. }
+                | Transfer::BlockBreak { .. }
+                | Transfer::Block { .. }
+                | Transfer::InvalidJump => true,
                 Transfer::Jump { index, .. } => attempt.loops > index,
                 Transfer::Retry(index) => state.attempts.data.len() - 1 > index,
                 _ => unreachable!(),
@@ -363,8 +373,9 @@ impl Walker<'_> {
             }
         }
         match transfer {
-            Transfer::Return { pc, value: actual } => {
-                let mut value = if self.constructor {
+            Transfer::Return { pc, value: actual } | Transfer::BlockBreak { pc, value: actual } => {
+                // A block's break replaces a constructor's instance.
+                let mut value = if self.constructor && matches!(transfer, Transfer::Return { .. }) {
                     self.receiver.unwrap()
                 } else {
                     actual

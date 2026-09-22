@@ -442,7 +442,7 @@ impl Walker<'_> {
                             value: exit.value,
                         }
                     } else {
-                        Transfer::Return {
+                        Transfer::BlockBreak {
                             pc,
                             value: exit.value,
                         }

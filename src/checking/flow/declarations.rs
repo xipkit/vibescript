@@ -49,7 +49,7 @@ impl Walker<'_> {
                 value,
             }
         } else {
-            Transfer::Return { pc, value }
+            Transfer::BlockBreak { pc, value }
         };
         let edges = self.transfer(next, pc, transfer)?;
         for edge in edges.into_iter().flatten() {
