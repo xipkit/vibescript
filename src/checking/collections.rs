@@ -6,6 +6,7 @@ use super::{
 use crate::{CallContext, Result, Value, budget::Buffer, bytecode::CallSite};
 
 mod capture_indexing;
+mod leaves;
 mod reshaping;
 mod sets;
 
@@ -587,7 +588,9 @@ impl Facts {
         let arity = match name {
             "compact" if array => 0..=0,
             "chunk" if array => 1..=1,
+            "inspect" if array || hash => 0..=0,
             "to_a" if hash => 0..=0,
+            "join" | "flatten" if array => 0..=1,
             "length" | "size" | "bytesize" | "empty?" | "keys" | "values" | "reverse"
             | "itself" | "dup" | "nil?" => 0..=0,
             "at" | "getbyte" | "take" | "drop" => 1..=1,
@@ -609,6 +612,9 @@ impl Facts {
             }
             "compact" if array => self.compact_member(ctx, receiver),
             "chunk" if array => self.chunk_member(ctx, receiver, args[0]),
+            "inspect" if array || hash => self.inspect_member(ctx, receiver),
+            "join" if array => self.join_member(ctx, receiver, args),
+            "flatten" if array => self.flatten_member(ctx, receiver, args),
             "to_a" if hash => {
                 let iteration = self.iteration(ctx, receiver)?;
                 if iteration.unsupported {

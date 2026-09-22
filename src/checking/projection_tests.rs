@@ -3,7 +3,11 @@ use super::{
     facts::{Atom, Fact, Facts, Node},
     relation::Relation,
 };
-use crate::{CallContext, CallOptions, ErrorKind, Limits, Value, value::Kind};
+use crate::{
+    CallContext, CallOptions, ErrorClass, ErrorKind, Limits, Value,
+    bytecode::{CallSite, Method},
+    value::Kind,
+};
 
 fn exact_fact(ctx: &mut CallContext, facts: &mut Facts, value: &Value) -> Fact {
     if let Kind::Range(range) = &value.0 {
@@ -116,15 +120,130 @@ fn inferred_array_set_operators_contain_runtime_results() {
     assert_eq!(cases, 2_500);
 }
 
+fn argument_lists() -> Vec<Vec<Value>> {
+    let ints = |values: &[i64]| Value::array(values.iter().copied().map(Value::int).collect());
+    vec![
+        vec![],
+        vec![Value::bytes(",")],
+        vec![Value::symbol("sep")],
+        vec![Value::nil()],
+        vec![Value::int(0)],
+        vec![Value::int(1)],
+        vec![Value::int(-1)],
+        vec![Value::int(3)],
+        vec![Value::float(1.5)],
+        vec![ints(&[1, 2])],
+        vec![ints(&[])],
+        vec![ints(&[1, 2]), Value::array(vec![Value::bytes("a")])],
+        vec![Value::int(0), Value::int(-1)],
+        vec![Value::int(0), Value::int(5)],
+        vec![Value::symbol("a"), Value::bytes("b")],
+        vec![Value::symbol("x"), Value::symbol("x")],
+        vec![Value::bytes("size")],
+        vec![Value::range(Some(0), Some(1), false)],
+        vec![Value::range(Some(1), Some(5), true)],
+        vec![Value::range(Some(-2), Some(-1), false)],
+        vec![Value::range(Some(-9), Some(0), false)],
+        vec![Value::range(Some(1), None, false)],
+        vec![Value::hash(vec![])],
+    ]
+}
+
+/// Compares each member's summary with execution for every literal receiver
+/// and argument list, exactly and with the receiver generalized one level.
+/// Returns the number of cases and how many of them the summary models.
+fn member_contracts(names: &[&str]) -> (usize, usize) {
+    let mut cases = 0;
+    let mut modeled = 0;
+    for receiver in receivers() {
+        for &name in names {
+            for values in argument_lists() {
+                for generalize in [false, true] {
+                    let label = format!("{receiver:?}.{name}({values:?}), general={generalize}");
+                    let mut ctx = CallContext::new(CallOptions::default());
+                    let mut facts = Facts::new(&mut ctx).unwrap();
+                    let mut root = exact_fact(&mut ctx, &mut facts, &receiver);
+                    if generalize {
+                        root = general(&mut ctx, &mut facts, root);
+                    }
+                    let args: Vec<_> = values
+                        .iter()
+                        .map(|value| exact_fact(&mut ctx, &mut facts, value))
+                        .collect();
+                    let site = CallSite {
+                        name: 0,
+                        method: Method::parse(name),
+                        auto: values.is_empty(),
+                        parenthesized: !values.is_empty(),
+                        scope: false,
+                    };
+                    let inferred = facts
+                        .collection_member(&mut ctx, root, site, name, &args)
+                        .unwrap_or_else(|error| panic!("{label}: {error}"));
+                    cases += 1;
+                    if inferred.unsupported {
+                        continue;
+                    }
+                    modeled += 1;
+                    let mut runtime = CallContext::new(CallOptions::default());
+                    let actual_receiver = runtime.import(&receiver).unwrap();
+                    let actual_args: Vec<_> = values
+                        .iter()
+                        .map(|value| runtime.import(value).unwrap())
+                        .collect();
+                    match crate::members::call(
+                        &mut runtime,
+                        site,
+                        name,
+                        actual_receiver,
+                        &actual_args,
+                    ) {
+                        Ok((_, actual)) => {
+                            assert!(!inferred.rejected, "{label}: rejected {actual:?}");
+                            assert_ne!(inferred.value, Atom::Never.fact(), "{label}: no result");
+                            let actual = exact_fact(&mut ctx, &mut facts, &actual);
+                            assert_ne!(
+                                facts.relation(&mut ctx, actual, inferred.value).unwrap(),
+                                Relation::Rejected,
+                                "{label}: inferred={:?}, actual={:?}",
+                                facts.node(inferred.value),
+                                facts.node(actual)
+                            );
+                        }
+                        // Depth guards are reported by the walker, not the summary.
+                        Err(error) if error.class() == Some(ErrorClass::Limit) => (),
+                        Err(error) => assert!(
+                            inferred.rejected || inferred.throws,
+                            "{label}: {error} was not predicted: {:?}",
+                            facts.node(inferred.value)
+                        ),
+                    }
+                    drop((inferred, facts));
+                    assert_eq!(ctx.stats().retained_memory_bytes, 0, "{label}");
+                }
+            }
+        }
+    }
+    (cases, modeled)
+}
+
+#[test]
+fn nested_walk_members_contain_runtime_results() {
+    assert_eq!(
+        member_contracts(&["join", "inspect", "flatten"]),
+        (3_450, 1_518)
+    );
+}
+
 fn accounting(ctx: &mut CallContext) -> crate::Result<()> {
     let mut facts = Facts::new(ctx)?;
-    let source = "def run -> int
-      kept = [1, 2, 3, 2] - [2]
-      (kept & [3, 1, 3]).length
+    let source = "def run -> string
+      ([[1, [2]], 3].flatten(1) - [3]).join(',') + {a: [1]}.inspect
     end";
     let result = super::collection_tests::analyze(ctx, &mut facts, source)?;
     assert!(result.incomplete.data.is_empty());
     assert!(result.issues.data.is_empty());
+    assert_eq!(result.returns, Atom::String.fact());
     Ok(())
 }
 
@@ -177,12 +296,20 @@ fn projection_analysis_obeys_exact_limits_and_releases_failed_storage() {
 
 #[test]
 fn projection_walks_observe_latched_cancellation_and_deadlines() {
+    let site = |name| CallSite {
+        name: 0,
+        method: Method::parse(name),
+        auto: false,
+        parenthesized: true,
+        scope: false,
+    };
     for deadline in [false, true] {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
         let one = facts.integer(&mut ctx, 1).unwrap();
         let row = facts.tuple(&mut ctx, &[one, one]).unwrap();
         let rows = facts.tuple(&mut ctx, &[row, row]).unwrap();
+        let comma = facts.string(&mut ctx, b",").unwrap();
         if deadline {
             ctx.options.deadline = Some(std::time::Instant::now());
         } else {
@@ -193,6 +320,14 @@ fn projection_walks_observe_latched_cancellation_and_deadlines() {
         } else {
             ErrorKind::Cancelled
         };
+        for (name, args) in [("join", vec![comma]), ("flatten", vec![])] {
+            let error = facts
+                .collection_member(&mut ctx, rows, site(name), name, &args)
+                .err()
+                .unwrap();
+            assert_eq!(error.kind, expected, "{name}");
+            assert_eq!(ctx.checkpoint().unwrap_err().kind, expected);
+        }
         let error = facts
             .scalar_binary(&mut ctx, "-", rows, rows)
             .err()
