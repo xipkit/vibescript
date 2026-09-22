@@ -225,8 +225,10 @@ fn execution_limits_stop_state_work_and_compilation() {
             .kind,
         ErrorKind::Cancelled
     );
+    // No literal prefix, so the matcher does real work at every position
+    // instead of scanning ahead, and the deadline lands mid-match.
     let script = Engine::new()
-        .compile("def run(text)\nRegex.match(\"a\",text)\nend")
+        .compile("def run(text)\nRegex.match(\"(?:x?){200}y\",text)\nend")
         .unwrap();
     let error = script
         .call(
