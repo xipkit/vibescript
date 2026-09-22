@@ -1571,7 +1571,11 @@ Syntax nesting now follows Go's `maxSyntaxDepth` of 1,024 in both places Go appl
 
 The parser, bytecode generator, module registration, alias copies and the generator's name scans no longer recurse natively over syntax. Recursive steps run as async tasks on a heap stack driven by a small runner, and scans use explicit stacks, so every form at the limit compiles, checks, runs and drops on a 2 MiB test thread in debug builds. Single-token operands and leaf expressions skip the task stack; compiling a 4.3 MB source still takes about 30% longer than the recursive version.
 
+### Parser forms from Go's tests
+
+Replaying Go's own tests found programs Go accepts that the port rejected or read differently, and these now match Go: a ternary `:` that starts the next line; `then` as a local name, except where it ends a condition; `if`, `while` and `for` statements continued past `end` by a method call; reserved words such as `rescue:` as keyword labels in a parenless call; `it %w[a b]` calling a function named `it`; instance and class variable names ending in `?` or `!`; a one-line `def run [1, 2, 3].fetch(1) end` without parentheses; and top-level `alias`. An `alias` inside a method and `alias` or `alias_method` inside a module are now compile errors, as in Go.
+
 ### Locals in skipped branches and modifiers
 
-Go's replayed tests showed that the port introduced a skipped branch's locals only after the whole statement. Go, like Ruby, treats a local as assigned from where its assignment appears in the source, so a later `elsif` condition or `else` branch reads it as nil, and a modifier's body precedes its condition: `y = 1 if y == nil` sets `y`. Both now follow Go, including `unless`/`else`, `while` and `until` modifiers, blocks and conditionals continued past `end`, while later assignments still stay undefined in earlier branches and in the taken branch.
+Go's replayed tests showed that the port introduced a skipped branch's locals only after the whole statement. Go, like Ruby, treats a local as assigned from where its assignment appears in the source, so a later `elsif` condition or `else` branch reads it as nil, and a modifier's body precedes its condition: `y = 1 if y == nil` sets `y`. Both now follow Go, including `unless`/`else` and the `while` and `until` modifiers, while later assignments still stay undefined in earlier branches and in the taken branch.
 
