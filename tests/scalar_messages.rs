@@ -941,3 +941,75 @@ fn numeric_members_and_conversions_use_go_wording() {
         ),
     ]);
 }
+
+#[test]
+fn money_literals_and_members_use_go_wording() {
+    use ErrorClass::Runtime;
+    rejects(&[
+        (
+            "def run\n  money(\"1 US\")\nend",
+            Runtime,
+            "currency must be 3 letters, got \"US\"",
+        ),
+        (
+            "def run\n  money(\". USD\")\nend",
+            Runtime,
+            "invalid money amount \". USD\"",
+        ),
+        (
+            "def run\n  money(\"1.2x4 USD\")\nend",
+            Runtime,
+            "invalid money amount \"1.2x4 USD\"",
+        ),
+        (
+            "def run\n  money(\"1.234 USD\")\nend",
+            Runtime,
+            "money literal supports at most 2 decimal places: \"1.234 USD\"",
+        ),
+        (
+            "def run\n  money(\"1 2 USD\")\nend",
+            Runtime,
+            "invalid money literal \"1 2 USD\"",
+        ),
+        (
+            "def run\n  money(\"a\", \"b\")\nend",
+            Runtime,
+            "money expects a single string literal",
+        ),
+        (
+            "def run\n  money_cents(\"1\", \"USD\")\nend",
+            Runtime,
+            "money_cents expects integer cents",
+        ),
+        (
+            "def run\n  money_cents(1, :USD)\nend",
+            Runtime,
+            "money_cents expects currency string",
+        ),
+        (
+            "def run\n  money_cents(1)\nend",
+            Runtime,
+            "money_cents expects cents and currency",
+        ),
+        (
+            "def run\n  money_cents(1e19, \"USD\")\nend",
+            Runtime,
+            "money_cents expects integer cents: float 1e+19 is out of integer range",
+        ),
+        (
+            "def run\n  money(\"1.00 USD\").to_s(1)\nend",
+            Runtime,
+            "money.to_s does not take arguments",
+        ),
+        (
+            "def run\n  money(\"1.00 USD\").between?(1)\nend",
+            Runtime,
+            "money.between? expects min and max",
+        ),
+        (
+            "def run\n  money(\"1.00 USD\").itself(x: 1)\nend",
+            Runtime,
+            "money.itself does not accept keyword arguments",
+        ),
+    ]);
+}

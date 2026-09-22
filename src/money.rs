@@ -10,8 +10,14 @@ use std::{
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct Money([u8; 11]);
 
-fn invalid() -> Error {
-    Error::new(ErrorKind::Argument, "invalid money literal")
+/// Names a rejected money literal, quoting the input as Go does.
+fn rejected(reason: &str, input: &[u8]) -> Error {
+    let mut message = reason.as_bytes().to_vec();
+    crate::shapes::quote(input, &mut message);
+    Error::new(
+        ErrorKind::Argument,
+        String::from_utf8_lossy(&message).into_owned(),
+    )
 }
 fn overflow() -> Error {
     Error::new(ErrorKind::Arithmetic, "money arithmetic overflow")
@@ -20,10 +26,7 @@ fn overflow() -> Error {
 impl Money {
     pub fn new(cents: i64, currency: &[u8]) -> Result<Self> {
         if currency.len() != 3 || !currency.iter().all(u8::is_ascii_alphabetic) {
-            return Err(Error::new(
-                ErrorKind::Argument,
-                "currency must be three ASCII letters",
-            ));
+            return Err(rejected("currency must be 3 letters, got ", currency));
         }
         let mut bytes = [0; 11];
         bytes[..8].copy_from_slice(&cents.to_le_bytes());
@@ -69,6 +72,8 @@ impl fmt::Display for Money {
 }
 
 pub(crate) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<Money> {
+    let literal = || rejected("invalid money literal ", input);
+    let amount_error = || rejected("invalid money amount ", input);
     let mut fields = [(0, 0); 2];
     let mut count = 0;
     let mut start = None;
@@ -87,7 +92,7 @@ pub(crate) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<Money> {
             }
         } else if start.is_none() {
             if count == 2 {
-                return Err(invalid());
+                return Err(literal());
             }
             start = Some(at);
         }
@@ -98,7 +103,7 @@ pub(crate) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<Money> {
         count += 1;
     }
     if count != 2 {
-        return Err(invalid());
+        return Err(literal());
     }
     let money = Money::new(0, &input[fields[1].0..fields[1].1])?;
     let amount = &input[fields[0].0..fields[0].1];
@@ -115,8 +120,18 @@ pub(crate) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<Money> {
     }
     let whole = &amount[..dot.unwrap_or(amount.len())];
     let fraction = dot.map_or(b"".as_slice(), |dot| &amount[dot + 1..]);
-    if whole.is_empty() && fraction.is_empty() || fraction.len() > 2 {
-        return Err(invalid());
+    if whole.is_empty() && fraction.is_empty() {
+        return Err(amount_error());
+    }
+    if fraction.len() > 2 {
+        // Go rejects malformed digits before an extra decimal place; the field
+        // scan above has already charged for reading them.
+        let digits = |part: &[u8]| part.iter().all(u8::is_ascii_digit);
+        return Err(if digits(whole) && digits(fraction) {
+            rejected("money literal supports at most 2 decimal places: ", input)
+        } else {
+            amount_error()
+        });
     }
     let mut dollars = 0u64;
     for (at, &digit) in whole.iter().enumerate() {
@@ -124,20 +139,20 @@ pub(crate) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<Money> {
             ctx.work_bytes((whole.len() - at).min(1024))?;
         }
         if !digit.is_ascii_digit() {
-            return Err(invalid());
+            return Err(amount_error());
         }
         dollars = dollars
             .checked_mul(10)
             .and_then(|v| v.checked_add(u64::from(digit - b'0')))
-            .ok_or_else(invalid)?;
+            .ok_or_else(amount_error)?;
         if dollars > i64::MAX as u64 {
-            return Err(invalid());
+            return Err(amount_error());
         }
     }
     let mut cents = 0u64;
     for &digit in fraction {
         if !digit.is_ascii_digit() {
-            return Err(invalid());
+            return Err(amount_error());
         }
         cents = cents * 10 + u64::from(digit - b'0');
     }
@@ -147,7 +162,7 @@ pub(crate) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<Money> {
     let magnitude = u128::from(dollars) * 100 + u128::from(cents);
     let limit = (i64::MAX as u128) + u128::from(negative);
     if magnitude > limit {
-        return Err(invalid());
+        return Err(amount_error());
     }
     let cents = if negative {
         -(magnitude as i128)
@@ -204,19 +219,36 @@ pub(crate) fn member(
         return Ok(None);
     };
     let result = match name {
-        "nil?" | "itself" | "dup" => {
-            if keywords || block {
-                return Err(Error::new(
-                    ErrorKind::Argument,
-                    "money predicates do not accept keywords or blocks",
-                ));
-            }
-            ops::arity(args, 0)?;
-            if name == "nil?" {
-                Value::boolean(false)
+        "nil?" => {
+            crate::arguments::nullary("money.nil?", args, keywords, block)?;
+            Value::boolean(false)
+        }
+        "itself" => {
+            let refused = if keywords {
+                "does not accept keyword arguments".to_owned()
+            } else if block {
+                "does not accept a block".to_owned()
+            } else if !args.is_empty() {
+                format!("expects 0 arguments, got {}", args.len())
             } else {
-                receiver.clone()
-            }
+                return Ok(Some(receiver.clone()));
+            };
+            return Err(Error::new(
+                ErrorKind::Argument,
+                format!("money.itself {refused}"),
+            ));
+        }
+        "dup" => {
+            let refused = if !args.is_empty() {
+                "does not take arguments"
+            } else if keywords {
+                "does not take keyword arguments"
+            } else if block {
+                "does not accept blocks"
+            } else {
+                return Ok(Some(receiver.clone()));
+            };
+            return Err(Error::new(ErrorKind::Argument, format!("dup {refused}")));
         }
         "currency" | "cents" | "amount" => {
             if !site.auto || keywords || block {
@@ -233,23 +265,11 @@ pub(crate) fn member(
         }
         "format" => money.text(ctx)?,
         "to_s" | "string" | "inspect" => {
-            if keywords || block {
-                return Err(Error::new(
-                    ErrorKind::Argument,
-                    "money rendering does not accept keywords or blocks",
-                ));
-            }
-            ops::arity(args, 0)?;
+            crate::arguments::nullary(&format!("money.{name}"), args, keywords, block)?;
             money.text(ctx)?
         }
         "between?" => {
-            if keywords || block {
-                return Err(Error::new(
-                    ErrorKind::Argument,
-                    "between? does not accept keywords or blocks",
-                ));
-            }
-            ops::arity(args, 2)?;
+            crate::arguments::between("money.between?", args, keywords, block)?;
             let low = ops::compare(ctx, receiver, &args[0])?;
             let result = if matches!(low, Some(Ordering::Equal | Ordering::Greater)) {
                 matches!(

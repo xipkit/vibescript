@@ -391,7 +391,12 @@ impl Builtin {
             return crate::duration::parse(ctx, args);
         }
         if self == Self::Money {
-            ops::arity(args, 1)?;
+            if args.len() != 1 {
+                return Err(Error::new(
+                    ErrorKind::Argument,
+                    "money expects a single string literal",
+                ));
+            }
             let Kind::Bytes(bytes) = &args[0].0 else {
                 return Err(Error::new(
                     ErrorKind::Type,
@@ -401,17 +406,28 @@ impl Builtin {
             return crate::money::parse(ctx, &bytes.data).map(|value| Value(Kind::Money(value)));
         }
         if self == Self::MoneyCents {
-            ops::arity(args, 2)?;
-            let cents = crate::sequence::integer(&args[0]).map_err(|_| {
+            if args.len() != 2 {
+                return Err(Error::new(
+                    ErrorKind::Argument,
+                    "money_cents expects cents and currency",
+                ));
+            }
+            if !matches!(args[0].0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_)) {
+                return Err(Error::new(
+                    ErrorKind::Type,
+                    "money_cents expects integer cents",
+                ));
+            }
+            let cents = crate::conversion::int64(&args[0]).map_err(|error| {
                 Error::new(
                     ErrorKind::Type,
-                    "money_cents expects finite cents within the signed 64-bit range",
+                    format!("money_cents expects integer cents: {}", error.message),
                 )
             })?;
             let Kind::Bytes(bytes) = &args[1].0 else {
                 return Err(Error::new(
                     ErrorKind::Type,
-                    "money_cents expects a currency string",
+                    "money_cents expects currency string",
                 ));
             };
             return crate::money::Money::new(cents, &bytes.data)
