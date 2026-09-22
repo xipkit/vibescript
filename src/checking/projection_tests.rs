@@ -235,10 +235,19 @@ fn nested_walk_members_contain_runtime_results() {
     );
 }
 
+#[test]
+fn regrouping_members_contain_runtime_results() {
+    assert_eq!(
+        member_contracts(&["zip", "transpose", "window"]),
+        (3_450, 1_656)
+    );
+}
+
 fn accounting(ctx: &mut CallContext) -> crate::Result<()> {
     let mut facts = Facts::new(ctx)?;
     let source = "def run -> string
-      ([[1, [2]], 3].flatten(1) - [3]).join(',') + {a: [1]}.inspect
+      rows = [[1, 2], [3, 4]].transpose.zip([[5], [6]]).flatten(1)
+      (rows - [1]).join(',') + [1, 2, 3].window(2).inspect
     end";
     let result = super::collection_tests::analyze(ctx, &mut facts, source)?;
     assert!(result.incomplete.data.is_empty());
@@ -320,7 +329,12 @@ fn projection_walks_observe_latched_cancellation_and_deadlines() {
         } else {
             ErrorKind::Cancelled
         };
-        for (name, args) in [("join", vec![comma]), ("flatten", vec![])] {
+        for (name, args) in [
+            ("join", vec![comma]),
+            ("transpose", vec![]),
+            ("zip", vec![rows]),
+            ("flatten", vec![]),
+        ] {
             let error = facts
                 .collection_member(&mut ctx, rows, site(name), name, &args)
                 .err()

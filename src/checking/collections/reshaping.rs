@@ -1,10 +1,11 @@
-//! Block-free array reshaping members: `compact` and the sized `chunk(n)`.
+//! Block-free array reshaping members: `compact`, the sized `chunk(n)` and
+//! `window(n)`.
 //!
 //! These are separate overloads from the block-driven `chunk` the flow walker
 //! models; the runtime routes them through `collections::array_method`, which
 //! accepts no block and validates only positional arguments.
 
-use super::{outcome, rejected, unsupported};
+use super::{EXACT, outcome, rejected, unsupported};
 use crate::{
     CallContext, Result,
     budget::{Buffer, MAX_VALUE_DEPTH},
@@ -62,16 +63,18 @@ impl Facts {
         }
     }
 
-    /// Models `array.chunk(size)` without a block. The runtime accepts only a
-    /// machine integer that is positive: floats, big integers and every other
-    /// value fail before the receiver is read, so a broad integer domain keeps
-    /// a possible failure while a literal or fully bounded positive size does
-    /// not. Each valid arm of `size` contributes its own result shape.
+    /// Models `array.chunk(size)` without a block, or `array.window(size)`
+    /// when `window` is set. The runtime accepts only a machine integer that
+    /// is positive: floats, big integers and every other value fail before the
+    /// receiver is read, so a broad integer domain keeps a possible failure
+    /// while a literal or fully bounded positive size does not. Each valid arm
+    /// of `size` contributes its own result shape.
     pub(super) fn chunk_member(
         &mut self,
         ctx: &mut CallContext,
         receiver: Fact,
         size: Fact,
+        window: bool,
     ) -> Result<Operation> {
         let mut result = outcome(Atom::Never.fact());
         for i in 0..self.arm_count(size) {
@@ -93,19 +96,20 @@ impl Facts {
                         };
                         Operation {
                             throws: !safe,
-                            ..self.chunks(ctx, receiver, positive)?
+                            ..self.groups(ctx, receiver, positive, window)?
                         }
                     }
                 }
                 Node::Atom(Atom::Unknown | Atom::Any) => Operation {
                     throws: true,
-                    ..self.chunks(
+                    ..self.groups(
                         ctx,
                         receiver,
                         Bounds {
                             min: Some(1),
                             max: None,
                         },
+                        window,
                     )?
                 },
                 Node::Array(_)
@@ -119,6 +123,82 @@ impl Facts {
             self.merge_operation(ctx, &mut result, next)?;
         }
         Ok(result)
+    }
+
+    fn groups(
+        &mut self,
+        ctx: &mut CallContext,
+        receiver: Fact,
+        size: Bounds,
+        window: bool,
+    ) -> Result<Operation> {
+        if window {
+            self.windows(ctx, receiver, size)
+        } else {
+            self.chunks(ctx, receiver, size)
+        }
+    }
+
+    /// Builds the sliding-window result for a positive size domain: each
+    /// window starts one element later, and a size longer than the receiver
+    /// produces no windows. An exact size over a literal tuple keeps exact
+    /// windows up to [`EXACT`] values; other sizes alias the receiver's
+    /// elements two levels deep.
+    fn windows(
+        &mut self,
+        ctx: &mut CallContext,
+        receiver: Fact,
+        size: Bounds,
+    ) -> Result<Operation> {
+        ctx.charge(1)?;
+        if self.depth(receiver).saturating_add(1) > MAX_VALUE_DEPTH {
+            return Ok(unsupported());
+        }
+        let values = match self.node(receiver) {
+            Node::Tuple(values) => {
+                let mut items = Buffer::empty();
+                items.extend(ctx, &values.data)?;
+                items
+            }
+            Node::Array(element) => {
+                if *element == Atom::Never.fact() {
+                    return Ok(outcome(self.tuple(ctx, &[])?));
+                }
+                let row = self.array(ctx, *element)?;
+                return Ok(outcome(self.array(ctx, row)?));
+            }
+            _ => unreachable!(),
+        };
+        let length = values.data.len();
+        let longer = |bound: i64| u64::try_from(bound).is_ok_and(|bound| bound > length as u64);
+        if length == 0 || size.min.is_some_and(longer) {
+            return Ok(outcome(self.tuple(ctx, &[])?));
+        }
+        let exact = size
+            .min
+            .filter(|_| size.min == size.max)
+            .and_then(|size| usize::try_from(size).ok());
+        let Some(size) = exact.filter(|&size| (length - size + 1).saturating_mul(size) <= EXACT)
+        else {
+            let element = self.union(ctx, &values.data)?;
+            let row = self.array(ctx, element)?;
+            let rows = self.array(ctx, row)?;
+            // Sizes longer than the receiver produce no windows.
+            let empty = self.tuple(ctx, &[])?;
+            let value = if size.max.is_some_and(|max| !longer(max)) {
+                rows
+            } else {
+                self.union(ctx, &[empty, rows])?
+            };
+            return Ok(outcome(value));
+        };
+        let mut parts = Buffer::with_capacity(ctx, length - size + 1)?;
+        for start in 0..=length - size {
+            ctx.charge(1)?;
+            let part = self.tuple(ctx, &values.data[start..start + size])?;
+            parts.push(ctx, part)?;
+        }
+        Ok(outcome(self.tuple(ctx, &parts.data)?))
     }
 
     /// Builds the chunked result for a positive size domain. A known length

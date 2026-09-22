@@ -221,6 +221,9 @@ impl Walker<'_> {
             if result.rejected || result.throws {
                 self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
             }
+            if result.value != Atom::Never.fact() && self.native_limit(receiver, name, &[])? {
+                self.emit_error(state, pc, handlers::bit(ErrorClass::Limit))?;
+            }
             if result.rejected {
                 let arguments = self.facts.tuple(self.ctx, &[])?;
                 self.issue(

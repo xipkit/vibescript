@@ -282,7 +282,7 @@ impl Walker<'_> {
             )
         } else {
             let reshaping = matches!(self.facts.node(receiver), Node::Array(_) | Node::Tuple(_))
-                && matches!(name, "compact" | "chunk");
+                && matches!(name, "compact" | "chunk" | "window");
             if reshaping
                 && name == "compact"
                 && (!args.keywords.data.is_empty() || args.block.is_some())
@@ -290,7 +290,7 @@ impl Walker<'_> {
                 self.collection_error(state, pc, receiver, site, args, ErrorClass::Runtime)?;
                 return Ok(Some([None, None]));
             }
-            if (!args.keywords.data.is_empty() && !(reshaping && name == "chunk"))
+            if (!args.keywords.data.is_empty() && !(reshaping && name != "compact"))
                 || args.block.is_some()
             {
                 return self.incomplete(pc).map(Some);
@@ -303,7 +303,7 @@ impl Walker<'_> {
                 &args.positional.data,
             )?;
             if reshaping
-                && name == "chunk"
+                && name != "compact"
                 && result.value != Atom::Never.fact()
                 && self.wrapping_guard(receiver)?
             {
@@ -315,6 +315,13 @@ impl Walker<'_> {
                 0
             };
             (result.value, result.rejected, result.unsupported, throws)
+        };
+        let throws = if value != Atom::Never.fact()
+            && self.native_limit(receiver, name, &args.positional.data)?
+        {
+            throws | handlers::bit(ErrorClass::Limit)
+        } else {
+            throws
         };
         self.emit_error(
             state,
@@ -345,5 +352,35 @@ impl Walker<'_> {
         }
         state.stack.push(self.ctx, Operand::new(value))?;
         Ok(None)
+    }
+
+    /// Reports whether a modeled native member can reach a runtime limit guard
+    /// that its operation summary does not describe: `zip` wraps rows around
+    /// elements that may already sit at the value depth limit.
+    pub(super) fn native_limit(
+        &mut self,
+        receiver: Fact,
+        name: &str,
+        args: &[Fact],
+    ) -> Result<bool> {
+        if name != "zip" {
+            return Ok(false);
+        }
+        for i in 0..self.facts.arm_count(receiver) {
+            self.ctx.charge(1)?;
+            let arm = self.facts.arm(receiver, i);
+            if !matches!(self.facts.node(arm), Node::Array(_) | Node::Tuple(_)) {
+                continue;
+            }
+            if self.wrapping_guard(arm)? {
+                return Ok(true);
+            }
+            for &arg in args {
+                if self.wrapping_guard(arg)? {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
     }
 }

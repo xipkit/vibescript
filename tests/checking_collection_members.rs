@@ -40,6 +40,18 @@ fn exact_ints(cases: &[(&str, i64)]) {
     }
 }
 
+/// Each expression is known to be nil, so a string result is a contradiction
+/// that the runtime's return check also reports.
+fn exact_nils(expressions: &[&str]) {
+    for expression in expressions {
+        let source = format!("def run -> string; {expression}; end");
+        let script = compile(&source);
+        assert!(returns_bad_type(&check(&script, &source)), "{source}");
+        let error = script.call("run", &[], CallOptions::default()).unwrap_err();
+        assert!(error.message.ends_with("got nil"), "{source}: {error}");
+    }
+}
+
 /// Each expression is a known contradiction that also fails at runtime.
 fn invalid(expressions: &[&str]) {
     for expression in expressions {
@@ -171,5 +183,65 @@ fn join_inspect_and_flatten_walk_nested_values() {
     strict_arms(vec![(
         "def run(sep: string | int) -> string; [1].join(sep); end",
         Value::bytes(","),
+    )]);
+}
+
+#[test]
+fn zip_transpose_and_window_regroup_by_position() {
+    exact_ints(&[
+        ("[[1, 2], [3, 4]].transpose[1][0]", 2),
+        ("[[1, 2], [3, 4]].transpose.length", 2),
+        ("[].transpose.length", 0),
+        ("[1, 2].zip([3])[0][1]", 3),
+        ("[1, 2].zip([3], [5, 6])[1][2]", 6),
+        ("[1, 2, 3, 4].window(3).length", 2),
+        ("[1, 2, 3, 4].window(3)[1][2]", 4),
+        ("[1, 2].window(5).length", 0),
+    ]);
+    exact_nils(&["[1, 2].zip([3])[1][1]"]);
+    invalid(&[
+        "[1].zip(1)",
+        "[1].zip([1], nil)",
+        "[[1], [2, 3]].transpose",
+        "[1].transpose",
+        "[[1]].transpose(1)",
+        "[1].window(0)",
+        "[1].window(1.5)",
+    ]);
+    witnesses(vec![
+        (
+            "def run(rows: array<array<int>>) -> array<array<int>>; rows.transpose; end",
+            vec![Value::array(vec![ints(&[1, 2]), ints(&[3, 4])])],
+            Value::array(vec![ints(&[1, 3]), ints(&[2, 4])]),
+        ),
+        (
+            "def run(xs: array<int>, n: int) -> array<array<int>>; xs.window(n); end",
+            vec![ints(&[1, 2, 3]), Value::int(2)],
+            Value::array(vec![ints(&[1, 2]), ints(&[2, 3])]),
+        ),
+        (
+            "def run(xs: array<int>) -> array<array<int | nil>>; xs.zip([7]); end",
+            vec![ints(&[1, 2])],
+            Value::array(vec![
+                ints(&[1, 7]),
+                Value::array(vec![Value::int(2), Value::nil()]),
+            ]),
+        ),
+    ]);
+    rescues(
+        &[
+            "def run(rows: array<array<int>>) -> int; begin; rows.transpose; 0; rescue; 'bad'; end; end",
+            // Rows around gradual elements may exceed the value depth limit.
+            "def run(xs: array<any>) -> int; begin; xs.zip([1]); 0; rescue LimitError; 'bad'; end; end",
+        ],
+        &[
+            "def run -> int; begin; [[1, 2], [3, 4]].transpose; 0; rescue; 'bad'; end; end",
+            "def run -> int; begin; [1, 2].zip([3]); 0; rescue; 'bad'; end; end",
+            "def run(xs: array<int>) -> int; begin; xs.zip([1]); 0; rescue LimitError; 'bad'; end; end",
+        ],
+    );
+    strict_arms(vec![(
+        "def run(xs: array<int> | int) -> array<array<int>>; [1].zip(xs); end",
+        ints(&[2]),
     )]);
 }
