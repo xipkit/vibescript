@@ -168,3 +168,9 @@ fn an_implicit_it_still_calls_a_function_with_a_percent_array() {
         assert!(script.call("run", &[], CallOptions::default()).is_err());
     }
 }
+
+#[test]
+fn instance_and_class_variable_names_may_end_like_predicates() {
+    let source = "class Record\n  def initialize\n    @respond_to? = 1\n    @done! = 2\n  end\n  def state\n    [@respond_to?, @done!]\n  end\nend\nclass Widget\n  @@respond_to? = 3\n  def self.build\n    @@respond_to?\n  end\nend\ndef run\n  [Record.new.respond_to?(:state), Record.new.state, Widget.respond_to?(:build), Widget.build]\nend";
+    assert_eq!(result(source), serde_json::json!([true, [1, 2], true, 3]));
+}

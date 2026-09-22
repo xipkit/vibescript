@@ -276,9 +276,10 @@ impl<'a> Lexer<'a, '_> {
                         ));
                     }
                     i += first.len_utf8();
+                    // Like identifiers in Go, variable names may hold `?` and `!`.
                     while let Some(c) = source[i..self.limit].chars().next() {
                         self.work.charge(1)?;
-                        if c != '_' && !super::unicode::letter_or_digit(c) {
+                        if !matches!(c, '_' | '?' | '!') && !super::unicode::letter_or_digit(c) {
                             break;
                         }
                         i += c.len_utf8();
