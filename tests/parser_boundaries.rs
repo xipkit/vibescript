@@ -143,3 +143,15 @@ fn compound_statements_continue_as_expressions_after_end() {
         .unwrap();
     assert_eq!(error.kind, ErrorKind::Syntax);
 }
+
+#[test]
+fn reserved_words_label_parenless_keyword_arguments() {
+    let source = "def accept(opts)\n  opts\nend\ndef boom\n  raise \"x\"\nend\ndef run\n  [accept(rescue: 1), (accept rescue: \"retry\"), (accept begin: 1, ensure: 3), (boom rescue 5)]\nend";
+    assert_eq!(
+        result(source),
+        serde_json::json!([{"rescue": 1}, {"rescue": "retry"}, {"begin": 1, "ensure": 3}, 5])
+    );
+    let source = "def boom\n  raise \"x\"\nend\ndef run\n  boom() rescue :fallback\nend";
+    let error = Engine::new().compile(source).err().unwrap();
+    assert_eq!(error.kind, ErrorKind::Syntax);
+}

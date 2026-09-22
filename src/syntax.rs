@@ -2604,9 +2604,19 @@ impl<'a> Parser<'a> {
         if min == 0
             && (self.command_depth == 0 || self.groups > self.command_group)
             && self.tokens[self.pos].line == self.previous()?.end_line
-            && self.word("rescue")
+            && matches!(self.token(), Token::Word(w) if w == "rescue")
         {
-            return Ok(Some(Suffix::Rescue));
+            // `rescue:` labels a parenless call's keyword argument, as in Go.
+            if !self.keyword_label(self.pos) {
+                self.pos += 1;
+                return Ok(Some(Suffix::Rescue));
+            }
+            if !matches!(
+                lhs.node,
+                Node::Var(_) | Node::Member(..) | Node::SafeMember(..)
+            ) {
+                return self.err("rescue modifier requires fallback expression");
+            }
         }
         let offset = self.tokens[self.pos].offset as u32;
         if self.command_start(lhs, min)? {

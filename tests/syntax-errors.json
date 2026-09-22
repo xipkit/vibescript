@@ -13209,5 +13209,10 @@
     "name": "compound_statement_continuation_stays_on_the_end_line",
     "source": "def run(input)\n  if true\n    1\n  end\n    .to_s\nend",
     "go_error": "parse error at 5:5: unexpected token \".\""
+  },
+  {
+    "name": "rescue_label_after_a_call_result_needs_a_fallback",
+    "source": "def boom\n  raise \"x\"\nend\n\ndef run(input)\n  x = boom() rescue :fb\n  x\nend",
+    "go_error": "parse error at 6:14: rescue modifier requires fallback expression"
   }
 ]
