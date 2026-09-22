@@ -118,8 +118,9 @@ fn select(
 
 /// Models `template` after the caller has checked its single positional
 /// argument. The context must be a hash or object; `strict:` must be the only
-/// keyword and must be boolean. A strict template fails when a key is missing,
-/// and every selected value must be a scalar that the runtime converts to text.
+/// keyword and must be boolean. A strict template raises an ordinary error when
+/// a key is missing, as documented, and every selected value must be a scalar
+/// that the runtime converts to text.
 pub(super) fn member(
     ctx: &mut CallContext,
     facts: &mut Facts,
@@ -232,13 +233,11 @@ pub(super) fn member(
             result.throws |= RUNTIME;
         }
         if !converts {
-            if selection.missing && !rejected {
-                // Every selected path is missing and the call is certainly strict.
-                result
-                    .failures
-                    .push(ctx, Failure::BuiltinDomain(receiver))?;
-            }
+            // Every path fails here: a strict miss raises its documented error
+            // and a rejected value is reported above. Rendering stops at the
+            // first failure, so later placeholders are unreachable.
             possible = false;
+            break;
         }
     }
     if possible {

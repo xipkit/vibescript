@@ -174,12 +174,16 @@ fn literal_templates_keep_certain_results_and_failures() {
             (b"list".to_vec(), Value::array(vec![])),
         ]),
     );
-    for (template, strict, value, failed) in [
-        ("plain", false, Some("plain"), false),
-        ("{{x}}", false, None, false),
-        ("{{list}}", false, None, true),
-        ("{{missing}}", false, None, false),
-        ("{{missing}}", true, None, true),
+    // A strict miss raises as documented instead of being a contradiction, and
+    // rendering stops there, so a later rejected value is unreachable.
+    for (template, strict, value, failed, raises) in [
+        ("plain", false, Some("plain"), false, false),
+        ("{{x}}", false, None, false, false),
+        ("{{list}}", false, None, true, true),
+        ("{{missing}}", false, None, false, false),
+        ("{{missing}}", true, None, false, true),
+        ("{{x}} {{missing}} {{list}}", true, None, false, true),
+        ("{{list}} {{missing}}", true, None, true, true),
     ] {
         let receiver = facts.string(&mut ctx, template.as_bytes()).unwrap();
         let mut inputs = Arguments::new();
@@ -193,12 +197,13 @@ fn literal_templates_keep_certain_results_and_failures() {
             .unwrap()
             .unwrap();
         assert_eq!(!inferred.failures.data.is_empty(), failed, "{template}");
+        assert_eq!(inferred.throws != 0, raises, "{template}");
         match value {
             Some(text) => assert!(
                 matches!(facts.node(inferred.value), Node::String(value) if value.as_bytes() == Some(text.as_bytes())),
                 "{template}"
             ),
-            None if failed => assert_eq!(inferred.value, Atom::Never.fact(), "{template}"),
+            None if raises => assert_eq!(inferred.value, Atom::Never.fact(), "{template}"),
             None => assert_eq!(inferred.value, Atom::String.fact(), "{template}"),
         }
     }

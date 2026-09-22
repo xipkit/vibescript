@@ -1,4 +1,4 @@
-use vibescript::{CallOptions, CheckReport, Engine, Script, Value};
+use vibescript::{CallOptions, CheckReport, Engine, ErrorClass, Script, Value};
 
 fn compile(source: &str) -> Script {
     Engine::new()
@@ -78,7 +78,7 @@ fn template_contradictions_are_diagnosed_and_fail_at_runtime() {
         "\"{{x}}\".template({}, {})",
         "\"{{x}}\".template({ x: [1] })",
         "\"{{x.y}}\".template({ x: { y: { z: 1 } } })",
-        "\"{{x}}\".template({}, strict: true)",
+        "\"{{list}} {{x}}\".template({ list: [1] }, strict: true)",
         "\"{{x}}\".template({ x: 1 }, strict: 1)",
         "\"{{x}}\".template({ x: 1 }, other: true)",
         "\"a\".include?(1)",
@@ -102,6 +102,59 @@ fn template_contradictions_are_diagnosed_and_fail_at_runtime() {
             "{source}"
         );
     }
+}
+
+/// `strict: true` documents an error for a missing placeholder, so a known
+/// miss is an ordinary runtime failure: it has no string result, rescue handles
+/// it, and a possible miss keeps both outcomes.
+#[test]
+fn strict_template_misses_are_runtime_errors() {
+    for (source, args, expected) in [
+        (
+            "def run -> int; \"{{x}}\".template({}, strict: true); end",
+            vec![],
+            None,
+        ),
+        (
+            "def run -> int; \"{{x.y}} {{list}}\".template({ x: {}, list: [1] }, strict: true); end",
+            vec![],
+            None,
+        ),
+        (
+            "def run -> string; \"{{x}}\".template({}, strict: true) rescue \"none\"; end",
+            vec![],
+            Some("none"),
+        ),
+        (
+            "def run(flag: bool) -> string; context = flag ? { x: 1 } : {}; \"{{x}}\".template(context, strict: true); end",
+            vec![Value::boolean(true)],
+            Some("1"),
+        ),
+        (
+            "def run(flag: bool) -> string; context = flag ? { x: 1 } : {}; \"{{x}}\".template(context, strict: true); end",
+            vec![Value::boolean(false)],
+            None,
+        ),
+    ] {
+        let script = compile(source);
+        let report = check(&script, source);
+        assert!(report.diagnostics.is_empty(), "{source}: {report:?}");
+        match expected {
+            Some(expected) => assert_eq!(text(&script, &args), expected, "{source}"),
+            None => {
+                let error = script
+                    .call("run", &args, CallOptions::default())
+                    .unwrap_err();
+                assert_eq!(error.class(), Some(ErrorClass::Runtime), "{source}");
+                assert!(error.message.contains("not found"), "{source}: {error}");
+            }
+        }
+    }
+    // The failure path reaches the rescue clause and its string result.
+    let source =
+        "def run -> int; begin; \"{{x}}\".template({}, strict: true); 0; rescue; 'bad'; end; end";
+    let script = compile(source);
+    assert!(returns_bad_type(&check(&script, source)), "{source}");
 }
 
 #[test]
