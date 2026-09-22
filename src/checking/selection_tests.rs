@@ -278,7 +278,7 @@ fn missing_lookup_keys_are_runtime_error_paths_rather_than_diagnostics() {
     );
     // Matching can reach a regex guard, so match data only needs a clean witness.
     witness(
-        "def run; m=/(a)/.match(\"a\"); if m; m.fetch_values(:captures,:missing) rescue :missing; end; end",
+        "def run; m=/(a)/.match(\"a\"); if m; m.fetch_values(:captures,:missing) rescue (:missing); end; end",
         false,
         false,
     );
