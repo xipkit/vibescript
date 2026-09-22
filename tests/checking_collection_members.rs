@@ -1,4 +1,5 @@
-use vibescript::{CallOptions, CheckReport, Engine, Script, Value};
+use std::{fs, path::Path};
+use vibescript::{CallOptions, CheckReport, Engine, Limits, Script, Value};
 
 fn compile(source: &str) -> Script {
     Engine::new()
@@ -312,4 +313,51 @@ fn values_at_hash_projections_and_ranges_keep_selected_values() {
         "def run(key: symbol | int) -> hash; {a: 1}.slice(key); end",
         Value::symbol("a"),
     )]);
+}
+
+/// Site programs whose whole-file checks used to stop at one of these
+/// operations. Each now finishes analysis and still runs.
+#[test]
+fn previously_unanalyzed_site_programs_finish_checking() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/site");
+    for path in [
+        "rosettacode/popular/anagrams.vibe",
+        "rosettacode/popular/best_shuffle.vibe",
+        "rosettacode/popular/brazilian_numbers.vibe",
+        "rosettacode/popular/matrix_transposition.vibe",
+        "rosettacode/popular/range_extraction.vibe",
+        "rosettacode/popular/set.vibe",
+        "showcase/collections/hash_projection.vibe",
+        "showcase/collections/matrix_report.vibe",
+        "showcase/collections/reshape.vibe",
+        "showcase/commerce/quote_approval.vibe",
+        "showcase/finance/statement_grid.vibe",
+        "showcase/math/chudnovsky_pi.vibe",
+        "showcase/numbers/big_integers.vibe",
+        "showcase/strings/text_toolkit.vibe",
+        "showcase/workflows/release_readiness.vibe",
+        "upstream/arrays/extras.vibe",
+        "upstream/enums/operations.vibe",
+        "upstream/hashes/transformations.vibe",
+        "upstream/stdlib/core_utilities.vibe",
+        "upstream/strings/operations.vibe",
+    ] {
+        let source = fs::read_to_string(root.join(path)).unwrap();
+        let script = compile(&source);
+        let options = CallOptions {
+            limits: Limits {
+                steps: None,
+                memory_bytes: Some(256 << 20),
+                ..Limits::default()
+            },
+            ..CallOptions::default()
+        };
+        let report = script
+            .check(&options)
+            .unwrap_or_else(|error| panic!("{path}: {error}"));
+        assert!(report.incomplete.is_empty(), "{path}: {report:?}");
+        script
+            .call("run", &[], options)
+            .unwrap_or_else(|error| panic!("{path}: {error}"));
+    }
 }
