@@ -159,6 +159,18 @@ def measure(out,rounds,target_ms,expected):
     print(f"Timing, allocations, and process RSS saved to {out}",flush=True)
 
 
+def cpu_name():
+    if sys.platform=="darwin":
+        return run(["sysctl","-n","machdep.cpu.brand_string"],capture_output=True).stdout.strip()
+    try:
+        for line in Path("/proc/cpuinfo").read_text().splitlines():
+            if line.startswith("model name"):
+                return line.split(":",1)[1].strip()
+    except OSError:
+        pass
+    return platform.processor()
+
+
 def main():
     parser=argparse.ArgumentParser();parser.add_argument("--out",type=Path,default=ROOT/"benchmarks/results"/time.strftime("%Y-%m-%d-%H%M%S"));parser.add_argument("--skip-build",action="store_true");parser.add_argument("--validate-only",action="store_true");parser.add_argument("--rounds",type=int,default=8);parser.add_argument("--target-ms",type=float,default=75)
     parser.add_argument("--baseline",type=Path,help="Directory containing prior rust-portable/rust-simd timing and allocation binaries, plus a revision file")
@@ -178,7 +190,7 @@ def main():
     if args.target_ms<=0 or (not args.validate_only and (args.rounds<len(VARIANTS) or args.rounds%len(VARIANTS))):
         parser.error("use a positive target time and a round count that is a positive multiple of the variant count")
     if not args.skip_build: build(out)
-    metadata={"platform":platform.platform(),"machine":platform.machine(),"cpu":run(["sysctl","-n","machdep.cpu.brand_string"],capture_output=True).stdout.strip(),"rustc":run(["rustc","-Vv"],capture_output=True).stdout,"go":run([GO,"version"],capture_output=True).stdout,"go_module":json.loads(run([GO,"list","-m","-json","github.com/mgomes/vibescript"],cwd=ROOT/"benchmarks/go",capture_output=True).stdout),"source_revision":run(["git","rev-parse","HEAD"],cwd=ROOT,capture_output=True).stdout.strip(),"dirty":run(["git","status","--porcelain"],cwd=ROOT,capture_output=True).stdout,"binary_sha256":{name:hashlib.sha256((BINS/name).read_bytes()).hexdigest() for name in VARIANTS},"RUSTFLAGS":os.environ.get("RUSTFLAGS",""),"GOFLAGS":os.environ.get("GOFLAGS",""),"GOMAXPROCS":1,"target_ms":args.target_ms,"command":sys.argv}
+    metadata={"platform":platform.platform(),"machine":platform.machine(),"cpu":cpu_name(),"rustc":run(["rustc","-Vv"],capture_output=True).stdout,"go":run([GO,"version"],capture_output=True).stdout,"go_module":json.loads(run([GO,"list","-m","-json","github.com/mgomes/vibescript"],cwd=ROOT/"benchmarks/go",capture_output=True).stdout),"source_revision":run(["git","rev-parse","HEAD"],cwd=ROOT,capture_output=True).stdout.strip(),"dirty":run(["git","status","--porcelain"],cwd=ROOT,capture_output=True).stdout,"binary_sha256":{name:hashlib.sha256((BINS/name).read_bytes()).hexdigest() for name in VARIANTS},"RUSTFLAGS":os.environ.get("RUSTFLAGS",""),"GOFLAGS":os.environ.get("GOFLAGS",""),"GOMAXPROCS":1,"target_ms":args.target_ms,"command":sys.argv}
     metadata["baseline_source_revision"]=baseline_revision
     metadata["allocation_binary_sha256"]={name+"-alloc":hashlib.sha256((BINS/(name+"-alloc")).read_bytes()).hexdigest() for name in VARIANTS if name.startswith("rust")}
     (out/"environment.json").write_text(json.dumps(metadata,indent=2)+"\n")
