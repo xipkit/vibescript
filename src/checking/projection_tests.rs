@@ -243,11 +243,18 @@ fn regrouping_members_contain_runtime_results() {
     );
 }
 
+#[test]
+fn projection_members_contain_runtime_results() {
+    let names = ["values_at", "slice", "except", "compact", "to_a"];
+    assert_eq!(member_contracts(&names), (5_750, 2_760));
+}
+
 fn accounting(ctx: &mut CallContext) -> crate::Result<()> {
     let mut facts = Facts::new(ctx)?;
     let source = "def run -> string
       rows = [[1, 2], [3, 4]].transpose.zip([[5], [6]]).flatten(1)
-      (rows - [1]).join(',') + [1, 2, 3].window(2).inspect
+      picked = {a: 1, b: nil, c: 3}.compact.slice(:a, :c).except(:c)
+      (rows - [1]).values_at(0, -1, 0..1).join(',') + picked.inspect + (1..3).to_a.join
     end";
     let result = super::collection_tests::analyze(ctx, &mut facts, source)?;
     assert!(result.incomplete.data.is_empty());
@@ -334,6 +341,7 @@ fn projection_walks_observe_latched_cancellation_and_deadlines() {
             ("transpose", vec![]),
             ("zip", vec![rows]),
             ("flatten", vec![]),
+            ("values_at", vec![one]),
         ] {
             let error = facts
                 .collection_member(&mut ctx, rows, site(name), name, &args)

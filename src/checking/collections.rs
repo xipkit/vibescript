@@ -8,6 +8,8 @@ use crate::{CallContext, Result, Value, budget::Buffer, bytecode::CallSite};
 mod capture_indexing;
 mod leaves;
 mod pairing;
+mod projection;
+mod ranges;
 mod reshaping;
 mod sets;
 
@@ -578,6 +580,10 @@ impl Facts {
         let array = matches!(self.node(receiver), Node::Array(_) | Node::Tuple(_));
         let hash = matches!(self.node(receiver), Node::Hash(..) | Node::Shape(..));
         let string = self.atom(receiver) == Some(Atom::String);
+        let range = matches!(
+            self.node(receiver),
+            Node::Range(..) | Node::Atom(Atom::Range)
+        );
         let unknown = matches!(self.atom(receiver), Some(Atom::Unknown | Atom::Any));
         if site.scope {
             return Ok(if unknown { unsupported() } else { rejected() });
@@ -591,13 +597,15 @@ impl Facts {
             return self.combinatoric_member(ctx, receiver, name, args);
         }
         let arity = match name {
-            "compact" if array => 0..=0,
+            "compact" if array || hash => 0..=0,
             "chunk" | "window" if array => 1..=1,
             "inspect" if array || hash => 0..=0,
-            "to_a" if hash => 0..=0,
+            "to_a" if hash || range => 0..=0,
             "join" | "flatten" if array => 0..=1,
             "transpose" if array => 0..=0,
             "zip" if array => 0..=usize::MAX,
+            "values_at" if array || hash => 0..=usize::MAX,
+            "slice" | "except" if hash => 0..=usize::MAX,
             "length" | "size" | "bytesize" | "empty?" | "keys" | "values" | "reverse"
             | "itself" | "dup" | "nil?" => 0..=0,
             "at" | "getbyte" | "take" | "drop" => 1..=1,
@@ -618,13 +626,18 @@ impl Facts {
                 self.hash_membership(ctx, receiver, args[0])
             }
             "compact" if array => self.compact_member(ctx, receiver),
+            "compact" if hash => self.hash_compact_member(ctx, receiver),
             "chunk" if array => self.chunk_member(ctx, receiver, args[0], false),
             "window" if array => self.chunk_member(ctx, receiver, args[0], true),
             "inspect" if array || hash => self.inspect_member(ctx, receiver),
+            "to_a" if range => self.range_array(ctx, receiver),
             "join" if array => self.join_member(ctx, receiver, args),
             "flatten" if array => self.flatten_member(ctx, receiver, args),
             "transpose" if array => self.transpose_member(ctx, receiver),
             "zip" if array => self.zip_member(ctx, receiver, args),
+            "values_at" => self.values_at_member(ctx, receiver, args),
+            "slice" if hash => self.slice_member(ctx, receiver, args),
+            "except" if hash => self.except_member(ctx, receiver, args),
             "to_a" if hash => {
                 let iteration = self.iteration(ctx, receiver)?;
                 if iteration.unsupported {

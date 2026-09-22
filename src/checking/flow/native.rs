@@ -356,29 +356,30 @@ impl Walker<'_> {
 
     /// Reports whether a modeled native member can reach a runtime limit guard
     /// that its operation summary does not describe: `zip` wraps rows around
-    /// elements that may already sit at the value depth limit.
+    /// elements that may already sit at the value depth limit, and a general
+    /// range may be too large for `to_a` to materialize.
     pub(super) fn native_limit(
         &mut self,
         receiver: Fact,
         name: &str,
         args: &[Fact],
     ) -> Result<bool> {
-        if name != "zip" {
-            return Ok(false);
-        }
         for i in 0..self.facts.arm_count(receiver) {
             self.ctx.charge(1)?;
             let arm = self.facts.arm(receiver, i);
-            if !matches!(self.facts.node(arm), Node::Array(_) | Node::Tuple(_)) {
-                continue;
-            }
-            if self.wrapping_guard(arm)? {
-                return Ok(true);
-            }
-            for &arg in args {
-                if self.wrapping_guard(arg)? {
-                    return Ok(true);
+            match self.facts.node(arm) {
+                Node::Array(_) | Node::Tuple(_) if name == "zip" => {
+                    if self.wrapping_guard(arm)? {
+                        return Ok(true);
+                    }
+                    for &arg in args {
+                        if self.wrapping_guard(arg)? {
+                            return Ok(true);
+                        }
+                    }
                 }
+                Node::Atom(Atom::Range) if name == "to_a" && args.is_empty() => return Ok(true),
+                _ => (),
             }
         }
         Ok(false)

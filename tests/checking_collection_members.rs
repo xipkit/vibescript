@@ -245,3 +245,71 @@ fn zip_transpose_and_window_regroup_by_position() {
         ints(&[2]),
     )]);
 }
+
+#[test]
+fn values_at_hash_projections_and_ranges_keep_selected_values() {
+    exact_ints(&[
+        ("[1, 2, 3].values_at(0, -1)[1]", 3),
+        ("[1, 2, 3].values_at(1..2, 0).last", 1),
+        ("[1, 2, 3].values_at(2..5).length", 4),
+        ("{a: 1}.values_at(:a, 'a')[1]", 1),
+        ("(1..4).to_a.last", 4),
+        ("(3..1).to_a.first", 3),
+        ("(1...1).to_a.length", 0),
+        ("{a: 1, b: nil}.compact[:a]", 1),
+        ("{a: 1, b: 2}.slice(:b, :z)[:b]", 2),
+        ("{a: 1, b: 2}.except(:a)[:b]", 2),
+    ]);
+    exact_nils(&[
+        "[1].values_at(4)[0]",
+        "[1, 2].values_at(1..3)[1]",
+        "{a: nil, b: 1}.compact[:a]",
+        "{a: 1}.slice(:z)[:z]",
+        "{a: 1}.except(:a)[:a]",
+    ]);
+    invalid(&[
+        "[1].values_at(\"x\")",
+        "[1].values_at(-5..0)",
+        "{a: 1}.values_at(0)",
+        "{a: 1}.values_at(0..1)",
+        "{a: 1}.slice(1)",
+        "{a: 1}.except(nil)",
+        "{a: 1}.compact(1)",
+        "(1..).to_a",
+        "(1..2).to_a(1)",
+    ]);
+    witnesses(vec![
+        (
+            "def run(x: int | nil) -> hash<string, int>; {a: x, b: 1}.compact; end",
+            vec![Value::nil()],
+            Value::hash(vec![(b"b".to_vec(), Value::int(1))]),
+        ),
+        (
+            "def run(record: hash) -> hash; record.except(:secret).slice(:id); end",
+            vec![Value::hash(vec![
+                (b"id".to_vec(), Value::int(1)),
+                (b"secret".to_vec(), Value::bytes("x")),
+            ])],
+            Value::hash(vec![(b"id".to_vec(), Value::int(1))]),
+        ),
+        (
+            "def run(n: int) -> array<int>; (1..n).to_a; end",
+            vec![Value::int(3)],
+            ints(&[1, 2, 3]),
+        ),
+    ]);
+    rescues(
+        &[
+            "def run(key) -> int; begin; {a: 1}.slice(key); 0; rescue; 'bad'; end; end",
+            "def run(r: range) -> int; begin; r.to_a; 0; rescue; 'bad'; end; end",
+        ],
+        &[
+            "def run -> int; begin; {a: 1}.except(:a); 0; rescue; 'bad'; end; end",
+            "def run -> int; begin; (1..3).to_a; 0; rescue; 'bad'; end; end",
+        ],
+    );
+    strict_arms(vec![(
+        "def run(key: symbol | int) -> hash; {a: 1}.slice(key); end",
+        Value::symbol("a"),
+    )]);
+}
