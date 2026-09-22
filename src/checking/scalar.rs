@@ -103,6 +103,7 @@ impl Facts {
             unsupported: false,
             throws: false,
         };
+        let mut values = Buffer::empty();
         for index in 0..self.arm_count(value) {
             ctx.charge(1)?;
             let arm = self.arm(value, index);
@@ -135,8 +136,11 @@ impl Facts {
                     Atom::Unknown.fact()
                 }
             };
-            result.value = self.union(ctx, &[result.value, next])?;
+            values.push(ctx, next)?;
         }
+        // Keep any result joined into the outcome directly.
+        values.push(ctx, result.value)?;
+        result.value = self.union(ctx, &values.data)?;
         Ok(result)
     }
 
@@ -154,6 +158,8 @@ impl Facts {
             throws: false,
         };
         let mut limit = false;
+        // Collect the pairwise results for one union instead of interning every partial join.
+        let mut values = Buffer::empty();
         if !matches!(
             op,
             "+" | "-"
@@ -175,11 +181,22 @@ impl Facts {
             result.unsupported = true;
             return Ok((result, limit));
         }
+        let comparison = super::integers::Comparison::parse(op);
+        // Integer comparisons can only add false and true; once both appear, later integer
+        // pairs cannot change the result.
+        let mut compared = 0u8;
         for a in 0..self.arm_count(left) {
             for b in 0..self.arm_count(right) {
                 ctx.charge(1)?;
                 let left = self.arm(left, a);
                 let right = self.arm(right, b);
+                if compared == 3
+                    && comparison.is_some()
+                    && self.integer_bounds(left).is_some()
+                    && self.integer_bounds(right).is_some()
+                {
+                    continue;
+                }
                 let array = |value| matches!(self.node(value), Node::Array(_) | Node::Tuple(_));
                 let arrays = [array(left), array(right)];
                 if matches!(op, "-" | "&") && arrays[0] {
@@ -208,7 +225,7 @@ impl Facts {
                                 Atom::Never.fact()
                             }
                         };
-                        result.value = self.union(ctx, &[result.value, next])?;
+                        values.push(ctx, next)?;
                         continue;
                     }
                     let next = if let (Node::Tuple(a), Node::Tuple(b)) =
@@ -224,12 +241,12 @@ impl Facts {
                         let element = self.union(ctx, &[left, right])?;
                         self.array(ctx, element)?
                     };
-                    result.value = self.union(ctx, &[result.value, next])?;
+                    values.push(ctx, next)?;
                     continue;
                 }
                 if op == "%" && self.atom(left) == Some(Atom::String) && right != Atom::Never.fact()
                 {
-                    result.value = self.union(ctx, &[result.value, Atom::String.fact()])?;
+                    values.push(ctx, Atom::String.fact())?;
                     continue;
                 }
                 if matches!(op, "==" | "!=")
@@ -266,7 +283,7 @@ impl Facts {
                     } else {
                         self.boolean(ctx, (left == right) == (op == "=="))?
                     };
-                    result.value = self.union(ctx, &[result.value, next])?;
+                    values.push(ctx, next)?;
                     continue;
                 }
                 let structural = |value| {
@@ -283,8 +300,7 @@ impl Facts {
                     match self.node(left) {
                         // An unknown receiver may dispatch a source operator with any result type.
                         Node::Atom(Atom::Unknown | Atom::Any) => {
-                            result.value =
-                                self.union(ctx, &[result.value, Atom::Unknown.fact()])?;
+                            values.push(ctx, Atom::Unknown.fact())?;
                             continue;
                         }
                         Node::Named(_) | Node::Nominal { .. } | Node::Choice(_) => {
@@ -300,7 +316,7 @@ impl Facts {
                             next = self.boolean(ctx, !value)?;
                         }
                     }
-                    result.value = self.union(ctx, &[result.value, next])?;
+                    values.push(ctx, next)?;
                     continue;
                 }
                 let enumeration = |value| {
@@ -340,7 +356,7 @@ impl Facts {
                             Atom::Never.fact()
                         }
                     };
-                    result.value = self.union(ctx, &[result.value, next])?;
+                    values.push(ctx, next)?;
                     continue;
                 }
                 if op == "+"
@@ -360,15 +376,21 @@ impl Facts {
                 {
                     if let Some(bounds) = a.arithmetic(op, b) {
                         let next = self.integer_range(ctx, bounds)?;
-                        result.value = self.union(ctx, &[result.value, next])?;
+                        values.push(ctx, next)?;
                         continue;
                     }
-                    if let Some(comparison) = super::integers::Comparison::parse(op) {
+                    if let Some(comparison) = comparison {
                         let next = match a.compare(comparison, b) {
-                            Some(value) => self.boolean(ctx, value)?,
-                            None => Atom::Bool.fact(),
+                            Some(value) => {
+                                compared |= 1 << u8::from(value);
+                                self.boolean(ctx, value)?
+                            }
+                            None => {
+                                compared = 3;
+                                Atom::Bool.fact()
+                            }
                         };
-                        result.value = self.union(ctx, &[result.value, next])?;
+                        values.push(ctx, next)?;
                         continue;
                     }
                 }
@@ -415,9 +437,12 @@ impl Facts {
                     result.rejected = true;
                     Atom::Unknown.fact()
                 };
-                result.value = self.union(ctx, &[result.value, next])?;
+                values.push(ctx, next)?;
             }
         }
+        // Keep any result joined into the outcome directly.
+        values.push(ctx, result.value)?;
+        result.value = self.union(ctx, &values.data)?;
         Ok((result, limit))
     }
 

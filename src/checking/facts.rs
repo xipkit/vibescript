@@ -872,6 +872,15 @@ impl Facts {
         if let &[a, b] = alternatives {
             return self.pair(ctx, a, b);
         }
+        // Many collected alternatives often repeat the same union, whose arms need one copy.
+        let mut unique = Buffer::empty();
+        let alternatives = if alternatives.len() > 16 {
+            unique.extend(ctx, alternatives)?;
+            unique = distinct(ctx, unique)?;
+            &unique.data
+        } else {
+            alternatives
+        };
         let mut arms = Buffer::empty();
         for &fact in alternatives {
             ctx.charge(1)?;
@@ -881,12 +890,21 @@ impl Facts {
                 _ => arms.push(ctx, fact)?,
             }
         }
-        ctx.charge(
-            arms.data
-                .len()
-                .saturating_mul(arms.data.len().max(1).ilog2() as usize + 1) as u64,
-        )?;
-        arms.data.sort_unstable();
+        ctx.charge(arms.data.len() as u64)?;
+        // Collected alternatives often arrive already in fact order, or repeat a few facts
+        // many times, as operator results over two unions do.
+        if !arms.data.is_sorted() {
+            if arms.data.len() > 32 {
+                arms = distinct(ctx, arms)?;
+            }
+            ctx.charge(
+                arms.data
+                    .len()
+                    .saturating_mul(arms.data.len().max(1).ilog2() as usize + 1)
+                    as u64,
+            )?;
+            arms.data.sort_unstable();
+        }
         arms.data.dedup();
         self.union_of(ctx, arms)
     }
@@ -1332,6 +1350,37 @@ impl Node {
             _ => false,
         })
     }
+}
+
+/// Keeps the first occurrence of each fact, in order, using a metered hash set.
+fn distinct(ctx: &mut CallContext, facts: Buffer<Fact>) -> Result<Buffer<Fact>> {
+    let Some(capacity) = facts
+        .data
+        .len()
+        .checked_mul(2)
+        .map(usize::next_power_of_two)
+    else {
+        return ctx.fail(crate::ErrorKind::Memory, "checker union size overflow");
+    };
+    let mut seen = Buffer::with_capacity(ctx, capacity)?;
+    seen.data.resize(capacity, Fact(EMPTY));
+    let mut kept = Buffer::with_capacity(ctx, facts.data.len())?;
+    for fact in facts.data {
+        ctx.charge(1)?;
+        let mut slot = fact.0.wrapping_mul(0x9e37_79b9_7f4a_7c15) & (capacity - 1);
+        loop {
+            match seen.data[slot] {
+                existing if existing == fact => break,
+                Fact(EMPTY) => {
+                    seen.data[slot] = fact;
+                    kept.data.push(fact);
+                    break;
+                }
+                _ => slot = (slot + 1) & (capacity - 1),
+            }
+        }
+    }
+    Ok(kept)
 }
 
 pub(super) fn same_bytes(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<bool> {

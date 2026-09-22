@@ -214,6 +214,8 @@ impl Facts {
             return Ok(rejected());
         }
         let mut result = outcome(Atom::Never.fact());
+        // Collect the selected values for one union instead of joining every partial result.
+        let mut values = Buffer::empty();
         for r in 0..self.arm_count(receiver) {
             for a in 0..self.arm_count(args[0]) {
                 for b in 0..args.get(1).map_or(1, |&arg| self.arm_count(arg)) {
@@ -229,10 +231,16 @@ impl Facts {
                     } else {
                         self.index_arm(ctx, root, index, length)?
                     };
-                    self.merge_operation(ctx, &mut result, next)?;
+                    values.push(ctx, next.value)?;
+                    result.rejected |= next.rejected;
+                    result.unsupported |= next.unsupported;
+                    result.throws |= next.throws;
                 }
             }
         }
+        // Keep any result joined into the outcome directly.
+        values.push(ctx, result.value)?;
+        result.value = self.union(ctx, &values.data)?;
         Ok(result)
     }
 
