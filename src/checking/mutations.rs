@@ -49,6 +49,41 @@ impl Mutation {
     }
 }
 
+/// Collects mutation outcomes over receiver alternatives, joining their receivers and values
+/// once instead of interning every partial union.
+struct Outcomes {
+    receivers: Buffer<Fact>,
+    values: Buffer<Fact>,
+    flags: Mutation,
+}
+
+impl Outcomes {
+    fn new() -> Self {
+        Self {
+            receivers: Buffer::empty(),
+            values: Buffer::empty(),
+            flags: Mutation::empty(),
+        }
+    }
+
+    fn push(&mut self, ctx: &mut CallContext, next: Mutation) -> Result<()> {
+        self.receivers.push(ctx, next.receiver)?;
+        self.values.push(ctx, next.value)?;
+        self.flags.rejected |= next.rejected;
+        self.flags.unsupported |= next.unsupported;
+        self.flags.throws |= next.throws;
+        Ok(())
+    }
+
+    fn finish(self, ctx: &mut CallContext, facts: &mut Facts) -> Result<Mutation> {
+        Ok(Mutation {
+            receiver: facts.union(ctx, &self.receivers.data)?,
+            value: facts.union(ctx, &self.values.data)?,
+            ..self.flags
+        })
+    }
+}
+
 impl Facts {
     pub fn collection_mutation_member(
         &mut self,
@@ -59,7 +94,7 @@ impl Facts {
         args: &[Fact],
     ) -> Result<Mutation> {
         ctx.checkpoint()?;
-        let mut result = Mutation::empty();
+        let mut result = Outcomes::new();
         for i in 0..self.arm_count(receiver) {
             ctx.charge(1)?;
             let arm = self.arm(receiver, i);
@@ -92,9 +127,9 @@ impl Facts {
                 } else {
                     Mutation::unsupported()
                 };
-            self.merge_mutation(ctx, &mut result, next)?;
+            result.push(ctx, next)?;
         }
-        Ok(result)
+        result.finish(ctx, self)
     }
 
     fn merge_mutation(
@@ -139,13 +174,15 @@ impl Facts {
                 throws: flags & 4 != 0,
             });
         }
+        let mut outcomes = Outcomes::new();
         for i in 0..self.arm_count(receiver) {
             for j in 0..self.arm_count(index) {
                 ctx.charge(1)?;
                 let next = self.write_arm(ctx, self.arm(receiver, i), self.arm(index, j), value)?;
-                self.merge_mutation(ctx, &mut result, next)?;
+                outcomes.push(ctx, next)?;
             }
         }
+        result = outcomes.finish(ctx, self)?;
         if result.value == value || result.value == Atom::Never.fact() {
             let flags = u16::from(result.rejected)
                 | u16::from(result.unsupported) << 1
