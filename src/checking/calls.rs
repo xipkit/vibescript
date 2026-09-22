@@ -281,6 +281,23 @@ pub(super) trait Calls {
         ctx.checkpoint()?;
         Ok(false)
     }
+    /// Summarizes the call contexts that the running analysis created since it last settled.
+    /// Their summaries were provisional when read, so the caller analyzes the same code again
+    /// instead of propagating provisional states. Without this, each new specialization, such
+    /// as one per widening step of a loop that calls it, would cost its caller another complete
+    /// analysis. Nesting is bounded, so long call chains still use the work queue.
+    fn settle(&mut self, ctx: &mut CallContext, _: &mut Facts) -> Result<()> {
+        ctx.checkpoint()
+    }
+    /// Reports whether the running analysis created contexts that [`Self::settle`] summarizes.
+    fn unsettled(&self) -> bool {
+        false
+    }
+    /// Starts or stops recording the contexts that block walks of the running analysis create
+    /// for [`Self::settle`]. Walks before and after the fixed point do not repeat their calls.
+    fn track_created(&mut self, ctx: &mut CallContext, _: bool) -> Result<()> {
+        ctx.checkpoint()
+    }
     fn global(&mut self, ctx: &mut CallContext, name: &str) -> Result<bool>;
     fn resolve(&mut self, ctx: &mut CallContext, name: &str) -> Result<Target>;
     fn invoke(
@@ -535,6 +552,11 @@ struct Scheduler<'a> {
     current: usize,
     dependencies: Buffer<usize>,
     search: usize,
+    // Contexts created by block walks of the running analysis, whether it is walking blocks,
+    // and the depth of analyses summarizing such contexts.
+    created: Buffer<usize>,
+    tracking: bool,
+    nesting: usize,
 }
 
 struct Solver<'s, 'a> {
@@ -559,6 +581,9 @@ impl<'a> Scheduler<'a> {
             current: EMPTY,
             dependencies: Buffer::empty(),
             search: 0,
+            created: Buffer::empty(),
+            tracking: false,
+            nesting: 0,
         }
     }
 
@@ -577,9 +602,13 @@ impl<'a> Scheduler<'a> {
         ctx.checkpoint()?;
         while let Some(index) = self.queue.data.pop() {
             ctx.charge(1)?;
+            // A context summarized inside the analysis that created it leaves a stale entry.
+            if !self.jobs.data[index].queued {
+                continue;
+            }
             let (world_index, handle) = self.worlds.get(ctx, self.jobs.data[index].source)?;
             self.adapter(world_index, &handle)
-                .solve_job(ctx, facts, index)?;
+                .solve_job(ctx, facts, index, EMPTY)?;
         }
         self.current = EMPTY;
         self.dependencies = Buffer::empty();
@@ -594,6 +623,8 @@ enum Ancestor<'a> {
 }
 
 const EMPTY: usize = usize::MAX;
+/// Bounds the analyses of newly created contexts that run inside their caller's analysis.
+const NESTING: usize = 8;
 
 #[cfg(test)]
 pub(super) fn analyze(
@@ -858,11 +889,21 @@ impl Solver<'_, '_> {
             .data[function]
     }
 
-    fn solve_job(&mut self, ctx: &mut CallContext, facts: &mut Facts, index: usize) -> Result<()> {
+    /// Analyzes one queued context and requeues the contexts that read its summary when it
+    /// changes, except `reader`, a running analysis that reads the new summary directly.
+    fn solve_job(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        index: usize,
+        reader: usize,
+    ) -> Result<()> {
         let source = self.source;
         self.state.current = index;
         self.state.jobs.data[index].queued = false;
         self.state.dependencies = Buffer::empty();
+        self.state.created = Buffer::empty();
+        self.state.tracking = false;
         let mut inputs = Buffer::empty();
         let job = &self.state.jobs.data[index];
         inputs.extend(ctx, &job.widened.as_ref().unwrap_or(&job.inputs).data)?;
@@ -987,8 +1028,19 @@ impl Solver<'_, '_> {
             for parent in 0..self.state.jobs.data[index].parents.data.len() {
                 ctx.charge(1)?;
                 let parent = self.state.jobs.data[index].parents.data[parent];
-                self.enqueue(ctx, parent)?;
+                if parent != reader {
+                    self.enqueue(ctx, parent)?;
+                }
             }
+        }
+        Ok(())
+    }
+
+    /// Records a context created by a block walk of the running analysis, so that analysis can
+    /// summarize it before reading its summary again. See [`Calls::settle`].
+    fn created(&mut self, ctx: &mut CallContext, index: usize) -> Result<()> {
+        if self.state.tracking && self.state.nesting < NESTING {
+            self.state.created.push(ctx, index)?;
         }
         Ok(())
     }
@@ -1288,6 +1340,45 @@ impl Solver<'_, '_> {
 }
 
 impl Calls for Solver<'_, '_> {
+    fn track_created(&mut self, ctx: &mut CallContext, tracking: bool) -> Result<()> {
+        ctx.checkpoint()?;
+        self.state.tracking = tracking;
+        self.state.created = Buffer::empty();
+        Ok(())
+    }
+
+    fn unsettled(&self) -> bool {
+        !self.state.created.data.is_empty()
+    }
+
+    fn settle(&mut self, ctx: &mut CallContext, facts: &mut Facts) -> Result<()> {
+        ctx.checkpoint()?;
+        let created = std::mem::replace(&mut self.state.created, Buffer::empty());
+        let reader = self.state.current;
+        let dependencies = std::mem::replace(&mut self.state.dependencies, Buffer::empty());
+        self.state.nesting += 1;
+        for &index in &created.data {
+            ctx.charge(1)?;
+            // An earlier nested analysis may have summarized this context already.
+            if !self.state.jobs.data[index].queued {
+                continue;
+            }
+            let (world_index, handle) = self
+                .state
+                .worlds
+                .get(ctx, self.state.jobs.data[index].source)?;
+            self.state
+                .adapter(world_index, &handle)
+                .solve_job(ctx, facts, index, reader)?;
+        }
+        self.state.nesting -= 1;
+        self.state.current = reader;
+        self.state.dependencies = dependencies;
+        self.state.created = Buffer::empty();
+        self.state.tracking = true;
+        Ok(())
+    }
+
     fn receiving_declaration(
         &mut self,
         ctx: &mut CallContext,

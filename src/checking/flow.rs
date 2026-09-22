@@ -987,13 +987,24 @@ pub(super) fn analyze_body(
         native_results: None,
         native_frame: None,
     };
+    walker.calls.track_created(walker.ctx, true)?;
     while let Some((index, polarity)) = queue.data.pop() {
         walker.ctx.charge(1)?;
         entries.data[index].data[polarity].queued = false;
-        let state = entries.data[index].data[polarity]
-            .state
-            .snapshot(walker.ctx)?;
-        let edges = walker.block(&graph.blocks.data[index], state)?;
+        let edges = loop {
+            let state = entries.data[index].data[polarity]
+                .state
+                .snapshot(walker.ctx)?;
+            let edges = walker.block(&graph.blocks.data[index], state)?;
+            if !walker.calls.unsettled() {
+                break edges;
+            }
+            // Calls to contexts created by this walk read provisional summaries. Discard its
+            // states, summarize those contexts and walk the block again.
+            drop(edges);
+            walker.extra.data.clear();
+            walker.calls.settle(walker.ctx, walker.facts)?;
+        };
         for (pc, state) in edges.into_iter().flatten() {
             walker.extra.push(walker.ctx, (pc, state))?;
         }
@@ -1036,6 +1047,7 @@ pub(super) fn analyze_body(
             }
         }
     }
+    walker.calls.track_created(walker.ctx, false)?;
     // Diagnostics use converged inputs, never provisional branch or loop states.
     walker.report = Some(&mut report);
     for (index, entry) in entries.data.into_iter().enumerate() {

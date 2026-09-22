@@ -210,7 +210,7 @@ Supplied values otherwise remain deferred until a reachable read or type lookup 
 
 Type lookup requests deferred roots in the existing exact, folded and qualified lookup order. Source and host contracts stop at their first failing named leaf, preserve omitted host parameters and grant checks, and load folded candidates before resolving ambiguity. Recoverable value-import failures enter script exception flow at the read or type boundary. Attached-method guards still apply to imported roots. Actual cancellation, deadlines and checker work/memory exhaustion remain latched and cannot be converted into script rescue paths.
 
-Sixteen focused test families compare analysis with execution, including unused large values under a 48 KiB budget, reachable allocation failures, maximum-depth shared inputs, invalid strict globals before effects, conditional writes and exceptional calls, negative-index mutation, value copies, target selection before argument rebinding, named aliases and failure ordering. Exact and sampled quota failures verify cleanup. Public diagnostics, checking and checked invocation remain separate integration work.
+Sixteen focused test families compare analysis with execution, including unused large values under a 64 KiB budget, reachable allocation failures, maximum-depth shared inputs, invalid strict globals before effects, conditional writes and exceptional calls, negative-index mutation, value copies, target selection before argument rebinding, named aliases and failure ordering. Exact and sampled quota failures verify cleanup. Public diagnostics, checking and checked invocation remain separate integration work.
 
 ## Concrete host-call entry
 

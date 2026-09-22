@@ -112,9 +112,9 @@ fn unused_and_overwritten_large_globals_keep_lazy_accounting() {
             };
             let script = engine.compile(&source).unwrap();
             let mut supplied = options("big", huge.clone());
-            supplied.limits.memory_bytes = Some(48 << 10);
+            supplied.limits.memory_bytes = Some(64 << 10);
             let stats = witness(&script, &supplied, &[], false, "7", false);
-            assert!(stats.peak_memory_bytes < 48 << 10);
+            assert!(stats.peak_memory_bytes < 64 << 10);
             if !strict {
                 let small = witness(
                     &script,

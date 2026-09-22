@@ -230,9 +230,13 @@ impl<'a> Solver<'_, 'a> {
                     outcome.incomplete = true;
                     return Ok(outcome);
                 }
+                let fresh = self.state.jobs.data.len();
                 let index =
                     self.request(ctx, facts, function, &inputs.data, current_error, &context)?;
                 self.depend(ctx, index)?;
+                if index == fresh {
+                    self.created(ctx, index)?;
+                }
                 outcome.value = self.state.jobs.data[index].returns;
                 if context.kind == Kind::Plain && globals.values.data.is_empty() {
                     outcome.throws = self.state.jobs.data[index].throws;
