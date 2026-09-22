@@ -13189,5 +13189,15 @@
     "name": "syntax_depth_blocks_past_the_reference_limit",
     "source": "def f\n  yield\nend\ndef run(input)\nf { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { f { 1 } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } }\nend",
     "go_error": "parse error at 5:1: syntax nesting too deep"
+  },
+  {
+    "name": "ternary_line_leading_symbol_is_not_a_separator",
+    "source": "def run(input)\n  x = false ? 1\n  :sym\nend",
+    "go_error": "parse error at 3:3: expected \":\", got symbol"
+  },
+  {
+    "name": "ternary_separator_cannot_follow_a_semicolon",
+    "source": "def run(input)\n  x = false ? 1 ; : 2\nend",
+    "go_error": "parse error at 2:17: expected \":\", got \";\""
   }
 ]

@@ -1,4 +1,4 @@
-use vibescript::{CallOptions, Engine, ErrorKind};
+use vibescript::{CallOptions, Engine, ErrorKind, stringify_json};
 
 #[test]
 fn standalone_begin_rejects_statement_modifiers() {
@@ -79,5 +79,29 @@ fn instance_variable_names_require_quoted_symbols() {
     {
         assert_eq!(symbol.type_name(), "symbol");
         assert_eq!(symbol.as_bytes(), Some(expected.as_bytes()));
+    }
+}
+
+fn result(source: &str) -> serde_json::Value {
+    let output = Engine::new()
+        .compile(source)
+        .unwrap_or_else(|error| panic!("{source}: {error}"))
+        .call("run", &[], CallOptions::default())
+        .unwrap_or_else(|error| panic!("{source}: {error}"));
+    let json = stringify_json(&output.value, CallOptions::default()).unwrap();
+    serde_json::from_slice(json.value.as_bytes().unwrap()).unwrap()
+}
+
+#[test]
+fn ternary_separators_may_start_a_later_line() {
+    let source = "def run
+  a = true ? \"multi\"\n    : \"other\"\n  b = false ?\n    1\n\n  :\n    2\n  [a, b, [true ? 3\n    : 4]]\nend";
+    assert_eq!(result(source), serde_json::json!(["multi", 2, [3]]));
+    for source in [
+        "def run\n  false ? 1\n  :sym\nend",
+        "def run\n  false ? 1 ; : 2\nend",
+    ] {
+        let error = Engine::new().compile(source).err().unwrap();
+        assert_eq!(error.kind, ErrorKind::Syntax, "{source}");
     }
 }

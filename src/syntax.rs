@@ -1577,6 +1577,7 @@ impl<'a> Parsing<'a> {
         {
             let mut p = self.p();
             p.ternaries.pop();
+            p.ternary_separator()?;
             p.expect_p(':')?;
             p.lines()?;
         }
@@ -2150,6 +2151,21 @@ impl<'a> Parser<'a> {
             self.work.charge(1)?;
             self.declared_it |= name == "it";
             self.locals.insert(self.work, name, ())?;
+        }
+        Ok(())
+    }
+    // Like Go, the separator may start a later line, but a line-leading
+    // `:name` is a symbol rather than the separator.
+    fn ternary_separator(&mut self) -> Result<()> {
+        let mut next = self.pos;
+        while self.tokens[next].token == Token::EndLine
+            && self.tokens[next].line != self.tokens[next].end_line
+        {
+            self.work.charge(1)?;
+            next += 1;
+        }
+        if self.tokens[next].token == Token::P(':') && !self.symbol_start(next) {
+            self.pos = next;
         }
         Ok(())
     }
