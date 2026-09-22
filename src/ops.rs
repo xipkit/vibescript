@@ -7,7 +7,7 @@ use crate::{
     scan::{self, Class},
     value::Kind,
 };
-use std::{cmp::Ordering, fmt::Write};
+use std::{cmp::Ordering, fmt::Write, sync::Arc};
 
 fn type_error() -> Error {
     Error::new(ErrorKind::Type, "unsupported operand types")
@@ -283,17 +283,20 @@ pub(crate) fn eql(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -> 
 }
 
 /// One suspended container comparison. Frames only borrow the operands, so
-/// unwinding the walk never runs recursive drop glue.
+/// unwinding the walk never runs recursive drop glue. `shared` holds the
+/// storage addresses of a pair that other paths may reach again.
 enum EqualFrame<'a> {
     Array {
         a: &'a [Value],
         b: &'a [Value],
         index: usize,
+        shared: Option<(usize, usize)>,
     },
     Hash {
         a: &'a Hash,
         b: &'a Hash,
         index: usize,
+        shared: Option<(usize, usize)>,
     },
 }
 
@@ -303,6 +306,14 @@ enum EqualStep<'a> {
     Enter(EqualFrame<'a>),
 }
 
+/// Returns the addresses of two containers when either is referenced more
+/// than once. A pair reached along two paths must have a shared side, or its
+/// parents would be the repeated pair, so only these need remembering.
+pub(crate) fn shared_pair<T>(a: &Arc<T>, b: &Arc<T>) -> Option<(usize, usize)> {
+    (Arc::strong_count(a) > 1 || Arc::strong_count(b) > 1)
+        .then_some((Arc::as_ptr(a) as usize, Arc::as_ptr(b) as usize))
+}
+
 fn equal_kinds<'a>(
     ctx: &mut CallContext,
     a: &'a Value,
@@ -310,17 +321,29 @@ fn equal_kinds<'a>(
     depth: usize,
     strict: bool,
 ) -> Result<bool> {
-    let mut current = match equal_step(ctx, a, b, depth, strict)? {
+    // Shared container pairs already found equal in this walk. A pair that
+    // differed ends the walk, so only equal pairs are recorded; the operands
+    // stay borrowed until it returns, which keeps every address valid.
+    let mut equal = crate::pairs::Pairs::new();
+    let mut current = match equal_step(ctx, a, b, depth, strict, &equal)? {
         EqualStep::Same => return Ok(true),
         EqualStep::Different => return Ok(false),
-        EqualStep::Enter(frame) => frame,
+        EqualStep::Enter(mut frame) => {
+            // The operands themselves cannot be reached again.
+            match &mut frame {
+                EqualFrame::Array { shared, .. } | EqualFrame::Hash { shared, .. } => {
+                    *shared = None
+                }
+            }
+            frame
+        }
     };
     // Suspended ancestors of `current`; charged per push, released on any exit.
     let mut parents: Buffer<EqualFrame<'a>> = Buffer::empty();
     loop {
         let level = depth + parents.data.len() + 1;
         let pair = match &mut current {
-            EqualFrame::Array { a, b, index } => {
+            EqualFrame::Array { a, b, index, .. } => {
                 let (a, b): (&'a [Value], &'a [Value]) = (*a, *b);
                 if *index == a.len() {
                     None
@@ -330,7 +353,7 @@ fn equal_kinds<'a>(
                     Some((&a[i], &b[i]))
                 }
             }
-            EqualFrame::Hash { a, b, index } => {
+            EqualFrame::Hash { a, b, index, .. } => {
                 let (a, b): (&'a Hash, &'a Hash) = (*a, *b);
                 if *index == a.buffer.data.len() {
                     None
@@ -345,13 +368,24 @@ fn equal_kinds<'a>(
             }
         };
         let Some((x, y)) = pair else {
+            if let EqualFrame::Array {
+                shared: Some((left, right)),
+                ..
+            }
+            | EqualFrame::Hash {
+                shared: Some((left, right)),
+                ..
+            } = current
+            {
+                equal.insert(ctx, left, right, ())?;
+            }
             match parents.data.pop() {
                 Some(parent) => current = parent,
                 None => return Ok(true),
             }
             continue;
         };
-        match equal_step(ctx, x, y, level, strict)? {
+        match equal_step(ctx, x, y, level, strict, &equal)? {
             EqualStep::Same => {}
             EqualStep::Different => return Ok(false),
             EqualStep::Enter(frame) => {
@@ -368,6 +402,7 @@ fn equal_step<'a>(
     b: &'a Value,
     depth: usize,
     strict: bool,
+    equal: &crate::pairs::Pairs<()>,
 ) -> Result<EqualStep<'a>> {
     ctx.charge(1)?;
     if depth > MAX_VALUE_DEPTH {
@@ -376,6 +411,12 @@ fn equal_step<'a>(
     if strict && a.type_name() != b.type_name() {
         return Ok(EqualStep::Different);
     }
+    // A remembered pair stands in for its walk only where that walk could not
+    // reach the nesting limit from this depth.
+    let remembered = |shared: Option<(usize, usize)>| {
+        depth + a.depth().max(b.depth()) <= MAX_VALUE_DEPTH
+            && shared.is_some_and(|(left, right)| equal.get(left, right).is_some())
+    };
     let same = match (&a.0, &b.0) {
         (Kind::Nil, Kind::Nil) => true,
         (Kind::Regex(a), Kind::Regex(b)) => a.equal(ctx, b)?,
@@ -429,10 +470,15 @@ fn equal_step<'a>(
             } else if a.buffer.data.is_empty() {
                 true
             } else {
+                let shared = shared_pair(a, b);
+                if remembered(shared) {
+                    return Ok(EqualStep::Same);
+                }
                 return Ok(EqualStep::Enter(EqualFrame::Array {
                     a: &a.buffer.data,
                     b: &b.buffer.data,
                     index: 0,
+                    shared,
                 }));
             }
         }
@@ -442,10 +488,15 @@ fn equal_step<'a>(
             } else if a.buffer.data.is_empty() {
                 true
             } else {
+                let shared = shared_pair(a, b);
+                if remembered(shared) {
+                    return Ok(EqualStep::Same);
+                }
                 return Ok(EqualStep::Enter(EqualFrame::Hash {
                     a: a.as_ref(),
                     b: b.as_ref(),
                     index: 0,
+                    shared,
                 }));
             }
         }
@@ -1208,16 +1259,64 @@ mod tests {
     }
 
     #[test]
-    fn shared_graph_equality_stops_at_the_step_quota_without_retaining_frames() {
+    fn shared_graph_equality_compares_each_pair_once() {
+        // 2^40 paths, but 40 distinct pairs of shared arrays.
         let a = shared(40, Value::int(0));
         let b = shared(40, Value::int(0));
-        let mut ctx = context(Some(10_000), None);
+        let c = shared(40, Value::int(1));
+        for strict in [false, true] {
+            let mut ctx = context(Some(1_000), None);
+            assert!(equal_kinds(&mut ctx, &a, &b, 0, strict).unwrap());
+            assert!(!equal_kinds(&mut ctx, &a, &c, 0, strict).unwrap());
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        }
+        // Each level costs its two element steps and one recorded pair.
+        let cost = |levels| {
+            let mut ctx = context(None, Some(usize::MAX));
+            let (a, b) = (shared(levels, Value::int(0)), shared(levels, Value::int(0)));
+            assert!(equal(&mut ctx, &a, &b, 0).unwrap());
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+            ctx.stats()
+        };
+        let (small, large) = (cost(40), cost(80));
+        assert!(large.steps < 2 * small.steps + 100, "{small:?} {large:?}");
+        // The memo's 128 slots are reserved, and the quota bounds them.
+        let peak = small.peak_memory_bytes;
+        assert!(peak >= 128 * 2 * size_of::<usize>());
+        let mut ctx = context(None, Some(peak - 1));
         let error = equal(&mut ctx, &a, &b, 0).unwrap_err();
-        assert_eq!(error.kind, ErrorKind::Steps);
+        assert_eq!(error.kind, ErrorKind::Memory);
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
         assert_eq!(ctx.charge(0).unwrap_err(), error);
+        // A shared NaN-bearing pair still compares unequal on every path.
+        let nan = Value::array(vec![Value::float(f64::NAN)]);
+        let twice = Value::array(vec![nan.clone(), nan.clone()]);
+        let mut ctx = context(None, None);
+        assert!(!equal(&mut ctx, &twice, &twice, 0).unwrap());
         drop(a);
         drop(b);
+        drop(c);
+    }
+
+    #[test]
+    fn remembered_pairs_do_not_hide_the_nesting_limit() {
+        let outcome = on_small_stack(|| {
+            let mut ctx = CallContext::new(CallOptions::default());
+            // `inner` is shared and first compared at depth 1; the second path
+            // reaches it deeper, where its walk exceeds the limit.
+            let inner = nested(MAX_VALUE_DEPTH - 2, Value::int(1));
+            let other = nested(MAX_VALUE_DEPTH - 2, Value::int(1));
+            let deep = |value: &Value| Value::array(vec![value.clone(), nested(3, value.clone())]);
+            let result = equal(&mut ctx, &deep(&inner), &deep(&other), 0);
+            let stats = ctx.stats();
+            drop(inner);
+            drop(other);
+            (result, stats)
+        });
+        let (result, stats) = outcome;
+        let error = result.unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Recursion);
+        assert_eq!(stats.retained_memory_bytes, 0);
     }
 
     #[test]

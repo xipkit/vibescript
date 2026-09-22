@@ -305,3 +305,101 @@ fn callback_enum_results_keep_separate_identity_from_the_invocation() {
         .unwrap();
     assert_eq!(output.value.to_string(), "[true, true, false]");
 }
+
+const SHARED_DAG: &str = "def build(d)\n  cur = [1]\n  i = 0\n  while i < d\n    cur = [cur, cur]\n    i = i + 1\n  end\n  cur\nend\n";
+
+fn run_with(source: &str, limits: vibescript::Limits) -> Result<(String, u64), ErrorKind> {
+    let output = Engine::new()
+        .compile(source)
+        .unwrap()
+        .run(CallOptions {
+            limits,
+            ..CallOptions::default()
+        })
+        .map_err(|error| error.kind)?;
+    let encoded = stringify_json(&output.value, CallOptions::default()).unwrap();
+    Ok((
+        String::from_utf8(encoded.value.as_bytes().unwrap().to_vec()).unwrap(),
+        output.stats.steps,
+    ))
+}
+
+#[test]
+fn shared_structures_compare_each_pair_of_containers_once() {
+    // The reference runs this with a 5,000,000-step and 64 MiB quota.
+    let source = format!(
+        "{SHARED_DAG}s = \"ab\" * 2048\na = [build(24), s]\nb = [build(24), s]\n((a == b) && ((a <=> b) == 0)).to_s"
+    );
+    let limits = vibescript::Limits {
+        steps: Some(5_000_000),
+        memory_bytes: Some(64 << 20),
+        ..vibescript::Limits::default()
+    };
+    assert_eq!(run_with(&source, limits).unwrap().0, "\"true\"");
+    // Every walk that compares elements shares the memo.
+    for expression in [
+        "a == b",
+        "a.eql?(b)",
+        "a.equal?(b)",
+        "[a].include?(b)",
+        "[a].index(b)",
+        "[a].count(b)",
+        "[a, b].uniq.size",
+        "([a] - [b]).size",
+        "{x: a} == {x: b}",
+        "(a <=> b)",
+        "case a\nwhen b\n  1\nend",
+    ] {
+        let unlimited = vibescript::Limits {
+            steps: None,
+            ..vibescript::Limits::default()
+        };
+        let cost = |depth: usize| {
+            let prefix = format!("{SHARED_DAG}a = build({depth})\nb = build({depth})\n");
+            let base = run_with(&format!("{prefix}nil"), unlimited.clone())
+                .unwrap()
+                .1;
+            let (value, steps) =
+                run_with(&format!("{prefix}{expression}"), unlimited.clone()).unwrap();
+            (value, steps - base)
+        };
+        let (small, large) = (cost(20), cost(40));
+        assert_eq!(small.0, large.0, "{expression}");
+        // Twenty more levels cost a few steps each, not 2^20 times more.
+        assert!(
+            large.1 - small.1 < 20 * 8,
+            "{expression}: {small:?} {large:?}"
+        );
+        let source = format!("{SHARED_DAG}a = build(24)\nb = build(24)\n{expression}");
+        assert!(
+            run_with(&source, vibescript::Limits::default()).is_ok(),
+            "{expression}"
+        );
+    }
+}
+
+#[test]
+fn ordering_remembers_shared_pairs_beyond_any_fixed_window() {
+    // Each level separates the two references to its child with 300 distinct
+    // completed pairs, more than a bounded window of recent pairs retains.
+    let source = |depth: usize| {
+        format!(
+            "def build(d)\n  cur = [1]\n  i = 0\n  while i < d\n    fill = (0..300).to_a.map {{ |k| [k] }}\n    cur = [cur] + fill + [cur]\n    i = i + 1\n  end\n  cur\nend\na = build({depth})\nb = build({depth})\n[a <=> b, a == b]"
+        )
+    };
+    let unlimited = vibescript::Limits {
+        steps: None,
+        ..vibescript::Limits::default()
+    };
+    let base = |depth: usize| {
+        let source = source(depth).replace("[a <=> b, a == b]", "nil");
+        run_with(&source, unlimited.clone()).unwrap().1
+    };
+    let cost = |depth: usize| {
+        let (value, steps) = run_with(&source(depth), unlimited.clone()).unwrap();
+        assert_eq!(value, "[0,true]");
+        steps - base(depth)
+    };
+    let (small, large) = (cost(8), cost(16));
+    assert!(large < 3 * small, "{small} then {large}");
+}

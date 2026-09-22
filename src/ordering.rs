@@ -3,28 +3,22 @@ use crate::{
     budget::{Buffer, MAX_VALUE_DEPTH},
     iteration::Progress,
     ops,
+    pairs::Pairs,
     sort::{Action, Sort},
     value::Kind,
 };
 use std::{cmp::Ordering, sync::Arc};
 
-struct Memo {
-    left: usize,
-    right: usize,
-    order: Option<Ordering>,
-}
-
 struct Compare {
-    memo: Buffer<Memo>,
-    buckets: Buffer<usize>,
-    next: usize,
+    /// Orders of shared array pairs finished during the current comparison.
+    pairs: Pairs<Option<Ordering>>,
 }
 
 /// One suspended array comparison; borrows the operands only, so unwinding
-/// the walk never runs recursive drop glue.
+/// the walk never runs recursive drop glue. `shared` holds the storage
+/// addresses of a pair that other paths may reach again.
 struct Frame<'a> {
-    left: usize,
-    right: usize,
+    shared: Option<(usize, usize)>,
     a: &'a [Value],
     b: &'a [Value],
     index: usize,
@@ -47,88 +41,8 @@ enum Step<'a> {
 impl Compare {
     fn new() -> Self {
         Self {
-            memo: Buffer::empty(),
-            buckets: Buffer::empty(),
-            next: 0,
+            pairs: Pairs::new(),
         }
-    }
-
-    fn clear(&mut self) {
-        self.memo.data.clear();
-        self.buckets.data.fill(0);
-        self.next = 0;
-    }
-
-    fn hash(left: usize, right: usize) -> usize {
-        let mut hash =
-            (left as u64).wrapping_mul(0x9e3779b97f4a7c15) ^ (right as u64).rotate_left(27);
-        hash ^= hash >> 33;
-        hash = hash.wrapping_mul(0xff51afd7ed558ccd);
-        (hash ^ (hash >> 33)) as usize
-    }
-
-    fn bucket(&self, left: usize, right: usize) -> usize {
-        let mask = self.buckets.data.len() - 1;
-        let mut slot = Self::hash(left, right) & mask;
-        // At most 256 entries occupy at most 512 buckets. The enclosing logical
-        // comparison is charged once, independently of heap-address collisions.
-        loop {
-            let entry = self.buckets.data[slot];
-            if entry == 0 {
-                return slot;
-            }
-            let memo = &self.memo.data[entry - 1];
-            if memo.left == left && memo.right == right {
-                return slot;
-            }
-            slot = (slot + 1) & mask;
-        }
-    }
-
-    fn remember(&mut self, ctx: &mut CallContext, memo: Memo) -> Result<()> {
-        ctx.charge(1)?;
-        let index = if self.memo.data.len() < 256 {
-            let len = self.memo.data.len();
-            if 2 * (len + 1) > self.buckets.data.len() {
-                let capacity = self.buckets.data.len().max(8) * 2;
-                let mut buckets = Buffer::with_capacity(ctx, capacity)?;
-                ctx.work_bytes(capacity * size_of::<usize>())?;
-                buckets.data.resize(capacity, 0);
-                self.buckets = buckets;
-                for (index, memo) in self.memo.data.iter().enumerate() {
-                    ctx.charge(1)?;
-                    let slot = self.bucket(memo.left, memo.right);
-                    self.buckets.data[slot] = index + 1;
-                }
-            }
-            self.memo.push(ctx, memo)?;
-            len
-        } else {
-            let index = self.next;
-            let old = &self.memo.data[index];
-            let mut hole = self.bucket(old.left, old.right);
-            let mask = self.buckets.data.len() - 1;
-            self.buckets.data[hole] = 0;
-            let mut slot = (hole + 1) & mask;
-            while self.buckets.data[slot] != 0 {
-                let entry = self.buckets.data[slot];
-                let memo = &self.memo.data[entry - 1];
-                let home = Self::hash(memo.left, memo.right) & mask;
-                if (slot.wrapping_sub(home) & mask) >= (slot.wrapping_sub(hole) & mask) {
-                    self.buckets.data[hole] = entry;
-                    self.buckets.data[slot] = 0;
-                    hole = slot;
-                }
-                slot = (slot + 1) & mask;
-            }
-            self.memo.data[index] = memo;
-            self.next = (index + 1) % 256;
-            index
-        };
-        let memo = &self.memo.data[index];
-        let slot = self.bucket(memo.left, memo.right);
-        self.buckets.data[slot] = index + 1;
-        Ok(())
     }
 
     fn order<'a>(
@@ -138,9 +52,16 @@ impl Compare {
         b: &'a Value,
         depth: usize,
     ) -> Result<Option<Ordering>> {
+        // Remembered addresses may belong to values released since the last
+        // comparison, so each comparison starts from an empty memo.
+        self.pairs.clear(ctx)?;
         let mut current = match self.step(ctx, a, b, depth)? {
             Step::Done(order) => return Ok(order),
-            Step::Enter(frame) => frame,
+            Step::Enter(mut frame) => {
+                // The operands themselves cannot be reached again.
+                frame.shared = None;
+                frame
+            }
         };
         // Suspended ancestors of `current`; charged per push, released on any exit.
         let mut parents: Buffer<Frame<'a>> = Buffer::empty();
@@ -163,14 +84,10 @@ impl Compare {
                 continue;
             }
             let order = current.order;
-            let memo = Memo {
-                left: current.left,
-                right: current.right,
-                order,
-            };
-            // Completed pairs bound repeated traversal of shared immutable arrays.
-            // Operands must remain alive until clear; key extrema clear before each comparison.
-            self.remember(ctx, memo)?;
+            // Completed shared pairs bound repeated traversal of immutable arrays.
+            if let Some((left, right)) = current.shared {
+                self.pairs.insert(ctx, left, right, order)?;
+            }
             match parents.data.pop() {
                 Some(parent) => {
                     current = parent;
@@ -196,6 +113,7 @@ impl Compare {
         if depth > MAX_VALUE_DEPTH {
             return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
         }
+        let reach = depth + a.depth().max(b.depth());
         let order = match (&a.0, &b.0) {
             (Kind::Array(a), Kind::Array(b)) => {
                 if Arc::ptr_eq(a, b) {
@@ -206,17 +124,16 @@ impl Compare {
                         a.buffer.data.len().cmp(&b.buffer.data.len()),
                     )));
                 }
-                let left = Arc::as_ptr(a) as usize;
-                let right = Arc::as_ptr(b) as usize;
-                if !self.buckets.data.is_empty() {
-                    let entry = self.buckets.data[self.bucket(left, right)];
-                    if entry != 0 {
-                        return Ok(Step::Done(self.memo.data[entry - 1].order));
+                let shared = ops::shared_pair(a, b);
+                // A remembered order stands in for its walk only where that
+                // walk could not reach the nesting limit from this depth.
+                if let Some((left, right)) = shared.filter(|_| reach <= MAX_VALUE_DEPTH) {
+                    if let Some(order) = self.pairs.get(left, right) {
+                        return Ok(Step::Done(order));
                     }
                 }
                 return Ok(Step::Enter(Frame {
-                    left,
-                    right,
+                    shared,
                     a: &a.buffer.data,
                     b: &b.buffer.data,
                     index: 0,
@@ -381,7 +298,6 @@ impl Driver {
             } else if self.method == Method::SortBy {
                 self.keys.push(ctx, value)?;
             } else {
-                self.compare.clear();
                 let improves = if let Some(best) = &self.best_key {
                     self.compare.required(ctx, &value, best)?
                         == if self.method == Method::MinBy {
@@ -479,78 +395,50 @@ mod tests {
     };
 
     #[test]
-    fn comparison_cache_survives_collisions_eviction_and_reset() {
-        let colliding: Vec<_> = (1..1_000_000)
-            .filter(|left| Compare::hash(*left, 7) & 511 == 511)
-            .take(640)
-            .collect();
-        assert_eq!(colliding.len(), 640);
-        let mut counters = Vec::new();
-        for keys in [colliding, (1..=640).collect()] {
-            let mut ctx = CallContext::new(CallOptions::default());
-            let mut compare = Compare::new();
-            let order = |i| match i % 4 {
-                0 => None,
-                1 => Some(Ordering::Less),
-                2 => Some(Ordering::Equal),
-                _ => Some(Ordering::Greater),
-            };
-            for (i, left) in keys.iter().copied().enumerate() {
-                compare
-                    .remember(
-                        &mut ctx,
-                        Memo {
-                            left,
-                            right: 7,
-                            order: order(i),
-                        },
-                    )
-                    .unwrap();
-                for (j, key) in keys
-                    .iter()
-                    .copied()
-                    .enumerate()
-                    .take(i + 1)
-                    .skip(i.saturating_sub(255))
-                {
-                    let entry = compare.buckets.data[compare.bucket(key, 7)];
-                    assert_ne!(entry, 0, "entry {j} after insertion {i}");
-                    assert_eq!(
-                        compare.memo.data[entry - 1].order,
-                        order(j),
-                        "entry {j} after insertion {i}"
-                    );
-                }
-                if i >= 256 {
-                    assert_eq!(compare.buckets.data[compare.bucket(keys[i - 256], 7)], 0);
-                }
-            }
-            compare.clear();
-            for key in keys {
-                assert_eq!(compare.buckets.data[compare.bucket(key, 7)], 0);
-            }
-            compare
-                .remember(
-                    &mut ctx,
-                    Memo {
-                        left: 1,
-                        right: 7,
-                        order: None,
-                    },
-                )
-                .unwrap();
-            let entry = compare.buckets.data[compare.bucket(1, 7)];
-            assert_ne!(entry, 0);
-            assert_eq!(compare.memo.data[entry - 1].order, None);
-            drop(compare);
-            let stats = ctx.stats();
-            assert_eq!(stats.retained_memory_bytes, 0);
-            counters.push((stats.steps, stats.peak_memory_bytes));
-        }
+    fn shared_pairs_are_remembered_within_one_comparison_only() {
+        // Each level repeats its child; without the memo the walk doubles per level.
+        let a = shared(60, ints(&[1, 2]));
+        let b = shared(60, ints(&[1, 2]));
+        let c = shared(60, ints(&[1, 3]));
+        let mut ctx = context(Some(2_000), Some(usize::MAX));
+        let mut compare = Compare::new();
         assert_eq!(
-            counters[0], counters[1],
-            "quota counters must not depend on heap addresses"
+            compare.order(&mut ctx, &a, &b, 0).unwrap(),
+            Some(Ordering::Equal)
         );
+        let first = ctx.stats();
+        assert!(first.retained_memory_bytes > 0);
+        assert_eq!(
+            compare.order(&mut ctx, &a, &b, 0).unwrap(),
+            Some(Ordering::Equal)
+        );
+        // Nothing carries over: the repeat costs the same work again.
+        let second = ctx.stats();
+        assert_eq!(second.steps - first.steps, first.steps);
+        assert_eq!(
+            compare.order(&mut ctx, &a, &c, 0).unwrap(),
+            Some(Ordering::Less)
+        );
+        drop(compare);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+
+    #[test]
+    fn remembered_orders_do_not_hide_the_nesting_limit() {
+        let outcome = on_small_stack(|| {
+            let mut ctx = CallContext::new(CallOptions::default());
+            let inner = nested(MAX_VALUE_DEPTH - 2, Value::int(1));
+            let other = nested(MAX_VALUE_DEPTH - 2, Value::int(1));
+            let deep = |value: &Value| Value::array(vec![value.clone(), nested(3, value.clone())]);
+            let result = Compare::new().order(&mut ctx, &deep(&inner), &deep(&other), 0);
+            let stats = ctx.stats();
+            drop(inner);
+            drop(other);
+            (result, stats)
+        });
+        let (result, stats) = outcome;
+        assert_eq!(result.unwrap_err().kind, ErrorKind::Recursion);
+        assert_eq!(stats.retained_memory_bytes, 0);
     }
 
     fn ints(values: &[i64]) -> Value {
@@ -558,7 +446,7 @@ mod tests {
     }
 
     #[test]
-    fn lexicographic_walk_exits_early_and_memoizes_completed_pairs() {
+    fn lexicographic_walk_exits_early() {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut compare = Compare::new();
         let a = Value::array(vec![ints(&[1, 2]), ints(&[9])]);
@@ -567,14 +455,11 @@ mod tests {
             compare.order(&mut ctx, &a, &b, 0).unwrap(),
             Some(Ordering::Less)
         );
-        // The decisive inner pair and the outer pair are remembered even on early exit.
-        assert_eq!(compare.memo.data.len(), 2);
         let early = ctx.stats().steps;
         assert_eq!(
             compare.order(&mut ctx, &b, &a, 0).unwrap(),
             Some(Ordering::Greater)
         );
-        assert_eq!(compare.memo.data.len(), 4);
         let mut ctx = CallContext::new(CallOptions::default());
         let same = Value::array(vec![ints(&[1, 2]), ints(&[9])]);
         assert_eq!(
@@ -600,10 +485,6 @@ mod tests {
         let mixed = Value::array(vec![Value::array(vec![Value::bytes("a")])]);
         let mut compare = Compare::new();
         assert_eq!(compare.order(&mut ctx, &prefix, &mixed, 0).unwrap(), None);
-        let steps = ctx.stats().steps;
-        // A remembered unordered pair costs only its lookup step.
-        assert_eq!(compare.order(&mut ctx, &prefix, &mixed, 0).unwrap(), None);
-        assert_eq!(ctx.stats().steps, steps + 1);
         let nan = Value::array(vec![Value::array(vec![Value::float(f64::NAN)])]);
         assert_eq!(
             Compare::new().order(&mut ctx, &nan, &nan, 0).unwrap(),
@@ -642,10 +523,12 @@ mod tests {
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
         assert_eq!(ctx.charge(0).unwrap_err(), error);
 
-        let outer = Value::array(vec![ints(&[1])]);
+        let inner = ints(&[1]);
+        let outer = Value::array(vec![inner.clone()]);
         let other = Value::array(vec![ints(&[1])]);
         let frames = 8 * size_of::<Frame>();
-        let memo = 16 * size_of::<usize>() + 8 * size_of::<Memo>();
+        // `inner` is shared with this test, so its completed pair is remembered.
+        let memo = 8 * size_of::<(usize, usize, Option<Ordering>)>();
         let mut ctx = context(None, Some(frames + memo));
         let mut compare = Compare::new();
         assert_eq!(
@@ -667,16 +550,23 @@ mod tests {
             assert_eq!(ctx.stats().retained_memory_bytes, 0);
             assert_eq!(ctx.charge(0).unwrap_err(), error);
         }
-        // Flat operands never suspend a frame; only the memo is stored.
-        let mut ctx = context(None, Some(memo));
+        // Unshared and flat operands store nothing.
+        let mut ctx = context(None, Some(frames));
+        let alone = Value::array(vec![ints(&[1])]);
+        assert_eq!(
+            Compare::new().order(&mut ctx, &alone, &other, 0).unwrap(),
+            Some(Ordering::Equal)
+        );
+        assert_eq!(ctx.stats().peak_memory_bytes, frames);
+        let mut ctx = context(None, Some(0));
         assert_eq!(
             Compare::new()
                 .order(&mut ctx, &ints(&[1, 2]), &ints(&[1, 3]), 0)
                 .unwrap(),
             Some(Ordering::Less)
         );
-        assert_eq!(ctx.stats().peak_memory_bytes, memo);
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        drop(inner);
     }
 
     #[test]
@@ -690,7 +580,6 @@ mod tests {
         let error = compare.order(&mut ctx, &a, &b, 0).unwrap_err();
         assert_eq!(error.kind, ErrorKind::Cancelled);
         assert_eq!(ctx.stats().steps, 16);
-        assert!(compare.memo.data.is_empty());
         drop(compare);
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
         assert_eq!(ctx.checkpoint().unwrap_err(), error);

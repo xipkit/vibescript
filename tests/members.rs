@@ -88,8 +88,9 @@ fn mutators_check_expansion_and_scan_limits() {
             .unwrap_err();
         assert_eq!(error.kind, expected, "{source}");
     }
-    let source = "a=[1]\nfor i in 1..20\na=[a,a]\nend\nb=[a]\nb.delete(a)";
-    let error = Engine::new()
+    // Deleting compares the shared graph once per distinct pair, not per path.
+    let source = "a=[1]\nfor i in 1..20\na=[a,a]\nend\nb=[a]\nb.delete(a)\nb.size";
+    let outcome = Engine::new()
         .compile(source)
         .unwrap()
         .run(CallOptions {
@@ -99,8 +100,8 @@ fn mutators_check_expansion_and_scan_limits() {
             },
             ..CallOptions::default()
         })
-        .unwrap_err();
-    assert_eq!(error.kind, ErrorKind::Steps);
+        .unwrap();
+    assert_eq!(outcome.value.as_int(), Some(0));
 }
 
 #[test]

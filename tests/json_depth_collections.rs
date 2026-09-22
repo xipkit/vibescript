@@ -2,7 +2,7 @@ use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
 };
-use vibescript::{CallOptions, Engine, ErrorClass, ErrorKind, Limits, Value, stringify_json};
+use vibescript::{CallOptions, Engine, ErrorKind, Limits, Value, stringify_json};
 
 fn json(value: &Value) -> String {
     String::from_utf8(
@@ -121,8 +121,9 @@ fn deep_host_values_walk_every_importable_level() {
 }
 
 #[test]
-fn shared_graph_equality_stops_at_the_step_quota() {
-    let error = Engine::new()
+fn shared_graph_equality_compares_each_shared_pair_once() {
+    // 2^40 paths through 40 distinct pairs of shared arrays.
+    let outcome = Engine::new()
         .compile("a=[0];b=[0];40.times {a=[a,a];b=[b,b]};a==b")
         .unwrap()
         .run(CallOptions {
@@ -132,9 +133,10 @@ fn shared_graph_equality_stops_at_the_step_quota() {
             },
             ..CallOptions::default()
         })
-        .unwrap_err();
-    assert_eq!(error.kind, ErrorKind::Steps);
-    assert_eq!(error.class(), Some(ErrorClass::Limit));
+        .unwrap();
+    assert_eq!(outcome.value.type_name(), "bool");
+    assert!(outcome.value.truthy());
+    assert_eq!(outcome.stats.retained_memory_bytes, 0);
 }
 
 #[test]

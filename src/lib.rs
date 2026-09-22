@@ -47,6 +47,7 @@ mod objects;
 mod ops;
 mod ordering;
 mod output;
+mod pairs;
 mod printable;
 mod random;
 mod range;
