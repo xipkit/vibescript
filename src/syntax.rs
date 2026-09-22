@@ -235,9 +235,11 @@ pub(crate) enum Statement {
     UnboundClass(Name),
     Expr(Expr),
     Assign(Target, &'static str, Expr),
-    /// Conditions tested in order with their bodies, then the alternate.
-    If(Buffer<(Expr, Buffer<Stmt>)>, Buffer<Stmt>),
-    While(Expr, Buffer<Stmt>),
+    /// Conditions tested in order with their bodies, then the alternate. The
+    /// flag marks a modifier, whose body precedes its condition in the source.
+    If(Buffer<(Expr, Buffer<Stmt>)>, Buffer<Stmt>, bool),
+    /// The flag marks a modifier, whose body precedes its condition.
+    While(Expr, Buffer<Stmt>, bool),
     For(Target, Expr, Buffer<Stmt>),
     Return(Option<Expr>),
     Break(Option<Expr>),
@@ -272,14 +274,14 @@ impl Statement {
             }) if !attempt.modifier => *depth,
             Statement::Expr(e) => 1 + e.depth,
             Statement::Assign(t, _, e) => 1 + t.depth().max(e.depth),
-            Statement::If(branches, alternate) => {
+            Statement::If(branches, alternate, _) => {
                 let branches = branches.iter().enumerate().map(|(i, (condition, body_))| {
                     // Each elsif is its own node beside the first branch.
                     u32::from(i > 0) + condition.depth.max(body(body_))
                 });
                 1 + branches.max().unwrap_or(0).max(body(alternate))
             }
-            Statement::While(e, b) => 1 + e.depth.max(body(b)),
+            Statement::While(e, b, _) => 1 + e.depth.max(body(b)),
             Statement::For(t, e, b) => 1 + t.depth().max(e.depth).max(body(b)),
             Statement::Return(e) | Statement::Break(e) | Statement::Next(e) => {
                 1 + e.as_ref().map_or(0, |e| e.depth)
@@ -887,11 +889,12 @@ impl<'a> Parsing<'a> {
         }
         let body = Buffer::from_array(work, [stmt.at(offset)])?;
         Ok(if matches!(modifier.as_str(), "while" | "until") {
-            Statement::While(condition, body)
+            Statement::While(condition, body, true)
         } else {
             Statement::If(
                 Buffer::from_array(work, [(condition, body)])?,
                 Buffer::new(),
+                true,
             )
         })
     }
@@ -1092,7 +1095,7 @@ impl<'a> Parsing<'a> {
         }
         let body = self.block(&["end"]).await?;
         self.p().expect_word("end")?;
-        Ok(Statement::While(cond, body))
+        Ok(Statement::While(cond, body, false))
     }
 
     async fn for_stmt(&self) -> Result<Statement> {
@@ -1250,7 +1253,7 @@ impl<'a> Parsing<'a> {
             self.p().expect_word("end")?;
             break alternate;
         };
-        Ok(Statement::If(branches, alternate))
+        Ok(Statement::If(branches, alternate, false))
     }
 
     async fn if_expr(&self, unless: bool) -> Result<Expr> {

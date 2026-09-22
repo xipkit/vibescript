@@ -327,3 +327,23 @@ fn float_range_membership_is_exact_beyond_double_precision() {
         .unwrap();
     assert!(report.is_clean(), "{report:?}");
 }
+
+#[test]
+fn locals_assigned_earlier_in_the_source_exist_where_control_skips_them() {
+    let source = "def branch\n  if false\n    x = 1\n  else\n    x\n  end\nend\ndef unless_else\n  unless true\n    u = 1\n  else\n    u\n  end\nend\ndef elsif_condition\n  if false\n    e = 1\n  elsif e.nil?\n    \"ok\"\n  end\nend\ny = 1 if y.nil?\nz = 1 until z\ni = 0\ni = i + 1 while i < 3\nseen = [1, 2].map { |v| s = v if s.nil?; s }\n[branch, unless_else, elsif_condition, y, z, i, seen]";
+    assert_eq!(
+        result_json(source),
+        serde_json::json!([null, null, "ok", 1, 1, 3, [1, 2]])
+    );
+    for source in [
+        "before = later\nif false\n  later = 1\nend",
+        "if true\n  later\nelse\n  later = 1\nend",
+    ] {
+        let script = Engine::new().compile(source).unwrap();
+        let error = script.run(CallOptions::default()).unwrap_err();
+        assert!(
+            error.message.contains("undefined variable later"),
+            "{source}"
+        );
+    }
+}

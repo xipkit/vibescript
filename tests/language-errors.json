@@ -123298,5 +123298,20 @@
     "name": "constructor_block_break_typed_caller",
     "source": "class C\n  def initialize\n    yield\n  end\nend\n\ndef run(input) -> int\n  C.new { break \"x\" }\nend\n",
     "go_error": "return value for run expected int, got string"
+  },
+  {
+    "name": "later_nested_assignment_is_not_predeclared",
+    "body": "before = later\nif false\n  later = 1\nend\nbefore",
+    "go_error": "undefined variable later"
+  },
+  {
+    "name": "taken_branch_does_not_see_a_later_else_assignment",
+    "body": "if true\n  later_branch\nelse\n  later_branch = 1\nend",
+    "go_error": "undefined variable later_branch"
+  },
+  {
+    "name": "unless_body_does_not_see_a_later_else_assignment",
+    "body": "unless false\n  later_unless_local\nelse\n  later_unless_local = 1\nend",
+    "go_error": "undefined variable later_unless_local"
   }
 ]

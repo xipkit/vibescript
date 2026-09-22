@@ -602,14 +602,14 @@ impl<'x> Item<'x> {
                 items.push(work, Item::Target(target))?;
                 items.push(work, Item::Expr(value))?;
             }
-            Statement::If(branches, alternate) => {
+            Statement::If(branches, alternate, _) => {
                 for (cond, body) in branches {
                     items.push(work, Item::Expr(cond))?;
                     items.push(work, Item::Stmts(body))?;
                 }
                 items.push(work, Item::Stmts(alternate))?;
             }
-            Statement::While(cond, body) => {
+            Statement::While(cond, body, _) => {
                 items.push(work, Item::Expr(cond))?;
                 items.push(work, Item::Stmts(body))?;
             }
@@ -927,6 +927,12 @@ impl Compiler<'_> {
                 self.locals.get(self.work, name)?.copied()
             },
         )
+    }
+    fn declare_bindings(&mut self, body: &[Stmt]) -> Result<()> {
+        for slot in self.statement_bindings(body)? {
+            self.emit(Op::Declare(slot));
+        }
+        Ok(())
     }
     fn statement_bindings(&self, body: &[Stmt]) -> Result<Buffer<usize>> {
         let mut names = Buffer::new();
@@ -1422,7 +1428,17 @@ impl<'a, 'x> Compiling<'a, 'x> {
             }
             Statement::Expr(e) => self.expr(e).await?,
             Statement::Assign(target, op, rhs) => self.assignment(target, op, rhs).await?,
-            Statement::If(branches, alternate) => {
+            Statement::If(branches, alternate, modifier) => {
+                // Like Go, a local assigned earlier in the source exists, as nil,
+                // wherever control skips its assignment: a modifier's body precedes
+                // its condition, and a skipped branch precedes the later ones.
+                if *modifier {
+                    let mut c = self.c();
+                    for (_, body) in branches {
+                        c.declare_bindings(body)?;
+                    }
+                    c.declare_bindings(alternate)?;
+                }
                 let mut done = Buffer::new();
                 for (cond, body) in branches {
                     self.expr(cond).await?;
@@ -1433,6 +1449,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     done.push(work, c.emit(Op::Jump(0)))?;
                     let end = c.code.len();
                     c.patch(branch, end);
+                    c.declare_bindings(body)?;
                 }
                 self.block(alternate).await?;
                 let mut c = self.c();
@@ -1441,9 +1458,12 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     c.patch(done, end);
                 }
             }
-            Statement::While(cond, body) => {
+            Statement::While(cond, body, modifier) => {
                 let (mark, next) = {
                     let mut c = self.c();
+                    if *modifier {
+                        c.declare_bindings(body)?;
+                    }
                     let mark = c.emit(Op::LoopStart {
                         iterable: false,
                         expression,
@@ -2787,13 +2807,13 @@ fn statement_names<'a>(
                         Statement::Assign(target, _, _) => {
                             pending.push(work, Step::Target(target))?;
                         }
-                        Statement::If(branches, alternate) => {
+                        Statement::If(branches, alternate, _) => {
                             pending.push(work, Step::Body(alternate))?;
                             for (_, body) in branches.iter().rev() {
                                 pending.push(work, Step::Body(body))?;
                             }
                         }
-                        Statement::While(_, body) => pending.push(work, Step::Body(body))?,
+                        Statement::While(_, body, _) => pending.push(work, Step::Body(body))?,
                         Statement::For(target, _, body) => {
                             pending.push(work, Step::Body(body))?;
                             pending.push(work, Step::Target(target))?;

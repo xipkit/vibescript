@@ -177,17 +177,18 @@ impl<'x> Copying<'_, 'x> {
             Statement::Assign(place, op, value) => {
                 Statement::Assign(self.place(place).await?, op, self.expr(value).await?)
             }
-            Statement::If(branches, alternate) => {
+            Statement::If(branches, alternate, modifier) => {
                 let mut copies = Buffer::with_capacity(work, branches.len())?;
                 for (condition, statements) in branches {
                     work.charge(1)?;
                     let condition = self.expr(condition).await?;
                     copies.push(work, (condition, self.body(statements).await?))?;
                 }
-                Statement::If(copies, self.body(alternate).await?)
+                Statement::If(copies, self.body(alternate).await?, *modifier)
             }
-            Statement::While(condition, statements) => {
-                Statement::While(self.expr(condition).await?, self.body(statements).await?)
+            Statement::While(condition, statements, modifier) => {
+                let condition = self.expr(condition).await?;
+                Statement::While(condition, self.body(statements).await?, *modifier)
             }
             Statement::For(place, source, statements) => Statement::For(
                 self.place(place).await?,
