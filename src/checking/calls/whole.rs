@@ -121,11 +121,17 @@ impl Solver<'_, '_> {
                 &program.functions[function].params,
                 self.world.contracts,
             )?;
+            // A declaration that cannot observe its incoming block analyzes identically with or
+            // without one, including in the blocks it passes on.
+            let observes = self.layouts.observes_block(ctx, function)?;
             for (mode, constructor) in [(1, false), (2, true)] {
                 if modes & mode == 0 {
                     continue;
                 }
                 for given in [false, true] {
+                    if given && !observes {
+                        continue;
+                    }
                     let mut context = Context::plain();
                     context.kind = Kind::General;
                     context.constructor = constructor;

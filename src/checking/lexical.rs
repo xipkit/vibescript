@@ -19,6 +19,8 @@ struct Layout {
     shadows: Buffer<bool>,
     parent: Option<usize>,
     forwarding: bool,
+    // The function or a nested block yields to, or tests for, the function's incoming block.
+    observes_block: bool,
     types: Buffer<TypeSource>,
 }
 
@@ -37,6 +39,7 @@ impl Layouts {
             ctx.charge(1)?;
             let mut shadows = Buffer::with_capacity(ctx, function.locals)?;
             let mut forwarding = false;
+            let mut observes_block = false;
             ctx.charge(function.locals as u64)?;
             shadows.data.resize(function.locals, false);
             for op in &function.code {
@@ -45,6 +48,7 @@ impl Layouts {
                     shadows.data[slot] = true;
                 }
                 forwarding |= matches!(op, Op::Yield(_));
+                observes_block |= matches!(op, Op::Yield(_) | Op::BlockGiven(..) | Op::CheckBlock);
             }
             functions.push(
                 ctx,
@@ -53,6 +57,7 @@ impl Layouts {
                     shadows,
                     parent: None,
                     forwarding,
+                    observes_block,
                     types: Buffer::empty(),
                 },
             )?;
@@ -88,6 +93,17 @@ impl Layouts {
                         break;
                     }
                     layouts.functions.data[parent].forwarding = true;
+                    child = parent;
+                }
+            }
+            if layouts.functions.data[function].observes_block {
+                let mut child = function;
+                while let Some(parent) = layouts.functions.data[child].parent {
+                    ctx.charge(1)?;
+                    if layouts.functions.data[parent].observes_block {
+                        break;
+                    }
+                    layouts.functions.data[parent].observes_block = true;
                     child = parent;
                 }
             }
@@ -315,6 +331,13 @@ impl Layouts {
     pub fn forwarding(&self, ctx: &mut CallContext, function: usize) -> Result<bool> {
         ctx.charge(1)?;
         Ok(self.functions.data[function].forwarding)
+    }
+
+    /// Reports whether a function or one of its nested blocks can observe the function's
+    /// incoming block through `yield`, `block_given?` or a required-block check.
+    pub fn observes_block(&self, ctx: &mut CallContext, function: usize) -> Result<bool> {
+        ctx.charge(1)?;
+        Ok(self.functions.data[function].observes_block)
     }
 
     pub fn initializer_block(
