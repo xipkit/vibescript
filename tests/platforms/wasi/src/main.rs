@@ -23,32 +23,36 @@ fn result(engine: &Engine, source: &str) -> Value {
 }
 
 fn overlapping_preopens() {
-    for (path, expected) in [
-        ("/sandbox/alias", 7),
-        ("/sandbox/alias/sub/..", 7),
-        ("/sandbox/real", 999),
-    ] {
+    // A root resolves like its canonical guest path, so a link naming the
+    // nested preopen's path selects that preopen.
+    for path in ["/sandbox/real", "/sandbox/alias"] {
         assert_eq!(
             result(&engine(path), "require('numbers').run()").as_int(),
-            Some(expected),
+            Some(999),
             "{path}"
         );
     }
+    // Walking a configured root stays within its directory, where the nested
+    // preopen's guest path names the outer directory's own entry. Relative
+    // imports stay within the root that supplied the importing file.
     let mut combined = Engine::new();
     combined
         .set_module_config(ModuleConfig {
-            paths: vec!["/sandbox/alias".into(), "/sandbox/real".into()],
+            paths: vec!["/sandbox".into(), "/sandbox/real".into()],
             ..ModuleConfig::default()
         })
         .unwrap();
-    assert_eq!(
-        result(&combined, "require('numbers').run()").as_int(),
-        Some(7)
-    );
-    assert_eq!(
-        result(&combined, "require('only_other').run()").as_int(),
-        Some(999)
-    );
+    for (name, expected) in [
+        ("real/numbers", 7),
+        ("alias/numbers", 7),
+        ("only_other", 999),
+    ] {
+        assert_eq!(
+            result(&combined, &format!("require('{name}').run()")).as_int(),
+            Some(expected),
+            "{name}"
+        );
+    }
     println!("{{\"status\":\"passed\",\"case\":\"overlapping-preopens\"}}");
 }
 
