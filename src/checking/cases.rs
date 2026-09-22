@@ -96,32 +96,36 @@ impl Facts {
         );
         let matched = match self.node(matcher) {
             Node::Range(start, end, exclusive) => {
-                if start.is_some() && start == end && *exclusive {
-                    Some(false)
-                } else if let Node::Integer(value) = self.node(target) {
-                    let descending = matches!((start,end), (Some(a),Some(b)) if a>b);
-                    Some(if descending {
-                        start.is_none_or(|a| *value <= a)
-                            && end.is_none_or(|b| if *exclusive { *value > b } else { *value >= b })
-                    } else {
-                        start.is_none_or(|a| *value >= a)
-                            && end.is_none_or(|b| if *exclusive { *value < b } else { *value <= b })
-                    })
-                } else if let Node::Float(bits) = self.node(target) {
-                    Some(crate::range::contains_float(
-                        *start,
-                        *end,
-                        *exclusive,
+                let (start, end, exclusive) = (*start, *end, *exclusive);
+                match self.node(target) {
+                    Node::Integer(value) => {
+                        let value = *value;
+                        let descending = matches!((start,end), (Some(a),Some(b)) if a>b);
+                        Some(if descending {
+                            start.is_none_or(|a| value <= a)
+                                && end
+                                    .is_none_or(|b| if exclusive { value > b } else { value >= b })
+                        } else {
+                            start.is_none_or(|a| value >= a)
+                                && end
+                                    .is_none_or(|b| if exclusive { value < b } else { value <= b })
+                        })
+                    }
+                    Node::Float(bits) => Some(crate::range::contains_float(
+                        start,
+                        end,
+                        exclusive,
                         f64::from_bits(*bits),
-                    ))
-                } else if numeric || gradual {
-                    None
-                } else {
-                    Some(false)
+                    )),
+                    // A range target compares by equality rather than membership.
+                    Node::Range(a, b, x) => Some((*a, *b, *x) == (start, end, exclusive)),
+                    _ if numeric && start.is_some() && start == end && exclusive => Some(false),
+                    _ if numeric || gradual || self.atom(target) == Some(Atom::Range) => None,
+                    _ => Some(false),
                 }
             }
             Node::Atom(Atom::Range) => {
-                if numeric || gradual {
+                if numeric || gradual || self.atom(target) == Some(Atom::Range) {
                     None
                 } else {
                     Some(false)
@@ -272,10 +276,12 @@ impl Facts {
                             matcher
                         }
                     }
-                    Node::IntegerBounds(_)
-                    | Node::Atom(Atom::Int | Atom::Float | Atom::Range)
-                    | Node::Range(..) => {
+                    Node::IntegerBounds(_) | Node::Atom(Atom::Int | Atom::Float) => {
                         self.union(ctx, &[Atom::Int.fact(), Atom::Float.fact()])?
+                    }
+                    // A range matches its members and an equal range.
+                    Node::Atom(Atom::Range) | Node::Range(..) => {
+                        self.union(ctx, &[Atom::Int.fact(), Atom::Float.fact(), matcher])?
                     }
                     Node::Float(bits) => {
                         let value = f64::from_bits(*bits);

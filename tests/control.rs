@@ -231,6 +231,62 @@ fn malformed_control_syntax_is_rejected() {
 }
 
 #[test]
+fn range_matchers_compare_range_targets_by_equality() {
+    for (source, expected) in [
+        ("(1..3) === (1..3)", true),
+        ("(1...3) === (1...3)", true),
+        ("(7...7) === (7...7)", true),
+        ("(1..3) === (1...3)", false),
+        ("(1..3) === \"a\"", false),
+        ("2 === (1..3)", false),
+        (
+            "case (1..5)\nwhen 2 then false\nwhen 1..5 then true\nelse false\nend",
+            true,
+        ),
+        ("case (1...5)\nwhen 1..5 then false\nelse true\nend", true),
+        ("[1..3, 4].any?(1..3) && [(1..3)].count(1..3) == 1", true),
+    ] {
+        assert_eq!(result_json(source), serde_json::json!(expected), "{source}");
+    }
+    // The checker folds known range targets and keeps a range among unknown matches.
+    for source in [
+        "def run -> int; case (1..5) when 1..5 then 7 else 'wrong' end; end",
+        "def run -> int; case (7...7) when 7...7 then 7 else 'wrong' end; end",
+        "def run -> int; if (1..3) === (1...3); 'wrong'; else; 7; end; end",
+    ] {
+        let script = Engine::new().compile(source).unwrap();
+        let report = script
+            .check_function("run", &CallOptions::default())
+            .unwrap();
+        assert!(report.is_clean(), "{source}: {report:?}");
+    }
+    let script = Engine::new()
+        .compile(
+            "def run(x) -> int; case x when 1..5 then (x == (1..5) ? 'range' : 7) else 9 end; end",
+        )
+        .unwrap();
+    let report = script
+        .check_function("run", &CallOptions::default())
+        .unwrap();
+    assert!(
+        report.diagnostics[0].message.contains("Return value"),
+        "{report:?}"
+    );
+    let result = script
+        .call(
+            "run",
+            &[Value::range(Some(1), Some(5), false)],
+            CallOptions::default(),
+        )
+        .unwrap_err();
+    assert!(
+        result.message.contains("expected int"),
+        "{}",
+        result.message
+    );
+}
+
+#[test]
 fn float_range_membership_is_exact_beyond_double_precision() {
     for (source, expected) in [
         (

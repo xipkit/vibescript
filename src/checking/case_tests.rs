@@ -151,6 +151,9 @@ fn range_matchers_keep_bounds_direction_and_numeric_domains() {
         ("1..3", "\"2\"", "false"),
         ("1..3", "[2]", "false"),
         ("7...7", "7", "false"),
+        ("1..3", "(1..3)", "true"),
+        ("7...7", "(7...7)", "true"),
+        ("1..3", "(1...3)", "false"),
         (
             "(9007199254740993..9007199254740993)",
             "9007199254740992.0",
@@ -175,6 +178,10 @@ fn range_matchers_keep_bounds_direction_and_numeric_domains() {
         ),
         (
             "def run(x) -> number; case x; when 1..3; x; else; 7; end; end",
+            true,
+        ),
+        (
+            "def run(x: int | float) -> number; case x; when 1..3; x; else; 7; end; end",
             false,
         ),
         ("def run -> int; for x in 7..7; x; end; end", false),
@@ -297,10 +304,15 @@ fn numeric_matchers_preserve_float_kinds_and_exact_integer_comparisons() {
         "def run(x) -> int; case x; when 9007199254740993; x; else; 9; end; end",
         "def run(x: float) -> int; case x; when 9007199254740993; missing; else; 9; end; end",
         "def run(x: int) -> int; case x; when 0.5; missing; else; 9; end; end",
-        "def run(x) -> int; case x; when 7...7; missing; else; 9; end; end",
+        "def run(x: int | float) -> int; case x; when 7...7; missing; else; 9; end; end",
     ] {
         check(source, false);
     }
+    // An unknown target can be an equal empty range.
+    check(
+        "def run(x) -> int; case x; when 7...7; missing; else; 9; end; end",
+        true,
+    );
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let nan = facts.float(&mut ctx, f64::NAN).unwrap();

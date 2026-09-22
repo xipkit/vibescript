@@ -219,9 +219,13 @@ pub(crate) fn case_matches(
         let matched = if let Some(target) = target {
             if let Kind::Regex(regex) = &candidate.0 {
                 regex.matches(ctx, target)?
-            } else if let Kind::Range(range) = &candidate.0 {
+            } else if let (Kind::Range(range), Kind::Int(_) | Kind::Big(_) | Kind::Float(_)) =
+                (&candidate.0, &target.0)
+            {
                 range.contains(target)
             } else {
+                // A range tests membership only for numbers; other targets, including
+                // ranges, compare by equality.
                 equal(ctx, candidate, target, 0)?
             }
         } else {
