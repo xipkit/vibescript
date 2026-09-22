@@ -1,7 +1,17 @@
-use super::{Compiler, Op, Program, syntax};
+use super::{Call, Compiler, Compiling, Op, Program, syntax};
 use crate::{Result, Value, compilation::Name, namespace, syntax::modules::Module, value::Kind};
 
+struct Frame {
+    module: Module,
+    name: Name,
+    short: Name,
+    children: <crate::compilation::Buffer<Module> as IntoIterator>::IntoIter,
+    nested: Vec<(String, usize)>,
+}
+
 impl Program {
+    // Nested modules register before their parents. Module nesting reaches the
+    // syntax depth limit, so the walk keeps its own stack.
     pub(super) fn register_module(
         &mut self,
         module: Module,
@@ -10,9 +20,34 @@ impl Program {
         contexts: &mut crate::compilation::Buffer<(Option<usize>, bool, bool)>,
         work: &dyn crate::compilation::Work,
     ) -> Result<usize> {
+        let mut stack = vec![self.open_module(module, qualifier, work)?];
+        loop {
+            let top = stack.last_mut().unwrap();
+            if let Some(child) = top.children.next() {
+                let frame = self.open_module(child, top.name.as_str(), work)?;
+                stack.push(frame);
+                continue;
+            }
+            let frame = stack.pop().unwrap();
+            let short = frame.short.clone();
+            let index = self.close_module(frame, functions, contexts, work)?;
+            match stack.last_mut() {
+                Some(parent) => parent.nested.push((short.into_string(), index)),
+                None => return Ok(index),
+            }
+        }
+    }
+
+    fn open_module(
+        &self,
+        mut module: Module,
+        qualifier: &str,
+        work: &dyn crate::compilation::Work,
+    ) -> Result<Frame> {
         work.bytes(qualifier.len() + module.name.len())?;
+        let short = module.name.clone();
         let name = if qualifier.is_empty() {
-            module.name
+            module.name.clone()
         } else {
             Name::join(work, &[qualifier, "::", &module.name])?
         };
@@ -33,12 +68,29 @@ impl Program {
                 "module visibility directive conflicts with a top-level function",
             ));
         }
-        let mut nested = Vec::new();
-        for child in module.modules {
-            let short = child.name.clone();
-            let index = self.register_module(child, &name, functions, contexts, work)?;
-            nested.push((short.into_string(), index));
-        }
+        let children = std::mem::take(&mut module.modules).into_iter();
+        Ok(Frame {
+            module,
+            name,
+            short,
+            children,
+            nested: Vec::new(),
+        })
+    }
+
+    fn close_module(
+        &mut self,
+        frame: Frame,
+        functions: &mut crate::compilation::Buffer<syntax::Definition>,
+        contexts: &mut crate::compilation::Buffer<(Option<usize>, bool, bool)>,
+        work: &dyn crate::compilation::Work,
+    ) -> Result<usize> {
+        let Frame {
+            module,
+            name,
+            nested,
+            ..
+        } = frame;
         let index = self.namespaces.len();
         let mut methods = Vec::<namespace::Method>::new();
         for (mut method, visibility) in module.methods {
@@ -145,44 +197,123 @@ impl Program {
     }
 }
 
-impl Compiler<'_> {
-    pub(super) fn assignment_address(&mut self, receiver: &syntax::Expr) -> Result<()> {
-        self.work.charge(1)?;
-        match &receiver.node {
-            syntax::Node::Var(name)
-                if self.namespace.is_some()
-                    && (!self.instance || name.starts_with('@'))
-                    && self.namespace_binding(name)? =>
-            {
-                // A missing field may need a builtin without another read registering it.
-                self.global(name);
-                let optional = name.starts_with('@');
-                let name = self.call_site(name, false).name;
-                self.emit(Op::NamespaceAddress(name, optional));
-            }
-            syntax::Node::Index(root, indices) => {
-                self.assignment_address(root)?;
-                for index in indices {
-                    self.expr(index)?;
+impl<'x> Compiling<'_, 'x> {
+    async fn nested_assignment_address(&self, receiver: &'x syntax::Expr) -> Result<()> {
+        self.tasks.call(Call::AssignmentAddress(receiver)).await
+    }
+
+    pub(super) async fn assignment_address(&self, receiver: &'x syntax::Expr) -> Result<()> {
+        let bound = {
+            let mut c = self.c();
+            c.work.charge(1)?;
+            match &receiver.node {
+                syntax::Node::Var(name)
+                    if c.namespace.is_some()
+                        && (!c.instance || name.starts_with('@'))
+                        && c.namespace_binding(name)? =>
+                {
+                    // A missing field may need a builtin without another read registering it.
+                    c.global(name);
+                    let optional = name.starts_with('@');
+                    let name = c.call_site(name, false).name;
+                    c.emit(Op::NamespaceAddress(name, optional));
+                    true
                 }
-                self.emit(Op::AddressIndex(indices.len()));
+                _ => false,
+            }
+        };
+        if bound {
+            return Ok(());
+        }
+        match &receiver.node {
+            syntax::Node::Index(root, indices) => {
+                self.nested_assignment_address(root).await?;
+                for index in indices {
+                    self.expr(index).await?;
+                }
+                self.c().emit(Op::AddressIndex(indices.len()));
             }
             syntax::Node::Member(root, name) => {
-                self.assignment_address(root)?;
-                let site = self.call_site(name, true);
-                self.emit(Op::AddressMember(site));
+                self.nested_assignment_address(root).await?;
+                let mut c = self.c();
+                let site = c.call_site(name, true);
+                c.emit(Op::AddressMember(site));
             }
             syntax::Node::Scope(root, name, None) => {
-                self.assignment_address(root)?;
-                let mut site = self.call_site(name, true);
+                self.nested_assignment_address(root).await?;
+                let mut c = self.c();
+                let mut site = c.call_site(name, true);
                 site.scope = true;
-                self.emit(Op::AddressNamespaceField(site));
+                c.emit(Op::AddressNamespaceField(site));
             }
-            _ => self.address_root(receiver, true)?,
+            _ => self.address_root(receiver, true).await?,
         }
         Ok(())
     }
 
+    pub(super) async fn namespace_assignment(
+        &self,
+        name: &str,
+        binding: &'x syntax::Target,
+        target: &'x syntax::Expr,
+        op: &str,
+        rhs: &'x syntax::Expr,
+    ) -> Result<()> {
+        self.c().work.charge(1)?;
+        if matches!(op, "||=" | "&&=") {
+            let namespaced = {
+                let mut c = self.c();
+                let namespaced = name.starts_with('@') || (c.namespace.is_some() && !c.instance);
+                if namespaced {
+                    let name = c.call_site(name, false).name;
+                    c.emit(Op::NamespaceVariable(name, true));
+                }
+                namespaced
+            };
+            if !namespaced {
+                self.expr(target).await?;
+            }
+            let skip = {
+                let mut c = self.c();
+                c.emit(Op::Dup);
+                let skip = c.emit(if op == "||=" {
+                    Op::JumpTrue(0)
+                } else {
+                    Op::JumpFalse(0)
+                });
+                c.emit(Op::Pop);
+                skip
+            };
+            self.assignment_rhs(binding, &[rhs]).await?;
+            let mut c = self.c();
+            c.store_namespace_name(name);
+            let end = c.code.len();
+            c.patch(skip, end);
+            return Ok(());
+        }
+        let binary = match op {
+            "+=" => Some("+"),
+            "-=" => Some("-"),
+            "*=" => Some("*"),
+            "/=" => Some("/"),
+            "%=" => Some("%"),
+            "**=" => Some("**"),
+            _ => None,
+        };
+        if binary.is_some() {
+            self.expr(target).await?;
+        }
+        self.assignment_rhs(binding, &[rhs]).await?;
+        let mut c = self.c();
+        if let Some(op) = binary {
+            c.emit(Op::Binary(op));
+        }
+        c.store_namespace_name(name);
+        Ok(())
+    }
+}
+
+impl Compiler<'_> {
     pub(super) fn namespace_binding(&self, name: &str) -> Result<bool> {
         if name.starts_with('@') {
             return Ok(true);
@@ -210,53 +341,5 @@ impl Compiler<'_> {
         } else {
             self.emit(Op::StoreDeclaration(self.program.declaration_names[name]));
         }
-    }
-
-    pub(super) fn namespace_assignment(
-        &mut self,
-        name: &str,
-        binding: &syntax::Target,
-        target: &syntax::Expr,
-        op: &str,
-        rhs: &syntax::Expr,
-    ) -> Result<()> {
-        self.work.charge(1)?;
-        if matches!(op, "||=" | "&&=") {
-            if name.starts_with('@') || (self.namespace.is_some() && !self.instance) {
-                let name = self.call_site(name, false).name;
-                self.emit(Op::NamespaceVariable(name, true));
-            } else {
-                self.expr(target)?;
-            }
-            self.emit(Op::Dup);
-            let skip = self.emit(if op == "||=" {
-                Op::JumpTrue(0)
-            } else {
-                Op::JumpFalse(0)
-            });
-            self.emit(Op::Pop);
-            self.assignment_rhs(binding, &[rhs])?;
-            self.store_namespace_name(name);
-            self.patch(skip, self.code.len());
-            return Ok(());
-        }
-        let binary = match op {
-            "+=" => Some("+"),
-            "-=" => Some("-"),
-            "*=" => Some("*"),
-            "/=" => Some("/"),
-            "%=" => Some("%"),
-            "**=" => Some("**"),
-            _ => None,
-        };
-        if binary.is_some() {
-            self.expr(target)?;
-        }
-        self.assignment_rhs(binding, &[rhs])?;
-        if let Some(op) = binary {
-            self.emit(Op::Binary(op));
-        }
-        self.store_namespace_name(name);
-        Ok(())
     }
 }

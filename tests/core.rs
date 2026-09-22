@@ -191,18 +191,19 @@ fn syntax_guards_and_division_errors() {
         ("if true then ", " end"),
         ("case 1; when 1; ", "; end"),
     ] {
-        let nested = format!("{}1{}", prefix.repeat(300), suffix.repeat(300));
+        let nested = format!("{}1{}", prefix.repeat(1100), suffix.repeat(1100));
         assert_eq!(
             Engine::new().compile(&nested).err().unwrap().kind,
             ErrorKind::Syntax,
             "{prefix}"
         );
     }
-    let chain = format!("(if false then 0{} end)", " elsif false then 0".repeat(300));
-    assert_eq!(
-        Engine::new().compile(&chain).err().unwrap().kind,
-        ErrorKind::Syntax
+    // Go keeps elsif branches beside each other, so long chains do not nest.
+    let chain = format!(
+        "(if false then 0{} end)",
+        " elsif false then 0".repeat(3000)
     );
+    assert_eq!(format!("{:?}", run(&chain)), format!("{:?}", Value::nil()));
     let supported = format!("{}1{}", "(".repeat(64), ")".repeat(64));
     assert_eq!(run(&supported).as_int(), Some(1));
     for source in ["1 / 0", "1 % 0"] {

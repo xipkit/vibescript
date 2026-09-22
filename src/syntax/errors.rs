@@ -1,82 +1,92 @@
 use super::*;
 
-impl Parser<'_> {
-    pub(super) fn raise_statement(&mut self) -> Result<Statement> {
-        self.work.charge(1)?;
-        if !self.starts_expression()
-            || matches!(self.token(), Token::Word(w) if matches!(w.as_str(), "if"|"unless"|"while"|"until"))
+impl Parsing<'_> {
+    pub(super) async fn raise_statement(&self) -> Result<Statement> {
+        let work = self.p().work;
         {
-            return Ok(Statement::Raise(None, None));
+            let p = self.p();
+            work.charge(1)?;
+            if !p.starts_expression()
+                || matches!(p.token(), Token::Word(w) if matches!(w.as_str(), "if"|"unless"|"while"|"until"))
+            {
+                return Ok(Statement::Raise(None, None));
+            }
         }
-        let value = self.line_expr(0)?;
-        let message = if self.tokens[self.pos].line == self.previous()?.end_line && self.take_p(',')
-        {
-            Some(Boxed::new(self.work, self.line_expr(0)?)?)
+        let value = self.line_expr(0).await?;
+        let separated = {
+            let mut p = self.p();
+            p.tokens[p.pos].line == p.previous()?.end_line && p.take_p(',')
+        };
+        let message = if separated {
+            Some(Boxed::new(work, self.line_expr(0).await?)?)
         } else {
             None
         };
-        Ok(Statement::Raise(
-            Some(Boxed::new(self.work, value)?),
-            message,
-        ))
+        Ok(Statement::Raise(Some(Boxed::new(work, value)?), message))
     }
 
-    pub(super) fn rescue_tail(&mut self, body: Buffer<Stmt>, function: bool) -> Result<Try> {
-        self.work.charge(1)?;
+    pub(super) async fn rescue_tail(&self, body: Buffer<Stmt>, function: bool) -> Result<Try> {
+        let work = self.p().work;
+        work.charge(1)?;
         let mut rescues = Buffer::new();
-        while self.word("rescue") {
-            let token = &self.tokens[self.pos - 1];
-            let offset = token.offset as u32;
-            let line = token.line;
-            let mut classes = Buffer::from_array(self.work, [crate::ErrorClass::Standard])?;
-            let mut binding = None;
-            if self.tokens[self.pos].line == line {
-                if matches!(self.token(), Token::Word(w) if !reserved(w))
-                    || self.token() == &Token::P('(')
-                {
-                    let grouped = self.take_p('(');
-                    let ty = self.type_expr(1, false)?;
-                    if grouped {
-                        self.expect_p(')')?;
+        while self.p().word("rescue") {
+            let (offset, classes, binding, existed, declared_it) = {
+                let mut p = self.p();
+                let token = &p.tokens[p.pos - 1];
+                let offset = token.offset as u32;
+                let line = token.line;
+                let mut classes = Buffer::from_array(work, [crate::ErrorClass::Standard])?;
+                let mut binding = None;
+                if p.tokens[p.pos].line == line {
+                    if matches!(p.token(), Token::Word(w) if !reserved(w))
+                        || p.token() == &Token::P('(')
+                    {
+                        let grouped = p.take_p('(');
+                        let ty = p.type_expr(1, false)?;
+                        if grouped {
+                            p.expect_p(')')?;
+                        }
+                        classes.truncate(0);
+                        error_classes(&ty, &mut classes, work, offset as usize)?;
                     }
-                    classes.truncate(0);
-                    error_classes(&ty, &mut classes, self.work, offset as usize)?;
-                }
-                if self.tokens[self.pos].line == line && self.token() == &Token::Op("=>") {
-                    self.bump()?;
-                    if self.tokens[self.pos].line != line {
-                        return self.err("rescue binding must be an identifier");
+                    if p.tokens[p.pos].line == line && p.token() == &Token::Op("=>") {
+                        p.bump()?;
+                        if p.tokens[p.pos].line != line {
+                            return p.err("rescue binding must be an identifier");
+                        }
+                        let name = p.name()?;
+                        if name.starts_with('@') {
+                            return p.err("rescue binding must be an identifier");
+                        }
+                        binding = Some(name);
                     }
-                    let name = self.name()?;
-                    if name.starts_with('@') {
-                        return self.err("rescue binding must be an identifier");
+                    if p.token() == &Token::Op("->") {
+                        return p.err("rescue binding must use =>");
                     }
-                    binding = Some(name);
                 }
-                if self.token() == &Token::Op("->") {
-                    return self.err("rescue binding must use =>");
+                let existed = match &binding {
+                    Some(name) => p.locals.contains(work, name)?,
+                    None => false,
+                };
+                let declared_it = p.declared_it;
+                if let Some(name) = &binding {
+                    p.locals.insert(work, name.clone(), ())?;
+                    p.declared_it |= name == "it";
                 }
-            }
-            let existed = match &binding {
-                Some(name) => self.locals.contains(self.work, name)?,
-                None => false,
+                (offset, classes, binding, existed, declared_it)
             };
-            let declared_it = self.declared_it;
-            if let Some(name) = &binding {
-                self.locals.insert(self.work, name.clone(), ())?;
-                self.declared_it |= name == "it";
-            }
-            let rescue_body = self.block(&["rescue", "else", "ensure", "end"])?;
+            let rescue_body = self.block(&["rescue", "else", "ensure", "end"]).await?;
+            let mut p = self.p();
             if let Some(name) = &binding {
                 if !existed {
-                    self.locals.remove(self.work, name)?;
+                    p.locals.remove(work, name)?;
                 }
             }
             if binding.as_deref() == Some("it") {
-                self.declared_it = declared_it;
+                p.declared_it = declared_it;
             }
             rescues.push(
-                self.work,
+                work,
                 Rescue {
                     classes,
                     binding,
@@ -85,26 +95,27 @@ impl Parser<'_> {
                 },
             )?;
         }
-        let alternate = if self.word("else") {
+        let alternate = if self.p().word("else") {
             if rescues.is_empty() {
-                return self.err("else requires rescue");
+                return self.p().err("else requires rescue");
             }
-            self.block(&["ensure", "end"])?
+            self.block(&["ensure", "end"]).await?
         } else {
             Buffer::new()
         };
-        let ensure = if self.word("ensure") {
-            self.block(&["end"])?
+        let ensure = if self.p().word("ensure") {
+            self.block(&["end"]).await?
         } else {
             Buffer::new()
         };
+        let mut p = self.p();
         if (function || !rescues.is_empty())
             && rescues.iter().all(|r| r.body.is_empty())
             && ensure.is_empty()
         {
-            return self.err("begin requires rescue and/or ensure");
+            return p.err("begin requires rescue and/or ensure");
         }
-        self.expect_word("end")?;
+        p.expect_word("end")?;
         Ok(Try {
             modifier: false,
             body,
@@ -114,23 +125,24 @@ impl Parser<'_> {
         })
     }
 
-    pub(super) fn rescue_modifier(&mut self, body: Expr) -> Result<Expr> {
-        self.work.charge(1)?;
+    pub(super) async fn rescue_modifier(&self, body: Expr) -> Result<Expr> {
+        let work = self.p().work;
+        work.charge(1)?;
         let offset = body.offset;
-        let rescue_offset = self.tokens[self.pos - 1].offset as u32;
-        let fallback = self.line_expr(0)?;
+        let rescue_offset = {
+            let p = self.p();
+            p.tokens[p.pos - 1].offset as u32
+        };
+        let fallback = self.line_expr(0).await?;
         let attempt = Try {
             modifier: true,
-            body: Buffer::from_array(self.work, [Statement::Expr(body).at(offset)])?,
+            body: Buffer::from_array(work, [Statement::Expr(body).at(offset)])?,
             rescues: Buffer::from_array(
-                self.work,
+                work,
                 [Rescue {
-                    classes: Buffer::from_array(self.work, [crate::ErrorClass::Standard])?,
+                    classes: Buffer::from_array(work, [crate::ErrorClass::Standard])?,
                     binding: None,
-                    body: Buffer::from_array(
-                        self.work,
-                        [Statement::Expr(fallback).at(rescue_offset)],
-                    )?,
+                    body: Buffer::from_array(work, [Statement::Expr(fallback).at(rescue_offset)])?,
                     offset: rescue_offset,
                 }],
             )?,
@@ -138,7 +150,8 @@ impl Parser<'_> {
             ensure: Buffer::new(),
         };
         let depth = attempt.depth();
-        self.make_at(Node::Try(Boxed::new(self.work, attempt)?), depth, offset)
+        self.p()
+            .make_at(Node::Try(Boxed::new(work, attempt)?), depth, offset)
     }
 }
 

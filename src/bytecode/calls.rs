@@ -1,65 +1,63 @@
 use super::*;
 
-impl Compiler<'_> {
-    pub(super) fn named_call(
-        &mut self,
+impl<'x> Compiling<'_, 'x> {
+    pub(super) async fn named_call(
+        &self,
         name: &str,
-        args: &[Argument],
+        args: &'x [Argument],
         form: CallForm,
     ) -> Result<()> {
-        self.work.charge(1)?;
-        self.global(name);
-        if self.program.file || self.namespace.is_some() {
-            let slot = self
-                .locals
-                .get(self.work, name)?
-                .copied()
-                .unwrap_or(usize::MAX);
-            let name = self.call_site(name, false).name;
-            self.emit(Op::ResolveCall(slot, name, form == CallForm::Parenthesized));
-            self.argument_values(args)?;
-            self.emit(Op::Invoke(Invocation::Resolved));
-            return Ok(());
-        }
-        if let Some(&slot) = self.locals.get(self.work, name)? {
-            let name = self.call_site(name, false).name;
-            self.emit(Op::ResolveCall(slot, name, form == CallForm::Parenthesized));
-            self.argument_values(args)?;
-            self.emit(Op::Invoke(Invocation::Resolved));
-            return Ok(());
-        }
-        let target = if self.program.declaration_names.contains_key(name) {
-            Invocation::NonCallable
-        } else if let Some(&fun) = self.program.names.get(name) {
-            Invocation::Function(fun)
-        } else if let Some(host) = self.host_position(name)? {
-            Invocation::Host(host)
-        } else if let Some(global) = self.global(name) {
-            self.emit(Op::ResolveGlobalCall(global));
-            self.argument_values(args)?;
-            self.emit(Op::Invoke(Invocation::Resolved));
-            return Ok(());
-        } else {
-            let site = self.call_site(name, false);
-            self.emit(Op::ResolveCall(
-                usize::MAX,
-                site.name,
-                form == CallForm::Parenthesized,
-            ));
-            self.argument_values(args)?;
-            self.emit(Op::Invoke(Invocation::Resolved));
+        let target = {
+            let mut c = self.c();
+            let work = c.work;
+            work.charge(1)?;
+            c.global(name);
+            if c.program.file || c.namespace.is_some() {
+                let slot = c.locals.get(work, name)?.copied().unwrap_or(usize::MAX);
+                let name = c.call_site(name, false).name;
+                c.emit(Op::ResolveCall(slot, name, form == CallForm::Parenthesized));
+                None
+            } else if let Some(&slot) = c.locals.get(work, name)? {
+                let name = c.call_site(name, false).name;
+                c.emit(Op::ResolveCall(slot, name, form == CallForm::Parenthesized));
+                None
+            } else if c.program.declaration_names.contains_key(name) {
+                Some(Invocation::NonCallable)
+            } else if let Some(&fun) = c.program.names.get(name) {
+                Some(Invocation::Function(fun))
+            } else if let Some(host) = c.host_position(name)? {
+                Some(Invocation::Host(host))
+            } else if let Some(global) = c.global(name) {
+                c.emit(Op::ResolveGlobalCall(global));
+                None
+            } else {
+                let site = c.call_site(name, false);
+                c.emit(Op::ResolveCall(
+                    usize::MAX,
+                    site.name,
+                    form == CallForm::Parenthesized,
+                ));
+                None
+            }
+        };
+        let Some(target) = target else {
+            self.argument_values(args).await?;
+            self.c().emit(Op::Invoke(Invocation::Resolved));
             return Ok(());
         };
-        let name = self.call_site(name, false).name;
-        self.emit(Op::RootCall(name, expanded(args)));
+        {
+            let mut c = self.c();
+            let name = c.call_site(name, false).name;
+            c.emit(Op::RootCall(name, expanded(args)));
+        }
         if expanded(args) {
-            self.argument_values(args)?;
-            self.emit(Op::InvokeRoot(target));
+            self.argument_values(args).await?;
+            self.c().emit(Op::InvokeRoot(target));
         } else {
             for arg in args {
-                self.expr(&arg.value)?;
+                self.expr(&arg.value).await?;
             }
-            self.emit(match target {
+            self.c().emit(match target {
                 Invocation::Function(fun) => Op::Call(fun, args.len()),
                 Invocation::Host(host) => Op::Host(host, args.len()),
                 Invocation::NonCallable => Op::NonCallable(args.len()),
@@ -69,82 +67,108 @@ impl Compiler<'_> {
         Ok(())
     }
 
-    pub(super) fn computed_call(
-        &mut self,
-        call: &Expr,
-        args: &[Argument],
+    pub(super) async fn computed_call(
+        &self,
+        call: &'x Expr,
+        args: &'x [Argument],
         block: Option<usize>,
     ) -> Result<()> {
-        self.work.charge(1)?;
-        self.emit(Op::Arguments);
-        self.call_target(call)?;
-        self.argument_values(args)?;
-        if let Some(block) = block {
-            self.emit(Op::Attach(block));
+        {
+            let mut c = self.c();
+            c.work.charge(1)?;
+            c.emit(Op::Arguments);
         }
-        self.emit(Op::Invoke(Invocation::Resolved));
+        self.call_target(call).await?;
+        self.argument_values(args).await?;
+        let mut c = self.c();
+        if let Some(block) = block {
+            c.emit(Op::Attach(block));
+        }
+        c.emit(Op::Invoke(Invocation::Resolved));
         Ok(())
     }
 
-    pub(super) fn call_target(&mut self, expr: &Expr) -> Result<()> {
-        self.work.charge(1)?;
-        let previous = std::mem::replace(&mut self.offset, expr.offset);
+    pub(super) async fn call_target(&self, expr: &'x Expr) -> Result<()> {
+        let previous = {
+            let mut c = self.c();
+            c.work.charge(1)?;
+            std::mem::replace(&mut c.offset, expr.offset)
+        };
+        let result = self.call_target_at(expr).await;
+        self.c().offset = previous;
+        result
+    }
+
+    async fn call_target_at(&self, expr: &'x Expr) -> Result<()> {
         match &expr.node {
             Node::Try(attempt) if attempt.modifier => {
-                self.attempt(attempt, true)?;
-                self.emit(Op::Pop);
+                Box::pin(self.attempt(attempt, true)).await?;
+                self.c().emit(Op::Pop);
             }
             Node::Var(name)
                 if !name.starts_with('@') && !matches!(name.as_str(), "self" | "block_given?") =>
             {
-                self.global(name);
-                let slot = self
+                let mut c = self.c();
+                c.global(name);
+                let slot = c
                     .locals
-                    .get(self.work, name.as_str())?
+                    .get(c.work, name.as_str())?
                     .copied()
                     .unwrap_or(usize::MAX);
-                let name = self.call_site(name, false).name;
-                self.emit(Op::CallName(slot, name));
+                let name = c.call_site(name, false).name;
+                c.emit(Op::CallName(slot, name));
             }
             Node::Member(receiver, name) | Node::SafeMember(receiver, name) => {
-                self.member_receiver(receiver, name != "call")?;
+                self.member_receiver(receiver, name != "call").await?;
+                let mut c = self.c();
                 let skip =
-                    matches!(expr.node, Node::SafeMember(..)).then(|| self.emit(Op::JumpNil(0)));
-                let site = self.call_site(name, false);
-                self.emit(Op::CallMember(site));
+                    matches!(expr.node, Node::SafeMember(..)).then(|| c.emit(Op::JumpNil(0)));
+                let site = c.call_site(name, false);
+                c.emit(Op::CallMember(site));
                 if let Some(skip) = skip {
-                    let done = self.emit(Op::Jump(0));
-                    self.patch(skip, self.code.len());
-                    self.emit(Op::CallValue);
-                    self.patch(done, self.code.len());
+                    let done = c.emit(Op::Jump(0));
+                    let end = c.code.len();
+                    c.patch(skip, end);
+                    c.emit(Op::CallValue);
+                    let end = c.code.len();
+                    c.patch(done, end);
                 }
             }
             Node::Scope(receiver, name, None) => {
-                self.expr(receiver)?;
-                let mut site = self.call_site(name, false);
+                self.expr(receiver).await?;
+                let mut c = self.c();
+                let mut site = c.call_site(name, false);
                 site.scope = true;
-                self.emit(Op::CallMember(site));
+                c.emit(Op::CallMember(site));
             }
             Node::Shape(ty, Some(fallback), names) => {
-                self.work.names(names)?;
-                let index = self.program.type_guards.len();
-                self.program
-                    .type_guards
-                    .push(names.iter().map(|name| name.as_str().to_owned()).collect());
-                let guard = self.emit(Op::TypeShadowed(index, 0));
-                self.constant(crate::shapes::compile(ty.compile(self.work)?));
-                self.emit(Op::CallValue);
-                let done = self.emit(Op::Jump(0));
-                self.patch(guard, self.code.len());
-                self.call_target(fallback)?;
-                self.patch(done, self.code.len());
+                let done = {
+                    let mut c = self.c();
+                    c.work.names(names)?;
+                    let index = c.program.type_guards.len();
+                    c.program
+                        .type_guards
+                        .push(names.iter().map(|name| name.as_str().to_owned()).collect());
+                    let guard = c.emit(Op::TypeShadowed(index, 0));
+                    let shape = crate::shapes::compile(ty.compile(c.work)?);
+                    c.constant(shape);
+                    c.emit(Op::CallValue);
+                    let done = c.emit(Op::Jump(0));
+                    let end = c.code.len();
+                    c.patch(guard, end);
+                    done
+                };
+                // A shape's fallback is a bare name, so this recursion stays shallow.
+                Box::pin(self.call_target(fallback)).await?;
+                let mut c = self.c();
+                let end = c.code.len();
+                c.patch(done, end);
             }
             _ => {
-                self.expr(expr)?;
-                self.emit(Op::CallValue);
+                self.expr(expr).await?;
+                self.c().emit(Op::CallValue);
             }
         }
-        self.offset = previous;
         Ok(())
     }
 }

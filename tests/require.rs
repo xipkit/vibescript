@@ -388,7 +388,7 @@ fn required_compilation_rejects_excessive_nesting_without_initializing() {
     ] {
         files.write(
             "deep.vibe",
-            &format!("effect();{}1{}", prefix.repeat(300), suffix.repeat(300)),
+            &format!("effect();{}1{}", prefix.repeat(1100), suffix.repeat(1100)),
         );
         let mut options = CallOptions::default();
         options.limits.steps = None;

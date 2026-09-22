@@ -1,9 +1,92 @@
-use super::{Expr, Node, Parser, Token, keyword};
+use super::{Expr, Node, Parser, Parsing, Token, keyword};
 use crate::{
     Result,
     compilation::{Boxed, Buffer, Bytes, Field, Name, Type, TypeKind},
     types::Scalar,
 };
+
+impl Parsing<'_> {
+    pub(super) async fn hash_expr(&self) -> Result<Expr> {
+        let (candidate, end, malformed) = {
+            let mut p = self.p();
+            p.work.charge(1)?;
+            let start = p.pos - 1;
+            let (candidate, end, malformed) = p.hash_type_candidate()?;
+            p.pos = start + 1;
+            (candidate, end, malformed)
+        };
+        if candidate.is_none() && !malformed {
+            return self.hash_group().await;
+        }
+        self.typed_hash_group(candidate, end).await
+    }
+
+    async fn typed_hash_group(&self, candidate: Option<Type>, end: usize) -> Result<Expr> {
+        let work = self.p().work;
+        // Type-only tokens cannot alter locals or re-lex percent expressions.
+        let (structural, state) = {
+            let p = self.p();
+            let state = (
+                p.depth,
+                p.groups,
+                p.line_exprs,
+                p.command_depth,
+                p.ternaries.copy_with(work, |n| Ok(*n))?,
+                p.command_group,
+                p.loop_condition,
+                p.declared_it,
+            );
+            (p.type_structural_error, state)
+        };
+        match self.hash_group().await {
+            Ok(fallback) => {
+                let Some(ty) = candidate else {
+                    return Ok(fallback);
+                };
+                let mut names = Buffer::new();
+                work.ty(&ty)?;
+                literal_names(&ty, &mut names, work)?;
+                work.charge(
+                    names
+                        .len()
+                        .saturating_mul(names.len().max(1).ilog2() as usize + 1),
+                )?;
+                names.sort_unstable();
+                work.charge(names.len())?;
+                names.dedup();
+                let depth = fallback.depth;
+                self.p().make(
+                    Node::Shape(
+                        Boxed::new(work, ty)?,
+                        Some(Boxed::new(work, fallback)?),
+                        names,
+                    ),
+                    depth,
+                )
+            }
+            Err(error) => {
+                work.checkpoint()?;
+                let mut p = self.p();
+                (
+                    p.depth,
+                    p.groups,
+                    p.line_exprs,
+                    p.command_depth,
+                    p.ternaries,
+                    p.command_group,
+                    p.loop_condition,
+                    p.declared_it,
+                ) = state;
+                p.type_structural_error = structural;
+                let Some(ty) = candidate else {
+                    return Err(error);
+                };
+                p.pos = end;
+                p.make(Node::Shape(Boxed::new(work, ty)?, None, Buffer::new()), 1)
+            }
+        }
+    }
+}
 
 impl Parser<'_> {
     pub(super) fn argument_type_literal(&mut self) -> Result<Option<Expr>> {
@@ -54,18 +137,7 @@ impl Parser<'_> {
         )?))
     }
 
-    pub(super) fn hash_expr(&mut self) -> Result<Expr> {
-        self.work.charge(1)?;
-        let start = self.pos - 1;
-        let (candidate, end, malformed) = self.hash_type_candidate()?;
-        self.pos = start + 1;
-        if candidate.is_none() && !malformed {
-            return self.hash_group();
-        }
-        self.typed_hash_group(candidate, end)
-    }
-
-    fn hash_type_candidate(&mut self) -> Result<(Option<Type>, usize, bool)> {
+    pub(super) fn hash_type_candidate(&mut self) -> Result<(Option<Type>, usize, bool)> {
         let structural = self.type_structural_error;
         self.type_structural_error = false;
         let candidate = self.type_shape(0);
@@ -87,70 +159,6 @@ impl Parser<'_> {
             _ => None,
         };
         Ok((candidate, end, malformed))
-    }
-
-    fn typed_hash_group(&mut self, candidate: Option<Type>, end: usize) -> Result<Expr> {
-        let structural = self.type_structural_error;
-        // Type-only tokens cannot alter locals or re-lex percent expressions.
-        let state = (
-            self.depth,
-            self.groups,
-            self.line_exprs,
-            self.command_depth,
-            self.ternaries.copy_with(self.work, |n| Ok(*n))?,
-            self.command_group,
-            self.loop_condition,
-            self.declared_it,
-        );
-        match self.hash_group() {
-            Ok(fallback) => {
-                let Some(ty) = candidate else {
-                    return Ok(fallback);
-                };
-                let mut names = Buffer::new();
-                self.work.ty(&ty)?;
-                literal_names(&ty, &mut names, self.work)?;
-                self.work.charge(
-                    names
-                        .len()
-                        .saturating_mul(names.len().max(1).ilog2() as usize + 1),
-                )?;
-                names.sort_unstable();
-                self.work.charge(names.len())?;
-                names.dedup();
-                let depth = fallback.depth;
-                self.make(
-                    Node::Shape(
-                        Boxed::new(self.work, ty)?,
-                        Some(Boxed::new(self.work, fallback)?),
-                        names,
-                    ),
-                    depth,
-                )
-            }
-            Err(error) => {
-                self.work.checkpoint()?;
-                (
-                    self.depth,
-                    self.groups,
-                    self.line_exprs,
-                    self.command_depth,
-                    self.ternaries,
-                    self.command_group,
-                    self.loop_condition,
-                    self.declared_it,
-                ) = state;
-                self.type_structural_error = structural;
-                let Some(ty) = candidate else {
-                    return Err(error);
-                };
-                self.pos = end;
-                self.make(
-                    Node::Shape(Boxed::new(self.work, ty)?, None, Buffer::new()),
-                    1,
-                )
-            }
-        }
     }
 
     pub(super) fn type_expr(&mut self, depth: usize, block: bool) -> Result<Type> {

@@ -238,7 +238,7 @@ fn deeply_nested_handlers_and_modifiers_reach_the_parser_guard() {
         ("begin\n", "\nensure\n1\nend"),
         ("1/0 rescue (", ")"),
     ] {
-        let source = format!("{}1{}", prefix.repeat(300), suffix.repeat(300));
+        let source = format!("{}1{}", prefix.repeat(1100), suffix.repeat(1100));
         let error = Engine::new().compile(&source).err().unwrap();
         assert_eq!(error.kind, ErrorKind::Syntax);
     }

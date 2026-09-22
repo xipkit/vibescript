@@ -449,7 +449,11 @@ fn invalid_parameter_and_argument_order_is_rejected() {
             "{source}"
         );
     }
-    let source = format!("def f(a={}1{})\na\nend", "f(".repeat(300), ")".repeat(300));
+    let source = format!(
+        "def f(a={}1{})\na\nend",
+        "f(".repeat(1100),
+        ")".repeat(1100)
+    );
     assert_eq!(
         Engine::new().compile(&source).err().unwrap().kind,
         ErrorKind::Syntax

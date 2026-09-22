@@ -56,7 +56,11 @@ fn call_and_ternary_nesting_reach_the_syntax_guard() {
             );
             Engine::new().compile(&source).unwrap();
         }
-        let source = format!("{DECLARATIONS}\n{}1{}", open.repeat(300), close.repeat(300));
+        let source = format!(
+            "{DECLARATIONS}\n{}1{}",
+            open.repeat(1100),
+            close.repeat(1100)
+        );
         let error = Engine::new().compile(&source).err().unwrap();
         assert_eq!(error.kind, ErrorKind::Syntax, "{open}");
         assert!(

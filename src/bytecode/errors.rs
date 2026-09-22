@@ -20,50 +20,61 @@ pub(crate) struct RescueSpec {
     pub empty: bool,
 }
 
-impl Compiler<'_> {
-    pub(super) fn attempt(&mut self, attempt: &syntax::Try, target: bool) -> Result<()> {
-        self.work.charge(1)?;
-        let index = self.program.handlers.len();
-        self.program.handlers.push(TrySpec::default());
-        self.emit(Op::TryBegin(index));
-        let mut spec = TrySpec {
-            body: self.code.len(),
-            body_locals: self.statement_bindings(&attempt.body)?.into_parts().0,
-            ..TrySpec::default()
-        };
-        self.attempt_block(&attempt.body, target)?;
-        self.emit(Op::TryBody);
-        for clause in &attempt.rescues {
-            let saved_offset = std::mem::replace(&mut self.offset, clause.offset);
-            let (previous, parameter, binding) = if let Some(name) = &clause.binding {
-                let previous = self.locals.get(self.work, name)?.copied();
-                let parameter = self.parameters.contains(self.work, name)?;
-                let slot = self.rescue_slot(name)?;
-                self.locals.insert(self.work, name.clone(), slot)?;
-                self.parameters.insert(self.work, name.clone(), ())?;
-                (previous, parameter, Some(slot))
-            } else {
-                (None, false, None)
+impl<'x> Compiling<'_, 'x> {
+    pub(super) async fn attempt(&self, attempt: &'x syntax::Try, target: bool) -> Result<()> {
+        let (index, mut spec) = {
+            let mut c = self.c();
+            c.work.charge(1)?;
+            let index = c.program.handlers.len();
+            c.program.handlers.push(TrySpec::default());
+            c.emit(Op::TryBegin(index));
+            let spec = TrySpec {
+                body: c.code.len(),
+                body_locals: c.statement_bindings(&attempt.body)?.into_parts().0,
+                ..TrySpec::default()
             };
-            let locals = self
-                .statement_bindings(&clause.body)?
-                .into_iter()
-                .filter(|slot| Some(*slot) != binding)
-                .collect();
-            let start = self.code.len();
-            self.attempt_block(&clause.body, target)?;
-            self.emit(Op::TryEnd);
+            (index, spec)
+        };
+        self.attempt_block(&attempt.body, target).await?;
+        self.c().emit(Op::TryBody);
+        for clause in &attempt.rescues {
+            let (saved_offset, previous, parameter, binding, locals, start) = {
+                let mut c = self.c();
+                let work = c.work;
+                let saved_offset = std::mem::replace(&mut c.offset, clause.offset);
+                let (previous, parameter, binding) = if let Some(name) = &clause.binding {
+                    let previous = c.locals.get(work, name)?.copied();
+                    let parameter = c.parameters.contains(work, name)?;
+                    let slot = c.rescue_slot(name)?;
+                    c.locals.insert(work, name.clone(), slot)?;
+                    c.parameters.insert(work, name.clone(), ())?;
+                    (previous, parameter, Some(slot))
+                } else {
+                    (None, false, None)
+                };
+                let locals = c
+                    .statement_bindings(&clause.body)?
+                    .into_iter()
+                    .filter(|slot| Some(*slot) != binding)
+                    .collect();
+                let start = c.code.len();
+                (saved_offset, previous, parameter, binding, locals, start)
+            };
+            self.attempt_block(&clause.body, target).await?;
+            let mut c = self.c();
+            let work = c.work;
+            c.emit(Op::TryEnd);
             if let Some(name) = &clause.binding {
                 if let Some(slot) = previous {
-                    self.locals.insert(self.work, name.clone(), slot)?;
+                    c.locals.insert(work, name.clone(), slot)?;
                 } else {
-                    self.locals.remove(self.work, name.as_str())?;
+                    c.locals.remove(work, name.as_str())?;
                 }
                 if !parameter {
-                    self.parameters.remove(self.work, name.as_str())?;
+                    c.parameters.remove(work, name.as_str())?;
                 }
             }
-            self.offset = saved_offset;
+            c.offset = saved_offset;
             spec.rescues.push(RescueSpec {
                 classes: clause.classes.to_vec(),
                 binding,
@@ -72,32 +83,32 @@ impl Compiler<'_> {
                 empty: clause.body.is_empty(),
             });
         }
-        spec.alternate_locals = self.statement_bindings(&attempt.alternate)?.into_parts().0;
+        {
+            let c = self.c();
+            spec.alternate_locals = c.statement_bindings(&attempt.alternate)?.into_parts().0;
+            if !attempt.alternate.is_empty() {
+                spec.alternate = Some(c.code.len());
+            }
+        }
         if !attempt.alternate.is_empty() {
-            spec.alternate = Some(self.code.len());
-            self.block(&attempt.alternate)?;
-            self.emit(Op::TryEnd);
+            self.block(&attempt.alternate).await?;
+            self.c().emit(Op::TryEnd);
         }
         if !attempt.ensure.is_empty() {
-            spec.ensure = Some(self.code.len());
-            self.block(&attempt.ensure)?;
-            self.emit(Op::Pop);
-            self.emit(Op::EnsureEnd);
+            spec.ensure = Some(self.c().code.len());
+            self.block(&attempt.ensure).await?;
+            let mut c = self.c();
+            c.emit(Op::Pop);
+            c.emit(Op::EnsureEnd);
         }
-        spec.end = self.code.len();
-        self.program.handlers[index] = spec;
+        let mut c = self.c();
+        spec.end = c.code.len();
+        c.program.handlers[index] = spec;
         Ok(())
     }
 
-    fn rescue_slot(&mut self, name: &Name) -> Result<usize> {
-        let mut storage = [0; 20];
-        let digits = decimal_digits(self.slots as u64, &mut storage);
-        let name = Name::join(self.work, &["\0rescue", digits, ":", name])?;
-        self.slot(&name)
-    }
-
-    fn attempt_block(&mut self, body: &[Stmt], target: bool) -> Result<()> {
-        self.work.charge(1)?;
+    async fn attempt_block(&self, body: &'x [Stmt], target: bool) -> Result<()> {
+        self.c().work.charge(1)?;
         if target {
             let [
                 Stmt {
@@ -108,44 +119,64 @@ impl Compiler<'_> {
             else {
                 unreachable!()
             };
-            self.call_target(expr)?;
-            self.emit(Op::Nil);
+            self.call_target(expr).await?;
+            self.c().emit(Op::Nil);
             Ok(())
         } else {
-            self.block(body)
+            self.block(body).await
         }
     }
 
-    pub(super) fn raise(&mut self, value: Option<&Expr>, message: Option<&Expr>) -> Result<()> {
-        self.work.charge(1)?;
+    pub(super) async fn raise(
+        &self,
+        value: Option<&'x Expr>,
+        message: Option<&'x Expr>,
+    ) -> Result<()> {
+        self.c().work.charge(1)?;
         if let Some(message) = message {
             let value = value.unwrap();
-            let named = if let Node::Var(name) = &value.node {
-                if name.chars().next().is_some_and(syntax::unicode::upper)
-                    && crate::ErrorClass::from_name(name).is_some()
-                {
-                    Some((
-                        self.call_site(name, false).name,
-                        self.locals.get(self.work, name.as_str())?.copied(),
-                    ))
+            let start = {
+                let mut c = self.c();
+                let named = if let Node::Var(name) = &value.node {
+                    if name.chars().next().is_some_and(syntax::unicode::upper)
+                        && crate::ErrorClass::from_name(name).is_some()
+                    {
+                        Some((
+                            c.call_site(name, false).name,
+                            c.locals.get(c.work, name.as_str())?.copied(),
+                        ))
+                    } else {
+                        None
+                    }
                 } else {
                     None
-                }
-            } else {
-                None
+                };
+                c.emit(Op::RaiseStart(named, 0))
             };
-            let start = self.emit(Op::RaiseStart(named, 0));
-            self.expr(value)?;
-            self.emit(Op::RaiseValue);
-            self.patch(start, self.code.len());
-            self.expr(message)?;
-            self.emit(Op::Raise(2));
+            self.expr(value).await?;
+            {
+                let mut c = self.c();
+                c.emit(Op::RaiseValue);
+                let end = c.code.len();
+                c.patch(start, end);
+            }
+            self.expr(message).await?;
+            self.c().emit(Op::Raise(2));
         } else if let Some(value) = value {
-            self.expr(value)?;
-            self.emit(Op::Raise(1));
+            self.expr(value).await?;
+            self.c().emit(Op::Raise(1));
         } else {
-            self.emit(Op::Raise(0));
+            self.c().emit(Op::Raise(0));
         }
         Ok(())
+    }
+}
+
+impl Compiler<'_> {
+    fn rescue_slot(&mut self, name: &Name) -> Result<usize> {
+        let mut storage = [0; 20];
+        let digits = decimal_digits(self.slots as u64, &mut storage);
+        let name = Name::join(self.work, &["\0rescue", digits, ":", name])?;
+        self.slot(&name)
     }
 }

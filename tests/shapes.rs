@@ -257,11 +257,11 @@ fn long_schema_work_and_storage_obey_call_limits_before_host_effects() {
 
 #[test]
 fn nested_type_and_value_parsing_reaches_its_guards() {
-    for (prefix, suffix) in [("array<", ">"), ("{x:", "}")] {
+    for (prefix, suffix, depth) in [("array<", ">", 300), ("{x:", "}", 1100)] {
         let source = format!(
             "{IDENTITY}identity({}int{})",
-            prefix.repeat(300),
-            suffix.repeat(300)
+            prefix.repeat(depth),
+            suffix.repeat(depth)
         );
         assert_eq!(
             Engine::new().compile(&source).err().unwrap().kind,
@@ -269,7 +269,7 @@ fn nested_type_and_value_parsing_reaches_its_guards() {
         );
     }
     for leaf in ["int", "1"] {
-        let source = format!("{}{}{}", "{x:".repeat(300), leaf, "}".repeat(300));
+        let source = format!("{}{}{}", "{x:".repeat(1100), leaf, "}".repeat(1100));
         assert_eq!(
             Engine::new().compile(&source).err().unwrap().kind,
             ErrorKind::Syntax

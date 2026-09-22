@@ -305,10 +305,10 @@ fn selected_host_capabilities_keep_keyword_contracts_and_step_limits() {
 
 #[test]
 fn computed_call_nesting_reaches_the_parser_guard() {
-    let source = format!("JSON::parse{}", "()".repeat(300));
+    let source = format!("JSON::parse{}", "()".repeat(1100));
     let error = Engine::new().compile(&source).err().unwrap();
     assert_eq!(error.kind, ErrorKind::Syntax);
-    let source = format!("{}f{}()", "(missing rescue ".repeat(300), ")".repeat(300));
+    let source = format!("{}f{}()", "(missing rescue ".repeat(1100), ")".repeat(1100));
     let error = Engine::new().compile(&source).err().unwrap();
     assert_eq!(error.kind, ErrorKind::Syntax);
     let error = Engine::new().compile("nil&.f()(1).field=2").err().unwrap();

@@ -1,7 +1,8 @@
 use crate::{
     Error, Result, Value,
-    compilation::{Boxed, Buffer, Bytes, Name, Table, Text, Work},
+    compilation::{Boxed, Buffer, Bytes, Name, Table, Task, Tasks, Text, Work},
 };
+use std::cell::{RefCell, RefMut};
 
 mod classes;
 mod errors;
@@ -14,7 +15,8 @@ mod work;
 use lexer::{Lexeme, Part, Token, lex};
 use tokens::Tokens;
 
-const MAX_DEPTH: usize = 128;
+// Go's maxSyntaxDepth bounds both parser recursion and syntax tree height.
+const MAX_DEPTH: usize = 1024;
 pub(crate) const MAX_SOURCE: usize = 8 << 20;
 
 #[derive(Debug)]
@@ -42,7 +44,8 @@ pub(crate) enum Node {
     Unary(&'static str, Boxed<Expr>),
     Binary(&'static str, Boxed<Expr>, Boxed<Expr>),
     Range(Option<Boxed<Expr>>, Option<Boxed<Expr>>, bool),
-    Conditional(Boxed<Expr>, Boxed<Expr>, Boxed<Expr>),
+    /// Conditions tested in order with their results, then the alternate.
+    Conditional(Buffer<(Expr, Expr)>, Boxed<Expr>),
     Case(Option<Boxed<Expr>>, Buffer<When>, Option<Boxed<Expr>>),
     Loop(Boxed<Stmt>),
     Call(Name, Buffer<Argument>, CallForm),
@@ -106,15 +109,17 @@ pub(crate) struct Rescue {
 }
 impl Try {
     fn depth(&self) -> u32 {
-        1 + self
+        let depth = self
             .body
             .iter()
             .chain(&self.alternate)
             .chain(&self.ensure)
             .chain(self.rescues.iter().flat_map(|r| &r.body))
-            .map(Stmt::depth)
+            .map(|stmt| stmt.depth)
             .max()
-            .unwrap_or(0)
+            .unwrap_or(0);
+        // A rescue modifier wraps its two expressions rather than statements.
+        if self.modifier { depth } else { 1 + depth }
     }
 }
 #[derive(Debug)]
@@ -164,41 +169,61 @@ pub(crate) enum Target {
 }
 impl Target {
     pub fn offset(&self) -> Option<u32> {
-        match self {
-            Self::Value(expr) => Some(expr.offset),
-            Self::Typed(target, _) => target.offset(),
-            Self::Tuple(parts) => parts
-                .iter()
-                .find_map(|(target, _)| target.as_ref()?.offset()),
+        let mut target = self;
+        loop {
+            target = match target {
+                Self::Value(expr) => return Some(expr.offset),
+                Self::Typed(target, _) => target,
+                Self::Tuple(parts) => parts.iter().find_map(|(target, _)| target.as_ref())?,
+            };
         }
     }
-    fn is_binding(&self) -> bool {
-        match self {
-            Self::Typed(target, _) => target.is_binding(),
-            Self::Value(e) => matches!(&e.node, Node::Var(name) if !name.starts_with('@')),
-            Self::Tuple(parts) => parts
-                .iter()
-                .all(|(target, _)| target.as_ref().is_none_or(Self::is_binding)),
-        }
-    }
-    fn depth(&self) -> u32 {
-        match self {
-            Self::Typed(target, _) => target.depth(),
-            Self::Value(e) => e.depth,
-            Self::Tuple(parts) => {
-                1 + parts
-                    .iter()
-                    .filter_map(|(t, _)| t.as_ref())
-                    .map(Self::depth)
-                    .max()
-                    .unwrap_or(0)
+    // Destructuring nests as deeply as the syntax limit, so walk it without recursion.
+    fn parts(&self, mut visit: impl FnMut(&Self, u32) -> bool) -> bool {
+        let mut pending = vec![(self, 0)];
+        while let Some((target, depth)) = pending.pop() {
+            if !visit(target, depth) {
+                return false;
+            }
+            match target {
+                Self::Typed(target, _) => pending.push((target, depth)),
+                Self::Value(_) => (),
+                Self::Tuple(parts) => {
+                    pending.extend(
+                        parts
+                            .iter()
+                            .rev()
+                            .filter_map(|(t, _)| t.as_ref())
+                            .map(|t| (t, depth + 1)),
+                    );
+                }
             }
         }
+        true
+    }
+    fn is_binding(&self) -> bool {
+        self.parts(|target, _| match target {
+            Self::Value(e) => matches!(&e.node, Node::Var(name) if !name.starts_with('@')),
+            _ => true,
+        })
+    }
+    fn depth(&self) -> u32 {
+        let mut deepest = 0;
+        self.parts(|target, depth| {
+            if let Self::Value(e) = target {
+                deepest = deepest.max(depth + e.depth);
+            } else if let Self::Tuple(_) = target {
+                deepest = deepest.max(depth + 1);
+            }
+            true
+        });
+        deepest
     }
 }
 #[derive(Debug)]
 pub(crate) struct Stmt {
     pub node: Statement,
+    depth: u32,
     pub offset: u32,
 }
 #[derive(Debug)]
@@ -209,7 +234,8 @@ pub(crate) enum Statement {
     UnboundClass(Name),
     Expr(Expr),
     Assign(Target, &'static str, Expr),
-    If(Expr, Buffer<Stmt>, Buffer<Stmt>),
+    /// Conditions tested in order with their bodies, then the alternate.
+    If(Buffer<(Expr, Buffer<Stmt>)>, Buffer<Stmt>),
     While(Expr, Buffer<Stmt>),
     For(Target, Expr, Buffer<Stmt>),
     Return(Option<Expr>),
@@ -218,27 +244,44 @@ pub(crate) enum Statement {
 }
 impl Statement {
     fn at(self, offset: u32) -> Stmt {
-        Stmt { node: self, offset }
+        Stmt {
+            depth: self.depth(),
+            node: self,
+            offset,
+        }
     }
-}
-impl Stmt {
+    // Match Go's syntax tree height; children carry their own heights.
     fn depth(&self) -> u32 {
-        let body = |s: &[Stmt]| s.iter().map(Self::depth).max().unwrap_or(0);
-        1 + match &self.node {
-            Statement::Module(_) | Statement::UnboundClass(_) | Statement::Retry => 0,
-            Statement::Raise(value, message) => value
-                .iter()
-                .chain(message)
-                .map(|v| v.depth)
-                .max()
-                .unwrap_or(0),
-            Statement::Expr(e) => e.depth,
-            Statement::Assign(t, _, e) => t.depth().max(e.depth),
-            Statement::If(e, yes, no) => e.depth.max(body(yes)).max(body(no)),
-            Statement::While(e, b) => e.depth.max(body(b)),
-            Statement::For(t, e, b) => t.depth().max(e.depth).max(body(b)),
+        let body = |s: &[Stmt]| s.iter().map(|s| s.depth).max().unwrap_or(0);
+        match self {
+            Statement::Module(_) | Statement::UnboundClass(_) | Statement::Retry => 1,
+            Statement::Raise(value, message) => {
+                1 + value
+                    .iter()
+                    .chain(message)
+                    .map(|v| v.depth)
+                    .max()
+                    .unwrap_or(0)
+            }
+            // A statement-position begin is a statement in Go, not an expression statement.
+            Statement::Expr(Expr {
+                node: Node::Try(attempt),
+                depth,
+                ..
+            }) if !attempt.modifier => *depth,
+            Statement::Expr(e) => 1 + e.depth,
+            Statement::Assign(t, _, e) => 1 + t.depth().max(e.depth),
+            Statement::If(branches, alternate) => {
+                let branches = branches.iter().enumerate().map(|(i, (condition, body_))| {
+                    // Each elsif is its own node beside the first branch.
+                    u32::from(i > 0) + condition.depth.max(body(body_))
+                });
+                1 + branches.max().unwrap_or(0).max(body(alternate))
+            }
+            Statement::While(e, b) => 1 + e.depth.max(body(b)),
+            Statement::For(t, e, b) => 1 + t.depth().max(e.depth).max(body(b)),
             Statement::Return(e) | Statement::Break(e) | Statement::Next(e) => {
-                e.as_ref().map_or(0, |e| e.depth)
+                1 + e.as_ref().map_or(0, |e| e.depth)
             }
         }
     }
@@ -252,6 +295,23 @@ pub(crate) struct Definition {
     pub params: Buffer<Parameter>,
     pub body: Buffer<Stmt>,
     pub return_type: Option<crate::compilation::Type>,
+}
+impl Definition {
+    fn depth(&self) -> u32 {
+        let params = self
+            .params
+            .iter()
+            .map(|p| p.default.as_ref().map_or(1, |e| e.depth))
+            .max()
+            .unwrap_or(0);
+        1 + self
+            .body
+            .iter()
+            .map(|s| s.depth)
+            .max()
+            .unwrap_or(0)
+            .max(params)
+    }
 }
 
 pub(crate) struct Declarations {
@@ -291,88 +351,11 @@ pub(crate) fn parse_type(source: &str) -> Result<crate::types::Type> {
 }
 
 pub(crate) fn parse(source: &str, work: &dyn crate::compilation::Work) -> Result<Declarations> {
-    let mut p = parser(source, work)?;
-    let mut defs = Buffer::new();
-    let mut enums = Buffer::new();
-    let mut modules = Buffer::new();
-    let mut top = Buffer::new();
-    p.lines()?;
-    while !matches!(p.token(), Token::Eof) {
-        let offset = p.tokens[p.pos].offset as u32;
-        if p.word("class") {
-            let class = p.class()?;
-            top.push(work, Statement::Module(class.name.clone()).at(offset))?;
-            modules.push(work, class)?;
-        } else if p.module_ahead() {
-            let module = p.module()?;
-            top.push(work, Statement::Module(module.name.clone()).at(offset))?;
-            modules.push(work, module)?;
-        } else if matches!(p.token(), Token::Word(word) if matches!(word.as_str(), "def" | "private" | "export"))
-        {
-            let private = p.word("private");
-            if !private {
-                p.word("export");
-            }
-            p.expect_word("def")?;
-            let name = p.name()?;
-            if name.starts_with('@') {
-                return p.err("expected function name");
-            }
-            work.charge(defs.len())?;
-            if defs.iter().any(|d: &Definition| d.name == name) || name == "__main__" {
-                return p.err("duplicate or reserved function name");
-            }
-            let mut definition = p.definition(name, offset)?;
-            definition.private = private;
-            defs.push(work, definition)?;
-        } else if p.word("enum") {
-            p.line_breaks()?;
-            let name = p.enum_name()?;
-            let mut members = Buffer::new();
-            let mut seen = Table::new();
-            p.lines()?;
-            while !matches!(p.token(), Token::Eof)
-                && !matches!(p.token(), Token::Word(w) if w == "end")
-            {
-                let member = if p.word("enum") {
-                    Name::new(work, "enum")?
-                } else {
-                    p.enum_name()?
-                };
-                if seen.insert(work, member.clone(), ())?.is_some() {
-                    return p.err("duplicate enum member");
-                }
-                members.push(work, member)?;
-                p.lines()?;
-            }
-            if members.is_empty() {
-                return p.err("enum must define at least one member");
-            }
-            p.expect_word("end")?;
-            enums.push(work, (name, members))?;
-        } else {
-            top.push(work, p.statement()?)?;
-        }
-        p.lines()?;
+    let parsing = Parsing::new(parser(source, work)?);
+    match parsing.run(Call::Program)? {
+        Parsed::Program(declarations) => Ok(declarations),
+        _ => unreachable!(),
     }
-    defs.insert(
-        work,
-        0,
-        Definition {
-            offset: 0,
-            private: true,
-            accessor: None,
-            name: Name::new(work, "__main__")?,
-            params: Buffer::new(),
-            body: top,
-            return_type: None,
-        },
-    )?;
-    Ok(Declarations {
-        functions: defs,
-        enums,
-        modules,
-    })
 }
 
 struct Parser<'a> {
@@ -392,154 +375,376 @@ struct Parser<'a> {
     declared_it: bool,
     type_structural_error: bool,
 }
-impl<'a> Parser<'a> {
-    fn parameters(&mut self, parenthesized: bool) -> Result<Buffer<Parameter>> {
-        self.work.charge(1)?;
+
+/// Recursive parsing steps that run as tasks instead of native calls.
+enum Call {
+    Program,
+    Interpolation,
+    Expr(u8),
+    /// The rest of an expression whose first operand needed no nested task.
+    Tail(Expr, Suffix, u8),
+    Block(&'static [&'static str]),
+    Target(bool),
+    Class,
+    Module,
+}
+
+enum Parsed {
+    Program(Declarations),
+    Expr(Expr),
+    Body(Buffer<Stmt>),
+    /// A target, and whether commas at its own level made it a tuple.
+    Target(Target, bool),
+    Module(modules::Module),
+}
+
+// The first operand of an expression, parsed without a task when it is a
+// single token.
+enum Leaf {
+    Done(Expr),
+    Tail(Expr, Suffix),
+    Nested,
+}
+
+/// Runs the recursive grammar over shared parser state, so source nesting
+/// grows a heap task stack instead of the native one.
+struct Parsing<'a> {
+    parser: RefCell<Parser<'a>>,
+    tasks: Tasks<Call, Parsed>,
+}
+
+impl<'a> Parsing<'a> {
+    fn new(parser: Parser<'a>) -> Self {
+        Self {
+            parser: RefCell::new(parser),
+            tasks: Tasks::new(),
+        }
+    }
+
+    fn p(&self) -> RefMut<'_, Parser<'a>> {
+        self.parser.borrow_mut()
+    }
+
+    fn run(&self, call: Call) -> Result<Parsed> {
+        self.tasks.run(call, |call| self.start(call))
+    }
+
+    fn start(&self, call: Call) -> Task<'_, Parsed> {
+        match call {
+            Call::Program => Box::pin(async { Ok(Parsed::Program(self.program().await?)) }),
+            Call::Interpolation => Box::pin(async { Ok(Parsed::Expr(self.interpolated().await?)) }),
+            Call::Expr(min) => {
+                Box::pin(async move { Ok(Parsed::Expr(self.expression(min).await?)) })
+            }
+            Call::Tail(lhs, suffix, min) => Box::pin(async move {
+                let result = self.expr_tail(lhs, min, Some(suffix)).await;
+                self.p().depth -= 1;
+                Ok(Parsed::Expr(result?))
+            }),
+            Call::Block(stop) => {
+                Box::pin(async move { Ok(Parsed::Body(self.block_task(stop).await?)) })
+            }
+            Call::Target(typed) => Box::pin(async move {
+                let (target, tuple) = self.target(false, typed).await?;
+                Ok(Parsed::Target(target, tuple))
+            }),
+            Call::Class => Box::pin(async { Ok(Parsed::Module(self.class().await?)) }),
+            Call::Module => Box::pin(async { Ok(Parsed::Module(self.module().await?)) }),
+        }
+    }
+
+    async fn expr(&self, min: u8) -> Result<Expr> {
+        let call = match self.p().leaf_expression(min)? {
+            Leaf::Done(expr) => return Ok(expr),
+            Leaf::Tail(lhs, suffix) => Call::Tail(lhs, suffix, min),
+            Leaf::Nested => Call::Expr(min),
+        };
+        match self.tasks.call(call).await? {
+            Parsed::Expr(expr) => Ok(expr),
+            _ => unreachable!(),
+        }
+    }
+
+    async fn line_expr(&self, min: u8) -> Result<Expr> {
+        {
+            let mut p = self.p();
+            p.work.charge(1)?;
+            p.line_exprs += 1;
+        }
+        let result = self.expr(min).await;
+        self.p().line_exprs -= 1;
+        result
+    }
+
+    async fn block(&self, stop: &'static [&'static str]) -> Result<Buffer<Stmt>> {
+        match self.tasks.call(Call::Block(stop)).await? {
+            Parsed::Body(body) => Ok(body),
+            _ => unreachable!(),
+        }
+    }
+
+    async fn nested_target(&self, typed: bool) -> Result<(Target, bool)> {
+        match self.tasks.call(Call::Target(typed)).await? {
+            Parsed::Target(target, tuple) => Ok((target, tuple)),
+            _ => unreachable!(),
+        }
+    }
+
+    async fn nested_class(&self) -> Result<modules::Module> {
+        match self.tasks.call(Call::Class).await? {
+            Parsed::Module(class) => Ok(class),
+            _ => unreachable!(),
+        }
+    }
+
+    async fn nested_module(&self) -> Result<modules::Module> {
+        match self.tasks.call(Call::Module).await? {
+            Parsed::Module(module) => Ok(module),
+            _ => unreachable!(),
+        }
+    }
+
+    async fn program(&self) -> Result<Declarations> {
+        let work = self.p().work;
+        let mut defs = Buffer::new();
+        let mut enums = Buffer::new();
+        let mut modules = Buffer::new();
+        let mut top = Buffer::new();
+        self.p().lines()?;
+        while !matches!(self.p().token(), Token::Eof) {
+            let offset = {
+                let p = self.p();
+                p.tokens[p.pos].offset as u32
+            };
+            let class = self.p().word("class");
+            if class || self.p().module_ahead() {
+                // Go parses each top-level declaration as a statement.
+                self.p().enter()?;
+                let module = if class {
+                    self.class().await?
+                } else {
+                    self.module().await?
+                };
+                self.p().depth -= 1;
+                top.push(work, Statement::Module(module.name.clone()).at(offset))?;
+                modules.push(work, module)?;
+            } else if matches!(self.p().token(), Token::Word(word) if matches!(word.as_str(), "def" | "private" | "export"))
+            {
+                let name = {
+                    let mut p = self.p();
+                    p.enter()?;
+                    let private = p.word("private");
+                    if !private {
+                        p.word("export");
+                    }
+                    p.expect_word("def")?;
+                    let name = p.name()?;
+                    if name.starts_with('@') {
+                        return p.err("expected function name");
+                    }
+                    work.charge(defs.len())?;
+                    if defs.iter().any(|d: &Definition| d.name == name) || name == "__main__" {
+                        return p.err("duplicate or reserved function name");
+                    }
+                    (name, private)
+                };
+                let (name, private) = name;
+                let mut definition = self.definition(name, offset).await?;
+                definition.private = private;
+                let mut p = self.p();
+                p.check_depth(definition.depth())?;
+                p.depth -= 1;
+                defs.push(work, definition)?;
+            } else if self.p().word("enum") {
+                let mut p = self.p();
+                p.line_breaks()?;
+                let name = p.enum_name()?;
+                let mut members = Buffer::new();
+                let mut seen = Table::new();
+                p.lines()?;
+                while !matches!(p.token(), Token::Eof)
+                    && !matches!(p.token(), Token::Word(w) if w == "end")
+                {
+                    let member = if p.word("enum") {
+                        Name::new(work, "enum")?
+                    } else {
+                        p.enum_name()?
+                    };
+                    if seen.insert(work, member.clone(), ())?.is_some() {
+                        return p.err("duplicate enum member");
+                    }
+                    members.push(work, member)?;
+                    p.lines()?;
+                }
+                if members.is_empty() {
+                    return p.err("enum must define at least one member");
+                }
+                p.expect_word("end")?;
+                enums.push(work, (name, members))?;
+            } else {
+                top.push(work, self.statement().await?)?;
+            }
+            self.p().lines()?;
+        }
+        defs.insert(
+            work,
+            0,
+            Definition {
+                offset: 0,
+                private: true,
+                accessor: None,
+                name: Name::new(work, "__main__")?,
+                params: Buffer::new(),
+                body: top,
+                return_type: None,
+            },
+        )?;
+        Ok(Declarations {
+            functions: defs,
+            enums,
+            modules,
+        })
+    }
+
+    async fn parameters(&self, parenthesized: bool) -> Result<Buffer<Parameter>> {
+        let work = self.p().work;
+        work.charge(1)?;
         let mut params = Buffer::new();
         let mut rest = false;
         let mut keywords = false;
         let mut keyword_rest = false;
-        if parenthesized {
-            self.groups += 1;
-            self.lines()?;
-        }
-        if (parenthesized && self.take_p(')'))
-            || (!parenthesized && matches!(self.token(), Token::EndLine | Token::Op("->")))
         {
+            let mut p = self.p();
             if parenthesized {
-                self.groups -= 1;
+                p.groups += 1;
+                p.lines()?;
             }
-            return Ok(params);
+            if (parenthesized && p.take_p(')'))
+                || (!parenthesized && matches!(p.token(), Token::EndLine | Token::Op("->")))
+            {
+                if parenthesized {
+                    p.groups -= 1;
+                }
+                return Ok(params);
+            }
         }
         loop {
-            let mut kind = match self.token() {
-                Token::Op("*") => {
-                    self.bump()?;
-                    ParamKind::Rest
-                }
-                Token::Op("**") => {
-                    self.bump()?;
-                    ParamKind::KeywordRest
-                }
-                _ => ParamKind::Positional,
-            };
-            let name = self.name()?;
-            if name.starts_with("@@") {
-                return self.err("expected parameter name");
-            }
-            let instance = name.starts_with('@');
-            if instance && kind != ParamKind::Positional {
-                return self.err("capture parameters must use local names");
-            }
-            let name = if let Some(name) = name.strip_prefix('@') {
-                Name::new(self.work, name)?
-            } else {
-                name
-            };
+            let (name, instance, mut kind) = self.p().parameter_name()?;
             let mut ty = None;
-            let default = if self.take_p(':') {
+            let colon = self.p().take_p(':');
+            let default = if colon {
                 if parenthesized {
-                    self.line_breaks()?;
+                    self.p().line_breaks()?;
                 }
-                if !instance
+                let bare_keyword = !instance
                     && kind == ParamKind::Positional
                     && matches!(
-                        self.token(),
+                        self.p().token(),
                         Token::P(',' | ')') | Token::EndLine | Token::Op("->")
-                    )
-                {
+                    );
+                if bare_keyword {
                     kind = ParamKind::Keyword;
                     None
                 } else if !instance
                     && kind == ParamKind::Positional
-                    && self.keyword_default(parenthesized)?
+                    && self.p().keyword_default(parenthesized)?
                 {
                     kind = ParamKind::Keyword;
                     Some(if parenthesized {
-                        self.expr(0)?
+                        self.expr(0).await?
                     } else {
-                        self.line_expr(0)?
+                        self.line_expr(0).await?
                     })
                 } else {
-                    let annotation = self.type_expr(1, false)?;
-                    if matches!(kind, ParamKind::Rest | ParamKind::KeywordRest)
-                        && !annotation.captures(kind == ParamKind::KeywordRest)
-                    {
-                        return self.err("capture annotation must accept its collection type");
-                    }
-                    ty = Some(annotation);
-                    if kind == ParamKind::Positional && self.take_p(':') {
-                        kind = ParamKind::Keyword;
-                        if !matches!(
-                            self.token(),
-                            Token::P(',' | ')') | Token::EndLine | Token::Op("->")
-                        ) {
-                            return self
-                                .err("typed required keyword must end after trailing colon");
+                    let defaulted = {
+                        let mut p = self.p();
+                        let annotation = p.type_expr(1, false)?;
+                        if matches!(kind, ParamKind::Rest | ParamKind::KeywordRest)
+                            && !annotation.captures(kind == ParamKind::KeywordRest)
+                        {
+                            return p.err("capture annotation must accept its collection type");
                         }
-                    }
-                    if self.token() == &Token::Op("=") {
-                        if kind != ParamKind::Positional {
-                            return self.err("capture parameters cannot have defaults");
+                        ty = Some(annotation);
+                        if kind == ParamKind::Positional && p.take_p(':') {
+                            kind = ParamKind::Keyword;
+                            if !matches!(
+                                p.token(),
+                                Token::P(',' | ')') | Token::EndLine | Token::Op("->")
+                            ) {
+                                return p
+                                    .err("typed required keyword must end after trailing colon");
+                            }
                         }
-                        self.bump()?;
-                        if parenthesized {
-                            self.line_breaks()?;
+                        let defaulted = p.token() == &Token::Op("=");
+                        if defaulted {
+                            if kind != ParamKind::Positional {
+                                return p.err("capture parameters cannot have defaults");
+                            }
+                            p.bump()?;
+                            if parenthesized {
+                                p.line_breaks()?;
+                            }
                         }
+                        defaulted
+                    };
+                    if defaulted {
                         Some(if parenthesized {
-                            self.expr(0)?
+                            self.expr(0).await?
                         } else {
-                            self.line_expr(0)?
+                            self.line_expr(0).await?
                         })
                     } else {
                         None
                     }
                 }
-            } else if self.token() == &Token::Op("=") {
-                self.bump()?;
-                if kind != ParamKind::Positional {
-                    return self.err("capture parameters cannot have defaults");
-                }
-                if parenthesized {
-                    self.lines()?;
+            } else if self.p().token() == &Token::Op("=") {
+                {
+                    let mut p = self.p();
+                    p.bump()?;
+                    if kind != ParamKind::Positional {
+                        return p.err("capture parameters cannot have defaults");
+                    }
+                    if parenthesized {
+                        p.lines()?;
+                    }
                 }
                 Some(if parenthesized {
-                    self.expr(0)?
+                    self.expr(0).await?
                 } else {
-                    self.line_expr(0)?
+                    self.line_expr(0).await?
                 })
             } else {
                 None
             };
+            let mut p = self.p();
             match kind {
                 ParamKind::Positional if rest || keywords || keyword_rest => {
-                    return self
-                        .err("positional parameters must precede rest and keyword parameters");
+                    return p.err("positional parameters must precede rest and keyword parameters");
                 }
                 ParamKind::Rest => {
                     if rest || keywords || keyword_rest {
-                        return self.err("invalid rest parameter order");
+                        return p.err("invalid rest parameter order");
                     }
                     rest = true;
                 }
                 ParamKind::Keyword => {
                     if keyword_rest {
-                        return self.err("keyword parameter follows keyword rest");
+                        return p.err("keyword parameter follows keyword rest");
                     }
                     keywords = true;
                 }
                 ParamKind::KeywordRest => {
                     if keyword_rest {
-                        return self.err("duplicate keyword rest parameter");
+                        return p.err("duplicate keyword rest parameter");
                     }
                     keyword_rest = true;
                 }
                 _ => (),
             }
-            self.locals.insert(self.work, name.clone(), ())?;
-            self.declared_it |= name == "it";
+            p.locals.insert(work, name.clone(), ())?;
+            p.declared_it |= name == "it";
             params.push(
-                self.work,
+                work,
                 Parameter {
                     ivar: instance.then(|| name.clone()),
                     name,
@@ -549,20 +754,1273 @@ impl<'a> Parser<'a> {
                 },
             )?;
             if parenthesized {
-                self.lines()?;
-                if self.take_p(')') {
-                    self.groups -= 1;
+                p.lines()?;
+                if p.take_p(')') {
+                    p.groups -= 1;
                     break;
                 }
-            } else if matches!(self.token(), Token::EndLine | Token::Eof | Token::Op("->")) {
+            } else if matches!(p.token(), Token::EndLine | Token::Eof | Token::Op("->")) {
                 break;
             }
-            self.expect_p(',')?;
+            p.expect_p(',')?;
             if parenthesized {
-                self.lines()?;
+                p.lines()?;
             }
         }
         Ok(params)
+    }
+
+    async fn block_task(&self, stop: &[&str]) -> Result<Buffer<Stmt>> {
+        let work = self.p().work;
+        work.charge(1)?;
+        let mut body = Buffer::new();
+        self.p().lines()?;
+        loop {
+            {
+                let p = self.p();
+                if matches!(p.token(),Token::Word(w) if stop.contains(&w.as_str()))
+                    || (p.token() == &Token::P('}') && stop.contains(&"}"))
+                {
+                    break;
+                }
+                if matches!(p.token(), Token::Eof) {
+                    return p.err("unexpected end of source");
+                }
+            }
+            body.push(work, self.statement().await?)?;
+            self.p().lines()?;
+        }
+        Ok(body)
+    }
+
+    async fn statement(&self) -> Result<Stmt> {
+        let offset = {
+            let mut p = self.p();
+            p.work.charge(1)?;
+            p.enter()?;
+            p.tokens[p.pos].offset as u32
+        };
+        let stmt = self.modified_statement(offset).await?.at(offset);
+        let mut p = self.p();
+        p.check_depth(stmt.depth)?;
+        p.depth -= 1;
+        Ok(stmt)
+    }
+
+    async fn modified_statement(&self, offset: u32) -> Result<Statement> {
+        self.p().work.charge(1)?;
+        let starts_begin = matches!(self.p().token(), Token::Word(word) if word == "begin");
+        let stmt = if starts_begin {
+            Box::pin(self.begin_statement()).await?
+        } else {
+            self.plain_statement().await?
+        };
+        let modifier = match self.p().token() {
+            Token::Word(w) if matches!(w.as_str(), "if" | "unless" | "while" | "until") => *w,
+            _ => return Ok(stmt),
+        };
+        let bare_begin = starts_begin
+            && matches!(&stmt, Statement::Expr(Expr { node: Node::Try(attempt), .. }) if !attempt.modifier);
+        if bare_begin
+            || !matches!(
+                stmt,
+                Statement::Expr(_)
+                    | Statement::Raise(..)
+                    | Statement::Retry
+                    | Statement::Assign(..)
+                    | Statement::Return(_)
+                    | Statement::Break(_)
+                    | Statement::Next(_)
+            )
+        {
+            return self
+                .p()
+                .err("modifier requires an expression, assignment, or leaf control statement");
+        }
+        self.p().bump()?;
+        let mut condition = self.line_expr(0).await?;
+        let p = self.p();
+        let work = p.work;
+        if matches!(modifier.as_str(), "unless" | "until") {
+            condition = p.negate(condition)?;
+        }
+        let body = Buffer::from_array(work, [stmt.at(offset)])?;
+        Ok(if matches!(modifier.as_str(), "while" | "until") {
+            Statement::While(condition, body)
+        } else {
+            Statement::If(
+                Buffer::from_array(work, [(condition, body)])?,
+                Buffer::new(),
+            )
+        })
+    }
+
+    // Go parses a statement-position begin as a statement, which costs no
+    // expression nesting, and then continues any expression after its end.
+    async fn begin_statement(&self) -> Result<Statement> {
+        let offset = {
+            let mut p = self.p();
+            let offset = p.tokens[p.pos].offset as u32;
+            p.pos += 1;
+            p.line_exprs += 1;
+            offset
+        };
+        let result = async {
+            let mut attempt = self.begin_expression().await?;
+            attempt.offset = offset;
+            self.expr_tail(attempt, 0, None).await
+        }
+        .await;
+        self.p().line_exprs -= 1;
+        Ok(Statement::Expr(result?))
+    }
+
+    async fn plain_statement(&self) -> Result<Statement> {
+        let keyword = {
+            let mut p = self.p();
+            p.work.charge(1)?;
+            let keyword = [
+                "raise", "retry", "class", "if", "unless", "while", "until", "for", "return",
+                "break", "next",
+            ]
+            .into_iter()
+            .find(|keyword| matches!(p.token(), Token::Word(w) if w == keyword));
+            match keyword {
+                Some(_) => p.pos += 1,
+                None if p.module_ahead() => {
+                    return p.err(
+                        "module declarations are only supported at the top level and in module bodies",
+                    );
+                }
+                None => (),
+            }
+            keyword
+        };
+        match keyword {
+            Some("raise") => self.raise_statement().await,
+            Some("retry") => {
+                let p = self.p();
+                if p.starts_expression()
+                    && !matches!(p.token(), Token::Word(w) if matches!(w.as_str(), "if"|"unless"|"while"|"until"))
+                {
+                    return p.err("retry does not accept a value");
+                }
+                Ok(Statement::Retry)
+            }
+            Some("class") => Ok(Statement::UnboundClass(self.nested_class().await?.name)),
+            Some(keyword @ ("if" | "unless")) => self.if_stmt(keyword == "unless").await,
+            Some(keyword @ ("while" | "until")) => self.while_stmt(keyword == "until").await,
+            Some("for") => self.for_stmt().await,
+            Some(flow) => self.flow_statement(flow).await,
+            None if self.p().assignment_ahead()? => self.assignment_statement().await,
+            None => Ok(Statement::Expr(self.line_expr(0).await?)),
+        }
+    }
+
+    async fn flow_statement(&self, flow: &str) -> Result<Statement> {
+        let value = {
+            let p = self.p();
+            let modifier = matches!(p.token(), Token::Word(w) if matches!(w.as_str(), "if" | "unless" | "while" | "until"));
+            !modifier && p.starts_expression()
+        };
+        let value = if value {
+            let first = self.line_expr(0).await?;
+            Some(if flow == "return" {
+                self.return_values(first).await?
+            } else {
+                first
+            })
+        } else {
+            None
+        };
+        Ok(match flow {
+            "return" => Statement::Return(value),
+            "break" => Statement::Break(value),
+            _ => Statement::Next(value),
+        })
+    }
+
+    async fn assignment_statement(&self) -> Result<Statement> {
+        let (target, _) = self.target(true, false).await?;
+        let op = {
+            let mut p = self.p();
+            p.lines()?;
+            let Token::Op(op) = p.bump()? else {
+                return p.err("expected assignment operator");
+            };
+            if !assignment(op) {
+                return p.err("expected assignment operator");
+            }
+            if op != "=" && matches!(target, Target::Tuple(_)) {
+                return p.err("compound destructuring assignment is invalid");
+            }
+            p.lines()?;
+            op
+        };
+        let first = self.line_expr(0).await?;
+        let rhs = if matches!(target, Target::Tuple(_)) && self.p().take_p(',') {
+            let work = self.p().work;
+            let mut items = Buffer::from_array(work, [first])?;
+            loop {
+                {
+                    let p = self.p();
+                    if p.at_end() || p.token() == &Token::EndLine {
+                        break;
+                    }
+                }
+                items.push(work, self.line_expr(0).await?)?;
+                if !self.p().take_p(',') {
+                    break;
+                }
+            }
+            let depth = 1 + items.iter().map(|e| e.depth).max().unwrap_or(0);
+            self.p().make(Node::Array(items), depth)?
+        } else {
+            first
+        };
+        self.p().declare_target(&target)?;
+        Ok(Statement::Assign(target, op, rhs))
+    }
+
+    async fn return_values(&self, first: Expr) -> Result<Expr> {
+        let work = self.p().work;
+        work.charge(1)?;
+        if !self.p().comma_on_line()? {
+            return Ok(first);
+        }
+        let mut items = Buffer::from_array(work, [first])?;
+        while self.p().comma_on_line()? {
+            {
+                let mut p = self.p();
+                p.bump()?;
+                p.line_breaks()?;
+            }
+            items.push(work, self.line_expr(0).await?)?;
+        }
+        let depth = 1 + items.iter().map(|e| e.depth).max().unwrap_or(0);
+        self.p().make(Node::Array(items), depth)
+    }
+
+    async fn while_stmt(&self, until: bool) -> Result<Statement> {
+        let previous = {
+            let mut p = self.p();
+            p.work.charge(1)?;
+            let groups = p.groups;
+            p.loop_condition.replace(groups)
+        };
+        let cond = self.line_expr(0).await;
+        self.p().loop_condition = previous;
+        let mut cond = cond?;
+        {
+            let mut p = self.p();
+            if until {
+                cond = p.negate(cond)?;
+            }
+            p.word("do");
+        }
+        let body = self.block(&["end"]).await?;
+        self.p().expect_word("end")?;
+        Ok(Statement::While(cond, body))
+    }
+
+    async fn for_stmt(&self) -> Result<Statement> {
+        self.p().work.charge(1)?;
+        let (target, _) = self.target(false, false).await?;
+        let previous = {
+            let mut p = self.p();
+            if !target.is_binding() {
+                return p.err("invalid for loop target");
+            }
+            p.expect_word("in")?;
+            let groups = p.groups;
+            p.loop_condition.replace(groups)
+        };
+        let iterable = self.line_expr(0).await;
+        self.p().loop_condition = previous;
+        let iterable = iterable?;
+        {
+            let mut p = self.p();
+            p.word("do");
+            p.declare_target(&target)?;
+        }
+        let body = self.block(&["end"]).await?;
+        self.p().expect_word("end")?;
+        Ok(Statement::For(target, iterable, body))
+    }
+
+    async fn target(&self, first_expression: bool, typed: bool) -> Result<(Target, bool)> {
+        let work = self.p().work;
+        work.charge(1)?;
+        let mut parts = Buffer::new();
+        let mut tuple = false;
+        let mut has_rest = false;
+        loop {
+            let (rest, bare_rest, close) = {
+                let mut p = self.p();
+                let rest = p.token() == &Token::Op("*");
+                if rest {
+                    p.bump()?;
+                    if has_rest {
+                        return p.err("duplicate rest target");
+                    }
+                    has_rest = true;
+                    tuple = true;
+                }
+                let bare_rest = rest
+                    && (matches!(p.token(), Token::P(',' | ')' | ']') | Token::Op("="))
+                        || matches!(p.token(), Token::Word(w) if w=="in"));
+                let grouped = !first_expression || !parts.is_empty() || rest;
+                let close = if bare_rest {
+                    None
+                } else if grouped && p.take_p('(') {
+                    Some(')')
+                } else if grouped && p.take_p('[') {
+                    Some(']')
+                } else {
+                    None
+                };
+                (rest, bare_rest, close)
+            };
+            let mut value = if bare_rest {
+                None
+            } else if let Some(close) = close {
+                // Go counts each nested destructuring group against the syntax limit.
+                {
+                    let mut p = self.p();
+                    p.enter()?;
+                    p.lines()?;
+                }
+                let (inner, tuple) = self.nested_target(typed).await?;
+                let mut p = self.p();
+                p.lines()?;
+                p.expect_p(close)?;
+                p.depth -= 1;
+                // Like Go, every group destructures one level; commas inside
+                // it list that level's parts.
+                Some(if tuple {
+                    inner
+                } else {
+                    Target::Tuple(Buffer::from_array(work, [(Some(inner), false)])?)
+                })
+            } else if typed && matches!(self.p().token(), Token::Word(_)) {
+                let mut p = self.p();
+                let name = p.name()?;
+                Some(Target::Value(p.make(Node::Var(name), 1)?))
+            } else {
+                let expression = self.line_expr(0).await?;
+                if expression.safe_assignment_target() {
+                    return self
+                        .p()
+                        .err("safe navigation cannot be used as an assignment target");
+                }
+                Some(Target::Value(expression))
+            };
+            let mut p = self.p();
+            if typed && value.is_some() && p.take_p(':') {
+                let ty = p.type_expr(1, false)?;
+                if rest && !ty.captures(false) {
+                    return p.err("rest target annotation must accept an array");
+                }
+                value = Some(Target::Typed(Boxed::new(work, value.take().unwrap())?, ty));
+            }
+            parts.push(work, (value, rest))?;
+            if !p.take_p(',') {
+                break;
+            }
+            tuple = true;
+            p.lines()?;
+        }
+        let target = if tuple {
+            Target::Tuple(parts)
+        } else {
+            parts.pop().unwrap().0.unwrap()
+        };
+        self.p().check_depth(target.depth())?;
+        Ok((target, tuple))
+    }
+
+    async fn if_stmt(&self, unless: bool) -> Result<Statement> {
+        let work = self.p().work;
+        work.charge(1)?;
+        let mut branches = Buffer::new();
+        let alternate = loop {
+            let mut cond = self.line_expr(0).await?;
+            {
+                let mut p = self.p();
+                if unless {
+                    cond = p.negate(cond)?;
+                }
+                p.word("then");
+                p.lines()?;
+            }
+            let body = self.block(&["else", "elsif", "end"]).await?;
+            branches.push(work, (cond, body))?;
+            let alternate = {
+                let mut p = self.p();
+                if p.word("elsif") {
+                    if unless {
+                        return p.err("unless does not support elsif");
+                    }
+                    continue;
+                }
+                let alternate = p.word("else");
+                if alternate {
+                    p.lines()?;
+                } else {
+                    p.expect_word("end")?;
+                }
+                alternate
+            };
+            if !alternate {
+                break Buffer::new();
+            }
+            let alternate = self.block(&["end"]).await?;
+            self.p().expect_word("end")?;
+            break alternate;
+        };
+        Ok(Statement::If(branches, alternate))
+    }
+
+    async fn if_expr(&self, unless: bool) -> Result<Expr> {
+        let work = self.p().work;
+        work.charge(1)?;
+        let mut branches = Buffer::new();
+        let alternate = loop {
+            let mut cond = self.line_expr(0).await?;
+            {
+                let mut p = self.p();
+                if unless {
+                    cond = p.negate(cond)?;
+                }
+                p.word("then");
+                p.lines()?;
+            }
+            let yes = self.expr(0).await?;
+            branches.push(work, (cond, yes))?;
+            let alternate = {
+                let mut p = self.p();
+                p.lines()?;
+                if p.word("elsif") {
+                    if unless {
+                        return p.err("unless does not support elsif");
+                    }
+                    continue;
+                }
+                let alternate = p.word("else");
+                if alternate {
+                    p.lines()?;
+                } else {
+                    p.expect_word("end")?;
+                }
+                alternate
+            };
+            if !alternate {
+                break self.p().make(Node::Literal(Value::nil()), 1)?;
+            }
+            let no = self.expr(0).await?;
+            let mut p = self.p();
+            p.lines()?;
+            p.expect_word("end")?;
+            break no;
+        };
+        let depth = 1 + branches
+            .iter()
+            .map(|(cond, yes)| cond.depth.max(yes.depth))
+            .max()
+            .unwrap_or(0)
+            .max(alternate.depth);
+        self.p().make(
+            Node::Conditional(branches, Boxed::new(work, alternate)?),
+            depth,
+        )
+    }
+
+    async fn case_expr(&self) -> Result<Expr> {
+        let work = self.p().work;
+        work.charge(1)?;
+        self.p().lines()?;
+        let target = if matches!(self.p().token(), Token::Word(w) if w=="when") {
+            None
+        } else {
+            Some(Boxed::new(work, self.line_expr(0).await?)?)
+        };
+        self.p().lines()?;
+        let mut clauses = Buffer::new();
+        while self.p().word("when") {
+            let mut values = Buffer::new();
+            loop {
+                let splat = {
+                    let mut p = self.p();
+                    let splat = p.token() == &Token::Op("*");
+                    if splat {
+                        p.bump()?;
+                    }
+                    splat
+                };
+                values.push(work, (self.line_expr(0).await?, splat))?;
+                let mut p = self.p();
+                if !p.take_p(',') {
+                    break;
+                }
+                p.lines()?;
+            }
+            {
+                let mut p = self.p();
+                p.word("then");
+                p.lines()?;
+            }
+            let result = self.expr(0).await?;
+            clauses.push(work, When { values, result })?;
+            self.p().lines()?;
+        }
+        if clauses.is_empty() {
+            return self.p().err("case requires a when clause");
+        }
+        let alternate = if self.p().word("else") {
+            self.p().lines()?;
+            Some(Boxed::new(work, self.expr(0).await?)?)
+        } else {
+            None
+        };
+        let mut p = self.p();
+        p.lines()?;
+        p.expect_word("end")?;
+        let depth = 1 + target
+            .as_ref()
+            .map_or(0, |e| e.depth)
+            .max(alternate.as_ref().map_or(0, |e| e.depth))
+            .max(
+                clauses
+                    .iter()
+                    .map(|c| {
+                        c.result
+                            .depth
+                            .max(c.values.iter().map(|(v, _)| v.depth).max().unwrap_or(0))
+                    })
+                    .max()
+                    .unwrap_or(0),
+            );
+        p.make(Node::Case(target, clauses, alternate), depth)
+    }
+
+    async fn expression(&self, min: u8) -> Result<Expr> {
+        {
+            let mut p = self.p();
+            p.work.charge(1)?;
+            p.enter()?;
+        }
+        let lhs = self.prefix().await?;
+        let result = self.expr_tail(lhs, min, None).await;
+        self.p().depth -= 1;
+        result
+    }
+
+    async fn prefix(&self) -> Result<Expr> {
+        let (offset, grouped) = {
+            let p = self.p();
+            p.work.charge(1)?;
+            (p.tokens[p.pos].offset as u32, p.token() == &Token::P('('))
+        };
+        let mut expr = self.prefix_node().await?;
+        if !grouped {
+            expr.offset = offset;
+        }
+        Ok(expr)
+    }
+
+    async fn prefix_node(&self) -> Result<Expr> {
+        let (offset, token) = {
+            let mut p = self.p();
+            p.work.charge(1)?;
+            let offset = p.tokens[p.pos].offset as u32;
+            (offset, p.bump()?)
+        };
+        match token {
+            Token::Word(w) => Box::pin(self.word_expression(w.as_str(), offset)).await,
+            Token::P('(') => self.group_expression().await,
+            Token::P('[') => self.array_expression().await,
+            Token::P('{') => Box::pin(self.hash_expr()).await,
+            Token::Op(op @ (".." | "...")) => Box::pin(self.open_range_expression(op)).await,
+            Token::Op(op @ ("-" | "+" | "!")) => Box::pin(self.unary_prefix(op)).await,
+            token => self.p().leaf(token, offset),
+        }
+    }
+
+    async fn group_expression(&self) -> Result<Expr> {
+        {
+            let mut p = self.p();
+            p.groups += 1;
+            p.lines()?;
+        }
+        let e = self.expr(0).await?;
+        let mut p = self.p();
+        p.lines()?;
+        p.expect_p(')')?;
+        p.groups -= 1;
+        Ok(e)
+    }
+
+    async fn array_expression(&self) -> Result<Expr> {
+        let a = self.arguments(']').await?;
+        let d = 1 + a.iter().map(|e| e.depth).max().unwrap_or(0);
+        self.p().make(Node::Array(a), d)
+    }
+
+    async fn open_range_expression(&self, op: &str) -> Result<Expr> {
+        {
+            let mut p = self.p();
+            if p.groups > 0 {
+                p.lines()?;
+            }
+        }
+        let end = self.expr(8).await?;
+        let depth = end.depth + 1;
+        let p = self.p();
+        p.make(
+            Node::Range(None, Some(Boxed::new(p.work, end)?), op == "..."),
+            depth,
+        )
+    }
+
+    async fn word_expression(&self, w: &str, offset: u32) -> Result<Expr> {
+        self.p().work.charge(1)?;
+        match w {
+            "nil" => self.p().make(Node::Literal(Value::nil()), 1),
+            "true" => self.p().make(Node::Literal(Value::boolean(true)), 1),
+            "false" => self.p().make(Node::Literal(Value::boolean(false)), 1),
+            "if" | "unless" => self.if_expr(w == "unless").await,
+            "case" => self.case_expr().await,
+            "yield" => self.yield_expr().await,
+            "begin" => self.begin_expression().await,
+            "while" | "until" | "for" => self.loop_expression(w, offset).await,
+            _ if reserved(w) => Err(Error::syntax(
+                self.p().work,
+                offset as usize,
+                "expected expression",
+            )),
+            _ => self.p().variable_name(w),
+        }
+    }
+
+    async fn begin_expression(&self) -> Result<Expr> {
+        let body = self.block(&["rescue", "else", "ensure", "end"]).await?;
+        let attempt = self.rescue_tail(body, false).await?;
+        let depth = attempt.depth();
+        let p = self.p();
+        p.make(Node::Try(Boxed::new(p.work, attempt)?), depth)
+    }
+
+    async fn loop_expression(&self, word: &str, offset: u32) -> Result<Expr> {
+        let stmt = if word == "for" {
+            self.for_stmt().await?
+        } else {
+            self.while_stmt(word == "until").await?
+        };
+        let stmt = stmt.at(offset);
+        let depth = stmt.depth;
+        let p = self.p();
+        p.make(Node::Loop(Boxed::new(p.work, stmt)?), depth)
+    }
+
+    async fn unary_prefix(&self, op: &'static str) -> Result<Expr> {
+        let literal = {
+            let p = self.p();
+            p.work.charge(1)?;
+            p.negative_literal(op)?
+        };
+        let value = if literal {
+            self.prefix().await?
+        } else {
+            self.p().line_breaks()?;
+            self.expr(13).await?
+        };
+        let depth = value.depth + 1;
+        let p = self.p();
+        p.make(Node::Unary(op, Boxed::new(p.work, value)?), depth)
+    }
+
+    async fn hash_group(&self) -> Result<Expr> {
+        let work = self.p().work;
+        work.charge(1)?;
+        let mut entries = Buffer::new();
+        let closed = {
+            let mut p = self.p();
+            p.groups += 1;
+            p.line_breaks()?;
+            p.take_p('}')
+        };
+        if !closed {
+            loop {
+                let (key, shorthand) = self.p().hash_label()?;
+                let value = match shorthand {
+                    Some(value) => value,
+                    None => self.expr(0).await?,
+                };
+                entries.push(work, (key, value))?;
+                let mut p = self.p();
+                p.line_breaks()?;
+                if p.take_p('}') {
+                    break;
+                }
+                p.expect_p(',')?;
+                p.line_breaks()?;
+                if p.take_p('}') {
+                    break;
+                }
+            }
+        }
+        let d = 1 + entries.iter().map(|(_, e)| e.depth).max().unwrap_or(0);
+        let mut p = self.p();
+        p.groups -= 1;
+        p.make(Node::Hash(entries), d)
+    }
+
+    async fn interpolated(&self) -> Result<Expr> {
+        let expr = self.line_expr(0).await?;
+        let p = self.p();
+        if p.token() != &Token::Eof {
+            return p.err("string interpolation must contain a single expression");
+        }
+        Ok(expr)
+    }
+
+    async fn expr_tail(&self, mut lhs: Expr, min: u8, mut next: Option<Suffix>) -> Result<Expr> {
+        self.p().work.charge(1)?;
+        loop {
+            let suffix = match next.take() {
+                Some(suffix) => Some(suffix),
+                None => self.p().expression_suffix(&lhs, min)?,
+            };
+            let Some(suffix) = suffix else {
+                return Ok(lhs);
+            };
+            lhs = match suffix {
+                Suffix::Rescue => Box::pin(self.rescue_modifier(lhs)).await,
+                Suffix::Command => self.command_expression(lhs).await,
+                Suffix::Block(brace) => Box::pin(self.block_expression(lhs, brace)).await,
+                Suffix::Call => {
+                    let args = self.call_arguments().await?;
+                    self.p().parenthesized_call(lhs, args)
+                }
+                Suffix::Scope => Box::pin(self.scoped_expression(lhs)).await,
+                Suffix::Member(safe) => self.member_expression(lhs, safe).await,
+                Suffix::Index(offset) => self.index_expression(lhs, offset).await,
+                Suffix::Ternary(offset) => Box::pin(self.ternary_expression(lhs, offset)).await,
+                Suffix::Binary(op, right, offset) => {
+                    self.binary_expression(lhs, op, right, offset).await
+                }
+            }?;
+        }
+    }
+
+    async fn index_expression(&self, lhs: Expr, offset: u32) -> Result<Expr> {
+        let indexes = self.arguments(']').await?;
+        let p = self.p();
+        if indexes.is_empty() {
+            return p.err("expected index");
+        }
+        let d = 1 + lhs
+            .depth
+            .max(indexes.iter().map(|e| e.depth).max().unwrap_or(0));
+        p.make_at(Node::Index(Boxed::new(p.work, lhs)?, indexes), d, offset)
+    }
+
+    async fn binary_expression(
+        &self,
+        lhs: Expr,
+        op: &'static str,
+        right: u8,
+        offset: u32,
+    ) -> Result<Expr> {
+        let work = self.p().work;
+        self.p().bump()?;
+        if matches!(op, ".." | "...") {
+            let has_end = {
+                let mut p = self.p();
+                if p.groups > 0 {
+                    p.lines()?;
+                }
+                p.starts_expression()
+            };
+            let end = if has_end {
+                Some(Boxed::new(work, self.expr(right).await?)?)
+            } else {
+                None
+            };
+            let depth = 1 + lhs.depth.max(end.as_ref().map_or(0, |e| e.depth));
+            return self.p().make_at(
+                Node::Range(Some(Boxed::new(work, lhs)?), end, op == "..."),
+                depth,
+                offset,
+            );
+        }
+        self.p().line_breaks()?;
+        let rhs = self.expr(right).await?;
+        let depth = 1 + lhs.depth.max(rhs.depth);
+        self.p().make_at(
+            Node::Binary(op, Boxed::new(work, lhs)?, Boxed::new(work, rhs)?),
+            depth,
+            offset,
+        )
+    }
+
+    async fn ternary_expression(&self, condition: Expr, offset: u32) -> Result<Expr> {
+        let work = self.p().work;
+        {
+            let mut p = self.p();
+            work.charge(1)?;
+            p.lines()?;
+            let groups = p.groups;
+            p.ternaries.push(work, groups)?;
+        }
+        let yes = self.expr(0).await?;
+        {
+            let mut p = self.p();
+            p.ternaries.pop();
+            p.expect_p(':')?;
+            p.lines()?;
+        }
+        let no = self.expr(2).await?;
+        let depth = 1 + condition.depth.max(yes.depth).max(no.depth);
+        self.p().make_at(
+            Node::Conditional(
+                Buffer::from_array(work, [(condition, yes)])?,
+                Boxed::new(work, no)?,
+            ),
+            depth,
+            offset,
+        )
+    }
+
+    async fn command_expression(&self, lhs: Expr) -> Result<Expr> {
+        let group = {
+            let mut p = self.p();
+            p.work.charge(1)?;
+            p.command_depth += 1;
+            if p.command_depth > 64 {
+                return p.err("parenless call nesting too deep");
+            }
+            let groups = p.groups;
+            let group = std::mem::replace(&mut p.command_group, groups);
+            if p.token() == &Token::Op("/") {
+                p.expand_regex()?;
+            }
+            group
+        };
+        let args = self.command_arguments().await?;
+        let mut p = self.p();
+        p.command_group = group;
+        p.command_depth -= 1;
+        let depth = 1 + call_depth(&lhs).max(args.iter().map(|a| a.value.depth).max().unwrap_or(0));
+        let node = match lhs.node {
+            Node::Var(name) => Node::Call(name, args, CallForm::Bare),
+            Node::Member(receiver, name) => Node::Method(receiver, name, args, CallForm::Bare),
+            Node::SafeMember(receiver, name) => {
+                Node::SafeMethod(receiver, name, args, CallForm::Bare)
+            }
+            _ => unreachable!(),
+        };
+        p.make_at(node, depth, lhs.offset)
+    }
+
+    async fn block_expression(&self, mut lhs: Expr, brace: bool) -> Result<Expr> {
+        self.p().work.charge(1)?;
+        let offset = lhs.offset;
+        let block = self.attached_block(brace).await?;
+        if let Node::BlockCall(call, _) = lhs.node {
+            lhs = call.into_inner();
+        }
+        // Go counts the block literal as a node below its call.
+        let params = block
+            .params
+            .iter()
+            .map(|target| target.depth())
+            .max()
+            .unwrap_or(0);
+        let body = block.body.iter().map(|s| s.depth).max().unwrap_or(0);
+        let depth = 1 + lhs.depth.max(1 + body.max(params));
+        let p = self.p();
+        p.make_at(
+            Node::BlockCall(Boxed::new(p.work, lhs)?, block),
+            depth,
+            offset,
+        )
+    }
+
+    async fn scoped_expression(&self, lhs: Expr) -> Result<Expr> {
+        let work = self.p().work;
+        work.charge(1)?;
+        let offset = lhs.offset;
+        let (name, parenthesized) = {
+            let mut p = self.p();
+            p.bump()?;
+            p.line_breaks()?;
+            let name_offset = p.tokens[p.pos].offset;
+            let Token::Word(name) = p.bump()? else {
+                return Err(Error::syntax(
+                    work,
+                    name_offset,
+                    "expected scoped member name",
+                ));
+            };
+            if name.starts_with('@') || (keyword(&name) && name != "enum") {
+                return Err(Error::syntax(
+                    work,
+                    name_offset,
+                    "expected scoped member name",
+                ));
+            }
+            (Name::new(work, &name)?, p.take_p('('))
+        };
+        let args = if parenthesized {
+            Some(self.call_arguments().await?)
+        } else {
+            None
+        };
+        let arguments = args.as_ref().map_or(0, |args| {
+            args.iter().map(|arg| arg.value.depth).max().unwrap_or(0)
+        });
+        let receiver = if args.is_some() {
+            1 + lhs.depth
+        } else {
+            lhs.depth
+        };
+        let depth = 1 + receiver.max(arguments);
+        self.p().make_at(
+            Node::Scope(Boxed::new(work, lhs)?, name, args),
+            depth,
+            offset,
+        )
+    }
+
+    async fn member_expression(&self, lhs: Expr, safe: bool) -> Result<Expr> {
+        let work = self.p().work;
+        work.charge(1)?;
+        let offset = lhs.offset;
+        let (name, parenthesized) = {
+            let mut p = self.p();
+            p.bump()?;
+            p.line_breaks()?;
+            let name = p.member_name()?;
+            (name, p.take_p('('))
+        };
+        if parenthesized {
+            let args = self.call_arguments().await?;
+            // Go nests the member access below the call.
+            let depth =
+                1 + (1 + lhs.depth).max(args.iter().map(|a| a.value.depth).max().unwrap_or(0));
+            let method = if safe { Node::SafeMethod } else { Node::Method };
+            self.p().make_at(
+                method(Boxed::new(work, lhs)?, name, args, CallForm::Parenthesized),
+                depth,
+                offset,
+            )
+        } else {
+            let depth = lhs.depth + 1;
+            let member = if safe { Node::SafeMember } else { Node::Member };
+            self.p()
+                .make_at(member(Boxed::new(work, lhs)?, name), depth, offset)
+        }
+    }
+
+    async fn attached_block(&self, brace: bool) -> Result<Block> {
+        let (outer, outer_it) = {
+            let mut p = self.p();
+            p.work.charge(1)?;
+            p.bump()?;
+            p.lines()?;
+            (p.locals.copy(p.work)?, p.declared_it)
+        };
+        let infer_it = !outer_it;
+        let (params, explicit) = self.block_parameters().await?;
+        let (previous_loop, command_depth) = {
+            let mut p = self.p();
+            (
+                p.loop_condition.take(),
+                std::mem::replace(&mut p.command_depth, 0),
+            )
+        };
+        let body = self.block(if brace { &["}"] } else { &["end"] }).await?;
+        let mut p = self.p();
+        p.command_depth = command_depth;
+        p.loop_condition = previous_loop;
+        if brace {
+            p.expect_p('}')?;
+        } else {
+            p.expect_word("end")?;
+        }
+        p.locals = outer;
+        p.declared_it = outer_it;
+        Ok(Block {
+            params,
+            body,
+            implicit: !explicit,
+            infer_it,
+        })
+    }
+
+    async fn block_parameters(&self) -> Result<(Buffer<Target>, bool)> {
+        let work = self.p().work;
+        let mut params = Buffer::new();
+        let explicit = if self.p().token() == &Token::Op("||") {
+            self.p().bump()?;
+            true
+        } else if self.p().take_p('|') {
+            self.p().lines()?;
+            if !self.p().take_p('|') {
+                loop {
+                    let close = {
+                        let mut p = self.p();
+                        if p.take_p('(') {
+                            Some(')')
+                        } else if p.take_p('[') {
+                            Some(']')
+                        } else {
+                            None
+                        }
+                    };
+                    let target = if let Some(close) = close {
+                        let (target, tuple) = self.nested_target(true).await?;
+                        let mut p = self.p();
+                        p.lines()?;
+                        p.expect_p(close)?;
+                        if tuple {
+                            target
+                        } else {
+                            Target::Tuple(Buffer::from_array(work, [(Some(target), false)])?)
+                        }
+                    } else {
+                        let mut p = self.p();
+                        let name = p.name()?;
+                        let target = Target::Value(p.make(Node::Var(name), 1)?);
+                        if p.take_p(':') {
+                            Target::Typed(Boxed::new(work, target)?, p.type_expr(0, true)?)
+                        } else {
+                            target
+                        }
+                    };
+                    let mut p = self.p();
+                    if !target.is_binding() {
+                        return p.err("invalid block parameter");
+                    }
+                    p.declare_target(&target)?;
+                    params.push(work, target)?;
+                    p.lines()?;
+                    if p.take_p('|') {
+                        break;
+                    }
+                    p.expect_p(',')?;
+                    p.lines()?;
+                }
+            }
+            true
+        } else {
+            false
+        };
+        if !explicit {
+            let mut p = self.p();
+            p.locals.insert(work, Name::new(work, "it")?, ())?;
+            for n in ["_1", "_2", "_3", "_4", "_5", "_6", "_7", "_8", "_9"] {
+                p.locals.insert(work, Name::new(work, n)?, ())?;
+            }
+        }
+        Ok((params, explicit))
+    }
+
+    async fn yield_expr(&self) -> Result<Expr> {
+        let work = self.p().work;
+        let (line, parenthesized) = {
+            let mut p = self.p();
+            work.charge(1)?;
+            let line = p.previous()?.line;
+            let mut next = p.pos;
+            while p.tokens[next].token == Token::EndLine
+                && p.tokens[next].line != p.tokens[next].end_line
+            {
+                work.charge(1)?;
+                next += 1;
+            }
+            if p.tokens[next].token == Token::P('(') {
+                p.pos = next;
+            }
+            (line, p.take_p('('))
+        };
+        let args = if parenthesized {
+            self.arguments(')').await?
+        } else {
+            let mut args = Buffer::new();
+            let starts = {
+                let p = self.p();
+                p.tokens[p.pos].line == line && p.starts_expression()
+            };
+            if starts {
+                args.push(work, self.line_expr(0).await?)?;
+                loop {
+                    {
+                        let mut p = self.p();
+                        if !(p.token() == &Token::P(',')
+                            && p.tokens[p.pos].line == line
+                            && p.tokens[p.pos + 1].line == line)
+                        {
+                            break;
+                        }
+                        p.bump()?;
+                    }
+                    args.push(work, self.line_expr(0).await?)?;
+                }
+            }
+            args
+        };
+        let depth = 1 + args.iter().map(|arg| arg.depth).max().unwrap_or(0);
+        self.p().make(Node::Yield(args), depth)
+    }
+
+    async fn command_arguments(&self) -> Result<Buffer<Argument>> {
+        let work = self.p().work;
+        work.charge(1)?;
+        let mut args = Buffer::new();
+        let mut keywords = false;
+        loop {
+            let argument = self.call_argument(false).await?;
+            let keyword = matches!(
+                argument.kind,
+                ArgumentKind::Keyword(_) | ArgumentKind::KeywordSplat
+            );
+            let mut p = self.p();
+            if keywords && !keyword {
+                return p.err("positional arguments cannot follow keywords");
+            }
+            keywords |= keyword;
+            args.push(work, argument)?;
+            let last = p.previous()?;
+            if p.token() != &Token::P(',')
+                || p.tokens[p.pos].line != last.line
+                || p.tokens[p.pos + 1].line != last.line
+                || !p.command_argument_start(p.pos + 1, true)
+            {
+                break;
+            }
+            p.bump()?;
+        }
+        Ok(args)
+    }
+
+    async fn arguments(&self, close: char) -> Result<Buffer<Expr>> {
+        let work = self.p().work;
+        work.charge(1)?;
+        let mut args = Buffer::new();
+        {
+            let mut p = self.p();
+            p.groups += 1;
+            p.lines()?;
+            if p.take_p(close) {
+                p.groups -= 1;
+                return Ok(args);
+            }
+        }
+        loop {
+            args.push(work, self.expr(0).await?)?;
+            let mut p = self.p();
+            p.lines()?;
+            if p.take_p(close) {
+                break;
+            }
+            p.expect_p(',')?;
+            p.lines()?;
+            if p.take_p(close) {
+                break;
+            }
+        }
+        self.p().groups -= 1;
+        Ok(args)
+    }
+
+    async fn call_arguments(&self) -> Result<Buffer<Argument>> {
+        let work = self.p().work;
+        work.charge(1)?;
+        let mut args = Buffer::new();
+        let mut keywords = false;
+        {
+            let mut p = self.p();
+            p.groups += 1;
+            p.line_breaks()?;
+            if p.take_p(')') {
+                p.groups -= 1;
+                return Ok(args);
+            }
+        }
+        loop {
+            let argument = self.call_argument(true).await?;
+            let keyword = matches!(
+                argument.kind,
+                ArgumentKind::Keyword(_) | ArgumentKind::KeywordSplat
+            );
+            let mut p = self.p();
+            if keywords && !keyword {
+                return p.err("positional arguments cannot follow keywords");
+            }
+            keywords |= keyword;
+            args.push(work, argument)?;
+            p.line_breaks()?;
+            if p.take_p(')') {
+                break;
+            }
+            p.expect_p(',')?;
+            p.line_breaks()?;
+            if p.take_p(')') {
+                break;
+            }
+        }
+        self.p().groups -= 1;
+        Ok(args)
+    }
+
+    async fn call_argument(&self, parenthesized: bool) -> Result<Argument> {
+        let (kind, literal) = {
+            let mut p = self.p();
+            p.work.charge(1)?;
+            let kind = p.argument_kind()?;
+            if parenthesized || matches!(kind, ArgumentKind::Splat | ArgumentKind::KeywordSplat) {
+                p.line_breaks()?;
+            }
+            let literal = p.literal_argument(&kind, parenthesized)?;
+            (kind, literal)
+        };
+        let value = match literal {
+            Some(value) => value,
+            None => self.expr(0).await?,
+        };
+        Ok(Argument { kind, value })
+    }
+}
+
+impl<'a> Parser<'a> {
+    fn parameter_name(&mut self) -> Result<(Name, bool, ParamKind)> {
+        let kind = match self.token() {
+            Token::Op("*") => {
+                self.bump()?;
+                ParamKind::Rest
+            }
+            Token::Op("**") => {
+                self.bump()?;
+                ParamKind::KeywordRest
+            }
+            _ => ParamKind::Positional,
+        };
+        let name = self.name()?;
+        if name.starts_with("@@") {
+            return self.err("expected parameter name");
+        }
+        let instance = name.starts_with('@');
+        if instance && kind != ParamKind::Positional {
+            return self.err("capture parameters must use local names");
+        }
+        let name = if let Some(name) = name.strip_prefix('@') {
+            Name::new(self.work, name)?
+        } else {
+            name
+        };
+        Ok((name, instance, kind))
     }
     fn token(&self) -> &Token<'a> {
         &self.tokens[self.pos].token
@@ -667,322 +2125,36 @@ impl<'a> Parser<'a> {
             Ok(())
         }
     }
+    fn check_depth(&self, depth: u32) -> Result<()> {
+        if depth as usize > MAX_DEPTH {
+            self.err("syntax nesting too deep")
+        } else {
+            Ok(())
+        }
+    }
     fn declare_target(&mut self, target: &Target) -> Result<()> {
         self.work.charge(1)?;
-        match target {
-            Target::Typed(target, _) => self.declare_target(target)?,
-            Target::Value(Expr {
+        let mut names = Buffer::new();
+        target.parts(|part, _| {
+            if let Target::Value(Expr {
                 node: Node::Var(name),
                 ..
-            }) => {
-                self.locals.insert(self.work, name.clone(), ())?;
-                self.declared_it |= name == "it";
+            }) = part
+            {
+                names.push(self.work, name.clone()).is_ok()
+            } else {
+                true
             }
-            Target::Tuple(parts) => {
-                for (part, _) in parts {
-                    if let Some(part) = part {
-                        self.declare_target(part)?;
-                    }
-                }
-            }
-            _ => (),
+        });
+        for name in names {
+            self.work.charge(1)?;
+            self.declared_it |= name == "it";
+            self.locals.insert(self.work, name, ())?;
         }
         Ok(())
     }
-    fn block(&mut self, stop: &[&str]) -> Result<Buffer<Stmt>> {
-        self.work.charge(1)?;
-        self.enter()?;
-        let mut body = Buffer::new();
-        self.lines()?;
-        while !matches!(self.token(),Token::Word(w) if stop.contains(&w.as_str()))
-            && !(self.token() == &Token::P('}') && stop.contains(&"}"))
-        {
-            if matches!(self.token(), Token::Eof) {
-                return self.err("unexpected end of source");
-            }
-            body.push(self.work, self.statement()?)?;
-            self.lines()?;
-        }
-        self.depth -= 1;
-        Ok(body)
-    }
-    fn statement(&mut self) -> Result<Stmt> {
-        self.work.charge(1)?;
-        let offset = self.tokens[self.pos].offset as u32;
-        Ok(self.modified_statement(offset)?.at(offset))
-    }
-    fn modified_statement(&mut self, offset: u32) -> Result<Statement> {
-        self.work.charge(1)?;
-        let starts_begin = matches!(self.token(), Token::Word(word) if word == "begin");
-        let stmt = self.plain_statement()?;
-        let modifier = match self.token() {
-            Token::Word(w) if matches!(w.as_str(), "if" | "unless" | "while" | "until") => *w,
-            _ => return Ok(stmt),
-        };
-        let bare_begin = starts_begin
-            && matches!(&stmt, Statement::Expr(Expr { node: Node::Try(attempt), .. }) if !attempt.modifier);
-        if bare_begin
-            || !matches!(
-                stmt,
-                Statement::Expr(_)
-                    | Statement::Raise(..)
-                    | Statement::Retry
-                    | Statement::Assign(..)
-                    | Statement::Return(_)
-                    | Statement::Break(_)
-                    | Statement::Next(_)
-            )
-        {
-            return self
-                .err("modifier requires an expression, assignment, or leaf control statement");
-        }
-        self.bump()?;
-        let mut condition = self.line_expr(0)?;
-        if matches!(modifier.as_str(), "unless" | "until") {
-            condition = self.negate(condition)?;
-        }
-        Ok(if matches!(modifier.as_str(), "while" | "until") {
-            Statement::While(condition, Buffer::from_array(self.work, [stmt.at(offset)])?)
-        } else {
-            Statement::If(
-                condition,
-                Buffer::from_array(self.work, [stmt.at(offset)])?,
-                Buffer::new(),
-            )
-        })
-    }
-    fn plain_statement(&mut self) -> Result<Statement> {
-        self.work.charge(1)?;
-        if self.word("raise") {
-            return self.raise_statement();
-        }
-        if self.word("retry") {
-            if self.starts_expression()
-                && !matches!(self.token(), Token::Word(w) if matches!(w.as_str(), "if"|"unless"|"while"|"until"))
-            {
-                return self.err("retry does not accept a value");
-            }
-            return Ok(Statement::Retry);
-        }
-        if self.word("class") {
-            let class = self.class()?;
-            return Ok(Statement::UnboundClass(class.name));
-        }
-        if self.module_ahead() {
-            return self.err(
-                "module declarations are only supported at the top level and in module bodies",
-            );
-        }
-        if self.word("if") {
-            return self.if_stmt(false);
-        }
-        if self.word("unless") {
-            return self.if_stmt(true);
-        }
-        if self.word("while") {
-            return self.while_stmt(false);
-        }
-        if self.word("until") {
-            return self.while_stmt(true);
-        }
-        if self.word("for") {
-            return self.for_stmt();
-        }
-        for flow in ["return", "break", "next"] {
-            if self.word(flow) {
-                return self.flow_statement(flow);
-            }
-        }
-        if self.assignment_ahead()? {
-            return self.assignment_statement();
-        }
-        Ok(Statement::Expr(self.line_expr(0)?))
-    }
-    fn flow_statement(&mut self, flow: &str) -> Result<Statement> {
-        let modifier = matches!(self.token(), Token::Word(w) if matches!(w.as_str(), "if" | "unless" | "while" | "until"));
-        let value = if !modifier && self.starts_expression() {
-            let first = self.line_expr(0)?;
-            Some(if flow == "return" {
-                self.return_values(first)?
-            } else {
-                first
-            })
-        } else {
-            None
-        };
-        Ok(match flow {
-            "return" => Statement::Return(value),
-            "break" => Statement::Break(value),
-            _ => Statement::Next(value),
-        })
-    }
-    fn assignment_statement(&mut self) -> Result<Statement> {
-        let target = self.target(true, false)?;
-        self.lines()?;
-        let Token::Op(op) = self.bump()? else {
-            return self.err("expected assignment operator");
-        };
-        if !assignment(op) {
-            return self.err("expected assignment operator");
-        }
-        if op != "=" && matches!(target, Target::Tuple(_)) {
-            return self.err("compound destructuring assignment is invalid");
-        }
-        self.lines()?;
-        let first = self.line_expr(0)?;
-        let rhs = if matches!(target, Target::Tuple(_)) && self.take_p(',') {
-            let mut items = Buffer::from_array(self.work, [first])?;
-            loop {
-                if self.at_end() || self.token() == &Token::EndLine {
-                    break;
-                }
-                items.push(self.work, self.line_expr(0)?)?;
-                if !self.take_p(',') {
-                    break;
-                }
-            }
-            let depth = 1 + items.iter().map(|e| e.depth).max().unwrap_or(0);
-            self.make(Node::Array(items), depth)?
-        } else {
-            first
-        };
-        self.declare_target(&target)?;
-        Ok(Statement::Assign(target, op, rhs))
-    }
-    fn return_values(&mut self, first: Expr) -> Result<Expr> {
-        self.work.charge(1)?;
-        if self.token() != &Token::P(',') || self.tokens[self.pos].line != self.previous()?.line {
-            return Ok(first);
-        }
-        let mut items = Buffer::from_array(self.work, [first])?;
-        while self.token() == &Token::P(',') && self.tokens[self.pos].line == self.previous()?.line
-        {
-            self.bump()?;
-            self.line_breaks()?;
-            items.push(self.work, self.line_expr(0)?)?;
-        }
-        let depth = 1 + items.iter().map(|e| e.depth).max().unwrap_or(0);
-        self.make(Node::Array(items), depth)
-    }
-    fn negate(&self, expr: Expr) -> Result<Expr> {
-        self.work.charge(1)?;
-        let depth = expr.depth + 1;
-        let offset = expr.offset;
-        self.make_at(
-            Node::Unary("!", Boxed::new(self.work, expr)?),
-            depth,
-            offset,
-        )
-    }
-    fn while_stmt(&mut self, until: bool) -> Result<Statement> {
-        self.work.charge(1)?;
-        let previous = self.loop_condition.replace(self.groups);
-        let mut cond = self.line_expr(0)?;
-        self.loop_condition = previous;
-        if until {
-            cond = self.negate(cond)?;
-        }
-        self.word("do");
-        let body = self.block(&["end"])?;
-        self.expect_word("end")?;
-        Ok(Statement::While(cond, body))
-    }
-    fn for_stmt(&mut self) -> Result<Statement> {
-        self.work.charge(1)?;
-        let target = self.target(false, false)?;
-        if !target.is_binding() {
-            return self.err("invalid for loop target");
-        }
-        self.expect_word("in")?;
-        let previous = self.loop_condition.replace(self.groups);
-        let iterable = self.line_expr(0)?;
-        self.loop_condition = previous;
-        self.word("do");
-        self.declare_target(&target)?;
-        let body = self.block(&["end"])?;
-        self.expect_word("end")?;
-        Ok(Statement::For(target, iterable, body))
-    }
-    fn target(&mut self, first_expression: bool, typed: bool) -> Result<Target> {
-        self.work.charge(1)?;
-        self.enter()?;
-        let mut parts = Buffer::new();
-        let mut tuple = false;
-        let mut has_rest = false;
-        loop {
-            let rest = self.token() == &Token::Op("*");
-            if rest {
-                self.bump()?;
-                if has_rest {
-                    return self.err("duplicate rest target");
-                }
-                has_rest = true;
-                tuple = true;
-            }
-            let mut value = if rest
-                && (matches!(self.token(), Token::P(',' | ')' | ']') | Token::Op("="))
-                    || matches!(self.token(), Token::Word(w) if w=="in"))
-            {
-                None
-            } else {
-                let grouped = !first_expression || !parts.is_empty() || rest;
-                let close = if grouped && self.take_p('(') {
-                    Some(')')
-                } else if grouped && self.take_p('[') {
-                    Some(']')
-                } else {
-                    None
-                };
-                if let Some(close) = close {
-                    self.lines()?;
-                    let inner = self.target(false, typed)?;
-                    self.lines()?;
-                    self.expect_p(close)?;
-                    Some(match inner {
-                        Target::Tuple(_) => inner,
-                        _ => Target::Tuple(Buffer::from_array(self.work, [(Some(inner), false)])?),
-                    })
-                } else {
-                    Some(if typed && matches!(self.token(), Token::Word(_)) {
-                        let name = self.name()?;
-                        Target::Value(self.make(Node::Var(name), 1)?)
-                    } else {
-                        let expression = self.line_expr(0)?;
-                        if expression.safe_assignment_target() {
-                            return self
-                                .err("safe navigation cannot be used as an assignment target");
-                        }
-                        Target::Value(expression)
-                    })
-                }
-            };
-            if typed && value.is_some() && self.take_p(':') {
-                let ty = self.type_expr(1, false)?;
-                if rest && !ty.captures(false) {
-                    return self.err("rest target annotation must accept an array");
-                }
-                value = Some(Target::Typed(
-                    Boxed::new(self.work, value.take().unwrap())?,
-                    ty,
-                ));
-            }
-            parts.push(self.work, (value, rest))?;
-            if !self.take_p(',') {
-                break;
-            }
-            tuple = true;
-            self.lines()?;
-        }
-        self.depth -= 1;
-        let target = if tuple {
-            Target::Tuple(parts)
-        } else {
-            parts.pop().unwrap().0.unwrap()
-        };
-        if target.depth() > MAX_DEPTH as u32 {
-            return self.err("assignment nesting too deep");
-        }
-        Ok(target)
+    fn comma_on_line(&self) -> Result<bool> {
+        Ok(self.token() == &Token::P(',') && self.tokens[self.pos].line == self.previous()?.line)
     }
     fn assignment_ahead(&self) -> Result<bool> {
         self.work.charge(1)?;
@@ -1041,139 +2213,24 @@ impl<'a> Parser<'a> {
         }
         Ok(false)
     }
-    fn if_stmt(&mut self, unless: bool) -> Result<Statement> {
+    fn negate(&self, expr: Expr) -> Result<Expr> {
         self.work.charge(1)?;
-        self.enter()?;
-        let mut cond = self.line_expr(0)?;
-        if unless {
-            cond = self.negate(cond)?;
-        }
-        self.word("then");
-        self.lines()?;
-        let yes = self.block(&["else", "elsif", "end"])?;
-        let no = if self.word("elsif") {
-            if unless {
-                return self.err("unless does not support elsif");
-            }
-            let offset = self.previous()?.offset as u32;
-            Buffer::from_array(self.work, [self.if_stmt(false)?.at(offset)])?
-        } else if self.word("else") {
-            self.lines()?;
-            let no = self.block(&["end"])?;
-            self.expect_word("end")?;
-            no
-        } else {
-            self.expect_word("end")?;
-            Buffer::new()
-        };
-        self.depth -= 1;
-        Ok(Statement::If(cond, yes, no))
-    }
-    fn if_expr(&mut self, unless: bool) -> Result<Expr> {
-        self.work.charge(1)?;
-        self.enter()?;
-        let mut cond = self.line_expr(0)?;
-        if unless {
-            cond = self.negate(cond)?;
-        }
-        self.word("then");
-        self.lines()?;
-        let yes = self.expr(0)?;
-        self.lines()?;
-        let no = if self.word("elsif") {
-            if unless {
-                return self.err("unless does not support elsif");
-            }
-            self.if_expr(false)?
-        } else if self.word("else") {
-            self.lines()?;
-            let no = self.expr(0)?;
-            self.lines()?;
-            self.expect_word("end")?;
-            no
-        } else {
-            self.expect_word("end")?;
-            self.make(Node::Literal(Value::nil()), 1)?
-        };
-        let depth = 1 + cond.depth.max(yes.depth).max(no.depth);
-        self.depth -= 1;
-        self.make(
-            Node::Conditional(
-                Boxed::new(self.work, cond)?,
-                Boxed::new(self.work, yes)?,
-                Boxed::new(self.work, no)?,
-            ),
+        let depth = expr.depth + 1;
+        let offset = expr.offset;
+        self.make_at(
+            Node::Unary("!", Boxed::new(self.work, expr)?),
             depth,
+            offset,
         )
-    }
-    fn case_expr(&mut self) -> Result<Expr> {
-        self.work.charge(1)?;
-        self.lines()?;
-        let target = if matches!(self.token(), Token::Word(w) if w=="when") {
-            None
-        } else {
-            Some(Boxed::new(self.work, self.line_expr(0)?)?)
-        };
-        self.lines()?;
-        let mut clauses = Buffer::new();
-        while self.word("when") {
-            let mut values = Buffer::new();
-            loop {
-                let splat = self.token() == &Token::Op("*");
-                if splat {
-                    self.bump()?;
-                }
-                values.push(self.work, (self.line_expr(0)?, splat))?;
-                if !self.take_p(',') {
-                    break;
-                }
-                self.lines()?;
-            }
-            self.word("then");
-            self.lines()?;
-            let result = self.expr(0)?;
-            clauses.push(self.work, When { values, result })?;
-            self.lines()?;
-        }
-        if clauses.is_empty() {
-            return self.err("case requires a when clause");
-        }
-        let alternate = if self.word("else") {
-            self.lines()?;
-            Some(Boxed::new(self.work, self.expr(0)?)?)
-        } else {
-            None
-        };
-        self.lines()?;
-        self.expect_word("end")?;
-        let depth = 1 + target
-            .as_ref()
-            .map_or(0, |e| e.depth)
-            .max(alternate.as_ref().map_or(0, |e| e.depth))
-            .max(
-                clauses
-                    .iter()
-                    .map(|c| {
-                        c.result
-                            .depth
-                            .max(c.values.iter().map(|(v, _)| v.depth).max().unwrap_or(0))
-                    })
-                    .max()
-                    .unwrap_or(0),
-            );
-        self.make(Node::Case(target, clauses, alternate), depth)
     }
     fn make(&self, node: Node, depth: u32) -> Result<Expr> {
         self.work.charge(1)?;
-        if depth > MAX_DEPTH as u32 {
-            self.err("expression nesting too deep")
-        } else {
-            Ok(Expr {
-                node,
-                depth,
-                offset: self.tokens[self.pos.saturating_sub(1)].offset as u32,
-            })
-        }
+        self.check_depth(depth)?;
+        Ok(Expr {
+            node,
+            depth,
+            offset: self.tokens[self.pos.saturating_sub(1)].offset as u32,
+        })
     }
     fn make_at(&self, node: Node, depth: u32, offset: u32) -> Result<Expr> {
         self.work.charge(1)?;
@@ -1181,36 +2238,49 @@ impl<'a> Parser<'a> {
         expr.offset = offset;
         Ok(expr)
     }
-    fn expr(&mut self, min: u8) -> Result<Expr> {
+    // Most expressions start with a single-token operand. Parse it and look
+    // for a suffix here, so that only nested syntax costs a task.
+    fn leaf_expression(&mut self, min: u8) -> Result<Leaf> {
+        let leaf = match self.token() {
+            Token::Int(_)
+            | Token::BigInt(..)
+            | Token::Float(_)
+            | Token::Regex(..)
+            | Token::Bytes(_)
+            | Token::Template(_)
+            | Token::Words(..)
+            | Token::P(':') => true,
+            Token::Word(w) => !reserved(w),
+            _ => false,
+        };
+        if !leaf {
+            return Ok(Leaf::Nested);
+        }
         self.work.charge(1)?;
         self.enter()?;
-        let lhs = self.prefix()?;
-        let result = self.expr_tail(lhs, min);
-        self.depth -= 1;
-        result
-    }
-    fn line_expr(&mut self, min: u8) -> Result<Expr> {
-        self.work.charge(1)?;
-        self.line_exprs += 1;
-        let result = self.expr(min);
-        self.line_exprs -= 1;
-        result
-    }
-    // Keep the prefix and tail frames separate so debug builds reach the nesting guard.
-    fn prefix(&mut self) -> Result<Expr> {
         self.work.charge(1)?;
         let offset = self.tokens[self.pos].offset as u32;
-        let grouped = self.token() == &Token::P('(');
-        let mut expr = self.prefix_node()?;
-        if !grouped {
-            expr.offset = offset;
-        }
-        Ok(expr)
+        let mut lhs = match self.bump()? {
+            Token::Word(w) => match w.as_str() {
+                "nil" => self.make(Node::Literal(Value::nil()), 1)?,
+                "true" => self.make(Node::Literal(Value::boolean(true)), 1)?,
+                "false" => self.make(Node::Literal(Value::boolean(false)), 1)?,
+                name => self.variable_name(name)?,
+            },
+            token => self.leaf(token, offset)?,
+        };
+        lhs.offset = offset;
+        Ok(match self.expression_suffix(&lhs, min)? {
+            Some(suffix) => Leaf::Tail(lhs, suffix),
+            None => {
+                self.depth -= 1;
+                Leaf::Done(lhs)
+            }
+        })
     }
-    fn prefix_node(&mut self) -> Result<Expr> {
-        self.work.charge(1)?;
-        let offset = self.tokens[self.pos].offset as u32;
-        match self.bump()? {
+    // Build expressions that need no nested parsing from their first token.
+    fn leaf(&mut self, token: Token<'a>, offset: u32) -> Result<Expr> {
+        match token {
             Token::Int(n) => self.make(Node::Integer(n), 1),
             Token::BigInt(text, radix) => self.make(Node::BigInteger(text, radix), 1),
             Token::Float(n) => self.make(Node::Literal(Value::float(n)), 1),
@@ -1219,13 +2289,7 @@ impl<'a> Parser<'a> {
             Token::Template(parts) => self.template(parts, false),
             Token::Words(words) => self.words(words.into_inner()),
             Token::Invalid(error) => Err(Error::syntax(self.work, error.0, error.1.as_str())),
-            Token::Word(w) => self.word_expression(w.as_str(), offset),
             Token::P(':') => self.symbol(),
-            Token::P('(') => self.group_expression(),
-            Token::P('[') => self.array_expression(),
-            Token::P('{') => self.hash_expr(),
-            Token::Op(op @ (".." | "...")) => self.open_range_expression(op),
-            Token::Op(op @ ("-" | "+" | "!")) => self.unary_prefix(op),
             _ => Err(Error::syntax(
                 self.work,
                 offset as usize,
@@ -1233,83 +2297,12 @@ impl<'a> Parser<'a> {
             )),
         }
     }
-    fn group_expression(&mut self) -> Result<Expr> {
-        self.groups += 1;
-        self.lines()?;
-        let e = self.expr(0)?;
-        self.lines()?;
-        self.expect_p(')')?;
-        self.groups -= 1;
-        Ok(e)
-    }
-    fn array_expression(&mut self) -> Result<Expr> {
-        let a = self.arguments(']')?;
-        let d = 1 + a.iter().map(|e| e.depth).max().unwrap_or(0);
-        self.make(Node::Array(a), d)
-    }
-    fn open_range_expression(&mut self, op: &str) -> Result<Expr> {
-        if self.groups > 0 {
-            self.lines()?;
-        }
-        let end = self.expr(8)?;
-        let depth = end.depth + 1;
-        self.make(
-            Node::Range(None, Some(Boxed::new(self.work, end)?), op == "..."),
-            depth,
-        )
-    }
-    fn word_expression(&mut self, w: &str, offset: u32) -> Result<Expr> {
-        self.work.charge(1)?;
-        match w {
-            "nil" => self.make(Node::Literal(Value::nil()), 1),
-            "true" => self.make(Node::Literal(Value::boolean(true)), 1),
-            "false" => self.make(Node::Literal(Value::boolean(false)), 1),
-            "if" | "unless" => self.if_expr(w == "unless"),
-            "case" => self.case_expr(),
-            "yield" => self.yield_expr(),
-            "begin" => self.begin_expression(),
-            "while" | "until" | "for" => self.loop_expression(w, offset),
-            _ if reserved(w) => Err(Error::syntax(
-                self.work,
-                offset as usize,
-                "expected expression",
-            )),
-            _ => self.variable_name(w),
-        }
-    }
     fn variable_name(&self, name: &str) -> Result<Expr> {
         self.make(Node::Var(Name::new(self.work, name)?), 1)
     }
-    fn begin_expression(&mut self) -> Result<Expr> {
-        let body = self.block(&["rescue", "else", "ensure", "end"])?;
-        let attempt = self.rescue_tail(body, false)?;
-        let depth = attempt.depth();
-        self.make(Node::Try(Boxed::new(self.work, attempt)?), depth)
-    }
-    fn loop_expression(&mut self, word: &str, offset: u32) -> Result<Expr> {
-        let stmt = if word == "for" {
-            self.for_stmt()?
-        } else {
-            self.while_stmt(word == "until")?
-        };
-        let stmt = stmt.at(offset);
-        let depth = stmt.depth();
-        self.make(Node::Loop(Boxed::new(self.work, stmt)?), depth)
-    }
-    fn unary_prefix(&mut self, op: &'static str) -> Result<Expr> {
-        self.work.charge(1)?;
-        let value = if self.negative_literal(op)? {
-            self.prefix()?
-        } else {
-            self.line_breaks()?;
-            self.expr(13)?
-        };
-        let depth = value.depth + 1;
-        self.make(Node::Unary(op, Boxed::new(self.work, value)?), depth)
-    }
     fn negative_literal(&self, op: &str) -> Result<bool> {
         // An adjacent minus belongs to the numeric receiver; power keeps the
-        // outer sign. Keep lookahead off the recursive prefix stack frame.
+        // outer sign.
         Ok(op == "-"
             && self.tokens[self.pos - 1].end == self.tokens[self.pos].offset
             && matches!(
@@ -1323,36 +2316,7 @@ impl<'a> Parser<'a> {
                 })?
                 .is_some_and(|next| next.token == Token::Op("**")))
     }
-    fn hash_group(&mut self) -> Result<Expr> {
-        self.work.charge(1)?;
-        self.groups += 1;
-        let mut entries = Buffer::new();
-        self.line_breaks()?;
-        if !self.take_p('}') {
-            loop {
-                let (key, shorthand) = self.hash_label()?;
-                let value = match shorthand {
-                    Some(value) => value,
-                    None => self.expr(0)?,
-                };
-                entries.push(self.work, (key, value))?;
-                self.line_breaks()?;
-                if self.take_p('}') {
-                    break;
-                }
-                self.expect_p(',')?;
-                self.line_breaks()?;
-                if self.take_p('}') {
-                    break;
-                }
-            }
-        }
-        let d = 1 + entries.iter().map(|(_, e)| e.depth).max().unwrap_or(0);
-        self.groups -= 1;
-        self.make(Node::Hash(entries), d)
-    }
 
-    // Keep label temporaries off the recursive value stack.
     fn hash_label(&mut self) -> Result<(Bytes, Option<Expr>)> {
         let offset = self.tokens[self.pos].offset as u32;
         let (key, label) = match self.bump()? {
@@ -1445,16 +2409,17 @@ impl<'a> Parser<'a> {
             self.work.charge(1)?;
             parser.pos += 1;
         }
-        let result = (|| {
-            let expr = parser.line_expr(0)?;
-            if parser.token() != &Token::Eof {
-                return parser.err("string interpolation must contain a single expression");
-            }
-            Ok(expr)
-        })();
+        // Interpolation depth is bounded by the lexer, so each level can run
+        // its own task stack.
+        let parsing = Parsing::new(parser);
+        let result = parsing.run(Call::Interpolation);
+        let parser = parsing.parser.into_inner();
         self.locals = parser.locals;
         self.declared_it = parser.declared_it;
-        result
+        match result? {
+            Parsed::Expr(expr) => Ok(expr),
+            _ => unreachable!(),
+        }
     }
 
     fn expand_modulo(&mut self) -> Result<()> {
@@ -1546,13 +2511,7 @@ impl<'a> Parser<'a> {
         self.work.charge(1)?;
         let origin = lhs.offset;
         let argument_depth = args.iter().map(|a| a.value.depth).max().unwrap_or(0);
-        let d = 1 + match &lhs.node {
-            Node::Var(_) => argument_depth,
-            Node::Member(receiver, _)
-            | Node::SafeMember(receiver, _)
-            | Node::Scope(receiver, _, None) => receiver.depth.max(argument_depth),
-            _ => lhs.depth.max(argument_depth),
-        };
+        let d = 1 + call_depth(&lhs).max(argument_depth);
         let node = match lhs.node {
             Node::Var(name) => Node::Call(name, args, CallForm::Parenthesized),
             Node::Member(receiver, name) => {
@@ -1566,27 +2525,6 @@ impl<'a> Parser<'a> {
         };
         self.make_at(node, d, origin)
     }
-    fn expr_tail(&mut self, mut lhs: Expr, min: u8) -> Result<Expr> {
-        self.work.charge(1)?;
-        while let Some(suffix) = self.expression_suffix(&lhs, min)? {
-            lhs = match suffix {
-                Suffix::Rescue => self.rescue_modifier(lhs),
-                Suffix::Command => self.command_expression(lhs),
-                Suffix::Block(brace) => self.block_expression(lhs, brace),
-                Suffix::Call => {
-                    let args = self.call_arguments()?;
-                    self.parenthesized_call(lhs, args)
-                }
-                Suffix::Scope => self.scoped_expression(lhs),
-                Suffix::Member(safe) => self.member_expression(lhs, safe),
-                Suffix::Index(offset) => self.index_expression(lhs, offset),
-                Suffix::Ternary(offset) => self.ternary_expression(lhs, offset),
-                Suffix::Binary(op, right, offset) => self.binary_expression(lhs, op, right, offset),
-            }?;
-        }
-        Ok(lhs)
-    }
-    // Finish lookahead before entering another recursive expression frame.
     fn expression_suffix(&mut self, lhs: &Expr, min: u8) -> Result<Option<Suffix>> {
         if let Some(next) = self.continuation_position(min)? {
             self.pos = next;
@@ -1637,179 +2575,6 @@ impl<'a> Parser<'a> {
         };
         Ok((left >= min).then_some(Suffix::Binary(op, right, offset)))
     }
-    fn index_expression(&mut self, lhs: Expr, offset: u32) -> Result<Expr> {
-        let indexes = self.arguments(']')?;
-        if indexes.is_empty() {
-            return self.err("expected index");
-        }
-        let d = 1 + lhs
-            .depth
-            .max(indexes.iter().map(|e| e.depth).max().unwrap_or(0));
-        self.make_at(Node::Index(Boxed::new(self.work, lhs)?, indexes), d, offset)
-    }
-    fn binary_expression(
-        &mut self,
-        lhs: Expr,
-        op: &'static str,
-        right: u8,
-        offset: u32,
-    ) -> Result<Expr> {
-        self.bump()?;
-        if matches!(op, ".." | "...") {
-            if self.groups > 0 {
-                self.lines()?;
-            }
-            let end = if self.starts_expression() {
-                Some(Boxed::new(self.work, self.expr(right)?)?)
-            } else {
-                None
-            };
-            let depth = 1 + lhs.depth.max(end.as_ref().map_or(0, |e| e.depth));
-            return self.make_at(
-                Node::Range(Some(Boxed::new(self.work, lhs)?), end, op == "..."),
-                depth,
-                offset,
-            );
-        }
-        self.line_breaks()?;
-        let rhs = self.expr(right)?;
-        let depth = 1 + lhs.depth.max(rhs.depth);
-        self.make_at(
-            Node::Binary(op, Boxed::new(self.work, lhs)?, Boxed::new(self.work, rhs)?),
-            depth,
-            offset,
-        )
-    }
-    // Keep branch-specific temporaries off recursive expression frames.
-    fn ternary_expression(&mut self, condition: Expr, offset: u32) -> Result<Expr> {
-        self.work.charge(1)?;
-        self.lines()?;
-        self.ternaries.push(self.work, self.groups)?;
-        let yes = self.expr(0)?;
-        self.ternaries.pop();
-        self.expect_p(':')?;
-        self.lines()?;
-        let no = self.expr(2)?;
-        let depth = 1 + condition.depth.max(yes.depth).max(no.depth);
-        self.make_at(
-            Node::Conditional(
-                Boxed::new(self.work, condition)?,
-                Boxed::new(self.work, yes)?,
-                Boxed::new(self.work, no)?,
-            ),
-            depth,
-            offset,
-        )
-    }
-    fn command_expression(&mut self, lhs: Expr) -> Result<Expr> {
-        self.work.charge(1)?;
-        self.command_depth += 1;
-        if self.command_depth > 64 {
-            return self.err("parenless call nesting too deep");
-        }
-        let group = std::mem::replace(&mut self.command_group, self.groups);
-        if self.token() == &Token::Op("/") {
-            self.expand_regex()?;
-        }
-        let args = self.command_arguments()?;
-        self.command_group = group;
-        self.command_depth -= 1;
-        let depth = 1 + lhs
-            .depth
-            .max(args.iter().map(|a| a.value.depth).max().unwrap_or(0));
-        let node = match lhs.node {
-            Node::Var(name) => Node::Call(name, args, CallForm::Bare),
-            Node::Member(receiver, name) => Node::Method(receiver, name, args, CallForm::Bare),
-            Node::SafeMember(receiver, name) => {
-                Node::SafeMethod(receiver, name, args, CallForm::Bare)
-            }
-            _ => unreachable!(),
-        };
-        self.make_at(node, depth, lhs.offset)
-    }
-    fn block_expression(&mut self, mut lhs: Expr, brace: bool) -> Result<Expr> {
-        self.work.charge(1)?;
-        let offset = lhs.offset;
-        let block = self.attached_block(brace)?;
-        if let Node::BlockCall(call, _) = lhs.node {
-            lhs = call.into_inner();
-        }
-        let depth = 1 + lhs
-            .depth
-            .max(block.body.iter().map(Stmt::depth).max().unwrap_or(0));
-        self.make_at(
-            Node::BlockCall(Boxed::new(self.work, lhs)?, block),
-            depth,
-            offset,
-        )
-    }
-    fn scoped_expression(&mut self, lhs: Expr) -> Result<Expr> {
-        self.work.charge(1)?;
-        let offset = lhs.offset;
-        self.bump()?;
-        self.line_breaks()?;
-        let name_offset = self.tokens[self.pos].offset;
-        let Token::Word(name) = self.bump()? else {
-            return Err(Error::syntax(
-                self.work,
-                name_offset,
-                "expected scoped member name",
-            ));
-        };
-        if name.starts_with('@') || (keyword(&name) && name != "enum") {
-            return Err(Error::syntax(
-                self.work,
-                name_offset,
-                "expected scoped member name",
-            ));
-        }
-        let args = if self.take_p('(') {
-            Some(self.call_arguments()?)
-        } else {
-            None
-        };
-        let depth = 1 + lhs.depth.max(args.as_ref().map_or(0, |args| {
-            args.iter().map(|arg| arg.value.depth).max().unwrap_or(0)
-        }));
-        self.make_at(
-            Node::Scope(
-                Boxed::new(self.work, lhs)?,
-                Name::new(self.work, &name)?,
-                args,
-            ),
-            depth,
-            offset,
-        )
-    }
-    fn member_expression(&mut self, lhs: Expr, safe: bool) -> Result<Expr> {
-        self.work.charge(1)?;
-        let offset = lhs.offset;
-        self.bump()?;
-        self.line_breaks()?;
-        let name = self.member_name()?;
-        if self.take_p('(') {
-            let args = self.call_arguments()?;
-            let depth = 1 + lhs
-                .depth
-                .max(args.iter().map(|a| a.value.depth).max().unwrap_or(0));
-            let method = if safe { Node::SafeMethod } else { Node::Method };
-            self.make_at(
-                method(
-                    Boxed::new(self.work, lhs)?,
-                    name,
-                    args,
-                    CallForm::Parenthesized,
-                ),
-                depth,
-                offset,
-            )
-        } else {
-            let depth = lhs.depth + 1;
-            let member = if safe { Node::SafeMember } else { Node::Member };
-            self.make_at(member(Boxed::new(self.work, lhs)?, name), depth, offset)
-        }
-    }
-    // Finish fallible name construction before entering recursive argument parsing.
     fn member_name(&mut self) -> Result<Name> {
         let offset = self.tokens[self.pos].offset;
         match self.bump()? {
@@ -1826,136 +2591,9 @@ impl<'a> Parser<'a> {
             })?
             .unwrap())
     }
-    fn attached_block(&mut self, brace: bool) -> Result<Block> {
-        self.work.charge(1)?;
-        self.bump()?;
-        self.lines()?;
-        let outer = self.locals.copy(self.work)?;
-        let outer_it = self.declared_it;
-        let infer_it = !outer_it;
-        let (params, explicit) = self.block_parameters()?;
-        let previous_loop = self.loop_condition.take();
-        let command_depth = std::mem::replace(&mut self.command_depth, 0);
-        let body = self.block(if brace { &["}"] } else { &["end"] })?;
-        self.command_depth = command_depth;
-        self.loop_condition = previous_loop;
-        if brace {
-            self.expect_p('}')?;
-        } else {
-            self.expect_word("end")?;
-        }
-        self.locals = outer;
-        self.declared_it = outer_it;
-        Ok(Block {
-            params,
-            body,
-            implicit: !explicit,
-            infer_it,
-        })
-    }
-    // Parameter temporaries must be gone before the block body recurses.
-    fn block_parameters(&mut self) -> Result<(Buffer<Target>, bool)> {
-        let mut params = Buffer::new();
-        let explicit = if self.token() == &Token::Op("||") {
-            self.bump()?;
-            true
-        } else if self.take_p('|') {
-            self.lines()?;
-            if !self.take_p('|') {
-                loop {
-                    let target = if self.take_p('(') {
-                        let target = self.target(false, true)?;
-                        self.lines()?;
-                        self.expect_p(')')?;
-                        match target {
-                            Target::Tuple(_) => target,
-                            _ => Target::Tuple(Buffer::from_array(
-                                self.work,
-                                [(Some(target), false)],
-                            )?),
-                        }
-                    } else if self.take_p('[') {
-                        let target = self.target(false, true)?;
-                        self.lines()?;
-                        self.expect_p(']')?;
-                        match target {
-                            Target::Tuple(_) => target,
-                            _ => Target::Tuple(Buffer::from_array(
-                                self.work,
-                                [(Some(target), false)],
-                            )?),
-                        }
-                    } else {
-                        let name = self.name()?;
-                        let target = Target::Value(self.make(Node::Var(name), 1)?);
-                        if self.take_p(':') {
-                            Target::Typed(Boxed::new(self.work, target)?, self.type_expr(0, true)?)
-                        } else {
-                            target
-                        }
-                    };
-                    if !target.is_binding() {
-                        return self.err("invalid block parameter");
-                    }
-                    self.declare_target(&target)?;
-                    params.push(self.work, target)?;
-                    self.lines()?;
-                    if self.take_p('|') {
-                        break;
-                    }
-                    self.expect_p(',')?;
-                    self.lines()?;
-                }
-            }
-            true
-        } else {
-            false
-        };
-        if !explicit {
-            self.locals
-                .insert(self.work, Name::new(self.work, "it")?, ())?;
-            for n in ["_1", "_2", "_3", "_4", "_5", "_6", "_7", "_8", "_9"] {
-                self.locals
-                    .insert(self.work, Name::new(self.work, n)?, ())?;
-            }
-        }
-        Ok((params, explicit))
-    }
     fn can_attach_do(&self) -> bool {
         (self.command_depth == 0 || self.groups > self.command_group)
             && self.loop_condition.is_none_or(|group| self.groups > group)
-    }
-    fn yield_expr(&mut self) -> Result<Expr> {
-        self.work.charge(1)?;
-        let line = self.previous()?.line;
-        let mut next = self.pos;
-        while self.tokens[next].token == Token::EndLine
-            && self.tokens[next].line != self.tokens[next].end_line
-        {
-            self.work.charge(1)?;
-            next += 1;
-        }
-        if self.tokens[next].token == Token::P('(') {
-            self.pos = next;
-        }
-        let args = if self.take_p('(') {
-            self.arguments(')')?
-        } else {
-            let mut args = Buffer::new();
-            if self.tokens[self.pos].line == line && self.starts_expression() {
-                args.push(self.work, self.line_expr(0)?)?;
-                while self.token() == &Token::P(',')
-                    && self.tokens[self.pos].line == line
-                    && self.tokens[self.pos + 1].line == line
-                {
-                    self.bump()?;
-                    args.push(self.work, self.line_expr(0)?)?;
-                }
-            }
-            args
-        };
-        let depth = 1 + args.iter().map(|arg| arg.depth).max().unwrap_or(0);
-        self.make(Node::Yield(args), depth)
     }
     fn continuation_position(&self, min: u8) -> Result<Option<usize>> {
         if self.token() != &Token::EndLine {
@@ -2195,104 +2833,6 @@ impl<'a> Parser<'a> {
                             .is_some_and(|end| end.token == Token::P(']') && end.offset == t.end)))
         })
     }
-    fn command_arguments(&mut self) -> Result<Buffer<Argument>> {
-        self.work.charge(1)?;
-        let mut args = Buffer::new();
-        let mut keywords = false;
-        loop {
-            let argument = self.call_argument(false)?;
-            let keyword = matches!(
-                argument.kind,
-                ArgumentKind::Keyword(_) | ArgumentKind::KeywordSplat
-            );
-            if keywords && !keyword {
-                return self.err("positional arguments cannot follow keywords");
-            }
-            keywords |= keyword;
-            args.push(self.work, argument)?;
-            let last = self.previous()?;
-            if self.token() != &Token::P(',')
-                || self.tokens[self.pos].line != last.line
-                || self.tokens[self.pos + 1].line != last.line
-                || !self.command_argument_start(self.pos + 1, true)
-            {
-                break;
-            }
-            self.bump()?;
-        }
-        Ok(args)
-    }
-    fn arguments(&mut self, close: char) -> Result<Buffer<Expr>> {
-        self.work.charge(1)?;
-        self.groups += 1;
-        let mut args = Buffer::new();
-        self.lines()?;
-        if self.take_p(close) {
-            self.groups -= 1;
-            return Ok(args);
-        }
-        loop {
-            args.push(self.work, self.expr(0)?)?;
-            self.lines()?;
-            if self.take_p(close) {
-                break;
-            }
-            self.expect_p(',')?;
-            self.lines()?;
-            if self.take_p(close) {
-                break;
-            }
-        }
-        self.groups -= 1;
-        Ok(args)
-    }
-    fn call_arguments(&mut self) -> Result<Buffer<Argument>> {
-        self.work.charge(1)?;
-        self.groups += 1;
-        let mut args = Buffer::new();
-        let mut keywords = false;
-        self.line_breaks()?;
-        if self.take_p(')') {
-            self.groups -= 1;
-            return Ok(args);
-        }
-        loop {
-            let argument = self.call_argument(true)?;
-            let keyword = matches!(
-                argument.kind,
-                ArgumentKind::Keyword(_) | ArgumentKind::KeywordSplat
-            );
-            if keywords && !keyword {
-                return self.err("positional arguments cannot follow keywords");
-            }
-            keywords |= keyword;
-            args.push(self.work, argument)?;
-            self.line_breaks()?;
-            if self.take_p(')') {
-                break;
-            }
-            self.expect_p(',')?;
-            self.line_breaks()?;
-            if self.take_p(')') {
-                break;
-            }
-        }
-        self.groups -= 1;
-        Ok(args)
-    }
-    fn call_argument(&mut self, parenthesized: bool) -> Result<Argument> {
-        self.work.charge(1)?;
-        let kind = self.argument_kind()?;
-        if parenthesized || matches!(kind, ArgumentKind::Splat | ArgumentKind::KeywordSplat) {
-            self.line_breaks()?;
-        }
-        let value = match self.literal_argument(&kind, parenthesized)? {
-            Some(value) => value,
-            None => self.expr(0)?,
-        };
-        Ok(Argument { kind, value })
-    }
-    // Keep lookahead temporaries out of the recursive argument frame.
     fn argument_kind(&mut self) -> Result<ArgumentKind> {
         Ok(if self.token() == &Token::Op("**") {
             self.bump()?;
@@ -2351,6 +2891,16 @@ impl<'a> Parser<'a> {
             Token::P('(' | '[' | '{' | ':') | Token::Op("+" | "-" | "!") => true,
             _ => false,
         }
+    }
+}
+
+// Go nests a method's member access, or a function's name, below its call.
+fn call_depth(callee: &Expr) -> u32 {
+    match &callee.node {
+        Node::Var(_) => 1,
+        Node::Member(receiver, _) | Node::SafeMember(receiver, _) => 1 + receiver.depth,
+        Node::Scope(receiver, _, None) => 1 + receiver.depth,
+        _ => callee.depth,
     }
 }
 

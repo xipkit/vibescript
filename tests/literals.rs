@@ -179,8 +179,8 @@ fn interpolation_nesting_reaches_eight_and_rejects_excessive_source() {
     }
     let nested = format!(
         "{}\"#{{7}}\"{}",
-        "case 1;when 1;".repeat(300),
-        ";end".repeat(300)
+        "case 1;when 1;".repeat(1100),
+        ";end".repeat(1100)
     );
     assert_eq!(
         Engine::new().compile(&nested).err().unwrap().kind,

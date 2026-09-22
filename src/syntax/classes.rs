@@ -1,5 +1,5 @@
 use super::{
-    Definition, Expr, Node, ParamKind, Parameter, Parser, Statement, Token, keyword,
+    Definition, Expr, Node, ParamKind, Parameter, Parser, Parsing, Statement, Token, keyword,
     modules::{Module, Visibility},
 };
 use crate::{
@@ -7,140 +7,175 @@ use crate::{
     compilation::{Buffer, Name, Table},
 };
 
-impl Parser<'_> {
-    pub(super) fn class(&mut self) -> Result<Module> {
-        self.work.charge(1)?;
-        self.enter()?;
-        let offset = self.previous()?.offset as u32;
-        let name = self.name()?;
-        if keyword(&name) || name.starts_with('@') {
-            return self.err("expected class name");
-        }
-        if self.token() == &Token::Op("<") {
-            return self.err("class inheritance is not supported; call shared module functions");
-        }
-        let outer_locals = std::mem::take(&mut self.locals);
-        let outer_it = std::mem::replace(&mut self.declared_it, false);
-        let mut class = Module {
-            offset,
-            is_class: true,
-            instance_methods: Buffer::new(),
-            name,
-            methods: Buffer::new(),
-            body: Buffer::new(),
-            modules: Buffer::new(),
-            directives: Table::new(),
+enum Member {
+    Method(Name, bool, u32),
+    Statement,
+    Declared,
+}
+
+impl Parsing<'_> {
+    pub(super) async fn class(&self) -> Result<Module> {
+        let work = self.p().work;
+        let (mut class, outer_locals, outer_it) = {
+            let mut p = self.p();
+            work.charge(1)?;
+            p.enter()?;
+            let offset = p.previous()?.offset as u32;
+            let name = p.name()?;
+            if keyword(&name) || name.starts_with('@') {
+                return p.err("expected class name");
+            }
+            if p.token() == &Token::Op("<") {
+                return p.err("class inheritance is not supported; call shared module functions");
+            }
+            let outer_locals = std::mem::take(&mut p.locals);
+            let outer_it = std::mem::replace(&mut p.declared_it, false);
+            p.lines()?;
+            let class = Module {
+                offset,
+                is_class: true,
+                instance_methods: Buffer::new(),
+                name,
+                methods: Buffer::new(),
+                body: Buffer::new(),
+                modules: Buffer::new(),
+                directives: Table::new(),
+                depth: 1,
+            };
+            (class, outer_locals, outer_it)
         };
         let mut visibility = Visibility::Public;
-        self.lines()?;
-        while !matches!(self.token(), Token::Word(w) if w == "end") {
-            if self.token() == &Token::Eof {
-                return self.err("unexpected end of class");
-            }
-            self.work.charge(1)?;
+        while !matches!(self.p().token(), Token::Word(w) if w == "end") {
             let mut method_visibility = visibility;
-            if matches!(self.token(), Token::Word(w) if w == "private")
-                && self.tokens[self.pos + 1].token == Token::P('(')
-            {
-                return self.err("private visibility directives do not take parentheses");
-            }
-            if let Some((word, level)) = self.visibility()? {
-                self.bump()?;
-                class.directives.insert(self.work, word, ())?;
-                if self.token() == &Token::P(':') {
-                    loop {
-                        let name = self.class_alias_name(true)?;
-                        self.work
-                            .charge(class.instance_methods.len() + class.methods.len())?;
-                        let instance = class
-                            .instance_methods
-                            .iter_mut()
-                            .rev()
-                            .find(|(m, _)| m.name == name);
-                        let target = instance.or_else(|| {
-                            class.methods.iter_mut().rev().find(|(m, _)| m.name == name)
-                        });
-                        let Some((_, current)) = target else {
-                            return self.err("visibility directive names an undefined method");
-                        };
-                        *current = level;
-                        if !self.take_p(',') {
-                            break;
-                        }
-                    }
-                    self.lines()?;
-                    continue;
+            let member = {
+                let mut p = self.p();
+                if p.token() == &Token::Eof {
+                    return p.err("unexpected end of class");
                 }
-                if self.token() == &Token::EndLine
-                    || matches!(self.token(), Token::Word(w) if w == "end")
+                work.charge(1)?;
+                if matches!(p.token(), Token::Word(w) if w == "private")
+                    && p.tokens[p.pos + 1].token == Token::P('(')
                 {
-                    visibility = level;
-                    self.lines()?;
-                    continue;
+                    return p.err("private visibility directives do not take parentheses");
                 }
-                method_visibility = level;
-            }
-            if self.word("def") {
-                let offset = self.previous()?.offset as u32;
-                let class_method = self.word("self");
-                if class_method {
-                    self.expect_p('.')?;
+                if let Some((word, level)) = p.visibility()? {
+                    p.bump()?;
+                    class.directives.insert(work, word, ())?;
+                    if p.token() == &Token::P(':') {
+                        loop {
+                            let name = p.class_alias_name(true)?;
+                            work.charge(class.instance_methods.len() + class.methods.len())?;
+                            let instance = class
+                                .instance_methods
+                                .iter_mut()
+                                .rev()
+                                .find(|(m, _)| m.name == name);
+                            let target = instance.or_else(|| {
+                                class.methods.iter_mut().rev().find(|(m, _)| m.name == name)
+                            });
+                            let Some((_, current)) = target else {
+                                return p.err("visibility directive names an undefined method");
+                            };
+                            *current = level;
+                            if !p.take_p(',') {
+                                break;
+                            }
+                        }
+                        p.lines()?;
+                        continue;
+                    }
+                    if p.token() == &Token::EndLine
+                        || matches!(p.token(), Token::Word(w) if w == "end")
+                    {
+                        visibility = level;
+                        p.lines()?;
+                        continue;
+                    }
+                    method_visibility = level;
                 }
-                let name = self.class_method_name(class_method)?;
-                let definition = self.definition_with_constants(name.clone(), true, offset)?;
-                if name == "initialize" {
-                    method_visibility = Visibility::Private;
-                }
-                let methods = if class_method {
-                    &mut class.methods
+                if p.word("def") {
+                    let offset = p.previous()?.offset as u32;
+                    let class_method = p.word("self");
+                    if class_method {
+                        p.expect_p('.')?;
+                    }
+                    let name = p.class_method_name(class_method)?;
+                    Member::Method(name, class_method, offset)
+                } else if matches!(p.token(), Token::Word(w) if matches!(w.as_str(), "property" | "getter" | "setter"))
+                {
+                    let Token::Word(kind) = p.bump()? else {
+                        unreachable!()
+                    };
+                    p.class_properties(&mut class, &kind, method_visibility)?;
+                    Member::Declared
+                } else if p.word("alias_method") {
+                    let parens = p.take_p('(');
+                    let new = p.class_alias_name(true)?;
+                    p.expect_p(',')?;
+                    let old = p.class_alias_name(true)?;
+                    if parens {
+                        p.expect_p(')')?;
+                    }
+                    p.class_alias(&mut class, new, old)?;
+                    Member::Declared
+                } else if matches!(p.token(), Token::Word(w) if w == "alias")
+                    && p.tokens[p.pos].line == p.tokens[p.pos + 1].line
+                    && matches!(&p.tokens[p.pos + 1].token, Token::Word(w) if !keyword(w))
+                    || matches!(p.token(), Token::Word(w) if w == "alias")
+                        && p.tokens[p.pos + 1].token == Token::P(':')
+                {
+                    p.bump()?;
+                    let line = p.previous()?.line;
+                    let new = p.class_alias_name(false)?;
+                    if p.tokens[p.pos].line != line {
+                        return p.err("alias names must be on the same line");
+                    }
+                    let old = p.class_alias_name(false)?;
+                    p.class_alias(&mut class, new, old)?;
+                    Member::Declared
+                } else if p.removed_mixin()? {
+                    return p
+                        .err("include and extend are not supported; call shared module functions");
                 } else {
-                    &mut class.instance_methods
-                };
-                methods.push(self.work, (definition, method_visibility))?;
-            } else if matches!(self.token(), Token::Word(w) if matches!(w.as_str(), "property" | "getter" | "setter"))
-            {
-                let Token::Word(kind) = self.bump()? else {
-                    unreachable!()
-                };
-                self.class_properties(&mut class, &kind, method_visibility)?;
-            } else if self.word("alias_method") {
-                let parens = self.take_p('(');
-                let new = self.class_alias_name(true)?;
-                self.expect_p(',')?;
-                let old = self.class_alias_name(true)?;
-                if parens {
-                    self.expect_p(')')?;
+                    Member::Statement
                 }
-                self.class_alias(&mut class, new, old)?;
-            } else if matches!(self.token(), Token::Word(w) if w == "alias")
-                && self.tokens[self.pos].line == self.tokens[self.pos + 1].line
-                && matches!(&self.tokens[self.pos + 1].token, Token::Word(w) if !keyword(w))
-                || matches!(self.token(), Token::Word(w) if w == "alias")
-                    && self.tokens[self.pos + 1].token == Token::P(':')
-            {
-                self.bump()?;
-                let line = self.previous()?.line;
-                let new = self.class_alias_name(false)?;
-                if self.tokens[self.pos].line != line {
-                    return self.err("alias names must be on the same line");
+            };
+            match member {
+                Member::Method(name, class_method, offset) => {
+                    let definition = self
+                        .definition_with_constants(name.clone(), true, offset)
+                        .await?;
+                    class.depth = class.depth.max(1 + definition.depth());
+                    if name == "initialize" {
+                        method_visibility = Visibility::Private;
+                    }
+                    let methods = if class_method {
+                        &mut class.methods
+                    } else {
+                        &mut class.instance_methods
+                    };
+                    methods.push(work, (definition, method_visibility))?;
                 }
-                let old = self.class_alias_name(false)?;
-                self.class_alias(&mut class, new, old)?;
-            } else if self.removed_mixin()? {
-                return self
-                    .err("include and extend are not supported; call shared module functions");
-            } else {
-                class.body.push(self.work, self.statement()?)?;
+                Member::Statement => {
+                    let stmt = self.statement().await?;
+                    class.depth = class.depth.max(1 + stmt.depth);
+                    class.body.push(work, stmt)?;
+                }
+                Member::Declared => (),
             }
-            self.lines()?;
+            self.p().lines()?;
         }
-        self.expect_word("end")?;
-        self.locals = outer_locals;
-        self.declared_it = outer_it;
-        self.depth -= 1;
+        let mut p = self.p();
+        p.expect_word("end")?;
+        p.check_depth(class.depth)?;
+        p.locals = outer_locals;
+        p.declared_it = outer_it;
+        p.depth -= 1;
         Ok(class)
     }
+}
 
+impl Parser<'_> {
     fn removed_mixin(&self) -> Result<bool> {
         let Token::Word(word) = self.token() else {
             return Ok(false);
@@ -268,6 +303,14 @@ impl Parser<'_> {
             } else {
                 None
             };
+            let body = || {
+                let value = Expr {
+                    offset,
+                    node: Node::Var(Name::join(self.work, &["@", &name])?),
+                    depth: 1,
+                };
+                Buffer::from_array(self.work, [Statement::Return(Some(value)).at(offset)])
+            };
             if kind != "setter" {
                 class.instance_methods.push(
                     self.work,
@@ -278,15 +321,7 @@ impl Parser<'_> {
                             accessor: Some((name.clone(), false)),
                             name: name.clone(),
                             params: Buffer::new(),
-                            body: Buffer::from_array(
-                                self.work,
-                                [Statement::Return(Some(Expr {
-                                    offset,
-                                    node: Node::Var(Name::join(self.work, &["@", &name])?),
-                                    depth: 1,
-                                }))
-                                .at(offset)],
-                            )?,
+                            body: body()?,
                             return_type: ty.as_ref().map(|ty| ty.copy(self.work)).transpose()?,
                         },
                         visibility,
@@ -312,15 +347,7 @@ impl Parser<'_> {
                                     ty,
                                 }],
                             )?,
-                            body: Buffer::from_array(
-                                self.work,
-                                [Statement::Return(Some(Expr {
-                                    offset,
-                                    node: Node::Var(Name::join(self.work, &["@", &name])?),
-                                    depth: 1,
-                                }))
-                                .at(offset)],
-                            )?,
+                            body: body()?,
                             return_type: None,
                         },
                         visibility,

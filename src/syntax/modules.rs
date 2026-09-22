@@ -1,4 +1,4 @@
-use super::{Definition, Parser, Stmt, Token, keyword};
+use super::{Definition, Parser, Parsing, Stmt, Token, keyword};
 use crate::{
     Result,
     compilation::{Boxed, Buffer, Name, Table},
@@ -22,6 +22,7 @@ pub(crate) struct Module {
     pub body: Buffer<Stmt>,
     pub modules: Buffer<Module>,
     pub directives: Table<()>,
+    pub(super) depth: u32,
 }
 
 impl Parser<'_> {
@@ -29,166 +30,6 @@ impl Parser<'_> {
         matches!(self.token(), Token::Word(w) if w == "module")
             && matches!(&self.tokens[self.pos + 1].token, Token::Word(w) if !keyword(w))
             && self.tokens[self.pos].line == self.tokens[self.pos + 1].line
-    }
-
-    pub(super) fn definition(&mut self, name: Name, offset: u32) -> Result<Definition> {
-        self.work.charge(1)?;
-        self.definition_with_constants(name, false, offset)
-    }
-
-    pub(super) fn definition_with_constants(
-        &mut self,
-        name: Name,
-        module: bool,
-        offset: u32,
-    ) -> Result<Definition> {
-        self.work.charge(1)?;
-        let outer_locals = std::mem::take(&mut self.locals);
-        if module {
-            for (name, _) in outer_locals.iter(self.work)? {
-                if name.chars().next().is_some_and(super::unicode::upper) {
-                    self.locals.insert(self.work, name.clone(), ())?;
-                }
-            }
-        }
-        let outer_it = std::mem::replace(&mut self.declared_it, false);
-        let parenthesized = self.take_p('(');
-        let params = self.parameters(parenthesized)?;
-        self.line_breaks()?;
-        let return_type = if self.token() == &Token::Op("->") {
-            self.bump()?;
-            Some(self.type_expr(1, false)?)
-        } else {
-            None
-        };
-        self.lines()?;
-        let body = self.block(&["rescue", "else", "ensure", "end"])?;
-        let body = if matches!(self.token(), Token::Word(w) if w != "end") {
-            let attempt = self.rescue_tail(body, true)?;
-            let depth = attempt.depth();
-            Buffer::from_array(
-                self.work,
-                [super::Statement::Expr(self.make_at(
-                    super::Node::Try(Boxed::new(self.work, attempt)?),
-                    depth,
-                    offset,
-                )?)
-                .at(offset)],
-            )?
-        } else {
-            self.expect_word("end")?;
-            body
-        };
-        self.locals = outer_locals;
-        self.declared_it = outer_it;
-        Ok(Definition {
-            private: false,
-            offset,
-            accessor: None,
-            name,
-            params,
-            body,
-            return_type,
-        })
-    }
-
-    pub(super) fn module(&mut self) -> Result<Module> {
-        self.work.charge(1)?;
-        self.enter()?;
-        let offset = self.tokens[self.pos].offset as u32;
-        self.expect_word("module")?;
-        let name = self.name()?;
-        if !name.as_bytes().first().is_some_and(u8::is_ascii_uppercase) {
-            return self.err("module name must start with an uppercase letter");
-        }
-        let outer_locals = std::mem::take(&mut self.locals);
-        let outer_it = std::mem::replace(&mut self.declared_it, false);
-        let mut module = Module {
-            offset,
-            is_class: false,
-            instance_methods: Buffer::new(),
-            name,
-            methods: Buffer::new(),
-            body: Buffer::new(),
-            modules: Buffer::new(),
-            directives: Table::new(),
-        };
-        let mut visibility = Visibility::Public;
-        self.lines()?;
-        while !matches!(self.token(), Token::Word(w) if w == "end") {
-            if self.token() == &Token::Eof {
-                return self.err("unexpected end of module");
-            }
-            let mut method_visibility = visibility;
-            if matches!(self.token(), Token::Word(w) if w == "private")
-                && self.tokens[self.pos + 1].token == Token::P('(')
-            {
-                return self.err("private visibility directives do not take parentheses");
-            }
-            if let Some((word, level)) = self.visibility()? {
-                self.bump()?;
-                module.directives.insert(self.work, word, ())?;
-                if self.token() == &Token::P(':') {
-                    loop {
-                        self.expect_p(':')?;
-                        let name = self.name()?;
-                        let Some((_, current)) = module
-                            .methods
-                            .iter_mut()
-                            .rev()
-                            .find(|(m, _)| m.name == name)
-                        else {
-                            return self.err("visibility directive names an undefined method");
-                        };
-                        *current = level;
-                        if !self.take_p(',') {
-                            break;
-                        }
-                        self.line_breaks()?;
-                    }
-                    self.lines()?;
-                    continue;
-                }
-                if self.token() == &Token::EndLine
-                    || matches!(self.token(), Token::Word(w) if w == "end")
-                {
-                    visibility = level;
-                    self.lines()?;
-                    continue;
-                }
-                method_visibility = level;
-            }
-            if self.module_ahead() {
-                module.modules.push(self.work, self.module()?)?;
-            } else if self.word("def") {
-                let offset = self.previous()?.offset as u32;
-                self.expect_word("self")?;
-                self.expect_p('.')?;
-                let mut name = self.name()?;
-                if keyword(&name) || name.starts_with('@') {
-                    return self.err("expected module method name");
-                }
-                if self.token() == &Token::Op("=") {
-                    self.bump()?;
-                    name = Name::join(self.work, &[&name, "="])?;
-                }
-                let definition = self.definition_with_constants(name, true, offset)?;
-                module
-                    .methods
-                    .push(self.work, (definition, method_visibility))?;
-            } else if matches!(self.token(), Token::Word(w) if matches!(w.as_str(), "class" | "enum" | "property" | "getter" | "setter" | "alias" | "include" | "extend"))
-            {
-                return self.err("modules declare methods with def self.name and do not support classes, enums, accessors, aliases, or mixins");
-            } else {
-                module.body.push(self.work, self.statement()?)?;
-            }
-            self.lines()?;
-        }
-        self.expect_word("end")?;
-        self.locals = outer_locals;
-        self.declared_it = outer_it;
-        self.depth -= 1;
-        Ok(module)
     }
 
     pub(super) fn visibility(&self) -> Result<Option<(Name, Visibility)>> {
@@ -216,5 +57,209 @@ impl Parser<'_> {
         } else {
             Ok(None)
         }
+    }
+}
+
+enum Member {
+    Module,
+    Method(Name, u32),
+    Statement,
+}
+
+impl Parsing<'_> {
+    pub(super) async fn definition(&self, name: Name, offset: u32) -> Result<Definition> {
+        self.p().work.charge(1)?;
+        self.definition_with_constants(name, false, offset).await
+    }
+
+    pub(super) async fn definition_with_constants(
+        &self,
+        name: Name,
+        module: bool,
+        offset: u32,
+    ) -> Result<Definition> {
+        let work = self.p().work;
+        let (outer_locals, outer_it, parenthesized) = {
+            let mut p = self.p();
+            work.charge(1)?;
+            let outer_locals = std::mem::take(&mut p.locals);
+            if module {
+                for (name, _) in outer_locals.iter(work)? {
+                    if name.chars().next().is_some_and(super::unicode::upper) {
+                        p.locals.insert(work, name.clone(), ())?;
+                    }
+                }
+            }
+            let outer_it = std::mem::replace(&mut p.declared_it, false);
+            (outer_locals, outer_it, p.take_p('('))
+        };
+        let params = self.parameters(parenthesized).await?;
+        let return_type = {
+            let mut p = self.p();
+            p.line_breaks()?;
+            let return_type = if p.token() == &Token::Op("->") {
+                p.bump()?;
+                Some(p.type_expr(1, false)?)
+            } else {
+                None
+            };
+            p.lines()?;
+            return_type
+        };
+        let body = self.block(&["rescue", "else", "ensure", "end"]).await?;
+        let rescued = matches!(self.p().token(), Token::Word(w) if w != "end");
+        let body = if rescued {
+            let attempt = self.rescue_tail(body, true).await?;
+            let depth = attempt.depth();
+            let p = self.p();
+            Buffer::from_array(
+                work,
+                [super::Statement::Expr(p.make_at(
+                    super::Node::Try(Boxed::new(work, attempt)?),
+                    depth,
+                    offset,
+                )?)
+                .at(offset)],
+            )?
+        } else {
+            self.p().expect_word("end")?;
+            body
+        };
+        let mut p = self.p();
+        p.locals = outer_locals;
+        p.declared_it = outer_it;
+        Ok(Definition {
+            private: false,
+            offset,
+            accessor: None,
+            name,
+            params,
+            body,
+            return_type,
+        })
+    }
+
+    pub(super) async fn module(&self) -> Result<Module> {
+        let work = self.p().work;
+        let (mut module, outer_locals, outer_it) = {
+            let mut p = self.p();
+            work.charge(1)?;
+            p.enter()?;
+            let offset = p.tokens[p.pos].offset as u32;
+            p.expect_word("module")?;
+            let name = p.name()?;
+            if !name.as_bytes().first().is_some_and(u8::is_ascii_uppercase) {
+                return p.err("module name must start with an uppercase letter");
+            }
+            let outer_locals = std::mem::take(&mut p.locals);
+            let outer_it = std::mem::replace(&mut p.declared_it, false);
+            p.lines()?;
+            let module = Module {
+                offset,
+                is_class: false,
+                instance_methods: Buffer::new(),
+                name,
+                methods: Buffer::new(),
+                body: Buffer::new(),
+                modules: Buffer::new(),
+                directives: Table::new(),
+                depth: 1,
+            };
+            (module, outer_locals, outer_it)
+        };
+        let mut visibility = Visibility::Public;
+        while !matches!(self.p().token(), Token::Word(w) if w == "end") {
+            let mut method_visibility = visibility;
+            let member = {
+                let mut p = self.p();
+                if p.token() == &Token::Eof {
+                    return p.err("unexpected end of module");
+                }
+                if matches!(p.token(), Token::Word(w) if w == "private")
+                    && p.tokens[p.pos + 1].token == Token::P('(')
+                {
+                    return p.err("private visibility directives do not take parentheses");
+                }
+                if let Some((word, level)) = p.visibility()? {
+                    p.bump()?;
+                    module.directives.insert(work, word, ())?;
+                    if p.token() == &Token::P(':') {
+                        loop {
+                            p.expect_p(':')?;
+                            let name = p.name()?;
+                            let Some((_, current)) = module
+                                .methods
+                                .iter_mut()
+                                .rev()
+                                .find(|(m, _)| m.name == name)
+                            else {
+                                return p.err("visibility directive names an undefined method");
+                            };
+                            *current = level;
+                            if !p.take_p(',') {
+                                break;
+                            }
+                            p.line_breaks()?;
+                        }
+                        p.lines()?;
+                        continue;
+                    }
+                    if p.token() == &Token::EndLine
+                        || matches!(p.token(), Token::Word(w) if w == "end")
+                    {
+                        visibility = level;
+                        p.lines()?;
+                        continue;
+                    }
+                    method_visibility = level;
+                }
+                if p.module_ahead() {
+                    Member::Module
+                } else if p.word("def") {
+                    let offset = p.previous()?.offset as u32;
+                    p.expect_word("self")?;
+                    p.expect_p('.')?;
+                    let mut name = p.name()?;
+                    if keyword(&name) || name.starts_with('@') {
+                        return p.err("expected module method name");
+                    }
+                    if p.token() == &Token::Op("=") {
+                        p.bump()?;
+                        name = Name::join(work, &[&name, "="])?;
+                    }
+                    Member::Method(name, offset)
+                } else if matches!(p.token(), Token::Word(w) if matches!(w.as_str(), "class" | "enum" | "property" | "getter" | "setter" | "alias" | "include" | "extend"))
+                {
+                    return p.err("modules declare methods with def self.name and do not support classes, enums, accessors, aliases, or mixins");
+                } else {
+                    Member::Statement
+                }
+            };
+            match member {
+                Member::Module => {
+                    let nested = self.nested_module().await?;
+                    module.depth = module.depth.max(1 + nested.depth);
+                    module.modules.push(work, nested)?;
+                }
+                Member::Method(name, offset) => {
+                    let definition = self.definition_with_constants(name, true, offset).await?;
+                    module.depth = module.depth.max(1 + definition.depth());
+                    module.methods.push(work, (definition, method_visibility))?;
+                }
+                Member::Statement => {
+                    let stmt = self.statement().await?;
+                    module.depth = module.depth.max(1 + stmt.depth);
+                    module.body.push(work, stmt)?;
+                }
+            }
+            self.p().lines()?;
+        }
+        let mut p = self.p();
+        p.expect_word("end")?;
+        p.check_depth(module.depth)?;
+        p.locals = outer_locals;
+        p.declared_it = outer_it;
+        p.depth -= 1;
+        Ok(module)
     }
 }
