@@ -217,6 +217,15 @@ impl<'a> Driver<'a> {
     }
 }
 
+/// Exact iteration progress kept for the walk that repeats a discarded one, after the contexts
+/// its last pass created are summarized.
+pub(super) struct Resume {
+    pc: usize,
+    arm: usize,
+    pass: usize,
+    states: Buffer<IterationState>,
+}
+
 struct IterationState {
     state: State,
     output: Fact,
@@ -372,16 +381,22 @@ impl Walker<'_> {
             let depth = self.collection_depth(&initial, driver, arm)?;
             if let Node::Tuple(items) = self.facts.node(view) {
                 let length = items.data.len();
-                let mut current = initial.alternatives(self.ctx)?;
-                for index in 0..length {
+                let (start, mut current) = match self.resume.take() {
+                    Some(resume) if resume.pc == pc && resume.arm == i => {
+                        (resume.pass, resume.states)
+                    }
+                    _ => (0, initial.alternatives(self.ctx)?),
+                };
+                let outputs = self.pending_outputs();
+                for pass in start..length {
                     self.ctx.charge(1)?;
                     if current.data.is_empty() {
                         break;
                     }
                     let position = if matches!(method, ReverseEach | Rindex) {
-                        length - 1 - index
+                        length - 1 - pass
                     } else {
-                        index
+                        pass
                     };
                     if driver.skips(position) {
                         continue;
@@ -392,7 +407,22 @@ impl Walker<'_> {
                     let element = items.data[position];
                     let index = self.facts.integer(self.ctx, position as i64)?;
                     let item = self.collection_item(kind, driver, element, index)?;
+                    // A pass that creates contexts reads their provisional summaries, so the
+                    // walk is discarded and repeated once they are summarized. When the earlier
+                    // passes left no other states, it resumes from this pass rather than
+                    // repeating all of them.
+                    let settled = !self.calls.unsettled() && self.pending_outputs() == outputs;
+                    let before = self.iteration_snapshot(&current.data)?;
                     current = self.iteration_next(current, pc, driver, item, depth)?;
+                    if settled && self.calls.unsettled() {
+                        self.resume = Some(Resume {
+                            pc,
+                            arm: i,
+                            pass,
+                            states: before,
+                        });
+                        return Ok(());
+                    }
                 }
                 for current in current.data {
                     self.collection_done(current, pc, method, arm)?;
@@ -432,6 +462,16 @@ impl Walker<'_> {
             }
         }
         Ok(())
+    }
+
+    /// Counts the continuation and handler states produced so far by the current walk.
+    fn pending_outputs(&self) -> (usize, usize) {
+        (
+            self.extra.data.len(),
+            self.native_results
+                .as_ref()
+                .map_or(0, |results| results.data.len()),
+        )
     }
 
     fn collection_depth(

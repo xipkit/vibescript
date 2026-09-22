@@ -187,3 +187,31 @@ fn settled_contexts_and_join_caches_obey_exact_and_sampled_limits() {
         exact_limits(&Engine::new().compile(&source).unwrap());
     }
 }
+
+fn literal_each(count: usize) -> String {
+    let words = (0..count)
+        .map(|index| format!("\"w{index}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        "def total(words)\n  count = 0\n  words.each do |word|\n    count = count + word.length\n  \
+         end\n  count\nend\ndef run\n  total([{words}])\nend\n"
+    )
+}
+
+#[test]
+fn exact_iterations_resume_after_summarizing_each_new_block_context() {
+    // Every element reaches a new block context, and the walk used to repeat all earlier
+    // passes after summarizing it: 150 elements needed about 1.9M steps.
+    let script = Engine::new().compile(&literal_each(150)).unwrap();
+    let expected = script.check(&unlimited()).unwrap();
+    assert!(expected.is_clean(), "{expected:?}");
+    assert!(
+        expected.stats.steps < DEFAULT_STEPS / 3,
+        "{:?}",
+        expected.stats
+    );
+    let report = script.check(&CallOptions::default()).unwrap();
+    same_report(&report, &expected);
+    exact_limits(&Engine::new().compile(&literal_each(12)).unwrap());
+}

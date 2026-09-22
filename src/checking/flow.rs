@@ -986,6 +986,7 @@ pub(super) fn analyze_body(
         extra: Buffer::empty(),
         native_results: None,
         native_frame: None,
+        resume: None,
     };
     walker.calls.track_created(walker.ctx, true)?;
     while let Some((index, polarity)) = queue.data.pop() {
@@ -997,6 +998,7 @@ pub(super) fn analyze_body(
                 .snapshot(walker.ctx)?;
             let edges = walker.block(&graph.blocks.data[index], state)?;
             if !walker.calls.unsettled() {
+                walker.resume = None;
                 break edges;
             }
             // Calls to contexts created by this walk read provisional summaries. Discard its
@@ -1085,6 +1087,7 @@ struct Walker<'a> {
     extra: Buffer<(usize, State)>,
     native_results: Option<Buffer<State>>,
     native_frame: Option<native::NativeFrame>,
+    resume: Option<collection_blocks::Resume>,
 }
 
 impl Walker<'_> {
