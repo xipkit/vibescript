@@ -762,10 +762,14 @@ impl Compiler<'_> {
                 }
             }
             Node::Loop(stmt) => self.declare(std::slice::from_ref(stmt.as_ref()))?,
-            Node::Method(recv, _, args, _)
-            | Node::SafeMethod(recv, _, args, _)
-            | Node::ComputedCall(recv, args) => {
+            Node::Method(recv, _, args, _) | Node::SafeMethod(recv, _, args, _) => {
                 self.declare_expr(recv)?;
+                for arg in args {
+                    self.declare_expr(&arg.value)?;
+                }
+            }
+            Node::ComputedCall(recv, args) => {
+                self.declare_callee(recv)?;
                 for arg in args {
                     self.declare_expr(&arg.value)?;
                 }
@@ -784,6 +788,27 @@ impl Compiler<'_> {
             }
         }
         Ok(())
+    }
+    // As with a named call, `it` in callee position, including either branch of a
+    // rescue modifier callee, names a function rather than the implicit parameter.
+    fn declare_callee(&mut self, callee: &Expr) -> Result<()> {
+        self.work.charge(1)?;
+        match &callee.node {
+            Node::Var(name) if name == "it" => self.capture_name(name),
+            Node::Try(attempt) if attempt.modifier => {
+                let rescues = attempt.rescues.iter().flat_map(|rescue| rescue.body.iter());
+                for stmt in attempt.body.iter().chain(rescues) {
+                    if let Statement::Expr(expr) = &stmt.node {
+                        self.declare_callee(expr)?;
+                    } else {
+                        self.declare(std::slice::from_ref(stmt))?;
+                    }
+                }
+                self.declare(&attempt.alternate)?;
+                self.declare(&attempt.ensure)
+            }
+            _ => self.declare_expr(callee),
+        }
     }
     fn emit(&mut self, op: Op) -> usize {
         let pos = self.code.len();

@@ -263,3 +263,30 @@ fn breaking_a_receiving_loop_restores_local_call_lookup() {
     assert_eq!(error.kind, ErrorKind::Type);
     assert!(error.message.contains("non-callable"));
 }
+
+#[test]
+fn implicit_it_stays_callable_through_rescue_callee_branches() {
+    let script = Engine::new()
+        .compile(
+            "def it(value)\nvalue + 1\nend\n\
+             def fallback(value)\nvalue + 10\nend\n\
+             def run -> array\n[[1, 2, 3].map { (it rescue fallback)(_1) }, \
+             [1].map { ((it rescue it) rescue fallback)(_1) }, [5].map { (it rescue 3) }]\nend\n\
+             def missing\n[1].map { (nope rescue it)(_1) }\nend\n\
+             def reads\n[5].map { [it, (it rescue 0)(_1)] }\nend",
+        )
+        .unwrap();
+    let report = script
+        .check_function("run", &CallOptions::default())
+        .unwrap();
+    assert!(report.diagnostics.is_empty(), "{report:?}");
+    let output = script.call("run", &[], CallOptions::default()).unwrap();
+    assert_eq!(output.value.to_string(), "[[2, 3, 4], [2], [5]]");
+    let output = script.call("missing", &[], CallOptions::default()).unwrap();
+    assert_eq!(output.value.to_string(), "[2]");
+    // A plain read still binds the implicit parameter, which is not callable.
+    let error = script
+        .call("reads", &[], CallOptions::default())
+        .unwrap_err();
+    assert!(error.message.contains("non-callable"), "{}", error.message);
+}
