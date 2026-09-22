@@ -157,19 +157,21 @@ fn affix(ctx: &mut CallContext, bytes: &[u8], part: &[u8], suffix: bool) -> Resu
     json::bytes_equal(ctx, window, part)
 }
 
+// Pad sizes are planned in 64 bits, so widths beyond a 32-bit address space are
+// charged and rejected as they are on 64-bit targets.
 #[derive(Clone, Copy)]
 struct Pad {
-    repeats: usize,
+    repeats: u64,
     prefix: usize,
-    bytes: usize,
+    bytes: u64,
 }
 
-fn plan_pad(ctx: &mut CallContext, pad: &[u8], runes: usize, count: usize) -> Result<Pad> {
-    let repeats = count / runes;
-    let prefix = sequence::rune_offset(ctx, pad, count % runes)?;
+fn plan_pad(ctx: &mut CallContext, pad: &[u8], runes: usize, count: u64) -> Result<Pad> {
+    let repeats = count / runes as u64;
+    let prefix = sequence::rune_offset(ctx, pad, (count % runes as u64) as usize)?;
     let Some(bytes) = repeats
-        .checked_mul(pad.len())
-        .and_then(|n| n.checked_add(prefix))
+        .checked_mul(pad.len() as u64)
+        .and_then(|n| n.checked_add(prefix as u64))
     else {
         return ctx.fail(ErrorKind::Memory, "padding output size overflow");
     };
@@ -207,9 +209,7 @@ fn padding(ctx: &mut CallContext, name: &str, receiver: &Value, args: &[Value]) 
     if i128::from(width) <= length as i128 {
         return Ok(receiver.clone());
     }
-    let Ok(count) = usize::try_from(width as u64 - length as u64) else {
-        return ctx.fail(ErrorKind::Memory, "padding output size overflow");
-    };
+    let count = width as u64 - length as u64;
     let left = match name {
         "rjust" => count,
         "center" => count / 2,
@@ -221,11 +221,15 @@ fn padding(ctx: &mut CallContext, name: &str, receiver: &Value, args: &[Value]) 
     let Some(size) = left
         .bytes
         .checked_add(right.bytes)
-        .and_then(|n| n.checked_add(bytes.len()))
+        .and_then(|n| n.checked_add(bytes.len() as u64))
     else {
         return ctx.fail(ErrorKind::Memory, "padding output size overflow");
     };
-    ctx.work_bytes(size)?;
+    ctx.charge(size.div_ceil(64))?;
+    ctx.checkpoint()?;
+    let Ok(size) = usize::try_from(size) else {
+        return ctx.fail(ErrorKind::Memory, "padding output size overflow");
+    };
     let mut output = Buffer::with_capacity(ctx, size)?;
     write_pad(ctx, &mut output, pad, left)?;
     output.extend(ctx, bytes)?;
