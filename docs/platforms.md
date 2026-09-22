@@ -10,7 +10,7 @@ Host filesystem behavior still matters. The rename witness confirms that Wasmtim
 
 WASI local time is UTC. Cancellation and deadlines are cooperative, with host callbacks responsible for finishing or observing interruption. The optional Tokio runner requires native OS threads and is unavailable on the standard single-threaded WASI target. The core and synchronous host capabilities do not require Tokio.
 
-Memory counters include the target's path workspace. The current WASI adapter uses the conservative 128 KiB workspace shared by non-Unix targets, so a module load reserves more scratch memory than on native Unix. Native and WASI quota thresholds are not interchangeable.
+Memory counters include the target's path workspace. WASI uses wasi-libc's 4,096-byte `PATH_MAX`, the same workspace as native Linux; macOS uses 1,024 bytes. Module-loading memory peaks therefore differ slightly between targets.
 
 Both default features and `--no-default-features` compile for WASI. The explicit SIMD scanners currently target ARM64 and x86_64; other targets use the portable scanners. Disabling `simd` selects those same portable scanners on native builds, although LLVM can still vectorize ordinary Rust code.
 

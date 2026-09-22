@@ -16,7 +16,10 @@ use std::{
 
 #[cfg(unix)]
 pub(super) const PATH_WORKSPACE: usize = libc::PATH_MAX as usize;
-#[cfg(not(unix))]
+// wasi-libc's PATH_MAX, which the libc crate does not export for WASI.
+#[cfg(target_os = "wasi")]
+pub(super) const PATH_WORKSPACE: usize = 4096;
+#[cfg(not(any(unix, target_os = "wasi")))]
 pub(super) const PATH_WORKSPACE: usize = 131072;
 
 #[cfg(not(target_os = "wasi"))]
