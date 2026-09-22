@@ -35,7 +35,7 @@ pub(super) fn member(
         let selected =
             namespaces::member(ctx, storage, &receiver, call.site, call.name, call.access)?;
         if matches!(selected, namespaces::Member::Missing) {
-            namespaces::fallback(call.name)?;
+            namespaces::fallback(storage, &receiver, call.name, call.access.implicit)?;
         }
         selected
     } else {

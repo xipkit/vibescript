@@ -11,8 +11,21 @@ pub(crate) mod forwarding;
 pub(crate) mod introspection;
 mod lifecycle;
 pub(crate) mod names;
+pub(crate) mod suggest;
 
 pub(crate) fn call_keywords(
+    ctx: &mut CallContext,
+    site: CallSite,
+    name: &str,
+    receiver: Value,
+    args: &crate::arguments::Arguments,
+) -> Result<(Value, Value)> {
+    let kind = names::Receiver::of(&receiver);
+    dispatch_keywords(ctx, site, name, receiver, args)
+        .map_err(|error| unknown(site, kind, name, error))
+}
+
+fn dispatch_keywords(
     ctx: &mut CallContext,
     site: CallSite,
     name: &str,
@@ -297,6 +310,17 @@ pub(crate) fn call(
     receiver: Value,
     args: &[Value],
 ) -> Result<(Value, Value)> {
+    let kind = names::Receiver::of(&receiver);
+    dispatch(ctx, site, name, receiver, args).map_err(|error| unknown(site, kind, name, error))
+}
+
+fn dispatch(
+    ctx: &mut CallContext,
+    site: CallSite,
+    name: &str,
+    receiver: Value,
+    args: &[Value],
+) -> Result<(Value, Value)> {
     if forwarding::applicable(ctx, site, name, &receiver)? {
         forwarding::method(name, args)?;
         return Err(Error::new(
@@ -400,10 +424,7 @@ pub(crate) fn call(
                 let result = hash.buffer.data[index].1.clone();
                 return Ok((receiver, result));
             }
-            return Err(Error::new(
-                ErrorKind::Name,
-                format!("unknown hash member {name}"),
-            ));
+            return Err(unknown_hash_member(hash, name));
         }
     }
     let method = site
@@ -426,6 +447,47 @@ pub(crate) fn call(
     }
     let result = ops::method(ctx, method, name, receiver.clone(), args)?;
     Ok((receiver, result))
+}
+
+/// Reports a dispatch failure for a member the receiver's kind does not define
+/// the way the reference does, which rejects the name before any argument is
+/// examined. Members the port answers beyond the reference tables still run,
+/// and scoped lookups keep their own wording.
+fn unknown(site: CallSite, kind: names::Receiver, name: &str, error: Error) -> Error {
+    if site.scope
+        || !matches!(
+            error.kind,
+            ErrorKind::Type | ErrorKind::Name | ErrorKind::Argument
+        )
+        || names::universal(name)
+        || kind.available(name)
+    {
+        return error;
+    }
+    let Some((wording, candidates)) = kind.unknown() else {
+        return error;
+    };
+    let suggestion = suggest::did_you_mean(name, candidates.iter().map(|c| c.as_bytes()));
+    error.with_message(format!("{wording} {name}{suggestion}"))
+}
+
+/// Reports a hash member that is neither a builtin nor a stored key. Universal
+/// helpers keep the plain wording; others suggest builtins and stored keys.
+fn unknown_hash_member(hash: &crate::hash::Hash, name: &str) -> Error {
+    if names::universal(name) {
+        return Error::new(ErrorKind::Name, format!("unknown member {name}"));
+    }
+    let builtins = names::candidates::HASH.iter().map(|c| c.as_bytes());
+    let keys = hash
+        .buffer
+        .data
+        .iter()
+        .filter_map(|(key, _)| key.as_bytes());
+    let suggestion = suggest::did_you_mean(name, builtins.chain(keys));
+    Error::new(
+        ErrorKind::Name,
+        format!("unknown hash method {name}{suggestion}"),
+    )
 }
 
 pub(crate) fn exported(
@@ -499,11 +561,20 @@ pub(crate) fn field(
                 }
                 return Ok(Some(hash.buffer.data[index].1.clone()));
             }
-            if site.scope || !hash_builtin(name) {
+            if site.scope {
+                let keys = hash
+                    .buffer
+                    .data
+                    .iter()
+                    .filter_map(|(key, _)| key.as_bytes());
+                let suggestion = suggest::did_you_mean(name, keys);
                 return Err(Error::new(
                     ErrorKind::Name,
-                    format!("unknown member {name}"),
+                    format!("unknown member {name}{suggestion}"),
                 ));
+            }
+            if !hash_builtin(name) {
+                return Err(unknown_hash_member(hash, name));
             }
         }
     }

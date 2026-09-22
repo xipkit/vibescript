@@ -205,6 +205,13 @@ impl Error {
         self
     }
 
+    /// Replaces the message, keeping the kind, class and location.
+    pub(crate) fn with_message(mut self, message: String) -> Self {
+        self.message = message;
+        self.raw_message = None;
+        self
+    }
+
     /// Sets the script exception class without changing the execution's budget state.
     pub fn with_class(mut self, class: ErrorClass) -> Self {
         self.class = class;

@@ -81,3 +81,134 @@ fn unsupported_hash_keys_name_the_kind_and_the_member_input() {
         assert_eq!(message(body), expected, "{body}");
     }
 }
+
+#[test]
+fn unknown_members_name_the_receiver_kind_and_suggest_close_names() {
+    let cases = [
+        ("[1].frobnicate", "unknown array method frobnicate"),
+        (
+            "[1].lengt",
+            "unknown array method lengt (did you mean \"length\"?)",
+        ),
+        (
+            "[1].uniq!",
+            "unknown array method uniq! (did you mean \"uniq\" or \"union\"?)",
+        ),
+        (
+            "[1].to_a",
+            "unknown array method to_a (did you mean \"to_h\" or \"to_s\"?)",
+        ),
+        (
+            "\"x\".uppcase",
+            "unknown string method uppcase (did you mean \"upcase\" or \"upcase!\"?)",
+        ),
+        ("\"x\".push(1)", "unknown string method push"),
+        (
+            "{a: 1}.to_s",
+            "unknown hash method to_s (did you mean \"to_a\"?)",
+        ),
+        (
+            "{counter: 1}.countr",
+            "unknown hash method countr (did you mean \"counter\"?)",
+        ),
+        ("nil.empty?", "unknown nil method empty?"),
+        (
+            "nil.inspct",
+            "unknown nil method inspct (did you mean \"inspect\"?)",
+        ),
+        ("true.foo", "unknown bool method foo"),
+        (
+            "5.tims",
+            "unknown int method tims (did you mean \"times\"?)",
+        ),
+        ("5.chr", "unknown int method chr"),
+        ("1.5.foo", "unknown float method foo"),
+        (
+            ":a.id2nam",
+            "unknown symbol method id2nam (did you mean \"id2name\"?)",
+        ),
+        ("(1..2).reverse", "unknown range method reverse"),
+        (
+            "/a/.matches?",
+            "unknown regex method matches? (did you mean \"match?\"?)",
+        ),
+        ("money(\"1.00 USD\").nope", "unknown money member nope"),
+        (
+            "Time.now.yer",
+            "unknown time method yer (did you mean \"year\"?)",
+        ),
+        (
+            "1.second.in_minuts",
+            "unknown duration method in_minuts (did you mean \"in_minutes\"?)",
+        ),
+        ("JSON.foo", "unknown hash method foo"),
+        ("5.each { |x| x }", "unknown int method each"),
+    ];
+    for (body, expected) in cases {
+        assert_eq!(message(body), expected, "{body}");
+    }
+}
+
+fn function_message(source: &str, function: &str) -> String {
+    let script = Engine::new()
+        .compile(source)
+        .unwrap_or_else(|error| panic!("{source}: {error}"));
+    match script.call(function, &[], CallOptions::default()) {
+        Ok(outcome) => panic!("{source}: expected an error, got {}", outcome.value),
+        Err(error) => error.message,
+    }
+}
+
+#[test]
+fn missing_names_read_as_undefined_variables_or_unknown_members() {
+    let cases = [
+        (
+            "def run\n  length = 5\n  lengtt\nend",
+            "undefined variable lengtt (did you mean \"length\"?)",
+        ),
+        (
+            "def run\n  asert true\nend",
+            "undefined variable asert (did you mean \"assert\"?)",
+        ),
+        (
+            "def helper\n  1\nend\ndef run\n  helpr()\nend",
+            "undefined variable helpr (did you mean \"helper\"?)",
+        ),
+        ("def run\n  zzzzzz\nend", "undefined variable zzzzzz"),
+        (
+            "class Greeter\n  def greet\n    1\n  end\nend\ndef run\n  Greeter.new.gret\nend",
+            "unknown member gret (did you mean \"greet\"?)",
+        ),
+        (
+            "class Vault\n  private def secret\n    1\n  end\n  def probe\n    secrez\n  end\nend\ndef run\n  Vault.new.probe\nend",
+            "unknown member secrez (did you mean \"secret\"?)",
+        ),
+        (
+            "class Vault\n  private def secret\n    1\n  end\nend\ndef run\n  Vault.new.secrez\nend",
+            "unknown member secrez",
+        ),
+        (
+            "class Counter\n  def self.instances\n    1\n  end\nend\ndef run\n  Counter.instnces\nend",
+            "unknown class member instnces (did you mean \"instances\"?)",
+        ),
+        (
+            "class A\n  attr_reader :x\nend\ndef run\n  1\nend",
+            "unknown class member attr_reader (use \"getter x\"; the name is bare, not a symbol)",
+        ),
+        (
+            "module Config\n  LIMIT = 1\nend\ndef run\n  Config::LIMT\nend",
+            "unknown constant Config::LIMT (did you mean \"LIMIT\"?)",
+        ),
+        (
+            "enum Status\n  Draft\nend\ndef run\n  Status::Drafd\nend",
+            "unknown enum member Status::Drafd (did you mean \"Draft\"?)",
+        ),
+        (
+            "enum Status\n  Draft\nend\ndef run\n  Status::Draft.strng\nend",
+            "unknown enum member property strng (did you mean \"string\"?)",
+        ),
+    ];
+    for (source, expected) in cases {
+        assert_eq!(function_message(source, "run"), expected, "{source}");
+    }
+}

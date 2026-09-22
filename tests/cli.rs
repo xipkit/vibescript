@@ -1741,7 +1741,7 @@ fn assert_lookup_failure(run: &Run, name: &str) {
     assert_eq!(run.stdout, "");
     assert!(
         run.stderr
-            .starts_with(&format!("unknown class member {name}\n")),
+            .starts_with(&format!("undefined variable {name}\n")),
         "{}",
         run.stderr
     );

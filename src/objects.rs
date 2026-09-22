@@ -502,6 +502,23 @@ pub(crate) fn field(
     Ok(Some(data.map(ctx, &heap, &value, false)?.unwrap_or(value)))
 }
 
+/// Renders with the instance's field names, as for a lookup-failure suggestion.
+pub(crate) fn with_field_names<R>(
+    instance: &Arc<Instance>,
+    render: impl FnOnce(&mut dyn Iterator<Item = &[u8]>) -> R,
+) -> Result<R> {
+    let heap = instance.heap()?;
+    let data = heap.data.lock().unwrap();
+    let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+    Ok(render(
+        &mut fields
+            .buffer
+            .data
+            .iter()
+            .filter_map(|(key, _)| key.as_bytes()),
+    ))
+}
+
 pub(crate) fn children(
     ctx: &mut CallContext,
     instance: &Arc<Instance>,

@@ -71,16 +71,16 @@ pub(super) fn identifier(
             Ok(Target::Helper(receiver, helper))
         }
         namespaces::Member::Helper(_, _) => Ok(Target::Member(Value::nil(), index)),
-        namespaces::Member::Missing => {
-            if namespace.is_some() {
-                namespaces::fallback(name)?;
-                Ok(Target::Member(Value::nil(), index))
-            } else {
-                Err(namespaces::removed(name).unwrap_or_else(|| {
-                    Error::new(ErrorKind::Name, format!("undefined variable {name}"))
-                }))
-            }
-        }
+        namespaces::Member::Missing => match namespace {
+            Some(module) if !names::universal(name) => Err(namespaces::missing_implicit(
+                storage,
+                frames.data[current].receiver.as_ref(),
+                &program.namespaces[module],
+                name,
+            )),
+            Some(_) => Ok(Target::Member(Value::nil(), index)),
+            None => Err(super::undefined(program, frames, storage, current, name)),
+        },
     }
 }
 

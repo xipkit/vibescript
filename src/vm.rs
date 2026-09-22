@@ -1100,9 +1100,12 @@ impl Run {
                         }
                         stack.push(ctx, value)?;
                     } else {
-                        return Err(Error::new(
-                            ErrorKind::Name,
-                            format!("undefined variable {}", program.members[name]),
+                        return Err(undefined(
+                            program,
+                            frames,
+                            storage,
+                            current,
+                            &program.members[name],
                         ));
                     }
                 }
@@ -1159,9 +1162,18 @@ impl Run {
                             stack.push(ctx, value)?;
                         }
                         namespaces::Member::Missing => {
-                            namespaces::fallback(&program.members[name])?;
-                            let module = namespace
-                                .ok_or_else(|| Error::new(ErrorKind::Name, "undefined variable"))?;
+                            let text = &program.members[name];
+                            let Some(module) = namespace else {
+                                return Err(undefined(program, frames, storage, current, text));
+                            };
+                            if !members::names::universal(text) {
+                                return Err(namespaces::missing_implicit(
+                                    storage,
+                                    self_value.as_ref(),
+                                    &program.namespaces[module],
+                                    text,
+                                ));
+                            }
                             let receiver = if let Some(value) = &self_value {
                                 value.clone()
                             } else {
@@ -1792,7 +1804,9 @@ impl Run {
                                 stack.push(ctx, value)?;
                                 continue;
                             }
-                            namespaces::Member::Missing => namespaces::fallback(name)?,
+                            namespaces::Member::Missing => {
+                                namespaces::fallback(storage, &receiver, name, false)?
+                            }
                         }
                     }
                     let address = storage.addresses.data.last_mut().unwrap();
@@ -1906,7 +1920,9 @@ impl Run {
                                     stack.push(ctx, value)?;
                                     continue;
                                 }
-                                namespaces::Member::Missing => namespaces::fallback(name)?,
+                                namespaces::Member::Missing => {
+                                    namespaces::fallback(storage, &receiver, name, false)?
+                                }
                             }
                         }
                         let address = storage.addresses.data.last().unwrap();
@@ -2161,7 +2177,9 @@ impl Run {
                                 stack.push(ctx, value)?;
                                 continue;
                             }
-                            namespaces::Member::Missing => namespaces::fallback(name)?,
+                            namespaces::Member::Missing => {
+                                namespaces::fallback(storage, receiver, name, false)?
+                            }
                         }
                     }
                     let guard_program = programs::address(ctx, storage, &address)?;
@@ -2461,10 +2479,17 @@ impl Run {
                                 crate::arguments::Target::Helper(receiver, helper)
                             }
                             namespaces::Member::Missing => {
-                                namespaces::fallback(name)?;
-                                let module = namespace.ok_or_else(|| {
-                                    Error::new(ErrorKind::Name, "undefined variable")
-                                })?;
+                                let Some(module) = namespace else {
+                                    return Err(undefined(program, frames, storage, current, name));
+                                };
+                                if !members::names::universal(name) {
+                                    return Err(namespaces::missing_implicit(
+                                        storage,
+                                        self_value.as_ref(),
+                                        &program.namespaces[module],
+                                        name,
+                                    ));
+                                }
                                 crate::arguments::Target::Plain(Invocation::ImplicitMember(
                                     module, name_index,
                                 ))
@@ -2846,7 +2871,9 @@ impl Run {
                                 stack.push(ctx, value)?;
                                 continue;
                             }
-                            namespaces::Member::Missing => namespaces::fallback(name)?,
+                            namespaces::Member::Missing => {
+                                namespaces::fallback(storage, receiver, name, false)?
+                            }
                         }
                     }
                     let (_, value) = members::call(
@@ -3518,6 +3545,78 @@ fn value_invocation(value: &Value) -> crate::arguments::Target {
         Kind::Offset(offset) => crate::arguments::Target::Offset(offset.clone()),
         _ => crate::arguments::Target::Plain(Invocation::NonCallable),
     }
+}
+
+/// Reports a bare name that no scope binds, suggesting the assigned locals, the
+/// script's declarations and the builtin globals the reference exposes. A
+/// removed callable constructor keeps its teaching message.
+fn undefined(
+    program: &Program,
+    frames: &Buffer<Frame>,
+    storage: &Storage,
+    current: usize,
+    name: &str,
+) -> Error {
+    if let Some(error) = namespaces::removed(name) {
+        return error;
+    }
+    const BUILTINS: &[&str] = &[
+        "assert",
+        "format",
+        "loop",
+        "money",
+        "money_cents",
+        "p",
+        "print",
+        "puts",
+        "require",
+        "now",
+        "rand",
+        "sprintf",
+        "srand",
+        "uuid",
+        "warn",
+        "random_id",
+        "to_int",
+        "to_float",
+        "proc",
+        "lambda",
+        "Proc",
+        "JSON",
+        "Regex",
+        "Regexp",
+        "Hash",
+        "Math",
+        "Duration",
+        "Time",
+    ];
+    let frame = &frames.data[current];
+    let locals = frame
+        .function
+        .map(|function| frame.program.functions[function].local_names.as_slice())
+        .unwrap_or_default()
+        .iter()
+        .enumerate()
+        .filter(|(slot, _)| {
+            storage
+                .locals
+                .data
+                .get(frame.local_base + slot)
+                .is_some_and(Option::is_some)
+        })
+        .map(|(_, local)| local.as_bytes());
+    let candidates = locals
+        .chain(program.names.keys().map(|name| name.as_bytes()))
+        .chain(program.declaration_names.keys().map(|name| name.as_bytes()))
+        .chain(program.hosts.iter().map(|name| name.as_bytes()))
+        .chain(BUILTINS.iter().map(|name| name.as_bytes()));
+    Error::new(
+        ErrorKind::Name,
+        format!(
+            "undefined variable {name}{}",
+            members::suggest::did_you_mean(name, candidates)
+        ),
+    )
 }
 
 fn global_index(program: &Program, name: &str) -> Option<usize> {

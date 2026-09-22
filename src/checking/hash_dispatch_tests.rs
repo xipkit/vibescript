@@ -183,7 +183,7 @@ fn general_and_open_contracts_keep_native_results_and_possible_overrides() {
         for input in both() {
             assert_eq!(
                 possible_failure(source, &[input]),
-                "unknown member b",
+                "unknown hash method b (did you mean \"a\"?)",
                 "{source}"
             );
         }
@@ -214,8 +214,16 @@ fn known_collisions_and_misses_remain_diagnostics() {
             plain(),
             "attempted to call non-callable value",
         ),
-        ("def run(h:{a:int});h.b;end", plain(), "unknown member b"),
-        ("def run(h:{a:int});h.b;end", object(), "unknown member b"),
+        (
+            "def run(h:{a:int});h.b;end",
+            plain(),
+            "unknown hash method b",
+        ),
+        (
+            "def run(h:{a:int});h.b;end",
+            object(),
+            "unknown hash method b",
+        ),
         (
             "def run(h:{a:int});h::a;end",
             plain(),
@@ -264,7 +272,7 @@ fn known_collisions_and_misses_remain_diagnostics() {
         (
             "def run(h:hash<string,int>);h.clear.size;end",
             Value::object(vec![(b"clear".to_vec(), Value::int(7))]),
-            "unsupported operand types",
+            "unknown int method size",
         ),
     ] {
         let error = runtime_error(source, &[input]);
@@ -400,7 +408,7 @@ fn general_hash_members_keep_the_declared_value_type_when_present() {
         for input in both() {
             assert_eq!(
                 possible_failure(source, &[input]),
-                "unknown member b",
+                "unknown hash method b (did you mean \"a\"?)",
                 "{source}"
             );
         }

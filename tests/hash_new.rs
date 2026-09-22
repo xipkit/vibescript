@@ -64,7 +64,7 @@ fn hash_constructor_validation_preserves_argument_order_and_skips_blocks() {
             "Hash.new takes no default",
         ),
         ("Hash.new{mark(1)}", vec![], "Hash.new takes no default"),
-        ("Hash.new.call(mark(1))", vec![], "unknown member call"),
+        ("Hash.new.call(mark(1))", vec![], "unknown hash method call"),
     ] {
         events.lock().unwrap().clear();
         let error = engine

@@ -1,5 +1,6 @@
 use super::*;
 use crate::{
+    members::{names::candidates::UNIVERSAL, suggest::Suggestion},
     namespace::{Namespace, State},
     syntax::modules::Visibility,
 };
@@ -110,31 +111,18 @@ pub(super) fn implicit(
     )
 }
 
-pub(super) fn fallback(name: &str) -> Result<()> {
-    if matches!(
-        name,
-        "nil?"
-            | "itself"
-            | "dup"
-            | "clone"
-            | "freeze"
-            | "frozen?"
-            | "tap"
-            | "yield_self"
-            | "eql?"
-            | "equal?"
-            | "respond_to?"
-            | "is_a?"
-            | "kind_of?"
-            | "instance_of?"
-            | "is_type?"
-            | "send"
-            | "public_send"
-    ) {
+/// Accepts a universal helper, which the generic member dispatch answers for
+/// every receiver; any other name is missing from the class or instance.
+pub(super) fn fallback(
+    storage: &Storage,
+    receiver: &Value,
+    name: &str,
+    implicit: bool,
+) -> Result<()> {
+    if crate::members::names::universal(name) {
         Ok(())
     } else {
-        Err(removed(name)
-            .unwrap_or_else(|| Error::new(ErrorKind::Name, format!("unknown class member {name}"))))
+        Err(missing(storage, receiver, name, implicit))
     }
 }
 
@@ -161,6 +149,149 @@ pub(super) fn removed(name: &str) -> Option<Error> {
             "{constructor} was removed; executable code is not a value. Define a named function and call it, or attach a block to the call that runs it"
         ),
     ))
+}
+
+/// Reports a name missing from a class or instance as the reference does.
+/// Private and protected methods are suggested only to implicit calls, which
+/// could reach them. Nothing here charges the call: it only renders.
+pub(super) fn missing(storage: &Storage, receiver: &Value, name: &str, implicit: bool) -> Error {
+    match &receiver.0 {
+        Kind::Namespace(namespace) => class_missing(storage, &namespace.definition, name, implicit),
+        Kind::Instance(instance) => instance_missing(instance, name, implicit),
+        _ => Error::new(ErrorKind::Name, format!("unknown member {name}")),
+    }
+}
+
+/// Reports a bare name missing from the current class context, whose receiver
+/// is the running instance or class when one is bound. A removed callable
+/// constructor keeps its teaching message.
+pub(super) fn missing_implicit(
+    storage: &Storage,
+    receiver: Option<&Value>,
+    definition: &Arc<crate::namespace::Definition>,
+    name: &str,
+) -> Error {
+    if let Some(error) = removed(name) {
+        return error;
+    }
+    match receiver {
+        Some(receiver @ Value(Kind::Namespace(_) | Kind::Instance(_))) => {
+            missing(storage, receiver, name, true)
+        }
+        _ => class_missing(storage, definition, name, true),
+    }
+}
+
+/// Reports a scoped constant a class or module does not define, suggesting its
+/// fields.
+fn unknown_constant(
+    storage: &Storage,
+    definition: &Arc<crate::namespace::Definition>,
+    name: &str,
+) -> Error {
+    let mut suggestion = Suggestion::new(name);
+    let mut render = |fields: &mut dyn Iterator<Item = &[u8]>| {
+        suggestion.offer(fields);
+        format!("unknown constant {}::{name}{suggestion}", definition.name)
+    };
+    Error::new(
+        ErrorKind::Name,
+        with_class_fields(storage, definition, &mut render)
+            .unwrap_or_else(|| format!("unknown constant {}::{name}", definition.name)),
+    )
+}
+
+/// Renders with a class's field names without charging the call.
+fn with_class_fields<R>(
+    storage: &Storage,
+    definition: &Arc<crate::namespace::Definition>,
+    render: &mut dyn FnMut(&mut dyn Iterator<Item = &[u8]>) -> R,
+) -> Option<R> {
+    let state = storage
+        .namespaces
+        .data
+        .iter()
+        .find(|state| Arc::ptr_eq(&state.namespace.definition, definition));
+    match state {
+        Some(State {
+            backing: Some(backing),
+            ..
+        }) => crate::objects::with_field_names(backing, render).ok(),
+        Some(state) => Some(render(
+            &mut state
+                .fields
+                .buffer
+                .data
+                .iter()
+                .filter_map(|(key, _)| key.as_bytes()),
+        )),
+        None => Some(render(&mut std::iter::empty())),
+    }
+}
+
+/// Method names a caller could reach: implicit calls also reach private and
+/// protected methods.
+fn accessible(methods: &[crate::namespace::Method], implicit: bool) -> impl Iterator<Item = &[u8]> {
+    methods
+        .iter()
+        .filter(move |method| implicit || matches!(method.visibility, Visibility::Public))
+        .map(|method| method.name.as_bytes())
+}
+
+/// An instance suggests `class`, its methods, fields and the universal helpers.
+fn instance_missing(instance: &Arc<crate::objects::Instance>, name: &str, implicit: bool) -> Error {
+    let class = instance.class();
+    let mut suggestion = Suggestion::new(name);
+    suggestion
+        .offer([&b"class"[..]])
+        .offer(accessible(&class.definition.instance_methods, implicit));
+    let rendered = crate::objects::with_field_names(instance, |fields| {
+        suggestion
+            .offer(fields)
+            .offer(UNIVERSAL.iter().map(|name| name.as_bytes()));
+        format!("unknown member {name}{suggestion}")
+    });
+    Error::new(
+        ErrorKind::Name,
+        rendered.unwrap_or_else(|_| format!("unknown member {name}")),
+    )
+}
+
+/// A class suggests `new`, its class methods, class fields and the universal
+/// helpers, unless the name is a Ruby class macro spelled differently here.
+fn class_missing(
+    storage: &Storage,
+    definition: &Arc<crate::namespace::Definition>,
+    name: &str,
+    implicit: bool,
+) -> Error {
+    let alternative = match name {
+        "attr_accessor" => Some("use \"property x\" for a reader and writer"),
+        "attr_reader" => Some("use \"getter x\""),
+        "attr_writer" => Some("use \"setter x\""),
+        _ => None,
+    };
+    if let Some(alternative) = alternative {
+        return Error::new(
+            ErrorKind::Name,
+            format!("unknown class member {name} ({alternative}; the name is bare, not a symbol)"),
+        );
+    }
+    let mut suggestion = Suggestion::new(name);
+    suggestion
+        .offer(definition.constructor.map(|_| &b"new"[..]))
+        .offer(accessible(&definition.methods, implicit));
+    let mut render = |fields: &mut dyn Iterator<Item = &[u8]>| {
+        suggestion
+            .offer(fields)
+            .offer(UNIVERSAL.iter().map(|name| name.as_bytes()));
+        format!("unknown class member {name}{suggestion}")
+    };
+    Error::new(
+        ErrorKind::Name,
+        with_class_fields(storage, definition, &mut render)
+            .unwrap_or_else(|| format!("unknown class member {name}")),
+    )
 }
 
 pub(super) fn state(
@@ -372,9 +503,10 @@ pub(super) fn member(
                 "scoped member access requires a namespace",
             ));
         }
-        return field(program, ctx, storage, definition.index, name)?
-            .map(Member::Value)
-            .ok_or_else(|| Error::new(ErrorKind::Name, "unknown class constant"));
+        return match field(program, ctx, storage, definition.index, name)? {
+            Some(value) => Ok(Member::Value(value)),
+            None => Err(unknown_constant(storage, definition, name)),
+        };
     }
     if instance.is_some() && name == "class" {
         return Ok(Member::Value(Value(Kind::Namespace(

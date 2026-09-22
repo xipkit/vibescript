@@ -45,6 +45,11 @@ impl Transform {
     }
 }
 
+/// Returns the case-fold class of a rune: equal folds compare equal ignoring case.
+pub(crate) fn fold(rune: char) -> u32 {
+    entry(rune).map_or(rune as u32, |(_, fold)| fold)
+}
+
 fn entry(rune: char) -> Option<(&'static [u32; 5], u32)> {
     let point = rune as u32;
     let index = data::MAPPINGS.partition_point(|&(r, _, _)| r < point);
@@ -150,8 +155,7 @@ pub(crate) fn equal(ctx: &mut CallContext, mut a: &[u8], mut b: &[u8]) -> Result
         ctx.charge(1)?;
         let (left, n, _) = scan::rune(a);
         let (right, m, _) = scan::rune(b);
-        let canonical = |r| entry(r).map_or(r as u32, |(_, fold)| fold);
-        if canonical(left) != canonical(right) {
+        if fold(left) != fold(right) {
             return Ok(false);
         }
         a = &a[n..];

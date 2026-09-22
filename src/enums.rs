@@ -332,9 +332,21 @@ pub(crate) fn call(
                 "scoped member access requires an enum type or namespace",
             ));
         };
-        let index = enumeration
-            .lookup(ctx, name.as_bytes())?
-            .ok_or_else(|| Error::new(ErrorKind::Name, "unknown enum member"))?;
+        let Some(index) = enumeration.lookup(ctx, name.as_bytes())? else {
+            let definition = &enumeration.definition;
+            let members = definition
+                .members
+                .iter()
+                .map(|member| member.name.as_bytes());
+            let suggestion = crate::members::suggest::did_you_mean(name, members);
+            return Err(Error::new(
+                ErrorKind::Name,
+                format!(
+                    "unknown enum member {}::{name}{suggestion}",
+                    definition.name
+                ),
+            ));
+        };
         if !site.auto {
             return Err(Error::new(
                 ErrorKind::Type,
