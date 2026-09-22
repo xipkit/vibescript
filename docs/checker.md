@@ -378,6 +378,14 @@ The metered iterative comparison walk memoizes value pairs and their nesting dep
 
 Opaque left receivers can dispatch custom `==` or `!=` operators with arbitrary result types, so analysis keeps those results unknown. Known native receivers still produce booleans with opaque arguments. Unresolved receiver types remain explicitly incomplete; equality does not turn them into native identity comparisons.
 
+## Analysis cost
+
+Fixed points repeat the same work on the same facts: every loop walk, widening step and call cycle joins, compares and indexes facts that an earlier walk already produced. A join of two facts returns an operand that already covers the other or merges both sorted alternative lists; operator results, collection reads and widened fields are collected and joined once after removing repeated alternatives. Because facts are interned and these operations are deterministic, a bounded, metered cache remembers unions, widenings, primitive operators and their possible errors, single-selector reads, indexed writes, interpolated text and truthiness. A remembered result is the fact the operation would build again, so replaying it creates no facts. Integer comparisons stop evaluating integer pairs once both outcomes are possible.
+
+A call that creates a new callee context reads a provisional summary with no returns. The walker now discards that block walk, summarizes the new contexts and walks the block again, up to eight nested summaries; deeper chains still use the work queue. Before, each new specialization, such as one per widening step of a loop that calls a helper, cost the caller another complete analysis. Nested summaries keep the caller's walk state alive, so peak memory can rise by the state of the pending callers. Block exits are recorded through an index by instruction, and a recursive context pairs its previous exits by instruction. A declaration whose body and nested blocks cannot observe an incoming block through `yield`, `block_given?` or a required-block check is analyzed once rather than with and without a block.
+
+Across the 277 local corpus programs, the most expensive whole-file check fell from 30.8M steps to under 1M, and the 24 programs that exhausted the default step quota now check within it. Reports are unchanged except where the order of analysis is visible: two messages list union alternatives in another order, one describes a recursive result more precisely, and one message variant for a write that remains diagnosed at the same location disappears because a loop widens a counter from a different earlier bound. Loop widening still steps through every integer constant in the program, so loops over large literal arrays remain the most expensive whole-file checks. Exact iteration of literal collections can also multiply the alternatives of captured hashes.
+
 ## Remaining integration
 
 Completion still requires:
