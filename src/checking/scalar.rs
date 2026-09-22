@@ -246,7 +246,7 @@ impl Facts {
                 let arrays = [array(left), array(right)];
                 if matches!(op, "-" | "&") && arrays[0] {
                     let next = self.array_set(ctx, op, left, right)?;
-                    result.value = self.union(ctx, &[result.value, next.value])?;
+                    values.push(ctx, next.value)?;
                     result.rejected |= next.rejected;
                     result.unsupported |= next.unsupported;
                     continue;
