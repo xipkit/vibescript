@@ -214,3 +214,6 @@ mod text_member_tests;
 
 #[cfg(test)]
 mod range_tests;
+
+#[cfg(test)]
+mod join_tests;
