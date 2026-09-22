@@ -8,6 +8,38 @@ use crate::{
 };
 use std::{cmp::Ordering, mem};
 
+/// Refuses any argument, keyword or block for a nullary member such as
+/// `duration.to_s`, in the order and words Go uses.
+pub(crate) fn nullary(name: &str, args: &[Value], keywords: bool, block: bool) -> Result<()> {
+    let refused = if !args.is_empty() {
+        "arguments"
+    } else if keywords {
+        "keyword arguments"
+    } else if block {
+        "a block"
+    } else {
+        return Ok(());
+    };
+    Err(Error::new(
+        ErrorKind::Argument,
+        format!("{name} does not take {refused}"),
+    ))
+}
+
+/// Checks the call shape of a `between?` member, in the order and words Go uses.
+pub(crate) fn between(name: &str, args: &[Value], keywords: bool, block: bool) -> Result<()> {
+    let message = if keywords {
+        "does not take keyword arguments"
+    } else if block {
+        "does not accept a block"
+    } else if args.len() != 2 {
+        "expects min and max"
+    } else {
+        return Ok(());
+    };
+    Err(Error::new(ErrorKind::Argument, format!("{name} {message}")))
+}
+
 pub(crate) enum Target {
     Output(crate::output::Kind, usize),
     Format(usize),

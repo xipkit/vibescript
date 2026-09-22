@@ -390,6 +390,7 @@ pub(crate) fn anchor(
     before: bool,
 ) -> Result<Value> {
     ctx.checkpoint()?;
+    let name = if before { "before" } else { "after" };
     let start = match args {
         [] => Stamp::now(),
         [input] => match &input.0 {
@@ -397,11 +398,16 @@ pub(crate) fn anchor(
             _ => stamp(input).ok_or_else(|| {
                 Error::new(
                     ErrorKind::Type,
-                    "duration anchor expects a Time or RFC3339 string",
+                    format!("{name} expects a Time or RFC3339 string"),
                 )
             })?,
         },
-        _ => return Err(invalid()),
+        _ => {
+            return Err(Error::new(
+                ErrorKind::Argument,
+                format!("{name} expects at most one time argument"),
+            ));
+        }
     };
     // Duration anchors retain Go's wrapping nanosecond conversion, unlike Time arithmetic.
     let delta = seconds.wrapping_mul(NANOS);

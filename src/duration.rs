@@ -6,9 +6,6 @@ use std::{cmp::Ordering, fmt::Write};
 
 mod parse;
 
-fn invalid() -> Error {
-    Error::new(ErrorKind::Argument, "invalid duration literal")
-}
 /// Reports a result outside the 64-bit seconds domain, naming the operation as Go does.
 fn range_error(method: &str) -> Error {
     Error::new(
@@ -25,37 +22,63 @@ fn operand(value: &Value, method: &str) -> Result<i64> {
     crate::conversion::int64(value)
 }
 
+/// Converts whole seconds as Go's `NumericToSeconds` does.
 fn numeric(value: &Value) -> Result<i64> {
-    crate::sequence::integer(value).map_err(|_| {
-        Error::new(
+    if !matches!(value.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_)) {
+        return Err(Error::new(
             ErrorKind::Type,
-            "duration expects finite seconds within the signed 64-bit range",
-        )
-    })
+            "duration expects numeric seconds",
+        ));
+    }
+    crate::conversion::int64(value)
 }
+
+const PARTS: [&str; 5] = ["weeks", "days", "hours", "minutes", "seconds"];
 
 pub(crate) fn build(
     ctx: &mut CallContext,
     args: &[Value],
     keywords: &[(Value, Value)],
 ) -> Result<Value> {
-    if keywords.is_empty() {
-        ops::arity(args, 1)?;
+    if keywords.is_empty() && args.len() == 1 {
         return numeric(&args[0]).map(Value::duration);
     }
-    ops::arity(args, 0)?;
-    let mut parts = [0; 5];
-    for (key, value) in keywords {
+    if !args.is_empty() {
+        return Err(Error::new(
+            ErrorKind::Argument,
+            "Duration.build accepts either seconds or named parts, not both",
+        ));
+    }
+    if keywords.is_empty() {
+        return Err(Error::new(
+            ErrorKind::Argument,
+            "Duration.build expects seconds or named parts",
+        ));
+    }
+    let mut values = [None; 5];
+    for (index, (key, _)) in keywords.iter().enumerate() {
         ctx.charge(1)?;
-        let index = match key.as_bytes() {
-            Some(b"weeks") => 0,
-            Some(b"days") => 1,
-            Some(b"hours") => 2,
-            Some(b"minutes") => 3,
-            Some(b"seconds") => 4,
-            _ => return Err(Error::new(ErrorKind::Argument, "unknown duration part")),
+        let bytes = key.as_bytes().unwrap_or_default();
+        let Some(part) = PARTS.iter().position(|part| part.as_bytes() == bytes) else {
+            let mut message = b"Duration.build unknown part ".to_vec();
+            crate::shapes::quote(bytes, &mut message);
+            return Err(Error::new(
+                ErrorKind::Argument,
+                String::from_utf8_lossy(&message).into_owned(),
+            ));
         };
-        parts[index] = numeric(value)?;
+        values[part] = Some(index);
+    }
+    let mut parts = [0; 5];
+    for (part, index) in values.into_iter().enumerate() {
+        if let Some(index) = index {
+            parts[part] = numeric(&keywords[index].1).map_err(|error| {
+                Error::new(
+                    error.kind,
+                    format!("Duration.build {}: {}", PARTS[part], error.message),
+                )
+            })?;
+        }
     }
     let total = parts
         .into_iter()
@@ -67,11 +90,14 @@ pub(crate) fn build(
 }
 
 pub(crate) fn parse(ctx: &mut CallContext, args: &[Value]) -> Result<Value> {
-    ops::arity(args, 1)?;
-    let Kind::Bytes(bytes) = &args[0].0 else {
+    let [Value(Kind::Bytes(bytes))] = args else {
         return Err(Error::new(
-            ErrorKind::Type,
-            "Duration.parse expects a string",
+            if args.len() == 1 {
+                ErrorKind::Type
+            } else {
+                ErrorKind::Argument
+            },
+            "Duration.parse expects a duration string",
         ));
     };
     parse::parse(ctx, &bytes.data).map(Value::duration)
@@ -323,7 +349,11 @@ pub(crate) fn member(
             if keywords {
                 return Err(Error::new(
                     ErrorKind::Argument,
-                    "duration anchor requires a call without keyword arguments",
+                    if matches!(name, "ago" | "before" | "until") {
+                        "duration.before does not accept keyword arguments"
+                    } else {
+                        "duration.after does not accept keyword arguments"
+                    },
                 ));
             }
             crate::time::anchor(
@@ -348,23 +378,11 @@ pub(crate) fn member(
             }
         }
         "to_s" | "string" | "inspect" => {
-            if keywords || block {
-                return Err(Error::new(
-                    ErrorKind::Argument,
-                    "unsupported duration arguments",
-                ));
-            }
-            ops::arity(args, 0)?;
+            crate::arguments::nullary(&format!("duration.{name}"), args, keywords, block)?;
             text(ctx, seconds)?
         }
         "between?" => {
-            if keywords || block {
-                return Err(Error::new(
-                    ErrorKind::Argument,
-                    "unsupported duration arguments",
-                ));
-            }
-            ops::arity(args, 2)?;
+            crate::arguments::between("duration.between?", args, keywords, block)?;
             let lower = ops::compare(ctx, receiver, &args[0])?;
             Value::boolean(
                 matches!(lower, Some(Ordering::Equal | Ordering::Greater))

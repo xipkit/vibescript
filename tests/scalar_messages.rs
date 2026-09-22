@@ -262,3 +262,125 @@ fn temporal_arithmetic_names_the_overflowing_operation() {
         ),
     ]);
 }
+
+#[test]
+fn duration_parsing_and_members_use_go_wording() {
+    use ErrorClass::Runtime;
+    rejects(&[
+        (
+            "def run\n  Duration.parse(\"\")\nend",
+            Runtime,
+            "empty duration string",
+        ),
+        (
+            "def run\n  Duration.parse(\"P\")\nend",
+            Runtime,
+            "invalid duration format",
+        ),
+        (
+            "def run\n  Duration.parse(\"PT1S30M\")\nend",
+            Runtime,
+            "invalid duration format",
+        ),
+        (
+            "def run\n  Duration.parse(\"1.5s\")\nend",
+            Runtime,
+            "duration must be whole seconds",
+        ),
+        (
+            "def run\n  Duration.parse(\"P1W2D\")\nend",
+            Runtime,
+            "invalid mixed week duration",
+        ),
+        (
+            "def run\n  Duration.parse(\"PW\")\nend",
+            Runtime,
+            "invalid week duration format",
+        ),
+        (
+            "def run\n  Duration.parse(\"P+W\")\nend",
+            Runtime,
+            "invalid week duration",
+        ),
+        (
+            "def run\n  Duration.parse(\"PT99999999999999999999S\")\nend",
+            Runtime,
+            "invalid duration number",
+        ),
+        (
+            "def run\n  Duration.parse(\"PT99999999999999999999X\")\nend",
+            Runtime,
+            "invalid duration format",
+        ),
+        (
+            "def run\n  Duration.parse(1)\nend",
+            Runtime,
+            "Duration.parse expects a duration string",
+        ),
+        (
+            "def run\n  Duration.build(1, hours: 2)\nend",
+            Runtime,
+            "Duration.build accepts either seconds or named parts, not both",
+        ),
+        (
+            "def run\n  Duration.build(hours: nil, bogus: 2)\nend",
+            Runtime,
+            "Duration.build unknown part \"bogus\"",
+        ),
+        (
+            "def run\n  Duration.build(hours: 0.0/0.0)\nend",
+            Runtime,
+            "Duration.build hours: cannot convert NaN to integer",
+        ),
+        (
+            "def run\n  Duration.build(nil)\nend",
+            Runtime,
+            "duration expects numeric seconds",
+        ),
+        (
+            "def run\n  Duration.build(2**70)\nend",
+            Runtime,
+            "integer must fit in a 64-bit integer",
+        ),
+        (
+            "def run\n  1.hour.to_s(1)\nend",
+            Runtime,
+            "duration.to_s does not take arguments",
+        ),
+        (
+            "def run\n  1.hour.inspect(k: 1)\nend",
+            Runtime,
+            "duration.inspect does not take keyword arguments",
+        ),
+        (
+            "def run\n  1.hour.string { 1 }\nend",
+            Runtime,
+            "duration.string does not take a block",
+        ),
+        (
+            "def run\n  1.hour.between?(1)\nend",
+            Runtime,
+            "duration.between? expects min and max",
+        ),
+        (
+            "def run\n  1.hour.between?(1, 2)\nend",
+            Runtime,
+            "unsupported comparison operands",
+        ),
+        (
+            "def run\n  1.hour.ago(x: 1)\nend",
+            Runtime,
+            "duration.before does not accept keyword arguments",
+        ),
+        (
+            "def run\n  1.hour.ago(1, 2)\nend",
+            Runtime,
+            "before expects at most one time argument",
+        ),
+        (
+            "def run\n  1.hour.since(1)\nend",
+            Runtime,
+            "after expects a Time or RFC3339 string",
+        ),
+    ]);
+}

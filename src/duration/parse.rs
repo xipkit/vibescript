@@ -1,7 +1,41 @@
 // Go-style duration parsing adapts time/format.go from the Go standard library.
 // Copyright 2010 The Go Authors. All rights reserved.
 // See licenses/Go-BSD-3-Clause.txt.
-use crate::{CallContext, Result};
+use crate::{CallContext, Error, ErrorKind, Result};
+
+/// A parse failure worded as Go's `ParseDurationString` reports it.
+fn failure(message: &'static str) -> Error {
+    Error::new(ErrorKind::Argument, message)
+}
+
+fn format() -> Error {
+    failure("invalid duration format")
+}
+
+fn week() -> Error {
+    failure("invalid week duration")
+}
+
+fn number() -> Error {
+    failure("invalid duration number")
+}
+
+enum Digits {
+    None,
+    Value(u64),
+    Overflow,
+}
+
+impl Digits {
+    /// Returns the value of a run that fit, or the error for a missing or oversized one.
+    fn value(self, missing: fn() -> Error, overflow: fn() -> Error) -> Result<u64> {
+        match self {
+            Self::Value(value) => Ok(value),
+            Self::None => Err(missing()),
+            Self::Overflow => Err(overflow()),
+        }
+    }
+}
 
 struct Scan<'a, 'c> {
     input: &'a [u8],
@@ -32,18 +66,37 @@ impl<'a, 'c> Scan<'a, 'c> {
         self.at += 1;
         Ok(byte)
     }
-    fn digits(&mut self, limit: u64) -> Result<Option<u64>> {
+    /// Reads a decimal run, stopping at the first digit that exceeds `limit`.
+    fn digits(&mut self, limit: u64) -> Result<Digits> {
         let start = self.at;
         let mut value = 0u64;
         while self.peek().is_some_and(|byte| byte.is_ascii_digit()) {
             let digit = u64::from(self.advance()? - b'0');
-            value = value
+            match value
                 .checked_mul(10)
                 .and_then(|value| value.checked_add(digit))
                 .filter(|&value| value <= limit)
-                .ok_or_else(super::invalid)?;
+            {
+                Some(next) => value = next,
+                None => return Ok(Digits::Overflow),
+            }
         }
-        Ok((self.at != start).then_some(value))
+        Ok(if self.at == start {
+            Digits::None
+        } else {
+            Digits::Value(value)
+        })
+    }
+    /// Skips the rest of a digit run already charged to this scan, reporting
+    /// whether it ended there.
+    fn skip_charged_digits(&mut self) -> bool {
+        while self.at < self.checkpoint.min(self.input.len()) {
+            if !self.input[self.at].is_ascii_digit() {
+                return true;
+            }
+            self.at += 1;
+        }
+        self.at == self.input.len() || !self.input[self.at].is_ascii_digit()
     }
     fn fraction(&mut self) -> Result<(u64, f64, bool)> {
         let start = self.at;
@@ -67,6 +120,9 @@ impl<'a, 'c> Scan<'a, 'c> {
 }
 
 pub(super) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<i64> {
+    if input.is_empty() {
+        return Err(failure("empty duration string"));
+    }
     let negative = input.first() == Some(&b'-');
     let sign = usize::from(matches!(input.first(), Some(b'-' | b'+')));
     let input = &input[sign..];
@@ -77,12 +133,16 @@ pub(super) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<i64> {
         return Ok(0);
     }
     if input.is_empty() {
-        return Err(super::invalid());
+        return Err(format());
     }
     let mut scan = Scan::new(input, ctx);
     let mut nanos = 0u64;
     while scan.peek().is_some() {
-        let whole = scan.digits(1 << 63)?;
+        let whole = match scan.digits(1 << 63)? {
+            Digits::None => None,
+            Digits::Value(value) => Some(value),
+            Digits::Overflow => return Err(format()),
+        };
         let (fraction, scale, post) = if scan.peek() == Some(b'.') {
             scan.advance()?;
             scan.fraction()?
@@ -90,7 +150,7 @@ pub(super) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<i64> {
             (0, 1.0, false)
         };
         if whole.is_none() && !post {
-            return Err(super::invalid());
+            return Err(format());
         }
         let start = scan.at;
         while scan
@@ -106,23 +166,26 @@ pub(super) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<i64> {
             b"s" => 1_000_000_000,
             b"m" => 60_000_000_000,
             b"h" => 3_600_000_000_000,
-            _ => return Err(super::invalid()),
+            _ => return Err(format()),
         };
         let value = whole.unwrap_or(0);
         if value > (1u64 << 63) / unit {
-            return Err(super::invalid());
+            return Err(format());
         }
         let value = value * unit + (fraction as f64 * (unit as f64 / scale)) as u64;
         if value > 1 << 63 {
-            return Err(super::invalid());
+            return Err(format());
         }
-        nanos = nanos.checked_add(value).ok_or_else(super::invalid)?;
+        nanos = nanos.checked_add(value).ok_or_else(format)?;
         if nanos > 1 << 63 {
-            return Err(super::invalid());
+            return Err(format());
         }
     }
-    if (!negative && nanos > i64::MAX as u64) || nanos % 1_000_000_000 != 0 {
-        return Err(super::invalid());
+    if !negative && nanos > i64::MAX as u64 {
+        return Err(format());
+    }
+    if nanos % 1_000_000_000 != 0 {
+        return Err(failure("duration must be whole seconds"));
     }
     let seconds = (nanos / 1_000_000_000) as i64;
     Ok(if negative { -seconds } else { seconds })
@@ -130,7 +193,7 @@ pub(super) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<i64> {
 
 fn iso(ctx: &mut CallContext, input: &[u8], negative: bool) -> Result<i64> {
     if input.is_empty() || input == b"T" {
-        return Err(super::invalid());
+        return Err(format());
     }
     let mut scan = Scan::new(input, ctx);
     let mut weeks = false;
@@ -147,8 +210,11 @@ fn iso(ctx: &mut CallContext, input: &[u8], negative: bool) -> Result<i64> {
         scan.advance()?;
     }
     let seconds = if weeks {
-        if time_at.is_some() || mixed || input.last() != Some(&b'W') {
-            return Err(super::invalid());
+        if time_at.is_some() || mixed {
+            return Err(failure("invalid mixed week duration"));
+        }
+        if input.last() != Some(&b'W') || input.len() == 1 {
+            return Err(failure("invalid week duration format"));
         }
         let text = &input[..input.len() - 1];
         let negative = text.first() == Some(&b'-');
@@ -156,9 +222,9 @@ fn iso(ctx: &mut CallContext, input: &[u8], negative: bool) -> Result<i64> {
         let mut scan = Scan::new(&text[sign..], ctx);
         let magnitude = scan
             .digits(i64::MAX as u64 + u64::from(negative))?
-            .ok_or_else(super::invalid)?;
+            .value(week, week)?;
         if scan.peek().is_some() {
-            return Err(super::invalid());
+            return Err(week());
         }
         let weeks = if negative {
             -(magnitude as i128)
@@ -188,13 +254,25 @@ fn segment(ctx: &mut CallContext, input: &[u8], units: &[(u8, i64)]) -> Result<i
     let mut first_unit = 0;
     let mut total = 0i64;
     while scan.peek().is_some() {
-        let value = scan.digits(i64::MAX as u64)?.ok_or_else(super::invalid)? as i64;
-        let suffix = scan.peek().ok_or_else(super::invalid)?;
+        let value = match scan.digits(i64::MAX as u64)? {
+            Digits::Overflow => {
+                // Go reads the whole run and names the number only before a
+                // unit it still accepts; a run past the charged window is
+                // reported as a number.
+                let known = !scan.skip_charged_digits()
+                    || scan.peek().is_some_and(|suffix| {
+                        units[first_unit..].iter().any(|&(unit, _)| unit == suffix)
+                    });
+                return Err(if known { number() } else { format() });
+            }
+            digits => digits.value(format, number)? as i64,
+        };
+        let suffix = scan.peek().ok_or_else(format)?;
         let index = units[first_unit..]
             .iter()
             .position(|&(unit, _)| unit == suffix)
             .map(|index| first_unit + index)
-            .ok_or_else(super::invalid)?;
+            .ok_or_else(format)?;
         scan.advance()?;
         total = total.wrapping_add(value.wrapping_mul(units[index].1));
         first_unit = index + 1;
