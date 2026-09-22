@@ -8,6 +8,7 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 const EMPTY: usize = usize::MAX;
 
 mod attached;
+mod joins;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum Callable {
@@ -868,6 +869,9 @@ impl Facts {
 
     pub fn union(&mut self, ctx: &mut CallContext, alternatives: &[Fact]) -> Result<Fact> {
         ctx.checkpoint()?;
+        if let &[a, b] = alternatives {
+            return self.pair(ctx, a, b);
+        }
         let mut arms = Buffer::empty();
         for &fact in alternatives {
             ctx.charge(1)?;
@@ -884,6 +888,11 @@ impl Facts {
         )?;
         arms.data.sort_unstable();
         arms.data.dedup();
+        self.union_of(ctx, arms)
+    }
+
+    /// Interns sorted, distinct alternatives after general scalars absorb their literals.
+    fn union_of(&mut self, ctx: &mut CallContext, mut arms: Buffer<Fact>) -> Result<Fact> {
         let mut bools = 0;
         let mut symbols = false;
         let mut integers = false;
