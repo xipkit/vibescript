@@ -34,6 +34,7 @@ impl Parsing<'_> {
                 p.ternaries.copy_with(work, |n| Ok(*n))?,
                 p.command_group,
                 p.loop_condition,
+                p.then_stop,
                 p.declared_it,
             );
             (p.type_structural_error, state)
@@ -75,6 +76,7 @@ impl Parsing<'_> {
                     p.ternaries,
                     p.command_group,
                     p.loop_condition,
+                    p.then_stop,
                     p.declared_it,
                 ) = state;
                 p.type_structural_error = structural;

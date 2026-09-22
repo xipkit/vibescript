@@ -334,6 +334,7 @@ fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result
         ternaries: Buffer::new(),
         command_group: 0,
         loop_condition: None,
+        then_stop: None,
         locals: Table::new(),
         declared_it: false,
         type_structural_error: false,
@@ -371,6 +372,7 @@ struct Parser<'a> {
     ternaries: Buffer<usize>,
     command_group: usize,
     loop_condition: Option<usize>,
+    then_stop: Option<usize>,
     locals: Table<()>,
     declared_it: bool,
     type_structural_error: bool,
@@ -793,6 +795,19 @@ impl<'a> Parsing<'a> {
         Ok(body)
     }
 
+    // A condition ends at `then`, which otherwise names a local like any
+    // identifier, as in Go.
+    async fn condition(&self) -> Result<Expr> {
+        let previous = {
+            let mut p = self.p();
+            let groups = p.groups;
+            p.then_stop.replace(groups)
+        };
+        let condition = self.line_expr(0).await;
+        self.p().then_stop = previous;
+        condition
+    }
+
     async fn statement(&self) -> Result<Stmt> {
         let offset = {
             let mut p = self.p();
@@ -1144,7 +1159,7 @@ impl<'a> Parsing<'a> {
         work.charge(1)?;
         let mut branches = Buffer::new();
         let alternate = loop {
-            let mut cond = self.line_expr(0).await?;
+            let mut cond = self.condition().await?;
             {
                 let mut p = self.p();
                 if unless {
@@ -1186,7 +1201,7 @@ impl<'a> Parsing<'a> {
         work.charge(1)?;
         let mut branches = Buffer::new();
         let alternate = loop {
-            let mut cond = self.line_expr(0).await?;
+            let mut cond = self.condition().await?;
             {
                 let mut p = self.p();
                 if unless {
@@ -1257,7 +1272,7 @@ impl<'a> Parsing<'a> {
                     }
                     splat
                 };
-                values.push(work, (self.line_expr(0).await?, splat))?;
+                values.push(work, (self.condition().await?, splat))?;
                 let mut p = self.p();
                 if !p.take_p(',') {
                     break;
@@ -1393,7 +1408,7 @@ impl<'a> Parsing<'a> {
             "yield" => self.yield_expr().await,
             "begin" => self.begin_expression().await,
             "while" | "until" | "for" => self.loop_expression(w, offset).await,
-            _ if reserved(w) => Err(Error::syntax(
+            _ if reserved(w) && w != "then" => Err(Error::syntax(
                 self.p().work,
                 offset as usize,
                 "expected expression",
@@ -1540,7 +1555,10 @@ impl<'a> Parsing<'a> {
                 if p.groups > 0 {
                     p.lines()?;
                 }
-                p.starts_expression()
+                // Go ends a range at a pending condition's `then` even inside groups.
+                let stop = p.then_stop.is_some()
+                    && matches!(p.token(), Token::Word(word) if word == "then");
+                p.starts_expression() && !stop
             };
             let end = if has_end {
                 Some(Boxed::new(work, self.expr(right).await?)?)
@@ -1734,16 +1752,18 @@ impl<'a> Parsing<'a> {
         };
         let infer_it = !outer_it;
         let (params, explicit) = self.block_parameters().await?;
-        let (previous_loop, command_depth) = {
+        let (previous_loop, previous_then, command_depth) = {
             let mut p = self.p();
             (
                 p.loop_condition.take(),
+                p.then_stop.take(),
                 std::mem::replace(&mut p.command_depth, 0),
             )
         };
         let body = self.block(if brace { &["}"] } else { &["end"] }).await?;
         let mut p = self.p();
         p.command_depth = command_depth;
+        p.then_stop = previous_then;
         p.loop_condition = previous_loop;
         if brace {
             p.expect_p('}')?;
@@ -2216,7 +2236,9 @@ impl<'a> Parser<'a> {
                         return Ok(false);
                     }
                 }
-                Token::Word(w) if nesting == 0 && reserved(w) && !after_member_separator => {
+                Token::Word(w)
+                    if nesting == 0 && reserved(w) && w != "then" && !after_member_separator =>
+                {
                     return Ok(false);
                 }
                 Token::Eof => return Ok(false),
@@ -2266,7 +2288,7 @@ impl<'a> Parser<'a> {
             | Token::Template(_)
             | Token::Words(..)
             | Token::P(':') => true,
-            Token::Word(w) => !reserved(w),
+            Token::Word(w) => !reserved(w) || w == "then",
             _ => false,
         };
         if !leaf {
@@ -2415,6 +2437,7 @@ impl<'a> Parser<'a> {
             ternaries: Buffer::new(),
             command_group: 0,
             loop_condition: None,
+            then_stop: None,
             locals: std::mem::take(&mut self.locals),
             declared_it: self.declared_it,
             type_structural_error: false,
@@ -2789,6 +2812,7 @@ impl<'a> Parser<'a> {
             return true;
         }
         match &self.tokens[pos].token {
+            Token::Word(w) if w == "then" => self.then_stop != Some(self.groups),
             Token::Word(w) => {
                 !reserved(w) || matches!(w.as_str(), "case" | "for" | "yield" | "begin")
             }
@@ -2890,6 +2914,7 @@ impl<'a> Parser<'a> {
     }
     fn starts_expression(&self) -> bool {
         match self.token() {
+            Token::Word(w) if w == "then" => self.then_stop != Some(self.groups),
             Token::Word(w) => {
                 !reserved(w)
                     || matches!(

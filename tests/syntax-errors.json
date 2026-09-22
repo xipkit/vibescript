@@ -13199,5 +13199,10 @@
     "name": "ternary_separator_cannot_follow_a_semicolon",
     "source": "def run(input)\n  x = false ? 1 ; : 2\nend",
     "go_error": "parse error at 2:17: expected \":\", got \";\""
+  },
+  {
+    "name": "then_ends_a_range_in_a_condition_group",
+    "source": "def run(input)\n  then = 2\n  if (1..then) === 2 then \"in\" end\nend",
+    "go_error": "parse error at 3:10: expected \")\", got 'then'"
   }
 ]

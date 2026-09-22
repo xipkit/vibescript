@@ -105,3 +105,16 @@ fn ternary_separators_may_start_a_later_line() {
         assert_eq!(error.kind, ErrorKind::Syntax, "{source}");
     }
 }
+
+#[test]
+fn then_names_a_local_except_where_it_ends_a_condition() {
+    let source = "def id(v)\n  v\nend\ndef run\n  then = 1\n  then += 1\n  x = unless then then 0 else then end\n  y = case then when 2 then then + 5 end\n  [then, x, y, id(then), (if then then 7 end), (if [then].first then then end)]\nend";
+    assert_eq!(result(source), serde_json::json!([2, 2, 7, 2, 7, 2]));
+    let batch = "def contextual_then()\n  then = 1\n  then\nend\ndef unless_expr(flag)\n  value = unless flag then \"open\" else \"closed\" end\n  [value, unless flag then \"body\" end]\nend\ndef run\n  [contextual_then(), unless_expr(false)]\nend";
+    assert_eq!(result(batch), serde_json::json!([1, ["open", "body"]]));
+    let error = Engine::new()
+        .compile("def run\n  then = 2\n  if (1..then) === 2 then 1 end\nend")
+        .err()
+        .unwrap();
+    assert_eq!(error.kind, ErrorKind::Syntax);
+}
