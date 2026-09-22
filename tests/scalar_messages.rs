@@ -41,9 +41,16 @@ fn guard_limits_name_the_configured_limit() {
     limited(
         "def run()\n  \"x\" * 1000000\nend",
         &[],
-        memory,
+        memory.clone(),
         ErrorClass::Limit,
         "memory quota exceeded (8192 bytes)",
+    );
+    limited(
+        "def run(s)\n  s.length\nend",
+        &[Value::bytes(vec![b'a'; 20_000])],
+        memory,
+        ErrorClass::Limit,
+        "check memory after binding call env: memory quota exceeded (8192 bytes)",
     );
     let recursion = Limits {
         recursion: 4,

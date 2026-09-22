@@ -174,6 +174,43 @@ pub(crate) fn recursion_exceeded<T>(ctx: &mut CallContext) -> Result<T> {
     )
 }
 
+/// Imports the host's entry arguments and the code they carry.
+fn bind_entry(
+    ctx: &mut CallContext,
+    storage: &mut Storage,
+    args: &[Value],
+    keywords: &[(String, Value)],
+) -> Result<Arguments> {
+    let mut input = Arguments::empty();
+    input.options_hash = false;
+    input.positional = Buffer::with_capacity(ctx, args.len())?;
+    for arg in args {
+        let value = ctx.import(arg)?;
+        crate::exports::check(ctx, &value)?;
+        input.positional.data.push(value);
+    }
+    for (name, value) in keywords {
+        let key = ctx.bytes(name.as_bytes())?;
+        let value = ctx.import(value)?;
+        crate::exports::check(ctx, &value)?;
+        input.keywords.insert(ctx, key, value)?;
+    }
+    ctx.enum_rebind.active = false;
+    programs::arguments(ctx, storage, &input)?;
+    Ok(input)
+}
+
+/// Names the entry call's argument binding on a memory failure there, as Go's
+/// host-visible message does.
+fn entry_binding(mut error: Error) -> Error {
+    if error.kind == ErrorKind::Memory {
+        error
+            .message
+            .insert_str(0, "check memory after binding call env: ");
+    }
+    error
+}
+
 enum Step {
     Host,
     Complete(Exit),
@@ -232,22 +269,7 @@ impl Run {
         let (root, _) = programs::load(ctx, &mut storage, code, environment.as_ref())?;
         let program = &*root;
         capabilities::bind(ctx, &mut storage)?;
-        let mut input = Arguments::empty();
-        input.options_hash = false;
-        input.positional = Buffer::with_capacity(ctx, args.len())?;
-        for arg in args {
-            let value = ctx.import(arg)?;
-            crate::exports::check(ctx, &value)?;
-            input.positional.data.push(value);
-        }
-        for (name, value) in keywords {
-            let key = ctx.bytes(name.as_bytes())?;
-            let value = ctx.import(value)?;
-            crate::exports::check(ctx, &value)?;
-            input.keywords.insert(ctx, key, value)?;
-        }
-        ctx.enum_rebind.active = false;
-        programs::arguments(ctx, &mut storage, &input)?;
+        let input = bind_entry(ctx, &mut storage, args, keywords).map_err(entry_binding)?;
         let initializer = if function == 0 && !program.file {
             program.namespaces.len()
         } else {
@@ -392,7 +414,8 @@ impl Run {
                 }
                 if frames.data.is_empty() {
                     let (function, input) = pending_entry.take().unwrap();
-                    enter_arguments(program, ctx, frames, storage, function, input, 0)?;
+                    enter_arguments(program, ctx, frames, storage, function, input, 0)
+                        .map_err(entry_binding)?;
                 }
             }
             let current = frames.data.len() - 1;
