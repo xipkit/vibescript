@@ -207,4 +207,7 @@ mod protected_contract_tests;
 mod profile_consistency_tests;
 
 #[cfg(test)]
+mod projection_tests;
+
+#[cfg(test)]
 mod text_member_tests;

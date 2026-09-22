@@ -7,6 +7,7 @@ use crate::{CallContext, Result, Value, budget::Buffer, bytecode::CallSite};
 
 mod capture_indexing;
 mod reshaping;
+mod sets;
 
 /// One arm of a count argument after the runtime's integer conversion.
 enum Count {

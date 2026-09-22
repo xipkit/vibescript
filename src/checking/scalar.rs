@@ -182,6 +182,13 @@ impl Facts {
                 let right = self.arm(right, b);
                 let array = |value| matches!(self.node(value), Node::Array(_) | Node::Tuple(_));
                 let arrays = [array(left), array(right)];
+                if matches!(op, "-" | "&") && arrays[0] {
+                    let next = self.array_set(ctx, op, left, right)?;
+                    result.value = self.union(ctx, &[result.value, next.value])?;
+                    result.rejected |= next.rejected;
+                    result.unsupported |= next.unsupported;
+                    continue;
+                }
                 if op == "+" && (arrays[0] || arrays[1]) {
                     if !arrays[0] || !arrays[1] {
                         let other = if arrays[0] { right } else { left };
