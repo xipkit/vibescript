@@ -574,11 +574,13 @@ mod limit_tests {
         let mut ctx = CallContext::new(CallOptions::default());
         let oversized = vec![b'?'; (1 << 20) + 1];
         let before = ctx.stats();
-        let error = json::parse_builtin(&mut ctx, &oversized).unwrap_err();
+        let error = json::parse_builtin(&mut ctx, &oversized, "JSON.parse").unwrap_err();
         assert_eq!(error.class(), Some(ErrorClass::Limit));
         assert_eq!(ctx.stats().peak_memory_bytes, before.peak_memory_bytes);
         assert_eq!(
-            json::parse_builtin(&mut ctx, b"7").unwrap().as_int(),
+            json::parse_builtin(&mut ctx, b"7", "JSON.parse")
+                .unwrap()
+                .as_int(),
             Some(7)
         );
         let deep = format!(
@@ -586,7 +588,7 @@ mod limit_tests {
             "[".repeat(MAX_VALUE_DEPTH + 1),
             "]".repeat(MAX_VALUE_DEPTH + 1)
         );
-        let error = json::parse_builtin(&mut ctx, deep.as_bytes()).unwrap_err();
+        let error = json::parse_builtin(&mut ctx, deep.as_bytes(), "JSON.parse").unwrap_err();
         assert_eq!(error.class(), Some(ErrorClass::Limit));
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
         let error = regex::Utility::Match
@@ -665,7 +667,8 @@ mod limit_tests {
             };
             let steps = ctx.stats().steps;
             assert_eq!(
-                json::parse_builtin(&mut ctx, &vec![b'?'; (1 << 20) + 1]).unwrap_err(),
+                json::parse_builtin(&mut ctx, &vec![b'?'; (1 << 20) + 1], "JSON.parse")
+                    .unwrap_err(),
                 error
             );
             assert_eq!(ctx.bytes(b"x").unwrap_err(), error);
@@ -683,7 +686,8 @@ mod limit_tests {
             } else {
                 ctx.cancellation().cancel();
             }
-            let error = json::parse_builtin(&mut ctx, &vec![b'?'; (1 << 20) + 1]).unwrap_err();
+            let error = json::parse_builtin(&mut ctx, &vec![b'?'; (1 << 20) + 1], "JSON.parse")
+                .unwrap_err();
             assert_eq!(
                 error.kind,
                 if deadline {
@@ -711,7 +715,9 @@ mod limit_tests {
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
         ctx.charge(1).unwrap();
         assert_eq!(
-            json::parse_builtin(&mut ctx, b"7").unwrap().as_int(),
+            json::parse_builtin(&mut ctx, b"7", "JSON.parse")
+                .unwrap()
+                .as_int(),
             Some(7)
         );
         assert_eq!(foreign.checkpoint().unwrap_err(), original);

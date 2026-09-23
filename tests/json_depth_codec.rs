@@ -153,29 +153,33 @@ fn malformed_input_after_a_complete_deep_sibling_is_recoverable() {
     let script = Engine::new()
         .compile("def run(s)\nbegin\nJSON.parse(s)\nrescue => e\ne.message\nend\nend")
         .unwrap();
-    for (text, expected) in [
+    for (text, expected, script_message) in [
         (
             format!("[{deep},?]"),
             format!("expected JSON value at byte {}", deep.len() + 2),
+            "JSON.parse invalid JSON: invalid character '?' looking for beginning of value",
         ),
         (
             format!("[{deep}]x"),
             format!("trailing JSON data at byte {}", deep.len() + 2),
+            "JSON.parse invalid JSON: trailing data",
         ),
         (
             format!("{{\"a\":{deep},1}}"),
             format!("expected JSON object key at byte {}", deep.len() + 6),
+            "JSON.parse invalid JSON: invalid character '1' looking for beginning of object key string",
         ),
     ] {
         let error = parse_json(text.as_bytes(), options()).unwrap_err();
         assert_eq!(error.kind, ErrorKind::Json, "{text}");
         assert_ne!(error.class(), Some(ErrorClass::Limit));
         assert_eq!(error.message, expected);
+        // Scripts see the reference parser's wording, without byte offsets.
         let result = script
             .call("run", &[Value::bytes(text.clone())], options())
             .unwrap();
         let message = std::str::from_utf8(result.value.as_bytes().unwrap()).unwrap();
-        assert!(message.contains(&expected), "{message}");
+        assert_eq!(message, script_message);
         // Only the rescued message survives; the deep sibling was released.
         assert!(
             result.stats.retained_memory_bytes < 512,

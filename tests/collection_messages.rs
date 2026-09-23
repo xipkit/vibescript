@@ -1635,3 +1635,124 @@ fn universal_members_and_conversions_refuse_extra_input_in_reference_order() {
         assert_eq!(function_message(&source, "run"), expected, "{body}");
     }
 }
+
+#[test]
+fn json_builtins_report_the_reference_parser_and_encoder_wording() {
+    let cases = [
+        (
+            "JSON.parse(\"[1,\")",
+            "JSON.parse invalid JSON: unexpected end of JSON input",
+        ),
+        (
+            "JSON.parse(\"[1 2]\")",
+            "JSON.parse invalid JSON: invalid character '2' after array element",
+        ),
+        (
+            "JSON.parse(\"{\\\"a\\\" 1}\")",
+            "JSON.parse invalid JSON: invalid character '1' after object key",
+        ),
+        (
+            "JSON.parse(\"{\\\"a\\\": 1,}\")",
+            "JSON.parse invalid JSON: invalid character '}' looking for beginning of object key string",
+        ),
+        (
+            "JSON.parse(\"tru\")",
+            "JSON.parse invalid JSON: invalid character 't' looking for beginning of value",
+        ),
+        (
+            "JSON.parse(\"\\\"a\\\\qb\\\"\")",
+            "JSON.parse invalid JSON: invalid character 'q' in string escape code",
+        ),
+        (
+            "JSON.parse(\"\\\"a\\\\u12zz\\\"\")",
+            "JSON.parse invalid JSON: invalid character 'z' in unicode escape",
+        ),
+        (
+            "JSON.parse(\"\\\"a\\tb\\\"\")",
+            "JSON.parse invalid JSON: invalid character '\\t' in string literal",
+        ),
+        (
+            "JSON.parse(\"01\")",
+            "JSON.parse invalid JSON: invalid number \"01\"",
+        ),
+        (
+            "JSON.parse(\"1.\")",
+            "JSON.parse invalid JSON: invalid number \"1.\"",
+        ),
+        (
+            "JSON.parse(\"1e999\")",
+            "JSON.parse invalid number \"1e999\"",
+        ),
+        (
+            "JSON.parse(\"[1] x\")",
+            "JSON.parse invalid JSON: trailing data",
+        ),
+        (
+            "JSON.parse(\"[\" * 10001)",
+            "JSON.parse invalid JSON: exceeded max depth",
+        ),
+        (
+            "JSON.parse(\"1\" * 1048577)",
+            "JSON.parse input exceeds limit 1048576 bytes",
+        ),
+        (
+            "JSON.parse(1)",
+            "JSON.parse expects a single JSON string argument",
+        ),
+        (
+            "JSON.parse(\"1\") { 1 }",
+            "JSON.parse does not accept blocks",
+        ),
+        (
+            "JSON.parse_as(\"1e999\", int)",
+            "JSON.parse_as invalid number \"1e999\"",
+        ),
+        (
+            "JSON.parse_as(\"1\", 1)",
+            "JSON.parse_as expects a type literal as its second argument",
+        ),
+        (
+            "JSON.parse_as(\"1\")",
+            "JSON.parse_as expects a JSON string and a type literal",
+        ),
+        (
+            "JSON.parse_as(\"1\", int, a: 1)",
+            "JSON.parse_as does not accept keyword arguments",
+        ),
+        (
+            "JSON.stringify({a: {b: [0.0/0]}})",
+            "JSON.stringify key \"a\": JSON.stringify key \"b\": JSON.stringify array index 0: JSON.stringify failed: json: unsupported value: NaN",
+        ),
+        (
+            "JSON.stringify(-1.0/0)",
+            "JSON.stringify failed: json: unsupported value: -Infinity",
+        ),
+        (
+            "JSON.stringify({\"a\\\"b\": /x/})",
+            "JSON.stringify key \"a\\\"b\": JSON.stringify unsupported value type regex",
+        ),
+        (
+            "JSON.stringify(1.second)",
+            "JSON.stringify unsupported value type duration",
+        ),
+        (
+            "JSON.stringify({data: \"a\" * 1048577})",
+            "JSON.stringify key \"data\": JSON.stringify output exceeds limit 1048576 bytes",
+        ),
+        (
+            "JSON.stringify([\"a\" * 1048570, \"b\" * 10])",
+            "JSON.stringify array index 1: JSON.stringify output exceeds limit 1048576 bytes",
+        ),
+        (
+            "JSON.stringify(1, 2)",
+            "JSON.stringify expects a single value argument",
+        ),
+        (
+            "JSON.stringify(1) { 1 }",
+            "JSON.stringify does not accept blocks",
+        ),
+    ];
+    for (body, expected) in cases {
+        assert_eq!(message(body), expected, "{body}");
+    }
+}

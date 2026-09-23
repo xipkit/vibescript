@@ -10,13 +10,16 @@ use std::fmt::Write;
 pub(super) struct Output {
     pub buffer: Buffer<u8>,
     limit: Option<usize>,
+    /// Report failures as the script-facing `JSON.stringify` does.
+    script: bool,
 }
 
 impl Output {
-    pub fn new(limit: Option<usize>) -> Self {
+    pub fn new(limit: Option<usize>, script: bool) -> Self {
         Self {
             buffer: Buffer::empty(),
             limit,
+            script,
         }
     }
 
@@ -67,6 +70,18 @@ enum Frame<'a> {
     },
 }
 
+/// Where in the walk an encoding failure happened, which decides the path of
+/// keys and indexes the reference names in front of it.
+#[derive(Clone, Copy)]
+enum Site {
+    /// Inside the current element of every open container.
+    Value,
+    /// Before the next element of the innermost container.
+    Next,
+    /// In the innermost container itself, outside any of its elements.
+    Container,
+}
+
 /// Encodes `root` using an explicit, budget-accounted frame stack.
 ///
 /// Nesting is bounded by the frame count rather than the native stack, and a
@@ -78,9 +93,11 @@ pub(super) fn write_value<'a>(
 ) -> Result<()> {
     let mut frames: Buffer<Frame<'a>> = Buffer::empty();
     let mut current = root;
-    loop {
-        if let Some(frame) = start(ctx, current, out, frames.data.len())? {
-            frames.push(ctx, frame)?;
+    let (error, site) = 'failed: loop {
+        match start(ctx, current, out, frames.data.len()) {
+            Ok(Some(frame)) => frames.push(ctx, frame)?,
+            Ok(None) => {}
+            Err(error) => break 'failed (error, Site::Value),
         }
         // Advance the innermost open container to its next element, closing
         // every container that has been exhausted.
@@ -94,32 +111,117 @@ pub(super) fn write_value<'a>(
                     let items: &'a [Value] = items;
                     if let Some(item) = items.get(*next) {
                         if *next > 0 {
-                            out.push(ctx, b',')?;
+                            if let Err(error) = out.push(ctx, b',') {
+                                break 'failed (error, Site::Next);
+                            }
                         }
                         *next += 1;
                         current = item;
                         break;
                     }
-                    out.push(ctx, b']')?;
+                    if let Err(error) = out.push(ctx, b']') {
+                        break 'failed (error, Site::Container);
+                    }
                     frames.data.pop();
                 }
                 Frame::Hash { entries, next } => {
                     let entries: &'a [(Value, Value)] = entries;
                     if let Some((key, value)) = entries.get(*next) {
                         if *next > 0 {
-                            out.push(ctx, b',')?;
+                            if let Err(error) = out.push(ctx, b',') {
+                                break 'failed (error, Site::Next);
+                            }
                         }
-                        write_string(ctx, key.require_bytes()?, out, open)?;
-                        out.push(ctx, b':')?;
+                        if let Err(error) = write_string(ctx, key.require_bytes()?, out, open) {
+                            break 'failed (error, Site::Container);
+                        }
+                        if let Err(error) = out.push(ctx, b':') {
+                            break 'failed (error, Site::Next);
+                        }
                         *next += 1;
                         current = value;
                         break;
                     }
-                    out.push(ctx, b'}')?;
+                    if let Err(error) = out.push(ctx, b'}') {
+                        break 'failed (error, Site::Container);
+                    }
                     frames.data.pop();
                 }
             }
         }
+    };
+    if !out.script {
+        return Err(error);
+    }
+    let detail = match error.kind {
+        ErrorKind::OutputLimit => format!(
+            "JSON.stringify output exceeds limit {} bytes",
+            super::MAX_PAYLOAD
+        ),
+        ErrorKind::Json => match current.0 {
+            Kind::Float(n) => {
+                let mut text = Number::new();
+                crate::ops::format_float(&mut text, n);
+                let text = std::str::from_utf8(text.bytes()).unwrap();
+                format!("JSON.stringify failed: json: unsupported value: {text}")
+            }
+            _ => format!(
+                "JSON.stringify unsupported value type {}",
+                current.type_name()
+            ),
+        },
+        // The depth limit is reported without the path to it.
+        ErrorKind::Recursion => {
+            return Err(error.with_message("JSON.stringify exceeded max depth".to_owned()));
+        }
+        _ => return Err(error),
+    };
+    let path = Path {
+        frames: &frames.data,
+        site,
+    };
+    let (message, _charge) = crate::source::formatted(ctx, format_args!("{path}{detail}"))?;
+    Err(error.with_message(message))
+}
+
+/// The reference's prefix naming each open container's element on the way to
+/// a failure, outermost first.
+struct Path<'f, 'a> {
+    frames: &'f [Frame<'a>],
+    site: Site,
+}
+
+impl std::fmt::Display for Path<'_, '_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let last = self.frames.len().wrapping_sub(1);
+        for (depth, frame) in self.frames.iter().enumerate() {
+            // Each open container has advanced past the element being written,
+            // except the innermost one before its next element.
+            let next = match frame {
+                Frame::Array { next, .. } | Frame::Hash { next, .. } => *next,
+            };
+            let index = match self.site {
+                Site::Next if depth == last => next,
+                Site::Container if depth == last => break,
+                _ => next.wrapping_sub(1),
+            };
+            match frame {
+                Frame::Array { .. } => write!(f, "JSON.stringify array index {index}: ")?,
+                Frame::Hash { entries, .. } => {
+                    let mut quoted = Vec::new();
+                    crate::shapes::quote(
+                        entries[index].0.as_bytes().unwrap_or_default(),
+                        &mut quoted,
+                    );
+                    write!(
+                        f,
+                        "JSON.stringify key {}: ",
+                        String::from_utf8_lossy(&quoted)
+                    )?;
+                }
+            }
+        }
+        Ok(())
     }
 }
 

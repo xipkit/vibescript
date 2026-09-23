@@ -307,6 +307,77 @@ impl Builtin {
         )
     }
 
+    /// Calls a `JSON` member, checking its call shape in the reference's order
+    /// and wording.
+    fn json(
+        self,
+        ctx: &mut CallContext,
+        args: &[Value],
+        keywords: bool,
+        block: bool,
+    ) -> Result<Value> {
+        let name = self.name();
+        let refuse = |kind, problem: &str| Error::new(kind, format!("{name} {problem}"));
+        let modifiers = || {
+            if keywords {
+                Err(refuse(
+                    ErrorKind::Argument,
+                    "does not accept keyword arguments",
+                ))
+            } else if block {
+                Err(refuse(ErrorKind::Argument, "does not accept blocks"))
+            } else {
+                Ok(())
+            }
+        };
+        match self {
+            Self::JsonParse => {
+                let [Value(Kind::Bytes(bytes))] = args else {
+                    let kind = if args.len() == 1 {
+                        ErrorKind::Type
+                    } else {
+                        ErrorKind::Argument
+                    };
+                    return Err(refuse(kind, "expects a single JSON string argument"));
+                };
+                modifiers()?;
+                json::parse_builtin(ctx, &bytes.data, name)
+            }
+            Self::JsonParseAs => {
+                modifiers()?;
+                let [Value(Kind::Bytes(bytes)), literal] = args else {
+                    let kind = if args.len() == 2 {
+                        ErrorKind::Type
+                    } else {
+                        ErrorKind::Argument
+                    };
+                    return Err(refuse(kind, "expects a JSON string and a type literal"));
+                };
+                let Kind::Shape(shape) = &literal.0 else {
+                    return Err(refuse(
+                        ErrorKind::Type,
+                        "expects a type literal as its second argument",
+                    ));
+                };
+                let parsed = json::parse_builtin(ctx, &bytes.data, name)?;
+                crate::types::prepare(ctx, &shape.definition.ty, |_, _| {
+                    Err(Error::new(ErrorKind::Type, "unknown named type"))
+                })?
+                .normalize_with(ctx, parsed, crate::types::Context::Json)
+            }
+            _ => {
+                let [value] = args else {
+                    return Err(refuse(
+                        ErrorKind::Argument,
+                        "expects a single value argument",
+                    ));
+                };
+                modifiers()?;
+                json::stringify_builtin(ctx, value)
+            }
+        }
+    }
+
     pub fn call(
         self,
         ctx: &mut CallContext,
@@ -443,6 +514,12 @@ impl Builtin {
                 ));
             }
         }
+        if matches!(
+            self,
+            Self::JsonParse | Self::JsonParseAs | Self::JsonStringify
+        ) {
+            return self.json(ctx, args, !keywords.is_empty(), block);
+        }
         if !keywords.is_empty() || block {
             return Err(Error::new(
                 ErrorKind::Argument,
@@ -452,7 +529,7 @@ impl Builtin {
                 ),
             ));
         }
-        ops::arity(args, if self == Self::JsonParseAs { 2 } else { 1 })?;
+        ops::arity(args, 1)?;
         let value = &args[0];
         match self {
             Self::ToInt => match &value.0 {
@@ -480,36 +557,10 @@ impl Builtin {
                     "to_float expects int, float, or string",
                 )),
             },
-            Self::JsonParse => {
-                let Kind::Bytes(bytes) = &value.0 else {
-                    return Err(Error::new(
-                        ErrorKind::Type,
-                        "JSON.parse expects a JSON string",
-                    ));
-                };
-                json::parse_builtin(ctx, &bytes.data)
-            }
-            Self::JsonStringify => json::stringify_builtin(ctx, value),
-            Self::JsonParseAs => {
-                let Kind::Bytes(bytes) = &value.0 else {
-                    return Err(Error::new(
-                        ErrorKind::Type,
-                        "JSON.parse_as expects a JSON string",
-                    ));
-                };
-                let Kind::Shape(shape) = &args[1].0 else {
-                    return Err(Error::new(
-                        ErrorKind::Type,
-                        "JSON.parse_as expects a type literal",
-                    ));
-                };
-                let parsed = json::parse_builtin(ctx, &bytes.data)?;
-                crate::types::prepare(ctx, &shape.definition.ty, |_, _| {
-                    Err(Error::new(ErrorKind::Type, "unknown named type"))
-                })?
-                .normalize_with(ctx, parsed, crate::types::Context::Json)
-            }
-            Self::Math(_)
+            Self::JsonParse
+            | Self::JsonStringify
+            | Self::JsonParseAs
+            | Self::Math(_)
             | Self::Output(_)
             | Self::Format(_)
             | Self::Money

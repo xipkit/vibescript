@@ -9,20 +9,52 @@ const MAX_PAYLOAD: usize = 1 << 20;
 pub(crate) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<Value> {
     ctx.checkpoint()?;
     let mut p = parser::Parser::new(ctx, input);
+    document(&mut p)
+}
+
+fn document(p: &mut parser::Parser<'_>) -> Result<Value> {
     let v = p.value()?;
     p.space()?;
     if !p.finished() {
-        return p.err("trailing JSON data");
+        return p.err("trailing JSON data", parser::Failure::Trailing);
     }
     Ok(v)
 }
 
-pub(crate) fn parse_builtin(ctx: &mut CallContext, input: &[u8]) -> Result<Value> {
+/// Parses script input for the builtin `name` (`JSON.parse` or
+/// `JSON.parse_as`), reporting failures in the reference's wording.
+pub(crate) fn parse_builtin(ctx: &mut CallContext, input: &[u8], name: &str) -> Result<Value> {
     ctx.checkpoint()?;
     if input.len() > MAX_PAYLOAD {
-        return ctx.guard(ErrorKind::OutputLimit, "JSON input exceeds 1 MiB");
+        return ctx.guard(
+            ErrorKind::OutputLimit,
+            &format!("{name} input exceeds limit {MAX_PAYLOAD} bytes"),
+        );
     }
-    parse(ctx, input)
+    let mut p = parser::Parser::new(ctx, input);
+    let result = document(&mut p);
+    let failure = p.failure;
+    let error = match result {
+        Ok(value) => return Ok(value),
+        Err(error) => error,
+    };
+    match failure {
+        Some(failure)
+            if error.kind == ErrorKind::Json
+                || (failure == parser::Failure::Depth && error.kind == ErrorKind::Recursion) =>
+        {
+            struct Rendered<'a>(parser::Failure, &'a str, &'a [u8]);
+            impl fmt::Display for Rendered<'_> {
+                fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                    self.0.render(self.1, self.2, f)
+                }
+            }
+            let rendered = Rendered(failure, name, input);
+            let (message, _charge) = crate::source::formatted(ctx, format_args!("{rendered}"))?;
+            Err(error.with_message(message))
+        }
+        _ => Err(error),
+    }
 }
 
 pub(crate) fn parse_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
@@ -125,6 +157,8 @@ pub(crate) fn stringify(ctx: &mut CallContext, value: &Value) -> Result<Value> {
     stringify_with_limit(ctx, value, None)
 }
 
+/// Encodes for the script builtin `JSON.stringify`, under its output limit and
+/// with the reference's failure wording.
 pub(crate) fn stringify_builtin(ctx: &mut CallContext, value: &Value) -> Result<Value> {
     stringify_with_limit(ctx, value, Some(MAX_PAYLOAD))
 }
@@ -134,7 +168,7 @@ fn stringify_with_limit(
     value: &Value,
     limit: Option<usize>,
 ) -> Result<Value> {
-    let mut out = writer::Output::new(limit);
+    let mut out = writer::Output::new(limit, limit.is_some());
     writer::write_value(ctx, value, &mut out)?;
     Value::from_bytes(ctx, out.buffer)
 }
@@ -175,7 +209,7 @@ mod limit_tests {
     fn builtin_size_guards_release_partial_output_and_allow_recovery() {
         let mut parse_ctx = CallContext::new(CallOptions::default());
         assert_eq!(
-            parse_builtin(&mut parse_ctx, &vec![b'?'; MAX_PAYLOAD + 1])
+            parse_builtin(&mut parse_ctx, &vec![b'?'; MAX_PAYLOAD + 1], "JSON.parse")
                 .unwrap_err()
                 .kind,
             ErrorKind::OutputLimit
@@ -183,7 +217,9 @@ mod limit_tests {
         assert_eq!(parse_ctx.stats().steps, 0);
         assert_eq!(parse_ctx.stats().peak_memory_bytes, 0);
         assert_eq!(
-            parse_builtin(&mut parse_ctx, b"7").unwrap().as_int(),
+            parse_builtin(&mut parse_ctx, b"7", "JSON.parse")
+                .unwrap()
+                .as_int(),
             Some(7)
         );
         assert_eq!(
