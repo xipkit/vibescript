@@ -365,19 +365,36 @@ pub(crate) fn member(
                 matches!(name, "ago" | "before" | "until"),
             )?
         }
-        "nil?" | "itself" | "dup" => {
-            if keywords || block {
-                return Err(Error::new(
-                    ErrorKind::Argument,
-                    "unsupported duration arguments",
-                ));
-            }
-            ops::arity(args, 0)?;
-            if name == "nil?" {
-                Value::boolean(false)
+        "nil?" => {
+            crate::arguments::nullary("duration.nil?", args, keywords, block)?;
+            Value::boolean(false)
+        }
+        "itself" => {
+            let refused = if keywords {
+                "does not accept keyword arguments".to_owned()
+            } else if block {
+                "does not accept a block".to_owned()
+            } else if !args.is_empty() {
+                format!("expects 0 arguments, got {}", args.len())
             } else {
-                receiver.clone()
-            }
+                return Ok(Some(receiver.clone()));
+            };
+            return Err(Error::new(
+                ErrorKind::Argument,
+                format!("duration.itself {refused}"),
+            ));
+        }
+        "dup" => {
+            let refused = if !args.is_empty() {
+                "does not take arguments"
+            } else if keywords {
+                "does not take keyword arguments"
+            } else if block {
+                "does not accept blocks"
+            } else {
+                return Ok(Some(receiver.clone()));
+            };
+            return Err(Error::new(ErrorKind::Argument, format!("dup {refused}")));
         }
         "to_s" | "string" | "inspect" => {
             crate::arguments::nullary(&format!("duration.{name}"), args, keywords, block)?;

@@ -608,7 +608,7 @@ fn host_type_failures_identify_the_first_boundary_and_keep_callback_errors() {
         assert_eq!(error.kind, ErrorKind::Type);
         assert!(
             error.message.contains(if ambiguous {
-                "ambiguous named type"
+                "ambiguous "
             } else {
                 "unknown type"
             }),

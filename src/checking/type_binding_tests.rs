@@ -1033,7 +1033,7 @@ fn named_binding_results_match_executed_host_signature_resolution() {
                     let expected = if resolution == Resolution::Missing {
                         "unknown type"
                     } else {
-                        "ambiguous named type"
+                        "ambiguous "
                     };
                     assert!(error.message.contains(expected), "{label}: {error}");
                     assert!(!report.incomplete.data.is_empty(), "{label}");

@@ -44,6 +44,7 @@ pub(super) fn resolve(
         found = method(ctx, receiver, "==")?;
         negate = found.is_some();
     }
+    let name = if negate { "==" } else { name };
     let Some((call, visibility)) = found else {
         return Ok(None);
     };
@@ -59,10 +60,7 @@ pub(super) fn resolve(
         }
     };
     if !allowed {
-        return Err(Error::new(
-            ErrorKind::Name,
-            "operator method is not accessible with this receiver",
-        ));
+        return Err(super::namespaces::hidden(visibility, name));
     }
     Ok(Some(Resolved { call, negate }))
 }

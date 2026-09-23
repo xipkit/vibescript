@@ -76,10 +76,9 @@ pub(super) fn identifier(
                 namespaces::fallback(name)?;
                 Ok(Target::Member(Value::nil(), index))
             } else {
-                Err(Error::new(
-                    ErrorKind::Name,
-                    format!("undefined variable {name}"),
-                ))
+                Err(namespaces::removed(name).unwrap_or_else(|| {
+                    Error::new(ErrorKind::Name, format!("undefined variable {name}"))
+                }))
             }
         }
     }

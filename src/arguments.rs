@@ -135,7 +135,10 @@ impl Arguments {
             ArgumentOp::Positional => self.positional.push(ctx, value),
             ArgumentOp::Splat => {
                 let values = value.as_array().ok_or_else(|| {
-                    Error::new(ErrorKind::Type, "splat argument must be an array")
+                    Error::new(
+                        ErrorKind::Type,
+                        format!("splat argument must be an array, got {}", value.type_name()),
+                    )
                 })?;
                 let Some(length) = self.positional.data.len().checked_add(values.len()) else {
                     return ctx.fail(ErrorKind::Memory, "argument count overflow");
@@ -152,10 +155,13 @@ impl Arguments {
                 self.keywords.insert(ctx, key, value)
             }
             ArgumentOp::KeywordSplat => {
-                let Kind::Hash(hash) = value.0 else {
+                let Kind::Hash(hash) = &value.0 else {
                     return Err(Error::new(
                         ErrorKind::Type,
-                        "keyword splat argument must be a hash",
+                        format!(
+                            "keyword splat argument must be a hash, got {}",
+                            value.type_name()
+                        ),
                     ));
                 };
                 for (key, value) in &hash.buffer.data {

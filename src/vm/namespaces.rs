@@ -133,11 +133,34 @@ pub(super) fn fallback(name: &str) -> Result<()> {
     ) {
         Ok(())
     } else {
-        Err(Error::new(
-            ErrorKind::Name,
-            format!("unknown class member {name}"),
-        ))
+        Err(removed(name)
+            .unwrap_or_else(|| Error::new(ErrorKind::Name, format!("unknown class member {name}"))))
     }
+}
+
+/// Refuses a private or protected method by name, as Go does.
+pub(super) fn hidden(visibility: Visibility, name: &str) -> Error {
+    let visibility = if visibility == Visibility::Private {
+        "private"
+    } else {
+        "protected"
+    };
+    Error::new(ErrorKind::Name, format!("{visibility} method {name}"))
+}
+
+/// Explains a name that used to construct a callable value, as Go does.
+pub(super) fn removed(name: &str) -> Option<Error> {
+    let constructor = match name {
+        "proc" | "lambda" => name,
+        "Proc" => "Proc.new",
+        _ => return None,
+    };
+    Some(Error::new(
+        ErrorKind::Name,
+        format!(
+            "{constructor} was removed; executable code is not a value. Define a named function and call it, or attach a block to the call that runs it"
+        ),
+    ))
 }
 
 pub(super) fn state(
@@ -388,10 +411,7 @@ pub(super) fn member(
                 }
             };
             if !allowed {
-                return Err(Error::new(
-                    ErrorKind::Name,
-                    "method is not accessible with this receiver",
-                ));
+                return Err(hidden(method.visibility, name));
             }
             return Ok(Member::Function(crate::namespace::Call {
                 receiver: Some(receiver.clone()),
@@ -423,7 +443,7 @@ pub(super) fn member(
     if name == "new" && instance.is_none() {
         return Err(Error::new(
             ErrorKind::Argument,
-            "modules cannot be instantiated",
+            format!("module {} cannot be instantiated", definition.name),
         ));
     }
     Ok(Member::Missing)
@@ -510,10 +530,7 @@ pub(super) fn setter(
                     && (!caller.is_some_and(|index| program.namespace_matches(index, namespace))
                         || caller_instance != instance))
             {
-                return Err(Error::new(
-                    ErrorKind::Name,
-                    "setter is not accessible with this receiver",
-                ));
+                return Err(hidden(method.visibility, &method.name));
             }
             return Ok(Some(crate::namespace::Call {
                 receiver: Some(receiver.clone()),
@@ -524,7 +541,7 @@ pub(super) fn setter(
     if instance && methods.iter().any(|method| method.name == name) {
         return Err(Error::new(
             ErrorKind::Argument,
-            "cannot assign to read-only property",
+            format!("cannot assign to read-only property {name}"),
         ));
     }
     Ok(None)

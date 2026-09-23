@@ -296,25 +296,14 @@ impl Builtin {
         }
     }
 
+    /// Refuses the builtin as a value, naming it as the script wrote it, as Go does:
+    /// a namespaced builtin such as `JSON.parse` is referred to by its member name.
     pub fn value_error(self) -> Error {
-        if matches!(
-            self,
-            Self::Output(_) | Self::Format(_) | Self::Loop | Self::Require
-        ) {
-            let name = self.name();
-            return Error::new(
-                ErrorKind::Type,
-                format!(
-                    "{name} is a method and cannot be used as a value; call it with {name}(...)"
-                ),
-            );
-        }
+        let name = self.name();
+        let name = name.rsplit('.').next().unwrap_or(name);
         Error::new(
             ErrorKind::Type,
-            format!(
-                "{} is a method and cannot be used as a value; call it directly",
-                self.name()
-            ),
+            format!("{name} is a method and cannot be used as a value; call it with {name}(...)"),
         )
     }
 

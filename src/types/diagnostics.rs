@@ -66,6 +66,16 @@ pub(crate) fn host_resolution(
             writer.write(method.as_bytes())?;
             writer.write(b": ")?;
         }
+        Context::Argument(name) => {
+            writer.write(b"argument ")?;
+            writer.write(name)?;
+            writer.write(b" type check failed: ")?;
+        }
+        Context::Ivar(name) => {
+            writer.write(b"instance variable @")?;
+            writer.write(name)?;
+            writer.write(b" type check failed: ")?;
+        }
         _ => unreachable!(),
     }
     if error.message == "unknown named type" {

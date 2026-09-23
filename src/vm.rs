@@ -3215,10 +3215,31 @@ fn normalize_ivar(
     let Some(ty) = property_type(program, ctx, instance, name)? else {
         return Ok(value);
     };
-    crate::types::prepare(ctx, &program.types[ty], |ctx, name| {
-        resolve_type(program, ctx, frames, storage, None, name, false)
-    })?
-    .normalize_with(ctx, value, crate::types::Context::Ivar(name.as_bytes()))
+    let context = crate::types::Context::Ivar(name.as_bytes());
+    prepare_type(program, ctx, frames, storage, None, (ty, context))?
+        .normalize_with(ctx, value, context)
+}
+
+/// Resolves an annotation's named types, explaining one that fails to resolve
+/// in Go's words for `context`.
+fn prepare_type<'a>(
+    program: &'a Program,
+    ctx: &mut CallContext,
+    frames: &Buffer<Frame>,
+    storage: &mut Storage,
+    lexical: Option<usize>,
+    (ty, context): (usize, crate::types::Context<'_>),
+) -> Result<crate::types::Prepared<'a>> {
+    let mut failed = None;
+    let prepared = crate::types::prepare(ctx, &program.types[ty], |ctx, name| {
+        resolve_type(program, ctx, frames, storage, lexical, name, false).inspect_err(|_| {
+            failed = Some(name.to_owned());
+        })
+    });
+    match (prepared, failed) {
+        (Err(error), Some(name)) => Err(crate::types::host_resolution(ctx, context, &name, error)?),
+        (prepared, _) => prepared,
+    }
 }
 
 fn address_guard<'a>(
@@ -3253,10 +3274,11 @@ fn normalize_type(
     value: Value,
 ) -> Result<Value> {
     let lexical = frames.data[frame].parent;
-    crate::types::prepare(ctx, &program.types[annotation.0], |ctx, name| {
-        resolve_type(program, ctx, frames, storage, lexical, name, false)
-    })?
-    .normalize_with(ctx, value, annotation.1)
+    prepare_type(program, ctx, frames, storage, lexical, annotation)?.normalize_with(
+        ctx,
+        value,
+        annotation.1,
+    )
 }
 
 fn resolve_type(
@@ -3288,7 +3310,7 @@ fn resolve_type(
                     if let Some(value) =
                         type_candidate(ctx, candidate, value, binding, member, fold, enum_only)?
                     {
-                        merge_type(&mut found, value)?;
+                        merge_type(&mut found, value, binding)?;
                     }
                 }
             }
@@ -3305,7 +3327,7 @@ fn resolve_type(
                 if let Some(value) =
                     type_candidate(ctx, candidate, &value, binding, member, fold, enum_only)?
                 {
-                    merge_type(&mut found, value)?;
+                    merge_type(&mut found, value, binding)?;
                 }
             }
             if let Some(value) = found {
@@ -3319,7 +3341,7 @@ fn resolve_type(
                 if let Some(value) =
                     type_candidate(ctx, candidate, &value, binding, member, fold, enum_only)?
                 {
-                    merge_type(&mut found, value)?;
+                    merge_type(&mut found, value, binding)?;
                 }
             }
             if let Some(value) = found {
@@ -3344,7 +3366,7 @@ fn resolve_type(
             if let Some(value) =
                 type_candidate(ctx, global.name(), value, binding, member, fold, enum_only)?
             {
-                merge_type(&mut found, value)?;
+                merge_type(&mut found, value, binding)?;
             }
         }
         for (index, value) in program.declarations.iter().enumerate() {
@@ -3375,7 +3397,7 @@ fn resolve_type(
                 if found.is_none() {
                     declaration = Some(index);
                 }
-                merge_type(&mut found, value)?;
+                merge_type(&mut found, value, binding)?;
             }
         }
         if let Some(value) = found {
@@ -3438,13 +3460,13 @@ fn type_candidate(
             || (!enum_only && matches!(value.0, Kind::Namespace(_))))
             && crate::text::case::equal(ctx, key.require_bytes()?, member.as_bytes())?
         {
-            merge_type(&mut found, value.clone())?;
+            merge_type(&mut found, value.clone(), member)?;
         }
     }
     Ok(found)
 }
 
-fn merge_type(found: &mut Option<Value>, value: Value) -> Result<()> {
+fn merge_type(found: &mut Option<Value>, value: Value, name: &str) -> Result<()> {
     if let Some(previous) = found {
         let same = match (&previous.0, &value.0) {
             (Kind::Enum(a), Kind::Enum(b)) => std::sync::Arc::ptr_eq(&a.definition, &b.definition),
@@ -3452,12 +3474,40 @@ fn merge_type(found: &mut Option<Value>, value: Value) -> Result<()> {
             _ => false,
         };
         if !same {
-            return Err(Error::new(ErrorKind::Type, "ambiguous named type"));
+            return Err(ambiguous_type(name, previous, &value));
         }
     } else {
         *found = Some(value);
     }
     Ok(())
+}
+
+/// Names both declarations a case-insensitive type name matched, as Go does.
+fn ambiguous_type(name: &str, a: &Value, b: &Value) -> Error {
+    fn declared(value: &Value) -> (&'static str, &str) {
+        match &value.0 {
+            Kind::Enum(enumeration) => ("enum", enumeration.definition.name.as_str()),
+            Kind::Namespace(namespace) => ("class", namespace.definition.name.as_str()),
+            _ => ("", ""),
+        }
+    }
+    let ((a_kind, a_name), (b_kind, b_name)) = (declared(a), declared(b));
+    let message = if a_kind == b_kind {
+        let (first, second) = if a_name <= b_name {
+            (a_name, b_name)
+        } else {
+            (b_name, a_name)
+        };
+        format!("ambiguous {a_kind} type {name} matches {first}, {second}")
+    } else {
+        let (enumeration, class) = if a_kind == "enum" {
+            (a_name, b_name)
+        } else {
+            (b_name, a_name)
+        };
+        format!("ambiguous type {name} matches enum {enumeration}, class {class}")
+    };
+    Error::new(ErrorKind::Type, message)
 }
 
 fn value_invocation(value: &Value) -> crate::arguments::Target {
@@ -3603,12 +3653,11 @@ fn enter(
         return recursion_exceeded(ctx);
     }
     if args.len() != fun.params.len() {
-        return Err(Error::argument(format!(
-            "{} expects {} arguments, got {}",
-            fun.name,
-            fun.params.len(),
-            args.len()
-        )));
+        // Go names the first parameter left without an argument.
+        return Err(Error::argument(match fun.params.get(args.len()) {
+            Some(param) => format!("missing argument {}", param.name),
+            None => "unexpected positional arguments".to_owned(),
+        }));
     }
     let mut frame = new_frame(ctx, program, storage, Some(function), base)?;
     frame.home = (function != 0 && !fun.initializer).then_some(frames.data.len());

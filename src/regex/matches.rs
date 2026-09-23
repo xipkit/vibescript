@@ -47,9 +47,10 @@ impl Offset {
     }
 
     pub fn value_error(&self) -> Error {
+        let name = if self.end { "end" } else { "begin" };
         Error::new(
             ErrorKind::Type,
-            format!("{} is a method and must be called", self.name()),
+            format!("{name} is a method and cannot be used as a value; call it with {name}(...)"),
         )
     }
 
@@ -61,15 +62,30 @@ impl Offset {
         block: bool,
     ) -> Result<Value> {
         ctx.checkpoint()?;
-        if !keywords.is_empty() || block {
+        let name = self.name();
+        if !keywords.is_empty() {
             return Err(Error::new(
                 ErrorKind::Argument,
-                "match offset does not accept keywords or blocks",
+                format!("{name} does not accept keyword arguments"),
             ));
         }
-        ops::arity(args, 1)?;
+        if block {
+            return Err(Error::new(
+                ErrorKind::Argument,
+                format!("{name} does not accept blocks"),
+            ));
+        }
+        if args.len() != 1 {
+            return Err(Error::new(
+                ErrorKind::Argument,
+                format!("{name} expects a capture index"),
+            ));
+        }
         let values = self.values.as_array().unwrap();
-        let index = crate::sequence::integer(&args[0])?;
+        let index = crate::sequence::integer(&args[0]).map_err(|mut error| {
+            error.message = format!("{name} capture index must be integer");
+            error
+        })?;
         let index = if index < 0 {
             values.len() as i128 + i128::from(index)
         } else {
@@ -78,7 +94,7 @@ impl Offset {
         if index < 0 || index >= values.len() as i128 {
             return Err(Error::new(
                 ErrorKind::Argument,
-                "match capture index out of bounds",
+                format!("{name} capture index out of bounds"),
             ));
         }
         Ok(values[index as usize].clone())

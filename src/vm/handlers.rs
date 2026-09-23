@@ -713,9 +713,9 @@ pub(super) fn guard_loop(
     Err(Error::new(
         ErrorKind::Argument,
         if breaking {
-            "break outside loop"
+            "break used outside of loop"
         } else {
-            "next outside loop"
+            "next used outside of loop"
         },
     ))
 }
@@ -740,9 +740,9 @@ fn invalid_loop_control(
         Err(Error::new(
             ErrorKind::Argument,
             if breaking {
-                "break outside loop"
+                "break used outside of loop"
             } else {
-                "next outside loop"
+                "next used outside of loop"
             },
         ))
     }

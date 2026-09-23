@@ -1235,3 +1235,106 @@ fn regex_errors_quote_go_syntax_errors_and_name_the_operation() {
         ),
     ]);
 }
+
+#[test]
+fn calls_name_missing_arguments_visibility_and_removed_constructors() {
+    use ErrorClass::{Argument, Runtime};
+    rejects(&[
+        (
+            "def add(a, b)\n  a + b\nend\ndef run\n  add(1)\nend",
+            Argument,
+            "missing argument b",
+        ),
+        (
+            "def one(a)\n  a\nend\ndef run\n  one(1, 2)\nend",
+            Argument,
+            "unexpected positional arguments",
+        ),
+        (
+            "def add(a, b)\n  a + b\nend\ndef run\n  add(*nil)\nend",
+            Runtime,
+            "splat argument must be an array, got nil",
+        ),
+        (
+            "def kw(a, x: 0)\n  a\nend\ndef run\n  kw(1, **[1, 2])\nend",
+            Runtime,
+            "keyword splat argument must be a hash, got array",
+        ),
+        (
+            "class C\n  private def secret\n    1\n  end\nend\ndef run\n  C.new.secret\nend",
+            Runtime,
+            "private method secret",
+        ),
+        (
+            "class C\n  private\n  def x=(v)\n    1\n  end\nend\ndef run\n  c = C.new\n  c.x = 2\nend",
+            Runtime,
+            "private method x=",
+        ),
+        (
+            "class C\n  private def ==(o)\n    true\n  end\nend\ndef run\n  C.new != 1\nend",
+            Runtime,
+            "private method ==",
+        ),
+        (
+            "module M\n  protected\n  def self.f\n    1\n  end\nend\ndef run\n  M.f\nend",
+            Runtime,
+            "protected method f",
+        ),
+        (
+            "def run\n  proc { 1 }\nend",
+            Runtime,
+            "proc was removed; executable code is not a value. Define a named function and call it, or attach a block to the call that runs it",
+        ),
+        (
+            "def run\n  Proc.new { 1 }\nend",
+            Runtime,
+            "Proc.new was removed; executable code is not a value. Define a named function and call it, or attach a block to the call that runs it",
+        ),
+        (
+            "def run\n  money\nend",
+            Runtime,
+            "money is a method and cannot be used as a value; call it with money(...)",
+        ),
+        (
+            "def run\n  JSON.stringify\nend",
+            Runtime,
+            "stringify is a method and cannot be used as a value; call it with stringify(...)",
+        ),
+        (
+            "def f(v: Missing)\n  v\nend\ndef run\n  f(1)\nend",
+            Runtime,
+            "argument v type check failed: unknown type Missing",
+        ),
+        (
+            "def f(v) -> Missing\n  v\nend\ndef run\n  f(1)\nend",
+            Runtime,
+            "return type check failed for f: unknown type Missing",
+        ),
+        (
+            "enum STATUS\n  A\nend\nenum Status\n  B\nend\ndef f(s: status)\n  s\nend\ndef run\n  f(1)\nend",
+            Runtime,
+            "argument s type check failed: ambiguous enum type status matches STATUS, Status",
+        ),
+        (
+            "class User\nend\nenum USER\n  A\nend\ndef f(v: user)\n  v\nend\ndef run\n  f(1)\nend",
+            Runtime,
+            "argument v type check failed: ambiguous type user matches enum USER, class User",
+        ),
+        ("def run\n  next\nend", Runtime, "next used outside of loop"),
+        (
+            "module M\nend\ndef run\n  M.new\nend",
+            Runtime,
+            "module M cannot be instantiated",
+        ),
+        (
+            "def run\n  m = \"a\".match(/(a)(b)?/)\n  m.end(nil)\nend",
+            Runtime,
+            "match_data.end capture index must be integer",
+        ),
+        (
+            "def run\n  m = \"a\".match(/a/)\n  m.begin\nend",
+            Runtime,
+            "begin is a method and cannot be used as a value; call it with begin(...)",
+        ),
+    ]);
+}
