@@ -1,6 +1,6 @@
 # Runtime type annotations
 
-Function arguments, defaults, returns, block bindings and instance-variable writes support runtime type annotations. Nominal class types and typed accessors are also supported. Extended name resolution and static checking remain pending in the [language port](language-port.md).
+Function arguments, defaults, returns, block bindings and instance-variable writes support runtime type annotations. Nominal class types and typed accessors are also supported. Static checking of these annotations is described in the [checker notes](checker.md).
 
 ```vibe
 enum Status
@@ -51,7 +51,7 @@ Defaults, keywords, rest captures and typed block bindings use the argument form
 
 Expected types use the same canonical spelling as type literals. Actual collection types are bounded summaries: arrays sample the first sixteen entries; hashes sample the first sixteen keys in byte order. A hash with at most six fields shows a shape. Larger collections show a sorted, deduplicated union, with `...` when sampling truncates it. Empty collections render as `array<empty>` and `{}`. Nested summaries stop after sixteen levels. Repeated references are summarized independently by path. Raw field-name bytes remain available through `Error::message_bytes()`.
 
-Every scan, comparison and emitted byte consumes work; temporary storage is reserved against the call's memory limit before allocation. Exhaustion, cancellation and deadlines take precedence over constructing a type error. Rescued diagnostics release their scratch storage. Successful normalization creates no diagnostic buffers. Unknown and ambiguous named-type errors still have separate wording; broader diagnostic parity remains pending.
+Every scan, comparison and emitted byte consumes work; temporary storage is reserved against the call's memory limit before allocation. Exhaustion, cancellation and deadlines take precedence over constructing a type error. Rescued diagnostics release their scratch storage. Successful normalization creates no diagnostic buffers. Unknown and ambiguous named-type errors use Go's wording.
 
 ## Type literals and JSON
 
@@ -71,4 +71,4 @@ Type equality compares canonical annotations: field order does not matter, while
 
 Each imported type value charges its retained metadata and wrapper to the receiving call. Clones share that charge; a foreign import receives an independent charge while sharing immutable metadata. Rendering and equality charge bounded byte scans and observe cancellation. Unused compiled literals do not allocate execution storage.
 
-Script `JSON.parse` and `JSON.parse_as` inputs and `JSON.stringify` output have Go's fixed 1 MiB guard. Before writing an ASCII escape, the serializer requires six bytes of headroom even for a two-byte escape. Guard failures return `ErrorKind::OutputLimit` and remain latched. Host `parse_json` and `stringify_json` helpers use their independent `CallOptions` budgets without this builtin payload cap. Runtime value nesting remains bounded at 128.
+Script `JSON.parse` and `JSON.parse_as` inputs and `JSON.stringify` output have Go's fixed 1 MiB guard. Before writing an ASCII escape, the serializer requires six bytes of headroom even for a two-byte escape. Guard failures return `ErrorKind::OutputLimit` and remain latched. Host `parse_json` and `stringify_json` helpers use their independent `CallOptions` budgets without this builtin payload cap. Runtime value nesting is bounded at 10,000 levels; see [JSON depth](json-depth.md).

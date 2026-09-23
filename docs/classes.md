@@ -148,4 +148,4 @@ Object fields, identity storage, imports and graph traversal are accounted. Cycl
 
 Instances returned to Rust can be passed back to the same compiled script. Imports preserve shared references and cycles within the new call while isolating mutations from the source value. Concurrent calls also get independent imported objects and class state.
 
-The class port is incomplete. `puts`/`print` output and transfer of live namespace state between compiled scripts remain pending. Inheritance, singleton classes, `super`, and module mixins are outside the Vibescript language.
+Inheritance, singleton classes, `super`, and module mixins are outside the Vibescript language.
