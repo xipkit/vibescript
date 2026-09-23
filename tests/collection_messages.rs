@@ -603,3 +603,90 @@ fn array_keyword_and_block_refusals_follow_the_reference_order() {
         assert_eq!(message(body), expected, "{body}");
     }
 }
+
+#[test]
+fn array_element_bounds_and_comparison_errors_use_reference_wording() {
+    let cases = [
+        (
+            "[1].to_h",
+            "array.to_h expects an array of two-element pairs",
+        ),
+        (
+            "[[1]].to_h",
+            "array.to_h pair must have exactly two elements",
+        ),
+        (
+            "[1].to_h { |x| x }",
+            "array.to_h expects an array of two-element pairs",
+        ),
+        (
+            "[1].to_h { |x| [x] }",
+            "array.to_h pair must have exactly two elements",
+        ),
+        (
+            "[[1], 2].transpose",
+            "array.transpose requires arrays as elements, but element at index 1 is a int",
+        ),
+        (
+            "[[1], [1, 2]].transpose",
+            "array.transpose requires equal-length rows, but element at index 1 has length 2 (expected 1)",
+        ),
+        ("[1].zip([1], 2)", "array.zip arguments must be arrays"),
+        (
+            "[1].difference([1], 1)",
+            "array.difference arguments must be arrays",
+        ),
+        ("[1].join(nil)", "array.join separator must be string"),
+        ("[1, \"a\"].sum", "array.sum cannot add incompatible values"),
+        ("[1, nil].sum", "array.sum cannot add incompatible values"),
+        (
+            "[1].sum(0) { |x| nil }",
+            "array.sum cannot add incompatible values",
+        ),
+        (
+            "[1].sum { |x| \"a\" }",
+            "array.sum cannot add incompatible values",
+        ),
+        (
+            "[1, 2, 3].fetch(-7)",
+            "array.fetch index -7 outside of array bounds: -3...3",
+        ),
+        (
+            "[].fetch(0)",
+            "array.fetch index 0 outside of array bounds: 0...0",
+        ),
+        (
+            "[1, 2, 3].values_at(-5...-4)",
+            "array.values_at range -5...-4 out of range",
+        ),
+        (
+            "[1, 2, 3].values_at(-5...)",
+            "array.values_at range -5.. out of range",
+        ),
+        (
+            "[1, 2, 3].fill(-5..) { |i| i }",
+            "array.fill range -5.. out of range",
+        ),
+        ("[1, 2].insert(-4, 1)", "array.insert index -4 out of range"),
+        ("[1, \"a\"].sort", "array.sort values are not comparable"),
+        (
+            "[1, 2].sort { |a, b| \"x\" }",
+            "array.sort block must return numeric comparator",
+        ),
+        (
+            "[1, 2].sort_by { |x| x == 1 ? \"a\" : 1 }",
+            "array.sort_by block values are not comparable",
+        ),
+        (
+            "[1, \"a\"].minmax",
+            "array.minmax values are not comparable",
+        ),
+        (
+            "[1, 2].max_by { |x| x == 1 ? \"a\" : 1 }",
+            "array.max_by block values are not comparable",
+        ),
+    ];
+    for (body, expected) in cases {
+        assert_eq!(message(body), expected, "{body}");
+    }
+}

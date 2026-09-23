@@ -951,9 +951,9 @@ impl Loop {
             ToHash => {
                 let pair = value
                     .as_array()
-                    .ok_or_else(|| argument("to_h requires pairs"))?;
+                    .ok_or_else(|| argument("array.to_h expects an array of two-element pairs"))?;
                 if pair.len() != 2 {
-                    return Err(argument("to_h requires two-element pairs"));
+                    return Err(argument("array.to_h pair must have exactly two elements"));
                 }
                 let key = ctx.bytes(pair[0].hash_key_for("array.to_h pair key is an")?)?;
                 self.hash.insert(ctx, key, pair[1].clone())?;
@@ -1016,10 +1016,20 @@ impl Loop {
             }
             Sum => {
                 let previous = self.accumulator.take().unwrap();
+                let array = matches!(self.receiver.0, Kind::Array(_));
                 if matches!(previous.0, Kind::Bytes(_)) != matches!(value.0, Kind::Bytes(_)) {
-                    return Err(argument("sum cannot add incompatible values"));
+                    return Err(argument(if array {
+                        ops::SUM_INCOMPATIBLE
+                    } else {
+                        "sum cannot add incompatible values"
+                    }));
                 }
-                self.accumulator = Some(ops::binary(ctx, "+", previous, value)?);
+                let sum = ops::binary(ctx, "+", previous, value);
+                self.accumulator = Some(if array {
+                    sum.map_err(ops::sum_incompatible)?
+                } else {
+                    sum?
+                });
             }
             Min | Max => {
                 let next = value.require_int()?;

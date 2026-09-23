@@ -32,6 +32,19 @@ pub(crate) fn unsupported(op: &str) -> Error {
     )
 }
 
+/// The reference's message when `array.sum` meets values `+` cannot add.
+pub(crate) const SUM_INCOMPATIBLE: &str = "array.sum cannot add incompatible values";
+
+/// Relabels an addition that failed inside `array.sum` as the reference does.
+/// Limit and interruption errors keep their own message.
+pub(crate) fn sum_incompatible(error: Error) -> Error {
+    if error.class() == Some(crate::ErrorClass::Runtime) {
+        error.with_message(SUM_INCOMPATIBLE.to_owned())
+    } else {
+        error
+    }
+}
+
 /// Rejects arguments to an array member that takes none.
 fn array_arity(name: &str, args: &[Value]) -> Result<()> {
     if args.is_empty() {
@@ -940,9 +953,9 @@ pub(crate) fn method(
             for item in array {
                 ctx.charge(1)?;
                 if matches!(sum.0, Kind::Bytes(_)) != matches!(item.0, Kind::Bytes(_)) {
-                    return Err(type_error());
+                    return Err(Error::new(ErrorKind::Type, SUM_INCOMPATIBLE));
                 }
-                sum = binary(ctx, "+", sum, item.clone())?;
+                sum = binary(ctx, "+", sum, item.clone()).map_err(sum_incompatible)?;
             }
             Ok(sum)
         }
@@ -1095,10 +1108,12 @@ fn join(ctx: &mut CallContext, value: &Value, args: &[Value]) -> Result<Value> {
             "array.join accepts at most one separator",
         ));
     }
-    let sep = if args.is_empty() {
-        b"".as_slice()
-    } else {
-        args[0].require_bytes()?
+    // Unlike the reference, a symbol separator is accepted.
+    let sep = match args.first() {
+        None => b"".as_slice(),
+        Some(sep) => sep
+            .as_bytes()
+            .ok_or_else(|| Error::new(ErrorKind::Type, "array.join separator must be string"))?,
     };
     let array = value.as_array().ok_or_else(type_error)?;
     let mut out = Buffer::empty();

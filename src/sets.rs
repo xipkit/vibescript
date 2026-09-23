@@ -384,7 +384,12 @@ pub(crate) fn call(
     }
     for arg in args {
         ctx.charge(1)?;
-        require_array(arg)?;
+        if arg.as_array().is_none() {
+            return Err(Error::new(
+                ErrorKind::Type,
+                format!("array.{name} arguments must be arrays"),
+            ));
+        }
     }
     let value = if name == "union" {
         let mut output = Buffer::empty();

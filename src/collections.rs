@@ -18,6 +18,19 @@ fn wrong_type() -> Error {
     )
 }
 
+/// Reports an array range selector whose start lies before the receiver, as
+/// the reference renders it: an endless range shows no end and two dots.
+pub(crate) fn range_out_of_range(member: &str, range: &crate::range::Range) -> Error {
+    let start = range.start.map(|n| n.to_string()).unwrap_or_default();
+    let (dots, end) = match range.end {
+        Some(end) => (if range.exclusive { "..." } else { ".." }, end.to_string()),
+        None => ("..", String::new()),
+    };
+    argument(&format!(
+        "array.{member} range {start}{dots}{end} out of range"
+    ))
+}
+
 /// Reads one array element or hash entry. `strict` is fetch's lookup, which
 /// rejects a fractional index; array index errors name fetch when strict and
 /// values_at otherwise. `site` names the member input that supplied a hash
@@ -104,9 +117,19 @@ pub(crate) fn method(
             {
                 return Ok(found);
             }
-            args.get(1)
-                .cloned()
-                .ok_or_else(|| argument("key or index not found"))
+            if let Some(default) = args.get(1) {
+                return Ok(default.clone());
+            }
+            if let Kind::Array(array) = &value.0 {
+                // The lookup accepted the index, so it converts.
+                let index = integer(&args[0])?;
+                let length = array.buffer.data.len() as i128;
+                return Err(argument(&format!(
+                    "array.fetch index {index} outside of array bounds: {}...{length}",
+                    -length
+                )));
+            }
+            Err(argument("key or index not found"))
         }
         Dig => {
             if args.is_empty() {
@@ -266,7 +289,7 @@ fn values_at_range(
     if start < 0 {
         start += length;
         if start < 0 {
-            return Err(argument("array.values_at range starts out of bounds"));
+            return Err(range_out_of_range("values_at", range));
         }
     }
     let mut end = range.end.map(i128::from).unwrap_or(length - 1);
@@ -428,7 +451,9 @@ fn array_method(
         Zip => {
             for v in args {
                 ctx.charge(1)?;
-                v.as_array().ok_or_else(wrong_type)?;
+                v.as_array().ok_or_else(|| {
+                    Error::new(ErrorKind::Type, "array.zip arguments must be arrays")
+                })?;
             }
             let mut out = Buffer::empty();
             for (i, v) in array.iter().enumerate() {
@@ -447,15 +472,27 @@ fn array_method(
         }
         Transpose => {
             no_arguments("transpose", args)?;
+            let not_array = |index: usize, row: &Value| {
+                Error::new(
+                    ErrorKind::Type,
+                    format!(
+                        "array.transpose requires arrays as elements, but element at index {index} is a {}",
+                        row.type_name()
+                    ),
+                )
+            };
             let cols = if let Some(first) = array.first() {
-                first.as_array().ok_or_else(wrong_type)?.len()
+                first.as_array().ok_or_else(|| not_array(0, first))?.len()
             } else {
                 0
             };
-            for row in array {
+            for (index, row) in array.iter().enumerate() {
                 ctx.charge(1)?;
-                if row.as_array().ok_or_else(wrong_type)?.len() != cols {
-                    return Err(argument("transpose rows have different lengths"));
+                let length = row.as_array().ok_or_else(|| not_array(index, row))?.len();
+                if length != cols {
+                    return Err(argument(&format!(
+                        "array.transpose requires equal-length rows, but element at index {index} has length {length} (expected {cols})"
+                    )));
                 }
             }
             let mut out = Buffer::empty();
@@ -476,9 +513,14 @@ fn array_method(
             let mut out = Hash::empty();
             for v in array {
                 ctx.charge(1)?;
-                let pair = v.as_array().ok_or_else(wrong_type)?;
+                let pair = v.as_array().ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Type,
+                        "array.to_h expects an array of two-element pairs",
+                    )
+                })?;
                 if pair.len() != 2 {
-                    return Err(argument("to_h requires two-element pairs"));
+                    return Err(argument("array.to_h pair must have exactly two elements"));
                 }
                 let key = ctx.bytes(pair[0].hash_key_for("array.to_h pair key is an")?)?;
                 out.insert(ctx, key, pair[1].clone())?;

@@ -56,7 +56,9 @@ pub(crate) fn call(
                     index
                 };
                 if at < 0 {
-                    return Err(argument("insert index out of bounds"));
+                    return Err(argument(&format!(
+                        "array.insert index {index} out of range"
+                    )));
                 }
                 (size(ctx, at)?, &args[1..])
             };
@@ -218,7 +220,7 @@ pub(crate) fn fill_span(
         let start = range.start.map_or(0, i128::from);
         let start = if start < 0 { start + length } else { start };
         if start < 0 {
-            return Err(argument("fill range out of bounds"));
+            return Err(crate::collections::range_out_of_range("fill", range));
         }
         let end = range.end.map_or(length - 1, i128::from);
         let end = if end < 0 { end + length } else { end };

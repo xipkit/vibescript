@@ -160,9 +160,16 @@ impl Compare {
         Ok(Step::Done(order))
     }
 
-    fn required(&mut self, ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Ordering> {
+    /// Orders `a` against `b`, reporting `incomparable` when they have no order.
+    fn required(
+        &mut self,
+        ctx: &mut CallContext,
+        a: &Value,
+        b: &Value,
+        incomparable: &str,
+    ) -> Result<Ordering> {
         self.order(ctx, a, b, 0)?
-            .ok_or_else(|| Error::new(ErrorKind::Type, "values are not comparable"))
+            .ok_or_else(|| Error::new(ErrorKind::Type, incomparable))
     }
 }
 
@@ -201,6 +208,20 @@ impl Method {
 
     fn by(self) -> bool {
         matches!(self, Self::SortBy | Self::MinBy | Self::MaxBy)
+    }
+
+    /// The reference's message when two compared elements, or two block
+    /// results, have no order.
+    fn incomparable(self) -> &'static str {
+        match self {
+            Self::Sort => "array.sort values are not comparable",
+            Self::SortBy => "array.sort_by block values are not comparable",
+            Self::Min => "array.min values are not comparable",
+            Self::Max => "array.max values are not comparable",
+            Self::Minmax => "array.minmax values are not comparable",
+            Self::MinBy => "array.min_by block values are not comparable",
+            Self::MaxBy => "array.max_by block values are not comparable",
+        }
     }
 }
 
@@ -301,7 +322,7 @@ impl Driver {
                     _ => {
                         return Err(Error::new(
                             ErrorKind::Argument,
-                            "sort comparator must be numeric",
+                            "array.sort block must return numeric comparator",
                         ));
                     }
                 });
@@ -309,7 +330,8 @@ impl Driver {
                 self.keys.push(ctx, value)?;
             } else {
                 let improves = if let Some(best) = &self.best_key {
-                    self.compare.required(ctx, &value, best)?
+                    self.compare
+                        .required(ctx, &value, best, self.method.incomparable())?
                         == if self.method == Method::MinBy {
                             Ordering::Less
                         } else {
@@ -351,7 +373,12 @@ impl Driver {
                         } else {
                             &self.values.data
                         };
-                        comparison = Some(self.compare.required(ctx, &keys[a], &keys[b])?);
+                        comparison = Some(self.compare.required(
+                            ctx,
+                            &keys[a],
+                            &keys[b],
+                            self.method.incomparable(),
+                        )?);
                     }
                     Action::Swap(a, b) => {
                         self.values.data.swap(a, b);
@@ -368,7 +395,10 @@ impl Driver {
         }
         if !self.method.by() {
             for (index, item) in array.iter().enumerate().skip(1) {
-                let order = self.compare.required(ctx, item, &array[self.best])?;
+                let incomparable = self.method.incomparable();
+                let order = self
+                    .compare
+                    .required(ctx, item, &array[self.best], incomparable)?;
                 if order
                     == if self.method == Method::Max {
                         Ordering::Greater
@@ -379,7 +409,10 @@ impl Driver {
                     self.best = index;
                 }
                 if self.method == Method::Minmax
-                    && self.compare.required(ctx, item, &array[self.maximum])? == Ordering::Greater
+                    && self
+                        .compare
+                        .required(ctx, item, &array[self.maximum], incomparable)?
+                        == Ordering::Greater
                 {
                     self.maximum = index;
                 }

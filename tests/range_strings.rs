@@ -143,7 +143,7 @@ fn ranges_do_not_widen_the_other_rejected_operand_forms() {
             .unwrap_err();
         assert_eq!(error.kind, ErrorKind::Argument, "{expression}");
         assert_eq!(
-            error.message, "sum cannot add incompatible values",
+            error.message, "array.sum cannot add incompatible values",
             "{expression}"
         );
     }
