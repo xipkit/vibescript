@@ -1,6 +1,7 @@
 use rustix::{
     fd::OwnedFd,
     fs::{AtFlags, FileType, Mode, OFlags},
+    io::Errno,
 };
 use std::{
     ffi::{OsStr, OsString},
@@ -17,7 +18,17 @@ pub(super) struct Dir(OwnedFd);
 
 impl Dir {
     pub(super) fn symlink_metadata(&self, name: &OsStr) -> io::Result<Metadata> {
-        let stat = rustix::fs::statat(&self.0, name, AtFlags::SYMLINK_NOFOLLOW)?;
+        // Wasmtime rejects names that are not UTF-8, which no file there can
+        // have. Report them missing, as native targets and Node do, so a
+        // search continues with the next root.
+        let stat =
+            rustix::fs::statat(&self.0, name, AtFlags::SYMLINK_NOFOLLOW).map_err(|error| {
+                if error == Errno::ILSEQ {
+                    Errno::NOENT
+                } else {
+                    error
+                }
+            })?;
         Ok(Metadata(FileType::from_raw_mode(stat.st_mode)))
     }
 

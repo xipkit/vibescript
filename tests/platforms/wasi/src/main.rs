@@ -220,6 +220,14 @@ fn main() {
             "{name}"
         );
     }
+    // Wasmtime rejects names that are not UTF-8; like native targets, the
+    // engine reports them missing rather than as a filesystem failure.
+    let error = engine
+        .compile("require(\"\\xff\")")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap_err();
+    assert!(error.message.contains("module not found"), "{error}");
     for _ in 0..2 {
         assert_eq!(
             result(&engine, "require('counter').increment()").as_int(),
