@@ -344,8 +344,9 @@ fn fnv(bytes: &[u8]) -> u64 {
 #[test]
 fn long_decimal_conversions_match_python() {
     // The length and FNV-1a hash of Python's str() for each value: powers
-    // of ten and their neighbours, all nines, single bits, products,
-    // quotients and remainders of both signs, around conversion thresholds.
+    // of ten and their neighbors, all nines, single bits, products,
+    // quotients and remainders of both signs, around conversion and
+    // division thresholds.
     for (source, length, hash) in [
         ("3 ** 209590", 100000, 0x3b24_3676_2505_a83b),
         ("-(7 ** 60000)", 50707, 0x65e7_79c8_ba51_5706),
@@ -380,6 +381,28 @@ fn long_decimal_conversions_match_python() {
             "12345678901234567890 ** 4000 + 10 ** 3000",
             76367,
             0xdb07_c307_2c21_b030,
+        ),
+        ("3 ** 503000 / 7 ** 142000", 119989, 0x5821_fb06_e4a2_944f),
+        ("3 ** 503000 % 7 ** 142000", 120004, 0x9e91_1546_497c_510e),
+        (
+            "-(10 ** 200000) / (10 ** 70000 - 1)",
+            130002,
+            0x9dfd_4bbe_13bd_1c6b,
+        ),
+        (
+            "(10 ** 200000) % -(10 ** 70000 + 1)",
+            70001,
+            0xecb8_842e_9bfa_103b,
+        ),
+        (
+            "(2 ** 400000 - 1) / (2 ** 99999 + 1)",
+            90310,
+            0xeec9_4e74_88de_3f99,
+        ),
+        (
+            "(2 ** 400000 - 1) % (2 ** 99999 + 1)",
+            2,
+            0x07f8_8f07_b4ba_038b,
         ),
     ] {
         let outcome = Engine::new()

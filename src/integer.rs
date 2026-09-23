@@ -5,6 +5,7 @@ use crate::{
 };
 use std::{cmp::Ordering, mem::size_of, sync::Arc};
 
+mod division;
 mod limbs;
 mod ntt;
 mod radix;
@@ -501,7 +502,12 @@ fn divide(
         return Ok((quotient, copy(ctx, Magnitude::Small(remainder as u64))?));
     }
     let (mut x, mut y) = ([0; 2], [0; 2]);
-    long_divide(ctx, a.slice(&mut x), b.slice(&mut y))
+    let (a, b) = (a.slice(&mut x), b.slice(&mut y));
+    let quotient = a.len() - b.len();
+    if b.len().min(quotient) >= division::THRESHOLD && b.len().max(quotient) >= division::LONG {
+        return division::divide(ctx, a, b);
+    }
+    long_divide(ctx, a, b)
 }
 
 /// Shifts `words` left by `shift` bits below 32 into a new buffer of
@@ -1012,6 +1018,101 @@ mod tests {
             assert_eq!(trimmed(out), schoolbook(&a, &a), "{x} squared");
         }
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+
+    #[test]
+    fn reciprocal_division_agrees_with_schoolbook_division() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        ctx.options.limits.steps = None;
+        let mut words = Words(0x3c6e_f372_fe94_f82b);
+        // Divisor and quotient lengths from a few words to beyond the
+        // transform and division thresholds, with quotients shorter than,
+        // as long as and longer than their divisors.
+        let (small, long) = (division::THRESHOLD, division::LONG);
+        for (y, q) in [
+            (2, 1),
+            (2, 5),
+            (3, 2),
+            (5, 5),
+            (7, 20),
+            (20, 7),
+            (130, 129),
+            (129, 400),
+            (300, 299),
+            (300, 301),
+            (small, long),
+            (long, small),
+            (long + 1, small - 1),
+            (small - 1, long + 1),
+            (1100, 300),
+            (2048, 2048),
+            (600, 2500),
+        ] {
+            for shape in 0..4 {
+                let mut b = words.take(y);
+                match shape {
+                    // The largest normalizing shift.
+                    0 => b[y - 1] = 1,
+                    // All ones.
+                    1 => b.fill(u32::MAX),
+                    // A power of 2^32.
+                    2 => {
+                        b.fill(0);
+                        b[y - 1] = 1;
+                    }
+                    _ => {}
+                }
+                let quotient = words.take(q);
+                let product =
+                    multiply(&mut ctx, Magnitude::Words(&quotient), Magnitude::Words(&b)).unwrap();
+                for remainder in [Vec::new(), trimmed(words.take(y - 1)), {
+                    // The largest remainder, one below the divisor.
+                    let mut largest = b.clone();
+                    subtract(&mut ctx, &mut largest, Magnitude::Small(1)).unwrap();
+                    trimmed(largest)
+                }] {
+                    let mut dividend = product.data.clone();
+                    dividend.push(0);
+                    add_into(&mut ctx, &mut dividend, &remainder).unwrap();
+                    let dividend = trimmed(dividend);
+                    let (fast, rest) = division::divide(&mut ctx, &dividend, &b).unwrap();
+                    assert_eq!(trimmed(fast.data), quotient, "{y}, {q}, {shape}");
+                    assert_eq!(rest.data, remainder, "{y}, {q}, {shape}");
+                    let (dispatched, rest) =
+                        divide(&mut ctx, Magnitude::Words(&dividend), Magnitude::Words(&b))
+                            .unwrap();
+                    assert_eq!(trimmed(dispatched.data), quotient, "{y}, {q}, {shape}");
+                    assert_eq!(rest.data, remainder, "{y}, {q}, {shape}");
+                }
+            }
+        }
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+
+    #[test]
+    fn reciprocal_division_charges_its_work_and_releases_it_on_failure() {
+        let mut words = Words(0x9b05_688c_2b3e_6c1f);
+        let (a, b) = (words.take(6000), words.take(2500));
+        let mut ctx = unlimited_context();
+        ctx.options.limits.memory_bytes = Some(1 << 30);
+        let (quotient, remainder) =
+            divide(&mut ctx, Magnitude::Words(&a), Magnitude::Words(&b)).unwrap();
+        let (steps, peak) = (ctx.stats().steps, ctx.stats().peak_memory_bytes);
+        let (expected, rest) = long_divide(&mut unlimited_context(), &a, &b).unwrap();
+        assert_eq!(trimmed(quotient.data), trimmed(expected.data));
+        assert_eq!(remainder.data, rest.data);
+        for kind in [ErrorKind::Steps, ErrorKind::Memory, ErrorKind::Cancelled] {
+            let mut ctx = CallContext::new(CallOptions::default());
+            match kind {
+                ErrorKind::Steps => ctx.options.limits.steps = Some(steps / 4),
+                ErrorKind::Memory => ctx.options.limits.memory_bytes = Some(peak / 4),
+                _ => ctx.cancellation().cancel(),
+            }
+            let error = divide(&mut ctx, Magnitude::Words(&a), Magnitude::Words(&b)).unwrap_err();
+            assert_eq!(error.kind, kind);
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+            assert_eq!(ctx.checkpoint().unwrap_err(), error);
+        }
     }
 
     #[test]

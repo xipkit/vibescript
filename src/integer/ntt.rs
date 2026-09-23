@@ -375,6 +375,66 @@ pub(super) fn multiply_into(
     meter.settle(ctx)
 }
 
+/// Returns `a * b` modulo β^words - 1, where β = 2^32, for operands of at
+/// most `words` words and a power-of-two `words`, as `words` words: the
+/// cyclic convolution of their 16-bit coefficients, whose carry out of the
+/// top word wraps around to the bottom since β^words is one.
+pub(super) fn multiply_cyclic(
+    ctx: &mut CallContext,
+    a: &[u32],
+    b: &[u32],
+    words: usize,
+) -> Result<Buffer<u32>> {
+    let size = size_for(2 * words)?;
+    let mut meter = Meter::default();
+    let mut roots = Roots::new();
+    roots.ensure(ctx, &mut meter, size)?;
+    let mut spectrum = zeroed(ctx, &mut meter, size)?;
+    spread(ctx, &mut meter, &mut spectrum.data, b, inverse_size(size))?;
+    forward(ctx, &mut meter, &roots, &mut spectrum.data)?;
+    let mut data = zeroed(ctx, &mut meter, size)?;
+    spread(ctx, &mut meter, &mut data.data, a, 1)?;
+    forward(ctx, &mut meter, &roots, &mut data.data)?;
+    pointwise(ctx, &mut meter, &mut data.data, &spectrum.data, 1)?;
+    drop(spectrum);
+    inverse(ctx, &mut meter, &roots, &mut data.data)?;
+    let mut out = Buffer::with_capacity(ctx, words)?;
+    meter.spend(ctx, words)?;
+    let mut carry = 0u128;
+    for pair in data.data.chunks_exact(2) {
+        carry += pair[0] as u128 + ((pair[1] as u128) << 16);
+        out.data.push(carry as u32);
+        carry >>= 32;
+    }
+    wrap(ctx, &mut meter, &mut out.data, carry)?;
+    meter.settle(ctx)?;
+    Ok(out)
+}
+
+/// Adds `carry` at the bottom of `words`, wrapping any carry out of the
+/// top back to the bottom, as arithmetic modulo β^len - 1 does.
+pub(super) fn wrap(
+    ctx: &mut CallContext,
+    meter: &mut Meter,
+    words: &mut [u32],
+    mut carry: u128,
+) -> Result<()> {
+    while carry != 0 {
+        for (i, word) in words.iter_mut().enumerate() {
+            if i % 16 == 0 {
+                meter.spend(ctx, 16)?;
+            }
+            carry += *word as u128;
+            *word = carry as u32;
+            carry >>= 32;
+            if carry == 0 {
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
