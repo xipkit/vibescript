@@ -280,12 +280,13 @@ fn dispatch_keywords(
         return call(ctx, site, name, receiver, &args.positional.data);
     }
     if !args.keywords.buffer.data.is_empty() {
-        let rejects = names::Receiver::of(&receiver).rejects_keywords(site.method);
-        if rejects {
-            return Err(Error::new(
-                ErrorKind::Argument,
-                format!("{name} does not accept keyword arguments"),
-            ));
+        let refusal = names::Receiver::of(&receiver).keyword_refusal(
+            site.method,
+            name,
+            args.positional.data.len(),
+        );
+        if let Some(message) = refusal {
+            return Err(Error::new(ErrorKind::Argument, message));
         }
     }
     // Resolve stored-field overrides before rejecting a native block, and

@@ -379,7 +379,7 @@ pub(crate) fn call(
     if keywords {
         return Err(Error::new(
             ErrorKind::Argument,
-            format!("array.{name} does not accept keyword arguments"),
+            format!("array.{name} does not take keyword arguments"),
         ));
     }
     for arg in args {

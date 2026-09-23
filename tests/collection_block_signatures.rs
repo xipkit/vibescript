@@ -136,15 +136,15 @@ fn argument_and_keyword_errors_take_precedence_over_the_block() {
     for (expression, message) in [
         (
             "[1].clear(k:1){effect()}",
-            "clear does not accept keyword arguments",
+            "array.clear does not take keyword arguments",
         ),
         (
             "[1].compact(k:1){effect()}",
-            "compact does not accept keyword arguments",
+            "array.compact does not take keyword arguments",
         ),
         (
             "[1].reverse(k:1){effect()}",
-            "reverse does not accept keyword arguments",
+            "array.reverse does not take keyword arguments",
         ),
         (
             "{a: 1}.clear(k:1){effect()}",

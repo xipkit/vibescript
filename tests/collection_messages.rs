@@ -528,3 +528,78 @@ fn array_members_name_themselves_in_count_and_index_errors() {
         assert_eq!(message(body), expected, "{body}");
     }
 }
+
+#[test]
+fn array_keyword_and_block_refusals_follow_the_reference_order() {
+    let cases = [
+        (
+            "[1].at(1, a: 1)",
+            "array.at does not take keyword arguments",
+        ),
+        (
+            "[1].append(a: 1)",
+            "array.append does not take keyword arguments",
+        ),
+        (
+            "[1].unshift(a: 1)",
+            "array.unshift does not take keyword arguments",
+        ),
+        (
+            "[1].reverse(1, a: 1)",
+            "array.reverse does not take arguments",
+        ),
+        (
+            "[1].compact(a: 1)",
+            "array.compact does not take keyword arguments",
+        ),
+        (
+            "[1].shift(1, 2, a: 1)",
+            "array.shift accepts at most one argument",
+        ),
+        (
+            "[1].pop(1, 2, a: 1)",
+            "array.pop does not take keyword arguments",
+        ),
+        (
+            "[1].transpose(a: 1)",
+            "array.transpose does not take arguments",
+        ),
+        (
+            "[1].clear(a: 1) { |x| x }",
+            "array.clear does not take keyword arguments",
+        ),
+        ("[1].to_s(1, a: 1)", "array.to_s does not take arguments"),
+        (
+            "[1].string(a: 1)",
+            "array.string does not take keyword arguments",
+        ),
+        (
+            "[1].union(1, a: 1)",
+            "array.union does not take keyword arguments",
+        ),
+        (
+            "[1].inspect(1, a: 1)",
+            "array.inspect does not take arguments",
+        ),
+        (
+            "[1].inspect { |x| x }",
+            "array.inspect does not take a block",
+        ),
+        (
+            "\"s\".inspect(a: 1)",
+            "string.inspect does not take keyword arguments",
+        ),
+        (
+            "{a: 1}.inspect { |x| x }",
+            "hash.inspect does not take a block",
+        ),
+        ("nil.inspect(1)", "nil.inspect does not take arguments"),
+        (
+            "(1..2).inspect(a: 1)",
+            "range.inspect does not take keyword arguments",
+        ),
+    ];
+    for (body, expected) in cases {
+        assert_eq!(message(body), expected, "{body}");
+    }
+}
