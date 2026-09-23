@@ -147,7 +147,9 @@ fn strict_template_misses_are_runtime_errors() {
                     .unwrap_err();
                 assert_eq!(error.class(), Some(ErrorClass::Runtime), "{source}");
                 assert!(
-                    error.message.contains("missing placeholder"),
+                    error
+                        .message
+                        .starts_with("string.template missing placeholder x"),
                     "{source}: {error}"
                 );
             }

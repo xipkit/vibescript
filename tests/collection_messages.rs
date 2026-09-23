@@ -974,3 +974,167 @@ fn string_members_name_themselves_in_index_offset_and_width_errors() {
         assert_eq!(message(body), expected, "{body}");
     }
 }
+
+#[test]
+fn string_member_arguments_report_type_and_value_errors_in_reference_wording() {
+    let cases = [
+        (
+            "\"ab\".concat(\"c\", 1)",
+            "string.concat expects string arguments",
+        ),
+        (
+            "\"ab\".prepend(:a)",
+            "string.prepend expects string arguments",
+        ),
+        (
+            "\"ab\".replace(nil)",
+            "string.replace replacement must be string",
+        ),
+        ("\"ab\".insert(0, 1)", "string.insert value must be string"),
+        (
+            "\"ab\".start_with?(\"z\", 1)",
+            "string.start_with? prefix must be string",
+        ),
+        (
+            "\"ab\".end_with?(nil)",
+            "string.end_with? suffix must be string",
+        ),
+        (
+            "\"ab\".include?(1)",
+            "string.include? substring must be string",
+        ),
+        ("\"ab\".chomp(1)", "string.chomp separator must be string"),
+        (
+            "\"ab\".chomp!(:b)",
+            "string.chomp! separator must be string",
+        ),
+        (
+            "\"ab\".delete_prefix(1)",
+            "string.delete_prefix prefix must be string",
+        ),
+        (
+            "\"ab\".delete_suffix!(nil)",
+            "string.delete_suffix! suffix must be string",
+        ),
+        (
+            "\"ab\".partition(1)",
+            "string.partition separator must be string",
+        ),
+        (
+            "\"ab\".rpartition(nil)",
+            "string.rpartition separator must be string",
+        ),
+        ("\"ab\".center(5, 1)", "string.center pad must be string"),
+        (
+            "\"ab\".ljust(5, \"\")",
+            "string.ljust pad must not be empty",
+        ),
+        ("\"ab\".index(1)", "string.index substring must be string"),
+        (
+            "\"ab\".rindex(nil, 0)",
+            "string.rindex substring must be string",
+        ),
+        (
+            "\"ab\".split(1)",
+            "string.split separator must be string or nil",
+        ),
+        (
+            "\"ab\".count(1)",
+            "string.count character set must be string",
+        ),
+        (
+            "\"ab\".delete(\"a\", nil)",
+            "string.delete character set must be string",
+        ),
+        (
+            "\"ab\".squeeze!(1)",
+            "string.squeeze! character set must be string",
+        ),
+        (
+            "\"ab\".tr(1, \"a\")",
+            "string.tr character sets must be strings",
+        ),
+        (
+            "\"ab\".tr!(\"a\", nil)",
+            "string.tr! character sets must be strings",
+        ),
+        (
+            "\"ab\".tr(\"z-a\", 1)",
+            "string.tr character sets must be strings",
+        ),
+        (
+            "\"ab\".count(\"z-a\")",
+            "string.count invalid character range z-a",
+        ),
+        (
+            "\"ab\".delete!(\"é-a\")",
+            "string.delete! invalid character range é-a",
+        ),
+        (
+            "\"ab\".squeeze(\"a-\\xff\")",
+            "string.squeeze invalid mixed byte/rune character range",
+        ),
+        (
+            "\"ab\".tr(\"\\xff-\\xfe\", \"a\")",
+            "string.tr invalid character range ff-fe",
+        ),
+        (
+            "\"ab\".tr(\"a\", \"c-b\")",
+            "string.tr invalid character range c-b",
+        ),
+        ("\"ab\".upcase(1)", "string.upcase option must be a symbol"),
+        (
+            "\"ab\".downcase!(\"ascii\")",
+            "string.downcase! option must be a symbol",
+        ),
+        (
+            "\"ab\".upcase(:fold)",
+            "string.upcase does not support the :fold option",
+        ),
+        (
+            "\"ab\".capitalize!(:turkic)",
+            "string.capitalize! does not support the :turkic option",
+        ),
+        (
+            "\"ab\".swapcase(:bogus)",
+            "string.swapcase does not support the :bogus option",
+        ),
+        ("\"ab\".template(1)", "string.template context must be hash"),
+        (
+            "\"ab\".template([])",
+            "string.template context must be hash",
+        ),
+        (
+            "\"ab\".template({}, strict: 1)",
+            "string.template strict keyword must be bool",
+        ),
+        (
+            "\"ab\".template({}, other: true)",
+            "string.template supports only strict keyword",
+        ),
+        (
+            "\"ab\".template({}, strict: true, other: true)",
+            "string.template supports only strict keyword",
+        ),
+        (
+            "\"{{ user.name }}\".template({user: {}}, strict: true)",
+            "string.template missing placeholder user.name",
+        ),
+        (
+            "\"{{a..b}}\".template({a: {}}, strict: true)",
+            "string.template missing placeholder a..b",
+        ),
+        (
+            "\"{{ items }}\".template({items: [1]})",
+            "string.template placeholder items value must be scalar",
+        ),
+        (
+            "\"{{ a.b }}\".template({a: {b: {c: 1}}})",
+            "string.template placeholder a.b value must be scalar",
+        ),
+        ("\"\".ord", "string.ord requires non-empty string"),
+    ];
+    for (body, expected) in cases {
+        assert_eq!(message(body), expected, "{body}");
+    }
+}

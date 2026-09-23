@@ -69,7 +69,9 @@ struct Set {
 }
 
 impl Set {
-    fn parse(ctx: &mut CallContext, bytes: &[u8], complement: bool) -> Result<Self> {
+    /// Parses the character set `bytes` given to the member `name`, which
+    /// its range errors name.
+    fn parse(ctx: &mut CallContext, name: &str, bytes: &[u8], complement: bool) -> Result<Self> {
         let complement = complement && bytes.len() > 1 && bytes[0] == b'^';
         let mut position = usize::from(complement);
         let mut set = Self {
@@ -87,10 +89,24 @@ impl Set {
                 start
             };
             if start.raw != end.raw {
-                return Err(argument("invalid mixed byte and Unicode character range"));
+                return Err(argument(&format!(
+                    "string.{name} invalid mixed byte/rune character range"
+                )));
             }
             if start.code > end.code {
-                return Err(argument("character range endpoints are reversed"));
+                return Err(argument(&if start.raw {
+                    format!(
+                        "string.{name} invalid character range {:02x}-{:02x}",
+                        start.code, end.code
+                    )
+                } else {
+                    let rune = |code| char::from_u32(code).unwrap_or('\u{fffd}');
+                    format!(
+                        "string.{name} invalid character range {}-{}",
+                        rune(start.code),
+                        rune(end.code)
+                    )
+                }));
             }
             let span = Span {
                 low: start.code,
@@ -245,11 +261,20 @@ pub(crate) fn call(
     let mut sets = Buffer::with_capacity(ctx, args.len())?;
     for (index, arg) in args.iter().enumerate() {
         ctx.charge(1)?;
+        let strings = || args.iter().all(|arg| matches!(arg.0, Kind::Bytes(_)));
+        if matches!(operation, Operation::Translate) && index == 0 && !strings() {
+            return Err(argument(&format!(
+                "string.{name} character sets must be strings"
+            )));
+        }
         let Kind::Bytes(bytes) = &arg.0 else {
-            return Err(argument("character set must be a string"));
+            return Err(argument(&format!(
+                "string.{name} character set must be string"
+            )));
         };
         sets.data.push(Set::parse(
             ctx,
+            name,
             &bytes.data,
             !matches!(operation, Operation::Translate) || index == 0,
         )?);
@@ -287,7 +312,7 @@ mod tests {
     #[test]
     fn wide_ranges_keep_one_span_instead_of_expanding_codepoints() {
         let mut ctx = CallContext::new(CallOptions::default());
-        let set = Set::parse(&mut ctx, "\0-\u{10ffff}".as_bytes(), false).unwrap();
+        let set = Set::parse(&mut ctx, "count", "\0-\u{10ffff}".as_bytes(), false).unwrap();
         assert_eq!(set.length, 0x110000);
         assert_eq!(set.spans.data.len(), 1);
         assert!(ctx.stats().peak_memory_bytes < 256);
