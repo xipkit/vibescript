@@ -334,7 +334,11 @@ pub(crate) fn call(
                 [] if bytes.last().is_some_and(|b| matches!(b, b'\r' | b'\n')) => bytes.len() - 1,
                 [] | [Value(Kind::Nil)] => bytes.len(),
                 [part] => {
-                    let part = string(part)?;
+                    let part = string(part).map_err(|mut error| {
+                        let bang = if bang { "!" } else { "" };
+                        error.message = format!("string.chomp{bang} separator must be string");
+                        error
+                    })?;
                     if part.is_empty() {
                         let mut end = bytes.len();
                         while end > 0 {
@@ -357,7 +361,12 @@ pub(crate) fn call(
                         bytes.len()
                     }
                 }
-                _ => return Err(argument("chomp accepts at most one separator")),
+                _ => {
+                    let bang = if bang { "!" } else { "" };
+                    return Err(argument(format!(
+                        "string.chomp{bang} accepts at most one separator"
+                    )));
+                }
             };
             (0, end)
         }
@@ -373,9 +382,18 @@ pub(crate) fn call(
             (0, end)
         }
         "delete_prefix" | "delete_suffix" => {
-            ops::arity(args, 1)?;
-            let part = string(&args[0])?;
             let suffix = name == "delete_suffix";
+            let part = if suffix { "suffix" } else { "prefix" };
+            let bang = if bang { "!" } else { "" };
+            if args.len() != 1 {
+                return Err(argument(format!(
+                    "string.{name}{bang} expects exactly one {part}"
+                )));
+            }
+            let part = string(&args[0]).map_err(|mut error| {
+                error.message = format!("string.{name}{bang} {part} must be string");
+                error
+            })?;
             if affix(ctx, bytes, part, suffix)? {
                 if suffix {
                     (0, bytes.len() - part.len())

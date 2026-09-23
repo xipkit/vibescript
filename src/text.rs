@@ -137,15 +137,23 @@ pub(crate) fn method(
             iteration::lines(ctx, &value)
         }
         StartWith | EndWith => {
+            let (member, part) = if matches!(method, StartWith) {
+                ("string.start_with?", "prefix")
+            } else {
+                ("string.end_with?", "suffix")
+            };
             if args.is_empty() {
                 return Err(Error::new(
                     ErrorKind::Argument,
-                    "affix predicate expects at least one argument",
+                    format!("{member} expects at least one {part}"),
                 ));
             }
             for arg in args {
                 ctx.charge(1)?;
-                let candidate = string(arg)?;
+                let candidate = string(arg).map_err(|mut error| {
+                    error.message = format!("{member} {part} must be string");
+                    error
+                })?;
                 if candidate.len() > bytes.len() {
                     continue;
                 }
@@ -168,7 +176,7 @@ pub(crate) fn method(
                 } else {
                     Err(Error::new(
                         ErrorKind::Argument,
-                        "ord requires a non-empty string",
+                        "string.ord requires non-empty string",
                     ))
                 };
             }

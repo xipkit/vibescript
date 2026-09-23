@@ -16,11 +16,16 @@ pub(crate) fn call(
     if name != "template" || !matches!(receiver.0, Kind::Bytes(_)) {
         return Ok(None);
     }
-    ops::arity(args, 1)?;
+    if args.len() != 1 {
+        return Err(Error::new(
+            ErrorKind::Argument,
+            "string.template expects exactly one context hash",
+        ));
+    }
     if !matches!(args[0].0, Kind::Hash(_)) {
         return Err(Error::new(
             ErrorKind::Type,
-            "template context must be a hash or object",
+            "string.template context must be hash",
         ));
     }
     let strict = match keywords {
@@ -29,7 +34,7 @@ pub(crate) fn call(
             let Kind::Bool(strict) = value.0 else {
                 return Err(Error::new(
                     ErrorKind::Type,
-                    "template strict option must be boolean",
+                    "string.template strict keyword must be bool",
                 ));
             };
             strict
@@ -37,7 +42,7 @@ pub(crate) fn call(
         _ => {
             return Err(Error::new(
                 ErrorKind::Argument,
-                "template supports only the strict option",
+                "string.template supports only strict keyword",
             ));
         }
     };
@@ -57,12 +62,15 @@ fn render(ctx: &mut CallContext, receiver: &Value, context: &Value, strict: bool
             cache.buffer.data[index].1.clone()
         } else {
             let replacement = match lookup(ctx, context, key)? {
-                Some(value) => scalar(ctx, value)?,
+                Some(value) => scalar(ctx, value, key)?,
                 None if !strict => Value::nil(),
                 None => {
                     return Err(Error::new(
                         ErrorKind::Argument,
-                        "template placeholder was not found",
+                        format!(
+                            "string.template missing placeholder {}",
+                            String::from_utf8_lossy(key)
+                        ),
                     ));
                 }
             };
@@ -111,7 +119,7 @@ fn add_length(ctx: &mut CallContext, length: &mut usize, bytes: usize) -> Result
     Ok(())
 }
 
-fn scalar(ctx: &mut CallContext, value: &Value) -> Result<Value> {
+fn scalar(ctx: &mut CallContext, value: &Value, key: &[u8]) -> Result<Value> {
     ctx.charge(1)?;
     match &value.0 {
         Kind::Bytes(_) | Kind::Symbol(_) => Ok(value.clone()),
@@ -127,7 +135,10 @@ fn scalar(ctx: &mut CallContext, value: &Value) -> Result<Value> {
         | Kind::Zoned(_) => ops::to_string(ctx, value),
         _ => Err(Error::new(
             ErrorKind::Type,
-            "template placeholder value must be scalar",
+            format!(
+                "string.template placeholder {} value must be scalar",
+                String::from_utf8_lossy(key)
+            ),
         )),
     }
 }
@@ -246,7 +257,7 @@ mod tests {
         let mut ctx = CallContext::new(CallOptions::default());
         let huge = ctx.import(&huge).unwrap();
         let before = ctx.stats().steps;
-        let text = scalar(&mut ctx, &huge).unwrap();
+        let text = scalar(&mut ctx, &huge, b"huge").unwrap();
         let conversion_steps = ctx.stats().steps - before;
         let digits = text.require_bytes().unwrap().len();
         drop(text);

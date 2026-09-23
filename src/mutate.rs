@@ -253,9 +253,9 @@ fn string(
     args: &[Value],
 ) -> Result<Value> {
     let bytes = receiver.require_bytes()?;
-    let strict = |v: &Value| -> Result<()> {
+    let strict = |v: &Value, message: &str| -> Result<()> {
         if !matches!(v.0, Kind::Bytes(_)) {
-            return Err(Error::new(ErrorKind::Type, "expected string"));
+            return Err(Error::new(ErrorKind::Type, message));
         }
         Ok(())
     };
@@ -265,15 +265,17 @@ fn string(
             ctx.bytes(b"")
         }
         Method::Replace => {
-            ops::arity(args, 1)?;
-            strict(&args[0])?;
+            if args.len() != 1 {
+                return Err(argument("string.replace expects exactly one replacement"));
+            }
+            strict(&args[0], "string.replace replacement must be string")?;
             Ok(args[0].clone())
         }
         Method::Prepend => {
             let mut length = bytes.len();
             for arg in args {
                 ctx.charge(1)?;
-                strict(arg)?;
+                strict(arg, "string.prepend expects string arguments")?;
                 length = size(ctx, length as i128 + arg.require_bytes()?.len() as i128)?;
             }
             let mut out = Buffer::with_capacity(ctx, length)?;
@@ -284,13 +286,21 @@ fn string(
             Value::from_bytes(ctx, out)
         }
         Method::Insert => {
-            ops::arity(args, 2)?;
-            strict(&args[1])?;
-            let index = i128::from(sequence::integer(&args[0])?);
+            if args.len() != 2 {
+                return Err(argument("string.insert expects an index and a string"));
+            }
+            let requested = sequence::integer(&args[0]).map_err(|mut error| {
+                error.message = "string.insert index must be integer".into();
+                error
+            })?;
+            strict(&args[1], "string.insert value must be string")?;
             let length = ops::runes(ctx, bytes)?.0 as i128;
+            let index = i128::from(requested);
             let index = if index < 0 { length + index + 1 } else { index };
             if index < 0 || index > length {
-                return Err(argument("string insert index out of bounds"));
+                return Err(argument(&format!(
+                    "string.insert index {requested} out of string"
+                )));
             }
             let offset = sequence::rune_offset(ctx, bytes, index as usize)?;
             let inserted = args[1].require_bytes()?;

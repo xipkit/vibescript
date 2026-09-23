@@ -204,17 +204,27 @@ pub(crate) fn call(
                 operation = Transform::Fold;
                 false
             }
-            _ => {
+            option => {
+                let bang = if bang { "!" } else { "" };
                 return Err(Error::new(
                     ErrorKind::Argument,
-                    "unsupported case-mapping option",
+                    format!(
+                        "string.{name}{bang} does not support the :{} option",
+                        String::from_utf8_lossy(option)
+                    ),
                 ));
             }
         },
         _ => {
+            let bang = if bang { "!" } else { "" };
+            let problem = if args.len() > 1 {
+                "accepts at most one case-mapping option"
+            } else {
+                "option must be a symbol"
+            };
             return Err(Error::new(
                 ErrorKind::Argument,
-                "case conversion accepts one optional symbol",
+                format!("string.{name}{bang} {problem}"),
             ));
         }
     };

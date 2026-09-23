@@ -830,9 +830,21 @@ pub(crate) fn method(
                     array_index(ctx, array, &args[0], offset, matches!(method, Rindex))?
                 }
             } else {
+                let include = matches!((method, &value.0), (Include, Kind::Bytes(_)));
+                if include && args.len() != 1 {
+                    return Err(Error::new(
+                        ErrorKind::Argument,
+                        "string.include? expects exactly one substring",
+                    ));
+                }
                 arity(args, 1)?;
                 let bytes = value.require_bytes()?;
-                let needle = args[0].require_bytes()?;
+                let needle = args[0].require_bytes().map_err(|mut error| {
+                    if include {
+                        error.message = "string.include? substring must be string".into();
+                    }
+                    error
+                })?;
                 let found = find(ctx, bytes, needle, matches!(method, Rindex))?;
                 if let Some(pos) = found {
                     Some(runes(ctx, &bytes[..pos])?.0)

@@ -84,7 +84,7 @@ fn concat(ctx: &mut CallContext, receiver: &Value, args: &[Value]) -> Result<Val
         let Kind::Bytes(bytes) = &value.0 else {
             return Err(Error::new(
                 ErrorKind::Type,
-                "concat expects string arguments",
+                "string.concat expects string arguments",
             ));
         };
         length = match length.checked_add(bytes.data.len()) {

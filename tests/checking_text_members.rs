@@ -146,7 +146,10 @@ fn strict_template_misses_are_runtime_errors() {
                     .call("run", &args, CallOptions::default())
                     .unwrap_err();
                 assert_eq!(error.class(), Some(ErrorClass::Runtime), "{source}");
-                assert!(error.message.contains("not found"), "{source}: {error}");
+                assert!(
+                    error.message.contains("missing placeholder"),
+                    "{source}: {error}"
+                );
             }
         }
     }
@@ -181,7 +184,7 @@ fn gradual_template_inputs_keep_their_failure_paths() {
     let error = script
         .call("run", &[Value::int(1)], CallOptions::default())
         .unwrap_err();
-    assert!(error.message.contains("hash or object"), "{error}");
+    assert_eq!(error.message, "string.template context must be hash");
 }
 
 #[test]

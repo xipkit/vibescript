@@ -1547,3 +1547,121 @@ fn integer_and_range_stepping_check_arguments_in_go_order() {
         ),
     ]);
 }
+
+#[test]
+fn string_members_name_themselves_and_the_rejected_argument() {
+    use ErrorClass::Runtime;
+    let cases = [
+        (
+            "\"abc\".index(\"b\", \"x\")",
+            "string.index offset must be integer",
+        ),
+        (
+            "\"abc\".rindex(1, 2)",
+            "string.rindex substring must be string",
+        ),
+        (
+            "\"abc\".rindex(\"b\", 1, 2)",
+            "string.rindex expects substring and optional offset",
+        ),
+        (
+            "\"a b\".split(\" \", \"x\")",
+            "string.split limit must be integer",
+        ),
+        (
+            "\"a b\".split(\" \", 2 ** 70)",
+            "string.split limit must fit in a 64-bit integer",
+        ),
+        (
+            "\"a b\".split(1)",
+            "string.split separator must be string or nil",
+        ),
+        (
+            "\"a\".concat(\"b\", 1)",
+            "string.concat expects string arguments",
+        ),
+        (
+            "\"a\".prepend(\"b\", 1)",
+            "string.prepend expects string arguments",
+        ),
+        ("\"a\".chomp!(1)", "string.chomp! separator must be string"),
+        (
+            "\"a\".chomp(\"a\", \"b\")",
+            "string.chomp accepts at most one separator",
+        ),
+        (
+            "\"ab\".delete_suffix!(1)",
+            "string.delete_suffix! suffix must be string",
+        ),
+        (
+            "\"ab\".delete_prefix",
+            "string.delete_prefix expects exactly one prefix",
+        ),
+        (
+            "\"ab\".start_with?",
+            "string.start_with? expects at least one prefix",
+        ),
+        (
+            "\"ab\".end_with?(\"x\", 1)",
+            "string.end_with? suffix must be string",
+        ),
+        ("\"\".ord", "string.ord requires non-empty string"),
+        (
+            "\"ab\".include?(1)",
+            "string.include? substring must be string",
+        ),
+        (
+            "\"ab\".replace",
+            "string.replace expects exactly one replacement",
+        ),
+        (
+            "\"ab\".insert(\"x\", 2)",
+            "string.insert index must be integer",
+        ),
+        (
+            "\"ab\".insert(-5, \"y\")",
+            "string.insert index -5 out of string",
+        ),
+        (
+            "\"ab\".downcase!(:bogus)",
+            "string.downcase! does not support the :bogus option",
+        ),
+        (
+            "\"ab\".upcase(:fold)",
+            "string.upcase does not support the :fold option",
+        ),
+        (
+            "\"ab\".upcase(:ascii, :x)",
+            "string.upcase accepts at most one case-mapping option",
+        ),
+        (
+            "\"ab\".capitalize(\"x\")",
+            "string.capitalize option must be a symbol",
+        ),
+        (
+            "\"ab\".template({}, 1)",
+            "string.template expects exactly one context hash",
+        ),
+        ("\"ab\".template(1)", "string.template context must be hash"),
+        (
+            "\"ab\".template({}, strict: 1)",
+            "string.template strict keyword must be bool",
+        ),
+        (
+            "\"ab\".template({}, other: 1)",
+            "string.template supports only strict keyword",
+        ),
+        (
+            "\"{{a.b}}\".template({}, strict: true)",
+            "string.template missing placeholder a.b",
+        ),
+        (
+            "\"{{ a }}\".template({a: [1]})",
+            "string.template placeholder a value must be scalar",
+        ),
+    ];
+    for (expression, message) in cases {
+        let source = format!("def run\n  {expression}\nend");
+        limited(&source, &[], Limits::default(), Runtime, message);
+    }
+}

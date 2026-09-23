@@ -26,16 +26,18 @@ impl<'a> Split<'a> {
         if args.len() > 2 {
             return Err(Error::new(
                 ErrorKind::Argument,
-                "split accepts a separator and a limit",
+                "string.split accepts at most a separator and a limit",
             ));
         }
         let limit = match args.get(1) {
             Some(Value(Kind::Int(limit))) => *limit,
-            Some(_) => {
-                return Err(Error::new(
-                    ErrorKind::Type,
-                    "split limit must be a 64-bit integer",
-                ));
+            Some(limit) => {
+                let message = if limit.is_integer() {
+                    "string.split limit must fit in a 64-bit integer"
+                } else {
+                    "string.split limit must be integer"
+                };
+                return Err(Error::new(ErrorKind::Type, message));
             }
             None => 0,
         };
@@ -49,7 +51,7 @@ impl<'a> Split<'a> {
             _ => {
                 return Err(Error::new(
                     ErrorKind::Type,
-                    "split separator must be string or nil",
+                    "string.split separator must be string or nil",
                 ));
             }
         };

@@ -2,10 +2,13 @@ use crate::{
     CallContext, Error, ErrorKind, Result, Value, budget::Buffer, ops, scan, sequence, value::Kind,
 };
 
-fn string(value: &Value) -> Result<&[u8]> {
+fn string<'a>(value: &'a Value, member: &str) -> Result<&'a [u8]> {
     match &value.0 {
         Kind::Bytes(bytes) => Ok(&bytes.data),
-        _ => Err(Error::new(ErrorKind::Type, "substring must be a string")),
+        _ => Err(Error::new(
+            ErrorKind::Type,
+            format!("{member} substring must be string"),
+        )),
     }
 }
 
@@ -15,14 +18,22 @@ pub(super) fn call(
     args: &[Value],
     reverse: bool,
 ) -> Result<Value> {
+    let member = if reverse {
+        "string.rindex"
+    } else {
+        "string.index"
+    };
     if args.is_empty() || args.len() > 2 {
         return Err(Error::new(
             ErrorKind::Argument,
-            "index expects a substring and optional offset",
+            format!("{member} expects substring and optional offset"),
         ));
     }
     let offset = match args.get(1) {
-        Some(offset) => sequence::integer(offset)?,
+        Some(offset) => sequence::integer(offset).map_err(|mut error| {
+            error.message = format!("{member} offset must be integer");
+            error
+        })?,
         None => {
             if reverse {
                 i64::MAX
@@ -32,7 +43,7 @@ pub(super) fn call(
         }
     };
     if !reverse {
-        string(&args[0])?;
+        string(&args[0], member)?;
     }
     let length = ops::runes(ctx, text)?.0;
     let offset = if offset < 0 {
@@ -43,7 +54,7 @@ pub(super) fn call(
     if offset < 0 {
         return Ok(Value::nil());
     }
-    let needle = string(&args[0])?;
+    let needle = string(&args[0], member)?;
     if !reverse && offset > length as i128 || needle.len() > text.len().saturating_mul(4) {
         return Ok(Value::nil());
     }
