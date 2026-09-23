@@ -16,14 +16,3 @@ serde_json = { version = "1", features = ["arbitrary_precision"] }
 name = "vibescript-wasi-compare"
 path = "../../../examples/compare.rs"
 
-[[test]]
-name = "language"
-path = "../../language.rs"
-
-[[test]]
-name = "collection_counts"
-path = "../../collection_counts.rs"
-
-[[test]]
-name = "commands"
-path = "../../commands.rs"

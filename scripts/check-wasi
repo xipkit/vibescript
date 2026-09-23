@@ -1,0 +1,195 @@
+#!/usr/bin/env python3
+"""Build and run the WASI test suite, CLI and filesystem witness under Wasmtime.
+
+Uses the pinned Rust toolchain and Wasmtime under .cache/toolchains when they
+are present, and otherwise `rustc` (with the wasm32-wasip1 target installed)
+and `wasmtime` from PATH. With --node, the suite and witness also run under
+Node's WASI implementation.
+"""
+
+import argparse
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+
+ROOT = Path(__file__).resolve().parents[1]
+WITNESS = ROOT / "tests/platforms/wasi"
+TARGET = "wasm32-wasip1"
+TOOLCHAIN = ROOT / ".cache/toolchains/rust-1.98.1-wasi/install"
+WASMTIME = ROOT / ".cache/toolchains/wasmtime-v48.0.2/wasmtime-v48.0.2-aarch64-macos/wasmtime"
+# Node's WASI layer drops sub-second file times, which this test restores.
+NODE_SKIPS = ["cached_source_validation_uses_spelling_mtime_and_size_without_reading_contents"]
+
+
+def fixtures(base, guest):
+    """Builds the filesystem witness layout; `guest` is where the host maps `base`."""
+    allowed = base / "allowed"
+    (allowed / "sub").mkdir(parents=True)
+    (allowed / "folder.vibe").mkdir()
+    for name, source in {
+        "numbers.vibe": "def run; 7; end",
+        "counter.vibe": "n=0; def increment; n+=1; end",
+        "changed.vibe": "def run; 3; end",
+        "sub/relative.vibe": "def run; require('../numbers').run(); end",
+    }.items():
+        (allowed / name).write_text(source + "\n")
+    long = allowed.joinpath(*(["long-directory-component-012345678901234567890123456789"] * 12))
+    long.mkdir(parents=True)
+    (long / "numbers.vibe").write_text("def run; 7; end\n")
+    (base / "outside.vibe").write_text("def run; 999; end\n")
+    for directory, value in [("allowed2", 999), ("moving", 7), ("replacement", 999), ("accounting", 7)]:
+        (base / directory).mkdir()
+        (base / directory / "numbers.vibe").write_text(f"def run; {value}; end\n")
+    for name, target in {
+        "alias.vibe": "numbers.vibe",
+        "absolute.vibe": guest + "/allowed/numbers.vibe",
+        "escape.vibe": "../outside.vibe",
+        "absolute_escape.vibe": guest + "/outside.vibe",
+        "prefix_escape.vibe": guest + "/allowed2/numbers.vibe",
+        "broken.vibe": "missing.vibe",
+    }.items():
+        (allowed / name).symlink_to(target)
+    for name, target in {
+        "root_alias": "allowed",
+        "directory_alias": "allowed/sub",
+        "root_loop_a": "root_loop_b",
+        "root_loop_b": "root_loop_a",
+    }.items():
+        (base / name).symlink_to(target, target_is_directory=True)
+
+
+def overlap_fixtures(base):
+    """Builds two directories that a host maps at /sandbox and /sandbox/real."""
+    root, other = base / "root", base / "other"
+    (root / "real/sub").mkdir(parents=True)
+    other.mkdir()
+    (root / "real/numbers.vibe").write_text("def run; 7; end\n")
+    (other / "numbers.vibe").write_text("def run; 999; end\n")
+    (other / "only_other.vibe").write_text("def run; require('./numbers').run(); end\n")
+    (root / "alias").symlink_to("real", target_is_directory=True)
+    return root, other
+
+
+def local_zone():
+    """The host's zone name, so zone-dependent tests see the same local time as native runs."""
+    if os.environ.get("TZ"):
+        return os.environ["TZ"]
+    try:
+        link = os.readlink("/etc/localtime")
+    except OSError:
+        return None
+    return link.split("zoneinfo/", 1)[1] if "zoneinfo/" in link else None
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--toolchain", type=Path, help="Rust install prefix with the wasm32-wasip1 standard library")
+    parser.add_argument("--wasmtime", help="Wasmtime executable")
+    parser.add_argument("--node", action="store_true", help="also run the suite and witness under Node")
+    args = parser.parse_args()
+
+    env = {
+        **os.environ,
+        "CARGO_HOME": str(ROOT / ".cache/cargo"),
+        "CARGO_TARGET_DIR": str(ROOT / "target"),
+        "TMPDIR": str(ROOT / ".cache/tmp"),
+    }
+    Path(env["TMPDIR"]).mkdir(parents=True, exist_ok=True)
+    toolchain = args.toolchain or (TOOLCHAIN if TOOLCHAIN.exists() else None)
+    if toolchain:
+        env["PATH"] = str(toolchain / "bin") + os.pathsep + env["PATH"]
+        # A standalone macOS install keeps libLLVM beside rustc, where rust-lld
+        # only finds it through the fallback path that rustup would set.
+        env["DYLD_FALLBACK_LIBRARY_PATH"] = str(toolchain / "lib")
+    sysroot = subprocess.run(["rustc", "--print", "sysroot"], env=env, capture_output=True, text=True, check=True)
+    if not (Path(sysroot.stdout.strip()) / "lib/rustlib" / TARGET).is_dir():
+        sys.exit(f"rustc has no {TARGET} standard library; install it or pass --toolchain")
+    wasmtime = args.wasmtime or (str(WASMTIME) if WASMTIME.exists() else shutil.which("wasmtime"))
+    if not wasmtime:
+        sys.exit("wasmtime not found; pass --wasmtime")
+    if args.node and not shutil.which("node"):
+        sys.exit("node not found")
+
+    def run(label, command, **options):
+        print(f"==> {label}", flush=True)
+        result = subprocess.run([str(part) for part in command], cwd=ROOT, env=env, **options)
+        if result.returncode:
+            sys.exit(f"{label} failed with status {result.returncode}")
+        return result
+
+    cargo = ["cargo"]
+    for features in [["--features", "simd,allocation-stats"], ["--no-default-features"]]:
+        run("clippy " + " ".join(features), [*cargo, "clippy", "--locked", "--target", TARGET, "--all-targets", *features, "--", "-D", "warnings"])
+
+    # Tests find fixtures under CARGO_MANIFEST_DIR, so the host maps the
+    # repository at its own path. .cache may be a symlink to an absolute path,
+    # which WASI hosts will not follow, so it is mapped separately.
+    maps = [(ROOT, ROOT), (Path(os.path.realpath(ROOT / ".cache")), ROOT / ".cache")]
+    zone = local_zone()
+    hosts = {"wasmtime": [wasmtime, "run", *[a for host, guest in maps for a in ("--dir", f"{host}::{guest}")]]}
+    if zone:
+        hosts["wasmtime"] += ["--env", f"TZ={zone}"]
+        env["TZ"] = zone
+    hosts["wasmtime"].append("--")
+    if args.node:
+        hosts["node"] = ["node", "--no-warnings", WITNESS / "node.mjs", *[a for host, guest in maps for a in ("--dir", f"{host}::{guest}")], "--"]
+    for name, runner in hosts.items():
+        config = "target.wasm32-wasip1.runner = " + json.dumps([str(part) for part in runner])
+        skips = [a for test in NODE_SKIPS for a in ("--skip", test)] if name == "node" else []
+        run(f"tests under {name}", [*cargo, "test", "--locked", "--target", TARGET, "--no-fail-fast", "--config", config, "--", *skips])
+
+    run("build witness", [*cargo, "build", "--locked", "--target", TARGET, "--bins", "--manifest-path", WITNESS / "Cargo.toml"])
+    binaries = ROOT / "target" / TARGET / "debug"
+    out = ROOT / ".cache/wasi-tests"
+    out.mkdir(parents=True, exist_ok=True)
+    out = Path(tempfile.mkdtemp(prefix="run-", dir=out))
+    print(f"Witness fixtures: {out}", flush=True)
+
+    def guest(runtime, mappings, binary, arguments, **options):
+        if runtime == "node":
+            command = ["node", "--no-warnings", WITNESS / "node.mjs"]
+        else:
+            command = [wasmtime, "run"]
+        for host, path in mappings:
+            command += ["--dir", f"{host}::{path}"]
+        return run(f"{binary.name} {' '.join(arguments)} under {runtime}", [*command, binary, *arguments], **options)
+
+    vibes = binaries / "vibes.wasm"
+    app = out / "cli"
+    (app / "lib").mkdir(parents=True)
+    (app / "main.vibe").write_text("def run; require('helper').value; end\n")
+    (app / "lib/helper.vibe").write_text("def value; 41 + 1; end\n")
+    for arguments in [
+        ["-e", "1 + 2"],
+        ["--module-path", "/app/lib", "--function", "run", "/app/main.vibe"],
+        ["check", "--module-path", "/app/lib", "--function", "run", "/app/main.vibe"],
+    ]:
+        result = guest("wasmtime", [(app, "/app")], vibes, arguments, capture_output=True, text=True)
+        print(result.stdout, end="")
+
+    accounting = {}
+    witness = binaries / "vibescript-wasi-witness.wasm"
+    for runtime in hosts:
+        for depth, path in [("shallow", "/sandbox"), ("deep", "/nested/sandbox")]:
+            fixture = out / f"{runtime}-{depth}"
+            fixtures(fixture, path)
+            flag = "--path-based-directories" if runtime == "node" else "--deny-absolute-links"
+            result = guest(runtime, [(fixture, path)], witness, [path + "/allowed", flag], capture_output=True, text=True)
+            row = json.loads(result.stdout)
+            assert row["status"] == "passed", row
+            accounting[(runtime, depth)] = row["accounting"]
+        root, other = overlap_fixtures(out / f"{runtime}-overlap")
+        guest(runtime, [(root, "/sandbox"), (other, "/sandbox/real")], witness, ["--overlap"])
+    for depth in ["shallow", "deep"]:
+        counters = {runtime: accounting[(runtime, depth)] for runtime in hosts}
+        assert len(set(map(tuple, counters.values()))) == 1, counters
+    shutil.rmtree(out)
+    print("WASI checks passed")
+
+
+if __name__ == "__main__":
+    main()

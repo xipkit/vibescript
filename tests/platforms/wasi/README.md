@@ -1,17 +1,16 @@
-# WASI conformance
+# WASI filesystem witness
 
-This consumer crate runs the core library on `wasm32-wasip1` without the native Tokio runner. It shares the language, syntax-rejection and collection-boundary tests with native builds. The filesystem witness covers configured roots, deep virtual preopens, links, escaping paths, exact filename spelling, overlapping preopens, renamed directories, permissions, source limits, cache refresh, call isolation and execution limits.
+The main test suite runs on `wasm32-wasip1` with the repository mapped into the guest at its own path. This consumer crate covers what that layout cannot: configured roots beneath virtual preopen ancestors, links, escaping paths, exact filename spelling, overlapping preopens, renamed directories, permissions, source limits, cache refresh, call isolation and execution limits. It builds the core library without the native Tokio runner.
 
-The full gate currently exposes normal-stack overflows in Node 26's debug bare-call nesting and deeply nested type syntax tests. Both remain enabled and pass under Wasmtime. WASI support is experimental until the target gate passes.
-
-Install a Rust toolchain with the matching `wasm32-wasip1` standard library, Node and Wasmtime, then run from the repository root:
+Run it with the rest of the WASI checks from the repository root:
 
 ```sh
-python3 tests/platforms/wasi/check.py --wasmtime /path/to/wasmtime
+scripts/check-wasi          # Wasmtime
+scripts/check-wasi --node   # Wasmtime, then Node
 ```
 
-The script uses `scripts/cargo`, one build job and one WASI test thread. Logs, generated fixtures and a JSON report stay under `.cache/wasi-tests`. It uses normal stack limits and checks that module-loading counters agree between hosts. Select a Rust toolchain by putting its binaries first on `PATH`; compiler and standard-library builds must match.
+The script builds fixtures for each host, maps them at `/sandbox` and `/nested/sandbox`, and checks that module-loading counters agree between hosts. It uses normal stack limits. `node.mjs` runs any WASI command under Node with the same `--dir HOST::GUEST` mappings as Wasmtime.
 
 The verified host configurations are Node 26 and Wasmtime 48. Wasmtime rejects reading absolute symlink targets, including targets within the configured root. Its witness checks that rejection; Node also exercises supported absolute links. The rename test checks descriptor retention on Wasmtime and explicitly records Node's different path-based behavior. Node is used for functional comparison, not a confinement guarantee. Neither host restriction is bypassed; see [platform support](../../../docs/platforms.md).
 
-The broader comparison harness also runs host registrations, capabilities, required modules and the unchanged example corpus through `vibescript-wasi-compare`. WASI's local timezone is UTC, so timezone-dependent expectations must come from native Go and Rust runs with `TZ=UTC`.
+The `vibescript-wasi-compare` binary runs host registrations, capabilities, required modules and the example corpus for broader comparisons. WASI's local timezone is UTC unless the host sets `TZ`, so timezone-dependent expectations must come from native Go and Rust runs in the same zone.
