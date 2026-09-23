@@ -797,16 +797,20 @@ pub(crate) fn method(
     use Method::*;
     match method {
         IsNil => {
-            arity(args, 0)?;
+            crate::members::universal_shape(name, &value, args.len(), false, false)?;
             return Ok(Value::boolean(matches!(value.0, Kind::Nil)));
         }
         Itself | Dup => {
-            arity(args, 0)?;
+            crate::members::universal_shape(name, &value, args.len(), false, false)?;
             return Ok(value);
         }
         ToString => {
             if matches!(value.0, Kind::Array(_)) {
                 member_arity(&value, name, args)?;
+            }
+            if matches!(value.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_)) {
+                let kind = value.type_name();
+                crate::members::nullary(format_args!("{kind}.{name}"), args.len(), false, false)?;
             }
             arity(args, 0)?;
             if matches!(value.0, Kind::Hash(_)) {
@@ -974,10 +978,18 @@ pub(crate) fn method(
             Value::from_array(ctx, out)
         }
         ToFloat => {
+            if matches!(value.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_)) {
+                let kind = value.type_name();
+                crate::members::nullary(format_args!("{kind}.{name}"), args.len(), false, false)?;
+            }
             arity(args, 0)?;
             value.as_float().map(Value::float).ok_or_else(type_error)
         }
         ToInt => {
+            if matches!(value.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_)) {
+                let kind = value.type_name();
+                crate::members::nullary(format_args!("{kind}.{name}"), args.len(), false, false)?;
+            }
             arity(args, 0)?;
             match &value.0 {
                 Kind::Int(_) | Kind::Big(_) => Ok(value),

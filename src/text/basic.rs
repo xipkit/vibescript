@@ -55,11 +55,21 @@ pub(crate) fn call(
         return Ok(None);
     }
     ctx.checkpoint()?;
-    if matches!(name, "to_sym" | "intern" | "to_s" | "string") {
+    if matches!(
+        name,
+        "to_sym" | "intern" | "to_s" | "string" | "to_i" | "to_f"
+    ) {
         nullary(name, args, keywords, block)?;
     }
-    if !matches!(name, "concat" | "hex" | "oct" | "index" | "rindex") && (keywords || block) {
-        return Err(argument("string method does not accept keywords or blocks"));
+    if name == "clamp" && (keywords || block) {
+        return Err(argument(if keywords {
+            "string.clamp does not take keyword arguments"
+        } else {
+            "string.clamp does not accept blocks"
+        }));
+    }
+    if name == "between?" {
+        crate::arguments::between("string.between?", args, keywords, block)?;
     }
     let value = match name {
         "concat" => concat(ctx, receiver, args)?,

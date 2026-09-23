@@ -363,12 +363,11 @@ pub(crate) fn call(
         name,
         "to_s" | "string" | "inspect" | "nil?" | "itself" | "dup"
     ) {
-        crate::ops::arity(args, 0)?;
-        if keywords || block {
-            return Err(Error::new(
-                ErrorKind::Argument,
-                "enum conversions do not accept keyword arguments or blocks",
-            ));
+        if matches!(name, "nil?" | "itself" | "dup") {
+            crate::members::universal_shape(name, receiver, args.len(), keywords, block)?;
+        } else {
+            let kind = receiver.type_name();
+            crate::members::nullary(format_args!("{kind}.{name}"), args.len(), keywords, block)?;
         }
         return if name == "nil?" {
             Ok(Some(Value::boolean(false)))
@@ -390,7 +389,7 @@ pub(crate) fn call(
     if !site.auto {
         return Err(Error::new(
             ErrorKind::Type,
-            "attempted to call non-callable enum property",
+            "attempted to call non-callable value",
         ));
     }
     Ok(Some(value))

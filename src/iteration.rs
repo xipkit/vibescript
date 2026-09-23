@@ -398,6 +398,13 @@ pub(crate) fn start(
                 return Ok(None);
             }
         }
+        // The block helpers check arguments, then keywords, then the block.
+        if !args.is_empty() {
+            return Err(argument(&format!("{name} does not take arguments")));
+        }
+        if keywords {
+            return Err(argument(&format!("{name} does not take keyword arguments")));
+        }
     }
     let has_block = block_arity.is_some();
     if !universal {

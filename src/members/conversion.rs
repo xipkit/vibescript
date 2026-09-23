@@ -1,4 +1,4 @@
-use crate::{CallContext, Error, ErrorKind, Result, Value, bytecode::CallSite, ops, value::Kind};
+use crate::{CallContext, Result, Value, bytecode::CallSite, ops, value::Kind};
 
 pub(super) fn call(
     ctx: &mut CallContext,
@@ -20,30 +20,8 @@ pub(super) fn call(
         return Ok(None);
     }
     ctx.charge(1)?;
-    if matches!(receiver.0, Kind::Range(_)) {
-        let refusal = if !args.is_empty() {
-            Some("does not take arguments")
-        } else if flags.0 {
-            Some("does not take keyword arguments")
-        } else if flags.1 {
-            Some("does not take a block")
-        } else {
-            None
-        };
-        if let Some(refusal) = refusal {
-            return Err(Error::new(
-                ErrorKind::Argument,
-                format!("range.{name} {refusal}"),
-            ));
-        }
-    }
-    ops::arity(args, 0)?;
-    if flags.0 || flags.1 {
-        return Err(Error::new(
-            ErrorKind::Argument,
-            format!("{name} does not accept keyword arguments or blocks"),
-        ));
-    }
+    let kind = receiver.type_name();
+    super::nullary(format_args!("{kind}.{name}"), args.len(), flags.0, flags.1)?;
     let value = if let Kind::Symbol(bytes) = &receiver.0 {
         if name == "to_sym" {
             receiver.clone()
@@ -59,7 +37,7 @@ pub(super) fn call(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CallOptions, bytecode::Method};
+    use crate::{CallOptions, ErrorKind, bytecode::Method};
 
     #[test]
     fn symbol_aliases_share_accounted_storage_and_release_the_last_owner() {

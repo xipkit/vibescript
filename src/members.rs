@@ -252,29 +252,38 @@ fn dispatch_keywords(
         return Ok((receiver, result));
     }
     let numeric = matches!(receiver.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_));
-    if args.block.is_some()
-        && matches!(
-            site.method,
-            Some(Method::IsNil | Method::Itself | Method::Dup)
-        )
-    {
-        return Err(Error::new(
-            ErrorKind::Argument,
-            "method does not accept a block",
-        ));
+    let (count, keywords, block) = (
+        args.positional.data.len(),
+        !args.keywords.buffer.data.is_empty(),
+        args.block.is_some(),
+    );
+    if matches!(
+        site.method,
+        Some(Method::IsNil | Method::Itself | Method::Dup)
+    ) {
+        universal_shape(name, &receiver, count, keywords, block)?;
     }
-    if numeric
-        && (matches!(name, "inspect" | "clamp" | "between?")
+    if numeric && (keywords || block) {
+        let kind = receiver.type_name();
+        if name == "inspect"
             || matches!(
                 site.method,
                 Some(Method::ToString | Method::ToInt | Method::ToFloat)
-            ))
-        && (args.block.is_some() || !args.keywords.buffer.data.is_empty())
-    {
-        return Err(Error::new(
-            ErrorKind::Argument,
-            format!("{name} does not accept keyword arguments or blocks"),
-        ));
+            )
+        {
+            nullary(format_args!("{kind}.{name}"), count, keywords, block)?;
+        }
+        if matches!(name, "clamp" | "between?") {
+            let refusal = match (keywords, name) {
+                (true, _) => "does not take keyword arguments",
+                (false, "clamp") => "does not accept blocks",
+                (false, _) => "does not accept a block",
+            };
+            return Err(Error::new(
+                ErrorKind::Argument,
+                format!("{kind}.{name} {refusal}"),
+            ));
+        }
     }
     if matches!(receiver.0, Kind::Hash(_)) && !hash_builtin(name) {
         return call(ctx, site, name, receiver, &args.positional.data);
@@ -411,7 +420,8 @@ fn dispatch(
         return Ok((receiver, result));
     }
     if name == "inspect" && matches!(receiver.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_)) {
-        ops::arity(args, 0)?;
+        let kind = receiver.type_name();
+        nullary(format_args!("{kind}.inspect"), args.len(), false, false)?;
         let result = ops::to_string(ctx, &receiver)?;
         return Ok((receiver, result));
     }
@@ -475,6 +485,52 @@ fn dispatch(
     }
     let result = ops::method(ctx, method, name, receiver.clone(), args)?;
     Ok((receiver, result))
+}
+
+/// Refuses arguments, then keywords, then a block passed to `subject`, a
+/// conversion or predicate that takes none, in the reference's wording.
+pub(crate) fn nullary(
+    subject: impl std::fmt::Display,
+    count: usize,
+    keywords: bool,
+    block: bool,
+) -> Result<()> {
+    let refusal = if count > 0 {
+        "does not take arguments"
+    } else if keywords {
+        "does not take keyword arguments"
+    } else if block {
+        "does not take a block"
+    } else {
+        return Ok(());
+    };
+    Err(Error::new(
+        ErrorKind::Argument,
+        format!("{subject} {refusal}"),
+    ))
+}
+
+/// Refuses a malformed call to the universal `nil?`, `itself` or `dup`, in
+/// the order and wording each has in the reference.
+pub(crate) fn universal_shape(
+    name: &str,
+    receiver: &Value,
+    count: usize,
+    keywords: bool,
+    block: bool,
+) -> Result<()> {
+    let kind = receiver.type_name();
+    let refusal = match name {
+        "nil?" => return nullary(format_args!("{kind}.nil?"), count, keywords, block),
+        "itself" if keywords => format!("{kind}.itself does not accept keyword arguments"),
+        "itself" if block => format!("{kind}.itself does not accept a block"),
+        "itself" if count > 0 => format!("{kind}.itself expects 0 arguments, got {count}"),
+        "dup" | "clone" if count > 0 => format!("{name} does not take arguments"),
+        "dup" | "clone" if keywords => format!("{name} does not take keyword arguments"),
+        "dup" | "clone" if block => format!("{name} does not accept blocks"),
+        _ => return Ok(()),
+    };
+    Err(Error::new(ErrorKind::Argument, refusal))
 }
 
 /// Reports a dispatch failure for a member the receiver's kind does not define

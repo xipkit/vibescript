@@ -1544,3 +1544,94 @@ fn range_members_check_calls_in_reference_order() {
         assert_eq!(message(body), expected, "{body}");
     }
 }
+
+#[test]
+fn universal_members_and_conversions_refuse_extra_input_in_reference_order() {
+    let cases = [
+        ("nil.to_s(1)", "nil.to_s does not take arguments"),
+        ("nil.to_s(a: 1)", "nil.to_s does not take keyword arguments"),
+        ("nil.to_s { 1 }", "nil.to_s does not take a block"),
+        ("true.string(1)", "bool.string does not take arguments"),
+        (
+            ":a.id2name(a: 1)",
+            "symbol.id2name does not take keyword arguments",
+        ),
+        (":a.to_sym { 1 }", "symbol.to_sym does not take a block"),
+        ("5.to_s(1, a: 1)", "int.to_s does not take arguments"),
+        ("1.5.to_f { 1 }", "float.to_f does not take a block"),
+        (
+            "5.inspect(a: 1)",
+            "int.inspect does not take keyword arguments",
+        ),
+        ("\"a\".to_i(1)", "string.to_i does not take arguments"),
+        (
+            "\"a\".to_f(a: 1)",
+            "string.to_f does not take keyword arguments",
+        ),
+        (
+            "5.clamp(1, 2, a: 1)",
+            "int.clamp does not take keyword arguments",
+        ),
+        ("5.clamp(1, 2) { 1 }", "int.clamp does not accept blocks"),
+        (
+            "1.5.between?(1, 2) { 1 }",
+            "float.between? does not accept a block",
+        ),
+        (
+            "\"a\".clamp(\"a\", \"b\") { 1 }",
+            "string.clamp does not accept blocks",
+        ),
+        (
+            "\"a\".between?(\"a\", \"b\") { 1 }",
+            "string.between? does not accept a block",
+        ),
+        ("nil.nil?(1)", "nil.nil? does not take arguments"),
+        (
+            "[1].nil?(a: 1)",
+            "array.nil? does not take keyword arguments",
+        ),
+        ("{a: 1}.nil? { 1 }", "hash.nil? does not take a block"),
+        ("5.nil?(1, a: 1)", "int.nil? does not take arguments"),
+        ("[1].itself(1)", "array.itself expects 0 arguments, got 1"),
+        (
+            "5.itself(1, a: 1)",
+            "int.itself does not accept keyword arguments",
+        ),
+        ("/a/.itself { 1 }", "regex.itself does not accept a block"),
+        ("[1].dup(1)", "dup does not take arguments"),
+        ("[1].dup(a: 1)", "dup does not take keyword arguments"),
+        ("1.second.dup { 1 }", "dup does not accept blocks"),
+        ("[1].tap(1) { |x| x }", "tap does not take arguments"),
+        (
+            "[1].tap(a: 1) { |x| x }",
+            "tap does not take keyword arguments",
+        ),
+        (
+            "5.yield_self(1) { |x| x }",
+            "yield_self does not take arguments",
+        ),
+    ];
+    for (body, expected) in cases {
+        assert_eq!(message(body), expected, "{body}");
+    }
+    let status = "enum Status\n  Draft\nend\n";
+    for (body, expected) in [
+        ("Status.to_s(1)", "enum.to_s does not take arguments"),
+        ("Status.inspect { 1 }", "enum.inspect does not take a block"),
+        (
+            "Status::Draft.to_s(1)",
+            "enum value.to_s does not take arguments",
+        ),
+        (
+            "Status::Draft.inspect(a: 1)",
+            "enum value.inspect does not take keyword arguments",
+        ),
+        (
+            "Status::Draft.name(1)",
+            "attempted to call non-callable value",
+        ),
+    ] {
+        let source = format!("{status}def run\n  {body}\nend");
+        assert_eq!(function_message(&source, "run"), expected, "{body}");
+    }
+}
