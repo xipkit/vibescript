@@ -145,7 +145,7 @@ pub(super) fn member(
     }
     if let Kind::Hash(hash) = &receiver.0 {
         if hash.tag.protected() && crate::bytecode::mutating_member(name) {
-            return Err(hash.tag.mutation_error());
+            return Err(hash.tag.mutation_error(name));
         }
     }
     if matches!(name.as_str(), "itself" | "eql?" | "equal?")

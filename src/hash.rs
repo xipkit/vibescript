@@ -66,13 +66,14 @@ impl Tag {
     pub fn protected(self) -> bool {
         self != Self::None
     }
-    pub fn mutation_error(self) -> crate::Error {
+    /// Rejects `operation` on a protected record, naming the operation first.
+    pub fn mutation_error(self, operation: &str) -> crate::Error {
         crate::Error::new(
             ErrorKind::Argument,
             if self == Self::Error {
-                "cannot modify rescued error"
+                format!("{operation} cannot modify a rescued error")
             } else {
-                "cannot modify match data"
+                format!("{operation} cannot modify match data")
             },
         )
     }
@@ -143,7 +144,7 @@ impl Hash {
 
     pub fn make_mut<'a>(ctx: &mut CallContext, hash: &'a mut Arc<Self>) -> Result<&'a mut Self> {
         if hash.tag.protected() {
-            return Err(hash.tag.mutation_error());
+            return Err(hash.tag.mutation_error("assignment"));
         }
         if Arc::get_mut(hash).is_none() {
             let mut buffer = Buffer::with_capacity(ctx, hash.buffer.data.len())?;

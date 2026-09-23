@@ -340,7 +340,7 @@ pub(crate) fn start(
         let Kind::Hash(hash) = &receiver.0 else {
             unreachable!()
         };
-        return Err(hash.tag.mutation_error());
+        return Err(hash.tag.mutation_error(name));
     }
     let chunk_by_block =
         name == "chunk" && block_arity.is_some() && matches!(receiver.0, Kind::Array(_));
@@ -638,7 +638,7 @@ pub(crate) fn start(
         }
     }
     if method == Delete {
-        let (updated, removed) = mutate::call(ctx, Method::Delete, receiver.clone(), args)?;
+        let (updated, removed) = mutate::call(ctx, Method::Delete, name, receiver.clone(), args)?;
         let changed = match (&receiver.0, &updated.0) {
             (Kind::Array(before), Kind::Array(after)) => {
                 before.buffer.data.len() != after.buffer.data.len()

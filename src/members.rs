@@ -443,7 +443,7 @@ fn dispatch(
             | Method::Store
             | Method::Replace
     ) {
-        return crate::mutate::call(ctx, method, receiver, args);
+        return crate::mutate::call(ctx, method, name, receiver, args);
     }
     let result = ops::method(ctx, method, name, receiver.clone(), args)?;
     Ok((receiver, result))

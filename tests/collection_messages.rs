@@ -259,3 +259,50 @@ fn index_operator_errors_name_the_selector_or_receiver() {
         "cannot index instance: Plain does not define []="
     );
 }
+
+#[test]
+fn protected_records_name_the_rejected_operation() {
+    let matched = "m = \"ab\".match(/(a)(b)/)\n";
+    let rescued = "begin\n  raise \"x\"\nrescue RuntimeError => e\n  e\nend";
+    let cases = [
+        (
+            format!("{matched}m[0] = \"z\""),
+            "index assignment cannot modify match data",
+        ),
+        (
+            format!("{matched}m.pre_match = \"z\""),
+            "member assignment cannot modify match data",
+        ),
+        (
+            format!("{matched}m.replace({{}})"),
+            "replace cannot modify match data",
+        ),
+        (
+            format!("{matched}m.delete_if {{ |k, v| true }}"),
+            "delete_if cannot modify match data",
+        ),
+        (
+            format!("{matched}m.send(:clear)"),
+            "clear cannot modify match data",
+        ),
+        (
+            format!("e = {rescued}\ne[:message] = \"y\""),
+            "index assignment cannot modify a rescued error",
+        ),
+        (
+            format!("e = {rescued}\ne.message = \"y\""),
+            "member assignment cannot modify a rescued error",
+        ),
+        (
+            format!("e = {rescued}\ne.store(:a, 1)"),
+            "store cannot modify a rescued error",
+        ),
+        (
+            format!("e = {rescued}\ne.delete(:message)"),
+            "delete cannot modify a rescued error",
+        ),
+    ];
+    for (body, expected) in cases {
+        assert_eq!(message(&body), expected, "{body}");
+    }
+}

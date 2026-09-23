@@ -81,7 +81,7 @@ fn mutation_results_and_receivers_contain_runtime_values() {
                     .unwrap();
                 assert!(!inferred.unsupported, "{receiver:?}.{method:?}({args:?})");
                 let mut runtime = CallContext::new(CallOptions::default());
-                match crate::mutate::call(&mut runtime, method, receiver.clone(), &args) {
+                match crate::mutate::call(&mut runtime, method, "", receiver.clone(), &args) {
                     Ok(actual) => {
                         contains(&mut ctx, &mut facts, inferred, actual);
                         successes += 1;
@@ -140,9 +140,13 @@ fn fill_windows_match_runtime_for_numeric_and_range_selectors() {
                         .collection_mutate(&mut ctx, root, Method::Fill, &args_facts)
                         .unwrap();
                     assert!(!inferred.unsupported);
-                    if let Ok(actual) =
-                        crate::mutate::call(&mut runtime, Method::Fill, receiver.clone(), &args)
-                    {
+                    if let Ok(actual) = crate::mutate::call(
+                        &mut runtime,
+                        Method::Fill,
+                        "fill",
+                        receiver.clone(),
+                        &args,
+                    ) {
                         contains(&mut ctx, &mut facts, inferred, actual);
                     }
                     cases += 1;
@@ -205,7 +209,7 @@ fn generalized_mutations_include_concrete_execution_results() {
                 assert!(!inferred.unsupported);
                 let mut runtime = CallContext::new(CallOptions::default());
                 if let Ok(actual) =
-                    crate::mutate::call(&mut runtime, method, receiver.clone(), &args)
+                    crate::mutate::call(&mut runtime, method, "", receiver.clone(), &args)
                 {
                     contains(&mut ctx, &mut facts, inferred, actual);
                 }

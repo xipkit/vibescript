@@ -16,6 +16,7 @@ fn size(ctx: &mut CallContext, value: i128) -> Result<usize> {
 pub(crate) fn call(
     ctx: &mut CallContext,
     method: Method,
+    name: &str,
     receiver: Value,
     args: &[Value],
 ) -> Result<(Value, Value)> {
@@ -24,7 +25,7 @@ pub(crate) fn call(
         let Kind::Hash(hash) = &receiver.0 else {
             unreachable!()
         };
-        return Err(hash.tag.mutation_error());
+        return Err(hash.tag.mutation_error(name));
     }
     if matches!(receiver.0, Kind::Bytes(_)) {
         let result = string(ctx, method, &receiver, args)?;

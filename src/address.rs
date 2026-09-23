@@ -158,6 +158,11 @@ impl Address {
         value: Value,
     ) -> Result<Value> {
         let selectors = std::mem::replace(&mut self.selectors, Buffer::empty());
+        let operation = if self.member_target {
+            "member assignment"
+        } else {
+            "index assignment"
+        };
         self.apply(ctx, bindings, pending, |ctx, receiver| {
             let [key] = selectors.data.as_slice() else {
                 return Err(match &receiver.0 {
@@ -175,6 +180,11 @@ impl Address {
                     _ => ops::cannot_index(&receiver),
                 });
             };
+            if let Kind::Hash(hash) = &receiver.0 {
+                if hash.tag.protected() {
+                    return Err(hash.tag.mutation_error(operation));
+                }
+            }
             let receiver = ops::set_index(ctx, receiver, key.clone(), value.clone())?;
             Ok((receiver, value))
         })
@@ -241,9 +251,11 @@ impl Address {
         Ok(result)
     }
 
+    /// Rejects a write whose path passes through a protected record. The
+    /// reference reports such a write-back as an assignment.
     pub fn check_writable(&self) -> Result<()> {
         if self.protected.protected() {
-            Err(self.protected.mutation_error())
+            Err(self.protected.mutation_error("assignment"))
         } else {
             Ok(())
         }

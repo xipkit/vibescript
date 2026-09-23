@@ -272,7 +272,8 @@ end
     let inspected = "{begin: <builtin>, captures: [nil, \"b\"], end: <builtin>, named_captures: {}, post_match: \"\", pre_match: \"\", to_s: \"b\"}";
     assert_eq!(
         bytes(&stdout),
-        format!("[1]\n{inspected}\nb\n[{inspected}]\ncannot modify match data\n").as_bytes()
+        format!("[1]\n{inspected}\nb\n[{inspected}]\nassignment cannot modify match data\n")
+            .as_bytes()
     );
 }
 

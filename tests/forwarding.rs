@@ -325,25 +325,32 @@ fn protected_receivers_allow_forwarded_reads_and_reject_writes() {
         ),
         serde_json::json!([2, 2])
     );
-    for expression in [
-        "m.send(:clear)",
-        "m.captures.send(:push,\"x\")",
-        "m.dup.send(:public_send,:clear)",
-        "m.send(:clone).captures.send(:send,:push,\"x\")",
+    for (expression, operation) in [
+        ("m.send(:clear)", "clear"),
+        ("m.captures.send(:push,\"x\")", "assignment"),
+        ("m.dup.send(:public_send,:clear)", "clear"),
+        (
+            "m.send(:clone).captures.send(:send,:push,\"x\")",
+            "assignment",
+        ),
     ] {
         let error = Engine::new()
             .compile(&format!("m=\"ab\".match(/(a)(b)/);{expression}"))
             .unwrap()
             .run(CallOptions::default())
             .unwrap_err();
-        assert_eq!(error.message, "cannot modify match data", "{expression}");
+        assert_eq!(
+            error.message,
+            format!("{operation} cannot modify match data"),
+            "{expression}"
+        );
     }
     let error = Engine::new()
         .compile("begin\nraise \"x\"\nrescue RuntimeError=>e\ne.public_send(:clear)\nend")
         .unwrap()
         .run(CallOptions::default())
         .unwrap_err();
-    assert_eq!(error.message, "cannot modify rescued error");
+    assert_eq!(error.message, "clear cannot modify a rescued error");
 }
 
 #[test]

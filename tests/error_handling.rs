@@ -360,7 +360,7 @@ fn rescued_error_protection_and_rendering_survive_host_transfer() {
     let encoded = stringify_json(&output.value, CallOptions::default()).unwrap();
     assert_eq!(
         serde_json::from_slice::<serde_json::Value>(encoded.value.as_bytes().unwrap()).unwrap(),
-        serde_json::json!(["kept", "cannot modify rescued error"])
+        serde_json::json!(["kept", "assignment cannot modify a rescued error"])
     );
 }
 

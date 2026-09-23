@@ -796,7 +796,7 @@ pub(crate) fn method(
     match method {
         IsNil | Itself | Dup | ToString => unreachable!(),
         Prepend | Pop | Shift | Delete | Insert | Clear | Fill | Store | Replace => {
-            crate::mutate::call(ctx, method, value, args).map(|(_, result)| result)
+            crate::mutate::call(ctx, method, name, value, args).map(|(_, result)| result)
         }
         Empty => {
             arity(args, 0)?;
