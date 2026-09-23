@@ -10,6 +10,21 @@ fn argument(message: &str) -> Error {
     Error::new(ErrorKind::Argument, message)
 }
 
+/// Refuses arguments, keywords and then a block passed to the conversion
+/// `name`, which takes none, in the reference's order.
+fn nullary(name: &str, args: &[Value], keywords: bool, block: bool) -> Result<()> {
+    let refusal = if !args.is_empty() {
+        "does not take arguments"
+    } else if keywords {
+        "does not take keyword arguments"
+    } else if block {
+        "does not take a block"
+    } else {
+        return Ok(());
+    };
+    Err(argument(&format!("string.{name} {refusal}")))
+}
+
 pub(crate) fn call(
     ctx: &mut CallContext,
     name: &str,
@@ -40,6 +55,9 @@ pub(crate) fn call(
         return Ok(None);
     }
     ctx.checkpoint()?;
+    if matches!(name, "to_sym" | "intern" | "to_s" | "string") {
+        nullary(name, args, keywords, block)?;
+    }
     if !matches!(name, "concat" | "hex" | "oct" | "index" | "rindex") && (keywords || block) {
         return Err(argument("string method does not accept keywords or blocks"));
     }

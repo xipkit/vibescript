@@ -1138,3 +1138,112 @@ fn string_member_arguments_report_type_and_value_errors_in_reference_wording() {
         assert_eq!(message(body), expected, "{body}");
     }
 }
+
+#[test]
+fn string_keyword_and_block_refusals_follow_the_reference_order() {
+    let cases = [
+        ("\"ab\".to_s(1)", "string.to_s does not take arguments"),
+        (
+            "\"ab\".string(1, a: 1)",
+            "string.string does not take arguments",
+        ),
+        (
+            "\"ab\".to_sym(a: 1)",
+            "string.to_sym does not take keyword arguments",
+        ),
+        (
+            "\"ab\".intern { |x| x }",
+            "string.intern does not take a block",
+        ),
+        (
+            "\"ab\".to_s(a: 1) { |x| x }",
+            "string.to_s does not take keyword arguments",
+        ),
+        (
+            "\"ab\".to_sym(1) { |x| x }",
+            "string.to_sym does not take arguments",
+        ),
+        (
+            "\"ab\".getbyte(0, a: 1)",
+            "string.getbyte does not accept keyword arguments",
+        ),
+        (
+            "\"ab\".getbyte(a: 1)",
+            "string.getbyte does not accept keyword arguments",
+        ),
+        (
+            "\"ab\".byteslice(a: 1)",
+            "string.byteslice does not accept keyword arguments",
+        ),
+        ("\"ab\".chars(a: 1)", "string.chars does not take arguments"),
+        ("\"ab\".lines(a: 1)", "string.lines does not take arguments"),
+        ("\"ab\".bytes(a: 1)", "string.bytes does not take arguments"),
+        (
+            "\"ab\".codepoints(a: 1)",
+            "string.codepoints does not take arguments",
+        ),
+        (
+            "\"ab\".each_char(a: 1) { |c| c }",
+            "string.each_char does not take arguments",
+        ),
+        (
+            "\"ab\".count(a: 1)",
+            "string.count expects at least one character set",
+        ),
+        (
+            "\"ab\".count(\"a\", a: 1)",
+            "string.count does not take keyword arguments",
+        ),
+        (
+            "\"ab\".count(\"a\") { |c| c }",
+            "string.count does not accept a block",
+        ),
+        (
+            "\"ab\".delete!(a: 1) { |c| c }",
+            "string.delete! expects at least one character set",
+        ),
+        (
+            "\"ab\".delete(\"a\", a: 1)",
+            "string.delete does not take keyword arguments",
+        ),
+        (
+            "\"ab\".tr(\"a\", a: 1)",
+            "string.tr expects source and replacement character sets",
+        ),
+        (
+            "\"ab\".tr!(\"a\", \"b\", a: 1)",
+            "string.tr! does not take keyword arguments",
+        ),
+        (
+            "\"ab\".tr(\"a\", \"b\") { |c| c }",
+            "string.tr does not accept a block",
+        ),
+        (
+            "\"ab\".squeeze(a: 1)",
+            "string.squeeze does not take keyword arguments",
+        ),
+        (
+            "\"ab\".squeeze! { |c| c }",
+            "string.squeeze! does not accept a block",
+        ),
+        (
+            "\"ab\".center(5, a: 1)",
+            "string.center does not accept keyword arguments",
+        ),
+        (
+            "\"ab\".ljust(a: 1)",
+            "string.ljust does not accept keyword arguments",
+        ),
+        (
+            "\"ab\".partition(\"a\", a: 1)",
+            "string.partition expects exactly one separator",
+        ),
+        (
+            "\"ab\".rpartition(a: 1)",
+            "string.rpartition expects exactly one separator",
+        ),
+    ];
+    for (body, expected) in cases {
+        assert_eq!(message(body), expected, "{body}");
+    }
+}

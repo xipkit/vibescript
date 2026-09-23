@@ -71,6 +71,17 @@ impl Receiver {
             };
             return refused.then(|| format!("array.{name} does not take keyword arguments"));
         }
+        if self == Self::Bytes {
+            match method {
+                Some(ByteSlice | GetByte) => {
+                    return Some(format!("string.{name} does not accept keyword arguments"));
+                }
+                Some(Bytes | Chars | Lines | Codepoints) => {
+                    return Some(format!("string.{name} does not take arguments"));
+                }
+                _ => {}
+            }
+        }
         self.rejects_keywords(method)
             .then(|| format!("{name} does not accept keyword arguments"))
     }

@@ -240,11 +240,6 @@ pub(crate) fn call(
         _ => return Ok(None),
     };
     ctx.charge(1)?;
-    if keywords || block {
-        return Err(argument(
-            "character-set methods do not accept keyword arguments or blocks",
-        ));
-    }
     match operation {
         Operation::Count | Operation::Delete if args.is_empty() => {
             return Err(argument(&format!(
@@ -257,6 +252,14 @@ pub(crate) fn call(
             )));
         }
         _ => {}
+    }
+    if keywords {
+        return Err(argument(&format!(
+            "string.{name} does not take keyword arguments"
+        )));
+    }
+    if block {
+        return Err(argument(&format!("string.{name} does not accept a block")));
     }
     let mut sets = Buffer::with_capacity(ctx, args.len())?;
     for (index, arg) in args.iter().enumerate() {
