@@ -5,6 +5,7 @@ use crate::{
 };
 use std::{cmp::Ordering, mem::size_of, sync::Arc};
 
+mod ntt;
 mod radix;
 
 const CHUNK: usize = 256;
@@ -343,6 +344,9 @@ fn subtract(ctx: &mut CallContext, a: &mut [u32], b: Magnitude<'_>) -> Result<()
 
 /// Operands shorter than this many words multiply by the schoolbook method.
 const KARATSUBA: usize = 64;
+/// Operands at least this many words long multiply through number-theoretic
+/// transforms.
+const TRANSFORM: usize = 128;
 
 fn multiply(ctx: &mut CallContext, a: Magnitude<'_>, b: Magnitude<'_>) -> Result<Buffer<u32>> {
     if a.len() == 0 || b.len() == 0 {
@@ -369,12 +373,16 @@ fn product(ctx: &mut CallContext, a: &[u32], b: &[u32]) -> Result<Buffer<u32>> {
 ///
 /// Short operands use the schoolbook method, charged one step per row and
 /// one per sixteen word products. Longer ones split Karatsuba-style into
-/// three half-size products, so an n-word product costs O(n^1.59) work.
+/// three half-size products, so an n-word product costs O(n^1.59) work, and
+/// the longest convolve through number-theoretic transforms in O(n log n).
 fn multiply_into(ctx: &mut CallContext, out: &mut [u32], a: &[u32], b: &[u32]) -> Result<()> {
     // `b` is the shorter operand.
     let (a, b) = if a.len() < b.len() { (b, a) } else { (a, b) };
     if b.is_empty() {
         return Ok(());
+    }
+    if b.len() >= TRANSFORM {
+        return ntt::multiply_into(ctx, out, a, b);
     }
     if b.len() < KARATSUBA {
         for (i, &y) in b.iter().enumerate() {
@@ -958,6 +966,40 @@ mod tests {
                 assert_eq!(trimmed(quotient.data), trimmed(a.clone()), "{x} / {y}");
                 assert_eq!(rest.data, remainder, "{x} % {y}");
             }
+        }
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+
+    #[test]
+    fn transform_products_agree_with_schoolbook_arithmetic() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let mut words = Words(0x51a3_c0de_1234_9876);
+        for (x, y) in [
+            (1, 1),
+            (2, 1),
+            (5, 3),
+            (64, 64),
+            (100, 7),
+            (256, 256),
+            (257, 255),
+            (1000, 300),
+            (3000, 40),
+            (4096, 9),
+            (513, 513),
+        ] {
+            let (a, b) = (words.take(x), words.take(y));
+            // Products add into whatever the output already holds.
+            let base = words.take(x + y);
+            let mut out = base.clone();
+            out.push(0);
+            ntt::multiply_into(&mut ctx, &mut out, &a, &b).unwrap();
+            let mut expected = schoolbook(&a, &b);
+            expected.resize(x + y + 1, 0);
+            add_into(&mut ctx, &mut expected, &base).unwrap();
+            assert_eq!(trimmed(out), trimmed(expected), "{x} x {y}");
+            let mut out = vec![0; 2 * x];
+            ntt::multiply_into(&mut ctx, &mut out, &a, &a).unwrap();
+            assert_eq!(trimmed(out), schoolbook(&a, &a), "{x} squared");
         }
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
