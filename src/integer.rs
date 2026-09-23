@@ -1126,7 +1126,13 @@ mod tests {
         });
         let mut words = Words(0x2545_f491_4f6c_dd1d);
         for radix in 2..=36 {
-            for length in [3, 33, 70, 150] {
+            // Long strings in a few radixes reach the transformed powers.
+            let lengths: &[usize] = if matches!(radix, 3 | 10 | 36) {
+                &[3, 33, 70, 150, 700, 2100]
+            } else {
+                &[3, 33, 70, 150]
+            };
+            for &length in lengths {
                 let digits = (0..length * 12)
                     .map(|i| {
                         let digit = if i == 0 {

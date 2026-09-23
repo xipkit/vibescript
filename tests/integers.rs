@@ -466,3 +466,38 @@ fn rendering_reference_sized_integers_fits_the_default_quota_with_room() {
     // schoolbook conversion cost sixteen.
     assert!(large < small * 7, "{small} then {large}");
 }
+
+#[test]
+fn long_digit_strings_parse_exactly() {
+    // Parsing by halves meets the powers of ten built by multiplication and
+    // renders back to the same digits.
+    let digits = "31415926535897932384626433832795028841971693993751".repeat(1999);
+    for (source, expected) in [
+        (
+            format!("\"1{}\".to_i == 10 ** 99999", "0".repeat(99999)),
+            "true",
+        ),
+        (
+            format!("\"{}\".to_i == 10 ** 99999 - 1", "9".repeat(99999)),
+            "true",
+        ),
+        (format!("\"{digits}\".to_i.to_s == \"{digits}\""), "true"),
+        (
+            format!("\"-{digits}\".to_i == -(\"{digits}\".to_i)"),
+            "true",
+        ),
+    ] {
+        let outcome = Engine::new()
+            .compile(&source)
+            .unwrap()
+            .run(CallOptions {
+                limits: Limits {
+                    steps: None,
+                    ..Limits::default()
+                },
+                ..CallOptions::default()
+            })
+            .unwrap();
+        assert_eq!(outcome.value.to_string(), expected, "{}", &source[..20]);
+    }
+}
