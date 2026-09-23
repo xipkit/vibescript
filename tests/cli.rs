@@ -795,9 +795,9 @@ fn limits_deadlines_and_unknown_functions_fail_with_nonzero_status() {
         "0",
     ])
     .expect(1, "", "execution deadline exceeded\n");
-    vibes(&[&file, "--function", "nope", "--check"]).expect(1, "", "unknown function nope\n");
-    vibes(&[&file, "--function", "nope", "--checked"]).expect(1, "", "unknown function nope\n");
-    vibes(&[&file, "--function", "nope"]).expect(1, "", "unknown function nope\n");
+    vibes(&[&file, "--function", "nope", "--check"]).expect(1, "", "function nope not found\n");
+    vibes(&[&file, "--function", "nope", "--checked"]).expect(1, "", "function nope not found\n");
+    vibes(&[&file, "--function", "nope"]).expect(1, "", "function nope not found\n");
     let loop_file = files.write(
         "loop.vibe",
         "def run(n)\n  i = 0\n  while i < n\n    i += 1\n  end\n  i\nend\n",
@@ -1034,12 +1034,16 @@ fn check_function_selects_methods_and_constructors() {
     vibes(&["check", "--function", "C#missing", &file]).expect(
         1,
         "",
-        "unknown function C#missing\n",
+        "function C#missing not found\n",
     );
-    vibes(&["check", "--function", "nope", &file]).expect(1, "", "unknown function nope\n");
-    vibes(&[&file, "--function", "C#read", "--check"]).expect(1, "", "unknown function C#read\n");
-    vibes(&[&file, "--function", "C.read", "--checked"]).expect(1, "", "unknown function C.read\n");
-    vibes(&[&file, "--function", "C.read"]).expect(1, "", "unknown function C.read\n");
+    vibes(&["check", "--function", "nope", &file]).expect(1, "", "function nope not found\n");
+    vibes(&[&file, "--function", "C#read", "--check"]).expect(1, "", "function C#read not found\n");
+    vibes(&[&file, "--function", "C.read", "--checked"]).expect(
+        1,
+        "",
+        "function C.read not found\n",
+    );
+    vibes(&[&file, "--function", "C.read"]).expect(1, "", "function C.read not found\n");
     let run = vibes(&["check", &file]);
     assert_eq!(run.status, Some(1), "{}", run.stderr);
     assert_eq!(run.stdout, "");
@@ -1400,7 +1404,7 @@ fn inline_source_runs_calls_and_checks_in_every_scope() {
     vibes(&["-e", METHODS, "--function", "C#read", "--check"]).expect(
         1,
         "",
-        "unknown function C#read\n",
+        "function C#read not found\n",
     );
 }
 
@@ -1779,7 +1783,7 @@ fn empty_inline_source_is_valid_in_every_scope() {
         vibes(&["-e", source, "--function", "__main__", "--checked"]).expect(0, "null\n", "");
         vibes(&["check", "-e", source]).expect(0, "", "");
         vibes(&["check", "--function", "__main__", "--eval", source]).expect(0, "", "");
-        vibes(&["-e", source, "--function", "run"]).expect(1, "", "unknown function run\n");
+        vibes(&["-e", source, "--function", "run"]).expect(1, "", "function run not found\n");
     }
     let run = vibes(&["--eval", "", "--stats"]);
     assert_eq!(run.status, Some(0));

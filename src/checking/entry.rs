@@ -7,9 +7,7 @@ use super::{
     inputs::Values,
     sources::SourceId,
 };
-use crate::{
-    CallContext, CallOptions, Error, ErrorClass, ErrorKind, Result, Script, Value, budget::Buffer,
-};
+use crate::{CallContext, CallOptions, ErrorClass, Result, Script, Value, budget::Buffer};
 
 pub(super) struct Call<'a> {
     pub script: &'a Script,
@@ -55,7 +53,7 @@ pub(super) fn check(ctx: &mut CallContext, call: Call<'_>) -> Result<Check> {
     let function = *program
         .names
         .get(call.name)
-        .ok_or_else(|| Error::new(ErrorKind::Name, format!("unknown function {}", call.name)))?;
+        .ok_or_else(|| crate::members::suggest::missing_function(program, call.name))?;
     let mut facts = Facts::new(ctx)?;
     let environment = Environment::new(ctx, &mut facts, call.script, call.options)?;
     if let Some(reason) = environment.incomplete.data.first() {
@@ -323,8 +321,5 @@ fn declaration(
             }
         }
     }
-    Err(Error::new(
-        ErrorKind::Name,
-        format!("unknown function {name}"),
-    ))
+    Err(crate::members::suggest::missing_function(program, name))
 }

@@ -747,7 +747,7 @@ fn all_vibe_files_compile_and_run() {
                 Err(error) => error,
             };
             assert_eq!(error.kind, ErrorKind::Name, "{id}: {error}");
-            assert_eq!(error.message, "unknown function run", "{id}: {error}");
+            assert_eq!(error.message, "function run not found", "{id}: {error}");
         }
         covered.record(&id);
     }

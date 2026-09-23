@@ -88,6 +88,16 @@ pub(crate) fn did_you_mean<'c>(
     suggestion
 }
 
+/// The error a host call or check reports for a function the script does not
+/// declare, suggesting close declared names as the reference does.
+pub(crate) fn missing_function(program: &crate::bytecode::Program, name: &str) -> crate::Error {
+    let suggestion = did_you_mean(name, program.names.keys().map(String::as_bytes));
+    crate::Error::new(
+        crate::ErrorKind::Name,
+        format!("function {name} not found{suggestion}"),
+    )
+}
+
 fn runes(bytes: &[u8]) -> impl Iterator<Item = char> + '_ {
     let mut rest = bytes;
     std::iter::from_fn(move || {

@@ -22,13 +22,9 @@ impl Execution {
         context.output_writer = script.inner.output_writer.clone();
         context.error_writer = script.inner.error_writer.clone();
         context.checkpoint()?;
-        let function = *script
-            .inner
-            .code
-            .program
-            .names
-            .get(name)
-            .ok_or_else(|| Error::new(ErrorKind::Name, format!("unknown function {name}")))?;
+        let function = *script.inner.code.program.names.get(name).ok_or_else(|| {
+            crate::members::suggest::missing_function(&script.inner.code.program, name)
+        })?;
         let mut execution = Self {
             context,
             run: None,
