@@ -282,7 +282,9 @@ fn string(
     };
     match method {
         Method::Clear => {
-            ops::arity(args, 0)?;
+            if !args.is_empty() {
+                return Err(argument("string.clear does not take arguments"));
+            }
             ctx.bytes(b"")
         }
         Method::Replace => {

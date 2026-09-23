@@ -313,8 +313,13 @@ fn affixes(
                     } else {
                         crate::bytecode::Method::EndWith
                     };
-                    let value =
-                        crate::text::method(ctx, method, text.clone(), std::slice::from_ref(part))?;
+                    let value = crate::text::method(
+                        ctx,
+                        method,
+                        name,
+                        text.clone(),
+                        std::slice::from_ref(part),
+                    )?;
                     Some(value.truthy())
                 }
                 (_, Node::String(part)) if part.as_bytes().unwrap().is_empty() => Some(true),

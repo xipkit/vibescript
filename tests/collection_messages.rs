@@ -690,3 +690,159 @@ fn array_element_bounds_and_comparison_errors_use_reference_wording() {
         assert_eq!(message(body), expected, "{body}");
     }
 }
+
+#[test]
+fn string_members_name_themselves_in_argument_count_errors() {
+    let cases = [
+        ("\"ab\".size(1)", "string.size does not take arguments"),
+        (
+            "\"ab\".length(1, 2)",
+            "string.length does not take arguments",
+        ),
+        (
+            "\"ab\".bytesize(1)",
+            "string.bytesize does not take arguments",
+        ),
+        (
+            "\"ab\".empty?(nil)",
+            "string.empty? does not take arguments",
+        ),
+        ("\"ab\".ord(1)", "string.ord does not take arguments"),
+        ("\"ab\".chr(1)", "string.chr does not take arguments"),
+        ("\"ab\".chars(1)", "string.chars does not take arguments"),
+        ("\"ab\".lines(1)", "string.lines does not take arguments"),
+        ("\"ab\".bytes(1)", "string.bytes does not take arguments"),
+        (
+            "\"ab\".codepoints(1)",
+            "string.codepoints does not take arguments",
+        ),
+        (
+            "\"ab\".reverse(1)",
+            "string.reverse does not take arguments",
+        ),
+        (
+            "\"ab\".reverse!(1)",
+            "string.reverse! does not take arguments",
+        ),
+        ("\"ab\".strip(1)", "string.strip does not take arguments"),
+        (
+            "\"ab\".lstrip!(1)",
+            "string.lstrip! does not take arguments",
+        ),
+        ("\"ab\".rstrip(1)", "string.rstrip does not take arguments"),
+        (
+            "\"ab\".squish!(1)",
+            "string.squish! does not take arguments",
+        ),
+        ("\"ab\".chop(1)", "string.chop does not take arguments"),
+        (
+            "\"ab\".chomp!(\"a\", \"b\")",
+            "string.chomp! accepts at most one separator",
+        ),
+        (
+            "\"ab\".delete_prefix",
+            "string.delete_prefix expects exactly one prefix",
+        ),
+        (
+            "\"ab\".delete_suffix!(\"a\", \"b\")",
+            "string.delete_suffix! expects exactly one suffix",
+        ),
+        (
+            "\"ab\".start_with?",
+            "string.start_with? expects at least one prefix",
+        ),
+        (
+            "\"ab\".end_with?",
+            "string.end_with? expects at least one suffix",
+        ),
+        (
+            "\"ab\".include?",
+            "string.include? expects exactly one substring",
+        ),
+        (
+            "\"ab\".index",
+            "string.index expects substring and optional offset",
+        ),
+        (
+            "\"ab\".rindex(\"a\", 1, 2)",
+            "string.rindex expects substring and optional offset",
+        ),
+        (
+            "\"ab\".casecmp",
+            "string.casecmp expects exactly one string",
+        ),
+        (
+            "\"ab\".casecmp?(\"a\", \"b\")",
+            "string.casecmp? expects exactly one string",
+        ),
+        (
+            "\"ab\".partition",
+            "string.partition expects exactly one separator",
+        ),
+        (
+            "\"ab\".rpartition(\"a\", \"b\")",
+            "string.rpartition expects exactly one separator",
+        ),
+        (
+            "\"ab\".center",
+            "string.center expects width and optional pad string",
+        ),
+        (
+            "\"ab\".rjust(1, \"a\", \"b\")",
+            "string.rjust expects width and optional pad string",
+        ),
+        (
+            "\"ab\".split(\" \", 1, 2)",
+            "string.split accepts at most a separator and a limit",
+        ),
+        (
+            "\"ab\".count",
+            "string.count expects at least one character set",
+        ),
+        (
+            "\"ab\".delete!",
+            "string.delete! expects at least one character set",
+        ),
+        (
+            "\"ab\".tr(\"a\")",
+            "string.tr expects source and replacement character sets",
+        ),
+        (
+            "\"ab\".upcase(:ascii, :ascii)",
+            "string.upcase accepts at most one case-mapping option",
+        ),
+        (
+            "\"ab\".swapcase!(1, 2)",
+            "string.swapcase! accepts at most one case-mapping option",
+        ),
+        (
+            "\"ab\".template",
+            "string.template expects exactly one context hash",
+        ),
+        ("\"ab\".clear(1)", "string.clear does not take arguments"),
+        (
+            "\"ab\".replace",
+            "string.replace expects exactly one replacement",
+        ),
+        (
+            "\"ab\".insert(1)",
+            "string.insert expects an index and a string",
+        ),
+        ("\"ab\".each_char", "string.each_char requires a block"),
+        (
+            "\"ab\".each_codepoint",
+            "string.each_codepoint requires a block",
+        ),
+        (
+            "\"ab\".each_line(1) { |line| line }",
+            "string.each_line does not take arguments",
+        ),
+        (
+            "\"ab\".each_byte(1) { |byte| byte }",
+            "string.each_byte does not take arguments",
+        ),
+    ];
+    for (body, expected) in cases {
+        assert_eq!(message(body), expected, "{body}");
+    }
+}

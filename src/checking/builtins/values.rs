@@ -165,7 +165,7 @@ fn text_materializer(
             "lines" => crate::bytecode::Method::Lines,
             _ => unreachable!(),
         };
-        let values = crate::text::method(ctx, method, value.clone(), &[])?;
+        let values = crate::text::method(ctx, method, name, value.clone(), &[])?;
         let values = values.as_array().unwrap();
         let mut items = Buffer::with_capacity(ctx, values.len())?;
         for value in values {

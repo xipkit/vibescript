@@ -45,14 +45,20 @@ pub(crate) fn sum_incompatible(error: Error) -> Error {
     }
 }
 
-/// Rejects arguments to an array member that takes none.
-fn array_arity(name: &str, args: &[Value]) -> Result<()> {
+/// Rejects arguments to an array or string member that takes none, naming
+/// the receiver kind; other receivers keep the plain count.
+fn member_arity(value: &Value, name: &str, args: &[Value]) -> Result<()> {
     if args.is_empty() {
         return Ok(());
     }
+    let kind = match value.0 {
+        Kind::Array(_) => "array",
+        Kind::Bytes(_) => "string",
+        _ => return arity(args, 0),
+    };
     Err(Error::new(
         ErrorKind::Argument,
-        format!("array.{name} does not take arguments"),
+        format!("{kind}.{name} does not take arguments"),
     ))
 }
 
@@ -799,7 +805,7 @@ pub(crate) fn method(
         }
         ToString => {
             if matches!(value.0, Kind::Array(_)) {
-                array_arity(name, args)?;
+                member_arity(&value, name, args)?;
             }
             arity(args, 0)?;
             if matches!(value.0, Kind::Hash(_)) {
@@ -818,10 +824,7 @@ pub(crate) fn method(
             crate::mutate::call(ctx, method, name, value, args).map(|(_, result)| result)
         }
         Empty => {
-            if matches!(value.0, Kind::Array(_)) {
-                array_arity(name, args)?;
-            }
-            arity(args, 0)?;
+            member_arity(&value, name, args)?;
             Ok(Value::boolean(match &value.0 {
                 Kind::Bytes(h) => h.data.is_empty(),
                 Kind::Array(h) => h.buffer.data.is_empty(),
@@ -847,10 +850,10 @@ pub(crate) fn method(
             }))
         }
         Reverse if matches!(value.0, Kind::Bytes(_)) => {
-            crate::text::method(ctx, method, value, args)
+            crate::text::method(ctx, method, name, value, args)
         }
         Ord | Chr | Bytes | Chars | Lines | Codepoints | StartWith | EndWith => {
-            crate::text::method(ctx, method, value, args)
+            crate::text::method(ctx, method, name, value, args)
         }
         Reverse | Take | Drop | Compact | Uniq | Flatten | Chunk | Window | Zip | Transpose
         | ToHash | Fetch | ValuesAt | Dig | Key | HasValue | Member | RemapKeys | Except => {
@@ -864,10 +867,7 @@ pub(crate) fn method(
         }
         Cover | ExcludeEnd => Err(type_error()),
         Length | Size => {
-            if matches!(value.0, Kind::Array(_)) {
-                array_arity(name, args)?;
-            }
-            arity(args, 0)?;
+            member_arity(&value, name, args)?;
             let n = match &value.0 {
                 Kind::Bytes(h) => runes(ctx, &h.data)?.0,
                 Kind::Array(h) => h.buffer.data.len(),
@@ -877,7 +877,7 @@ pub(crate) fn method(
             Ok(Value::int(n as i64))
         }
         ByteSize => {
-            arity(args, 0)?;
+            member_arity(&value, name, args)?;
             Ok(Value::int(value.require_bytes()?.len() as i64))
         }
         Include | Index | Rindex => {

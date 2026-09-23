@@ -231,10 +231,14 @@ pub(crate) fn call(
     }
     match operation {
         Operation::Count | Operation::Delete if args.is_empty() => {
-            return Err(argument("expected at least one character set"));
+            return Err(argument(&format!(
+                "string.{name} expects at least one character set"
+            )));
         }
         Operation::Translate if args.len() != 2 => {
-            return Err(argument("tr expects source and replacement character sets"));
+            return Err(argument(&format!(
+                "string.{name} expects source and replacement character sets"
+            )));
         }
         _ => {}
     }

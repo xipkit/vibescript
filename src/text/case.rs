@@ -176,7 +176,12 @@ pub(crate) fn call(
     let bytes = &input.data;
     if matches!(name, "casecmp" | "casecmp?") {
         ctx.charge(1)?;
-        ops::arity(args, 1)?;
+        if args.len() != 1 {
+            return Err(Error::new(
+                ErrorKind::Argument,
+                format!("string.{name} expects exactly one string"),
+            ));
+        }
         let Kind::Bytes(other) = &args[0].0 else {
             return Ok(Some(Value::nil()));
         };
@@ -190,6 +195,7 @@ pub(crate) fn call(
             })
         }));
     }
+    let full = name;
     let bang = name.ends_with('!');
     let name = name.strip_suffix('!').unwrap_or(name);
     let mut operation = match name {
@@ -219,6 +225,12 @@ pub(crate) fn call(
                 ));
             }
         },
+        [_, _, ..] => {
+            return Err(Error::new(
+                ErrorKind::Argument,
+                format!("string.{full} accepts at most one case-mapping option"),
+            ));
+        }
         _ => {
             let bang = if bang { "!" } else { "" };
             let problem = if args.len() > 1 {

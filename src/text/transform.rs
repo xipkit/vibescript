@@ -301,8 +301,15 @@ pub(crate) fn call(
         }
         return padding(ctx, name, receiver, args).map(Some);
     }
+    let full = name;
     let bang = name.ends_with('!');
     let name = name.strip_suffix('!').unwrap_or(name);
+    let nullary = || {
+        if args.is_empty() {
+            return Ok(());
+        }
+        Err(argument(format!("string.{full} does not take arguments")))
+    };
     if !matches!(
         name,
         "strip"
@@ -321,11 +328,11 @@ pub(crate) fn call(
     let bytes = &input.data;
     let (start, end) = match name {
         "strip" | "lstrip" | "rstrip" => {
-            ops::arity(args, 0)?;
+            nullary()?;
             strip(ctx, bytes, name != "rstrip", name != "lstrip")?
         }
         "squish" => {
-            ops::arity(args, 0)?;
+            nullary()?;
             return squish(ctx, receiver, bang).map(Some);
         }
         "chomp" => {
@@ -371,7 +378,7 @@ pub(crate) fn call(
             (0, end)
         }
         "chop" => {
-            ops::arity(args, 0)?;
+            nullary()?;
             let end = if bytes.ends_with(b"\r\n") {
                 bytes.len() - 2
             } else if bytes.is_empty() {
@@ -405,7 +412,7 @@ pub(crate) fn call(
             }
         }
         "reverse" => {
-            let result = super::method(ctx, Method::Reverse, receiver.clone(), args)?;
+            let result = super::method(ctx, Method::Reverse, full, receiver.clone(), args)?;
             let same = json::bytes_equal(ctx, bytes, result.require_bytes()?)?;
             return Ok(Some(if same { Value::nil() } else { result }));
         }

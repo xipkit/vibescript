@@ -56,13 +56,13 @@ impl Driver {
         if !args.is_empty() || keywords {
             return Err(Error::new(
                 ErrorKind::Argument,
-                format!("{name} does not take arguments"),
+                format!("string.{name} does not take arguments"),
             ));
         }
         if !block {
             return Err(Error::new(
                 ErrorKind::Argument,
-                format!("{name} requires a block"),
+                format!("string.{name} requires a block"),
             ));
         }
         Ok(Some(Self {

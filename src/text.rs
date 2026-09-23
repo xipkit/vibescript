@@ -123,9 +123,23 @@ fn string(value: &Value) -> Result<&[u8]> {
     Ok(&bytes.data)
 }
 
+/// Rejects arguments to the string member `name`, which takes none.
+fn nullary(name: &str, args: &[Value]) -> Result<()> {
+    if args.is_empty() {
+        return Ok(());
+    }
+    Err(Error::new(
+        ErrorKind::Argument,
+        format!("string.{name} does not take arguments"),
+    ))
+}
+
+/// Runs the string member `name`, which `method` identifies; `name` also
+/// spells the member in its errors.
 pub(crate) fn method(
     ctx: &mut CallContext,
     method: Method,
+    name: &str,
     value: Value,
     args: &[Value],
 ) -> Result<Value> {
@@ -133,7 +147,7 @@ pub(crate) fn method(
     let bytes = string(&value)?;
     match method {
         Lines => {
-            ops::arity(args, 0)?;
+            nullary(name, args)?;
             iteration::lines(ctx, &value)
         }
         StartWith | EndWith => {
@@ -169,7 +183,7 @@ pub(crate) fn method(
             Ok(Value::boolean(false))
         }
         Ord | Chr => {
-            ops::arity(args, 0)?;
+            nullary(name, args)?;
             if bytes.is_empty() {
                 return if matches!(method, Chr) {
                     ctx.bytes(b"")
@@ -189,7 +203,7 @@ pub(crate) fn method(
             }
         }
         Bytes => {
-            ops::arity(args, 0)?;
+            nullary(name, args)?;
             let mut out = Buffer::with_capacity(ctx, bytes.len())?;
             for &b in bytes {
                 ctx.charge(1)?;
@@ -198,7 +212,7 @@ pub(crate) fn method(
             Value::from_array(ctx, out)
         }
         Chars | Codepoints => {
-            ops::arity(args, 0)?;
+            nullary(name, args)?;
             let mut out = Buffer::empty();
             let mut pos = 0;
             while pos < bytes.len() {
@@ -216,7 +230,7 @@ pub(crate) fn method(
             Value::from_array(ctx, out)
         }
         Reverse => {
-            ops::arity(args, 0)?;
+            nullary(name, args)?;
             let mut chars = Buffer::empty();
             let mut pos = 0;
             while pos < bytes.len() {
