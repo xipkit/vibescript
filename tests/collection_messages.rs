@@ -331,3 +331,119 @@ fn member_misuse_names_the_member_or_module() {
         assert_eq!(function_message(source, "run"), expected, "{source}");
     }
 }
+
+#[test]
+fn block_driven_array_members_check_calls_in_reference_order() {
+    let cases = [
+        ("[1].each", "array.each requires a block"),
+        ("[1].map(1)", "array.map requires a block"),
+        (
+            "[1].each_with_index(1, a: 1) { |x| x }",
+            "array.each_with_index does not take arguments",
+        ),
+        (
+            "[1].map_with_index(a: 1)",
+            "array.map_with_index does not take keyword arguments",
+        ),
+        (
+            "[1].collect_concat(1)",
+            "array.flat_map does not take arguments",
+        ),
+        ("[1].reject(a: 1)", "array.reject requires a block"),
+        ("[1].each_slice", "array.each_slice expects a slice size"),
+        ("[1].each_slice(0)", "array.each_slice invalid slice size"),
+        (
+            "[1].each_slice(\"a\")",
+            "array.each_slice invalid slice size",
+        ),
+        ("[1].each_slice(2)", "array.each_slice requires a block"),
+        (
+            "[1].each_cons(1.5) { |x| x }",
+            "array.each_cons invalid size",
+        ),
+        ("[1].cycle(1, 2)", "array.cycle accepts at most one count"),
+        ("[1].cycle(1.5)", "array.cycle count must be an integer"),
+        ("[1].cycle(2**70)", "array.cycle count is out of range"),
+        (
+            "[1].find(nil, nil)",
+            "array.find takes no fallback; a miss returns nil",
+        ),
+        (
+            "[1].find_index(1) { |x| x }",
+            "array.find_index takes a value or a block, not both",
+        ),
+        (
+            "[1].find_index(1, -1)",
+            "array.find_index offset must be non-negative integer",
+        ),
+        (
+            "[1].rindex",
+            "array.rindex expects a value (with optional offset) or a block",
+        ),
+        (
+            "[1].reduce",
+            "array.reduce requires a block or an operation",
+        ),
+        (
+            "[1].reduce(1, 2, 3)",
+            "array.reduce accepts at most an initial value and an operation",
+        ),
+        (
+            "[1].reduce(1)",
+            "array.reduce operation must be a symbol or string",
+        ),
+        (
+            "[1].count(1, 2)",
+            "array.count accepts at most one value argument",
+        ),
+        (
+            "[1].none?(1, 2, a: 1)",
+            "array.none? does not take keyword arguments",
+        ),
+        ("[1].one?(1)", "array.one? does not take arguments"),
+        ("[1].to_h(1, a: 1)", "array.to_h does not take arguments"),
+        (
+            "[1].uniq(a: 1)",
+            "array.uniq does not take keyword arguments",
+        ),
+        (
+            "[1].fetch",
+            "array.fetch expects index and optional default",
+        ),
+        (
+            "[1].fetch(\"a\") { |i| i }",
+            "array.fetch index must be integer",
+        ),
+        ("[1].fetch(1.5)", "array.fetch index must be integer"),
+        (
+            "[1].sum(1, 2)",
+            "array.sum accepts at most an initial value",
+        ),
+        (
+            "[1].grep",
+            "array.grep expects exactly one pattern argument",
+        ),
+        ("[1].fill", "array.fill requires a value or a block"),
+        (
+            "[1].fill(1, 2, 3) { |i| i }",
+            "array.fill accepts at most a start and length",
+        ),
+        (
+            "[1].delete(1, 2) { |x| x }",
+            "array.delete expects exactly one value",
+        ),
+        ("[1].sort(1)", "array.sort does not take arguments"),
+        ("[1].min_by", "array.min_by requires a block"),
+        (
+            "[1].min { |x| x }",
+            "array.min does not accept a block; use min_by or max_by for block-based selection",
+        ),
+        (
+            "[1].minmax { |x| x }",
+            "array.minmax does not accept a block",
+        ),
+    ];
+    for (body, expected) in cases {
+        assert_eq!(message(body), expected, "{body}");
+    }
+}

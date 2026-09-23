@@ -8,6 +8,7 @@ use crate::{
     value::Kind,
 };
 
+mod array;
 mod bounds;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -397,6 +398,9 @@ pub(crate) fn start(
         }
     }
     let has_block = block_arity.is_some();
+    if matches!(receiver.0, Kind::Array(_)) && !universal {
+        array::check(name, method, args, keywords, has_block)?;
+    }
     let is_range = matches!(receiver.0, Kind::Range(_));
     if is_range && matches!(method, Sum | Min | Max) {
         bounds::aggregate(name, method, args, keywords, has_block)?;

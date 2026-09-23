@@ -234,17 +234,27 @@ impl Driver {
         let (Some(method), Some(array)) = (Method::parse(name), receiver.as_array()) else {
             return Ok(None);
         };
-        ops::arity(args, 0)?;
+        if !args.is_empty() {
+            return Err(Error::new(
+                ErrorKind::Argument,
+                format!("array.{name} does not take arguments"),
+            ));
+        }
         if method.by() && !block {
             return Err(Error::new(
                 ErrorKind::Argument,
-                format!("{name} requires a block"),
+                format!("array.{name} requires a block"),
             ));
         }
         if block && matches!(method, Method::Min | Method::Max | Method::Minmax) {
+            let hint = if method == Method::Minmax {
+                ""
+            } else {
+                "; use min_by or max_by for block-based selection"
+            };
             return Err(Error::new(
                 ErrorKind::Argument,
-                format!("{name} does not accept a block"),
+                format!("array.{name} does not accept a block{hint}"),
             ));
         }
         let mut values = Buffer::empty();
