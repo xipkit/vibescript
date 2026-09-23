@@ -1247,3 +1247,61 @@ fn string_keyword_and_block_refusals_follow_the_reference_order() {
         assert_eq!(message(body), expected, "{body}");
     }
 }
+
+#[test]
+fn hash_members_name_themselves_in_argument_count_and_shape_errors() {
+    let cases = [
+        ("{a: 1}.size(1)", "hash.size does not take arguments"),
+        (
+            "{a: 1}.empty?(1, k: 1)",
+            "hash.empty? does not take arguments",
+        ),
+        ("{a: 1}.keys(1)", "hash.keys does not take arguments"),
+        ("{a: 1}.has_key?", "hash.has_key? expects exactly one key"),
+        (
+            "{a: 1}.include?(:a, :b)",
+            "hash.include? expects exactly one key",
+        ),
+        (
+            "{a: 1}.has_value?(1, 2)",
+            "hash.has_value? expects exactly one value",
+        ),
+        ("{a: 1}.to_a(1)", "hash.to_a does not take arguments"),
+        ("{a: 1}.store(:a)", "hash.store expects a key and a value"),
+        ("{a: 1}.delete(:a, :b)", "hash.delete expects a key"),
+        ("{a: 1}.clear(1)", "hash.clear does not take arguments"),
+        (
+            "{a: 1}.replace({}, {})",
+            "hash.replace expects a single hash argument",
+        ),
+        (
+            "{a: 1}.replace(1)",
+            "hash.replace expects a single hash argument",
+        ),
+        (
+            "{a: 1}.flatten(1, 2)",
+            "hash.flatten accepts at most one depth argument",
+        ),
+        ("{a: 1}.flatten(nil)", "hash.flatten depth must be integer"),
+        (
+            "{a: 1}.remap_keys([])",
+            "hash.remap_keys expects a key mapping hash",
+        ),
+        (
+            "{a: 1}.remap_keys()",
+            "hash.remap_keys expects a key mapping hash",
+        ),
+        ("{a: 1}.compact(1)", "hash.compact does not take arguments"),
+        (
+            "h = {a: 1}\nh.delete",
+            "delete is a method and cannot be used as a value; call it with delete(...)",
+        ),
+        (
+            "{a: 1}.remap_keys",
+            "remap_keys is a method and cannot be used as a value; call it with remap_keys(...)",
+        ),
+    ];
+    for (body, expected) in cases {
+        assert_eq!(message(body), expected, "{body}");
+    }
+}

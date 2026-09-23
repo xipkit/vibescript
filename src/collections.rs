@@ -172,7 +172,9 @@ pub(crate) fn method(
             Ok(current)
         }
         Key | Member => {
-            ops::arity(args, 1)?;
+            if args.len() != 1 {
+                return Err(argument(&format!("hash.{name} expects exactly one key")));
+            }
             let Kind::Hash(h) = &value.0 else {
                 return Err(wrong_type());
             };
@@ -180,7 +182,9 @@ pub(crate) fn method(
             Ok(Value::boolean(h.find(ctx, key)?.is_some()))
         }
         HasValue => {
-            ops::arity(args, 1)?;
+            if args.len() != 1 {
+                return Err(argument(&format!("hash.{name} expects exactly one value")));
+            }
             let entries = value.as_hash().ok_or_else(wrong_type)?;
             for (_, v) in entries {
                 if ops::equal(ctx, v, &args[0], 0)? {
@@ -214,9 +218,17 @@ pub(crate) fn method(
         }
         Flatten if matches!(value.0, Kind::Hash(_)) => {
             if args.len() > 1 {
-                return Err(argument("hash.flatten accepts at most a depth"));
+                return Err(argument("hash.flatten accepts at most one depth argument"));
             }
-            let depth = args.first().map(integer).transpose()?.unwrap_or(1);
+            let depth = args
+                .first()
+                .map(|depth| {
+                    integer(depth).map_err(|error| {
+                        error.with_message("hash.flatten depth must be integer".to_owned())
+                    })
+                })
+                .transpose()?
+                .unwrap_or(1);
             let mut out = Buffer::empty();
             for (key, value) in value.as_hash().unwrap() {
                 ctx.charge(1)?;
@@ -235,10 +247,13 @@ pub(crate) fn method(
             Value::from_array(ctx, out)
         }
         RemapKeys => {
-            ops::arity(args, 1)?;
+            const EXPECTS: &str = "hash.remap_keys expects a key mapping hash";
+            if args.len() != 1 {
+                return Err(argument(EXPECTS));
+            }
             let entries = value.as_hash().ok_or_else(wrong_type)?;
             let Kind::Hash(mapping) = &args[0].0 else {
-                return Err(wrong_type());
+                return Err(Error::new(ErrorKind::Type, EXPECTS));
             };
             let mut out = Hash::empty();
             for (key, value) in entries {
@@ -254,7 +269,9 @@ pub(crate) fn method(
             Value::from_hash(ctx, out)
         }
         Compact if matches!(value.0, Kind::Hash(_)) => {
-            ops::arity(args, 0)?;
+            if !args.is_empty() {
+                return Err(argument("hash.compact does not take arguments"));
+            }
             let mut out = Hash::empty();
             for (key, v) in value.as_hash().unwrap() {
                 ctx.charge(1)?;

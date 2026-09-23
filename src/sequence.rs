@@ -273,6 +273,12 @@ pub(crate) fn method(
             })
         }
         ToArray => {
+            if !args.is_empty() && matches!(value.0, Kind::Hash(_)) {
+                return Err(Error::new(
+                    ErrorKind::Argument,
+                    "hash.to_a does not take arguments",
+                ));
+            }
             ops::arity(args, 0)?;
             match &value.0 {
                 Kind::Hash(h) => {

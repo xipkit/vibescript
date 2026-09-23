@@ -431,6 +431,22 @@ fn dispatch(
     let method = site
         .method
         .ok_or_else(|| Error::new(ErrorKind::Name, format!("method {name} is not implemented")))?;
+    if let Kind::Hash(hash) = &receiver.0 {
+        // The reference serves these hash members as plain methods, so a bare
+        // read names them instead of calling them. A protected record refuses
+        // the mutators before that.
+        let plain = matches!(method, Method::Store | Method::Delete | Method::Replace)
+            && !hash.tag.protected()
+            || matches!(method, Method::RemapKeys);
+        if site.auto && args.is_empty() && plain {
+            return Err(Error::new(
+                ErrorKind::Argument,
+                format!(
+                    "{name} is a method and cannot be used as a value; call it with {name}(...)"
+                ),
+            ));
+        }
+    }
     if matches!(
         method,
         Method::Push

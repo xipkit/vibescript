@@ -45,8 +45,8 @@ pub(crate) fn sum_incompatible(error: Error) -> Error {
     }
 }
 
-/// Rejects arguments to an array or string member that takes none, naming
-/// the receiver kind; other receivers keep the plain count.
+/// Rejects arguments to an array, string or hash member that takes none,
+/// naming the receiver kind; other receivers keep the plain count.
 fn member_arity(value: &Value, name: &str, args: &[Value]) -> Result<()> {
     if args.is_empty() {
         return Ok(());
@@ -54,6 +54,7 @@ fn member_arity(value: &Value, name: &str, args: &[Value]) -> Result<()> {
     let kind = match value.0 {
         Kind::Array(_) => "array",
         Kind::Bytes(_) => "string",
+        Kind::Hash(_) => "hash",
         _ => return arity(args, 0),
     };
     Err(Error::new(
@@ -882,7 +883,6 @@ pub(crate) fn method(
         }
         Include | Index | Rindex => {
             if matches!(method, Include) && matches!(value.0, Kind::Hash(_)) {
-                arity(args, 1)?;
                 return crate::collections::method(ctx, Key, name, value, args);
             }
             let found = if let Some(array) = value.as_array() {
@@ -960,7 +960,7 @@ pub(crate) fn method(
             Ok(sum)
         }
         Keys | Values => {
-            arity(args, 0)?;
+            member_arity(&value, name, args)?;
             let entries = value.as_hash().ok_or_else(type_error)?;
             let mut out = Buffer::with_capacity(ctx, entries.len())?;
             for (k, v) in entries {
