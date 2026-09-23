@@ -148,7 +148,7 @@ fn argument_and_keyword_errors_take_precedence_over_the_block() {
         ),
         (
             "{a: 1}.clear(k:1){effect()}",
-            "clear does not accept keyword arguments",
+            "hash.clear does not take keyword arguments",
         ),
         // chunk validates its positional arguments before keywords when a
         // block is attached.

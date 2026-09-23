@@ -1305,3 +1305,114 @@ fn hash_members_name_themselves_in_argument_count_and_shape_errors() {
         assert_eq!(message(body), expected, "{body}");
     }
 }
+
+#[test]
+fn hash_keyword_and_block_refusals_follow_the_reference_order() {
+    let matched = "m = \"ab\".match(/(a)(b)/)\n";
+    let cases = [
+        (
+            "{a: 1}.each(1)",
+            "hash.each does not take arguments".to_owned(),
+        ),
+        ("{a: 1}.each", "hash.each requires a block".to_owned()),
+        (
+            "{a: 1}.each_with_index(1, k: 1)",
+            "hash.each_with_index does not take arguments".to_owned(),
+        ),
+        (
+            "{a: 1}.each_with_index(k: 1)",
+            "hash.each_with_index does not take keyword arguments".to_owned(),
+        ),
+        (
+            "{a: 1}.map(k: 1) { |k, v| k }",
+            "hash.map does not take keyword arguments".to_owned(),
+        ),
+        (
+            "{a: 1}.map_with_index",
+            "hash.map_with_index requires a block".to_owned(),
+        ),
+        (
+            "{a: 1}.select(1) { |k, v| k }",
+            "hash.select does not take arguments".to_owned(),
+        ),
+        (
+            "{a: 1}.transform_values",
+            "hash.transform_values requires a block".to_owned(),
+        ),
+        (
+            "{a: 1}.delete_if(1, k: 1)",
+            "hash.delete_if does not take arguments".to_owned(),
+        ),
+        (
+            "{a: 1}.keep_if(k: 1) { |k, v| k }",
+            "hash.keep_if does not take keyword arguments".to_owned(),
+        ),
+        (
+            "{a: 1}.fetch(1, 2, 3) { |k| k }",
+            "hash.fetch expects key and optional default".to_owned(),
+        ),
+        (
+            "{a: 1}.delete(:a, :b) { |k| k }",
+            "hash.delete expects a key".to_owned(),
+        ),
+        (
+            "{a: 1}.delete(k: 1) { |k| k }",
+            "hash.delete does not accept keyword arguments".to_owned(),
+        ),
+        (
+            "{a: 1}.deep_transform_keys(1) { |k| k }",
+            "hash.deep_transform_keys does not take arguments".to_owned(),
+        ),
+        (
+            "{a: 1}.deep_transform_keys",
+            "hash.deep_transform_keys requires a block".to_owned(),
+        ),
+        (
+            "{a: 1}.merge(1, k: 1)",
+            "hash.merge does not accept keyword arguments".to_owned(),
+        ),
+        (
+            "{a: 1}.merge({}, 2)",
+            "hash.merge argument 2 must be a hash".to_owned(),
+        ),
+        (
+            "{a: 1}.to_a(1, k: 1)",
+            "hash.to_a does not take arguments".to_owned(),
+        ),
+        (
+            "{a: 1}.to_a(k: 1)",
+            "hash.to_a does not take keyword arguments".to_owned(),
+        ),
+        (
+            "{a: 1}.clear(k: 1) { |x| x }",
+            "hash.clear does not take keyword arguments".to_owned(),
+        ),
+        (
+            "{a: 1}.store(:a, 1, k: 1)",
+            "hash.store does not accept keyword arguments".to_owned(),
+        ),
+        (
+            "{a: 1}.values_at(:a, k: 1)",
+            "hash.values_at does not accept keyword arguments".to_owned(),
+        ),
+        (
+            "{a: 1}.flatten(1, 2, k: 1)",
+            "hash.flatten does not accept keyword arguments".to_owned(),
+        ),
+        (
+            "JSON.inspect { 7 }",
+            "hash.inspect does not take a block".to_owned(),
+        ),
+        (
+            &format!("{matched}m.store(:a, 1, k: 1)"),
+            "store cannot modify match data".to_owned(),
+        ),
+        (
+            &format!("{matched}m.clear {{ |x| x }}"),
+            "clear cannot modify match data".to_owned(),
+        ),
+    ];
+    for (body, expected) in cases {
+        assert_eq!(message(body), expected, "{body}");
+    }
+}

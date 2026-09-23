@@ -31,29 +31,24 @@ pub(crate) fn call(
     {
         return Ok(None);
     }
-    // The reference names the receiver's kind; an object keeps the plain form.
-    if !matches!(&receiver.0, Kind::Hash(hash) if hash.object) {
-        let refusal = if !args.is_empty() {
-            Some("does not take arguments")
-        } else if keywords {
-            Some("does not take keyword arguments")
-        } else if block {
-            Some("does not take a block")
-        } else {
-            None
+    // The reference names the receiver's kind; objects share the hash members.
+    let refusal = if !args.is_empty() {
+        Some("does not take arguments")
+    } else if keywords {
+        Some("does not take keyword arguments")
+    } else if block {
+        Some("does not take a block")
+    } else {
+        None
+    };
+    if let Some(refusal) = refusal {
+        let kind = match receiver.0 {
+            Kind::Hash(_) => "hash",
+            _ => receiver.type_name(),
         };
-        if let Some(refusal) = refusal {
-            return Err(Error::new(
-                ErrorKind::Argument,
-                format!("{}.inspect {refusal}", receiver.type_name()),
-            ));
-        }
-    }
-    ops::arity(args, 0)?;
-    if keywords || block {
         return Err(Error::new(
             ErrorKind::Argument,
-            "inspect does not accept keyword arguments or blocks",
+            format!("{kind}.inspect {refusal}"),
         ));
     }
     inspect(ctx, receiver).map(Some)

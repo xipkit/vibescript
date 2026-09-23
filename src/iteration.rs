@@ -10,6 +10,7 @@ use crate::{
 
 mod array;
 mod bounds;
+mod hash;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum MethodKind {
@@ -398,8 +399,12 @@ pub(crate) fn start(
         }
     }
     let has_block = block_arity.is_some();
-    if matches!(receiver.0, Kind::Array(_)) && !universal {
-        array::check(name, method, args, keywords, has_block)?;
+    if !universal {
+        match receiver.0 {
+            Kind::Array(_) => array::check(name, method, args, keywords, has_block)?,
+            Kind::Hash(_) => hash::check(name, method, args, keywords, has_block)?,
+            _ => {}
+        }
     }
     let is_range = matches!(receiver.0, Kind::Range(_));
     if is_range && matches!(method, Sum | Min | Max) {

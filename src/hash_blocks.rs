@@ -3,7 +3,6 @@ use crate::{
     budget::{Buffer, MAX_VALUE_DEPTH},
     hash::Hash,
     iteration::Progress,
-    ops,
 };
 
 pub(crate) fn method(name: &str) -> bool {
@@ -32,15 +31,15 @@ impl Driver {
                 if keywords {
                     return Err(Error::new(
                         ErrorKind::Argument,
-                        "merge does not accept keyword arguments",
+                        "hash.merge does not accept keyword arguments",
                     ));
                 }
-                for arg in args {
+                for (index, arg) in args.iter().enumerate() {
                     ctx.charge(1)?;
                     if arg.as_hash().is_none() {
                         return Err(Error::new(
                             ErrorKind::Argument,
-                            "merge arguments must be hashes",
+                            format!("hash.merge argument {} must be a hash", index + 1),
                         ));
                     }
                 }
@@ -57,11 +56,16 @@ impl Driver {
                 })))
             }
             "deep_transform_keys" => {
-                ops::arity(args, 0)?;
+                if !args.is_empty() {
+                    return Err(Error::new(
+                        ErrorKind::Argument,
+                        "hash.deep_transform_keys does not take arguments",
+                    ));
+                }
                 if !block {
                     return Err(Error::new(
                         ErrorKind::Argument,
-                        "deep_transform_keys requires a block",
+                        "hash.deep_transform_keys requires a block",
                     ));
                 }
                 let mut frames = Buffer::empty();

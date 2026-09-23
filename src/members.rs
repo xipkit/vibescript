@@ -279,6 +279,17 @@ fn dispatch_keywords(
     if matches!(receiver.0, Kind::Hash(_)) && !hash_builtin(name) {
         return call(ctx, site, name, receiver, &args.positional.data);
     }
+    // A protected record refuses its mutators before the call's shape.
+    if let Kind::Hash(hash) = &receiver.0 {
+        if hash.tag.protected()
+            && matches!(
+                site.method,
+                Some(Method::Store | Method::Replace | Method::Clear)
+            )
+        {
+            return Err(hash.tag.mutation_error(name));
+        }
+    }
     if !args.keywords.buffer.data.is_empty() {
         let refusal = names::Receiver::of(&receiver).keyword_refusal(
             site.method,
