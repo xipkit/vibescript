@@ -31,6 +31,41 @@ pub(crate) fn range_out_of_range(member: &str, range: &crate::range::Range) -> E
     ))
 }
 
+/// Reports a key `member` did not find, rendering a symbol as `:name` and any
+/// other key quoted, as the reference does.
+pub(crate) fn missing_key(ctx: &mut CallContext, member: &str, key: &Value) -> Result<Error> {
+    use crate::shapes::TypeWriter;
+    struct Message<'a> {
+        ctx: &'a mut CallContext,
+        bytes: Buffer<u8>,
+    }
+    impl TypeWriter for Message<'_> {
+        fn write(&mut self, bytes: &[u8]) -> Result<()> {
+            for chunk in bytes.chunks(crate::budget::CHUNK) {
+                self.ctx.work_bytes(chunk.len())?;
+                self.bytes.extend(self.ctx, chunk)?;
+            }
+            Ok(())
+        }
+    }
+    let name = key.hash_key()?;
+    let mut message = Message {
+        ctx,
+        bytes: Buffer::empty(),
+    };
+    message.write(member.as_bytes())?;
+    message.write(b" key not found: ")?;
+    if matches!(key.0, Kind::Symbol(_)) {
+        message.write(b":")?;
+        message.write(name)?;
+    } else {
+        crate::shapes::quoted(name, &mut message)?;
+    }
+    let mut error = Error::from_bytes(message.ctx, &message.bytes.data)?;
+    error.kind = ErrorKind::Argument;
+    Ok(error)
+}
+
 /// Reads one array element or hash entry. `strict` is fetch's lookup, which
 /// rejects a fractional index; array index errors name fetch when strict and
 /// values_at otherwise. `site` names the member input that supplied a hash
@@ -129,7 +164,7 @@ pub(crate) fn method(
                     -length
                 )));
             }
-            Err(argument("key or index not found"))
+            Err(missing_key(ctx, "hash.fetch", &args[0])?)
         }
         Dig => {
             if args.is_empty() {

@@ -725,7 +725,11 @@ impl Loop {
                     continue;
                 }
                 if !self.block {
-                    return Err(argument("fetch_values key not found"));
+                    return Err(collections::missing_key(
+                        ctx,
+                        "hash.fetch_values",
+                        &args[0],
+                    )?);
                 }
             }
             if matches!(self.method, Grep | GrepV) {

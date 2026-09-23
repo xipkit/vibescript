@@ -1416,3 +1416,25 @@ fn hash_keyword_and_block_refusals_follow_the_reference_order() {
         assert_eq!(message(body), expected, "{body}");
     }
 }
+
+#[test]
+fn hash_lookups_name_the_missing_key() {
+    let cases = [
+        (
+            "{a: 1}.fetch(:missing)",
+            "hash.fetch key not found: :missing",
+        ),
+        (
+            "{a: 1}.fetch(\"q\\\"t\\n\")",
+            "hash.fetch key not found: \"q\\\"t\\n\"",
+        ),
+        (
+            "{a: 1}.fetch_values(:a, \"missing\")",
+            "hash.fetch_values key not found: \"missing\"",
+        ),
+        ("JSON.fetch(:missing)", "hash.fetch key not found: :missing"),
+    ];
+    for (body, expected) in cases {
+        assert_eq!(message(body), expected, "{body}");
+    }
+}

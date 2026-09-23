@@ -228,7 +228,8 @@ pub(crate) fn quote(bytes: &[u8], out: &mut Vec<u8>) {
     quoted(bytes, out).unwrap();
 }
 
-fn quoted(bytes: &[u8], out: &mut impl TypeWriter) -> Result<()> {
+/// Writes `bytes` quoted as Go's `%q` renders a string.
+pub(crate) fn quoted(bytes: &[u8], out: &mut impl TypeWriter) -> Result<()> {
     out.byte(b'"')?;
     let mut position = 0;
     while position < bytes.len() {
