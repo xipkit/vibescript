@@ -1338,3 +1338,105 @@ fn calls_name_missing_arguments_visibility_and_removed_constructors() {
         ),
     ]);
 }
+
+#[test]
+fn random_builtins_name_themselves_and_the_rejected_argument() {
+    use ErrorClass::*;
+    rejects(&[
+        (
+            "def run\n  rand(1, 2)\nend",
+            Runtime,
+            "rand expects at most one argument",
+        ),
+        (
+            "def run\n  rand(1, 2, x: 1)\nend",
+            Runtime,
+            "rand does not take keyword arguments",
+        ),
+        (
+            "def run\n  rand do\n  end\nend",
+            Runtime,
+            "rand does not accept blocks",
+        ),
+        (
+            "def run\n  rand(0)\nend",
+            Runtime,
+            "rand integer bound must be positive",
+        ),
+        (
+            "def run\n  rand(2 ** 70)\nend",
+            Runtime,
+            "rand integer bound must fit in a 64-bit integer",
+        ),
+        (
+            "def run\n  rand(1..)\nend",
+            Runtime,
+            "rand range must be bounded",
+        ),
+        (
+            "def run\n  rand(2...2)\nend",
+            Runtime,
+            "rand range is empty",
+        ),
+        (
+            "def run\n  rand(1.5)\nend",
+            Runtime,
+            "rand expects an integer bound or integer range",
+        ),
+        (
+            "def run\n  srand(1, 2)\nend",
+            Runtime,
+            "srand expects at most one seed",
+        ),
+        (
+            "def run\n  srand(\"x\")\nend",
+            Runtime,
+            "srand seed must be integer or nil",
+        ),
+        (
+            "def run\n  srand(2 ** 70)\nend",
+            Runtime,
+            "srand seed must fit in a 64-bit integer",
+        ),
+        (
+            "def run\n  uuid(1, x: 2)\nend",
+            Runtime,
+            "uuid does not take arguments",
+        ),
+        (
+            "def run\n  uuid(x: 2)\nend",
+            Runtime,
+            "uuid does not accept keyword arguments",
+        ),
+        (
+            "def run\n  uuid do\n  end\nend",
+            Runtime,
+            "uuid does not accept blocks",
+        ),
+        (
+            "def run\n  random_id(1, 2)\nend",
+            Runtime,
+            "random_id expects at most one length argument",
+        ),
+        (
+            "def run\n  random_id(nil)\nend",
+            Runtime,
+            "random_id length must be integer",
+        ),
+        (
+            "def run\n  random_id(0)\nend",
+            Runtime,
+            "random_id length must be positive",
+        ),
+        (
+            "def run\n  random_id(2 ** 70)\nend",
+            Runtime,
+            "random_id length must fit in a 64-bit integer",
+        ),
+        (
+            "def run\n  random_id(1025)\nend",
+            Limit,
+            "random_id length exceeds maximum 1024",
+        ),
+    ]);
+}

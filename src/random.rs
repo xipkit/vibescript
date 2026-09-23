@@ -40,17 +40,8 @@ impl Method {
         block: bool,
     ) -> Result<Value> {
         ctx.checkpoint()?;
-        if !keywords.is_empty() || block {
-            return Err(Error::new(
-                ErrorKind::Argument,
-                "random functions do not accept keywords or blocks",
-            ));
-        }
-        if args.len() > usize::from(self != Self::Uuid) {
-            return Err(Error::new(
-                ErrorKind::Argument,
-                "too many random function arguments",
-            ));
+        if let Some(message) = self.misuse(args.len(), !keywords.is_empty(), block) {
+            return Err(Error::new(ErrorKind::Argument, message));
         }
         match self {
             Self::Rand => rand(ctx, args.first()),
@@ -58,6 +49,37 @@ impl Method {
             Self::Uuid => uuid(ctx),
             Self::Id => identifier(ctx, args.first()),
         }
+    }
+
+    fn misuse(self, arguments: usize, keywords: bool, block: bool) -> Option<&'static str> {
+        let (keyword, blocked, excess) = match self {
+            Self::Uuid if arguments > 0 => return Some("uuid does not take arguments"),
+            Self::Uuid if keywords => return Some("uuid does not accept keyword arguments"),
+            Self::Uuid => return block.then_some("uuid does not accept blocks"),
+            _ if !keywords && !block && arguments <= 1 => return None,
+            Self::Rand => (
+                "rand does not take keyword arguments",
+                "rand does not accept blocks",
+                "rand expects at most one argument",
+            ),
+            Self::Seed => (
+                "srand does not take keyword arguments",
+                "srand does not accept blocks",
+                "srand expects at most one seed",
+            ),
+            Self::Id => (
+                "random_id does not accept keyword arguments",
+                "random_id does not accept blocks",
+                "random_id expects at most one length argument",
+            ),
+        };
+        Some(if keywords {
+            keyword
+        } else if block {
+            blocked
+        } else {
+            excess
+        })
     }
 }
 
@@ -146,11 +168,19 @@ fn rand(ctx: &mut CallContext, argument: Option<&Value>) -> Result<Value> {
             }
         }
         Some(Kind::Int(bound)) if *bound > 0 => Ok(Value::int(bounded(ctx, *bound as u64)? as i64)),
+        Some(Kind::Int(_)) => Err(Error::new(
+            ErrorKind::Argument,
+            "rand integer bound must be positive",
+        )),
+        Some(Kind::Big(_)) => Err(Error::new(
+            ErrorKind::Argument,
+            "rand integer bound must fit in a 64-bit integer",
+        )),
         Some(Kind::Range(range)) => {
             let (Some(mut low), Some(mut high)) = (range.start, range.end) else {
                 return Err(Error::new(
                     ErrorKind::Argument,
-                    "random range must be bounded",
+                    "rand range must be bounded",
                 ));
             };
             if low > high {
@@ -160,12 +190,12 @@ fn rand(ctx: &mut CallContext, argument: Option<&Value>) -> Result<Value> {
                 }
             } else if range.exclusive {
                 let Some(end) = high.checked_sub(1) else {
-                    return Err(Error::new(ErrorKind::Argument, "random range is empty"));
+                    return Err(Error::new(ErrorKind::Argument, "rand range is empty"));
                 };
                 high = end;
             }
             if low > high {
-                return Err(Error::new(ErrorKind::Argument, "random range is empty"));
+                return Err(Error::new(ErrorKind::Argument, "rand range is empty"));
             }
             let size = (high as u64).wrapping_sub(low as u64).wrapping_add(1);
             let offset = if size == 0 {
@@ -177,7 +207,7 @@ fn rand(ctx: &mut CallContext, argument: Option<&Value>) -> Result<Value> {
         }
         _ => Err(Error::new(
             ErrorKind::Argument,
-            "rand expects a positive 64-bit integer or bounded integer range",
+            "rand expects an integer bound or integer range",
         )),
     }
 }
@@ -186,10 +216,16 @@ fn seed(ctx: &mut CallContext, argument: Option<&Value>) -> Result<Value> {
     let explicit = match argument.map(|v| &v.0) {
         None | Some(Kind::Nil) => None,
         Some(Kind::Int(seed)) => Some(*seed),
+        Some(Kind::Big(_)) => {
+            return Err(Error::new(
+                ErrorKind::Argument,
+                "srand seed must fit in a 64-bit integer",
+            ));
+        }
         _ => {
             return Err(Error::new(
                 ErrorKind::Argument,
-                "seed must be a 64-bit integer or nil",
+                "srand seed must be integer or nil",
             ));
         }
     };
@@ -238,15 +274,30 @@ fn identifier(ctx: &mut CallContext, argument: Option<&Value>) -> Result<Value> 
     let length = match argument.map(|v| &v.0) {
         None => 16,
         Some(Kind::Int(length)) if *length > 0 => *length,
+        Some(Kind::Int(_)) => {
+            return Err(Error::new(
+                ErrorKind::Argument,
+                "random_id length must be positive",
+            ));
+        }
+        Some(Kind::Big(_)) => {
+            return Err(Error::new(
+                ErrorKind::Argument,
+                "random_id length must fit in a 64-bit integer",
+            ));
+        }
         _ => {
             return Err(Error::new(
                 ErrorKind::Argument,
-                "random_id length must be a positive 64-bit integer",
+                "random_id length must be integer",
             ));
         }
     };
     if length > 1024 {
-        return ctx.guard(ErrorKind::OutputLimit, "random_id length exceeds 1024");
+        return ctx.guard(
+            ErrorKind::OutputLimit,
+            "random_id length exceeds maximum 1024",
+        );
     }
     let length = length as usize;
     ctx.check_memory(Bytes::header_bytes() + length)?;
