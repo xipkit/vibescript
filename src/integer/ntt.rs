@@ -15,7 +15,7 @@ const EPSILON: u64 = 0xffff_ffff;
 /// A generator of the multiplicative group mod P.
 const GENERATOR: u64 = 7;
 /// The largest transform: P - 1 is divisible by 2^32.
-const LARGEST: usize = 1 << 32;
+const LARGEST: u64 = 1 << 32;
 
 fn add(a: u64, b: u64) -> u64 {
     let (sum, over) = a.overflowing_add(b);
@@ -73,11 +73,11 @@ pub(super) fn inverse_size(size: usize) -> u64 {
 
 /// Returns the smallest supported transform size holding `length` values.
 pub(super) fn size_for(length: usize) -> Result<usize> {
-    let size = length.max(2).next_power_of_two();
-    if size > LARGEST {
-        return Err(Error::new(ErrorKind::Memory, "integer size overflow"));
-    }
-    Ok(size)
+    length
+        .max(2)
+        .checked_next_power_of_two()
+        .filter(|&size| size as u64 <= LARGEST)
+        .ok_or_else(|| Error::new(ErrorKind::Memory, "integer size overflow"))
 }
 
 /// Returns the transform size and piece count for a convolution of `a` and
