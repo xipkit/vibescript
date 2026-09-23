@@ -197,6 +197,7 @@ impl Value {
             &mut crate::integer::unlimited_context(),
             Self::bytes(pattern),
             bits,
+            "Regexp.new",
         )
     }
     /// Returns a regex's source bytes and canonical flag letters.

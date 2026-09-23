@@ -13,7 +13,7 @@ pub(crate) fn method(name: &str) -> bool {
     matches!(name, "sub" | "sub!" | "gsub" | "gsub!")
 }
 
-fn argument(message: &str) -> Error {
+fn argument(message: impl Into<String>) -> Error {
     Error::new(ErrorKind::Argument, message)
 }
 
@@ -22,6 +22,18 @@ struct Spec {
     regex: bool,
     all: bool,
     bang: bool,
+}
+
+impl Spec {
+    /// Names the substitution member as Go does, such as `string.gsub!`.
+    fn method(&self) -> &'static str {
+        match (self.all, self.bang) {
+            (false, false) => "string.sub",
+            (false, true) => "string.sub!",
+            (true, false) => "string.gsub",
+            (true, true) => "string.gsub!",
+        }
+    }
 }
 
 fn arguments(
@@ -33,46 +45,59 @@ fn arguments(
     block: bool,
 ) -> Result<Spec> {
     let mut regex = false;
+    let method = format!("string.{name}");
     if !keywords.is_empty() {
         if keywords.len() != 1 || keywords[0].0.as_bytes() != Some(b"regex") {
-            return Err(argument(
-                "string substitution supports only the regex keyword",
-            ));
+            return Err(argument(format!("{method} supports only regex keyword")));
         }
         let Kind::Bool(enabled) = keywords[0].1.0 else {
-            return Err(argument("regex keyword must be bool"));
+            return Err(argument(format!("{method} regex keyword must be bool")));
         };
         regex = enabled;
     }
     let Some(pattern) = args.first() else {
-        return Err(argument("string substitution expects a pattern"));
+        return Err(argument(format!("{method} expects a pattern")));
     };
     match pattern.0 {
         Kind::Bytes(_) => (),
         Kind::Regex(_) => {
             if !keywords.is_empty() {
-                return Err(argument("regex values do not accept the regex keyword"));
+                return Err(argument(format!(
+                    "{method} does not take the regex keyword with a regex pattern"
+                )));
             }
             regex = true;
         }
         _ => {
             return Err(Error::new(
                 ErrorKind::Type,
-                "pattern must be a string or regex",
+                format!("{method} pattern must be string or regex"),
             ));
         }
     }
-    ops::arity(args, if block { 1 } else { 2 })?;
+    if block && args.len() != 1 {
+        return Err(argument(format!(
+            "{method} cannot take both a replacement argument and a block"
+        )));
+    }
+    if !block && args.len() != 2 {
+        return Err(argument(format!(
+            "{method} expects pattern and replacement"
+        )));
+    }
     if !block && !matches!(args[1].0, Kind::Bytes(_)) {
-        return Err(Error::new(ErrorKind::Type, "replacement must be a string"));
+        return Err(Error::new(
+            ErrorKind::Type,
+            format!("{method} replacement must be string"),
+        ));
     }
     if regex {
         if matches!(&pattern.0, Kind::Bytes(bytes) if bytes.data.len() > super::MAX_PATTERN) {
-            return ctx.guard(ErrorKind::Memory, "regex pattern exceeds 16 KiB");
+            return super::pattern_limit(ctx, &method);
         }
-        super::text_limit(ctx, receiver.require_bytes()?)?;
+        super::text_limit(ctx, receiver.require_bytes()?, &method, "text")?;
         if !block {
-            super::text_limit(ctx, args[1].require_bytes()?)?;
+            super::text_limit(ctx, args[1].require_bytes()?, &method, "replacement")?;
         }
     }
     Ok(Spec {
@@ -97,6 +122,7 @@ impl Location {
 }
 
 struct Matcher {
+    method: &'static str,
     pattern: Value,
     regex: Option<Arc<Regex>>,
     search: Option<Search>,
@@ -109,7 +135,7 @@ struct Matcher {
 impl Matcher {
     fn new(ctx: &mut CallContext, spec: &Spec, captures: bool) -> Result<Self> {
         let regex = if spec.regex {
-            Some(operations::pattern(ctx, &spec.pattern)?)
+            Some(operations::pattern(ctx, &spec.pattern, spec.method())?)
         } else {
             None
         };
@@ -125,6 +151,7 @@ impl Matcher {
             }
         }
         Ok(Self {
+            method: spec.method(),
             pattern: spec.pattern.clone(),
             regex,
             search,
@@ -237,7 +264,10 @@ impl Matcher {
                         position += 1;
                     }
                     if position == template.len() {
-                        return Err(argument("invalid group name reference format"));
+                        return Err(argument(format!(
+                            "{} invalid group name reference format",
+                            self.method
+                        )));
                     }
                     let name = &template[start..position];
                     position += 1;
@@ -255,7 +285,11 @@ impl Matcher {
                         }
                     }
                     if !defined {
-                        return Err(argument("undefined group name reference"));
+                        return Err(argument(format!(
+                            "{} undefined group name reference: {}",
+                            self.method,
+                            String::from_utf8_lossy(name)
+                        )));
                     }
                     if let Some(group) = group {
                         emit_group(ctx, emit, text, loc, group)?;
@@ -334,7 +368,7 @@ pub(crate) fn member(
         if json::bytes_equal(ctx, spec.pattern.require_bytes()?, template)? {
             return Ok(Some(receiver.clone()));
         }
-        super::text_limit(ctx, template)?;
+        super::text_limit(ctx, template, spec.method(), "replacement")?;
     }
     let mut length = 0;
     let mut unchanged = true;
@@ -347,7 +381,14 @@ pub(crate) fn member(
         first,
         |ctx, bytes| {
             if bytes.len() > super::MAX_TEXT - length {
-                return ctx.guard(ErrorKind::OutputLimit, "substitution output exceeds 1 MiB");
+                return ctx.guard(
+                    ErrorKind::OutputLimit,
+                    &format!(
+                        "{} output exceeds limit {} bytes",
+                        spec.method(),
+                        super::MAX_TEXT
+                    ),
+                );
             }
             let end = length + bytes.len();
             unchanged &= end <= text.len()
@@ -437,7 +478,14 @@ impl Driver {
 
     fn append(&mut self, ctx: &mut CallContext, bytes: &[u8]) -> Result<()> {
         if bytes.len() > super::MAX_TEXT - self.output.data.len() {
-            return ctx.guard(ErrorKind::OutputLimit, "substitution output exceeds 1 MiB");
+            return ctx.guard(
+                ErrorKind::OutputLimit,
+                &format!(
+                    "{} output exceeds limit {} bytes",
+                    self.spec.method(),
+                    super::MAX_TEXT
+                ),
+            );
         }
         let required = self.output.data.len() + bytes.len();
         if required > self.output.data.capacity() {

@@ -27,7 +27,7 @@ impl Output {
             bytes
         };
         if bytes.len() > self.limit - self.length {
-            return ctx.guard(ErrorKind::OutputLimit, "replacement output exceeds 1 MiB");
+            return ctx.guard(ErrorKind::OutputLimit, "output exceeds limit 1048576 bytes");
         }
         self.length += bytes.len();
         if let Some(runes) = &mut self.runes {
@@ -98,7 +98,7 @@ pub(crate) fn prefix(ctx: &mut CallContext, value: &Value, limit: usize) -> Resu
 pub(crate) fn render(ctx: &mut CallContext, value: &Value, limit: usize) -> Result<Value> {
     if let Kind::Bytes(bytes) = &value.0 {
         if bytes.data.len() > limit {
-            return ctx.guard(ErrorKind::OutputLimit, "replacement output exceeds 1 MiB");
+            return ctx.guard(ErrorKind::OutputLimit, "output exceeds limit 1048576 bytes");
         }
         ctx.work_bytes(bytes.data.len())?;
         return Ok(value.clone());
@@ -251,7 +251,7 @@ fn leaf(ctx: &mut CallContext, value: &Value, output: &mut Output) -> Result<()>
                 let bits = crate::integer::bits(value);
                 let minimum = (bits.saturating_sub(1) as u128 * 301029 / 1_000_000) + 1;
                 if minimum > (output.limit - output.length) as u128 {
-                    return ctx.guard(ErrorKind::OutputLimit, "replacement output exceeds 1 MiB");
+                    return ctx.guard(ErrorKind::OutputLimit, "output exceeds limit 1048576 bytes");
                 }
             }
             let text = ops::to_string(ctx, value)?;

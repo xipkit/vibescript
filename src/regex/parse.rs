@@ -8,6 +8,20 @@ const DOT_NEWLINE: u8 = 4;
 const UNGREEDY: u8 = 8;
 pub(super) const UNBOUNDED: usize = usize::MAX;
 
+// Go's regexp/syntax error codes, reported with the offending text.
+const INVALID_CHAR_RANGE: &str = "invalid character class range";
+const INVALID_ESCAPE: &str = "invalid escape sequence";
+const INVALID_NAMED_CAPTURE: &str = "invalid named capture";
+const INVALID_PERL_OP: &str = "invalid or unsupported Perl syntax";
+const INVALID_REPEAT_OP: &str = "invalid nested repetition operator";
+const INVALID_REPEAT_SIZE: &str = "invalid repeat count";
+const MISSING_BRACKET: &str = "missing closing ]";
+const MISSING_PAREN: &str = "missing closing )";
+const MISSING_REPEAT_ARGUMENT: &str = "missing argument to repetition operator";
+const TRAILING_BACKSLASH: &str = "trailing backslash at end of expression";
+const UNEXPECTED_PAREN: &str = "unexpected )";
+const NESTING_DEPTH: &str = "expression nests too deeply";
+
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Kind {
     Empty,
@@ -51,6 +65,8 @@ struct Group {
     alternate: Option<usize>,
     last: Option<usize>,
     quantified: bool,
+    /// Where the operator that set `quantified` begins.
+    repeated: usize,
     flags: u8,
     capture: usize,
 }
@@ -62,6 +78,7 @@ impl Group {
             alternate: None,
             last: None,
             quantified: false,
+            repeated: 0,
             flags,
             capture,
         }
@@ -78,8 +95,16 @@ struct Parser<'a> {
 
 pub(super) fn parse(ctx: &mut CallContext, pattern: &[u8]) -> Result<Parsed> {
     ctx.work_bytes(pattern.len())?;
-    let text = std::str::from_utf8(pattern)
-        .map_err(|_| Error::new(ErrorKind::Argument, "regex pattern is not valid UTF-8"))?;
+    let text = std::str::from_utf8(pattern).map_err(|error| {
+        // Go names the rest of the pattern from the first invalid byte.
+        Error::new(
+            ErrorKind::Argument,
+            format!(
+                "error parsing regexp: invalid UTF-8: `{}`",
+                String::from_utf8_lossy(&pattern[error.valid_up_to()..])
+            ),
+        )
+    })?;
     let mut parser = Parser {
         ctx,
         text,
@@ -97,11 +122,12 @@ pub(super) fn parse(ctx: &mut CallContext, pattern: &[u8]) -> Result<Parsed> {
     while parser.position < text.len() {
         parser.ctx.charge(1)?;
         let flags = parser.group().flags;
-        match parser.next()? {
+        let start = parser.position;
+        match parser.next(|_| unreachable!())? {
             '(' => parser.open()?,
             ')' => {
                 if parser.groups.data.len() == 1 {
-                    return Err(parser.error("unmatched closing parenthesis"));
+                    return Err(parser.syntax(UNEXPECTED_PAREN, 0..text.len()));
                 }
                 let child = parser.finish()?;
                 let group = parser.groups.data.pop().unwrap();
@@ -122,16 +148,16 @@ pub(super) fn parse(ctx: &mut CallContext, pattern: &[u8]) -> Result<Parsed> {
                 group.alternate = Some(alternate);
                 group.quantified = false;
             }
-            '*' => parser.repeat(0, UNBOUNDED, false)?,
-            '+' => parser.repeat(1, UNBOUNDED, false)?,
-            '?' => parser.repeat(0, 1, false)?,
+            '*' => parser.repeat(start, 0, UNBOUNDED, false)?,
+            '+' => parser.repeat(start, 1, UNBOUNDED, false)?,
+            '?' => parser.repeat(start, 0, 1, false)?,
             '{' => {
                 if let Some((min, max, end)) = parser.bounds()? {
                     parser.position = end;
                     if min > 1000 || (max != UNBOUNDED && (max > 1000 || min > max)) {
-                        return Err(parser.error("invalid repetition size"));
+                        return Err(parser.syntax(INVALID_REPEAT_SIZE, start..end));
                     }
-                    parser.repeat(min, max, true)?;
+                    parser.repeat(start, min, max, true)?;
                 } else {
                     parser.literal('{' as u32)?;
                 }
@@ -160,7 +186,7 @@ pub(super) fn parse(ctx: &mut CallContext, pattern: &[u8]) -> Result<Parsed> {
                 if parser.peek() == Some(b'Q') {
                     parser.position += 1;
                     while parser.position < text.len() && !parser.remaining().starts_with(b"\\E") {
-                        let rune = parser.next()?;
+                        let rune = parser.next(|_| unreachable!())?;
                         parser.literal(rune as u32)?;
                     }
                     if parser.remaining().starts_with(b"\\E") {
@@ -195,18 +221,29 @@ pub(super) fn parse(ctx: &mut CallContext, pattern: &[u8]) -> Result<Parsed> {
         }
     }
     if parser.groups.data.len() != 1 {
-        return Err(parser.error("unclosed parenthesis"));
+        return Err(parser.syntax(MISSING_PAREN, 0..text.len()));
     }
     parser.parsed.root = parser.finish()?;
     Ok(parser.parsed)
 }
 
 impl Parser<'_> {
-    fn error(&self, message: &str) -> Error {
+    /// Reports a syntax error as Go's regexp/syntax does: the code and the
+    /// offending text of the pattern.
+    fn syntax(&self, code: &str, expr: std::ops::Range<usize>) -> Error {
         Error::new(
             ErrorKind::Argument,
-            format!("invalid regex at byte {}: {message}", self.position),
+            format!("error parsing regexp: {code}: `{}`", &self.text[expr]),
         )
+    }
+
+    /// Returns the byte offset just past the rune at `position`, or `position` at the end.
+    fn after_rune(&self, position: usize) -> usize {
+        position
+            + self.text[position..]
+                .chars()
+                .next()
+                .map_or(0, char::len_utf8)
     }
 
     fn remaining(&self) -> &[u8] {
@@ -219,12 +256,12 @@ impl Parser<'_> {
         self.groups.data.last_mut().unwrap()
     }
 
-    fn next(&mut self) -> Result<char> {
+    /// Reads the next rune; `end` explains a pattern that stops here.
+    fn next(&mut self, end: impl FnOnce(&Self) -> Error) -> Result<char> {
         self.ctx.charge(1)?;
-        let rune = self.text[self.position..]
-            .chars()
-            .next()
-            .ok_or_else(|| self.error("unexpected end of pattern"))?;
+        let Some(rune) = self.text[self.position..].chars().next() else {
+            return Err(end(self));
+        };
         self.position += rune.len_utf8();
         Ok(rune)
     }
@@ -282,7 +319,7 @@ impl Parser<'_> {
             _ => 1,
         };
         if height > 1000 {
-            return Err(self.error("regex expression exceeds nesting limit"));
+            return Err(self.syntax(NESTING_DEPTH, 0..self.text.len()));
         }
         let mut hash = std::collections::hash_map::DefaultHasher::new();
         std::mem::discriminant(&kind).hash(&mut hash);
@@ -568,14 +605,17 @@ impl Parser<'_> {
         }
     }
 
-    fn repeat(&mut self, min: usize, max: usize, counted: bool) -> Result<()> {
+    /// Applies a repetition operator that begins at `start`.
+    fn repeat(&mut self, start: usize, min: usize, max: usize, counted: bool) -> Result<()> {
+        // Go reads a lazy `?` before checking the operand.
+        let after = self.position + usize::from(self.peek() == Some(b'?'));
         if self.group().quantified {
-            return Err(self.error("stacked repetition operators"));
+            let previous = self.group().repeated;
+            return Err(self.syntax(INVALID_REPEAT_OP, previous..after));
         }
-        let child = self
-            .group()
-            .last
-            .ok_or_else(|| self.error("repetition has no operand"))?;
+        let Some(child) = self.group().last else {
+            return Err(self.syntax(MISSING_REPEAT_ARGUMENT, start..after));
+        };
         let mut greedy = self.group().flags & UNGREEDY == 0;
         if self.peek() == Some(b'?') {
             self.position += 1;
@@ -591,11 +631,12 @@ impl Parser<'_> {
             && (min >= 2 || (max != UNBOUNDED && max >= 2))
             && self.parsed.nodes.data[node].repetitions > 1000
         {
-            return Err(self.error("nested repetition exceeds 1000 copies"));
+            return Err(self.syntax(INVALID_REPEAT_SIZE, start..self.position));
         }
         let group = self.group();
         group.last = Some(node);
         group.quantified = true;
+        group.repeated = start;
         Ok(())
     }
 
@@ -637,6 +678,7 @@ impl Parser<'_> {
     }
 
     fn open(&mut self) -> Result<()> {
+        let start = self.position - 1;
         let mut flags = self.group().flags;
         let mut capture = true;
         let mut name = (0, 0);
@@ -654,7 +696,7 @@ impl Parser<'_> {
                 }
                 name.1 = self.position;
                 if name.0 == name.1 || self.peek() != Some(b'>') {
-                    return Err(self.error("invalid capture name"));
+                    return Err(self.named_capture_error(start));
                 }
                 self.position += 1;
             } else {
@@ -662,10 +704,10 @@ impl Parser<'_> {
                 let mut negative = false;
                 let mut saw_flag = false;
                 loop {
-                    match self.next()? {
+                    match self.next(|p| p.syntax(INVALID_PERL_OP, start..p.text.len()))? {
                         ')' | ':' => {
                             if negative && !saw_flag {
-                                return Err(self.error("missing flag after minus"));
+                                return Err(self.syntax(INVALID_PERL_OP, start..self.position));
                             }
                             if self.text.as_bytes()[self.position - 1] == b')' {
                                 self.group().flags = flags;
@@ -692,7 +734,7 @@ impl Parser<'_> {
                             }
                             saw_flag = true;
                         }
-                        _ => return Err(self.error("unsupported group or flag")),
+                        _ => return Err(self.syntax(INVALID_PERL_OP, start..self.position)),
                     }
                 }
             }
@@ -707,8 +749,27 @@ impl Parser<'_> {
         self.groups.push(self.ctx, Group::new(flags, capture))
     }
 
+    /// Explains a rejected `(?P<name>` or `(?<name>` group opening at `start`
+    /// the way Go reads it.
+    fn named_capture_error(&self, start: usize) -> Error {
+        let rest = &self.text.as_bytes()[start..];
+        let minimum = if rest.get(2) == Some(&b'P') { 5 } else { 4 };
+        if rest.len() < minimum {
+            // Too short to hold a name; Go reads it as an unknown flag.
+            return self.syntax(INVALID_PERL_OP, start..start + 3);
+        }
+        match rest.iter().position(|&byte| byte == b'>') {
+            Some(end) => self.syntax(INVALID_NAMED_CAPTURE, start..start + end + 1),
+            None => self.syntax(INVALID_NAMED_CAPTURE, start..self.text.len()),
+        }
+    }
+
+    /// Reads an escape whose backslash has just been consumed.
     fn escape(&mut self) -> Result<u32> {
-        let rune = self.next()?;
+        let start = self.position - 1;
+        let rune = self.next(|p| p.syntax(TRAILING_BACKSLASH, 0..0))?;
+        let invalid = |p: &Self, end: usize| p.syntax(INVALID_ESCAPE, start..end);
+        let truncated = |p: &Self| p.syntax(INVALID_ESCAPE, start..p.text.len());
         match rune {
             'a' => Ok(7),
             'f' => Ok(12),
@@ -718,7 +779,7 @@ impl Parser<'_> {
             'v' => Ok(11),
             '0'..='7' => {
                 if rune != '0' && !self.peek().is_some_and(|b| matches!(b, b'0'..=b'7')) {
-                    return Err(self.error("backreferences are not supported"));
+                    return Err(invalid(self, self.position));
                 }
                 let mut value = rune as u32 - '0' as u32;
                 for _ in 0..2 {
@@ -737,31 +798,36 @@ impl Parser<'_> {
                     let begin = self.position;
                     while self.peek() != Some(b'}') {
                         let digit = self
-                            .next()?
+                            .next(truncated)?
                             .to_digit(16)
-                            .ok_or_else(|| self.error("invalid hexadecimal escape"))?;
+                            .ok_or_else(|| invalid(self, self.position))?;
                         value = value.saturating_mul(16).saturating_add(digit);
                         if value > 0x10ffff {
-                            return Err(self.error("escape exceeds Unicode range"));
+                            return Err(invalid(self, self.position));
                         }
                     }
                     if self.position == begin {
-                        return Err(self.error("empty hexadecimal escape"));
+                        return Err(invalid(self, self.position + 1));
                     }
                     self.position += 1;
                 } else {
-                    for _ in 0..2 {
-                        value = value * 16
-                            + self
-                                .next()?
-                                .to_digit(16)
-                                .ok_or_else(|| self.error("invalid hexadecimal escape"))?;
+                    for digit in 0..2 {
+                        let Some(hex) = self.next(truncated)?.to_digit(16) else {
+                            // Go reads both runes before rejecting either.
+                            let end = if digit == 0 {
+                                self.after_rune(self.position)
+                            } else {
+                                self.position
+                            };
+                            return Err(invalid(self, end));
+                        };
+                        value = value * 16 + hex;
                     }
                 }
                 Ok(value)
             }
             rune if rune.is_ascii() && !rune.is_ascii_alphanumeric() => Ok(rune as u32),
-            _ => Err(self.error("unsupported escape")),
+            _ => Err(invalid(self, self.position)),
         }
     }
 
@@ -785,25 +851,27 @@ impl Parser<'_> {
         if !matches!(byte, b'p' | b'P') {
             return Ok(None);
         }
+        let backslash = self.position - 1;
+        let truncated = |p: &Self| p.syntax(INVALID_CHAR_RANGE, backslash..p.text.len());
         self.position += 1;
         let name = if self.peek() == Some(b'{') {
             self.position += 1;
             let start = self.position;
             while self.peek() != Some(b'}') {
-                self.next()?;
+                self.next(truncated)?;
             }
             let end = self.position;
             self.position += 1;
             &self.text.as_bytes()[start..end]
         } else {
             let start = self.position;
-            self.next()?;
+            self.next(truncated)?;
             &self.text.as_bytes()[start..self.position]
         };
         let negated = (byte == b'P') ^ name.starts_with(b"^");
         let name = name.strip_prefix(b"^").unwrap_or(name);
-        let (group, invert) =
-            unicode::group(name).ok_or_else(|| self.error("unknown Unicode character class"))?;
+        let (group, invert) = unicode::group(name)
+            .ok_or_else(|| self.syntax(INVALID_CHAR_RANGE, backslash..self.position))?;
         Ok(Some(Part {
             set: Set::Property(group),
             negated: negated ^ invert,
@@ -811,6 +879,8 @@ impl Parser<'_> {
     }
 
     fn class(&mut self, fold: bool) -> Result<Class> {
+        let bracket = self.position - 1;
+        let unclosed = |p: &Self| p.syntax(MISSING_BRACKET, bracket..p.text.len());
         let start = self.parsed.parts.data.len();
         let negated = self.peek() == Some(b'^');
         if negated {
@@ -849,7 +919,7 @@ impl Parser<'_> {
                         b"upper" => Set::Range(65, 90),
                         b"word" => Set::Word,
                         b"xdigit" => Set::Hex,
-                        _ => return Err(self.error("unknown POSIX character class")),
+                        _ => return Err(self.syntax(INVALID_CHAR_RANGE, self.position..end + 2)),
                     };
                     self.parsed.parts.push(
                         self.ctx,
@@ -862,7 +932,8 @@ impl Parser<'_> {
                     continue;
                 }
             }
-            let mut rune = self.next()? as u32;
+            let low = self.position;
+            let mut rune = self.next(unclosed)? as u32;
             if rune == '\\' as u32 {
                 if let Some(part) = self.escape_set()? {
                     self.parsed.parts.push(self.ctx, part)?;
@@ -872,12 +943,12 @@ impl Parser<'_> {
             }
             let high = if self.peek() == Some(b'-') && self.remaining().get(1) != Some(&b']') {
                 self.position += 1;
-                let mut high = self.next()? as u32;
+                let mut high = self.next(unclosed)? as u32;
                 if high == '\\' as u32 {
                     high = self.escape()?;
                 }
                 if high < rune {
-                    return Err(self.error("reversed character range"));
+                    return Err(self.syntax(INVALID_CHAR_RANGE, low..self.position));
                 }
                 high
             } else {

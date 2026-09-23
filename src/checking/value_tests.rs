@@ -454,7 +454,8 @@ fn temporal_blocks_forwarding_and_introspection_remain_explicitly_incomplete() {
 #[test]
 fn primitive_operator_facts_contain_temporal_regex_and_comparison_results() {
     let mut ctx = CallContext::new(CallOptions::default());
-    let regex = crate::regex::value::Regex::compile(&mut ctx, Value::bytes(b"a"), 0).unwrap();
+    let regex =
+        crate::regex::value::Regex::compile(&mut ctx, Value::bytes(b"a"), 0, "Regexp.new").unwrap();
     let values = [
         Value::nil(),
         Value::boolean(false),
@@ -508,7 +509,9 @@ fn primitive_operator_facts_contain_temporal_regex_and_comparison_results() {
 #[test]
 fn native_member_facts_contain_runtime_values_and_ordinary_errors() {
     let mut owner = CallContext::new(CallOptions::default());
-    let regex = crate::regex::value::Regex::compile(&mut owner, Value::bytes(b"a"), 0).unwrap();
+    let regex =
+        crate::regex::value::Regex::compile(&mut owner, Value::bytes(b"a"), 0, "Regexp.new")
+            .unwrap();
     let values = [
         Value::time(0, 125_000_000).unwrap(),
         Value::duration(93784),

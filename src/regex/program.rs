@@ -2,7 +2,7 @@ use super::{
     Assertion, Class, Part,
     parse::{self, Kind, UNBOUNDED},
 };
-use crate::{CallContext, ErrorKind, Result, Value, budget::Buffer};
+use crate::{CallContext, Error, ErrorKind, Result, Value, budget::Buffer};
 
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Op {
@@ -77,23 +77,45 @@ impl Program {
         }
     }
 
-    pub fn compile(ctx: &mut CallContext, source: Value) -> Result<Self> {
-        Self::compile_limit(ctx, source, super::MAX_PATTERN)
+    /// Compiles a pattern for `method`, the operation named in its errors.
+    pub fn compile(ctx: &mut CallContext, source: Value, method: &str) -> Result<Self> {
+        Self::compile_limit(ctx, source, super::MAX_PATTERN, method)
     }
 
-    pub fn compile_limit(ctx: &mut CallContext, source: Value, limit: usize) -> Result<Self> {
+    pub fn compile_limit(
+        ctx: &mut CallContext,
+        source: Value,
+        limit: usize,
+        method: &str,
+    ) -> Result<Self> {
         let bytes = source.require_bytes()?;
         if bytes.len() > limit {
-            return ctx.guard(ErrorKind::Memory, "regex pattern exceeds 16 KiB");
+            return super::pattern_limit(ctx, method);
         }
         let source = ctx.import(&source)?;
         let bytes = source.require_bytes()?;
-        let parsed = parse::parse(ctx, bytes)?;
+        let parsed = parse::parse(ctx, bytes).map_err(|error| {
+            if error.kind == ErrorKind::Argument {
+                Error::new(
+                    ErrorKind::Argument,
+                    format!("{method} invalid regex: {}", error.message),
+                )
+            } else {
+                error
+            }
+        })?;
         let capacity = parsed.nodes.data[parsed.root].cost.saturating_add(2);
         if capacity > super::MAX_INSTRUCTIONS {
+            // Go's estimate saturates one instruction past the limit, and it
+            // sizes each instruction at 64 bytes.
+            let limit = super::MAX_INSTRUCTIONS;
             return ctx.guard(
                 ErrorKind::Memory,
-                "compiled regex exceeds instruction limit",
+                &format!(
+                    "{method} invalid regex: regex compiles to {} instructions, exceeding limit {limit} (about {} MiB)",
+                    limit + 1,
+                    (limit * 64) >> 20
+                ),
             );
         }
         let mut program = Self {

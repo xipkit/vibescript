@@ -2368,6 +2368,7 @@ impl Walker<'_> {
                         self.ctx,
                         self.program.constants[pattern].clone(),
                         flags,
+                        "regex literal",
                     );
                     let value = match regex {
                         Ok(value) => self.facts.regex(self.ctx, value)?,

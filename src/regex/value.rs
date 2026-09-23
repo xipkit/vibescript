@@ -31,9 +31,10 @@ pub(crate) struct Regex {
 }
 
 impl Regex {
-    pub fn compile(ctx: &mut CallContext, source: Value, flags: u8) -> Result<Value> {
+    /// Compiles a regex value for `method`, the operation named in its errors.
+    pub fn compile(ctx: &mut CallContext, source: Value, flags: u8, method: &str) -> Result<Value> {
         if source.require_bytes()?.len() > super::MAX_PATTERN {
-            return ctx.guard(ErrorKind::Memory, "regex pattern exceeds 16 KiB");
+            return super::pattern_limit(ctx, method);
         }
         let source = ctx.import(&source)?;
         let pattern = if flags == 0 {
@@ -49,7 +50,7 @@ impl Regex {
             bytes.extend(ctx, source.require_bytes()?)?;
             Value::from_bytes(ctx, bytes)?
         };
-        let program = Program::compile_limit(ctx, pattern, super::MAX_PATTERN + 8)?;
+        let program = Program::compile_limit(ctx, pattern, super::MAX_PATTERN + 8, method)?;
         let header = ctx.reserve(size_of::<Self>() + 2 * size_of::<usize>())?;
         let metadata = ctx.reserve(size_of::<Code>() + 2 * size_of::<usize>())?;
         let (instructions, a) = program.instructions.into_parts();
@@ -134,12 +135,13 @@ impl Regex {
             )?)
     }
 
-    pub fn matches(&self, ctx: &mut CallContext, text: &Value) -> Result<bool> {
+    /// Tests `text` for a match; `method` names an oversized text as Go does.
+    pub fn matches(&self, ctx: &mut CallContext, text: &Value, method: &str) -> Result<bool> {
         if !matches!(text.0, Kind::Bytes(_)) {
             return Ok(false);
         }
         let bytes = text.require_bytes()?;
-        super::text_limit(ctx, bytes)?;
+        super::text_limit(ctx, bytes, method, "text")?;
         let mut search = Search::new(ctx, self.view(), false)?;
         Ok(search.find(ctx, self.view(), bytes, 0)?.is_some())
     }
@@ -234,33 +236,52 @@ impl Constructor {
         keywords: &[(Value, Value)],
         block: bool,
     ) -> Result<Value> {
-        if !keywords.is_empty() || block {
-            return Err(Error::new(
-                ErrorKind::Argument,
-                "Regexp methods do not accept keywords or blocks",
-            ));
+        // Regexp.quote shares Regexp.escape's implementation and wording in Go.
+        let name = if self == Self::Quote {
+            Self::Escape.name()
+        } else {
+            self.name()
+        };
+        let argument = |message: String| Error::new(ErrorKind::Argument, message);
+        if self == Self::LastMatch && !args.is_empty() {
+            return Err(argument(format!("{name} does not take arguments")));
+        }
+        if !keywords.is_empty() {
+            return Err(argument(format!(
+                "{name} does not accept keyword arguments"
+            )));
+        }
+        if block {
+            return Err(argument(format!("{name} does not accept blocks")));
         }
         if self == Self::LastMatch {
-            ops::arity(args, 0)?;
             return Ok(Value::nil());
         }
-        if self != Self::Union {
-            ops::arity(args, 1)?;
+        let shape = match self {
+            Self::New => "expects a pattern",
+            _ => "expects a string",
+        };
+        if self != Self::Union && args.len() != 1 {
+            return Err(argument(format!("{name} {shape}")));
         }
         for arg in args {
             ctx.charge(1)?;
             if !matches!(arg.0, Kind::Bytes(_)) {
                 return Err(Error::new(
                     ErrorKind::Type,
-                    "Regexp methods expect string arguments",
+                    match self {
+                        Self::New => "Regexp.new pattern must be string".to_owned(),
+                        Self::Union => "Regexp.union expects string patterns".to_owned(),
+                        _ => format!("{name} {shape}"),
+                    },
                 ));
             }
         }
         if self == Self::New {
-            return Regex::compile(ctx, args[0].clone(), 0);
+            return Regex::compile(ctx, args[0].clone(), 0, self.name());
         }
         if self == Self::Union && args.is_empty() {
-            return Regex::compile(ctx, Value::bytes(b"[^\\s\\S]"), 0);
+            return Regex::compile(ctx, Value::bytes(b"[^\\s\\S]"), 0, self.name());
         }
         let limit = if self == Self::Union {
             super::MAX_PATTERN
@@ -268,15 +289,25 @@ impl Constructor {
             usize::MAX - crate::value::Bytes::header_bytes()
         };
         let mut size = args.len().saturating_sub(1);
+        let exceeded = || {
+            if self == Self::Union {
+                format!(
+                    "Regexp.union pattern exceeds limit {} bytes",
+                    super::MAX_PATTERN
+                )
+            } else {
+                format!("{name} output exceeds limit {} bytes", i64::MAX)
+            }
+        };
         if size > limit {
-            return ctx.guard(ErrorKind::Memory, "Regexp union pattern exceeds 16 KiB");
+            return ctx.guard(ErrorKind::Memory, &exceeded());
         }
         for arg in args {
             for &byte in arg.require_bytes()? {
                 ctx.charge(1)?;
                 let width = 1 + usize::from(meta(byte));
                 if width > limit - size {
-                    return ctx.guard(ErrorKind::Memory, "Regexp escaped pattern exceeds limit");
+                    return ctx.guard(ErrorKind::Memory, &exceeded());
                 }
                 size += width;
             }
@@ -300,7 +331,7 @@ impl Constructor {
             Value::from_bytes(ctx, output)?
         };
         if self == Self::Union {
-            Regex::compile(ctx, text, 0)
+            Regex::compile(ctx, text, 0, self.name())
         } else {
             Ok(text)
         }
@@ -325,47 +356,45 @@ pub(crate) fn member(
     let result = match name {
         "to_s" => return Err(Error::new(ErrorKind::Name, "unknown regex method to_s")),
         "source" | "flags" => {
-            ops::arity(args, 0)?;
+            if !args.is_empty() {
+                return Err(Error::new(
+                    ErrorKind::Argument,
+                    format!("regex.{name} does not take arguments"),
+                ));
+            }
             if name == "source" {
                 regex.source.clone()
             } else {
                 ctx.bytes(regex.flags().as_bytes())?
             }
         }
-        "match" => {
-            ops::arity(args, 1)?;
+        "match" | "match?" => {
             if keywords {
                 return Err(Error::new(
                     ErrorKind::Argument,
-                    "regex.match does not accept keywords",
+                    format!("regex.{name} does not accept keyword arguments"),
                 ));
             }
-            if !matches!(args[0].0, Kind::Bytes(_)) {
-                return Err(Error::new(ErrorKind::Type, "regex.match expects a string"));
-            }
-            super::operations::first(ctx, regex, &args[0], 0)?
-        }
-        "match?" => {
-            ops::arity(args, 1)?;
-            if keywords {
+            if args.len() != 1 {
                 return Err(Error::new(
                     ErrorKind::Argument,
-                    "regex.match? does not accept keywords",
+                    format!("regex.{name} expects text"),
                 ));
             }
             if !matches!(args[0].0, Kind::Bytes(_)) {
-                return Err(Error::new(ErrorKind::Type, "regex.match? expects a string"));
+                return Err(Error::new(
+                    ErrorKind::Type,
+                    format!("regex.{name} text must be string"),
+                ));
             }
-            Value::boolean(regex.matches(ctx, &args[0])?)
+            if name == "match" {
+                super::operations::first(ctx, regex, &args[0], 0, "regex.match")?
+            } else {
+                Value::boolean(regex.matches(ctx, &args[0], "regex.match?")?)
+            }
         }
         "inspect" => {
-            ops::arity(args, 0)?;
-            if keywords || block {
-                return Err(Error::new(
-                    ErrorKind::Argument,
-                    "inspect does not accept keywords or blocks",
-                ));
-            }
+            crate::arguments::nullary("regex.inspect", args, keywords, block)?;
             regex.text(ctx)?
         }
         _ => return Ok(None),
@@ -380,12 +409,12 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: &Value, b: &Value) -> R
         _ => {
             return Err(Error::new(
                 ErrorKind::Type,
-                "match operator expects a string and a regex",
+                format!("{op} expects a string and a regex operand"),
             ));
         }
     };
     let bytes = text.require_bytes()?;
-    super::text_limit(ctx, bytes)?;
+    super::text_limit(ctx, bytes, op, "text")?;
     let mut search = Search::new(ctx, regex.view(), false)?;
     let found = search.find(ctx, regex.view(), bytes, 0)?;
     if op == "!~" {
@@ -408,8 +437,13 @@ mod tests {
     fn imports_share_code_without_retaining_another_calls_charges() {
         for flags in [0, 3] {
             let mut first = CallContext::new(CallOptions::default());
-            let original =
-                Regex::compile(&mut first, Value::bytes(b"(?<x>a+)(b)?"), flags).unwrap();
+            let original = Regex::compile(
+                &mut first,
+                Value::bytes(b"(?<x>a+)(b)?"),
+                flags,
+                "Regexp.new",
+            )
+            .unwrap();
             let mut second = CallContext::new(CallOptions::default());
             let imported = second.import(&original).unwrap();
             let (Kind::Regex(a), Kind::Regex(b)) = (&original.0, &imported.0) else {
@@ -426,7 +460,11 @@ mod tests {
             let Kind::Regex(regex) = &imported.0 else {
                 unreachable!()
             };
-            assert!(regex.matches(&mut second, &Value::bytes(b"aab")).unwrap());
+            assert!(
+                regex
+                    .matches(&mut second, &Value::bytes(b"aab"), "regex.match?")
+                    .unwrap()
+            );
             drop(imported);
             assert_eq!(second.stats().retained_memory_bytes, 0);
         }
@@ -435,13 +473,18 @@ mod tests {
     #[test]
     fn compiled_values_reuse_storage_and_release_search_scratch() {
         let mut ctx = CallContext::new(CallOptions::default());
-        let value = Regex::compile(&mut ctx, Value::bytes(b"(?<x>a+)(b)?"), 0).unwrap();
+        let value =
+            Regex::compile(&mut ctx, Value::bytes(b"(?<x>a+)(b)?"), 0, "Regexp.new").unwrap();
         let baseline = ctx.stats().retained_memory_bytes;
         let Kind::Regex(regex) = &value.0 else {
             unreachable!()
         };
         for _ in 0..100 {
-            assert!(regex.matches(&mut ctx, &Value::bytes(b"aaab")).unwrap());
+            assert!(
+                regex
+                    .matches(&mut ctx, &Value::bytes(b"aaab"), "regex.match?")
+                    .unwrap()
+            );
             assert_eq!(ctx.stats().retained_memory_bytes, baseline);
         }
         drop(value);

@@ -540,7 +540,9 @@ mod tests {
             (state % bound as u64) as usize
         };
         for pattern in patterns {
-            let program = Program::compile(&mut ctx, Value::bytes(pattern.as_bytes())).unwrap();
+            let program =
+                Program::compile(&mut ctx, Value::bytes(pattern.as_bytes()), "Regex.match")
+                    .unwrap();
             let view = program.view();
             for captures in [false, true] {
                 for _ in 0..60 {
@@ -567,9 +569,13 @@ mod tests {
         let cost = |length: usize| {
             let mut ctx = context(None);
             let pattern = format!("(?i){}", "a".repeat(length));
-            let program =
-                Program::compile_limit(&mut ctx, Value::bytes(pattern.as_bytes()), 1 << 15)
-                    .unwrap();
+            let program = Program::compile_limit(
+                &mut ctx,
+                Value::bytes(pattern.as_bytes()),
+                1 << 15,
+                "Regex.match",
+            )
+            .unwrap();
             // Near misses restart the literal at every position of the text.
             let mut text = [vec![b'A'; length - 1], vec![b'b']].concat().repeat(2);
             text.extend(vec![b'A'; length]);
@@ -594,7 +600,7 @@ mod tests {
         let pattern = Value::bytes(format!("{}b", "a".repeat(64)).as_bytes());
         for kind in [ErrorKind::Steps, ErrorKind::Cancelled] {
             let mut ctx = context(None);
-            let program = Program::compile(&mut ctx, pattern.clone()).unwrap();
+            let program = Program::compile(&mut ctx, pattern.clone(), "Regex.match").unwrap();
             let mut search = Search::new(&mut ctx, program.view(), false).unwrap();
             let steps = ctx.stats().steps;
             if kind == ErrorKind::Steps {
@@ -610,7 +616,7 @@ mod tests {
         }
         // A prefix skip stops the same way when no thread is running.
         let mut ctx = context(None);
-        let program = Program::compile(&mut ctx, Value::bytes(b"ab\\d")).unwrap();
+        let program = Program::compile(&mut ctx, Value::bytes(b"ab\\d"), "Regex.match").unwrap();
         let mut search = Search::new(&mut ctx, program.view(), false).unwrap();
         ctx.cancellation().cancel();
         let error = search.find(&mut ctx, program.view(), &text, 0).unwrap_err();

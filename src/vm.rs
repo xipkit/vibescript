@@ -963,6 +963,7 @@ impl Run {
                         ctx,
                         program.constants[n].clone(),
                         flags,
+                        "regex literal",
                     )?;
                     stack.push(ctx, v)?;
                 }

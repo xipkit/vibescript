@@ -1013,3 +1013,225 @@ fn money_literals_and_members_use_go_wording() {
         ),
     ]);
 }
+
+#[test]
+fn regex_errors_quote_go_syntax_errors_and_name_the_operation() {
+    use ErrorClass::{Limit, Runtime};
+    rejects(&[
+        (
+            "def run\n  Regex.match(\"(\", \"a\")\nend",
+            Runtime,
+            "Regex.match invalid regex: error parsing regexp: missing closing ): `(`",
+        ),
+        (
+            "def run\n  Regex.match(\")\", \"a\")\nend",
+            Runtime,
+            "Regex.match invalid regex: error parsing regexp: unexpected ): `)`",
+        ),
+        (
+            "def run\n  Regex.match(\"a*?*\", \"a\")\nend",
+            Runtime,
+            "Regex.match invalid regex: error parsing regexp: invalid nested repetition operator: `*?*`",
+        ),
+        (
+            "def run\n  Regex.match(\"a|+?\", \"a\")\nend",
+            Runtime,
+            "Regex.match invalid regex: error parsing regexp: missing argument to repetition operator: `+?`",
+        ),
+        (
+            "def run\n  Regex.match(\"a{2,1}\", \"a\")\nend",
+            Runtime,
+            "Regex.match invalid regex: error parsing regexp: invalid repeat count: `{2,1}`",
+        ),
+        (
+            "def run\n  Regex.match(\"(?P<na-me>x)\", \"a\")\nend",
+            Runtime,
+            "Regex.match invalid regex: error parsing regexp: invalid named capture: `(?P<na-me>`",
+        ),
+        (
+            "def run\n  Regex.match(\"(?i\", \"a\")\nend",
+            Runtime,
+            "Regex.match invalid regex: error parsing regexp: invalid or unsupported Perl syntax: `(?i`",
+        ),
+        (
+            "def run\n  Regex.match(\"\\\\\", \"a\")\nend",
+            Runtime,
+            "Regex.match invalid regex: error parsing regexp: trailing backslash at end of expression: ``",
+        ),
+        (
+            "def run\n  Regex.match(\"\\\\xZq\", \"a\")\nend",
+            Runtime,
+            "Regex.match invalid regex: error parsing regexp: invalid escape sequence: `\\xZq`",
+        ),
+        (
+            "def run\n  Regex.match(\"\\\\p{Greek\", \"a\")\nend",
+            Runtime,
+            "Regex.match invalid regex: error parsing regexp: invalid character class range: `\\p{Greek`",
+        ),
+        (
+            "def run\n  Regex.match(\"[z-a]\", \"a\")\nend",
+            Runtime,
+            "Regex.match invalid regex: error parsing regexp: invalid character class range: `z-a`",
+        ),
+        (
+            "def run\n  \"a\".match?(\"[a\")\nend",
+            Runtime,
+            "string.match? invalid regex: error parsing regexp: missing closing ]: `[a`",
+        ),
+        (
+            "def run\n  /(/i\nend",
+            Runtime,
+            "regex literal invalid regex: error parsing regexp: missing closing ): `(?i)(`",
+        ),
+        (
+            "def run\n  \"a\".sub(\"(\", \"b\", regex: true)\nend",
+            Runtime,
+            "string.sub invalid regex: error parsing regexp: missing closing ): `(`",
+        ),
+        (
+            "def run\n  Regex.match(\"x\" * 20000, \"a\")\nend",
+            Limit,
+            "Regex.match pattern exceeds limit 16384 bytes",
+        ),
+        (
+            "def run\n  Regex.replace(\"a\", \"a\", \"b\" * 1048577)\nend",
+            Limit,
+            "Regex.replace replacement exceeds limit 1048576 bytes",
+        ),
+        (
+            "def run\n  Regex.replace_all(\"a\" * 1024, \"a\", \"b\" * 1025)\nend",
+            Limit,
+            "Regex.replace_all output exceeds limit 1048576 bytes",
+        ),
+        (
+            "def run\n  (\"a\" * 1048577) =~ /a/\nend",
+            Limit,
+            "=~ text exceeds limit 1048576 bytes",
+        ),
+        (
+            "def run\n  case \"a\" * 1048577\n  when /a/ then 1\n  end\nend",
+            Limit,
+            "regex match text exceeds limit 1048576 bytes",
+        ),
+        (
+            "def run\n  (\"a\" * 1024).gsub(\"a\", \"b\" * 1025)\nend",
+            Limit,
+            "string.gsub output exceeds limit 1048576 bytes",
+        ),
+        (
+            "def run\n  \"a\".sub(\"a\") { \"b\" * 1048577 }\nend",
+            Limit,
+            "output exceeds limit 1048576 bytes",
+        ),
+        (
+            "def run\n  /a/ =~ /a/\nend",
+            Runtime,
+            "=~ expects a string and a regex operand",
+        ),
+        (
+            "def run\n  Regex.match(\"a\")\nend",
+            Runtime,
+            "Regex.match expects pattern and text",
+        ),
+        (
+            "def run\n  Regex.replace_all(\"a\", 1, \"b\")\nend",
+            Runtime,
+            "Regex.replace_all expects string text, pattern, replacement",
+        ),
+        (
+            "def run\n  /a/.match(1)\nend",
+            Runtime,
+            "regex.match text must be string",
+        ),
+        (
+            "def run\n  /a/.source(1)\nend",
+            Runtime,
+            "regex.source does not take arguments",
+        ),
+        (
+            "def run\n  \"a\".match(\"a\", \"x\")\nend",
+            Runtime,
+            "string.match offset must be integer",
+        ),
+        (
+            "def run\n  \"a\".match(\"a\", x: 1)\nend",
+            Runtime,
+            "string.match does not accept keyword arguments",
+        ),
+        (
+            "def run\n  \"a\".match?(\"a\", -1)\nend",
+            Runtime,
+            "string.match? offset must be non-negative integer",
+        ),
+        (
+            "def run\n  \"a\".scan\nend",
+            Runtime,
+            "string.scan expects exactly one pattern",
+        ),
+        (
+            "def run\n  \"a\".scan(1)\nend",
+            Runtime,
+            "string.scan pattern must be string or regex",
+        ),
+        (
+            "def run\n  \"a\".gsub!(\"a\", \"b\", x: 1)\nend",
+            Runtime,
+            "string.gsub! supports only regex keyword",
+        ),
+        (
+            "def run\n  \"a\".sub(/a/, \"b\", regex: true)\nend",
+            Runtime,
+            "string.sub does not take the regex keyword with a regex pattern",
+        ),
+        (
+            "def run\n  \"a\".sub(\"a\", \"b\") { 1 }\nend",
+            Runtime,
+            "string.sub cannot take both a replacement argument and a block",
+        ),
+        (
+            "def run\n  \"a\".gsub(\"a\")\nend",
+            Runtime,
+            "string.gsub expects pattern and replacement",
+        ),
+        (
+            "def run\n  \"a\".sub(\"a\", 1)\nend",
+            Runtime,
+            "string.sub replacement must be string",
+        ),
+        (
+            "def run\n  \"a\".sub(/(?<x>a)/, \"\\\\k<y>\")\nend",
+            Runtime,
+            "string.sub undefined group name reference: y",
+        ),
+        (
+            "def run\n  \"a\".gsub(/(?<x>a)/, \"\\\\k<y\")\nend",
+            Runtime,
+            "string.gsub invalid group name reference format",
+        ),
+        (
+            "def run\n  Regexp.new(1)\nend",
+            Runtime,
+            "Regexp.new pattern must be string",
+        ),
+        (
+            "def run\n  Regexp.union(\"a\", 1)\nend",
+            Runtime,
+            "Regexp.union expects string patterns",
+        ),
+        (
+            "def run\n  Regexp.union(\"a\" * 20000)\nend",
+            Limit,
+            "Regexp.union pattern exceeds limit 16384 bytes",
+        ),
+        (
+            "def run\n  Regexp.quote(\"a\") { 1 }\nend",
+            Runtime,
+            "Regexp.escape does not accept blocks",
+        ),
+        (
+            "def run\n  Regexp.last_match(1)\nend",
+            Runtime,
+            "Regexp.last_match does not take arguments",
+        ),
+    ]);
+}

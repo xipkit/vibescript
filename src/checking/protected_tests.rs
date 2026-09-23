@@ -368,8 +368,13 @@ fn match_summaries_inspect_metadata_without_running_searches_or_patterns() {
     use crate::{CallContext, CallOptions, Value};
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
-    let regex =
-        crate::regex::value::Regex::compile(&mut ctx, Value::bytes(b"(?<x>a)(b)?"), 0).unwrap();
+    let regex = crate::regex::value::Regex::compile(
+        &mut ctx,
+        Value::bytes(b"(?<x>a)(b)?"),
+        0,
+        "Regexp.new",
+    )
+    .unwrap();
     let regex = facts.regex(&mut ctx, regex).unwrap();
     let string = facts.string(&mut ctx, &vec![b'['; 20_000]).unwrap();
     let mut args = Arguments::new();

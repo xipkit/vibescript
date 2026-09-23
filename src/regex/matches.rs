@@ -259,7 +259,8 @@ mod tests {
             .bytes(&[b"x".as_slice(), &vec![b'a'; 32768], b"y"].concat())
             .unwrap();
         let source = format!("{}a+{}", "(".repeat(16), ")".repeat(16));
-        let program = Program::compile(&mut ctx, Value::bytes(source.as_bytes())).unwrap();
+        let program =
+            Program::compile(&mut ctx, Value::bytes(source.as_bytes()), "Regex.match").unwrap();
         let mut search = Search::new(&mut ctx, program.view(), true).unwrap();
         let indices = search
             .find(&mut ctx, program.view(), subject.as_bytes().unwrap(), 0)

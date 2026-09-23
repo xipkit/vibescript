@@ -598,7 +598,8 @@ fn deep_shared_case_values_and_reused_matcher_facts_use_the_default_stack() {
             .unwrap(),
         b
     );
-    let regex = crate::regex::value::Regex::compile(&mut ctx, Value::bytes(b"a+"), 0).unwrap();
+    let regex = crate::regex::value::Regex::compile(&mut ctx, Value::bytes(b"a+"), 0, "Regexp.new")
+        .unwrap();
     let regex = facts.regex(&mut ctx, regex).unwrap();
     let widened = facts.union(&mut ctx, &[regex, Atom::Regex.fact()]).unwrap();
     assert_eq!(widened, Atom::Regex.fact());

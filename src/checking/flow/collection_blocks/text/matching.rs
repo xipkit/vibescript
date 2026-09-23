@@ -53,7 +53,12 @@ impl Walker<'_> {
                 Node::Regex(_) => pattern,
                 Node::String(value) => {
                     let value = value.clone();
-                    match Regex::compile(self.ctx, value, 0) {
+                    let method = if single {
+                        "string.match"
+                    } else {
+                        "string.scan"
+                    };
+                    match Regex::compile(self.ctx, value, 0, method) {
                         Ok(regex) => self.facts.regex(self.ctx, regex)?,
                         Err(error) => {
                             self.text_native_error(state, pc, error)?;

@@ -1,7 +1,7 @@
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::Buffer,
-    ops, scan,
+    scan,
     value::{Bytes, Kind},
 };
 use program::{Program, View};
@@ -116,17 +116,28 @@ impl Utility {
         keywords: &[(Value, Value)],
         block: bool,
     ) -> Result<Value> {
-        if !keywords.is_empty() || block {
-            return Err(Error::new(
-                ErrorKind::Argument,
-                format!("{} does not accept keywords or blocks", self.name()),
-            ));
+        let name = self.name();
+        let shape = if self == Self::Match {
+            "pattern and text"
+        } else {
+            "text, pattern, replacement"
+        };
+        let refused = if args.len() != if self == Self::Match { 2 } else { 3 } {
+            format!("{name} expects {shape}")
+        } else if !keywords.is_empty() {
+            format!("{name} does not accept keyword arguments")
+        } else if block {
+            format!("{name} does not accept blocks")
+        } else {
+            String::new()
+        };
+        if !refused.is_empty() {
+            return Err(Error::new(ErrorKind::Argument, refused));
         }
-        ops::arity(args, if self == Self::Match { 2 } else { 3 })?;
         if args.iter().any(|arg| !matches!(arg.0, Kind::Bytes(_))) {
             return Err(Error::new(
                 ErrorKind::Type,
-                "Regex utilities expect string arguments",
+                format!("{name} expects string {shape}"),
             ));
         }
         let (pattern, text) = if self == Self::Match {
@@ -134,11 +145,14 @@ impl Utility {
         } else {
             (&args[1], &args[0])
         };
-        text_limit(ctx, text.require_bytes()?)?;
-        if self != Self::Match {
-            text_limit(ctx, args[2].require_bytes()?)?;
+        if pattern.require_bytes()?.len() > MAX_PATTERN {
+            return pattern_limit(ctx, name);
         }
-        let program = Program::compile(ctx, pattern.clone())?;
+        text_limit(ctx, text.require_bytes()?, name, "text")?;
+        if self != Self::Match {
+            text_limit(ctx, args[2].require_bytes()?, name, "replacement")?;
+        }
+        let program = Program::compile(ctx, pattern.clone(), self.name())?;
         let mut search = Search::new(ctx, program.view(), self != Self::Match)?;
         if self == Self::Match {
             return match search.find(ctx, program.view(), text.require_bytes()?, 0)? {
@@ -157,11 +171,21 @@ impl Utility {
     }
 }
 
-fn text_limit(ctx: &mut CallContext, bytes: &[u8]) -> Result<()> {
+/// Refuses a pattern over the size limit, naming the operation as Go does.
+pub(crate) fn pattern_limit<T>(ctx: &mut CallContext, method: &str) -> Result<T> {
+    ctx.guard(
+        ErrorKind::Memory,
+        &format!("{method} pattern exceeds limit {MAX_PATTERN} bytes"),
+    )
+}
+
+/// Refuses an input over the regex size limit; `what` names it after `method`,
+/// such as `Regex.match text`, as Go does.
+fn text_limit(ctx: &mut CallContext, bytes: &[u8], method: &str, what: &str) -> Result<()> {
     if bytes.len() > MAX_TEXT {
         ctx.guard(
             ErrorKind::Memory,
-            "regex text, replacement or output exceeds 1 MiB",
+            &format!("{method} {what} exceeds limit {MAX_TEXT} bytes"),
         )
     } else {
         ctx.checkpoint()
@@ -187,35 +211,50 @@ pub(crate) fn member(
     if name != "match?" || !matches!(receiver.0, Kind::Bytes(_)) {
         return Ok(None);
     }
-    if keywords || !(1..=2).contains(&args.len()) {
+    if keywords {
         return Err(Error::new(
             ErrorKind::Argument,
-            "string.match? expects a pattern and optional offset without keywords",
+            "string.match? does not accept keyword arguments",
+        ));
+    }
+    if !(1..=2).contains(&args.len()) {
+        return Err(Error::new(
+            ErrorKind::Argument,
+            "string.match? expects a pattern and optional offset",
         ));
     }
     if !matches!(args[0].0, Kind::Bytes(_) | Kind::Regex(_)) {
         return Err(Error::new(
             ErrorKind::Type,
-            "string.match? expects a string pattern",
+            "string.match? pattern must be string or regex",
         ));
     }
+    let negative = || {
+        Error::new(
+            ErrorKind::Argument,
+            "string.match? offset must be non-negative integer",
+        )
+    };
     let offset = if args.len() == 2 {
-        crate::sequence::integer(&args[1])?
+        crate::sequence::integer(&args[1]).map_err(|mut error| {
+            error.message = negative().message;
+            error
+        })?
     } else {
         0
     };
     if offset < 0 {
-        return Err(Error::new(
-            ErrorKind::Argument,
-            "string.match? offset must be non-negative",
-        ));
+        return Err(negative());
     }
     let text = receiver.require_bytes()?;
-    text_limit(ctx, text)?;
+    if matches!(&args[0].0, Kind::Bytes(pattern) if pattern.data.len() > MAX_PATTERN) {
+        return pattern_limit(ctx, "string.match?");
+    }
+    text_limit(ctx, text, "string.match?", "text")?;
     let compiled = if matches!(args[0].0, Kind::Regex(_)) {
         None
     } else {
-        Some(Program::compile(ctx, args[0].clone())?)
+        Some(Program::compile(ctx, args[0].clone(), "string.match?")?)
     };
     let program = match &args[0].0 {
         Kind::Regex(regex) => regex.view(),
@@ -384,6 +423,11 @@ fn replace(
     all: bool,
 ) -> Result<Value> {
     let bytes = text.require_bytes()?;
+    let method = if all {
+        Utility::ReplaceAll.name()
+    } else {
+        Utility::Replace.name()
+    };
     let mut size = 0usize;
     let matched = replacements(
         ctx,
@@ -394,7 +438,10 @@ fn replace(
         all,
         |ctx, piece| {
             if piece.len() > MAX_TEXT - size {
-                return ctx.guard(ErrorKind::Memory, "regex output exceeds 1 MiB");
+                return ctx.guard(
+                    ErrorKind::Memory,
+                    &format!("{method} output exceeds limit {MAX_TEXT} bytes"),
+                );
             }
             size += piece.len();
             ctx.work_bytes(piece.len())?;
@@ -425,7 +472,7 @@ mod tests {
     #[test]
     fn compiled_program_search_and_capture_charges_have_independent_lifetimes() {
         let mut ctx = CallContext::new(CallOptions::default());
-        let program = Program::compile(&mut ctx, Value::bytes(b"(a+)(b?)")).unwrap();
+        let program = Program::compile(&mut ctx, Value::bytes(b"(a+)(b?)"), "Regex.match").unwrap();
         assert!(ctx.stats().retained_memory_bytes > 0);
         let mut search = Search::new(&mut ctx, program.view(), true).unwrap();
         let captures = search
@@ -447,7 +494,8 @@ mod tests {
     fn instruction_expansion_is_rejected_before_program_allocation() {
         let mut ctx = CallContext::new(CallOptions::default());
         let source = format!("(?:{}){{1000}}", "a".repeat(101));
-        let error = Program::compile(&mut ctx, Value::bytes(source.into_bytes())).unwrap_err();
+        let error = Program::compile(&mut ctx, Value::bytes(source.into_bytes()), "Regex.match")
+            .unwrap_err();
         assert_eq!(error.kind, ErrorKind::Memory);
         assert!(ctx.stats().peak_memory_bytes < 65536);
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
@@ -460,7 +508,7 @@ mod tests {
         let mut ctx = CallContext::new(CallOptions::default());
         ctx.options.limits.steps = None;
         let text = ctx.bytes(&vec![b'x'; 65536]).unwrap();
-        let program = Program::compile(&mut ctx, Value::bytes(b"(x+)")).unwrap();
+        let program = Program::compile(&mut ctx, Value::bytes(b"(x+)"), "Regex.match").unwrap();
         let mut search = Search::new(&mut ctx, program.view(), true).unwrap();
         drop(
             search
@@ -488,7 +536,7 @@ mod tests {
         let mut ctx = CallContext::new(CallOptions::default());
         let text = ctx.bytes(&vec![b'x'; 65536]).unwrap();
         let input_memory = ctx.stats().retained_memory_bytes;
-        let program = Program::compile(&mut ctx, Value::bytes(b"^z")).unwrap();
+        let program = Program::compile(&mut ctx, Value::bytes(b"^z"), "Regex.match").unwrap();
         let mut search = Search::new(&mut ctx, program.view(), true).unwrap();
         assert!(
             search
@@ -519,7 +567,8 @@ mod tests {
     #[test]
     fn capture_state_storage_cannot_bypass_the_memory_budget() {
         let mut ctx = CallContext::new(CallOptions::default());
-        let program = Program::compile(&mut ctx, Value::bytes(b"(a?){1000}")).unwrap();
+        let program =
+            Program::compile(&mut ctx, Value::bytes(b"(a?){1000}"), "Regex.match").unwrap();
         let baseline = ctx.stats().retained_memory_bytes;
         ctx.options.limits.memory_bytes = Some(baseline + 32768);
         let mut search = Search::new(&mut ctx, program.view(), true).unwrap();

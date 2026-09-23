@@ -13,14 +13,15 @@ use crate::{
 };
 use std::sync::Arc;
 
-pub(super) fn pattern(ctx: &mut CallContext, value: &Value) -> Result<Arc<Regex>> {
+/// Reads a string or regex pattern for `method`, which names compile errors.
+pub(super) fn pattern(ctx: &mut CallContext, value: &Value, method: &str) -> Result<Arc<Regex>> {
     let value = match &value.0 {
         Kind::Regex(_) => ctx.import(value)?,
-        Kind::Bytes(_) => Regex::compile(ctx, value.clone(), 0)?,
+        Kind::Bytes(_) => Regex::compile(ctx, value.clone(), 0, method)?,
         _ => {
             return Err(Error::new(
                 ErrorKind::Type,
-                "pattern must be a string or regex",
+                format!("{method} pattern must be string or regex"),
             ));
         }
     };
@@ -37,33 +38,51 @@ fn arguments(
     args: &[Value],
     keywords: bool,
 ) -> Result<(Arc<Regex>, i64)> {
+    let method = if name == "match" {
+        "string.match"
+    } else {
+        "string.scan"
+    };
     let valid = if name == "match" {
         (1..=2).contains(&args.len())
     } else {
         args.len() == 1
     };
-    if !valid || keywords {
+    if keywords {
         return Err(Error::new(
             ErrorKind::Argument,
-            "string matching expects a pattern without keywords",
+            format!("{method} does not accept keyword arguments"),
+        ));
+    }
+    if !valid {
+        return Err(Error::new(
+            ErrorKind::Argument,
+            if name == "match" {
+                "string.match expects a pattern and optional offset"
+            } else {
+                "string.scan expects exactly one pattern"
+            },
         ));
     }
     if !matches!(args[0].0, Kind::Bytes(_) | Kind::Regex(_)) {
         return Err(Error::new(
             ErrorKind::Type,
-            "pattern must be a string or regex",
+            format!("{method} pattern must be string or regex"),
         ));
     }
-    super::text_limit(ctx, receiver.require_bytes()?)?;
     if matches!(&args[0].0, Kind::Bytes(bytes) if bytes.data.len() > super::MAX_PATTERN) {
-        return ctx.guard(ErrorKind::Memory, "regex pattern exceeds 16 KiB");
+        return super::pattern_limit(ctx, method);
     }
+    super::text_limit(ctx, receiver.require_bytes()?, method, "text")?;
     let offset = if args.len() == 2 {
-        crate::sequence::integer(&args[1])?
+        crate::sequence::integer(&args[1]).map_err(|mut error| {
+            error.message = "string.match offset must be integer".to_owned();
+            error
+        })?
     } else {
         0
     };
-    Ok((pattern(ctx, &args[0])?, offset))
+    Ok((pattern(ctx, &args[0], method)?, offset))
 }
 
 fn offset(ctx: &mut CallContext, text: &[u8], offset: i64) -> Result<Option<usize>> {
@@ -92,9 +111,10 @@ pub(super) fn first(
     regex: &Regex,
     subject: &Value,
     start: i64,
+    method: &str,
 ) -> Result<Value> {
     let text = subject.require_bytes()?;
-    super::text_limit(ctx, text)?;
+    super::text_limit(ctx, text, method, "text")?;
     let Some(start) = offset(ctx, text, start)? else {
         return Ok(Value::nil());
     };
@@ -117,7 +137,7 @@ pub(crate) fn member(
     }
     let (regex, start) = arguments(ctx, name, receiver, args, keywords)?;
     if name == "match" {
-        first(ctx, &regex, receiver, start).map(Some)
+        first(ctx, &regex, receiver, start, "string.match").map(Some)
     } else {
         materialize(ctx, &regex, receiver).map(Some)
     }
@@ -214,7 +234,10 @@ fn materialize(ctx: &mut CallContext, regex: &Regex, subject: &Value) -> Result<
     let runes = ops::runes(ctx, text)?.0;
     let maximum = runes.checked_div(program.minimum).unwrap_or(runes + 1);
     if maximum.saturating_mul(program.names.len() * 16 + 24) > 256 << 20 {
-        return ctx.guard(ErrorKind::Memory, "string.scan match table exceeds 256 MiB");
+        return ctx.guard(
+            ErrorKind::Memory,
+            "string.scan match table exceeds limit 268435456 bytes",
+        );
     }
     let mut search = Search::new(ctx, program, true)?;
     let mut cursor = Cursor::default();
@@ -227,7 +250,10 @@ fn materialize(ctx: &mut CallContext, regex: &Regex, subject: &Value) -> Result<
             .saturating_add(32)
             .saturating_add(reference_element(&indices.data));
         if guard > super::MAX_TEXT {
-            return ctx.fail(ErrorKind::OutputLimit, "string.scan output exceeds 1 MiB");
+            return ctx.fail(
+                ErrorKind::OutputLimit,
+                "output limit exceeded: string.scan output exceeds limit 1048576 bytes",
+            );
         }
         projected = projected
             .saturating_add(size_of::<Value>())

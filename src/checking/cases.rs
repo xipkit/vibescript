@@ -136,7 +136,7 @@ impl Facts {
                     let Kind::Regex(regex) = &value.0 else {
                         unreachable!()
                     };
-                    Some(regex.matches(ctx, text)?)
+                    Some(regex.matches(ctx, text, "regex match")?)
                 } else if self.atom(target) == Some(Atom::String) || gradual {
                     None
                 } else {

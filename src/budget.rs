@@ -616,7 +616,10 @@ mod limit_tests {
             false,
         )
         .unwrap_err();
-        assert_eq!(error.message, "string.scan match table exceeds 256 MiB");
+        assert_eq!(
+            error.message,
+            "string.scan match table exceeds limit 268435456 bytes"
+        );
         assert_eq!(error.class(), Some(ErrorClass::Limit));
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
         ctx.charge(1).unwrap();
@@ -628,7 +631,10 @@ mod limit_tests {
             false,
         )
         .unwrap_err();
-        assert_eq!(error.message, "string.scan output exceeds 1 MiB");
+        assert_eq!(
+            error.message,
+            "output limit exceeded: string.scan output exceeds limit 1048576 bytes"
+        );
         assert_eq!(error.class(), Some(ErrorClass::Limit));
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
         assert_eq!(ctx.checkpoint().unwrap_err(), error);
