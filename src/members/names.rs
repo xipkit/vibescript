@@ -47,9 +47,9 @@ impl Receiver {
     }
 
     /// Returns the message refusing keywords passed to `name`, or `None` when
-    /// the member accepts them. Array and hash members the reference checks
-    /// positional arguments for first defer to that check while `arguments` is
-    /// wrong.
+    /// the member accepts them. Array, hash and range members the reference
+    /// checks positional arguments for first defer to that check while
+    /// `arguments` is wrong.
     pub(crate) fn keyword_refusal(
         self,
         method: Option<crate::bytecode::Method>,
@@ -85,6 +85,19 @@ impl Receiver {
                 }
             };
             return refused.then(|| format!("hash.{name} {wording}"));
+        }
+        if self == Self::Range {
+            let refused = match method? {
+                Cover | Include | Member => arguments == 1,
+                Size | ExcludeEnd | ToArray => arguments == 0,
+                First | Last => true,
+                _ => {
+                    return self
+                        .rejects_keywords(method)
+                        .then(|| format!("{name} does not accept keyword arguments"));
+                }
+            };
+            return refused.then(|| format!("range.{name} does not take keyword arguments"));
         }
         if self == Self::Bytes {
             match method {

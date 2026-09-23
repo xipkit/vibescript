@@ -20,6 +20,23 @@ pub(super) fn call(
         return Ok(None);
     }
     ctx.charge(1)?;
+    if matches!(receiver.0, Kind::Range(_)) {
+        let refusal = if !args.is_empty() {
+            Some("does not take arguments")
+        } else if flags.0 {
+            Some("does not take keyword arguments")
+        } else if flags.1 {
+            Some("does not take a block")
+        } else {
+            None
+        };
+        if let Some(refusal) = refusal {
+            return Err(Error::new(
+                ErrorKind::Argument,
+                format!("range.{name} {refusal}"),
+            ));
+        }
+    }
     ops::arity(args, 0)?;
     if flags.0 || flags.1 {
         return Err(Error::new(

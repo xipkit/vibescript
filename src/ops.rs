@@ -817,7 +817,7 @@ pub(crate) fn method(
         _ => (),
     }
     if let Kind::Range(range) = &value.0 {
-        return crate::range::method(ctx, method, range, args);
+        return crate::range::method(ctx, method, name, range, args);
     }
     match method {
         IsNil | Itself | Dup | ToString => unreachable!(),

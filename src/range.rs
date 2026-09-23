@@ -81,13 +81,9 @@ impl Range {
         }
     }
 
+    /// Builds up to `count` leading or trailing elements; `count` is not
+    /// negative.
     fn materialize(&self, ctx: &mut CallContext, count: i64, last: bool) -> Result<Value> {
-        if count < 0 {
-            return Err(Error::new(
-                ErrorKind::Argument,
-                "range count must be non-negative",
-            ));
-        }
         let start = self.start.ok_or_else(|| open_error("beginless"))?;
         let (count, skip, direction) = if let Some(end) = self.end {
             let length = self.length()?;
@@ -203,27 +199,35 @@ impl fmt::Display for Range {
     }
 }
 
+/// Runs the range member `name`, which `method` identifies.
 pub(crate) fn method(
     ctx: &mut CallContext,
     method: Method,
+    name: &str,
     range: &Range,
     args: &[Value],
 ) -> Result<Value> {
     use Method::*;
+    let argument =
+        |problem: &str| Error::new(ErrorKind::Argument, format!("range.{name} {problem}"));
     match method {
         Include | Cover | Member => {
-            crate::ops::arity(args, 1)?;
+            if args.len() != 1 {
+                return Err(argument("expects one argument"));
+            }
             Ok(Value::boolean(range.contains(&args[0])))
         }
         Size | ToArray => {
-            crate::ops::arity(args, 0)?;
+            if !args.is_empty() {
+                return Err(argument("does not take arguments"));
+            }
             let n = match i64::try_from(range.length()?) {
                 Ok(n) => n,
                 Err(_) if matches!(method, ToArray) => {
                     return ctx.guard(ErrorKind::Arithmetic, "range.to_a result too large");
                 }
                 Err(_) => {
-                    return Err(Error::new(ErrorKind::Arithmetic, "range size overflow"));
+                    return Err(Error::new(ErrorKind::Arithmetic, "range.size overflow"));
                 }
             };
             if matches!(method, Size) {
@@ -234,16 +238,49 @@ pub(crate) fn method(
         }
         First | Last => {
             let last = matches!(method, Last);
-            let endpoint = if last { range.end } else { range.start }
-                .ok_or_else(|| open_error(if last { "endless" } else { "beginless" }))?;
+            let endpoint = if last { range.end } else { range.start }.ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Argument,
+                    if last {
+                        "cannot get the last element of an endless range"
+                    } else {
+                        "cannot get the first element of a beginless range"
+                    },
+                )
+            })?;
             if args.is_empty() {
                 return Ok(Value::int(endpoint));
             }
-            crate::ops::arity(args, 1)?;
-            range.materialize(ctx, args[0].require_int()?, last)
+            if args.len() != 1 {
+                return Err(argument("expects at most one argument"));
+            }
+            if range.start.is_none() {
+                return Err(open_error("beginless"));
+            }
+            let count = match args[0].0 {
+                Kind::Int(count) if count < 0 => {
+                    return Err(argument("count must be non-negative"));
+                }
+                Kind::Int(count) => count,
+                Kind::Big(_) => {
+                    return Err(Error::new(
+                        ErrorKind::Type,
+                        format!("range.{name} count must fit in a 64-bit integer"),
+                    ));
+                }
+                _ => {
+                    return Err(Error::new(
+                        ErrorKind::Type,
+                        format!("range.{name} expects an integer count"),
+                    ));
+                }
+            };
+            range.materialize(ctx, count, last)
         }
         ExcludeEnd => {
-            crate::ops::arity(args, 0)?;
+            if !args.is_empty() {
+                return Err(argument("does not take arguments"));
+            }
             Ok(Value::boolean(range.exclusive))
         }
         _ => Err(Error::new(ErrorKind::Type, "unsupported range method")),

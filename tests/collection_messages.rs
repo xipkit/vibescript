@@ -1438,3 +1438,109 @@ fn hash_lookups_name_the_missing_key() {
         assert_eq!(message(body), expected, "{body}");
     }
 }
+
+#[test]
+fn range_members_check_calls_in_reference_order() {
+    let full = "(-9223372036854775807 - 1..9223372036854775807)";
+    let cases = [
+        (
+            "(1..5).cover?(1, 2)",
+            "range.cover? expects one argument".to_owned(),
+        ),
+        (
+            "(1..5).member?(k: 1)",
+            "range.member? expects one argument".to_owned(),
+        ),
+        (
+            "(1..5).include?(1, k: 1)",
+            "range.include? does not take keyword arguments".to_owned(),
+        ),
+        (
+            "(1..5).first(1, 2)",
+            "range.first expects at most one argument".to_owned(),
+        ),
+        (
+            "(1..5).first(\"x\")",
+            "range.first expects an integer count".to_owned(),
+        ),
+        (
+            "(1..5).last(-1)",
+            "range.last count must be non-negative".to_owned(),
+        ),
+        (
+            "(1..5).first(2**70)",
+            "range.first count must fit in a 64-bit integer".to_owned(),
+        ),
+        (
+            "(..3).first",
+            "cannot get the first element of a beginless range".to_owned(),
+        ),
+        (
+            "(1..).last(2)",
+            "cannot get the last element of an endless range".to_owned(),
+        ),
+        (
+            "(..3).last(\"x\")",
+            "cannot iterate a beginless range".to_owned(),
+        ),
+        (
+            "(1..5).first(k: 1)",
+            "range.first does not take keyword arguments".to_owned(),
+        ),
+        (
+            "(1..5).size(1, k: 1)",
+            "range.size does not take arguments".to_owned(),
+        ),
+        (
+            "(1..5).exclude_end?(k: 1)",
+            "range.exclude_end? does not take keyword arguments".to_owned(),
+        ),
+        (
+            "(1..5).to_a(1)",
+            "range.to_a does not take arguments".to_owned(),
+        ),
+        (&format!("{full}.size"), "range.size overflow".to_owned()),
+        (&format!("{full}.count"), "range.count overflow".to_owned()),
+        (
+            "(1..5).each(1, k: 1)",
+            "range.each does not take arguments".to_owned(),
+        ),
+        (
+            "(1..5).map(k: 1) { |x| x }",
+            "range.map does not take keyword arguments".to_owned(),
+        ),
+        ("(1..5).select", "range.select requires a block".to_owned()),
+        (
+            "(1..5).find(1, k: 1)",
+            "range.find takes no fallback; a miss returns nil".to_owned(),
+        ),
+        ("(1..5).find(nil)", "range.find requires a block".to_owned()),
+        (
+            "(1..5).reduce(1, 2, k: 1)",
+            "range.reduce expects at most one argument".to_owned(),
+        ),
+        (
+            "(1..5).reduce(1)",
+            "range.reduce requires a block".to_owned(),
+        ),
+        (
+            "(1..5).count(1, k: 1)",
+            "range.count does not take arguments".to_owned(),
+        ),
+        (
+            "(1..5).to_s(1, k: 1)",
+            "range.to_s does not take arguments".to_owned(),
+        ),
+        (
+            "(1..5).string(k: 1) { |x| x }",
+            "range.string does not take keyword arguments".to_owned(),
+        ),
+        (
+            "(1..5).to_s { |x| x }",
+            "range.to_s does not take a block".to_owned(),
+        ),
+    ];
+    for (body, expected) in cases {
+        assert_eq!(message(body), expected, "{body}");
+    }
+}

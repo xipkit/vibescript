@@ -11,6 +11,7 @@ use crate::{
 mod array;
 mod bounds;
 mod hash;
+mod range;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum MethodKind {
@@ -403,6 +404,7 @@ pub(crate) fn start(
         match receiver.0 {
             Kind::Array(_) => array::check(name, method, args, keywords, has_block)?,
             Kind::Hash(_) => hash::check(name, method, args, keywords, has_block)?,
+            Kind::Range(_) => range::check(name, method, args, keywords, has_block)?,
             _ => {}
         }
     }
@@ -667,7 +669,8 @@ pub(crate) fn start(
         }
     }
     if method == Count && !has_block && args.is_empty() {
-        state.count = i64::try_from(state.length).map_err(|_| argument("count overflow"))?;
+        // Only a range can hold more elements than a count reaches.
+        state.count = i64::try_from(state.length).map_err(|_| argument("range.count overflow"))?;
         state.length = 0;
     }
     Ok(Some(Iteration::Loop(state)))
