@@ -1,6 +1,6 @@
 # Vibescript in Rust
 
-An experimental Rust implementation of the Vibescript core, with a bytecode VM, cooperative cancellation, explicit resource accounting, and optional SIMD scanners. Go v0.70.0 is the compatibility reference. The complete language port is in progress; the supported surface and remaining work are tracked in the [language completion plan](docs/language-port.md).
+An experimental Rust implementation of the Vibescript core, with a bytecode VM, cooperative cancellation, explicit resource accounting, and optional SIMD scanners. Go v0.70.0 is the compatibility reference. The port matches that reference apart from the selected differences recorded in the [compatibility notes](docs/compatibility.md); the evidence and remaining work are tracked in the [language completion plan](docs/language-port.md). The interpreter also runs on WASI; see [platforms](docs/platforms.md).
 
 ## Try it
 

@@ -16,7 +16,7 @@ Go's builtin callbacks receive the capability object as a live `receiver` map: a
 
 Rust's `vibes check` is deliberately stricter than Go's, as selected on 2026-09-22. Both report a typed boundary when any known alternative of the value fails it, such as passing an `int?` to an `int` parameter. For operators and member calls, Go v0.70.0 reports only when every alternative fails: `nil + 1` is an error, while `v + 1` with `v: int?`, `"x" + items[i]` and `v.upcase` with `v: string?` pass. Rust also reports these whenever a finite known alternative, including `nil` from an index or an empty array before a loop fills it, cannot succeed. Unknown and `any` values stay gradual in both.
 
-Rust also fails the gate when it reaches an expression it does not yet analyze, reporting it as incomplete; Go treats such a value as unknown. Of the 277 site, example and upstream test programs, 158 are clean and 16 fail in both checkers. Fifty pass Go's check but report union-alternative errors in Rust. The remaining differences come from unanalyzed expressions and checker budget use, which are being closed rather than accepted.
+Rust also fails the gate when it reaches an expression it does not yet analyze, reporting it as incomplete; Go treats such a value as unknown. Of the 277 site, example and upstream test programs, 196 are clean and 16 are rejected in both checkers. The other 65 are rejected only by Rust: its union-alternative errors, and known failures in deliberate error fixtures that Go's checker does not report. None report incomplete analysis.
 
 ## Out-of-range float calendar fields
 
