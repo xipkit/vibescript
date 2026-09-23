@@ -306,3 +306,28 @@ fn protected_records_name_the_rejected_operation() {
         assert_eq!(message(&body), expected, "{body}");
     }
 }
+
+#[test]
+fn member_misuse_names_the_member_or_module() {
+    let cases = [
+        (
+            "class ReadOnly\n  getter name\n  def initialize(name)\n    @name = name\n  end\nend\ndef run\n  r = ReadOnly.new(\"a\")\n  r.name = \"b\"\nend",
+            "cannot assign to read-only property name",
+        ),
+        (
+            "module Billing\nend\ndef run\n  Billing.new\nend",
+            "module Billing cannot be instantiated",
+        ),
+        (
+            "def run\n  x = JSON.stringify\n  x\nend",
+            "stringify is a method and cannot be used as a value; call it with stringify(...)",
+        ),
+        (
+            "def run\n  x = Regexp.union\n  x\nend",
+            "union is a method and cannot be used as a value; call it with union(...)",
+        ),
+    ];
+    for (source, expected) in cases {
+        assert_eq!(function_message(source, "run"), expected, "{source}");
+    }
+}
