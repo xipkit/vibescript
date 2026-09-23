@@ -498,10 +498,7 @@ pub(super) fn member(
     let program = &*owner;
     if site.scope {
         if instance.is_some() {
-            return Err(Error::new(
-                ErrorKind::Type,
-                "scoped member access requires a namespace",
-            ));
+            return Err(Error::new(ErrorKind::Type, crate::members::SCOPED_ONLY));
         }
         return match field(program, ctx, storage, definition.index, name)? {
             Some(value) => Ok(Member::Value(value)),

@@ -574,6 +574,11 @@ fn unknown_hash_member(hash: &crate::hash::Hash, name: &str) -> Error {
     )
 }
 
+/// The reference's refusal of `::` on a receiver that is neither an enum nor
+/// a namespace.
+pub(crate) const SCOPED_ONLY: &str =
+    "scoped member access is only supported on enums and namespaces";
+
 pub(crate) fn exported(
     ctx: &mut CallContext,
     site: CallSite,
@@ -624,13 +629,16 @@ pub(crate) fn field(
     if let Kind::Offset(offset) = &receiver.0 {
         return Err(offset.value_error());
     }
-    if let Kind::Builtin(builtin) = receiver.0 {
-        return Err(builtin.value_error());
-    }
     if site.scope && !matches!(&receiver.0, Kind::Hash(hash) if hash.object) {
+        return Err(Error::new(ErrorKind::Type, SCOPED_ONLY));
+    }
+    if let Kind::Builtin(builtin) = receiver.0 {
         return Err(Error::new(
             ErrorKind::Type,
-            "scoped member access requires a namespace",
+            format!(
+                "a method has no member {name}; call {}(...) directly",
+                builtin.name()
+            ),
         ));
     }
     if let Kind::Hash(hash) = &receiver.0 {

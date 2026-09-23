@@ -2264,7 +2264,7 @@ impl Run {
                             _ => {
                                 return Err(Error::new(
                                     ErrorKind::Type,
-                                    "cannot iterate this value",
+                                    format!("cannot iterate over {}", source.type_name()),
                                 ));
                             }
                         }

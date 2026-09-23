@@ -1756,3 +1756,48 @@ fn json_builtins_report_the_reference_parser_and_encoder_wording() {
         assert_eq!(message(body), expected, "{body}");
     }
 }
+
+#[test]
+fn member_access_refusals_name_the_receiver() {
+    let cases = [
+        (
+            "schema = {name: string}\nschema.itself { 7 }",
+            "shape.itself does not accept a block",
+        ),
+        (
+            "schema = {name: string}\nschema.itself(1)",
+            "shape.itself expects 0 arguments, got 1",
+        ),
+        (
+            "schema = {name: string}\nschema.nil?(1)",
+            "shape.nil? does not take arguments",
+        ),
+        ("[1]..[2]", "expected integer value"),
+        (
+            "{a: 7}::a",
+            "scoped member access is only supported on enums and namespaces",
+        ),
+        (
+            "f = JSON::parse\nf.foo",
+            "a method has no member foo; call JSON.parse(...) directly",
+        ),
+        ("a = [1]\na.length = 2", "cannot assign to array"),
+        ("x = nil\nx.y = 1", "cannot assign to nil"),
+        ("for n in 3\n  n\nend", "cannot iterate over int"),
+    ];
+    for (body, expected) in cases {
+        assert_eq!(message(body), expected, "{body}");
+    }
+    let status = "enum Status\n  Draft\nend\n";
+    for (body, expected) in [
+        (
+            "Status::Draft::name",
+            "scoped member access is only supported on enums and namespaces",
+        ),
+        ("Status::Draft()", "attempted to call non-callable value"),
+        ("Status::Draft.name = 3", "cannot assign to enum value"),
+    ] {
+        let source = format!("{status}def run\n  {body}\nend");
+        assert_eq!(function_message(&source, "run"), expected, "{body}");
+    }
+}

@@ -146,7 +146,7 @@ pub(crate) fn endpoint(value: &Value) -> Result<i64> {
             }
         }
         Kind::Big(_) => "range endpoints must fit in a 64-bit integer".to_owned(),
-        _ => "expected integer".to_owned(),
+        _ => "expected integer value".to_owned(),
     };
     Err(Error::new(ErrorKind::Type, message))
 }

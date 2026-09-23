@@ -227,7 +227,7 @@ fn known_collisions_and_misses_remain_diagnostics() {
         (
             "def run(h:{a:int});h::a;end",
             plain(),
-            "scoped member access requires a namespace",
+            "scoped member access is only supported on enums and namespaces",
         ),
         (
             "def run(h:{a:int});h::size;end",
@@ -237,7 +237,7 @@ fn known_collisions_and_misses_remain_diagnostics() {
         (
             "def run(h:{a:int,...});h::b;end",
             plain(),
-            "scoped member access requires a namespace",
+            "scoped member access is only supported on enums and namespaces",
         ),
         (
             "def run(h:{a:int,...});h::b;end",
@@ -247,7 +247,7 @@ fn known_collisions_and_misses_remain_diagnostics() {
         (
             "def run(h:{a:int,...});h::nil?;end",
             plain(),
-            "scoped member access requires a namespace",
+            "scoped member access is only supported on enums and namespaces",
         ),
         (
             "def run(h:{a:int});h.send(:a);end",

@@ -78,13 +78,7 @@ pub(crate) fn member(
             "unsupported member access on shape",
         ));
     }
-    if keywords || block {
-        return Err(Error::new(
-            ErrorKind::Argument,
-            "shape method does not accept keyword arguments or blocks",
-        ));
-    }
-    crate::ops::arity(args, 0)?;
+    crate::members::universal_shape(name, value, args.len(), keywords, block)?;
     ctx.charge(1)?;
     Ok(Some(if name == "nil?" {
         Value::boolean(false)

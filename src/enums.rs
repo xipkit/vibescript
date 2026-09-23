@@ -327,10 +327,7 @@ pub(crate) fn call(
     ctx.checkpoint()?;
     if site.scope {
         let Kind::Enum(enumeration) = &receiver.0 else {
-            return Err(Error::new(
-                ErrorKind::Type,
-                "scoped member access requires an enum type or namespace",
-            ));
+            return Err(Error::new(ErrorKind::Type, crate::members::SCOPED_ONLY));
         };
         let Some(index) = enumeration.lookup(ctx, name.as_bytes())? else {
             let definition = &enumeration.definition;
@@ -350,7 +347,7 @@ pub(crate) fn call(
         if !site.auto {
             return Err(Error::new(
                 ErrorKind::Type,
-                "attempted to call non-callable enum value",
+                "attempted to call non-callable value",
             ));
         }
         return Ok(Some(Value(Kind::EnumMember(Member::new(
