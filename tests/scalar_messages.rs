@@ -1440,3 +1440,110 @@ fn random_builtins_name_themselves_and_the_rejected_argument() {
         ),
     ]);
 }
+
+#[test]
+fn integer_and_range_stepping_check_arguments_in_go_order() {
+    use ErrorClass::*;
+    rejects(&[
+        (
+            "def run\n  3.times(1) do |i|\n  end\nend",
+            Runtime,
+            "int.times does not take arguments",
+        ),
+        (
+            "def run\n  (2 ** 70).times\nend",
+            Runtime,
+            "int.times requires a block",
+        ),
+        (
+            "def run\n  1.upto\nend",
+            Runtime,
+            "int.upto expects one integer argument",
+        ),
+        (
+            "def run\n  1.upto(2, 3, x: 1) do |i|\n  end\nend",
+            Runtime,
+            "int.upto expects one integer argument",
+        ),
+        (
+            "def run\n  1.downto(0, x: 1) do |i|\n  end\nend",
+            Runtime,
+            "int.downto does not take keyword arguments",
+        ),
+        (
+            "def run\n  1.upto(\"x\")\nend",
+            Runtime,
+            "int.upto expects an integer limit",
+        ),
+        (
+            "def run\n  (2 ** 70).downto(\"x\")\nend",
+            Runtime,
+            "int.downto expects an integer limit",
+        ),
+        (
+            "def run\n  1.upto(3)\nend",
+            Runtime,
+            "int.upto requires a block",
+        ),
+        (
+            "def run\n  1.step\nend",
+            Runtime,
+            "int.step expects a limit and an optional step",
+        ),
+        (
+            "def run\n  1.step(3, x: 1)\nend",
+            Runtime,
+            "int.step does not take keyword arguments",
+        ),
+        (
+            "def run\n  1.step(3, nil) do |i|\n  end\nend",
+            Runtime,
+            "int.step expects an integer step",
+        ),
+        (
+            "def run\n  1.step(3, 0)\nend",
+            Runtime,
+            "int.step step must not be zero",
+        ),
+        (
+            "def run\n  1.step(3)\nend",
+            Runtime,
+            "int.step requires a block",
+        ),
+        (
+            "def run\n  1.step(3, 2 ** 70)\nend",
+            Limit,
+            "int.step bounds must fit in a 64-bit integer",
+        ),
+        (
+            "def run\n  (1..3).step(1, 2)\nend",
+            Runtime,
+            "range.step expects one integer argument",
+        ),
+        (
+            "def run\n  (1..3).step(1, x: 2)\nend",
+            Runtime,
+            "range.step does not take keyword arguments",
+        ),
+        (
+            "def run\n  (1..3).step(\"x\")\nend",
+            Runtime,
+            "range.step expects an integer step",
+        ),
+        (
+            "def run\n  (1..3).step(0)\nend",
+            Runtime,
+            "range.step step must be positive",
+        ),
+        (
+            "def run\n  (1..).step(1)\nend",
+            Runtime,
+            "range.step requires a block",
+        ),
+        (
+            "def run\n  (..3).step(1) do |i|\n  end\nend",
+            Runtime,
+            "cannot iterate a beginless range",
+        ),
+    ]);
+}

@@ -401,6 +401,7 @@ pub(crate) fn start(
     if is_range && matches!(method, Sum | Min | Max) {
         bounds::aggregate(name, method, args, keywords, has_block)?;
     }
+    bounds::stepping(ctx, name, method, receiver, args, keywords, has_block)?;
     if method == Chunk {
         // Reference order: positional arguments, then keywords, before the
         // block runs or the receiver is read.
@@ -509,7 +510,6 @@ pub(crate) fn start(
     {
         return Err(argument(&format!("{name} requires an argument")));
     }
-    bounds::check(ctx, name, method, receiver, args, has_block)?;
     if matches!(method, EachSlice | EachCons) {
         let width = args[0].require_int()?;
         if width <= 0 {
@@ -566,9 +566,6 @@ pub(crate) fn start(
             let length = range.length()?;
             if method == Step {
                 let stride = args[0].require_int()?;
-                if stride <= 0 {
-                    return Err(argument("range.step must be positive"));
-                }
                 state.stride *= i128::from(stride);
                 (length + i128::from(stride) - 1) / i128::from(stride)
             } else {
@@ -584,9 +581,6 @@ pub(crate) fn start(
                 state.stride = if method == Downto { -1 } else { 1 };
                 if method == Step && args.len() == 2 {
                     state.stride = i128::from(args[1].require_int()?);
-                }
-                if state.stride == 0 {
-                    return Err(argument("integer step must not be zero"));
                 }
                 let distance = (limit - state.start) * state.stride.signum();
                 if distance < 0 {
