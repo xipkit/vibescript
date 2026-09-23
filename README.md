@@ -131,7 +131,7 @@ This differs from Go's reachable-graph estimator. Step counts and memory thresho
 
 SIMD uses 16-byte NEON operations on ARM64 and SSE2 on x86_64, with portable fallbacks. The `simd` feature is enabled by default; `--no-default-features` selects the portable Rust scanners. LLVM may still auto-vectorize ordinary Rust code. Scanner tests compare every byte value at vector boundaries, and shared fixtures require identical Rust accounting with the feature on and off.
 
-The [WASI core](docs/platforms.md) supports `wasm32-wasip1`, including module loading from host-provided directories. Its conformance runner exercises Node and Wasmtime with normal stack limits. Browser integration and execution on the remaining native platforms are still pending.
+The library, the `vibes` CLI and the test suite [support `wasm32-wasip1`](docs/platforms.md), including module loading from host-provided directories. `./scripts/check-wasi` runs the suite and a filesystem witness under Wasmtime with normal stack limits, and `--node` repeats them under Node. Browser integration and execution on the remaining native platforms are still pending.
 
 ## Compare with Go
 

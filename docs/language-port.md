@@ -1487,7 +1487,7 @@ JSON parsing and encoding now support the documented 10,000-container depth, inc
 
 The affected walks use charged explicit frames, and destruction uses links reserved in container headers so it can release partial and shared values after cancellation or quota exhaustion. Tests cover default budgets, lower native stacks, concurrent final owners, field updates, cyclic instance references and interrupted cleanup. Captured-input analysis indexes shared containers by height to avoid rescanning every ancestor. Expensive static analysis can still reach the normal memory or work quota at a valid depth; [the depth contract](json-depth.md) distinguishes those resource limits from nesting rejection.
 
-The remaining checker behavior, documented signature audit and native/browser platform validation still prevent declaring the full port complete. The experimental WASI branch remains separate from the native implementation. Performance passes remain deferred.
+The remaining checker behavior, documented signature audit and native/browser platform validation still prevent declaring the full port complete. Performance passes remain deferred.
 
 ### Invalid native member diagnostics
 
@@ -1579,3 +1579,6 @@ Replaying Go's own tests found programs Go accepts that the port rejected or rea
 
 Go's replayed tests showed that the port introduced a skipped branch's locals only after the whole statement. Go, like Ruby, treats a local as assigned from where its assignment appears in the source, so a later `elsif` condition or `else` branch reads it as nil, and a modifier's body precedes its condition: `y = 1 if y == nil` sets `y`. Both now follow Go, including `unless`/`else` and the `while` and `until` modifiers, while later assignments still stay undefined in earlier branches and in the taken branch.
 
+### WASI
+
+The library, the `vibes` CLI and the full test suite build and run on `wasm32-wasip1`, and `scripts/check-wasi` runs them under Wasmtime and optionally Node. Module roots resolve through the host's preopens without unsafe code, and the local zone follows `TZ` when a host sets it. Syntax trees now drop without native recursion, because 1,021 nested rescue modifiers exhausted Wasmtime's default 512 KiB stack while dropping in a debug build. On 32-bit targets, string padding charges an oversized width before rejecting it, as 64-bit targets and Go do. See [platform support](platforms.md).
