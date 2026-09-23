@@ -569,7 +569,7 @@ fn inferred_index_results_contain_runtime_values_for_literal_inputs() {
                 let actual = if args.len() == 1 {
                     crate::ops::index(&mut ctx, &receiver, selector)
                 } else {
-                    crate::sequence::slice(&mut ctx, &receiver, &args, false)
+                    crate::sequence::slice(&mut ctx, &receiver, &args, false, None)
                 };
                 if let Ok(actual) = actual {
                     assert!(

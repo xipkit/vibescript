@@ -32,6 +32,17 @@ pub(crate) fn unsupported(op: &str) -> Error {
     )
 }
 
+/// Rejects arguments to an array member that takes none.
+fn array_arity(name: &str, args: &[Value]) -> Result<()> {
+    if args.is_empty() {
+        return Ok(());
+    }
+    Err(Error::new(
+        ErrorKind::Argument,
+        format!("array.{name} does not take arguments"),
+    ))
+}
+
 pub(crate) fn unary(ctx: &mut CallContext, op: &str, value: Value) -> Result<Value> {
     match (op, &value.0) {
         ("!", _) => Ok(Value::boolean(!value.truthy())),
@@ -591,7 +602,7 @@ pub(crate) fn cannot_index(value: &Value) -> Error {
 /// Reads `value[selector]`.
 pub(crate) fn index(ctx: &mut CallContext, value: &Value, index: &Value) -> Result<Value> {
     if matches!(index.0, Kind::Range(_)) && matches!(value.0, Kind::Array(_) | Kind::Bytes(_)) {
-        return crate::sequence::slice(ctx, value, std::slice::from_ref(index), false);
+        return crate::sequence::slice(ctx, value, std::slice::from_ref(index), false, None);
     }
     match &value.0 {
         Kind::Array(h) => {
@@ -660,7 +671,7 @@ pub(crate) fn index_many(ctx: &mut CallContext, value: &Value, args: &[Value]) -
             }
             index_selector(start)?;
             index_selector(length)?;
-            crate::sequence::slice(ctx, value, args, false)
+            crate::sequence::slice(ctx, value, args, false, None)
         }
         Kind::Hash(_) => Err(Error::new(
             ErrorKind::Type,
@@ -718,20 +729,12 @@ pub(crate) fn arity(args: &[Value], n: usize) -> Result<()> {
     }
 }
 
-fn index_name(method: Method) -> &'static str {
-    if matches!(method, Method::Rindex) {
-        "array.rindex"
-    } else {
-        "array.index"
-    }
-}
-
-fn index_offset(method: Method, value: &Value) -> Result<usize> {
+fn index_offset(name: &str, value: &Value) -> Result<usize> {
     match crate::sequence::integer(value) {
         Ok(n) if n >= 0 => Ok(usize::try_from(n).unwrap_or(usize::MAX)),
         _ => Err(Error::new(
             ErrorKind::Argument,
-            format!("{} offset must be non-negative integer", index_name(method)),
+            format!("array.{name} offset must be non-negative integer"),
         )),
     }
 }
@@ -782,6 +785,9 @@ pub(crate) fn method(
             return Ok(value);
         }
         ToString => {
+            if matches!(value.0, Kind::Array(_)) {
+                array_arity(name, args)?;
+            }
             arity(args, 0)?;
             if matches!(value.0, Kind::Hash(_)) {
                 return Err(type_error());
@@ -799,6 +805,9 @@ pub(crate) fn method(
             crate::mutate::call(ctx, method, name, value, args).map(|(_, result)| result)
         }
         Empty => {
+            if matches!(value.0, Kind::Array(_)) {
+                array_arity(name, args)?;
+            }
             arity(args, 0)?;
             Ok(Value::boolean(match &value.0 {
                 Kind::Bytes(h) => h.data.is_empty(),
@@ -842,6 +851,9 @@ pub(crate) fn method(
         }
         Cover | ExcludeEnd => Err(type_error()),
         Length | Size => {
+            if matches!(value.0, Kind::Array(_)) {
+                array_arity(name, args)?;
+            }
             arity(args, 0)?;
             let n = match &value.0 {
                 Kind::Bytes(h) => runes(ctx, &h.data)?.0,
@@ -862,20 +874,24 @@ pub(crate) fn method(
             }
             let found = if let Some(array) = value.as_array() {
                 if matches!(method, Include) {
-                    arity(args, 1)?;
+                    if args.len() != 1 {
+                        return Err(Error::new(
+                            ErrorKind::Argument,
+                            "array.include? expects exactly one value",
+                        ));
+                    }
                     array_index(ctx, array, &args[0], None, false)?
                 } else {
                     if args.is_empty() || args.len() > 2 {
                         return Err(Error::new(
                             ErrorKind::Argument,
                             format!(
-                                "{} expects a value (with optional offset) or a block",
-                                index_name(method)
+                                "array.{name} expects a value (with optional offset) or a block"
                             ),
                         ));
                     }
                     let offset = match args.get(1) {
-                        Some(offset) => Some(index_offset(method, offset)?),
+                        Some(offset) => Some(index_offset(name, offset)?),
                         None => None,
                     };
                     array_index(ctx, array, &args[0], offset, matches!(method, Rindex))?
@@ -916,7 +932,7 @@ pub(crate) fn method(
             if args.len() > 1 {
                 return Err(Error::new(
                     ErrorKind::Argument,
-                    "sum accepts at most an initial value",
+                    "array.sum accepts at most an initial value",
                 ));
             }
             let array = value.as_array().ok_or_else(type_error)?;
@@ -1076,7 +1092,7 @@ fn join(ctx: &mut CallContext, value: &Value, args: &[Value]) -> Result<Value> {
     if args.len() > 1 {
         return Err(Error::new(
             ErrorKind::Argument,
-            "join expects at most one separator",
+            "array.join accepts at most one separator",
         ));
     }
     let sep = if args.is_empty() {

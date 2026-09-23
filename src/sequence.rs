@@ -24,25 +24,45 @@ fn bound(n: i64, length: usize) -> i128 {
     }
 }
 
-fn window(args: &[Value], length: usize) -> Result<Option<(usize, usize, bool)>> {
+/// Resolves slice selectors to a window. `member` names the slice method
+/// whose own messages report malformed selectors; the index operator, which
+/// validates its selectors first, passes `None`.
+fn window(
+    args: &[Value],
+    length: usize,
+    member: Option<&str>,
+) -> Result<Option<(usize, usize, bool)>> {
+    let relabel = |error: Error, problem: &str| match member {
+        Some(member) => error.with_message(format!("{member} {problem}")),
+        None => error,
+    };
     if args.is_empty() || args.len() > 2 {
-        return Err(Error::new(
+        let error = Error::new(
             ErrorKind::Argument,
             "slice expects an index, a start and length, or a range",
+        );
+        return Err(relabel(
+            error,
+            "expects an index, a start and length, or a range",
         ));
     }
     let len = length as i128;
     let (start, end, single) = if let Kind::Range(range) = &args[0].0 {
-        ops::arity(args, 1)?;
+        ops::arity(args, 1).map_err(|error| relabel(error, "index must be integer"))?;
         let start = range.start.map_or(0, |n| bound(n, length));
         let end = range
             .end
             .map_or(len, |n| bound(n, length) + i128::from(!range.exclusive));
         (start, end, false)
     } else {
-        let start = bound(integer(&args[0])?, length);
+        let start = integer(&args[0]).map_err(|error| relabel(error, "index must be integer"))?;
+        let start = bound(start, length);
         let single = args.len() == 1;
-        let count = if single { 1 } else { integer(&args[1])? };
+        let count = if single {
+            1
+        } else {
+            integer(&args[1]).map_err(|error| relabel(error, "length must be integer"))?
+        };
         if count < 0 {
             return Ok(None);
         }
@@ -70,15 +90,18 @@ pub(crate) fn rune_offset(ctx: &mut CallContext, bytes: &[u8], count: usize) -> 
     Ok(offset)
 }
 
+/// Reads a slice of an array or string. `member` names the slice method whose
+/// messages report malformed selectors, or is `None` for the index operator.
 pub(crate) fn slice(
     ctx: &mut CallContext,
     value: &Value,
     args: &[Value],
     byte_slice: bool,
+    member: Option<&str>,
 ) -> Result<Value> {
     if !byte_slice {
         if let Some(array) = value.as_array() {
-            let Some((start, end, single)) = window(args, array.len())? else {
+            let Some((start, end, single)) = window(args, array.len(), member)? else {
                 return Ok(Value::nil());
             };
             if single {
@@ -108,7 +131,7 @@ pub(crate) fn slice(
     } else {
         ops::runes(ctx, bytes)?.0
     };
-    let Some((start, end, _)) = window(args, length)? else {
+    let Some((start, end, _)) = window(args, length, member)? else {
         return Ok(Value::nil());
     };
     let (start, end) = if byte_slice {
@@ -142,13 +165,23 @@ pub(crate) fn method(
 ) -> Result<Value> {
     use Method::*;
     match method {
-        Slice | ByteSlice => slice(ctx, &value, args, matches!(method, ByteSlice)),
+        Slice | ByteSlice => {
+            let member = matches!(value.0, Kind::Array(_)).then_some("array.slice");
+            slice(ctx, &value, args, matches!(method, ByteSlice), member)
+        }
         At => {
-            ops::arity(args, 1)?;
+            if args.len() != 1 {
+                return Err(Error::new(
+                    ErrorKind::Argument,
+                    "array.at expects exactly one index",
+                ));
+            }
             if value.as_array().is_none() {
                 return Err(Error::new(ErrorKind::Type, "at requires an array"));
             }
-            ops::index(ctx, &value, &Value::int(integer(&args[0])?))
+            let index = integer(&args[0])
+                .map_err(|error| error.with_message("array.at index must be integer".to_owned()))?;
+            ops::index(ctx, &value, &Value::int(index))
         }
         GetByte => {
             ops::arity(args, 1)?;
@@ -169,13 +202,17 @@ pub(crate) fn method(
                     .cloned()
                     .unwrap_or_default());
             }
-            ops::arity(args, 1)?;
-            let n = integer(&args[0])?;
-            if n < 0 {
+            let member = if last { "array.last" } else { "array.first" };
+            if args.len() > 1 {
                 return Err(Error::new(
                     ErrorKind::Argument,
-                    "array count must be non-negative",
+                    format!("{member} accepts at most one count"),
                 ));
+            }
+            let invalid = || format!("{member} expects non-negative integer");
+            let n = integer(&args[0]).map_err(|error| error.with_message(invalid()))?;
+            if n < 0 {
+                return Err(Error::new(ErrorKind::Argument, invalid()));
             }
             let n = usize::try_from(n).unwrap_or(usize::MAX).min(array.len());
             ctx.array(if last {

@@ -447,3 +447,84 @@ fn block_driven_array_members_check_calls_in_reference_order() {
         assert_eq!(message(body), expected, "{body}");
     }
 }
+
+#[test]
+fn array_members_name_themselves_in_count_and_index_errors() {
+    let cases = [
+        ("[1, 2].size(1)", "array.size does not take arguments"),
+        ("[1].empty?(1)", "array.empty? does not take arguments"),
+        ("[1].include?", "array.include? expects exactly one value"),
+        ("[1].at(1, 2)", "array.at expects exactly one index"),
+        ("[1].at(nil)", "array.at index must be integer"),
+        (
+            "[1].slice",
+            "array.slice expects an index, a start and length, or a range",
+        ),
+        ("[1].slice(1..2, 1)", "array.slice index must be integer"),
+        ("[1].slice(0, \"a\")", "array.slice length must be integer"),
+        ("[1].first(1, 2)", "array.first accepts at most one count"),
+        ("[1].last(-1)", "array.last expects non-negative integer"),
+        ("[1].take", "array.take expects exactly one count"),
+        (
+            "[1].take(-(2**70))",
+            "array.take attempted with negative size",
+        ),
+        ("[1].drop(-1)", "array.drop attempted with negative size"),
+        ("[1].drop(nil)", "array.drop count must be integer"),
+        (
+            "[1].values_at(2**70)",
+            "array.values_at index must be integer",
+        ),
+        ("[1].dig", "array.dig expects at least one index"),
+        ("{a: 1}.dig", "hash.dig expects at least one key"),
+        (
+            "{a: 1}.fetch",
+            "hash.fetch expects key and optional default",
+        ),
+        (
+            "[1].flatten(1, 2)",
+            "array.flatten accepts at most one depth argument",
+        ),
+        (
+            "[1].flatten(\"a\")",
+            "array.flatten depth must be an integer",
+        ),
+        ("[1].chunk", "array.chunk expects a chunk size"),
+        (
+            "[1].chunk(\"a\")",
+            "array.chunk size must be a positive integer",
+        ),
+        (
+            "[1].window(0)",
+            "array.window size must be a positive integer",
+        ),
+        (
+            "[1].join(\",\", \",\")",
+            "array.join accepts at most one separator",
+        ),
+        ("[1].reverse(1)", "array.reverse does not take arguments"),
+        (
+            "[1].transpose(1)",
+            "array.transpose does not take arguments",
+        ),
+        ("[1].pop(1, 2)", "array.pop accepts at most one argument"),
+        (
+            "[1].shift(\"a\")",
+            "array.shift expects non-negative integer",
+        ),
+        ("[1].insert", "array.insert expects an index"),
+        ("[1].insert(nil, 1)", "array.insert index must be integer"),
+        ("[1].clear(1)", "array.clear does not take arguments"),
+        (
+            "[1].fill(0, 0..1, 2)",
+            "array.fill does not accept a length with a range",
+        ),
+        ("[1].fill(0, \"a\")", "array.fill start must be integer"),
+        ("[1].fill(0, 0, 2**70)", "array.fill length must be integer"),
+        // The index operator keeps its own wording.
+        ("x = [1]\nx[1..2, 1]", "index must be integer"),
+    ];
+    for (body, expected) in cases {
+        assert_eq!(message(body), expected, "{body}");
+    }
+}

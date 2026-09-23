@@ -18,8 +18,10 @@ fn wrong_type() -> Error {
     )
 }
 
-/// Reads one array element or hash entry. `site` names the member input that
-/// supplied a hash key, for an unsupported key's message.
+/// Reads one array element or hash entry. `strict` is fetch's lookup, which
+/// rejects a fractional index; array index errors name fetch when strict and
+/// values_at otherwise. `site` names the member input that supplied a hash
+/// key, for an unsupported key's message.
 pub(crate) fn lookup(
     ctx: &mut CallContext,
     value: &Value,
@@ -30,7 +32,10 @@ pub(crate) fn lookup(
     ctx.charge(1)?;
     match &value.0 {
         Kind::Array(h) => {
-            let n = integer(key)?;
+            let member = if strict { "fetch" } else { "values_at" };
+            let n = integer(key).map_err(|error| {
+                error.with_message(format!("array.{member} index must be integer"))
+            })?;
             if strict && matches!(key.0, Kind::Float(f) if f.trunc() != f) {
                 return Err(argument("array.fetch index must be integer"));
             }
@@ -89,7 +94,11 @@ pub(crate) fn method(
         }
         Fetch => {
             if args.is_empty() || args.len() > 2 {
-                return Err(argument("fetch expects a key and optional default"));
+                return Err(argument(match value.0 {
+                    Kind::Array(_) => "array.fetch expects index and optional default",
+                    Kind::Hash(_) => "hash.fetch expects key and optional default",
+                    _ => "fetch expects a key and optional default",
+                }));
             }
             if let Some(found) = lookup(ctx, &value, &args[0], true, Some("hash.fetch key is an"))?
             {
@@ -101,7 +110,11 @@ pub(crate) fn method(
         }
         Dig => {
             if args.is_empty() {
-                return Err(argument("dig expects at least one key"));
+                return Err(argument(match value.0 {
+                    Kind::Array(_) => "array.dig expects at least one index",
+                    Kind::Hash(_) => "hash.dig expects at least one key",
+                    _ => "dig expects at least one key",
+                }));
             }
             let receiver = match value.0 {
                 Kind::Array(_) => "array",
@@ -293,6 +306,14 @@ fn values_at_range(
     Ok(())
 }
 
+/// Rejects arguments to an array member that takes none.
+fn no_arguments(member: &str, args: &[Value]) -> Result<()> {
+    if args.is_empty() {
+        return Ok(());
+    }
+    Err(argument(&format!("array.{member} does not take arguments")))
+}
+
 fn array_method(
     ctx: &mut CallContext,
     method: Method,
@@ -302,7 +323,7 @@ fn array_method(
     use Method::*;
     match method {
         Reverse => {
-            ops::arity(args, 0)?;
+            no_arguments("reverse", args)?;
             let mut out = Buffer::with_capacity(ctx, array.len())?;
             for v in array.iter().rev() {
                 ctx.charge(1)?;
@@ -311,10 +332,26 @@ fn array_method(
             Value::from_array(ctx, out)
         }
         Take | Drop => {
-            ops::arity(args, 1)?;
-            let n = integer(&args[0])?;
+            let member = if matches!(method, Take) {
+                "take"
+            } else {
+                "drop"
+            };
+            if args.len() != 1 {
+                return Err(argument(&format!(
+                    "array.{member} expects exactly one count"
+                )));
+            }
+            let negative = || format!("array.{member} attempted with negative size");
+            let n = integer(&args[0]).map_err(|error| {
+                error.with_message(if matches!(&args[0].0, Kind::Big(n) if n.negative) {
+                    negative()
+                } else {
+                    format!("array.{member} count must be integer")
+                })
+            })?;
             if n < 0 {
-                return Err(argument("count must be non-negative"));
+                return Err(argument(&negative()));
             }
             let n = usize::try_from(n).unwrap_or(usize::MAX).min(array.len());
             ctx.array(if matches!(method, Take) {
@@ -324,7 +361,7 @@ fn array_method(
             })
         }
         Compact => {
-            ops::arity(args, 0)?;
+            no_arguments("compact", args)?;
             let mut out = Buffer::empty();
             for v in array {
                 ctx.charge(1)?;
@@ -335,15 +372,17 @@ fn array_method(
             Value::from_array(ctx, out)
         }
         Uniq => {
-            ops::arity(args, 0)?;
+            no_arguments("uniq", args)?;
             crate::sets::unique(ctx, array)
         }
         Flatten => {
             if args.len() > 1 {
-                return Err(argument("flatten accepts at most a depth"));
+                return Err(argument("array.flatten accepts at most one depth argument"));
             }
             let depth = if let Some(v) = args.first().filter(|v| !matches!(v.0, Kind::Nil)) {
-                integer(v)?
+                integer(v).map_err(|error| {
+                    error.with_message("array.flatten depth must be an integer".to_owned())
+                })?
             } else {
                 -1
             };
@@ -352,10 +391,20 @@ fn array_method(
             Value::from_array(ctx, out)
         }
         Chunk | Window => {
-            ops::arity(args, 1)?;
-            let n = args[0].require_int()?;
+            let (member, expects) = if matches!(method, Chunk) {
+                ("chunk", "a chunk size")
+            } else {
+                ("window", "a window size")
+            };
+            if args.len() != 1 {
+                return Err(argument(&format!("array.{member} expects {expects}")));
+            }
+            let invalid = || format!("array.{member} size must be a positive integer");
+            let n = args[0]
+                .require_int()
+                .map_err(|error| error.with_message(invalid()))?;
             if n <= 0 {
-                return Err(argument("window or chunk size must be positive"));
+                return Err(argument(&invalid()));
             }
             let n = usize::try_from(n).unwrap_or(usize::MAX);
             let mut out = Buffer::empty();
@@ -397,7 +446,7 @@ fn array_method(
             Value::from_array(ctx, out)
         }
         Transpose => {
-            ops::arity(args, 0)?;
+            no_arguments("transpose", args)?;
             let cols = if let Some(first) = array.first() {
                 first.as_array().ok_or_else(wrong_type)?.len()
             } else {
@@ -423,7 +472,7 @@ fn array_method(
             Value::from_array(ctx, out)
         }
         ToHash => {
-            ops::arity(args, 0)?;
+            no_arguments("to_h", args)?;
             let mut out = Hash::empty();
             for v in array {
                 ctx.charge(1)?;

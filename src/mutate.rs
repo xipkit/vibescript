@@ -42,9 +42,11 @@ pub(crate) fn call(
                 (0, args)
             } else {
                 let Some(index) = args.first() else {
-                    return Err(argument("insert expects an index"));
+                    return Err(argument("array.insert expects an index"));
                 };
-                let index = i128::from(sequence::integer(index)?);
+                let index = i128::from(sequence::integer(index).map_err(|error| {
+                    error.with_message("array.insert index must be integer".to_owned())
+                })?);
                 if args.len() == 1 {
                     return Ok((receiver.clone(), receiver));
                 }
@@ -75,7 +77,9 @@ pub(crate) fn call(
             Ok((result.clone(), result))
         }
         (Kind::Array(_), Clear) => {
-            ops::arity(args, 0)?;
+            if !args.is_empty() {
+                return Err(argument("array.clear does not take arguments"));
+            }
             let value = Value::from_array(ctx, Buffer::empty())?;
             Ok((value.clone(), value))
         }
@@ -87,7 +91,9 @@ pub(crate) fn call(
             Ok((value.clone(), value))
         }
         (Kind::Array(array), Delete) => {
-            ops::arity(args, 1)?;
+            if args.len() != 1 {
+                return Err(argument("array.delete expects exactly one value"));
+            }
             let mut out = Buffer::empty();
             let mut removed = None;
             for (i, item) in array.buffer.data.iter().enumerate() {
@@ -132,7 +138,7 @@ pub(crate) fn call(
         }
         (Kind::Array(array), Fill) => {
             let Some(value) = args.first() else {
-                return Err(argument("fill expects a value"));
+                return Err(argument("array.fill requires a value or a block"));
             };
             let source = &array.buffer.data;
             let (start, end, length) = fill_span(ctx, &args[1..], source.len())?;
@@ -162,14 +168,16 @@ fn remove_end(
     args: &[Value],
     front: bool,
 ) -> Result<(Value, Value)> {
+    let member = if front { "array.shift" } else { "array.pop" };
     if args.len() > 1 {
-        return Err(argument("pop/shift accepts at most one count"));
+        return Err(argument(&format!("{member} accepts at most one argument")));
     }
     let source = receiver.as_array().unwrap();
     let count = if let Some(count) = args.first() {
-        let n = sequence::integer(count)?;
+        let invalid = || format!("{member} expects non-negative integer");
+        let n = sequence::integer(count).map_err(|error| error.with_message(invalid()))?;
         if n < 0 {
-            return Err(argument("pop/shift count must be non-negative"));
+            return Err(argument(&invalid()));
         }
         usize::try_from(n).unwrap_or(usize::MAX).min(source.len())
     } else {
@@ -200,11 +208,13 @@ pub(crate) fn fill_span(
     length: usize,
 ) -> Result<(usize, usize, usize)> {
     if args.len() > 2 {
-        return Err(argument("fill accepts at most a start and length"));
+        return Err(argument("array.fill accepts at most a start and length"));
     }
     let length = length as i128;
     if let Some(Value(Kind::Range(range))) = args.first() {
-        ops::arity(args, 1)?;
+        if args.len() != 1 {
+            return Err(argument("array.fill does not accept a length with a range"));
+        }
         let start = range.start.map_or(0, i128::from);
         let start = if start < 0 { start + length } else { start };
         if start < 0 {
@@ -222,19 +232,25 @@ pub(crate) fn fill_span(
             size(ctx, end.max(length))?,
         ));
     }
-    let start = match args.first() {
-        None | Some(Value(Kind::Nil)) => 0,
-        Some(value) => i128::from(sequence::integer(value)?),
-    };
+    let start =
+        match args.first() {
+            None | Some(Value(Kind::Nil)) => 0,
+            Some(value) => i128::from(sequence::integer(value).map_err(|error| {
+                error.with_message("array.fill start must be integer".to_owned())
+            })?),
+        };
     let start = if start < 0 {
         (start + length).max(0)
     } else {
         start
     };
-    let count = match args.get(1) {
-        None | Some(Value(Kind::Nil)) => length - start,
-        Some(value) => i128::from(sequence::integer(value)?),
-    };
+    let count =
+        match args.get(1) {
+            None | Some(Value(Kind::Nil)) => length - start,
+            Some(value) => i128::from(sequence::integer(value).map_err(|error| {
+                error.with_message("array.fill length must be integer".to_owned())
+            })?),
+        };
     if count < 0 {
         return Ok((0, 0, size(ctx, length)?));
     }

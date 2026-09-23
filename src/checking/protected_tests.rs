@@ -638,7 +638,7 @@ fn protected_index_facts_contain_runtime_values() {
                 let actual = if args.len() == 1 {
                     crate::ops::index(&mut runtime, &receiver, selector)
                 } else {
-                    crate::sequence::slice(&mut runtime, &receiver, &args, false)
+                    crate::sequence::slice(&mut runtime, &receiver, &args, false, None)
                 };
                 if let Ok(value) = actual {
                     assert!(!inferred.rejected, "{receiver:?}[{args:?}]");
