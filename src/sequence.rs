@@ -24,16 +24,52 @@ fn bound(n: i64, length: usize) -> i128 {
     }
 }
 
-/// Resolves slice selectors to a window. `member` names the slice method
-/// whose own messages report malformed selectors; the index operator, which
-/// validates its selectors first, passes `None`.
+/// The messages a slice method reports for malformed selectors.
+pub(crate) struct Selectors {
+    /// Too few or too many selectors.
+    arity: &'static str,
+    /// A lone selector that is not an index or range.
+    index: &'static str,
+    /// A start, or a range given a length, that is not an index.
+    start: &'static str,
+    /// A length that is not an index.
+    length: &'static str,
+}
+
+/// Selector messages for `array.slice`.
+const ARRAY_SLICE: Selectors = Selectors {
+    arity: "array.slice expects an index, a start and length, or a range",
+    index: "array.slice index must be integer",
+    start: "array.slice index must be integer",
+    length: "array.slice length must be integer",
+};
+
+/// Selector messages for `string.slice`.
+const STRING_SLICE: Selectors = Selectors {
+    arity: "string.slice expects an index, range, or substring with optional length",
+    index: "string.slice index must be an integer, range, or substring",
+    start: "string.slice index must be integer",
+    length: "string.slice length must be integer",
+};
+
+/// Selector messages for `string.byteslice`.
+const STRING_BYTESLICE: Selectors = Selectors {
+    arity: "string.byteslice expects an index, a range, or a start and length",
+    index: "string.byteslice index must be an integer or range",
+    start: "string.byteslice start must be an integer",
+    length: "string.byteslice length must be an integer",
+};
+
+/// Resolves slice selectors to a window. `member` holds the slice method's
+/// own messages for malformed selectors; the index operator, which validates
+/// its selectors first, passes `None`.
 fn window(
     args: &[Value],
     length: usize,
-    member: Option<&str>,
+    member: Option<&Selectors>,
 ) -> Result<Option<(usize, usize, bool)>> {
-    let relabel = |error: Error, problem: &str| match member {
-        Some(member) => error.with_message(format!("{member} {problem}")),
+    let relabel = |error: Error, message: fn(&Selectors) -> &'static str| match member {
+        Some(member) => error.with_message(message(member).to_owned()),
         None => error,
     };
     if args.is_empty() || args.len() > 2 {
@@ -41,27 +77,29 @@ fn window(
             ErrorKind::Argument,
             "slice expects an index, a start and length, or a range",
         );
-        return Err(relabel(
-            error,
-            "expects an index, a start and length, or a range",
-        ));
+        return Err(relabel(error, |member| member.arity));
     }
     let len = length as i128;
     let (start, end, single) = if let Kind::Range(range) = &args[0].0 {
-        ops::arity(args, 1).map_err(|error| relabel(error, "index must be integer"))?;
+        ops::arity(args, 1).map_err(|error| relabel(error, |member| member.start))?;
         let start = range.start.map_or(0, |n| bound(n, length));
         let end = range
             .end
             .map_or(len, |n| bound(n, length) + i128::from(!range.exclusive));
         (start, end, false)
     } else {
-        let start = integer(&args[0]).map_err(|error| relabel(error, "index must be integer"))?;
-        let start = bound(start, length);
         let single = args.len() == 1;
+        let first: fn(&Selectors) -> &'static str = if single {
+            |member| member.index
+        } else {
+            |member| member.start
+        };
+        let start = integer(&args[0]).map_err(|error| relabel(error, first))?;
+        let start = bound(start, length);
         let count = if single {
             1
         } else {
-            integer(&args[1]).map_err(|error| relabel(error, "length must be integer"))?
+            integer(&args[1]).map_err(|error| relabel(error, |member| member.length))?
         };
         if count < 0 {
             return Ok(None);
@@ -90,14 +128,14 @@ pub(crate) fn rune_offset(ctx: &mut CallContext, bytes: &[u8], count: usize) -> 
     Ok(offset)
 }
 
-/// Reads a slice of an array or string. `member` names the slice method whose
-/// messages report malformed selectors, or is `None` for the index operator.
+/// Reads a slice of an array or string. `member` holds the slice method's
+/// messages for malformed selectors, or is `None` for the index operator.
 pub(crate) fn slice(
     ctx: &mut CallContext,
     value: &Value,
     args: &[Value],
     byte_slice: bool,
-    member: Option<&str>,
+    member: Option<&Selectors>,
 ) -> Result<Value> {
     if !byte_slice {
         if let Some(array) = value.as_array() {
@@ -166,7 +204,12 @@ pub(crate) fn method(
     use Method::*;
     match method {
         Slice | ByteSlice => {
-            let member = matches!(value.0, Kind::Array(_)).then_some("array.slice");
+            let member = match (&value.0, method) {
+                (Kind::Array(_), _) => Some(&ARRAY_SLICE),
+                (Kind::Bytes(_), ByteSlice) => Some(&STRING_BYTESLICE),
+                (Kind::Bytes(_), _) => Some(&STRING_SLICE),
+                _ => None,
+            };
             slice(ctx, &value, args, matches!(method, ByteSlice), member)
         }
         At => {
@@ -184,9 +227,17 @@ pub(crate) fn method(
             ops::index(ctx, &value, &Value::int(index))
         }
         GetByte => {
-            ops::arity(args, 1)?;
+            if args.len() != 1 {
+                return Err(Error::new(
+                    ErrorKind::Argument,
+                    "string.getbyte expects exactly one index",
+                ));
+            }
             let bytes = value.require_bytes()?;
-            let n = bound(integer(&args[0])?, bytes.len());
+            let index = integer(&args[0]).map_err(|error| {
+                error.with_message("string.getbyte index must be an integer".to_owned())
+            })?;
+            let n = bound(index, bytes.len());
             Ok(usize::try_from(n)
                 .ok()
                 .and_then(|n| bytes.get(n))

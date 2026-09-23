@@ -846,3 +846,131 @@ fn string_members_name_themselves_in_argument_count_errors() {
         assert_eq!(message(body), expected, "{body}");
     }
 }
+
+#[test]
+fn string_members_name_themselves_in_index_offset_and_width_errors() {
+    let cases = [
+        (
+            "\"ab\".slice",
+            "string.slice expects an index, range, or substring with optional length",
+        ),
+        (
+            "\"ab\".slice(1, 2, 3)",
+            "string.slice expects an index, range, or substring with optional length",
+        ),
+        (
+            "\"ab\".slice(nil)",
+            "string.slice index must be an integer, range, or substring",
+        ),
+        (
+            "\"ab\".slice(2**70)",
+            "string.slice index must be an integer, range, or substring",
+        ),
+        (
+            "\"ab\".slice(\"a\", 1)",
+            "string.slice index must be integer",
+        ),
+        (
+            "\"ab\".slice(0..1, 1)",
+            "string.slice index must be integer",
+        ),
+        (
+            "\"ab\".slice(0, nil)",
+            "string.slice length must be integer",
+        ),
+        (
+            "\"ab\".byteslice",
+            "string.byteslice expects an index, a range, or a start and length",
+        ),
+        (
+            "\"ab\".byteslice(:a)",
+            "string.byteslice index must be an integer or range",
+        ),
+        (
+            "\"ab\".byteslice(\"a\", 1)",
+            "string.byteslice start must be an integer",
+        ),
+        (
+            "\"ab\".byteslice(0..1, 1)",
+            "string.byteslice start must be an integer",
+        ),
+        (
+            "\"ab\".byteslice(0, 1.0 / 0)",
+            "string.byteslice length must be an integer",
+        ),
+        ("\"ab\".getbyte", "string.getbyte expects exactly one index"),
+        (
+            "\"ab\".getbyte(0, 1)",
+            "string.getbyte expects exactly one index",
+        ),
+        (
+            "\"ab\".getbyte(\"a\")",
+            "string.getbyte index must be an integer",
+        ),
+        (
+            "\"ab\".index(\"a\", \"b\")",
+            "string.index offset must be integer",
+        ),
+        (
+            "\"ab\".rindex(\"a\", nil)",
+            "string.rindex offset must be integer",
+        ),
+        (
+            "\"ab\".index(\"a\", 2**70)",
+            "string.index offset must be integer",
+        ),
+        (
+            "\"ab\".insert(\"a\", \"b\")",
+            "string.insert index must be integer",
+        ),
+        (
+            "\"ab\".insert(nil, 1)",
+            "string.insert index must be integer",
+        ),
+        (
+            "\"ab\".insert(10, \"x\")",
+            "string.insert index 10 out of string",
+        ),
+        (
+            "\"ab\".insert(-4, \"x\")",
+            "string.insert index -4 out of string",
+        ),
+        (
+            "\"ab\".insert(3.5, \"x\")",
+            "string.insert index 3 out of string",
+        ),
+        (
+            "\"ab\".center(\"a\")",
+            "string.center width must be integer",
+        ),
+        (
+            "\"ab\".ljust(nil, \"x\")",
+            "string.ljust width must be integer",
+        ),
+        ("\"ab\".rjust(2**70)", "string.rjust width is out of range"),
+        (
+            "\"ab\".center(1.0 / 0)",
+            "string.center width is out of range",
+        ),
+        (
+            "\"ab\".ljust(0.0 / 0)",
+            "string.ljust width is out of range",
+        ),
+        ("\"ab\".rjust(1e30)", "string.rjust width is out of range"),
+        (
+            "\"ab\".split(\",\", \"a\")",
+            "string.split limit must be integer",
+        ),
+        (
+            "\"ab\".split(\",\", 1.5)",
+            "string.split limit must be integer",
+        ),
+        (
+            "\"ab\".split(\",\", 2**70)",
+            "string.split limit must fit in a 64-bit integer",
+        ),
+    ];
+    for (body, expected) in cases {
+        assert_eq!(message(body), expected, "{body}");
+    }
+}
