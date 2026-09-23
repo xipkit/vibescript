@@ -5,6 +5,7 @@ use crate::{
 };
 use std::{cmp::Ordering, mem::size_of, sync::Arc};
 
+mod limbs;
 mod ntt;
 mod radix;
 
@@ -813,6 +814,15 @@ pub(crate) fn format(ctx: &mut CallContext, value: &Value, radix: u32) -> Result
         )?;
         return Ok(out);
     }
+    if magnitude.len() > limbs::DIRECT {
+        // Long magnitudes convert by halves in limbs of the radix.
+        if negative {
+            out.data.push(b'-');
+        }
+        let mut scratch = [0; 2];
+        limbs::format(ctx, magnitude.slice(&mut scratch), radix, &mut out)?;
+        return Ok(out);
+    }
     let mut words = copy(ctx, magnitude)?;
     let mut power = radix;
     let mut width = 1;
@@ -1084,6 +1094,120 @@ mod tests {
                 Ordering::Equal,
                 "{base}**{exponent}"
             );
+        }
+    }
+
+    /// The quadratic conversion: one short division per chunk of digits.
+    fn reference_digits(words: &[u32], radix: u32) -> Vec<u8> {
+        let (mut power, mut width) = (radix, 1);
+        while let Some(next) = power.checked_mul(radix) {
+            power = next;
+            width += 1;
+        }
+        let mut words = trimmed(words.to_vec());
+        let mut digits = Vec::new();
+        while !words.is_empty() {
+            let mut remainder = 0u64;
+            for word in words.iter_mut().rev() {
+                let value = remainder << 32 | *word as u64;
+                *word = (value / power as u64) as u32;
+                remainder = value % power as u64;
+            }
+            words = trimmed(words);
+            for _ in 0..width {
+                digits.push(char::from_digit(remainder as u32 % radix, radix).unwrap() as u8);
+                remainder /= radix as u64;
+                if words.is_empty() && remainder == 0 {
+                    break;
+                }
+            }
+        }
+        if digits.is_empty() {
+            digits.push(b'0');
+        }
+        digits.reverse();
+        digits
+    }
+
+    fn big(words: Vec<u32>) -> Value {
+        let mut ctx = unlimited_context();
+        finish(&mut ctx, false, Buffer::untracked(words)).unwrap()
+    }
+
+    fn words_of(value: &Value) -> Vec<u32> {
+        parts(value).1.slice(&mut [0; 2]).to_vec()
+    }
+
+    #[test]
+    fn divided_conversions_agree_with_short_division_in_every_radix() {
+        let mut ctx = unlimited_context();
+        let mut words = Words(0x0bad_5eed_c0ff_ee00);
+        // Word lengths around the direct cutoff, leaf multiples of 13, 19,
+        // 20 and 23 words, and powers of two.
+        let lengths = [
+            33, 34, 38, 39, 40, 46, 47, 60, 64, 65, 76, 77, 92, 93, 128, 129, 184, 185, 304, 305,
+            368, 369, 511, 512, 513, 736, 737,
+        ];
+        for radix in (3..=36).filter(|radix: &u32| !radix.is_power_of_two()) {
+            let lengths: &[usize] = if radix == 10 {
+                &lengths
+            } else {
+                &lengths[..lengths.len() - 8]
+            };
+            for &length in lengths {
+                let mut shapes = vec![words.take(length), vec![u32::MAX; length], {
+                    let mut single = vec![0; length];
+                    single[length - 1] = 1;
+                    single
+                }];
+                // Powers of the radix and their neighbours carry through
+                // every limb.
+                let digits = (length * 32) as f64 / (radix as f64).log2();
+                let power = [b"1".as_slice(), &vec![b'0'; digits as usize - 1]].concat();
+                let power = parse(&mut ctx, &power, radix).unwrap();
+                for delta in [-1, 0, 1] {
+                    let value = binary(&mut ctx, "+", &power, &Value::int(delta)).unwrap();
+                    shapes.push(words_of(&value));
+                }
+                for shape in shapes {
+                    let expected = reference_digits(&shape, radix);
+                    let value = big(shape);
+                    let text = format(&mut ctx, &value, radix).unwrap();
+                    assert_eq!(text.data, expected, "radix {radix}, {length} words");
+                    let negative = negate(&mut ctx, &value, false).unwrap();
+                    let text = format(&mut ctx, &negative, radix).unwrap();
+                    assert_eq!(text.data[0], b'-');
+                    assert_eq!(&text.data[1..], expected, "radix {radix}, {length} words");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn divided_conversions_charge_their_work_and_release_it_on_failure() {
+        let mut words = Words(0x1357_9bdf_2468_ace0);
+        let value = big(words.take(4096));
+        let expected = reference_digits(&words_of(&value), 10);
+        let mut ctx = unlimited_context();
+        ctx.options.limits.memory_bytes = Some(1 << 30);
+        let text = format(&mut ctx, &value, 10).unwrap();
+        assert_eq!(text.data, expected);
+        let (steps, peak) = (ctx.stats().steps, ctx.stats().peak_memory_bytes);
+        drop(text);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        // Scratch stays within a small multiple of the digits.
+        assert!(peak < 8 * expected.len(), "{peak} bytes");
+        for kind in [ErrorKind::Steps, ErrorKind::Memory, ErrorKind::Cancelled] {
+            let mut ctx = CallContext::new(CallOptions::default());
+            match kind {
+                ErrorKind::Steps => ctx.options.limits.steps = Some(steps / 2),
+                ErrorKind::Memory => ctx.options.limits.memory_bytes = Some(peak / 2),
+                _ => ctx.cancellation().cancel(),
+            }
+            let error = format(&mut ctx, &value, 10).unwrap_err();
+            assert_eq!(error.kind, kind);
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+            assert_eq!(ctx.checkpoint().unwrap_err(), error);
         }
     }
 

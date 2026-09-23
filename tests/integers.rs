@@ -333,3 +333,113 @@ fn reference_sized_integers_fit_the_default_quota() {
     let outcome = run("(2 ** 100000).to_s.size");
     assert_eq!(outcome.value.as_int(), Some(30_103));
 }
+
+/// FNV-1a over the digits, matching the reference hashes below.
+fn fnv(bytes: &[u8]) -> u64 {
+    bytes.iter().fold(0xcbf2_9ce4_8422_2325, |hash, &byte| {
+        (hash ^ byte as u64).wrapping_mul(0x0100_0000_01b3)
+    })
+}
+
+#[test]
+fn long_decimal_conversions_match_python() {
+    // The length and FNV-1a hash of Python's str() for each value: powers
+    // of ten and their neighbours, all nines, single bits, products,
+    // quotients and remainders of both signs, around conversion thresholds.
+    for (source, length, hash) in [
+        ("3 ** 209590", 100000, 0x3b24_3676_2505_a83b),
+        ("-(7 ** 60000)", 50707, 0x65e7_79c8_ba51_5706),
+        ("10 ** 100000 - 1", 100000, 0x3e3a_fb82_516f_4705),
+        ("10 ** 99999", 100000, 0x2212_d716_587d_fb24),
+        ("10 ** 50000 + 1", 50001, 0x9358_6db8_a04f_20af),
+        ("-(10 ** 77777 - 1)", 77778, 0xe98b_4e6e_0a54_3c83),
+        ("2 ** 800000", 240824, 0xa446_c5db_71f0_4906),
+        ("2 ** 332193 - 1", 100001, 0xc30a_7a16_3425_0d70),
+        (
+            "3 ** 100000 * 7 ** 30000 - 5 ** 20000",
+            73066,
+            0xa6d3_3d26_4edc_5692,
+        ),
+        (
+            "(10 ** 40000 - 1) * (10 ** 40000 + 1)",
+            80000,
+            0x2b16_5e4d_6b58_e5a5,
+        ),
+        ("3 ** 150000 / 7 ** 40000", 37765, 0xf3c4_1d76_2af0_eb43),
+        ("3 ** 150000 % 7 ** 40000", 33804, 0x6a1c_95d1_7615_a6ae),
+        ("-(3 ** 150000) / 7 ** 40000", 37766, 0x3b2e_7436_340c_7345),
+        ("-(3 ** 150000) % 7 ** 40000", 33803, 0xe6a7_6a7d_7290_77e4),
+        ("2 ** 1056 - 1", 318, 0xf310_fa44_524c_6284),
+        ("2 ** 1024 + 1", 309, 0xa5cb_b29d_f993_6abf),
+        ("-(2 ** 47104) - 1", 14181, 0xf95b_608a_56d5_0403),
+        ("2 ** 47104 - 1", 14180, 0xef74_599c_ba97_cf60),
+        ("10 ** 14179 * 3 + 7", 14180, 0x2e91_89a2_8fd8_f09f),
+        ("(10 ** 7 - 1) ** 30000", 210000, 0x40ae_2578_6515_f8d2),
+        ("999999 ** 12345", 74070, 0x6fb3_4718_bf9c_5d84),
+        (
+            "12345678901234567890 ** 4000 + 10 ** 3000",
+            76367,
+            0xdb07_c307_2c21_b030,
+        ),
+    ] {
+        let outcome = Engine::new()
+            .compile(&format!("x = {source}\n[x.to_s, \"#{{x}}\" == x.to_s]"))
+            .unwrap()
+            .run(CallOptions {
+                limits: Limits {
+                    steps: None,
+                    ..Limits::default()
+                },
+                ..CallOptions::default()
+            })
+            .unwrap();
+        let [text, interpolated] = outcome.value.as_array().unwrap() else {
+            panic!("{source}");
+        };
+        let text = text.as_bytes().unwrap();
+        assert_eq!((text.len(), fnv(text)), (length, hash), "{source}");
+        assert!(interpolated.truthy(), "{source}");
+    }
+}
+
+#[test]
+fn rendering_reference_sized_integers_fits_the_default_quota_with_room() {
+    // The reference renders 2 ** 800000 into a template under its default
+    // quota; converting it, or a dense value as long, takes about half.
+    for (source, length, limit) in [
+        (
+            "\"{{v}}\".template({v: 2 ** 800000}).bytesize",
+            240_824,
+            300_000,
+        ),
+        ("x = 3 ** 503000\n1", 1, 400_000),
+        ("(3 ** 503000).to_s.bytesize", 239_992, 1_000_000),
+    ] {
+        let outcome = run(source);
+        assert_eq!(outcome.value.as_int(), Some(length), "{source}");
+        assert!(outcome.stats.steps < limit, "{source}: {:?}", outcome.stats);
+    }
+    let cost = |exponent: u32| {
+        let steps = |source: &str| {
+            Engine::new()
+                .compile(source)
+                .unwrap()
+                .run(CallOptions {
+                    limits: Limits {
+                        steps: None,
+                        ..Limits::default()
+                    },
+                    ..CallOptions::default()
+                })
+                .unwrap()
+                .stats
+                .steps
+        };
+        steps(&format!("x = 3 ** {exponent}\nx.to_s.bytesize"))
+            - steps(&format!("x = 3 ** {exponent}\n1"))
+    };
+    let (small, large) = (cost(125_000), cost(500_000));
+    // Quadrupling the digits costs about six times the steps, where the
+    // schoolbook conversion cost sixteen.
+    assert!(large < small * 7, "{small} then {large}");
+}
