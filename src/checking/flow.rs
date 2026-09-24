@@ -2836,7 +2836,38 @@ impl Walker<'_> {
                         continue;
                     }
                     if !args.keywords.data.is_empty() {
-                        return self.incomplete(pc);
+                        // Mutators that do not refuse keywords ignore them.
+                        let name = &self.program.members[site.name];
+                        let count = args.positional.data.len();
+                        let (mut refused, mut accepted) = (false, false);
+                        for i in 0..self.facts.arm_count(receiver) {
+                            self.ctx.charge(1)?;
+                            let arm = self.facts.arm(receiver, i);
+                            if arm == Atom::Never.fact() {
+                                continue;
+                            }
+                            if self
+                                .facts
+                                .refuses_call_shape(arm, site, name, count, true, false)
+                            {
+                                refused = true;
+                            } else {
+                                accepted = true;
+                            }
+                        }
+                        if refused {
+                            self.collection_error(
+                                &state,
+                                pc,
+                                receiver,
+                                site.into(),
+                                &args,
+                                ErrorClass::Runtime,
+                            )?;
+                            if !accepted {
+                                return Ok([None, None]);
+                            }
+                        }
                     }
                     if let Some(edges) =
                         self.mutate(&mut state, pc, site, &args.positional.data, false, false)?

@@ -475,6 +475,35 @@ fn unknown_array_and_symbol_members_are_known_errors() {
     );
 }
 
+#[test]
+fn keyword_and_block_shapes_follow_the_runtime_refusals() {
+    exact_ints(&[
+        ("[1, 2].size { |v| v }", 2),
+        ("\"abc\".size(a: 1)", 3),
+        ("{ a: 1 }.keys { |v| v }.length", 1),
+        ("[1, 2].union([3]) { |v| v }.length", 3),
+        ("[1, 2].take(1, a: 1).length", 1),
+        ("\"abc\".insert(1, \"x\", a: 1).length", 4),
+        (":abc.getbyte(0, a: 1) || 0", 97),
+    ]);
+    invalid(&[
+        "[1].first(a: 1)",
+        "[1].compact { |v| v }",
+        "[1].inspect { |v| v }",
+        "[1].to_s { |v| v }",
+        "[1].sample(a: 1)",
+        "[1].union([2], a: 1)",
+        "[1, 2].push(3, a: 1)",
+        "{ a: 1 }.store(:b, 2, a: 1)",
+        "{ a: 1 }.inspect(a: 1)",
+        "\"abc\".getbyte(0, a: 1)",
+    ]);
+    strict_arms(vec![(
+        "def run(x: array<int> | string) -> int; x.size { |v| v }; x.reverse { |v| v }; 0; end",
+        Value::bytes("ab"),
+    )]);
+}
+
 /// Site programs whose whole-file checks used to stop at one of these
 /// operations. Each now finishes analysis and still runs.
 #[test]

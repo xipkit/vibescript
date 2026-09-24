@@ -306,20 +306,26 @@ impl Walker<'_> {
                 result.throws,
             )
         } else {
+            // Keywords and blocks a native member does not refuse are ignored.
+            let (keywords, block) = (!args.keywords.data.is_empty(), args.block.is_some());
+            let mut accepted = Buffer::empty();
+            let mut refused = false;
+            for i in 0..self.facts.arm_count(receiver) {
+                self.ctx.charge(1)?;
+                let arm = self.facts.arm(receiver, i);
+                let count = args.positional.data.len();
+                if self
+                    .facts
+                    .refuses_call_shape(arm, site.call, name, count, keywords, block)
+                {
+                    refused = true;
+                } else {
+                    accepted.push(self.ctx, arm)?;
+                }
+            }
+            let receiver = self.facts.union(self.ctx, &accepted.data)?;
             let reshaping = matches!(self.facts.node(receiver), Node::Array(_) | Node::Tuple(_))
-                && matches!(name, "compact" | "chunk" | "window");
-            if reshaping
-                && name == "compact"
-                && (!args.keywords.data.is_empty() || args.block.is_some())
-            {
-                self.collection_error(state, pc, receiver, site, args, ErrorClass::Runtime)?;
-                return Ok(Some([None, None]));
-            }
-            if (!args.keywords.data.is_empty() && !(reshaping && name != "compact"))
-                || args.block.is_some()
-            {
-                return self.incomplete(pc).map(Some);
-            }
+                && matches!(name, "chunk" | "window");
             let result = self.facts.native_member(
                 self.ctx,
                 receiver,
@@ -327,11 +333,7 @@ impl Walker<'_> {
                 name,
                 &args.positional.data,
             )?;
-            if reshaping
-                && name != "compact"
-                && result.value != Atom::Never.fact()
-                && self.wrapping_guard(receiver)?
-            {
+            if reshaping && result.value != Atom::Never.fact() && self.wrapping_guard(receiver)? {
                 self.emit_error(state, pc, handlers::bit(ErrorClass::Limit))?;
             }
             let throws = if result.throws {
@@ -339,7 +341,12 @@ impl Walker<'_> {
             } else {
                 0
             };
-            (result.value, result.rejected, result.unsupported, throws)
+            (
+                result.value,
+                result.rejected || refused,
+                result.unsupported,
+                throws,
+            )
         };
         let throws = if value != Atom::Never.fact()
             && self.native_limit(receiver, name, &args.positional.data)?

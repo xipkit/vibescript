@@ -468,6 +468,45 @@ impl Facts {
         Ok(result)
     }
 
+    /// Whether the runtime refuses the keywords or block passed to a native
+    /// member of one receiver arm before its positional arguments are used.
+    /// Native members that do not refuse them ignore them. The receiver's own
+    /// probes answer first: `inspect` and the combinatoric members refuse
+    /// both, `union` and `difference` refuse keywords, and every other member
+    /// follows the runtime's generic keyword and block refusals.
+    pub fn refuses_call_shape(
+        &self,
+        receiver: Fact,
+        site: CallSite,
+        name: &str,
+        count: usize,
+        keywords: bool,
+        block: bool,
+    ) -> bool {
+        use crate::members::names::Receiver;
+        let kind = match self.node(receiver) {
+            Node::Tuple(_) | Node::Array(_) => Receiver::Array,
+            Node::Hash(..) | Node::Shape(..) => Receiver::Hash,
+            _ => match self.atom(receiver) {
+                Some(Atom::String) => Receiver::Bytes,
+                Some(Atom::Symbol) => Receiver::Symbol,
+                Some(Atom::Range) => Receiver::Range,
+                _ => return false,
+            },
+        };
+        let array = kind == Receiver::Array;
+        if (array && crate::combinatorics::method(name))
+            || (matches!(kind, Receiver::Array | Receiver::Hash) && name == "inspect")
+        {
+            return keywords || block;
+        }
+        if array && matches!(name, "union" | "difference") {
+            return keywords;
+        }
+        (keywords && kind.keyword_refusal(site.method, name, count).is_some())
+            || (block && kind.rejects_block(site.method, count > 0, name).is_some())
+    }
+
     pub fn collection_member(
         &mut self,
         ctx: &mut CallContext,

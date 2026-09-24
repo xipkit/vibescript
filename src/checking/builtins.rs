@@ -421,9 +421,17 @@ pub(super) fn member(
         let arm = facts.arm(receiver, i);
         let mut next = if let Some(next) = member_arm(ctx, facts, arm, site, name, args)? {
             next
-        } else if !args.keywords.data.is_empty() || args.block.is_some() {
+        } else if facts.refuses_call_shape(
+            arm,
+            site,
+            name,
+            args.positional.data.len(),
+            !args.keywords.data.is_empty(),
+            args.block.is_some(),
+        ) {
             let mut next = outcome(Atom::Never.fact());
-            next.incomplete = true;
+            next.failures.push(ctx, Failure::NonCallable)?;
+            next.throws = RUNTIME;
             next
         } else {
             // Callers resolve stored-field overrides before reaching these summaries.
