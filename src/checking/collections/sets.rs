@@ -1,4 +1,5 @@
-//! Array set operators: `left - right` and `left & right`.
+//! Array set operators, `left - right` and `left & right`, and the members
+//! `union` and `difference`.
 //!
 //! The runtime requires two arrays and compares elements with its set
 //! membership policy: root numeric kinds must match and NaN matches itself.
@@ -85,6 +86,132 @@ impl Facts {
         };
         result.value = value;
         Ok(result)
+    }
+
+    /// Models `array.difference(*others)`, which removes every element found
+    /// in any argument like repeated `-`. Every argument must be an array.
+    pub(in crate::checking) fn difference_member(
+        &mut self,
+        ctx: &mut CallContext,
+        receiver: Fact,
+        args: &[Fact],
+    ) -> Result<Operation> {
+        let mut result = outcome(receiver);
+        for &arg in args {
+            ctx.charge(1)?;
+            let next = self.array_set(ctx, "-", result.value, arg)?;
+            result.rejected |= next.rejected;
+            result.unsupported |= next.unsupported;
+            result.throws |= self.gradual_operand(ctx, arg)?;
+            result.value = next.value;
+            if next.value == Atom::Never.fact() {
+                break;
+            }
+        }
+        Ok(result)
+    }
+
+    /// Models `array.union(*others)`: the receiver's and then each argument's
+    /// elements without repeated set keys. Every argument must be an array.
+    /// Literal tuples keep their exact result when every duplicate decision is
+    /// known.
+    pub(in crate::checking) fn union_member(
+        &mut self,
+        ctx: &mut CallContext,
+        receiver: Fact,
+        args: &[Fact],
+    ) -> Result<Operation> {
+        let mut result = outcome(Atom::Never.fact());
+        let mut elements = Buffer::empty();
+        let element = self.elements(ctx, receiver)?;
+        elements.push(ctx, element)?;
+        let mut items = Buffer::empty();
+        let mut exact = false;
+        if let Node::Tuple(values) = self.node(receiver) {
+            items.extend(ctx, &values.data)?;
+            exact = true;
+        }
+        for &arg in args {
+            ctx.charge(1)?;
+            let mut valid = false;
+            let single = self.arm_count(arg) == 1;
+            for i in 0..self.arm_count(arg) {
+                ctx.charge(1)?;
+                let arm = self.arm(arg, i);
+                match self.node(arm) {
+                    Node::Atom(Atom::Never) => (),
+                    Node::Array(_) | Node::Tuple(_) => {
+                        valid = true;
+                        let element = self.elements(ctx, arm)?;
+                        elements.push(ctx, element)?;
+                        match self.node(arm) {
+                            Node::Tuple(values) if exact && single => {
+                                items.extend(ctx, &values.data)?;
+                            }
+                            _ => exact = false,
+                        }
+                    }
+                    Node::Atom(Atom::Unknown | Atom::Any) => {
+                        valid = true;
+                        exact = false;
+                        elements.push(ctx, Atom::Unknown.fact())?;
+                        result.throws = true;
+                    }
+                    Node::Named(_) | Node::Nominal { .. } | Node::Choice(_) => {
+                        result.unsupported = true;
+                    }
+                    _ => result.rejected = true,
+                }
+            }
+            if !valid {
+                return Ok(result);
+            }
+        }
+        if exact {
+            if let Some(value) = self.distinct_tuple(ctx, &items.data)? {
+                result.value = value;
+                return Ok(result);
+            }
+        }
+        let element = self.union(ctx, &elements.data)?;
+        result.value = if element == Atom::Never.fact() {
+            self.tuple(ctx, &[])?
+        } else {
+            self.array(ctx, element)?
+        };
+        Ok(result)
+    }
+
+    /// Whether an array argument may be a gradual value of another kind.
+    fn gradual_operand(&mut self, ctx: &mut CallContext, arg: Fact) -> Result<bool> {
+        for i in 0..self.arm_count(arg) {
+            ctx.charge(1)?;
+            if matches!(self.atom(self.arm(arg, i)), Some(Atom::Unknown | Atom::Any)) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    /// The tuple of `items` without later repeats of a set key, or `None` when
+    /// some duplicate decision is unknown.
+    fn distinct_tuple(&mut self, ctx: &mut CallContext, items: &[Fact]) -> Result<Option<Fact>> {
+        let mut kept: Buffer<Fact> = Buffer::empty();
+        'item: for &item in items {
+            ctx.charge(1)?;
+            for index in 0..kept.data.len() {
+                ctx.charge(1)?;
+                let earlier = kept.data[index];
+                let equal = self.set_equal(ctx, earlier, item)?;
+                match self.node(equal) {
+                    Node::Boolean(true) => continue 'item,
+                    Node::Boolean(false) => (),
+                    _ => return Ok(None),
+                }
+            }
+            kept.push(ctx, item)?;
+        }
+        Ok(Some(self.tuple(ctx, &kept.data)?))
     }
 
     /// Computes the exact tuple result when every membership and duplicate

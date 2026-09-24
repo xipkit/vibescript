@@ -1,4 +1,5 @@
-//! Members that walk nested collections: `join`, `inspect` and `flatten`.
+//! Members that walk nested collections: `join`, `inspect`, `to_s` and
+//! `flatten`.
 //!
 //! The runtime walks nested arrays with its own explicit stack. Analysis uses
 //! metered work lists over the fact graph, so deep facts never grow the Rust
@@ -167,6 +168,18 @@ impl Facts {
     ) -> Result<Operation> {
         let result = outcome(Atom::Never.fact());
         self.render_text(ctx, receiver, Rendering::Inspect, true, result)
+    }
+
+    /// Models `array.to_s` and `array.string`, which render like `join`
+    /// inside brackets: nested collections structurally and every other
+    /// value by native text conversion.
+    pub(super) fn text_member(
+        &mut self,
+        ctx: &mut CallContext,
+        receiver: Fact,
+    ) -> Result<Operation> {
+        let result = outcome(Atom::Never.fact());
+        self.render_text(ctx, receiver, Rendering::Join, true, result)
     }
 
     fn render_text(

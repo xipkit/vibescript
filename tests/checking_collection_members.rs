@@ -317,6 +317,96 @@ fn values_at_hash_projections_and_ranges_keep_selected_values() {
     )]);
 }
 
+#[test]
+fn keyed_lookups_remapping_and_set_members_follow_the_documented_examples() {
+    exact_ints(&[
+        ("{ a: [10, 20] }.dig(:a, 1)", 20),
+        ("[[1, [2, 3]]].dig(0, 1, 1)", 3),
+        ("[1, 2].union([2, 3], [3, 4]).length", 4),
+        ("[1, 2].union([2, 3], [3, 4]).last", 4),
+        ("[1, 2, 3, 2].difference([2], [3]).length", 1),
+        (
+            "{ first_name: 7 }.remap_keys({ first_name: :name })[:name]",
+            7,
+        ),
+        ("\"h\u{e9}llo\".byteslice(1, 2).length", 1),
+        ("[2, 3].to_s.length", 6),
+    ]);
+    exact_nils(&[
+        "{ a: 1 }.dig(:b)",
+        "[1].dig(-1)",
+        "{ a: 1 }.dig(:a, :b)",
+        "\"abc\".byteslice(5)",
+    ]);
+    invalid(&[
+        "[1].dig",
+        "[1].dig(\"x\")",
+        "[1].dig(0.5)",
+        "{ a: 1 }.dig(1)",
+        "[1].union(1)",
+        "[1].difference([1], nil)",
+        "[1].to_s(1)",
+        "{ a: 1 }.value?",
+        "{ a: 1 }.remap_keys(1)",
+        "{ a: 1 }.flatten(nil)",
+        "{ a: 1 }.flatten(1, 2)",
+        "\"abc\".byteslice(0..1, 1)",
+        "\"abc\".byteslice(\"a\")",
+    ]);
+    witnesses(vec![
+        (
+            "def run(h: hash) -> bool; h.value?(1); end",
+            vec![Value::hash(vec![(b"a".to_vec(), Value::int(1))])],
+            Value::boolean(true),
+        ),
+        (
+            "def run(xs: array<int>, ys: array<int>) -> array<int>; xs.union(ys); end",
+            vec![ints(&[1, 2]), ints(&[2, 3])],
+            ints(&[1, 2, 3]),
+        ),
+        (
+            "def run(s: string, n: int) -> string | nil; s.byteslice(0, n); end",
+            vec![Value::bytes("abc"), Value::int(2)],
+            Value::bytes("ab"),
+        ),
+        (
+            "def run(h: hash) -> hash; h.remap_keys({ a: :b }); end",
+            vec![Value::hash(vec![(b"a".to_vec(), Value::int(1))])],
+            Value::hash(vec![(b"b".to_vec(), Value::int(1))]),
+        ),
+        (
+            "def run -> array<string | int | array<int>>; { a: [1, [2]] }.flatten(2); end",
+            vec![],
+            Value::array(vec![Value::bytes("a"), Value::int(1), ints(&[2])]),
+        ),
+        (
+            "def run(h: hash<string, int>) -> array<string | int>; h.flatten(1); end",
+            vec![Value::hash(vec![(b"a".to_vec(), Value::int(1))])],
+            Value::array(vec![Value::bytes("a"), Value::int(1)]),
+        ),
+        (
+            "def run(rows: array<array<int>>) -> int | nil; rows.dig(0, 1); end",
+            vec![Value::array(vec![ints(&[1, 2])])],
+            Value::int(2),
+        ),
+    ]);
+    rescues(
+        &[
+            "def run(k) -> int; begin; [[1]].dig(0, k); 0; rescue; 'bad'; end; end",
+            "def run(m) -> int; begin; {a: 1}.remap_keys(m); 0; rescue; 'bad'; end; end",
+            "def run(x: array<int> | hash) -> int; begin; [x].dig(0, 0); 0; rescue; 'bad'; end; end",
+        ],
+        &[
+            "def run -> int; begin; {a: [1]}.dig(:a, 0); 0; rescue; 'bad'; end; end",
+            "def run -> int; begin; [1].union([2], []); 0; rescue; 'bad'; end; end",
+        ],
+    );
+    strict_arms(vec![(
+        "def run(ys: array<int> | int) -> array<int>; [1].union(ys); end",
+        ints(&[2]),
+    )]);
+}
+
 /// Site programs whose whole-file checks used to stop at one of these
 /// operations. Each now finishes analysis and still runs.
 #[test]

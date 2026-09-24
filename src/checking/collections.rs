@@ -7,6 +7,7 @@ use crate::{CallContext, Result, Value, budget::Buffer, bytecode::CallSite};
 
 mod capture_indexing;
 mod leaves;
+mod lookups;
 mod pairing;
 mod projection;
 mod ranges;
@@ -646,7 +647,13 @@ impl Facts {
             "include?" | "cover?" | "member?" if range => 1..=1,
             "to_a" if hash => 0..=0,
             "join" | "flatten" if array => 0..=1,
+            "flatten" if hash => 0..=1,
             "transpose" if array => 0..=0,
+            "to_s" | "string" if array => 0..=0,
+            "union" | "difference" if array => 0..=usize::MAX,
+            "dig" if array || hash => 1..=usize::MAX,
+            "value?" | "has_value?" | "remap_keys" if hash => 1..=1,
+            "byteslice" if string => 1..=2,
             "zip" if array => 0..=usize::MAX,
             "values_at" if array || hash => 0..=usize::MAX,
             "slice" | "except" if hash => 0..=usize::MAX,
@@ -682,7 +689,15 @@ impl Facts {
             }
             "join" if array => self.join_member(ctx, receiver, args),
             "flatten" if array => self.flatten_member(ctx, receiver, args),
+            "flatten" if hash => self.hash_flatten_member(ctx, receiver, args),
             "transpose" if array => self.transpose_member(ctx, receiver),
+            "to_s" | "string" if array => self.text_member(ctx, receiver),
+            "union" if array => self.union_member(ctx, receiver, args),
+            "difference" if array => self.difference_member(ctx, receiver, args),
+            "dig" => self.dig_member(ctx, receiver, args),
+            "value?" | "has_value?" if hash => self.has_value_member(ctx, receiver, args[0]),
+            "remap_keys" if hash => self.remap_keys_member(ctx, receiver, args[0]),
+            "byteslice" if string => self.byteslice_member(ctx, receiver, args),
             "zip" if array => self.zip_member(ctx, receiver, args),
             "values_at" => self.values_at_member(ctx, receiver, args),
             "slice" if hash => self.slice_member(ctx, receiver, args),

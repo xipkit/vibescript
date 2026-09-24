@@ -231,7 +231,7 @@ fn member_contracts(names: &[&str]) -> (usize, usize) {
 fn nested_walk_members_contain_runtime_results() {
     assert_eq!(
         member_contracts(&["join", "inspect", "flatten"]),
-        (3_450, 1_518)
+        (3_450, 1_656)
     );
 }
 
@@ -247,6 +247,21 @@ fn regrouping_members_contain_runtime_results() {
 fn projection_members_contain_runtime_results() {
     let names = ["values_at", "slice", "except", "compact", "to_a"];
     assert_eq!(member_contracts(&names), (5_750, 2_760));
+}
+
+#[test]
+fn keyed_lookup_and_set_members_contain_runtime_results() {
+    let names = [
+        "dig",
+        "value?",
+        "remap_keys",
+        "flatten",
+        "union",
+        "difference",
+        "to_s",
+        "byteslice",
+    ];
+    assert_eq!(member_contracts(&names), (9_200, 3_312));
 }
 
 fn accounting(ctx: &mut CallContext) -> crate::Result<()> {

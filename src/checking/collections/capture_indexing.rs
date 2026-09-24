@@ -8,10 +8,10 @@ use crate::{
     },
 };
 
-struct Field {
-    value: Fact,
-    missing: bool,
-    unknown_lookup: bool,
+pub(super) struct Field {
+    pub(super) value: Fact,
+    pub(super) missing: bool,
+    pub(super) unknown_lookup: bool,
 }
 
 impl Facts {
@@ -96,7 +96,7 @@ impl Facts {
 
     // This is Hash::find, not another capture-index operation. A stored nil
     // shadows a named capture, and named_captures never follows its own fallback.
-    fn stored_capture_field(
+    pub(super) fn stored_capture_field(
         &mut self,
         ctx: &mut CallContext,
         mut receiver: Fact,

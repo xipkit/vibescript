@@ -497,7 +497,7 @@ impl Facts {
     }
 
     /// Every value a hash may store.
-    fn stored_values(&mut self, ctx: &mut CallContext, receiver: Fact) -> Result<Fact> {
+    pub(super) fn stored_values(&mut self, ctx: &mut CallContext, receiver: Fact) -> Result<Fact> {
         match self.node(receiver) {
             Node::Hash(_, values, _) => Ok(*values),
             Node::Shape(..) => self.shape_values(ctx, receiver, false),
