@@ -30,19 +30,19 @@ fn exact_definition<S: AsRef<str>>(program: &Outline, lines: &[S], word: &str) -
     for item in &program.items {
         match item.kind {
             ItemKind::Function if item.name == word => {
-                return anchored_location(lines, item, &item.name);
+                return anchored_location(lines, item, 0);
             }
             ItemKind::Class | ItemKind::Module => {
-                if let Some(location) = class_definition(item, lines, word) {
+                if let Some(location) = class_definition(item, lines, word, 0) {
                     return Some(location);
                 }
             }
             ItemKind::Enum => {
                 if item.name == word {
-                    return anchored_location(lines, item, &item.name);
+                    return anchored_location(lines, item, 0);
                 }
                 if let Some(member) = item.children.iter().find(|member| member.name == word) {
-                    return anchored_location(lines, member, &member.name);
+                    return anchored_location(lines, member, child_shift(lines, item, 0));
                 }
             }
             _ => (),
@@ -53,16 +53,23 @@ fn exact_definition<S: AsRef<str>>(program: &Outline, lines: &[S], word: &str) -
 
 /// Resolves a word within one class or module: its name, its methods, its
 /// module constants and its nested modules.
-fn class_definition<S: AsRef<str>>(item: &Item, lines: &[S], word: &str) -> Option<Range> {
+fn class_definition<S: AsRef<str>>(
+    item: &Item,
+    lines: &[S],
+    word: &str,
+    shift: i64,
+) -> Option<Range> {
     if item.name == word {
-        return anchored_location(lines, item, &item.name);
+        return anchored_location(lines, item, shift);
     }
+    let members = child_shift(lines, item, shift);
     for kind in [ItemKind::Method, ItemKind::ClassMethod, ItemKind::Constant] {
         if let Some(member) = children(item, kind).find(|member| member.name == word) {
-            return anchored_location(lines, member, &member.name);
+            return anchored_location(lines, member, members);
         }
     }
-    children(item, ItemKind::Module).find_map(|nested| class_definition(nested, lines, word))
+    children(item, ItemKind::Module)
+        .find_map(|nested| class_definition(nested, lines, word, members))
 }
 
 /// A class or module's children of one kind, in declaration order.
@@ -73,9 +80,31 @@ pub(crate) fn children(item: &Item, kind: ItemKind) -> impl Iterator<Item = &Ite
         .filter(move |child| constants && child.kind == kind)
 }
 
-fn anchored_location<S: AsRef<str>>(lines: &[S], item: &Item, name: &str) -> Option<Range> {
-    let line = anchor_line(lines, item.position.line, name)?;
-    Some(location(lines, line, name))
+fn anchored_location<S: AsRef<str>>(lines: &[S], item: &Item, shift: i64) -> Option<Range> {
+    let line = anchor(lines, item, shift)?;
+    Some(location(lines, line, &item.name))
+}
+
+/// The one-based line where an item was declared, moved by `shift`.
+fn expected_line(item: &Item, shift: i64) -> usize {
+    usize::try_from(item.position.line as i64 + shift).unwrap_or(0)
+}
+
+/// Anchors an item whose recorded line has moved by `shift` lines.
+fn anchor<S: AsRef<str>>(lines: &[S], item: &Item, shift: i64) -> Option<usize> {
+    anchor_line(lines, expected_line(item, shift), &item.name)
+}
+
+/// How far a container's members moved: as far as the container itself, when
+/// it can still be found. A declaration parsed before lines were inserted or
+/// removed then anchors its members near it rather than to the first line
+/// declaring a member of the same name elsewhere. With a current parse the
+/// shift is zero.
+fn child_shift<S: AsRef<str>>(lines: &[S], item: &Item, shift: i64) -> i64 {
+    match anchor(lines, item, shift) {
+        Some(line) => line as i64 + 1 - item.position.line as i64,
+        None => shift,
+    }
 }
 
 /// The zero-based line currently declaring `name`: the recorded line when it
@@ -189,21 +218,24 @@ pub(crate) fn symbols<S: AsRef<str>>(program: Option<&Outline>, lines: &[S]) -> 
     for item in &program.items {
         match item.kind {
             ItemKind::Function => {
-                push_symbol(
-                    &mut symbols,
-                    lines,
-                    item,
-                    &item.name,
-                    SymbolKind::Function,
-                    Vec::new(),
-                );
+                let kind = SymbolKind::Function;
+                push_symbol(&mut symbols, lines, item, &item.name, kind, 0, Vec::new());
             }
-            ItemKind::Class | ItemKind::Module => push_class(&mut symbols, lines, item),
+            ItemKind::Class | ItemKind::Module => push_class(&mut symbols, lines, item, 0),
             ItemKind::Enum => {
+                let shift = child_shift(lines, item, 0);
                 let mut members = Vec::new();
                 for member in &item.children {
                     let kind = SymbolKind::EnumMember;
-                    push_symbol(&mut members, lines, member, &member.name, kind, Vec::new());
+                    push_symbol(
+                        &mut members,
+                        lines,
+                        member,
+                        &member.name,
+                        kind,
+                        shift,
+                        Vec::new(),
+                    );
                 }
                 push_symbol(
                     &mut symbols,
@@ -211,6 +243,7 @@ pub(crate) fn symbols<S: AsRef<str>>(program: Option<&Outline>, lines: &[S]) -> 
                     item,
                     &item.name,
                     SymbolKind::Enum,
+                    0,
                     members,
                 );
             }
@@ -220,28 +253,25 @@ pub(crate) fn symbols<S: AsRef<str>>(program: Option<&Outline>, lines: &[S]) -> 
     symbols
 }
 
-fn push_class<S: AsRef<str>>(symbols: &mut Vec<Symbol>, lines: &[S], item: &Item) {
+fn push_class<S: AsRef<str>>(symbols: &mut Vec<Symbol>, lines: &[S], item: &Item, shift: i64) {
+    let inner = child_shift(lines, item, shift);
     let mut members = Vec::new();
     for method in children(item, ItemKind::Method) {
+        let kind = SymbolKind::Method;
         push_symbol(
             &mut members,
             lines,
             method,
             &method.name,
-            SymbolKind::Method,
+            kind,
+            inner,
             Vec::new(),
         );
     }
     for method in children(item, ItemKind::ClassMethod) {
         let name = format!("self.{}", method.name);
-        push_symbol(
-            &mut members,
-            lines,
-            method,
-            &name,
-            SymbolKind::Method,
-            Vec::new(),
-        );
+        let kind = SymbolKind::Method;
+        push_symbol(&mut members, lines, method, &name, kind, inner, Vec::new());
     }
     for constant in children(item, ItemKind::Constant) {
         let kind = SymbolKind::Constant;
@@ -251,18 +281,19 @@ fn push_class<S: AsRef<str>>(symbols: &mut Vec<Symbol>, lines: &[S], item: &Item
             constant,
             &constant.name,
             kind,
+            inner,
             Vec::new(),
         );
     }
     for nested in children(item, ItemKind::Module) {
-        push_class(&mut members, lines, nested);
+        push_class(&mut members, lines, nested, inner);
     }
     let kind = if item.kind == ItemKind::Module {
         SymbolKind::Module
     } else {
         SymbolKind::Class
     };
-    push_symbol(symbols, lines, item, &item.name, kind, members);
+    push_symbol(symbols, lines, item, &item.name, kind, shift, members);
 }
 
 /// Appends a symbol re-anchored in the live buffer, or drops it with its
@@ -273,9 +304,10 @@ fn push_symbol<S: AsRef<str>>(
     item: &Item,
     name: &str,
     kind: SymbolKind,
+    shift: i64,
     children: Vec<Symbol>,
 ) {
-    if let Some(line) = anchor_line(lines, item.position.line, &item.name) {
+    if let Some(line) = anchor(lines, item, shift) {
         symbols.push(symbol(name, kind, line, lines, children));
     }
 }

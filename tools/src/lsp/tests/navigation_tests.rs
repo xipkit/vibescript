@@ -271,3 +271,27 @@ fn definitions_use_utf16_offsets() {
     assert_eq!(location["range"]["end"], json!({"line": 0, "character": 8}));
     assert!(result(&mut server, "textDocument/definition", uri, 4, 6).is_null());
 }
+
+#[test]
+fn members_follow_their_container_when_lines_shift() {
+    let mut server = server();
+    let uri = "file:///tmp/duplicate-members.vibe";
+    let source = "enum Status\n  Draft\nend\n\nenum Review\n  Draft\nend\n";
+    open(&mut server, uri, source);
+    // Two inserted lines and a broken tail keep the stale outline in use.
+    change(
+        &mut server,
+        uri,
+        &format!("# one\n# two\n{source}def broken(\n"),
+    );
+    let symbols = symbols(&mut server, uri);
+    let lines: Vec<i64> = symbols
+        .iter()
+        .map(|symbol| {
+            symbol["children"][0]["range"]["start"]["line"]
+                .as_i64()
+                .unwrap()
+        })
+        .collect();
+    assert_eq!(lines, [3, 7]);
+}
