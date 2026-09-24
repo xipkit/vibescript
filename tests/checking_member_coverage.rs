@@ -198,14 +198,12 @@ fn member_names() -> Vec<&'static str> {
     names
 }
 
-/// Classifies each `forms` call, with `{}` replaced by every member name, on
+/// Classifies each `forms` call, with `{}` replaced by each of `names`, on
 /// each receiver, and asserts that checker and runtime agree on all of them.
 /// Receivers are independent, so they are classified in parallel.
-fn agree(receivers: fn() -> Vec<Receiver>, forms: &[&str]) {
-    let names = member_names();
+fn agree(receivers: fn() -> Vec<Receiver>, names: &[&str], forms: &[&str]) {
     let count = receivers().len();
     let found: Vec<Vec<(Mismatch, String)>> = std::thread::scope(|scope| {
-        let names = &names;
         let workers: Vec<_> = (0..count)
             .map(|index| {
                 scope.spawn(move || {
@@ -252,7 +250,7 @@ fn agree(receivers: fn() -> Vec<Receiver>, forms: &[&str]) {
 fn builtin_members_agree_with_the_runtime_in_every_call_shape() {
     let forms: Vec<String> = SHAPES.iter().map(|shape| format!(".{{}}{shape}")).collect();
     let forms: Vec<&str> = forms.iter().map(String::as_str).collect();
-    agree(receivers, &forms);
+    agree(receivers, &member_names(), &forms);
 }
 
 /// Arrays whose elements are the receivers of a reduction's named member.
@@ -279,8 +277,10 @@ fn reductions() -> Vec<Receiver> {
 
 #[test]
 fn members_named_by_symbols_agree_with_the_runtime() {
+    let names = member_names();
     agree(
         reductions,
+        &names,
         &[
             ".reduce(:{})",
             ".inject(:{})",
@@ -291,6 +291,7 @@ fn members_named_by_symbols_agree_with_the_runtime() {
     );
     agree(
         receivers,
+        &names,
         &[
             ".send(:{})",
             ".public_send(:{}, 1)",
@@ -300,6 +301,66 @@ fn members_named_by_symbols_agree_with_the_runtime() {
             ".respond_to?(:{})",
         ],
     );
+}
+
+/// The global namespaces, whose members are builtin functions.
+fn namespaces() -> Vec<Receiver> {
+    [
+        "Hash", "Regexp", "Regex", "Time", "Duration", "JSON", "Math",
+    ]
+    .into_iter()
+    .map(|expression| Receiver {
+        parameter: None,
+        witness: Vec::new(),
+        expression,
+    })
+    .collect()
+}
+
+#[test]
+fn namespace_members_agree_with_the_runtime_in_every_call_shape() {
+    let mut names = member_names();
+    names.extend([
+        "new",
+        "escape",
+        "last_match",
+        "quote",
+        "union",
+        "match",
+        "replace",
+        "replace_all",
+        "at",
+        "gm",
+        "local",
+        "mktime",
+        "now",
+        "parse",
+        "utc",
+        "build",
+        "parse_as",
+        "stringify",
+        "E",
+        "PI",
+        "acos",
+        "asin",
+        "atan",
+        "atan2",
+        "cbrt",
+        "cos",
+        "exp",
+        "hypot",
+        "log",
+        "log10",
+        "log2",
+        "sin",
+        "sqrt",
+        "tan",
+    ]);
+    names.sort_unstable();
+    names.dedup();
+    let forms: Vec<String> = SHAPES.iter().map(|shape| format!(".{{}}{shape}")).collect();
+    let forms: Vec<&str> = forms.iter().map(String::as_str).collect();
+    agree(namespaces, &names, &forms);
 }
 
 /// Unions of receiver kinds. A known error on one arm is a contradiction by

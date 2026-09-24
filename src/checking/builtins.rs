@@ -510,17 +510,12 @@ fn member_arm(
     if values::supported(facts, receiver, name) {
         return values::member(ctx, facts, receiver, site, name, args).map(Some);
     }
-    // Plain collection arms return to the caller, which applies the native
-    // call-shape refusals.
-    if args.block.is_some()
-        && (matches!(facts.node(receiver), Node::TypeValue(_)) || namespace(ctx, facts, receiver)?)
-    {
-        let mut result = outcome(Atom::Never.fact());
-        result.incomplete = true;
-        return Ok(Some(result));
-    }
     if let Node::TypeValue(_) = facts.node(receiver) {
         let mut result = outcome(Atom::Never.fact());
+        if args.block.is_some() {
+            result.incomplete = true;
+            return Ok(Some(result));
+        }
         if site.scope || !matches!(name, "nil?" | "itself" | "dup") {
             result.failures.push(ctx, Failure::Undefined)?;
         } else if !args.positional.data.is_empty() || !args.keywords.data.is_empty() {
@@ -547,6 +542,13 @@ fn member_arm(
         result.failures.push(ctx, Failure::Undefined)?;
         return Ok(Some(result));
     };
+    // Hash members a namespace shares with plain hashes returned above, so the
+    // caller applies their native call-shape rules; its own members stop here.
+    if args.block.is_some() {
+        let mut result = outcome(Atom::Never.fact());
+        result.incomplete = true;
+        return Ok(Some(result));
+    }
     let Node::Builtin(builtin) = facts.node(field) else {
         if !site.scope {
             return Ok(None);
