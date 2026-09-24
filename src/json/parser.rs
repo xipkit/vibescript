@@ -79,6 +79,24 @@ impl Failure {
 }
 
 /// Quotes one input byte as Go's `%q` renders a byte: a rune literal.
+/// Reads an integer literal, `-?[0-9]+`, as `str::parse::<i64>` does, or
+/// returns `None` when it does not fit.
+fn integer(text: &[u8]) -> Option<i64> {
+    let (negative, digits) = match text {
+        [b'-', digits @ ..] => (true, digits),
+        _ => (false, text),
+    };
+    digits.iter().try_fold(0i64, |n, &digit| {
+        let digit = i64::from(digit - b'0');
+        let n = n.checked_mul(10)?;
+        if negative {
+            n.checked_sub(digit)
+        } else {
+            n.checked_add(digit)
+        }
+    })
+}
+
 fn quote_byte(byte: u8, out: &mut impl std::fmt::Write) -> std::fmt::Result {
     let rune = char::from(byte);
     out.write_char('\'')?;
@@ -509,10 +527,10 @@ impl<'a> Parser<'a> {
                 return self.err("invalid JSON exponent", Failure::Number(start, self.pos));
             }
         }
-        let text = std::str::from_utf8(&self.input[start..self.pos]).unwrap();
+        let text = &self.input[start..self.pos];
         self.ctx.work_bytes(text.len())?;
         if float {
-            let n = super::parse_float(self.ctx, text.as_bytes())?;
+            let n = super::parse_float(self.ctx, text)?;
             if !n.is_finite() {
                 return self.err(
                     "JSON number outside finite f64 range",
@@ -520,10 +538,10 @@ impl<'a> Parser<'a> {
                 );
             }
             Ok(Value::float(n))
-        } else if let Ok(n) = text.parse::<i64>() {
+        } else if let Some(n) = integer(text) {
             Ok(Value::int(n))
         } else {
-            crate::integer::parse_digits(self.ctx, text.as_bytes(), 10)
+            crate::integer::parse_digits(self.ctx, text, 10)
         }
     }
 
@@ -641,6 +659,39 @@ mod tests {
                     out.extend(this.ctx, ch.encode_utf8(&mut buf).as_bytes())?;
                 }
             }
+        }
+    }
+
+    #[test]
+    fn integer_literals_read_as_str_parse_does() {
+        let mut cases: Vec<String> = [
+            "0",
+            "-0",
+            "7",
+            "-7",
+            "9223372036854775807",
+            "9223372036854775808",
+            "-9223372036854775808",
+            "-9223372036854775809",
+            "99999999999999999999",
+            "-100000000000000000000",
+        ]
+        .map(String::from)
+        .to_vec();
+        let mut n = 1u64;
+        for _ in 0..200 {
+            n = n
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            let digits = (n >> 7).to_string();
+            cases.push(digits[..1 + (n as usize % digits.len())].to_string());
+            cases.push(format!(
+                "-{}",
+                &digits[..1 + (n as usize >> 3) % digits.len()]
+            ));
+        }
+        for text in cases {
+            assert_eq!(integer(text.as_bytes()), text.parse::<i64>().ok(), "{text}");
         }
     }
 
