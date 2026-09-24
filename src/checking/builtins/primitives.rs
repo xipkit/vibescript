@@ -88,8 +88,10 @@ pub(super) fn supported(
     if universal(name) {
         return Ok(match facts.node(receiver) {
             Node::Named(_) | Node::Nominal { .. } => false,
+            // Callers resolve stored-field overrides first, so only a
+            // namespace's own callable member replaces the native helper.
             Node::Hash(_, _, kind) | Node::Shape(_, _, _, kind) if !kind.plain() => {
-                namespace(ctx, facts, receiver)? && !namespace_call(ctx, facts, receiver, name)?
+                !namespace(ctx, facts, receiver)? || !namespace_call(ctx, facts, receiver, name)?
             }
             Node::Atom(Atom::Unknown | Atom::Any | Atom::Never) => false,
             _ => true,

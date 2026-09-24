@@ -504,6 +504,28 @@ fn keyword_and_block_shapes_follow_the_runtime_refusals() {
     )]);
 }
 
+#[test]
+fn universal_helpers_on_general_hashes_use_the_native_helper() {
+    let object = Value::object(vec![(b"a".to_vec(), Value::int(1))]);
+    witnesses(vec![
+        (
+            "def run(x: hash) -> bool; x.frozen?; end",
+            vec![object.clone()],
+            Value::boolean(true),
+        ),
+        (
+            "def run(x: hash) -> bool; x.is_type?(:hash); end",
+            vec![object.clone()],
+            Value::boolean(true),
+        ),
+        (
+            "def run(x: hash) -> hash; x.clone; end",
+            vec![object.clone()],
+            object,
+        ),
+    ]);
+}
+
 /// Site programs whose whole-file checks used to stop at one of these
 /// operations. Each now finishes analysis and still runs.
 #[test]
