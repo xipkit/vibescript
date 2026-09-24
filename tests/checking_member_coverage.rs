@@ -1,6 +1,8 @@
 //! Walks every builtin member name on each receiver kind across call shapes and
 //! holds the checker to what the runtime does with the same expression.
 
+mod common;
+
 use std::collections::BTreeMap;
 use vibescript::{CallOptions, CheckReport, Engine, ErrorKind, Script, Value};
 
@@ -203,7 +205,7 @@ fn member_names() -> Vec<&'static str> {
 /// Receivers are independent, so they are classified in parallel.
 fn agree(receivers: fn() -> Vec<Receiver>, names: &[&str], forms: &[&str]) {
     let count = receivers().len();
-    let found: Vec<Vec<(Mismatch, String)>> = std::thread::scope(|scope| {
+    let found: Vec<Vec<(Mismatch, String)>> = common::scope(|scope| {
         let workers: Vec<_> = (0..count)
             .map(|index| {
                 scope.spawn(move || {
@@ -384,7 +386,7 @@ const UNIONS: &[&str] = &[
 #[test]
 fn members_of_union_receivers_are_analyzed() {
     let names = member_names();
-    let incomplete: Vec<String> = std::thread::scope(|scope| {
+    let incomplete: Vec<String> = common::scope(|scope| {
         let names = &names;
         let workers: Vec<_> = UNIONS
             .iter()
