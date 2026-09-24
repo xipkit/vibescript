@@ -62,6 +62,7 @@ mod sequence;
 mod sets;
 mod shapes;
 mod signature;
+pub mod signatures;
 mod sort;
 mod source;
 mod syntax;
