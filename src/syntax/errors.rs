@@ -146,8 +146,9 @@ impl Parsing<'_> {
             ensure: Buffer::new(),
         };
         let depth = attempt.depth();
+        // Go locates a rescue modifier at its keyword.
         self.p()
-            .make_at(Node::Try(Boxed::new(work, attempt)?), depth, offset)
+            .make_at(Node::Try(Boxed::new(work, attempt)?), depth, rescue_offset)
     }
 }
 
