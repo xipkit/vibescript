@@ -293,28 +293,40 @@ impl Facts {
             (self.node(receiver), self.node(index))
         {
             let (open, plain, keys, key) = (*open, *plain, *keys, key.clone());
-            let mut copied = Buffer::empty();
-            for field in &fields.data {
+            // Interned fields are sorted by name without duplicates, so the written field
+            // replaces its namesake or goes where sorting would put it.
+            let name = key.as_bytes().unwrap();
+            let search = fields.data.len().max(1).ilog2() as usize + 1;
+            ctx.work_bytes(name.len().saturating_add(1).saturating_mul(search))?;
+            let position = fields
+                .data
+                .binary_search_by(|field| field.name.as_bytes().unwrap().cmp(name));
+            let written = |name: &crate::Value| Field {
+                name: name.clone(),
+                value,
+                optional: false,
+            };
+            let mut copied = Buffer::with_capacity(ctx, fields.data.len() + 1)?;
+            for (index, field) in fields.data.iter().enumerate() {
                 ctx.charge(1)?;
-                copied.push(
-                    ctx,
+                if position == Err(index) {
+                    copied.data.push(written(&key));
+                }
+                copied.data.push(if position == Ok(index) {
+                    written(&field.name)
+                } else {
                     Field {
                         name: field.name.clone(),
                         value: field.value,
                         optional: field.optional,
-                    },
-                )?;
+                    }
+                });
             }
-            copied.push(
-                ctx,
-                Field {
-                    name: key,
-                    value,
-                    optional: false,
-                },
-            )?;
+            if position == Err(fields.data.len()) {
+                copied.data.push(written(&key));
+            }
             let keys = self.union(ctx, &[keys, Atom::String.fact()])?;
-            let updated = self.shape_fields(ctx, copied, open, keys, plain.untagged())?;
+            let updated = self.sorted_shape(ctx, copied, open, keys, plain.untagged())?;
             return Ok(Mutation::new(updated, value));
         }
         let (keys, values) = self.hash_contents(ctx, receiver)?;

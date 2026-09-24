@@ -846,6 +846,24 @@ impl Facts {
         self.intern(ctx, Node::Shape(fields, open, keys, kind.into()))
     }
 
+    /// Interns shape fields that are already sorted by name without duplicates, as
+    /// [`Self::shape_fields`] leaves them.
+    pub(super) fn sorted_shape(
+        &mut self,
+        ctx: &mut CallContext,
+        fields: Buffer<Field>,
+        open: bool,
+        keys: Fact,
+        kind: impl Into<HashKind>,
+    ) -> Result<Fact> {
+        debug_assert!(
+            fields
+                .data
+                .is_sorted_by(|a, b| a.name.as_bytes() < b.name.as_bytes())
+        );
+        self.intern(ctx, Node::Shape(fields, open, keys, kind.into()))
+    }
+
     pub fn nominal(
         &mut self,
         ctx: &mut CallContext,
