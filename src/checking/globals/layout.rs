@@ -20,6 +20,9 @@ pub(in crate::checking) struct Source {
     pub namespaces: Range<usize>,
     pub import: Option<usize>,
     pub activation: Option<usize>,
+    /// A receiving root's flag for exports and aliases that a `require` with a name known
+    /// only at runtime may have published.
+    pub exports: Option<usize>,
     _charge: Option<Charge>,
 }
 
@@ -306,6 +309,7 @@ impl Storage {
             namespaces: 0..0,
             import: None,
             activation: None,
+            exports: None,
             _charge: ctx.reserve(size_of::<Source>() + 2 * size_of::<usize>())?,
         };
         for (global, value) in &program.globals {
@@ -403,6 +407,16 @@ impl Storage {
         }
         if captured.is_some() {
             mapped.activation = Some(data.push(ctx, Atom::Nil.fact(), false)?);
+        }
+        // Only a receiving script that can reach `require` can load files that publish.
+        if receiving == source
+            && program
+                .globals
+                .iter()
+                .any(|(global, _)| matches!(global, Global::Require))
+        {
+            let published = facts.boolean(ctx, false)?;
+            mapped.exports = Some(data.push(ctx, published, false)?);
         }
         data.sources.push(ctx, Arc::new(mapped))?;
         self.layout = Layout(Some(Arc::new(data)));

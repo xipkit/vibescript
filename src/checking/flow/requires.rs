@@ -46,7 +46,7 @@ impl Walker<'_> {
             );
         }
         let mut aliases = Buffer::empty();
-        aliases.push(self.ctx, None)?;
+        aliases.push(self.ctx, Alias::Absent)?;
         for keyword in &args.keywords.data {
             self.ctx.charge(1)?;
             let key = match self.facts.node(keyword.name) {
@@ -70,7 +70,13 @@ impl Walker<'_> {
                 let value = match self.facts.node(arm) {
                     Node::String(name) | Node::Symbol(name) => name.clone(),
                     Node::Atom(Atom::Unknown | Atom::Any | Atom::String | Atom::Symbol) => {
-                        self.incomplete(pc)?;
+                        if !aliases
+                            .data
+                            .iter()
+                            .any(|alias| matches!(alias, Alias::Unknown))
+                        {
+                            aliases.push(self.ctx, Alias::Unknown)?;
+                        }
                         continue;
                     }
                     _ => {
@@ -86,7 +92,7 @@ impl Walker<'_> {
                     }
                 };
                 match alias(self.ctx, &value)? {
-                    Some(name) => aliases.push(self.ctx, Some(name))?,
+                    Some(name) => aliases.push(self.ctx, Alias::Named(name))?,
                     None => self.require_error(
                         state,
                         pc,
@@ -96,6 +102,7 @@ impl Walker<'_> {
             }
         }
         let input = args.positional.data[0];
+        let mut unknown = false;
         for alias in aliases.data {
             for index in 0..self.facts.arm_count(input) {
                 self.ctx.charge(1)?;
@@ -103,7 +110,10 @@ impl Walker<'_> {
                 let name = match self.facts.node(arm) {
                     Node::String(name) | Node::Symbol(name) => name.clone(),
                     Node::Atom(Atom::Unknown | Atom::Any | Atom::String | Atom::Symbol) => {
-                        self.incomplete(pc)?;
+                        if !unknown {
+                            unknown = true;
+                            self.require_unknown(state, pc)?;
+                        }
                         continue;
                     }
                     _ => {
@@ -119,8 +129,50 @@ impl Walker<'_> {
                     }
                 };
                 let next = state.snapshot(self.ctx)?;
-                self.require_named(next, pc, name, alias.as_ref())?;
+                self.require_named(next, pc, name, &alias)?;
             }
+        }
+        Ok(())
+    }
+
+    /// Requires a file whose name is known only at runtime.
+    ///
+    /// Any file may fail, or run code and publish exports that this analysis cannot list,
+    /// so the call behaves like an unknown call that also marks those publications.
+    fn require_unknown(&mut self, state: &State, pc: usize) -> Result<()> {
+        let mut next = state.snapshot(self.ctx)?;
+        self.unknown_call_effects(&mut next, pc)?;
+        self.emit_error(&next, pc, u8::MAX)?;
+        self.publish_unknown(&mut next, pc)?;
+        next.stack
+            .push(self.ctx, Operand::new(Atom::Unknown.fact()))?;
+        self.native_continue(pc, next)
+    }
+
+    fn exports_slot(&mut self, state: &State) -> Result<Option<usize>> {
+        let receiving = state
+            .global_layout
+            .source(self.ctx, state.source_slots.receiving)?;
+        Ok(receiving
+            .exports
+            .filter(|&slot| slot < state.global_count)
+            .map(|slot| state.global_base + slot))
+    }
+
+    /// Reports whether a `require` may have published names that the analysis cannot list,
+    /// so that a name missing from every known scope may still resolve at runtime.
+    pub(super) fn unknown_exports(&mut self, state: &State) -> Result<bool> {
+        let Some(slot) = self.exports_slot(state)? else {
+            return Ok(false);
+        };
+        let value = state.locals.get(self.ctx, slot)?.value;
+        Ok(self.facts.filter(self.ctx, value, Test::Truth, true)? != Atom::Never.fact())
+    }
+
+    fn publish_unknown(&mut self, state: &mut State, pc: usize) -> Result<()> {
+        if let Some(slot) = self.exports_slot(state)? {
+            let published = self.facts.boolean(self.ctx, true)?;
+            self.store(state, pc, slot, Operand::new(published))?;
         }
         Ok(())
     }
@@ -130,10 +182,10 @@ impl Walker<'_> {
         mut next: State,
         pc: usize,
         name: Value,
-        alias: Option<&Value>,
+        alias: &Alias,
     ) -> Result<()> {
         let mut bindings = Buffer::empty();
-        if let Some(value) = alias {
+        if let Alias::Named(value) = alias {
             let alias_name = std::str::from_utf8(value.as_bytes().unwrap()).unwrap();
             if let Some(slot) = self.root_index(&next, alias_name)? {
                 let slot = next.global_base + slot;
@@ -150,7 +202,10 @@ impl Walker<'_> {
         }
         let request = Require {
             name,
-            alias: alias.cloned(),
+            alias: match alias {
+                Alias::Named(value) => Some(value.clone()),
+                Alias::Absent | Alias::Unknown => None,
+            },
             bindings,
         };
         let current_error = next.current_error(self.ctx, self.current_error)?;
@@ -167,7 +222,17 @@ impl Walker<'_> {
         if result.incomplete {
             self.incomplete(pc)?;
         }
+        // An alias known only at runtime can be invalid or already bound, which fails before
+        // the file runs. Otherwise it publishes the exports under a name the analysis cannot
+        // list, and the file's own exports publish as usual.
+        let unknown = matches!(alias, Alias::Unknown) && !result.exits.data.is_empty();
+        if unknown {
+            self.emit_error(&next, pc, handlers::bit(ErrorClass::Runtime))?;
+        }
         if !result.exits.data.is_empty() && self.global_exits(&mut next, pc, result.exits)? {
+            if unknown {
+                self.publish_unknown(&mut next, pc)?;
+            }
             self.native_continue(pc, next)?;
         }
         Ok(())
@@ -232,4 +297,12 @@ fn alias(ctx: &mut CallContext, value: &Value) -> Result<Option<Value>> {
         return Ok(None);
     }
     ctx.bytes(name.as_bytes()).map(Some)
+}
+
+/// The `as:` alias of a `require` call.
+enum Alias {
+    Absent,
+    Named(Value),
+    /// A string or symbol known only at runtime.
+    Unknown,
 }

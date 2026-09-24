@@ -254,9 +254,11 @@ fn assert_stats_line(line: &str) {
 
 const ADD: &str = "puts \"top\"\ndef run(x:int) -> int\n  puts \"ran\"\n  x + 1\nend\n";
 const ADD_FRAME: &str = "  --> line 2, column 1\n 2 | def run(x:int) -> int\n   | ^\n";
-const INCOMPLETE: &str = "def run\n  puts \"ran\"\n  require(JSON.parse('null'))\nend\n";
-const INCOMPLETE_FRAME: &str =
-    "  --> line 3, column 3\n 3 |   require(JSON.parse('null'))\n   |   ^\n";
+// A block parameter's same-name call skips the parameter and reaches an enclosing
+// binding whose own enclosing scope the analysis does not follow.
+const INCOMPLETE: &str =
+    "def run\n  puts \"ran\"\n  x = 1; [1].each { |x| [2].each { x = x() } }\nend\n";
+const INCOMPLETE_FRAME: &str = "  --> line 3, column 40\n 3 |   x = 1; [1].each { |x| [2].each { x = x() } }\n   |                                        ^\n";
 
 #[test]
 fn runs_top_level_statements_and_prints_the_final_value_as_json() {
@@ -496,7 +498,7 @@ fn check_reports_incomplete_analysis_distinctly_and_never_executes() {
     assert_eq!(run.stdout, "");
     let (first, rest) = run.stderr.split_once('\n').unwrap();
     assert!(
-        first.starts_with(&format!("{file}:3:3: incomplete in run: ")),
+        first.starts_with(&format!("{file}:3:40: incomplete in <block>: ")),
         "{first}"
     );
     assert!(!first.contains("error"), "{first}");
@@ -509,7 +511,7 @@ fn check_reports_incomplete_analysis_distinctly_and_never_executes() {
     assert_eq!(run.stdout, "");
     let (first, rest) = run.stderr.split_once('\n').unwrap();
     assert!(
-        first.starts_with(&format!("{file}:3:3: incomplete in run: ")),
+        first.starts_with(&format!("{file}:3:40: incomplete in <block>: ")),
         "{first}"
     );
     let summary = format!("{file}: check of run found 1 incomplete path; nothing was executed\n");
@@ -1163,8 +1165,9 @@ fn check_command_reports_incomplete_analysis_distinctly_and_never_executes() {
     let files = Files::new();
     let file = files.write("incomplete.vibe", INCOMPLETE);
     // Incomplete analysis is an issue too, marked as such, and never clean.
-    let issue =
-        format!("{file}:3:3: incomplete: Analysis of this expression is not implemented (run)\n");
+    let issue = format!(
+        "{file}:3:40: incomplete: Analysis of this expression is not implemented (<block>)\n"
+    );
     vibes(&["check", &file]).expect(1, &issue, "check failed with 1 issue(s)\n");
     let run = vibes(&["check", "--function", "run", "--stats", &file]);
     assert_eq!(run.status, Some(1));
@@ -1174,13 +1177,13 @@ fn check_command_reports_incomplete_analysis_distinctly_and_never_executes() {
     assert_eq!(failure, "check failed with 1 issue(s)\n");
     let mixed = files.write(
         "mixed.vibe",
-        "puts \"top\"\nrequire(JSON.parse('null'))\ndef bad -> int\n  puts \"bad\"\n  false\nend\n",
+        "puts \"top\"\nx = 1; [1].each { |x| [2].each { x = x() } }\ndef bad -> int\n  puts \"bad\"\n  false\nend\n",
     );
     vibes(&["check", &mixed]).expect(
         1,
         &format!(
             "{mixed}:5:3: Return value: expected int, got bool (bad)\n\
-             {mixed}:2:1: incomplete: Analysis of this expression is not implemented (<script>)\n"
+             {mixed}:2:38: incomplete: Analysis of this expression is not implemented (<block>)\n"
         ),
         "check failed with 2 issue(s)\n",
     );
@@ -1188,8 +1191,8 @@ fn check_command_reports_incomplete_analysis_distinctly_and_never_executes() {
         1,
         "",
         &format!(
-            "{mixed}:2:1: incomplete in __main__: Analysis of this expression is not implemented\n  \
-             --> line 2, column 1\n 2 | require(JSON.parse('null'))\n   | ^\n\
+            "{mixed}:2:38: incomplete in <block>: Analysis of this expression is not implemented\n  \
+             --> line 2, column 38\n 2 | x = 1; [1].each {{ |x| [2].each {{ x = x() }} }}\n   |                                      ^\n\
              {mixed}: check of __main__ found 1 incomplete path\n"
         ),
     );
@@ -1444,7 +1447,7 @@ fn inline_source_diagnostics_use_the_eval_label_and_keep_module_filenames() {
         1,
         "",
         &format!(
-            "<eval>:3:3: incomplete in run: Analysis of this expression is not implemented\n\
+            "<eval>:3:40: incomplete in <block>: Analysis of this expression is not implemented\n\
              {INCOMPLETE_FRAME}<eval>: check of run found 1 incomplete path\n"
         ),
     );

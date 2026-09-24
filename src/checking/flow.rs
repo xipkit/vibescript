@@ -1489,6 +1489,9 @@ impl Walker<'_> {
         } else {
             self.root_target(state, name)?
         };
+        if target == Target::Undefined && self.unknown_exports(state)? {
+            return Ok(Some(Target::Dynamic));
+        }
         if target == Target::Undefined && self.function.namespace.is_some() {
             return self.implicit_namespace_target(state, pc, index);
         }
@@ -2172,6 +2175,12 @@ impl Walker<'_> {
                     let target = self.calls.resolve(self.ctx, &self.program.members[name])?;
                     if target != Target::Undefined {
                         return self.incomplete(pc);
+                    }
+                    if self.unknown_exports(&state)? {
+                        if let Some(edges) = self.dynamic_call(&mut state, pc, Arguments::new())? {
+                            return Ok(edges);
+                        }
+                        continue;
                     }
                     self.issue(
                         pc,

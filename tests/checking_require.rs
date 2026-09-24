@@ -471,7 +471,7 @@ fn conditional_publication_retains_absent_and_present_paths() {
 }
 
 #[test]
-fn invalid_requests_are_known_errors_and_dynamic_requests_remain_explicit() {
+fn invalid_requests_are_known_errors_and_dynamic_requests_are_gradual() {
     let files = Files::new();
     files.write("valid.vibe", "def value;7;end");
     files.write("syntax.vibe", "def !");
@@ -507,7 +507,77 @@ fn invalid_requests_are_known_errors_and_dynamic_requests_remain_explicit() {
     let report = script
         .check_function("run", &CallOptions::default())
         .unwrap();
-    assert!(!report.incomplete.is_empty(), "{report:?}");
+    assert!(report.is_clean(), "{report:?}");
+}
+
+/// Checks `run` for every admitted argument, then runs it with each supplied name.
+fn runtime_names(files: &Files, source: &str, cases: &[(&str, Result<&str, &str>)]) {
+    let script = files.engine().compile(source).unwrap();
+    let options = CallOptions::default();
+    for report in [
+        script.check_function("run", &options).unwrap(),
+        script.check(&options).unwrap(),
+    ] {
+        assert!(report.is_clean(), "{source}: {report:?}");
+    }
+    for &(name, expected) in cases {
+        let result = script.call("run", &[Value::bytes(name)], options.clone());
+        match expected {
+            Ok(expected) => {
+                let value = result.unwrap_or_else(|error| panic!("{source}: {error}"));
+                let json = stringify_json(&value.value, options.clone()).unwrap();
+                assert_eq!(json.value.as_bytes(), Some(expected.as_bytes()), "{source}");
+            }
+            Err(message) => {
+                let error = result.unwrap_err();
+                assert!(error.message.contains(message), "{source}: {error}");
+            }
+        }
+    }
+}
+
+#[test]
+fn runtime_module_names_and_aliases_are_gradual_and_may_publish_any_name() {
+    let files = Files::new();
+    files.write("mathx.vibe", "def something_from_module\n42\nend");
+    runtime_names(
+        &files,
+        "def run(name)\nrequire(name)\nsomething_from_module\nend",
+        &[("mathx", Ok("42")), ("missing", Err("module not found"))],
+    );
+    runtime_names(
+        &files,
+        "def run(name)\nrequire(name)\nsomething_from_module(1)\nend",
+        &[("mathx", Err("unexpected positional arguments"))],
+    );
+    runtime_names(
+        &files,
+        "def run(alias_name)\nrequire(\"mathx\", as: alias_name)\n[something_from_module, Mx.something_from_module]\nend",
+        &[("Mx", Ok("[42,42]")), ("def", Err("invalid alias"))],
+    );
+    // The alias itself may be the name that a later read finds.
+    runtime_names(
+        &files,
+        "def run(alias_name)\nrequire(\"mathx\", as: alias_name)\nlater.something_from_module\nend",
+        &[("later", Ok("42")), ("Other", Err("later"))],
+    );
+    runtime_names(
+        &files,
+        "def run(name) -> string\nbegin\nrequire(name)\n\"loaded\"\nrescue\n\"failed\"\nend\nend",
+        &[("mathx", Ok("\"loaded\"")), ("missing", Ok("\"failed\""))],
+    );
+    // Names outside the reach of the unknown file keep their known meaning.
+    for source in [
+        "def run(name)\nsomething_from_module\nrequire(name)\nend",
+        "def helper -> int\n1\nend\ndef run(name) -> string\nrequire(name)\nhelper\nend",
+    ] {
+        let script = files.engine().compile(source).unwrap();
+        let report = script
+            .check_function("run", &CallOptions::default())
+            .unwrap();
+        assert!(report.incomplete.is_empty(), "{source}: {report:?}");
+        assert!(!report.diagnostics.is_empty(), "{source}: {report:?}");
+    }
 }
 
 #[test]

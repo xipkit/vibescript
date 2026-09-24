@@ -156,6 +156,16 @@ impl Walker<'_> {
                 return self.read_global(state, pc, state.source_slots.globals.data[index], None);
             }
         }
+        // A file required by a runtime name may have published this name.
+        if self.unknown_exports(state)? {
+            if let Some(edges) = self.dynamic_call(state, pc, Arguments::new())? {
+                for edge in edges.into_iter().flatten() {
+                    self.extra.push(self.ctx, edge)?;
+                }
+                return Ok(false);
+            }
+            return Ok(true);
+        }
         if let Some(module) = self.function.namespace {
             let receiver = self.self_value(module)?;
             let site = CallSite {
