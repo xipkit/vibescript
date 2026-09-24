@@ -454,8 +454,8 @@ impl Facts {
     ) -> Result<u8> {
         Ok(
             if !policy.set()
-                && self.equality_may_exceed_depth(ctx, left, depth)?
-                && self.equality_may_exceed_depth(ctx, right, depth)?
+                && self.may_exceed_depth(ctx, left, depth)?
+                && self.may_exceed_depth(ctx, right, depth)?
             {
                 MAYBE | LIMIT
             } else {
@@ -464,7 +464,9 @@ impl Facts {
         )
     }
 
-    fn equality_may_exceed_depth(
+    /// Whether a native comparison that reaches `value` at `depth` may descend
+    /// past the runtime's value-depth guard.
+    pub(super) fn may_exceed_depth(
         &self,
         ctx: &mut CallContext,
         value: Fact,

@@ -261,10 +261,6 @@ impl Facts {
                                 result.unsupported = true;
                                 continue;
                             }
-                            Node::Instance { .. } | Node::TypeValue(_) if !arrays[0] => {
-                                result.unsupported = true;
-                                continue;
-                            }
                             _ => {
                                 result.rejected = true;
                                 Atom::Never.fact()
@@ -414,7 +410,12 @@ impl Facts {
                     continue;
                 }
                 let (Some(a), Some(b)) = (self.atom(left), self.atom(right)) else {
-                    result.unsupported = true;
+                    let next =
+                        self.opaque_binary(ctx, op, left, right, &mut result.rejected, &mut limit)?;
+                    match next {
+                        Some(next) => values.push(ctx, next)?,
+                        None => result.unsupported = true,
+                    }
                     continue;
                 };
                 if let (Some(a), Some(b)) = (self.integer_bounds(left), self.integer_bounds(right))
@@ -489,6 +490,87 @@ impl Facts {
         values.push(ctx, result.value)?;
         result.value = self.union(ctx, &values.data)?;
         Ok((result, limit))
+    }
+
+    /// Applies a native binary operator when an operand is a container, object,
+    /// type or callable rather than a scalar.
+    ///
+    /// None of these values has native arithmetic or order, so beyond the array,
+    /// enum and format cases handled earlier only equality and `<=>` can succeed.
+    /// Returns `None` when a type contract has not been resolved to its values.
+    fn opaque_binary(
+        &mut self,
+        ctx: &mut CallContext,
+        op: &str,
+        left: Fact,
+        right: Fact,
+        rejected: &mut bool,
+        limit: &mut bool,
+    ) -> Result<Option<Fact>> {
+        let contract = |value| {
+            matches!(
+                self.node(value),
+                Node::Named(_) | Node::Nominal { .. } | Node::Choice(_)
+            )
+        };
+        if contract(left) || contract(right) {
+            return Ok(None);
+        }
+        if left == Atom::Never.fact() || right == Atom::Never.fact() {
+            return Ok(Some(Atom::Never.fact()));
+        }
+        let gradual = |value| matches!(self.node(value), Node::Atom(Atom::Unknown | Atom::Any));
+        // An unknown receiver may dispatch a source operator with any result type.
+        if gradual(left) {
+            return Ok(Some(Atom::Unknown.fact()));
+        }
+        if matches!(op, "==" | "!=") {
+            let (mut value, guarded) = self.value_equal(ctx, left, right)?;
+            *limit |= guarded;
+            if op == "!=" {
+                if let Node::Boolean(equal) = self.node(value) {
+                    value = self.boolean(ctx, !equal)?;
+                }
+            }
+            return Ok(Some(value));
+        }
+        if gradual(right) {
+            return Ok(Some(Atom::Unknown.fact()));
+        }
+        if op == "<=>" {
+            return self.opaque_order(ctx, left, right, limit).map(Some);
+        }
+        *rejected = true;
+        Ok(Some(Atom::Unknown.fact()))
+    }
+
+    /// Models `<=>` beside a non-scalar operand: two arrays compare element by
+    /// element, and every other pair has no order.
+    fn opaque_order(
+        &mut self,
+        ctx: &mut CallContext,
+        left: Fact,
+        right: Fact,
+        limit: &mut bool,
+    ) -> Result<Fact> {
+        use super::ordering::{EQUAL, GREATER, LESS, UNORDERED};
+        let array = |value| matches!(self.node(value), Node::Array(_) | Node::Tuple(_));
+        if !array(left) || !array(right) {
+            return Ok(Atom::Nil.fact());
+        }
+        *limit |= self.may_exceed_depth(ctx, left, 0)? && self.may_exceed_depth(ctx, right, 0)?;
+        let order = self.order_result(ctx, left, right)?;
+        let mut values = Buffer::empty();
+        for (bit, sign) in [(LESS, -1), (EQUAL, 0), (GREATER, 1)] {
+            if order & bit != 0 {
+                let value = self.integer(ctx, sign)?;
+                values.push(ctx, value)?;
+            }
+        }
+        if order & UNORDERED != 0 {
+            values.push(ctx, Atom::Nil.fact())?;
+        }
+        self.union(ctx, &values.data)
     }
 
     pub fn known_non_callable(&self, ctx: &mut CallContext, value: Fact) -> Result<bool> {

@@ -56,6 +56,8 @@ mod normalization;
 mod normalization_tests;
 mod objects;
 #[cfg(test)]
+mod operand_tests;
+#[cfg(test)]
 mod optional_capture_tests;
 mod ordering;
 mod pending;
