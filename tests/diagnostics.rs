@@ -60,6 +60,37 @@ fn failures_point_at_operators_members_indices_and_nested_calls() {
 }
 
 #[test]
+fn writes_and_their_compound_operators_point_at_the_target() {
+    for (body, needle, message) in [
+        (
+            "arr = [1, [2]]\n  arr[1].first = 3",
+            "[1].first",
+            "cannot assign to array",
+        ),
+        (
+            "arr = [1]\n  arr[5] += 2",
+            "[5] +=",
+            "unsupported addition operands",
+        ),
+        (
+            "h = {a: [1]}\n  h.a.first -= 1",
+            "h.a.first",
+            "cannot assign to array",
+        ),
+        (
+            "h = {a: nil}\n  h[:a] **= 2",
+            "[:a]",
+            "unsupported exponentiation operands",
+        ),
+    ] {
+        let source = format!("def run(input)\n  {body}\nend");
+        let error = failure(&source);
+        assert_eq!(error.message, message, "{body}");
+        check_position(&error, &source, source.find(needle).unwrap());
+    }
+}
+
+#[test]
 fn interpolation_and_unicode_use_the_original_source() {
     for source in [
         "def run(input)\n  \"hello #{1/0}!\"\nend",

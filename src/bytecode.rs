@@ -1763,11 +1763,14 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 }
                 c.emit(Op::Store(slot));
             }
+            // Go reports a failed write, and a compound operator's failure, at the target.
             Node::Index(..) | Node::Member(..) => {
                 if binary.is_none() && !matches!(op, "||=" | "&&=") {
                     self.assignment_rhs(binding_target, &[rhs]).await?;
                     self.address_target(target, false).await?;
-                    self.c().emit(Op::AddressStore);
+                    let mut c = self.c();
+                    let store = c.emit(Op::AddressStore);
+                    c.locations[store] = target.offset;
                 } else {
                     self.address_target(target, true).await?;
                     if matches!(op, "||=" | "&&=") {
@@ -1784,7 +1787,8 @@ impl<'a, 'x> Compiling<'a, 'x> {
                         };
                         self.assignment_rhs(binding_target, &[rhs]).await?;
                         let mut c = self.c();
-                        c.emit(Op::AddressStore);
+                        let store = c.emit(Op::AddressStore);
+                        c.locations[store] = target.offset;
                         let end = c.emit(Op::Jump(0));
                         let drop = c.code.len();
                         c.patch(skip, drop);
@@ -1794,8 +1798,10 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     } else {
                         self.assignment_rhs(binding_target, &[rhs]).await?;
                         let mut c = self.c();
-                        c.emit(Op::Binary(binary.unwrap()));
-                        c.emit(Op::AddressStore);
+                        let operator = c.emit(Op::Binary(binary.unwrap()));
+                        let store = c.emit(Op::AddressStore);
+                        c.locations[operator] = target.offset;
+                        c.locations[store] = target.offset;
                     }
                 }
             }

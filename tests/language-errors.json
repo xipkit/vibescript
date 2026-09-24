@@ -123488,5 +123488,15 @@
     "name": "call_receiver_method_empty",
     "go_error": "unknown int method call",
     "source": "class K\ndef helper\n1\nend\ndef go\nhelper.call()\nend\nend\ndef run(input)\nK.new.go\nend"
+  },
+  {
+    "name": "member_write_through_indexed_array",
+    "body": "arr = [1, [2]]\narr[1].first = 3",
+    "go_error": "cannot assign to array"
+  },
+  {
+    "name": "compound_index_write_on_missing_element",
+    "body": "arr = [1]\narr[5] += 2",
+    "go_error": "unsupported addition operands"
   }
 ]
