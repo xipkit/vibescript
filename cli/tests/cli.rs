@@ -497,11 +497,9 @@ fn check_reports_incomplete_analysis_distinctly_and_never_executes() {
     assert_eq!(run.status, Some(1));
     assert_eq!(run.stdout, "");
     let (first, rest) = run.stderr.split_once('\n').unwrap();
-    assert!(
-        first.starts_with(&format!("{file}:3:40: incomplete in <block>: ")),
-        "{first}"
-    );
-    assert!(!first.contains("error"), "{first}");
+    let prefix = format!("{file}:3:40: incomplete in <block>: ");
+    assert!(first.starts_with(&prefix), "{first}");
+    assert!(!first[prefix.len()..].contains("error"), "{first}");
     assert_eq!(
         rest,
         format!("{INCOMPLETE_FRAME}{file}: check of run found 1 incomplete path\n")
