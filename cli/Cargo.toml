@@ -18,9 +18,14 @@ unicode-width = "0.2"
 vibescript = { path = "..", default-features = false }
 vibescript-tools = { path = "../tools" }
 
-# The interactive REPL needs a terminal; WASI builds use its line mode only.
+# The interactive REPL needs a terminal and fmt pins directories with handles;
+# WASI builds use the REPL's line mode and plain paths.
 [target.'cfg(not(target_os = "wasi"))'.dependencies]
+cap-std = "4.0.3"
 crossterm = { version = "0.29", default-features = false, features = ["bracketed-paste", "events"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [[bin]]
 name = "vibes"

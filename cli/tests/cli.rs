@@ -42,6 +42,9 @@ impl Files {
     fn new() -> Self {
         let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.cache/tmp");
         fs::create_dir_all(&base).unwrap();
+        // Go-style reports print lexically cleaned absolute paths, so the
+        // fixtures live under a canonical directory.
+        let base = fs::canonicalize(base).unwrap();
         loop {
             let path = base.join(format!(
                 "cli-{}-{}",
@@ -130,12 +133,13 @@ fn sibling_modules_work_for_execution_and_every_checking_mode() {
         args.extend(flags);
         vibes_in(Some(&elsewhere.0), &args).expect(0, "helper initialized\n42\n", "");
     }
+    vibes_in(Some(&elsewhere.0), &[&path, "--function", "run", "--check"]).expect(0, "", "");
+    // The check command reports a clean check as the Go reference does.
     for args in [
-        vec![path.as_str(), "--function", "run", "--check"],
         vec!["check", path.as_str()],
         vec!["check", "--function", "run", path.as_str()],
     ] {
-        vibes_in(Some(&elsewhere.0), &args).expect(0, "", "");
+        vibes_in(Some(&elsewhere.0), &args).expect(0, "No issues found\n", "");
     }
 }
 
@@ -169,11 +173,15 @@ fn extra_module_paths_are_repeatable_ordered_and_relative_to_the_working_directo
         vibes_in(Some(&elsewhere.0), &args).expect(0, expected, "");
         args.extend(["--function", "run", "--checked"]);
         vibes_in(Some(&elsewhere.0), &args).expect(0, expected, "");
-        let mut args = vec!["check", path.as_str()];
+        // Go-style commands take their flags before the script path.
+        let mut args = vec!["check"];
         args.extend(flags);
-        vibes_in(Some(&elsewhere.0), &args).expect(0, "", "");
-        args.extend(["--function", "run"]);
-        vibes_in(Some(&elsewhere.0), &args).expect(0, "", "");
+        args.push(&path);
+        vibes_in(Some(&elsewhere.0), &args).expect(0, "No issues found\n", "");
+        let mut args = vec!["check", "--function", "run"];
+        args.extend(flags);
+        args.push(&path);
+        vibes_in(Some(&elsewhere.0), &args).expect(0, "No issues found\n", "");
     }
 }
 
@@ -183,9 +191,11 @@ fn invalid_module_roots_fail_before_script_output_in_both_command_forms() {
     let path = files.write("main.vibe", "puts 'ran'; 7");
     let ordinary_file = files.write("regular-file", "data");
     for root in [files.missing("missing-directory"), ordinary_file] {
-        for prefix in [vec![], vec!["check"]] {
-            let mut args = prefix;
-            args.extend([path.as_str(), "--module-path", root.as_str()]);
+        for args in [
+            vec![path.as_str(), "--module-path", root.as_str()],
+            vec!["check", "--module-path", root.as_str(), path.as_str()],
+            vec!["run", "--module-path", root.as_str(), path.as_str()],
+        ] {
             let run = vibes(&args);
             assert_eq!(run.status, Some(1), "{}", run.stderr);
             assert!(run.stdout.is_empty());
@@ -193,15 +203,11 @@ fn invalid_module_roots_fail_before_script_output_in_both_command_forms() {
             assert!(run.stderr.contains(&root), "{}", run.stderr);
         }
     }
-    for args in [
-        vec![path.as_str(), "--module-path"],
-        vec!["check", path.as_str(), "--module-path"],
-    ] {
-        let run = vibes(&args);
-        assert_eq!(run.status, Some(2));
-        assert!(run.stdout.is_empty());
-        assert!(run.stderr.contains("--module-path requires DIR"));
-    }
+    let run = vibes(&[path.as_str(), "--module-path"]);
+    assert_eq!(run.status, Some(2));
+    assert!(run.stdout.is_empty());
+    assert!(run.stderr.contains("--module-path requires DIR"));
+    vibes(&["check", "--module-path"]).expect(1, "", "flag needs an argument: -module-path\n");
 }
 
 #[test]
@@ -551,7 +557,10 @@ fn usage_errors_exit_with_status_two_without_reading_the_file() {
     let file = files.missing("missing.vibe");
     let other = files.missing("other.vibe");
     for (args, message) in [
-        (vec![], "expected source file or -e SOURCE; use --help"),
+        (
+            vec!["--stats"],
+            "expected source file or -e SOURCE; use vibes help flat",
+        ),
         (
             vec![file.as_str(), other.as_str()],
             "expected one source file",
@@ -650,43 +659,51 @@ fn usage_errors_exit_with_status_two_without_reading_the_file() {
 
 #[test]
 fn help_explains_the_exact_call_scope_and_version_prints() {
+    // The root help is the Go reference's; the flat form has its own topic.
     for flag in ["--help", "-h"] {
         let run = vibes(&[flag]);
         assert_eq!(run.status, Some(0));
         assert_eq!(run.stderr, "");
-        for needle in [
-            "Usage: vibes [OPTIONS] FILE",
-            "vibes check [OPTIONS] [--function NAME] FILE",
-            "--kwarg NAME=JSON",
-            "--check ",
-            "--checked ",
-            "Commands:\n  check FILE",
-            "check --function NAME FILE",
-            "See vibes check --help",
-            "-e, --eval SOURCE",
-            "vibes [OPTIONS] -e SOURCE",
-            "checks the whole snippet instead",
-            "--check with --function and --checked cover exactly one call",
-            "They do not\ncheck unused functions",
-            "recognized only as the first argument",
-            "reported as incomplete rather than assumed clean",
-            "Exit status: 0 on success or a clean check, 1 when",
-        ] {
-            assert!(
-                run.stdout.contains(needle),
-                "{needle:?} missing from:\n{}",
-                run.stdout
-            );
-        }
-        assert!(run.stdout.ends_with('\n'));
+        assert!(
+            run.stdout
+                .starts_with("NAME:\n   vibes - run Vibescript programs")
+        );
     }
+    let run = vibes(&["help", "flat"]);
+    assert_eq!(run.status, Some(0));
+    assert_eq!(run.stderr, "");
+    for needle in [
+        "Usage: vibes [OPTIONS] FILE",
+        "vibes [OPTIONS] --function NAME [--arg JSON]... [--kwarg NAME=JSON]... FILE",
+        "--kwarg NAME=JSON",
+        "--check ",
+        "--checked ",
+        "-e, --eval SOURCE",
+        "vibes [OPTIONS] -e SOURCE",
+        "checks the whole snippet instead",
+        "--check with --function and --checked cover exactly one call",
+        "They do not\ncheck unused functions",
+        "A first argument that names a command, such as run or check,\nalways selects that command instead.",
+        "reported as incomplete rather than assumed clean",
+        "Exit status: 0 on success or a clean check, 1 when",
+    ] {
+        assert!(
+            run.stdout.contains(needle),
+            "{needle:?} missing from:\n{}",
+            run.stdout
+        );
+    }
+    assert!(run.stdout.ends_with('\n'));
+    let flat_help = run.stdout;
+    vibes(&["-e", "1", "--help"]).expect(0, &flat_help, "");
+    vibes(&["--stats", "-h"]).expect(0, &flat_help, "");
     vibes(&["--version"]).expect(
         0,
         &format!("vibescript.rs {}\n", env!("CARGO_PKG_VERSION")),
         "",
     );
     vibes(&["--help", "--bogus"]).expect(0, &vibes(&["-h"]).stdout, "");
-    vibes(&["--bogus", "--help"]).expect(2, "", "unknown option --bogus\n");
+    vibes(&["--bogus", "--help"]).expect(1, "", "flag provided but not defined: -bogus\n");
 }
 
 #[test]
@@ -697,26 +714,18 @@ fn check_help_describes_both_scopes_and_the_command_position() {
     assert!(help.stdout.ends_with('\n'));
     assert_ne!(help.stdout, vibes(&["--help"]).stdout);
     for needle in [
-        "Usage: vibes check [OPTIONS] FILE",
-        "vibes check [OPTIONS] --function NAME FILE",
-        "vibes check [OPTIONS] [--function NAME] -e SOURCE",
-        "-e, --eval SOURCE",
-        "including unused\nones",
-        "declared parameter types and defaults",
-        "no concrete call with supplied values is\ninvolved",
-        "never assumed clean",
-        "Required files that the checker cannot analyze are\nreported as incomplete",
-        "Class#method",
-        "Namespace.method",
-        "Class.new",
-        "--steps N",
-        "--memory N",
-        "--recursion N",
-        "--timeout-ms N",
+        "NAME:\n   vibes check - statically check a script without executing it\n",
+        "USAGE:\n   vibes check [options] <script>\n",
+        "--module-path string [ --module-path string ]  add a module search directory (repeatable)\n",
+        "--function string ",
+        "Class#method, Namespace.method or Class.new",
+        "--eval string, -e string ",
+        "--steps uint ",
+        "--memory uint ",
+        "--recursion uint ",
+        "--timeout-ms uint ",
         "--stats ",
-        "--arg, --kwarg, --check and\n--checked are usage errors",
-        "recognized only as the first argument; vibes -- check runs a file named check",
-        "Exit status: 0 for a clean check, 1 when",
+        "--help, -h ",
     ] {
         assert!(
             help.stdout.contains(needle),
@@ -727,25 +736,15 @@ fn check_help_describes_both_scopes_and_the_command_position() {
     for args in [
         vec!["check", "-h"],
         vec!["check", "--help", "--bogus"],
-        vec!["check", "--help", "--arg"],
         vec!["check", "--function", "run", "--help"],
+        vec!["help", "check"],
     ] {
         vibes(&args).expect(0, &help.stdout, "");
     }
-    vibes(&["check", "--version"]).expect(
-        0,
-        &format!("vibescript.rs {}\n", env!("CARGO_PKG_VERSION")),
-        "",
-    );
-    vibes(&["check", "--bogus", "--help"]).expect(2, "", "unknown option --bogus\n");
-    let run = vibes(&["check", "--arg", "--help"]);
-    assert_eq!(run.status, Some(2));
-    assert_eq!(run.stdout, "");
-    assert!(
-        run.stderr.starts_with("vibes check does not accept --arg;"),
-        "{}",
-        run.stderr
-    );
+    // Go-style flag parsing rejects flags the command does not define.
+    vibes(&["check", "--version"]).expect(1, "", "flag provided but not defined: -version\n");
+    vibes(&["check", "--bogus", "--help"]).expect(1, "", "flag provided but not defined: -bogus\n");
+    vibes(&["check", "--arg", "--help"]).expect(1, "", "flag provided but not defined: -arg\n");
 }
 
 #[test]
@@ -848,13 +847,26 @@ fn double_dash_ends_option_parsing() {
     let files = Files::new();
     files.write("-dash.vibe", "7\n");
     let dir = Some(files.0.as_path());
-    vibes_in(dir, &["--", "-dash.vibe"]).expect(0, "7\n", "");
+    vibes_in(dir, &["run", "--", "-dash.vibe"]).expect(0, "7\n", "");
     let run = vibes_in(dir, &["--stats", "--", "-dash.vibe"]);
     assert_eq!(run.status, Some(0));
     assert_eq!(run.stdout, "7\n");
     assert_stats_line(run.stderr.trim_end_matches('\n'));
-    vibes_in(dir, &["-dash.vibe"]).expect(2, "", "unknown option -dash.vibe\n");
-    vibes_in(dir, &["--", "-dash.vibe", "--stats"]).expect(2, "", "expected one source file\n");
+    vibes_in(dir, &["--stats", "--", "-dash.vibe", "--stats"]).expect(
+        2,
+        "",
+        "expected one source file\n",
+    );
+    // As in the Go reference, `--` cannot escape command selection, and an
+    // unknown flag in the first position is an error.
+    let run = vibes_in(dir, &["--", "-dash.vibe"]);
+    assert_eq!(run.status, Some(1));
+    assert!(
+        run.stderr.ends_with("unknown command \"--\"\n"),
+        "{}",
+        run.stderr
+    );
+    vibes_in(dir, &["-dash.vibe"]).expect(1, "", "flag provided but not defined: -dash.vibe\n");
 }
 
 const UNUSED: &str = "7\ndef unused(n:string) -> int\n  n\nend\nclass C\n  private def bad -> bool\n    7\n  end\nend\n";
@@ -867,43 +879,25 @@ fn check_command_reports_unused_declarations_that_exact_calls_omit() {
     vibes(&[&file]).expect(0, "null\n", "");
     vibes(&[&file, "--function", "__main__", "--check"]).expect(0, "", "");
     vibes(&[&file, "--function", "__main__", "--checked"]).expect(0, "null\n", "");
+    // The check command prints one issue per line on stdout in the Go
+    // reference's format and summarizes the failure on stderr.
     let run = vibes(&["check", &file]);
+    run.expect(
+        1,
+        &format!(
+            "{file}:3:3: Return value: expected int, got string (unused)\n\
+             {file}:7:5: Return value: expected bool, got int (bad)\n"
+        ),
+        "check failed with 2 issue(s)\n",
+    );
+    assert_eq!(vibes(&["check", "--", &file]).stdout, run.stdout);
+    let run = vibes(&["--", &file, "check"]);
     assert_eq!(run.status, Some(1));
-    assert_eq!(run.stdout, "");
-    let lines: Vec<_> = run.stderr.lines().collect();
     assert!(
-        lines[0].starts_with(&format!("{file}:3:3: error in unused: ")),
+        run.stderr.ends_with("unknown command \"--\"\n"),
         "{}",
         run.stderr
     );
-    assert!(
-        lines[0].contains("expected int, got string"),
-        "{}",
-        run.stderr
-    );
-    assert_eq!(
-        &lines[1..4],
-        ["  --> line 3, column 3", " 3 |   n", "   |   ^"]
-    );
-    assert!(
-        lines[4].starts_with(&format!("{file}:7:5: error in bad: ")),
-        "{}",
-        run.stderr
-    );
-    assert!(
-        lines[4].contains("expected bool, got int"),
-        "{}",
-        run.stderr
-    );
-    assert_eq!(
-        lines.last().copied(),
-        Some(format!("{file}: check of the whole file found 2 errors").as_str())
-    );
-    assert!(!run.stderr.contains("__main__"), "{}", run.stderr);
-    assert!(!run.stderr.contains("incomplete"), "{}", run.stderr);
-    assert!(!run.stderr.contains("executed"), "{}", run.stderr);
-    assert_eq!(vibes(&["check", "--", &file]).stderr, run.stderr);
-    assert_eq!(vibes(&["--", &file, "check"]).status, Some(2));
 }
 
 #[test]
@@ -913,24 +907,17 @@ fn check_command_uses_top_level_state_and_never_runs_script_output() {
         "state.vibe",
         "puts \"top\"\nwarn \"careful\"\nx = 7\nmodule M\n  puts \"init\"\n  K = x\n  def self.value -> int\n    puts \"value\"\n    K\n  end\nend\nM.value\n",
     );
-    vibes(&["check", &file]).expect(0, "", "");
+    vibes(&["check", &file]).expect(0, "No issues found\n", "");
     let run = vibes(&["check", "--function", "M.value", &file]);
     assert_eq!(run.status, Some(1), "{}", run.stderr);
-    assert_eq!(run.stdout, "");
     assert!(
-        run.stderr.starts_with(&format!("{file}:6:7: error in ")),
+        run.stdout.starts_with(&format!("{file}:6:7: ")),
         "{}",
-        run.stderr
+        run.stdout
     );
-    assert!(run.stderr.contains(" 6 |   K = x\n"), "{}", run.stderr);
-    assert!(
-        run.stderr.ends_with(&format!(
-            "{file}: check of M.value for its declared parameter types found 1 error\n"
-        )),
-        "{}",
-        run.stderr
-    );
-    assert!(!run.stderr.contains("incomplete"), "{}", run.stderr);
+    assert_eq!(run.stdout.lines().count(), 1, "{}", run.stdout);
+    assert_eq!(run.stderr, "check failed with 1 issue(s)\n");
+    assert!(!run.stdout.contains("incomplete"), "{}", run.stdout);
     vibes(&[&file]).expect(0, "top\ninit\nvalue\n7\n", "careful\n");
     let file = files.write(
         "bad-state.vibe",
@@ -938,72 +925,66 @@ fn check_command_uses_top_level_state_and_never_runs_script_output() {
     );
     let run = vibes(&["check", &file]);
     assert_eq!(run.status, Some(1), "{}", run.stderr);
-    assert_eq!(run.stdout, "");
     assert!(
-        run.stderr
-            .contains(&format!("{file}:5:5: error in value: ")),
+        run.stdout.contains(&format!(
+            "{file}:5:5: Return value: expected int, got string (value)\n"
+        )),
         "{}",
-        run.stderr
+        run.stdout
     );
-    assert!(
-        run.stderr
-            .ends_with(&format!("{file}: check of the whole file found 1 error\n")),
-        "{}",
-        run.stderr
-    );
+    assert_eq!(run.stderr, "check failed with 1 issue(s)\n");
 }
 
 #[test]
 fn check_function_checks_declared_parameter_types_and_defaults_without_a_call() {
     let files = Files::new();
     let file = files.write("add.vibe", ADD);
-    vibes(&["check", "--function", "run", &file]).expect(0, "", "");
-    vibes(&["check", &file, "--function", "run"]).expect(0, "", "");
-    let run = vibes(&["check", "--function", "run", &file, "--stats"]);
+    vibes(&["check", "--function", "run", &file]).expect(0, "No issues found\n", "");
+    vibes(&["check", "-function=run", &file]).expect(0, "No issues found\n", "");
+    // Flags must precede the script path, as in the Go reference.
+    vibes(&["check", &file, "--function", "run"]).expect(
+        1,
+        "",
+        "vibes check: expected a single script path\n",
+    );
+    let run = vibes(&["check", "--function", "run", "--stats", &file]);
     assert_eq!(run.status, Some(0), "{}", run.stderr);
-    assert_eq!(run.stdout, "");
+    assert_eq!(run.stdout, "No issues found\n");
     assert_stats_line(run.stderr.trim_end_matches('\n'));
     let file = files.write("default.vibe", "def run(x:int=false) -> int\n  x\nend\n");
     let run = vibes(&["check", "--function", "run", &file]);
     assert_eq!(run.status, Some(1), "{}", run.stderr);
-    assert_eq!(run.stdout, "");
-    let (first, rest) = run.stderr.split_once('\n').unwrap();
     assert!(
-        first.starts_with(&format!("{file}:1:1: error in run: ")),
-        "{first}"
+        run.stdout.starts_with(&format!("{file}:1:1: ")),
+        "{}",
+        run.stdout
     );
-    assert!(first.contains("expected int, got bool"), "{first}");
-    assert_eq!(
-        rest,
-        format!(
-            "  --> line 1, column 1\n 1 | def run(x:int=false) -> int\n   | ^\n\
-             {file}: check of run for its declared parameter types found 1 error\n"
-        )
+    assert!(
+        run.stdout.contains("expected int, got bool"),
+        "{}",
+        run.stdout
     );
+    assert!(run.stdout.ends_with(" (run)\n"), "{}", run.stdout);
+    assert_eq!(run.stderr, "check failed with 1 issue(s)\n");
     vibes(&[&file, "--function", "run", "--arg", "7", "--check"]).expect(0, "", "");
     vibes(&[&file, "--function", "run", "--arg", "7", "--checked"]).expect(0, "7\n", "");
     let run = vibes(&["check", &file]);
     assert_eq!(run.status, Some(1), "{}", run.stderr);
-    assert!(
-        run.stderr
-            .ends_with(&format!("{file}: check of the whole file found 1 error\n")),
-        "{}",
-        run.stderr
-    );
+    assert_eq!(run.stdout.lines().count(), 1, "{}", run.stdout);
+    assert_eq!(run.stderr, "check failed with 1 issue(s)\n");
     let file = files.write("typed.vibe", "def run(x:int) -> int\n  x + false\nend\n");
     let run = vibes(&["check", "--function", "run", &file]);
     assert_eq!(run.status, Some(1), "{}", run.stderr);
     assert!(
-        run.stderr
-            .starts_with(&format!("{file}:2:5: error in run: ")),
+        run.stdout.starts_with(&format!("{file}:2:5: ")),
         "{}",
-        run.stderr
+        run.stdout
     );
-    assert!(run.stderr.contains("does not accept"), "{}", run.stderr);
-    assert!(!run.stderr.contains("incomplete"), "{}", run.stderr);
+    assert!(run.stdout.contains("does not accept"), "{}", run.stdout);
+    assert!(!run.stdout.contains("incomplete"), "{}", run.stdout);
     let file = files.write("untyped.vibe", "def run(x)\n  x + false\nend\n");
-    vibes(&["check", "--function", "run", &file]).expect(0, "", "");
-    vibes(&["check", &file]).expect(0, "", "");
+    vibes(&["check", "--function", "run", &file]).expect(0, "No issues found\n", "");
+    vibes(&["check", &file]).expect(0, "No issues found\n", "");
 }
 
 #[test]
@@ -1011,25 +992,14 @@ fn check_function_selects_methods_and_constructors() {
     let files = Files::new();
     let file = files.write("methods.vibe", METHODS);
     for name in ["C.new", "C.read", "M::N.answer"] {
-        vibes(&["check", "--function", name, &file]).expect(0, "", "");
+        vibes(&["check", "--function", name, &file]).expect(0, "No issues found\n", "");
     }
     for (name, function, line) in [("C#initialize", "initialize", 3), ("C#read", "read", 6)] {
-        let run = vibes(&["check", "--function", name, &file]);
-        assert_eq!(run.status, Some(1), "{name}: {}", run.stderr);
-        assert_eq!(run.stdout, "");
-        let (first, rest) = run.stderr.split_once('\n').unwrap();
-        assert!(
-            first.starts_with(&format!("{file}:{line}:5: error in {function}: ")),
-            "{first}"
+        vibes(&["check", "--function", name, &file]).expect(
+            1,
+            &format!("{file}:{line}:5: Return value: expected int, got string ({function})\n"),
+            "check failed with 1 issue(s)\n",
         );
-        assert!(first.contains("expected int, got string"), "{first}");
-        assert!(
-            rest.ends_with(&format!(
-                "{file}: check of {name} for its declared parameter types found 1 error\n"
-            )),
-            "{rest}"
-        );
-        assert!(rest.contains(" |     \"bad\"\n"), "{rest}");
     }
     vibes(&["check", "--function", "C#missing", &file]).expect(
         1,
@@ -1046,23 +1016,17 @@ fn check_function_selects_methods_and_constructors() {
     vibes(&[&file, "--function", "C.read"]).expect(1, "", "function C.read not found\n");
     let run = vibes(&["check", &file]);
     assert_eq!(run.status, Some(1), "{}", run.stderr);
-    assert_eq!(run.stdout, "");
     for (line, function) in [(3, "initialize"), (6, "read"), (20, "unused")] {
         assert!(
-            run.stderr.contains(&format!(
-                "{file}:{line}:{}: error in {function}: ",
+            run.stdout.contains(&format!(
+                "{file}:{line}:{}: ",
                 if line == 20 { 3 } else { 5 }
-            )),
+            )) && run.stdout.contains(&format!("({function})\n")),
             "{}",
-            run.stderr
+            run.stdout
         );
     }
-    assert!(
-        run.stderr
-            .ends_with(&format!("{file}: check of the whole file found 3 errors\n")),
-        "{}",
-        run.stderr
-    );
+    assert_eq!(run.stderr, "check failed with 3 issue(s)\n");
 }
 
 #[test]
@@ -1071,88 +1035,84 @@ fn check_command_rejects_call_options_before_reading_the_file() {
     let file = files.missing("missing.vibe");
     let other = files.missing("other.vibe");
     let broken = files.write("broken.vibe", "def run(\n");
-    let rejected = |option: &str| format!("vibes check does not accept {option};");
-    for (args, prefix) in [
+    let single = "vibes check: expected a single script path";
+    let undefined = |flag: &str| format!("flag provided but not defined: -{flag}");
+    let invalid = |value: &str, flag: &str| {
+        format!("invalid value \"{value}\" for flag -{flag}: parse error")
+    };
+    // The check command follows the Go reference's flag syntax: flags come
+    // before the script path, undefined flags are errors, and every usage
+    // error exits with status 1 before any file is read.
+    for (args, message) in [
         (
             vec!["check"],
-            "expected source file or -e SOURCE; use vibes check --help".to_owned(),
+            "vibes check: script path required".to_owned(),
         ),
         (
             vec!["check", file.as_str(), "--arg", "1"],
-            rejected("--arg"),
+            single.to_owned(),
         ),
         (
             vec!["check", "--kwarg", "x=1", file.as_str()],
-            rejected("--kwarg"),
+            undefined("kwarg"),
         ),
-        (vec!["check", file.as_str(), "--check"], rejected("--check")),
+        (vec!["check", file.as_str(), "--check"], single.to_owned()),
         (
             vec!["check", "--checked", file.as_str()],
-            rejected("--checked"),
+            undefined("checked"),
         ),
         (
             vec!["check", "--function", "run", file.as_str(), "--arg", "1"],
-            rejected("--arg"),
+            single.to_owned(),
         ),
         (
             vec!["check", broken.as_str(), "--arg", "1"],
-            rejected("--arg"),
+            single.to_owned(),
         ),
         (
             vec!["check", broken.as_str(), "--checked"],
-            rejected("--checked"),
+            single.to_owned(),
         ),
-        (vec!["check", "--arg"], rejected("--arg")),
+        (vec!["check", "--arg"], undefined("arg")),
         (
             vec!["check", file.as_str(), "--function"],
-            "--function requires NAME".to_owned(),
+            single.to_owned(),
         ),
         (
-            vec!["check", file.as_str(), "--steps"],
-            "--steps requires N".to_owned(),
+            vec!["check", "--function"],
+            "flag needs an argument: -function".to_owned(),
         ),
         (
-            vec!["check", file.as_str(), "--bogus"],
-            "unknown option --bogus".to_owned(),
+            vec!["check", "--steps"],
+            "flag needs an argument: -steps".to_owned(),
         ),
-        (
-            vec!["check", file.as_str(), "-x"],
-            "unknown option -x".to_owned(),
-        ),
+        (vec!["check", "--bogus", file.as_str()], undefined("bogus")),
+        (vec!["check", "-x", file.as_str()], undefined("x")),
         (
             vec!["check", file.as_str(), other.as_str()],
-            "expected one source file".to_owned(),
+            single.to_owned(),
         ),
         (
-            vec!["check", broken.as_str(), "--steps", "abc"],
-            "invalid --steps value \"abc\": ".to_owned(),
+            vec!["check", "--steps", "abc", broken.as_str()],
+            invalid("abc", "steps"),
         ),
         (
-            vec!["check", file.as_str(), "--memory", "-1"],
-            "invalid --memory value \"-1\": ".to_owned(),
+            vec!["check", "--memory", "-1", file.as_str()],
+            invalid("-1", "memory"),
         ),
         (
-            vec!["check", file.as_str(), "--recursion", "1.5"],
-            "invalid --recursion value \"1.5\": ".to_owned(),
+            vec!["check", "--recursion", "1.5", file.as_str()],
+            invalid("1.5", "recursion"),
         ),
         (
-            vec!["check", file.as_str(), "--timeout-ms", "x"],
-            "invalid --timeout-ms value \"x\": ".to_owned(),
+            vec!["check", "--timeout-ms", "x", file.as_str()],
+            invalid("x", "timeout-ms"),
         ),
     ] {
         let run = vibes(&args);
-        assert_eq!(run.status, Some(2), "{args:?}: {}", run.stderr);
+        assert_eq!(run.status, Some(1), "{args:?}: {}", run.stderr);
         assert_eq!(run.stdout, "", "{args:?}");
-        assert!(run.stderr.ends_with('\n'), "{args:?}: {}", run.stderr);
-        let stderr = run.stderr.trim_end_matches('\n');
-        if prefix.ends_with(": ") || prefix.ends_with(';') {
-            assert!(stderr.starts_with(&prefix), "{args:?}: {stderr}");
-            assert!(stderr.len() > prefix.len(), "{args:?}: {stderr}");
-        } else {
-            assert_eq!(stderr, prefix, "{args:?}");
-        }
-        assert!(!stderr.contains("cannot read"), "{args:?}: {stderr}");
-        assert!(!stderr.contains("parse error"), "{args:?}: {stderr}");
+        assert_eq!(run.stderr, format!("{message}\n"), "{args:?}");
     }
 }
 
@@ -1165,85 +1125,64 @@ fn check_command_reports_missing_unreadable_and_invalid_sources() {
         vec!["check", "--function", "run", missing.as_str()],
         vec!["check", "--stats", "--", missing.as_str()],
     ] {
-        let run = vibes(&args);
-        assert_eq!(run.status, Some(1), "{args:?}");
-        assert_eq!(run.stdout, "", "{args:?}");
-        assert!(
-            run.stderr.starts_with(&format!("cannot read {missing}: ")),
-            "{args:?}: {}",
-            run.stderr
+        vibes(&args).expect(
+            1,
+            "",
+            &format!("read script: open {missing}: no such file or directory\n"),
         );
-        assert_eq!(run.stderr.lines().count(), 1, "{args:?}: {}", run.stderr);
     }
+    // Invalid UTF-8 is decoded with replacement characters, as the Go
+    // reference's lexer does, so it is a parse error rather than a read error.
     let binary = files.0.join("binary.vibe");
     fs::write(&binary, [0xff, b'\n']).unwrap();
     let binary = binary.to_str().unwrap();
-    vibes(&["check", binary]).expect(
-        1,
-        "",
-        &format!("cannot read {binary}: stream did not contain valid UTF-8\n"),
+    let run = vibes(&["check", binary]);
+    assert_eq!(run.status, Some(1));
+    assert_eq!(run.stdout, "");
+    assert!(
+        run.stderr
+            .starts_with("compile failed: parse error at 1:1: "),
+        "{}",
+        run.stderr
     );
     let broken = files.write("broken.vibe", "def run(\n");
-    let report = format!(
-        "{broken}:2:1: parse error: expected name\n  --> line 2, column 1\n 2 | \n   | ^\n"
+    let report = "compile failed: parse error at 2:1: expected name\n  --> line 2, column 1\n 2 | \n   | ^\n";
+    vibes(&["check", &broken]).expect(1, "", report);
+    vibes(&["check", "--function", "run", &broken]).expect(1, "", report);
+    vibes(&["check", "--stats", &broken]).expect(1, "", report);
+    let directory = files.0.to_str().unwrap();
+    vibes(&["check", directory]).expect(
+        1,
+        "",
+        &format!("read script: {directory} is not a regular file\n"),
     );
-    vibes(&["check", &broken]).expect(1, "", &report);
-    vibes(&["check", "--function", "run", &broken]).expect(1, "", &report);
-    vibes(&["check", "--stats", &broken]).expect(1, "", &report);
 }
 
 #[test]
 fn check_command_reports_incomplete_analysis_distinctly_and_never_executes() {
     let files = Files::new();
     let file = files.write("incomplete.vibe", INCOMPLETE);
-    let run = vibes(&["check", &file]);
+    // Incomplete analysis is an issue too, marked as such, and never clean.
+    let issue =
+        format!("{file}:3:3: incomplete: Analysis of this expression is not implemented (run)\n");
+    vibes(&["check", &file]).expect(1, &issue, "check failed with 1 issue(s)\n");
+    let run = vibes(&["check", "--function", "run", "--stats", &file]);
     assert_eq!(run.status, Some(1));
-    assert_eq!(run.stdout, "");
-    let (first, rest) = run.stderr.split_once('\n').unwrap();
-    assert!(
-        first.starts_with(&format!("{file}:3:3: incomplete in run: ")),
-        "{first}"
-    );
-    assert!(!first.contains("error"), "{first}");
-    assert_eq!(
-        rest,
-        format!("{INCOMPLETE_FRAME}{file}: check of the whole file found 1 incomplete path\n")
-    );
-    let run = vibes(&["check", "--function", "run", &file, "--stats"]);
-    assert_eq!(run.status, Some(1));
-    assert_eq!(run.stdout, "");
-    let (first, rest) = run.stderr.split_once('\n').unwrap();
-    assert!(
-        first.starts_with(&format!("{file}:3:3: incomplete in run: ")),
-        "{first}"
-    );
-    let summary =
-        format!("{file}: check of run for its declared parameter types found 1 incomplete path\n");
-    let (frame, stats) = rest.split_once(&summary).unwrap();
-    assert_eq!(frame, INCOMPLETE_FRAME);
-    assert_stats_line(stats.trim_end_matches('\n'));
+    assert_eq!(run.stdout, issue);
+    let (stats, failure) = run.stderr.split_once('\n').unwrap();
+    assert_stats_line(stats);
+    assert_eq!(failure, "check failed with 1 issue(s)\n");
     let mixed = files.write(
         "mixed.vibe",
         "puts \"top\"\nrequire(JSON.parse('null'))\ndef bad -> int\n  puts \"bad\"\n  false\nend\n",
     );
-    let run = vibes(&["check", &mixed]);
-    assert_eq!(run.status, Some(1));
-    assert_eq!(run.stdout, "");
-    let error = run
-        .stderr
-        .find(&format!("{mixed}:5:3: error in bad: "))
-        .unwrap_or_else(|| panic!("{}", run.stderr));
-    let incomplete = run
-        .stderr
-        .find(&format!("{mixed}:2:1: incomplete in __main__: "))
-        .unwrap_or_else(|| panic!("{}", run.stderr));
-    assert!(error < incomplete, "{}", run.stderr);
-    assert!(
-        run.stderr.ends_with(&format!(
-            "{mixed}: check of the whole file found 1 error and 1 incomplete path\n"
-        )),
-        "{}",
-        run.stderr
+    vibes(&["check", &mixed]).expect(
+        1,
+        &format!(
+            "{mixed}:5:3: Return value: expected int, got bool (bad)\n\
+             {mixed}:2:1: incomplete: Analysis of this expression is not implemented (<script>)\n"
+        ),
+        "check failed with 2 issue(s)\n",
     );
     vibes(&[&mixed, "--function", "__main__", "--check"]).expect(
         1,
@@ -1261,7 +1200,7 @@ fn check_command_applies_limits_deadlines_and_stats_to_analysis() {
     let files = Files::new();
     let file = files.write("add.vibe", ADD);
     for scope in [vec![], vec!["--function", "run"]] {
-        let mut base = vec!["check", file.as_str()];
+        let mut base = vec!["check"];
         base.extend(&scope);
         for (option, value, message) in [
             ("--steps", "1", "step quota exceeded (1)\n"),
@@ -1269,9 +1208,10 @@ fn check_command_applies_limits_deadlines_and_stats_to_analysis() {
             ("--timeout-ms", "0", "execution deadline exceeded\n"),
         ] {
             let mut args = base.clone();
-            args.extend([option, value]);
+            args.extend([option, value, file.as_str()]);
             vibes(&args).expect(1, "", message);
-            args.push("--stats");
+            let mut args = base.clone();
+            args.extend([option, value, "--stats", file.as_str()]);
             vibes(&args).expect(1, "", message);
         }
         let mut clean = base.clone();
@@ -1285,33 +1225,34 @@ fn check_command_applies_limits_deadlines_and_stats_to_analysis() {
             "--timeout-ms",
             "60000",
             "--stats",
+            file.as_str(),
         ]);
         let run = vibes(&clean);
         assert_eq!(run.status, Some(0), "{scope:?}: {}", run.stderr);
-        assert_eq!(run.stdout, "", "{scope:?}");
+        assert_eq!(run.stdout, "No issues found\n", "{scope:?}");
         assert_stats_line(run.stderr.trim_end_matches('\n'));
     }
     let file = files.write("unused.vibe", UNUSED);
-    let run = vibes(&["check", &file, "--stats"]);
+    let run = vibes(&["check", "--stats", &file]);
     assert_eq!(run.status, Some(1));
-    assert_eq!(run.stdout, "");
-    let summary = format!("{file}: check of the whole file found 2 errors\n");
-    let (report, stats) = run.stderr.rsplit_once(&summary).unwrap();
     assert!(
-        report.starts_with(&format!("{file}:3:3: error in unused: ")),
-        "{report}"
+        run.stdout.starts_with(&format!("{file}:3:3: ")),
+        "{}",
+        run.stdout
     );
-    assert_stats_line(stats.trim_end_matches('\n'));
-    let run = vibes(&["check", "--function", "C#bad", &file, "--stats"]);
+    let (stats, failure) = run.stderr.split_once('\n').unwrap();
+    assert_stats_line(stats);
+    assert_eq!(failure, "check failed with 2 issue(s)\n");
+    let run = vibes(&["check", "--function", "C#bad", "--stats", &file]);
     assert_eq!(run.status, Some(1));
-    let summary =
-        format!("{file}: check of C#bad for its declared parameter types found 1 error\n");
-    let (report, stats) = run.stderr.rsplit_once(&summary).unwrap();
     assert!(
-        report.starts_with(&format!("{file}:7:5: error in bad: ")),
-        "{report}"
+        run.stdout.starts_with(&format!("{file}:7:5: ")),
+        "{}",
+        run.stdout
     );
-    assert_stats_line(stats.trim_end_matches('\n'));
+    let (stats, failure) = run.stderr.split_once('\n').unwrap();
+    assert_stats_line(stats);
+    assert_eq!(failure, "check failed with 1 issue(s)\n");
 }
 
 #[test]
@@ -1319,42 +1260,43 @@ fn check_is_a_command_only_as_the_first_argument() {
     let files = Files::new();
     files.write("check", "puts \"ran\"\n7\n");
     let dir = Some(files.0.as_path());
-    vibes_in(dir, &["--", "check"]).expect(0, "ran\n7\n", "");
     let run = vibes_in(dir, &["--stats", "check"]);
     assert_eq!(run.status, Some(0));
     assert_eq!(run.stdout, "ran\n7\n");
     assert_stats_line(run.stderr.trim_end_matches('\n'));
     vibes_in(dir, &["--function", "__main__", "--checked", "--", "check"])
         .expect(0, "ran\n7\n", "");
-    vibes_in(dir, &["check", "--", "check"]).expect(0, "", "");
-    vibes_in(dir, &["check", "check"]).expect(0, "", "");
-    vibes_in(dir, &["check", "--function", "__main__", "check"]).expect(0, "", "");
-    vibes_in(dir, &["check", "--stats", "--", "check"]).expect(0, "", &{
+    vibes_in(dir, &["run", "check"]).expect(0, "ran\n7\n", "");
+    vibes_in(dir, &["run", "--", "check"]).expect(0, "ran\n7\n", "");
+    vibes_in(dir, &["check", "--", "check"]).expect(0, "No issues found\n", "");
+    vibes_in(dir, &["check", "check"]).expect(0, "No issues found\n", "");
+    vibes_in(dir, &["check", "--function", "__main__", "check"]).expect(0, "No issues found\n", "");
+    vibes_in(dir, &["check", "--stats", "--", "check"]).expect(0, "No issues found\n", &{
         let run = vibes_in(dir, &["check", "--stats", "check"]);
         assert_stats_line(run.stderr.trim_end_matches('\n'));
         run.stderr
     });
-    vibes_in(dir, &["--", "check", "check"]).expect(2, "", "expected one source file\n");
-    vibes_in(dir, &["check", "check", "check"]).expect(2, "", "expected one source file\n");
-    vibes_in(dir, &["check", "--", "check", "--stats"]).expect(2, "", "expected one source file\n");
-    let run = vibes_in(dir, &["check", "check", "--checked"]);
-    assert_eq!(run.status, Some(2));
-    assert_eq!(run.stdout, "");
-    assert!(
-        run.stderr
-            .starts_with("vibes check does not accept --checked;"),
-        "{}",
-        run.stderr
-    );
-    let run = vibes_in(dir, &["check", "--", "-check"]);
+    // `--` cannot escape command selection at the root, as in the Go reference.
+    let run = vibes_in(dir, &["--", "check", "check"]);
     assert_eq!(run.status, Some(1));
-    assert_eq!(run.stdout, "");
     assert!(
-        run.stderr.starts_with("cannot read -check: "),
+        run.stderr.ends_with("unknown command \"--\"\n"),
         "{}",
         run.stderr
     );
-    vibes_in(dir, &["check", "-check"]).expect(2, "", "unknown option -check\n");
+    let single = "vibes check: expected a single script path\n";
+    vibes_in(dir, &["check", "check", "check"]).expect(1, "", single);
+    vibes_in(dir, &["check", "--", "check", "--stats"]).expect(1, "", single);
+    vibes_in(dir, &["check", "check", "--checked"]).expect(1, "", single);
+    vibes_in(dir, &["check", "--", "-check"]).expect(
+        1,
+        "",
+        &format!(
+            "read script: open {}/-check: no such file or directory\n",
+            files.0.display()
+        ),
+    );
+    vibes_in(dir, &["check", "-check"]).expect(1, "", "flag provided but not defined: -check\n");
 }
 
 const EFFECT_UNUSED: &str = "puts \"effect\"\ndef unused(n:string) -> int\n  n\nend\n";
@@ -1392,14 +1334,12 @@ fn inline_source_runs_calls_and_checks_in_every_scope() {
         vibes(&args).expect(0, stdout, "");
     }
     vibes(&["-e", source, "--check"]).expect(0, "", "");
-    vibes(&["check", "-e", source]).expect(0, "", "");
-    vibes(&["check", "--function", "run", "--eval", source]).expect(0, "", "");
+    vibes(&["check", "-e", source]).expect(0, "No issues found\n", "");
+    vibes(&["check", "--function", "run", "--eval", source]).expect(0, "No issues found\n", "");
     vibes(&["check", "--function", "C#read", "-e", METHODS]).expect(
         1,
-        "",
-        "<eval>:6:5: error in read: Return value: expected int, got string\n  \
-         --> line 6, column 5\n 6 |     \"bad\"\n   |     ^\n\
-         <eval>: check of C#read for its declared parameter types found 1 error\n",
+        "<eval>:6:5: Return value: expected int, got string (read)\n",
+        "check failed with 1 issue(s)\n",
     );
     vibes(&["-e", METHODS, "--function", "C#read", "--check"]).expect(
         1,
@@ -1422,16 +1362,20 @@ fn inline_whole_snippet_checks_reject_unused_declarations_that_exact_calls_omit(
                   <eval>: check of the whole snippet found 1 error\n";
     vibes(&["-e", EFFECT_UNUSED, "--check"]).expect(1, "", report);
     vibes(&["--check", "--eval", EFFECT_UNUSED]).expect(1, "", report);
-    vibes(&["check", "-e", EFFECT_UNUSED]).expect(1, "", report);
-    vibes(&["check", "--eval", EFFECT_UNUSED, "--stats"]).expect(1, "", &{
-        let run = vibes(&["-e", EFFECT_UNUSED, "--check", "--stats"]);
-        assert_eq!(run.status, Some(1));
-        assert_eq!(run.stdout, "");
-        let (rendered, stats) = run.stderr.split_once(report).unwrap();
-        assert_eq!(rendered, "");
-        assert_stats_line(stats.trim_end_matches('\n'));
-        run.stderr
-    });
+    let issue = "<eval>:3:3: Return value: expected int, got string (unused)\n";
+    vibes(&["check", "-e", EFFECT_UNUSED]).expect(1, issue, "check failed with 1 issue(s)\n");
+    let run = vibes(&["check", "--stats", "--eval", EFFECT_UNUSED]);
+    assert_eq!(run.status, Some(1));
+    assert_eq!(run.stdout, issue);
+    let (stats, failure) = run.stderr.split_once('\n').unwrap();
+    assert_stats_line(stats);
+    assert_eq!(failure, "check failed with 1 issue(s)\n");
+    let run = vibes(&["-e", EFFECT_UNUSED, "--check", "--stats"]);
+    assert_eq!(run.status, Some(1));
+    assert_eq!(run.stdout, "");
+    let (rendered, stats) = run.stderr.split_once(report).unwrap();
+    assert_eq!(rendered, "");
+    assert_stats_line(stats.trim_end_matches('\n'));
     let run = vibes(&["-e", UNUSED, "--check"]);
     assert_eq!(run.status, Some(1));
     assert_eq!(run.stdout, "");
@@ -1452,9 +1396,14 @@ fn inline_whole_snippet_checks_reject_unused_declarations_that_exact_calls_omit(
         run.stderr
     );
     assert!(!run.stderr.contains("whole file"), "{}", run.stderr);
-    assert_eq!(vibes(&["check", "-e", UNUSED]).stderr, run.stderr);
+    vibes(&["check", "-e", UNUSED]).expect(
+        1,
+        "<eval>:3:3: Return value: expected int, got string (unused)\n\
+         <eval>:7:5: Return value: expected bool, got int (bad)\n",
+        "check failed with 2 issue(s)\n",
+    );
     vibes(&["-e", UNUSED, "--function", "__main__", "--checked"]).expect(0, "null\n", "");
-    vibes(&["check", "-e", UNUSED, "--function", "__main__"]).expect(0, "", "");
+    vibes(&["check", "--function", "__main__", "-e", UNUSED]).expect(0, "No issues found\n", "");
 }
 
 #[test]
@@ -1476,16 +1425,20 @@ fn inline_source_diagnostics_use_the_eval_label_and_keep_module_filenames() {
     );
     vibes(&["check", "--function", "run", "-e", RET]).expect(
         1,
-        "",
-        &format!(
-            "{RET_REPORT}<eval>: check of run for its declared parameter types found 1 error\n"
-        ),
+        "<eval>:2:3: Return value: expected int, got string (run)\n",
+        "check failed with 1 issue(s)\n",
     );
     let parse_error =
         "<eval>:2:1: parse error: expected name\n  --> line 2, column 1\n 2 | \n   | ^\n";
     vibes(&["-e", "def run(\n"]).expect(1, "", parse_error);
     vibes(&["-e", "def run(\n", "--function", "run", "--checked"]).expect(1, "", parse_error);
-    vibes(&["check", "-e", "def run(\n"]).expect(1, "", parse_error);
+    // Go-style commands report a snippet that ends early as the reference does.
+    vibes(&["check", "-e", "def run(\n"]).expect(
+        1,
+        "",
+        "compile failed: parse error at 2:1: unexpected end of snippet\n  \
+         --> line 2, column 1\n 2 | \n   | ^\n",
+    );
     vibes(&["-e", "x = \"é\"\nputs x\n[x == \"é\", 2]"]).expect(0, "é\n[true,2]\n", "");
     vibes(&["-e", INCOMPLETE, "--function", "run", "--check"]).expect(
         1,
@@ -1502,7 +1455,6 @@ fn inline_source_diagnostics_use_the_eval_label_and_keep_module_filenames() {
     for args in [
         vec!["-e", source, "--function", "__main__", "--check"],
         vec!["-e", source, "--check"],
-        vec!["check", "-e", source],
     ] {
         let run = vibes_in(dir, &args);
         assert_eq!(run.status, Some(1), "{args:?}: {}", run.stderr);
@@ -1520,6 +1472,15 @@ fn inline_source_diagnostics_use_the_eval_label_and_keep_module_filenames() {
             run.stderr
         );
     }
+    // The check command names a required module by its resolved path.
+    vibes_in(dir, &["check", "-e", source]).expect(
+        1,
+        &format!(
+            "{}/bad.vibe:2:3: Return value: expected int, got bool (wrong)\n",
+            files.0.display()
+        ),
+        "check failed with 1 issue(s)\n",
+    );
 }
 
 #[test]
@@ -1597,6 +1558,8 @@ fn inline_require_searches_the_working_directory_then_supplied_roots() {
         assert_eq!(run.stderr, "", "{args:?}");
         let expected = if args.contains(&"--checked") {
             "helper initialized\n[7,42]\n"
+        } else if args[0] == "check" {
+            "No issues found\n"
         } else {
             ""
         };
@@ -1612,6 +1575,7 @@ fn inline_require_searches_the_working_directory_then_supplied_roots() {
         for args in [
             vec!["-e", "puts 'effect'", "--module-path", root],
             vec!["check", "-e", "puts 'effect'", "--module-path", root],
+            vec!["run", "-e", "puts 'effect'", "--module-path", root],
         ] {
             let run = vibes_in(Some(&files.0), &args);
             assert_eq!(run.status, Some(1), "{args:?}: {}", run.stderr);
@@ -1632,14 +1596,9 @@ fn inline_usage_errors_exit_with_status_two_before_any_read_or_effect() {
     for (args, message) in [
         (vec!["-e"], "-e requires SOURCE"),
         (vec!["--eval"], "--eval requires SOURCE"),
-        (vec!["check", "-e"], "-e requires SOURCE"),
-        (vec![effect, "-e"], "-e requires SOURCE"),
+        (vec!["--stats", effect, "-e"], "-e requires SOURCE"),
         (
             vec!["-e", effect, "-e", effect],
-            "expected one inline source; -e or --eval was given twice",
-        ),
-        (
-            vec!["check", "--eval", effect, "--eval", effect],
             "expected one inline source; -e or --eval was given twice",
         ),
         (
@@ -1652,10 +1611,6 @@ fn inline_usage_errors_exit_with_status_two_before_any_read_or_effect() {
         ),
         (
             vec!["-e", effect, "--", missing.as_str()],
-            "expected FILE or -e SOURCE, not both",
-        ),
-        (
-            vec!["check", missing.as_str(), "-e", effect],
             "expected FILE or -e SOURCE, not both",
         ),
         (
@@ -1696,14 +1651,6 @@ fn inline_usage_errors_exit_with_status_two_before_any_read_or_effect() {
             vec!["-e", effect, "--steps", "abc"],
             "invalid --steps value \"abc\": ",
         ),
-        (
-            vec!["check", "-e", effect, "--checked"],
-            "vibes check does not accept --checked;",
-        ),
-        (
-            vec!["check", "-e", effect, "--arg", "1"],
-            "vibes check does not accept --arg;",
-        ),
     ] {
         let run = vibes(&args);
         assert_eq!(run.status, Some(2), "{args:?}: {}", run.stderr);
@@ -1720,22 +1667,66 @@ fn inline_usage_errors_exit_with_status_two_before_any_read_or_effect() {
         assert!(!stderr.contains("parse error"), "{args:?}: {stderr}");
         assert!(!stderr.contains("module path"), "{args:?}: {stderr}");
     }
+    // The check command parses its flags as the Go reference does: every
+    // failure exits with status 1, a repeated flag keeps its last value, and
+    // flags end at the first positional argument.
+    for (args, message) in [
+        (vec!["check", "-e"], "flag needs an argument: -e"),
+        (
+            vec!["check", missing.as_str(), "-e", effect],
+            "vibes check: expected a single script path",
+        ),
+        (
+            vec!["check", "-e", effect, missing.as_str()],
+            "vibes check: -e does not accept positional arguments",
+        ),
+        (
+            vec!["check", "-e", effect, "--checked"],
+            "flag provided but not defined: -checked",
+        ),
+        (
+            vec!["check", "-e", effect, "--arg", "1"],
+            "flag provided but not defined: -arg",
+        ),
+    ] {
+        vibes(&args).expect(1, "", &format!("{message}\n"));
+    }
+    vibes(&["check", "--eval", "1 +", "--eval", effect]).expect(0, "No issues found\n", "");
+    // A first argument that is neither a command nor a flat-form option or
+    // script path is an unknown command, as in the Go reference.
+    let run = vibes(&[effect, "-e"]);
+    assert_eq!(run.status, Some(1));
+    assert!(
+        run.stderr
+            .ends_with("unknown command \"puts \\\"effect\\\"\"\n"),
+        "{}",
+        run.stderr
+    );
     #[cfg(unix)]
     {
         use std::ffi::OsStr;
         use std::os::unix::ffi::OsStrExt;
-        for prefix in [vec![], vec!["check"]] {
-            let mut command = Command::new(VIBES);
-            command.args(prefix.iter());
-            command.arg("-e").arg(OsStr::from_bytes(b"puts 1\xff"));
-            let output = command.output().unwrap();
-            assert_eq!(output.status.code(), Some(2), "{prefix:?}");
-            assert!(output.stdout.is_empty(), "{prefix:?}");
-            assert_eq!(
-                output.stderr, b"-e value is not valid UTF-8\n",
-                "{prefix:?}"
-            );
-        }
+        let output = Command::new(VIBES)
+            .arg("-e")
+            .arg(OsStr::from_bytes(b"puts 1\xff"))
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+        assert_eq!(output.stderr, b"-e value is not valid UTF-8\n");
+        // Go-style commands decode invalid UTF-8 with replacement characters.
+        let output = Command::new(VIBES)
+            .args(["check", "-e"])
+            .arg(OsStr::from_bytes(b"puts 1\xff"))
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        assert!(
+            output
+                .stderr
+                .starts_with(b"compile failed: parse error at 1:7: ")
+        );
     }
 }
 
@@ -1756,14 +1747,17 @@ fn inline_option_values_are_literal_and_double_dash_still_names_a_file() {
     vibes(&["-e", "-7"]).expect(0, "-7\n", "");
     vibes(&["--eval", "-7", "--"]).expect(0, "-7\n", "");
     assert_lookup_failure(&vibes(&["-e", "--stats"]), "stats");
-    vibes(&["check", "-e", "-7"]).expect(0, "", "");
+    vibes(&["check", "-e", "-7"]).expect(0, "No issues found\n", "");
     assert_lookup_failure(&vibes(&["-e", "check"]), "check");
     let files = Files::new();
     files.write("-e", "puts \"file\"\n7\n");
     files.write("check", "8\n");
     let dir = Some(files.0.as_path());
-    vibes_in(dir, &["--", "-e"]).expect(0, "file\n7\n", "");
-    vibes_in(dir, &["check", "--", "-e"]).expect(0, "", "");
+    vibes_in(dir, &["run", "--", "-e"]).expect(0, "file\n7\n", "");
+    let run = vibes_in(dir, &["--stats", "--", "-e"]);
+    assert_eq!(run.stdout, "file\n7\n");
+    assert_stats_line(run.stderr.trim_end_matches('\n'));
+    vibes_in(dir, &["check", "--", "-e"]).expect(0, "No issues found\n", "");
     vibes_in(dir, &["-e"]).expect(2, "", "-e requires SOURCE\n");
     assert_lookup_failure(&vibes_in(dir, &["-e", "check"]), "check");
     assert_lookup_failure(&vibes_in(dir, &["-e", "-- check"]), "check");
@@ -1781,8 +1775,12 @@ fn empty_inline_source_is_valid_in_every_scope() {
         vibes(&["-e", source, "--check"]).expect(0, "", "");
         vibes(&["-e", source, "--function", "__main__", "--check"]).expect(0, "", "");
         vibes(&["-e", source, "--function", "__main__", "--checked"]).expect(0, "null\n", "");
-        vibes(&["check", "-e", source]).expect(0, "", "");
-        vibes(&["check", "--function", "__main__", "--eval", source]).expect(0, "", "");
+        vibes(&["check", "-e", source]).expect(0, "No issues found\n", "");
+        vibes(&["check", "--function", "__main__", "--eval", source]).expect(
+            0,
+            "No issues found\n",
+            "",
+        );
         vibes(&["-e", source, "--function", "run"]).expect(1, "", "function run not found\n");
     }
     let run = vibes(&["--eval", "", "--stats"]);
@@ -1886,7 +1884,12 @@ fn inline_source_honors_quotas_deadlines_and_stats() {
     ] {
         let run = vibes(&args);
         assert_eq!(run.status, Some(0), "{args:?}: {}", run.stderr);
-        assert_eq!(run.stdout, "", "{args:?}");
+        let clean = if args[0] == "check" {
+            "No issues found\n"
+        } else {
+            ""
+        };
+        assert_eq!(run.stdout, clean, "{args:?}");
         assert_stats_line(run.stderr.trim_end_matches('\n'));
     }
     let run = vibes(&[

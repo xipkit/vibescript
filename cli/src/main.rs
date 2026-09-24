@@ -1,36 +1,28 @@
-mod cli;
+//! The `vibes` command line: Go-compatible commands (`run`, `check`, `help`)
+//! plus the flat form that runs a file directly.
+
+mod check;
+mod compat;
+mod flags;
+mod flat;
+mod output;
+mod profiles;
+mod render;
 mod repl;
+mod root;
+mod run;
+mod signal;
+mod source;
+mod watch;
 
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
-    let mut args = std::env::args_os().skip(1).peekable();
-    if args.next_if(|arg| arg == "repl").is_some() {
-        return repl::run(args);
-    }
-    let command = match cli::parse(args) {
-        Ok(command) => command,
-        Err(failure) => return report(failure),
-    };
-    let result = match command {
-        cli::Command::Help(text) => {
-            print!("{text}");
-            Ok(())
-        }
-        cli::Command::Version => {
-            println!("vibescript.rs {}", env!("CARGO_PKG_VERSION"));
-            Ok(())
-        }
-        cli::Command::Run(invocation) => cli::run(*invocation),
-        cli::Command::Check(analysis) => cli::check(*analysis),
-    };
-    match result {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(failure) => report(failure),
-    }
+    signal::install();
+    root::main(std::env::args_os().skip(1).collect())
 }
 
-fn report(failure: cli::Failure) -> ExitCode {
-    eprintln!("{failure}");
-    failure.exit_code()
+/// Prints a command's help on stdout.
+fn print_help(spec: &flags::Spec) -> Result<(), String> {
+    root::print(&flags::help(spec))
 }
