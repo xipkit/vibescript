@@ -138,3 +138,85 @@ The summary reads `check of the whole file` for `vibes check FILE`, `check of th
 | 0 | Execution finished, or the check was clean. |
 | 1 | Reading, parsing, checking or execution failed, including rejected and incomplete checks. |
 | 2 | Usage error; nothing was read or executed. |
+
+## Interactive REPL
+
+`vibes repl` starts the interactive REPL, a port of the Go CLI's. It takes no positional arguments. As in the Go CLI, it defaults to the `xhigh` quota profile: unlimited steps and memory with a 10,000-frame recursion cap, because it runs your own code on your own machine. The flags follow Go's spelling, with one or two dashes and the value after a space or `=`:
+
+| Flag | Meaning |
+| --- | --- |
+| `-profile NAME` | `low` (1,000,000 steps, 16 MiB, 256 frames), `medium` (20,000,000, 128 MiB, 1,000), `high` (200,000,000, 512 MiB, 4,000) or `xhigh` (unlimited, unlimited, 10,000). |
+| `-step-quota N` | Overrides the profile's step quota. |
+| `-memory-quota N` | Overrides the profile's memory quota in bytes. |
+| `-recursion-limit N` | Overrides the profile's recursion limit. |
+
+For each override, `-1` removes the limit, `0` selects the library default and a positive value is the limit. An unknown profile, flag or positional argument prints a message on stderr and exits with status 1 before any input is read; `-h` prints the usage. A runaway loop under a finite profile fails with `step quota exceeded` instead of freezing the session.
+
+```sh
+vibes repl
+vibes repl -profile low
+printf 'x = 20\nx * 2 + 2\n' | vibes repl
+```
+
+### The session
+
+Each complete input runs as a top-level snippet. Top-level variables it assigns, including destructuring and compound assignments and loop variables, stay available to later inputs, as do changes to existing variables such as `items.push(2)`. `_` holds the last result. Functions, classes, modules and enums declared at the top level stay available too, and a new declaration with the same name replaces the old one. Classes, modules and enums are kept as values, so instances and enum members made earlier still match them in `is_a?`, comparisons and type annotations; an instance made before a class was redefined keeps its original class. Class variables and module state start afresh for each input, while instances keep their fields. Functions are kept as source and compiled into each later input. An input that fails to compile or run leaves the variables and declarations as they were.
+
+An input that ends inside an unfinished construct continues on the next line under a `...>` prompt: a `def`, `class` or block without its `end`, an open bracket, a trailing operator or an unterminated string. Blank lines inside it are kept. Ctrl-C discards the unfinished input.
+
+The result shows anything the input printed with `puts`, `print`, `p` or `warn`, then the result unless it is nil; a nil result with no output shows `nil`. Values are rendered as the Go REPL renders them: strings and symbols without quotes, nil inside a collection as an empty string, floats in Go's shortest form (`1e+21`, `Infinity`) and collections as `[1, 2]` and `{a: 1}`. Failures start with `compile error:` or `runtime error:` and carry the library's code frame and call trace. Positions refer to the text as typed: frames in the input are named `<repl>`, a parse error at the end of the input reads `unexpected end of snippet`, and an error inside a carried function points at the line where that function was typed.
+
+### Commands and keys
+
+| Command | Effect |
+| --- | --- |
+| `:help`, `:h` | Show or hide the help panel. |
+| `:vars`, `:v` | Show or hide the variables panel. |
+| `:globals`, `:g` | List variables as `name = value`. |
+| `:functions`, `:f` | List callable builtins, the session's functions and callable variables. |
+| `:types`, `:t` | List variables as `name: type`. |
+| `:clear`, `:c` | Clear the transcript. |
+| `:reset`, `:r` | Forget every variable and declaration. |
+| `:last_error`, `:le` | Show the most recent error. |
+| `:quit`, `:q` | Exit. |
+
+With a terminal on both stdin and stdout, the REPL runs full screen in the alternate screen, with the Go REPL's layout and colors: a header, the transcript of inputs (`›`), results (`→`) and failures (`✗`), the panels, the input line and a key hint footer. Older transcript lines scroll away so the input stays visible. Colors follow the terminal: true color when `COLORTERM` says so, 256 or 16 colors otherwise, and none under `NO_COLOR` or a dumb terminal.
+
+| Key | Effect |
+| --- | --- |
+| Enter | Submit the line. |
+| Up, Down | Recall earlier and later inputs; a multi-line input comes back whole. |
+| Tab | Complete the last word: `:` commands, builtins such as `JSON.parse_as` after a dot, keywords, variables and the session's declarations. Several matches are listed in the transcript. |
+| Ctrl-C | Interrupt a running evaluation, discard an unfinished input, or exit. |
+| Ctrl-D | Exit. |
+| Ctrl-L | Clear the transcript. |
+| Ctrl-V, Ctrl-K | Show or hide the variables or help panel. |
+| Left, Right, Home, End, Ctrl-A, Ctrl-E, Ctrl-B, Ctrl-F | Move the cursor. |
+| Alt-Left, Alt-Right, Ctrl-Left, Ctrl-Right, Alt-B, Alt-F | Move by word. |
+| Backspace, Delete, Ctrl-H, Ctrl-W, Alt-Backspace, Alt-D, Ctrl-U | Delete a character, a word, or everything before the cursor. |
+
+An input line holds at most 500 characters and scrolls horizontally when it is wider than the terminal. Pasted text is inserted as typed, and each line break in it submits a line. Keys typed while an evaluation runs are applied after it finishes.
+
+### Piped input
+
+When stdin or stdout is not a terminal, and always under WASI, the REPL reads one line per input, ending at `\n`, `\r\n` or `\r`, and prints each transcript entry as the full-screen transcript shows it, followed by a blank line. `:vars` and `:help` print their panel. It stops at `:quit`, a Ctrl-D byte or the end of input, and exits with status 0; an input still unfinished at the end is evaluated so its error is reported. Colors are used only when stdout is a terminal.
+
+```sh
+$ printf 'def sq(n)\n  n * n\nend\nsq(7)\n' | vibes repl
+  › def sq(n)
+      n * n
+    end
+  → nil
+
+  › sq(7)
+  → 49
+
+```
+
+### Embedding
+
+The session is the `vibescript_tools::repl::ReplSession` library type; the CLI only adds the terminal. `feed_line` takes one line and reports whether it needs more input, ran as an evaluation with its rendered output and its value or structured error, or ran a command. The session also offers completion, the transcript and history navigation, and is built on the library's `Script::run_bindings`, `Script::declarations` and `vibescript::builtins` (see [interactive sessions](sessions.md)).
+
+### Differences from the Go REPL
+
+The Go REPL wraps each input in a function, so it keeps only the variables of a single assignment statement and cannot define functions, classes, modules or enums; this REPL keeps every top-level variable, including changes made through methods such as `push`, and carries declarations. Go's input line is single-line; this REPL continues unfinished input. Go shows an input's call frames twice (`at <repl> (1:1)` for both the function and its call) and reports some parse errors differently because of its wrapper; here each frame appears once and a lone `end` is `expected expression`. `:functions` omits `proc`, `lambda` and `Proc`, which the Rust library removed. With piped input, Go's program reads the pipe as keystrokes, requires carriage returns, renders nothing when stdout is not a terminal and waits forever at the end of input; this REPL's line mode prints the transcript and exits. Ctrl-C interrupts a running evaluation instead of waiting for it, a long transcript scrolls by lines so the input line never leaves the screen, the terminal's own cursor replaces the Go input's blinking block, and the header shows this package's version.

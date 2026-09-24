@@ -15,6 +15,8 @@ The [CLI](docs/cli.md) writes `puts`, `print`, and `p` to stdout and `warn` to s
 
 The CLI searches the input file's directory for required modules. Add other roots with repeatable `--module-path DIR` options; the same paths apply to execution and checking.
 
+`vibes repl` starts the interactive REPL, ported from the Go CLI. Variables, functions and classes persist across inputs, unfinished input continues on the next line, and piped input runs one line at a time; see [the REPL section](docs/cli.md#interactive-repl).
+
 ## Embed it
 
 ```rust
