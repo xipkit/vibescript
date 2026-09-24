@@ -123328,5 +123328,80 @@
     "name": "implicit_class_member_before_local_assignment",
     "go_error": "unknown class member missing",
     "source": "class Holder\n seen=missing\n missing=1\nend\ndef run(input)\n 1\nend"
+  },
+  {
+    "name": "call_member_unknown_int",
+    "body": "1.call()",
+    "go_error": "unknown int method call"
+  },
+  {
+    "name": "call_member_unknown_int_arguments",
+    "body": "1.call(1)",
+    "go_error": "unknown int method call"
+  },
+  {
+    "name": "call_member_unknown_float",
+    "body": "1.5.call()",
+    "go_error": "unknown float method call"
+  },
+  {
+    "name": "call_member_unknown_string",
+    "body": "'s'.call()",
+    "go_error": "unknown string method call"
+  },
+  {
+    "name": "call_member_unknown_array_block",
+    "body": "[1].call { }",
+    "go_error": "unknown array method call"
+  },
+  {
+    "name": "call_member_unknown_nil",
+    "body": "nil.call()",
+    "go_error": "unknown nil method call"
+  },
+  {
+    "name": "call_member_unknown_symbol",
+    "body": ":s.call()",
+    "go_error": "unknown symbol method call"
+  },
+  {
+    "name": "call_member_unknown_bool",
+    "body": "true.call()",
+    "go_error": "unknown bool method call"
+  },
+  {
+    "name": "call_member_unknown_regex",
+    "body": "/a/.call()",
+    "go_error": "unknown regex method call"
+  },
+  {
+    "name": "call_member_unknown_duration",
+    "body": "1.second.call()",
+    "go_error": "unknown duration method call"
+  },
+  {
+    "name": "call_member_unknown_safe",
+    "body": "x = 5\nx&.call()",
+    "go_error": "unknown int method call"
+  },
+  {
+    "name": "call_member_unknown_computed_suggestion",
+    "body": "(1.flor)()",
+    "go_error": "unknown int method flor (did you mean \"floor\"?)"
+  },
+  {
+    "name": "call_member_unknown_instance",
+    "go_error": "unknown member call",
+    "source": "class K\nend\ndef run(input)\nK.new.call()\nend"
+  },
+  {
+    "name": "call_member_unknown_enum",
+    "go_error": "unknown enum property call",
+    "source": "enum E\nA\nend\ndef run(input)\nE.call()\nend"
+  },
+  {
+    "name": "call_member_unknown_enum_member",
+    "go_error": "unknown enum member property call",
+    "source": "enum E\nA\nend\ndef run(input)\nE::A.call()\nend"
   }
 ]

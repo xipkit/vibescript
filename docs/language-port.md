@@ -508,7 +508,7 @@ Nine big-integer string-precision observations follow the selected prefix rule: 
 
 ## Member call selection
 
-Explicit calls to a member named call now select the target before evaluating arguments. Missing or inaccessible members skip argument and block effects. Callable hash fields retain the selected target when arguments mutate the source hash. Script methods preserve keyword binding, options rules and nonlocal block control. Four native tests and 179 shared reference expectations cover these paths, with eleven additional uncaught rejections. Fifty-five diagnostic wording observations remain recorded separately. See [member call selection](call-member.md).
+Explicit calls to a member named call now select the target before evaluating arguments. Missing or inaccessible members skip argument and block effects. Callable hash fields retain the selected target when arguments mutate the source hash. Script methods preserve keyword binding, options rules and nonlocal block control. Four native tests and 179 shared reference expectations cover these paths, with eleven additional uncaught rejections. Their diagnostic wording now matches the reference. See [member call selection](call-member.md).
 
 The complete language goal remains active. Hash.new and loop, imports/exports, remaining expressions and diagnostics, JSON/value depth, static checking, host namespaces and blocks, native async callbacks and platform validation remain required.
 

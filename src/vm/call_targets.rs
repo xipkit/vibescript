@@ -201,8 +201,14 @@ pub(super) fn member(
     if names::universal(name) {
         return Ok(Target::Member(Value::nil(), site.name));
     }
-    Err(Error::new(
-        ErrorKind::Name,
-        format!("unknown {} member {name}", receiver.type_name()),
-    ))
+    let message = match names::Receiver::of(&receiver).unknown() {
+        Some((wording, candidates)) => {
+            let candidates = candidates.iter().map(|candidate| candidate.as_bytes());
+            let suggestion = crate::members::suggest::did_you_mean(name, candidates);
+            format!("{wording} {name}{suggestion}")
+        }
+        None if matches!(receiver.0, Kind::Instance(_)) => format!("unknown member {name}"),
+        None => format!("unknown {} member {name}", receiver.type_name()),
+    };
+    Err(Error::new(ErrorKind::Name, message))
 }

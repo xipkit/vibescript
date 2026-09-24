@@ -151,3 +151,28 @@ fn rejected_call_arguments_release_storage_and_cancellation_still_wins() {
     assert_eq!(cancelled.kind, ErrorKind::Cancelled);
     assert!(events.lock().unwrap().is_empty());
 }
+
+#[test]
+fn unknown_call_members_use_the_reference_wording() {
+    let cases: serde_json::Value =
+        serde_json::from_str(include_str!("language-errors.json")).unwrap();
+    let mut checked = 0;
+    for case in cases.as_array().unwrap() {
+        let name = case["name"].as_str().unwrap();
+        if !name.starts_with("call_member_unknown_") {
+            continue;
+        }
+        let source = case["source"]
+            .as_str()
+            .map(str::to_owned)
+            .unwrap_or_else(|| format!("def run(input)\n{}\nend", case["body"].as_str().unwrap()));
+        let error = Engine::new()
+            .compile(&source)
+            .unwrap()
+            .call("run", &[Value::nil()], CallOptions::default())
+            .unwrap_err();
+        assert_eq!(error.message, case["go_error"].as_str().unwrap(), "{name}");
+        checked += 1;
+    }
+    assert_eq!(checked, 15);
+}
