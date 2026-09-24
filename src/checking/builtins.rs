@@ -504,19 +504,20 @@ fn member_arm(
     if enums::supported(facts, receiver) {
         return enums::member(ctx, facts, receiver, site, name, args).map(Some);
     }
-    if args.block.is_some()
-        && !values::supported(facts, receiver, name)
-        && !matches!(facts.node(receiver), Node::Protected(..))
-    {
-        let mut result = outcome(Atom::Never.fact());
-        result.incomplete = true;
-        return Ok(Some(result));
-    }
     if matches!(facts.node(receiver), Node::Protected(..)) {
         return protected::member(ctx, facts, receiver, site, name, args).map(Some);
     }
     if values::supported(facts, receiver, name) {
         return values::member(ctx, facts, receiver, site, name, args).map(Some);
+    }
+    // Plain collection arms return to the caller, which applies the native
+    // call-shape refusals.
+    if args.block.is_some()
+        && (matches!(facts.node(receiver), Node::TypeValue(_)) || namespace(ctx, facts, receiver)?)
+    {
+        let mut result = outcome(Atom::Never.fact());
+        result.incomplete = true;
+        return Ok(Some(result));
     }
     if let Node::TypeValue(_) = facts.node(receiver) {
         let mut result = outcome(Atom::Never.fact());

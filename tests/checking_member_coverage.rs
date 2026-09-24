@@ -301,3 +301,54 @@ fn members_named_by_symbols_agree_with_the_runtime() {
         ],
     );
 }
+
+/// Unions of receiver kinds. A known error on one arm is a contradiction by
+/// design even when another arm's witness would run, so these calls are only
+/// required to finish analysis.
+const UNIONS: &[&str] = &[
+    "int | string",
+    "array | string",
+    "hash | array",
+    "int | nil",
+    "string | symbol",
+    "time | duration",
+    "money | int",
+    "array<int> | nil",
+    "float | int",
+    "range | array",
+    "string | regex",
+    "bool | nil",
+];
+
+#[test]
+fn members_of_union_receivers_are_analyzed() {
+    let names = member_names();
+    let incomplete: Vec<String> = std::thread::scope(|scope| {
+        let names = &names;
+        let workers: Vec<_> = UNIONS
+            .iter()
+            .map(|ty| {
+                scope.spawn(move || {
+                    let mut incomplete = Vec::new();
+                    for name in names {
+                        for shape in SHAPES {
+                            let source = format!("def run(x: {ty})\n  x.{name}{shape}\nend\n");
+                            let script = Engine::new()
+                                .compile(&source)
+                                .unwrap_or_else(|error| panic!("{source}: {error}"));
+                            if !check(&script).incomplete.is_empty() {
+                                incomplete.push(format!("x: {ty} => x.{name}{shape}"));
+                            }
+                        }
+                    }
+                    incomplete
+                })
+            })
+            .collect();
+        workers
+            .into_iter()
+            .flat_map(|worker| worker.join().unwrap())
+            .collect()
+    });
+    assert!(incomplete.is_empty(), "{}", incomplete.join("\n"));
+}

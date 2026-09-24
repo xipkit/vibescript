@@ -498,9 +498,20 @@ fn keyword_and_block_shapes_follow_the_runtime_refusals() {
         "{ a: 1 }.inspect(a: 1)",
         "\"abc\".getbyte(0, a: 1)",
     ]);
-    strict_arms(vec![(
-        "def run(x: array<int> | string) -> int; x.size { |v| v }; x.reverse { |v| v }; 0; end",
-        Value::bytes("ab"),
+    strict_arms(vec![
+        (
+            "def run(x: array<int> | string) -> int; x.size { |v| v }; x.reverse { |v| v }; 0; end",
+            Value::bytes("ab"),
+        ),
+        (
+            "def run(x: int | string) -> int; x.size { |v| v }; end",
+            Value::bytes("ab"),
+        ),
+    ]);
+    witnesses(vec![(
+        "def run(x: array<int> | string) -> int; x.size { |v| v }; end",
+        vec![ints(&[1])],
+        Value::int(1),
     )]);
 }
 
