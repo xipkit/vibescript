@@ -302,7 +302,17 @@ pub(super) fn arguments(
     // No callbacks have run yet; all retained sources belong to the accepted arguments.
     for index in (0..count).rev() {
         ctx.charge(1)?;
-        let code = ctx.code_roots.as_ref().unwrap().data[index].clone();
+        let code = &ctx.code_roots.as_ref().unwrap().data[index];
+        // The entry program is already registered, and loading it again only pins it.
+        if storage
+            .programs
+            .data
+            .first()
+            .is_some_and(|entry| entry.program.matches(code, None))
+        {
+            continue;
+        }
+        let code = code.clone();
         let (program, _) = load(ctx, storage, &code, None)?;
         if program.index != 0 {
             activate(ctx, storage, program.index)?;

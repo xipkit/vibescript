@@ -262,8 +262,10 @@ impl Run {
             bypasses: Buffer::empty(),
             root_locals: None,
         };
+        // Without enum declarations, arguments have nothing to rebind to.
+        let definitions = &code.program.enum_definitions;
         ctx.enum_rebind.definitions =
-            (!code.program.file).then(|| code.program.enum_definitions.clone());
+            (!code.program.file && !definitions.is_empty()).then(|| definitions.clone());
         ctx.enum_rebind.active = true;
         globals::validate(ctx)?;
         let environment = code
