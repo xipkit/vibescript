@@ -1273,7 +1273,10 @@ impl<'a> Parsing<'a> {
         let previous = {
             let mut p = self.p();
             if !target.is_binding() {
-                return p.err("invalid for loop target");
+                let offset = target
+                    .offset()
+                    .map_or(p.position(p.pos), |offset| offset as usize);
+                return Err(Error::syntax(p.work, offset, "invalid for loop target"));
             }
             p.expect_word("in")?;
             let groups = p.groups;
@@ -1364,7 +1367,7 @@ impl<'a> Parsing<'a> {
                         ));
                     }
                 }
-                if first_expression && listed && !expression.assignable() {
+                if (if first_expression { listed } else { !typed }) && !expression.assignable() {
                     return Err(Error::syntax(
                         p.work,
                         expression.offset as usize,
@@ -1532,7 +1535,7 @@ impl<'a> Parsing<'a> {
             self.p().lines()?;
         }
         if clauses.is_empty() {
-            return self.p().err("case requires a when clause");
+            return self.p().expected("when");
         }
         let alternate = if self.p().word("else") {
             self.p().lines()?;

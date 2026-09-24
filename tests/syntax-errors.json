@@ -13639,5 +13639,41 @@
     "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx = ; 2\nx\n",
     "function": "__main__",
     "go_error": "parse error at 10:5: unexpected token \";\""
+  },
+  {
+    "name": "assignment_for_member_target",
+    "source": "x = nil\nfor x.y in [1]\nend\n",
+    "function": "__main__",
+    "go_error": "parse error at 2:5: invalid for loop target"
+  },
+  {
+    "name": "assignment_for_literal_target",
+    "source": "x = nil\nfor 1 in [1]\nend\n",
+    "function": "__main__",
+    "go_error": "parse error at 2:5: invalid destructuring assignment target"
+  },
+  {
+    "name": "assignment_for_listed_literal",
+    "source": "x = nil\nfor a, 1 in [[1, 2]]\nend\n",
+    "function": "__main__",
+    "go_error": "parse error at 2:8: invalid destructuring assignment target"
+  },
+  {
+    "name": "assignment_for_safe_target",
+    "source": "x = nil\nfor x&.y in [1]\nend\n",
+    "function": "__main__",
+    "go_error": "parse error at 2:5: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "assignment_nested_literal_target",
+    "source": "x = nil\na, (b, 2) = 1, [2, 3]\n",
+    "function": "__main__",
+    "go_error": "parse error at 2:8: invalid destructuring assignment target"
+  },
+  {
+    "name": "assignment_case_subject",
+    "source": "x = nil\nx = 1\ncase x = 1\nwhen 1 then 2\nend\n",
+    "function": "__main__",
+    "go_error": "parse error at 3:8: expected when, got \"=\""
   }
 ]
