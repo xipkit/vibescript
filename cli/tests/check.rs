@@ -52,6 +52,21 @@ fn reports_issues_one_per_line_and_fails() {
 }
 
 #[test]
+fn analysis_has_no_default_quota() {
+    let source: String = (0..80)
+        .map(|i| {
+            format!(
+                "def helper{i}(items)\n  totals = {{ count: 0, names: [] }}\n  items.each do |item|\n    totals[:count] = totals[:count] + 1\n    totals[:names] = totals[:names] + [item[:name]]\n  end\n  \"#{{totals[:count]}}: \" + totals[:names].join(\", \")\nend\n\n"
+            )
+        })
+        .collect();
+    let files = Files::new();
+    let path = files.write("large.vibe", &source);
+    vibes(&["check", &path]).expect(0, "No issues found\n", "");
+    vibes(&["check", "--steps", "1000000", &path]).expect(1, "", "step quota exceeded (1000000)\n");
+}
+
+#[test]
 fn requires_exactly_one_script_path() {
     vibes(&["check"]).fails("vibes check: script path required");
     vibes(&["check", "a.vibe", "b.vibe"]).fails("vibes check: expected a single script path");

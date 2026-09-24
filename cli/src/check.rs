@@ -38,12 +38,12 @@ const FLAGS: [Flag; 8] = [
     Flag::new(
         &["steps"],
         Kind::Uint,
-        "analysis step quota; 0 disables it (default 1000000)",
+        "analysis step quota; 0 disables it (default unlimited)",
     ),
     Flag::new(
         &["memory"],
         Kind::Uint,
-        "analysis memory quota in bytes; 0 disables it (default 16777216)",
+        "analysis memory quota in bytes; 0 disables it (default unlimited)",
     ),
     Flag::new(
         &["recursion"],
@@ -86,7 +86,11 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
         Outcome::Help => return crate::print_help(&SPEC),
         Outcome::Parsed(flags) => flags,
     };
+    // Like the reference's check, analysis has no step or memory quota unless
+    // one is requested. Its cost grows linearly with the source.
     let mut options = CallOptions::default();
+    options.limits.steps = None;
+    options.limits.memory_bytes = None;
     if let Some(steps) = flags.uint("steps") {
         options.limits.steps = (steps != 0).then_some(steps);
     }

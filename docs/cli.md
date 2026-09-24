@@ -101,7 +101,7 @@ vibes check [options] <script>
 | --- | --- |
 | `-function NAME` | Check one declaration instead of the whole file: a function, `Class#method`, `Namespace.method`, `Class.new` or `__main__`, for its declared parameter types and defaults. |
 | `-e SOURCE`, `-eval SOURCE` | Check inline source instead of a file; issues name it `<eval>`, and the working directory is the first module root. |
-| `-steps N`, `-memory N` | Analysis step and memory quotas; 0 disables one. The defaults are 1,000,000 steps and 16 MiB. |
+| `-steps N`, `-memory N` | Analysis step and memory quotas; 0 disables one. Like the reference, analysis has neither by default. |
 | `-recursion N` | The call-depth setting, 256 by default. |
 | `-timeout-ms N` | An analysis deadline. |
 | `-stats` | Print `steps=N peak_bytes=N retained_bytes=N` on stderr. |
