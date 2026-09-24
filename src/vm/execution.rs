@@ -39,17 +39,18 @@ impl Execution {
 
     #[inline]
     fn open(script: &Script, options: CallOptions) -> Self {
-        let mut context = CallContext::new(options);
+        let mut execution = Self {
+            context: CallContext::new(options),
+            run: None,
+            code: script.inner.code.clone(),
+            function: 0,
+        };
+        let context = &mut execution.context;
         context.strict_effects = script.inner.strict_effects;
         context.random_source = script.inner.random_source.clone();
         context.output_writer = script.inner.output_writer.clone();
         context.error_writer = script.inner.error_writer.clone();
-        Self {
-            context,
-            run: None,
-            code: script.inner.code.clone(),
-            function: 0,
-        }
+        execution
     }
 
     fn start(
