@@ -1723,8 +1723,10 @@ impl<'a> Parsing<'a> {
                 if p.take_p('}') {
                     break;
                 }
-                if !matches!(p.token(), Token::P(',') | Token::Eof) {
-                    return p.err(INVALID_HASH_PAIR);
+                match p.token() {
+                    Token::P(',') => (),
+                    Token::Eof => return p.expected(Label::Char('}')),
+                    _ => return p.err(INVALID_HASH_PAIR),
                 }
                 p.expect_p(',')?;
                 p.line_breaks()?;
