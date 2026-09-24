@@ -164,11 +164,13 @@ impl Facts {
                 (_, None) => {
                     if matches!(
                         self.node(arm),
-                        Node::Enumeration { .. } | Node::EnumMember { .. }
+                        Node::Named(_) | Node::Nominal { .. } | Node::Choice(_)
                     ) {
-                        result.rejected = true;
-                    } else {
                         result.unsupported = true;
+                    } else {
+                        // Unary operators never dispatch to source methods, and no
+                        // container, object, enum or callable has a native sign.
+                        result.rejected = true;
                     }
                     Atom::Unknown.fact()
                 }

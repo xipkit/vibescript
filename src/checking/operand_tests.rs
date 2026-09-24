@@ -238,6 +238,20 @@ fn collection_logical_and_match_operators_agree_with_execution_for_every_operand
 }
 
 #[test]
+fn unary_operators_agree_with_execution_for_every_operand_kind() {
+    for op in ["-", "+", "!"] {
+        let failed: Vec<_> = OPERANDS
+            .iter()
+            .map(|value| concrete(&format!("{op}({value})")))
+            .collect();
+        let expression = format!("{op}x");
+        if gradual(&expression) {
+            assert!(failed.iter().all(|&failed| failed), "{expression}");
+        }
+    }
+}
+
+#[test]
 fn index_reads_agree_with_execution_for_every_operand_kind() {
     let mut failed = [[false; OPERANDS.len()]; OPERANDS.len()];
     for (r, receiver) in OPERANDS.iter().enumerate() {
