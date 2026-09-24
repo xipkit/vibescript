@@ -19,6 +19,15 @@
 //! Positions are zero-based lines and UTF-16 offsets, as in the protocol.
 //! See `docs/lsp.md` for the protocol details and the differences from the
 //! reference.
+//!
+//! ```
+//! use vibescript_tools::lsp::{Document, Position};
+//!
+//! let document = Document::new("file:///project/main.vibe", "def run\n  puts(\"hi\")\nend\n");
+//! assert!(document.diagnostics().is_empty());
+//! let hover = document.hover(Position::new(1, 3)).unwrap();
+//! assert!(hover.contains("Writes each value"));
+//! ```
 
 mod analysis;
 mod catalog;

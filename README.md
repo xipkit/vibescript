@@ -15,6 +15,8 @@ The [CLI](docs/cli.md) provides the Go reference's commands, `vibes run`, `check
 
 The CLI searches the input file's directory for required modules. Add other roots with repeatable `--module-path DIR` options, before the script path for the commands; the same paths apply to execution and checking.
 
+`vibes lsp` is the language server editors launch for `*.vibe` files, ported from the Go CLI's and embeddable as `vibescript_tools::lsp`: diagnostics include the static checker's findings, and hover, completion, signature help, definitions, document symbols and formatting match the reference; see [the language server](docs/lsp.md).
+
 `vibes repl` starts the interactive REPL, ported from the Go CLI. Variables, functions and classes persist across inputs, unfinished input continues on the next line, and piped input runs one line at a time; see [the REPL section](docs/cli.md#vibes-repl).
 
 ## Embed it

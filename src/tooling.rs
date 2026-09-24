@@ -1,4 +1,4 @@
-//! Read-only views of source declarations and the builtin catalog for editor tooling.
+//! Read-only views of source declarations and member tables for editor tooling.
 //!
 //! These views never compile or execute code. [`outline`] and [`member_receiver`]
 //! parse with the same source-size and syntax-depth guards as

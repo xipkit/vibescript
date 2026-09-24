@@ -11,11 +11,11 @@
 | `vibes test [options] [path...]` | Discover `*_test.vibe` files and run their `test_` functions. |
 | `vibes help [command]`, `--help`, `-h` | Print the command list or one command's help. |
 | `vibes repl [options]` | Start the interactive REPL. |
-| `vibes lsp` | Reserved; not available yet in this build. |
+| `vibes lsp` | Serve the language server over stdin and stdout for editors. |
 
 It also keeps the flat form that predates these commands, `vibes [OPTIONS] FILE` and `vibes [OPTIONS] -e SOURCE`, which prints results as JSON and checks exact calls (see [the flat form](#the-flat-form)), and it prints its version with `vibes --version`.
 
-The formatter, analyzer and test runner are also libraries in the `vibescript-tools` crate (`vibescript_tools::format`, `::analyze` and `::test_runner`), so other programs can embed them; the CLI is a front end that parses arguments, finds and writes files, and renders results.
+The formatter, analyzer, test runner, REPL session and language server are also libraries in the `vibescript-tools` crate (`vibescript_tools::format`, `::analyze`, `::test_runner`, `::repl` and `::lsp`), so other programs can embed them; the CLI is a front end that parses arguments, finds and writes files, and renders results.
 
 ```sh
 ./scripts/cargo run --release -p vibes -- run examples/total.vibe
@@ -133,6 +133,16 @@ vibes test [-run REGEXP] [-module-path DIR]... [quota flags] [path...]
 `test` finds `*_test.vibe` files under the paths, `.` by default, recursively and without following linked directories; an explicit file must follow the naming convention. A test is a top-level function whose name starts with `test_`; it passes when it returns and fails when it raises, including a failed `assert`, and it must not require arguments. Tests run in name order, each as its own call, under the quota profile flags described for `run`. Each file's directory is its first module root. Test files may only declare functions, classes, modules, enums and aliases, as in the reference, whose compiler rejects other top-level statements.
 
 The report goes to stdout, with the tests' own output interleaved: `--- FAIL: FILE :: NAME` and the indented failure for each failing test, or a pseudo-test such as `(compile)` when a file cannot run, then `ok   FILE (N test(s))` for a clean file, and finally `N test(s) across N file(s): N passed, N failed`. A failure exits with `vibes test: N test(s) failed`. `-run` selects tests whose names match a regular expression in the engine's Go-compatible syntax; an invalid pattern fails with the reference's message.
+
+## `vibes lsp`
+
+```sh
+vibes lsp
+```
+
+`vibes lsp` starts the language server that editors launch for `*.vibe` files, speaking the Language Server Protocol over stdin and stdout, as the reference's does. It takes no positional arguments; as with the other commands, `-h` prints its help and an argument fails with `vibes lsp: does not accept positional arguments` and status 1. It exits with status 0 after the client sends `exit` or closes its input, or after an interrupt, and with status 1 when the input's framing is corrupt.
+
+It publishes compile errors on every change and answers hover, completion, signature help, definition, document symbol and formatting requests as the reference does. Its diagnostics add this library's checker findings, with required files resolved from the document's directory as `vibes check` resolves them from the script's. See [the language server](lsp.md) for its features, limits and differences from the reference.
 
 ## `vibes repl`
 
@@ -295,7 +305,7 @@ The summary reads `check of the whole snippet` for a whole `-e` check and `check
 
 - `vibes --version` prints the version; the reference reports an undefined flag.
 - The flat form, `vibes help flat` and the `check` flags `-function`, `-e`/`-eval`, `-steps`, `-memory`, `-recursion`, `-timeout-ms` and `-stats` are extensions, and `vibes check --help` lists them. Each applies only where the reference reports an error.
-- `vibes lsp` reports that it is not available yet in this build. The REPL's own differences are listed [with the REPL](#differences-from-the-go-repl).
+- `vibes lsp` adds this library's checker findings to its diagnostics and reports parse errors in this parser's words; its other differences are listed [with the language server](lsp.md#differences-from-the-reference). The REPL's own differences are listed [with the REPL](#differences-from-the-go-repl).
 - `check` and `run -check` report this library's checker findings, marking unfinished analysis `incomplete:`. Their wording, positions and scope names (`bad` rather than the reference's `helpers.bad`) differ from the reference's checker, which also accepts some scripts this checker rejects.
 - Engine messages are the library's: parse-error wording, the `require` not-found message, step accounting under small quotas, and stack traces, which omit the reference's final frame for the entry function of a script.
 - Watch mode always polls, as the reference does when file notifications are unavailable, so a new module file that nothing edits is noticed by the periodic scan within five seconds rather than immediately.

@@ -18,6 +18,10 @@ Rust's `vibes check` is deliberately stricter than Go's, as selected on 2026-09-
 
 Rust also fails the gate when it reaches an expression it does not yet analyze, reporting it as incomplete; Go treats such a value as unknown. Of the 277 site, example and upstream test programs, 196 are clean and 16 are rejected in both checkers. The other 65 are rejected only by Rust: its union-alternative errors, and known failures in deliberate error fixtures that Go's checker does not report. None report incomplete analysis.
 
+## Language server diagnostics
+
+The Go reference's `vibes lsp` publishes compile errors only. This port's server also publishes the static checker's findings for the whole document, so documents the checker rejects show errors in the editor, and the stricter checker described above applies there too: 73 of the 241 documents in the [language server comparison](lsp.md#comparison-with-the-reference) get findings the reference does not report. Parse errors follow this port's parser, which reports its first error with its own message; hover, completion, signature help, definitions, symbols and formatting match the reference across the comparison.
+
 ## Out-of-range float calendar fields
 
 Go converts a float calendar field or `Time.at` argument that does not fit a 64-bit integer with its implementation-defined conversion, which differs by CPU. On arm64 it saturates, so `Time.utc(2024, 1e100, 1)` normalizes from the largest month; on amd64 it wraps to the smallest integer, giving another date, and `Time.at(9.223372036854776e18)` raises. The Rust port uses the arm64 result on every platform, as selected on 2026-09-22, so a script's result does not depend on the host CPU. The shared corpus was recorded on arm64; on amd64 Go differs from it in six such cases.
