@@ -388,6 +388,7 @@ fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result
         record: None,
         inside_class: false,
         nesting: 0,
+        call_end: 0,
     })
 }
 
@@ -434,6 +435,9 @@ struct Parser<'a> {
     inside_class: bool,
     /// How many statement blocks enclose the current statement.
     nesting: usize,
+    /// The token after the `)` of the latest parenthesized call with
+    /// arguments, where Go attaches a `do` block from the next line.
+    call_end: usize,
 }
 
 /// Where a destructuring target list appears.
@@ -564,6 +568,37 @@ impl<'a> Parsing<'a> {
             Parsed::Expr(expr) => Ok(expr),
             _ => unreachable!(),
         }
+    }
+
+    /// Attaches a block to a whole statement-level expression, as Go's
+    /// `canAttachPeekBlock` does after a line expression: a `do` block from
+    /// any line, or a brace block on the same line.
+    async fn trailing_block(&self, expr: Expr) -> Result<Expr> {
+        let brace = {
+            let mut p = self.p();
+            let next = p.significant(p.pos);
+            let brace = match &p.tokens[next].token {
+                Token::Word(w) if w == "do" => {
+                    (next != p.pos || p.can_attach_do()).then_some(false)
+                }
+                Token::P('{') => (next == p.pos).then_some(true),
+                _ => None,
+            };
+            if brace.is_some() {
+                p.pos = next;
+            }
+            brace
+        };
+        let Some(brace) = brace else {
+            return Ok(expr);
+        };
+        Box::pin(self.block_expression(expr, brace)).await
+    }
+
+    /// Parses a line expression that may take a `do` block from a later line.
+    async fn block_line_expr(&self) -> Result<Expr> {
+        let expr = self.line_expr(0).await?;
+        self.trailing_block(expr).await
     }
 
     async fn line_expr(&self, min: u8) -> Result<Expr> {
@@ -814,7 +849,7 @@ impl<'a> Parsing<'a> {
                     self.p().pos = start;
                     return self.assignment_statement().await;
                 }
-                Ok(Statement::Expr(expr))
+                Ok(Statement::Expr(self.trailing_block(expr).await?))
             }
         }
     }
@@ -936,9 +971,9 @@ impl<'a> Parsing<'a> {
             op
         };
         let Some(op) = op else {
-            return Ok(Statement::Expr(self.line_expr(0).await?));
+            return Ok(Statement::Expr(self.block_line_expr().await?));
         };
-        let first = self.line_expr(0).await?;
+        let first = self.block_line_expr().await?;
         let rhs = if matches!(target, Target::Tuple(_)) && self.p().comma_follows() {
             let work = self.p().work;
             let mut items = Buffer::from_array(work, [first])?;
@@ -952,7 +987,7 @@ impl<'a> Parsing<'a> {
                     }
                     p.line_breaks()?;
                 }
-                items.push(work, self.line_expr(0).await?)?;
+                items.push(work, self.block_line_expr().await?)?;
                 if !self.p().comma_follows() {
                     break;
                 }
@@ -1242,6 +1277,7 @@ impl<'a> Parsing<'a> {
                 p.lines()?;
             }
             let yes = self.expr(0).await?;
+            let yes = self.trailing_block(yes).await?;
             branches.push(work, (cond, yes))?;
             let alternate = {
                 let mut p = self.p();
@@ -1264,6 +1300,7 @@ impl<'a> Parsing<'a> {
                 break self.p().make(Node::Literal(Value::nil()), 1)?;
             }
             let no = self.expr(0).await?;
+            let no = self.trailing_block(no).await?;
             let mut p = self.p();
             p.lines()?;
             p.expect_word("end")?;
@@ -1316,6 +1353,7 @@ impl<'a> Parsing<'a> {
                 p.lines()?;
             }
             let result = self.expr(0).await?;
+            let result = self.trailing_block(result).await?;
             clauses.push(work, When { values, result })?;
             self.p().lines()?;
         }
@@ -1324,7 +1362,8 @@ impl<'a> Parsing<'a> {
         }
         let alternate = if self.p().word("else") {
             self.p().lines()?;
-            Some(Boxed::new(work, self.expr(0).await?)?)
+            let alternate = self.expr(0).await?;
+            Some(Boxed::new(work, self.trailing_block(alternate).await?)?)
         } else {
             None
         };
@@ -2072,7 +2111,9 @@ impl<'a> Parsing<'a> {
                 break;
             }
         }
-        self.p().groups -= 1;
+        let mut p = self.p();
+        p.groups -= 1;
+        p.call_end = p.pos;
         Ok(args)
     }
 
@@ -2741,6 +2782,7 @@ impl<'a> Parser<'a> {
             record: None,
             inside_class: false,
             nesting: 0,
+            call_end: 0,
         };
         while parser.token() == &Token::EndLine
             && parser.tokens[parser.pos].line != parser.tokens[parser.pos].end_line
@@ -2896,7 +2938,9 @@ impl<'a> Parser<'a> {
             return Ok(Some(Suffix::Command));
         }
         let brace = self.token() == &Token::P('{');
-        let do_block = matches!(self.token(), Token::Word(w) if w == "do") && self.can_attach_do();
+        let do_block = matches!(self.token(), Token::Word(w) if w == "do")
+            && (self.can_attach_do()
+                || (self.pos != self.call_end && self.significant(self.call_end) == self.pos));
         if (brace || do_block)
             && (do_block || self.tokens[self.pos].line == self.previous()?.end_line)
         {
@@ -2984,7 +3028,11 @@ impl<'a> Parser<'a> {
         }
         let lexeme = &self.tokens[next];
         let continues = match lexeme.token {
-            Token::Word(ref word) if word == "do" => self.can_attach_do(),
+            // Go continues a line-limited expression onto a `do` only right
+            // after a parenthesized call with arguments.
+            Token::Word(ref word) if word == "do" => {
+                (self.line_exprs == 0 && self.can_attach_do()) || self.pos == self.call_end
+            }
             Token::P('.') | Token::Op("::" | "&.") => true,
             Token::P('?') => min <= 2,
             Token::P('(' | '[') => self.line_exprs == 0 && self.groups > 0,
