@@ -1,7 +1,8 @@
 use crate::{CallOptions, CheckReport, Engine, Limits, Value};
 
-/// A modest bound for these small programs; each converges well below it.
-const BUDGET: u64 = 400_000;
+/// A modest bound for these small programs. The heaviest, a nested union grown through
+/// mutual recursion across a method on new objects, needs a little over half of it.
+const BUDGET: u64 = 2_000_000;
 
 fn budget() -> CallOptions {
     CallOptions {
@@ -421,5 +422,61 @@ fn recursion_through_new_objects_reaches_a_summary() {
         "##,
     ] {
         witnessed(source, true);
+    }
+}
+
+/// Statements that replace `x` with a larger fact on every pass, starting from `x`'s first
+/// value: computed strings and symbols, grown and nested arrays and hashes, literal numbers,
+/// unions that keep gaining arms and newly allocated objects.
+const GROWTH: [(&str, &str); 16] = [
+    (r##""ab""##, r##"x = "#{x}#{x}""##),
+    (r##""a""##, r##"x = x + "b""##),
+    (r##""a""##, r##"x = x.gsub("a", "aa")"##),
+    (r##""a""##, r##"x = "#{x}b".to_sym.to_s"##),
+    ("[]", "x << x.length"),
+    ("[]", "x.push([x.length])"),
+    ("[]", "x = x + [x]"),
+    ("[0]", "x[0] = [x]"),
+    ("{}", r##"x["k#{x.length}"] = x"##),
+    (r##"{"a": 0}"##, r##"x = {"a": x["a"] + 1, "b": x}"##),
+    ("1", "x = x * 3"),
+    ("1.5", "x = x * 1.5"),
+    ("1", r##"x = [x, "#{x}"]"##),
+    ("nil", "x = if x.nil? then 1 else [x] end"),
+    ("[]", "x << row(x.length)"),
+    ("nil", "x = row(x)"),
+];
+
+/// Places a growth step in a loop, in blocks, and in the arguments and results of recursion
+/// through functions, methods on new objects, class methods and mutual calls. Class-body
+/// methods find their class through a function: a step on a gradual value has unknown
+/// effects that leave later reads of class constants explicitly incomplete.
+const CONTEXTS: [&str; 8] = [
+    "def run(n)\n  x = INIT\n  i = 0\n  while i < n\n    STEP\n    i = i + 1\n  end\n  x\nend\n",
+    "def run(n)\n  x = INIT\n  n.times do |i|\n    STEP\n  end\n  x\nend\n",
+    "def run(n)\n  x = INIT\n  (0...n).each do |i|\n    STEP\n  end\n  x\nend\n",
+    "def grow(x, n)\n  if n > 0\n    STEP\n    grow(x, n - 1)\n  else\n    x\n  end\nend\ndef run(n)\n  grow(INIT, n)\nend\n",
+    "def grow(n)\n  if n > 0\n    x = grow(n - 1)\n    STEP\n    x\n  else\n    INIT\n  end\nend\ndef run(n)\n  grow(n)\nend\n",
+    "class Grower\n  def grow(x, n)\n    if n > 0\n      STEP\n      grower.new.grow(x, n - 1)\n    else\n      x\n    end\n  end\nend\ndef grower\n  Grower\nend\ndef run(n)\n  Grower.new.grow(INIT, n)\nend\n",
+    "class Grower\n  def self.grow(x, n)\n    if n > 0\n      STEP\n      grower.grow(x, n - 1)\n    else\n      x\n    end\n  end\nend\ndef grower\n  Grower\nend\ndef run(n)\n  Grower.grow(INIT, n)\nend\n",
+    "def grow(x, n)\n  if n > 0\n    STEP\n    grower.new.step(x, n - 1)\n  else\n    x\n  end\nend\nclass Grower\n  def step(x, n)\n    grow(x, n)\n  end\nend\ndef grower\n  Grower\nend\ndef run(n)\n  grow(INIT, n)\nend\n",
+];
+
+/// Gives the generated programs a class to allocate outside the recursing class body.
+const PRELUDE: &str = "class Row\n  def initialize(value)\n    @value = value\n  end\nend\ndef row(value)\n  Row.new(value)\nend\n";
+
+#[test]
+fn growing_facts_converge_in_loops_blocks_and_recursion() {
+    for context in CONTEXTS {
+        for (init, step) in GROWTH {
+            let source = format!(
+                "{PRELUDE}{}",
+                context.replace("INIT", init).replace("STEP", step)
+            );
+            converged(&source);
+            let script = Engine::new().compile(&source).unwrap();
+            let executed = script.call("run", &[Value::int(3)], CallOptions::default());
+            assert!(executed.is_ok(), "{source}: {executed:?}");
+        }
     }
 }
