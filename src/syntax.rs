@@ -1341,10 +1341,13 @@ impl<'a> Parsing<'a> {
                     splat
                 };
                 values.push(work, (self.condition().await?, splat))?;
+                // Like Go, a comma on the next line continues the values.
                 let mut p = self.p();
-                if !p.take_p(',') {
+                let comma = p.significant(p.pos);
+                if p.tokens[comma].token != Token::P(',') {
                     break;
                 }
+                p.pos = comma + 1;
                 p.lines()?;
             }
             {
