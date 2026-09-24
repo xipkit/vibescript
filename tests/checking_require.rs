@@ -1118,3 +1118,51 @@ fn whole_file_declarations_preserve_imported_private_state_alternatives() {
         assert!(report.is_clean(), "{report:?}");
     }
 }
+
+#[test]
+fn checks_resolve_same_name_calls_past_the_required_file_scope() {
+    let files = Files::new();
+    files.write("plain.vibe", "def helper;1;end;helper=helper()");
+    files.write(
+        "func.vibe",
+        "def helper;1;end;def other;helper=helper();helper;end;other()",
+    );
+    files.write("local.vibe", "helper=5;def helper2;1;end;helper=helper()");
+    files.write("body.vibe", "def helper;1;end;class K;helper=helper();end");
+    files.write(
+        "root.vibe",
+        "def helper;1;end;helper=helper();def peek;helper;end",
+    );
+    files.write(
+        "param.vibe",
+        "def helper;1;end;def f(helper);helper=helper();helper;end;def peek;f(3);end",
+    );
+    for name in ["plain", "func", "local", "body"] {
+        let script = files
+            .engine()
+            .compile(&format!("def run;require(:{name});end"))
+            .unwrap();
+        let report = script
+            .check_call("run", &[], &CallOptions::default())
+            .unwrap();
+        assert!(report.incomplete.is_empty(), "{name}: {report:?}");
+        let file = format!("{name}.vibe");
+        assert!(
+            report.diagnostics.iter().any(|d| d
+                .filename
+                .as_ref()
+                .is_some_and(|f| f.ends_with(file.as_bytes()))),
+            "{name}: {report:?}"
+        );
+        assert!(
+            script.call("run", &[], CallOptions::default()).is_err(),
+            "{name}"
+        );
+    }
+    witness(
+        &files,
+        "def helper;2;end\ndef run;[require(:root).peek,require(:param).peek];end",
+        CallOptions::default(),
+        "[2,1]",
+    );
+}

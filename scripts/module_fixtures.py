@@ -100,6 +100,34 @@ def cases():
         {"answer.vibe":"setting=7;def answer;setting;end"}, globals={"setting":41})
     add("receiving_function", 'require(:answer).answer', 42,
         {"answer.vibe":"def answer;helper(21);end"}, prefix="def helper(n);n*2;end")
+    add("same_name_call_skips_file_scope",
+        'begin;require(:m);nil;rescue => e;[e.class.to_s,e.message];end',
+        ["RuntimeError","undefined variable helper"],
+        {"m.vibe":"def helper;1;end;helper=helper()"})
+    add("same_name_call_forms_skip_file_scope",
+        '[:plus,:both,:args,:block,:nested,:func,:body].map{|m| begin;require(m);nil;rescue => e;e.message;end}',
+        ["undefined variable helper"]*6+["unknown class member helper"],
+        {"plus.vibe":"def helper;1;end;helper+=helper()",
+         "both.vibe":"def helper;1;end;helper&&=helper()",
+         "args.vibe":"def helper(x);x;end;helper=helper 2",
+         "block.vibe":"def helper;yield;end;helper=helper { 3 }",
+         "nested.vibe":"def helper;1;end;[1].each{|i| helper=[helper()]}",
+         "func.vibe":"def helper;1;end;def other;helper=helper();helper;end;other()",
+         "body.vibe":"def helper;1;end;class K;helper=helper();end"})
+    add("same_name_call_other_forms_keep_file_scope",
+        '[:bare,:other,:either,:param,:block_param].map{|m| require(m).peek}', [1,1,1,1,[1]],
+        {"bare.vibe":"def helper;1;end;helper=helper;def peek;helper;end",
+         "other.vibe":"def helper;1;end;x=helper();def peek;x;end",
+         "either.vibe":"def helper;1;end;helper||=helper();def peek;helper;end",
+         "param.vibe":"def helper;1;end;def f(helper);helper=helper();helper;end;def peek;f(3);end",
+         "block_param.vibe":"def helper;1;end;def peek;[5].map{|helper| helper=helper()};end"})
+    add("same_name_call_reaches_root_bindings",
+        '[require(:m).peek,require(:outer).peek,begin;require(:late);other();end]', [2,7,1],
+        {"m.vibe":"def helper;1;end;helper=helper();def peek;helper;end",
+         "inner.vibe":"def value;7;end",
+         "outer.vibe":"require(:inner);def value;1;end;value=value();def peek;value;end",
+         "late.vibe":"def value2;1;end;def other;value2=value2();value2;end"},
+        prefix="def helper;2;end")
     add("enum", 'm=require(:state);[m.State::Ready.name,m.name(:ready)]', ["Ready","Ready"],
         {"state.vibe":"enum State;Ready;Done;end;def name(state:State);state.name;end"})
     add("class", 'm=require(:box);[m.make(7).value,m.make(9).value]', [7,9],

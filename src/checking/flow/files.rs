@@ -146,7 +146,7 @@ impl<'a> Walker<'a> {
             || self.calls.receiving_binding(self.ctx, name)? != Target::Undefined)
     }
 
-    fn file_local(&mut self, state: &State, slot: usize) -> Result<bool> {
+    pub(super) fn file_local(&mut self, state: &State, slot: usize) -> Result<bool> {
         if slot >= self.function.local_names.len() {
             return Ok(false);
         }
@@ -164,6 +164,38 @@ impl<'a> Walker<'a> {
         if self
             .layouts
             .initializer_block(self.ctx, self.program, self.function_index)?
+        {
+            return Ok(false);
+        }
+        Ok(self.file_binding(state, name)?.is_some() || self.file_root_bound(state, name)?)
+    }
+
+    /// Reports whether the binding that `slot` of `function` names lives in the file
+    /// scope, as the runtime decides for the assignment that fills it.
+    pub(super) fn file_scope(
+        &mut self,
+        state: &State,
+        function: usize,
+        slot: usize,
+    ) -> Result<bool> {
+        if !self.program.file {
+            return Ok(false);
+        }
+        if function == self.function_index {
+            return self.file_local(state, slot);
+        }
+        let body = &self.program.functions[function];
+        let name = &body.local_names[slot];
+        self.ctx.charge(body.params.len() as u64 + 1)?;
+        if name.starts_with('\0') || body.params.iter().any(|param| param.slot == slot) {
+            return Ok(false);
+        }
+        if function == 0 {
+            return Ok(true);
+        }
+        if self
+            .layouts
+            .initializer_block(self.ctx, self.program, function)?
         {
             return Ok(false);
         }

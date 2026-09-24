@@ -122,7 +122,14 @@ impl Walker<'_> {
         Ok(value != Atom::Never.fact())
     }
 
-    pub(super) fn root_read_slot(&mut self, state: &State, op: Op) -> Result<Option<usize>> {
+    /// Finds the root binding that `op` reads. A same-name call that skips the file
+    /// scope clears `file`, so a file binding does not hide the root.
+    pub(super) fn root_read_slot(
+        &mut self,
+        state: &State,
+        op: Op,
+        file: bool,
+    ) -> Result<Option<usize>> {
         if self.program.file && matches!(op, Op::RootAddress(..)) {
             return Ok(None);
         }
@@ -175,7 +182,7 @@ impl Walker<'_> {
         if self.ambient_binding(state, name)?.is_some() {
             return Ok(None);
         }
-        if self.program.file {
+        if self.program.file && file {
             if self.file_binding(state, name)?.is_some() {
                 return Ok(None);
             }

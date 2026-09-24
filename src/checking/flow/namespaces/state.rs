@@ -9,13 +9,20 @@ impl Walker<'_> {
         op: Op,
     ) -> Result<Option<Edges>> {
         match self.bypass(state, pc, op)? {
-            Bypass::Kept => self.resolve_binding(state, pc, op, true),
+            Bypass::Kept => self.resolve_binding(state, pc, op, true, true),
             Bypass::Name { ambient } => {
                 let Op::ResolveCall(_, name, parenthesized) = op else {
                     unreachable!()
                 };
                 let op = Op::ResolveCall(usize::MAX, name, parenthesized);
-                self.resolve_binding(state, pc, op, ambient)
+                self.resolve_binding(state, pc, op, ambient, true)
+            }
+            Bypass::File => {
+                let Op::ResolveCall(_, name, parenthesized) = op else {
+                    unreachable!()
+                };
+                let op = Op::ResolveCall(usize::MAX, name, parenthesized);
+                self.resolve_binding(state, pc, op, true, false)
             }
             Bypass::Outer(binding) => {
                 let Op::ResolveCall(_, _, parenthesized) = op else {
@@ -38,6 +45,7 @@ impl Walker<'_> {
         pc: usize,
         op: Op,
         ambient: bool,
+        file: bool,
     ) -> Result<Option<Edges>> {
         let (slot, name, named, parenthesized) = match op {
             Op::ResolveCall(slot, name, parenthesized) => (slot, name, true, parenthesized),
@@ -63,23 +71,23 @@ impl Walker<'_> {
                             &self.program.members[name],
                             present,
                         )?;
-                        let edges = self.resolve_binding(&mut next, pc, op, ambient)?;
+                        let edges = self.resolve_binding(&mut next, pc, op, ambient, file)?;
                         self.member_edges(pc, next, edges)?;
                     }
                     return Ok(Some([None, None]));
                 }
             }
         }
-        if let Some(root) = self.root_read_slot(state, op)? {
+        if let Some(root) = self.root_read_slot(state, op, file)? {
             let Some(alternatives) = self.import_root_branches(state, pc, root)? else {
                 return Ok(Some([None, None]));
             };
             for mut next in alternatives.data {
-                let edges = self.resolve_binding(&mut next, pc, op, ambient)?;
+                let edges = self.resolve_binding(&mut next, pc, op, ambient, file)?;
                 self.member_edges(pc, next, edges)?;
             }
         }
-        let Some(target) = self.target(state, pc, slot, name, named, ambient)? else {
+        let Some(target) = self.target(state, pc, slot, name, named, ambient, file)? else {
             return Ok(Some([None, None]));
         };
         if target == Target::Undefined {

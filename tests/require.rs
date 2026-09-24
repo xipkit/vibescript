@@ -2298,3 +2298,79 @@ fn run_bindings_keep_required_modules_but_not_their_published_exports() {
     // The module's private state travels with the returned object.
     assert_eq!(outcome.value.as_int(), Some(5));
 }
+
+#[test]
+fn same_name_calls_in_required_files_skip_the_file_scope() {
+    let files = Files::new();
+    for (name, source) in [
+        ("plain", "def helper\n  1\nend\nhelper = helper()\n"),
+        ("plus", "def helper;1;end;helper+=helper()"),
+        ("both", "def helper;1;end;helper&&=helper()"),
+        ("args", "def helper(x);x;end;helper=helper 2"),
+        ("block", "def helper;yield;end;helper=helper { 3 }"),
+        ("nested", "def helper;1;end;[1].each{|i| helper=[helper()]}"),
+        (
+            "func",
+            "def helper;1;end;def other;helper=helper();helper;end;other()",
+        ),
+        ("local", "helper=5;def helper2;1;end;helper=helper()"),
+        ("body", "def helper;1;end;class K;helper=helper();end"),
+        ("bare", "def helper;1;end;helper=helper;def peek;helper;end"),
+        (
+            "either",
+            "def helper;1;end;helper||=helper();def peek;helper;end",
+        ),
+        (
+            "param",
+            "def helper;1;end;def f(helper);helper=helper();helper;end;def peek;f(3);end",
+        ),
+        (
+            "root",
+            "def helper;1;end;helper=helper();def peek;helper;end",
+        ),
+        ("late", "def value;1;end;def other;value=value();value;end"),
+    ] {
+        files.write(&format!("{name}.vibe"), source);
+    }
+    let engine = files.engine();
+    let error = engine
+        .compile("require(:plain)")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap_err();
+    assert_eq!(error.message, "undefined variable helper");
+    assert_eq!(
+        error.diagnostic.as_ref().unwrap().position,
+        Position {
+            line: 4,
+            column: 10
+        }
+    );
+    for (name, message) in [
+        ("plus", "undefined variable helper"),
+        ("both", "undefined variable helper"),
+        ("args", "undefined variable helper"),
+        ("block", "undefined variable helper"),
+        ("nested", "undefined variable helper"),
+        ("func", "undefined variable helper"),
+        (
+            "local",
+            "undefined variable helper (did you mean \"helper2\"?)",
+        ),
+        ("body", "unknown class member helper"),
+    ] {
+        let error = engine
+            .compile(&format!("require(:{name})"))
+            .unwrap()
+            .run(CallOptions::default())
+            .unwrap_err();
+        assert_eq!(error.message, message, "{name}");
+    }
+    let script = engine
+        .compile(
+            "def helper;2;end\n[[:bare,:either,:param].map{|m| require(m).peek},require(:root).peek,begin;require(:late);other();end]",
+        )
+        .unwrap();
+    let value = script.run(CallOptions::default()).unwrap().value;
+    assert_eq!(json(&value), serde_json::json!([[1, 1, 1], 2, 1]));
+}

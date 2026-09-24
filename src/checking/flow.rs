@@ -1635,6 +1635,7 @@ impl Walker<'_> {
         self.emit_error(state, pc, classes)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn target(
         &mut self,
         state: &State,
@@ -1643,6 +1644,7 @@ impl Walker<'_> {
         name: usize,
         named: bool,
         ambient: bool,
+        file: bool,
     ) -> Result<Option<Target>> {
         if slot != usize::MAX {
             let binding = state.locals.get(self.ctx, slot)?;
@@ -1669,7 +1671,9 @@ impl Walker<'_> {
                 self.value_target(binding.value).map(Some)
             };
         }
-        let target = if let Some(target) = self.file_target(state, name)? {
+        let target = if !file {
+            self.root_target_past_file(state, name)?
+        } else if let Some(target) = self.file_target(state, name)? {
             target
         } else {
             self.root_target(state, name)?
@@ -2110,7 +2114,7 @@ impl Walker<'_> {
                 return self.incomplete(pc);
             };
             if !matches!(op, Op::ResolveCall(..) | Op::CallName(..)) {
-                if let Some(slot) = self.root_read_slot(&state, op)? {
+                if let Some(slot) = self.root_read_slot(&state, op, true)? {
                     let Some(alternatives) = self.import_root_branches(&mut state, pc, slot)?
                     else {
                         return Ok([None, None]);

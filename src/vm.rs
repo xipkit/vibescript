@@ -85,6 +85,16 @@ struct Frame {
     block_args: Buffer<Value>,
 }
 
+/// A binding that an assignment is filling, which same-name calls in its value skip.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Bypass {
+    /// A local slot of the assigning frame or one it captures.
+    Local(usize),
+    /// A required file's scope, which holds its top-level locals, functions and
+    /// declarations. The program, function and slot name the assigned local.
+    File(usize, usize, usize),
+}
+
 struct Storage {
     pins: Buffer<crate::loading::Pin>,
     modules: Buffer<requires::Module>,
@@ -102,7 +112,7 @@ struct Storage {
     ambient_globals: Buffer<(Global, usize)>,
     locals: Buffer<Option<Value>>,
     addresses: Buffer<Address>,
-    bypasses: Buffer<usize>,
+    bypasses: Buffer<Bypass>,
     /// The entry frame's assigned local slots and values, captured as it
     /// returns when the host asked for the run's root bindings.
     root_locals: Option<Buffer<(usize, Value)>>,
@@ -613,6 +623,8 @@ impl Run {
                 Op::AddStore(n) => Op::AddStore(bound(n)?),
                 Op::AddressLocal(n) => Op::AddressLocal(bound(n)?),
                 Op::AddressBound(n, next) => Op::AddressBound(bound(n)?, next),
+                // A required file's own bindings live in its scope rather than in slots.
+                Op::Bypass(n) if program.file => Op::Bypass(bound(n)?),
                 Op::Bypass(n) => Op::Bypass(slot(n, false)?),
                 Op::ResolveCall(n, name, parenthesized) => Op::ResolveCall(
                     if n == usize::MAX { n } else { slot(n, true)? },
@@ -1412,7 +1424,15 @@ impl Run {
                         storage.locals.data[slot].get_or_insert_with(Value::nil);
                     }
                 }
-                Op::Bypass(slot) => storage.bypasses.push(ctx, slot)?,
+                Op::Bypass(slot) => {
+                    let bypass = match (file_local, local) {
+                        (Some(_), Some((relative, _))) => {
+                            Bypass::File(program.index, frame.function.unwrap(), relative)
+                        }
+                        _ => Bypass::Local(slot),
+                    };
+                    storage.bypasses.push(ctx, bypass)?;
+                }
                 Op::BypassEnd(n) => {
                     storage
                         .bypasses
@@ -2484,6 +2504,7 @@ impl Run {
                     let self_value = frame.receiver.clone();
                     let name_index = name;
                     let name = &program.members[name];
+                    let scoped = !file_bypassed(ctx, program, storage, name)?;
                     let target = if let Some(Some(value)) = storage.locals.data.get(slot) {
                         value_invocation(value)
                     } else if let Some(value) = namespaces::call_constant(
@@ -2497,13 +2518,17 @@ impl Run {
                         value_invocation(&value)
                     } else if let Some(slot) = ambient_call(ctx, frames, storage, current, name)? {
                         value_invocation(storage.locals.data[slot].as_ref().unwrap())
-                    } else if let Some(value) = file_bindings::get(program, ctx, name)? {
+                    } else if let Some(value) = scoped
+                        .then(|| file_bindings::get(program, ctx, name))
+                        .transpose()?
+                        .flatten()
+                    {
                         value_invocation(&value)
                     } else if !program.file && globals::contains(ctx, name)? {
                         value_invocation(&requires::get(ctx, storage, name)?.unwrap())
-                    } else if program.declaration_names.contains_key(name) {
+                    } else if scoped && program.declaration_names.contains_key(name) {
                         crate::arguments::Target::Plain(Invocation::NonCallable)
-                    } else if let Some(&function) = program.names.get(name) {
+                    } else if let Some(&function) = program.names.get(name).filter(|_| scoped) {
                         crate::arguments::Target::Plain(Invocation::Function(function))
                     } else if let Some(host) = program.hosts.iter().position(|h| h == name) {
                         crate::arguments::Target::Plain(Invocation::Host(host))
@@ -4037,7 +4062,34 @@ impl Frame {
 /// which its calls of the same name skip.
 fn bypassed(ctx: &mut CallContext, storage: &Storage, slot: usize) -> Result<bool> {
     ctx.charge(storage.bypasses.data.len() as u64)?;
-    Ok(storage.bypasses.data.contains(&slot))
+    Ok(storage.bypasses.data.contains(&Bypass::Local(slot)))
+}
+
+/// Reports whether an assignment in a required file is filling its file-scope
+/// binding of `name`. Go keeps that scope's locals, functions and declarations in
+/// one environment, so a same-name call in the value skips all of them.
+fn file_bypassed(
+    ctx: &mut CallContext,
+    program: &Program,
+    storage: &Storage,
+    name: &str,
+) -> Result<bool> {
+    if !program.file {
+        return Ok(false);
+    }
+    ctx.charge(storage.bypasses.data.len() as u64)?;
+    for bypass in &storage.bypasses.data {
+        if let Bypass::File(owner, function, slot) = *bypass {
+            if owner == program.index {
+                let local = &program.functions[function].local_names[slot];
+                ctx.work_bytes(local.len().max(name.len()))?;
+                if local == name {
+                    return Ok(true);
+                }
+            }
+        }
+    }
+    Ok(false)
 }
 
 /// Finds the declaring frame's binding that a call in a namespace body reaches.
@@ -4082,7 +4134,7 @@ fn resolve_slot(
                 return Ok(local);
             }
             ctx.charge(storage.bypasses.data.len() as u64)?;
-            if !storage.bypasses.data.contains(&local) {
+            if !storage.bypasses.data.contains(&Bypass::Local(local)) {
                 return Ok(local);
             }
         }

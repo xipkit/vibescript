@@ -67,6 +67,30 @@ impl Walker<'_> {
         Ok(target)
     }
 
+    /// Resolves `name` in the receiving root for a same-name call that skips the
+    /// required file's scope, and with it the file's own functions and declarations.
+    pub(super) fn root_target_past_file(&mut self, state: &State, name: &str) -> Result<Target> {
+        let target = self.root_target(state, name)?;
+        if matches!(target, Target::Host(_)) || self.file_declared_target(name)? != Some(target) {
+            return Ok(target);
+        }
+        let target = self.calls.receiving_binding(self.ctx, name)?;
+        if target != Target::Undefined {
+            return Ok(target);
+        }
+        for (global, value) in &self.program.globals {
+            self.ctx.work_bytes(global.name().len().max(name.len()))?;
+            if global.name() == name {
+                return Ok(if let Kind::Builtin(builtin) = value.0 {
+                    Target::Builtin(builtin)
+                } else {
+                    Target::NonCallable
+                });
+            }
+        }
+        Ok(Target::Undefined)
+    }
+
     pub(super) fn global_exits(
         &mut self,
         state: &mut State,

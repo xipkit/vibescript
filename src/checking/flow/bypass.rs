@@ -13,6 +13,9 @@ pub(super) enum Bypass {
     Name {
         ambient: bool,
     },
+    /// The binding lives in a required file's scope, which also holds the file's
+    /// functions and declarations, so the call resolves past all of them.
+    File,
     /// The call reaches this binding of an enclosing scope.
     Outer(Binding),
     Unsupported,
@@ -24,8 +27,14 @@ impl Walker<'_> {
         else {
             return Ok(Bypass::Kept);
         };
-        if own == usize::MAX || !self.chain_bypassed(pc, own)? {
+        if own == usize::MAX {
             return Ok(Bypass::Kept);
+        }
+        let Some((function, _, filled)) = self.chain_bypassed(pc, own)? else {
+            return Ok(Bypass::Kept);
+        };
+        if self.file_scope(state, function, filled)? {
+            return Ok(Bypass::File);
         }
         // A namespace body's absent local resolved to its declaring frame's binding.
         if slot != own {
@@ -71,16 +80,17 @@ impl Walker<'_> {
         }
     }
 
-    /// Reports whether any assignment along the lexical chain of `slot` skips its binding.
-    fn chain_bypassed(&mut self, pc: usize, slot: usize) -> Result<bool> {
+    /// Finds the innermost assignment along the lexical chain of `slot` that skips its
+    /// binding, as the function, instruction and slot it fills.
+    fn chain_bypassed(&mut self, pc: usize, slot: usize) -> Result<Option<(usize, usize, usize)>> {
         let mut level = Some((self.function_index, pc, slot));
         while let Some((function, pc, slot)) = level {
             if self.layouts.bypassed(self.ctx, function, pc, slot)? {
-                return Ok(true);
+                return Ok(level);
             }
             level = self.enclosing(function, slot)?;
         }
-        Ok(false)
+        Ok(None)
     }
 
     /// Follows a captured slot to its enclosing function and the attaching instruction.
