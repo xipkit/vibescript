@@ -54,7 +54,8 @@ const SHAPES: [Shape; 8] = [
     }),
 ];
 
-fn steps(source: &str) -> u64 {
+/// Checks the whole file, or with a name the named function as a call checks it.
+fn steps(source: &str, function: Option<&str>) -> u64 {
     let script = Engine::new().compile(source).unwrap();
     let options = CallOptions {
         limits: Limits {
@@ -64,22 +65,41 @@ fn steps(source: &str) -> u64 {
         },
         ..CallOptions::default()
     };
-    let report = script.check(&options).unwrap();
+    let report = match function {
+        Some(name) => script.check_function(name, &options),
+        None => script.check(&options),
+    }
+    .unwrap();
     assert!(report.incomplete.is_empty(), "{report:?}");
     report.stats.steps
+}
+
+/// Linear growth doubles the steps; quadratic growth quadruples them. The margin allows fixed
+/// costs and the logarithmic depth of persistent state tables.
+fn assert_linear(name: &str, count: usize, small: u64, large: u64) {
+    assert!(
+        large * 10 <= small * 24,
+        "{name}: {small} steps for {count}, {large} for {}",
+        2 * count
+    );
 }
 
 #[test]
 fn doubling_repeated_declarations_and_statements_at_most_doubles_checking_steps() {
     for (name, count, shape) in SHAPES {
-        let small = steps(&shape(count));
-        let large = steps(&shape(2 * count));
-        // Linear growth doubles the steps; quadratic growth quadruples them. The margin
-        // allows fixed costs and the logarithmic depth of persistent state tables.
-        assert!(
-            large * 10 <= small * 24,
-            "{name}: {small} steps for {count}, {large} for {}",
-            2 * count
-        );
+        let small = steps(&shape(count), None);
+        let large = steps(&shape(2 * count), None);
+        assert_linear(name, count, small, large);
     }
+}
+
+#[test]
+fn named_checks_initialize_many_namespaces_in_linear_steps() {
+    // A named check initializes every namespace before the function it checks.
+    let program = |count| {
+        repeat(count, |i| format!("class P{i}\n  CONST = {i}\nend\n")) + "def run\n  1\nend\n"
+    };
+    let small = steps(&program(100), Some("run"));
+    let large = steps(&program(200), Some("run"));
+    assert_linear("namespaces before a named check", 100, small, large);
 }
