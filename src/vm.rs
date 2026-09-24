@@ -38,6 +38,7 @@ mod requires;
 mod scopes;
 #[cfg(test)]
 mod scopes_tests;
+mod simple;
 #[cfg(test)]
 mod suspension_tests;
 pub(crate) use execution::Execution;
@@ -515,6 +516,7 @@ impl Run {
             let hosts = &program.code.hosts;
             let frame = &mut frames.data[current];
             let function = &program.functions[frame.function.unwrap()];
+            simple::run(ctx, program, function, frame, storage, stack)?;
             let op = function.code[frame.ip];
             frame.ip += 1;
             let local_base = frame.local_base;
