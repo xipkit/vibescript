@@ -119,7 +119,9 @@ impl Bytes {
             header: None,
         })
     }
-    fn import(ctx: &mut CallContext, bytes: &Arc<Self>) -> Result<Arc<Self>> {
+    /// Shares `bytes` with `ctx`, charging it for the backing storage and a
+    /// header unless it already owns them.
+    pub(crate) fn import(ctx: &mut CallContext, bytes: &Arc<Self>) -> Result<Arc<Self>> {
         if ctx.owns(&bytes.header) || ctx.options.limits.memory_bytes.is_none() {
             return Ok(bytes.clone());
         }

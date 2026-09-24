@@ -4,12 +4,13 @@
 
 use super::calendar;
 use crate::{
-    CallContext, Error, ErrorKind, Result, Value,
+    CallContext, CallOptions, Error, ErrorKind, Limits, Result, Value,
     budget::{Buffer, Charge},
+    value::{Bytes, Kind},
 };
 use std::{
     fs::File,
-    io::Cursor,
+    io::{self, Cursor},
     mem::size_of,
     path::{Path, PathBuf},
     sync::{Arc, OnceLock},
@@ -50,6 +51,10 @@ static ZONEINFO: OnceLock<Option<std::ffi::OsString>> = OnceLock::new();
     all(target_family = "wasm", not(target_os = "wasi"))
 )))]
 static LOCAL_TZ: OnceLock<Option<std::ffi::OsString>> = OnceLock::new();
+/// The host's local zone, loaded once per process as Go loads `time.Local`.
+/// It is built outside any call's quotas; each resolution charges its own
+/// handle on the shared data to the resolving call.
+static LOCAL: OnceLock<Arc<Zone>> = OnceLock::new();
 
 #[derive(Clone, Copy, Debug)]
 struct Tzif {
@@ -263,6 +268,20 @@ impl Zone {
         Self::new(ctx, bytes, zone.info, zone.rules.clone(), zone.offset)
     }
 
+    /// Charges `ctx` for its own handle on a zone built outside any call,
+    /// sharing the parsed data. Unlike [`Self::import`], it charges no work,
+    /// so a resolution costs the same steps with or without a memory quota.
+    fn share(ctx: &mut CallContext, zone: &Arc<Self>) -> Result<Arc<Self>> {
+        if ctx.options.limits.memory_bytes.is_none() {
+            return Ok(zone.clone());
+        }
+        let Kind::Bytes(data) = &zone.bytes.0 else {
+            unreachable!("zone data is stored as bytes");
+        };
+        let bytes = Value(Kind::Bytes(Bytes::import(ctx, data)?));
+        Self::new(ctx, bytes, zone.info, zone.rules.clone(), zone.offset)
+    }
+
     fn from_buffer(ctx: &mut CallContext, buffer: Buffer<u8>) -> Result<Option<Arc<Self>>> {
         let (info, rules) = match Tzif::parse(ctx, &buffer.data) {
             Ok(parsed) => parsed,
@@ -273,37 +292,58 @@ impl Zone {
         Self::new(ctx, bytes, Some(info), rules, 0).map(Some)
     }
 
+    /// Loads zone data from `path`. A missing path yields `None`; a path that
+    /// exists but yields no zone, because it cannot be opened or read, is not
+    /// a regular file, or holds no valid entry, also sets `unreadable`.
     fn read(
         ctx: &mut CallContext,
         path: &Path,
         format: source::Format,
         name: &[u8],
+        unreadable: &mut bool,
     ) -> Result<Option<Arc<Self>>> {
         ctx.checkpoint()?;
-        let Ok(file) = File::open(path) else {
-            return Ok(None);
+        let file = match File::open(path) {
+            Ok(file) => file,
+            Err(error) => {
+                *unreadable |= !matches!(
+                    error.kind(),
+                    io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+                );
+                return Ok(None);
+            }
         };
-        let Ok(metadata) = file.metadata() else {
-            return Ok(None);
+        let zone = match file.metadata() {
+            Ok(metadata) if metadata.is_file() => {
+                let mut source = source::Source::new(file, metadata.len());
+                match source.load(ctx, format, name)? {
+                    Some(buffer) => Self::from_buffer(ctx, buffer)?,
+                    None => None,
+                }
+            }
+            _ => None,
         };
-        if !metadata.is_file() {
-            return Ok(None);
-        }
-        let mut source = source::Source::new(file, metadata.len());
-        match source.load(ctx, format, name)? {
-            Some(buffer) => Self::from_buffer(ctx, buffer),
-            None => Ok(None),
-        }
+        *unreadable |= zone.is_none();
+        Ok(zone)
     }
 
-    fn file(ctx: &mut CallContext, path: &Path) -> Result<Option<Arc<Self>>> {
-        Self::read(ctx, path, source::Format::File, b"")
+    fn file(
+        ctx: &mut CallContext,
+        path: &Path,
+        unreadable: &mut bool,
+    ) -> Result<Option<Arc<Self>>> {
+        Self::read(ctx, path, source::Format::File, b"", unreadable)
     }
 
-    fn dir_or_zip(ctx: &mut CallContext, root: &Path, name: &[u8]) -> Result<Option<Arc<Self>>> {
+    fn dir_or_zip(
+        ctx: &mut CallContext,
+        root: &Path,
+        name: &[u8],
+        unreadable: &mut bool,
+    ) -> Result<Option<Arc<Self>>> {
         let bytes = root.as_os_str().as_encoded_bytes();
         if bytes.len() > 4 && bytes.ends_with(b".zip") {
-            return Self::read(ctx, root, source::Format::Zip, name);
+            return Self::read(ctx, root, source::Format::Zip, name, unreadable);
         }
         #[cfg(unix)]
         let name = {
@@ -363,7 +403,7 @@ impl Zone {
             path.as_mut_os_string().push("/");
         }
         path.as_mut_os_string().push(name);
-        let result = Self::file(ctx, &path)?;
+        let result = Self::file(ctx, &path, unreadable)?;
         drop(path);
         drop(reservation);
         Ok(result)
@@ -377,35 +417,91 @@ impl Zone {
         }
     }
 
-    fn search(ctx: &mut CallContext, name: &[u8], custom: bool) -> Result<Option<Arc<Self>>> {
+    fn search(
+        ctx: &mut CallContext,
+        name: &[u8],
+        custom: bool,
+        unreadable: &mut bool,
+    ) -> Result<Option<Arc<Self>>> {
         if custom {
             let env = ZONEINFO.get_or_init(|| std::env::var_os("ZONEINFO"));
             let _config = ctx.reserve(env.as_ref().map_or(0, |v| v.len()))?;
             if let Some(root) = env.as_deref().filter(|s| !s.is_empty()) {
-                if let Some(zone) = Self::dir_or_zip(ctx, Path::new(root), name)? {
+                if let Some(zone) = Self::dir_or_zip(ctx, Path::new(root), name, unreadable)? {
                     return Ok(Some(zone));
                 }
             }
         }
         for root in SOURCES {
             #[cfg(target_os = "android")]
-            let result = Self::read(ctx, Path::new(root), source::Format::Android, name)?;
+            let result = Self::read(
+                ctx,
+                Path::new(root),
+                source::Format::Android,
+                name,
+                unreadable,
+            )?;
             #[cfg(not(target_os = "android"))]
-            let result = Self::dir_or_zip(ctx, Path::new(root), name)?;
+            let result = Self::dir_or_zip(ctx, Path::new(root), name, unreadable)?;
             if result.is_some() {
                 return Ok(result);
             }
         }
         #[cfg(target_os = "ios")]
-        if let Some(zone) = Self::read(ctx, Path::new("zoneinfo.zip"), source::Format::Zip, name)? {
+        if let Some(zone) = Self::read(
+            ctx,
+            Path::new("zoneinfo.zip"),
+            source::Format::Zip,
+            name,
+            unreadable,
+        )? {
             return Ok(Some(zone));
         }
         Self::bundled(ctx, name)
     }
 
-    #[cfg(windows)]
+    /// Resolves the host's local zone, charging `ctx` for the storage it
+    /// retains but not for loading it: the zone is loaded once per process,
+    /// outside any call's quotas, so repeated resolutions return identical
+    /// data and cost the same in every call.
+    ///
+    /// Only a loaded zone, or a UTC fallback because nothing exists where the
+    /// configuration points, is kept. When a source exists but cannot be read
+    /// or parsed, this resolution uses UTC and the next one loads again, so a
+    /// transient failure does not fix the process at UTC.
     pub fn local(ctx: &mut CallContext) -> Result<Arc<Self>> {
-        windows::local(ctx)
+        ctx.checkpoint()?;
+        if let Some(zone) = LOCAL.get() {
+            return Self::share(ctx, zone);
+        }
+        let mut host = CallContext::new(CallOptions {
+            limits: Limits {
+                steps: None,
+                memory_bytes: None,
+                ..Limits::default()
+            },
+            cancellation: ctx.options.cancellation.clone(),
+            deadline: ctx.options.deadline,
+            ..CallOptions::default()
+        });
+        let (zone, lasting) = match Self::load_local(&mut host) {
+            Ok(loaded) => loaded,
+            Err(error) => {
+                // An unmetered load stops only for this call's cancellation or
+                // deadline, or a failed host allocation; latch it here as well.
+                ctx.checkpoint()?;
+                return ctx.fail(error.kind, error.message);
+            }
+        };
+        if lasting {
+            return Self::share(ctx, LOCAL.get_or_init(|| zone));
+        }
+        Self::share(ctx, &zone)
+    }
+
+    #[cfg(windows)]
+    fn load_local(ctx: &mut CallContext) -> Result<(Arc<Self>, bool)> {
+        windows::load_local(ctx)
     }
 
     #[cfg(any(
@@ -413,54 +509,67 @@ impl Zone {
         target_os = "ios",
         all(target_family = "wasm", not(target_os = "wasi"))
     ))]
-    pub fn local(ctx: &mut CallContext) -> Result<Arc<Self>> {
-        Self::fixed(ctx, b"UTC", 0)
+    fn load_local(ctx: &mut CallContext) -> Result<(Arc<Self>, bool)> {
+        Ok((Self::fixed(ctx, b"UTC", 0)?, true))
     }
 
-    /// Unix and WASI select the local zone from `TZ`. A WASI guest has no
-    /// system zone, so it uses UTC when `TZ` is unset rather than reading an
-    /// `/etc/localtime` that a host happened to expose.
     #[cfg(not(any(
         windows,
         target_os = "android",
         target_os = "ios",
         all(target_family = "wasm", not(target_os = "wasi"))
     )))]
-    pub fn local(ctx: &mut CallContext) -> Result<Arc<Self>> {
+    fn load_local(ctx: &mut CallContext) -> Result<(Arc<Self>, bool)> {
         let tz = LOCAL_TZ.get_or_init(|| std::env::var_os("TZ"));
-        let _config = ctx.reserve(tz.as_ref().map_or(0, |v| v.len()))?;
-        if tz.is_none() {
+        Self::load_tz(ctx, tz.as_deref())
+    }
+
+    /// Unix and WASI select the local zone from `TZ`. A WASI guest has no
+    /// system zone, so it uses UTC when `TZ` is unset rather than reading an
+    /// `/etc/localtime` that a host happened to expose. The flag reports
+    /// whether the result may be kept for the rest of the process.
+    #[cfg(not(any(
+        windows,
+        target_os = "android",
+        target_os = "ios",
+        all(target_family = "wasm", not(target_os = "wasi"))
+    )))]
+    fn load_tz(ctx: &mut CallContext, tz: Option<&std::ffi::OsStr>) -> Result<(Arc<Self>, bool)> {
+        let mut unreadable = false;
+        let zone = match tz {
             #[cfg(not(target_os = "wasi"))]
-            if let Some(zone) = Self::file(ctx, Path::new("/etc/localtime"))? {
-                return Ok(zone);
-            }
-        } else if let Some(tz) = tz.as_ref() {
-            let tz = tz.as_encoded_bytes();
-            let tz = tz.strip_prefix(b":").unwrap_or(tz);
-            if tz.starts_with(b"/") {
-                #[cfg(any(unix, target_os = "wasi"))]
-                let path = {
-                    #[cfg(unix)]
-                    use std::os::unix::ffi::OsStrExt;
-                    #[cfg(target_os = "wasi")]
-                    use std::os::wasi::ffi::OsStrExt;
-                    Some(Path::new(std::ffi::OsStr::from_bytes(tz)))
-                };
-                #[cfg(not(any(unix, target_os = "wasi")))]
-                let path = std::str::from_utf8(tz).ok().map(Path::new);
-                if let Some(zone) = match path {
-                    Some(path) => Self::file(ctx, path)?,
-                    None => None,
-                } {
-                    return Ok(zone);
+            None => Self::file(ctx, Path::new("/etc/localtime"), &mut unreadable)?,
+            #[cfg(target_os = "wasi")]
+            None => None,
+            Some(tz) => {
+                let tz = tz.as_encoded_bytes();
+                let tz = tz.strip_prefix(b":").unwrap_or(tz);
+                if tz.starts_with(b"/") {
+                    #[cfg(any(unix, target_os = "wasi"))]
+                    let path = {
+                        #[cfg(unix)]
+                        use std::os::unix::ffi::OsStrExt;
+                        #[cfg(target_os = "wasi")]
+                        use std::os::wasi::ffi::OsStrExt;
+                        Some(Path::new(std::ffi::OsStr::from_bytes(tz)))
+                    };
+                    #[cfg(not(any(unix, target_os = "wasi")))]
+                    let path = std::str::from_utf8(tz).ok().map(Path::new);
+                    match path {
+                        Some(path) => Self::file(ctx, path, &mut unreadable)?,
+                        None => None,
+                    }
+                } else if !tz.is_empty() && tz != b"UTC" {
+                    Self::search(ctx, tz, false, &mut unreadable)?
+                } else {
+                    None
                 }
-            } else if !tz.is_empty() && tz != b"UTC" {
-                if let Some(zone) = Self::search(ctx, tz, false)? {
-                    return Ok(zone);
-                }
             }
+        };
+        match zone {
+            Some(zone) => Ok((zone, true)),
+            None => Ok((Self::fixed(ctx, b"UTC", 0)?, !unreadable)),
         }
-        Self::fixed(ctx, b"UTC", 0)
     }
 
     pub fn parse(ctx: &mut CallContext, value: &Value) -> Result<Option<Arc<Self>>> {
@@ -518,7 +627,7 @@ impl Zone {
         if matches!(bytes.first(), Some(b'/' | b'\\')) {
             return Err(unknown());
         }
-        Self::search(ctx, bytes, true)?
+        Self::search(ctx, bytes, true, &mut false)?
             .map(Some)
             .ok_or_else(unknown)
     }
@@ -859,6 +968,152 @@ mod tests {
             Zone::import(&mut small, &host).unwrap_err().kind,
             ErrorKind::Memory
         );
+    }
+
+    fn storage(zone: &Zone) -> *const u8 {
+        zone.bytes.as_bytes().unwrap().as_ptr()
+    }
+
+    fn local_options(limits: Limits) -> CallOptions {
+        CallOptions {
+            limits,
+            ..CallOptions::default()
+        }
+    }
+
+    #[test]
+    fn local_zone_loads_once_and_charges_every_resolution() {
+        let mut first = CallContext::new(CallOptions::default());
+        let a = Zone::local(&mut first).unwrap();
+        let charged = first.stats().retained_memory_bytes;
+        assert!(charged > a.bytes.as_bytes().unwrap().len(), "{charged}");
+        let b = Zone::local(&mut first).unwrap();
+        assert_eq!(first.stats().retained_memory_bytes, 2 * charged);
+        let mut second = CallContext::new(CallOptions::default());
+        let c = Zone::local(&mut second).unwrap();
+        assert_eq!(second.stats().retained_memory_bytes, charged);
+        // Loading is host work, so no resolution charges steps, first or not.
+        assert_eq!((first.stats().steps, second.stats().steps), (0, 0));
+        assert!([&b, &c].iter().all(|zone| storage(zone) == storage(&a)));
+        for instant in [
+            i64::MIN,
+            -2_000_000_000,
+            0,
+            1_710_054_000,
+            4_000_000_000,
+            i64::MAX,
+        ] {
+            let expected = a.lookup(&mut first, instant).unwrap();
+            for zone in [&b, &c] {
+                let actual = zone.lookup(&mut second, instant).unwrap();
+                assert_eq!(
+                    (actual.name, actual.seconds, actual.dst),
+                    (expected.name, expected.seconds, expected.dst),
+                    "{instant}"
+                );
+                assert_eq!((actual.start, actual.end), (expected.start, expected.end));
+            }
+        }
+        drop((a, b));
+        assert_eq!(first.stats().retained_memory_bytes, 0);
+        drop(c);
+        assert_eq!(second.stats().retained_memory_bytes, 0);
+        let mut unmetered = crate::integer::unlimited_context();
+        let shared = Zone::local(&mut unmetered).unwrap();
+        assert!(Arc::ptr_eq(&shared, LOCAL.get().unwrap()));
+        assert_eq!(unmetered.stats().retained_memory_bytes, 0);
+    }
+
+    #[test]
+    fn local_zone_resolution_observes_quotas_cancellation_and_deadlines() {
+        let mut setup = CallContext::new(CallOptions::default());
+        let zone = Zone::local(&mut setup).unwrap();
+        let charged = setup.stats().retained_memory_bytes;
+        let mut small = CallContext::new(local_options(Limits {
+            memory_bytes: Some(charged - 1),
+            ..Limits::default()
+        }));
+        assert_eq!(Zone::local(&mut small).unwrap_err().kind, ErrorKind::Memory);
+        assert_eq!(small.stats().retained_memory_bytes, 0);
+        assert_eq!(small.charge(0).unwrap_err().kind, ErrorKind::Memory);
+        let mut exact = CallContext::new(local_options(Limits {
+            memory_bytes: Some(charged),
+            steps: Some(0),
+            ..Limits::default()
+        }));
+        let fitted = Zone::local(&mut exact).unwrap();
+        assert_eq!(storage(&fitted), storage(&zone));
+        let options = CallOptions::default();
+        options.cancellation.cancel();
+        let mut cancelled = CallContext::new(options);
+        assert_eq!(
+            Zone::local(&mut cancelled).unwrap_err().kind,
+            ErrorKind::Cancelled
+        );
+        assert_eq!(cancelled.charge(0).unwrap_err().kind, ErrorKind::Cancelled);
+        let mut late = CallContext::new(CallOptions {
+            deadline: Some(std::time::Instant::now()),
+            ..CallOptions::default()
+        });
+        assert_eq!(
+            Zone::local(&mut late).unwrap_err().kind,
+            ErrorKind::Deadline
+        );
+        assert_eq!(cancelled.stats().retained_memory_bytes, 0);
+        assert_eq!(late.stats().retained_memory_bytes, 0);
+    }
+
+    #[cfg(not(any(
+        windows,
+        target_os = "android",
+        target_os = "ios",
+        all(target_family = "wasm", not(target_os = "wasi"))
+    )))]
+    #[test]
+    fn local_zone_keeps_loaded_and_absent_sources_but_retries_unreadable_ones() {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(".cache/tmp")
+            .join(format!(
+                "local-zones-{nanos}-{}",
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+        std::fs::create_dir_all(root.join("folder")).unwrap();
+        std::fs::write(root.join("valid"), data(3600, "")).unwrap();
+        std::fs::write(root.join("malformed"), b"TZif2 truncated").unwrap();
+        let path = |name: &str| root.join(name).into_os_string();
+        let mut colon = std::ffi::OsString::from(":");
+        colon.push(path("valid"));
+        for (tz, expected, lasting) in [
+            ("".into(), ("UTC", 0), true),
+            ("UTC".into(), ("UTC", 0), true),
+            (":UTC".into(), ("UTC", 0), true),
+            (path("valid"), ("STD", 3600), true),
+            (colon, ("STD", 3600), true),
+            ("America/New_York".into(), ("EST", -18000), true),
+            // Nothing exists where these point, so UTC is the lasting answer.
+            (path("missing"), ("UTC", 0), true),
+            (path("valid/child"), ("UTC", 0), true),
+            ("Not/AZone".into(), ("UTC", 0), true),
+            // These exist but yield no zone, so the next resolution retries.
+            (path("malformed"), ("UTC", 0), false),
+            (path("folder"), ("UTC", 0), false),
+        ] {
+            let mut ctx = crate::integer::unlimited_context();
+            let (zone, kept) = Zone::load_tz(&mut ctx, Some(&tz)).unwrap();
+            let offset = zone.lookup(&mut ctx, 0).unwrap();
+            assert_eq!(
+                (offset.name, offset.seconds, kept),
+                (expected.0.as_bytes(), expected.1, lasting),
+                "{tz:?}"
+            );
+        }
+        std::fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]

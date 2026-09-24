@@ -233,7 +233,6 @@ fn build(ctx: &mut CallContext, info: &Information, names: Names, year: i64) -> 
 #[cfg(windows)]
 mod native {
     use super::*;
-    use std::sync::OnceLock;
 
     const _: () = {
         assert!(std::mem::size_of::<Information>() == 172);
@@ -252,12 +251,11 @@ mod native {
         fn EnumDynamicTimeZoneInformation(index: u32, info: *mut DynamicInformation) -> u32;
     }
 
-    struct Cached {
+    struct Snapshot {
         information: Information,
         names: Names,
         year: i64,
     }
-    static LOCAL: OnceLock<Option<Cached>> = OnceLock::new();
 
     fn matching(info: &Information, candidate: &Information) -> bool {
         terminated(&info.standard_name) == terminated(&candidate.standard_name)
@@ -265,7 +263,7 @@ mod native {
                 || terminated(&info.daylight_name) == terminated(&info.standard_name))
     }
 
-    fn capture(ctx: &mut CallContext) -> Result<Option<Cached>> {
+    fn capture(ctx: &mut CallContext) -> Result<Option<Snapshot>> {
         ctx.checkpoint()?;
         let mut information = Information::default();
         // SAFETY: the writable structure has the Windows C layout and remains live for the call.
@@ -308,28 +306,30 @@ mod native {
                 index = next;
             }
         }
-        Ok(Some(Cached {
+        Ok(Some(Snapshot {
             names: names.unwrap_or_else(|| capitals(&information)),
             information,
             year: calendar::civil(crate::time::Stamp::now().seconds(), 0).year,
         }))
     }
 
-    pub(super) fn local(ctx: &mut CallContext) -> Result<Arc<Zone>> {
-        if LOCAL.get().is_none() {
-            let snapshot = capture(ctx)?;
-            let _ = LOCAL.set(snapshot);
-        }
-        match LOCAL.get().unwrap() {
-            Some(cached) => build(ctx, &cached.information, cached.names, cached.year),
-            None => Zone::fixed(ctx, b"UTC", 0),
-        }
+    pub(super) fn load_local(ctx: &mut CallContext) -> Result<(Arc<Zone>, bool)> {
+        Ok(match capture(ctx)? {
+            Some(snapshot) => (
+                build(ctx, &snapshot.information, snapshot.names, snapshot.year)?,
+                true,
+            ),
+            // The system call failed; use UTC now and ask again next time.
+            None => (Zone::fixed(ctx, b"UTC", 0)?, false),
+        })
     }
 }
 
+/// Captures the operating system's current zone and expands its rules. The
+/// flag reports whether the result may be kept for the rest of the process.
 #[cfg(windows)]
-pub(super) fn local(ctx: &mut CallContext) -> Result<Arc<Zone>> {
-    native::local(ctx)
+pub(super) fn load_local(ctx: &mut CallContext) -> Result<(Arc<Zone>, bool)> {
+    native::load_local(ctx)
 }
 
 #[cfg(test)]
