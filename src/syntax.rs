@@ -542,7 +542,7 @@ impl<'a> Parsing<'a> {
                 Box::pin(async move { Ok(Parsed::Expr(self.expression(min).await?)) })
             }
             Call::Tail(lhs, suffix, min) => Box::pin(async move {
-                let result = self.expr_tail(lhs, min, Some(suffix), None).await;
+                let result = self.expr_tail(lhs, min, Some(suffix), None, false).await;
                 self.p().depth -= 1;
                 Ok(Parsed::Expr(result?))
             }),
@@ -756,26 +756,16 @@ impl<'a> Parsing<'a> {
     // `end` on the same line continues the statement as an expression.
     async fn continued_statement(&self, stmt: Statement, offset: u32) -> Result<Statement> {
         let expr = {
-            let mut p = self.p();
+            let p = self.p();
             p.work.charge(1)?;
-            let next = &p.tokens[p.pos];
-            let continues = match next.token {
-                Token::P('.' | '(' | '[' | '{' | '?') | Token::Op("&." | "::") => true,
-                Token::Op(op) => binding_power(op).is_some(),
-                Token::Word(ref w) => matches!(w.as_str(), "do" | "rescue"),
-                _ => false,
-            };
-            if !continues || next.line != p.previous()?.end_line {
+            if !p.statement_continues()? {
                 return Ok(stmt);
             }
             let stmt = stmt.at(offset);
             let depth = stmt.depth;
-            p.line_exprs += 1;
             p.make_at(Node::Compound(Boxed::new(p.work, stmt)?), depth, offset)?
         };
-        let result = self.expr_tail(expr, 0, None, None).await;
-        self.p().line_exprs -= 1;
-        Ok(Statement::Expr(result?))
+        Ok(Statement::Expr(self.statement_tail(expr).await?))
     }
 
     // Go parses a statement-position begin as a statement, which costs no
@@ -785,17 +775,33 @@ impl<'a> Parsing<'a> {
             let mut p = self.p();
             let offset = p.tokens[p.pos].offset as u32;
             p.pos += 1;
-            p.line_exprs += 1;
             offset
         };
-        let result = async {
-            let mut attempt = self.begin_expression(offset).await?;
-            attempt.offset = offset;
-            self.expr_tail(attempt, 0, None, None).await
+        let mut attempt = self.begin_expression(offset).await?;
+        attempt.offset = offset;
+        if !self.p().statement_continues()? {
+            return Ok(Statement::Expr(attempt));
         }
-        .await;
-        self.p().line_exprs -= 1;
-        Ok(Statement::Expr(result?))
+        Ok(Statement::Expr(self.statement_tail(attempt).await?))
+    }
+
+    /// Continues a compound statement as an expression. Go reads this
+    /// continuation without its line limit, and the operands inside it too
+    /// when no enclosing line expression limits them.
+    async fn statement_tail(&self, expr: Expr) -> Result<Expr> {
+        let open = {
+            let mut p = self.p();
+            let open = p.line_exprs == 0;
+            if open {
+                p.groups += 1;
+            }
+            open
+        };
+        let result = self.expr_tail(expr, 0, None, None, true).await;
+        if open {
+            self.p().groups -= 1;
+        }
+        result
     }
 
     async fn plain_statement(&self) -> Result<Statement> {
@@ -1402,7 +1408,7 @@ impl<'a> Parsing<'a> {
             p.tokens[p.pos].line
         };
         let lhs = self.prefix().await?;
-        let result = self.expr_tail(lhs, min, None, Some(line)).await;
+        let result = self.expr_tail(lhs, min, None, Some(line), false).await;
         self.p().depth -= 1;
         result
     }
@@ -1589,18 +1595,21 @@ impl<'a> Parsing<'a> {
     /// Applies suffixes to `lhs`, starting with `next` if given. `line` is the
     /// line a prefix spanning lines started on, which Go keeps as the limit
     /// for the first suffix; later suffixes are limited to the line their
-    /// predecessor's last token starts on.
+    /// predecessor's last token starts on. An `unlimited` tail takes suffixes
+    /// from any line, as Go's `continueExpressionParse` does without a limit.
     async fn expr_tail(
         &self,
         mut lhs: Expr,
         min: u8,
         mut next: Option<Suffix>,
         mut line: Option<usize>,
+        unlimited: bool,
     ) -> Result<Expr> {
         self.p().work.charge(1)?;
         loop {
             let suffix = match next.take() {
                 Some(suffix) => Some(suffix),
+                None if unlimited => self.p().unlimited_suffix(&lhs, min)?,
                 None => self.p().expression_suffix(&lhs, min, line.take())?,
             };
             let Some(suffix) = suffix else {
@@ -2941,13 +2950,38 @@ impl<'a> Parser<'a> {
         };
         self.make_at(node, d, origin)
     }
+    /// Finds the next suffix as outside any line expression, where Go ignores
+    /// line breaks.
+    fn unlimited_suffix(&mut self, lhs: &Expr, min: u8) -> Result<Option<Suffix>> {
+        let (line_exprs, groups) = (self.line_exprs, self.groups);
+        self.line_exprs = 0;
+        self.groups += 1;
+        let suffix = self.expression_suffix(lhs, min, None);
+        (self.line_exprs, self.groups) = (line_exprs, groups);
+        suffix
+    }
+    /// Reports whether a compound statement continues as an expression, as
+    /// Go's `continueStatementExpression` does: an operator or other suffix
+    /// on the line of its `end`.
+    fn statement_continues(&self) -> Result<bool> {
+        let next = &self.tokens[self.pos];
+        let continues = match &next.token {
+            Token::P('.' | '(' | '[' | '{' | '?') | Token::Op("&." | "::") => true,
+            Token::Op(op) => binding_power(op).is_some(),
+            Token::Words(words) => words.ambiguous,
+            Token::Word(w) => matches!(w.as_str(), "do" | "rescue"),
+            _ => false,
+        };
+        Ok(continues && next.line == self.previous()?.end_line)
+    }
     fn expression_suffix(
         &mut self,
         lhs: &Expr,
         min: u8,
         line: Option<usize>,
     ) -> Result<Option<Suffix>> {
-        if let Some(next) = self.continuation_position(min)? {
+        let resumed = self.continuation_position(min)?;
+        if let Some(next) = resumed {
             self.pos = next;
         } else if line.is_some_and(|line| self.tokens[self.pos].line > line)
             && self.line_exprs > 0
@@ -2961,7 +2995,7 @@ impl<'a> Parser<'a> {
         }
         if min == 0
             && (self.command_depth == 0 || self.groups > self.command_group)
-            && self.tokens[self.pos].line == self.previous()?.end_line
+            && (resumed.is_some() || self.tokens[self.pos].line == self.previous()?.end_line)
             && matches!(self.token(), Token::Word(w) if w == "rescue")
         {
             // `rescue:` labels a parenless call's keyword argument, as in Go.
@@ -2985,7 +3019,9 @@ impl<'a> Parser<'a> {
             && (self.can_attach_do()
                 || (self.pos != self.call_end && self.significant(self.call_end) == self.pos));
         if (brace || do_block)
-            && (do_block || self.tokens[self.pos].line == self.previous()?.end_line)
+            && (do_block
+                || resumed.is_some()
+                || self.tokens[self.pos].line == self.previous()?.end_line)
         {
             return Ok(Some(Suffix::Block(brace)));
         }
@@ -3124,7 +3160,11 @@ impl<'a> Parser<'a> {
             }
             Token::P('.') | Token::Op("::" | "&.") => true,
             Token::P('?') => min <= 2,
-            Token::P('(' | '[') => self.line_exprs == 0 && self.groups > 0,
+            // Outside a line expression, Go reads any suffix after a line break.
+            Token::P('(' | '[' | '{') => self.line_exprs == 0 && self.groups > 0,
+            Token::Word(ref word) if word == "rescue" => {
+                self.line_exprs == 0 && self.groups > 0 && min == 0 && !self.keyword_label(next)
+            }
             Token::Op(op) => {
                 let Some((left, _)) = binding_power(op) else {
                     return Ok(None);
