@@ -603,6 +603,8 @@ struct Scheduler<'a> {
     created: Buffer<usize>,
     tracking: bool,
     nesting: usize,
+    // Whether the running analysis is walking a body rather than preparing an entry.
+    walking: bool,
 }
 
 struct Solver<'s, 'a> {
@@ -632,6 +634,7 @@ impl<'a> Scheduler<'a> {
             created: Buffer::empty(),
             tracking: false,
             nesting: 0,
+            walking: false,
         }
     }
 
@@ -1015,7 +1018,10 @@ impl Solver<'_, '_> {
                 self.state.jobs.data[index].current_error,
             )?
         } else {
-            flow::analyze_body(ctx, facts, body, self)?
+            let walking = std::mem::replace(&mut self.state.walking, true);
+            let report = flow::analyze_body(ctx, facts, body, self);
+            self.state.walking = walking;
+            report?
         };
         let mut returns = report.normal_returns;
         if self.state.jobs.data[index].cyclic {
@@ -1170,6 +1176,37 @@ impl Solver<'_, '_> {
             exit.fold(ctx, facts, &mut renamer)?;
         }
         renamer.fact(ctx, facts, returns)
+    }
+
+    /// Summarizes a context that the running analysis created before it reads the summary.
+    /// Otherwise the running analysis would finish without the context and start again once
+    /// it is summarized. During block walks the context settles after the walk, as
+    /// [`Calls::settle`] describes, so nested analyses never run beneath walk frames.
+    fn summarize(&mut self, ctx: &mut CallContext, facts: &mut Facts, index: usize) -> Result<()> {
+        if self.state.walking {
+            return self.created(ctx, index);
+        }
+        if self.state.nesting >= NESTING || !self.state.jobs.data[index].queued {
+            return Ok(());
+        }
+        let reader = self.state.current;
+        let dependencies = std::mem::replace(&mut self.state.dependencies, Buffer::empty());
+        let created = std::mem::replace(&mut self.state.created, Buffer::empty());
+        let tracking = self.state.tracking;
+        self.state.nesting += 1;
+        let (world_index, handle) = self
+            .state
+            .worlds
+            .get(ctx, self.state.jobs.data[index].source)?;
+        self.state
+            .adapter(world_index, &handle)
+            .solve_job(ctx, facts, index, reader)?;
+        self.state.nesting -= 1;
+        self.state.current = reader;
+        self.state.dependencies = dependencies;
+        self.state.created = created;
+        self.state.tracking = tracking;
+        Ok(())
     }
 
     /// Records a context created by a block walk of the running analysis, so that analysis can

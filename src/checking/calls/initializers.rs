@@ -153,8 +153,12 @@ impl Solver<'_, '_> {
             context.globals = globals;
             context.constructor = initial.constructor;
             context.scope = initial.scope;
+            let fresh = self.state.jobs.data.len();
             let index = self.request(ctx, facts, function, inputs, current_error, &context)?;
             self.depend(ctx, index)?;
+            if index == fresh {
+                self.summarize(ctx, facts, index)?;
+            }
             report.normal_returns = facts.union(
                 ctx,
                 &[report.normal_returns, self.state.jobs.data[index].returns],
@@ -204,8 +208,12 @@ impl Solver<'_, '_> {
                 let mut context = Context::plain();
                 context.globals = globals;
                 context.globals.set_value(ctx, flag, no)?;
+                let fresh = self.state.jobs.data.len();
                 let index = self.request(ctx, facts, body, &[], current_error, &context)?;
                 self.depend(ctx, index)?;
+                if index == fresh {
+                    self.summarize(ctx, facts, index)?;
+                }
                 report.throws |= self.state.jobs.data[index].throws;
                 if let Some(result) = &self.state.jobs.data[index].report {
                     for exit in &result.block_exits.data {
