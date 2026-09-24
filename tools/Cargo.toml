@@ -9,9 +9,10 @@ publish = false
 
 [features]
 default = ["lsp"]
-lsp = []
+lsp = ["dep:serde_json"]
 
 [dependencies]
+serde_json = { version = "1", features = ["raw_value"], optional = true }
 vibescript = { path = "..", default-features = false }
 
 [lints]
