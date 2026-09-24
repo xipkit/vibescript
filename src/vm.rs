@@ -102,6 +102,9 @@ struct Storage {
     locals: Buffer<Option<Value>>,
     addresses: Buffer<Address>,
     bypasses: Buffer<usize>,
+    /// The entry frame's assigned local slots and values, captured as it
+    /// returns when the host asked for the run's root bindings.
+    root_locals: Option<Buffer<(usize, Value)>>,
 }
 
 struct LoopState {
@@ -256,6 +259,7 @@ impl Run {
             locals: Buffer::empty(),
             addresses: Buffer::empty(),
             bypasses: Buffer::empty(),
+            root_locals: None,
         };
         ctx.enum_rebind.definitions =
             (!code.program.file).then(|| code.program.enum_definitions.clone());

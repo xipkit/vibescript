@@ -874,6 +874,9 @@ pub(super) fn apply_control(
                 let state = namespaces::state(&program, ctx, storage, module)?;
                 namespaces::initialized(ctx, storage, state)?;
             }
+            if target == 0 && !pending_entry && storage.root_locals.is_some() {
+                execution::capture_root_locals(ctx, &frames.data[0], storage)?;
+            }
             unwind(frames, storage, stack, target);
             if frames.data.is_empty() {
                 if pending_entry {

@@ -295,6 +295,31 @@ impl Script {
     pub fn declarations(&self) -> &[Declaration] {
         &self.inner.code.program.outline
     }
+    /// Runs top-level executable statements and returns the root bindings they leave.
+    ///
+    /// The bindings hold every entry of [`CallOptions::globals`], with the value the
+    /// run left in it, the classes, modules and enums the script declares at the top
+    /// level, and every top-level local the statements assigned. A local takes
+    /// precedence over a global of the same name, and a supplied global shadows a
+    /// declaration, as it does during the run. Values follow the result's isolation
+    /// contract: they are snapshots that later calls cannot change, and passing them
+    /// back as globals continues a session, as an interactive shell does; instances
+    /// then still belong to the classes passed with them. Functions are not values,
+    /// so they are not bindings; see [`Self::declarations`] to carry them.
+    ///
+    /// ```
+    /// use vibescript::{CallOptions, Engine};
+    /// let engine = Engine::new();
+    /// let (_, bindings) = engine.compile("total = 40")?.run_bindings(CallOptions::default())?;
+    /// let options = CallOptions { globals: bindings, ..CallOptions::default() };
+    /// let (outcome, bindings) = engine.compile("total += 2")?.run_bindings(options)?;
+    /// assert_eq!(outcome.value.as_int(), Some(42));
+    /// assert_eq!(bindings["total"].as_int(), Some(42));
+    /// # Ok::<(), vibescript::Error>(())
+    /// ```
+    pub fn run_bindings(&self, options: CallOptions) -> Result<(Outcome, BTreeMap<String, Value>)> {
+        vm::Execution::new(self, "__main__", &[], &[], options)?.run_bindings()
+    }
 }
 
 /// A completed call and its counters after interpreter frames and scratch storage are released.

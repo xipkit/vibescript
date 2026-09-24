@@ -2272,3 +2272,29 @@ fn required_files_keep_host_block_control_and_error_source_locations() {
     assert_eq!(diagnostic.position.line, 2);
     assert_eq!(captured.lock().unwrap().as_ref(), Some(&diagnostic));
 }
+
+#[test]
+fn run_bindings_keep_required_modules_but_not_their_published_exports() {
+    let files = Files::new();
+    files.write("counter.vibe", "total = 0\ndef add(n)\n  total += n\nend\n");
+    let engine = files.engine();
+    let (outcome, bindings) = engine
+        .compile("counter = require(\"counter\")\nadd(2)")
+        .unwrap()
+        .run_bindings(CallOptions::default())
+        .unwrap();
+    assert_eq!(outcome.value.as_int(), Some(2));
+    let names: Vec<_> = bindings.keys().map(String::as_str).collect();
+    assert_eq!(names, ["counter"]);
+    let options = CallOptions {
+        globals: bindings,
+        ..CallOptions::default()
+    };
+    let (outcome, _) = engine
+        .compile("counter.add(3)")
+        .unwrap()
+        .run_bindings(options)
+        .unwrap();
+    // The module's private state travels with the returned object.
+    assert_eq!(outcome.value.as_int(), Some(5));
+}
