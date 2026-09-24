@@ -13,7 +13,7 @@
 use crate::{
     analyze, check, compat,
     flags::{self, Outcome, Spec},
-    flat, format, profiles, repl, run, testing,
+    flat, format, repl, run, testing,
 };
 use std::{
     ffi::{OsStr, OsString},
@@ -40,15 +40,6 @@ const LSP_SPEC: Spec = Spec {
     flags: &[],
 };
 
-const REPL_SPEC: Spec = Spec {
-    name: "repl",
-    aliases: &[],
-    usage: "start the interactive Vibescript REPL",
-    arguments: "",
-    usage_lines: &[],
-    flags: &profiles::FLAGS,
-};
-
 /// Every command, in the order the root help lists them.
 const COMMANDS: [&Spec; 8] = [
     &run::SPEC,
@@ -57,7 +48,7 @@ const COMMANDS: [&Spec; 8] = [
     &analyze::SPEC,
     &testing::SPEC,
     &LSP_SPEC,
-    &REPL_SPEC,
+    &repl::SPEC,
     &HELP_SPEC,
 ];
 

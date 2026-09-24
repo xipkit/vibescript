@@ -6,9 +6,9 @@ use super::{
     Arguments,
     model::{Command, Key, Model},
     parse,
-    quota::{self, QuotaFlags},
     render::{self, Colors},
 };
+use crate::profiles;
 use std::ffi::OsString;
 use vibescript::CancellationToken;
 use vibescript_tools::repl::{Entry, ReplOptions};
@@ -17,7 +17,7 @@ use vibescript_tools::repl::{Entry, ReplOptions};
 /// builds it.
 fn model() -> Model {
     Model::new(ReplOptions {
-        limits: QuotaFlags::default().resolve().unwrap(),
+        limits: profiles::default_limits(),
         ..ReplOptions::default()
     })
 }
@@ -79,10 +79,7 @@ fn update_non_quit_command_does_not_quit() {
 
 #[test]
 fn run_repl_rejects_unknown_profile() {
-    let Ok(Arguments::Run(flags)) = parse(["-profile", "bogus"].map(OsString::from)) else {
-        panic!("expected flags");
-    };
-    let error = flags.resolve().unwrap_err();
+    let error = parse(["-profile", "bogus"].map(OsString::from)).unwrap_err();
     assert!(error.contains("unknown quota profile"), "{error}");
 }
 
@@ -268,25 +265,24 @@ fn line_mode_reports_an_input_left_unfinished() {
 #[test]
 fn quota_flags_parse_like_the_go_cli() {
     let args = |list: &[&str]| parse(list.iter().map(OsString::from));
-    assert_eq!(args(&[]), Ok(Arguments::Run(QuotaFlags::default())));
+    let limits = |list: &[&str]| match args(list) {
+        Ok(Arguments::Run(limits)) => (limits.steps, limits.memory_bytes, limits.recursion),
+        other => panic!("{list:?}: {other:?}"),
+    };
+    assert_eq!(limits(&[]), (None, None, 10_000));
     assert_eq!(
-        args(&[
+        limits(&[
             "--profile=low",
             "-step-quota",
             "-1",
             "--memory-quota",
             "0",
-            "-recursion-limit=9"
+            "-recursion-limit=0x9"
         ]),
-        Ok(Arguments::Run(QuotaFlags {
-            profile: "low".to_owned(),
-            steps: Some(-1),
-            memory: Some(0),
-            recursion: Some(9),
-        }))
+        (None, Some(16 << 20), 9)
     );
-    assert_eq!(args(&["-h", "extra"]), Ok(Arguments::Help));
-    assert_eq!(args(&["--help"]), Ok(Arguments::Help));
+    assert!(matches!(args(&["-h", "extra"]), Ok(Arguments::Help)));
+    assert!(matches!(args(&["--help"]), Ok(Arguments::Help)));
     for (list, message) in [
         (
             &["script.vibe"][..],
@@ -302,8 +298,12 @@ fn quota_flags_parse_like_the_go_cli() {
             &["-step-quota", "abc"],
             "invalid value \"abc\" for flag -step-quota: parse error",
         ),
+        (
+            &["-profile", "bogus"],
+            "vibes repl: unknown quota profile \"bogus\" (choose one of: low, medium, high, xhigh)",
+        ),
     ] {
-        assert_eq!(args(list), Err(message.to_owned()), "{list:?}");
+        assert_eq!(args(list).unwrap_err(), message, "{list:?}");
     }
-    assert_eq!(quota::DEFAULT_PROFILE, "xhigh");
+    assert_eq!(profiles::DEFAULT, "xhigh");
 }

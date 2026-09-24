@@ -3,7 +3,7 @@
 //! The values and conventions follow the Go reference: `run`, `test` and
 //! `repl` default to `xhigh`, an override of zero selects the engine default
 //! (the `low` profile's value), a negative override disables the quota, and
-//! a positive override is used as-is.
+//! a positive override is used as-is. All three commands share this module.
 
 use crate::{
     compat,
@@ -99,6 +99,13 @@ pub fn resolve(flags: &Parsed) -> Result<Limits, String> {
         flags.int("memory-quota").unwrap_or(profile.memory),
         flags.int("recursion-limit").unwrap_or(profile.recursion),
     ))
+}
+
+/// The limits of the default profile, for a caller without quota flags.
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn default_limits() -> Limits {
+    let profile = by_name(DEFAULT).expect("the default profile exists");
+    limits(profile.steps, profile.memory, profile.recursion)
 }
 
 /// Maps Go-style quota values onto library limits.

@@ -110,7 +110,8 @@ fn invalid_arguments_fail_before_reading_input() {
     let run = repl(&["-h"], "");
     assert_eq!(run.status, Some(0));
     assert!(
-        run.stdout.starts_with("Usage: vibes repl [options]\n"),
+        run.stdout
+            .starts_with("NAME:\n   vibes repl - start the interactive Vibescript REPL\n"),
         "{}",
         run.stdout
     );

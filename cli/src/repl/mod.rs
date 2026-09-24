@@ -13,7 +13,6 @@ mod editor;
 mod lines;
 #[cfg_attr(target_os = "wasi", allow(dead_code))]
 mod model;
-mod quota;
 #[cfg_attr(target_os = "wasi", allow(dead_code))]
 mod render;
 #[cfg(not(target_os = "wasi"))]
@@ -21,112 +20,69 @@ mod terminal;
 #[cfg(test)]
 mod tests;
 
+use crate::{
+    flags::{self, Outcome, Spec},
+    profiles,
+};
 use std::{
     ffi::OsString,
     io::{self, IsTerminal},
     process::ExitCode,
 };
+use vibescript::Limits;
 use vibescript_tools::repl::ReplOptions;
 
-pub use quota::QuotaFlags;
-
-/// The usage text printed by `vibes repl --help`.
-pub const HELP: &str = "\
-Usage: vibes repl [options]
-
-Starts the interactive Vibescript REPL. With a terminal it runs full screen;
-with piped input it evaluates one line at a time and prints each result.
-
-Options:
-  -profile NAME           execution quota profile: low, medium, high, xhigh
-                          (default \"xhigh\")
-  -step-quota N           override the profile's step quota (-1 = unlimited)
-  -memory-quota N         override the profile's memory quota in bytes
-                          (-1 = unlimited)
-  -recursion-limit N      override the profile's recursion limit
-                          (-1 = unlimited)
-  -h, -help               show this help
-
-Options may start with one or two dashes, and take their value as the next
-argument or after '='.
-";
+/// The reference's `vibes repl` command: its summary and the quota flags it
+/// shares with `run` and `test`.
+pub const SPEC: Spec = Spec {
+    name: "repl",
+    aliases: &[],
+    usage: "start the interactive Vibescript REPL",
+    arguments: "",
+    usage_lines: &[],
+    flags: &profiles::FLAGS,
+};
 
 /// A parsed `vibes repl` command line.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug)]
 pub enum Arguments {
     Help,
-    Run(QuotaFlags),
+    Run(Limits),
 }
 
-/// Parses the arguments after `repl`, as the Go CLI's flag parser does.
+/// Parses the arguments after `repl` with the Go CLI's flag syntax and
+/// resolves the quota profile, as the reference does before reading input.
 pub fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Arguments, String> {
-    let mut flags = QuotaFlags::default();
-    let mut args = args.into_iter();
-    while let Some(arg) = args.next() {
-        let arg = arg
-            .into_string()
-            .map_err(|arg| format!("invalid argument {}", arg.to_string_lossy()))?;
-        if arg == "--" {
-            if args.next().is_some() {
-                return Err("vibes repl: does not accept positional arguments".to_owned());
-            }
-            break;
-        }
-        let Some(flag) = arg
-            .strip_prefix("--")
-            .or_else(|| arg.strip_prefix('-'))
-            .filter(|flag| !flag.is_empty())
-        else {
-            return Err("vibes repl: does not accept positional arguments".to_owned());
-        };
-        let (name, inline) = match flag.split_once('=') {
-            Some((name, value)) => (name, Some(value.to_owned())),
-            None => (flag, None),
-        };
-        if matches!(name, "h" | "help") {
-            return Ok(Arguments::Help);
-        }
-        let mut value = || match inline.clone() {
-            Some(value) => Ok(value),
-            None => args
-                .next()
-                .map(|value| value.to_string_lossy().into_owned())
-                .ok_or_else(|| format!("flag needs an argument: -{name}")),
-        };
-        let number = |raw: String| {
-            raw.parse::<i64>()
-                .map_err(|_| format!("invalid value {raw:?} for flag -{name}: parse error"))
-        };
-        match name {
-            "profile" => flags.profile = value()?,
-            "step-quota" => flags.steps = Some(number(value()?)?),
-            "memory-quota" => flags.memory = Some(number(value()?)?),
-            "recursion-limit" => flags.recursion = Some(number(value()?)?),
-            _ => return Err(format!("flag provided but not defined: -{name}")),
-        }
+    let args: Vec<OsString> = args.into_iter().collect();
+    let flags = match flags::parse(&SPEC, &args)? {
+        Outcome::Help => return Ok(Arguments::Help),
+        Outcome::Parsed(flags) => flags,
+    };
+    if !flags.positionals.is_empty() {
+        return Err("vibes repl: does not accept positional arguments".to_owned());
     }
-    Ok(Arguments::Run(flags))
+    profiles::resolve(&flags)
+        .map(Arguments::Run)
+        .map_err(|error| format!("vibes repl: {error}"))
 }
 
 /// Runs `vibes repl` with the arguments that follow `repl` and returns the
 /// process status: 0 when the REPL quits normally, 1 for invalid arguments
 /// or a terminal failure.
 pub fn run(args: impl IntoIterator<Item = OsString>) -> ExitCode {
-    let flags = match parse(args) {
+    let limits = match parse(args) {
         Ok(Arguments::Help) => {
-            print!("{HELP}");
-            return ExitCode::SUCCESS;
+            return match crate::print_help(&SPEC) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(message) => {
+                    eprintln!("{message}");
+                    ExitCode::FAILURE
+                }
+            };
         }
-        Ok(Arguments::Run(flags)) => flags,
+        Ok(Arguments::Run(limits)) => limits,
         Err(message) => {
             eprintln!("{message}");
-            return ExitCode::FAILURE;
-        }
-    };
-    let limits = match flags.resolve() {
-        Ok(limits) => limits,
-        Err(message) => {
-            eprintln!("vibes repl: {message}");
             return ExitCode::FAILURE;
         }
     };
