@@ -186,8 +186,8 @@ fn receivers() -> Vec<Receiver> {
     receivers
 }
 
-#[test]
-fn builtin_members_agree_with_the_runtime_in_every_call_shape() {
+/// Every member name, plus names outside every member table.
+fn member_names() -> Vec<&'static str> {
     let mut names: Vec<&str> = vibescript::tooling::member_names()
         .into_iter()
         .flat_map(|(_, names)| names)
@@ -195,8 +195,15 @@ fn builtin_members_agree_with_the_runtime_in_every_call_shape() {
         .collect();
     names.sort_unstable();
     names.dedup();
+    names
+}
+
+/// Classifies each `forms` call, with `{}` replaced by every member name, on
+/// each receiver, and asserts that checker and runtime agree on all of them.
+/// Receivers are independent, so they are classified in parallel.
+fn agree(receivers: fn() -> Vec<Receiver>, forms: &[&str]) {
+    let names = member_names();
     let count = receivers().len();
-    // Each receiver's calls are independent, so they are classified in parallel.
     let found: Vec<Vec<(Mismatch, String)>> = std::thread::scope(|scope| {
         let names = &names;
         let workers: Vec<_> = (0..count)
@@ -205,8 +212,8 @@ fn builtin_members_agree_with_the_runtime_in_every_call_shape() {
                     let receiver = receivers().swap_remove(index);
                     let mut found = Vec::new();
                     for name in names {
-                        for shape in SHAPES {
-                            let call = format!(".{name}{shape}");
+                        for form in forms {
+                            let call = form.replace("{}", name);
                             if let Some(mismatch) = receiver.classify(&call) {
                                 let parameter = receiver
                                     .parameter
@@ -237,6 +244,60 @@ fn builtin_members_agree_with_the_runtime_in_every_call_shape() {
             summary += &format!("  {expression}\n");
         }
     }
-    let cases = count * names.len() * SHAPES.len();
+    let cases = count * names.len() * forms.len();
     assert!(mismatches.is_empty(), "{cases} cases\n{summary}");
+}
+
+#[test]
+fn builtin_members_agree_with_the_runtime_in_every_call_shape() {
+    let forms: Vec<String> = SHAPES.iter().map(|shape| format!(".{{}}{shape}")).collect();
+    let forms: Vec<&str> = forms.iter().map(String::as_str).collect();
+    agree(receivers, &forms);
+}
+
+/// Arrays whose elements are the receivers of a reduction's named member.
+fn reductions() -> Vec<Receiver> {
+    [
+        "[[1], [2]]",
+        "[1, 2]",
+        "[\"a\", \"b\"]",
+        "[{ a: 1 }, { b: 2 }]",
+        "[1.5, 2]",
+        "[:a, :b]",
+        "[2.hours, 3.hours]",
+        "[nil, 1]",
+        "[]",
+    ]
+    .into_iter()
+    .map(|expression| Receiver {
+        parameter: None,
+        witness: Vec::new(),
+        expression,
+    })
+    .collect()
+}
+
+#[test]
+fn members_named_by_symbols_agree_with_the_runtime() {
+    agree(
+        reductions,
+        &[
+            ".reduce(:{})",
+            ".inject(:{})",
+            ".reduce(0, :{})",
+            ".reduce(\"{}\")",
+            ".inject([], :{})",
+        ],
+    );
+    agree(
+        receivers,
+        &[
+            ".send(:{})",
+            ".public_send(:{}, 1)",
+            ".send(\"{}\", \"a\")",
+            ".send(:{}) { |v| v }",
+            ".send(:{}, a: 1)",
+            ".respond_to?(:{})",
+        ],
+    );
 }
