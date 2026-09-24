@@ -410,6 +410,19 @@ Regexp.escape("a.b*c")                    # "a\\.b\\*c"
 Regexp.union("cat", "dog").match?("dog")  # true
 ```
 
+### `Regex.new(pattern)`
+
+The canonical spelling of `Regexp.new`.
+
+### `Regex.escape(text)`
+
+The canonical spelling of `Regexp.escape`.
+
+### `Regex.union(*patterns)`
+
+The canonical spelling of `Regexp.union`. Without patterns, as `Regex.union`,
+it matches nothing.
+
 ## Hash
 
 `Hash` constructs an empty hash.

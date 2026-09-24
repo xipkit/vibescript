@@ -424,7 +424,10 @@ fn compiled_builtin_namespaces_retain_sorted_unique_members_without_the_budget()
     let expected: &[(&str, &[&str])] = &[
         ("Hash", &["new"]),
         ("Regexp", &["escape", "last_match", "new", "quote", "union"]),
-        ("Regex", &["match", "replace", "replace_all"]),
+        (
+            "Regex",
+            &["escape", "match", "new", "replace", "replace_all", "union"],
+        ),
         (
             "Time",
             &["at", "gm", "local", "mktime", "new", "now", "parse", "utc"],
@@ -454,6 +457,10 @@ fn compiled_builtin_namespaces_retain_sorted_unique_members_without_the_budget()
             match (name, *member, &value.0) {
                 ("Math", "E", _) => assert_eq!(value.as_float(), Some(std::f64::consts::E)),
                 ("Math", "PI", _) => assert_eq!(value.as_float(), Some(std::f64::consts::PI)),
+                // The canonical spellings share Regexp's builtins, and their wording.
+                ("Regex", "escape" | "new" | "union", crate::value::Kind::Builtin(builtin)) => {
+                    assert_eq!(builtin.name(), format!("Regexp.{member}"))
+                }
                 (_, _, crate::value::Kind::Builtin(builtin)) => {
                     assert_eq!(builtin.name(), format!("{name}.{member}"))
                 }

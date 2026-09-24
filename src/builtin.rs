@@ -175,8 +175,18 @@ impl Global {
             .collect(),
             Self::Regex => vec![
                 field(
+                    "escape",
+                    Value(Kind::Builtin(Regexp(
+                        crate::regex::value::Constructor::Escape,
+                    ))),
+                ),
+                field(
                     "match",
                     Value(Kind::Builtin(Regex(crate::regex::Utility::Match))),
+                ),
+                field(
+                    "new",
+                    Value(Kind::Builtin(Regexp(crate::regex::value::Constructor::New))),
                 ),
                 field(
                     "replace",
@@ -185,6 +195,12 @@ impl Global {
                 field(
                     "replace_all",
                     Value(Kind::Builtin(Regex(crate::regex::Utility::ReplaceAll))),
+                ),
+                field(
+                    "union",
+                    Value(Kind::Builtin(Regexp(
+                        crate::regex::value::Constructor::Union,
+                    ))),
                 ),
             ],
             Self::Time => [

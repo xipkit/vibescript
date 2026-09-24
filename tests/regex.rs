@@ -300,3 +300,66 @@ fn maximal_literal_patterns_match_within_the_default_step_quota() {
         assert_eq!(json(&outcome.value), expected, "{function}");
     }
 }
+
+#[test]
+fn regex_serves_the_regexp_constructors_under_their_canonical_names() {
+    let script = Engine::new()
+        .compile(
+            r#"
+[
+  Regex.new("a+").source,
+  Regex.escape("a.b*"),
+  Regex.union("a", "b.").source,
+  Regex.union.source,
+  Regex.union().source,
+  Regex.new("x") == Regexp.new("x"),
+  Regex.union("a").match?("a")
+]
+"#,
+        )
+        .unwrap();
+    let output = script.run(CallOptions::default()).unwrap();
+    assert_eq!(
+        json(&output.value),
+        serde_json::json!([
+            "a+",
+            "a\\.b\\*",
+            "a|b\\.",
+            "[^\\s\\S]",
+            "[^\\s\\S]",
+            true,
+            true
+        ])
+    );
+    // They are the same builtins, so a rewritten call keeps its errors.
+    for (source, kind, message) in [
+        (
+            "Regex.new",
+            ErrorKind::Type,
+            "new is a method and cannot be used as a value; call it with new(...)",
+        ),
+        (
+            "Regex.escape(1)",
+            ErrorKind::Type,
+            "Regexp.escape expects a string",
+        ),
+        (
+            "Regex.union { }",
+            ErrorKind::Argument,
+            "Regexp.union does not accept blocks",
+        ),
+        (
+            "Regex.union(a: 1)",
+            ErrorKind::Argument,
+            "Regexp.union does not accept keyword arguments",
+        ),
+    ] {
+        let error = Engine::new()
+            .compile(source)
+            .unwrap()
+            .run(CallOptions::default())
+            .unwrap_err();
+        assert_eq!(error.message, message, "{source}");
+        assert_eq!(error.kind, kind, "{source}");
+    }
+}
