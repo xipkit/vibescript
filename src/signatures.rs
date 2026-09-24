@@ -1,27 +1,29 @@
-//! Signature declarations: typed, possibly generic signatures written as
-//! Vibescript declarations.
+//! The builtin signature table and the prelude printed from it.
 //!
-//! ADR-007 gives every builtin function, namespace member and member of every
-//! value type a typed signature, and ADR-008 prints them as a prelude. Both
-//! use this format: `def` for functions and members, `getter` for properties,
-//! `module` for namespaces, `class` for the members of every value of a type
-//! pattern such as `array<T>`, and `type` for aliases. [`Table::parse`] reads
-//! it and [`Table`]'s `Display` prints it back in a canonical form.
+//! Every builtin function, namespace member and member of every value type has
+//! one typed signature under its one canonical name (ADR-007, static types, and
+//! ADR-008, a canonical surface). The table is written as Vibescript
+//! declarations in `src/signatures/builtins.vibe`, whose header documents the
+//! notation. [`table`] parses it and [`prelude`] prints it. [`renames`] lists
+//! the removed spellings and what replaces each one.
 //!
 //! ```
-//! use vibescript::signatures::Table;
-//! let source = "class array<T>\n  def map<U>(&block: T -> U) -> array<U>\nend\n";
-//! let table = Table::parse(source)?;
-//! assert_eq!(table.to_string(), source);
+//! let prelude = vibescript::signatures::prelude();
+//! assert!(prelude.contains("  def map<U>(&block: T -> U) -> array<U>\n"));
+//! assert_eq!(vibescript::signatures::Table::parse(&prelude)?.to_string(), prelude);
 //! # Ok::<(), vibescript::signatures::ParseError>(())
 //! ```
 
+use std::sync::OnceLock;
+
 mod parse;
+mod renames;
 mod render;
 #[cfg(test)]
 mod tests;
 
 pub use parse::ParseError;
+pub use renames::{Rename, Replacement, renames};
 
 /// A parsed signature file: the builtin table or a host's additions.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -243,4 +245,25 @@ impl Module {
     pub fn member(&self, name: &str) -> Option<&Member> {
         self.members.iter().find(|member| member.name() == name)
     }
+}
+
+const BUILTINS: &str = include_str!("signatures/builtins.vibe");
+
+/// The builtin signature table.
+///
+/// It lists the builtin globals, the namespaces and the members of every
+/// value type, each under its canonical name, in the order `vibes prelude`
+/// prints them.
+pub fn table() -> &'static Table {
+    static TABLE: OnceLock<Table> = OnceLock::new();
+    TABLE.get_or_init(|| {
+        Table::parse(BUILTINS).unwrap_or_else(|error| panic!("builtins.vibe: {error}"))
+    })
+}
+
+/// The builtin prelude: [`table`] printed as Vibescript declarations.
+///
+/// The text is stable across calls and parses back to the same table.
+pub fn prelude() -> String {
+    table().to_string()
 }
