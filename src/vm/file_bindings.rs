@@ -104,20 +104,6 @@ pub(super) fn local(
     )
 }
 
-pub(super) fn local_name(op: Op) -> Option<usize> {
-    match op {
-        Op::Load(slot)
-        | Op::LoadOptional(slot, _)
-        | Op::ReceiverBound(slot, _)
-        | Op::Declare(slot)
-        | Op::Store(slot)
-        | Op::AddStore(slot)
-        | Op::AddressLocal(slot)
-        | Op::AddressBound(slot, _) => Some(slot),
-        _ => None,
-    }
-}
-
 pub(super) fn unshadowed(
     program: &Program,
     ctx: &mut CallContext,

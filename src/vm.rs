@@ -518,22 +518,24 @@ impl Run {
                 }
                 resolve_slot(ctx, frames, storage, current, slot, skip)
             };
-            let binding_local = file_bindings::local_name(op);
-            let file_local = if program.file {
-                file_bindings::local_name(op)
-            } else {
-                None
+            // Local reads, writes and declarations remember the slot they name
+            // and the one it resolved to, for the file and root binding checks.
+            let mut local = None;
+            let mut bound = |relative| {
+                let absolute = slot(relative, false)?;
+                local = Some((relative, absolute));
+                Ok::<_, Error>(absolute)
             };
             let mut op = match op {
-                Op::Load(n) => Op::Load(slot(n, false)?),
+                Op::Load(n) => Op::Load(bound(n)?),
+                Op::LoadOptional(n, name) => Op::LoadOptional(bound(n)?, name),
+                Op::ReceiverBound(n, next) => Op::ReceiverBound(bound(n)?, next),
+                Op::Declare(n) => Op::Declare(bound(n)?),
+                Op::Store(n) => Op::Store(bound(n)?),
+                Op::AddStore(n) => Op::AddStore(bound(n)?),
+                Op::AddressLocal(n) => Op::AddressLocal(bound(n)?),
+                Op::AddressBound(n, next) => Op::AddressBound(bound(n)?, next),
                 Op::Bypass(n) => Op::Bypass(slot(n, false)?),
-                Op::LoadOptional(n, name) => Op::LoadOptional(slot(n, false)?, name),
-                Op::ReceiverBound(n, next) => Op::ReceiverBound(slot(n, false)?, next),
-                Op::Declare(n) => Op::Declare(slot(n, false)?),
-                Op::Store(n) => Op::Store(slot(n, false)?),
-                Op::AddStore(n) => Op::AddStore(slot(n, false)?),
-                Op::AddressLocal(n) => Op::AddressLocal(slot(n, false)?),
-                Op::AddressBound(n, next) => Op::AddressBound(slot(n, false)?, next),
                 Op::ResolveCall(n, name, parenthesized) => Op::ResolveCall(
                     if n == usize::MAX { n } else { slot(n, true)? },
                     name,
@@ -557,19 +559,20 @@ impl Run {
                     }
                 }
             }
-            let file_local = if let Some(relative) = file_local {
-                let absolute = file_bindings::local_name(op).unwrap();
-                file_bindings::local(program, ctx, frames, storage, current, relative, absolute)?
-                    .then_some(function.local_names[relative].as_str())
-            } else {
-                None
-            };
-            let root_local = if let Some(relative) = binding_local {
-                let absolute = file_bindings::local_name(op).unwrap();
-                requires::local(ctx, frames, storage, current, relative, absolute)?
-                    .then_some(function.local_names[relative].as_str())
-            } else {
-                None
+            let (file_local, root_local) = match local {
+                Some((relative, absolute)) if program.file => (
+                    file_bindings::local(
+                        program, ctx, frames, storage, current, relative, absolute,
+                    )?
+                    .then_some(function.local_names[relative].as_str()),
+                    None,
+                ),
+                Some((relative, absolute)) => (
+                    None,
+                    requires::local(ctx, frames, storage, current, relative, absolute)?
+                        .then_some(function.local_names[relative].as_str()),
+                ),
+                None => (None, None),
             };
             let frame = &mut frames.data[current];
             match op {
