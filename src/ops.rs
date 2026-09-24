@@ -76,6 +76,69 @@ pub(crate) fn unary(ctx: &mut CallContext, op: &str, value: Value) -> Result<Val
     }
 }
 
+/// Applies `op` to two compact integers or two floats when the result is
+/// another immediate, charging exactly what [`binary`] charges for them.
+/// Returns `None` for other operands and operators, or when an integer result
+/// overflows, leaving those to [`binary`].
+#[inline]
+pub(crate) fn immediate(
+    ctx: &mut CallContext,
+    op: &str,
+    a: &Value,
+    b: &Value,
+) -> Result<Option<Value>> {
+    let value = match (&a.0, &b.0) {
+        (Kind::Int(a), Kind::Int(b)) => match op {
+            "+" => a.checked_add(*b).map(Value::int),
+            "-" => a.checked_sub(*b).map(Value::int),
+            "*" => a.checked_mul(*b).map(Value::int),
+            "/" | "%" if *b != 0 => floor_divide(op, *a, *b).map(Value::int),
+            "<" => Some(Value::boolean(a < b)),
+            "<=" => Some(Value::boolean(a <= b)),
+            ">" => Some(Value::boolean(a > b)),
+            ">=" => Some(Value::boolean(a >= b)),
+            "==" | "!=" => {
+                // Equality charges one step per compared pair.
+                ctx.charge(1)?;
+                Some(Value::boolean((a == b) == (op == "==")))
+            }
+            _ => None,
+        },
+        (Kind::Float(a), Kind::Float(b)) => match op {
+            "+" => Some(Value::float(a + b)),
+            "-" => Some(Value::float(a - b)),
+            "*" => Some(Value::float(a * b)),
+            "/" => Some(Value::float(a / b)),
+            "<" => Some(Value::boolean(a < b)),
+            "<=" => Some(Value::boolean(a <= b)),
+            ">" => Some(Value::boolean(a > b)),
+            ">=" => Some(Value::boolean(a >= b)),
+            "==" | "!=" => {
+                ctx.charge(1)?;
+                Some(Value::boolean((a == b) == (op == "==")))
+            }
+            _ => None,
+        },
+        _ => None,
+    };
+    Ok(value)
+}
+
+/// Divides or takes the modulo of compact integers, rounding toward negative
+/// infinity, or returns `None` when the quotient overflows. `b` is nonzero.
+fn floor_divide(op: &str, a: i64, b: i64) -> Option<i64> {
+    let q = a.checked_div(b)?;
+    let r = a % b;
+    let adjust = r != 0 && (r < 0) != (b < 0);
+    Some(if op == "/" {
+        if adjust { q - 1 } else { q }
+    } else if adjust {
+        r + b
+    } else {
+        r
+    })
+}
+
 pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Result<Value> {
     if op == "%" {
         if let Kind::Bytes(pattern) = &a.0 {
@@ -177,18 +240,7 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
                     if *b == 0 {
                         return Err(zero_division(op));
                     }
-                    let Some(q) = a.checked_div(*b) else {
-                        return crate::integer::binary(ctx, op, &Value::int(*a), &Value::int(*b));
-                    };
-                    let r = a % b;
-                    let adjust = r != 0 && (r < 0) != (*b < 0);
-                    Some(if op == "/" {
-                        if adjust { q - 1 } else { q }
-                    } else if adjust {
-                        r + b
-                    } else {
-                        r
-                    })
+                    floor_divide(op, *a, *b)
                 }
                 "**" => {
                     if *b < 0 {

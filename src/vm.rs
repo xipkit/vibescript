@@ -1451,6 +1451,10 @@ impl Run {
                 Op::Binary(op) => {
                     let b = stack.data.pop().unwrap();
                     let a = stack.data.pop().unwrap();
+                    if let Some(value) = ops::immediate(ctx, op, &a, &b)? {
+                        stack.push(ctx, value)?;
+                        continue;
+                    }
                     if let Some(resolved) =
                         operators::resolve(program, ctx, &a, op, (namespace, caller_instance))?
                     {
@@ -1475,6 +1479,17 @@ impl Run {
                 Op::AddStore(n) => {
                     let b = stack.data.pop().unwrap();
                     let a = stack.data.pop().unwrap();
+                    // An immediate sum cannot fail part way, so the slot is written once.
+                    if root_local.is_none() {
+                        if let Some(value) = ops::immediate(ctx, "+", &a, &b)? {
+                            if !storage.addresses.data.is_empty() {
+                                address::refresh(ctx, n, &value, &mut storage.addresses.data, &[])?;
+                            }
+                            storage.locals.data[n] = Some(value.clone());
+                            stack.push(ctx, value)?;
+                            continue;
+                        }
+                    }
                     if let Some(resolved) =
                         operators::resolve(program, ctx, &a, "+", (namespace, caller_instance))?
                     {
