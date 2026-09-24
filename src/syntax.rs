@@ -1411,7 +1411,12 @@ impl<'a> Parsing<'a> {
         let (offset, grouped) = {
             let p = self.p();
             p.work.charge(1)?;
-            (p.tokens[p.pos].offset as u32, p.token() == &Token::P('('))
+            // Go locates a folded negative number at its digits.
+            let folded = p.token() == &Token::Op("-") && p.negative_literal(p.pos)?;
+            (
+                p.tokens[p.pos + usize::from(folded)].offset as u32,
+                p.token() == &Token::P('('),
+            )
         };
         let mut expr = self.prefix_node().await?;
         if !grouped {
@@ -1523,7 +1528,7 @@ impl<'a> Parsing<'a> {
         let literal = {
             let p = self.p();
             p.work.charge(1)?;
-            p.negative_literal(op)?
+            op == "-" && p.negative_literal(p.pos - 1)?
         };
         let value = if literal {
             self.prefix().await?
@@ -2668,18 +2673,18 @@ impl<'a> Parser<'a> {
         }
         self.make(Node::Var(Name::new(self.work, name)?), 1)
     }
-    fn negative_literal(&self, op: &str) -> Result<bool> {
+    /// Reports whether the minus at `sign` folds into the adjacent number.
+    fn negative_literal(&self, sign: usize) -> Result<bool> {
         // An adjacent minus belongs to the numeric receiver; power keeps the
         // outer sign.
-        Ok(op == "-"
-            && self.tokens[self.pos - 1].end == self.tokens[self.pos].offset
+        Ok(self.tokens[sign].end == self.tokens[sign + 1].offset
             && matches!(
-                self.token(),
+                self.tokens[sign + 1].token,
                 Token::Int(_) | Token::BigInt(..) | Token::Float(_)
             )
             && !self
                 .tokens
-                .find(self.pos + 1..self.tokens.len(), self.work, |next| {
+                .find(sign + 2..self.tokens.len(), self.work, |next| {
                     next.token != Token::EndLine || next.line == next.end_line
                 })?
                 .is_some_and(|next| next.token == Token::Op("**")))
