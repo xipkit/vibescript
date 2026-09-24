@@ -46,7 +46,7 @@ This sequence can change when dependencies require it. Finishing a stage or maki
 
 ## Verification
 
-Use `./scripts/check` for formatting, linting, debug/release, portable/SIMD, documentation and optional Tokio tests. Extend `scripts/fixtures.py` with Go-checked conformance cases and run `scripts/compare.py --validate-only`; do not run performance measurements during this language port. Keep `scripts/audit-site.py` reporting all site successes, missing features and harness gaps. Add independent expected-value and limit tests for new semantics, not only comparisons to the Go implementation.
+Use `./scripts/check` for formatting, linting, debug/release, portable/SIMD, documentation and optional Tokio tests. Extend `scripts/fixtures.py` with Go-checked conformance cases and run `scripts/compare.py --validate-only`; do not run performance measurements during this language port. Keep `scripts/audit-site.py` reporting all site successes, missing features and harness gaps. Run `scripts/check-sweep.py` against a release build to check every corpus program and documentation example, plus recorded reference test sources with `--replay DIR`; it fails when any check reports incomplete analysis or reaches its deadline. Add independent expected-value and limit tests for new semantics, not only comparisons to the Go implementation.
 
 Before completion, replace every partial/pending status above with specific current evidence, audit all documented signatures and rejection boundaries, and verify the full implemented state. Leave the thread goal active while any required behavior is missing, incomplete or unverified.
 
