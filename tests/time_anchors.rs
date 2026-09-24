@@ -159,13 +159,18 @@ fn clock_defaults_require_calls_and_ignore_attached_blocks() {
         ("before", true),
         ("until", true),
     ] {
+        // `ago` and `from_now` count from now, so they need no parentheses.
+        let bare = matches!(name, "ago" | "from_now").then_some("");
         for suffix in [
             "()",
             "(*[])",
             "(**{})",
             " {unexpected()}",
             " do;unexpected();end",
-        ] {
+        ]
+        .into_iter()
+        .chain(bare)
+        {
             let script = engine
                 .compile(&format!("5.minutes.{name}{suffix}"))
                 .unwrap();
@@ -183,7 +188,12 @@ fn clock_defaults_require_calls_and_ignore_attached_blocks() {
             assert!(lower <= clock && clock <= upper, "{name}{suffix}");
             assert_eq!(result.stats.retained_memory_bytes, 0);
         }
-        for suffix in ["", ".to_s", ".call()"] {
+        let refused: &[&str] = if bare.is_some() {
+            &[]
+        } else {
+            &["", ".to_s", ".call()"]
+        };
+        for suffix in refused {
             assert_eq!(
                 engine
                     .compile(&format!("1.seconds.{name}{suffix}"))

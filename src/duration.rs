@@ -340,7 +340,8 @@ pub(crate) fn member(
     };
     let value = match name {
         "after" | "since" | "from_now" | "ago" | "before" | "until" => {
-            if site.auto && !block {
+            // `ago` and `from_now` count from now, so they take no arguments.
+            if site.auto && !block && !matches!(name, "ago" | "from_now") {
                 return Err(Error::new(
                     ErrorKind::Type,
                     format!(

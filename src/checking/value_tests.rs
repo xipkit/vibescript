@@ -174,11 +174,20 @@ fn duration_units_parts_and_anchors_keep_constructed_result_types() {
                 false,
             );
         }
-        witness(
-            &format!("def run; begin; {DURATION}.{name}; rescue; 7; end; end"),
-            Some("7"),
-            true,
-        );
+        // `ago` and `from_now` count from now, so they need no parentheses.
+        if matches!(name, "ago" | "from_now") {
+            witness(
+                &format!("def run -> time; {DURATION}.{name}; end"),
+                None,
+                false,
+            );
+        } else {
+            witness(
+                &format!("def run; begin; {DURATION}.{name}; rescue; 7; end; end"),
+                Some("7"),
+                true,
+            );
+        }
     }
 }
 

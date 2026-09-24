@@ -257,7 +257,7 @@ fn duration(
         name,
         "after" | "since" | "from_now" | "ago" | "before" | "until"
     ) {
-        if site.auto {
+        if site.auto && !matches!(name, "ago" | "from_now") {
             return reject(ctx, Failure::BuiltinValue);
         }
         if count > 1 {

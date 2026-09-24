@@ -625,9 +625,9 @@ fn time_constructors_and_members_use_go_wording() {
             "attempted to call non-callable value",
         ),
         (
-            "def run\n  1.hour.ago\nend",
+            "def run\n  1.hour.since\nend",
             Runtime,
-            "ago is a method and cannot be used as a value; call it with ago(...)",
+            "since is a method and cannot be used as a value; call it with since(...)",
         ),
     ]);
 }

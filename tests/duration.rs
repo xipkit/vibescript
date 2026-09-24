@@ -190,6 +190,7 @@ fn invalid_duration_operations_stop_before_host_effects() {
         Ok(Value::nil())
     });
     for source in [
+        "Duration.build",
         "Duration.build(1,seconds:2)",
         "Duration.build(hours:1e309)",
         "Duration.build(2**63)",
@@ -289,4 +290,27 @@ fn unchanged_duration_example_returns_typed_host_values() {
     assert_eq!(values[1].1.as_duration(), Some(7200));
     assert_eq!(values[2].0.as_bytes(), Some(b"combined".as_slice()));
     assert_eq!(values[2].1.as_int(), Some(900));
+}
+
+#[test]
+fn bare_duration_builders_and_clock_anchors_run_like_empty_calls() {
+    for source in ["Duration.build", "Duration.build()"] {
+        let error = Engine::new()
+            .compile(source)
+            .unwrap()
+            .run(CallOptions::default())
+            .unwrap_err();
+        assert_eq!(
+            error.message, "Duration.build expects seconds or named parts",
+            "{source}"
+        );
+    }
+    let result = run("[5.minutes.from_now > 4.minutes.from_now, 5.minutes.ago < 4.minutes.ago]");
+    assert_eq!(
+        stringify_json(&result.value, CallOptions::default())
+            .unwrap()
+            .value
+            .as_bytes(),
+        Some(b"[true,true]".as_slice())
+    );
 }
