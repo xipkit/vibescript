@@ -210,11 +210,12 @@ impl Walker<'_> {
                             self.incomplete(pc)?;
                             return Ok(None);
                         };
+                        // A module has no instances, so no value satisfies its type.
                         if namespace.program().namespaces[namespace.index]
                             .constructor
                             .is_none()
                         {
-                            values.push(self.ctx, value)?;
+                            values.push(self.ctx, Atom::Never.fact())?;
                             continue;
                         }
                         let kind = if summary {

@@ -74,6 +74,27 @@ fn general_class_parameters_keep_method_results_and_argument_contracts() {
 }
 
 #[test]
+fn module_types_admit_no_values() {
+    let source = "module M\n  def self.size\n    3\n  end\nend\ndef run(m: M)\n  m.size(1, 2)\nend\ndef count(ms: array<M>) -> int\n  ms.size\nend\ndef module\n  M\nend";
+    for name in ["run", "count"] {
+        check(source, name, true);
+    }
+    let script = Engine::new().compile(source).unwrap();
+    let module = script
+        .call("module", &[], CallOptions::default())
+        .unwrap()
+        .value;
+    let error = script
+        .call("run", &[module], CallOptions::default())
+        .unwrap_err();
+    assert_eq!(error.message, "argument m expected M, got class");
+    let result = script
+        .call("count", &[Value::array(Vec::new())], CallOptions::default())
+        .unwrap();
+    assert_eq!(result.value.to_string(), "0");
+}
+
+#[test]
 fn symbolic_receivers_read_untyped_fields_gradually() {
     let source = "class Bucket\n  def initialize(tenant)\n    @tenant = tenant\n  end\n  def report\n    tenant\n  end\n  def via_self\n    self.tenant\n  end\n  def poke\n    tenant[0] = 9\n  end\nend\ndef run(tenant)\n  b = Bucket.new(tenant)\n  [b.report, b.via_self]\nend";
     for name in ["Bucket#report", "Bucket#via_self", "Bucket#poke"] {
