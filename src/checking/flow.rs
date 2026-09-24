@@ -676,11 +676,16 @@ impl State {
                 } else {
                     None
                 };
+                let value = match numeric {
+                    Some(value) => value,
+                    None if backedge => facts.joined(ctx, a.value, b.value, depth)?,
+                    None => {
+                        let value = facts.joined(ctx, a.value, b.value, depth)?;
+                        facts.bound_literals(ctx, value)?
+                    }
+                };
                 Ok(Binding {
-                    value: match numeric {
-                        Some(value) => value,
-                        None => facts.joined(ctx, a.value, b.value, depth)?,
-                    },
+                    value,
                     missing: a.missing || b.missing,
                     owner: a.owner.join(a.value, b.owner, b.value),
                 })

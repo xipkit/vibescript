@@ -156,3 +156,83 @@ impl Facts {
         })
     }
 }
+
+/// The literal alternatives of one scalar kind that a branch join keeps.
+const LITERALS: usize = 64;
+
+impl Facts {
+    /// Bounds the literal alternatives a branch join accumulates.
+    ///
+    /// Past [`LITERALS`] alternatives of one kind, integer literals and ranges become the range
+    /// that spans them, and other literals become their general scalar, as the Go checker
+    /// widens static values. Without a bound, a binding assigned a different literal on each of
+    /// N branches costs every later join and operation on it N steps.
+    pub(in crate::checking) fn bound_literals(
+        &mut self,
+        ctx: &mut CallContext,
+        value: Fact,
+    ) -> Result<Fact> {
+        let arms = self.arms(&value);
+        if arms.len() <= LITERALS {
+            return Ok(value);
+        }
+        ctx.charge(arms.len() as u64)?;
+        let mut counts = [0usize; 4];
+        let mut hull = super::super::integers::Bounds {
+            min: Some(i64::MAX),
+            max: Some(i64::MIN),
+        };
+        for &arm in arms {
+            let (min, max) = match self.node(arm) {
+                Node::Integer(value) => (Some(*value), Some(*value)),
+                Node::IntegerBounds(bounds) => (bounds.min, bounds.max),
+                Node::String(_) => {
+                    counts[1] += 1;
+                    continue;
+                }
+                Node::Symbol(_) => {
+                    counts[2] += 1;
+                    continue;
+                }
+                Node::Float(_) => {
+                    counts[3] += 1;
+                    continue;
+                }
+                _ => continue,
+            };
+            counts[0] += 1;
+            hull.min = hull.min.zip(min).map(|(a, b)| a.min(b));
+            hull.max = hull.max.zip(max).map(|(a, b)| a.max(b));
+        }
+        let widened = counts.map(|count| count > LITERALS);
+        if !widened.contains(&true) {
+            return Ok(value);
+        }
+        let mut kept = Buffer::with_capacity(ctx, arms.len())?;
+        for &arm in self.arms(&value) {
+            let kind = match self.node(arm) {
+                Node::Integer(_) | Node::IntegerBounds(_) => 0,
+                Node::String(_) => 1,
+                Node::Symbol(_) => 2,
+                Node::Float(_) => 3,
+                _ => {
+                    kept.data.push(arm);
+                    continue;
+                }
+            };
+            if !widened[kind] {
+                kept.data.push(arm);
+            }
+        }
+        if widened[0] {
+            let range = self.integer_range(ctx, hull)?;
+            kept.push(ctx, range)?;
+        }
+        for (kind, atom) in [(1, Atom::String), (2, Atom::Symbol), (3, Atom::Float)] {
+            if widened[kind] {
+                kept.push(ctx, atom.fact())?;
+            }
+        }
+        self.union(ctx, &kept.data)
+    }
+}
