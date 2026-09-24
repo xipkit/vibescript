@@ -2497,7 +2497,7 @@ impl Walker<'_> {
                     ]);
                 }
                 Op::BindEnd => (),
-                Op::Normalize(ty, _) => {
+                Op::Normalize(ty, _) | Op::Check(ty, _) => {
                     let actual = state.stack.data.last().unwrap().value;
                     let normalized = self.normalization_contract(&mut state, pc, ty)?;
                     for alternative in normalized.alternatives.data {

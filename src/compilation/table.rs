@@ -102,6 +102,11 @@ impl<V> Table<V> {
         })
     }
 
+    /// Reports whether the table has no bindings, without charging work.
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
     /// Checks membership with the same termination checks as a value lookup.
     pub fn contains(&self, work: &dyn Work, name: &str) -> Result<bool> {
         Ok(self.get(work, name)?.is_some())

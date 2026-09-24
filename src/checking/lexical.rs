@@ -210,7 +210,7 @@ impl Layouts {
             }
             for op in &body.code {
                 ctx.charge(1)?;
-                if let Op::Normalize(ty, _) = *op {
+                if let Op::Normalize(ty, _) | Op::Check(ty, _) = *op {
                     pending.push(ctx, &program.types[ty])?;
                 }
             }

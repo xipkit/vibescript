@@ -19,6 +19,8 @@ pub(crate) enum Context<'a> {
     HostArgument(&'a str, &'a str, usize),
     Return(&'a str),
     Ivar(&'a [u8]),
+    /// A value named by its whole subject, such as `local variable count`.
+    Subject(&'a [u8]),
     Json,
 }
 
@@ -76,6 +78,10 @@ pub(crate) fn host_resolution(
             writer.write(name)?;
             writer.write(b" type check failed: ")?;
         }
+        Context::Subject(subject) => {
+            writer.write(subject)?;
+            writer.write(b" type check failed: ")?;
+        }
         _ => unreachable!(),
     }
     if error.message == "unknown named type" {
@@ -124,6 +130,10 @@ pub(super) fn mismatch(
         Context::Ivar(name) => {
             writer.write(b"instance variable @")?;
             writer.write(name)?;
+            writer.byte(b' ')?;
+        }
+        Context::Subject(subject) => {
+            writer.write(subject)?;
             writer.byte(b' ')?;
         }
         Context::Json => writer.write(b"JSON.parse_as value ")?,

@@ -75,7 +75,7 @@ impl Walker<'_> {
                 }
                 return Ok(0);
             }
-            Op::Normalize(..) => return Ok(0),
+            Op::Normalize(..) | Op::Check(..) => return Ok(0),
             Op::RangeStart => &state.stack.data[state.stack.data.len() - 1..],
             Op::Range(start, end, _) => {
                 let n = usize::from(start) + usize::from(end);

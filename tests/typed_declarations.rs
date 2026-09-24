@@ -1,5 +1,5 @@
 //! The declarations ADR-007 adds, enforced at runtime like parameter
-//! annotations.
+//! annotations: typed locals, tuple types and the newer type names.
 
 use vibescript::{CallOptions, Engine, ErrorKind, stringify_json};
 
@@ -34,6 +34,148 @@ fn compile_error(source: &str) -> String {
         "parse error at {}:{}: {}",
         position.line, position.column, error.message
     )
+}
+
+#[test]
+fn typed_locals_take_their_declared_type() {
+    for (source, expected) in [
+        ("x: int = 1\nx = x + 2\nx", serde_json::json!(3)),
+        (
+            "label: string? = nil\nlabel = \"ready\"\nlabel",
+            serde_json::json!("ready"),
+        ),
+        (
+            "names: array<string> = []\nnames << \"Ada\"\nnames",
+            serde_json::json!(["Ada"]),
+        ),
+        (
+            "counts: hash<string, int> = {}\ncounts[\"a\"] = 1\ncounts",
+            serde_json::json!({"a": 1}),
+        ),
+        (
+            "total: number = 1\ntotal = 2.5\ntotal",
+            serde_json::json!(2.5),
+        ),
+        ("x: int = 1\nx += 2\nx *= 3\nx", serde_json::json!(9)),
+        ("x: int? = nil\nx ||= 4\nx", serde_json::json!(4)),
+        (
+            "def sum(items: array<int>) -> int\n  total: int = 0\n  items.each { |item| total += item }\n  for item in items\n    total = total + item\n  end\n  total\nend\nsum([1, 2])",
+            serde_json::json!(6),
+        ),
+        (
+            "a: int = 1\nb = 2\na, b = b, a\n[a, b]",
+            serde_json::json!([2, 1]),
+        ),
+        (
+            "x: int = 1\n[1].map { |x| x = \"shadowed\" }",
+            serde_json::json!(["shadowed"]),
+        ),
+        ("x: int = 1 if true\nx", serde_json::json!(1)),
+        ("type = 3\ntype + 1", serde_json::json!(4)),
+    ] {
+        assert_eq!(evaluate(source), expected, "{source}");
+    }
+}
+
+#[test]
+fn typed_locals_check_every_assignment() {
+    for (source, message, at) in [
+        (
+            "x: int = \"a\"",
+            "local variable x expected int, got string",
+            (1, 1),
+        ),
+        (
+            "x: int = 1\nx = \"a\"",
+            "local variable x expected int, got string",
+            (2, 1),
+        ),
+        (
+            "x: int = 1\nx += 1.5",
+            "local variable x expected int, got float",
+            (2, 1),
+        ),
+        (
+            "x: int = 1\nx = x + \"\".length.to_f",
+            "local variable x expected int, got float",
+            (2, 1),
+        ),
+        (
+            "x: int? = nil\nx ||= \"a\"",
+            "local variable x expected int?, got string",
+            (2, 1),
+        ),
+        (
+            "x: int = 1\n[1, 2].each { |i| x = \"s\" }",
+            "local variable x expected int, got string",
+            (2, 19),
+        ),
+        (
+            "x: int = 1\n[[1]].each { |pair| [2].each { |i| x = nil } }",
+            "local variable x expected int, got nil",
+            (2, 36),
+        ),
+        (
+            "x: int = 1\nfor x in [\"a\"]\nend",
+            "local variable x expected int, got string",
+            (2, 5),
+        ),
+        (
+            "x: int = 1\ny = 2\nx, y = \"a\", 1",
+            "local variable x expected int, got string",
+            (3, 1),
+        ),
+        (
+            "names: array<string> = [1]",
+            "local variable names expected array<string>, got array<int>",
+            (1, 1),
+        ),
+        (
+            "x: Missing = 1",
+            "local variable x type check failed: unknown type Missing",
+            (1, 1),
+        ),
+    ] {
+        let (kind, actual, position) = failure(source);
+        assert_eq!(kind, ErrorKind::Type, "{source}");
+        assert_eq!((actual.as_str(), position), (message, at), "{source}");
+    }
+}
+
+#[test]
+fn malformed_typed_locals_are_positioned_parse_errors() {
+    for (source, message) in [
+        (
+            "x: int\n",
+            "parse error at 1:7: typed local x needs a value; write x: T = value",
+        ),
+        (
+            "def f\n  total: array<int>\nend",
+            "parse error at 2:20: typed local total needs a value; write total: T = value",
+        ),
+        (
+            "x: [] = []",
+            "parse error at 1:4: a tuple type needs at least one element type, as in [int, string]",
+        ),
+        (
+            "x: array<int, string> = []",
+            "parse error at 1:4: array type expects exactly 1 type argument",
+        ),
+        (
+            "x: type<int, string> = int",
+            "parse error at 1:4: type expects exactly 1 type argument",
+        ),
+        (
+            "x: [int string] = []",
+            "parse error at 1:9: expected \"]\", got identifier",
+        ),
+        // What only resembles a declaration keeps the error it always had.
+        ("x: Missing", "parse error at 1:2: unexpected token \":\""),
+        ("x:int = 1", "parse error at 1:2: unexpected token \":\""),
+        ("id : a", "parse error at 1:4: unexpected token \":\""),
+    ] {
+        assert_eq!(compile_error(source), message, "{source}");
+    }
 }
 
 #[test]
@@ -168,5 +310,29 @@ fn newer_type_names_validate_their_values() {
             "def show(x)\n  x.message\nend\nbegin\n  raise \"bad\"\nrescue => error\n  show(error)\nend"
         ),
         serde_json::json!("bad")
+    );
+}
+
+#[test]
+fn the_gradual_checker_accepts_the_new_declarations() {
+    let source = "def run -> int
+  pair: [int, string] = [1, \"a\"]
+  total: int = pair[0]
+  [1, 2].each { |i| total += i }
+  total
+end
+";
+    let script = Engine::new().compile(source).unwrap();
+    let report = script
+        .check_call("run", &[], &CallOptions::default())
+        .unwrap_or_else(|error| panic!("{error}"));
+    assert!(report.is_clean(), "{report:?}");
+    assert_eq!(
+        script
+            .call("run", &[], CallOptions::default())
+            .unwrap()
+            .value
+            .as_int(),
+        Some(4)
     );
 }

@@ -331,6 +331,7 @@ pub(crate) struct Definition {
     pub body: Buffer<Stmt>,
     pub return_type: Option<crate::compilation::Type>,
 }
+
 impl Definition {
     fn depth(&self) -> u32 {
         let params = self
@@ -842,6 +843,7 @@ impl<'a> Parsing<'a> {
             Some(keyword @ ("while" | "until")) => self.while_stmt(keyword == "until").await,
             Some("for") => self.for_stmt().await,
             Some(flow) => self.flow_statement(flow).await,
+            None if self.p().typed_local_ahead()? => self.typed_local().await,
             None if self.p().assertion() => self.assertion().await,
             None if self.p().token() == &Token::Op("*") || self.p().assignment_ahead()? => {
                 self.assignment_statement().await

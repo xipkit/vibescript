@@ -1443,6 +1443,24 @@ impl Run {
                     )?;
                     stack.push(ctx, value)?;
                 }
+                Op::Check(ty, subject) => {
+                    let value = stack.data.pop().unwrap();
+                    let value = normalize_type(
+                        program,
+                        ctx,
+                        frames,
+                        storage,
+                        current,
+                        (
+                            ty,
+                            crate::types::Context::Subject(
+                                program.constants[subject].as_bytes().unwrap(),
+                            ),
+                        ),
+                        value,
+                    )?;
+                    stack.push(ctx, value)?;
+                }
                 Op::BindEnd => frame.binding = Buffer::empty(),
                 Op::Declare(slot) => {
                     if let Some(name) = file_local {

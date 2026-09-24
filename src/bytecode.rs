@@ -45,6 +45,9 @@ pub(crate) enum Op {
     Regex(usize, u8),
     TypeShadowed(usize, usize),
     Normalize(usize, usize),
+    /// Validates the value on top of the stack against a type, naming it by
+    /// a constant subject such as a typed local's.
+    Check(usize, usize),
     Declaration(usize),
     Global(usize),
     GlobalReceiver(usize, Receiving),
@@ -546,6 +549,8 @@ fn compile_mode(
             namespace: contexts[index].0,
             instance: contexts[index].2,
             program: &mut program,
+            typed: Table::new(),
+            outer_typed: Buffer::new(),
             locals: Table::new(),
             slots: 0,
             code: Vec::new(),
@@ -620,6 +625,10 @@ struct Compiler<'a> {
     instance: bool,
     namespace: Option<usize>,
     program: &'a mut Program,
+    /// The declared type and check subject of each typed local.
+    typed: Table<(usize, usize)>,
+    /// The typed locals of each enclosing scope, parallel to `outer`.
+    outer_typed: Buffer<Table<(usize, usize)>>,
     locals: Table<usize>,
     slots: usize,
     code: Vec<Op>,
@@ -635,6 +644,8 @@ struct Compiler<'a> {
 /// The state of the function being generated, set aside while a nested block
 /// is generated in its place.
 struct Scope {
+    typed: Table<(usize, usize)>,
+    outer_typed: Buffer<Table<(usize, usize)>>,
     locals: Table<usize>,
     slots: usize,
     code: Vec<Op>,
@@ -1143,6 +1154,43 @@ impl Compiler<'_> {
         self.program.types.push(ty.compile(self.work)?);
         Ok(index)
     }
+    /// Adds the subject a value check names in its failure, such as
+    /// `local variable count`.
+    fn subject(&mut self, parts: &[&str]) -> Result<usize> {
+        let mut text = Buffer::new();
+        for part in parts {
+            text.extend_from_slice(self.work, part.as_bytes())?;
+        }
+        let index = self.program.constants.len();
+        self.program.constants.push(Value::bytes(&*text));
+        Ok(index)
+    }
+    /// The declared type and check subject of a typed local visible here.
+    fn local_type(&self, name: &str) -> Result<Option<(usize, usize)>> {
+        if self.typed.is_empty() && self.outer_typed.is_empty() {
+            return Ok(None);
+        }
+        if let Some(&typed) = self.typed.get(self.work, name)? {
+            return Ok(Some(typed));
+        }
+        if self.parameters.contains(self.work, name)? {
+            return Ok(None);
+        }
+        let Some(capture) = self.outer_binding(name)? else {
+            return Ok(None);
+        };
+        Ok(match self.outer_typed.get(capture.depth) {
+            Some(typed) => typed.get(self.work, name)?.copied(),
+            None => None,
+        })
+    }
+    /// Checks a value stored into `name` when it is a typed local.
+    fn check_local(&mut self, name: &str) -> Result<()> {
+        if let Some((ty, subject)) = self.local_type(name)? {
+            self.emit(Op::Check(ty, subject));
+        }
+        Ok(())
+    }
     fn global(&mut self, name: &str) -> Option<usize> {
         if self.program.declaration_names.contains_key(name) {
             return None;
@@ -1197,7 +1245,15 @@ impl Compiler<'_> {
         for scope in std::iter::once(&self.locals).chain(&self.outer) {
             outer.push(self.work, scope.copy(self.work)?)?;
         }
+        let mut outer_typed = Buffer::new();
+        if !self.typed.is_empty() || self.outer_typed.iter().any(|typed| !typed.is_empty()) {
+            for scope in std::iter::once(&self.typed).chain(&self.outer_typed) {
+                outer_typed.push(self.work, scope.copy(self.work)?)?;
+            }
+        }
         Ok(self.swap_scope(Scope {
+            typed: Table::new(),
+            outer_typed,
             locals: Table::new(),
             slots: 0,
             code: Vec::new(),
@@ -1211,6 +1267,8 @@ impl Compiler<'_> {
         }))
     }
     fn swap_scope(&mut self, mut scope: Scope) -> Scope {
+        std::mem::swap(&mut self.typed, &mut scope.typed);
+        std::mem::swap(&mut self.outer_typed, &mut scope.outer_typed);
         std::mem::swap(&mut self.locals, &mut scope.locals);
         std::mem::swap(&mut self.slots, &mut scope.slots);
         std::mem::swap(&mut self.code, &mut scope.code);
@@ -1682,6 +1740,9 @@ impl<'a, 'x> Compiling<'a, 'x> {
             "**=" => Some("**"),
             _ => None,
         };
+        if let Some((name, ty)) = syntax::typed::declared_local(target) {
+            return self.typed_local(target, name, ty, rhs).await;
+        }
         let Target::Value(target) = target else {
             self.assignment_rhs(target, &[rhs]).await?;
             return self.assign_value(target).await;
@@ -1742,13 +1803,17 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     };
                     self.assignment_rhs(binding_target, &[rhs]).await?;
                     let mut c = self.c();
+                    c.check_local(name)?;
                     c.emit(Op::Store(slot));
                     let end = c.code.len();
                     c.patch(skip, end);
                     return Ok(());
                 }
-                let file = self.c().program.file;
-                if binary.is_none() && !file {
+                let typed = self.c().local_type(name)?.is_some();
+                // A typed local checks each value before storing it, so it
+                // cannot take the fused add-and-store.
+                let fused = !self.c().program.file && !typed;
+                if binary.is_none() && fused {
                     if let Node::Binary("+", left, right) = &rhs.node {
                         self.assignment_rhs(binding_target, &[left, right]).await?;
                         let mut c = self.c();
@@ -1762,12 +1827,15 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 }
                 self.assignment_rhs(binding_target, &[rhs]).await?;
                 let mut c = self.c();
-                if binary == Some("+") && !file {
+                if binary == Some("+") && fused {
                     c.emit(Op::AddStore(slot));
                     return Ok(());
                 }
                 if let Some(op) = binary {
                     c.emit(Op::Binary(op));
+                }
+                if typed {
+                    c.check_local(name)?;
                 }
                 c.emit(Op::Store(slot));
             }
@@ -1821,6 +1889,35 @@ impl<'a, 'x> Compiling<'a, 'x> {
         Ok(())
     }
 
+    /// Declares a typed local, `name: T = value`: the value and every later
+    /// assignment to the local are checked against `T`.
+    async fn typed_local(
+        &self,
+        target: &'x Target,
+        name: &'x crate::compilation::Name,
+        ty: &'x crate::compilation::Type,
+        rhs: &'x Expr,
+    ) -> Result<()> {
+        self.assignment_rhs(target, &[rhs]).await?;
+        let check = {
+            let mut c = self.c();
+            let ty = c.annotation(ty)?;
+            let subject = c.subject(&["local variable ", name])?;
+            c.emit(Op::Check(ty, subject));
+            (ty, subject)
+        };
+        let Target::Typed(inner, _) = target else {
+            unreachable!()
+        };
+        self.assign_value(inner).await?;
+        let mut c = self.c();
+        let work = c.work;
+        if !c.namespace_binding(name)? && c.global_binding(name)?.is_none() {
+            c.typed.insert(work, name.clone(), check)?;
+        }
+        Ok(())
+    }
+
     async fn assign_value(&self, target: &'x Target) -> Result<()> {
         let previous = {
             let mut c = self.c();
@@ -1864,6 +1961,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     c.emit(Op::StoreGlobal(global));
                 } else {
                     let slot = c.slot(name)?;
+                    c.check_local(name)?;
                     c.emit(Op::Store(slot));
                 }
             }
