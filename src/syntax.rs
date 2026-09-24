@@ -634,6 +634,7 @@ impl<'a> Parsing<'a> {
     async fn condition(&self) -> Result<Expr> {
         let previous = {
             let mut p = self.p();
+            p.line_breaks()?;
             let groups = p.groups;
             p.then_stop.replace(groups)
         };
@@ -792,21 +793,67 @@ impl<'a> Parsing<'a> {
             Some(keyword @ ("while" | "until")) => self.while_stmt(keyword == "until").await,
             Some("for") => self.for_stmt().await,
             Some(flow) => self.flow_statement(flow).await,
+            None if self.p().assertion() => self.assertion().await,
             None if self.p().token() == &Token::Op("*") || self.p().assignment_ahead()? => {
                 self.assignment_statement().await
             }
             None => {
                 let start = self.p().pos;
                 let expr = self.line_expr(0).await?;
-                // Go reads an expression followed by a comma as a destructuring target list.
-                let listed = self.p().token() == &Token::P(',');
-                if listed {
+                // Go reads an expression followed by a comma as a destructuring
+                // target list, and one followed by an assignment operator as a target.
+                let target = {
+                    let p = self.p();
+                    match &p.tokens[p.significant(p.pos)].token {
+                        Token::P(',') => true,
+                        Token::Op(op) => assignment(op),
+                        _ => false,
+                    }
+                };
+                if target {
                     self.p().pos = start;
                     return self.assignment_statement().await;
                 }
                 Ok(Statement::Expr(expr))
             }
         }
+    }
+
+    /// Parses `assert` and its arguments, as Go's `parseAssertStatement` does.
+    async fn assertion(&self) -> Result<Statement> {
+        let work = self.p().work;
+        let (callee, offset) = {
+            let mut p = self.p();
+            let offset = p.tokens[p.pos].offset as u32;
+            let line = p.tokens[p.pos].line;
+            p.bump()?;
+            let callee = p.variable_name("assert")?;
+            if p.ends_after(p.pos - 1, line) {
+                return Ok(Statement::Expr(callee));
+            }
+            p.line_breaks()?;
+            (callee, offset)
+        };
+        let mut args = Buffer::new();
+        loop {
+            let value = self.line_expr(0).await?;
+            args.push(
+                work,
+                Argument {
+                    kind: ArgumentKind::Positional,
+                    value,
+                },
+            )?;
+            let mut p = self.p();
+            if !p.comma_follows() {
+                break;
+            }
+            p.line_breaks()?;
+        }
+        let depth =
+            1 + call_depth(&callee).max(args.iter().map(|a| a.value.depth).max().unwrap_or(0));
+        let call = Node::Call(Name::new(work, "assert")?, args, CallForm::Bare);
+        Ok(Statement::Expr(self.p().make_at(call, depth, offset)?))
     }
 
     async fn flow_statement(&self, flow: &str) -> Result<Statement> {
@@ -841,7 +888,10 @@ impl<'a> Parsing<'a> {
         let (target, _) = self.target(Place::Statement).await?;
         let op = {
             let mut p = self.p();
-            p.lines()?;
+            let next = p.significant(p.pos);
+            if matches!(&p.tokens[next].token, Token::Op(op) if assignment(op)) {
+                p.pos = next;
+            }
             let op = match p.token() {
                 Token::Op(op) if assignment(op) => Some(*op),
                 _ => None,
@@ -889,18 +939,21 @@ impl<'a> Parsing<'a> {
             return Ok(Statement::Expr(self.line_expr(0).await?));
         };
         let first = self.line_expr(0).await?;
-        let rhs = if matches!(target, Target::Tuple(_)) && self.p().take_p(',') {
+        let rhs = if matches!(target, Target::Tuple(_)) && self.p().comma_follows() {
             let work = self.p().work;
             let mut items = Buffer::from_array(work, [first])?;
             loop {
                 {
-                    let p = self.p();
-                    if p.at_end() || p.token() == &Token::EndLine {
+                    // Like Go, a comma the line ends on closes the list.
+                    let mut p = self.p();
+                    let comma = p.pos - 1;
+                    if p.ends_after(comma, p.tokens[comma].line) {
                         break;
                     }
+                    p.line_breaks()?;
                 }
                 items.push(work, self.line_expr(0).await?)?;
-                if !self.p().take_p(',') {
+                if !self.p().comma_follows() {
                     break;
                 }
             }
@@ -936,6 +989,7 @@ impl<'a> Parsing<'a> {
         let previous = {
             let mut p = self.p();
             p.work.charge(1)?;
+            p.line_breaks()?;
             let groups = p.groups;
             p.loop_condition.replace(groups)
         };
@@ -965,7 +1019,9 @@ impl<'a> Parsing<'a> {
                     .map_or(p.position(p.pos), |offset| offset as usize);
                 return Err(Error::syntax(p.work, offset, "invalid for loop target"));
             }
+            p.line_breaks()?;
             p.expect_word("in")?;
+            p.line_breaks()?;
             let groups = p.groups;
             p.loop_condition.replace(groups)
         };
@@ -2302,10 +2358,6 @@ impl<'a> Parser<'a> {
             Err(Error::syntax(self.work, offset, "expected name"))
         }
     }
-    fn at_end(&self) -> bool {
-        matches!(self.token(), Token::Eof)
-            || matches!(self.token(),Token::Word(s) if matches!(s.as_str(),"end"|"else"|"elsif"|"when"|"rescue"|"ensure"))
-    }
     fn enter(&mut self) -> Result<()> {
         self.work.charge(1)?;
         self.depth += 1;
@@ -2358,6 +2410,22 @@ impl<'a> Parser<'a> {
             self.pos = next;
         }
         Ok(())
+    }
+    /// Consumes a comma that follows, skipping line breaks as Go's lookahead does.
+    fn comma_follows(&mut self) -> bool {
+        let comma = self.significant(self.pos);
+        if self.tokens[comma].token != Token::P(',') {
+            return false;
+        }
+        self.pos = comma + 1;
+        true
+    }
+    /// Reports whether `assert` starts Go's assertion statement, which takes a
+    /// comma-separated argument list unless parentheses follow directly.
+    fn assertion(&self) -> bool {
+        matches!(self.token(), Token::Word(w) if *w == "assert")
+            && !(self.tokens[self.pos + 1].token == Token::P('(')
+                && self.tokens[self.pos + 1].offset == self.tokens[self.pos].end)
     }
     fn comma_on_line(&self) -> Result<bool> {
         Ok(self.token() == &Token::P(',') && self.tokens[self.pos].line == self.previous()?.line)
@@ -3039,7 +3107,8 @@ impl<'a> Parser<'a> {
             return Ok(false);
         }
         let local = match &lhs.node {
-            Node::Var(name) if name == "self" => return Ok(false),
+            // Like Go, only an identifier or member can take arguments.
+            Node::Var(name) if name == "self" || name.starts_with('@') => return Ok(false),
             Node::Var(name) => self.locals.contains(self.work, name)?,
             _ => false,
         };
