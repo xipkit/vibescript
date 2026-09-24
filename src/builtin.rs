@@ -265,13 +265,18 @@ impl Global {
 }
 
 impl Builtin {
+    /// Reports whether a read of the builtin without arguments calls it: the
+    /// language writes a call without arguments without parentheses.
     pub fn auto(self) -> bool {
-        matches!(self, Self::Now | Self::HashNew)
+        matches!(self, Self::Now | Self::HashNew | Self::DurationBuild)
+            || matches!(self, Self::Output(_) | Self::Random(_))
             || matches!(
                 self,
-                Self::Random(crate::random::Method::Rand | crate::random::Method::Uuid)
+                Self::Regexp(
+                    crate::regex::value::Constructor::LastMatch
+                        | crate::regex::value::Constructor::Union
+                )
             )
-            || self == Self::Regexp(crate::regex::value::Constructor::LastMatch)
             || matches!(self, Self::Time(constructor) if constructor.auto())
     }
 
@@ -415,6 +420,12 @@ impl Builtin {
         block: bool,
     ) -> Result<Value> {
         ctx.checkpoint()?;
+        // Without values, output needs no script conversion, as a parenless call.
+        if let (Self::Output(kind), []) = (self, args) {
+            kind.validate(ctx, !keywords.is_empty(), block)?;
+            kind.write_empty(ctx)?;
+            return Ok(Value::nil());
+        }
         // Calls with script conversions or repeated blocks run through the VM.
         if matches!(
             self,

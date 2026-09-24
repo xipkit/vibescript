@@ -323,8 +323,8 @@ fn member_misuse_names_the_member_or_module() {
             "stringify is a method and cannot be used as a value; call it with stringify(...)",
         ),
         (
-            "def run\n  x = Regexp.union\n  x\nend",
-            "union is a method and cannot be used as a value; call it with union(...)",
+            "def run\n  x = Regexp.escape\n  x\nend",
+            "escape is a method and cannot be used as a value; call it with escape(...)",
         ),
     ];
     for (source, expected) in cases {

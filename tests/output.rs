@@ -130,8 +130,9 @@ fn registered_host_functions_override_output_helpers_without_requiring_writers()
 }
 
 #[test]
-fn output_helpers_cannot_escape_through_forwarding_or_run_its_arguments() {
+fn output_helpers_read_without_arguments_write_at_once_and_cannot_escape() {
     for name in ["puts", "print", "warn", "p"] {
+        let empty: &[u8] = if name == "puts" { b"\n" } else { b"" };
         for operation in [
             "itself",
             "dup",
@@ -143,12 +144,7 @@ fn output_helpers_cannot_escape_through_forwarding_or_run_its_arguments() {
             "public_send",
         ] {
             let (mut engine, stdout, stderr) = engine();
-            let calls = Arc::new(AtomicUsize::new(0));
-            let observed = calls.clone();
-            engine.register("effect", move |_, _| {
-                observed.fetch_add(1, Ordering::SeqCst);
-                Ok(Value::nil())
-            });
+            engine.register("effect", |_, _| Ok(Value::nil()));
             for source in [
                 format!("{name}.call(effect())"),
                 format!("{name}&.call(effect())"),
@@ -157,24 +153,61 @@ fn output_helpers_cannot_escape_through_forwarding_or_run_its_arguments() {
                 format!("h={{f:{name}.public_send(:{operation})}};h.f(7)"),
                 format!("{name}&.send(:{operation},effect())"),
             ] {
-                let error = engine
-                    .compile(&source)
-                    .unwrap()
-                    .run(CallOptions::default())
-                    .unwrap_err();
-                assert_eq!(
-                    error.message,
-                    format!(
-                        "{name} is a method and cannot be used as a value; call it with {name}(...)"
-                    ),
-                    "{source}"
-                );
-                assert_eq!(calls.load(Ordering::SeqCst), 0, "{source}");
-                assert!(bytes(&stdout).is_empty());
+                stdout.lock().unwrap().clear();
+                // Reading the helper calls it, so what follows receives its nil result.
+                let result = engine.compile(&source).unwrap().run(CallOptions::default());
+                if let Ok(output) = result {
+                    assert_eq!(output.value.type_name(), "nil", "{source}");
+                }
+                assert_eq!(bytes(&stdout), empty, "{source}");
                 assert!(bytes(&stderr).is_empty());
             }
         }
     }
+}
+
+#[test]
+fn bare_output_helpers_run_like_empty_calls() {
+    let (engine, stdout, stderr) = engine();
+    let script = engine
+        .compile(
+            "def run
+  a = puts
+  b = print
+  c = warn
+  d = p
+  puts
+  [a, b, c, d]
+end",
+        )
+        .unwrap();
+    let output = script.call("run", &[], CallOptions::default()).unwrap();
+    assert_eq!(
+        json(&output.value),
+        serde_json::json!([null, null, null, null])
+    );
+    assert_eq!(bytes(&stdout), b"\n\n");
+    assert!(bytes(&stderr).is_empty());
+    for (source, message) in [
+        ("puts { 1 }", "puts does not accept blocks"),
+        ("p do\nend", "p does not accept blocks"),
+    ] {
+        let error = engine
+            .compile(source)
+            .unwrap()
+            .run(CallOptions::default())
+            .unwrap_err();
+        assert_eq!(error.message, message, "{source}");
+    }
+    let error = Engine::new()
+        .compile("puts")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap_err();
+    assert!(
+        error.message.contains("writer is not configured"),
+        "{error}"
+    );
 }
 
 #[test]

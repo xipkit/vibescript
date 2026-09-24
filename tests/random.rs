@@ -453,3 +453,38 @@ fn configured_readers_are_captured_at_compile_time_and_allow_host_reentry() {
         Some(0)
     );
 }
+
+#[test]
+fn bare_random_helpers_run_like_empty_calls() {
+    let (engine, _) = engine(0);
+    let script = engine
+        .compile(
+            r#"
+def run()
+ first=srand
+ srand(42)
+ previous=srand
+ id=random_id
+ [first,previous,srand(),id.length,random_id().length]
+end
+"#,
+        )
+        .unwrap();
+    let output = script.call("run", &[], CallOptions::default()).unwrap();
+    let value = json(&output.value);
+    assert_eq!(value[0], serde_json::Value::Null);
+    assert_eq!(value[1], 42);
+    assert_eq!(value[3], 16);
+    assert_eq!(value[4], 16);
+    for (source, message) in [
+        ("srand { 1 }", "srand does not accept blocks"),
+        ("random_id { 1 }", "random_id does not accept blocks"),
+    ] {
+        let error = engine
+            .compile(source)
+            .unwrap()
+            .run(CallOptions::default())
+            .unwrap_err();
+        assert_eq!(error.message, message, "{source}");
+    }
+}
