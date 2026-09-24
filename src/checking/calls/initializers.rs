@@ -30,6 +30,7 @@ impl Solver<'_, '_> {
         context.kind = Kind::Initializing;
         context.ambient = context.block_ambient.take();
         context.globals = globals.snapshot(ctx)?;
+        let fresh = self.state.jobs.data.len();
         let index = self.request(
             ctx,
             facts,
@@ -39,6 +40,9 @@ impl Solver<'_, '_> {
             &context,
         )?;
         self.depend(ctx, index)?;
+        if index == fresh {
+            self.created(ctx, index)?;
+        }
         let mut outcome = Outcome::empty();
         outcome.value = self.state.jobs.data[index].returns;
         if let Some(report) = &self.state.jobs.data[index].report {
