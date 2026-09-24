@@ -3,9 +3,7 @@
 use super::super::server::{diagnostics_notification, formatting_edits};
 use super::super::transport::{self, Frame};
 use super::*;
-use std::io::{self, BufReader, Cursor, Read};
-use std::sync::mpsc;
-use std::time::Duration;
+use std::io::{self, BufReader, Cursor};
 use vibescript::CancellationToken;
 
 /// Serves framed input to completion and returns what the server wrote.
@@ -44,45 +42,54 @@ fn serve_exits_cleanly_at_the_end_of_input() {
     assert!(run(Vec::new()).unwrap().is_empty());
 }
 
-/// A reader that blocks until the test ends, signalling when it is first read.
-struct Blocking {
-    started: Option<mpsc::Sender<()>>,
-    release: mpsc::Receiver<()>,
-}
+// WASI preview 1 has no threads to block on input while another cancels.
+#[cfg(not(target_os = "wasi"))]
+mod blocking {
+    use super::*;
+    use std::io::Read;
+    use std::sync::mpsc;
+    use std::time::Duration;
 
-impl Read for Blocking {
-    fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
-        if let Some(started) = self.started.take() {
-            let _ = started.send(());
-        }
-        let _ = self.release.recv();
-        Ok(0)
+    /// A reader that blocks until the test ends, signalling when it is first read.
+    struct Blocking {
+        started: Option<mpsc::Sender<()>>,
+        release: mpsc::Receiver<()>,
     }
-}
 
-#[test]
-fn cancellation_stops_a_server_blocked_on_input() {
-    let (started, wait_started) = mpsc::channel();
-    let (release, released) = mpsc::channel::<()>();
-    let token = CancellationToken::new();
-    let cancel = token.clone();
-    let (done, finished) = mpsc::channel();
-    std::thread::spawn(move || {
-        let input = Blocking {
-            started: Some(started),
-            release: released,
-        };
-        let _ = done.send(serve(&mut Server::new(), input, io::sink(), &token));
-    });
-    wait_started
-        .recv_timeout(Duration::from_secs(5))
-        .expect("the server began reading");
-    cancel.cancel();
-    let result = finished
-        .recv_timeout(Duration::from_secs(5))
-        .expect("the server stopped after cancellation");
-    assert!(result.is_ok());
-    drop(release);
+    impl Read for Blocking {
+        fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
+            if let Some(started) = self.started.take() {
+                let _ = started.send(());
+            }
+            let _ = self.release.recv();
+            Ok(0)
+        }
+    }
+
+    #[test]
+    fn cancellation_stops_a_server_blocked_on_input() {
+        let (started, wait_started) = mpsc::channel();
+        let (release, released) = mpsc::channel::<()>();
+        let token = CancellationToken::new();
+        let cancel = token.clone();
+        let (done, finished) = mpsc::channel();
+        std::thread::spawn(move || {
+            let input = Blocking {
+                started: Some(started),
+                release: released,
+            };
+            let _ = done.send(serve(&mut Server::new(), input, io::sink(), &token));
+        });
+        wait_started
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the server began reading");
+        cancel.cancel();
+        let result = finished
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the server stopped after cancellation");
+        assert!(result.is_ok());
+        drop(release);
+    }
 }
 
 #[test]

@@ -182,6 +182,9 @@ fn checks_stop_within_their_limits() {
     assert!(open(&mut server, "file:///tmp/cancelled.vibe", source).is_empty());
 }
 
+// A WASI guest sees only its preopened directories, which exclude the
+// system temporary directory.
+#[cfg(not(target_os = "wasi"))]
 #[test]
 fn required_files_resolve_from_the_document_directory() {
     let directory =

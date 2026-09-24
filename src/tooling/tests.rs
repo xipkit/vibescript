@@ -340,6 +340,8 @@ fn outline_errors_match_compilation() {
     );
 }
 
+// WASI preview 1 cannot spawn the small-stack thread.
+#[cfg(not(target_os = "wasi"))]
 #[test]
 fn walks_deep_syntax_without_native_recursion() {
     let depth = 900;
