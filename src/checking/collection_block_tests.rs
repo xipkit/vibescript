@@ -456,7 +456,7 @@ fn native_collection_analysis_observes_latched_cancellation_and_deadlines() {
 }
 
 #[test]
-fn remaining_collection_methods_stay_explicit() {
+fn unknown_bang_collection_methods_are_known_errors() {
     for source in [
         "def run; [1,2].map! {|n| n}; end",
         "def run; [1,2].map! {|n| true}; end",
@@ -464,7 +464,8 @@ fn remaining_collection_methods_stay_explicit() {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
         let report = analyze(&mut ctx, &mut facts, source).unwrap();
-        assert!(!report.incomplete.data.is_empty(), "{source}: {report:?}");
+        assert!(report.incomplete.data.is_empty(), "{source}: {report:?}");
+        assert!(!report.issues.data.is_empty(), "{source}: {report:?}");
         drop((report, facts));
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }

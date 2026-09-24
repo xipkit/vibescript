@@ -337,7 +337,7 @@ fn hash_member_reads_keep_field_and_builtin_precedence_separate() {
 #[test]
 fn unmodeled_collection_operations_remain_explicitly_incomplete() {
     for source in [
-        "def run; [7].map! { _1 }; end",
+        "def run; [7].send(\"x\".upcase) { _1 }; end",
         "def run; [7].first(n: 1); end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());

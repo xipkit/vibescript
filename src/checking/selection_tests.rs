@@ -890,7 +890,7 @@ fn selection_analysis_preserves_latched_cancellation_and_deadlines() {
 #[test]
 fn unsupported_selection_receivers_and_retained_addresses_remain_explicit() {
     {
-        let source = "def run; [7,9].map! {|n| n}; end";
+        let source = "def run; [7,9].send(\"x\".upcase) {|n| n}; end";
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
         let report = analyze(&mut ctx, &mut facts, source).unwrap();

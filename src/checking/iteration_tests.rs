@@ -308,7 +308,7 @@ fn iterable_loops_keep_invalid_and_unsupported_reachable_paths_visible() {
     for (source, diagnosed) in [
         ("def run; for x in [7]; x.no_such_method; end; end", true),
         (
-            "def run; for x in [7]; begin; x; ensure; [1].map! { _1 }; end; end; end",
+            "def run; for x in [7]; begin; x; ensure; [1].send(\"x\".upcase) { _1 }; end; end; end",
             false,
         ),
     ] {

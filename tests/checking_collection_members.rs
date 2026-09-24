@@ -435,6 +435,46 @@ fn count_and_byte_index_arguments_follow_the_runtime_conversion() {
     );
 }
 
+#[test]
+fn unknown_array_and_symbol_members_are_known_errors() {
+    invalid(&[
+        "[1].foo",
+        "[1, 2].member?(1)",
+        "[1, 2].each_with_object([]) { |e, acc| acc }",
+        "[1].then { |v| v }",
+        ":a.foo",
+        ":published.name",
+        ":a.then { |v| v }",
+        ":abc.index(\"a\", 1)",
+        ":abc.include?(1)",
+    ]);
+    witnesses(vec![
+        (
+            "def run(s: symbol) -> int | nil; s.index(\"b\"); end",
+            vec![Value::symbol("abc")],
+            Value::int(1),
+        ),
+        (
+            "def run(s: symbol) -> bool; s.include?(:c); end",
+            vec![Value::symbol("abc")],
+            Value::boolean(true),
+        ),
+        (
+            "def run(s: symbol) -> int; s.to_i; end",
+            vec![Value::symbol("65")],
+            Value::int(65),
+        ),
+    ]);
+    rescues(
+        &["def run(s: symbol) -> int; begin; s.to_i; 0; rescue; 'bad'; end; end"],
+        &[
+            "def run -> int; begin; :abc.rindex(\"b\"); 0; rescue; 'bad'; end; end",
+            // A gradual receiver may still define the member.
+            "def run(items) -> int; items.each_with_object([]) { |i, acc| acc }; 0; end",
+        ],
+    );
+}
+
 /// Site programs whose whole-file checks used to stop at one of these
 /// operations. Each now finishes analysis and still runs.
 #[test]

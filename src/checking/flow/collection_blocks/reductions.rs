@@ -13,11 +13,15 @@ impl Walker<'_> {
         let name = selected.as_str();
         let fields = matches!(self.facts.node(receiver), Node::Shape(..) | Node::Hash(..))
             && !crate::members::hash_builtin(name);
-        let text = self.facts.atom(receiver) == Some(Atom::String)
-            && matches!(
+        let text = match self.facts.atom(receiver) {
+            Some(Atom::String) => matches!(
                 name,
                 "index" | "rindex" | "count" | "find_index" | "partition"
-            );
+            ),
+            // Symbols search their bytes through the runtime's string fallback.
+            Some(Atom::Symbol) => matches!(name, "index" | "rindex" | "find_index"),
+            _ => false,
+        };
         let temporal = self.facts.atom(receiver) == Some(Atom::Time) && name == "min";
         if !fields && !text && !temporal {
             return self.collection_error(state, pc, receiver, site, args, ErrorClass::Runtime);

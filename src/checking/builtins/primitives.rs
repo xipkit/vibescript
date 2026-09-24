@@ -44,14 +44,23 @@ fn universal(name: &str) -> bool {
         )
 }
 
+/// Symbol members served by the runtime's byte-oriented fallbacks, which
+/// introspection does not advertise.
+fn symbol_bytes(name: &str) -> bool {
+    matches!(name, "bytesize" | "getbyte" | "to_i") || symbol_search(name)
+}
+
+/// Symbol searches that read the symbol's bytes like a string's.
+fn symbol_search(name: &str) -> bool {
+    matches!(name, "index" | "rindex" | "find_index" | "include?")
+}
+
 fn missing(facts: &Facts, value: Fact, name: &str) -> bool {
     use crate::members::names::{self, Receiver};
 
     let Some(kind) = receiver(facts, value) else {
         return false;
     };
-    // Symbols also reach byte-oriented runtime fallbacks that are not advertised
-    // by introspection. Absence from their method list is not proof of failure.
     matches!(
         kind,
         Receiver::Nil
@@ -60,8 +69,11 @@ fn missing(facts: &Facts, value: Fact, name: &str) -> bool {
             | Receiver::Float
             | Receiver::Bytes
             | Receiver::Range
+            | Receiver::Array
+            | Receiver::Symbol
     ) && !names::universal(name)
         && !kind.available(name)
+        && !(kind == Receiver::Symbol && symbol_bytes(name))
 }
 
 pub(super) fn supported(
@@ -91,7 +103,10 @@ pub(super) fn supported(
             matches!(name, "inspect" | "to_s" | "string") || range::supported(name)
         }
         Some(Atom::Symbol) => {
-            matches!(name, "inspect" | "to_s" | "string" | "id2name" | "to_sym")
+            matches!(
+                name,
+                "inspect" | "to_s" | "string" | "id2name" | "to_sym" | "to_i"
+            ) || symbol_search(name)
         }
         _ => false,
     })
@@ -145,7 +160,8 @@ pub(super) fn member(
             && matches!(
                 name,
                 "center" | "ljust" | "rjust" | "partition" | "rpartition"
-            );
+            )
+        || kind == Some(Atom::Symbol) && name == "to_i";
     if keywords && !args.keywords.data.is_empty() {
         return reject(ctx, Failure::BuiltinKeywords);
     }
@@ -164,6 +180,7 @@ pub(super) fn member(
             Some(Atom::Int | Atom::Float) => number::arity(name, count),
             Some(Atom::String) => text::arity(name, count),
             Some(Atom::Range) => range::arity(name, count),
+            Some(Atom::Symbol) if symbol_search(name) => count == 1,
             _ => count == 0,
         }
     };
@@ -223,6 +240,25 @@ pub(super) fn member(
     match kind {
         Some(Atom::Int | Atom::Float) => number::member(ctx, facts, receiver, name, args),
         Some(Atom::String) => text::member(ctx, facts, receiver, name, args),
+        Some(Atom::Symbol) if symbol_search(name) => {
+            // The needle is read as bytes, so it may be a string or a symbol.
+            let mut result = outcome(Atom::Never.fact());
+            let needle = facts.union(ctx, &[Atom::String.fact(), Atom::Symbol.fact()])?;
+            if parameter(ctx, facts, &mut result, 0, args.positional.data[0], needle)? {
+                result.value = if name == "include?" {
+                    Atom::Bool.fact()
+                } else {
+                    facts.nullable(ctx, Atom::Int.fact())?
+                };
+            }
+            Ok(result)
+        }
+        Some(Atom::Symbol) if name == "to_i" => {
+            // Symbols parse their bytes like `string.to_i`.
+            let mut result = outcome(Atom::Int.fact());
+            result.throws = RUNTIME | LIMIT;
+            Ok(result)
+        }
         _ => Ok(outcome(if name == "to_sym" {
             receiver
         } else {
