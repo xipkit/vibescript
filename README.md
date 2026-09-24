@@ -7,8 +7,8 @@ An experimental Rust implementation of the Vibescript core, with a bytecode VM, 
 This checkout lives on `/Volumes/AI/Work/xipkit/vibescript.rs`. The original sibling path links here. Use the wrapper so Cargo downloads, build artifacts, and temporary files stay on the external drive:
 
 ```sh
-./scripts/cargo run --release -- examples/total.vibe --function total --arg '[10,20,30]' --stats
-./scripts/cargo test --all-features
+./scripts/cargo run --release -p vibes -- examples/total.vibe --function total --arg '[10,20,30]' --stats
+./scripts/cargo test --workspace --all-features
 ```
 
 The [CLI](docs/cli.md) writes `puts`, `print`, and `p` to stdout and `warn` to stderr, then prints the final result as JSON. Use `vibes check FILE` to analyze the whole file, or `vibes check --function NAME FILE` to check one function or method for its declared parameter types and defaults. Flat invocations accept `--kwarg NAME=JSON` for named arguments, `--check --function NAME` to analyze a concrete call without execution, or `--checked --function NAME` to execute only after a clean check. Run `--help` for step, memory, recursion, and deadline options. Defaults are one million logical steps, 16 MiB of tracked memory, and 256 call frames. `./scripts/check` runs the full local validation gate.

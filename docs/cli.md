@@ -3,7 +3,7 @@
 `vibes FILE` compiles one source file, runs its top-level statements and prints the final value as JSON on stdout. `puts`, `print` and `p` write to stdout and `warn` writes to stderr before that value. `--function NAME` calls one function instead, with `--arg JSON` positional values in order and `--kwarg NAME=JSON` keyword values. Options may appear anywhere around FILE, option values are taken verbatim, and `--` ends option parsing so a file name may start with `-`.
 
 ```sh
-./scripts/cargo run --release -- examples/total.vibe --function total --arg '[10,20,30]' --stats
+./scripts/cargo run --release -p vibes -- examples/total.vibe --function total --arg '[10,20,30]' --stats
 ```
 
 Keyword values follow `Script::call_with_keywords`: they bind by name rather than forming a trailing options hash, and a repeated name binds its last value. Every command-line value is parsed and validated before the file is read, so malformed JSON, numbers or option combinations never execute anything.
@@ -61,7 +61,7 @@ def unused(n:string) -> int
   n
 end
 EOF
-./scripts/cargo run --release -- check unused.vibe
+./scripts/cargo run --release -p vibes -- check unused.vibe
 # unused.vibe:3:3: error in unused: Return value: expected int, got string
 #   --> line 3, column 3
 #  3 |   n
@@ -86,7 +86,7 @@ NAME may select any declaration the library exposes:
 | `Class.new` | A constructor. |
 
 ```sh
-./scripts/cargo run --release -- check --function 'C#read' methods.vibe
+./scripts/cargo run --release -p vibes -- check --function 'C#read' methods.vibe
 # methods.vibe:6:5: error in read: Return value: expected int, got string
 #   --> line 6, column 5
 #  6 |     "bad"
@@ -107,7 +107,7 @@ The scope is exactly one call: the named function, the supplied values and whate
 For example, the supplied array length makes the indexed loop in `total.vibe` checkable:
 
 ```sh
-./scripts/cargo run --release -- examples/total.vibe --function total --arg '[10,20,30]' --checked
+./scripts/cargo run --release -p vibes -- examples/total.vibe --function total --arg '[10,20,30]' --checked
 # {"total":60,"count":3}
 ```
 

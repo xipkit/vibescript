@@ -1,3 +1,14 @@
+[workspace]
+members = ["cli"]
+# The WASI witness is its own package with its own lock file.
+exclude = ["tests/platforms/wasi"]
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.lints.clippy]
+undocumented_unsafe_blocks = "deny"
+
 [package]
 name = "vibescript"
 version = "0.1.0"
@@ -34,17 +45,10 @@ serde_json = { version = "1", features = ["arbitrary_precision"] }
 [target.'cfg(not(target_os = "wasi"))'.dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
 
-[[bin]]
-name = "vibes"
-path = "src/main.rs"
-
 [profile.release]
 lto = "thin"
 codegen-units = 1
 debug = 1
 
-[lints.rust]
-unsafe_op_in_unsafe_fn = "deny"
-
-[lints.clippy]
-undocumented_unsafe_blocks = "deny"
+[lints]
+workspace = true

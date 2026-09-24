@@ -1,0 +1,24 @@
+[package]
+name = "vibes"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Command-line tools for the Vibescript interpreter"
+license = "MIT AND BSD-3-Clause"
+publish = false
+
+[features]
+default = ["simd"]
+simd = ["vibescript/simd"]
+allocation-stats = ["vibescript/allocation-stats"]
+tokio = ["vibescript/tokio"]
+
+[dependencies]
+vibescript = { path = "..", default-features = false }
+
+[[bin]]
+name = "vibes"
+path = "src/main.rs"
+
+[lints]
+workspace = true

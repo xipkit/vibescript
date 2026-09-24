@@ -123,7 +123,7 @@ def main():
 
     cargo = ["cargo"]
     for features in [["--features", "simd,allocation-stats"], ["--no-default-features"]]:
-        run("clippy " + " ".join(features), [*cargo, "clippy", "--locked", "--target", TARGET, "--all-targets", *features, "--", "-D", "warnings"])
+        run("clippy " + " ".join(features), [*cargo, "clippy", "--locked", "--workspace", "--target", TARGET, "--all-targets", *features, "--", "-D", "warnings"])
 
     # Tests find fixtures under CARGO_MANIFEST_DIR, so the host maps the
     # repository at its own path. .cache may be a symlink to an absolute path,
@@ -140,8 +140,9 @@ def main():
     for name, runner in hosts.items():
         config = "target.wasm32-wasip1.runner = " + json.dumps([str(part) for part in runner])
         skips = [a for test in NODE_SKIPS for a in ("--skip", test)] if name == "node" else []
-        run(f"tests under {name}", [*cargo, "test", "--locked", "--target", TARGET, "--no-fail-fast", "--config", config, "--", *skips])
+        run(f"tests under {name}", [*cargo, "test", "--locked", "--workspace", "--target", TARGET, "--no-fail-fast", "--config", config, "--", *skips])
 
+    run("build vibes", [*cargo, "build", "--locked", "--target", TARGET, "-p", "vibes"])
     run("build witness", [*cargo, "build", "--locked", "--target", TARGET, "--bins", "--manifest-path", WITNESS / "Cargo.toml"])
     binaries = ROOT / "target" / TARGET / "debug"
     out = ROOT / ".cache/wasi-tests"

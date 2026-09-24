@@ -40,7 +40,7 @@ struct Files(PathBuf);
 
 impl Files {
     fn new() -> Self {
-        let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".cache/tmp");
+        let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.cache/tmp");
         fs::create_dir_all(&base).unwrap();
         loop {
             let path = base.join(format!(
@@ -402,7 +402,7 @@ fn checked_call_executes_only_a_clean_call() {
 
 #[test]
 fn checks_and_executes_the_total_example_with_bounded_array_reads() {
-    let file = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/total.vibe");
+    let file = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../examples/total.vibe");
     let file = file.to_str().unwrap();
     for (input, output) in [
         ("[10,20,30]", "{\"total\":60,\"count\":3}\n"),

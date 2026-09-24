@@ -3,12 +3,12 @@ set -eu
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 cd "$repo"
 ./scripts/cargo fmt --check
-./scripts/cargo clippy --all-targets --all-features -- -D warnings
-./scripts/cargo clippy --all-targets --no-default-features -- -D warnings
-./scripts/cargo test --all-targets --all-features
-./scripts/cargo test --release --all-targets --all-features
-./scripts/cargo test --release --all-targets --no-default-features
-./scripts/cargo test --doc --all-features
+./scripts/cargo clippy --workspace --all-targets --all-features -- -D warnings
+./scripts/cargo clippy --workspace --all-targets --no-default-features -- -D warnings
+./scripts/cargo test --workspace --all-targets --all-features
+./scripts/cargo test --workspace --release --all-targets --all-features
+./scripts/cargo test --workspace --release --all-targets --no-default-features
+./scripts/cargo test --workspace --doc --all-features
 cd benchmarks/go
 test -z "$(gofmt -l *.go ../../scripts/generate-string-casing.go)"
 GOEXPERIMENT= ../../scripts/go test -mod=readonly ./...
