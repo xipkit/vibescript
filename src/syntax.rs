@@ -328,6 +328,15 @@ pub(crate) struct Declarations {
     pub functions: Buffer<Definition>,
     pub enums: Buffer<(Name, Buffer<Name>)>,
     pub modules: Buffer<modules::Module>,
+    pub outline: Buffer<Outline>,
+}
+
+/// A top-level declaration's kind, name and source byte range, in source order.
+pub(crate) struct Outline {
+    pub kind: crate::DeclarationKind,
+    pub name: Name,
+    pub start: usize,
+    pub end: usize,
 }
 
 fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result<Parser<'a>> {
@@ -522,11 +531,12 @@ impl<'a> Parsing<'a> {
         let mut enums = Buffer::new();
         let mut modules = Buffer::new();
         let mut top = Buffer::new();
+        let mut outline = Buffer::new();
         self.p().lines()?;
         while !matches!(self.p().token(), Token::Eof) {
-            let offset = {
+            let (offset, first) = {
                 let p = self.p();
-                p.tokens[p.pos].offset as u32
+                (p.tokens[p.pos].offset as u32, p.pos)
             };
             let class = self.p().word("class");
             if class || self.p().module_ahead() {
@@ -538,6 +548,21 @@ impl<'a> Parsing<'a> {
                     self.module().await?
                 };
                 self.p().depth -= 1;
+                let kind = if class {
+                    crate::DeclarationKind::Class
+                } else {
+                    crate::DeclarationKind::Module
+                };
+                let end = self.p().declaration_end(first);
+                outline.push(
+                    work,
+                    Outline {
+                        kind,
+                        name: module.name.clone(),
+                        start: offset as usize,
+                        end,
+                    },
+                )?;
                 top.push(work, Statement::Module(module.name.clone()).at(offset))?;
                 modules.push(work, module)?;
             } else if matches!(self.p().token(), Token::Word(word) if matches!(word.as_str(), "def" | "private" | "export"))
@@ -566,6 +591,15 @@ impl<'a> Parsing<'a> {
                 let mut p = self.p();
                 p.check_depth(definition.depth())?;
                 p.depth -= 1;
+                outline.push(
+                    work,
+                    Outline {
+                        kind: crate::DeclarationKind::Function,
+                        name: definition.name.clone(),
+                        start: offset as usize,
+                        end: p.declaration_end(first),
+                    },
+                )?;
                 defs.push(work, definition)?;
             } else if self.p().alias_ahead() {
                 // Go resolves a top-level alias against the functions declared before it.
@@ -579,6 +613,15 @@ impl<'a> Parsing<'a> {
                     return p.err("alias target function is not defined");
                 };
                 let mut definition = work::definition(work, original)?;
+                outline.push(
+                    work,
+                    Outline {
+                        kind: crate::DeclarationKind::Function,
+                        name: name.clone(),
+                        start: offset as usize,
+                        end: p.declaration_end(first),
+                    },
+                )?;
                 definition.name = name;
                 defs.push(work, definition)?;
             } else if self.p().word("enum") {
@@ -606,6 +649,15 @@ impl<'a> Parsing<'a> {
                     return p.err("enum must define at least one member");
                 }
                 p.expect_word("end")?;
+                outline.push(
+                    work,
+                    Outline {
+                        kind: crate::DeclarationKind::Enum,
+                        name: name.clone(),
+                        start: offset as usize,
+                        end: p.declaration_end(first),
+                    },
+                )?;
                 enums.push(work, (name, members))?;
             } else {
                 top.push(work, self.statement().await?)?;
@@ -629,6 +681,7 @@ impl<'a> Parsing<'a> {
             functions: defs,
             enums,
             modules,
+            outline,
         })
     }
 
@@ -2165,6 +2218,15 @@ impl<'a> Parser<'a> {
         } else {
             self.err(format_args!("expected {c}"))
         }
+    }
+    /// Returns the end offset of the last token a declaration beginning at
+    /// token `first` consumed, excluding line breaks and separators it ended on.
+    fn declaration_end(&self, first: usize) -> usize {
+        let mut last = self.pos.max(first + 1);
+        while last > first + 1 && matches!(self.tokens[last - 1].token, Token::EndLine) {
+            last -= 1;
+        }
+        self.tokens[last - 1].end
     }
     fn lines(&mut self) -> Result<()> {
         while matches!(self.token(), Token::EndLine) {

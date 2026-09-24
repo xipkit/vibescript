@@ -227,6 +227,28 @@ struct ScriptInner {
     error_writer: Option<output::Writer>,
 }
 
+/// What a top-level [`Declaration`] declares.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum DeclarationKind {
+    /// A `def`, including `private def`, `export def` and a top-level `alias`.
+    Function,
+    Class,
+    Module,
+    Enum,
+}
+
+/// A top-level declaration in the source a [`Script`] was compiled from.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Declaration {
+    pub kind: DeclarationKind,
+    /// The declared name, such as `total`, `Invoice` or `Status`.
+    pub name: String,
+    /// The byte range of the declaration in the compiled source, from its first
+    /// keyword, including `private` or `export`, through its final token.
+    pub span: std::ops::Range<usize>,
+}
+
 /// Immutable compiled code, safely shared across independent calls and threads.
 #[derive(Clone)]
 pub struct Script {
@@ -253,6 +275,25 @@ impl Script {
     /// Runs top-level executable statements.
     pub fn run(&self, options: CallOptions) -> Result<Outcome> {
         self.call("__main__", &[], options)
+    }
+    /// Lists the top-level function, class, module and enum declarations in source order.
+    ///
+    /// Each span covers the declaration's source text, so a host can carry the
+    /// declarations of one script into source it compiles later, as an
+    /// interactive shell does. Declarations nested in other code are not listed.
+    ///
+    /// ```
+    /// use vibescript::{DeclarationKind, Engine};
+    /// let source = "x = 1\ndef double(n)\n  n * 2\nend\ndouble(x)";
+    /// let script = Engine::new().compile(source)?;
+    /// let declaration = &script.declarations()[0];
+    /// assert_eq!(declaration.kind, DeclarationKind::Function);
+    /// assert_eq!(declaration.name, "double");
+    /// assert_eq!(&source[declaration.span.clone()], "def double(n)\n  n * 2\nend");
+    /// # Ok::<(), vibescript::Error>(())
+    /// ```
+    pub fn declarations(&self) -> &[Declaration] {
+        &self.inner.code.program.outline
     }
 }
 

@@ -373,6 +373,8 @@ pub(crate) struct Program {
     pub names: HashMap<String, usize>,
     pub hosts: Vec<String>,
     pub members: Vec<String>,
+    /// Top-level declarations in source order, for [`crate::Script::declarations`].
+    pub outline: Vec<crate::Declaration>,
 }
 
 pub(crate) fn compile(
@@ -398,6 +400,15 @@ fn compile_mode(
     work: &dyn crate::compilation::Work,
 ) -> Result<Program> {
     let parsed = syntax::parse(source, work)?;
+    let mut outline = Vec::with_capacity(parsed.outline.len());
+    for entry in parsed.outline {
+        work.bytes(entry.name.len())?;
+        outline.push(crate::Declaration {
+            kind: entry.kind,
+            name: entry.name.into_string(),
+            span: entry.start..entry.end,
+        });
+    }
     let mut defs = parsed.functions;
     let mut contexts = Buffer::with_capacity(work, defs.len())?;
     for _ in 0..defs.len() {
@@ -453,6 +464,7 @@ fn compile_mode(
         names,
         hosts,
         members: Vec::new(),
+        outline,
     };
     for module in parsed.modules {
         program.register_module(module, "", &mut defs, &mut contexts, work)?;
