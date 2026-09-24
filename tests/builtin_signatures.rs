@@ -378,9 +378,9 @@ struct Call {
     /// The call as the language writes it: without parentheses when it
     /// passes no arguments.
     source: String,
-    /// The call with empty parentheses, when it passes no arguments, for the
-    /// members the runtime does not yet call without them.
-    parenthesized: Option<String>,
+    /// Whether the call passes no arguments, so the language writes it
+    /// without parentheses.
+    bare: bool,
     result: Type,
     block: Option<(Vec<Type>, Option<Type>)>,
 }
@@ -475,22 +475,20 @@ fn variants(
                 Target::Namespace(namespace) => format!("{namespace}.{spelling}"),
                 Target::Global => spelling.to_owned(),
             };
-            let (mut source, mut parenthesized) = if arguments.is_empty() {
-                (prefix.clone(), Some(format!("{prefix}()")))
+            let bare = arguments.is_empty();
+            let mut source = if bare {
+                prefix
             } else {
-                (format!("{prefix}({})", arguments.join(", ")), None)
+                format!("{prefix}({})", arguments.join(", "))
             };
             if let Some((_, _, body)) = block {
                 source.push_str(&format!(" {body}"));
-                if let Some(parenthesized) = &mut parenthesized {
-                    parenthesized.push_str(&format!(" {body}"));
-                }
             }
             if seen.insert(source.clone()) {
                 calls.push(Call {
                     path: path.to_owned(),
                     source,
-                    parenthesized,
+                    bare,
                     result: result.clone(),
                     block: block
                         .as_ref()
@@ -615,7 +613,9 @@ const EXPECTED: &[(&str, &str)] = &[
 
 /// Members whose results the language defines differently from today's
 /// runtime: `fill` and `insert` past the end raise instead of padding with
-/// nil. Phase 4 changes the runtime; until then a padded result is accepted.
+/// nil. The canonical calls are spelled like today's, so no call shape can
+/// select the new behaviour; the switchover changes the runtime, and until
+/// then a padded result is accepted.
 const PADDING: &[&str] = &["array.fill", "array.insert"];
 
 /// Whether `value` is the declared array result padded with nil.
@@ -638,11 +638,7 @@ fn expected(path: &str, error: &Error) -> bool {
 }
 
 fn check(harness: &Harness, call: &Call, problems: &mut Vec<String>) {
-    let source = match &call.parenthesized {
-        Some(parenthesized) if PARENTHESIZED.contains(&call.path.as_str()) => parenthesized,
-        _ => &call.source,
-    };
-    let outcome = match harness.run(source) {
+    let outcome = match harness.run(&call.source) {
         Ok(outcome) => outcome,
         Err(error) => {
             problems.push(format!("{}\n    {error}", call.source));
@@ -707,45 +703,6 @@ fn describe(value: &Value) -> String {
     value.type_name().to_owned()
 }
 
-/// Member names the runtime serves on each receiver kind, for choosing a
-/// runtime spelling of a canonical name the runtime does not serve yet.
-fn served(base: &str, member: &str) -> bool {
-    vibescript::tooling::member_names()
-        .into_iter()
-        .find(|(kind, _)| *kind == base)
-        .is_none_or(|(_, names)| names.contains(&member))
-}
-
-fn spelling(receiver: &str, member: &str) -> String {
-    if served(receiver, member) {
-        return member.to_owned();
-    }
-    signatures::renames()
-        .iter()
-        .find(|rename| rename.receiver == receiver && rename.canonical() == Some((None, member)))
-        .map(|rename| rename.name.clone())
-        .unwrap_or_else(|| member.to_owned())
-}
-
-fn namespace_spelling(namespace: &str, member: &str) -> (String, String) {
-    let served = vibescript::builtins()
-        .get(namespace)
-        .and_then(Value::as_hash)
-        .is_some_and(|fields| {
-            fields
-                .iter()
-                .any(|(key, _)| key.as_bytes() == Some(member.as_bytes()))
-        });
-    if served {
-        return (namespace.to_owned(), member.to_owned());
-    }
-    let rename = signatures::renames()
-        .iter()
-        .find(|rename| rename.canonical() == Some((Some(namespace), member)))
-        .unwrap_or_else(|| panic!("{namespace}.{member} has no runtime spelling"));
-    (rename.receiver.clone(), rename.name.clone())
-}
-
 /// Every call of every signature in the table.
 fn calls() -> Vec<Call> {
     let table = signatures::table();
@@ -770,24 +727,24 @@ fn calls() -> Vec<Call> {
             }
             Item::Module(module) => {
                 for member in &module.members {
-                    let (namespace, spelled) = namespace_spelling(&module.name, member.name());
-                    let path = format!("{}.{}", module.name, member.name());
+                    let (namespace, name) = (&module.name, member.name());
+                    let path = format!("{namespace}.{name}");
                     match member {
                         Member::Function(function) => {
                             let mut bindings = Bindings::new();
                             bind_function(function, &mut bindings);
                             calls.extend(variants(
                                 &path,
-                                &Target::Namespace(namespace),
-                                &spelled,
+                                &Target::Namespace(namespace.clone()),
+                                name,
                                 function,
                                 &bindings,
                             ));
                         }
                         Member::Constant(constant) => calls.push(Call {
                             path: path.clone(),
-                            source: format!("{namespace}::{spelled}"),
-                            parenthesized: None,
+                            source: format!("{namespace}::{name}"),
+                            bare: true,
                             result: constant.ty.clone(),
                             block: None,
                         }),
@@ -810,11 +767,6 @@ fn calls() -> Vec<Call> {
                         }
                         for member in &class.members {
                             let path = format!("{base}.{}", member.name());
-                            let kind = match &receiver_type {
-                                Type::Name(kind, _) => kind.as_str(),
-                                _ => base,
-                            };
-                            let spelled = spelling(kind, member.name());
                             let receivers: Vec<String> = match chosen_receivers(&path) {
                                 Some(chosen) => chosen.into_iter().map(str::to_owned).collect(),
                                 None => receivers(&receiver_type),
@@ -827,7 +779,7 @@ fn calls() -> Vec<Call> {
                                         calls.extend(variants(
                                             &path,
                                             &Target::Member(receiver),
-                                            &spelled,
+                                            member.name(),
                                             function,
                                             &bindings,
                                         ));
@@ -905,42 +857,24 @@ fn builtin_signatures_agree_with_the_runtime() {
     );
 }
 
-/// Members the runtime refuses to call without arguments unless the call has
-/// parentheses, which the language never writes. The runtime reads each bare
-/// name as a value; phase 4 makes these calls. Until then the agreement test
-/// calls them with `()`.
-const PARENTHESIZED: &[&str] = &[
-    "Duration.build",
-    "Regex.union",
-    "duration.ago",
-    "duration.from_now",
-    "global.p",
-    "global.print",
-    "global.puts",
-    "global.random_id",
-    "global.srand",
-    "global.warn",
-];
-
+/// Calls without arguments are written without parentheses; the agreement
+/// test runs them so, and this one names every member the runtime still
+/// refuses that way.
 #[test]
 fn zero_argument_calls_work_without_parentheses() {
     let harness = Harness::new();
     let mut refused = BTreeSet::new();
-    for call in calls().iter().filter(|call| call.parenthesized.is_some()) {
+    for call in calls().iter().filter(|call| call.bare) {
         let outcome = harness.run(&call.source).unwrap();
         if let Err(error) = outcome.result {
             let shape = matches!(error.kind, ErrorKind::Type | ErrorKind::Argument);
             if shape && !expected(&call.path, &error) {
-                refused.insert(call.path.as_str().to_owned());
+                refused.insert(format!("{}: {}", call.source, error.message));
             }
         }
     }
-    let pinned: BTreeSet<String> = PARENTHESIZED
-        .iter()
-        .map(|path| (*path).to_owned())
-        .collect();
     assert!(
-        refused == pinned,
+        refused.is_empty(),
         "refused without parentheses: {refused:#?}"
     );
 }

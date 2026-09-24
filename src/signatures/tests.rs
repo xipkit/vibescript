@@ -285,15 +285,6 @@ fn renamed(receiver: &str, name: &str) -> bool {
     })
 }
 
-/// Whether a spelling the runtime serves on `receiver` is renamed to `name`,
-/// which then has an implementation.
-fn implemented_through_rename(receiver: &str, namespace: Option<&str>, name: &str) -> bool {
-    renames().iter().any(|rename| {
-        (rename.receiver == receiver || rename.receiver == "T")
-            && rename.canonical() == Some((namespace, name))
-    })
-}
-
 #[test]
 fn every_runtime_member_has_one_signature_or_a_rename() {
     let runtime = runtime_members();
@@ -342,7 +333,7 @@ fn every_signature_names_a_runtime_member() {
                     .get(base.as_str())
                     .is_some_and(|names| names.contains(name))
             };
-            if !served && !implemented_through_rename(&base, None, name) {
+            if !served {
                 problems.push(format!("{base}.{name} is not a runtime member"));
             }
         }
@@ -374,9 +365,7 @@ fn every_builtin_global_has_one_signature_or_a_rename() {
     for item in &table.items {
         match item {
             Item::Function(function) => {
-                if !functions.contains(&function.name)
-                    && !implemented_through_rename("global", None, &function.name)
-                {
+                if !functions.contains(&function.name) {
                     problems.push(format!("{} is not a runtime global", function.name));
                 }
             }
@@ -389,10 +378,7 @@ fn every_builtin_global_has_one_signature_or_a_rename() {
                     let served = namespaces
                         .get(&module.name)
                         .is_some_and(|members| members.contains(name));
-                    let renamed = namespaces.keys().any(|namespace| {
-                        implemented_through_rename(namespace, Some(&module.name), name)
-                    });
-                    if !served && !renamed {
+                    if !served {
                         problems.push(format!("{}.{name} is not a runtime member", module.name));
                     }
                 }

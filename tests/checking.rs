@@ -1980,3 +1980,25 @@ fn function_writes_through_script_local_names_read_those_names() {
         );
     }
 }
+
+#[test]
+fn parenless_builtin_calls_and_canonical_members_check_clean() {
+    for (expression, result) in [
+        ("puts", "nil"),
+        ("print", "nil"),
+        ("warn", "nil"),
+        ("p", "nil"),
+        ("random_id", "string"),
+        ("srand", "int?"),
+        ("Regex.union", "any"),
+        ("Regex.new(\"a\")", "any"),
+        ("Regex.escape(\"a.\")", "string"),
+        ("5.minutes.ago", "time"),
+        ("5.minutes.from_now", "time"),
+        ("(1..4).length", "int"),
+    ] {
+        let source = format!("def run -> {result}\n  {expression}\nend");
+        let report = check(&source);
+        assert!(report.is_clean(), "{source}: {report:?}");
+    }
+}
