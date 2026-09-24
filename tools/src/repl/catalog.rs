@@ -1,5 +1,5 @@
-//! Names the REPL completes and lists: builtins from the library's catalog,
-//! parser keywords and the REPL's own commands.
+//! Names the REPL completes and lists: builtins from the library's catalog
+//! and the REPL's own commands. Keywords come from `vibescript::tooling`.
 
 use vibescript::Value;
 
@@ -23,14 +23,6 @@ pub const COMMANDS: [&str; 18] = [
     ":le",
     ":quit",
     ":q",
-];
-
-/// The parser's reserved keywords, in the Go REPL's completion order.
-pub const KEYWORDS: [&str; 34] = [
-    "begin", "break", "case", "class", "def", "do", "else", "elsif", "end", "ensure", "enum",
-    "export", "false", "for", "getter", "if", "in", "next", "nil", "private", "property", "raise",
-    "rescue", "retry", "return", "self", "setter", "then", "true", "unless", "until", "when",
-    "while", "yield",
 ];
 
 /// The tooling view of the library's builtins, derived from
@@ -102,6 +94,5 @@ mod tests {
         assert!(!catalog.functions.iter().any(|n| n == "JSON"));
         assert!(catalog.documented.iter().any(|n| n == "Math.PI"));
         assert!(catalog.documented.is_sorted());
-        assert!(KEYWORDS.is_sorted());
     }
 }

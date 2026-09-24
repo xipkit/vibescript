@@ -36,7 +36,7 @@ mod session;
 #[cfg(test)]
 mod tests;
 
-pub use catalog::{COMMANDS, KEYWORDS};
+pub use catalog::COMMANDS;
 pub use format::render_value;
 
 use std::collections::BTreeMap;
@@ -338,7 +338,7 @@ impl ReplSession {
                 builtins
                     .iter()
                     .map(String::as_str)
-                    .chain(catalog::KEYWORDS)
+                    .chain(vibescript::tooling::keywords().iter().copied())
                     .chain(self.declarations().map(|(_, name)| name)),
             )
         };
