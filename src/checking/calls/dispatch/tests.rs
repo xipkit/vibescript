@@ -623,10 +623,9 @@ fn foreign_initializers_and_methods_use_the_defining_namespace_state() {
         .unwrap()
         .namespace(0);
     let seven = facts.integer(&mut ctx, 7).unwrap();
+    let fields = returned.globals.value(&mut ctx, fields).unwrap();
     assert_eq!(
-        facts
-            .selected_field(&mut ctx, returned.globals.values.data[fields], b"X")
-            .unwrap(),
+        facts.selected_field(&mut ctx, fields, b"X").unwrap(),
         Some((seven, false))
     );
     solver

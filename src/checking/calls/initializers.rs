@@ -189,7 +189,7 @@ impl Solver<'_, '_> {
             for globals in alternatives.data {
                 ctx.charge(1)?;
                 let flag = globals.layout.source(ctx, self.source)?.namespace(module) + 1;
-                let initialized = globals.values.data[flag];
+                let initialized = globals.value(ctx, flag)?;
                 let yes = facts.filter(ctx, initialized, Test::Truth, true)?;
                 let no = facts.filter(ctx, initialized, Test::Truth, false)?;
                 if no == Atom::Never.fact() {
@@ -198,12 +198,12 @@ impl Solver<'_, '_> {
                 }
                 if yes != Atom::Never.fact() {
                     let mut skipped = globals.snapshot(ctx)?;
-                    skipped.values.data[flag] = yes;
+                    skipped.set_value(ctx, flag, yes)?;
                     skipped.join_into(ctx, facts, &mut normal)?;
                 }
                 let mut context = Context::plain();
                 context.globals = globals;
-                context.globals.values.data[flag] = no;
+                context.globals.set_value(ctx, flag, no)?;
                 let index = self.request(ctx, facts, body, &[], current_error, &context)?;
                 self.depend(ctx, index)?;
                 report.throws |= self.state.jobs.data[index].throws;

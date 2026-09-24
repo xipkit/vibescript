@@ -2,21 +2,159 @@ use super::{
     builtins,
     facts::{Atom, Fact, Facts},
     pending::Pending,
+    slots::Slots,
 };
 use crate::{CallContext, Result, budget::Buffer, bytecode::Program};
-use std::hash::{Hash, Hasher};
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 pub(super) mod layout;
 
 #[cfg(test)]
 pub(super) mod tests;
 
+/// A shared binding's value and whether it may be unbound.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) struct Global {
+    pub value: Fact,
+    pub missing: bool,
+}
+
+/// The binding of a shared slot before anything describes it.
+pub(super) const ABSENT: Global = Global {
+    value: Atom::Never.fact(),
+    missing: true,
+};
+
+/// Persistent entries with a digest of the entries that differ from the empty value.
+///
+/// The digest sums a hash of each such entry and its index, so equal tables digest alike
+/// whatever order wrote them, and a write or merge updates it for the entries it changes.
+/// Copies share storage, so calls and exits that carry every shared binding cost only the
+/// bindings they change.
+#[derive(Debug)]
+pub(super) struct Table<T> {
+    slots: Slots<T>,
+    digest: u64,
+}
+
+impl<T: Copy + Eq + Hash> Table<T> {
+    pub fn new(len: usize, empty: T) -> Self {
+        Self {
+            slots: Slots::new(len, empty),
+            digest: 0,
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.slots.len()
+    }
+
+    pub fn digest(&self) -> u64 {
+        self.digest
+    }
+
+    fn entry(&self, index: usize, value: T) -> u64 {
+        if value == self.slots.empty() {
+            return 0;
+        }
+        let mut hash = DefaultHasher::new();
+        (index, value).hash(&mut hash);
+        hash.finish()
+    }
+
+    pub fn get(&self, ctx: &mut CallContext, index: usize) -> Result<T> {
+        self.slots.get(ctx, index)
+    }
+
+    pub fn set(&mut self, ctx: &mut CallContext, index: usize, value: T) -> Result<()> {
+        let previous = self.slots.replace(ctx, index, value)?;
+        if previous != value {
+            self.digest = self
+                .digest
+                .wrapping_sub(self.entry(index, previous))
+                .wrapping_add(self.entry(index, value));
+        }
+        Ok(())
+    }
+
+    pub fn snapshot(&self, ctx: &mut CallContext) -> Result<Self> {
+        Ok(Self {
+            slots: self.slots.snapshot(ctx)?,
+            digest: self.digest,
+        })
+    }
+
+    /// Appends empty entries.
+    pub fn grow(&mut self, ctx: &mut CallContext, len: usize) -> Result<()> {
+        self.slots.grow(ctx, len)
+    }
+
+    pub fn equal(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
+        ctx.charge(1)?;
+        Ok(self.digest == other.digest && self.slots.equal(ctx, &other.slots)?)
+    }
+
+    /// Merges the entries that differ from `other` with `join`, skipping shared storage.
+    pub fn merge(
+        &mut self,
+        ctx: &mut CallContext,
+        other: &Self,
+        mut join: impl FnMut(&mut CallContext, usize, T, T) -> Result<T>,
+    ) -> Result<bool> {
+        let mut digest = self.digest;
+        let empty = self.slots.empty();
+        let entry = |index: usize, value: T| {
+            if value == empty {
+                return 0;
+            }
+            let mut hash = DefaultHasher::new();
+            (index, value).hash(&mut hash);
+            hash.finish()
+        };
+        let changed = self
+            .slots
+            .merge_indexed(ctx, &other.slots, |ctx, index, a, b| {
+                let value = join(ctx, index, a, b)?;
+                if value != a {
+                    digest = digest
+                        .wrapping_sub(entry(index, a))
+                        .wrapping_add(entry(index, value));
+                }
+                Ok(value)
+            })?;
+        self.digest = digest;
+        Ok(changed)
+    }
+
+    /// Visits the entries that differ from `other`, skipping shared storage.
+    pub fn changed(
+        &self,
+        ctx: &mut CallContext,
+        other: &Self,
+        visit: &mut impl FnMut(&mut CallContext, usize, T, T) -> Result<()>,
+    ) -> Result<()> {
+        self.slots.changed(ctx, &other.slots, visit)
+    }
+
+    /// Visits the entries that differ from the empty value, in index order.
+    pub fn entries(
+        &self,
+        ctx: &mut CallContext,
+        visit: &mut impl FnMut(&mut CallContext, usize, T) -> Result<()>,
+    ) -> Result<()> {
+        let empty = Slots::new(self.slots.len(), self.slots.empty());
+        self.slots
+            .changed(ctx, &empty, &mut |ctx, index, value, _| {
+                visit(ctx, index, value)
+            })
+    }
+}
+
 #[derive(Debug)]
 pub(super) struct Globals {
     pub layout: layout::Layout,
-    pub values: Buffer<Fact>,
-    pub missing: Buffer<bool>,
-    pub written: Buffer<bool>,
+    pub bindings: Table<Global>,
+    pub written: Table<bool>,
     pub pending: Pending,
 }
 
@@ -24,9 +162,8 @@ impl Globals {
     pub fn empty() -> Self {
         Self {
             layout: layout::Layout::default(),
-            values: Buffer::empty(),
-            missing: Buffer::empty(),
-            written: Buffer::empty(),
+            bindings: Table::new(0, ABSENT),
+            written: Table::new(0, false),
             pending: Pending::new(),
         }
     }
@@ -42,26 +179,64 @@ impl Globals {
         if self.layout.same(&next) {
             return Ok(false);
         }
-        for index in self.values.data.len()..next.len() {
+        let start = self.len();
+        self.bindings.grow(ctx, next.len())?;
+        self.written.grow(ctx, next.len())?;
+        for index in start..next.len() {
             ctx.charge(1)?;
             let initial = next.initial(index);
-            self.values.push(ctx, initial.value)?;
-            self.missing.push(ctx, initial.missing)?;
-            self.written.push(ctx, false)?;
+            self.bindings.set(
+                ctx,
+                index,
+                Global {
+                    value: initial.value,
+                    missing: initial.missing,
+                },
+            )?;
         }
         self.layout = next;
         Ok(true)
     }
 
+    pub fn len(&self) -> usize {
+        self.bindings.len()
+    }
+
+    pub fn get(&self, ctx: &mut CallContext, slot: usize) -> Result<Global> {
+        self.bindings.get(ctx, slot)
+    }
+
+    pub fn value(&self, ctx: &mut CallContext, slot: usize) -> Result<Fact> {
+        Ok(self.bindings.get(ctx, slot)?.value)
+    }
+
+    pub fn missing(&self, ctx: &mut CallContext, slot: usize) -> Result<bool> {
+        Ok(self.bindings.get(ctx, slot)?.missing)
+    }
+
+    /// Returns a slot's value, or none beyond this state's slots.
+    pub fn value_at(&self, ctx: &mut CallContext, slot: usize) -> Result<Option<Fact>> {
+        if slot < self.len() {
+            self.value(ctx, slot).map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Replaces a slot's value without changing whether it may be unbound.
+    pub fn set_value(&mut self, ctx: &mut CallContext, slot: usize, value: Fact) -> Result<()> {
+        let binding = self.bindings.get(ctx, slot)?;
+        self.bindings.set(ctx, slot, Global { value, ..binding })
+    }
+
     pub fn snapshot(&self, ctx: &mut CallContext) -> Result<Self> {
         ctx.charge(1)?;
-        let mut globals = Self::empty();
-        globals.layout = self.layout.clone();
-        globals.values.extend(ctx, &self.values.data)?;
-        globals.missing.extend(ctx, &self.missing.data)?;
-        globals.written.extend(ctx, &self.written.data)?;
-        globals.pending = self.pending.snapshot(ctx)?;
-        Ok(globals)
+        Ok(Self {
+            layout: self.layout.clone(),
+            bindings: self.bindings.snapshot(ctx)?,
+            written: self.written.snapshot(ctx)?,
+            pending: self.pending.snapshot(ctx)?,
+        })
     }
 
     /// Maps every shared value and suspended address.
@@ -70,8 +245,12 @@ impl Globals {
         ctx: &mut CallContext,
         rename: &mut super::heaps::Rename<'_>,
     ) -> Result<()> {
-        for value in &mut self.values.data {
-            *value = rename(ctx, *value)?;
+        for index in 0..self.len() {
+            let value = self.value(ctx, index)?;
+            let renamed = rename(ctx, value)?;
+            if renamed != value {
+                self.set_value(ctx, index, renamed)?;
+            }
         }
         self.pending.rename(ctx, rename)
     }
@@ -87,25 +266,23 @@ impl Globals {
             return Ok(());
         }
         self.rename(ctx, &mut |ctx, fact| renamer.fact(ctx, facts, fact))?;
-        for index in 0..self.values.data.len() {
+        for index in 0..self.len() {
             ctx.charge(1)?;
-            let value = self.values.data[index];
-            self.values.data[index] = renamer.merge(ctx, facts, index, value)?;
+            let value = self.value(ctx, index)?;
+            let merged = renamer.merge(ctx, facts, index, value)?;
+            if merged != value {
+                self.set_value(ctx, index, merged)?;
+            }
         }
         Ok(())
     }
 
     pub fn hash(&self, ctx: &mut CallContext, hash: &mut impl Hasher) -> Result<()> {
-        ctx.charge(
-            self.values.data.len() as u64
-                + self.written.data.len() as u64
-                + self.missing.data.len() as u64
-                + 1,
-        )?;
+        ctx.charge(1)?;
         self.layout.version().hash(hash);
-        self.values.data.hash(hash);
-        self.missing.data.hash(hash);
-        self.written.data.hash(hash);
+        self.len().hash(hash);
+        self.bindings.digest().hash(hash);
+        self.written.digest().hash(hash);
         self.pending.hash(ctx, hash)
     }
 
@@ -124,8 +301,8 @@ impl Globals {
             {
                 ctx.charge(1)?;
                 let initial = layout.initial(flag).value;
-                if self.values.data.get(flag).copied().unwrap_or(initial)
-                    != other.values.data.get(flag).copied().unwrap_or(initial)
+                if self.value_at(ctx, flag)?.unwrap_or(initial)
+                    != other.value_at(ctx, flag)?.unwrap_or(initial)
                 {
                     return Ok(false);
                 }
@@ -143,10 +320,16 @@ impl Globals {
         value: Fact,
     ) -> Result<()> {
         ctx.charge(1)?;
-        let same = self.values.data[slot] == value;
-        self.values.data[slot] = value;
-        self.missing.data[slot] = false;
-        self.written.data[slot] = true;
+        let same = self.value(ctx, slot)? == value;
+        self.bindings.set(
+            ctx,
+            slot,
+            Global {
+                value,
+                missing: false,
+            },
+        )?;
+        self.written.set(ctx, slot, true)?;
         for address in &mut self.pending.addresses.data {
             ctx.charge(1)?;
             if address.root == Some(slot) {
@@ -162,16 +345,10 @@ impl Globals {
     }
 
     pub fn equal(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
-        ctx.charge(
-            self.values.data.len() as u64
-                + self.written.data.len() as u64
-                + self.missing.data.len() as u64
-                + 1,
-        )?;
+        ctx.charge(1)?;
         Ok(self.layout.same(&other.layout)
-            && self.values.data == other.values.data
-            && self.missing.data == other.missing.data
-            && self.written.data == other.written.data
+            && self.bindings.equal(ctx, &other.bindings)?
+            && self.written.equal(ctx, &other.written)?
             && self.pending.equal(ctx, &other.pending)?)
     }
 
@@ -182,8 +359,8 @@ impl Globals {
             && self.layout.same_imports(
                 ctx,
                 &other.layout,
-                |_, slot| Ok(self.values.data.get(slot).copied()),
-                |_, slot| Ok(other.values.data.get(slot).copied()),
+                |ctx, slot| self.value_at(ctx, slot),
+                |ctx, slot| other.value_at(ctx, slot),
             )?)
     }
 
@@ -233,8 +410,7 @@ impl Globals {
             for root in source.namespaces.clone().step_by(super::namespaces::WIDTH) {
                 ctx.charge(1)?;
                 let heap = root + 2;
-                let (Some(&a), Some(&b)) =
-                    (self.values.data.get(heap), other.values.data.get(heap))
+                let (Some(a), Some(b)) = (self.value_at(ctx, heap)?, other.value_at(ctx, heap)?)
                 else {
                     continue;
                 };
@@ -253,10 +429,9 @@ impl Globals {
     /// Preserves writes from earlier stages of a composed call.
     pub fn inherit_writes(&mut self, ctx: &mut CallContext, earlier: &Self) -> Result<()> {
         self.expand(ctx, &earlier.layout)?;
-        for (current, earlier) in self.written.data.iter_mut().zip(&earlier.written.data) {
-            ctx.charge(1)?;
-            *current |= earlier;
-        }
+        let mut written = earlier.written.snapshot(ctx)?;
+        written.grow(ctx, self.len())?;
+        self.written.merge(ctx, &written, |_, _, a, b| Ok(a || b))?;
         Ok(())
     }
 
@@ -269,44 +444,39 @@ impl Globals {
     ) -> Result<bool> {
         let mut changed = self.expand(ctx, &other.layout)?;
         changed |= self.pending.join(ctx, facts, &other.pending, depth)?;
-        for (index, a) in self.values.data.iter_mut().enumerate() {
-            ctx.charge(1)?;
-            let b = other
-                .values
-                .data
-                .get(index)
-                .copied()
-                .unwrap_or_else(|| self.layout.initial(index).value);
-            // Heaps of different lengths or with summaries join entry by entry and keep
-            // object positions.
-            let heap = if *a != b && super::heaps::is_heap(ctx, &self.layout, index)? {
-                super::heaps::join(ctx, facts, *a, b, depth)?
-            } else {
-                None
-            };
-            let value = match heap {
-                Some(value) => value,
-                None => facts.joined(ctx, *a, b, depth)?,
-            };
-            changed |= *a != value;
-            *a = value;
-        }
-        for (a, b) in self.written.data.iter_mut().zip(&other.written.data) {
-            ctx.charge(1)?;
-            changed |= !*a && *b;
-            *a |= *b;
-        }
-        for (index, a) in self.missing.data.iter_mut().enumerate() {
-            ctx.charge(1)?;
-            let b = other
-                .missing
-                .data
-                .get(index)
-                .copied()
-                .unwrap_or_else(|| self.layout.initial(index).missing);
-            changed |= !*a && b;
-            *a |= b;
-        }
+        // Slots that `other` predates hold their initial bindings there.
+        let mut expanded;
+        let other = if other.layout.same(&self.layout) {
+            other
+        } else {
+            expanded = other.snapshot(ctx)?;
+            expanded.expand(ctx, &self.layout)?;
+            &expanded
+        };
+        let layout = &self.layout;
+        changed |= self
+            .bindings
+            .merge(ctx, &other.bindings, |ctx, index, a, b| {
+                ctx.charge(1)?;
+                // Heaps of different lengths or with summaries join entry by entry and keep
+                // object positions.
+                let heap = if a.value != b.value && super::heaps::is_heap(ctx, layout, index)? {
+                    super::heaps::join(ctx, facts, a.value, b.value, depth)?
+                } else {
+                    None
+                };
+                let value = match heap {
+                    Some(value) => value,
+                    None => facts.joined(ctx, a.value, b.value, depth)?,
+                };
+                Ok(Global {
+                    value,
+                    missing: a.missing || b.missing,
+                })
+            })?;
+        changed |= self
+            .written
+            .merge(ctx, &other.written, |_, _, a, b| Ok(a || b))?;
         Ok(changed)
     }
 }

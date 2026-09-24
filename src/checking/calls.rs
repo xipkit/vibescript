@@ -1116,14 +1116,14 @@ impl Solver<'_, '_> {
             let mut earlier = Buffer::empty();
             for exit in &previous.block_exits.data {
                 ctx.charge(1)?;
-                if let Some(&value) = exit.globals.values.data.get(heap) {
+                if let Some(value) = exit.globals.value_at(ctx, heap)? {
                     earlier.push(ctx, value)?;
                 }
             }
             let mut later = Buffer::empty();
             for exit in &report.block_exits.data {
                 ctx.charge(1)?;
-                if let Some(&value) = exit.globals.values.data.get(heap) {
+                if let Some(value) = exit.globals.value_at(ctx, heap)? {
                     later.push(ctx, value)?;
                 }
             }
@@ -1529,8 +1529,8 @@ impl Solver<'_, '_> {
             facts,
             layout,
             preferred,
-            |_, heap| Ok(effective.globals.values.data.get(heap).copied()),
-            |_, heap| Ok(context.globals.values.data.get(heap).copied()),
+            |ctx, heap| effective.globals.value_at(ctx, heap),
+            |ctx, heap| context.globals.value_at(ctx, heap),
         )?;
         if folds.data.is_empty() {
             return Ok((folds, None, None));
@@ -2014,7 +2014,7 @@ impl Calls for Solver<'_, '_> {
                 .and_then(|source| source.activation)
             {
                 if matches!(
-                    facts.node(globals.values.data[flag]),
+                    facts.node(globals.value(ctx, flag)?),
                     super::facts::Node::Boolean(false)
                 ) {
                     outcome.throws |= 1 << crate::ErrorClass::Runtime as u8;

@@ -5,7 +5,7 @@ use super::{
     calls::{Calls, Root, Target},
     facts::{Atom, Fact, Facts, HashKind},
     globals::{
-        Globals,
+        Globals, Table,
         layout::{Layout as GlobalLayout, Source as SourceSlots},
     },
     graph::{Block, Exit, Graph},
@@ -32,6 +32,7 @@ mod collection_blocks;
 mod declarations;
 mod effects;
 mod files;
+mod frame;
 pub(super) mod general;
 mod globals;
 mod handlers;
@@ -328,8 +329,8 @@ struct State {
     global_base: usize,
     global_count: usize,
     global_pending: super::pending::Pending,
-    global_written: Slots<bool>,
-    locals: Slots<Binding>,
+    global_written: Table<bool>,
+    locals: frame::Frame,
     captures: Option<blocks::Captures>,
     capture_locals: bool,
     stack: Buffer<Operand>,
@@ -433,9 +434,9 @@ impl State {
         layout: &GlobalLayout,
     ) -> Result<Self> {
         let globals = layout.len();
-        let Some(length) = locals.checked_add(globals) else {
+        if locals.checked_add(globals).is_none() {
             return ctx.fail(crate::ErrorKind::Memory, "checker state size overflow");
-        };
+        }
         Ok(Self {
             function,
             global_layout: layout.clone(),
@@ -443,11 +444,12 @@ impl State {
             global_base: locals,
             global_count: globals,
             global_pending: super::pending::Pending::new(),
-            global_written: Slots::new(globals, false),
+            global_written: Table::new(globals, false),
             captures: None,
             capture_locals: false,
-            locals: Slots::new(
-                length,
+            locals: frame::Frame::new(
+                locals,
+                globals,
                 Binding {
                     value: Atom::Never.fact(),
                     missing: true,
@@ -693,9 +695,9 @@ impl State {
         changed |= self
             .global_pending
             .join(ctx, facts, &other.global_pending, depth)?;
-        changed |= self
-            .global_written
-            .merge(ctx, &other.global_written, |_, a, b| Ok(a || b))?;
+        changed |=
+            self.global_written
+                .merge(ctx, &other.global_written, |_, _, a, b| Ok(a || b))?;
         if let (Some(a), Some(b)) = (&mut self.captures, &other.captures) {
             changed |= a.join(ctx, facts, b, depth)?;
         }
@@ -1074,18 +1076,8 @@ pub(super) fn analyze_body(
         &globals.layout,
     )?;
     initial.global_pending = globals.pending.snapshot(ctx)?;
-    for (index, &value) in globals.values.data.iter().enumerate() {
-        ctx.charge(1)?;
-        initial.locals.set(
-            ctx,
-            locals + index,
-            Binding {
-                value,
-                missing: globals.missing.data[index],
-                owner: blocks::Owner::Unknown,
-            },
-        )?;
-    }
+    let bindings = globals.bindings.snapshot(ctx)?;
+    initial.locals.replace_globals(bindings);
     if let Some(incoming) = incoming.filter(|_| block.is_none()) {
         let mut captures = Buffer::empty();
         for link in &incoming.captures.data {

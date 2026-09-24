@@ -41,7 +41,7 @@ pub(super) enum Atom {
 }
 
 impl Atom {
-    pub fn fact(self) -> Fact {
+    pub const fn fact(self) -> Fact {
         Fact(self as usize)
     }
 }

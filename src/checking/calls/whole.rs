@@ -180,12 +180,9 @@ impl Solver<'_, '_> {
             for globals in alternatives.data {
                 ctx.charge(1)?;
                 let flag = globals.layout.source(ctx, self.source)?.namespace(module) + 1;
-                if facts.filter(
-                    ctx,
-                    globals.values.data[flag],
-                    super::super::scalar::Test::Truth,
-                    true,
-                )? != Atom::Never.fact()
+                let initialized = globals.value(ctx, flag)?;
+                if facts.filter(ctx, initialized, super::super::scalar::Test::Truth, true)?
+                    != Atom::Never.fact()
                 {
                     globals.join_into(ctx, facts, &mut next)?;
                     continue;
@@ -267,8 +264,8 @@ impl Solver<'_, '_> {
             return Ok(None);
         }
         let root = globals.layout.source(ctx, self.source)?.namespace(module) + 2;
-        let Some(heap) = super::super::heaps::entries(ctx, facts, globals.values.data[root])?
-        else {
+        let current = globals.value(ctx, root)?;
+        let Some(heap) = super::super::heaps::entries(ctx, facts, current)? else {
             return Ok(Some(Atom::Unknown.fact()));
         };
         let slot = facts.integer(ctx, heap.data.len() as i64)?;
@@ -298,8 +295,8 @@ impl Solver<'_, '_> {
                 if exit.completion != blocks::Completion::Value {
                     continue;
                 }
-                let selected =
-                    super::super::heaps::read(ctx, facts, exit.globals.values.data[root], slot)?;
+                let heap = exit.globals.value(ctx, root)?;
+                let selected = super::super::heaps::read(ctx, facts, heap, slot)?;
                 let fields = if selected.unsupported {
                     Atom::Unknown.fact()
                 } else {

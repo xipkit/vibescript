@@ -64,9 +64,15 @@ fn growing_sources_preserve_addresses_and_share_only_receiving_roots() {
         .unwrap();
     let a = before.source(&mut ctx, first.source).unwrap();
     let mut state = Globals::initial(&mut ctx, &before).unwrap();
-    state.values.data[a.files.start] = seven;
-    state.missing.data[a.files.start] = false;
-    state.written.data[a.files.start] = true;
+    let present = Global {
+        value: seven,
+        missing: false,
+    };
+    state
+        .bindings
+        .set(&mut ctx, a.files.start, present)
+        .unwrap();
+    state.written.set(&mut ctx, a.files.start, true).unwrap();
     state
         .pending
         .addresses
@@ -92,12 +98,20 @@ fn growing_sources_preserve_addresses_and_share_only_receiving_roots() {
     assert_ne!(a.namespace(0), b.namespace(0));
     assert_ne!(a.declarations.start, b.declarations.start);
     assert!(state.expand(&mut ctx, &prepared).unwrap());
-    assert_eq!(&state.values.data[..before.len()], &snapshot.values.data);
+    for index in 0..before.len() {
+        assert_eq!(
+            state.get(&mut ctx, index).unwrap(),
+            snapshot.get(&mut ctx, index).unwrap()
+        );
+    }
+    assert_eq!(snapshot.len(), before.len());
     assert_eq!(state.pending.addresses.data[0].root, Some(a.files.start));
     assert!(snapshot.layout.same(&before));
     assert!(snapshot.same_initialization(&mut ctx, &state).unwrap());
     let initialized = facts.boolean(&mut ctx, true).unwrap();
-    state.values.data[b.namespace(0) + 1] = initialized;
+    state
+        .set_value(&mut ctx, b.namespace(0) + 1, initialized)
+        .unwrap();
     assert!(!snapshot.same_initialization(&mut ctx, &state).unwrap());
     let latest = storage
         .prepare(&mut ctx, &mut facts, separate.definition(&roots, None))
@@ -134,8 +148,13 @@ fn joins_expand_old_snapshots_with_missing_state_and_keep_initialization_separat
     let one = facts.integer(&mut ctx, 1).unwrap();
     let two = facts.integer(&mut ctx, 2).unwrap();
     let mut old = Globals::initial(&mut ctx, &before).unwrap();
-    old.values.data[a.files.start] = one;
-    old.missing.data[a.files.start] = false;
+    let present = |value| Global {
+        value,
+        missing: false,
+    };
+    old.bindings
+        .set(&mut ctx, a.files.start, present(one))
+        .unwrap();
     let latest = storage
         .prepare(
             &mut ctx,
@@ -146,10 +165,13 @@ fn joins_expand_old_snapshots_with_missing_state_and_keep_initialization_separat
     let b = latest.source(&mut ctx, second.source).unwrap();
     let mut new = old.snapshot(&mut ctx).unwrap();
     new.expand(&mut ctx, &latest).unwrap();
-    new.values.data[b.files.start] = two;
-    new.missing.data[b.files.start] = false;
-    new.written.data[b.files.start] = true;
-    new.values.data[b.namespace(0) + 1] = facts.boolean(&mut ctx, true).unwrap();
+    new.bindings
+        .set(&mut ctx, b.files.start, present(two))
+        .unwrap();
+    new.written.set(&mut ctx, b.files.start, true).unwrap();
+    let initialized = facts.boolean(&mut ctx, true).unwrap();
+    new.set_value(&mut ctx, b.namespace(0) + 1, initialized)
+        .unwrap();
     assert!(old.compatible(&mut ctx, &new).unwrap());
     assert!(!old.equal(&mut ctx, &new).unwrap());
     let mut forward = old.snapshot(&mut ctx).unwrap();
@@ -157,11 +179,14 @@ fn joins_expand_old_snapshots_with_missing_state_and_keep_initialization_separat
     assert!(forward.join(&mut ctx, &mut facts, &new, None).unwrap());
     assert!(reverse.join(&mut ctx, &mut facts, &old, None).unwrap());
     assert!(forward.equal(&mut ctx, &reverse).unwrap());
-    assert_eq!(forward.values.data[a.files.start], one);
-    assert_eq!(forward.values.data[b.files.start], two);
-    assert!(forward.missing.data[b.files.start]);
-    assert!(forward.written.data[b.files.start]);
-    assert_eq!(forward.values.data[b.namespace(0) + 1], Atom::Bool.fact());
+    assert_eq!(forward.value(&mut ctx, a.files.start).unwrap(), one);
+    assert_eq!(forward.value(&mut ctx, b.files.start).unwrap(), two);
+    assert!(forward.missing(&mut ctx, b.files.start).unwrap());
+    assert!(forward.written.get(&mut ctx, b.files.start).unwrap());
+    assert_eq!(
+        forward.value(&mut ctx, b.namespace(0) + 1).unwrap(),
+        Atom::Bool.fact()
+    );
     let mut left = std::collections::hash_map::DefaultHasher::new();
     let mut right = std::collections::hash_map::DefaultHasher::new();
     forward.hash(&mut ctx, &mut left).unwrap();

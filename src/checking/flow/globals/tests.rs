@@ -5,17 +5,8 @@ use crate::{CallOptions, ErrorKind, Limits};
 fn state(ctx: &mut CallContext, source: SourceId, globals: &Globals) -> Result<State> {
     let mut state = State::new(ctx, 3, source.callable(0), &globals.layout)?;
     state.global_pending = globals.pending.snapshot(ctx)?;
-    for (index, &value) in globals.values.data.iter().enumerate() {
-        state.locals.set(
-            ctx,
-            state.global_base + index,
-            Binding {
-                value,
-                missing: globals.missing.data[index],
-                owner: blocks::Owner::Unknown,
-            },
-        )?;
-    }
+    let bindings = globals.bindings.snapshot(ctx)?;
+    state.locals.replace_globals(bindings);
     Ok(state)
 }
 
@@ -133,9 +124,12 @@ fn older_exits_do_not_remove_sources_discovered_by_the_caller() {
     let mut initial = Globals::initial(&mut ctx, &first).unwrap();
     let a_slot = first.source(&mut ctx, a.source).unwrap().files.start;
     let seven = facts.integer(&mut ctx, 7).unwrap();
-    initial.values.data[a_slot] = seven;
-    initial.missing.data[a_slot] = false;
-    initial.written.data[a_slot] = true;
+    let present = crate::checking::globals::Global {
+        value: seven,
+        missing: false,
+    };
+    initial.bindings.set(&mut ctx, a_slot, present).unwrap();
+    initial.written.set(&mut ctx, a_slot, true).unwrap();
     let mut caller = state(&mut ctx, a.source, &initial).unwrap();
     let latest = storage
         .prepare(&mut ctx, &mut facts, b.definition(&[], Some(a.source)))

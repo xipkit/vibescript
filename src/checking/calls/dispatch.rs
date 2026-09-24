@@ -81,13 +81,13 @@ impl<'a> Solver<'_, 'a> {
         index: usize,
     ) -> Result<Fact> {
         let slots = globals.layout.source(ctx, root.source)?;
-        let original = globals.values.data[slots.declarations.start + index];
+        let original = globals.value(ctx, slots.declarations.start + index)?;
         let name = crate::checking::file_bindings::declaration_name(root.world.program, index);
         if root.world.program.file {
             if let Some(index) = root.layouts.files.index(ctx, name)? {
                 let slot = slots.files.start + index;
-                let value = globals.values.data[slot];
-                return if globals.missing.data[slot] {
+                let value = globals.value(ctx, slot)?;
+                return if globals.missing(ctx, slot)? {
                     facts.union(ctx, &[value, original])
                 } else {
                     Ok(value)
@@ -248,7 +248,7 @@ impl<'a> Solver<'_, 'a> {
                     self.created(ctx, index)?;
                 }
                 outcome.value = self.state.jobs.data[index].returns;
-                if context.kind == Kind::Plain && globals.values.data.is_empty() {
+                if context.kind == Kind::Plain && globals.len() == 0 {
                     outcome.throws = self.state.jobs.data[index].throws;
                 } else if let Some(report) = &self.state.jobs.data[index].report {
                     for exit in &report.block_exits.data {

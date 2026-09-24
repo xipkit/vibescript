@@ -74,10 +74,11 @@ impl Solver<'_, '_> {
         for (index, root) in roots.data.iter().enumerate() {
             ctx.charge(1)?;
             let slot = slots.roots.data[index];
-            let binding = if globals.missing.data[slot] {
+            let binding = if globals.missing(ctx, slot)? {
                 crate::checking::type_bindings::Binding::Pending(index)
             } else {
-                bindings.current(ctx, facts, globals.values.data[slot])?
+                let value = globals.value(ctx, slot)?;
+                bindings.current(ctx, facts, value)?
             };
             bindings.insert(ctx, hosts, root.name.as_bytes().unwrap(), binding)?;
         }
@@ -86,12 +87,12 @@ impl Solver<'_, '_> {
             if *receiving != slots.receiving || slots.root(ctx, *slot)?.is_some() {
                 continue;
             }
-            let value = globals.values.data[*slot];
+            let value = globals.value(ctx, *slot)?;
             if value == Atom::Never.fact() {
                 continue;
             }
             let binding = bindings.current(ctx, facts, value)?;
-            if globals.missing.data[*slot] {
+            if globals.missing(ctx, *slot)? {
                 bindings.optional(ctx, hosts, name.as_bytes().unwrap(), binding)?;
             } else {
                 bindings.insert(ctx, hosts, name.as_bytes().unwrap(), binding)?;
@@ -102,7 +103,7 @@ impl Solver<'_, '_> {
             for index in 0..self.world.program.declarations.len() {
                 let name =
                     crate::checking::file_bindings::declaration_name(self.world.program, index);
-                let original = globals.values.data[slots.declarations.start + index];
+                let original = globals.value(ctx, slots.declarations.start + index)?;
                 let value = self.file_type_value(ctx, facts, globals, name, original)?;
                 let binding = bindings.current(ctx, facts, value)?;
                 bindings.insert(ctx, source, name.as_bytes(), binding)?;
@@ -110,13 +111,8 @@ impl Solver<'_, '_> {
         }
         for (index, (name, _)) in self.world.program.globals.iter().enumerate() {
             ctx.charge(1)?;
-            let value = self.file_type_value(
-                ctx,
-                facts,
-                globals,
-                name.name(),
-                globals.values.data[slots.globals.data[index]],
-            )?;
+            let current = globals.value(ctx, slots.globals.data[index])?;
+            let value = self.file_type_value(ctx, facts, globals, name.name(), current)?;
             let binding = bindings.current(ctx, facts, value)?;
             bindings.insert(ctx, source, name.name().as_bytes(), binding)?;
         }
@@ -126,8 +122,8 @@ impl Solver<'_, '_> {
             let base = slots.files.start;
             for (index, name) in self.layouts.files.names.data.iter().enumerate() {
                 ctx.charge(1)?;
-                let value = globals.values.data[base + index];
-                let missing = globals.missing.data[base + index];
+                let value = globals.value(ctx, base + index)?;
+                let missing = globals.missing(ctx, base + index)?;
                 if value == Atom::Never.fact() && missing {
                     continue;
                 }
@@ -166,8 +162,8 @@ impl Solver<'_, '_> {
             return Ok(original);
         };
         let base = globals.layout.source(ctx, self.source)?.files.start;
-        let value = globals.values.data[base + index];
-        if globals.missing.data[base + index] {
+        let value = globals.value(ctx, base + index)?;
+        if globals.missing(ctx, base + index)? {
             facts.union(ctx, &[value, original])
         } else {
             Ok(value)

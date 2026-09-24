@@ -192,24 +192,18 @@ impl Walker<'_> {
 
 impl State {
     pub(super) fn globals(&self, ctx: &mut CallContext) -> Result<Globals> {
-        let mut globals = Globals::empty();
-        globals.layout = self.global_layout.clone();
-        globals.pending = self.global_pending.snapshot(ctx)?;
-        for index in 0..self.global_count {
-            ctx.charge(1)?;
-            let value = self.locals.get(ctx, self.global_base + index)?;
-            globals.values.push(ctx, value.value)?;
-            globals.missing.push(ctx, value.missing)?;
-            let written = self.global_written.get(ctx, index)?;
-            globals.written.push(ctx, written)?;
-        }
-        Ok(globals)
+        ctx.charge(1)?;
+        Ok(Globals {
+            layout: self.global_layout.clone(),
+            bindings: self.locals.globals().snapshot(ctx)?,
+            written: self.global_written.snapshot(ctx)?,
+            pending: self.global_pending.snapshot(ctx)?,
+        })
     }
 
     pub(super) fn global_call(&self, ctx: &mut CallContext) -> Result<Globals> {
         let mut globals = self.globals(ctx)?;
-        ctx.charge(globals.written.data.len() as u64)?;
-        globals.written.data.fill(false);
+        globals.written = Table::new(self.global_count, false);
         for address in &self.addresses.data {
             ctx.charge(1)?;
             if let Some(root) = address.root.filter(|&slot| slot >= self.global_base) {
@@ -228,21 +222,24 @@ impl State {
         globals: &Globals,
     ) -> Result<()> {
         self.expand(ctx, &globals.layout)?;
-        for (index, &value) in globals.values.data.iter().enumerate() {
+        let mut written = Buffer::empty();
+        globals
+            .written
+            .entries(ctx, &mut |ctx, index, _| written.push(ctx, index))?;
+        for index in written.data {
             ctx.charge(1)?;
-            if globals.written.data[index] {
-                self.store(ctx, facts, self.global_base + index, value)?;
-                let slot = self.global_base + index;
-                let binding = self.locals.get(ctx, slot)?;
-                self.locals.set(
-                    ctx,
-                    slot,
-                    Binding {
-                        missing: globals.missing.data[index],
-                        ..binding
-                    },
-                )?;
-            }
+            let global = globals.get(ctx, index)?;
+            let slot = self.global_base + index;
+            self.store(ctx, facts, slot, global.value)?;
+            let binding = self.locals.get(ctx, slot)?;
+            self.locals.set(
+                ctx,
+                slot,
+                Binding {
+                    missing: global.missing,
+                    ..binding
+                },
+            )?;
         }
         let mut returned = globals.pending.addresses.data.iter();
         for address in &mut self.global_pending.addresses.data {
@@ -266,10 +263,10 @@ impl State {
         if self.global_layout.same(&layout) {
             return Ok(false);
         }
-        let Some(length) = self.global_base.checked_add(layout.len()) else {
+        if self.global_base.checked_add(layout.len()).is_none() {
             return ctx.fail(crate::ErrorKind::Memory, "checker state size overflow");
-        };
-        self.locals.grow(ctx, length)?;
+        }
+        self.locals.grow_globals(ctx, layout.len())?;
         self.global_written.grow(ctx, layout.len())?;
         for index in self.global_count..layout.len() {
             ctx.charge(1)?;

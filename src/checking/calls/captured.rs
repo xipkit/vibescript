@@ -163,12 +163,12 @@ impl Solver<'_, '_> {
             };
             let mut normal = Buffer::empty();
             for globals in alternatives.data {
-                let status = globals.values.data[slot];
+                let status = globals.value(ctx, slot)?;
                 for index in 0..facts.arm_count(status) {
                     ctx.charge(1)?;
                     let arm = facts.arm(status, index);
                     let mut globals = globals.snapshot(ctx)?;
-                    globals.values.data[slot] = arm;
+                    globals.set_value(ctx, slot, arm)?;
                     match facts.node(arm) {
                         Node::Boolean(true) => globals.join_into(ctx, facts, &mut normal)?,
                         Node::Symbol(value) if value.as_bytes() == Some(b"loading") => {

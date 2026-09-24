@@ -211,7 +211,7 @@ impl Solver<'_, '_> {
             attempt += 1;
             let source = module.source;
             let slot = globals.layout.source(ctx, source)?.import.unwrap();
-            let status = globals.values.data[slot];
+            let status = globals.value(ctx, slot)?;
             if facts.arm_count(status) > 1 {
                 for arm in 0..facts.arm_count(status) {
                     let arm = facts.arm(status, arm);
@@ -360,15 +360,16 @@ impl Solver<'_, '_> {
         let root = self.root_handle(ctx)?;
         let mut shared = false;
         if let Some(slot) = globals.layout.root(ctx, receiving, name)? {
-            if globals.values.data[slot] != Atom::Never.fact() {
-                if globals.missing.data[slot] {
+            if globals.value(ctx, slot)? != Atom::Never.fact() {
+                if globals.missing(ctx, slot)? {
                     return Ok(Some(Outcome {
                         incomplete: true,
                         ..Outcome::empty()
                     }));
                 }
                 shared = true;
-                bindings.push(ctx, globals.values.data[slot])?;
+                let value = globals.value(ctx, slot)?;
+                bindings.push(ctx, value)?;
             }
         }
         if !shared
@@ -464,7 +465,7 @@ impl Solver<'_, '_> {
                 }
                 let slot = self.state.storage.root(ctx, receiving, name)?;
                 globals.expand(ctx, &self.state.storage.layout)?;
-                if globals.values.data[slot] == Atom::Never.fact() {
+                if globals.value(ctx, slot)? == Atom::Never.fact() {
                     // Supplied roots exist even when their lazy value has not been admitted.
                     if globals
                         .layout
@@ -475,8 +476,9 @@ impl Solver<'_, '_> {
                         continue;
                     }
                     globals.store(ctx, facts, slot, value)?;
-                } else if globals.missing.data[slot] {
-                    let value = facts.union(ctx, &[globals.values.data[slot], value])?;
+                } else if globals.missing(ctx, slot)? {
+                    let current = globals.value(ctx, slot)?;
+                    let value = facts.union(ctx, &[current, value])?;
                     globals.store(ctx, facts, slot, value)?;
                 }
             }

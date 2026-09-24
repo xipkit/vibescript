@@ -77,6 +77,11 @@ impl<T: Copy + Eq> Slots<T> {
         self.len
     }
 
+    /// Returns the value of indices that were never set.
+    pub fn empty(&self) -> T {
+        self.empty
+    }
+
     pub fn get(&self, ctx: &mut CallContext, index: usize) -> Result<T> {
         ctx.checkpoint()?;
         assert!(index < self.len);
@@ -96,11 +101,17 @@ impl<T: Copy + Eq> Slots<T> {
     }
 
     pub fn set(&mut self, ctx: &mut CallContext, index: usize, value: T) -> Result<()> {
+        self.replace(ctx, index, value).map(|_| ())
+    }
+
+    /// Sets an index and returns the value it replaced.
+    pub fn replace(&mut self, ctx: &mut CallContext, index: usize, value: T) -> Result<T> {
         assert!(index < self.len);
-        if self.get(ctx, index)? != value {
+        let previous = self.get(ctx, index)?;
+        if previous != value {
             Self::write(ctx, &mut self.root, self.shift, index, self.empty, value)?;
         }
-        Ok(())
+        Ok(previous)
     }
 
     fn allocate(ctx: &mut CallContext, data: Data<T>) -> Result<Arc<Node<T>>> {
