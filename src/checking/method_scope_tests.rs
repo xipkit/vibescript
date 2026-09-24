@@ -44,7 +44,7 @@ fn general_method_entries_check_declared_domains_without_constructing_receivers(
             false,
         ),
         (
-            "class C;def initialize(@n:int)->int;false;end;end",
+            "class C;def initialize(@n: int)->int;false;end;end",
             "C.new",
             true,
         ),
@@ -220,7 +220,7 @@ fn method_entries_keep_recursive_calls_blocks_and_error_exits() {
             false,
         ),
         (
-            "class C;def initialize(@n:int)->int;false;end;end",
+            "class C;def initialize(@n: int)->int;false;end;end",
             "C#initialize",
             false,
         ),

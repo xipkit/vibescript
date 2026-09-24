@@ -100,7 +100,8 @@ where
     }))))
 }
 
-fn symbol(name: &str) -> String {
+/// The symbol an enum member name normalizes to.
+pub(crate) fn symbol(name: &str) -> String {
     let mut output = String::new();
     let mut chars = name.chars().peekable();
     let mut previous = None;

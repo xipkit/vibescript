@@ -135,7 +135,7 @@ fn hash_callbacks_preserve_break_next_return_and_cleanup() {
     }
     witness("def run; {a:1}.merge({a:2}) {next 7}; end", true, false);
     witness(
-        "def run; {a:{b:1}}.deep_transform_keys {next :x}; end",
+        "def run; {a:{b:1}}.deep_transform_keys do next :x end; end",
         true,
         false,
     );

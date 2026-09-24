@@ -1551,7 +1551,7 @@ fn general_reports_obey_quotas_cancellation_and_deadlines_without_effects() {
 
 #[test]
 fn general_method_reports_select_declarations_and_preserve_constructor_rules() {
-    let script = Engine::new().compile("class C;def initialize(@n:int)->int;'bad';end;private def read->int;'bad';end;def self.read->int;7;end;end;module M;module N;def self.answer->int;7;end;end;end;def unused->int;false;end").unwrap();
+    let script = Engine::new().compile("class C;def initialize(@n: int)->int;'bad';end;private def read->int;'bad';end;def self.read->int;7;end;end;module M;module N;def self.answer->int;7;end;end;end;def unused->int;false;end").unwrap();
     for name in ["C.new", "C.read", "M::N.answer"] {
         let report = script
             .check_function(name, &CallOptions::default())

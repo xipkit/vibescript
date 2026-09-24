@@ -25,6 +25,8 @@ pub(crate) enum Op {
     Raise(u8),
     InitNamespace(usize),
     UnboundClass(usize),
+    /// Refuses a nested function declaration when it runs, as Go does.
+    Unsupported,
     BindIvar(usize, usize),
     NamespaceSelf(usize),
     NamespaceConstant(usize, usize),
@@ -670,7 +672,10 @@ impl<'x> Item<'x> {
                     items.push(work, Item::Expr(value))?;
                 }
             }
-            Statement::Module(_) | Statement::UnboundClass(_) | Statement::Retry => (),
+            Statement::Module(_)
+            | Statement::UnboundClass(_)
+            | Statement::Unsupported
+            | Statement::Retry => (),
             Statement::Expr(e) => items.push(work, Item::Expr(e))?,
             Statement::Assign(target, _, value) => {
                 items.push(work, Item::Target(target))?;
@@ -1520,6 +1525,9 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 let mut c = self.c();
                 let name = c.call_site(name, false).name;
                 c.emit(Op::UnboundClass(name));
+            }
+            Statement::Unsupported => {
+                self.c().emit(Op::Unsupported);
             }
             Statement::Module(name) => {
                 let mut c = self.c();

@@ -59,15 +59,6 @@ impl Program {
                 "duplicate module or top-level declaration",
             ));
         }
-        if module.directives.iter(work)?.any(|(directive, _)| {
-            matches!(directive.as_str(), "public" | "protected")
-                && self.names.contains_key(directive.as_str())
-        }) {
-            return Err(syntax::unsupported(
-                work,
-                "module visibility directive conflicts with a top-level function",
-            ));
-        }
         let children = std::mem::take(&mut module.modules).into_iter();
         Ok(Frame {
             module,

@@ -105,8 +105,13 @@ impl Session {
     /// lines should be read before evaluating it.
     pub fn is_incomplete(&self, source: &str) -> bool {
         match self.engine.compile(source) {
+            // Like Go, an enum that ends its input before a member is
+            // reported at its keyword.
             Err(error) if error.kind == ErrorKind::Syntax => {
-                error.message.starts_with("unterminated") || error.offset == Some(source.len())
+                error.message.starts_with("unterminated")
+                    || error.offset == Some(source.len())
+                    || (error.message.ends_with("must define at least one member")
+                        && source.split_whitespace().last() != Some("end"))
             }
             _ => false,
         }

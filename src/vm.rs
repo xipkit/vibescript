@@ -739,6 +739,9 @@ impl Run {
                         format!("class {} is not bound", program.members[name]),
                     ));
                 }
+                Op::Unsupported => {
+                    return Err(Error::new(ErrorKind::Name, "unsupported statement"));
+                }
                 Op::BindIvar(name, local) => {
                     let Some(Value(Kind::Instance(instance))) = frame.receiver.as_ref() else {
                         return Err(Error::new(

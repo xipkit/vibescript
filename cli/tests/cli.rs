@@ -547,7 +547,7 @@ fn source_read_and_parse_errors_carry_the_filename_and_exit_nonzero() {
     );
     let broken = files.write("broken.vibe", "def run(\n");
     let report = format!(
-        "{broken}:2:0: parse error: expected name\n  --> line 2, column 1\n 2 | \n   | ^\n"
+        "{broken}:2:0: parse error: expected parameter name, got end of input\n  --> line 2, column 1\n 2 | \n   | ^\n"
     );
     vibes(&[&broken]).expect(1, "", &report);
     vibes(&[&broken, "--function", "run", "--checked"]).expect(1, "", &report);
@@ -872,7 +872,7 @@ fn double_dash_ends_option_parsing() {
 }
 
 const UNUSED: &str = "7\ndef unused(n:string) -> int\n  n\nend\nclass C\n  private def bad -> bool\n    7\n  end\nend\n";
-const METHODS: &str = "class C\n  def initialize(@n:int) -> int\n    \"bad\"\n  end\n  private def read -> int\n    \"bad\"\n  end\n  def self.read -> int\n    7\n  end\nend\nmodule M\n  module N\n    def self.answer -> int\n      7\n    end\n  end\nend\ndef unused -> int\n  false\nend\n";
+const METHODS: &str = "class C\n  def initialize(@n: int) -> int\n    \"bad\"\n  end\n  private def read -> int\n    \"bad\"\n  end\n  def self.read -> int\n    7\n  end\nend\nmodule M\n  module N\n    def self.answer -> int\n      7\n    end\n  end\nend\ndef unused -> int\n  false\nend\n";
 
 #[test]
 fn check_command_reports_unused_declarations_that_exact_calls_omit() {
@@ -1148,7 +1148,7 @@ fn check_command_reports_missing_unreadable_and_invalid_sources() {
         run.stderr
     );
     let broken = files.write("broken.vibe", "def run(\n");
-    let report = "compile failed: parse error at 2:0: expected name\n  --> line 2, column 1\n 2 | \n   | ^\n";
+    let report = "compile failed: parse error at 2:0: expected parameter name, got end of input\n  --> line 2, column 1\n 2 | \n   | ^\n";
     vibes(&["check", &broken]).expect(1, "", report);
     vibes(&["check", "--function", "run", &broken]).expect(1, "", report);
     vibes(&["check", "--stats", &broken]).expect(1, "", report);
@@ -1431,8 +1431,7 @@ fn inline_source_diagnostics_use_the_eval_label_and_keep_module_filenames() {
         "<eval>:2:3: Return value: expected int, got string (run)\n",
         "check failed with 1 issue(s)\n",
     );
-    let parse_error =
-        "<eval>:2:0: parse error: expected name\n  --> line 2, column 1\n 2 | \n   | ^\n";
+    let parse_error = "<eval>:2:0: parse error: expected parameter name, got end of input\n  --> line 2, column 1\n 2 | \n   | ^\n";
     vibes(&["-e", "def run(\n"]).expect(1, "", parse_error);
     vibes(&["-e", "def run(\n", "--function", "run", "--checked"]).expect(1, "", parse_error);
     // Go-style commands report a snippet that ends early as the reference does.

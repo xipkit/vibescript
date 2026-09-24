@@ -133,7 +133,10 @@ fn node(node: Node, pending: &mut Vec<Part>) {
 
 fn statement(statement: Statement, pending: &mut Vec<Part>) {
     match statement {
-        Statement::Retry | Statement::Module(_) | Statement::UnboundClass(_) => {}
+        Statement::Retry
+        | Statement::Module(_)
+        | Statement::UnboundClass(_)
+        | Statement::Unsupported => {}
         Statement::Raise(value, message) => pending.extend(
             value
                 .into_iter()

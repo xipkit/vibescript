@@ -1,279 +1,86 @@
 use super::{
-    Definition, Expr, Node, ParamKind, Parameter, Parser, Parsing, Statement, Token, keyword,
+    Definition, Expr, Label, Node, ParamKind, Parameter, Parser, Statement, Token,
     modules::{Module, Visibility},
+    source_text,
 };
 use crate::{
     Result,
-    compilation::{Buffer, Name, Table},
+    compilation::{Buffer, Name, Text},
 };
 
-enum Member {
-    Method(Name, bool, u32),
-    Statement,
-    Declared,
-}
-
-impl Parsing<'_> {
-    pub(super) async fn class(&self) -> Result<Module> {
-        let work = self.p().work;
-        let (mut class, outer_locals, outer_it) = {
-            let mut p = self.p();
-            work.charge(1)?;
-            p.enter()?;
-            let offset = p.previous()?.offset as u32;
-            let name = p.name()?;
-            if keyword(&name) || name.starts_with('@') {
-                return p.err("expected class name");
-            }
-            if p.token() == &Token::Op("<") {
-                return p.err("class inheritance is not supported; call shared module functions");
-            }
-            let outer_locals = std::mem::take(&mut p.locals);
-            let outer_it = std::mem::replace(&mut p.declared_it, false);
-            p.lines()?;
-            let class = Module {
-                offset,
-                is_class: true,
-                instance_methods: Buffer::new(),
-                name,
-                methods: Buffer::new(),
-                body: Buffer::new(),
-                modules: Buffer::new(),
-                directives: Table::new(),
-                depth: 1,
-            };
-            (class, outer_locals, outer_it)
-        };
-        let mut visibility = Visibility::Public;
-        while !matches!(self.p().token(), Token::Word(w) if w == "end") {
-            let mut method_visibility = visibility;
-            let member = {
-                let mut p = self.p();
-                if p.token() == &Token::Eof {
-                    return p.err("unexpected end of class");
-                }
-                work.charge(1)?;
-                if matches!(p.token(), Token::Word(w) if w == "private")
-                    && p.tokens[p.pos + 1].token == Token::P('(')
-                {
-                    return p.err("private visibility directives do not take parentheses");
-                }
-                if let Some((word, level)) = p.visibility()? {
-                    p.bump()?;
-                    class.directives.insert(work, word, ())?;
-                    if p.token() == &Token::P(':') {
-                        loop {
-                            let name = p.class_alias_name(true)?;
-                            work.charge(class.instance_methods.len() + class.methods.len())?;
-                            let instance = class
-                                .instance_methods
-                                .iter_mut()
-                                .rev()
-                                .find(|(m, _)| m.name == name);
-                            let target = instance.or_else(|| {
-                                class.methods.iter_mut().rev().find(|(m, _)| m.name == name)
-                            });
-                            let Some((_, current)) = target else {
-                                return p.err("visibility directive names an undefined method");
-                            };
-                            *current = level;
-                            if !p.take_p(',') {
-                                break;
-                            }
-                        }
-                        p.lines()?;
-                        continue;
-                    }
-                    if p.token() == &Token::EndLine
-                        || matches!(p.token(), Token::Word(w) if w == "end")
-                    {
-                        visibility = level;
-                        p.lines()?;
-                        continue;
-                    }
-                    method_visibility = level;
-                }
-                if p.word("def") {
-                    let offset = p.previous()?.offset as u32;
-                    let class_method = p.word("self");
-                    if class_method {
-                        p.expect_p('.')?;
-                    }
-                    let name = p.class_method_name(class_method)?;
-                    Member::Method(name, class_method, offset)
-                } else if matches!(p.token(), Token::Word(w) if matches!(w.as_str(), "property" | "getter" | "setter"))
-                {
-                    let Token::Word(kind) = p.bump()? else {
-                        unreachable!()
-                    };
-                    p.class_properties(&mut class, &kind, method_visibility)?;
-                    Member::Declared
-                } else if p.word("alias_method") {
-                    let offset = p.tokens[p.pos - 1].offset as u32;
-                    let parens = p.take_p('(');
-                    let new = p.class_alias_name(true)?;
-                    p.expect_p(',')?;
-                    let old = p.class_alias_name(true)?;
-                    if parens {
-                        p.expect_p(')')?;
-                    }
-                    p.class_alias(&mut class, new, old, offset)?;
-                    Member::Declared
-                } else if p.alias_ahead() {
-                    let offset = p.tokens[p.pos].offset as u32;
-                    let (new, old) = p.alias_names()?;
-                    p.class_alias(&mut class, new, old, offset)?;
-                    Member::Declared
-                } else if p.removed_mixin()? {
-                    return p
-                        .err("include and extend are not supported; call shared module functions");
-                } else {
-                    Member::Statement
-                }
-            };
-            match member {
-                Member::Method(name, class_method, offset) => {
-                    let definition = self
-                        .definition_with_constants(name.clone(), true, offset)
-                        .await?;
-                    class.depth = class.depth.max(1 + definition.depth());
-                    if name == "initialize" {
-                        method_visibility = Visibility::Private;
-                    }
-                    let methods = if class_method {
-                        &mut class.methods
-                    } else {
-                        &mut class.instance_methods
-                    };
-                    methods.push(work, (definition, method_visibility))?;
-                }
-                Member::Statement => {
-                    let stmt = self.statement().await?;
-                    class.depth = class.depth.max(1 + stmt.depth);
-                    class.body.push(work, stmt)?;
-                }
-                Member::Declared => (),
-            }
-            self.p().lines()?;
-        }
-        let mut p = self.p();
-        p.expect_word("end")?;
-        p.check_depth(class.depth)?;
-        p.locals = outer_locals;
-        p.declared_it = outer_it;
-        p.depth -= 1;
-        Ok(class)
-    }
-}
-
 impl Parser<'_> {
-    fn removed_mixin(&self) -> Result<bool> {
-        let Token::Word(word) = self.token() else {
-            return Ok(false);
-        };
-        if !matches!(word.as_str(), "include" | "extend") {
-            return Ok(false);
-        }
-        let next = &self.tokens[self.pos + 1];
-        let same_line = next.line == self.tokens[self.pos].line;
-        Ok((same_line
-            && (next.token == Token::P('(')
-                || matches!(&next.token, Token::Word(w) if !keyword(w) || w == "self")))
-            || (!self.locals.contains(self.work, word.as_str())?
-                && (!same_line
-                    || matches!(next.token, Token::EndLine | Token::Eof | Token::P('}'))
-                    || matches!(&next.token, Token::Word(w) if matches!(w.as_str(), "end" | "else" | "elsif" | "ensure" | "rescue")))))
-    }
-
-    fn class_method_name(&mut self, class: bool) -> Result<Name> {
-        self.work.charge(1)?;
-        let (mut name, operator) = if !class && self.take_p('[') {
-            self.expect_p(']')?;
-            (Name::new(self.work, "[]")?, true)
-        } else if !class
-            && matches!(
-                self.token(),
-                Token::Op(
-                    "+" | "-"
-                        | "*"
-                        | "/"
-                        | "%"
-                        | "**"
-                        | "<<"
-                        | "&"
-                        | "=="
-                        | "!="
-                        | "<"
-                        | "<="
-                        | ">"
-                        | ">="
-                        | "<=>"
-                )
-            )
-        {
-            let Token::Op(op) = self.bump()? else {
-                unreachable!()
-            };
-            (Name::new(self.work, op)?, true)
-        } else {
-            let name = self.name()?;
-            if keyword(&name) || name.starts_with('@') {
-                return self.err("expected method name");
-            }
-            (name, false)
-        };
-        if (!operator || name == "[]") && self.token() == &Token::Op("=") {
-            self.bump()?;
-            name = Name::join(self.work, &[&name, "="])?;
-        }
-        Ok(name)
-    }
-
     /// Reports whether `alias` starts a declaration. Go requires a name or
     /// symbol on the same line and otherwise reads `alias` as an identifier.
     pub(super) fn alias_ahead(&self) -> bool {
         let next = &self.tokens[self.pos + 1];
         matches!(self.token(), Token::Word(w) if w == "alias")
-            && (next.line == self.tokens[self.pos].line
-                && matches!(&next.token, Token::Word(w) if !keyword(w) && !w.starts_with('@'))
-                || next.token == Token::P(':'))
+            && next.line == self.tokens[self.pos].line
+            && (self.ident(self.pos + 1)
+                || matches!(next.token, Token::Symbol(_) | Token::QuotedSymbol(_)))
     }
 
+    /// Reads the two names of an alias declaration, which Go requires on the
+    /// line of `alias`.
     pub(super) fn alias_names(&mut self) -> Result<(Name, Name)> {
         self.work.charge(1)?;
+        let line = self.tokens[self.pos].line;
         self.bump()?;
-        let line = self.previous()?.line;
-        let new = self.class_alias_name(false)?;
-        if self.tokens[self.pos].line != line {
-            return self.err("alias names must be on the same line");
-        }
-        let old = self.class_alias_name(false)?;
+        let new = self.alias_name(line)?;
+        let old = self.alias_name(line)?;
         Ok((new, old))
     }
 
-    fn class_alias_name(&mut self, symbol: bool) -> Result<Name> {
-        self.work.charge(1)?;
-        if self.take_p(':') {
-            let Node::Literal(value) = self.symbol()?.into_node() else {
-                return self.err("expected method symbol");
-            };
-            let bytes = value.as_bytes().unwrap();
-            self.work.bytes(bytes.len())?;
-            let name = std::str::from_utf8(bytes)
-                .map_err(|_| super::unsupported(self.work, "method names must be UTF-8"))?;
-            return Name::new(self.work, name);
+    fn alias_name(&mut self, line: usize) -> Result<Name> {
+        self.pos = self.significant(self.pos);
+        if self.tokens[self.pos].line == line {
+            if self.ident(self.pos) {
+                return self.name();
+            }
+            if let Some(name) = self.symbol_name()? {
+                return Ok(name);
+            }
         }
-        if symbol {
-            return self.err("expected method name symbol");
-        }
-        let name = self.name()?;
-        if keyword(&name) || name.starts_with('@') {
-            return self.err("expected method alias name");
-        }
-        Ok(name)
+        self.expected(Label::Text("alias name"))
     }
 
-    fn class_alias(&mut self, class: &mut Module, new: Name, old: Name, offset: u32) -> Result<()> {
+    /// Reads `alias_method :new, :old`, optionally parenthesized, as Go's
+    /// `parseAliasMethodStatement` does.
+    pub(super) fn alias_method(&mut self) -> Result<(Name, Name)> {
+        self.work.charge(1)?;
+        self.bump()?;
+        let parenthesized = self.tokens[self.significant(self.pos)].token == Token::P('(');
+        if parenthesized {
+            self.line_breaks()?;
+            self.bump()?;
+        }
+        let new = self.expect_symbol()?;
+        self.line_breaks()?;
+        self.expect_p(',')?;
+        let old = self.expect_symbol()?;
+        if parenthesized {
+            self.line_breaks()?;
+            self.expect_p(')')?;
+        }
+        Ok((new, old))
+    }
+
+    fn expect_symbol(&mut self) -> Result<Name> {
+        self.line_breaks()?;
+        match self.symbol_name()? {
+            Some(name) => Ok(name),
+            None => self.expected(Label::Text("symbol")),
+        }
+    }
+
+    /// Copies the aliased instance method, or records Go's compile error when
+    /// it is not defined yet.
+    pub(super) fn class_alias(
+        &mut self,
+        class: &mut Module,
+        new: Name,
+        old: Name,
+        offset: u32,
+    ) -> Result<()> {
         self.work.charge(1)?;
         self.work.charge(class.instance_methods.len())?;
         let Some((target, visibility)) = class
@@ -282,7 +89,14 @@ impl Parser<'_> {
             .rev()
             .find(|(m, _)| m.name == old)
         else {
-            return self.err("alias target method is not defined on class");
+            if class.missing.is_none() {
+                let message = format!(
+                    "alias target method {old} is not defined on class {}",
+                    class.name
+                );
+                class.missing = Some(Text::new(self.work, &message)?);
+            }
+            return Ok(());
         };
         let mut definition = super::work::definition(self.work, target)?;
         self.work.checkpoint()?;
@@ -303,20 +117,40 @@ impl Parser<'_> {
         Ok(())
     }
 
-    fn class_properties(
+    /// Reads an accessor declaration from its keyword, as Go's
+    /// `parsePropertyDecl` does.
+    pub(super) fn class_properties(
         &mut self,
         class: &mut Module,
         kind: &str,
         visibility: Visibility,
     ) -> Result<()> {
         self.work.charge(1)?;
+        self.bump()?;
+        self.line_breaks()?;
         loop {
             let offset = self.tokens[self.pos].offset as u32;
-            let name = self.name()?;
-            if keyword(&name) || name.starts_with('@') {
-                return self.err("expected property name");
+            if !self.ident(self.pos) {
+                if let Token::Symbol(name) = self.token() {
+                    let name = source_text(name);
+                    return self.err(format_args!(
+                        "property takes a bare name: property {name}, not property :{name}"
+                    ));
+                }
+                if let Token::QuotedSymbol(name) = self.token() {
+                    let name = String::from_utf8_lossy(name);
+                    let name = source_text(&name);
+                    return self.err(format_args!(
+                        "property takes a bare name: property {name}, not property :{name}"
+                    ));
+                }
+                return self.expected(Label::Text("property name"));
             }
-            let ty = if self.take_p(':') {
+            let name = self.name()?;
+            let colon = self.significant(self.pos);
+            let ty = if self.tokens[colon].token == Token::P(':') {
+                self.pos = colon + 1;
+                self.line_breaks()?;
                 Some(self.type_expr(1, false)?)
             } else {
                 None
@@ -372,9 +206,12 @@ impl Parser<'_> {
                     ),
                 )?;
             }
-            if !self.take_p(',') {
+            let comma = self.significant(self.pos);
+            if self.tokens[comma].token != Token::P(',') {
                 break;
             }
+            self.pos = comma + 1;
+            self.line_breaks()?;
         }
         Ok(())
     }

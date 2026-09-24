@@ -1,4 +1,4 @@
-use super::{Expr, Node, Parser, Parsing, Token, keyword};
+use super::{Expr, Label, Node, Parser, Parsing, Token, keyword};
 use crate::{
     Result,
     compilation::{Boxed, Buffer, Bytes, Field, Name, Type, TypeKind},
@@ -21,11 +21,14 @@ impl Parsing<'_> {
         self.typed_hash_group(candidate, end).await
     }
 
+    /// Parses a braced group that also reads as a shape type. Like Go, a group
+    /// that reads only as a malformed shape reports the shape's error.
     async fn typed_hash_group(&self, candidate: Option<Type>, end: usize) -> Result<Expr> {
         let work = self.p().work;
         // Type-only tokens cannot alter locals or re-lex percent expressions.
-        let (structural, state) = {
+        let (structural, start, state) = {
             let p = self.p();
+            let start = p.pos;
             let state = (
                 p.depth,
                 p.groups,
@@ -37,7 +40,7 @@ impl Parsing<'_> {
                 p.then_stop,
                 p.declared_it,
             );
-            (p.type_structural_error, state)
+            (p.type_structural_error, start, state)
         };
         match self.hash_group().await {
             Ok(fallback) => {
@@ -81,6 +84,10 @@ impl Parsing<'_> {
                 ) = state;
                 p.type_structural_error = structural;
                 let Some(ty) = candidate else {
+                    if error.kind == crate::ErrorKind::Syntax {
+                        p.pos = start;
+                        p.type_shape(0)?;
+                    }
                     return Err(error);
                 };
                 p.pos = end;
@@ -163,6 +170,8 @@ impl Parser<'_> {
         Ok((candidate, end, malformed))
     }
 
+    /// Parses a type annotation, as Go's `parseTypeExpr` does. A block
+    /// parameter's union continues only while another option and a boundary follow.
     pub(super) fn type_expr(&mut self, depth: usize, block: bool) -> Result<Type> {
         self.work.charge(1)?;
         if depth > 64 {
@@ -197,93 +206,136 @@ impl Parser<'_> {
         })
     }
 
-    fn type_atom(&mut self, depth: usize) -> Result<Type> {
+    /// Parses a type option with its nullable suffix, as Go's `parseTypeAtom` does.
+    pub(super) fn type_atom(&mut self, depth: usize) -> Result<Type> {
         self.work.charge(1)?;
         let mut ty = if self.take_p('{') {
             self.type_shape(depth)?
         } else {
             self.named_type(depth)?
         };
-        let boundary = self.pos;
-        self.line_breaks()?;
-        if self.take_p('?') {
+        let question = self.significant(self.pos);
+        if self.tokens[question].token == Token::P('?') {
+            self.pos = question;
             if ty.nullable {
-                return self.err("duplicate nullable suffix");
+                return self.err(format_args!(
+                    "duplicate nullable suffix on type {}",
+                    type_text(&ty, self.work)?
+                ));
             }
+            self.bump()?;
             ty.nullable = true;
-            if self.token() == &Token::P('?') {
-                return self.err("duplicate nullable suffix");
+            let second = self.significant(self.pos);
+            if self.tokens[second].token == Token::P('?') {
+                self.pos = second;
+                return self.err(format_args!(
+                    "duplicate nullable suffix on type {}",
+                    type_text(&ty, self.work)?
+                ));
             }
-        } else {
-            self.pos = boundary;
         }
         Ok(ty)
     }
 
     fn named_type(&mut self, depth: usize) -> Result<Type> {
-        let Token::Word(name) = self.bump()? else {
-            return self.err("expected type name");
-        };
-        let name = name.as_str();
-        if keyword(name) && name != "nil" {
-            return self.err("expected type name");
+        if !self.ident(self.pos) && !matches!(self.token(), Token::Word(w) if w == "nil") {
+            return self.expected(Label::Text("type name"));
         }
-        let nullable = name.ends_with('?');
-        let name = name.strip_suffix('?').unwrap_or(name);
+        let mut index = self.pos;
+        let Token::Word(written) = self.bump()? else {
+            unreachable!()
+        };
+        let written = written.as_str();
+        let name = written.strip_suffix('?').unwrap_or(written);
         if name.ends_with('?') {
-            return self.err("duplicate nullable suffix");
+            self.pos = index;
+            return self.err(format_args!(
+                "duplicate nullable suffix on type {}",
+                super::source_text(written)
+            ));
         }
         let mut ty = Type::named(Name::new(self.work, name)?);
-        ty.nullable = nullable;
-        if matches!(ty.kind, TypeKind::Named) && self.take_p('.') {
+        ty.nullable = name.len() < written.len();
+        let dot = self.significant(self.pos);
+        if matches!(ty.kind, TypeKind::Named) && self.tokens[dot].token == Token::P('.') {
             if ty.nullable {
-                return self.err("nullable suffix belongs on qualified member");
+                self.pos = index;
+                return self.err(format_args!(
+                    "nullable suffix on {name} is misplaced; write {name}.Name? instead",
+                    name = super::source_text(name)
+                ));
             }
-            self.line_breaks()?;
+            self.pos = self.significant(dot + 1);
+            if !self.ident(self.pos) {
+                return self.expected(Label::Text("identifier"));
+            }
+            index = self.pos;
             let Token::Word(member) = self.bump()? else {
-                return self.err("expected qualified type name");
+                unreachable!()
             };
             let member = member.as_str();
-            if keyword(member) {
-                return self.err("expected qualified type name");
-            }
             ty.nullable = member.ends_with('?');
             let member = member.strip_suffix('?').unwrap_or(member);
-            if member.ends_with('?') {
-                return self.err("duplicate nullable suffix");
-            }
             ty.name = Name::join(self.work, &[&ty.name, ".", member])?;
         }
-        let boundary = self.pos;
-        self.line_breaks()?;
-        if self.token() == &Token::Op("<") {
-            if ty.nullable {
-                return self.err("nullable suffix belongs after type arguments");
-            }
-            if !matches!(ty.kind, TypeKind::Array(_) | TypeKind::Hash(_)) {
-                return self.err("type does not accept type arguments");
-            }
-            self.bump()?;
-            let first = self.type_expr(depth + 1, false)?;
-            self.line_breaks()?;
-            ty.kind = if matches!(ty.kind, TypeKind::Array(_)) {
-                TypeKind::Array(Some(Boxed::new(self.work, first)?))
-            } else {
-                self.expect_p(',')?;
-                let second = self.type_expr(depth + 1, false)?;
-                self.line_breaks()?;
-                TypeKind::Hash(Some(Boxed::new(self.work, (first, second))?))
-            };
-            if self.token() != &Token::Op(">") {
-                return self.err("expected closing type argument bracket");
-            }
-            self.bump()?;
-        } else {
-            self.pos = boundary;
+        let open = self.significant(self.pos);
+        if self.tokens[open].token != Token::Op("<") {
+            return Ok(ty);
         }
+        if !matches!(ty.kind, TypeKind::Array(_) | TypeKind::Hash(_)) {
+            self.pos = index;
+            return self.err(format_args!(
+                "type {} does not accept type arguments",
+                super::source_text(&ty.name)
+            ));
+        }
+        if ty.nullable {
+            self.pos = index;
+            let base = super::source_text(&ty.name);
+            return self.err(format_args!(
+                "nullable suffix on {base} is misplaced; write the nullable container after its type arguments, e.g. {base}<...>?, instead of {base}?<...>"
+            ));
+        }
+        self.pos = open + 1;
+        let mut arguments = Buffer::new();
+        loop {
+            self.line_breaks()?;
+            arguments.push(self.work, self.type_expr(depth + 1, false)?)?;
+            let next = self.significant(self.pos);
+            self.pos = next;
+            if self.take_p(',') {
+                continue;
+            }
+            if self.token() != &Token::Op(">") {
+                return self.expected(Label::Text(">"));
+            }
+            self.bump()?;
+            break;
+        }
+        let array = matches!(ty.kind, TypeKind::Array(_));
+        let expected = if array { 1 } else { 2 };
+        if arguments.len() != expected {
+            return Err(crate::Error::syntax(
+                self.work,
+                self.tokens[index].offset,
+                if array {
+                    "array type expects exactly 1 type argument"
+                } else {
+                    "hash type expects exactly 2 type arguments"
+                },
+            ));
+        }
+        ty.kind = if array {
+            TypeKind::Array(Some(Boxed::new(self.work, arguments.pop().unwrap())?))
+        } else {
+            let second = arguments.pop().unwrap();
+            let first = arguments.pop().unwrap();
+            TypeKind::Hash(Some(Boxed::new(self.work, (first, second))?))
+        };
         Ok(ty)
     }
 
+    /// Parses a shape type after its `{`, as Go's `parseTypeShape` does.
     fn type_shape(&mut self, depth: usize) -> Result<Type> {
         self.work.charge(1)?;
         let mut fields: Buffer<Field> = Buffer::new();
@@ -294,17 +346,24 @@ impl Parser<'_> {
                 if self.token() == &Token::Op("...") {
                     self.bump()?;
                     self.line_breaks()?;
-                    self.expect_p('}')?;
+                    if !self.take_p('}') {
+                        return self.expected(Label::Text("}"));
+                    }
                     open = true;
                     break;
                 }
                 let (name, optional) = self.shape_field_name()?;
+                self.line_breaks()?;
                 let ty = self.type_expr(depth + 1, false)?;
                 self.work.charge(fields.len())?;
                 if let Some(prior) = fields.iter().find(|field| field.name == name) {
                     self.type_structural_error =
                         !self.default_field(&prior.ty)? && !self.default_field(&ty)?;
-                    return self.err("duplicate shape field");
+                    self.pos -= 1;
+                    return self.err(format_args!(
+                        "duplicate shape field {}",
+                        super::source_text(&String::from_utf8_lossy(&name))
+                    ));
                 }
                 fields.push(self.work, Field { name, ty, optional })?;
                 self.line_breaks()?;
@@ -312,10 +371,9 @@ impl Parser<'_> {
                     break;
                 }
                 if !self.take_p(',') {
-                    self.type_structural_error =
-                        matches!(self.token(), Token::Word(_) | Token::Bytes(_))
-                            && self.tokens[self.pos + 1].token == Token::P(':');
-                    return self.err("expected shape field separator");
+                    self.type_structural_error = self.shape_field_start(self.pos)
+                        && self.tokens[self.significant(self.pos + 1)].token == Token::P(':');
+                    return self.expected(Label::Text("}"));
                 }
                 self.line_breaks()?;
             }
@@ -328,41 +386,40 @@ impl Parser<'_> {
         })
     }
 
+    /// Go's `tokenStartsShapeFieldName`: a label, plain string or symbol.
+    fn shape_field_start(&self, index: usize) -> bool {
+        match &self.tokens[index].token {
+            Token::Word(word) => !word.starts_with('@'),
+            Token::Bytes(_) | Token::Symbol(_) | Token::QuotedSymbol(_) => true,
+            _ => false,
+        }
+    }
+
     fn shape_field_name(&mut self) -> Result<(Bytes, bool)> {
-        let symbol = self.token() == &Token::P(':');
-        let (name, optional) = match self.bump()? {
-            Token::Word(name) => {
-                let name = name.as_str();
-                let optional = name.ends_with('?');
-                let name = name.strip_suffix('?').unwrap_or(name);
+        // Like Go, a field is named by a label, a plain string or a symbol.
+        let (name, optional) = match self.token() {
+            Token::Word(word) if !word.starts_with('@') => {
+                let raw = word.as_str();
+                let name = raw.strip_suffix('?').unwrap_or(raw);
                 if name.ends_with('?') {
-                    return self.err("duplicate optional shape field suffix");
+                    return self.err(format_args!(
+                        "duplicate optional suffix on shape field {}",
+                        super::source_text(raw)
+                    ));
                 }
-                (Bytes::from_slice(self.work, name.as_bytes())?, optional)
+                (
+                    Bytes::from_slice(self.work, name.as_bytes())?,
+                    name.len() < raw.len(),
+                )
             }
-            Token::Bytes(bytes) => (bytes, false),
-            Token::P(':') => {
-                if !self.symbol_start(self.pos - 1) {
-                    return self.err("expected symbol shape field");
-                }
-                let name = match self.bump()? {
-                    Token::Word(name) => Bytes::from_slice(self.work, name.as_bytes())?,
-                    Token::Bytes(bytes) => bytes,
-                    Token::Op(op) => Bytes::from_slice(self.work, op.as_bytes())?,
-                    _ => return self.err("expected symbol shape field"),
-                };
-                (name, false)
-            }
-            _ => return self.err("expected shape field name"),
+            Token::Bytes(bytes) | Token::QuotedSymbol(bytes) => (bytes.clone(), false),
+            Token::Symbol(name) => (Bytes::from_slice(self.work, name.as_bytes())?, false),
+            _ => return self.expected(super::Label::Text("shape field name")),
         };
+        self.bump()?;
         self.line_breaks()?;
-        self.expect_p(':')?;
-        // An adjacent identifier after a symbol key starts another symbol.
-        if symbol
-            && matches!(self.token(), Token::Word(_))
-            && self.previous()?.end == self.tokens[self.pos].offset
-        {
-            return self.err("expected shape field separator");
+        if !self.take_p(':') {
+            return self.expected(super::Label::Text(":"));
         }
         Ok((name, optional))
     }
@@ -512,4 +569,13 @@ fn literal_names(
         }
     }
     Ok(())
+}
+
+/// Spells a type for a diagnostic, as Go's `FormatTypeExpr` does, within
+/// Go's bound on quoted source.
+fn type_text(ty: &Type, work: &dyn crate::compilation::Work) -> Result<String> {
+    let mut text = Vec::new();
+    crate::shapes::format(ty, &mut text)?;
+    work.bytes(text.len())?;
+    Ok(super::source_text(&String::from_utf8_lossy(&text)).to_string())
 }

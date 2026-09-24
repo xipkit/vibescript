@@ -189,7 +189,9 @@ fn kind(text: &str, stmt: &Stmt) -> StatementKind {
         Statement::Next(_) => StatementKind::Next,
         Statement::Retry => StatementKind::Retry,
         // Declarations never reach here; a nested class is an expression-like statement.
-        Statement::Module(_) | Statement::UnboundClass(_) => StatementKind::Expression,
+        Statement::Module(_) | Statement::UnboundClass(_) | Statement::Unsupported => {
+            StatementKind::Expression
+        }
     }
 }
 
@@ -258,7 +260,10 @@ fn locals(body: &[Stmt]) -> Vec<String> {
                 Statement::Raise(value, message) => {
                     pending.extend(value.iter().chain(message).map(|e| Visit::Expr(e)));
                 }
-                Statement::Retry | Statement::Module(_) | Statement::UnboundClass(_) => (),
+                Statement::Retry
+                | Statement::Module(_)
+                | Statement::UnboundClass(_)
+                | Statement::Unsupported => (),
                 Statement::Expr(expr) => pending.push(Visit::Expr(expr)),
                 Statement::Assign(target, _, value) => {
                     pending.push(Visit::Target(target));

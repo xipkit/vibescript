@@ -153,7 +153,7 @@ fn instance_lookup_visibility_and_setters_match_runtime() {
 #[test]
 fn constructor_defaults_errors_and_ensure_keep_observable_state() {
     run(
-        "class C;property n;def initialize(@n:int=2,scale:3);@n*=scale;ensure;@n+=1;end;end;def run;[C.new.n,C.new(4,scale:2).n];end",
+        "class C;property n;def initialize(@n: int=2,scale:3);@n*=scale;ensure;@n+=1;end;end;def run;[C.new.n,C.new(4,scale:2).n];end",
         "[7, 9]",
     );
     run(
@@ -234,7 +234,7 @@ fn instance_analysis_summarizes_loop_allocations() {
 #[test]
 fn instance_heaps_and_property_checks_are_metered_interruptible_and_released() {
     for source in [
-        "class C;property n:int;def initialize(@n:int);end;def bump;@n+=1;end;end;def run;c=C.new(1);c.bump;c.n;end",
+        "class C;property n:int;def initialize(@n: int);end;def bump;@n+=1;end;end;def run;c=C.new(1);c.bump;c.n;end",
         "class C;getter xs:array<int>;def initialize;@xs=[1,2];end;def bump;@xs[-1]+=(begin;@xs.push(4);7;end);end;end;def run;C.new.bump;end",
         "class C;property link;end;def run;a=C.new;b=C.new;a.link=b;b.link=a;a.link==b;end",
     ] {

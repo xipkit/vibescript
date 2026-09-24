@@ -6,18 +6,19 @@ impl Parsing<'_> {
         {
             let p = self.p();
             work.charge(1)?;
-            if !p.starts_expression()
-                || matches!(p.token(), Token::Word(w) if matches!(w.as_str(), "if"|"unless"|"while"|"until"))
-            {
+            let line = p.tokens[p.pos - 1].line;
+            if p.ends_after(p.pos - 1, line) || p.modifier_follows(line) {
                 return Ok(Statement::Raise(None, None));
             }
         }
+        self.p().line_breaks()?;
         let value = self.line_expr(0).await?;
         let separated = {
             let mut p = self.p();
             p.tokens[p.pos].line == p.previous()?.end_line && p.take_p(',')
         };
         let message = if separated {
+            self.p().line_breaks()?;
             Some(Boxed::new(work, self.line_expr(0).await?)?)
         } else {
             None
@@ -25,45 +26,26 @@ impl Parsing<'_> {
         Ok(Statement::Raise(Some(Boxed::new(work, value)?), message))
     }
 
-    pub(super) async fn rescue_tail(&self, body: Buffer<Stmt>, function: bool) -> Result<Try> {
+    /// Parses the rescue, else and ensure clauses after a begin or function
+    /// body, as Go's `parseRescueElseEnsureTail` does, given the offset of the
+    /// `def` or `begin` that owns them.
+    pub(super) async fn rescue_tail(
+        &self,
+        body: Buffer<Stmt>,
+        function: bool,
+        start: u32,
+    ) -> Result<Try> {
         let work = self.p().work;
         work.charge(1)?;
+        let owner = if function { "function" } else { "begin" };
         let mut rescues = Buffer::new();
-        while self.p().word("rescue") {
+        while matches!(self.p().token(), Token::Word(w) if w == "rescue") {
             let (offset, classes, binding, existed, declared_it) = {
                 let mut p = self.p();
-                let token = &p.tokens[p.pos - 1];
-                let offset = token.offset as u32;
-                let line = token.line;
-                let mut classes = Buffer::from_array(work, [crate::ErrorClass::Standard])?;
-                let mut binding = None;
-                if p.tokens[p.pos].line == line {
-                    if matches!(p.token(), Token::Word(w) if !reserved(w))
-                        || p.token() == &Token::P('(')
-                    {
-                        let grouped = p.take_p('(');
-                        let ty = p.type_expr(1, false)?;
-                        if grouped {
-                            p.expect_p(')')?;
-                        }
-                        classes.truncate(0);
-                        error_classes(&ty, &mut classes, work, offset as usize)?;
-                    }
-                    if p.tokens[p.pos].line == line && p.token() == &Token::Op("=>") {
-                        p.bump()?;
-                        if p.tokens[p.pos].line != line {
-                            return p.err("rescue binding must be an identifier");
-                        }
-                        let name = p.name()?;
-                        if name.starts_with('@') {
-                            return p.err("rescue binding must be an identifier");
-                        }
-                        binding = Some(name);
-                    }
-                    if p.token() == &Token::Op("->") {
-                        return p.err("rescue binding must use =>");
-                    }
-                }
+                let offset = p.tokens[p.pos].offset as u32;
+                let line = p.tokens[p.pos].line;
+                p.bump()?;
+                let (classes, binding) = p.rescue_clause(offset as usize, line)?;
                 let existed = match &binding {
                     Some(name) => p.locals.contains(work, name)?,
                     None => false,
@@ -95,10 +77,11 @@ impl Parsing<'_> {
                 },
             )?;
         }
-        let alternate = if self.p().word("else") {
+        let alternate = if matches!(self.p().token(), Token::Word(w) if w == "else") {
             if rescues.is_empty() {
-                return self.p().err("else requires rescue");
+                return self.p().err(format_args!("{owner} else requires rescue"));
             }
+            self.p().bump()?;
             self.block(&["ensure", "end"]).await?
         } else {
             Buffer::new()
@@ -109,13 +92,17 @@ impl Parsing<'_> {
             Buffer::new()
         };
         let mut p = self.p();
+        p.expect_word("end")?;
         if (function || !rescues.is_empty())
             && rescues.iter().all(|r| r.body.is_empty())
             && ensure.is_empty()
         {
-            return p.err("begin requires rescue and/or ensure");
+            return Err(Error::syntax(
+                work,
+                start as usize,
+                format_args!("{owner} requires rescue and/or ensure"),
+            ));
         }
-        p.expect_word("end")?;
         Ok(Try {
             modifier: false,
             body,
@@ -155,25 +142,124 @@ impl Parsing<'_> {
     }
 }
 
-fn error_classes(
+impl Parser<'_> {
+    /// Reports whether a statement modifier follows on `line`.
+    pub(super) fn modifier_follows(&self, line: usize) -> bool {
+        let next = self.significant(self.pos);
+        self.tokens[next].line == line
+            && matches!(&self.tokens[next].token, Token::Word(w) if matches!(w.as_str(), "if" | "unless" | "while" | "until"))
+    }
+
+    /// Parses a rescue clause's error classes and binding, as Go's
+    /// `parseRescueClause` does, after the `rescue` at `rescue`.
+    fn rescue_clause(
+        &mut self,
+        rescue: usize,
+        line: usize,
+    ) -> Result<(Buffer<crate::ErrorClass>, Option<Name>)> {
+        let work = self.work;
+        let mut classes = Buffer::from_array(work, [crate::ErrorClass::Standard])?;
+        let next = self.significant(self.pos);
+        if self.tokens[next].line != line {
+            return Ok((classes, None));
+        }
+        let grouped = self.tokens[next].token == Token::P('(');
+        if grouped || self.ident(next) {
+            self.pos = next;
+            if grouped {
+                self.bump()?;
+                self.line_breaks()?;
+            }
+            let mut options = Vec::new();
+            loop {
+                let offset = self.tokens[self.pos].offset;
+                options.push((offset, self.type_atom(1)?));
+                let pipe = self.significant(self.pos);
+                if self.tokens[pipe].token != Token::P('|') {
+                    break;
+                }
+                self.pos = pipe + 1;
+                self.line_breaks()?;
+            }
+            classes.truncate(0);
+            let single = options.len() == 1;
+            for (offset, ty) in &options {
+                let offset = if single { rescue } else { *offset };
+                error_class(ty, &mut classes, work, offset)?;
+            }
+            if grouped {
+                self.line_breaks()?;
+                self.expect_p(')')?;
+            }
+        } else if self.tokens[next].token != Token::Op("=>") {
+            if self.tokens[next].token == Token::Op("->") {
+                self.pos = next;
+                return self.err("rescue binding must use =>");
+            }
+            return Ok((classes, None));
+        }
+        let arrow = self.significant(self.pos);
+        if self.tokens[arrow].line != line {
+            return Ok((classes, None));
+        }
+        match self.tokens[arrow].token {
+            Token::Op("->") => {
+                self.pos = arrow;
+                self.err("rescue binding must use =>")
+            }
+            Token::Op("=>") => {
+                let name = self.significant(arrow + 1);
+                self.pos = name;
+                if !self.ident(name) {
+                    return self.err("rescue binding must be an identifier");
+                }
+                Ok((classes, Some(self.name()?)))
+            }
+            _ => Ok((classes, None)),
+        }
+    }
+}
+
+/// Adds the error class a rescue type names, or reports Go's rejection at `offset`.
+fn error_class(
     ty: &crate::compilation::Type,
     out: &mut Buffer<crate::ErrorClass>,
     work: &dyn crate::compilation::Work,
     offset: usize,
 ) -> Result<()> {
     work.charge(1)?;
-    let invalid = || Error::syntax(work, offset, "invalid rescue exception type");
+    use crate::compilation::TypeKind;
     match &ty.kind {
-        crate::compilation::TypeKind::Named => {
-            let class = crate::ErrorClass::from_name(&ty.name).ok_or_else(invalid)?;
-            out.push(work, class)?;
-        }
-        crate::compilation::TypeKind::Union(options) => {
-            for ty in options {
-                error_classes(ty, out, work, offset)?;
+        TypeKind::Named | TypeKind::Scalar(_) | TypeKind::Array(None) | TypeKind::Hash(None) => {
+            if let Some(class) = crate::ErrorClass::from_name(&ty.name) {
+                return out.push(work, class);
             }
+            let suffix = if ty.nullable && !matches!(ty.kind, TypeKind::Named) {
+                "?"
+            } else {
+                ""
+            };
+            Err(Error::syntax(
+                work,
+                offset,
+                format_args!(
+                    "unknown rescue error type {}",
+                    source_text(&format!("{}{suffix}", ty.name))
+                ),
+            ))
         }
-        _ => return Err(invalid()),
+        _ => {
+            let mut spelling = Vec::new();
+            crate::shapes::format(ty, &mut spelling)?;
+            work.bytes(spelling.len())?;
+            Err(Error::syntax(
+                work,
+                offset,
+                format_args!(
+                    "rescue type must be an error class, got {}",
+                    source_text(&String::from_utf8_lossy(&spelling))
+                ),
+            ))
+        }
     }
-    Ok(())
 }

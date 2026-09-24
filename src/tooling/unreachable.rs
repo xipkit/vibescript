@@ -400,7 +400,9 @@ impl<'a> Lint<'a> {
                 }
             }
             Statement::Retry => tasks.push(Task::Push(true)),
-            Statement::Module(_) | Statement::UnboundClass(_) => tasks.push(Task::Push(false)),
+            Statement::Module(_) | Statement::UnboundClass(_) | Statement::Unsupported => {
+                tasks.push(Task::Push(false))
+            }
             Statement::Assign(target, _, value) => {
                 tasks.push(Task::Push(false));
                 tasks.push(Task::Expr(scope.clone(), value));

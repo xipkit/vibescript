@@ -169,6 +169,7 @@ impl<'x> Copying<'_, 'x> {
             Statement::Retry => Statement::Retry,
             Statement::Module(name) => Statement::Module(self.name(name)?),
             Statement::UnboundClass(name) => Statement::UnboundClass(self.name(name)?),
+            Statement::Unsupported => Statement::Unsupported,
             Statement::Raise(value, message) => Statement::Raise(
                 self.optional_box(value).await?,
                 self.optional_box(message).await?,

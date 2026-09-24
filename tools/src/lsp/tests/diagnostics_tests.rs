@@ -39,7 +39,10 @@ fn diagnostics_span_the_offending_token() {
     let diagnostics = diagnostics("def 123()\n  1\nend\n");
     assert_eq!(range(&diagnostics[0]), (0, 4, 0, 7));
     // The parser's own message, without the rendered location.
-    assert_eq!(diagnostics[0]["message"], "expected name");
+    assert_eq!(
+        diagnostics[0]["message"],
+        "expected function name, got integer"
+    );
 }
 
 #[test]
@@ -68,16 +71,13 @@ fn diagnostics_use_utf16_character_offsets() {
 }
 
 #[test]
-fn duplicate_functions_are_reported_at_the_duplicate() {
-    // The reference reports this after parsing, at the document start; the
-    // port's parser reports it at the second declaration's name.
+fn duplicate_functions_are_reported_at_the_document_start() {
+    // Like the reference, which reports this after parsing and without a
+    // source position.
     let diagnostics = diagnostics("def run()\n  1\nend\n\ndef run()\n  2\nend\n");
     assert_eq!(diagnostics.len(), 1);
-    assert_eq!(range(&diagnostics[0]), (4, 7, 4, 8));
-    assert_eq!(
-        diagnostics[0]["message"],
-        "duplicate or reserved function name"
-    );
+    assert_eq!(range(&diagnostics[0]), (0, 0, 0, 1));
+    assert_eq!(diagnostics[0]["message"], "duplicate function run");
 }
 
 #[test]

@@ -93,7 +93,7 @@ fn whole_scope_keeps_effective_methods_and_constructor_field_contracts() {
     for (source, clean) in [
         ("class C;def f->int;false;end;def f->int;7;end;end", true),
         (
-            "class C;property n:int;def initialize(@n:int);end;def value->int;@n;end;end",
+            "class C;property n:int;def initialize(@n: int);end;def value->int;@n;end;end",
             true,
         ),
         (
@@ -214,11 +214,11 @@ fn constructor_facts_preserve_runtime_witnesses_and_symbolic_parameters() {
         ErrorKind::Type
     );
     check(
-        "class C;property n:int;def initialize(@n:int);end;end;def read(c:C)->int;c.n;end",
+        "class C;property n:int;def initialize(@n: int);end;end;def read(c:C)->int;c.n;end",
         true,
     );
     check(
-        "class C;property n:int;def initialize(@n:int);end;end;def read(c:array<C>)->array<int>;c.map{|v|v.n};end",
+        "class C;property n:int;def initialize(@n: int);end;end;def read(c:array<C>)->array<int>;c.map{|v|v.n};end",
         true,
     );
     check(
@@ -254,7 +254,7 @@ fn declaration_block_control_preserves_lexical_homes_and_pending_writes() {
 fn whole_scope_metering_spans_all_declarations_and_releases_temporary_state() {
     for source in [
         "1+false;module M;2+false;end;def bad->int;false;end;def block;yield;end",
-        "class C;property n:int;def initialize(@n:int);end;def value->int;if block_given?;yield;end;@n;end;end;def read(c:C)->int;c.n;end",
+        "class C;property n:int;def initialize(@n: int);end;def value->int;if block_given?;yield;end;@n;end;end;def read(c:C)->int;c.n;end",
     ] {
         let script = Engine::new().compile(source).unwrap();
         let options = CallOptions::default();

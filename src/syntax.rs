@@ -5,6 +5,7 @@ use crate::{
 use std::cell::{RefCell, RefMut};
 
 mod classes;
+mod declarations;
 mod errors;
 mod lexer;
 pub(crate) mod modules;
@@ -14,7 +15,7 @@ mod tokens;
 mod types;
 pub(crate) mod unicode;
 mod work;
-use lexer::{Lexeme, Part, Token, lex};
+use lexer::{Failure, Lexeme, Part, Token, lex};
 use tokens::Tokens;
 
 // Go's maxSyntaxDepth bounds both parser recursion and syntax tree height.
@@ -255,6 +256,8 @@ pub(crate) struct Stmt {
 pub(crate) enum Statement {
     Raise(Option<Boxed<Expr>>, Option<Boxed<Expr>>),
     Retry,
+    /// A nested function declaration, which Go parses and then refuses to run.
+    Unsupported,
     Module(Name),
     UnboundClass(Name),
     Expr(Expr),
@@ -282,7 +285,10 @@ impl Statement {
     fn depth(&self) -> u32 {
         let body = |s: &[Stmt]| s.iter().map(|s| s.depth).max().unwrap_or(0);
         match self {
-            Statement::Module(_) | Statement::UnboundClass(_) | Statement::Retry => 1,
+            Statement::Module(_)
+            | Statement::UnboundClass(_)
+            | Statement::Retry
+            | Statement::Unsupported => 1,
             Statement::Raise(value, message) => {
                 1 + value
                     .iter()
@@ -380,6 +386,8 @@ fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result
         type_structural_error: false,
         interpolations: Buffer::new(),
         record: None,
+        inside_class: false,
+        nesting: 0,
     })
 }
 
@@ -421,6 +429,52 @@ struct Parser<'a> {
     interpolations: Buffer<(u32, u32)>,
     /// Tooling facts, collected only by [`record::parse`].
     record: Option<Box<record::Record>>,
+    /// Whether a class or module body encloses the current statement, as Go
+    /// tracks it for declarations and operator methods.
+    inside_class: bool,
+    /// How many statement blocks enclose the current statement.
+    nesting: usize,
+}
+
+/// Where a destructuring target list appears.
+#[derive(Clone, Copy, PartialEq)]
+enum Place {
+    Statement,
+    For,
+    /// A parenthesized or bracketed group, and whether its names take types.
+    Group(bool),
+}
+
+/// Writes a destructuring target as Go's `FormatDestructureTarget` does.
+fn target_text(target: &Target, out: &mut Vec<u8>) -> Result<()> {
+    match target {
+        Target::Value(Expr {
+            node: Node::Var(name),
+            ..
+        }) => out.extend_from_slice(name.as_bytes()),
+        Target::Tuple(parts) => {
+            out.push(b'(');
+            for (index, (part, rest)) in parts.iter().enumerate() {
+                if index > 0 {
+                    out.extend_from_slice(b", ");
+                }
+                if *rest {
+                    out.push(b'*');
+                }
+                if let Some(part) = part {
+                    target_text(part, out)?;
+                }
+            }
+            out.push(b')');
+        }
+        Target::Typed(target, ty) => {
+            target_text(target, out)?;
+            out.extend_from_slice(b": ");
+            crate::shapes::format(ty, out)?;
+        }
+        Target::Value(_) => (),
+    }
+    Ok(())
 }
 
 /// Recursive parsing steps that run as tasks instead of native calls.
@@ -492,11 +546,11 @@ impl<'a> Parsing<'a> {
                 Box::pin(async move { Ok(Parsed::Body(self.block_task(stop).await?)) })
             }
             Call::Target(typed) => Box::pin(async move {
-                let (target, tuple) = self.target(false, typed).await?;
+                let (target, tuple) = self.target(Place::Group(typed)).await?;
                 Ok(Parsed::Target(target, tuple))
             }),
-            Call::Class => Box::pin(async { Ok(Parsed::Module(self.class().await?)) }),
-            Call::Module => Box::pin(async { Ok(Parsed::Module(self.module().await?)) }),
+            Call::Class => Box::pin(async { Ok(Parsed::Module(self.class_like(false).await?)) }),
+            Call::Module => Box::pin(async { Ok(Parsed::Module(self.class_like(true).await?)) }),
         }
     }
 
@@ -551,386 +605,27 @@ impl<'a> Parsing<'a> {
         }
     }
 
-    async fn program(&self) -> Result<Declarations> {
-        let work = self.p().work;
-        let mut defs = Buffer::new();
-        // Indexes top-level functions by name so duplicate checks stay linear.
-        let mut def_names: Table<usize> = Table::new();
-        let mut enums = Buffer::new();
-        let mut modules = Buffer::new();
-        let mut top = Buffer::new();
-        let mut outline = Buffer::new();
-        self.p().lines()?;
-        while !matches!(self.p().token(), Token::Eof) {
-            let (offset, first) = {
-                let p = self.p();
-                (p.tokens[p.pos].offset as u32, p.pos)
-            };
-            let class = self.p().word("class");
-            if class || self.p().module_ahead() {
-                // Go parses each top-level declaration as a statement.
-                self.p().enter()?;
-                let module = if class {
-                    self.class().await?
-                } else {
-                    self.module().await?
-                };
-                self.p().depth -= 1;
-                let kind = if class {
-                    crate::DeclarationKind::Class
-                } else {
-                    crate::DeclarationKind::Module
-                };
-                let end = self.p().declaration_end(first);
-                outline.push(
-                    work,
-                    Outline {
-                        kind,
-                        name: module.name.clone(),
-                        start: offset as usize,
-                        end,
-                    },
-                )?;
-                top.push(work, Statement::Module(module.name.clone()).at(offset))?;
-                let index = modules.len();
-                modules.push(work, module)?;
-                self.p()
-                    .note(|record| record.top.push((offset, record::Top::Module(index))));
-            } else if matches!(self.p().token(), Token::Word(word) if matches!(word.as_str(), "def" | "private" | "export"))
-            {
-                let name = {
-                    let mut p = self.p();
-                    p.enter()?;
-                    let private = p.word("private");
-                    if !private {
-                        p.word("export");
-                    }
-                    p.expect_word("def")?;
-                    let name = p.name()?;
-                    if name.starts_with('@') {
-                        return p.err("expected function name");
-                    }
-                    if def_names.contains(work, &name)? || name == "__main__" {
-                        return p.err("duplicate or reserved function name");
-                    }
-                    (name, private)
-                };
-                let (name, private) = name;
-                let mut definition = self.definition(name, offset).await?;
-                definition.private = private;
-                let mut p = self.p();
-                p.check_depth(definition.depth())?;
-                p.depth -= 1;
-                outline.push(
-                    work,
-                    Outline {
-                        kind: crate::DeclarationKind::Function,
-                        name: definition.name.clone(),
-                        start: offset as usize,
-                        end: p.declaration_end(first),
-                    },
-                )?;
-                let index = defs.len();
-                def_names.insert(work, definition.name.clone(), index)?;
-                defs.push(work, definition)?;
-                p.note(|record| record.top.push((offset, record::Top::Function(index))));
-            } else if self.p().alias_ahead() {
-                // Go resolves a top-level alias against the functions declared before it.
-                let mut p = self.p();
-                let (name, target) = p.alias_names()?;
-                if def_names.contains(work, &name)? || name == "__main__" {
-                    return p.err("duplicate or reserved function name");
-                }
-                let Some(&original) = def_names.get(work, &target)? else {
-                    return p.err("alias target function is not defined");
-                };
-                let original = &defs[original];
-                let mut definition = work::definition(work, original)?;
-                outline.push(
-                    work,
-                    Outline {
-                        kind: crate::DeclarationKind::Function,
-                        name: name.clone(),
-                        start: offset as usize,
-                        end: p.declaration_end(first),
-                    },
-                )?;
-                definition.name = name;
-                let index = defs.len();
-                def_names.insert(work, definition.name.clone(), index)?;
-                defs.push(work, definition)?;
-                p.note(|record| {
-                    let alias = record::Top::Alias(index, target.to_string());
-                    record.top.push((offset, alias));
-                });
-            } else if self.p().word("enum") {
-                let mut p = self.p();
-                p.line_breaks()?;
-                let name = p.enum_name()?;
-                let mut members = Buffer::new();
-                let mut member_offsets = Vec::new();
-                let mut seen = Table::new();
-                p.lines()?;
-                while !matches!(p.token(), Token::Eof)
-                    && !matches!(p.token(), Token::Word(w) if w == "end")
-                {
-                    if p.record.is_some() {
-                        member_offsets.push(p.tokens[p.pos].offset as u32);
-                    }
-                    let member = if p.word("enum") {
-                        Name::new(work, "enum")?
-                    } else {
-                        p.enum_name()?
-                    };
-                    if seen.insert(work, member.clone(), ())?.is_some() {
-                        return p.err("duplicate enum member");
-                    }
-                    members.push(work, member)?;
-                    p.lines()?;
-                }
-                if members.is_empty() {
-                    return p.err("enum must define at least one member");
-                }
-                p.expect_word("end")?;
-                outline.push(
-                    work,
-                    Outline {
-                        kind: crate::DeclarationKind::Enum,
-                        name: name.clone(),
-                        start: offset as usize,
-                        end: p.declaration_end(first),
-                    },
-                )?;
-                let index = enums.len();
-                enums.push(work, (name, members))?;
-                p.note(|record| {
-                    record.top.push((offset, record::Top::Enum(index)));
-                    record.enums.push(member_offsets);
-                });
-            } else {
-                let index = top.len();
-                top.push(work, self.statement().await?)?;
-                self.p()
-                    .note(|record| record.top.push((offset, record::Top::Statement(index))));
-            }
-            self.p().lines()?;
-        }
-        defs.insert(
-            work,
-            0,
-            Definition {
-                offset: 0,
-                private: true,
-                accessor: None,
-                name: Name::new(work, "__main__")?,
-                params: Buffer::new(),
-                body: top,
-                return_type: None,
-            },
-        )?;
-        let interpolations = std::mem::take(&mut self.p().interpolations);
-        Ok(Declarations {
-            functions: defs,
-            enums,
-            modules,
-            outline,
-            interpolations,
-        })
-    }
-
-    async fn parameters(&self, parenthesized: bool) -> Result<Buffer<Parameter>> {
-        let work = self.p().work;
-        work.charge(1)?;
-        let mut params = Buffer::new();
-        let mut rest = false;
-        let mut keywords = false;
-        let mut keyword_rest = false;
-        {
-            let mut p = self.p();
-            if parenthesized {
-                p.groups += 1;
-                p.lines()?;
-            }
-            // Without parentheses, a signature needs a parameter on the def's
-            // line; anything else starts the body, as in `def run [1, 2].first end`.
-            let bare = match p.token() {
-                Token::Word(w) => !keyword(w) && !w.starts_with("@@"),
-                Token::Op("*" | "**" | "&") => true,
-                _ => false,
-            };
-            if (parenthesized && p.take_p(')')) || (!parenthesized && !bare) {
-                if parenthesized {
-                    p.groups -= 1;
-                }
-                return Ok(params);
-            }
-        }
-        loop {
-            let (name, instance, mut kind) = self.p().parameter_name()?;
-            let mut ty = None;
-            let colon = self.p().take_p(':');
-            let default = if colon {
-                if parenthesized {
-                    self.p().line_breaks()?;
-                }
-                let bare_keyword = !instance
-                    && kind == ParamKind::Positional
-                    && matches!(
-                        self.p().token(),
-                        Token::P(',' | ')') | Token::EndLine | Token::Op("->")
-                    );
-                if bare_keyword {
-                    kind = ParamKind::Keyword;
-                    None
-                } else if !instance
-                    && kind == ParamKind::Positional
-                    && self.p().keyword_default(parenthesized)?
-                {
-                    kind = ParamKind::Keyword;
-                    Some(if parenthesized {
-                        self.expr(0).await?
-                    } else {
-                        self.line_expr(0).await?
-                    })
-                } else {
-                    let defaulted = {
-                        let mut p = self.p();
-                        let annotation = p.type_expr(1, false)?;
-                        if matches!(kind, ParamKind::Rest | ParamKind::KeywordRest)
-                            && !annotation.captures(kind == ParamKind::KeywordRest)
-                        {
-                            return p.err("capture annotation must accept its collection type");
-                        }
-                        ty = Some(annotation);
-                        if kind == ParamKind::Positional && p.take_p(':') {
-                            kind = ParamKind::Keyword;
-                            if !matches!(
-                                p.token(),
-                                Token::P(',' | ')') | Token::EndLine | Token::Op("->")
-                            ) {
-                                return p
-                                    .err("typed required keyword must end after trailing colon");
-                            }
-                        }
-                        let defaulted = p.token() == &Token::Op("=");
-                        if defaulted {
-                            if kind != ParamKind::Positional {
-                                return p.err("capture parameters cannot have defaults");
-                            }
-                            p.bump()?;
-                            if parenthesized {
-                                p.line_breaks()?;
-                            }
-                        }
-                        defaulted
-                    };
-                    if defaulted {
-                        Some(if parenthesized {
-                            self.expr(0).await?
-                        } else {
-                            self.line_expr(0).await?
-                        })
-                    } else {
-                        None
-                    }
-                }
-            } else if self.p().token() == &Token::Op("=") {
-                {
-                    let mut p = self.p();
-                    p.bump()?;
-                    if kind != ParamKind::Positional {
-                        return p.err("capture parameters cannot have defaults");
-                    }
-                    if parenthesized {
-                        p.lines()?;
-                    }
-                }
-                Some(if parenthesized {
-                    self.expr(0).await?
-                } else {
-                    self.line_expr(0).await?
-                })
-            } else {
-                None
-            };
-            let mut p = self.p();
-            match kind {
-                ParamKind::Positional if rest || keywords || keyword_rest => {
-                    return p.err("positional parameters must precede rest and keyword parameters");
-                }
-                ParamKind::Rest => {
-                    if rest || keywords || keyword_rest {
-                        return p.err("invalid rest parameter order");
-                    }
-                    rest = true;
-                }
-                ParamKind::Keyword => {
-                    if keyword_rest {
-                        return p.err("keyword parameter follows keyword rest");
-                    }
-                    keywords = true;
-                }
-                ParamKind::KeywordRest => {
-                    if keyword_rest {
-                        return p.err("duplicate keyword rest parameter");
-                    }
-                    keyword_rest = true;
-                }
-                _ => (),
-            }
-            p.locals.insert(work, name.clone(), ())?;
-            p.declared_it |= name == "it";
-            params.push(
-                work,
-                Parameter {
-                    ivar: instance.then(|| name.clone()),
-                    name,
-                    kind,
-                    default,
-                    ty,
-                },
-            )?;
-            if parenthesized {
-                p.lines()?;
-                if p.take_p(')') {
-                    p.groups -= 1;
-                    break;
-                }
-            } else if p.token() != &Token::P(',') {
-                break;
-            }
-            p.expect_p(',')?;
-            if parenthesized {
-                p.lines()?;
-            }
-        }
-        Ok(params)
-    }
-
     async fn block_task(&self, stop: &[&str]) -> Result<Buffer<Stmt>> {
         let work = self.p().work;
         work.charge(1)?;
         let mut body = Buffer::new();
-        self.p().lines()?;
+        self.p().nesting += 1;
         loop {
             {
-                let p = self.p();
+                let mut p = self.p();
+                p.lines()?;
                 if matches!(p.token(),Token::Word(w) if stop.contains(&w.as_str()))
                     || (p.token() == &Token::P('}') && stop.contains(&"}"))
                 {
                     break;
                 }
                 if matches!(p.token(), Token::Eof) {
-                    return p.expected(if stop.contains(&"}") {
-                        Label::Char('}')
-                    } else {
-                        Label::Text("end")
-                    });
+                    return p.expected(Label::Text(if stop.contains(&"}") { "}" } else { "end" }));
                 }
             }
             body.push(work, self.statement().await?)?;
-            self.p().lines()?;
         }
+        self.p().nesting -= 1;
         Ok(body)
     }
 
@@ -947,7 +642,8 @@ impl<'a> Parsing<'a> {
         condition
     }
 
-    async fn statement(&self) -> Result<Stmt> {
+    /// Parses a statement that declares nothing.
+    async fn plain(&self) -> Result<Stmt> {
         let offset = {
             let mut p = self.p();
             p.work.charge(1)?;
@@ -956,7 +652,7 @@ impl<'a> Parsing<'a> {
         };
         let stmt = self.modified_statement(offset).await?.at(offset);
         let mut p = self.p();
-        p.check_depth(stmt.depth)?;
+        p.check_depth(stmt.depth, stmt.offset)?;
         p.depth -= 1;
         Ok(stmt)
     }
@@ -993,9 +689,8 @@ impl<'a> Parsing<'a> {
                     | Statement::Next(_)
             )
         {
-            return self
-                .p()
-                .err("modifier requires an expression, assignment, or leaf control statement");
+            Box::pin(self.reject_modifier()).await?;
+            return Ok(stmt);
         }
         let keyword = {
             let mut p = self.p();
@@ -1058,7 +753,7 @@ impl<'a> Parsing<'a> {
             offset
         };
         let result = async {
-            let mut attempt = self.begin_expression().await?;
+            let mut attempt = self.begin_expression(offset).await?;
             attempt.offset = offset;
             self.expr_tail(attempt, 0, None).await
         }
@@ -1071,40 +766,28 @@ impl<'a> Parsing<'a> {
         let keyword = {
             let mut p = self.p();
             p.work.charge(1)?;
-            if p.alias_ahead() {
-                return p.err(
-                    "alias declarations are only supported at the top level or in class bodies",
-                );
-            }
             let keyword = [
-                "raise", "retry", "class", "if", "unless", "while", "until", "for", "return",
-                "break", "next",
+                "raise", "retry", "if", "unless", "while", "until", "for", "return", "break",
+                "next",
             ]
             .into_iter()
             .find(|keyword| matches!(p.token(), Token::Word(w) if w == keyword));
-            match keyword {
-                Some(_) => p.pos += 1,
-                None if p.module_ahead() => {
-                    return p.err(
-                        "module declarations are only supported at the top level and in module bodies",
-                    );
-                }
-                None => (),
+            if keyword.is_some() {
+                p.pos += 1;
             }
             keyword
         };
         match keyword {
             Some("raise") => self.raise_statement().await,
             Some("retry") => {
-                let p = self.p();
-                if p.starts_expression()
-                    && !matches!(p.token(), Token::Word(w) if matches!(w.as_str(), "if"|"unless"|"while"|"until"))
-                {
+                let mut p = self.p();
+                let line = p.tokens[p.pos - 1].line;
+                if !p.ends_after(p.pos - 1, line) && !p.modifier_follows(line) {
+                    p.pos = p.significant(p.pos);
                     return p.err("retry does not accept a value");
                 }
                 Ok(Statement::Retry)
             }
-            Some("class") => Ok(Statement::UnboundClass(self.nested_class().await?.name)),
             Some(keyword @ ("if" | "unless")) => self.if_stmt(keyword == "unless").await,
             Some(keyword @ ("while" | "until")) => self.while_stmt(keyword == "until").await,
             Some("for") => self.for_stmt().await,
@@ -1128,9 +811,13 @@ impl<'a> Parsing<'a> {
 
     async fn flow_statement(&self, flow: &str) -> Result<Statement> {
         let value = {
-            let p = self.p();
-            let modifier = matches!(p.token(), Token::Word(w) if matches!(w.as_str(), "if" | "unless" | "while" | "until"));
-            !modifier && p.starts_expression()
+            let mut p = self.p();
+            let line = p.tokens[p.pos - 1].line;
+            let value = !p.ends_after(p.pos - 1, line) && !p.modifier_follows(line);
+            if value {
+                p.line_breaks()?;
+            }
+            value
         };
         let value = if value {
             let first = self.line_expr(0).await?;
@@ -1151,7 +838,7 @@ impl<'a> Parsing<'a> {
 
     async fn assignment_statement(&self) -> Result<Statement> {
         let start = self.p().pos;
-        let (target, _) = self.target(true, false).await?;
+        let (target, _) = self.target(Place::Statement).await?;
         let op = {
             let mut p = self.p();
             p.lines()?;
@@ -1269,7 +956,7 @@ impl<'a> Parsing<'a> {
 
     async fn for_stmt(&self) -> Result<Statement> {
         self.p().work.charge(1)?;
-        let (target, _) = self.target(false, false).await?;
+        let (target, _) = self.target(Place::For).await?;
         let previous = {
             let mut p = self.p();
             if !target.is_binding() {
@@ -1295,70 +982,82 @@ impl<'a> Parsing<'a> {
         Ok(Statement::For(target, iterable, body))
     }
 
-    async fn target(&self, first_expression: bool, typed: bool) -> Result<(Target, bool)> {
+    /// Parses a destructuring target list, as Go's `parseDestructureTargetList`
+    /// does, and reports whether commas at its own level made it a tuple.
+    async fn target(&self, place: Place) -> Result<(Target, bool)> {
         let work = self.p().work;
         work.charge(1)?;
+        let typed = place == Place::Group(true);
         let mut parts = Buffer::new();
         let mut tuple = false;
         let mut has_rest = false;
         loop {
-            let (rest, bare_rest, close) = {
+            let (rest, anonymous, group, star) = {
                 let mut p = self.p();
+                let star = p.tokens[p.pos].offset as u32;
                 let rest = p.token() == &Token::Op("*");
+                let mut anonymous = false;
                 if rest {
+                    let next = p.significant(p.pos + 1);
+                    anonymous = match &p.tokens[next].token {
+                        Token::P(',' | ')' | ']') => true,
+                        Token::Op(op) => assignment(op),
+                        Token::Word(w) => place == Place::For && *w == "in",
+                        _ => false,
+                    };
                     p.bump()?;
-                    if has_rest {
-                        return p.err("duplicate rest assignment target");
+                    if !anonymous {
+                        p.line_breaks()?;
                     }
-                    has_rest = true;
                     tuple = true;
                 }
-                let bare_rest = rest
-                    && (matches!(p.token(), Token::P(',' | ')' | ']') | Token::Op("="))
-                        || matches!(p.token(), Token::Word(w) if w=="in"));
-                let grouped = !first_expression || !parts.is_empty() || rest;
-                let close = if bare_rest {
-                    None
-                } else if grouped && p.take_p('(') {
-                    Some(')')
-                } else if grouped && p.take_p('[') {
-                    Some(']')
-                } else {
-                    None
+                // Go reads a statement's first target as an expression, so it
+                // cannot open a group.
+                let grouped = place != Place::Statement || !parts.is_empty() || rest;
+                let group = match p.token() {
+                    Token::P('(') if grouped && !anonymous => Some(')'),
+                    Token::P('[') if grouped && !anonymous => Some(']'),
+                    _ => None,
                 };
-                (rest, bare_rest, close)
+                (rest, anonymous, group, star)
             };
-            let mut value = if bare_rest {
-                None
-            } else if let Some(close) = close {
+            let (mut value, offset) = if anonymous {
+                (None, star)
+            } else if let Some(close) = group {
                 // Go counts each nested destructuring group against the syntax limit.
-                {
+                let open = {
                     let mut p = self.p();
                     p.enter()?;
-                    p.lines()?;
-                }
+                    let open = p.tokens[p.pos].offset as u32;
+                    p.bump()?;
+                    let next = p.significant(p.pos);
+                    if p.tokens[next].token == Token::P(close) {
+                        p.pos = next;
+                        return p.expected(Label::Text("destructuring assignment target"));
+                    }
+                    p.line_breaks()?;
+                    open
+                };
                 let (inner, tuple) = self.nested_target(typed).await?;
                 let mut p = self.p();
-                p.lines()?;
+                p.line_breaks()?;
                 p.expect_p(close)?;
                 p.depth -= 1;
                 // Like Go, every group destructures one level; commas inside
                 // it list that level's parts.
-                Some(if tuple {
+                let inner = if tuple {
                     inner
                 } else {
                     Target::Tuple(Buffer::from_array(work, [(Some(inner), false)])?)
-                })
-            } else if typed && matches!(self.p().token(), Token::Word(_)) {
-                let mut p = self.p();
-                let name = p.name()?;
-                Some(Target::Value(p.make(Node::Var(name), 1)?))
+                };
+                (Some(inner), open)
             } else {
                 let expression = self.line_expr(0).await?;
                 let p = self.p();
                 // Go checks a statement's lone target only once an operator follows.
-                let listed = !parts.is_empty() || rest || p.token() == &Token::P(',');
-                if !first_expression || listed {
+                let lone = place == Place::Statement && parts.is_empty() && !rest;
+                let listed = p.tokens[p.significant(p.pos)].token == Token::P(',');
+                if !lone || listed {
                     if let Some(offset) = expression.safe_navigation() {
                         return Err(Error::syntax(
                             p.work,
@@ -1366,37 +1065,67 @@ impl<'a> Parsing<'a> {
                             "safe navigation cannot be used as an assignment target",
                         ));
                     }
+                    if !expression.assignable() {
+                        return Err(Error::syntax(
+                            p.work,
+                            expression.offset as usize,
+                            "invalid destructuring assignment target",
+                        ));
+                    }
                 }
-                if (if first_expression { listed } else { !typed }) && !expression.assignable() {
-                    return Err(Error::syntax(
-                        p.work,
-                        expression.offset as usize,
-                        "invalid destructuring assignment target",
-                    ));
-                }
-                Some(Target::Value(expression))
+                let offset = expression.offset;
+                (Some(Target::Value(expression)), offset)
             };
             let mut p = self.p();
-            if typed && value.is_some() && p.take_p(':') {
+            let colon = p.significant(p.pos);
+            if typed && value.is_some() && p.tokens[colon].token == Token::P(':') {
+                p.pos = colon + 1;
+                p.line_breaks()?;
+                let start = p.tokens[p.pos].offset;
                 let ty = p.type_expr(1, false)?;
                 if rest && !ty.captures(false) {
-                    return p.err("rest target annotation must accept an array");
+                    let mut text = Vec::new();
+                    target_text(value.as_ref().unwrap(), &mut text)?;
+                    work.bytes(text.len())?;
+                    let text = String::from_utf8_lossy(&text);
+                    return Err(Error::syntax(
+                        work,
+                        start,
+                        format_args!(
+                            "rest destructuring target {} captures an array; annotate it as array<...> or any",
+                            source_text(if text.is_empty() { "*" } else { &text })
+                        ),
+                    ));
                 }
                 value = Some(Target::Typed(Boxed::new(work, value.take().unwrap())?, ty));
             }
+            if rest {
+                if has_rest {
+                    return Err(Error::syntax(
+                        work,
+                        offset as usize,
+                        "duplicate rest assignment target",
+                    ));
+                }
+                has_rest = true;
+            }
             parts.push(work, (value, rest))?;
-            if !p.take_p(',') {
+            let comma = p.significant(p.pos);
+            if p.tokens[comma].token != Token::P(',') {
                 break;
             }
+            p.pos = comma + 1;
             tuple = true;
-            p.lines()?;
+            p.line_breaks()?;
         }
         let target = if tuple {
             Target::Tuple(parts)
         } else {
             parts.pop().unwrap().0.unwrap()
         };
-        self.p().check_depth(target.depth())?;
+        let p = self.p();
+        let offset = target.offset().unwrap_or(p.tokens[p.pos].offset as u32);
+        p.check_depth(target.depth(), offset)?;
         Ok((target, tuple))
     }
 
@@ -1611,18 +1340,18 @@ impl<'a> Parsing<'a> {
         {
             let mut p = self.p();
             p.groups += 1;
-            p.lines()?;
+            p.line_breaks()?;
         }
         let e = self.expr(0).await?;
         let mut p = self.p();
-        p.lines()?;
+        p.line_breaks()?;
         p.expect_p(')')?;
         p.groups -= 1;
         Ok(e)
     }
 
     async fn array_expression(&self) -> Result<Expr> {
-        let a = self.arguments(']').await?;
+        let a = self.arguments(']', true).await?;
         let d = 1 + a.iter().map(|e| e.depth).max().unwrap_or(0);
         self.p().make(Node::Array(a), d)
     }
@@ -1630,9 +1359,12 @@ impl<'a> Parsing<'a> {
     async fn open_range_expression(&self, op: &str) -> Result<Expr> {
         {
             let mut p = self.p();
-            if p.groups > 0 {
-                p.lines()?;
+            let next = p.significant(p.pos);
+            if !p.prefix(next) {
+                p.pos -= 1;
+                return p.err("range is missing end expression");
             }
+            p.pos = next;
         }
         let end = self.expr(8).await?;
         let depth = end.depth + 1;
@@ -1652,7 +1384,7 @@ impl<'a> Parsing<'a> {
             "if" | "unless" => self.if_expr(w == "unless").await,
             "case" => self.case_expr().await,
             "yield" => self.yield_expr().await,
-            "begin" => self.begin_expression().await,
+            "begin" => self.begin_expression(offset).await,
             "while" | "until" | "for" => self.loop_expression(w, offset).await,
             _ if reserved(w) && w != "then" => Err(Error::syntax(
                 self.p().work,
@@ -1663,9 +1395,9 @@ impl<'a> Parsing<'a> {
         }
     }
 
-    async fn begin_expression(&self) -> Result<Expr> {
+    async fn begin_expression(&self, offset: u32) -> Result<Expr> {
         let body = self.block(&["rescue", "else", "ensure", "end"]).await?;
-        let attempt = self.rescue_tail(body, false).await?;
+        let attempt = self.rescue_tail(body, false, offset).await?;
         let depth = attempt.depth();
         let p = self.p();
         p.make(Node::Try(Boxed::new(p.work, attempt)?), depth)
@@ -1742,12 +1474,7 @@ impl<'a> Parsing<'a> {
     }
 
     async fn interpolated(&self) -> Result<Expr> {
-        let expr = self.line_expr(0).await?;
-        let p = self.p();
-        if p.token() != &Token::Eof {
-            return p.err("string interpolation must contain a single expression");
-        }
-        Ok(expr)
+        self.line_expr(0).await
     }
 
     async fn expr_tail(&self, mut lhs: Expr, min: u8, mut next: Option<Suffix>) -> Result<Expr> {
@@ -1780,15 +1507,16 @@ impl<'a> Parsing<'a> {
     }
 
     async fn index_expression(&self, lhs: Expr, offset: u32) -> Result<Expr> {
-        let indexes = self.arguments(']').await?;
-        let p = self.p();
-        if indexes.is_empty() {
-            return Err(Error::syntax(
-                p.work,
-                p.position(p.pos - 1),
-                "index expression requires at least one selector",
-            ));
+        {
+            let mut p = self.p();
+            let close = p.significant(p.pos);
+            if p.tokens[close].token == Token::P(']') {
+                p.pos = close;
+                return p.err("index expression requires at least one selector");
+            }
         }
+        let indexes = self.arguments(']', false).await?;
+        let p = self.p();
         let d = 1 + lhs
             .depth
             .max(indexes.iter().map(|e| e.depth).max().unwrap_or(0));
@@ -1933,21 +1661,12 @@ impl<'a> Parsing<'a> {
             let mut p = self.p();
             p.bump()?;
             p.line_breaks()?;
-            let name_offset = p.tokens[p.pos].offset;
-            let Token::Word(name) = p.bump()? else {
-                return Err(Error::syntax(
-                    work,
-                    name_offset,
-                    "expected scoped member name",
-                ));
-            };
-            if name.starts_with('@') || (keyword(&name) && name != "enum") {
-                return Err(Error::syntax(
-                    work,
-                    name_offset,
-                    "expected scoped member name",
-                ));
+            if !p.ident(p.pos) && !matches!(p.token(), Token::Word(w) if w == "enum") {
+                return p.expected(Label::Text("identifier"));
             }
+            let Token::Word(name) = p.bump()? else {
+                unreachable!()
+            };
             (Name::new(work, &name)?, p.take_p('('))
         };
         let args = if parenthesized {
@@ -2008,7 +1727,7 @@ impl<'a> Parsing<'a> {
             p.work.charge(1)?;
             let offset = p.tokens[p.pos].offset as u32;
             p.bump()?;
-            p.lines()?;
+            p.line_breaks()?;
             (offset, p.locals.copy(p.work)?, p.declared_it)
         };
         let infer_it = !outer_it;
@@ -2027,7 +1746,9 @@ impl<'a> Parsing<'a> {
         p.then_stop = previous_then;
         p.loop_condition = previous_loop;
         if brace {
-            p.expect_p('}')?;
+            if !p.take_p('}') {
+                return p.expected(Label::Text("}"));
+            }
         } else {
             p.expect_word("end")?;
         }
@@ -2042,6 +1763,7 @@ impl<'a> Parsing<'a> {
         })
     }
 
+    /// Parses a block's parameter list, as Go's `parseBlockParameters` does.
     async fn block_parameters(&self) -> Result<(Buffer<Target>, bool)> {
         let work = self.p().work;
         let mut params = Buffer::new();
@@ -2049,51 +1771,27 @@ impl<'a> Parsing<'a> {
             self.p().bump()?;
             true
         } else if self.p().take_p('|') {
-            self.p().lines()?;
+            self.p().line_breaks()?;
             if !self.p().take_p('|') {
                 loop {
-                    let close = {
-                        let mut p = self.p();
-                        if p.take_p('(') {
-                            Some(')')
-                        } else if p.take_p('[') {
-                            Some(']')
-                        } else {
-                            None
-                        }
-                    };
-                    let target = if let Some(close) = close {
-                        let (target, tuple) = self.nested_target(true).await?;
-                        let mut p = self.p();
-                        p.lines()?;
-                        p.expect_p(close)?;
-                        if tuple {
-                            target
-                        } else {
-                            Target::Tuple(Buffer::from_array(work, [(Some(target), false)])?)
-                        }
-                    } else {
-                        let mut p = self.p();
-                        let name = p.name()?;
-                        let target = Target::Value(p.make(Node::Var(name), 1)?);
-                        if p.take_p(':') {
-                            Target::Typed(Boxed::new(work, target)?, p.type_expr(0, true)?)
-                        } else {
-                            target
-                        }
-                    };
+                    let target = self.block_parameter().await?;
                     let mut p = self.p();
-                    if !target.is_binding() {
-                        return p.err("invalid block parameter");
-                    }
                     p.declare_target(&target)?;
                     params.push(work, target)?;
-                    p.lines()?;
-                    if p.take_p('|') {
+                    let comma = p.significant(p.pos);
+                    if p.tokens[comma].token != Token::P(',') {
                         break;
                     }
-                    p.expect_p(',')?;
-                    p.lines()?;
+                    p.pos = comma + 1;
+                    p.line_breaks()?;
+                    if p.token() == &Token::P('|') {
+                        return p.err("trailing comma in block parameter list");
+                    }
+                }
+                let mut p = self.p();
+                p.line_breaks()?;
+                if !p.take_p('|') {
+                    return p.expected(Label::Char('|'));
                 }
             }
             true
@@ -2108,6 +1806,61 @@ impl<'a> Parsing<'a> {
             }
         }
         Ok((params, explicit))
+    }
+
+    /// Parses one block parameter, as Go's `parseBlockParameter` does.
+    async fn block_parameter(&self) -> Result<Target> {
+        let work = self.p().work;
+        let (close, open) = {
+            let mut p = self.p();
+            let open = p.tokens[p.pos].offset;
+            let close = match p.token() {
+                Token::P('(') => ')',
+                Token::P('[') => ']',
+                _ if p.ident(p.pos) => {
+                    let name = p.name()?;
+                    let target = Target::Value(p.make(Node::Var(name), 1)?);
+                    let colon = p.significant(p.pos);
+                    if p.tokens[colon].token != Token::P(':') {
+                        return Ok(target);
+                    }
+                    p.pos = colon + 1;
+                    p.line_breaks()?;
+                    return Ok(Target::Typed(
+                        Boxed::new(work, target)?,
+                        p.type_expr(0, true)?,
+                    ));
+                }
+                _ => return p.expected(Label::Text("block parameter")),
+            };
+            p.enter()?;
+            p.bump()?;
+            let next = p.significant(p.pos);
+            if p.tokens[next].token == Token::P(close) {
+                p.pos = next;
+                return p.expected(Label::Text("destructuring assignment target"));
+            }
+            p.line_breaks()?;
+            (close, open)
+        };
+        let (target, tuple) = self.nested_target(true).await?;
+        let mut p = self.p();
+        p.line_breaks()?;
+        p.expect_p(close)?;
+        p.depth -= 1;
+        let target = if tuple {
+            target
+        } else {
+            Target::Tuple(Buffer::from_array(work, [(Some(target), false)])?)
+        };
+        if !target.is_binding() {
+            return Err(Error::syntax(
+                work,
+                open,
+                "invalid block parameter destructuring target",
+            ));
+        }
+        Ok(target)
     }
 
     async fn yield_expr(&self) -> Result<Expr> {
@@ -2129,7 +1882,7 @@ impl<'a> Parsing<'a> {
             (line, p.take_p('('))
         };
         let args = if parenthesized {
-            self.arguments(')').await?
+            self.arguments(')', true).await?
         } else {
             let mut args = Buffer::new();
             let starts = {
@@ -2164,16 +1917,17 @@ impl<'a> Parsing<'a> {
         let mut args = Buffer::new();
         let mut keywords = false;
         loop {
+            if keywords {
+                self.p().keyword_order(
+                    "positional arguments cannot follow bare keyword arguments in parenless calls",
+                )?;
+            }
             let argument = self.call_argument(false).await?;
-            let keyword = matches!(
+            let mut p = self.p();
+            keywords |= matches!(
                 argument.kind,
                 ArgumentKind::Keyword(_) | ArgumentKind::KeywordSplat
             );
-            let mut p = self.p();
-            if keywords && !keyword {
-                return p.err("positional arguments cannot follow keywords");
-            }
-            keywords |= keyword;
             args.push(work, argument)?;
             let last = p.previous()?;
             if p.token() != &Token::P(',')
@@ -2188,14 +1942,16 @@ impl<'a> Parsing<'a> {
         Ok(args)
     }
 
-    async fn arguments(&self, close: char) -> Result<Buffer<Expr>> {
+    /// Parses a comma-separated list through `close`, as Go reads array
+    /// elements, or index selectors when `trailing` refuses a trailing comma.
+    async fn arguments(&self, close: char, trailing: bool) -> Result<Buffer<Expr>> {
         let work = self.p().work;
         work.charge(1)?;
         let mut args = Buffer::new();
         {
             let mut p = self.p();
             p.groups += 1;
-            p.lines()?;
+            p.line_breaks()?;
             if p.take_p(close) {
                 p.groups -= 1;
                 return Ok(args);
@@ -2204,7 +1960,7 @@ impl<'a> Parsing<'a> {
         loop {
             args.push(work, self.expr(0).await?)?;
             let mut p = self.p();
-            p.lines()?;
+            p.line_breaks()?;
             if p.take_p(close) {
                 break;
             }
@@ -2212,8 +1968,8 @@ impl<'a> Parsing<'a> {
                 return p.expected(Label::Char(close));
             }
             p.expect_p(',')?;
-            p.lines()?;
-            if p.take_p(close) {
+            p.line_breaks()?;
+            if trailing && p.take_p(close) {
                 break;
             }
         }
@@ -2236,16 +1992,16 @@ impl<'a> Parsing<'a> {
             }
         }
         loop {
+            if keywords {
+                self.p()
+                    .keyword_order("positional arguments cannot follow keyword arguments")?;
+            }
             let argument = self.call_argument(true).await?;
-            let keyword = matches!(
+            let mut p = self.p();
+            keywords |= matches!(
                 argument.kind,
                 ArgumentKind::Keyword(_) | ArgumentKind::KeywordSplat
             );
-            let mut p = self.p();
-            if keywords && !keyword {
-                return p.err("positional arguments cannot follow keywords");
-            }
-            keywords |= keyword;
             args.push(work, argument)?;
             p.line_breaks()?;
             if p.take_p(')') {
@@ -2302,33 +2058,6 @@ impl<'a> Parsing<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn parameter_name(&mut self) -> Result<(Name, bool, ParamKind)> {
-        let kind = match self.token() {
-            Token::Op("*") => {
-                self.bump()?;
-                ParamKind::Rest
-            }
-            Token::Op("**") => {
-                self.bump()?;
-                ParamKind::KeywordRest
-            }
-            _ => ParamKind::Positional,
-        };
-        let name = self.name()?;
-        if name.starts_with("@@") {
-            return self.err("expected parameter name");
-        }
-        let instance = name.starts_with('@');
-        if instance && kind != ParamKind::Positional {
-            return self.err("capture parameters must use local names");
-        }
-        let name = if let Some(name) = name.strip_prefix('@') {
-            Name::new(self.work, name)?
-        } else {
-            name
-        };
-        Ok((name, instance, kind))
-    }
     fn token(&self) -> &Token<'a> {
         &self.tokens[self.pos].token
     }
@@ -2387,18 +2116,11 @@ impl<'a> Parser<'a> {
                     (true, true) => "percent interpolated symbol array",
                 })
             }
-            Token::Invalid(_) => Label::Text("invalid token"),
-            Token::P(':')
-                if self.tokens.get(index + 1).is_some_and(|next| {
-                    next.offset == lexeme.end
-                        && matches!(
-                            next.token,
-                            Token::Word(_) | Token::Bytes(_) | Token::Template(_)
-                        )
-                }) =>
-            {
-                Label::Text("symbol")
-            }
+            Token::Symbol(_) | Token::QuotedSymbol(_) => Label::Text("symbol"),
+            Token::Invalid(invalid) => match invalid.failure {
+                Failure::Literal(label) => Label::Text(label),
+                Failure::Diagnostic | Failure::Character => Label::Text("invalid token"),
+            },
             Token::P(c) => Label::Char(*c),
             Token::Op(op) => Label::Quoted(op),
             Token::EndLine if self.source.as_bytes().get(lexeme.offset) == Some(&b';') => {
@@ -2410,9 +2132,9 @@ impl<'a> Parser<'a> {
     /// A lexer diagnostic that Go reports in place of any expectation at `index`.
     fn diagnostic(&self, index: usize) -> Option<Error> {
         match &self.tokens[index].token {
-            Token::Invalid(error) if error.1.as_str() != UNSUPPORTED_CHARACTER => {
-                Some(Error::syntax(self.work, error.0, error.1.as_str()))
-            }
+            Token::Invalid(invalid) if invalid.failure == Failure::Diagnostic => Some(
+                Error::syntax(self.work, invalid.offset, invalid.message.as_str()),
+            ),
             _ => None,
         }
     }
@@ -2511,6 +2233,63 @@ impl<'a> Parser<'a> {
         }
         Ok(())
     }
+    /// Go's test that a token has a prefix parser: whether the token at
+    /// `index` can start an expression.
+    fn prefix(&self, index: usize) -> bool {
+        match &self.tokens[index].token {
+            Token::Word(w) if w.starts_with('@') => true,
+            Token::Word(w) if keyword(w) => matches!(
+                w.as_str(),
+                "then"
+                    | "true"
+                    | "false"
+                    | "nil"
+                    | "self"
+                    | "yield"
+                    | "if"
+                    | "unless"
+                    | "case"
+                    | "begin"
+                    | "for"
+                    | "while"
+                    | "until"
+            ),
+            Token::Word(_)
+            | Token::Int(_)
+            | Token::BigInt(..)
+            | Token::Float(_)
+            | Token::Bytes(_)
+            | Token::Template(_)
+            | Token::Words(_)
+            | Token::Regex(..)
+            | Token::Symbol(_)
+            | Token::QuotedSymbol(_)
+            | Token::P('(' | '[' | '{')
+            | Token::Op("!" | "-" | "+" | "->") => true,
+            Token::Invalid(invalid) => matches!(invalid.failure, Failure::Literal(_)),
+            _ => false,
+        }
+    }
+    /// Reports whether the token at `index` is an identifier, as opposed to a
+    /// keyword or variable.
+    fn ident(&self, index: usize) -> bool {
+        matches!(&self.tokens[index].token, Token::Word(w) if !keyword(w) && !w.starts_with('@'))
+    }
+    /// Consumes a symbol token and returns its name.
+    fn symbol_name(&mut self) -> Result<Option<Name>> {
+        let name = match self.token() {
+            Token::Symbol(name) => Name::new(self.work, name)?,
+            Token::QuotedSymbol(bytes) => {
+                self.work.bytes(bytes.len())?;
+                let name = std::str::from_utf8(bytes)
+                    .map_err(|_| unsupported(self.work, "method names must be UTF-8"))?;
+                Name::new(self.work, name)?
+            }
+            _ => return Ok(None),
+        };
+        self.bump()?;
+        Ok(Some(name))
+    }
     fn name(&mut self) -> Result<Name> {
         self.work.charge(1)?;
         let offset = self.tokens[self.pos].offset;
@@ -2521,16 +2300,6 @@ impl<'a> Parser<'a> {
             Name::new(self.work, &w)
         } else {
             Err(Error::syntax(self.work, offset, "expected name"))
-        }
-    }
-    fn enum_name(&mut self) -> Result<Name> {
-        self.work.charge(1)?;
-        let offset = self.tokens[self.pos].offset;
-        match self.bump()? {
-            Token::Word(name) if !keyword(&name) && !name.starts_with('@') => {
-                Name::new(self.work, &name)
-            }
-            _ => Err(Error::syntax(self.work, offset, "expected enum identifier")),
         }
     }
     fn at_end(&self) -> bool {
@@ -2546,9 +2315,11 @@ impl<'a> Parser<'a> {
             Ok(())
         }
     }
-    fn check_depth(&self, depth: u32) -> Result<()> {
+    /// Refuses a syntax tree deeper than Go's limit, at the offending node as Go does.
+    fn check_depth(&self, depth: u32, offset: u32) -> Result<()> {
         if depth as usize > MAX_DEPTH {
-            self.err(TOO_DEEP)
+            self.work.charge(1)?;
+            Err(Error::syntax(self.work, offset as usize, TOO_DEEP))
         } else {
             Ok(())
         }
@@ -2574,8 +2345,7 @@ impl<'a> Parser<'a> {
         }
         Ok(())
     }
-    // Like Go, the separator may start a later line, but a line-leading
-    // `:name` is a symbol rather than the separator.
+    // Like Go, the separator may start a later line.
     fn ternary_separator(&mut self) -> Result<()> {
         let mut next = self.pos;
         while self.tokens[next].token == Token::EndLine
@@ -2584,7 +2354,7 @@ impl<'a> Parser<'a> {
             self.work.charge(1)?;
             next += 1;
         }
-        if self.tokens[next].token == Token::P(':') && !self.symbol_start(next) {
+        if self.tokens[next].token == Token::P(':') {
             self.pos = next;
         }
         Ok(())
@@ -2607,13 +2377,6 @@ impl<'a> Parser<'a> {
                     }
                     nesting -= 1;
                 }
-                Token::Op("=")
-                    if i >= 3
-                        && self.tokens[self.pos + i - 3].token == Token::P(':')
-                        && self.symbol_start(self.pos + i - 3)
-                        && self.tokens[self.pos + i - 2].token == Token::P('[')
-                        && self.tokens[self.pos + i - 1].token == Token::P(']')
-                        && self.tokens[self.pos + i - 1].end == lexeme.offset => {}
                 Token::Op(op) if nesting == 0 && assignment(op) => return Ok(true),
                 Token::EndLine if nesting == 0 => {
                     if lexeme.line == lexeme.end_line {
@@ -2662,19 +2425,17 @@ impl<'a> Parser<'a> {
         )
     }
     fn make(&self, node: Node, depth: u32) -> Result<Expr> {
-        self.work.charge(1)?;
-        self.check_depth(depth)?;
-        Ok(Expr {
-            node,
-            depth,
-            offset: self.tokens[self.pos.saturating_sub(1)].offset as u32,
-        })
+        let offset = self.tokens[self.pos.saturating_sub(1)].offset as u32;
+        self.make_at(node, depth, offset)
     }
     fn make_at(&self, node: Node, depth: u32, offset: u32) -> Result<Expr> {
         self.work.charge(1)?;
-        let mut expr = self.make(node, depth)?;
-        expr.offset = offset;
-        Ok(expr)
+        self.check_depth(depth, offset)?;
+        Ok(Expr {
+            node,
+            depth,
+            offset,
+        })
     }
     // Most expressions start with a single-token operand. Parse it and look
     // for a suffix here, so that only nested syntax costs a task.
@@ -2687,7 +2448,8 @@ impl<'a> Parser<'a> {
             | Token::Bytes(_)
             | Token::Template(_)
             | Token::Words(..)
-            | Token::P(':') => true,
+            | Token::Symbol(_)
+            | Token::QuotedSymbol(_) => true,
             Token::Word(w) => !reserved(w) || w == "then",
             _ => false,
         };
@@ -2724,13 +2486,27 @@ impl<'a> Parser<'a> {
             Token::Float(n) => self.make(Node::Literal(Value::float(n)), 1),
             Token::Regex(pattern, flags) => self.make(Node::Regex(pattern, flags), 1),
             Token::Bytes(b) => self.make(Node::Literal(b.into_value(false)), 1),
-            Token::Template(parts) => self.template(parts, false),
-            Token::Words(words) => self.words(words.into_inner()),
-            Token::Invalid(error) if error.1.as_str() == UNSUPPORTED_CHARACTER => {
+            Token::Template(parts) => {
+                let offset = self.tokens[self.pos - 1].offset;
+                self.template(parts, false, offset)
+            }
+            Token::Words(words) => {
+                let offset = self.tokens[self.pos - 1].offset;
+                self.words(words.into_inner(), offset)
+            }
+            Token::Symbol(name) => {
+                let name = Bytes::from_slice(self.work, name.as_bytes())?;
+                self.make(Node::Literal(name.into_value(true)), 1)
+            }
+            Token::QuotedSymbol(name) => self.make(Node::Literal(name.into_value(true)), 1),
+            Token::Invalid(invalid) if invalid.failure == Failure::Character => {
                 self.unexpected(self.pos - 1)
             }
-            Token::Invalid(error) => Err(Error::syntax(self.work, error.0, error.1.as_str())),
-            Token::P(':') => self.symbol(),
+            Token::Invalid(invalid) => Err(Error::syntax(
+                self.work,
+                invalid.offset,
+                invalid.message.as_str(),
+            )),
             Token::Op("->") => Err(Error::syntax(
                 self.work,
                 self.position(self.pos - 1),
@@ -2742,7 +2518,21 @@ impl<'a> Parser<'a> {
             _ => self.unexpected(self.pos - 1),
         }
     }
+    /// Reads the name just consumed. Like Go, a variable sigil at the end of
+    /// input names nothing.
     fn variable_name(&self, name: &str) -> Result<Expr> {
+        if matches!(name, "@" | "@@") {
+            let (expected, got) = if name == "@" {
+                ("instance variable name", "instance variable")
+            } else {
+                ("class variable name", "class variable")
+            };
+            return Err(Error::syntax(
+                self.work,
+                self.tokens[self.pos - 1].offset,
+                format_args!("expected {expected}, got {got}"),
+            ));
+        }
         self.make(Node::Var(Name::new(self.work, name)?), 1)
     }
     fn negative_literal(&self, op: &str) -> Result<bool> {
@@ -2798,20 +2588,23 @@ impl<'a> Parser<'a> {
         Ok((key, shorthand))
     }
 
-    fn words(&mut self, words: lexer::Words<'a>) -> Result<Expr> {
+    fn words(&mut self, words: lexer::Words<'a>, offset: usize) -> Result<Expr> {
         self.work.charge(1)?;
         let mut values = Buffer::with_capacity(self.work, words.entries.len())?;
         for word in words.entries {
-            values.push(self.work, self.template(word, words.symbol)?)?;
+            values.push(self.work, self.template(word, words.symbol, offset)?)?;
         }
         let depth = 1 + values.iter().map(|v| v.depth).max().unwrap_or(0);
         self.make(Node::Array(values), depth)
     }
 
+    /// Builds a string or symbol from its parts. Like Go, an interpolation's
+    /// failure is reported at the literal, at `offset`.
     fn template(
         &mut self,
         parts: crate::compilation::Buffer<Part<'a>>,
         symbol: bool,
+        offset: usize,
     ) -> Result<Expr> {
         self.work.charge(1)?;
         if !parts.iter().any(|part| matches!(part, Part::Expr(..))) {
@@ -2827,7 +2620,15 @@ impl<'a> Parser<'a> {
                     Part::Text(bytes) => self.make(Node::Literal(bytes.into_value(false)), 1)?,
                     Part::Expr(tokens, span) => {
                         self.interpolations.push(self.work, span)?;
-                        self.interpolation(tokens)?
+                        let text = &self.source[span.0 as usize..span.1 as usize - 1];
+                        if text.trim().is_empty() {
+                            return Err(Error::syntax(
+                                self.work,
+                                offset,
+                                "empty string interpolation",
+                            ));
+                        }
+                        self.interpolation(tokens, offset)?
                     }
                 },
             )?;
@@ -2839,6 +2640,7 @@ impl<'a> Parser<'a> {
     fn interpolation(
         &mut self,
         mut tokens: crate::compilation::Buffer<Lexeme<'a>>,
+        offset: usize,
     ) -> Result<Expr> {
         self.work.charge(1)?;
         while tokens.len() >= 2 {
@@ -2869,6 +2671,8 @@ impl<'a> Parser<'a> {
             interpolations: Buffer::new(),
             // Go parses interpolations without the member probe.
             record: None,
+            inside_class: false,
+            nesting: 0,
         };
         while parser.token() == &Token::EndLine
             && parser.tokens[parser.pos].line != parser.tokens[parser.pos].end_line
@@ -2881,14 +2685,35 @@ impl<'a> Parser<'a> {
         let parsing = Parsing::new(parser);
         let result = parsing.run(Call::Interpolation);
         let parser = parsing.parser.into_inner();
+        let complete = parser.token() == &Token::Eof;
         self.locals = parser.locals;
         self.declared_it = parser.declared_it;
         self.interpolations
             .extend(self.work, parser.interpolations)?;
-        match result? {
-            Parsed::Expr(expr) => Ok(expr),
-            _ => unreachable!(),
+        let expr = match result {
+            Ok(Parsed::Expr(expr)) => expr,
+            Ok(_) => unreachable!(),
+            Err(error) if error.kind == crate::ErrorKind::Syntax => {
+                return Err(if error.message == TOO_DEEP {
+                    Error::syntax(self.work, offset, TOO_DEEP)
+                } else {
+                    Error::syntax(
+                        self.work,
+                        offset,
+                        format_args!("invalid string interpolation: {}", error.message),
+                    )
+                });
+            }
+            Err(error) => return Err(error),
+        };
+        if !complete {
+            return Err(Error::syntax(
+                self.work,
+                offset,
+                "string interpolation must contain a single expression",
+            ));
         }
+        Ok(expr)
     }
 
     fn expand_modulo(&mut self) -> Result<()> {
@@ -2952,31 +2777,6 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    fn symbol(&mut self) -> Result<Expr> {
-        self.work.charge(1)?;
-        let colon = self.pos - 1;
-        if !self.symbol_start(colon) {
-            return self.unexpected(colon);
-        }
-        let bytes = match self.bump()? {
-            Token::Word(w) => Bytes::from_slice(self.work, w.as_bytes())?,
-            Token::Bytes(b) => b,
-            Token::Op(op) => Bytes::from_slice(self.work, op.as_bytes())?,
-            Token::P('[') => {
-                self.expect_p(']')?;
-                if self.token() == &Token::Op("=")
-                    && self.previous()?.end == self.tokens[self.pos].offset
-                {
-                    self.bump()?;
-                    Bytes::from_slice(self.work, b"[]=")?
-                } else {
-                    Bytes::from_slice(self.work, b"[]")?
-                }
-            }
-            _ => return self.unexpected(colon),
-        };
-        self.make(Node::Literal(bytes.into_value(true)), 1)
-    }
     fn parenthesized_call(&mut self, lhs: Expr, args: Buffer<Argument>) -> Result<Expr> {
         self.work.charge(1)?;
         let origin = lhs.offset;
@@ -3212,8 +3012,16 @@ impl<'a> Parser<'a> {
         }
         Ok(false)
     }
+    /// Refuses an argument after keywords unless Go lets it follow them: a
+    /// keyword, a keyword splat or a block argument.
+    fn keyword_order(&self, message: &str) -> Result<()> {
+        if matches!(self.token(), Token::Op("**" | "&")) || self.keyword_label(self.pos) {
+            return Ok(());
+        }
+        self.err(message)
+    }
     fn keyword_label(&self, pos: usize) -> bool {
-        matches!(self.tokens[pos].token, Token::Word(_))
+        matches!(&self.tokens[pos].token, Token::Word(word) if !word.starts_with('@'))
             && self
                 .tokens
                 .get(pos + 1)
@@ -3244,12 +3052,6 @@ impl<'a> Parser<'a> {
             return Ok(true);
         }
         Ok(match next.token {
-            Token::P(':')
-                if self.ternaries.last() == Some(&self.groups)
-                    && matches!(self.tokens[self.pos + 1].token, Token::Bytes(_)) =>
-            {
-                false
-            }
             Token::P('[') => !local && previous.end != next.offset,
             // Only a declared local makes `%w` a modulo. An implicit block `it`
             // still calls a function named `it`, as in Go.
@@ -3297,56 +3099,14 @@ impl<'a> Parser<'a> {
             | Token::Bytes(_)
             | Token::Regex(..)
             | Token::Template(_)
-            | Token::Words(..) => true,
-            Token::P(':') => self.symbol_start(pos),
+            | Token::Words(..)
+            | Token::Symbol(_)
+            | Token::QuotedSymbol(_) => true,
+            Token::Invalid(invalid) => matches!(invalid.failure, Failure::Literal(_)),
             Token::Op("!") => true,
             Token::P('[') | Token::Op("*" | "**" | "&") => after_comma,
             _ => false,
         }
-    }
-    fn symbol_start(&self, pos: usize) -> bool {
-        let colon = &self.tokens[pos];
-        if pos > 0
-            && matches!(self.tokens[pos - 1].token, Token::Word(_))
-            && self.tokens[pos - 1].end == colon.offset
-        {
-            return false;
-        }
-        self.tokens.get(pos + 1).is_some_and(|t| {
-            t.offset == colon.end
-                && (matches!(&t.token, Token::Word(word) if !word.starts_with('@'))
-                    || matches!(t.token, Token::Bytes(_))
-                    || matches!(
-                        t.token,
-                        Token::Op(
-                            "+" | "-"
-                                | "*"
-                                | "/"
-                                | "%"
-                                | "**"
-                                | "<<"
-                                | "&"
-                                | "<"
-                                | ">"
-                                | "<="
-                                | "<=>"
-                                | ">="
-                                | "=="
-                                | "==="
-                                | "=~"
-                                | "!~"
-                                | "!="
-                                | "!"
-                                | "&&"
-                                | "||"
-                        )
-                    )
-                    || (t.token == Token::P('[')
-                        && self
-                            .tokens
-                            .get(pos + 2)
-                            .is_some_and(|end| end.token == Token::P(']') && end.offset == t.end)))
-        })
     }
     fn argument_kind(&mut self) -> Result<ArgumentKind> {
         Ok(if self.token() == &Token::Op("**") {
@@ -3403,8 +3163,11 @@ impl<'a> Parser<'a> {
             | Token::Bytes(_)
             | Token::Regex(..)
             | Token::Template(_)
-            | Token::Words(..) => true,
-            Token::P('(' | '[' | '{' | ':') | Token::Op("+" | "-" | "!") => true,
+            | Token::Words(..)
+            | Token::Symbol(_)
+            | Token::QuotedSymbol(_) => true,
+            Token::Invalid(invalid) => matches!(invalid.failure, Failure::Literal(_)),
+            Token::P('(' | '[' | '{') | Token::Op("+" | "-" | "!") => true,
             _ => false,
         }
     }
@@ -3443,10 +3206,6 @@ fn binding_power(op: &str) -> Option<(u8, u8)> {
     })
 }
 
-/// The lexer's message for a character no token starts with, which Go reports
-/// as an invalid token.
-const UNSUPPORTED_CHARACTER: &str = "unsupported character";
-
 /// Go's rejection of a hash entry that is not a labeled or quoted key and its value.
 const INVALID_HASH_PAIR: &str = "invalid hash pair: expected key like name: or \"name\":";
 
@@ -3483,6 +3242,27 @@ impl std::fmt::Display for Label<'_> {
         }
     }
 }
+/// Go's bound on source text quoted in a diagnostic: at most 64 bytes, cut at
+/// a character boundary and marked.
+pub(super) struct SourceText<'a>(&'a str);
+
+pub(super) fn source_text(text: &str) -> SourceText<'_> {
+    SourceText(text)
+}
+
+impl std::fmt::Display for SourceText<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.0.len() <= 64 {
+            return f.write_str(self.0);
+        }
+        let mut end = 64;
+        while !self.0.is_char_boundary(end) {
+            end -= 1;
+        }
+        write!(f, "{}...", &self.0[..end])
+    }
+}
+
 fn reserved(w: &str) -> bool {
     matches!(
         w,

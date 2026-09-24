@@ -19,7 +19,7 @@ fn loop_results_binding_and_nested_control_follow_the_language_contract() {
     for (source, expected) in [
         ("loop {break}", serde_json::json!(null)),
         ("loop {break false}", serde_json::json!(false)),
-        ("loop {break :done}", serde_json::json!("done")),
+        ("loop do break :done end", serde_json::json!("done")),
         ("loop {|a,b|break [a,b]}", serde_json::json!([null, null])),
         (
             "loop {|(a,*rest)|break [a,rest]}",

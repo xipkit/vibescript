@@ -128,7 +128,7 @@ fn reports_files_that_cannot_run() {
     assert_eq!(
         run.stdout,
         "--- FAIL: assign_test.vibe :: (compile)\n    unsupported top-level statement *ast.AssignStmt\n\
-         --- FAIL: bad_test.vibe :: (compile)\n    parse error at 2:0: expected name\n      \
+         --- FAIL: bad_test.vibe :: (compile)\n    parse error at 2:0: expected parameter name, got end of input\n      \
          --> line 2, column 1\n     2 | \n       | ^\n\
          --- FAIL: params_test.vibe :: test_needs_arg\n    test functions must not require parameters\n\
          --- FAIL: top_test.vibe :: (compile)\n    unsupported top-level statement *ast.ExprStmt\n\
