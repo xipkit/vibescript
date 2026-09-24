@@ -205,3 +205,32 @@ fn stable_literal_alternatives_keep_their_precision() {
         false,
     );
 }
+
+#[test]
+fn allocation_after_branches_that_allocated_differently_keeps_object_positions() {
+    witnessed(
+        r##"
+        class Row
+          def initialize(id)
+            @id = id
+          end
+          def id
+            @id
+          end
+          def set(id)
+            @id = id
+          end
+        end
+        def run(n)
+          first = Row.new(1)
+          if n > 2
+            first.set(2)
+            Row.new(9)
+          end
+          second = Row.new(3)
+          first.id + second.id
+        end
+        "##,
+        true,
+    );
+}

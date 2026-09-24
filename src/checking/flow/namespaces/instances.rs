@@ -26,15 +26,11 @@ impl Walker<'_> {
         let root = module.root + 2;
         let heap = state.locals.get(self.ctx, root)?.value;
         // Widened allocation counts cannot identify a fresh singleton object.
-        let Node::Tuple(entries) = self.facts.node(heap) else {
+        let Some(mut entries) = crate::checking::heaps::entries(self.ctx, self.facts, heap)? else {
             self.incomplete(pc)?;
             return Ok(None);
         };
         let slot = entries.data.len();
-        let mut entries = Buffer::with_capacity(self.ctx, slot + 1)?;
-        if let Node::Tuple(previous) = self.facts.node(heap) {
-            entries.extend(self.ctx, &previous.data)?;
-        }
         let fields = self.facts.shape_fields(
             self.ctx,
             Buffer::empty(),

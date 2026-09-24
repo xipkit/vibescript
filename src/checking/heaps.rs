@@ -4,7 +4,9 @@ use super::{
 };
 use crate::{CallContext, Result, budget::Buffer};
 
-/// Coalesces equally sized alternatives without losing their object positions.
+/// Coalesces heap alternatives into one list of entries without losing object positions. A
+/// shorter alternative has not allocated the later objects on its path, so no reference to
+/// them exists there.
 pub(super) fn entries(
     ctx: &mut CallContext,
     facts: &mut Facts,
@@ -13,24 +15,29 @@ pub(super) fn entries(
     let mut entries: Option<Buffer<Fact>> = None;
     for i in 0..facts.arm_count(heap) {
         ctx.charge(1)?;
-        let Node::Tuple(values) = facts.node(facts.arm(heap, i)) else {
+        let arm = facts.arm(heap, i);
+        if arm == Atom::Never.fact() {
+            continue;
+        }
+        let Node::Tuple(values) = facts.node(arm) else {
             return Ok(None);
         };
         let mut copied = Buffer::empty();
         copied.extend(ctx, &values.data)?;
-        if let Some(entries) = &mut entries {
-            if entries.data.len() != copied.data.len() {
-                return Ok(None);
-            }
-            for (a, b) in entries.data.iter_mut().zip(copied.data) {
-                ctx.charge(1)?;
-                *a = facts.union(ctx, &[*a, b])?;
-            }
-        } else {
+        let Some(entries) = &mut entries else {
             entries = Some(copied);
+            continue;
+        };
+        for (index, value) in copied.data.into_iter().enumerate() {
+            ctx.charge(1)?;
+            if let Some(entry) = entries.data.get_mut(index) {
+                *entry = facts.union(ctx, &[*entry, value])?;
+            } else {
+                entries.push(ctx, value)?;
+            }
         }
     }
-    Ok(entries)
+    Ok(Some(entries.unwrap_or_else(Buffer::empty)))
 }
 
 /// An instance reference proves the selected object exists even after heap widening.
