@@ -284,3 +284,18 @@ pub fn stringify_json(value: &Value, options: CallOptions) -> Result<Outcome> {
         stats: ctx.stats(),
     })
 }
+
+/// Returns the core builtins that every script can reach by name.
+///
+/// Builtin functions such as `puts` map to builtin descriptors, and namespaces
+/// such as `JSON` and `Math` map to objects whose fields are their members,
+/// including constants such as `Math::PI`. Tools list and complete names from
+/// this map instead of keeping their own tables. It describes the language, so
+/// registered host functions and capabilities are not included. Scripts still
+/// cannot hold a descriptor as a value; a host may pass one back as a global.
+pub fn builtins() -> BTreeMap<String, Value> {
+    builtin::Global::ALL
+        .iter()
+        .map(|global| (global.name().to_owned(), global.value()))
+        .collect()
+}

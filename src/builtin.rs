@@ -67,6 +67,35 @@ pub(crate) enum Global {
 }
 
 impl Global {
+    /// Every global a script can reach by name, in name order.
+    pub const ALL: [Self; 25] = [
+        Self::Duration,
+        Self::Hash,
+        Self::Json,
+        Self::Math,
+        Self::Regex,
+        Self::Regexp,
+        Self::Time,
+        Self::Assert,
+        Self::Format(crate::format::Function::Format),
+        Self::Loop,
+        Self::Money,
+        Self::MoneyCents,
+        Self::Now,
+        Self::Output(crate::output::Kind::Inspect),
+        Self::Output(crate::output::Kind::Print),
+        Self::Output(crate::output::Kind::Puts),
+        Self::Random(crate::random::Method::Rand),
+        Self::Random(crate::random::Method::Id),
+        Self::Require,
+        Self::Format(crate::format::Function::Sprintf),
+        Self::Random(crate::random::Method::Seed),
+        Self::ToFloat,
+        Self::ToInt,
+        Self::Random(crate::random::Method::Uuid),
+        Self::Output(crate::output::Kind::Warn),
+    ];
+
     pub fn name(self) -> &'static str {
         match self {
             Self::Require => "require",
@@ -657,4 +686,22 @@ fn call_math(
         }
     };
     Ok(Value::float(result))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Global;
+
+    #[test]
+    fn every_global_is_listed_once_in_name_order() {
+        let names: Vec<_> = Global::ALL.iter().map(|global| global.name()).collect();
+        assert!(names.is_sorted(), "{names:?}");
+        assert!(names.windows(2).all(|pair| pair[0] != pair[1]), "{names:?}");
+        for global in Global::ALL {
+            assert_eq!(Global::parse(global.name()), Some(global));
+        }
+        for removed in ["proc", "lambda", "Proc", "Kernel", "__main__"] {
+            assert_eq!(Global::parse(removed), None);
+        }
+    }
 }

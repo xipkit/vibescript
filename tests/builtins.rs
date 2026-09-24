@@ -378,3 +378,84 @@ fn cancellation_and_ignored_quota_errors_prevent_builtin_results() {
         assert_eq!(error.kind, ErrorKind::Steps, "{source}");
     }
 }
+
+#[test]
+fn builtin_catalog_lists_the_names_scripts_reach() {
+    let catalog = vibescript::builtins();
+    let names: Vec<_> = catalog.keys().map(String::as_str).collect();
+    assert_eq!(
+        names,
+        [
+            "Duration",
+            "Hash",
+            "JSON",
+            "Math",
+            "Regex",
+            "Regexp",
+            "Time",
+            "assert",
+            "format",
+            "loop",
+            "money",
+            "money_cents",
+            "now",
+            "p",
+            "print",
+            "puts",
+            "rand",
+            "random_id",
+            "require",
+            "sprintf",
+            "srand",
+            "to_float",
+            "to_int",
+            "uuid",
+            "warn",
+        ]
+    );
+    assert_eq!(catalog["puts"].type_name(), "builtin");
+    assert_eq!(catalog["puts"].to_string(), "<builtin puts>");
+    let members = |name: &str| -> Vec<(String, &'static str)> {
+        catalog[name]
+            .as_hash()
+            .unwrap()
+            .iter()
+            .map(|(key, value)| {
+                let key = String::from_utf8(key.as_bytes().unwrap().to_vec()).unwrap();
+                (key, value.type_name())
+            })
+            .collect()
+    };
+    assert_eq!(catalog["JSON"].type_name(), "object");
+    assert_eq!(
+        members("JSON"),
+        [
+            ("parse".to_owned(), "builtin"),
+            ("parse_as".to_owned(), "builtin"),
+            ("stringify".to_owned(), "builtin"),
+        ]
+    );
+    let math = members("Math");
+    assert!(math.contains(&("PI".to_owned(), "float")), "{math:?}");
+    assert!(math.contains(&("sqrt".to_owned(), "builtin")), "{math:?}");
+    // Every listed name and member resolves in a script: reading one either
+    // yields a value or refuses a callable, never an undefined name.
+    for (name, value) in &catalog {
+        let mut paths = vec![name.clone()];
+        if let Some(entries) = value.as_hash() {
+            for (key, _) in entries {
+                let member = std::str::from_utf8(key.as_bytes().unwrap()).unwrap();
+                paths.push(format!("{name}::{member}"));
+            }
+        }
+        for path in paths {
+            let result = Engine::new()
+                .compile(&path)
+                .unwrap()
+                .run(CallOptions::default());
+            if let Err(error) = result {
+                assert_ne!(error.kind, ErrorKind::Name, "{path}: {error}");
+            }
+        }
+    }
+}
