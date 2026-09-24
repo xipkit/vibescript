@@ -42,10 +42,19 @@ pub(in crate::checking) fn analyze(
     bodies
         .data
         .sort_unstable_by_key(|&body| program.functions[body].offset);
+    // Only analyzing an unreached body changes what the entries reach.
+    let mut reached = None;
     for body in bodies.data {
-        if solver.whole_reached(ctx, &entries.data, source, body)? {
+        if reached.is_none() {
+            reached = Some(solver.whole_reached(ctx, &entries.data, source)?);
+        }
+        if reached
+            .as_ref()
+            .is_some_and(|reached| reached.data.get(body) == Some(&true))
+        {
             continue;
         }
+        reached = None;
         let mut next = Buffer::empty();
         for globals in globals.data {
             ctx.charge(1)?;
@@ -213,16 +222,17 @@ impl Solver<'_, '_> {
         Ok(())
     }
 
+    /// Marks, by function index, the functions of `source` that the entries' analyses reach.
     pub(super) fn whole_reached(
         &self,
         ctx: &mut CallContext,
         entries: &[usize],
         source: SourceId,
-        function: usize,
-    ) -> Result<bool> {
+    ) -> Result<Buffer<bool>> {
         let mut seen = Buffer::with_capacity(ctx, self.state.jobs.data.len())?;
         ctx.charge(self.state.jobs.data.len() as u64)?;
         seen.data.resize(self.state.jobs.data.len(), false);
+        let mut reached = Buffer::empty();
         let mut pending = Buffer::empty();
         pending.extend(ctx, entries)?;
         while let Some(index) = pending.data.pop() {
@@ -232,12 +242,18 @@ impl Solver<'_, '_> {
             }
             seen.data[index] = true;
             let job = &self.state.jobs.data[index];
-            if job.source == source && job.function == function {
-                return Ok(true);
+            if job.source == source {
+                if reached.data.len() <= job.function {
+                    let length = job.function + 1;
+                    ctx.charge((length - reached.data.len()) as u64)?;
+                    reached.ensure(ctx, length.max(reached.data.capacity() * 2))?;
+                    reached.data.resize(length, false);
+                }
+                reached.data[job.function] = true;
             }
             pending.extend(ctx, &job.dependencies.data)?;
         }
-        Ok(false)
+        Ok(reached)
     }
 
     pub(super) fn constructor_fields(

@@ -170,25 +170,17 @@ fn recursion_and_whole_file_reachability_do_not_confuse_sources() {
     assert_ne!(first, second);
     assert!(!solver.state.jobs.data[first].cyclic);
     assert!(solver.state.jobs.data[first].widened.is_none());
-    assert!(
-        solver
-            .whole_reached(&mut ctx, &[first], source_a, function)
-            .unwrap()
-    );
-    assert!(
-        !solver
-            .whole_reached(&mut ctx, &[first], source_b, function)
-            .unwrap()
-    );
+    let reached = |solver: &Solver<'_, '_>, ctx: &mut CallContext, source| {
+        let reached = solver.whole_reached(ctx, &[first], source).unwrap();
+        reached.data.get(function) == Some(&true)
+    };
+    assert!(reached(&solver, &mut ctx, source_a));
+    assert!(!reached(&solver, &mut ctx, source_b));
     solver.state.jobs.data[first]
         .dependencies
         .push(&mut ctx, second)
         .unwrap();
-    assert!(
-        solver
-            .whole_reached(&mut ctx, &[first], source_b, function)
-            .unwrap()
-    );
+    assert!(reached(&solver, &mut ctx, source_b));
     drop(state);
     drop((layouts, other, facts, scope, expanded));
     assert_eq!(ctx.stats().retained_memory_bytes, 0);
