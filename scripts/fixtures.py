@@ -32,6 +32,21 @@ def site_cases():
     return [{**case,**settings.get(case["path"],{}),"name":"site/"+case["path"],"source":(SITE/case["path"]).read_text(),"accounting":True} for case in json.loads((SITE/"cases.json").read_text())]
 
 
+def site_benchmark_cases():
+    """Every site program, metered and unlimited, for timing whole programs.
+
+    Notification programs are left out: each harness accumulates their host
+    side effects across repeated calls in its own way.
+    """
+    out=[]
+    for case in site_cases():
+        if case.get("notifications"):
+            continue
+        for accounting in [True,False]:
+            out.append({**case,"name":case["name"]+("/metered" if accounting else "/unlimited"),"accounting":accounting,"iterations":100})
+    return out
+
+
 def encoding_cases():
     return [{"name":"encoding/"+case["name"],"source":function(case["body"]),"args":[None],"expected":case["expected"],"accounting":True,"result_encoding":"typed"} for case in json.loads((UPSTREAM.parent/"encoding-cases.json").read_text())]
 

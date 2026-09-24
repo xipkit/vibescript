@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from fixtures import benchmark_cases, conformance_cases
+from fixtures import benchmark_cases, conformance_cases, site_benchmark_cases
 from module_fixtures import materialize
 
 ROOT=Path(__file__).resolve().parent.parent
@@ -115,12 +115,21 @@ def validate_rejections(out):
     (out/"validation-rejections.json").write_text(json.dumps(records,indent=2)+"\n")
 
 
-def measure(out,rounds,target_ms,expected):
-    cases=[{k:v for k,v in case.items() if k!="expected"} for case in benchmark_cases()]
+def measure(out,rounds,target_ms,expected,suite):
+    source=site_benchmark_cases() if suite=="site" else benchmark_cases()
+    cases=[{k:v for k,v in case.items() if k!="expected"} for case in source]
     path=out/"measurement-inputs.json";path.write_text(json.dumps(cases,ensure_ascii=False,sort_keys=True)+"\n")
-    pilot={}
+    pilot={};pilot_digests={}
     for variant in VARIANTS:
-        pilot[variant]={r["name"]:r["ns_per_call"] for r in invoke(variant,path,20,"timing",out/f"pilot-{variant}.jsonl")}
+        records=invoke(variant,path,20,"timing",out/f"pilot-{variant}.jsonl")
+        pilot[variant]={r["name"]:r["ns_per_call"] for r in records}
+        pilot_digests[variant]={r["name"]:r["digest"] for r in records}
+    if suite=="site":
+        # Site programs are validated elsewhere; here every build must agree with Go.
+        expected=pilot_digests["go-portable"]
+        for variant in VARIANTS:
+            for name,digest in pilot_digests[variant].items():
+                assert digest==expected[name],(variant,name,"output differs from go-portable")
     for case in cases:
         slowest=max(pilot[v][case["name"]] for v in VARIANTS)
         case["iterations"]=max(20,min(100000,int(target_ms*1_000_000/slowest)))
@@ -172,7 +181,7 @@ def cpu_name():
 
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument("--out",type=Path,default=ROOT/"benchmarks/results"/time.strftime("%Y-%m-%d-%H%M%S"));parser.add_argument("--skip-build",action="store_true");parser.add_argument("--validate-only",action="store_true");parser.add_argument("--rounds",type=int,default=8);parser.add_argument("--target-ms",type=float,default=75)
+    parser=argparse.ArgumentParser();parser.add_argument("--out",type=Path,default=ROOT/"benchmarks/results"/time.strftime("%Y-%m-%d-%H%M%S"));parser.add_argument("--skip-build",action="store_true");parser.add_argument("--validate-only",action="store_true");parser.add_argument("--rounds",type=int,default=8);parser.add_argument("--target-ms",type=float,default=75);parser.add_argument("--suite",choices=["core","site"],default="core",help="core micro-benchmarks, or every site program")
     parser.add_argument("--baseline",type=Path,help="Directory containing prior rust-portable/rust-simd timing and allocation binaries, plus a revision file")
     args=parser.parse_args();out=args.out.resolve();out.mkdir(parents=True,exist_ok=False)
     baseline_revision=None
@@ -195,7 +204,7 @@ def main():
     metadata["allocation_binary_sha256"]={name+"-alloc":hashlib.sha256((BINS/(name+"-alloc")).read_bytes()).hexdigest() for name in VARIANTS if name.startswith("rust")}
     (out/"environment.json").write_text(json.dumps(metadata,indent=2)+"\n")
     expected=validate(out)
-    if not args.validate_only: measure(out,args.rounds,args.target_ms,expected)
+    if not args.validate_only: measure(out,args.rounds,args.target_ms,expected,args.suite)
 
 
 if __name__=="__main__": main()
