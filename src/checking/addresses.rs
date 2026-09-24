@@ -185,6 +185,27 @@ impl Address {
         Ok(address)
     }
 
+    /// Maps every fact the address selects through.
+    pub fn rename(
+        &mut self,
+        ctx: &mut CallContext,
+        rename: &mut super::heaps::Rename<'_>,
+    ) -> Result<()> {
+        self.value = rename(ctx, self.value)?;
+        for selector in &mut self.selectors.data {
+            *selector = rename(ctx, *selector)?;
+        }
+        for (receiver, key) in self.instance.iter_mut().chain(self.object.iter_mut()) {
+            *receiver = rename(ctx, *receiver)?;
+            *key = rename(ctx, *key)?;
+        }
+        for hop in &mut self.path.data {
+            hop.container = rename(ctx, hop.container)?;
+            hop.key = rename(ctx, hop.key)?;
+        }
+        Ok(())
+    }
+
     /// Broadens the receiver selector when the same field may have changed through an alias.
     pub fn aliased(&self, ctx: &mut CallContext) -> Result<Self> {
         let mut address = self.snapshot(ctx)?;
@@ -374,7 +395,11 @@ impl Address {
         let mut unsupported = !self.supported;
         for hop in self.path.data.iter().rev() {
             ctx.charge(1)?;
-            let next = facts.collection_write(ctx, hop.container, hop.key, value)?;
+            let next = if hop.instance {
+                super::heaps::write(ctx, facts, hop.container, hop.key, value)?
+            } else {
+                facts.collection_write(ctx, hop.container, hop.key, value)?
+            };
             value = next.receiver;
             unsupported |= next.unsupported;
         }

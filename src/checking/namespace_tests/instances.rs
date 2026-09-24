@@ -217,13 +217,18 @@ fn ignored_host_transfers_from_instances_keep_constructor_and_method_homes() {
 }
 
 #[test]
-fn instance_analysis_keeps_unmodeled_allocation_explicit() {
+fn instance_analysis_summarizes_loop_allocations() {
     let source = "class C;end;def run(n:int);for i in 1..n;C.new;end;end";
     let script = Engine::new().compile(source).unwrap();
     let report = script
         .check_call("run", &[Value::int(5)], &CallOptions::default())
         .unwrap();
-    assert!(!report.incomplete.is_empty(), "{source}: {report:?}");
+    assert!(report.is_clean(), "{source}: {report:?}");
+    assert!(
+        script
+            .call("run", &[Value::int(5)], CallOptions::default())
+            .is_ok()
+    );
 }
 
 #[test]

@@ -234,3 +234,69 @@ fn allocation_after_branches_that_allocated_differently_keeps_object_positions()
         true,
     );
 }
+
+#[test]
+fn allocations_in_loops_and_callbacks_keep_fresh_objects_exact() {
+    for source in [
+        // Objects created on every pass fold into one summary entry, while each fresh object
+        // keeps the fields its constructor wrote.
+        r##"
+        class Row
+          def initialize(id)
+            @id = id
+          end
+          def id
+            @id
+          end
+        end
+        def run(n)
+          rows = []
+          total = 0
+          i = 0
+          while i < n
+            row = Row.new(i)
+            rows << row
+            total = total + row.id
+            i = i + 1
+          end
+          total + rows.length
+        end
+        "##,
+        r##"
+        class Link
+          def initialize(value, rest)
+            @value = value
+            @rest = rest
+          end
+          def value
+            @value
+          end
+        end
+        def run(n)
+          head = Link.new(0, nil)
+          n.times do |i|
+            head = Link.new(head.value + i, head)
+          end
+          head.value
+        end
+        "##,
+        r##"
+        class Row
+          def initialize(id)
+            @id = id
+          end
+          def id
+            @id
+          end
+        end
+        def run(n)
+          rows = (0...n).map do |i|
+            Row.new(i)
+          end
+          rows.length
+        end
+        "##,
+    ] {
+        witnessed(source, true);
+    }
+}

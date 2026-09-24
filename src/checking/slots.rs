@@ -73,6 +73,10 @@ impl<T: Copy + Eq> Slots<T> {
         Ok(())
     }
 
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
     pub fn get(&self, ctx: &mut CallContext, index: usize) -> Result<T> {
         ctx.checkpoint()?;
         assert!(index < self.len);
@@ -150,13 +154,22 @@ impl<T: Copy + Eq> Slots<T> {
         other: &Self,
         mut join: impl FnMut(&mut CallContext, T, T) -> Result<T>,
     ) -> Result<bool> {
+        self.merge_indexed(ctx, other, |ctx, _, a, b| join(ctx, a, b))
+    }
+
+    /// Merges like [`Self::merge`], passing each differing value's index to `join`.
+    pub fn merge_indexed(
+        &mut self,
+        ctx: &mut CallContext,
+        other: &Self,
+        mut join: impl FnMut(&mut CallContext, usize, T, T) -> Result<T>,
+    ) -> Result<bool> {
         ctx.checkpoint()?;
         assert!(self.len == other.len && self.empty == other.empty);
         let next = Self::join(
             ctx,
-            &self.root,
-            &other.root,
-            self.shift,
+            (&self.root, &other.root),
+            (self.shift, 0),
             self.empty,
             &mut join,
         )?;
@@ -283,12 +296,11 @@ impl<T: Copy + Eq> Slots<T> {
 
     fn join(
         ctx: &mut CallContext,
-        left: &Option<Arc<Node<T>>>,
-        right: &Option<Arc<Node<T>>>,
-        shift: u32,
+        (left, right): (&Child<T>, &Child<T>),
+        (shift, base): (u32, usize),
         empty: T,
-        join: &mut impl FnMut(&mut CallContext, T, T) -> Result<T>,
-    ) -> Result<Option<Arc<Node<T>>>> {
+        join: &mut impl FnMut(&mut CallContext, usize, T, T) -> Result<T>,
+    ) -> Result<Child<T>> {
         ctx.charge(1)?;
         if same(left, right) {
             return Ok(left.clone());
@@ -304,10 +316,10 @@ impl<T: Copy + Eq> Slots<T> {
                 _ => unreachable!(),
             };
             let mut values = leaf(left);
-            for (value, incoming) in values.iter_mut().zip(leaf(right)) {
+            for (i, (value, incoming)) in values.iter_mut().zip(leaf(right)).enumerate() {
                 ctx.charge(1)?;
                 if *value != incoming {
-                    let merged = join(ctx, *value, incoming)?;
+                    let merged = join(ctx, base + i, *value, incoming)?;
                     changed |= *value != merged;
                     *value = merged;
                 }
@@ -324,8 +336,15 @@ impl<T: Copy + Eq> Slots<T> {
             };
             ctx.charge((2 * WIDTH) as u64)?;
             let mut children_left = children(left);
-            for (child, incoming) in children_left.iter_mut().zip(children(right)) {
-                let merged = Self::join(ctx, child, &incoming, shift - BITS, empty, join)?;
+            for (i, (child, incoming)) in children_left.iter_mut().zip(children(right)).enumerate()
+            {
+                let merged = Self::join(
+                    ctx,
+                    (child, &incoming),
+                    (shift - BITS, base + (i << shift)),
+                    empty,
+                    join,
+                )?;
                 changed |= !same(child, &merged);
                 *child = merged;
             }

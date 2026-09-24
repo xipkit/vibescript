@@ -566,7 +566,9 @@ impl Facts {
                 || (ak != bk && (*ak == InstanceKind::Concrete || *bk == InstanceKind::Concrete))
             {
                 Some(false)
-            } else if *ak == InstanceKind::Summary || *bk == InstanceKind::Summary {
+            } else if matches!(ak, InstanceKind::Summary | InstanceKind::Folded)
+                || matches!(bk, InstanceKind::Summary | InstanceKind::Folded)
+            {
                 None
             } else if a == b {
                 Some(true)

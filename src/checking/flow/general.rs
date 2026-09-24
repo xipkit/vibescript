@@ -129,7 +129,7 @@ impl Walker<'_> {
         let Node::Instance { kind, class, .. } = *self.facts.node(receiver) else {
             unreachable!()
         };
-        if kind == InstanceKind::Concrete {
+        if matches!(kind, InstanceKind::Concrete | InstanceKind::Folded) {
             return Ok(true);
         }
         let Some((_, slot)) = self.instance_slot(state, receiver)? else {
@@ -177,7 +177,7 @@ impl Walker<'_> {
             let fields = self
                 .facts
                 .union(self.ctx, &[before.value, after.receiver])?;
-            let updated = self.facts.collection_write(self.ctx, heap, index, fields)?;
+            let updated = crate::checking::heaps::write(self.ctx, self.facts, heap, index, fields)?;
             if before.unsupported || after.unsupported || updated.unsupported {
                 self.incomplete(pc)?;
                 return Ok(false);

@@ -53,6 +53,46 @@ pub(super) enum Transfer {
 }
 
 impl Transfer {
+    /// Maps the value a pending transfer carries.
+    pub(super) fn rename(
+        self,
+        ctx: &mut CallContext,
+        rename: &mut crate::checking::heaps::Rename<'_>,
+    ) -> Result<Self> {
+        Ok(match self {
+            Self::Value(operand) => Self::Value(operand.rename(ctx, rename)?),
+            Self::Return { pc, value } => Self::Return {
+                pc,
+                value: rename(ctx, value)?,
+            },
+            Self::BlockBreak { pc, value } => Self::BlockBreak {
+                pc,
+                value: rename(ctx, value)?,
+            },
+            Self::Block {
+                pc,
+                completion,
+                value,
+            } => Self::Block {
+                pc,
+                completion,
+                value: rename(ctx, value)?,
+            },
+            Self::Jump {
+                target,
+                index,
+                breaking,
+                value,
+            } => Self::Jump {
+                target,
+                index,
+                breaking,
+                value: rename(ctx, value)?,
+            },
+            transfer => transfer,
+        })
+    }
+
     fn compatible(self, other: Self) -> bool {
         match (self, other) {
             (Self::Value(_), Self::Value(_)) | (Self::Error(_), Self::Error(_)) => true,

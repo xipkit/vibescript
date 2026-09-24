@@ -404,6 +404,25 @@ impl Arguments {
         Ok(true)
     }
 
+    /// Maps the argument values and any attached block's facts.
+    pub fn rename(
+        &mut self,
+        ctx: &mut CallContext,
+        rename: &mut super::heaps::Rename<'_>,
+    ) -> Result<()> {
+        for value in &mut self.positional.data {
+            *value = rename(ctx, *value)?;
+        }
+        for keyword in &mut self.keywords.data {
+            keyword.name = rename(ctx, keyword.name)?;
+            keyword.value = rename(ctx, keyword.value)?;
+        }
+        if let Some(block) = &mut self.block {
+            block.rename(ctx, rename)?;
+        }
+        Ok(())
+    }
+
     pub fn new() -> Self {
         Self {
             positional: Buffer::empty(),

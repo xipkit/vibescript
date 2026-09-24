@@ -63,6 +63,37 @@ pub(super) enum Target {
 }
 
 impl Target {
+    /// Maps the receiver or value a target selected.
+    pub fn rename(
+        self,
+        ctx: &mut CallContext,
+        rename: &mut super::heaps::Rename<'_>,
+    ) -> Result<Self> {
+        Ok(match self {
+            Self::Value(value) => Self::Value(rename(ctx, value)?),
+            Self::Offset(value) => Self::Offset(rename(ctx, value)?),
+            Self::Helper {
+                receiver,
+                name,
+                implicit,
+            } => Self::Helper {
+                receiver: rename(ctx, receiver)?,
+                name,
+                implicit,
+            },
+            Self::Method {
+                function,
+                receiver,
+                constructor,
+            } => Self::Method {
+                function,
+                receiver: rename(ctx, receiver)?,
+                constructor,
+            },
+            target => target,
+        })
+    }
+
     /// Identifies the source whose callable metadata this target references.
     pub fn source(self) -> Option<SourceId> {
         match self {

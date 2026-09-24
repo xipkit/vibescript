@@ -25,6 +25,18 @@ impl Pending {
         Ok(result)
     }
 
+    /// Maps the facts of every suspended address.
+    pub fn rename(
+        &mut self,
+        ctx: &mut CallContext,
+        rename: &mut super::heaps::Rename<'_>,
+    ) -> Result<()> {
+        for address in &mut self.addresses.data {
+            address.rename(ctx, rename)?;
+        }
+        Ok(())
+    }
+
     pub fn hash(&self, ctx: &mut CallContext, hash: &mut impl Hasher) -> Result<()> {
         ctx.charge(1)?;
         self.addresses.data.len().hash(hash);

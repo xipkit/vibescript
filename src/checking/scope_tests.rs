@@ -149,7 +149,7 @@ fn general_checks_follow_callees_but_keep_unrelated_code_outside_the_scope() {
 }
 
 #[test]
-fn general_checks_model_arrays_and_instances_but_keep_widened_allocations_explicit() {
+fn general_checks_model_arrays_instances_and_loop_allocations() {
     general("def run(a:array<int>,b:array<int>);a+b;end", true);
     general(
         "class C;def read;7;end;end;def run(value:C);value.read;end",
@@ -160,8 +160,7 @@ fn general_checks_model_arrays_and_instances_but_keep_widened_allocations_explic
     let report = script
         .check_function("run", &CallOptions::default())
         .unwrap();
-    assert!(report.diagnostics.is_empty(), "{source}: {report:?}");
-    assert!(!report.incomplete.is_empty(), "{source}: {report:?}");
+    assert!(report.is_clean(), "{source}: {report:?}");
 }
 
 #[test]

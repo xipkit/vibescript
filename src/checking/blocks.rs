@@ -113,6 +113,22 @@ impl Closure {
         extent(ctx, self.locals, &self.inherited.data)
     }
 
+    /// Maps the receivers, captured values and suspended addresses the block carries.
+    pub fn rename(
+        &mut self,
+        ctx: &mut CallContext,
+        rename: &mut super::heaps::Rename<'_>,
+    ) -> Result<()> {
+        if let Some(receiver) = &mut self.receiver {
+            *receiver = rename(ctx, *receiver)?;
+        }
+        rename_layers(ctx, &mut self.inherited, rename)?;
+        for link in &mut self.captures.data {
+            link.value = rename(ctx, link.value)?;
+        }
+        self.pending.rename(ctx, rename)
+    }
+
     pub fn join(&mut self, ctx: &mut CallContext, facts: &mut Facts, other: &Self) -> Result<bool> {
         ctx.charge(self.inherited.data.len() as u64 + 1)?;
         assert_eq!((self.function, self.given), (other.function, other.given));
@@ -147,6 +163,36 @@ impl Closure {
         }
         Ok(changed)
     }
+}
+
+/// Maps the receivers of enclosing lexical layers.
+pub(super) fn rename_layers(
+    ctx: &mut CallContext,
+    layers: &mut Buffer<Layer>,
+    rename: &mut super::heaps::Rename<'_>,
+) -> Result<()> {
+    for layer in &mut layers.data {
+        if let Some(receiver) = &mut layer.receiver {
+            *receiver = rename(ctx, *receiver)?;
+        }
+    }
+    Ok(())
+}
+
+/// Maps every fact in a persistent table.
+pub(super) fn rename_slots(
+    ctx: &mut CallContext,
+    slots: &mut Slots<Fact>,
+    rename: &mut super::heaps::Rename<'_>,
+) -> Result<()> {
+    for index in 0..slots.len() {
+        let value = slots.get(ctx, index)?;
+        let renamed = rename(ctx, value)?;
+        if renamed != value {
+            slots.set(ctx, index, renamed)?;
+        }
+    }
+    Ok(())
 }
 
 pub(super) fn extent(ctx: &mut CallContext, locals: usize, inherited: &[Layer]) -> Result<usize> {
@@ -286,6 +332,16 @@ impl Captures {
             result.attached.set(ctx, input.slot, attached)?;
         }
         Ok(result)
+    }
+
+    /// Maps the captured values and the addresses suspended in them.
+    pub fn rename(
+        &mut self,
+        ctx: &mut CallContext,
+        rename: &mut super::heaps::Rename<'_>,
+    ) -> Result<()> {
+        rename_slots(ctx, &mut self.values, rename)?;
+        self.pending.rename(ctx, rename)
     }
 
     pub fn snapshot(&self, ctx: &mut CallContext) -> Result<Self> {

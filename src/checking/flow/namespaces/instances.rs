@@ -360,9 +360,8 @@ impl Walker<'_> {
         let fields = self
             .facts
             .collection_write(self.ctx, fields.value, key, normalized)?;
-        let heap = self
-            .facts
-            .collection_write(self.ctx, current, index, fields.receiver)?;
+        let heap =
+            crate::checking::heaps::write(self.ctx, self.facts, current, index, fields.receiver)?;
         if fields.unsupported || heap.unsupported {
             self.incomplete(pc)?;
             return Ok(result);

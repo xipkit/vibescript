@@ -189,6 +189,42 @@ struct Operand {
 }
 
 impl Operand {
+    /// Maps the value and any fact its retained predicate tests against.
+    fn rename(self, ctx: &mut CallContext, rename: &mut super::heaps::Rename<'_>) -> Result<Self> {
+        let predicate = match self.predicate {
+            Some(Predicate {
+                slot,
+                test: Test::Case { matcher, splat },
+                yes,
+            }) => Some(Predicate {
+                slot,
+                test: Test::Case {
+                    matcher: rename(ctx, matcher)?,
+                    splat,
+                },
+                yes,
+            }),
+            Some(Predicate {
+                slot,
+                test: Test::Integer { comparison, other },
+                yes,
+            }) => Some(Predicate {
+                slot,
+                test: Test::Integer {
+                    comparison,
+                    other: rename(ctx, other)?,
+                },
+                yes,
+            }),
+            predicate => predicate,
+        };
+        Ok(Self {
+            value: rename(ctx, self.value)?,
+            predicate,
+            ..self
+        })
+    }
+
     fn invalidate(&mut self, slot: usize) {
         if self.origin == Some(slot) {
             self.origin = None;
@@ -353,7 +389,16 @@ impl State {
             })?;
         for (slot, binding, previous) in bindings.data {
             if facts.alternatives(binding.value) > facts.alternatives(previous) {
-                let value = facts.generalize(ctx, binding.value, depth)?;
+                // Merging heap alternatives would lose object positions; coalesce them.
+                let heap = slot >= self.global_base
+                    && super::heaps::is_heap(ctx, &self.global_layout, slot - self.global_base)?;
+                let value = match heap {
+                    true => match super::heaps::entries(ctx, facts, binding.value)? {
+                        Some(entries) => facts.tuple(ctx, &entries.data)?,
+                        None => facts.generalize(ctx, binding.value, depth)?,
+                    },
+                    false => facts.generalize(ctx, binding.value, depth)?,
+                };
                 self.locals.set(ctx, slot, Binding { value, ..binding })?;
             }
         }
@@ -471,6 +516,85 @@ impl State {
         Ok(state)
     }
 
+    /// Renames folded objects throughout the state and merges their heap entries.
+    fn fold(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        renamer: &mut super::heaps::Renamer<'_>,
+    ) -> Result<()> {
+        if !renamer.active() {
+            return Ok(());
+        }
+        for slot in 0..self.locals.len() {
+            let binding = self.locals.get(ctx, slot)?;
+            let mut value = renamer.fact(ctx, facts, binding.value)?;
+            if slot >= self.global_base {
+                value = renamer.merge(ctx, facts, slot - self.global_base, value)?;
+            }
+            if value != binding.value {
+                self.locals.set(ctx, slot, Binding { value, ..binding })?;
+            }
+        }
+        let rename = &mut |ctx: &mut CallContext, fact| renamer.fact(ctx, facts, fact);
+        if let Some(captures) = &mut self.captures {
+            captures.rename(ctx, rename)?;
+        }
+        self.global_pending.rename(ctx, rename)?;
+        for operand in &mut self.stack.data {
+            *operand = operand.rename(ctx, rename)?;
+        }
+        for current in &mut self.loops.data {
+            current.source = rename(ctx, current.source)?;
+            current.repeat = rename(ctx, current.repeat)?;
+            current.last = rename(ctx, current.last)?;
+            current.result = rename(ctx, current.result)?;
+        }
+        for pending in &mut self.arguments.data {
+            pending.target = pending.target.rename(ctx, rename)?;
+            if let Some(receiver) = &mut pending.receiver {
+                *receiver = rename(ctx, *receiver)?;
+            }
+            pending.arguments.rename(ctx, rename)?;
+        }
+        for address in &mut self.addresses.data {
+            address.rename(ctx, rename)?;
+        }
+        for attempt in &mut self.attempts.data {
+            if let Some(transfer) = attempt.pending {
+                attempt.pending = Some(transfer.rename(ctx, rename)?);
+            }
+        }
+        for text in &mut self.texts.data {
+            *text = rename(ctx, *text)?;
+        }
+        Ok(())
+    }
+
+    /// Finds the objects `other` allocated beyond this state's heaps at a backedge.
+    fn heap_folds(
+        &self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        other: &Self,
+    ) -> Result<Buffer<super::heaps::Fold>> {
+        let (base, other_base) = (self.global_base, other.global_base);
+        super::heaps::folds(
+            ctx,
+            facts,
+            &self.global_layout,
+            None,
+            |ctx, heap| Ok(Some(self.locals.get(ctx, base + heap)?.value)),
+            |ctx, heap| {
+                Ok(if heap < other.global_count {
+                    Some(other.locals.get(ctx, other_base + heap)?.value)
+                } else {
+                    None
+                })
+            },
+        )
+    }
+
     fn join(
         &mut self,
         ctx: &mut CallContext,
@@ -479,15 +603,48 @@ impl State {
         backedge: bool,
         program: &Program,
     ) -> Result<bool> {
+        self.join_folding(ctx, facts, other, backedge, program)
+            .map(|(changed, _)| changed)
+    }
+
+    /// Joins `other` into this state. At a backedge, objects `other` allocated beyond this
+    /// state's heaps fold into summary entries; the folds are returned so callers can rename
+    /// the facts they keep beside the state.
+    fn join_folding(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        other: &Self,
+        backedge: bool,
+        program: &Program,
+    ) -> Result<(bool, Buffer<super::heaps::Fold>)> {
         let mut changed = self.expand(ctx, &other.global_layout)?;
         let mut normalized;
-        let other = if other.global_layout.same(&self.global_layout) {
+        let mut other = if other.global_layout.same(&self.global_layout) {
             other
         } else {
             normalized = other.snapshot(ctx)?;
             normalized.expand(ctx, &self.global_layout)?;
             &normalized
         };
+        let folds = if backedge {
+            self.heap_folds(ctx, facts, other)?
+        } else {
+            Buffer::empty()
+        };
+        let mut folded;
+        if !folds.data.is_empty() {
+            folded = other.snapshot(ctx)?;
+            let mut renamer = super::heaps::Renamer::new(
+                &folds.data,
+                &self.global_layout,
+                program,
+                self.function.source,
+            );
+            folded.fold(ctx, facts, &mut renamer)?;
+            other = &folded;
+        }
+        let layout = self.global_layout.clone();
         // Freeze precision at the first backedge, including existing values and declared contracts.
         // Later recursive growth becomes gradual beyond that depth; script limits are unchanged.
         let depth = if backedge {
@@ -499,21 +656,35 @@ impl State {
             None
         };
         let thresholds = &self.integer_thresholds.data;
-        changed |= self.locals.merge(ctx, &other.locals, |ctx, a, b| {
-            let numeric = if backedge {
-                facts.widen_integer_thresholds(ctx, a.value, b.value, thresholds)?
-            } else {
-                None
-            };
-            Ok(Binding {
-                value: match numeric {
-                    Some(value) => value,
-                    None => facts.joined(ctx, a.value, b.value, depth)?,
-                },
-                missing: a.missing || b.missing,
-                owner: a.owner.join(a.value, b.owner, b.value),
-            })
-        })?;
+        let global_base = self.global_base;
+        changed |= self
+            .locals
+            .merge_indexed(ctx, &other.locals, |ctx, slot, a, b| {
+                // Heaps of different lengths or with summaries join entry by entry and keep
+                // object positions.
+                if slot >= global_base && super::heaps::is_heap(ctx, &layout, slot - global_base)? {
+                    if let Some(value) = super::heaps::join(ctx, facts, a.value, b.value, depth)? {
+                        return Ok(Binding {
+                            value,
+                            missing: a.missing || b.missing,
+                            owner: a.owner.join(a.value, b.owner, b.value),
+                        });
+                    }
+                }
+                let numeric = if backedge {
+                    facts.widen_integer_thresholds(ctx, a.value, b.value, thresholds)?
+                } else {
+                    None
+                };
+                Ok(Binding {
+                    value: match numeric {
+                        Some(value) => value,
+                        None => facts.joined(ctx, a.value, b.value, depth)?,
+                    },
+                    missing: a.missing || b.missing,
+                    owner: a.owner.join(a.value, b.owner, b.value),
+                })
+            })?;
         changed |= self
             .global_pending
             .join(ctx, facts, &other.global_pending, depth)?;
@@ -598,7 +769,7 @@ impl State {
             a.source = source;
             a.repeat = repeat;
         }
-        Ok(changed)
+        Ok((changed, folds))
     }
 
     fn store(

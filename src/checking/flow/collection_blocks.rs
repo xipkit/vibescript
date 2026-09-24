@@ -258,10 +258,24 @@ impl IterationState {
         depth: usize,
         program: &Program,
     ) -> Result<bool> {
-        let changed = self.state.join(ctx, facts, &other.state, repeat, program)?;
-        let output = facts.widen(ctx, self.output, other.output, depth)?;
-        let auxiliary = facts.widen(ctx, self.auxiliary, other.auxiliary, depth)?;
-        let previous = facts.widen(ctx, self.previous, other.previous, depth)?;
+        let (changed, folds) =
+            self.state
+                .join_folding(ctx, facts, &other.state, repeat, program)?;
+        // Objects a repeated pass allocated fold in the results kept beside the state too.
+        let mut renamer = crate::checking::heaps::Renamer::new(
+            &folds.data,
+            &self.state.global_layout,
+            program,
+            self.state.function.source,
+        );
+        let mut extras = [other.output, other.auxiliary, other.previous];
+        for extra in &mut extras {
+            *extra = renamer.fact(ctx, facts, *extra)?;
+        }
+        let [other_output, other_auxiliary, other_previous] = extras;
+        let output = facts.widen(ctx, self.output, other_output, depth)?;
+        let auxiliary = facts.widen(ctx, self.auxiliary, other_auxiliary, depth)?;
+        let previous = facts.widen(ctx, self.previous, other_previous, depth)?;
         let changed = changed
             || output != self.output
             || auxiliary != self.auxiliary
