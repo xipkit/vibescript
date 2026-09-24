@@ -361,6 +361,11 @@ end
             "class C\n  @x: int\n  @x: string\nend",
             "parse error at 3:3: duplicate instance variable declaration @x",
         ),
+        // A default starts on the declaration's line.
+        (
+            "class C\n  @x: int\n  = 1\nend",
+            "parse error at 3:3: unexpected token \"=\"",
+        ),
         // A module has no instances, so the declaration stays an error.
         (
             "module M\n  @x: int = 1\nend",

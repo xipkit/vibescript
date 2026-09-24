@@ -276,6 +276,7 @@ impl Parser<'_> {
             _ => true,
         }
     }
+
     /// Refuses a reference to the enclosing function's block parameter, which
     /// is not a value.
     pub(super) fn block_reference(&self, name: &str, offset: usize) -> Result<()> {
@@ -355,9 +356,9 @@ impl Parsing<'_> {
             p.bump()?;
             p.line_breaks()?;
             let ty = p.type_expr(1, false)?;
-            let equals = p.significant(p.pos);
-            let equals = p.tokens[equals].token == Token::Op("=") && {
-                p.pos = equals + 1;
+            // A default starts on the declaration's line.
+            let equals = p.token() == &Token::Op("=") && {
+                p.bump()?;
                 p.line_breaks()?;
                 true
             };
