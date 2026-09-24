@@ -36,6 +36,8 @@ assert_eq!(result.value.as_int(), Some(41));
 
 `Script` is immutable and shareable between threads. Each call imports its arguments and owns its budget. `Value` clones share immutable storage; collection writes replace the named local, preserving value semantics. Array updates reuse storage when no aliases exist and copy when another value shares the array. Strings hold arbitrary bytes, and character indexing counts each invalid UTF-8 byte as one rune.
 
+Interactive hosts can carry state between snippets: `Script::run_bindings` returns the top-level variables, classes, modules and enums a run leaves, `Script::declarations` lists top-level declarations with their source spans, and `vibescript::builtins()` lists the core builtins. `vibes repl` is built on them; see [interactive sessions](docs/sessions.md).
+
 Integers use compact 64-bit storage and promote to shared arbitrary-precision values when needed. Results normalize back to compact integers when they fit. Hosts can construct larger values with `Value::parse_integer(text, radix)`; callbacks use `CallContext::parse_integer` to charge construction to the active call. `Value::is_integer` recognizes both representations, while `as_int` returns a value only within the signed 64-bit range.
 
 Money stores signed 64-bit cents and an uppercase three-letter ASCII currency inline, keeping `Value` at 16 bytes. Hosts use `Value::money(cents, currency)` and `Value::as_money()`. Formatting always uses two decimal places, and arithmetic rejects overflow or currency mismatches. As in Go, JSON cannot encode money; scripts can return `.to_s` for CLI output, while embedded hosts receive typed money values directly.

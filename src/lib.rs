@@ -80,6 +80,11 @@ pub use signature::{Signature, SignatureParam};
 use std::{collections::BTreeMap, sync::Arc};
 pub use value::Value;
 
+// Compiles the session guide's examples as doctests.
+#[cfg(doctest)]
+#[doc = include_str!("../docs/sessions.md")]
+struct SessionsGuide;
+
 /// A synchronous trusted host callback. It must cooperate with the supplied context.
 pub type HostFunction = Arc<dyn Fn(&mut CallContext, &[Value]) -> Result<Value> + Send + Sync>;
 
