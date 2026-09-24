@@ -341,12 +341,10 @@ impl Walker<'_> {
                 for i in 0..self.facts.arm_count(operation) {
                     self.ctx.charge(1)?;
                     let arm = self.facts.arm(operation, i);
+                    // A name known only at runtime is dispatched as a member.
                     let name = match self.facts.node(arm) {
                         Node::String(name) | Node::Symbol(name) => name.as_bytes().unwrap(),
-                        _ => {
-                            self.incomplete(pc)?;
-                            continue;
-                        }
+                        _ => &[],
                     };
                     let op = match name {
                         b"+" => Some("+"),

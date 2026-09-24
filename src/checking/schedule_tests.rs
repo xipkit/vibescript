@@ -577,7 +577,7 @@ fn schedule_analysis_preserves_latched_cancellation_and_deadlines() {
 #[test]
 fn unmodeled_receivers_callbacks_and_pending_addresses_stay_explicit() {
     {
-        let source = "def run; [7,9].send(\"x\".upcase) {|n| n}; end";
+        let source = "def run; [7,9].is_type?(\"x\".upcase); end";
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
         let report = analyze(&mut ctx, &mut facts, source).unwrap();

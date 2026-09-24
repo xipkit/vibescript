@@ -371,7 +371,14 @@ impl Walker<'_> {
                         let value = match self.facts.node(operation) {
                             Node::String(value) | Node::Symbol(value) => value.clone(),
                             _ => {
-                                self.incomplete(pc)?;
+                                let mut next = state.snapshot(self.ctx)?;
+                                let address = next.addresses.data.last_mut().unwrap();
+                                if address.value == receiver {
+                                    address.value = call.receiver;
+                                }
+                                let args = self.forward_arguments(args, call.consumed + 1)?;
+                                let edges = self.dynamic_member(&mut next, pc, args)?;
+                                self.member_edges(pc, next, edges)?;
                                 continue;
                             }
                         };

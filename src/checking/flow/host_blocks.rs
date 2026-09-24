@@ -48,6 +48,18 @@ impl Walker<'_> {
         self.dynamic_invoke(state, pc, args, CallbackTarget::Mutation { address })
     }
 
+    /// Calls a member whose name is known only at runtime on the addressed
+    /// receiver. Any member, or none, may run: it may mutate the receiver,
+    /// call the block, have unknown effects and raise any error class.
+    pub(super) fn dynamic_member(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        args: Arguments,
+    ) -> Result<Option<Edges>> {
+        self.dynamic_invoke(state, pc, args, CallbackTarget::Mutation { address: false })
+    }
+
     fn dynamic_invoke(
         &mut self,
         state: &mut State,

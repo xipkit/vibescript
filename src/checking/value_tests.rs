@@ -465,23 +465,19 @@ fn value_members_ignore_blocks_unless_the_runtime_refuses_them() {
 }
 
 #[test]
-fn temporal_blocks_forwarding_and_introspection_remain_explicitly_incomplete() {
+fn temporal_introspection_with_dynamic_atoms_remains_explicitly_incomplete() {
     witness(
         "def run; Time.at(0).is_type?(:User); end",
         Some("false"),
         false,
     );
-    for source in [
-        "def run(name:string); Time.at(0).is_type?(name); end",
-        "def run(name:string); Time.at(0).send(name,\"%Y\"); end",
-    ] {
-        let mut ctx = CallContext::new(CallOptions::default());
-        let mut facts = Facts::new(&mut ctx).unwrap();
-        let report = analyze(&mut ctx, &mut facts, source).unwrap();
-        assert!(!report.incomplete.data.is_empty(), "{source}: {report:?}");
-        drop((report, facts));
-        assert_eq!(ctx.stats().retained_memory_bytes, 0);
-    }
+    let source = "def run(name:string); Time.at(0).is_type?(name); end";
+    let mut ctx = CallContext::new(CallOptions::default());
+    let mut facts = Facts::new(&mut ctx).unwrap();
+    let report = analyze(&mut ctx, &mut facts, source).unwrap();
+    assert!(!report.incomplete.data.is_empty(), "{source}: {report:?}");
+    drop((report, facts));
+    assert_eq!(ctx.stats().retained_memory_bytes, 0);
 }
 
 #[test]

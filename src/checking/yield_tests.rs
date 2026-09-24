@@ -236,7 +236,7 @@ fn block_contexts_distinguish_capture_types_presence_and_recursive_calls() {
 #[test]
 fn unsupported_native_blocks_stay_incomplete() {
     {
-        let source = "def run; [1].send(\"x\".upcase) {|x| x}; end";
+        let source = "def run; [1].is_type?(\"x\".upcase); end";
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
         let report = analyze(&mut ctx, &mut facts, source).unwrap();

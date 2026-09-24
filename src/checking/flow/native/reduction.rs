@@ -127,24 +127,26 @@ impl Walker<'_> {
         values: [Fact; 3],
     ) -> Result<Buffer<(State, Fact)>> {
         let [receiver, operation, argument] = values;
-        let selected = match self.facts.node(operation) {
-            Node::String(value) | Node::Symbol(value) => value.clone(),
-            _ => {
-                self.incomplete(pc)?;
-                return Ok(Buffer::empty());
+        // A name known only at runtime may select any member of the value.
+        let site = match self.facts.node(operation) {
+            Node::String(value) | Node::Symbol(value) => {
+                let selected = value.clone();
+                let name = crate::members::introspection::method_name(
+                    self.ctx,
+                    selected.as_bytes().unwrap(),
+                )?;
+                Some(MemberSite {
+                    call: CallSite {
+                        method: name.and_then(crate::bytecode::Method::parse),
+                        auto: false,
+                        parenthesized: false,
+                        scope: false,
+                        ..site.call
+                    },
+                    selected: Some(operation),
+                })
             }
-        };
-        let name =
-            crate::members::introspection::method_name(self.ctx, selected.as_bytes().unwrap())?;
-        let site = MemberSite {
-            call: CallSite {
-                method: name.and_then(crate::bytecode::Method::parse),
-                auto: false,
-                parenthesized: false,
-                scope: false,
-                ..site.call
-            },
-            selected: Some(operation),
+            _ => None,
         };
         let mut detached = state.snapshot(self.ctx)?;
         detached
@@ -153,7 +155,12 @@ impl Walker<'_> {
         let mut args = Arguments::new();
         args.positional.push(self.ctx, argument)?;
         let outer = self.native_results.replace(Buffer::empty());
-        let result = self.forwarded_member(&detached, pc, receiver, site, &args);
+        let result = match site {
+            Some(site) => self.forwarded_member(&detached, pc, receiver, site, &args),
+            None => self
+                .dynamic_member(&mut detached, pc, args)
+                .and_then(|edges| self.member_edges(pc, detached, edges)),
+        };
         let results = std::mem::replace(&mut self.native_results, outer).unwrap();
         result?;
         let mut joined: Buffer<(State, Fact)> = Buffer::empty();

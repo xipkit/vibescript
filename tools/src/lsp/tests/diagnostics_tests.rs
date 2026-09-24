@@ -142,7 +142,7 @@ fn checker_errors_are_reported_where_the_checker_places_them() {
 
 #[test]
 fn incomplete_analysis_is_information() {
-    let diagnostics = diagnostics("def incomplete\n  [1].send(\"x\".upcase) { _1 }\nend\n");
+    let diagnostics = diagnostics("def incomplete\n  [1].is_type?(\"x\".upcase)\nend\n");
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0]["severity"], 3);
     assert_eq!(

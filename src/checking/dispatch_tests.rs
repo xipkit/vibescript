@@ -502,15 +502,40 @@ fn nested_dispatch_errors_keep_pending_writes_rescue_retry_and_ensure() {
 }
 
 #[test]
-fn unresolved_forwarding_names_stay_explicit() {
-    for source in [
-        "def run(name:string); [1].send(name); end",
-        "def run(op:string); [[1],2].reduce(op); end",
+fn forwarding_names_known_only_at_runtime_are_gradual() {
+    // Any member, or none, may run: the result is unknown, every error class
+    // stays possible and the receiver may be mutated.
+    for (source, mutated) in [
+        ("def run(name:string); [1].send(name); end", None),
+        (
+            "def run(name:symbol); [1].public_send(name) {|x| x}; end",
+            None,
+        ),
+        ("def run(op:string); [[1],2].reduce(op); end", None),
+        ("def run(op:string); [1,2].reduce(0,op); end", None),
+        (
+            "def run(name:string); Time.at(0).send(name,\"%Y\"); end",
+            None,
+        ),
+        (
+            "def run(name:symbol); a=[1]; a.send(name,2); a; end",
+            Some(Value::array(vec![Value::int(1), Value::int(2)])),
+        ),
     ] {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
         let report = analyze(&mut ctx, &mut facts, source).unwrap();
-        assert!(!report.incomplete.data.is_empty(), "{source}: {report:?}");
+        assert!(report.incomplete.data.is_empty(), "{source}: {report:?}");
+        assert!(report.issues.data.is_empty(), "{source}: {report:?}");
+        assert_eq!(report.throws, u8::MAX, "{source}: {report:?}");
+        if let Some(value) = mutated {
+            let concrete = literal_fact(&mut ctx, &mut facts, &value);
+            assert_ne!(
+                facts.relation(&mut ctx, concrete, report.returns).unwrap(),
+                Relation::Rejected,
+                "{source}: {report:?}"
+            );
+        }
         drop((report, facts));
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }

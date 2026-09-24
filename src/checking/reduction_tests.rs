@@ -476,17 +476,13 @@ fn reducer_analysis_preserves_latched_cancellation_and_deadlines() {
 
 #[test]
 fn remaining_dispatch_and_pending_address_effects_are_explicit() {
-    for source in [
-        "def run(op:string); [1,2].reduce(0,op); end",
-        "def run; [1,2].send(\"x\".upcase) {|n| n}; end",
-    ] {
-        let mut ctx = CallContext::new(CallOptions::default());
-        let mut facts = Facts::new(&mut ctx).unwrap();
-        let report = analyze(&mut ctx, &mut facts, source).unwrap();
-        assert!(!report.incomplete.data.is_empty(), "{source}: {report:?}");
-        drop((facts, report));
-        assert_eq!(ctx.stats().retained_memory_bytes, 0);
-    }
+    let source = "def run; [1,2].is_type?(\"x\".upcase); end";
+    let mut ctx = CallContext::new(CallOptions::default());
+    let mut facts = Facts::new(&mut ctx).unwrap();
+    let report = analyze(&mut ctx, &mut facts, source).unwrap();
+    assert!(!report.incomplete.data.is_empty(), "{source}: {report:?}");
+    drop((facts, report));
+    assert_eq!(ctx.stats().retained_memory_bytes, 0);
 }
 
 #[test]

@@ -570,6 +570,22 @@ fn reductions_call_named_members_directly_while_send_checks_the_member_table() {
     ]);
 }
 
+#[test]
+fn member_names_known_only_at_runtime_are_gradual() {
+    witnesses(vec![(
+        "def run(name: symbol) -> array; a = [1]; a.send(name, 2); a; end",
+        vec![Value::symbol("push")],
+        ints(&[1, 2]),
+    )]);
+    rescues(
+        &[
+            "def run(name: symbol) -> int; begin; [1].send(name); 0; rescue; 'bad'; end; end",
+            "def run(op: string) -> int; begin; [1, 2].reduce(op); 0; rescue; 'bad'; end; end",
+        ],
+        &[],
+    );
+}
+
 /// Site programs whose whole-file checks used to stop at one of these
 /// operations. Each now finishes analysis and still runs.
 #[test]
