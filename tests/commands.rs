@@ -35,6 +35,34 @@ fn syntax_rejections_match_the_reference() {
 }
 
 #[test]
+fn assignment_syntax_errors_use_the_reference_text_and_position() {
+    let cases: serde_json::Value =
+        serde_json::from_str(include_str!("syntax-errors.json")).unwrap();
+    let mut checked = 0;
+    for case in cases.as_array().unwrap() {
+        let name = case["name"].as_str().unwrap();
+        if !name.starts_with("assignment_") {
+            continue;
+        }
+        let error = Engine::new()
+            .compile(case["source"].as_str().unwrap())
+            .err()
+            .unwrap_or_else(|| panic!("{name} compiled"));
+        let position = error.diagnostic.as_ref().unwrap().position;
+        assert_eq!(
+            format!(
+                "parse error at {}:{}: {}",
+                position.line, position.column, error.message
+            ),
+            case["go_error"].as_str().unwrap(),
+            "{name}"
+        );
+        checked += 1;
+    }
+    assert_eq!(checked, 35);
+}
+
+#[test]
 fn call_parentheses_preserve_argument_accounting_and_exhaustion() {
     let input = Value::array((0..512).map(Value::int).collect());
     let mut baseline = None;

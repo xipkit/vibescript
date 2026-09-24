@@ -20,7 +20,7 @@ Rust also fails the gate when it reaches an expression it does not yet analyze, 
 
 ## Language server diagnostics
 
-The Go reference's `vibes lsp` publishes compile errors only. This port's server also publishes the static checker's findings for the whole document, so documents the checker rejects show errors in the editor, and the stricter checker described above applies there too: 73 of the 241 documents in the [language server comparison](lsp.md#comparison-with-the-reference) get findings the reference does not report. Parse errors follow this port's parser, which reports its first error with its own message; hover, completion, signature help, definitions, symbols and formatting match the reference across the comparison.
+The Go reference's `vibes lsp` publishes compile errors only. This port's server also publishes the static checker's findings for the whole document, so documents the checker rejects show errors in the editor, and the stricter checker described above applies there too: 73 of the 241 documents in the [language server comparison](lsp.md#comparison-with-the-reference) get findings the reference does not report. Parse errors follow this port's parser, which reports only its first error, mostly in Go's wording (see [source diagnostics](diagnostics.md)); hover, completion, signature help, definitions, symbols and formatting match the reference across the comparison.
 
 ## Out-of-range float calendar fields
 

@@ -526,7 +526,7 @@ fn errors_keep_diagnostics_in_the_typed_text() {
     };
     assert_eq!(
         evaluation.output,
-        "compile error: parse error at 2:2: expected expression\n  --> line 2, column 2\n \
+        "compile error: parse error at 2:2: unexpected token \")\"\n  --> line 2, column 2\n \
          2 | ))\n   |  ^"
     );
     let error = evaluation.result.unwrap_err();

@@ -13249,5 +13249,215 @@
     "name": "top_level_alias_cannot_replace_a_function",
     "source": "def name\n  1\nend\ndef other\n  2\nend\nalias other name\ndef run(input)\n  other\nend",
     "go_error": "duplicate function other"
+  },
+  {
+    "name": "assignment_parenthesized_index",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx = (t[0] = 9)\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:11: expected \")\", got \"=\""
+  },
+  {
+    "name": "assignment_parenthesized_local",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\n(x = 3)\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:4: expected \")\", got \"=\""
+  },
+  {
+    "name": "assignment_nested_parentheses",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\n((x = 3))\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:5: expected \")\", got \"=\""
+  },
+  {
+    "name": "assignment_parenthesized_compound",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nz = (x += 3)\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:9: expected \")\", got \"+=\""
+  },
+  {
+    "name": "assignment_parenthesized_member",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\n(h.a = 3)\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:6: expected \")\", got \"=\""
+  },
+  {
+    "name": "assignment_parenthesized_logical",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx = (y ||= 1)\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:10: expected \")\", got \"||=\""
+  },
+  {
+    "name": "assignment_parenthesized_argument",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nq((x = 3))\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:6: expected \")\", got \"=\""
+  },
+  {
+    "name": "assignment_call_argument",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nq(x = 3)\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:5: expected \")\", got \"=\""
+  },
+  {
+    "name": "assignment_later_call_argument",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nq(1, x = 3)\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:8: expected \")\", got \"=\""
+  },
+  {
+    "name": "assignment_keyword_argument",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nq(k: x = 3)\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:8: expected \")\", got \"=\""
+  },
+  {
+    "name": "assignment_array_element",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\n[x = 3]\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:4: expected \"]\", got \"=\""
+  },
+  {
+    "name": "assignment_later_array_element",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\n[1, x = 3]\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:7: expected \"]\", got \"=\""
+  },
+  {
+    "name": "assignment_hash_value",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\n{k: x = 3}\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:7: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "assignment_later_hash_value",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\n{k: 1, j: x = 3}\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:13: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "assignment_index_selector",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\narr[x = 0]\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:7: expected \"]\", got \"=\""
+  },
+  {
+    "name": "assignment_safe_index",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nh&.[0] = 1\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:4: expected member name, got \"[\""
+  },
+  {
+    "name": "assignment_chained_local",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nz = x = 3\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:7: unexpected token \"=\""
+  },
+  {
+    "name": "assignment_chained_compound",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx += y += 1\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:9: unexpected token \"+=\""
+  },
+  {
+    "name": "assignment_compound_value",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx = y += 1\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:8: unexpected token \"+=\""
+  },
+  {
+    "name": "assignment_chained_member",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nh.a = h.b = 1\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:11: unexpected token \"=\""
+  },
+  {
+    "name": "assignment_ampersand_operator",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx &= 1\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:4: unexpected token \"=\""
+  },
+  {
+    "name": "assignment_member_ampersand_operator",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nh.a &= 3\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:6: unexpected token \"=\""
+  },
+  {
+    "name": "assignment_caret_operator",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx ^= 1\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:3: unexpected token invalid token"
+  },
+  {
+    "name": "assignment_arrow_value",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx -> 1\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:4: lambda literals are not supported; executable code is not a value. Define a named function and call it, or attach a block to the call that runs it, as in `people.map { |person| person.name }`"
+  },
+  {
+    "name": "assignment_empty_index",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nh[] = 1\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:3: index expression requires at least one selector"
+  },
+  {
+    "name": "assignment_spaced_colon",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx = : 2\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:5: unexpected token \":\""
+  },
+  {
+    "name": "assignment_missing_member",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nh. = 1\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:4: expected member name, got \"=\""
+  },
+  {
+    "name": "assignment_numeric_member",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nh.1 = 2\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:3: expected member name, got integer"
+  },
+  {
+    "name": "assignment_unlabeled_hash",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx = {a 1}\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:6: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "assignment_rocket_hash",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx = {1 => 2}\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:6: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "assignment_missing_hash_comma",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx = {a: 1 b: 2}\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:11: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "assignment_missing_array_comma",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx = [1 2]\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:8: expected \"]\", got integer"
+  },
+  {
+    "name": "assignment_missing_argument_comma",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nq(1 2)\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:5: expected \")\", got integer"
+  },
+  {
+    "name": "assignment_keyword_value",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx = end\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:5: unexpected token 'end'"
+  },
+  {
+    "name": "assignment_block_argument",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nq(&x)\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:3: block arguments are not supported; a block is not a value. Write the block at the call that runs it, as in `words.map { |word| word.upcase }`"
   }
 ]

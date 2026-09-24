@@ -908,7 +908,11 @@ impl<'a> Parsing<'a> {
                     break;
                 }
                 if matches!(p.token(), Token::Eof) {
-                    return p.err("unexpected end of source");
+                    return if stop.contains(&"}") {
+                        p.expected("\"}\"")
+                    } else {
+                        p.expected("end")
+                    };
                 }
             }
             body.push(work, self.statement().await?)?;
@@ -1522,7 +1526,7 @@ impl<'a> Parsing<'a> {
             Token::P('{') => Box::pin(self.hash_expr()).await,
             Token::Op(op @ (".." | "...")) => Box::pin(self.open_range_expression(op)).await,
             Token::Op(op @ ("-" | "+" | "!")) => Box::pin(self.unary_prefix(op)).await,
-            token => self.p().leaf(token, offset),
+            token => self.p().leaf(token),
         }
     }
 
@@ -1576,7 +1580,7 @@ impl<'a> Parsing<'a> {
             _ if reserved(w) && w != "then" => Err(Error::syntax(
                 self.p().work,
                 offset as usize,
-                "expected expression",
+                format_args!("unexpected token {}", word_label(w)),
             )),
             _ => self.p().variable_name(w),
         }
@@ -1642,6 +1646,9 @@ impl<'a> Parsing<'a> {
                 if p.take_p('}') {
                     break;
                 }
+                if !matches!(p.token(), Token::P(',') | Token::Eof) {
+                    return p.err(INVALID_HASH_PAIR);
+                }
                 p.expect_p(',')?;
                 p.line_breaks()?;
                 if p.take_p('}') {
@@ -1697,7 +1704,11 @@ impl<'a> Parsing<'a> {
         let indexes = self.arguments(']').await?;
         let p = self.p();
         if indexes.is_empty() {
-            return p.err("expected index");
+            return Err(Error::syntax(
+                p.work,
+                p.position(p.pos - 1),
+                "index expression requires at least one selector",
+            ));
         }
         let d = 1 + lhs
             .depth
@@ -2118,6 +2129,9 @@ impl<'a> Parsing<'a> {
             if p.take_p(close) {
                 break;
             }
+            if p.token() != &Token::P(',') {
+                return p.expected(&format!("\"{close}\""));
+            }
             p.expect_p(',')?;
             p.lines()?;
             if p.take_p(close) {
@@ -2158,6 +2172,9 @@ impl<'a> Parsing<'a> {
             if p.take_p(')') {
                 break;
             }
+            if p.token() != &Token::P(',') {
+                return p.expected("\")\"");
+            }
             p.expect_p(',')?;
             p.line_breaks()?;
             if p.take_p(')') {
@@ -2169,6 +2186,24 @@ impl<'a> Parsing<'a> {
     }
 
     async fn call_argument(&self, parenthesized: bool) -> Result<Argument> {
+        let ampersand = {
+            let mut p = self.p();
+            let offset = p.tokens[p.pos].offset;
+            (p.token() == &Token::Op("&")).then(|| {
+                p.pos += 1;
+                offset
+            })
+        };
+        if let Some(offset) = ampersand {
+            // Go parses the operand before refusing the removed block argument.
+            self.expr(0).await?;
+            return Err(Error::syntax(
+                self.p().work,
+                offset,
+                "block arguments are not supported; a block is not a value. Write the block at \
+                 the call that runs it, as in `words.map { |word| word.upcase }`",
+            ));
+        }
         let (kind, literal) = {
             let mut p = self.p();
             p.work.charge(1)?;
@@ -2226,10 +2261,106 @@ impl<'a> Parser<'a> {
     }
     fn err<T>(&self, message: impl std::fmt::Display) -> Result<T> {
         self.work.charge(1)?;
+        Err(Error::syntax(self.work, self.position(self.pos), message))
+    }
+    /// The source offset at which Go reports the token at `index`. Its lexer
+    /// stamps a multi-character operator at the operator's last character.
+    fn position(&self, index: usize) -> usize {
+        let lexeme = &self.tokens[index];
+        match lexeme.token {
+            Token::Op(op) => lexeme.offset + op.len() - 1,
+            _ => lexeme.offset,
+        }
+    }
+    /// The index of the token Go's parser sees at `index`, which has no
+    /// token for a line break.
+    fn significant(&self, mut index: usize) -> usize {
+        while index + 1 < self.tokens.len()
+            && self.tokens[index].token == Token::EndLine
+            && self.source.as_bytes().get(self.tokens[index].offset) != Some(&b';')
+        {
+            index += 1;
+        }
+        index
+    }
+    /// Go's diagnostic name for the token at `index`.
+    fn label(&self, index: usize) -> String {
+        let lexeme = &self.tokens[index];
+        match &lexeme.token {
+            Token::Word(word) if word.starts_with("@@") => "class variable".to_owned(),
+            Token::Word(word) if word.starts_with('@') => "instance variable".to_owned(),
+            Token::Word(word) => word_label(word),
+            Token::Int(_) | Token::BigInt(..) => "integer".to_owned(),
+            Token::Float(_) => "float".to_owned(),
+            Token::Bytes(_) | Token::Template(_) => "string".to_owned(),
+            Token::Regex(..) => "\"regex\"".to_owned(),
+            Token::Words(words) => {
+                let interpolated = words
+                    .entries
+                    .iter()
+                    .flat_map(|entry| entry.iter())
+                    .any(|part| matches!(part, Part::Expr(..)));
+                match (interpolated, words.symbol) {
+                    (false, false) => "percent word array",
+                    (false, true) => "percent symbol array",
+                    (true, false) => "percent interpolated word array",
+                    (true, true) => "percent interpolated symbol array",
+                }
+                .to_owned()
+            }
+            Token::Invalid(_) => "invalid token".to_owned(),
+            Token::P(':')
+                if self.tokens.get(index + 1).is_some_and(|next| {
+                    next.offset == lexeme.end
+                        && matches!(
+                            next.token,
+                            Token::Word(_) | Token::Bytes(_) | Token::Template(_)
+                        )
+                }) =>
+            {
+                "symbol".to_owned()
+            }
+            Token::P(c) => format!("\"{c}\""),
+            Token::Op(op) => format!("\"{op}\""),
+            Token::EndLine if self.source.as_bytes().get(lexeme.offset) == Some(&b';') => {
+                "\";\"".to_owned()
+            }
+            Token::EndLine | Token::Eof => "end of input".to_owned(),
+        }
+    }
+    /// A lexer diagnostic that Go reports in place of any expectation at `index`.
+    fn diagnostic(&self, index: usize) -> Option<Error> {
+        match &self.tokens[index].token {
+            Token::Invalid(error) if error.1.as_str() != UNSUPPORTED_CHARACTER => {
+                Some(Error::syntax(self.work, error.0, error.1.as_str()))
+            }
+            _ => None,
+        }
+    }
+    /// Reports Go's failed expectation of `expected` at the current token.
+    fn expected<T>(&self, expected: &str) -> Result<T> {
+        self.work.charge(1)?;
+        let index = self.significant(self.pos);
+        if let Some(error) = self.diagnostic(index) {
+            return Err(error);
+        }
         Err(Error::syntax(
             self.work,
-            self.tokens[self.pos].offset,
-            message,
+            self.position(index),
+            format_args!("expected {expected}, got {}", self.label(index)),
+        ))
+    }
+    /// Reports Go's refusal of a token that cannot start an expression.
+    fn unexpected<T>(&self, index: usize) -> Result<T> {
+        self.work.charge(1)?;
+        let index = self.significant(index);
+        if let Some(error) = self.diagnostic(index) {
+            return Err(error);
+        }
+        Err(Error::syntax(
+            self.work,
+            self.position(index),
+            format_args!("unexpected token {}", self.label(index)),
         ))
     }
     fn bump(&mut self) -> Result<Token<'a>> {
@@ -2253,8 +2384,11 @@ impl<'a> Parser<'a> {
         self.work.charge(1)?;
         if self.word(w) {
             Ok(())
+        } else if w == "end" {
+            // Go checks a block's closing `end` by name rather than by token.
+            self.expected("end")
         } else {
-            self.err(format_args!("expected {w}"))
+            self.expected(&word_label(w))
         }
     }
     fn take_p(&mut self, c: char) -> bool {
@@ -2270,7 +2404,7 @@ impl<'a> Parser<'a> {
         if self.take_p(c) {
             Ok(())
         } else {
-            self.err(format_args!("expected {c}"))
+            self.expected(&format!("\"{c}\""))
         }
     }
     /// Returns the end offset of the last token a declaration beginning at
@@ -2492,7 +2626,7 @@ impl<'a> Parser<'a> {
                 "false" => self.make(Node::Literal(Value::boolean(false)), 1)?,
                 name => self.variable_name(name)?,
             },
-            token => self.leaf(token, offset)?,
+            token => self.leaf(token)?,
         };
         lhs.offset = offset;
         Ok(match self.expression_suffix(&lhs, min)? {
@@ -2504,7 +2638,7 @@ impl<'a> Parser<'a> {
         })
     }
     // Build expressions that need no nested parsing from their first token.
-    fn leaf(&mut self, token: Token<'a>, offset: u32) -> Result<Expr> {
+    fn leaf(&mut self, token: Token<'a>) -> Result<Expr> {
         match token {
             Token::Int(n) => self.make(Node::Integer(n), 1),
             Token::BigInt(text, radix) => self.make(Node::BigInteger(text, radix), 1),
@@ -2513,13 +2647,20 @@ impl<'a> Parser<'a> {
             Token::Bytes(b) => self.make(Node::Literal(b.into_value(false)), 1),
             Token::Template(parts) => self.template(parts, false),
             Token::Words(words) => self.words(words.into_inner()),
+            Token::Invalid(error) if error.1.as_str() == UNSUPPORTED_CHARACTER => {
+                self.unexpected(self.pos - 1)
+            }
             Token::Invalid(error) => Err(Error::syntax(self.work, error.0, error.1.as_str())),
             Token::P(':') => self.symbol(),
-            _ => Err(Error::syntax(
+            Token::Op("->") => Err(Error::syntax(
                 self.work,
-                offset as usize,
-                "expected expression",
+                self.position(self.pos - 1),
+                "lambda literals are not supported; executable code is not a value. Define a \
+                 named function and call it, or attach a block to the call that runs it, as in \
+                 `people.map { |person| person.name }`",
             )),
+            Token::Eof => self.unexpected(self.pos),
+            _ => self.unexpected(self.pos - 1),
         }
     }
     fn variable_name(&self, name: &str) -> Result<Expr> {
@@ -2544,17 +2685,32 @@ impl<'a> Parser<'a> {
 
     fn hash_label(&mut self) -> Result<(Bytes, Option<Expr>)> {
         let offset = self.tokens[self.pos].offset as u32;
+        let labeled = matches!(self.token(), Token::Word(w) if !w.starts_with('@'))
+            || matches!(self.token(), Token::Bytes(_));
+        let colon = self.significant(self.pos + 1);
+        if !labeled || self.tokens[colon].token != Token::P(':') {
+            return self.err(INVALID_HASH_PAIR);
+        }
         let (key, label) = match self.bump()? {
             Token::Word(w) => (Bytes::from_slice(self.work, w.as_bytes())?, Some(w)),
             Token::Bytes(b) => (b, None),
-            _ => return self.err("expected hash label"),
+            _ => unreachable!(),
         };
         self.line_breaks()?;
         self.expect_p(':')?;
         self.line_breaks()?;
         let shorthand = if matches!(self.token(), Token::P(',' | '}') | Token::Eof) {
             let Some(name) = label else {
-                return self.err("missing value for hash key");
+                let name = String::from_utf8_lossy(key.as_ref());
+                let mut end = name.len().min(64);
+                while !name.is_char_boundary(end) {
+                    end -= 1;
+                }
+                let ellipsis = if end < name.len() { "..." } else { "" };
+                return self.err(format_args!(
+                    "missing value for hash key {}{ellipsis}",
+                    &name[..end]
+                ));
             };
             Some(self.make_at(Node::Var(Name::new(self.work, &name)?), 1, offset)?)
         } else {
@@ -2719,8 +2875,9 @@ impl<'a> Parser<'a> {
 
     fn symbol(&mut self) -> Result<Expr> {
         self.work.charge(1)?;
-        if !self.symbol_start(self.pos - 1) {
-            return self.err("expected symbol");
+        let colon = self.pos - 1;
+        if !self.symbol_start(colon) {
+            return self.unexpected(colon);
         }
         let bytes = match self.bump()? {
             Token::Word(w) => Bytes::from_slice(self.work, w.as_bytes())?,
@@ -2737,7 +2894,7 @@ impl<'a> Parser<'a> {
                     Bytes::from_slice(self.work, b"[]")?
                 }
             }
-            _ => return self.err("expected symbol"),
+            _ => return self.unexpected(colon),
         };
         self.make(Node::Literal(bytes.into_value(true)), 1)
     }
@@ -2827,11 +2984,17 @@ impl<'a> Parser<'a> {
         Ok((left >= min).then_some(Suffix::Binary(op, right, offset)))
     }
     fn member_name(&mut self) -> Result<Name> {
-        let offset = self.tokens[self.pos].offset;
-        match self.bump()? {
-            Token::Word(name) if !name.starts_with('@') => Name::new(self.work, &name),
-            Token::Op("<=>") => Name::new(self.work, "<=>"),
-            _ => Err(Error::syntax(self.work, offset, "expected member name")),
+        match self.token() {
+            Token::Word(name) if !name.starts_with('@') => {
+                let name = *name;
+                self.bump()?;
+                Name::new(self.work, &name)
+            }
+            Token::Op("<=>") => {
+                self.bump()?;
+                Name::new(self.work, "<=>")
+            }
+            _ => self.expected("member name"),
         }
     }
     fn previous(&self) -> Result<&Lexeme<'a>> {
@@ -3187,6 +3350,24 @@ fn binding_power(op: &str) -> Option<(u8, u8)> {
     })
 }
 
+/// The lexer's message for a character no token starts with, which Go reports
+/// as an invalid token.
+const UNSUPPORTED_CHARACTER: &str = "unsupported character";
+
+/// Go's rejection of a hash entry that is not a labeled or quoted key and its value.
+const INVALID_HASH_PAIR: &str = "invalid hash pair: expected key like name: or \"name\":";
+
+/// Go's diagnostic name for a word token: its keywords are quoted, with the
+/// statement keywords its lexer lists by spelling in double quotes.
+fn word_label(w: &str) -> String {
+    match w {
+        "def" | "class" | "enum" | "export" | "self" | "private" | "property" | "getter"
+        | "setter" | "end" | "raise" | "return" | "yield" | "do" | "then" | "for" | "in" | "if"
+        | "unless" | "elsif" | "else" | "true" | "false" | "nil" => format!("'{w}'"),
+        _ if keyword(w) => format!("\"{w}\""),
+        _ => "identifier".to_owned(),
+    }
+}
 fn reserved(w: &str) -> bool {
     matches!(
         w,
