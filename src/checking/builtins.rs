@@ -356,13 +356,12 @@ fn json_value(ctx: &mut CallContext, facts: &Facts, value: Fact) -> Result<Encod
             | Node::Callable { .. }
             | Node::Offset(_)
             | Node::TypeValue(_)
-            | Node::Enumeration { .. } => result.invalid = true,
+            | Node::Enumeration { .. }
+            | Node::Instance { .. } => result.invalid = true,
             Node::Nominal {
                 symbols: Some(_), ..
             } => (),
-            Node::Named(_) | Node::Nominal { .. } | Node::Instance { .. } | Node::Choice(_) => {
-                result.incomplete = true
-            }
+            Node::Named(_) | Node::Nominal { .. } | Node::Choice(_) => result.incomplete = true,
             Node::Float(bits) if !f64::from_bits(*bits).is_finite() => result.invalid = true,
             Node::Atom(Atom::Unknown | Atom::Any | Atom::Float) => result.fallible = true,
             _ => (),

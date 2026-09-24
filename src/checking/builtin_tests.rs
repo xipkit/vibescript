@@ -156,6 +156,13 @@ fn builtin_lookup_and_argument_failures_are_catchable_and_diagnosed() {
         let source = format!("def run; begin; {expression}; rescue; 7; end; end");
         witness(&source, &[], "7", true);
     }
+    // Class instances never encode.
+    witness(
+        "class Box; end; def run; begin; JSON.stringify([Box.new]); rescue; 7; end; end",
+        &[],
+        "7",
+        true,
+    );
 }
 
 #[test]
