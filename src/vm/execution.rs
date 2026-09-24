@@ -17,40 +17,67 @@ impl Execution {
         keywords: &[(String, Value)],
         options: CallOptions,
     ) -> Result<Self> {
+        let mut execution = Self::open(script, options);
+        execution.start(script, name, args, keywords)?;
+        Ok(execution)
+    }
+
+    /// Calls a named function to completion. The execution stays in place
+    /// throughout, since it is too large to move cheaply.
+    pub(crate) fn call(
+        script: &Script,
+        name: &str,
+        args: &[Value],
+        keywords: &[(String, Value)],
+        options: CallOptions,
+    ) -> Result<Outcome> {
+        let mut execution = Self::open(script, options);
+        execution.start(script, name, args, keywords)?;
+        let result = execution.run.as_mut().unwrap().run(&mut execution.context);
+        execution.complete(result)
+    }
+
+    #[inline]
+    fn open(script: &Script, options: CallOptions) -> Self {
         let mut context = CallContext::new(options);
         context.strict_effects = script.inner.strict_effects;
         context.random_source = script.inner.random_source.clone();
         context.output_writer = script.inner.output_writer.clone();
         context.error_writer = script.inner.error_writer.clone();
-        context.checkpoint()?;
-        let function = *script.inner.code.program.names.get(name).ok_or_else(|| {
-            crate::members::suggest::missing_function(&script.inner.code.program, name)
-        })?;
-        let mut execution = Self {
+        Self {
             context,
             run: None,
             code: script.inner.code.clone(),
-            function,
-        };
-        execution.context.code_roots = Some(Buffer::empty());
-        execution.context.host_roots = Some(Buffer::empty());
-        execution.run = Some(
+            function: 0,
+        }
+    }
+
+    fn start(
+        &mut self,
+        script: &Script,
+        name: &str,
+        args: &[Value],
+        keywords: &[(String, Value)],
+    ) -> Result<()> {
+        self.context.checkpoint()?;
+        self.function = *script.inner.code.program.names.get(name).ok_or_else(|| {
+            crate::members::suggest::missing_function(&script.inner.code.program, name)
+        })?;
+        self.context.code_roots = Some(Buffer::empty());
+        self.context.host_roots = Some(Buffer::empty());
+        let function = self.function;
+        self.run = Some(
             Run::new(
-                &execution.code,
+                &self.code,
                 &script.inner.loader,
-                &mut execution.context,
+                &mut self.context,
                 function,
                 args,
                 keywords,
             )
-            .map_err(|error| diagnose(&execution.code.program, &[], function, error))?,
+            .map_err(|error| diagnose(&self.code.program, &[], function, error))?,
         );
-        Ok(execution)
-    }
-
-    pub(crate) fn run(mut self) -> Result<Outcome> {
-        let result = self.run.as_mut().unwrap().run(&mut self.context);
-        self.finish(result)
+        Ok(())
     }
 
     /// Runs like [`Self::run`] and also returns the root bindings the entry
@@ -145,6 +172,10 @@ impl Execution {
     }
 
     pub(super) fn finish(mut self, result: Result<Value>) -> Result<Outcome> {
+        self.complete(result)
+    }
+
+    fn complete(&mut self, result: Result<Value>) -> Result<Outcome> {
         let frames = self
             .run
             .as_ref()

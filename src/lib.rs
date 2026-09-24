@@ -275,7 +275,7 @@ impl Script {
         keywords: &[(String, Value)],
         options: CallOptions,
     ) -> Result<Outcome> {
-        vm::Execution::new(self, name, args, keywords, options)?.run()
+        vm::Execution::call(self, name, args, keywords, options)
     }
     /// Runs top-level executable statements.
     pub fn run(&self, options: CallOptions) -> Result<Outcome> {
