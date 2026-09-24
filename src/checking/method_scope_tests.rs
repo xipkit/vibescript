@@ -74,6 +74,17 @@ fn general_class_parameters_keep_method_results_and_argument_contracts() {
 }
 
 #[test]
+fn unknown_effects_leave_namespace_constants_bound_or_absent() {
+    let source = "class Limit\nend\nclass Holder\n  def self.pick(receiver)\n    receiver.install\n    Limit\n  end\nend\nclass Setter\n  def install\n    Holder.Limit = 5\n  end\nend\nclass Noop\n  def install\n    1\n  end\nend\ndef set\n  Holder.pick(Setter.new)\nend\ndef keep\n  Holder.pick(Noop.new)\nend";
+    check(source, "Holder.pick", true);
+    let script = Engine::new().compile(source).unwrap();
+    for (name, expected) in [("set", "5"), ("keep", "<Class Limit>")] {
+        let result = script.call(name, &[], CallOptions::default()).unwrap();
+        assert_eq!(result.value.to_string(), expected, "{name}");
+    }
+}
+
+#[test]
 fn module_types_admit_no_values() {
     let source = "module M\n  def self.size\n    3\n  end\nend\ndef run(m: M)\n  m.size(1, 2)\nend\ndef count(ms: array<M>) -> int\n  ms.size\nend\ndef module\n  M\nend";
     for name in ["run", "count"] {

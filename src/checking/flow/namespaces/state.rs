@@ -279,6 +279,16 @@ impl Walker<'_> {
         let Some(field) = self.namespace_constant(&state, name, false)? else {
             return Ok([Some((pc + 1, state)), None]);
         };
+        if field.incomplete && !address {
+            // An unknown effect may have bound this constant to any value, or left it
+            // absent so that the name resolves in an enclosing scope.
+            let absent = state.snapshot(self.ctx)?;
+            let value = self
+                .facts
+                .union(self.ctx, &[field.value, Atom::Unknown.fact()])?;
+            state.stack.push(self.ctx, Operand::new(value))?;
+            return Ok([Some((next, state)), Some((pc + 1, absent))]);
+        }
         if field.incomplete {
             return self.incomplete(pc);
         }
