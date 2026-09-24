@@ -213,10 +213,10 @@ fn binary(op: &str) -> usize {
 #[test]
 fn arithmetic_operators_agree_with_execution_for_every_operand_kind() {
     let mut count = 0;
-    for op in ["+", "-", "*", "/", "%", "**"] {
+    for op in ["+", "-", "*", "/", "//", "%", "**"] {
         count += binary(op);
     }
-    assert_eq!(count, 3450);
+    assert_eq!(count, 4025);
 }
 
 #[test]

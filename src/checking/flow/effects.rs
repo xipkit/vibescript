@@ -290,7 +290,7 @@ impl Walker<'_> {
                 let b = self.facts.arm(right, b);
                 let (x, y) = (self.facts.atom(a), self.facts.atom(b));
                 let mut stops = false;
-                if matches!(op, "/" | "%") && x == Some(Atom::Int) && y == Some(Atom::Int) {
+                if matches!(op, "/" | "//" | "%") && x == Some(Atom::Int) && y == Some(Atom::Int) {
                     match self.facts.node(b) {
                         Node::Integer(0) => {
                             errors |= zero;

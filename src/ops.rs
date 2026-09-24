@@ -22,6 +22,7 @@ pub(crate) fn unsupported(op: &str) -> Error {
             "-" => "unsupported subtraction operands",
             "*" => "unsupported multiplication operands",
             "/" => "unsupported division operands",
+            "//" => "unsupported floor division operands",
             "%" => "unsupported modulo operands",
             "**" => "unsupported exponentiation operands",
             "<<" => "unsupported shovel operands",
@@ -93,6 +94,7 @@ pub(crate) fn immediate(
             "-" => a.checked_sub(*b).map(Value::int),
             "*" => a.checked_mul(*b).map(Value::int),
             "/" | "%" if *b != 0 => floor_divide(op, *a, *b).map(Value::int),
+            "//" if *b != 0 => floor_divide("/", *a, *b).map(Value::int),
             "<" => Some(Value::boolean(a < b)),
             "<=" => Some(Value::boolean(a <= b)),
             ">" => Some(Value::boolean(a > b)),
@@ -109,6 +111,7 @@ pub(crate) fn immediate(
             "-" => Some(Value::float(a - b)),
             "*" => Some(Value::float(a * b)),
             "/" => Some(Value::float(a / b)),
+            "//" => Some(Value::float((a / b).floor())),
             "<" => Some(Value::boolean(a < b)),
             "<=" => Some(Value::boolean(a <= b)),
             ">" => Some(Value::boolean(a > b)),
@@ -140,6 +143,9 @@ fn floor_divide(op: &str, a: i64, b: i64) -> Option<i64> {
 }
 
 pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Result<Value> {
+    if op == "//" {
+        return floor_division(ctx, a, b);
+    }
     if op == "%" {
         if let Kind::Bytes(pattern) = &a.0 {
             let values = b.as_array().unwrap_or_else(|| std::slice::from_ref(&b));
@@ -307,6 +313,22 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
             Value::from_bytes(ctx, out)
         }
         _ => Err(unsupported(op)),
+    }
+}
+
+/// Floor division: integers of any size divide as `/` does, and a float
+/// operand gives the floored float quotient, which like float `/` is infinite
+/// or NaN for a zero divisor. Money and durations keep their own division.
+fn floor_division(ctx: &mut CallContext, a: Value, b: Value) -> Result<Value> {
+    match (&a.0, &b.0) {
+        (Kind::Int(_) | Kind::Big(_), Kind::Int(_) | Kind::Big(_)) => binary(ctx, "/", a, b),
+        (
+            Kind::Int(_) | Kind::Big(_) | Kind::Float(_),
+            Kind::Int(_) | Kind::Big(_) | Kind::Float(_),
+        ) => Ok(Value::float(
+            (a.as_float().unwrap() / b.as_float().unwrap()).floor(),
+        )),
+        _ => Err(unsupported("//")),
     }
 }
 

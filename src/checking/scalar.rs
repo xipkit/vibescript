@@ -2,8 +2,8 @@ use super::facts::{Atom, Computation, Fact, Facts, Node};
 use crate::{CallContext, Result, budget::Buffer};
 
 /// The primitive binary operators that scalar analysis models.
-const BINARY: [&str; 16] = [
-    "+", "-", "*", "/", "%", "**", "==", "!=", "<", "<=", ">", ">=", "<=>", "=~", "!~", "&",
+const BINARY: [&str; 17] = [
+    "+", "-", "*", "/", "%", "**", "==", "!=", "<", "<=", ">", ">=", "<=>", "=~", "!~", "&", "//",
 ];
 
 /// Identifies a modeled primitive binary operator for [`Computation`] keys.
@@ -735,7 +735,7 @@ fn primitive_binary(op: &str, a: Atom, b: Atom) -> Option<Atom> {
                 Bool
             }
         }
-        "+" | "-" | "*" | "/" | "**" if number(a) && number(b) => numeric,
+        "+" | "-" | "*" | "/" | "//" | "**" if number(a) && number(b) => numeric,
         "%" if a == Int && b == Int => Int,
         "+" if (a == String || b == String) && printable(a) && printable(b) => String,
         "*" if a == String && number(b) => String,

@@ -501,7 +501,7 @@ fn primitive_operator_facts_contain_temporal_regex_and_comparison_results() {
     for left in &values {
         for right in &values {
             for op in [
-                "+", "-", "*", "/", "%", "==", "!=", "<", "<=", ">", ">=", "<=>", "=~", "!~",
+                "+", "-", "*", "/", "//", "%", "==", "!=", "<", "<=", ">", ">=", "<=>", "=~", "!~",
             ] {
                 let mut facts = Facts::new(&mut ctx).unwrap();
                 let a = literal_fact(&mut ctx, &mut facts, left);
@@ -527,7 +527,7 @@ fn primitive_operator_facts_contain_temporal_regex_and_comparison_results() {
             }
         }
     }
-    assert_eq!(count, 2366);
+    assert_eq!(count, 2535);
     drop(values);
     assert_eq!(ctx.stats().retained_memory_bytes, 0);
 }

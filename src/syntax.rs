@@ -1777,7 +1777,7 @@ impl<'a> Parsing<'a> {
             }
             let groups = p.groups;
             let group = std::mem::replace(&mut p.command_group, groups);
-            if p.token() == &Token::Op("/") {
+            if matches!(p.token(), Token::Op("/" | "//")) {
                 p.expand_regex()?;
             }
             group
@@ -3173,6 +3173,7 @@ impl<'a> Parser<'a> {
                 *op,
                 "&." | "::"
                     | "/"
+                    | "//"
                     | "**"
                     | "%"
                     | ".."
@@ -3233,7 +3234,7 @@ impl<'a> Parser<'a> {
                     return Ok(None);
                 }
                 if self.line_exprs == 0 {
-                    if op == "/" {
+                    if matches!(op, "/" | "//") {
                         return Ok(None);
                     }
                     return Ok((self.groups > 0).then_some(next));
@@ -3249,7 +3250,7 @@ impl<'a> Parser<'a> {
                                 && (operand.line > lexeme.end_line || operand.offset > lexeme.end)
                         }),
                     "*" => !self.splat_assignment_ahead(next)?,
-                    "/" => false,
+                    "/" | "//" => false,
                     _ => true,
                 }
             }
@@ -3367,14 +3368,22 @@ impl<'a> Parser<'a> {
                 (!local || implicit) && previous.end != next.offset
             }
             Token::Regex(..) => !local && previous.end != next.offset,
-            Token::Op("/") => {
+            // A command's argument may start with a regex, such as `puts /x/`,
+            // which the lexer read as division. Floor division needs an
+            // operand, so `puts //` at the end of a line passes an empty regex.
+            Token::Op(op @ ("/" | "//")) => {
                 !local
                     && previous.end != next.offset
-                    && self
+                    && (self
                         .source
                         .as_bytes()
                         .get(next.end)
                         .is_some_and(|byte| !matches!(byte, b' ' | b'\t' | b'\r' | b'\n'))
+                        || (op == "//"
+                            && matches!(
+                                self.tokens[self.pos + 1].token,
+                                Token::EndLine | Token::Eof
+                            )))
             }
             Token::Op(op @ ("*" | "**" | "&")) => {
                 // Go v0.70.0 locates a power token at its second star.
@@ -3506,7 +3515,7 @@ fn binding_power(op: &str) -> Option<(u8, u8)> {
         "&" => (9, 10),
         "<<" => (10, 11),
         "+" | "-" => (11, 12),
-        "*" | "/" | "%" => (12, 13),
+        "*" | "/" | "//" | "%" => (12, 13),
         "**" => (14, 14),
         _ => return None,
     })

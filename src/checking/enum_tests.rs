@@ -375,8 +375,8 @@ fn enum_operators_match_executed_native_values_on_both_sides() {
             "{}",
         ] {
             for op in [
-                "+", "-", "*", "/", "%", "**", "<", "<=", ">", ">=", "<=>", "==", "!=", "===",
-                "=~", "!~", "&",
+                "+", "-", "*", "/", "//", "%", "**", "<", "<=", ">", ">=", "<=>", "==", "!=",
+                "===", "=~", "!~", "&",
             ] {
                 checked_expression(&format!("({enumeration}) {op} ({other})"));
                 checked_expression(&format!("({other}) {op} ({enumeration})"));
@@ -384,7 +384,7 @@ fn enum_operators_match_executed_native_values_on_both_sides() {
             }
         }
     }
-    assert_eq!(cases, 816);
+    assert_eq!(cases, 864);
 }
 
 fn analyze_program(

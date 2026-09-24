@@ -623,7 +623,7 @@ fn scalar_operator_facts_cover_runtime_results_and_type_failures() {
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     for op in [
-        "+", "-", "*", "/", "%", "**", "==", "!=", "<", "<=", ">", ">=",
+        "+", "-", "*", "/", "//", "%", "**", "==", "!=", "<", "<=", ">", ">=",
     ] {
         for (left, a) in &values {
             for (right, b) in &values {

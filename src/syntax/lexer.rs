@@ -561,10 +561,12 @@ impl<'a, 'w> Lexer<'a, 'w> {
                     }
                     _ => {
                         let mut found = None;
+                        // A slash reaches this arm only where it divides, so `//`
+                        // after an operand is floor division.
                         for op in [
                             "=>", "...", "..", "===", "<=>", "||=", "&&=", "**=", "==", "!=", "<=",
-                            ">=", "&&", "||", "+=", "-=", "*=", "/=", "%=", "**", "<<", "::", "->",
-                            "=~", "!~", "&.",
+                            ">=", "&&", "||", "+=", "-=", "*=", "/=", "%=", "**", "//", "<<", "::",
+                            "->", "=~", "!~", "&.",
                         ] {
                             if s[i..].starts_with(op.as_bytes()) {
                                 found = Some(op);
