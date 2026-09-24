@@ -1485,7 +1485,9 @@ impl<'a> Parsing<'a> {
             "yield" => self.yield_expr().await,
             "begin" => self.begin_expression(offset).await,
             "while" | "until" | "for" => self.loop_expression(w, offset).await,
-            _ if reserved(w) && w != "then" => Err(Error::syntax(
+            // Like Go, only `self` and `then` among the remaining keywords
+            // start an expression.
+            _ if keyword(w) && !matches!(w, "self" | "then") => Err(Error::syntax(
                 self.p().work,
                 offset as usize,
                 format_args!("unexpected token {}", Label::word(w)),
@@ -2575,7 +2577,9 @@ impl<'a> Parser<'a> {
             | Token::Words(..)
             | Token::Symbol(_)
             | Token::QuotedSymbol(_) => true,
-            Token::Word(w) => !reserved(w) || w == "then",
+            Token::Word(w) => {
+                !keyword(w) || matches!(w.as_str(), "nil" | "true" | "false" | "self" | "then")
+            }
             _ => false,
         };
         if !leaf {
