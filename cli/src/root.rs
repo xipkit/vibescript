@@ -13,7 +13,7 @@
 use crate::{
     check, compat,
     flags::{self, Outcome, Spec},
-    flat, profiles, repl, run,
+    flat, format, profiles, repl, run,
 };
 use std::{
     ffi::{OsStr, OsString},
@@ -50,7 +50,14 @@ const REPL_SPEC: Spec = Spec {
 };
 
 /// Every command, in the order the root help lists them.
-const COMMANDS: [&Spec; 5] = [&run::SPEC, &check::SPEC, &LSP_SPEC, &REPL_SPEC, &HELP_SPEC];
+const COMMANDS: [&Spec; 6] = [
+    &run::SPEC,
+    &check::SPEC,
+    &format::SPEC,
+    &LSP_SPEC,
+    &REPL_SPEC,
+    &HELP_SPEC,
+];
 
 /// Options that select the flat form when they come first.
 const FLAT_OPTIONS: [&str; 13] = [
@@ -113,6 +120,7 @@ fn run_command(name: &str, args: &[OsString]) -> Result<(), String> {
     match name {
         "run" => run::command(args),
         "check" => check::command(args),
+        "fmt" => format::command(args),
         "lsp" => lsp(args),
         _ => help(args),
     }

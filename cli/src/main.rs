@@ -1,10 +1,11 @@
-//! The `vibes` command line: Go-compatible commands (`run`, `check`, `help`)
-//! plus the flat form that runs a file directly.
+//! The `vibes` command line: Go-compatible commands (`run`, `check`, `fmt`,
+//! `help`) plus the flat form that runs a file directly.
 
 mod check;
 mod compat;
 mod flags;
 mod flat;
+mod format;
 mod output;
 mod profiles;
 mod render;
