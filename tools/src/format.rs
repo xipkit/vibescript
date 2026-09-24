@@ -105,7 +105,7 @@ mod tests {
     }
 
     #[test]
-    fn typed_declarations_round_trip() {
+    fn typed_declarations_and_floor_division_round_trip() {
         let source = "type Reward = { id: string, points: int }
 
 class Counter
@@ -121,7 +121,7 @@ end
 
 def each_pair(h: hash<string, int>, &block?: (string, int))
   pair: [string, int]? = nil
-  h.keys.each { |k| yield k, h.fetch(k) } if block_given?
+  h.keys.each { |k| yield k, h.fetch(k) // 2 } if block_given?
 end
 ";
         assert!(is_formatted(source));
