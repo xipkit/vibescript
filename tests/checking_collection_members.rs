@@ -550,7 +550,13 @@ fn protected_records_follow_native_call_shapes() {
 fn reductions_call_named_members_directly_while_send_checks_the_member_table() {
     exact_ints(&[("[:ab, :b].reduce(:index) || 7", 1)]);
     exact_nils(&["[:a, :b].reduce(:rindex)"]);
-    invalid(&[":abc.send(:index, \"a\")", ":abc.public_send(:bytesize)"]);
+    invalid(&[
+        ":abc.send(:index, \"a\")",
+        ":abc.public_send(:bytesize)",
+        "[1, 2].send(:rotate) { |v| v }",
+        "[1, 2].send(:sample, a: 1)",
+        "[1, 2].public_send(:inspect) { |v| v }",
+    ]);
 }
 
 /// Site programs whose whole-file checks used to stop at one of these

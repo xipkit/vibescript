@@ -228,7 +228,19 @@ impl Walker<'_> {
             && kind
                 .rejects_block(site.method, !args.positional.data.is_empty(), name)
                 .is_some();
-        if (args.block.is_some() && block_rejected) || block_guard || (keywords && keyword_rejected)
+        // Collection members refuse call shapes through their own probes too.
+        let shape_refused = self.facts.refuses_call_shape(
+            receiver,
+            site.call,
+            name,
+            args.positional.data.len(),
+            keywords,
+            args.block.is_some(),
+        );
+        if (args.block.is_some() && block_rejected)
+            || block_guard
+            || shape_refused
+            || (keywords && keyword_rejected)
         {
             self.collection_error(state, pc, receiver, site, args, ErrorClass::Runtime)?;
             return Ok(false);
