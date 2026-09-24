@@ -11,7 +11,8 @@ use std::{
 pub enum Sink {
     Stdout,
     Stderr,
-    #[cfg_attr(not(test), allow(dead_code))]
+    /// Only the watch tests, which WASI cannot run, capture output.
+    #[cfg_attr(not(all(test, not(target_os = "wasi"))), allow(dead_code))]
     Buffer(Arc<Mutex<Vec<u8>>>),
 }
 
@@ -44,7 +45,7 @@ impl Sink {
     }
 
     /// A new buffer sink and a handle to read it.
-    #[cfg(test)]
+    #[cfg(all(test, not(target_os = "wasi")))]
     pub fn buffer() -> (Self, Arc<Mutex<Vec<u8>>>) {
         let buffer = Arc::new(Mutex::new(Vec::new()));
         (Self::Buffer(buffer.clone()), buffer)

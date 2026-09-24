@@ -355,7 +355,9 @@ mod tests {
 
     #[test]
     fn describes_os_errors_like_go() {
-        let error = io::Error::from_raw_os_error(2);
+        // A real failure, since error numbers differ between platforms.
+        let missing = Path::new(env!("CARGO_MANIFEST_DIR")).join("missing-for-test");
+        let error = std::fs::metadata(&missing).unwrap_err();
         assert_eq!(reason(&error), "no such file or directory");
         assert_eq!(
             path_error("open", Path::new("/x"), &error),

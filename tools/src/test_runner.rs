@@ -60,7 +60,9 @@ pub fn is_test_file(path: &Path) -> bool {
 ///
 /// ```
 /// use vibescript_tools::test_runner::discover;
-/// let dir = std::env::temp_dir().join(format!("vibes-discover-{}", std::process::id()));
+/// # let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join(".cache/tmp");
+/// let dir = base.join("discover-example");
+/// # let _ = std::fs::remove_dir_all(&dir);
 /// std::fs::create_dir_all(dir.join("nested"))?;
 /// std::fs::write(dir.join("nested/b_test.vibe"), "")?;
 /// std::fs::write(dir.join("a_test.vibe"), "")?;

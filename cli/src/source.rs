@@ -98,13 +98,17 @@ mod tests {
     /// directory in order, absolute and without repeats.
     #[test]
     fn module_paths_match_the_directory_model() {
-        let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.cache/tmp");
-        fs::create_dir_all(&base).unwrap();
-        let scratch = Scratch(
-            fs::canonicalize(base)
-                .unwrap()
-                .join(format!("module-paths-{}", std::process::id())),
-        );
+        // WASI has neither process ids nor canonical paths below a preopen,
+        // so the directory is named by time below the repository's cache.
+        let base = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join(".cache/tmp");
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let scratch = Scratch(base.join(format!("module-paths-{stamp}")));
         let choices: Vec<PathBuf> = ["scripts", "modules-a", "modules-b"]
             .iter()
             .map(|name| scratch.0.join(name))
