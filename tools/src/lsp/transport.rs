@@ -52,11 +52,19 @@ pub(crate) fn read(reader: &mut impl BufRead) -> io::Result<Frame> {
         };
         if name.trim().eq_ignore_ascii_case("Content-Length") {
             let value = value.trim();
-            length = Some(
-                value
-                    .parse()
-                    .map_err(|_| invalid(&format!("invalid Content-Length: {value:?}")))?,
-            );
+            length = Some(value.parse().map_err(|error: std::num::ParseIntError| {
+                // The reference's words, from Go's strconv.Atoi.
+                let reason = match error.kind() {
+                    std::num::IntErrorKind::PosOverflow | std::num::IntErrorKind::NegOverflow => {
+                        "value out of range"
+                    }
+                    _ => "invalid syntax",
+                };
+                invalid(&format!(
+                    "invalid Content-Length: strconv.Atoi: parsing {}: {reason}",
+                    go_quote(value)
+                ))
+            })?);
         }
     }
     let length = match length {
@@ -86,6 +94,31 @@ pub(crate) fn write(writer: &mut impl Write, body: &str) -> io::Result<()> {
     write!(writer, "Content-Length: {}\r\n\r\n", body.len())?;
     writer.write_all(body.as_bytes())?;
     writer.flush()
+}
+
+/// Quotes text as Go's `strconv.Quote` does for the characters headers hold.
+fn go_quote(text: &str) -> String {
+    let mut out = String::from("\"");
+    for c in text.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if c.is_control() => {
+                let code = c as u32;
+                if code < 0x80 {
+                    out.push_str(&format!("\\x{code:02x}"));
+                } else {
+                    out.push_str(&format!("\\u{code:04x}"));
+                }
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }
 
 fn invalid(message: &str) -> io::Error {
@@ -146,7 +179,15 @@ mod tests {
             ),
             (
                 b"Content-Length: x\r\n\r\n",
-                "invalid Content-Length: \"x\"",
+                "invalid Content-Length: strconv.Atoi: parsing \"x\": invalid syntax",
+            ),
+            (
+                b"Content-Length: \x01\r\n\r\n",
+                "invalid Content-Length: strconv.Atoi: parsing \"\\x01\": invalid syntax",
+            ),
+            (
+                b"Content-Length: 99999999999999999999\r\n\r\n",
+                "invalid Content-Length: strconv.Atoi: parsing \"99999999999999999999\": value out of range",
             ),
             (
                 b"Content-Length: 4\r\n\r\n{}",

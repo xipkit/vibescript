@@ -273,7 +273,10 @@ fn corrupt_framing_ends_the_server_with_an_error() {
     session.write(b"Content-Length: nope\r\n\r\n{}");
     let (status, stderr) = session.finish();
     assert_eq!(status, Some(1));
-    assert_eq!(stderr, "vibes lsp: invalid Content-Length: \"nope\"\n");
+    assert_eq!(
+        stderr,
+        "lsp read: invalid Content-Length: strconv.Atoi: parsing \"nope\": invalid syntax\n"
+    );
 }
 
 #[test]

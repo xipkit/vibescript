@@ -134,7 +134,10 @@ fn skips_malformed_and_oversized_messages() {
 #[test]
 fn corrupt_framing_ends_the_server_with_an_error() {
     let error = run(b"Content-Length: nope\r\n\r\n".to_vec()).unwrap_err();
-    assert_eq!(error.to_string(), "invalid Content-Length: \"nope\"");
+    assert_eq!(
+        error.to_string(),
+        "lsp read: invalid Content-Length: strconv.Atoi: parsing \"nope\": invalid syntax"
+    );
 }
 
 #[test]

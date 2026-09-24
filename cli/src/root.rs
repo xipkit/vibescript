@@ -260,5 +260,5 @@ fn lsp(args: &[OsString]) -> Result<(), String> {
     let output = io::BufWriter::new(io::stdout().lock());
     let mut server = vibescript_tools::lsp::Server::new();
     vibescript_tools::lsp::serve(&mut server, io::stdin(), output, &signal::token())
-        .map_err(|error| format!("vibes lsp: {error}"))
+        .map_err(|error| error.to_string())
 }

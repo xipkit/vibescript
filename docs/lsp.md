@@ -76,7 +76,7 @@ Hosts can change these through `Options`.
 
 ## Protocol details
 
-- Messages use `Content-Length` framing; header names match without regard to case and other headers are ignored. A missing or malformed `Content-Length`, or a header block over 64 KiB, ends the server with an error and exit status 1, since no later message boundary can be trusted. Input that ends between messages ends the server with status 0.
+- Messages use `Content-Length` framing; header names match without regard to case and other headers are ignored. A missing or malformed `Content-Length`, or a header block over 64 KiB, ends the server with exit status 1 and an error in the reference's words, such as `lsp read: missing Content-Length header`, since no later message boundary can be trusted. Input that ends between messages ends the server with status 0.
 - A body that is not a JSON-RPC object is skipped. Parameters decode as the reference's typed structs do: absent fields and `null` take zero values, keys match without regard to case when no exact key exists, and a value of the wrong type, such as a fractional line, rejects the request with `-32602`. Absent parameters are an error, while `null` parameters are empty. Request ids are echoed verbatim, and even an `initialize` without an id is answered, as in the reference.
 - Output uses the reference's JSON: its key order, and HTML-safe escapes for `<`, `>` and `&`.
 - Positions are UTF-16 code units. Lines end at `\n`, `\r\n` or a bare `\r`, as clients count them.

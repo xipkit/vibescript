@@ -13,7 +13,9 @@ use vibescript::CancellationToken;
 ///
 /// Messages that are not JSON-RPC objects and bodies over 8 MiB are skipped.
 /// Corrupt framing, such as a missing or malformed `Content-Length`, ends the
-/// loop with an error, since no later message boundary can be trusted.
+/// loop with an error, since no later message boundary can be trusted. Errors
+/// read as the reference's do, such as `lsp read: missing Content-Length
+/// header` or `lsp write: ...`.
 ///
 /// Where threads are available, input is read ahead on a separate thread.
 /// Cancellation then stops the loop even while it waits for input, a queued
@@ -43,7 +45,10 @@ pub fn serve(
     cancellation: &CancellationToken,
 ) -> io::Result<()> {
     let mut messages = Messages::new(input, server.in_flight.clone());
-    while let Some(event) = messages.next(cancellation)? {
+    while let Some(event) = messages
+        .next(cancellation)
+        .map_err(|error| context("lsp read", error))?
+    {
         let Some(message) = event else {
             continue;
         };
@@ -59,13 +64,19 @@ pub fn serve(
             None => server.dispatch(&message),
         };
         for reply in replies {
-            transport::write(&mut output, &reply.json())?;
+            transport::write(&mut output, &reply.json())
+                .map_err(|error| context("lsp write", error))?;
         }
         if server.exit_requested() {
             return Ok(());
         }
     }
     Ok(())
+}
+
+/// Prefixes an error as the reference does, keeping its kind.
+fn context(stage: &str, error: io::Error) -> io::Error {
+    io::Error::new(error.kind(), format!("{stage}: {error}"))
 }
 
 /// A decoded message, `None` for a skipped one, or a read failure.
