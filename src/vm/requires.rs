@@ -85,6 +85,7 @@ pub(super) fn root_bound(ctx: &mut CallContext, storage: &Storage, name: &str) -
         || contains(ctx, storage, name)?)
 }
 
+#[inline]
 pub(super) fn local(
     ctx: &mut CallContext,
     frames: &Buffer<Frame>,
@@ -93,13 +94,23 @@ pub(super) fn local(
     relative: usize,
     absolute: usize,
 ) -> Result<bool> {
-    let frame = &frames.data[current];
-    if frame.program.file
-        || (storage.bindings.is_none() && ctx.options.globals.is_empty())
+    // Without root bindings or host globals no name can shadow a local.
+    if (storage.bindings.is_none() && ctx.options.globals.is_empty())
+        || frames.data[current].program.file
         || storage.locals.data[absolute].is_some()
     {
         return Ok(false);
     }
+    unbound_local(ctx, &frames.data[current], storage, relative)
+}
+
+#[inline(never)]
+fn unbound_local(
+    ctx: &mut CallContext,
+    frame: &Frame,
+    storage: &Storage,
+    relative: usize,
+) -> Result<bool> {
     let function = &frame.program.functions[frame.function.unwrap()];
     for param in &function.params {
         ctx.charge(1)?;

@@ -508,7 +508,14 @@ impl Run {
                 op
             };
             ctx.charge(1)?;
-            let mut slot = |slot, skip| resolve_slot(ctx, frames, storage, current, slot, skip);
+            let local_base = frames.data[current].local_base;
+            let mut slot = |slot: usize, skip: bool| -> Result<usize> {
+                // A bound local of the executing frame always resolves to itself.
+                if !skip && storage.locals.data[local_base + slot].is_some() {
+                    return Ok(local_base + slot);
+                }
+                resolve_slot(ctx, frames, storage, current, slot, skip)
+            };
             let binding_local = file_bindings::local_name(op);
             let file_local = if program.file {
                 file_bindings::local_name(op)
