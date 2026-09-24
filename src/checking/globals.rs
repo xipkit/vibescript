@@ -429,9 +429,12 @@ impl Globals {
     /// Preserves writes from earlier stages of a composed call.
     pub fn inherit_writes(&mut self, ctx: &mut CallContext, earlier: &Self) -> Result<()> {
         self.expand(ctx, &earlier.layout)?;
+        // A later stage usually writes a few of the slots that earlier stages wrote.
         let mut written = earlier.written.snapshot(ctx)?;
         written.grow(ctx, self.len())?;
-        self.written.merge(ctx, &written, |_, _, a, b| Ok(a || b))?;
+        self.written
+            .entries(ctx, &mut |ctx, index, _| written.set(ctx, index, true))?;
+        self.written = written;
         Ok(())
     }
 
