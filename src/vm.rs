@@ -2540,9 +2540,7 @@ impl Run {
                         name,
                     )? {
                         value_invocation(&value)
-                    } else if let Some(slot) =
-                        namespaces::ambient_slot(ctx, frames, storage, current, name)?
-                    {
+                    } else if let Some(slot) = ambient_call(ctx, frames, storage, current, name)? {
                         value_invocation(storage.locals.data[slot].as_ref().unwrap())
                     } else if let Some(value) = file_bindings::get(program, ctx, name)? {
                         value_invocation(&value)
@@ -4012,6 +4010,27 @@ impl Frame {
     }
 }
 
+/// Reports whether an assignment is evaluating the value that `slot` will receive,
+/// which its calls of the same name skip.
+fn bypassed(ctx: &mut CallContext, storage: &Storage, slot: usize) -> Result<bool> {
+    ctx.charge(storage.bypasses.data.len() as u64)?;
+    Ok(storage.bypasses.data.contains(&slot))
+}
+
+/// Finds the declaring frame's binding that a call in a namespace body reaches.
+fn ambient_call(
+    ctx: &mut CallContext,
+    frames: &Buffer<Frame>,
+    storage: &Storage,
+    current: usize,
+    name: &str,
+) -> Result<Option<usize>> {
+    match namespaces::ambient_slot(ctx, frames, storage, current, name)? {
+        Some(slot) if !bypassed(ctx, storage, slot)? => Ok(Some(slot)),
+        _ => Ok(None),
+    }
+}
+
 fn resolve_slot(
     ctx: &mut CallContext,
     frames: &Buffer<Frame>,
@@ -4026,7 +4045,11 @@ fn resolve_slot(
         if let Some(slot) =
             namespaces::ambient_slot(ctx, frames, storage, frame, &function.local_names[slot])?
         {
-            return Ok(slot);
+            return Ok(if skip && bypassed(ctx, storage, slot)? {
+                usize::MAX
+            } else {
+                slot
+            });
         }
     }
     loop {
