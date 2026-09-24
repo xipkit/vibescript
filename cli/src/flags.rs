@@ -411,4 +411,48 @@ mod tests {
             + &pad("--help, -h", "show help");
         assert_eq!(help(&SPEC), expected);
     }
+
+    /// The reference's argument fuzz property: arbitrary tokens never panic,
+    /// and a parse either reports an error, asks for help or keeps every
+    /// token after the flags verbatim.
+    #[test]
+    fn arbitrary_arguments_parse_without_panicking() {
+        let pieces = [
+            "-",
+            "--",
+            "-w",
+            "--check",
+            "-function",
+            "=",
+            "x",
+            "-e",
+            "--module-path",
+            "-step-quota",
+            "0x1_0",
+            "-h",
+            "é",
+            " ",
+            "",
+            "---",
+            "-1",
+            "=true",
+            "\u{0}",
+        ];
+        let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+        for _ in 0..20_000 {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            let args: Vec<OsString> = (0..state % 6)
+                .map(|i| {
+                    let first = pieces[((state >> (i * 5)) % pieces.len() as u64) as usize];
+                    let second = pieces[((state >> (i * 5 + 17)) % pieces.len() as u64) as usize];
+                    OsString::from(format!("{first}{second}"))
+                })
+                .collect();
+            if let Ok(Outcome::Parsed(parsed)) = parse(&SPEC, &args) {
+                assert!(args.ends_with(&parsed.positionals), "{args:?}");
+            }
+        }
+    }
 }

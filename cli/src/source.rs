@@ -81,3 +81,60 @@ pub fn module_paths(base: &Path, extras: &[OsString]) -> Result<Vec<PathBuf>, St
     }
     Ok(paths)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct Scratch(PathBuf);
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    /// The reference's property: the script directory first, then each extra
+    /// directory in order, absolute and without repeats.
+    #[test]
+    fn module_paths_match_the_directory_model() {
+        let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.cache/tmp");
+        fs::create_dir_all(&base).unwrap();
+        let scratch = Scratch(
+            fs::canonicalize(base)
+                .unwrap()
+                .join(format!("module-paths-{}", std::process::id())),
+        );
+        let choices: Vec<PathBuf> = ["scripts", "modules-a", "modules-b"]
+            .iter()
+            .map(|name| scratch.0.join(name))
+            .collect();
+        for dir in &choices {
+            fs::create_dir_all(dir).unwrap();
+        }
+        let mut state = 0x2545_f491_4f6c_dd1d_u64;
+        for _ in 0..200 {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            let extras: Vec<OsString> = (0..state % 12)
+                .map(|i| choices[((state >> (i * 3)) % 3) as usize].clone().into())
+                .collect();
+            let mut model: Vec<PathBuf> = Vec::new();
+            for dir in std::iter::once(&choices[0].clone().into_os_string()).chain(&extras) {
+                let dir = PathBuf::from(dir);
+                if !model.contains(&dir) {
+                    model.push(dir);
+                }
+            }
+            assert_eq!(module_paths(&choices[0], &extras).unwrap(), model);
+        }
+        let file = scratch.0.join("file");
+        fs::write(&file, "x").unwrap();
+        let quoted = compat::quote(file.to_str().unwrap().as_bytes());
+        assert_eq!(
+            module_paths(&choices[0], &[file.clone().into()]).unwrap_err(),
+            format!("module path {quoted} is not a directory")
+        );
+    }
+}
