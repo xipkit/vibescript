@@ -11,11 +11,11 @@ This checkout lives on `/Volumes/AI/Work/xipkit/vibescript.rs`. The original sib
 ./scripts/cargo test --workspace --all-features
 ```
 
-The [CLI](docs/cli.md) writes `puts`, `print`, and `p` to stdout and `warn` to stderr, then prints the final result as JSON. Use `vibes check FILE` to analyze the whole file, or `vibes check --function NAME FILE` to check one function or method for its declared parameter types and defaults. Flat invocations accept `--kwarg NAME=JSON` for named arguments, `--check --function NAME` to analyze a concrete call without execution, or `--checked --function NAME` to execute only after a clean check. Run `--help` for step, memory, recursion, and deadline options. Defaults are one million logical steps, 16 MiB of tracked memory, and 256 call frames. `./scripts/check` runs the full local validation gate.
+The [CLI](docs/cli.md) provides the Go reference's commands, `vibes run`, `check`, `fmt`, `analyze` and `test`, with the reference's flags, output and exit codes; `vibes run` uses the reference's quota profiles and defaults to `xhigh`. Use `vibes check FILE` to analyze the whole file, or `vibes check -function NAME FILE` to check one function or method for its declared parameter types and defaults. The flat form, `vibes FILE`, prints the final result as JSON; it accepts `--kwarg NAME=JSON` for named arguments, `--check --function NAME` to analyze a concrete call without execution, or `--checked --function NAME` to execute only after a clean check, and `vibes help flat` lists its step, memory, recursion, and deadline options, whose defaults are one million logical steps, 16 MiB of tracked memory, and 256 call frames. Scripts write `puts`, `print`, and `p` to stdout and `warn` to stderr. The formatter, analyzer and test runner are also available as a library in the `vibescript-tools` crate. `./scripts/check` runs the full local validation gate.
 
-The CLI searches the input file's directory for required modules. Add other roots with repeatable `--module-path DIR` options; the same paths apply to execution and checking.
+The CLI searches the input file's directory for required modules. Add other roots with repeatable `--module-path DIR` options, before the script path for the commands; the same paths apply to execution and checking.
 
-`vibes repl` starts the interactive REPL, ported from the Go CLI. Variables, functions and classes persist across inputs, unfinished input continues on the next line, and piped input runs one line at a time; see [the REPL section](docs/cli.md#interactive-repl).
+`vibes repl` starts the interactive REPL, ported from the Go CLI. Variables, functions and classes persist across inputs, unfinished input continues on the next line, and piped input runs one line at a time; see [the REPL section](docs/cli.md#vibes-repl).
 
 ## Embed it
 
