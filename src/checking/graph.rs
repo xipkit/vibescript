@@ -18,6 +18,8 @@ pub(super) struct Block {
 #[derive(Debug)]
 pub(super) struct Graph {
     pub blocks: Buffer<Block>,
+    /// Whether any edge can lead back to an earlier block, through a loop or `retry`.
+    pub cyclic: bool,
     // The block starting at each instruction, for the edges that every walk resolves.
     starts: Buffer<usize>,
 }
@@ -35,6 +37,7 @@ impl Graph {
         let mut leaders = Buffer::with_capacity(ctx, code.len() + 1)?;
         let mut exits = Buffer::with_capacity(ctx, code.len())?;
         let mut loops = Buffer::empty();
+        let mut cyclic = false;
         for _ in 0..=code.len() {
             ctx.charge(1)?;
             leaders.data.push(false);
@@ -126,7 +129,9 @@ impl Graph {
             }
             if let Exit::Jump(target) | Exit::Branch(target) = exit {
                 leaders.data[target] = true;
+                cyclic |= target <= pc;
             }
+            cyclic |= matches!(op, Op::Retry);
             exits.data.push(exit);
         }
         assert!(loops.data.is_empty());
@@ -150,7 +155,11 @@ impl Graph {
                 start = end;
             }
         }
-        Ok(Self { blocks, starts })
+        Ok(Self {
+            blocks,
+            cyclic,
+            starts,
+        })
     }
 
     pub fn at(&self, ctx: &mut CallContext, pc: usize) -> Result<usize> {
@@ -158,6 +167,72 @@ impl Graph {
         match self.starts.data.get(pc) {
             Some(&index) if index < self.blocks.data.len() => Ok(index),
             _ => panic!("jump target {pc} is not a basic block"),
+        }
+    }
+}
+
+/// Queued block entries of one function walk.
+///
+/// Without a cycle every edge leads to a later block, so taking the earliest queued block first
+/// walks each block after all of its predecessors. The latest queued entry, taken otherwise,
+/// would walk a chain of branch joins again for every branch that later reaches it. Loop and
+/// `retry` walks keep that order, since their widening depends on the order of the states that
+/// reach a backedge.
+#[derive(Debug)]
+pub(super) struct Worklist {
+    heap: Buffer<(usize, usize)>,
+    ordered: bool,
+}
+
+impl Worklist {
+    pub fn new(graph: &Graph) -> Self {
+        Self {
+            heap: Buffer::empty(),
+            ordered: !graph.cyclic,
+        }
+    }
+
+    pub fn push(&mut self, ctx: &mut CallContext, entry: (usize, usize)) -> Result<()> {
+        self.heap.push(ctx, entry)?;
+        if !self.ordered {
+            return Ok(());
+        }
+        let heap = &mut self.heap.data;
+        let mut child = heap.len() - 1;
+        while child > 0 {
+            ctx.charge(1)?;
+            let parent = (child - 1) / 2;
+            if heap[parent] <= heap[child] {
+                break;
+            }
+            heap.swap(parent, child);
+            child = parent;
+        }
+        Ok(())
+    }
+
+    pub fn pop(&mut self, ctx: &mut CallContext) -> Result<Option<(usize, usize)>> {
+        let heap = &mut self.heap.data;
+        if !self.ordered || heap.is_empty() {
+            return Ok(heap.pop());
+        }
+        let first = heap.swap_remove(0);
+        let mut parent = 0;
+        loop {
+            ctx.charge(1)?;
+            let (left, right) = (2 * parent + 1, 2 * parent + 2);
+            let mut least = parent;
+            if left < heap.len() && heap[left] < heap[least] {
+                least = left;
+            }
+            if right < heap.len() && heap[right] < heap[least] {
+                least = right;
+            }
+            if least == parent {
+                return Ok(Some(first));
+            }
+            heap.swap(parent, least);
+            parent = least;
         }
     }
 }

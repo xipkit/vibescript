@@ -1178,7 +1178,7 @@ pub(super) fn analyze_body(
         }
     }
     let mut entries = Buffer::with_capacity(ctx, graph.blocks.data.len())?;
-    let mut queue = Buffer::empty();
+    let mut queue = super::graph::Worklist::new(&graph);
     for _ in &graph.blocks.data {
         ctx.charge(1)?;
         entries.data.push(Buffer::empty());
@@ -1220,7 +1220,7 @@ pub(super) fn analyze_body(
         resume: None,
     };
     walker.calls.track_created(walker.ctx, true)?;
-    while let Some((index, polarity)) = queue.data.pop() {
+    while let Some((index, polarity)) = queue.pop(walker.ctx)? {
         walker.ctx.charge(1)?;
         entries.data[index].data[polarity].queued = false;
         let edges = loop {

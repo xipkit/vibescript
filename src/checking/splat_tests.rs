@@ -360,14 +360,14 @@ fn splats_narrow_the_local_they_expand() {
         // The rescue sees only the hash that failed to expand.
         (
             "def rest(*a); a; end; def run(flag: bool); v = flag ? [1] : {a: 1}; begin; rest(*v); v.push(2); rescue; v.keys; end; end",
-            &["Positional splat must be an array; got {\"a\": int} | [int]"][..],
+            &["Positional splat must be an array; got [int] | {\"a\": int}"][..],
         ),
         // No value is both an array and a hash, so the call never returns.
         (
             "def takes(v: int); v; end; def run(flag: bool); items = []; args = flag ? [1] : {x: 1}; items.fill(*args, **args); takes(\"unreachable\"); end",
             &[
                 "Keyword splat must be a hash; got [int]",
-                "Positional splat must be an array; got {\"x\": int} | [int]",
+                "Positional splat must be an array; got [int] | {\"x\": int}",
             ],
         ),
     ] {
