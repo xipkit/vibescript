@@ -1,0 +1,38 @@
+{
+  "documents": 238,
+  "methods": {
+    "textDocument/completion": {
+      "equal": 48167
+    },
+    "textDocument/definition": {
+      "equal": 86708,
+      "response cut in half": 127
+    },
+    "textDocument/didChange": {
+      "checker findings": 2,
+      "compile error presentation": 677,
+      "equal": 35
+    },
+    "textDocument/didClose": {
+      "equal": 238
+    },
+    "textDocument/didOpen": {
+      "checker findings": 72,
+      "equal": 166
+    },
+    "textDocument/documentSymbol": {
+      "equal": 829,
+      "response cut in half": 123
+    },
+    "textDocument/formatting": {
+      "equal": 238
+    },
+    "textDocument/hover": {
+      "equal": 110678,
+      "response cut in half": 135
+    },
+    "textDocument/signatureHelp": {
+      "equal": 18279
+    }
+  }
+}
