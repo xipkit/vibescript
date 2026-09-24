@@ -211,6 +211,10 @@ struct Entry {
     // Structural union alternatives within the fact, counting each occurrence and saturating.
     alternatives: u32,
     escapes: bool,
+    // A literal loaded from a program constant, as opposed to one computed during analysis.
+    constant: bool,
+    // Contains a computed literal or another alternative that widening bounds by growth.
+    growable: bool,
     exported: Fact,
 }
 
@@ -364,6 +368,29 @@ impl Facts {
 
     pub(super) fn max_depth(&self) -> usize {
         self.max_depth
+    }
+
+    /// Records that a literal was loaded from a program constant. Widening keeps constant
+    /// literals, which the program's text bounds, and generalizes growing computed ones.
+    pub(super) fn mark_constant(&mut self, fact: Fact) {
+        let entry = &mut self.entries.data[fact.0];
+        entry.constant = true;
+        if matches!(
+            entry.node,
+            Node::String(_) | Node::Symbol(_) | Node::Float(_) | Node::Regex(_)
+        ) {
+            entry.growable = false;
+        }
+    }
+
+    /// Whether widening must compare this fact with an earlier one to bound its growth.
+    /// Facts built before a literal was marked constant conservatively remain growable.
+    pub(super) fn growable(&self, fact: Fact) -> bool {
+        self.entries.data[fact.0].growable
+    }
+
+    pub(super) fn constant(&self, fact: Fact) -> bool {
+        self.entries.data[fact.0].constant
     }
 
     fn intern(&mut self, ctx: &mut CallContext, node: Node) -> Result<Fact> {
@@ -542,6 +569,28 @@ impl Facts {
             _ => (0, 0),
         };
         let escapes = self.node_escapes(ctx, &node)?;
+        let growable = match &node {
+            Node::String(_)
+            | Node::Symbol(_)
+            | Node::Float(_)
+            | Node::Regex(_)
+            | Node::Range(..)
+            | Node::Protected(..)
+            | Node::Offset(_)
+            | Node::Instance { .. }
+            | Node::Callable { .. } => true,
+            Node::Array(element) => self.growable(*element),
+            Node::Hash(key, value, _) => self.growable(*key) || self.growable(*value),
+            Node::Tuple(values) | Node::Union(values) | Node::Choice(values) => {
+                ctx.charge(values.data.len() as u64)?;
+                values.data.iter().any(|&value| self.growable(value))
+            }
+            Node::Shape(fields, _, keys, _) => {
+                ctx.charge(fields.data.len() as u64)?;
+                self.growable(*keys) || fields.data.iter().any(|field| self.growable(field.value))
+            }
+            _ => false,
+        };
         self.entries.push(
             ctx,
             Entry {
@@ -556,6 +605,8 @@ impl Facts {
                 depth,
                 alternatives,
                 escapes,
+                constant: false,
+                growable,
                 exported: Fact(EMPTY),
             },
         )?;

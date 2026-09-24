@@ -1971,6 +1971,7 @@ impl Walker<'_> {
                         }
                         _ => return self.incomplete(pc),
                     };
+                    self.facts.mark_constant(value);
                     state.stack.push(
                         self.ctx,
                         Operand {
@@ -2421,6 +2422,7 @@ impl Walker<'_> {
                             return Ok([None, None]);
                         }
                     };
+                    self.facts.mark_constant(value);
                     state.stack.push(self.ctx, Operand::new(value))?;
                 }
                 Op::CaseCompare(target, splat) => {

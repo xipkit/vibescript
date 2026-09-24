@@ -1,9 +1,20 @@
 use super::facts::{Atom, Computation, Fact, Facts, Field, HashKind, Node, same_bytes};
 use crate::{CallContext, Result, Value, budget::Buffer};
 
+/// Bounds how many computed literals of one kind a widened position keeps once it grows.
+/// Constant literals are bounded by the program's text and never count.
+const GROWTH: usize = 4;
+
+/// Bounds the other scalar alternatives, such as protected objects, that a growing position
+/// keeps before it becomes gradual.
+const ALTERNATIVES: usize = 64;
+
+/// A position to widen: the joined `value` and the part of it that the earlier fact already
+/// held at the same position, which separates growth from alternatives that were stable.
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct Key {
     value: Fact,
+    before: Fact,
     depth: usize,
 }
 
@@ -12,6 +23,7 @@ impl Key {
         self.value
             .0
             .wrapping_mul(0x9e3779b1)
+            .wrapping_add(self.before.0.wrapping_mul(0xc2b2ae35))
             .wrapping_add(self.depth.wrapping_mul(0x85ebca77))
             & mask
     }
@@ -155,7 +167,15 @@ impl Facts {
         let mut tasks = Buffer::empty();
         let mut values = Buffer::empty();
         let mut memo = Memo::new();
-        tasks.push(ctx, Task::Visit(Key { value, depth }))?;
+        let before = self.earlier(value, a);
+        tasks.push(
+            ctx,
+            Task::Visit(Key {
+                value,
+                before,
+                depth,
+            }),
+        )?;
         while let Some(task) = tasks.data.pop() {
             ctx.charge(1)?;
             let value = match task {
@@ -210,6 +230,20 @@ impl Facts {
                             _ => scalar.push(ctx, arm)?,
                         }
                     }
+                    let mut earlier_arrays = Buffer::empty();
+                    let mut earlier_hashes = Buffer::empty();
+                    for i in 0..self.arm_count(key.before) {
+                        ctx.charge(1)?;
+                        let arm = self.arm(key.before, i);
+                        match self.node(arm) {
+                            Node::Array(_) | Node::Tuple(_) => earlier_arrays.push(ctx, arm)?,
+                            Node::Hash(..) | Node::Shape(..) => earlier_hashes.push(ctx, arm)?,
+                            _ => (),
+                        }
+                    }
+                    if key.before != Atom::Never.fact() {
+                        self.widen_scalars(ctx, &mut scalar, key.before)?;
+                    }
                     let mut count = 0;
                     let mut bounds: Option<super::integers::Bounds> = None;
                     let mut previous = None;
@@ -240,10 +274,22 @@ impl Facts {
                     tasks.push(ctx, Task::Save(key))?;
                     tasks.push(ctx, Task::Union(scalar, count))?;
                     if !hashes.data.is_empty() {
-                        self.widen_hashes(ctx, &mut tasks, &hashes.data, key.depth)?;
+                        self.widen_hashes(
+                            ctx,
+                            &mut tasks,
+                            &hashes.data,
+                            &earlier_hashes.data,
+                            key.depth,
+                        )?;
                     }
                     if !arrays.data.is_empty() {
-                        self.widen_arrays(ctx, &mut tasks, &arrays.data, key.depth)?;
+                        self.widen_arrays(
+                            ctx,
+                            &mut tasks,
+                            &arrays.data,
+                            &earlier_arrays.data,
+                            key.depth,
+                        )?;
                     }
                     continue;
                 }
@@ -259,6 +305,7 @@ impl Facts {
         ctx: &mut CallContext,
         tasks: &mut Buffer<Task>,
         arrays: &[Fact],
+        earlier: &[Fact],
         depth: usize,
     ) -> Result<()> {
         if depth == 0 {
@@ -288,10 +335,16 @@ impl Facts {
                     children.push(ctx, elements.data[index])?;
                 }
                 let value = self.union(ctx, &children.data)?;
+                let before = if self.growable(value) {
+                    self.earlier_elements(ctx, earlier, Some((index, length)))?
+                } else {
+                    Atom::Never.fact()
+                };
                 tasks.push(
                     ctx,
                     Task::Visit(Key {
                         value,
+                        before,
                         depth: depth - 1,
                     }),
                 )?;
@@ -307,14 +360,142 @@ impl Facts {
                 }
             }
             let value = self.union(ctx, &children.data)?;
+            let before = if self.growable(value) {
+                self.earlier_elements(ctx, earlier, None)?
+            } else {
+                Atom::Never.fact()
+            };
             tasks.push(ctx, Task::Array)?;
             tasks.push(
                 ctx,
                 Task::Visit(Key {
                     value,
+                    before,
                     depth: depth - 1,
                 }),
             )?;
+        }
+        Ok(())
+    }
+
+    /// Keeps the earlier fact only where growth is possible, so widening positions without
+    /// computed literals share their remembered results.
+    fn earlier(&self, value: Fact, before: Fact) -> Fact {
+        if self.growable(value) {
+            before
+        } else {
+            Atom::Never.fact()
+        }
+    }
+
+    /// Selects the earlier facts at one tuple position, or at every position of a general array.
+    /// An earlier collection with another layout contributes all of its elements.
+    fn earlier_elements(
+        &mut self,
+        ctx: &mut CallContext,
+        earlier: &[Fact],
+        position: Option<(usize, usize)>,
+    ) -> Result<Fact> {
+        let mut children = Buffer::empty();
+        for &array in earlier {
+            ctx.charge(1)?;
+            match (self.node(array), position) {
+                (Node::Tuple(elements), Some((index, length))) if elements.data.len() == length => {
+                    children.push(ctx, elements.data[index])?
+                }
+                (Node::Tuple(elements), _) => children.extend(ctx, &elements.data)?,
+                (Node::Array(element), _) => children.push(ctx, *element)?,
+                _ => unreachable!(),
+            }
+        }
+        self.union(ctx, &children.data)
+    }
+
+    /// Generalizes the scalar literals that grow at a widened position.
+    ///
+    /// A position grows when it gains a computed literal that the earlier fact did not hold.
+    /// Once it already held `GROWTH` computed literals of that kind, all of them become the
+    /// general scalar, so interpolation, substitution or concatenation that builds a new
+    /// literal on every pass stops after a bounded number of passes. Stable alternatives and
+    /// constant literals keep their precision. Other scalar alternatives, which have no
+    /// general scalar, become gradual once a growing position holds `ALTERNATIVES` of them.
+    fn widen_scalars(
+        &mut self,
+        ctx: &mut CallContext,
+        scalar: &mut Buffer<Fact>,
+        before: Fact,
+    ) -> Result<()> {
+        const KINDS: [Atom; 5] = [
+            Atom::String,
+            Atom::Symbol,
+            Atom::Float,
+            Atom::Regex,
+            Atom::Range,
+        ];
+        let literal = |facts: &Self, value: Fact| match facts.node(value) {
+            Node::String(_) => Some(0),
+            Node::Symbol(_) => Some(1),
+            Node::Float(_) => Some(2),
+            Node::Regex(_) => Some(3),
+            Node::Range(..) => Some(4),
+            _ => None,
+        };
+        let other = |facts: &Self, value: Fact| {
+            matches!(
+                facts.node(value),
+                Node::Protected(..)
+                    | Node::Offset(_)
+                    | Node::Instance { .. }
+                    | Node::Callable { .. }
+            )
+        };
+        let earlier = |facts: &Self, value: Fact| match facts.node(before) {
+            Node::Union(arms) => arms.data.binary_search(&value).is_ok(),
+            _ => before == value,
+        };
+        let mut grown = [false; 6];
+        for &value in &scalar.data {
+            ctx.charge(1)?;
+            if earlier(self, value) {
+                continue;
+            }
+            if let Some(kind) = literal(self, value) {
+                grown[kind] |= !self.constant(value);
+            } else if other(self, value) {
+                grown[5] = true;
+            }
+        }
+        if !grown.contains(&true) {
+            return Ok(());
+        }
+        let mut held = [0usize; 6];
+        for i in 0..self.arm_count(before) {
+            ctx.charge(1)?;
+            let value = self.arm(before, i);
+            if let Some(kind) = literal(self, value) {
+                held[kind] += usize::from(!self.constant(value));
+            } else if other(self, value) {
+                held[5] += 1;
+            }
+        }
+        let widened: [bool; 6] = std::array::from_fn(|kind| {
+            grown[kind] && held[kind] >= if kind == 5 { ALTERNATIVES } else { GROWTH }
+        });
+        if !widened.contains(&true) {
+            return Ok(());
+        }
+        ctx.charge(scalar.data.len() as u64)?;
+        scalar.data.retain(|&value| match literal(self, value) {
+            Some(kind) => !widened[kind],
+            None => !(widened[5] && other(self, value)),
+        });
+        for (kind, atom) in KINDS.into_iter().enumerate() {
+            if widened[kind] {
+                scalar.push(ctx, atom.fact())?;
+            }
+        }
+        if widened[5] {
+            scalar.push(ctx, Atom::Unknown.fact())?;
         }
         Ok(())
     }
@@ -324,6 +505,7 @@ impl Facts {
         ctx: &mut CallContext,
         tasks: &mut Buffer<Task>,
         hashes: &[Fact],
+        earlier: &[Fact],
         depth: usize,
     ) -> Result<()> {
         let (mut plain, mut shapes, mut open) = (None, true, false);
@@ -360,11 +542,17 @@ impl Facts {
         }
         if !shapes {
             let value = self.union(ctx, &elements.data)?;
+            let before = if self.growable(value) {
+                self.earlier_entries(ctx, earlier, None)?
+            } else {
+                Atom::Never.fact()
+            };
             tasks.push(ctx, Task::Hash(keys, plain))?;
             return tasks.push(
                 ctx,
                 Task::Visit(Key {
                     value,
+                    before,
                     depth: depth - 1,
                 }),
             );
@@ -441,19 +629,55 @@ impl Facts {
         }
         let mut children = Buffer::empty();
         for field in &fields.data {
-            children.push(ctx, field.value)?;
+            let before = if self.growable(field.value) {
+                self.earlier_entries(ctx, earlier, Some(&field.name))?
+            } else {
+                Atom::Never.fact()
+            };
+            children.push(ctx, (field.value, before))?;
         }
         tasks.push(ctx, Task::Shape(fields, open, keys, plain))?;
-        for &value in children.data.iter().rev() {
+        for &(value, before) in children.data.iter().rev() {
             tasks.push(
                 ctx,
                 Task::Visit(Key {
                     value,
+                    before,
                     depth: depth - 1,
                 }),
             )?;
         }
         Ok(())
+    }
+
+    /// Selects the earlier facts of one shape field, or of every entry of a general hash.
+    fn earlier_entries(
+        &mut self,
+        ctx: &mut CallContext,
+        earlier: &[Fact],
+        name: Option<&Value>,
+    ) -> Result<Fact> {
+        let mut children = Buffer::empty();
+        for &hash in earlier {
+            ctx.charge(1)?;
+            match self.node(hash) {
+                Node::Hash(_, element, _) => children.push(ctx, *element)?,
+                Node::Shape(fields, ..) => {
+                    for field in &fields.data {
+                        ctx.charge(1)?;
+                        let selected = match name {
+                            Some(name) => same_bytes(ctx, &field.name, name)?,
+                            None => true,
+                        };
+                        if selected {
+                            children.push(ctx, field.value)?;
+                        }
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+        self.union(ctx, &children.data)
     }
 
     fn widen_field(

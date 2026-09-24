@@ -95,6 +95,9 @@ mod mutation_tests;
 mod widening_tests;
 
 #[cfg(test)]
+mod convergence_tests;
+
+#[cfg(test)]
 mod address_tests;
 
 #[cfg(test)]
