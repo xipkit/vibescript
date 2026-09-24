@@ -11,7 +11,7 @@
 //! 5. Anything else is an undefined flag or an unknown command, as in the reference.
 
 use crate::{
-    check, compat,
+    analyze, check, compat,
     flags::{self, Outcome, Spec},
     flat, format, profiles, repl, run,
 };
@@ -50,10 +50,11 @@ const REPL_SPEC: Spec = Spec {
 };
 
 /// Every command, in the order the root help lists them.
-const COMMANDS: [&Spec; 6] = [
+const COMMANDS: [&Spec; 7] = [
     &run::SPEC,
     &check::SPEC,
     &format::SPEC,
+    &analyze::SPEC,
     &LSP_SPEC,
     &REPL_SPEC,
     &HELP_SPEC,
@@ -121,6 +122,7 @@ fn run_command(name: &str, args: &[OsString]) -> Result<(), String> {
         "run" => run::command(args),
         "check" => check::command(args),
         "fmt" => format::command(args),
+        "analyze" => analyze::command(args),
         "lsp" => lsp(args),
         _ => help(args),
     }
