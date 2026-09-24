@@ -389,6 +389,7 @@ fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result
         inside_class: false,
         nesting: 0,
         call_end: 0,
+        percent_argument: 0,
     })
 }
 
@@ -438,6 +439,8 @@ struct Parser<'a> {
     /// The token after the `)` of the latest parenthesized call with
     /// arguments, where Go attaches a `do` block from the next line.
     call_end: usize,
+    /// The ambiguous percent literal a command call takes as its argument.
+    percent_argument: usize,
 }
 
 /// Where a destructuring target list appears.
@@ -2639,6 +2642,11 @@ impl<'a> Parser<'a> {
             }
             Token::Words(words) => {
                 let offset = self.tokens[self.pos - 1].offset;
+                // Go lexes a `%` after an operand as modulo and reads it again
+                // as a percent literal only for a command argument.
+                if words.ambiguous && self.pos - 1 != self.percent_argument {
+                    return Err(Error::syntax(self.work, offset, "unexpected token \"%\""));
+                }
                 self.words(words.into_inner(), offset)
             }
             Token::Symbol(name) => {
@@ -2821,6 +2829,7 @@ impl<'a> Parser<'a> {
             inside_class: false,
             nesting: 0,
             call_end: 0,
+            percent_argument: 0,
         };
         while parser.token() == &Token::EndLine
             && parser.tokens[parser.pos].line != parser.tokens[parser.pos].end_line
@@ -3012,6 +3021,9 @@ impl<'a> Parser<'a> {
         }
         let offset = self.tokens[self.pos].offset as u32;
         if self.command_start(lhs, min)? {
+            if matches!(self.token(), Token::Words(_)) {
+                self.percent_argument = self.pos;
+            }
             return Ok(Some(Suffix::Command));
         }
         let brace = self.token() == &Token::P('{');

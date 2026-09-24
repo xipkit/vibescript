@@ -1581,7 +1581,9 @@ pub(super) fn plain(mut parts: Buffer<Part<'_>>, work: &dyn Work) -> Result<Byte
 
 fn ends_expression(token: &Token<'_>) -> bool {
     match token {
-        Token::Word(w) => !super::reserved(w) || matches!(w.as_str(), "self" | "end"),
+        Token::Word(w) => {
+            !super::keyword(w) || matches!(w.as_str(), "true" | "false" | "nil" | "self" | "end")
+        }
         Token::Int(_)
         | Token::BigInt(..)
         | Token::Float(_)
