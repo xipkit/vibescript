@@ -212,7 +212,26 @@ impl CallContext {
     }
 
     /// Charges logical work. Exhaustion remains latched even if a callback ignores the error.
+    #[inline]
     pub fn charge(&mut self, steps: u64) -> Result<()> {
+        // Most charges stay within the quota and the current block of 16
+        // steps, so no checkpoint is due and only the counter advances.
+        let old = self.steps;
+        if let Some(new) = old.checked_add(steps) {
+            if old != 0
+                && old / 16 == new / 16
+                && self.exhausted.is_none()
+                && self.options.limits.steps.is_none_or(|limit| new <= limit)
+            {
+                self.steps = new;
+                return Ok(());
+            }
+        }
+        self.charge_slowly(steps)
+    }
+
+    #[inline(never)]
+    fn charge_slowly(&mut self, steps: u64) -> Result<()> {
         if let Some(err) = &self.exhausted {
             return Err(err.clone());
         }
@@ -280,7 +299,19 @@ impl CallContext {
     }
 
     /// Checks cancellation, deadline, and previously latched exhaustion immediately.
+    #[inline]
     pub fn checkpoint(&mut self) -> Result<()> {
+        if self.exhausted.is_none()
+            && self.options.deadline.is_none()
+            && !self.options.cancellation.is_cancelled()
+        {
+            return Ok(());
+        }
+        self.checkpoint_slowly()
+    }
+
+    #[inline(never)]
+    fn checkpoint_slowly(&mut self) -> Result<()> {
         if let Some(err) = &self.exhausted {
             return Err(err.clone());
         }
