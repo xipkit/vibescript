@@ -127,12 +127,12 @@ fn statement_offset(text: &str, stmt: &Stmt) -> u32 {
     }
 }
 
-/// The position the reference gives an expression. The syntax tree keeps the
-/// first character of an operator, while the reference's lexer positions most
-/// multi-character operators at their last character (but `<=>` and `===` at
-/// their first), gives a negated numeric literal its digits' position, and
-/// places `value rescue fallback` at `rescue`. Member access, calls and
-/// blocks take their receiver's position.
+/// The position the reference gives an expression. The syntax tree positions
+/// a binary or range operator as the reference's lexer does, at the last
+/// character of most multi-character operators (but `<=>` and `===` at their
+/// first). The reference also gives a negated numeric literal its digits'
+/// position and places `value rescue fallback` at `rescue`. Member access,
+/// calls and blocks take their receiver's position.
 fn expression_offset(text: &str, expr: &Expr) -> u32 {
     let mut current = expr;
     loop {

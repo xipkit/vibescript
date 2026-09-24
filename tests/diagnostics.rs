@@ -114,6 +114,43 @@ fn blocks_suggest_the_locals_of_their_enclosing_frames() {
 }
 
 #[test]
+fn binary_operators_are_located_where_the_reference_lexer_stamps_them() {
+    for (body, needle, message) in [
+        (
+            "x = 2 ** nil",
+            "* nil",
+            "unsupported exponentiation operands",
+        ),
+        ("x = 1 << nil", "< nil", "unsupported shovel operands"),
+        ("x = 1 >= nil", "= nil", "unsupported comparison operands"),
+        ("x = (1..2).foo", ".2)", "unknown range method foo"),
+        ("x = (1...2).foo", ".2)", "unknown range method foo"),
+        ("x = (1 === 2).foo", "=== 2", "unknown bool method foo"),
+    ] {
+        let source = format!("def run(input)\n  {body}\nend");
+        let error = failure(&source);
+        assert_eq!(error.message, message, "{body}");
+        check_position(&error, &source, source.find(needle).unwrap());
+    }
+    for (source, message) in [
+        ("x = ** 1", "parse error at 1:6: unexpected token \"**\""),
+        ("x = != 1", "parse error at 1:6: unexpected token \"!=\""),
+        ("x = <=> 1", "parse error at 1:5: unexpected token \"<=>\""),
+        ("x = === 1", "parse error at 1:5: unexpected token \"===\""),
+    ] {
+        let error = Engine::new().compile(source).err().unwrap();
+        let position = error.diagnostic.as_ref().unwrap().position;
+        assert_eq!(
+            format!(
+                "parse error at {}:{}: {}",
+                position.line, position.column, error.message
+            ),
+            message
+        );
+    }
+}
+
+#[test]
 fn interpolation_and_unicode_use_the_original_source() {
     for source in [
         "def run(input)\n  \"hello #{1/0}!\"\nend",

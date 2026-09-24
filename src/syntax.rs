@@ -2338,11 +2338,12 @@ impl<'a> Parser<'a> {
         Err(Error::syntax(self.work, self.position(self.pos), message))
     }
     /// The source offset at which Go reports the token at `index`. Its lexer
-    /// stamps a multi-character operator at the operator's last character.
+    /// stamps a multi-character operator at the operator's last character,
+    /// except `<=>` and `===`.
     fn position(&self, index: usize) -> usize {
         let lexeme = &self.tokens[index];
         match lexeme.token {
-            Token::Op(op) => lexeme.offset + op.len() - 1,
+            Token::Op(op) if !matches!(op, "<=>" | "===") => lexeme.offset + op.len() - 1,
             _ => lexeme.offset,
         }
     }
@@ -3055,6 +3056,8 @@ impl<'a> Parser<'a> {
         let Some((left, right)) = binding_power(op) else {
             return Ok(None);
         };
+        // Go locates a binary expression at its operator's token.
+        let offset = self.position(self.pos) as u32;
         Ok((left >= min).then_some(Suffix::Binary(op, right, offset)))
     }
     fn member_name(&mut self) -> Result<Name> {
