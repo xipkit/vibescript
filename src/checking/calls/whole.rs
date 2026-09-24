@@ -258,14 +258,11 @@ impl Solver<'_, '_> {
         let Some((function, _)) = namespace.constructor else {
             return Ok(None);
         };
-        let mut typed = false;
-        for method in &namespace.instance_methods {
-            ctx.charge(1)?;
-            if let Some((name, _)) = &program.functions[method.function].accessor {
-                typed |=
-                    super::super::namespaces::property_type(ctx, program, module, name)?.is_some();
-            }
-        }
+        let typed = self
+            .layouts
+            .properties(ctx, module)?
+            .iter()
+            .any(|property| property.ty.is_some());
         if !typed {
             return Ok(None);
         }

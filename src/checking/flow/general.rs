@@ -25,16 +25,16 @@ impl Model<'_> {
         } = self;
         let mut fields = Buffer::empty();
         if kind != InstanceKind::Concrete {
-            for method in &program.namespaces[module].instance_methods {
+            for property in layouts.properties(ctx, module)? {
                 ctx.charge(1)?;
-                let Some((name, _)) = &program.functions[method.function].accessor else {
+                let Some(ty) = property.ty else {
                     continue;
                 };
-                let Some(ty) =
-                    crate::checking::namespaces::property_type(ctx, program, module, name)?
-                else {
-                    continue;
-                };
+                let method = &program.namespaces[module].instance_methods[property.method];
+                let (name, _) = program.functions[method.function]
+                    .accessor
+                    .as_ref()
+                    .unwrap();
                 let value = if layouts.named_annotation(ctx, ty)? {
                     Atom::Unknown.fact()
                 } else {

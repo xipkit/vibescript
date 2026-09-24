@@ -40,6 +40,15 @@ pub(super) struct Layouts {
     pub files: super::file_bindings::Layout,
     functions: Buffer<Layout>,
     named_annotations: Buffer<bool>,
+    properties: Buffer<Buffer<Property>>,
+}
+
+/// A namespace accessor method and the type of the property it reads or writes.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Property {
+    /// The accessor's position among the namespace's instance methods.
+    pub method: usize,
+    pub ty: Option<usize>,
 }
 
 impl Layouts {
@@ -113,11 +122,25 @@ impl Layouts {
             let named = super::type_bindings::named_annotation(ctx, ty)?;
             named_annotations.push(ctx, named)?;
         }
+        // Accessors are few beside the other methods, and every declaration check reads them.
+        let mut properties = Buffer::with_capacity(ctx, program.namespaces.len())?;
+        for (module, namespace) in program.namespaces.iter().enumerate() {
+            let mut accessors = Buffer::empty();
+            for (method, definition) in namespace.instance_methods.iter().enumerate() {
+                ctx.charge(1)?;
+                if let Some((name, _)) = &program.functions[definition.function].accessor {
+                    let ty = super::namespaces::property_type(ctx, program, module, name)?;
+                    accessors.push(ctx, Property { method, ty })?;
+                }
+            }
+            properties.push(ctx, accessors)?;
+        }
         let mut layouts = Self {
             source_owner,
             files: super::file_bindings::Layout::new(ctx, program)?,
             functions,
             named_annotations,
+            properties,
         };
         for (function, body) in program.functions.iter().enumerate() {
             ctx.charge(1)?;
@@ -333,6 +356,12 @@ impl Layouts {
     }
 
     /// Reports whether an annotation requires live name resolution.
+    /// Returns a namespace's accessor methods in declaration order.
+    pub fn properties(&self, ctx: &mut CallContext, module: usize) -> Result<&[Property]> {
+        ctx.charge(1)?;
+        Ok(&self.properties.data[module].data)
+    }
+
     pub fn named_annotation(&self, ctx: &mut CallContext, ty: usize) -> Result<bool> {
         ctx.charge(1)?;
         Ok(self.named_annotations.data[ty])
