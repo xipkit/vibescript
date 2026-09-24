@@ -521,6 +521,70 @@ impl Run {
             simple::run(ctx, program, function, frame, storage, stack)?;
             let op = function.code[frame.ip];
             frame.ip += 1;
+            // Returns, and calls without host bindings, need nothing from the
+            // prologue below.
+            match op {
+                Op::Call(callee, count)
+                    if ctx.options.globals.is_empty() && ctx.capability_names.data.is_empty() =>
+                {
+                    ctx.charge(1)?;
+                    let base = stack.data.len() - count;
+                    enter(
+                        program,
+                        ctx,
+                        frames,
+                        storage,
+                        callee,
+                        &stack.data[base..],
+                        base,
+                    )?;
+                    stack.data.truncate(base);
+                    continue;
+                }
+                Op::Return | Op::Finish => {
+                    ctx.charge(1)?;
+                    let value = stack.data.pop().unwrap();
+                    crate::exports::check(ctx, &value)?;
+                    let target = if matches!(op, Op::Return)
+                        && frame.parent.is_some()
+                        && !function.initializer
+                    {
+                        let Some(home) = frame.home else {
+                            return Ok(Event::Control(Control::Invalid {
+                                frame: current,
+                                jump: handlers::Jump::Return,
+                                _value: Some(value),
+                            }));
+                        };
+                        home
+                    } else {
+                        current
+                    };
+                    // A plain call returning its value to the caller's stack
+                    // meets no handler, return type, constructor, initializer,
+                    // releasable program or run boundary, so it unwinds here.
+                    if target == current
+                        && current > floor
+                        && matches!(frame.return_to, ReturnTo::Stack)
+                        && !frame.constructor
+                        && function.return_type.is_none()
+                        && !function.initializer
+                        && !handlers::guards(storage, current)
+                        && !storage.releasing
+                        && !(program.index != 0 && program.file && program.environment.is_some())
+                    {
+                        unwind(frames, storage, stack, current);
+                        stack.push(ctx, value)?;
+                        continue;
+                    }
+                    return Ok(Event::Control(Control::Return {
+                        target,
+                        value,
+                        normalize: true,
+                    }));
+                }
+                _ => (),
+            }
             let local_base = frame.local_base;
             let namespace = function.namespace;
             let caller_instance = matches!(frame.receiver, Some(Value(Kind::Instance(_))));
@@ -2948,47 +3012,7 @@ impl Run {
                         frame.ip = target;
                     }
                 }
-                Op::Return | Op::Finish => {
-                    let value = stack.data.pop().unwrap();
-                    crate::exports::check(ctx, &value)?;
-                    let target = if matches!(op, Op::Return)
-                        && frame.parent.is_some()
-                        && !program.functions[frame.function.unwrap()].initializer
-                    {
-                        let Some(home) = frame.home else {
-                            return Ok(Event::Control(Control::Invalid {
-                                frame: current,
-                                jump: handlers::Jump::Return,
-                                _value: Some(value),
-                            }));
-                        };
-                        home
-                    } else {
-                        current
-                    };
-                    // A plain call returning its value to the caller's stack
-                    // meets no handler, return type, constructor, initializer,
-                    // releasable program or run boundary, so it unwinds here.
-                    if target == current
-                        && current > floor
-                        && matches!(frame.return_to, ReturnTo::Stack)
-                        && !frame.constructor
-                        && function.return_type.is_none()
-                        && !function.initializer
-                        && !handlers::guards(storage, current)
-                        && !storage.releasing
-                        && !(program.index != 0 && program.file && program.environment.is_some())
-                    {
-                        unwind(frames, storage, stack, current);
-                        stack.push(ctx, value)?;
-                        continue;
-                    }
-                    return Ok(Event::Control(Control::Return {
-                        target,
-                        value,
-                        normalize: true,
-                    }));
-                }
+                Op::Return | Op::Finish => unreachable!("returns skip the prologue"),
             }
             if ctx.has_exports
                 && matches!(
