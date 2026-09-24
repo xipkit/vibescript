@@ -1,5 +1,5 @@
 //! The `vibes` command line: Go-compatible commands (`run`, `check`, `fmt`,
-//! `analyze`, `help`) plus the flat form that runs a file directly.
+//! `analyze`, `test`, `help`) plus the flat form that runs a file directly.
 
 mod analyze;
 mod check;
@@ -15,6 +15,7 @@ mod root;
 mod run;
 mod signal;
 mod source;
+mod testing;
 mod watch;
 
 use std::process::ExitCode;
