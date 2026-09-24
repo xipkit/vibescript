@@ -64,7 +64,7 @@ impl Graph {
                 | Op::AmbientValue(_, target)
                 | Op::AmbientAddress(_, target)
                 | Op::ImplicitAddress(_, target)
-                | Op::FileValue(_, target)
+                | Op::FileValue(_, target, _)
                 | Op::FileAddress(_, target)
                 | Op::RootAddress(_, target)
                 | Op::TypeShadowed(_, target)

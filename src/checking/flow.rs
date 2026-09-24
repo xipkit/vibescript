@@ -18,7 +18,7 @@ use super::{
 use crate::{
     CallContext, ErrorClass, Result,
     budget::Buffer,
-    bytecode::{ArgumentOp, CallSite, Function, Invocation, Method, Op, Program},
+    bytecode::{ArgumentOp, CallSite, Function, Invocation, Method, Op, Program, Receiving},
     value::Kind,
 };
 
@@ -58,6 +58,11 @@ const INVALID_CLASS: u16 = 1 << 8;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum IssueKind {
     DetachedValue(Target),
+    /// A member receiver kept executable code as a value, which has no members.
+    CallableMember {
+        target: Target,
+        member: usize,
+    },
     TypeBinding {
         ty: usize,
         ambiguous: bool,
@@ -2176,7 +2181,7 @@ impl Walker<'_> {
                     } else {
                         self.root_index(&state, name)?
                     } {
-                        if !self.read_global(&mut state, pc, index, None)? {
+                        if !self.read_global(&mut state, pc, index, Receiving::Value)? {
                             return Ok([None, None]);
                         }
                         continue;
@@ -2234,22 +2239,25 @@ impl Walker<'_> {
                         matches!(op, Op::AmbientAddress(..)),
                     );
                 }
-                Op::FileValue(name, next) | Op::FileAddress(name, next) => {
-                    return self.file_edges(
-                        state,
-                        pc,
-                        name,
-                        next,
-                        matches!(op, Op::FileAddress(..)),
-                    );
+                Op::FileValue(name, next, receiving) => {
+                    return self.file_edges(state, pc, name, next, false, receiving);
+                }
+                Op::FileAddress(name, next) => {
+                    return self.file_edges(state, pc, name, next, true, Receiving::Value);
                 }
                 Op::Global(index) | Op::GlobalReceiver(index, _) => {
+                    let receiving = match op {
+                        Op::GlobalReceiver(_, receiving) => receiving,
+                        _ => Receiving::Value,
+                    };
                     if self.program.file {
                         let name = self.program.globals[index].0.name();
                         if self.file_binding(&state, name)?.is_none()
                             && !self.calls.global(self.ctx, name)?
                         {
-                            if let Some(readable) = self.read_receiving(&mut state, pc, name)? {
+                            if let Some(readable) =
+                                self.read_receiving(&mut state, pc, name, receiving)?
+                            {
                                 if !readable {
                                     return Ok([None, None]);
                                 }
@@ -2260,12 +2268,7 @@ impl Walker<'_> {
                     let Some(index) = self.global_index(&state, index)? else {
                         return self.incomplete(pc);
                     };
-                    let receiver = if let Op::GlobalReceiver(_, auto) = op {
-                        Some(auto)
-                    } else {
-                        None
-                    };
-                    if !self.read_global(&mut state, pc, index, receiver)? {
+                    if !self.read_global(&mut state, pc, index, receiving)? {
                         return Ok([None, None]);
                     }
                 }
@@ -2332,8 +2335,8 @@ impl Walker<'_> {
                         [Some((pc + 1, state)), None]
                     });
                 }
-                Op::LoadOptional(slot, name) => {
-                    if !self.load_optional(&mut state, pc, slot, name)? {
+                Op::LoadOptional(slot, name, receiving) => {
+                    if !self.load_optional(&mut state, pc, slot, name, receiving)? {
                         return Ok([None, None]);
                     }
                 }
@@ -2349,15 +2352,15 @@ impl Walker<'_> {
                         return Ok([None, None]);
                     }
                 }
-                Op::Unbound(name) => {
+                Op::Unbound(name, receiving) => {
                     if self.function.namespace.is_some() || self.program.file {
-                        if !self.read_fallback(&mut state, pc, name)? {
+                        if !self.read_fallback(&mut state, pc, name, receiving)? {
                             return Ok([None, None]);
                         }
                         continue;
                     }
                     if let Some(index) = self.root_index(&state, &self.program.members[name])? {
-                        if !self.read_global(&mut state, pc, index, None)? {
+                        if !self.read_global(&mut state, pc, index, receiving)? {
                             return Ok([None, None]);
                         }
                         continue;
@@ -2809,7 +2812,7 @@ impl Walker<'_> {
                 }
                 Op::RootAddress(name, target) => {
                     if self.program.file {
-                        return self.file_edges(state, pc, name, target, true);
+                        return self.file_edges(state, pc, name, target, true, Receiving::Value);
                     }
                     let name = &self.program.members[name];
                     if let Some((_, binding)) = self.ambient_binding(&state, name)? {
@@ -3179,10 +3182,10 @@ impl Walker<'_> {
                         return Ok(edges);
                     }
                 }
-                Op::AutoCall(function) => {
+                Op::AutoCall(function, receiving) => {
                     let name = &self.program.functions[function].name;
                     if let Some(index) = self.root_index(&state, name)? {
-                        if !self.read_global(&mut state, pc, index, None)? {
+                        if !self.read_global(&mut state, pc, index, receiving)? {
                             return Ok([None, None]);
                         }
                         continue;
@@ -3190,24 +3193,23 @@ impl Walker<'_> {
                     if self.calls.global(self.ctx, name)? {
                         return self.incomplete(pc);
                     }
-                    if !self.read_function(&mut state, pc, self.source.callable(function))? {
+                    let function = self.source.callable(function);
+                    let dynamic = self.program.file;
+                    if !self.receive_function(&mut state, pc, function, receiving, dynamic)? {
                         return Ok([None, None]);
                     }
                 }
-                Op::HostValue(host) => {
+                Op::HostValue(host, receiving) => {
                     let name = &self.program.hosts[host];
                     if let Some(index) = self.root_index(&state, name)? {
-                        if !self.read_global(&mut state, pc, index, None)? {
+                        if !self.read_global(&mut state, pc, index, receiving)? {
                             return Ok([None, None]);
                         }
                     } else if self.calls.global(self.ctx, name)? {
                         return self.incomplete(pc);
                     } else {
-                        self.issue(
-                            pc,
-                            IssueKind::DetachedValue(Target::Host(self.source.callable(host))),
-                        )?;
-                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
+                        let target = Target::Host(self.source.callable(host));
+                        self.receive_host(&state, pc, target, receiving)?;
                         return Ok([None, None]);
                     }
                 }

@@ -123,6 +123,20 @@ impl Walker<'_> {
         if self.namespace_receiver(receiver)? {
             return self.namespace_member(state, pc, receiver, site, args, false);
         }
+        // A method kept as a value has no members beyond the universal helpers.
+        if let Node::Builtin(builtin) = *self.facts.node(receiver) {
+            if site.scope || !crate::members::names::universal(name) {
+                self.issue(
+                    pc,
+                    IssueKind::Call {
+                        target: Target::Builtin(builtin),
+                        failure: Failure::BuiltinValue,
+                    },
+                )?;
+                self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+                return Ok(Some([None, None]));
+            }
+        }
         use crate::checking::objects::Selection;
         match crate::checking::objects::select(self.ctx, self.facts, receiver, site.call, name)? {
             Some(Selection::Field(field)) => {

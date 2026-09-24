@@ -123403,5 +123403,90 @@
     "name": "call_member_unknown_enum_member",
     "go_error": "unknown enum member property call",
     "source": "enum E\nA\nend\ndef run(input)\nE::A.call()\nend"
+  },
+  {
+    "name": "call_receiver_bare",
+    "go_error": "a function has no member call; call helper(...) directly",
+    "source": "def helper\n1\nend\ndef run(input)\nhelper.call\nend"
+  },
+  {
+    "name": "call_receiver_empty",
+    "go_error": "a function has no member call; call helper(...) directly",
+    "source": "def helper\n1\nend\ndef run(input)\nhelper.call()\nend"
+  },
+  {
+    "name": "call_receiver_block",
+    "go_error": "a function has no member call; call helper(...) directly",
+    "source": "def helper\n1\nend\ndef run(input)\nhelper.call { }\nend"
+  },
+  {
+    "name": "call_receiver_safe",
+    "go_error": "a function has no member call; call helper(...) directly",
+    "source": "def helper\n1\nend\ndef run(input)\nhelper&.call\nend"
+  },
+  {
+    "name": "call_receiver_computed",
+    "go_error": "a function has no member call; call helper(...) directly",
+    "source": "def helper\n1\nend\ndef run(input)\n(helper.call)()\nend"
+  },
+  {
+    "name": "call_receiver_chained",
+    "go_error": "a function has no member call; call helper(...) directly",
+    "source": "def helper\n1\nend\ndef run(input)\nhelper.call.to_s\nend"
+  },
+  {
+    "name": "call_receiver_parameters_bare",
+    "go_error": "a function has no member call; call helper(...) directly",
+    "source": "def helper(a)\n1\nend\ndef run(input)\nhelper.call\nend"
+  },
+  {
+    "name": "call_receiver_parameters_empty",
+    "go_error": "helper is a function and cannot be used as a value; call it with helper(...)",
+    "source": "def helper(a)\n1\nend\ndef run(input)\nhelper.call()\nend"
+  },
+  {
+    "name": "call_receiver_arguments",
+    "go_error": "unknown int method call",
+    "source": "def helper\n1\nend\ndef run(input)\nhelper.call(1)\nend"
+  },
+  {
+    "name": "call_receiver_builtin",
+    "go_error": "a method has no member call; call puts(...) directly",
+    "source": "def run(input)\nputs.call\nend"
+  },
+  {
+    "name": "call_receiver_auto_builtin_empty",
+    "go_error": "unknown string method call",
+    "source": "def run(input)\nuuid.call()\nend"
+  },
+  {
+    "name": "call_receiver_instance_method",
+    "go_error": "a method has no member call; call K#helper(...) directly",
+    "source": "class K\ndef helper\n1\nend\ndef go\nhelper.call\nend\nend\ndef run(input)\nK.new.go\nend"
+  },
+  {
+    "name": "call_receiver_instance_method_parameters",
+    "go_error": "a method has no member call; call K#helper(...) directly",
+    "source": "class K\ndef helper(a)\n1\nend\ndef go\nhelper.call\nend\nend\ndef run(input)\nK.new.go\nend"
+  },
+  {
+    "name": "call_receiver_class_method",
+    "go_error": "a method has no member call; call K.helper(...) directly",
+    "source": "class K\ndef self.helper\n1\nend\ndef self.go\nhelper.call\nend\nend\ndef run(input)\nK.go\nend"
+  },
+  {
+    "name": "call_receiver_module_method",
+    "go_error": "a method has no member call; call M.helper(...) directly",
+    "source": "module M\ndef self.helper\n1\nend\ndef self.go\nhelper.call\nend\nend\ndef run(input)\nM.go\nend"
+  },
+  {
+    "name": "call_receiver_property",
+    "go_error": "a method has no member call; call K#cb(...) directly",
+    "source": "class K\nproperty cb\ndef initialize\n@cb = 5\nend\ndef go\ncb.call\nend\nend\ndef run(input)\nK.new.go\nend"
+  },
+  {
+    "name": "call_receiver_method_empty",
+    "go_error": "unknown int method call",
+    "source": "class K\ndef helper\n1\nend\ndef go\nhelper.call()\nend\nend\ndef run(input)\nK.new.go\nend"
   }
 ]

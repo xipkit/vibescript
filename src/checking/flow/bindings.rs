@@ -68,6 +68,115 @@ impl Walker<'_> {
         Ok(true)
     }
 
+    /// Reads `value` for `receiving`. A receiver keeps a dynamically bound
+    /// builtin as a value, and Go refuses any member on a function kept that way.
+    pub(super) fn receive_value(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        value: Fact,
+        origin: Option<usize>,
+        receiving: Receiving,
+    ) -> Result<bool> {
+        let Some(member) = receiving.member() else {
+            return self.read_value(state, pc, value, origin);
+        };
+        let mut kept = Buffer::empty();
+        for index in 0..self.facts.arm_count(value) {
+            self.ctx.charge(1)?;
+            let arm = self.facts.arm(value, index);
+            if matches!(self.facts.node(arm), Node::Callable { .. }) {
+                let target = self.value_target(arm)?;
+                self.callable_member(state, pc, target, member)?;
+            } else {
+                kept.push(self.ctx, arm)?;
+            }
+        }
+        let value = self.facts.union(self.ctx, &kept.data)?;
+        if value == Atom::Never.fact() {
+            return Ok(false);
+        }
+        state.stack.push(
+            self.ctx,
+            Operand {
+                origin,
+                ..Operand::new(value)
+            },
+        )?;
+        Ok(true)
+    }
+
+    /// Reports Go's refusal of `member` on a callable a receiver kept as a value.
+    pub(super) fn callable_member(
+        &mut self,
+        state: &State,
+        pc: usize,
+        target: Target,
+        member: usize,
+    ) -> Result<()> {
+        self.issue(pc, IssueKind::CallableMember { target, member })?;
+        self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))
+    }
+
+    /// Reads a script function for `receiving`. Only a required file's own
+    /// functions are bound dynamically.
+    pub(super) fn receive_function(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        function: CallableId,
+        receiving: Receiving,
+        dynamic: bool,
+    ) -> Result<bool> {
+        if let Some(member) = receiving.member() {
+            let runs = if dynamic {
+                receiving.runs_dynamic()
+            } else {
+                let Some(parameters) = self.function_parameters(pc, function)? else {
+                    return Ok(false);
+                };
+                receiving.runs_static(Some(parameters))
+            };
+            if !runs {
+                self.callable_member(state, pc, Target::Function(function), member)?;
+                return Ok(false);
+            }
+        }
+        self.read_function(state, pc, function)
+    }
+
+    /// Reads a host method for `receiving`, which always fails.
+    pub(super) fn receive_host(
+        &mut self,
+        state: &State,
+        pc: usize,
+        target: Target,
+        receiving: Receiving,
+    ) -> Result<()> {
+        match receiving.member() {
+            Some(member) if !receiving.runs_static(None) => {
+                self.callable_member(state, pc, target, member)
+            }
+            _ => {
+                self.issue(pc, IssueKind::DetachedValue(target))?;
+                self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))
+            }
+        }
+    }
+
+    /// The parameter count of `function`, or `None` after reporting incomplete
+    /// analysis when another source's function is unknown.
+    fn function_parameters(&mut self, pc: usize, function: CallableId) -> Result<Option<usize>> {
+        if function.source == self.source {
+            return Ok(Some(self.program.functions[function.index].params.len()));
+        }
+        let parameters = self.calls.function_arity(self.ctx, function)?;
+        if parameters.is_none() {
+            self.incomplete(pc)?;
+        }
+        Ok(parameters)
+    }
+
     pub(super) fn read_function(
         &mut self,
         state: &mut State,
@@ -75,12 +184,7 @@ impl Walker<'_> {
         function: CallableId,
     ) -> Result<bool> {
         let target = Target::Function(function);
-        let parameters = if function.source == self.source {
-            self.program.functions[function.index].params.len()
-        } else if let Some(parameters) = self.calls.function_arity(self.ctx, function)? {
-            parameters
-        } else {
-            self.incomplete(pc)?;
+        let Some(parameters) = self.function_parameters(pc, function)? else {
             return Ok(false);
         };
         if parameters != 0 {
@@ -102,6 +206,7 @@ impl Walker<'_> {
         state: &mut State,
         pc: usize,
         name: usize,
+        receiving: Receiving,
     ) -> Result<bool> {
         let index = name;
         let name = &self.program.members[name];
@@ -121,7 +226,7 @@ impl Walker<'_> {
         } else {
             self.root_index(state, name)?
         } {
-            return self.read_global(state, pc, index, None);
+            return self.read_global(state, pc, index, receiving);
         }
         if !file_declared && self.calls.global(self.ctx, name)? {
             self.incomplete(pc)?;
@@ -134,26 +239,25 @@ impl Walker<'_> {
             return Ok(true);
         }
         if let Some(&function) = self.program.names.get(name) {
-            return self.read_function(state, pc, self.source.callable(function));
+            let function = self.source.callable(function);
+            return self.receive_function(state, pc, function, receiving, self.program.file);
         }
         for (index, host) in self.program.hosts.iter().enumerate() {
             self.ctx.work_bytes(host.len().max(name.len()))?;
             if host == name {
-                self.issue(
-                    pc,
-                    IssueKind::DetachedValue(Target::Host(self.source.callable(index))),
-                )?;
-                self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+                let target = Target::Host(self.source.callable(index));
+                self.receive_host(state, pc, target, receiving)?;
                 return Ok(false);
             }
         }
-        if let Some(readable) = self.read_receiving(state, pc, name)? {
+        if let Some(readable) = self.read_receiving(state, pc, name, receiving)? {
             return Ok(readable);
         }
         for (index, (global, _)) in self.program.globals.iter().enumerate() {
             self.ctx.work_bytes(global.name().len().max(name.len()))?;
             if global.name() == name {
-                return self.read_global(state, pc, state.source_slots.globals.data[index], None);
+                let index = state.source_slots.globals.data[index];
+                return self.read_global(state, pc, index, receiving);
             }
         }
         // A file required by a runtime name may have published this name.
@@ -235,6 +339,7 @@ impl Walker<'_> {
         state: &mut State,
         pc: usize,
         name: &str,
+        receiving: Receiving,
     ) -> Result<Option<bool>> {
         if !self.program.file {
             return Ok(None);
@@ -253,10 +358,11 @@ impl Walker<'_> {
                     Ok(Some(false))
                 }
             }
-            Target::Function(function) => self.read_function(state, pc, function).map(Some),
+            Target::Function(function) => self
+                .receive_function(state, pc, function, receiving, false)
+                .map(Some),
             target @ Target::Host(_) => {
-                self.issue(pc, IssueKind::DetachedValue(target))?;
-                self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+                self.receive_host(state, pc, target, receiving)?;
                 Ok(Some(false))
             }
             Target::Undefined => Ok(None),
@@ -273,10 +379,11 @@ impl Walker<'_> {
         pc: usize,
         slot: usize,
         name: usize,
+        receiving: Receiving,
     ) -> Result<bool> {
         let binding = state.locals.get(self.ctx, slot)?;
         if !binding.missing {
-            return self.read_value(state, pc, binding.value, Some(slot));
+            return self.receive_value(state, pc, binding.value, Some(slot), receiving);
         }
         let present = if binding.value != Atom::Never.fact() {
             let mut present = state.snapshot(self.ctx)?;
@@ -288,7 +395,7 @@ impl Walker<'_> {
                     ..binding
                 },
             )?;
-            self.read_value(&mut present, pc, binding.value, Some(slot))?
+            self.receive_value(&mut present, pc, binding.value, Some(slot), receiving)?
                 .then_some(present)
         } else {
             None
@@ -302,7 +409,7 @@ impl Walker<'_> {
                 ..binding
             },
         )?;
-        if self.read_fallback(state, pc, name)? {
+        if self.read_fallback(state, pc, name, receiving)? {
             if let Some(present) = present {
                 if state.compatible(self.ctx, &present)? {
                     state.join(self.ctx, self.facts, &present, false, self.program)?;

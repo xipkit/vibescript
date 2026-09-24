@@ -53,7 +53,7 @@ impl Layout {
 pub(super) fn local(op: Op) -> Option<usize> {
     match op {
         Op::Load(slot)
-        | Op::LoadOptional(slot, _)
+        | Op::LoadOptional(slot, _, _)
         | Op::ReceiverBound(slot, _)
         | Op::Declare(slot)
         | Op::Store(slot)
@@ -80,10 +80,10 @@ pub(super) fn branches(op: Op) -> bool {
                 | Op::Declaration(_)
                 | Op::ResolveCall(..)
                 | Op::CallName(..)
-                | Op::Unbound(_)
+                | Op::Unbound(..)
                 | Op::ImplicitAddress(..)
-                | Op::AutoCall(_)
-                | Op::HostValue(_)
+                | Op::AutoCall(..)
+                | Op::HostValue(..)
         )
 }
 

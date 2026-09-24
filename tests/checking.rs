@@ -1883,3 +1883,50 @@ fn bare_field_writes_update_the_field_in_checks_and_runs() {
     let error = script.call("run", &[], CallOptions::default()).unwrap_err();
     assert_eq!(error.message, "unknown member rows");
 }
+
+#[test]
+fn bare_names_receiving_members_report_the_runtime_failure() {
+    let cases: serde_json::Value =
+        serde_json::from_str(include_str!("language-errors.json")).unwrap();
+    let mut checked = 0;
+    for case in cases.as_array().unwrap() {
+        let name = case["name"].as_str().unwrap();
+        if !name.starts_with("call_receiver_") && !name.starts_with("call_member_unknown_") {
+            continue;
+        }
+        let source = case["source"]
+            .as_str()
+            .map(str::to_owned)
+            .unwrap_or_else(|| format!("def run(input)\n{}\nend", case["body"].as_str().unwrap()));
+        let script = Engine::new().compile(&source).unwrap();
+        let report = script
+            .check_call("run", &[Value::nil()], &CallOptions::default())
+            .unwrap();
+        assert!(report.incomplete.is_empty(), "{name}: {report:?}");
+        assert!(!report.diagnostics.is_empty(), "{name}: {report:?}");
+        script
+            .call("run", &[Value::nil()], CallOptions::default())
+            .unwrap_err();
+        checked += 1;
+    }
+    assert_eq!(checked, 32);
+    let script = Engine::new()
+        .compile(
+            "def helper\n1\nend\ndef list\n[1]\nend\n\
+             def run\n[helper.to_s, helper&.to_s, helper.to_s(), list.pop, list.push(2)]\nend",
+        )
+        .unwrap();
+    let report = script
+        .check_call("run", &[], &CallOptions::default())
+        .unwrap();
+    assert!(report.is_clean(), "{report:?}");
+    let value = script
+        .call("run", &[], CallOptions::default())
+        .unwrap()
+        .value;
+    let json = vibescript::stringify_json(&value, CallOptions::default()).unwrap();
+    assert_eq!(
+        json.value.as_bytes(),
+        Some(&b"[\"1\",\"1\",\"1\",1,[1,2]]"[..])
+    );
+}

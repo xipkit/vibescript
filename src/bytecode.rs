@@ -35,7 +35,7 @@ pub(crate) enum Op {
     AmbientValue(usize, usize),
     AmbientAddress(usize, usize),
     ImplicitAddress(usize, usize),
-    FileValue(usize, usize),
+    FileValue(usize, usize, Receiving),
     FileAddress(usize, usize),
     RootAddress(usize, usize),
     PrepareMember(CallSite, bool),
@@ -45,7 +45,7 @@ pub(crate) enum Op {
     Normalize(usize, usize),
     Declaration(usize),
     Global(usize),
-    GlobalReceiver(usize, bool),
+    GlobalReceiver(usize, Receiving),
     StoreGlobal(usize),
     ResolveGlobalCall(usize),
     AddressGlobal(usize),
@@ -53,9 +53,9 @@ pub(crate) enum Op {
     Constant(usize),
     Nil,
     Load(usize),
-    LoadOptional(usize, usize),
+    LoadOptional(usize, usize, Receiving),
     ReceiverBound(usize, usize),
-    Unbound(usize),
+    Unbound(usize, Receiving),
     NonCallable(usize),
     Bind(usize, usize),
     BindEnd,
@@ -108,9 +108,9 @@ pub(crate) enum Op {
     Break(bool),
     Next(bool),
     Call(usize, usize),
-    AutoCall(usize),
+    AutoCall(usize, Receiving),
     Host(usize, usize),
-    HostValue(usize),
+    HostValue(usize, Receiving),
     Method(CallSite, usize),
     Arguments,
     RootCall(usize, bool),
@@ -131,6 +131,67 @@ pub(crate) enum Op {
     AddressJumpNil(usize, bool),
     Return,
     Finish,
+}
+
+/// How a read of a bare name treats executable code the name resolves to. Go
+/// runs a statically bound function or builtin named in a value position, but
+/// a member receiver keeps a dynamically bound one, such as a required file's
+/// own function or a module export, as a value, and `name.call` keeps every
+/// callable. The member's name index names it in the resulting error.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Receiving {
+    /// An ordinary read.
+    Value,
+    /// The receiver of a member other than `call`.
+    Member(usize),
+    /// The receiver of `call` without parentheses, arguments or a block.
+    Call(usize),
+    /// The receiver of `call()` or `call { }`, which passes no argument values.
+    CallEmpty(usize),
+    /// The receiver of `call` with argument values.
+    CallArguments(usize),
+}
+
+impl Receiving {
+    /// Selects the rule for the receiver of `member`, called in `form` with
+    /// `arguments` argument values.
+    pub(crate) fn of(member: &str, index: usize, form: CallForm, arguments: usize) -> Self {
+        if member != "call" {
+            Self::Member(index)
+        } else if form == CallForm::Auto {
+            Self::Call(index)
+        } else if arguments == 0 {
+            Self::CallEmpty(index)
+        } else {
+            Self::CallArguments(index)
+        }
+    }
+
+    /// The name index of the member the receiver is read for.
+    pub(crate) fn member(self) -> Option<usize> {
+        match self {
+            Self::Value => None,
+            Self::Member(index)
+            | Self::Call(index)
+            | Self::CallEmpty(index)
+            | Self::CallArguments(index) => Some(index),
+        }
+    }
+
+    /// Reports whether a statically bound callable runs. `parameters` is a
+    /// script function's parameter count and `None` for other callables.
+    pub(crate) fn runs_static(self, parameters: Option<usize>) -> bool {
+        match self {
+            Self::Value | Self::Member(_) | Self::CallArguments(_) => true,
+            Self::Call(_) => false,
+            Self::CallEmpty(_) => parameters != Some(0),
+        }
+    }
+
+    /// Reports whether a dynamically bound callable runs.
+    pub(crate) fn runs_dynamic(self) -> bool {
+        self == Self::Value
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -896,7 +957,7 @@ impl Compiler<'_> {
             | Op::Bind(_, n)
             | Op::NamespaceConstant(_, n)
             | Op::NamespaceConstantAddress(_, n)
-            | Op::FileValue(_, n)
+            | Op::FileValue(_, n, _)
             | Op::FileAddress(_, n)
             | Op::RootAddress(_, n)
             | Op::AmbientValue(_, n)
@@ -979,7 +1040,7 @@ impl Compiler<'_> {
         }
         Ok(())
     }
-    fn variable_expression(&mut self, name: &str) -> Result<()> {
+    fn variable_expression(&mut self, name: &str, receiving: Receiving) -> Result<()> {
         let global = self.global(name);
         let constant = (self.namespace.is_some()
             && name.chars().next().is_some_and(syntax::unicode::upper)
@@ -995,26 +1056,26 @@ impl Compiler<'_> {
             });
         let file = (self.program.file && !self.locals.contains(self.work, name)?).then(|| {
             let name = self.call_site(name, false).name;
-            self.emit(Op::FileValue(name, 0))
+            self.emit(Op::FileValue(name, 0, receiving))
         });
         if let Some(&slot) = self.locals.get(self.work, name)? {
             if !self.parameters.contains(self.work, name)? {
                 let name = self.call_site(name, false).name;
-                self.emit(Op::LoadOptional(slot, name));
+                self.emit(Op::LoadOptional(slot, name, receiving));
             } else {
                 self.emit(Op::Load(slot));
             }
         } else if let Some(&index) = self.program.declaration_names.get(name) {
             self.emit(Op::Declaration(index));
         } else if let Some(&fun) = self.program.names.get(name) {
-            self.emit(Op::AutoCall(fun));
+            self.emit(Op::AutoCall(fun, receiving));
         } else if let Some(host) = self.host_position(name)? {
-            self.emit(Op::HostValue(host));
+            self.emit(Op::HostValue(host, receiving));
         } else if let Some(global) = global {
             self.emit(Op::Global(global));
         } else {
             let site = self.call_site(name, false);
-            self.emit(Op::Unbound(site.name));
+            self.emit(Op::Unbound(site.name, receiving));
         }
         if let Some(constant) = constant {
             self.patch(constant, self.code.len());
@@ -1027,7 +1088,7 @@ impl Compiler<'_> {
         }
         Ok(())
     }
-    fn leaf(&mut self, e: &Expr) -> Result<()> {
+    fn leaf(&mut self, e: &Expr, receiving: Receiving) -> Result<()> {
         self.work.charge(1)?;
         match &e.node {
             Node::Regex(pattern, flags) => {
@@ -1056,7 +1117,7 @@ impl Compiler<'_> {
             Node::Var(name) if name == "block_given?" => {
                 self.emit(Op::BlockGiven(false, false));
             }
-            Node::Var(name) => return self.variable_expression(name),
+            Node::Var(name) => return self.variable_expression(name, receiving),
             _ => unreachable!(),
         }
         Ok(())
@@ -1242,11 +1303,25 @@ impl<'a, 'x> Compiling<'a, 'x> {
             let mut c = self.c();
             c.work.charge(1)?;
             let previous = std::mem::replace(&mut c.offset, e.offset);
-            let result = c.leaf(e);
+            let result = c.leaf(e, Receiving::Value);
             c.offset = previous;
             return result;
         }
         self.tasks.call(Call::Expr(e)).await
+    }
+
+    /// Compiles `e` as a member receiver, where a bare name treats a callable it
+    /// resolves to by `receiving`.
+    async fn receiver_expr(&self, e: &'x Expr, receiving: Receiving) -> Result<()> {
+        if !matches!(e.node, Node::Var(_)) {
+            return self.expr(e).await;
+        }
+        let mut c = self.c();
+        c.work.charge(1)?;
+        let previous = std::mem::replace(&mut c.offset, e.offset);
+        let result = c.leaf(e, receiving);
+        c.offset = previous;
+        result
     }
 
     async fn block(&self, body: &'x [Stmt]) -> Result<()> {
@@ -1831,11 +1906,11 @@ impl<'a, 'x> Compiling<'a, 'x> {
 
     async fn expression(&self, e: &'x Expr) -> Result<()> {
         if leaf(e) {
-            return self.c().leaf(e);
+            return self.c().leaf(e, Receiving::Value);
         }
         self.c().work.charge(1)?;
         match &e.node {
-            Node::Try(attempt) => Box::pin(self.attempt(attempt, false)).await?,
+            Node::Try(attempt) => Box::pin(self.attempt(attempt, None)).await?,
             Node::Shape(ty, fallback, names) => {
                 return Box::pin(self.shape_expression(ty, fallback.as_deref(), names)).await;
             }
@@ -2103,10 +2178,11 @@ impl<'a, 'x> Compiling<'a, 'x> {
         self.c().work.charge(1)?;
         let forwarding = crate::members::forwarding::supported(name);
         let mutating = mutating_member(name) || forwarding;
+        let receiving = self.receiving(receiver, name, form, args.len());
         if mutating {
-            self.address(receiver).await?;
+            self.address_receiver(receiver, receiving).await?;
         } else {
-            self.member_receiver(receiver, name != "call").await?;
+            self.member_receiver(receiver, receiving).await?;
         }
         let (skip, site) = {
             let mut c = self.c();
@@ -2177,7 +2253,31 @@ impl<'a, 'x> Compiling<'a, 'x> {
         Ok(())
     }
 
-    async fn member_receiver(&self, receiver: &'x Expr, auto: bool) -> Result<()> {
+    /// Selects how a bare name receiving `member`, called in `form` with
+    /// `arguments` argument values, treats a callable it resolves to.
+    pub(super) fn receiving(
+        &self,
+        receiver: &Expr,
+        member: &str,
+        form: CallForm,
+        arguments: usize,
+    ) -> Receiving {
+        match &receiver.node {
+            Node::Var(name)
+                if !name.starts_with('@') && !matches!(name.as_str(), "self" | "block_given?") =>
+            {
+                let index = self.c().call_site(member, false).name;
+                Receiving::of(member, index, form, arguments)
+            }
+            _ => Receiving::Value,
+        }
+    }
+
+    pub(super) async fn member_receiver(
+        &self,
+        receiver: &'x Expr,
+        receiving: Receiving,
+    ) -> Result<()> {
         self.c().work.charge(1)?;
         if let Node::Var(name) = &receiver.node {
             let slot = {
@@ -2186,7 +2286,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             };
             if let Some(slot) = slot {
                 let bound = self.c().emit(Op::ReceiverBound(slot, 0));
-                self.expr(receiver).await?;
+                self.receiver_expr(receiver, receiving).await?;
                 let mut c = self.c();
                 let end = c.code.len();
                 c.patch(bound, end);
@@ -2194,11 +2294,11 @@ impl<'a, 'x> Compiling<'a, 'x> {
             }
             let mut c = self.c();
             if let Some(global) = c.global_fallback(name)? {
-                c.emit(Op::GlobalReceiver(global, auto));
+                c.emit(Op::GlobalReceiver(global, receiving));
                 return Ok(());
             }
         }
-        self.expr(receiver).await
+        self.receiver_expr(receiver, receiving).await
     }
 
     async fn scoped_call(
@@ -2471,23 +2571,44 @@ impl<'a, 'x> Compiling<'a, 'x> {
         self.address_root(receiver, false).await
     }
 
+    /// Addresses the receiver of a mutating member, where a bare name treats a
+    /// callable it resolves to by `receiving`.
+    async fn address_receiver(&self, receiver: &'x Expr, receiving: Receiving) -> Result<()> {
+        self.address_with(receiver, false, receiving).await
+    }
+
     /// Addresses `receiver`. An `assignment` root in an instance method writes an
     /// existing class constant in place, unless a bound local of the same name takes
     /// precedence. In any class context, an assignment through an unbound name that
     /// reads a field of the running instance or class writes that field, as in Go,
     /// while a mutating call through it still receives a copy.
     pub(super) async fn address_root(&self, receiver: &'x Expr, assignment: bool) -> Result<()> {
+        self.address_with(receiver, assignment, Receiving::Value)
+            .await
+    }
+
+    async fn address_with(
+        &self,
+        receiver: &'x Expr,
+        assignment: bool,
+        receiving: Receiving,
+    ) -> Result<()> {
         let previous = {
             let mut c = self.c();
             c.work.charge(1)?;
             std::mem::replace(&mut c.offset, receiver.offset)
         };
-        let result = self.address_at(receiver, assignment).await;
+        let result = self.address_at(receiver, assignment, receiving).await;
         self.c().offset = previous;
         result
     }
 
-    async fn address_at(&self, receiver: &'x Expr, assignment: bool) -> Result<()> {
+    async fn address_at(
+        &self,
+        receiver: &'x Expr,
+        assignment: bool,
+        receiving: Receiving,
+    ) -> Result<()> {
         let (constant, early, root, file) = {
             let mut c = self.c();
             let work = c.work;
@@ -2576,7 +2697,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 };
                 if let Some(bound) = bound {
                     if !global {
-                        self.expr(receiver).await?;
+                        self.receiver_expr(receiver, receiving).await?;
                         self.c().emit(Op::AddressValue);
                     }
                     let mut c = self.c();
@@ -2604,7 +2725,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     (ambient, global, implicit)
                 };
                 if !global {
-                    self.expr(receiver).await?;
+                    self.receiver_expr(receiver, receiving).await?;
                     self.c().emit(Op::AddressValue);
                 }
                 let mut c = self.c();
@@ -2638,7 +2759,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 self.c().emit(Op::AddressIndex(indices.len()));
             }
             _ => {
-                self.expr(receiver).await?;
+                self.receiver_expr(receiver, receiving).await?;
                 self.c().emit(Op::AddressValue);
             }
         }

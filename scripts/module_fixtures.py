@@ -128,6 +128,37 @@ def cases():
          "outer.vibe":"require(:inner);def value;1;end;value=value();def peek;value;end",
          "late.vibe":"def value2;1;end;def other;value2=value2();value2;end"},
         prefix="def helper;2;end")
+    member = lambda name, member="to_s": f"a function has no member {member}; call {name}(...) directly"
+    add("function_member_receivers",
+        '[:top,:safe,:paren,:args,:bare_call,:empty_call,:argument_call,:block,:func,:method,:body,:arity,:private,:same]'
+        '.map{|m| begin;require(m);nil;rescue => e;e.message;end}',
+        [member("helper")]*3+[member("helper", "fetch")]+[member("helper", "call")]*3
+        +[member("helper")]*5+[member("_helper"), member("helper")],
+        {"top.vibe":"def helper;1;end;x=helper.to_s",
+         "safe.vibe":"def helper;1;end;x=helper&.to_s",
+         "paren.vibe":"def helper;1;end;x=helper.to_s()",
+         "args.vibe":"def helper;[1];end;x=helper.fetch(0)",
+         "bare_call.vibe":"def helper;1;end;x=helper.call",
+         "empty_call.vibe":"def helper;1;end;x=helper.call()",
+         "argument_call.vibe":"def helper;1;end;x=helper.call(1)",
+         "block.vibe":"def helper;1;end;[1].each{|i| helper.to_s}",
+         "func.vibe":"def helper;1;end;def peek;helper.to_s;end;peek()",
+         "method.vibe":"def helper;1;end;class K;def go;helper.to_s;end;end;K.new.go",
+         "body.vibe":"def helper;1;end;class K;X=helper.to_s;end",
+         "arity.vibe":"def helper(a);1;end;x=helper.to_s",
+         "private.vibe":"def _helper;1;end;x=_helper.to_s",
+         "same.vibe":"def helper;1;end;helper=helper.to_s"})
+    add("function_member_receiver_exports",
+        'require(:m);[helper,helper[0],begin;helper.to_s;rescue => e;e.message;end,begin;helper.call(1);rescue => e;e.message;end]',
+        [[7], 7, member("helper"), member("helper", "call")],
+        {"m.vibe":"def helper;[7];end"})
+    add("function_member_receiver_values",
+        '[require(:m).peek,require(:other).peek]',
+        [[[1], 1, [1, 2], 2], ["7", member("value", "call"), "unknown int method call"]],
+        {"m.vibe":"def helper;[1];end;def peek;[helper,helper[0],helper+[2],helper[0]+1];end",
+         "other.vibe":"def peek;[value.to_s,begin;value.call;rescue => e;e.message;end,"
+                      "begin;value.call(1);rescue => e;e.message;end];end"},
+        prefix="def value;7;end")
     add("enum", 'm=require(:state);[m.State::Ready.name,m.name(:ready)]', ["Ready","Ready"],
         {"state.vibe":"enum State;Ready;Done;end;def name(state:State);state.name;end"})
     add("class", 'm=require(:box);[m.make(7).value,m.make(9).value]', [7,9],

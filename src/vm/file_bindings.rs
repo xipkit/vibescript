@@ -283,3 +283,42 @@ pub(super) fn read_root(
         RootBinding::Host(owner, host) => Err(callable_value_error(&owner.hosts[host], "method")),
     }
 }
+
+/// Reads a root binding for `receiving`. Module exports and host globals are
+/// bound dynamically, so a receiver keeps their callables as values, while the
+/// receiving script's functions and host methods are static.
+pub(super) fn receive_root(
+    program: &Program,
+    ctx: &mut CallContext,
+    frames: &mut Buffer<Frame>,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+    binding: RootBinding,
+    receiving: Receiving,
+) -> Result<()> {
+    let Some(member) = receiving.member() else {
+        return read_root(ctx, frames, storage, stack, binding);
+    };
+    let member = &program.members[member];
+    match binding {
+        RootBinding::Value(Value(Kind::Function(function))) => Err(callable_member_error(
+            "function",
+            &function.code.program.functions[function.index].name,
+            member,
+        )),
+        RootBinding::Value(value @ Value(Kind::Builtin(_))) => stack.push(ctx, value),
+        RootBinding::Function(owner, function)
+            if !receiving.runs_static(Some(owner.functions[function].params.len())) =>
+        {
+            Err(callable_member_error(
+                "function",
+                &owner.functions[function].name,
+                member,
+            ))
+        }
+        RootBinding::Host(owner, host) if !receiving.runs_static(None) => {
+            Err(callable_member_error("method", &owner.hosts[host], member))
+        }
+        binding => read_root(ctx, frames, storage, stack, binding),
+    }
+}

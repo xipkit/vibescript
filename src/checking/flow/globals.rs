@@ -135,7 +135,7 @@ impl Walker<'_> {
         state: &mut State,
         pc: usize,
         index: usize,
-        receiver: Option<bool>,
+        receiving: Receiving,
     ) -> Result<bool> {
         let slot = state.global_base + index;
         if state.source_slots.root(self.ctx, index)?.is_some() {
@@ -143,13 +143,13 @@ impl Walker<'_> {
                 return Ok(false);
             };
             for mut next in alternatives.data {
-                if self.read_global(&mut next, pc, index, receiver)? {
+                if self.read_global(&mut next, pc, index, receiving)? {
                     self.native_continue(pc, next)?;
                 }
             }
         }
         let value = state.locals.get(self.ctx, slot)?.value;
-        let Some(auto) = receiver else {
+        let Some(member) = receiving.member() else {
             return self.read_value(state, pc, value, Some(slot));
         };
         let mut values = Buffer::empty();
@@ -161,9 +161,14 @@ impl Walker<'_> {
         for index_arm in 0..self.facts.arm_count(value) {
             self.ctx.charge(1)?;
             let arm = self.facts.arm(value, index_arm);
+            if matches!(self.facts.node(arm), Node::Callable { .. }) {
+                let target = self.value_target(arm)?;
+                self.callable_member(state, pc, target, member)?;
+                continue;
+            }
             if let Node::Builtin(builtin) = *self.facts.node(arm) {
                 if matches!(original, Some(Kind::Builtin(original)) if *original == builtin)
-                    && (auto || !builtin.auto())
+                    && receiving.runs_static(None)
                 {
                     let mut next = state.snapshot(self.ctx)?;
                     if self.read_value(&mut next, pc, arm, None)? {

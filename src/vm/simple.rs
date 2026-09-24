@@ -58,7 +58,7 @@ pub(super) fn run(
                 }
                 stack.push(ctx, value)?;
             }
-            Op::LoadOptional(n, _) => {
+            Op::LoadOptional(n, _, _) => {
                 let Some(value) = storage.locals.data[frame.local_base + n].as_ref() else {
                     return Ok(());
                 };

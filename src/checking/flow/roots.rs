@@ -46,7 +46,7 @@ impl Walker<'_> {
         }
         let slot = match op {
             Op::Load(slot)
-            | Op::LoadOptional(slot, _)
+            | Op::LoadOptional(slot, _, _)
             | Op::ReceiverBound(slot, _)
             | Op::Declare(slot)
             | Op::Store(slot)
@@ -75,7 +75,7 @@ impl Walker<'_> {
         let root = state.global_base + index;
         Ok(Some(match op {
             Op::Load(_) => Op::Load(root),
-            Op::LoadOptional(_, name) => Op::LoadOptional(root, name),
+            Op::LoadOptional(_, name, receiving) => Op::LoadOptional(root, name, receiving),
             Op::ReceiverBound(_, target) => Op::ReceiverBound(root, target),
             Op::Declare(_) => Op::Declare(root),
             Op::Store(_) => Op::Store(root),

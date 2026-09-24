@@ -2374,3 +2374,73 @@ fn same_name_calls_in_required_files_skip_the_file_scope() {
     let value = script.run(CallOptions::default()).unwrap().value;
     assert_eq!(json(&value), serde_json::json!([[1, 1, 1], 2, 1]));
 }
+
+#[test]
+fn required_file_functions_stay_values_as_member_receivers() {
+    let files = Files::new();
+    for (name, source) in [
+        ("top", "def helper\n  1\nend\nx = helper.to_s\n"),
+        ("safe", "def helper;1;end\nx = helper&.to_s"),
+        ("func", "def helper;1;end\ndef peek;helper.to_s;end\npeek()"),
+        ("block", "def helper;1;end\n[1].each { |i| helper.call }"),
+        (
+            "method",
+            "def helper;1;end\nclass K\n  def go\n    helper.to_s\n  end\nend\nK.new.go",
+        ),
+        ("export", "def helper;[1];end"),
+        (
+            "bare",
+            "def helper;[1];end\ndef peek;[helper, helper[0], helper + [2]];end",
+        ),
+    ] {
+        files.write(&format!("{name}.vibe"), source);
+    }
+    let engine = files.engine();
+    for (name, member, line, column) in [
+        ("top", "to_s", 4, 5),
+        ("safe", "to_s", 2, 5),
+        ("func", "to_s", 2, 10),
+        ("block", "call", 2, 16),
+        ("method", "to_s", 4, 5),
+    ] {
+        let error = engine
+            .compile(&format!("require(:{name})"))
+            .unwrap()
+            .run(CallOptions::default())
+            .unwrap_err();
+        assert_eq!(
+            error.message,
+            format!("a function has no member {member}; call helper(...) directly"),
+            "{name}"
+        );
+        let diagnostic = error.diagnostic.unwrap();
+        assert_eq!(diagnostic.position, Position { line, column }, "{name}");
+        assert_eq!(
+            diagnostic.filename.as_deref(),
+            Some(format!("{name}.vibe").as_bytes()),
+            "{name}"
+        );
+    }
+    let error = engine
+        .compile("require(:export)\nhelper.to_s")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap_err();
+    assert_eq!(
+        error.message,
+        "a function has no member to_s; call helper(...) directly"
+    );
+    assert_eq!(
+        error.diagnostic.unwrap().position,
+        Position { line: 2, column: 1 }
+    );
+    let value = engine
+        .compile(
+            "def value;7;end\n[require(:bare).peek, require(:export) && helper[0], value.to_s]",
+        )
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap()
+        .value;
+    assert_eq!(json(&value), serde_json::json!([[[1], 1, [1, 2]], 1, "7"]));
+}

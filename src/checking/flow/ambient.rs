@@ -55,7 +55,7 @@ impl Walker<'_> {
         }
         let slot = match op {
             Op::Load(slot)
-            | Op::LoadOptional(slot, _)
+            | Op::LoadOptional(slot, _, _)
             | Op::ReceiverBound(slot, _)
             | Op::Declare(slot)
             | Op::Store(slot)
@@ -79,7 +79,7 @@ impl Walker<'_> {
         }
         Ok(Some(match op {
             Op::Load(_) => Op::Load(ambient),
-            Op::LoadOptional(_, name) => Op::LoadOptional(ambient, name),
+            Op::LoadOptional(_, name, receiving) => Op::LoadOptional(ambient, name, receiving),
             Op::ReceiverBound(_, next) => Op::ReceiverBound(ambient, next),
             Op::Declare(_) => Op::Declare(ambient),
             Op::Store(_) => Op::Store(ambient),

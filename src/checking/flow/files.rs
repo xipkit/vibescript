@@ -43,11 +43,11 @@ impl<'a> Walker<'a> {
             return self.function.local_names.get(slot).map(String::as_str);
         }
         match op {
-            Op::FileValue(name, _)
+            Op::FileValue(name, _, _)
             | Op::FileAddress(name, _)
             | Op::RootAddress(name, _)
             | Op::RootCall(name, _)
-            | Op::Unbound(name)
+            | Op::Unbound(name, _)
             | Op::ImplicitAddress(name, _)
             | Op::ResolveCall(_, name, _)
             | Op::CallName(_, name) => Some(&self.program.members[name]),
@@ -56,8 +56,8 @@ impl<'a> Walker<'a> {
             | Op::AddressGlobal(index)
             | Op::ResolveGlobalCall(index) => Some(self.program.globals[index].0.name()),
             Op::Declaration(index) => Some(file_bindings::declaration_name(self.program, index)),
-            Op::AutoCall(index) => Some(&self.program.functions[index].name),
-            Op::HostValue(index) => Some(&self.program.hosts[index]),
+            Op::AutoCall(index, _) => Some(&self.program.functions[index].name),
+            Op::HostValue(index, _) => Some(&self.program.hosts[index]),
             _ => None,
         }
     }
@@ -223,7 +223,7 @@ impl<'a> Walker<'a> {
         let file = self.file_slot(state, name)?.unwrap();
         Ok(Some(match op {
             Op::Load(_) => Op::Load(file),
-            Op::LoadOptional(_, name) => Op::LoadOptional(file, name),
+            Op::LoadOptional(_, name, receiving) => Op::LoadOptional(file, name, receiving),
             Op::ReceiverBound(_, next) => Op::ReceiverBound(file, next),
             Op::Declare(_) => Op::Declare(file),
             Op::Store(_) => Op::Store(file),
@@ -275,6 +275,7 @@ impl<'a> Walker<'a> {
         name: usize,
         next: usize,
         address: bool,
+        receiving: Receiving,
     ) -> Result<Edges> {
         let name_index = name;
         let name = &self.program.members[name];
@@ -301,7 +302,8 @@ impl<'a> Walker<'a> {
                         for present in [true, false] {
                             let mut variant = state.snapshot(self.ctx)?;
                             self.refine_namespace(&mut variant, module, name, present)?;
-                            let edges = self.file_edges(variant, pc, name_index, next, true)?;
+                            let edges =
+                                self.file_edges(variant, pc, name_index, next, true, receiving)?;
                             for edge in edges.into_iter().flatten() {
                                 self.extra.push(self.ctx, edge)?;
                             }
@@ -326,7 +328,8 @@ impl<'a> Walker<'a> {
                     return Ok([None, None]);
                 };
                 for alternative in alternatives.data {
-                    let edges = self.file_edges(alternative, pc, name_index, next, address)?;
+                    let edges =
+                        self.file_edges(alternative, pc, name_index, next, address, receiving)?;
                     for edge in edges.into_iter().flatten() {
                         self.extra.push(self.ctx, edge)?;
                     }
@@ -347,9 +350,9 @@ impl<'a> Walker<'a> {
                     .push(self.ctx, Address::new(Some(slot), value))?;
                 return Ok([Some((next, state)), None]);
             }
-            self.read_value(&mut state, pc, value, Some(slot))?
+            self.receive_value(&mut state, pc, value, Some(slot), receiving)?
         } else if !address && self.file_declared_target(name)?.is_none() {
-            let Some(readable) = self.read_receiving(&mut state, pc, name)? else {
+            let Some(readable) = self.read_receiving(&mut state, pc, name, receiving)? else {
                 return Ok([Some((pc + 1, state)), None]);
             };
             readable

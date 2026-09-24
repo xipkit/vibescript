@@ -86,6 +86,29 @@ impl Walker<'_> {
             };
             return Ok(None);
         }
+        if !site.scope && self.missing_native_member(receiver, name)? {
+            return self.missing_call_member(state, pc);
+        }
+        if !site.scope
+            && matches!(self.facts.node(receiver), Node::Shape(_, false, _, kind) if kind.plain())
+            && !crate::members::hash_builtin(name)
+            && !crate::members::names::universal(name)
+        {
+            // A plain hash answers a stored key of a name its builtins leave free.
+            return match self
+                .facts
+                .selected_field(self.ctx, receiver, name.as_bytes())?
+            {
+                Some((field, false)) => self.set_call_target(state, pc, field),
+                Some((field, true)) => {
+                    let mut present = state.snapshot(self.ctx)?;
+                    let edges = self.set_call_target(&mut present, pc, field)?;
+                    self.member_edges(pc, present, edges)?;
+                    self.missing_call_member(state, pc)
+                }
+                None => self.missing_call_member(state, pc),
+            };
+        }
         let fields = if let Node::Protected(shape, ..) = self.facts.node(receiver) {
             *shape
         } else {
@@ -120,6 +143,43 @@ impl Walker<'_> {
             return Ok(Some([None, None]));
         };
         self.set_call_target(state, pc, field)
+    }
+
+    /// Refuses a computed member call whose receiver has no such member.
+    fn missing_call_member(&mut self, state: &State, pc: usize) -> Result<Option<Edges>> {
+        self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+        self.issue(
+            pc,
+            IssueKind::Call {
+                target: Target::Undefined,
+                failure: Failure::Undefined,
+            },
+        )?;
+        Ok(Some([None, None]))
+    }
+
+    /// Reports whether a scalar, array or enum receiver has no member `name` at
+    /// all, so the runtime refuses the call before any argument is evaluated.
+    fn missing_native_member(&mut self, receiver: Fact, name: &str) -> Result<bool> {
+        use crate::members::names::{self, Receiver};
+        let Some(kind) = builtins::native_receiver(self.facts, receiver) else {
+            return Ok(false);
+        };
+        self.ctx.work_bytes(name.len())?;
+        if names::universal(name)
+            || matches!(self.facts.node(receiver), Node::Protected(..))
+            || matches!(name, "itself" | "eql?" | "equal?")
+        {
+            return Ok(false);
+        }
+        Ok(match kind {
+            Receiver::Hash | Receiver::Other => false,
+            Receiver::Enum | Receiver::EnumMember => !matches!(
+                name,
+                "to_s" | "string" | "inspect" | "dup" | "name" | "symbol" | "enum"
+            ),
+            _ => !kind.available(name),
+        })
     }
 
     /// Selects a typed native method as a call target, as the runtime does after fields,

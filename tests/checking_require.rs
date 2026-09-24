@@ -1166,3 +1166,61 @@ fn checks_resolve_same_name_calls_past_the_required_file_scope() {
         "[2,1]",
     );
 }
+
+#[test]
+fn checks_report_required_file_functions_kept_as_member_receivers() {
+    let files = Files::new();
+    for (name, source) in [
+        ("top", "def helper;1;end;x=helper.to_s"),
+        ("safe", "def helper;1;end;x=helper&.to_s"),
+        ("call", "def helper;1;end;x=helper.call(1)"),
+        ("func", "def helper;1;end;def peek;helper.to_s;end;peek()"),
+        ("block", "def helper;1;end;[1].each{|i| helper.to_s}"),
+        (
+            "method",
+            "def helper;1;end;class K;def go;helper.to_s;end;end;K.new.go",
+        ),
+        ("same", "def helper;1;end;helper=helper.to_s"),
+        ("builtin", "x=puts.call"),
+    ] {
+        files.write(&format!("{name}.vibe"), source);
+    }
+    files.write("export.vibe", "def helper;[1];end");
+    files.write(
+        "bare.vibe",
+        "def helper;[1];end;def peek;[helper,helper[0],helper+[2]];end",
+    );
+    files.write("root.vibe", "def peek;value.to_s;end");
+    for name in [
+        "top", "safe", "call", "func", "block", "method", "same", "builtin",
+    ] {
+        let script = files
+            .engine()
+            .compile(&format!("def run;require(:{name});end"))
+            .unwrap();
+        let report = script
+            .check_call("run", &[], &CallOptions::default())
+            .unwrap();
+        assert!(report.incomplete.is_empty(), "{name}: {report:?}");
+        assert!(!report.diagnostics.is_empty(), "{name}: {report:?}");
+        assert!(
+            script.call("run", &[], CallOptions::default()).is_err(),
+            "{name}"
+        );
+    }
+    let script = files
+        .engine()
+        .compile("def run;require(:export);helper.to_s;end")
+        .unwrap();
+    let report = script
+        .check_call("run", &[], &CallOptions::default())
+        .unwrap();
+    assert!(report.incomplete.is_empty(), "{report:?}");
+    assert!(!report.diagnostics.is_empty(), "{report:?}");
+    witness(
+        &files,
+        "def value;7;end\ndef run;[require(:bare).peek,require(:root).peek,require(:export)&&helper[0]];end",
+        CallOptions::default(),
+        "[[[1],1,[1,2]],\"7\",1]",
+    );
+}

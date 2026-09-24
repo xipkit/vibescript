@@ -176,3 +176,31 @@ fn unknown_call_members_use_the_reference_wording() {
     }
     assert_eq!(checked, 15);
 }
+
+#[test]
+fn bare_names_receiving_call_follow_the_reference_rules() {
+    let cases: serde_json::Value =
+        serde_json::from_str(include_str!("language-errors.json")).unwrap();
+    let mut checked = 0;
+    for case in cases.as_array().unwrap() {
+        let name = case["name"].as_str().unwrap();
+        if !name.starts_with("call_receiver_") {
+            continue;
+        }
+        let error = Engine::new()
+            .compile(case["source"].as_str().unwrap())
+            .unwrap()
+            .call("run", &[Value::nil()], CallOptions::default())
+            .unwrap_err();
+        assert_eq!(error.message, case["go_error"].as_str().unwrap(), "{name}");
+        checked += 1;
+    }
+    assert_eq!(checked, 17);
+    let error = Engine::new()
+        .compile("def helper\n1\nend\nx = 1\n(helper.call)()")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap_err();
+    let position = error.diagnostic.unwrap().position;
+    assert_eq!((position.line, position.column), (5, 2));
+}

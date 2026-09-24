@@ -78,7 +78,7 @@ impl<'x> Compiling<'_, 'x> {
             c.work.charge(1)?;
             c.emit(Op::Arguments);
         }
-        self.call_target(call).await?;
+        self.call_target(call, args.len()).await?;
         self.argument_values(args).await?;
         let mut c = self.c();
         if let Some(block) = block {
@@ -88,21 +88,22 @@ impl<'x> Compiling<'_, 'x> {
         Ok(())
     }
 
-    pub(super) async fn call_target(&self, expr: &'x Expr) -> Result<()> {
+    /// Compiles the target of a computed call passing `arguments` argument values.
+    pub(super) async fn call_target(&self, expr: &'x Expr, arguments: usize) -> Result<()> {
         let previous = {
             let mut c = self.c();
             c.work.charge(1)?;
             std::mem::replace(&mut c.offset, expr.offset)
         };
-        let result = self.call_target_at(expr).await;
+        let result = self.call_target_at(expr, arguments).await;
         self.c().offset = previous;
         result
     }
 
-    async fn call_target_at(&self, expr: &'x Expr) -> Result<()> {
+    async fn call_target_at(&self, expr: &'x Expr, arguments: usize) -> Result<()> {
         match &expr.node {
             Node::Try(attempt) if attempt.modifier => {
-                Box::pin(self.attempt(attempt, true)).await?;
+                Box::pin(self.attempt(attempt, Some(arguments))).await?;
                 self.c().emit(Op::Pop);
             }
             Node::Var(name)
@@ -119,7 +120,8 @@ impl<'x> Compiling<'_, 'x> {
                 c.emit(Op::CallName(slot, name));
             }
             Node::Member(receiver, name) | Node::SafeMember(receiver, name) => {
-                self.member_receiver(receiver, name != "call").await?;
+                let receiving = self.receiving(receiver, name, CallForm::Parenthesized, arguments);
+                self.member_receiver(receiver, receiving).await?;
                 let mut c = self.c();
                 let skip =
                     matches!(expr.node, Node::SafeMember(..)).then(|| c.emit(Op::JumpNil(0)));
@@ -159,7 +161,7 @@ impl<'x> Compiling<'_, 'x> {
                     done
                 };
                 // A shape's fallback is a bare name, so this recursion stays shallow.
-                Box::pin(self.call_target(fallback)).await?;
+                Box::pin(self.call_target(fallback, arguments)).await?;
                 let mut c = self.c();
                 let end = c.code.len();
                 c.patch(done, end);

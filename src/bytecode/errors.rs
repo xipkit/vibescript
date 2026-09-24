@@ -21,7 +21,13 @@ pub(crate) struct RescueSpec {
 }
 
 impl<'x> Compiling<'_, 'x> {
-    pub(super) async fn attempt(&self, attempt: &'x syntax::Try, target: bool) -> Result<()> {
+    /// Compiles a `begin` expression. `target` is the argument count of a call
+    /// that uses each branch's result as its target.
+    pub(super) async fn attempt(
+        &self,
+        attempt: &'x syntax::Try,
+        target: Option<usize>,
+    ) -> Result<()> {
         let (index, mut spec) = {
             let mut c = self.c();
             c.work.charge(1)?;
@@ -107,9 +113,9 @@ impl<'x> Compiling<'_, 'x> {
         Ok(())
     }
 
-    async fn attempt_block(&self, body: &'x [Stmt], target: bool) -> Result<()> {
+    async fn attempt_block(&self, body: &'x [Stmt], target: Option<usize>) -> Result<()> {
         self.c().work.charge(1)?;
-        if target {
+        if let Some(arguments) = target {
             let [
                 Stmt {
                     node: Statement::Expr(expr),
@@ -119,7 +125,7 @@ impl<'x> Compiling<'_, 'x> {
             else {
                 unreachable!()
             };
-            self.call_target(expr).await?;
+            self.call_target(expr, arguments).await?;
             self.c().emit(Op::Nil);
             Ok(())
         } else {

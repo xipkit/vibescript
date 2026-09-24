@@ -4,7 +4,7 @@ use crate::{
     arguments::{Arguments, Binding, Block},
     budget::Buffer,
     builtin::Global,
-    bytecode::{ArgumentOp, Invocation, Op, Selection},
+    bytecode::{ArgumentOp, Invocation, Op, Receiving, Selection},
     hash::Hash,
     iteration::{self, Iteration, Progress},
     members, ops,
@@ -616,7 +616,9 @@ impl Run {
             };
             let mut op = match op {
                 Op::Load(n) => Op::Load(bound(n)?),
-                Op::LoadOptional(n, name) => Op::LoadOptional(bound(n)?, name),
+                Op::LoadOptional(n, name, receiving) => {
+                    Op::LoadOptional(bound(n)?, name, receiving)
+                }
                 Op::ReceiverBound(n, next) => Op::ReceiverBound(bound(n)?, next),
                 Op::Declare(n) => Op::Declare(bound(n)?),
                 Op::Store(n) => Op::Store(bound(n)?),
@@ -817,14 +819,16 @@ impl Run {
                         }
                     }
                 }
-                Op::FileValue(name, next) => {
+                Op::FileValue(name, next, receiving) => {
                     let name = &program.members[name];
                     if let Some(mut value) = file_bindings::get(program, ctx, name)? {
                         if let Kind::Offset(offset) = &value.0 {
                             return Err(offset.value_error());
                         }
                         if let Kind::Builtin(builtin) = value.0 {
-                            value = builtin.read(ctx)?;
+                            if receiving.runs_dynamic() {
+                                value = builtin.read(ctx)?;
+                            }
                         }
                         stack.push(ctx, value)?;
                         frame.ip = next;
@@ -836,7 +840,9 @@ impl Run {
                             file_bindings::root_binding(program, ctx, storage, name)?
                         {
                             frames.data[current].ip = next;
-                            file_bindings::read_root(ctx, frames, storage, stack, binding)?;
+                            file_bindings::receive_root(
+                                program, ctx, frames, storage, stack, binding, receiving,
+                            )?;
                         }
                     }
                 }
@@ -1151,7 +1157,7 @@ impl Run {
                     }
                     stack.push(ctx, v)?;
                 }
-                Op::LoadOptional(slot, name) => {
+                Op::LoadOptional(slot, name, receiving) => {
                     let scoped = if let Some(name) = file_local {
                         file_bindings::get(program, ctx, name)?
                     } else if let Some(name) = root_local {
@@ -1163,10 +1169,11 @@ impl Run {
                         if let Kind::Offset(offset) = &value.0 {
                             return Err(offset.value_error());
                         }
-                        let value = if let Kind::Builtin(builtin) = value.0 {
-                            builtin.read(ctx)?
-                        } else {
-                            value.clone()
+                        let value = match value.0 {
+                            Kind::Builtin(builtin) if receiving.runs_dynamic() => {
+                                builtin.read(ctx)?
+                            }
+                            _ => value.clone(),
                         };
                         stack.push(ctx, value)?;
                     } else if let Some(value) = namespaces::constant(
@@ -1191,29 +1198,42 @@ impl Run {
                         let value = declaration_value(program, ctx, storage, index)?;
                         stack.push(ctx, value)?;
                     } else if let Some(&function) = program.names.get(&program.members[name]) {
-                        enter_auto(program, ctx, frames, storage, function, stack.data.len())?;
+                        receive_function(
+                            program,
+                            ctx,
+                            frames,
+                            storage,
+                            stack.data.len(),
+                            function,
+                            receiving,
+                        )?;
                     } else if let Some(host) = program
                         .hosts
                         .iter()
                         .position(|h| h == &program.members[name])
                     {
-                        return Err(callable_value_error(&program.hosts[host], "method"));
+                        return Err(receive_host(program, &program.hosts[host], receiving));
                     } else if let Some(binding) =
                         file_bindings::root_binding(program, ctx, storage, &program.members[name])?
                     {
-                        file_bindings::read_root(ctx, frames, storage, stack, binding)?;
+                        file_bindings::receive_root(
+                            program, ctx, frames, storage, stack, binding, receiving,
+                        )?;
                     } else if let Some(global) = global_index(program, &program.members[name]) {
                         let mut value = global_value(program, ctx, storage, global)?;
                         if let Kind::Offset(offset) = &value.0 {
                             return Err(offset.value_error());
                         }
                         if let Kind::Builtin(builtin) = value.0 {
-                            value = builtin.read(ctx)?;
+                            if receiving.runs_static(None) {
+                                value = builtin.read(ctx)?;
+                            }
                         }
                         stack.push(ctx, value)?;
                     } else {
                         implicit_read(
                             program, ctx, frames, storage, stack, current, namespace, name,
+                            receiving,
                         )?;
                     }
                 }
@@ -1230,15 +1250,17 @@ impl Run {
                         frame.ip = next;
                     }
                 }
-                Op::Unbound(name) => {
+                Op::Unbound(name, receiving) => {
                     if let Some(binding) =
                         file_bindings::root_binding(program, ctx, storage, &program.members[name])?
                     {
-                        file_bindings::read_root(ctx, frames, storage, stack, binding)?;
+                        file_bindings::receive_root(
+                            program, ctx, frames, storage, stack, binding, receiving,
+                        )?;
                         continue;
                     }
                     implicit_read(
-                        program, ctx, frames, storage, stack, current, namespace, name,
+                        program, ctx, frames, storage, stack, current, namespace, name, receiving,
                     )?;
                 }
                 Op::Declaration(index) => {
@@ -1269,7 +1291,7 @@ impl Run {
                     }
                     stack.push(ctx, value)?;
                 }
-                Op::GlobalReceiver(index, auto) => {
+                Op::GlobalReceiver(index, receiving) => {
                     if program.file
                         && file_bindings::get(program, ctx, program.globals[index].0.name())?
                             .is_none()
@@ -1280,7 +1302,9 @@ impl Run {
                             storage,
                             program.globals[index].0.name(),
                         )? {
-                            file_bindings::read_root(ctx, frames, storage, stack, binding)?;
+                            file_bindings::receive_root(
+                                program, ctx, frames, storage, stack, binding, receiving,
+                            )?;
                             continue;
                         }
                     }
@@ -1288,7 +1312,7 @@ impl Run {
                     if let (Kind::Builtin(current), Kind::Builtin(original)) =
                         (&value.0, &program.globals[index].1.0)
                     {
-                        if current == original && (auto || !current.auto()) {
+                        if current == original && receiving.runs_static(None) {
                             value = current.read(ctx)?;
                         }
                     }
@@ -2416,33 +2440,45 @@ impl Run {
                     )?;
                     stack.data.truncate(base);
                 }
-                Op::AutoCall(function) => {
+                Op::AutoCall(function, receiving) => {
                     if let Some(value) =
                         globals::get(ctx, storage, &program.functions[function].name)?
                     {
-                        file_bindings::read_root(
+                        file_bindings::receive_root(
+                            program,
                             ctx,
                             frames,
                             storage,
                             stack,
                             file_bindings::RootBinding::Value(value),
+                            receiving,
                         )?;
                         continue;
                     }
-                    enter_auto(program, ctx, frames, storage, function, stack.data.len())?;
+                    receive_function(
+                        program,
+                        ctx,
+                        frames,
+                        storage,
+                        stack.data.len(),
+                        function,
+                        receiving,
+                    )?;
                 }
-                Op::HostValue(host) => {
+                Op::HostValue(host, receiving) => {
                     if let Some(value) = globals::get(ctx, storage, &program.hosts[host])? {
-                        file_bindings::read_root(
+                        file_bindings::receive_root(
+                            program,
                             ctx,
                             frames,
                             storage,
                             stack,
                             file_bindings::RootBinding::Value(value),
+                            receiving,
                         )?;
                         continue;
                     }
-                    return Err(callable_value_error(&program.hosts[host], "method"));
+                    return Err(receive_host(program, &program.hosts[host], receiving));
                 }
                 Op::RootCall(name, expanded) => {
                     if expanded
@@ -3601,7 +3637,8 @@ fn value_invocation(value: &Value) -> crate::arguments::Target {
 }
 
 /// Reads a bare name that no binding holds as a member of the running instance
-/// or class, entering a method it selects. Outside a class the name is undefined.
+/// or class, entering a method it selects unless `receiving` keeps the method as a
+/// value, which has no members. Outside a class the name is undefined.
 #[allow(clippy::too_many_arguments)]
 fn implicit_read(
     program: &Program,
@@ -3612,10 +3649,25 @@ fn implicit_read(
     current: usize,
     namespace: Option<usize>,
     name: usize,
+    receiving: Receiving,
 ) -> Result<()> {
     let self_value = frames.data[current].receiver.clone();
     let text = &program.members[name];
     match namespaces::implicit(program, ctx, storage, namespace, self_value.as_ref(), text)? {
+        namespaces::Member::Function(_) if !receiving.runs_static(None) => {
+            let module = &program.namespaces[namespace.unwrap()];
+            let separator = if matches!(self_value, Some(Value(Kind::Instance(_)))) {
+                '#'
+            } else {
+                '.'
+            };
+            let member = &program.members[receiving.member().unwrap()];
+            Err(callable_member_error(
+                "method",
+                &format!("{}{separator}{text}", module.name),
+                member,
+            ))
+        }
         namespaces::Member::Function(function) => enter_arguments(
             program,
             ctx,
@@ -3837,6 +3889,48 @@ fn callable_value_error(name: &str, kind: &str) -> Error {
         ErrorKind::Type,
         format!("{name} is a {kind} and cannot be used as a value; call it with {name}(...)"),
     )
+}
+
+/// Go's refusal of a member on executable code that a receiver kept as a value.
+fn callable_member_error(kind: &str, name: &str, member: &str) -> Error {
+    Error::new(
+        ErrorKind::Type,
+        format!("a {kind} has no member {member}; call {name}(...) directly"),
+    )
+}
+
+/// Reads a function for `receiving`. A required file binds its own functions
+/// dynamically, so they never run as receivers; a script's functions are static.
+fn receive_function(
+    program: &Program,
+    ctx: &mut CallContext,
+    frames: &mut Buffer<Frame>,
+    storage: &mut Storage,
+    base: usize,
+    function: usize,
+    receiving: Receiving,
+) -> Result<()> {
+    let fun = &program.functions[function];
+    let runs = if program.file {
+        receiving.runs_dynamic()
+    } else {
+        receiving.runs_static(Some(fun.params.len()))
+    };
+    if runs {
+        return enter_auto(program, ctx, frames, storage, function, base);
+    }
+    let member = &program.members[receiving.member().unwrap()];
+    Err(callable_member_error("function", &fun.name, member))
+}
+
+/// The error for reading a host method for `receiving`.
+fn receive_host(program: &Program, host: &str, receiving: Receiving) -> Error {
+    match receiving.member() {
+        Some(member) if !receiving.runs_static(None) => {
+            callable_member_error("method", host, &program.members[member])
+        }
+        _ => callable_value_error(host, "method"),
+    }
 }
 
 fn enter_auto(

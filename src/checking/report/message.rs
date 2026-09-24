@@ -14,7 +14,7 @@ pub(super) fn issue(
     issue: &LocatedIssue,
 ) -> Result<(String, Option<Charge>)> {
     let target_code = match issue.issue.kind {
-        IssueKind::Call { target, .. } => target
+        IssueKind::Call { target, .. } | IssueKind::CallableMember { target, .. } => target
             .source()
             .map(|source| facts.source_code(ctx, source))
             .transpose()?
@@ -25,6 +25,15 @@ pub(super) fn issue(
     let mut out = Writer::new(ctx);
     match issue.issue.kind {
         IssueKind::DetachedValue(_) => out.text("Attached methods cannot be used as values")?,
+        IssueKind::CallableMember {
+            target: callee,
+            member: name,
+        } => {
+            target(&mut out, target_program, callee)?;
+            out.text(" has no member ")?;
+            member(&mut out, program, name)?;
+            out.text("; call it directly")?;
+        }
         IssueKind::TypeBinding { ty, ambiguous } => {
             out.text(if ambiguous {
                 "Ambiguous type in "

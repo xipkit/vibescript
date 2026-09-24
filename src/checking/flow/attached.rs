@@ -135,7 +135,7 @@ impl Walker<'_> {
         }
         let name = match op {
             Op::Load(slot)
-            | Op::LoadOptional(slot, _)
+            | Op::LoadOptional(slot, _, _)
             | Op::ReceiverBound(slot, _)
             | Op::AddressLocal(slot)
             | Op::AddressBound(slot, _) => {
@@ -149,7 +149,7 @@ impl Walker<'_> {
             | Op::AddressGlobal(index)
             | Op::ResolveGlobalCall(index) => self.program.globals[index].0.name(),
             Op::RootAddress(name, _)
-            | Op::Unbound(name)
+            | Op::Unbound(name, _)
             | Op::ImplicitAddress(name, _)
             | Op::RootCall(name, _) => &self.program.members[name],
             Op::ResolveCall(slot, name, _) | Op::CallName(slot, name) => {
@@ -170,8 +170,8 @@ impl Walker<'_> {
                 }
                 &self.program.members[name]
             }
-            Op::AutoCall(function) => &self.program.functions[function].name,
-            Op::HostValue(host) => &self.program.hosts[host],
+            Op::AutoCall(function, _) => &self.program.functions[function].name,
+            Op::HostValue(host, _) => &self.program.hosts[host],
             Op::Declaration(index) => match &self.program.declarations[index].0 {
                 Kind::Enum(value) => &value.definition.name,
                 Kind::Namespace(value) => &value.definition.name,
