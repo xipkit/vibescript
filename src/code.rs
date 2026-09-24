@@ -36,6 +36,15 @@ impl Code {
         Self::compile_mode(source, registered.iter(), false, None, &())
     }
 
+    /// Compiles host source, charging the work to `work`.
+    pub fn compile_metered(
+        source: &str,
+        registered: &BTreeMap<String, Registered>,
+        work: &dyn crate::compilation::Work,
+    ) -> Result<Arc<Self>> {
+        Self::compile_mode(source, registered.iter(), false, None, work)
+    }
+
     #[cfg(test)]
     pub fn compile_file(
         source: &str,

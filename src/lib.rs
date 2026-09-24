@@ -213,7 +213,49 @@ impl Engine {
     /// Compiles UTF-8 source, enforcing source-size and syntax-depth guards.
     pub fn compile(&self, source: &str) -> Result<Script> {
         let code = code::Code::compile(source, &self.hosts)?;
-        Ok(Script {
+        Ok(self.script(code))
+    }
+
+    /// Compiles like [`Self::compile`], charging the work to the step and memory
+    /// quotas of `options` and stopping at its deadline or cancellation.
+    ///
+    /// Callers such as editors use this to bound compilation of untrusted or very
+    /// large sources. An exhausted quota, the deadline or cancellation returns that
+    /// error instead of a script. The script retains none of the budget, and
+    /// globals and capabilities in `options` are ignored.
+    ///
+    /// ```
+    /// use std::time::Instant;
+    /// use vibescript::{CallOptions, Engine, ErrorKind, Limits};
+    /// let engine = Engine::new();
+    /// let options = CallOptions { deadline: Some(Instant::now()), ..CallOptions::default() };
+    /// let error = engine.compile_with_options("def f; 1; end", &options).err().unwrap();
+    /// assert_eq!(error.kind, ErrorKind::Deadline);
+    /// let limits = Limits { steps: Some(1_000), ..Limits::default() };
+    /// let options = CallOptions { limits, ..CallOptions::default() };
+    /// assert!(engine.compile_with_options("def f; 1; end", &options).is_ok());
+    /// # Ok::<(), vibescript::Error>(())
+    /// ```
+    pub fn compile_with_options(&self, source: &str, options: &CallOptions) -> Result<Script> {
+        let mut ctx = CallContext::new(CallOptions {
+            globals: Default::default(),
+            capabilities: Vec::new(),
+            limits: options.limits.clone(),
+            cancellation: options.cancellation.clone(),
+            deadline: options.deadline,
+            allow_require: options.allow_require,
+        });
+        let code = code::Code::compile_metered(
+            source,
+            &self.hosts,
+            &compilation::Meter(std::cell::RefCell::new(&mut ctx)),
+        )?;
+        ctx.checkpoint()?;
+        Ok(self.script(code))
+    }
+
+    fn script(&self, code: Arc<code::Code>) -> Script {
+        Script {
             inner: Arc::new(ScriptInner {
                 code,
                 loader: self.loader.clone(),
@@ -222,7 +264,7 @@ impl Engine {
                 output_writer: self.output_writer.clone(),
                 error_writer: self.error_writer.clone(),
             }),
-        })
+        }
     }
 }
 

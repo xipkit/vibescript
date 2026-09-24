@@ -379,3 +379,54 @@ fn failed_namespace_imports_release_partial_accounting_and_code_references() {
     assert!(code.upgrade().is_none());
     assert_eq!(retired.load(Ordering::SeqCst), 1);
 }
+
+#[test]
+fn metered_compilation_stops_at_limits_and_matches_unmetered_results() {
+    let engine = Engine::new();
+    let mut source = String::new();
+    for index in 0..300 {
+        source.push_str(&format!("def f{index}(x)\n  x + {index}\nend\n"));
+    }
+    source.push_str("f299(1)\n");
+    let limits = |steps| CallOptions {
+        limits: Limits {
+            steps: Some(steps),
+            ..Limits::default()
+        },
+        ..CallOptions::default()
+    };
+    let error = engine
+        .compile_with_options(&source, &limits(1_000))
+        .err()
+        .unwrap();
+    assert_eq!(error.kind, ErrorKind::Steps);
+    let script = engine
+        .compile_with_options(&source, &limits(10_000_000))
+        .unwrap();
+    let value = script.run(CallOptions::default()).unwrap().value;
+    assert_eq!(value.as_int(), Some(300));
+
+    let cancellation = CancellationToken::new();
+    cancellation.cancel();
+    let options = CallOptions {
+        cancellation,
+        ..CallOptions::default()
+    };
+    let error = engine
+        .compile_with_options(&source, &options)
+        .err()
+        .unwrap();
+    assert_eq!(error.kind, ErrorKind::Cancelled);
+
+    for broken in [
+        "def f(\n  1\nend\n",
+        "x = [1,\n",
+        &" ".repeat(crate::syntax::MAX_SOURCE + 1),
+    ] {
+        let metered = engine
+            .compile_with_options(broken, &CallOptions::default())
+            .err()
+            .unwrap();
+        assert_eq!(metered, engine.compile(broken).err().unwrap());
+    }
+}
