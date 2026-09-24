@@ -3315,6 +3315,13 @@ fn property_type(
             getter = Some(method.function);
         }
     }
+    let declared = program
+        .ivars
+        .get(&instance.class().definition.index)
+        .and_then(|ivars| ivars.iter().find(|(field, _)| field == name));
+    if let Some(&(_, ty)) = declared {
+        return Ok(Some(ty));
+    }
     let ty = if let Some(setter) = setter {
         let function = &program.functions[setter];
         if function

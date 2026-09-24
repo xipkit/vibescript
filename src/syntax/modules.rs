@@ -47,6 +47,7 @@ enum Member {
     Statement,
     Module,
     Method,
+    Ivar,
 }
 
 /// What removed class features name as their replacement.
@@ -489,6 +490,9 @@ impl Parsing<'_> {
                         Member::Done
                     }
                     "module" if module && p.module_ahead() => Member::Module,
+                    // A module has no instances, so `@name:` stays the syntax
+                    // error it always was there.
+                    _ if !module && p.ivar_ahead() => Member::Ivar,
                     "include" | "extend" if p.mixin_directive()? => {
                         return p.err(format_args!(
                             "{word} is not supported; modules are namespaces: {NAMESPACES}"
@@ -534,6 +538,30 @@ impl Parsing<'_> {
                     let nested = self.nested_module().await?;
                     class.depth = class.depth.max(1 + nested.depth);
                     class.modules.push(work, nested)?;
+                }
+                Member::Ivar => {
+                    let (ivar, default) = self.ivar().await?;
+                    let mut p = self.p();
+                    let ivars = &mut p.additions.ivars;
+                    work.charge(ivars.len())?;
+                    let duplicate = ivars
+                        .iter()
+                        .any(|(owner, prior)| *owner == class.offset && prior.name == ivar.name);
+                    if duplicate {
+                        return Err(crate::Error::syntax(
+                            work,
+                            ivar.offset as usize,
+                            format_args!(
+                                "duplicate instance variable declaration @{}",
+                                source_text(&ivar.name)
+                            ),
+                        ));
+                    }
+                    ivars.push(work, (class.offset, ivar))?;
+                    if let Some(default) = default {
+                        class.depth = class.depth.max(1 + default.depth);
+                        p.additions.defaults.push(work, (class.offset, default))?;
+                    }
                 }
                 Member::Method => {
                     let Function {

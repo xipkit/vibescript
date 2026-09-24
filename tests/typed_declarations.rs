@@ -1,6 +1,6 @@
 //! The declarations ADR-007 adds, enforced at runtime like parameter
-//! annotations: typed locals, typed block parameters, tuple types and the
-//! newer type names.
+//! annotations: typed locals, typed block parameters, instance-variable
+//! declarations, tuple types and the newer type names.
 
 use vibescript::{CallOptions, Engine, ErrorKind, stringify_json};
 
@@ -286,6 +286,85 @@ fn block_parameter_names_are_declarations_only() {
         (
             "def f(&block)\nend",
             "parse error at 1:7: block capture parameters are not supported; a block is not a value. Run the caller's block with `yield`, and ask `block_given?` when it is optional",
+        ),
+    ] {
+        assert_eq!(compile_error(source), message, "{source}");
+    }
+}
+
+#[test]
+fn instance_variable_declarations_give_each_instance_its_default() {
+    let counter = "class Counter
+  @count: int = 0
+  @items: array<int> = []
+  @name: string
+  def initialize(name: string)
+    @name = name
+  end
+  def add(item)
+    @count += 1
+    @items << item
+    [@name, @count, @items]
+  end
+end
+";
+    assert_eq!(
+        evaluate(&format!(
+            "{counter}a = Counter.new(\"a\")\nb = Counter.new(\"b\")\na.add(1)\n[a.add(2), b.add(3)]"
+        )),
+        serde_json::json!([["a", 2, [1, 2]], ["b", 1, [3]]])
+    );
+    // Defaults apply before `initialize` binds, so a parameter wins.
+    assert_eq!(
+        evaluate(
+            "class P\n  @x: int = 1\n  def initialize(@x)\n  end\n  def x\n    @x\n  end\nend\n[P.new(5).x]"
+        ),
+        serde_json::json!([5])
+    );
+    assert_eq!(
+        evaluate("class P\n  @x: int = 1\n  def x\n    @x\n  end\nend\nP.new.x"),
+        serde_json::json!(1)
+    );
+    for (source, message, at) in [
+        (
+            format!("{counter}Counter.new(1)"),
+            "argument name expected string, got int",
+            (14, 1),
+        ),
+        (
+            "class C\n  @count: int = 0\n  def bump\n    @count = \"x\"\n  end\nend\nC.new.bump".into(),
+            "instance variable @count expected int, got string",
+            (4, 5),
+        ),
+        (
+            "class C\n  @items: array<int> = []\n  def add\n    @items << \"x\"\n  end\nend\nC.new.add".into(),
+            "instance variable @items expected array<int>, got array<string>",
+            (4, 13),
+        ),
+        (
+            "class C\n  @name: string\n  def initialize\n    @name = 1\n  end\nend\nC.new".into(),
+            "instance variable @name expected string, got int",
+            (4, 5),
+        ),
+        (
+            "class C\n  @x: int = \"no\"\nend\nC.new".into(),
+            "instance variable @x expected int, got string",
+            (2, 3),
+        ),
+    ] {
+        let (kind, actual, position) = failure(&source);
+        assert_eq!(kind, ErrorKind::Type, "{source}");
+        assert_eq!((actual.as_str(), position), (message, at), "{source}");
+    }
+    for (source, message) in [
+        (
+            "class C\n  @x: int\n  @x: string\nend",
+            "parse error at 3:3: duplicate instance variable declaration @x",
+        ),
+        // A module has no instances, so the declaration stays an error.
+        (
+            "module M\n  @x: int = 1\nend",
+            "parse error at 2:5: unexpected token \":\"",
         ),
     ] {
         assert_eq!(compile_error(source), message, "{source}");

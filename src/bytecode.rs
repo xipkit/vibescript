@@ -432,6 +432,9 @@ pub(crate) struct Program {
     pub namespaces: Vec<std::sync::Arc<crate::namespace::Definition>>,
     pub type_guards: Vec<Vec<String>>,
     pub types: Vec<crate::types::Type>,
+    /// The instance variables each class declares, with their types, by
+    /// namespace index.
+    pub ivars: HashMap<usize, Vec<(String, usize)>>,
     pub declarations: Vec<Value>,
     pub enum_definitions: std::sync::Arc<[std::sync::Arc<crate::enums::Definition>]>,
     pub declaration_names: HashMap<String, usize>,
@@ -523,6 +526,7 @@ fn compile_mode(
         namespaces: Vec::new(),
         type_guards: Vec::new(),
         types: Vec::new(),
+        ivars: HashMap::new(),
         declarations,
         enum_definitions,
         declaration_names,
@@ -534,9 +538,9 @@ fn compile_mode(
         members: Vec::new(),
         outline,
     };
-    let typing = typing::Typing::new(parsed.additions, work)?;
+    let mut typing = typing::Typing::new(parsed.additions, work)?;
     for module in parsed.modules {
-        program.register_module(module, "", &mut defs, &mut contexts, work)?;
+        program.register_module(module, "", &mut defs, &mut contexts, &mut typing, work)?;
     }
     program.functions = (0..defs.len()).map(|_| Function::default()).collect();
     for (index, def) in defs.into_iter().enumerate() {
@@ -571,6 +575,7 @@ fn compile_mode(
             } else {
                 typing.block(def.offset)
             },
+            prologue: typing.prologues.get(&index).map_or(&[], Vec::as_slice),
         };
         compiling.run(Call::Function(&def, binds_parameters, additions))?;
         let params = compiling.params.take();
@@ -1333,10 +1338,12 @@ impl Compiler<'_> {
     }
 }
 
-/// What a function's typed declarations add to it: the block it declares.
+/// What a function's typed declarations add to it: the block it declares and
+/// the defaults a constructor assigns before its parameters bind.
 #[derive(Clone, Copy)]
 struct Additions<'x> {
     block: Option<&'x syntax::BlockParam>,
+    prologue: &'x [Stmt],
 }
 
 /// Recursive code generation steps that run as tasks instead of native calls.
@@ -1435,6 +1442,13 @@ impl<'a, 'x> Compiling<'a, 'x> {
         additions: Additions<'x>,
     ) -> Result<()> {
         let work = self.c().work;
+        if !additions.prologue.is_empty() {
+            self.c().declare(additions.prologue)?;
+            for stmt in additions.prologue {
+                self.stmt(stmt, false).await?;
+                self.c().emit(Op::Pop);
+            }
+        }
         if let Some(block) = additions.block {
             let mut c = self.c();
             let mut params = Vec::with_capacity(block.params.len());

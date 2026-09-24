@@ -1,4 +1,4 @@
-use super::{Call, Compiler, Compiling, Op, Program, syntax};
+use super::{Call, Compiler, Compiling, Op, Program, syntax, typing::Typing};
 use crate::{Result, Value, compilation::Name, namespace, syntax::modules::Module, value::Kind};
 
 struct Frame {
@@ -18,6 +18,7 @@ impl Program {
         qualifier: &str,
         functions: &mut crate::compilation::Buffer<syntax::Definition>,
         contexts: &mut crate::compilation::Buffer<(Option<usize>, bool, bool)>,
+        typing: &mut Typing,
         work: &dyn crate::compilation::Work,
     ) -> Result<usize> {
         let mut stack = vec![self.open_module(module, qualifier, work)?];
@@ -30,7 +31,7 @@ impl Program {
             }
             let frame = stack.pop().unwrap();
             let short = frame.short.clone();
-            let index = self.close_module(frame, functions, contexts, work)?;
+            let index = self.close_module(frame, functions, contexts, typing, work)?;
             match stack.last_mut() {
                 Some(parent) => parent.nested.push((short.into_string(), index)),
                 None => return Ok(index),
@@ -74,6 +75,7 @@ impl Program {
         frame: Frame,
         functions: &mut crate::compilation::Buffer<syntax::Definition>,
         contexts: &mut crate::compilation::Buffer<(Option<usize>, bool, bool)>,
+        typing: &mut Typing,
         work: &dyn crate::compilation::Work,
     ) -> Result<usize> {
         let Frame {
@@ -83,6 +85,17 @@ impl Program {
             ..
         } = frame;
         let index = self.namespaces.len();
+        let (ivars, defaults) = typing.class(module.offset);
+        if !ivars.is_empty() {
+            let mut declared = Vec::with_capacity(ivars.len());
+            for ivar in ivars {
+                work.bytes(ivar.name.len())?;
+                let ty = self.types.len();
+                self.types.push(ivar.ty.compile(work)?);
+                declared.push((ivar.name.into_string(), ty));
+            }
+            self.ivars.insert(index, declared);
+        }
         let mut methods = Vec::<namespace::Method>::new();
         for (mut method, visibility) in module.methods {
             work.bytes(name.len() + method.name.len())?;
@@ -147,6 +160,9 @@ impl Program {
         };
         let constructor = if module.is_class {
             if let Some(method) = instance_methods.iter().find(|m| m.name == "initialize") {
+                if !defaults.is_empty() {
+                    typing.prologues.insert(method.function, defaults);
+                }
                 Some((method.function, true))
             } else {
                 let function = functions.len();
@@ -163,6 +179,9 @@ impl Program {
                     },
                 )?;
                 contexts.push(work, (Some(index), false, true))?;
+                if !defaults.is_empty() {
+                    typing.prologues.insert(function, defaults);
+                }
                 Some((function, false))
             }
         } else {

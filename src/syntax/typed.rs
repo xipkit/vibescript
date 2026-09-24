@@ -1,5 +1,5 @@
-//! The declarations ADR-007 adds: typed locals, typed block parameters
-//! and the types they annotate.
+//! The declarations ADR-007 adds: typed locals, typed block parameters,
+//! instance-variable declarations and the types they annotate.
 
 use super::{
     BlockParam, Expr, Label, Node, Parser, Parsing, Statement, Target, Token, source_text, unicode,
@@ -9,13 +9,25 @@ use crate::{
     compilation::{Boxed, Buffer, Name, Type, TypeKind},
 };
 
+/// An instance variable a class body declares, such as `@count: int = 0`.
+#[derive(Debug)]
+pub(crate) struct Ivar {
+    pub name: Name,
+    pub ty: Type,
+    pub offset: u32,
+}
+
 /// The typed declarations that live beside the syntax tree, keyed by the
-/// source offset of the function that makes them, so the tree's nodes keep
-/// their size and accounting.
+/// source offset of the function or class that makes them, so the tree's
+/// nodes keep their size and accounting.
 #[derive(Debug, Default)]
 pub(crate) struct Additions {
     /// Typed block parameters, by the offset of their function's `def`.
     pub blocks: Buffer<(u32, BlockParam)>,
+    /// Instance-variable declarations, by the declaring class's offset.
+    pub ivars: Buffer<(u32, Ivar)>,
+    /// The assignments of their defaults, by the declaring class's offset.
+    pub defaults: Buffer<(u32, super::Stmt)>,
 }
 
 impl Parser<'_> {
@@ -92,6 +104,12 @@ impl Parser<'_> {
         self.pos = start;
         self.type_structural_error = structural;
         Ok(result)
+    }
+
+    /// Whether a class body member declares an instance variable, `@name: T`.
+    pub(super) fn ivar_ahead(&self) -> bool {
+        matches!(self.token(), Token::Word(w) if w.starts_with('@') && !w.starts_with("@@"))
+            && self.annotation_colon(self.pos)
     }
 
     /// Whether the parameter list continues with a typed block parameter,
@@ -264,6 +282,52 @@ impl Parsing<'_> {
         let value = self.block_line_expr().await?;
         self.p().declare_target(&target)?;
         Ok(Statement::Assign(target, "=", value))
+    }
+
+    /// Parses an instance-variable declaration in a class body, `@name: T`
+    /// with an optional `= default`, returning it and the default's assignment.
+    pub(super) async fn ivar(&self) -> Result<(Ivar, Option<super::Stmt>)> {
+        let work = self.p().work;
+        let (ivar, variable, equals) = {
+            let mut p = self.p();
+            work.charge(1)?;
+            let offset = p.tokens[p.pos].offset;
+            let Token::Word(word) = p.bump()? else {
+                unreachable!()
+            };
+            let name = &word[1..];
+            if name.is_empty() {
+                return Err(Error::syntax(
+                    work,
+                    offset,
+                    "expected instance variable name, got instance variable",
+                ));
+            }
+            let variable = p.make_at(Node::Var(Name::new(work, &word)?), 1, offset as u32)?;
+            let name = Name::new(work, name)?;
+            p.bump()?;
+            p.line_breaks()?;
+            let ty = p.type_expr(1, false)?;
+            let equals = p.significant(p.pos);
+            let equals = p.tokens[equals].token == Token::Op("=") && {
+                p.pos = equals + 1;
+                p.line_breaks()?;
+                true
+            };
+            let ivar = Ivar {
+                name,
+                ty,
+                offset: offset as u32,
+            };
+            (ivar, variable, equals)
+        };
+        if !equals {
+            return Ok((ivar, None));
+        }
+        let value = self.block_line_expr().await?;
+        let offset = ivar.offset;
+        let assignment = Statement::Assign(Target::Value(variable), "=", value).at(offset);
+        Ok((ivar, Some(assignment)))
     }
 }
 
