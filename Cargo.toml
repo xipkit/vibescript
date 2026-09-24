@@ -1,5 +1,5 @@
 [workspace]
-members = ["cli"]
+members = ["cli", "tools"]
 # The WASI witness is its own package with its own lock file.
 exclude = ["tests/platforms/wasi"]
 

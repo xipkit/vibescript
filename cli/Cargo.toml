@@ -15,6 +15,7 @@ tokio = ["vibescript/tokio"]
 
 [dependencies]
 vibescript = { path = "..", default-features = false }
+vibescript-tools = { path = "../tools" }
 
 [[bin]]
 name = "vibes"
