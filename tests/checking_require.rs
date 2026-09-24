@@ -1224,3 +1224,34 @@ fn checks_report_required_file_functions_kept_as_member_receivers() {
         "[[[1],1,[1,2]],\"7\",1]",
     );
 }
+
+#[test]
+fn checks_evaluate_module_functions_written_through_their_names() {
+    let files = Files::new();
+    files.write(
+        "m.vibe",
+        "def helper;[1];end;def peek;helper[0]=5;helper<<3;helper;end",
+    );
+    files.write("pop.vibe", "def helper;[1];end;def peek;helper.pop;end");
+    witness(
+        &files,
+        "def run;x=require(:m).peek;helper[0]=5;helper<<3;[x,helper];end",
+        CallOptions::default(),
+        "[[1],[1]]",
+    );
+    for source in [
+        "def run;require(:m);helper.pop;end",
+        "def run;require(:pop).peek;end",
+    ] {
+        let script = files.engine().compile(source).unwrap();
+        let report = script
+            .check_call("run", &[], &CallOptions::default())
+            .unwrap();
+        assert!(report.incomplete.is_empty(), "{source}: {report:?}");
+        assert!(!report.diagnostics.is_empty(), "{source}: {report:?}");
+        assert!(
+            script.call("run", &[], CallOptions::default()).is_err(),
+            "{source}"
+        );
+    }
+}

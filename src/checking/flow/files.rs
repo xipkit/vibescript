@@ -268,6 +268,43 @@ impl<'a> Walker<'a> {
         Ok(None)
     }
 
+    /// Addresses the binding in `slot` for a write through its name, continuing at
+    /// `next`. A module export is executable code rather than data a write can
+    /// reach, so a name bound to one is read instead, continuing at `pc + 1`.
+    pub(super) fn address_binding(
+        &mut self,
+        mut state: State,
+        pc: usize,
+        slot: usize,
+        next: usize,
+    ) -> Result<Edges> {
+        let value = state.locals.get(self.ctx, slot)?.value;
+        let mut data = Buffer::empty();
+        for index in 0..self.facts.arm_count(value) {
+            self.ctx.charge(1)?;
+            let arm = self.facts.arm(value, index);
+            if !matches!(
+                self.facts.node(arm),
+                crate::checking::facts::Node::Callable { .. }
+            ) {
+                data.push(self.ctx, arm)?;
+            }
+        }
+        let data = self.facts.union(self.ctx, &data.data)?;
+        let read = if data == value {
+            None
+        } else {
+            Some((pc + 1, state.snapshot(self.ctx)?))
+        };
+        if data == Atom::Never.fact() {
+            return Ok([read, None]);
+        }
+        state
+            .addresses
+            .push(self.ctx, Address::new(Some(slot), data))?;
+        Ok([Some((next, state)), read])
+    }
+
     pub(super) fn file_edges(
         &mut self,
         mut state: State,
@@ -343,13 +380,10 @@ impl<'a> Walker<'a> {
         };
         let start = self.extra.data.len();
         let readable = if let Some(slot) = slot {
-            let value = state.locals.get(self.ctx, slot)?.value;
             if address {
-                state
-                    .addresses
-                    .push(self.ctx, Address::new(Some(slot), value))?;
-                return Ok([Some((next, state)), None]);
+                return self.address_binding(state, pc, slot, next);
             }
+            let value = state.locals.get(self.ctx, slot)?.value;
             self.receive_value(&mut state, pc, value, Some(slot), receiving)?
         } else if !address && self.file_declared_target(name)?.is_none() {
             let Some(readable) = self.read_receiving(&mut state, pc, name, receiving)? else {

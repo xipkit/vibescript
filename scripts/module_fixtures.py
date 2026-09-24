@@ -159,6 +159,11 @@ def cases():
          "other.vibe":"def peek;[value.to_s,begin;value.call;rescue => e;e.message;end,"
                       "begin;value.call(1);rescue => e;e.message;end];end"},
         prefix="def value;7;end")
+    add("function_member_mutators",
+        'require(:m);a=m_peek;b=begin;helper.pop;rescue => e;e.message;end;helper[0]=5;helper<<3;[a,b,helper]',
+        [[member("helper", "pop"), member("helper", "push"), [1]], member("helper", "pop"), [1]],
+        {"m.vibe":"def helper;[1];end;def m_peek;a=begin;helper.pop;rescue => e;e.message;end;"
+                  "b=begin;helper.push(2);rescue => e;e.message;end;helper[0]=5;helper<<3;[a,b,helper];end"})
     add("enum", 'm=require(:state);[m.State::Ready.name,m.name(:ready)]', ["Ready","Ready"],
         {"state.vibe":"enum State;Ready;Done;end;def name(state:State);state.name;end"})
     add("class", 'm=require(:box);[m.make(7).value,m.make(9).value]', [7,9],

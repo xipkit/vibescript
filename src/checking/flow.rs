@@ -2823,11 +2823,7 @@ impl Walker<'_> {
                     }
                     if let Some(index) = self.root_index(&state, name)? {
                         let slot = state.global_base + index;
-                        let value = state.locals.get(self.ctx, slot)?.value;
-                        state
-                            .addresses
-                            .push(self.ctx, Address::new(Some(slot), value))?;
-                        return Ok([Some((target, state)), None]);
+                        return self.address_binding(state, pc, slot, target);
                     }
                     if self.calls.global(self.ctx, name)? {
                         return self.incomplete(pc);

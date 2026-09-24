@@ -2444,3 +2444,40 @@ fn required_file_functions_stay_values_as_member_receivers() {
         .value;
     assert_eq!(json(&value), serde_json::json!([[[1], 1, [1, 2]], 1, "7"]));
 }
+
+#[test]
+fn writes_through_module_function_names_update_their_results() {
+    let files = Files::new();
+    files.write(
+        "m.vibe",
+        "def helper;[1];end\ndef peek\n  helper.push(2)\nend",
+    );
+    let engine = files.engine();
+    let value = engine
+        .compile("require(:m)\nhelper[0] = 5\nhelper << 3\nhelper")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap()
+        .value;
+    assert_eq!(json(&value), serde_json::json!([1]));
+    for (source, member, line, column) in [
+        ("require(:m)\nhelper.pop", "pop", 2, 1),
+        ("require(:m).peek", "push", 3, 3),
+    ] {
+        let error = engine
+            .compile(source)
+            .unwrap()
+            .run(CallOptions::default())
+            .unwrap_err();
+        assert_eq!(
+            error.message,
+            format!("a function has no member {member}; call helper(...) directly"),
+            "{source}"
+        );
+        assert_eq!(
+            error.diagnostic.unwrap().position,
+            Position { line, column },
+            "{source}"
+        );
+    }
+}

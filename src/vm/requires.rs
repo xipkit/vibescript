@@ -138,7 +138,11 @@ pub(super) fn address(
     {
         return Ok(None);
     }
-    get(ctx, storage, name)?;
+    // A module export is executable code rather than data a write can reach, so
+    // the name is read like any other callable instead.
+    if matches!(get(ctx, storage, name)?, Some(Value(Kind::Function(_)))) {
+        return Ok(None);
+    }
     let bindings = storage.bindings.as_ref().unwrap();
     crate::objects::address(ctx, bindings, name)
         .map(Address::in_environment)
