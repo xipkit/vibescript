@@ -296,6 +296,7 @@ impl Index {
     /// Builds the index from the last compiled outline, anchoring each
     /// function to its `def` line in the current buffer when it still exists.
     pub(crate) fn new<S: AsRef<str>>(compiled: &Outline, lines: &[S], builtins: &Entries) -> Self {
+        // Sorted by name, so the function items follow the builtins in order.
         let functions = functions(compiled);
         let def_lines = def_lines(lines);
         let mut items = builtins.clone();
@@ -350,10 +351,6 @@ impl Index {
                 .sort_by(|left, right| left.label.cmp(&right.label));
             scopes.push(scope);
         }
-        let function_items = items.split_off(builtins.len());
-        let mut function_items = function_items;
-        function_items.sort_by(|left, right| left.label.cmp(&right.label));
-        items.extend(function_items);
         Self { items, scopes }
     }
 
