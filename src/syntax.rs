@@ -921,11 +921,11 @@ impl<'a> Parsing<'a> {
                     break;
                 }
                 if matches!(p.token(), Token::Eof) {
-                    return if stop.contains(&"}") {
-                        p.expected("\"}\"")
+                    return p.expected(if stop.contains(&"}") {
+                        Label::Char('}')
                     } else {
-                        p.expected("end")
-                    };
+                        Label::Text("end")
+                    });
                 }
             }
             body.push(work, self.statement().await?)?;
@@ -1535,7 +1535,7 @@ impl<'a> Parsing<'a> {
             self.p().lines()?;
         }
         if clauses.is_empty() {
-            return self.p().expected("when");
+            return self.p().expected(Label::Text("when"));
         }
         let alternate = if self.p().word("else") {
             self.p().lines()?;
@@ -1657,7 +1657,7 @@ impl<'a> Parsing<'a> {
             _ if reserved(w) && w != "then" => Err(Error::syntax(
                 self.p().work,
                 offset as usize,
-                format_args!("unexpected token {}", word_label(w)),
+                format_args!("unexpected token {}", Label::word(w)),
             )),
             _ => self.p().variable_name(w),
         }
@@ -2207,7 +2207,7 @@ impl<'a> Parsing<'a> {
                 break;
             }
             if p.token() != &Token::P(',') {
-                return p.expected(&format!("\"{close}\""));
+                return p.expected(Label::Char(close));
             }
             p.expect_p(',')?;
             p.lines()?;
@@ -2250,7 +2250,7 @@ impl<'a> Parsing<'a> {
                 break;
             }
             if p.token() != &Token::P(',') {
-                return p.expected("\")\"");
+                return p.expected(Label::Char(')'));
             }
             p.expect_p(',')?;
             p.line_breaks()?;
@@ -2362,31 +2362,30 @@ impl<'a> Parser<'a> {
         index
     }
     /// Go's diagnostic name for the token at `index`.
-    fn label(&self, index: usize) -> String {
+    fn label(&self, index: usize) -> Label<'a> {
         let lexeme = &self.tokens[index];
         match &lexeme.token {
-            Token::Word(word) if word.starts_with("@@") => "class variable".to_owned(),
-            Token::Word(word) if word.starts_with('@') => "instance variable".to_owned(),
-            Token::Word(word) => word_label(word),
-            Token::Int(_) | Token::BigInt(..) => "integer".to_owned(),
-            Token::Float(_) => "float".to_owned(),
-            Token::Bytes(_) | Token::Template(_) => "string".to_owned(),
-            Token::Regex(..) => "\"regex\"".to_owned(),
+            Token::Word(word) if word.starts_with("@@") => Label::Text("class variable"),
+            Token::Word(word) if word.starts_with('@') => Label::Text("instance variable"),
+            Token::Word(word) => Label::word(word.as_str()),
+            Token::Int(_) | Token::BigInt(..) => Label::Text("integer"),
+            Token::Float(_) => Label::Text("float"),
+            Token::Bytes(_) | Token::Template(_) => Label::Text("string"),
+            Token::Regex(..) => Label::Quoted("regex"),
             Token::Words(words) => {
                 let interpolated = words
                     .entries
                     .iter()
                     .flat_map(|entry| entry.iter())
                     .any(|part| matches!(part, Part::Expr(..)));
-                match (interpolated, words.symbol) {
+                Label::Text(match (interpolated, words.symbol) {
                     (false, false) => "percent word array",
                     (false, true) => "percent symbol array",
                     (true, false) => "percent interpolated word array",
                     (true, true) => "percent interpolated symbol array",
-                }
-                .to_owned()
+                })
             }
-            Token::Invalid(_) => "invalid token".to_owned(),
+            Token::Invalid(_) => Label::Text("invalid token"),
             Token::P(':')
                 if self.tokens.get(index + 1).is_some_and(|next| {
                     next.offset == lexeme.end
@@ -2396,14 +2395,14 @@ impl<'a> Parser<'a> {
                         )
                 }) =>
             {
-                "symbol".to_owned()
+                Label::Text("symbol")
             }
-            Token::P(c) => format!("\"{c}\""),
-            Token::Op(op) => format!("\"{op}\""),
+            Token::P(c) => Label::Char(*c),
+            Token::Op(op) => Label::Quoted(op),
             Token::EndLine if self.source.as_bytes().get(lexeme.offset) == Some(&b';') => {
-                "\";\"".to_owned()
+                Label::Char(';')
             }
-            Token::EndLine | Token::Eof => "end of input".to_owned(),
+            Token::EndLine | Token::Eof => Label::Text("end of input"),
         }
     }
     /// A lexer diagnostic that Go reports in place of any expectation at `index`.
@@ -2416,7 +2415,7 @@ impl<'a> Parser<'a> {
         }
     }
     /// Reports Go's failed expectation of `expected` at the current token.
-    fn expected<T>(&self, expected: &str) -> Result<T> {
+    fn expected<T>(&self, expected: Label<'_>) -> Result<T> {
         self.work.charge(1)?;
         let index = self.significant(self.pos);
         if let Some(error) = self.diagnostic(index) {
@@ -2464,9 +2463,9 @@ impl<'a> Parser<'a> {
             Ok(())
         } else if w == "end" {
             // Go checks a block's closing `end` by name rather than by token.
-            self.expected("end")
+            self.expected(Label::Text("end"))
         } else {
-            self.expected(&word_label(w))
+            self.expected(Label::word(w))
         }
     }
     fn take_p(&mut self, c: char) -> bool {
@@ -2482,7 +2481,7 @@ impl<'a> Parser<'a> {
         if self.take_p(c) {
             Ok(())
         } else {
-            self.expected(&format!("\"{c}\""))
+            self.expected(Label::Char(c))
         }
     }
     /// Returns the end offset of the last token a declaration beginning at
@@ -3074,7 +3073,7 @@ impl<'a> Parser<'a> {
                 self.bump()?;
                 Name::new(self.work, "<=>")
             }
-            _ => self.expected("member name"),
+            _ => self.expected(Label::Text("member name")),
         }
     }
     /// The index of the last token before the current one, skipping line breaks.
@@ -3449,15 +3448,37 @@ const UNSUPPORTED_CHARACTER: &str = "unsupported character";
 /// Go's rejection of a hash entry that is not a labeled or quoted key and its value.
 const INVALID_HASH_PAIR: &str = "invalid hash pair: expected key like name: or \"name\":";
 
-/// Go's diagnostic name for a word token: its keywords are quoted, with the
-/// statement keywords its lexer lists by spelling in double quotes.
-fn word_label(w: &str) -> String {
-    match w {
-        "def" | "class" | "enum" | "export" | "self" | "private" | "property" | "getter"
-        | "setter" | "end" | "raise" | "return" | "yield" | "do" | "then" | "for" | "in" | "if"
-        | "unless" | "elsif" | "else" | "true" | "false" | "nil" => format!("'{w}'"),
-        _ if keyword(w) => format!("\"{w}\""),
-        _ => "identifier".to_owned(),
+/// Go's diagnostic name for a token in a parse error.
+#[derive(Clone, Copy)]
+enum Label<'a> {
+    Text(&'a str),
+    Quoted(&'a str),
+    Keyword(&'a str),
+    Char(char),
+}
+
+impl<'a> Label<'a> {
+    /// Names a word token: Go quotes its keywords, and spells the statement
+    /// keywords its lexer lists by name in double quotes.
+    fn word(w: &'a str) -> Self {
+        match w {
+            "def" | "class" | "enum" | "export" | "self" | "private" | "property" | "getter"
+            | "setter" | "end" | "raise" | "return" | "yield" | "do" | "then" | "for" | "in"
+            | "if" | "unless" | "elsif" | "else" | "true" | "false" | "nil" => Self::Keyword(w),
+            _ if keyword(w) => Self::Quoted(w),
+            _ => Self::Text("identifier"),
+        }
+    }
+}
+
+impl std::fmt::Display for Label<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Text(text) => f.write_str(text),
+            Self::Quoted(text) => write!(f, "\"{text}\""),
+            Self::Keyword(text) => write!(f, "'{text}'"),
+            Self::Char(c) => write!(f, "\"{c}\""),
+        }
     }
 }
 fn reserved(w: &str) -> bool {
