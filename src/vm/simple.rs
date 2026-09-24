@@ -73,6 +73,15 @@ pub(super) fn run(
                 };
                 stack.push(ctx, value)?;
             }
+            Op::ReceiverBound(n, next) => {
+                let Some(value) = storage.locals.data[frame.local_base + n].as_ref() else {
+                    return Ok(());
+                };
+                step(ctx, frame)?;
+                let value = copy(value);
+                stack.push(ctx, value)?;
+                frame.ip = next;
+            }
             Op::Declare(n) => {
                 let Some(slot) = own(function, frame, storage, n) else {
                     return Ok(());
@@ -90,7 +99,8 @@ pub(super) fn run(
                 store(storage, slot, copy(value));
             }
             Op::AddStore(n) => {
-                let Some(slot) = own(function, frame, storage, n).filter(|_| numbers(stack)) else {
+                let Some(slot) = own(function, frame, storage, n).filter(|_| plain_operand(stack))
+                else {
                     return Ok(());
                 };
                 step(ctx, frame)?;
@@ -114,8 +124,7 @@ pub(super) fn run(
                 stack.push(ctx, value)?;
             }
             Op::Binary(op) => {
-                // Numbers never reach an operator a class defines.
-                if !numbers(stack) {
+                if !plain_operand(stack) {
                     return Ok(());
                 }
                 step(ctx, frame)?;
@@ -130,6 +139,24 @@ pub(super) fn run(
                     None => ops::binary(ctx, op, a, b)?,
                 };
                 stack.push(ctx, value)?;
+            }
+            Op::Index(n) => {
+                // Exported values need their depth checked after indexing.
+                if matches!(stack.data[stack.data.len() - n - 1].0, Kind::Instance(_))
+                    || ctx.has_exports
+                {
+                    return Ok(());
+                }
+                step(ctx, frame)?;
+                index(ctx, function, frame, stack, n)?;
+            }
+            Op::Array(n) => {
+                step(ctx, frame)?;
+                array(ctx, stack, n)?;
+            }
+            Op::IterNext => {
+                step(ctx, frame)?;
+                iterate(ctx, frame, stack)?;
             }
             Op::Jump(target) => {
                 step(ctx, frame)?;
@@ -183,6 +210,63 @@ pub(super) fn run(
             _ => return Ok(()),
         }
     }
+}
+
+/// Indexes a value other than an instance by the `count` values above it.
+#[inline(never)]
+fn index(
+    ctx: &mut CallContext,
+    function: &Function,
+    frame: &mut Frame,
+    stack: &mut Buffer<Value>,
+    count: usize,
+) -> Result<()> {
+    let base = stack.data.len() - count - 1;
+    let root = &stack.data[base];
+    let args = &stack.data[base + 1..];
+    let value = if count == 1 {
+        ops::index(ctx, root, &args[0])?
+    } else {
+        ops::index_many(ctx, root, args)?
+    };
+    if matches!(value.0, Kind::Host(_))
+        && matches!(root.0, Kind::Hash(_))
+        && matches!(function.code.get(frame.ip), Some(Op::CallValue))
+    {
+        // `receiver[:name](...)` keeps its root for the host method.
+        let receiver = root.clone();
+        if let Some(pending) = frame.arguments.data.last_mut() {
+            pending.receiver = Some(receiver);
+        }
+    }
+    stack.data.truncate(base);
+    stack.push(ctx, value)
+}
+
+/// Collects the `count` topmost values into an array literal.
+#[inline(never)]
+fn array(ctx: &mut CallContext, stack: &mut Buffer<Value>, count: usize) -> Result<()> {
+    let base = stack.data.len() - count;
+    let mut values = Buffer::with_capacity(ctx, count)?;
+    for value in stack.data.drain(base..) {
+        ctx.charge(1)?;
+        values.data.push(value);
+    }
+    let value = Value::from_array(ctx, values)?;
+    stack.push(ctx, value)
+}
+
+/// Pushes the innermost loop's next element, or leaves the loop.
+#[inline(never)]
+fn iterate(ctx: &mut CallContext, frame: &mut Frame, stack: &mut Buffer<Value>) -> Result<()> {
+    let state = frame.loops.data.last_mut().unwrap();
+    if let Some(value) = state.next_value(ctx)? {
+        crate::exports::check(ctx, &value)?;
+        stack.push(ctx, value)?;
+    } else {
+        frame.ip = state.end;
+    }
+    Ok(())
 }
 
 /// Moves past the current instruction and charges its step, as dispatch does.
@@ -243,13 +327,12 @@ fn store(storage: &mut Storage, slot: usize, value: Value) {
     }
 }
 
-/// Reports whether the two topmost values are both integers or both floats.
-fn numbers(stack: &Buffer<Value>) -> bool {
-    let [.., a, b] = stack.data.as_slice() else {
+/// Reports whether the left operand under the top of the stack is something
+/// other than an instance, the only receiver whose class can define an
+/// operator.
+fn plain_operand(stack: &Buffer<Value>) -> bool {
+    let [.., a, _] = stack.data.as_slice() else {
         return false;
     };
-    matches!(
-        (&a.0, &b.0),
-        (Kind::Int(_), Kind::Int(_)) | (Kind::Float(_), Kind::Float(_))
-    )
+    !matches!(a.0, Kind::Instance(_))
 }
