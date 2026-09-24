@@ -1962,3 +1962,21 @@ fn compound_member_writes_follow_their_runtime_outcome() {
     }
     assert_eq!(failures, 13);
 }
+
+#[test]
+fn function_writes_through_script_local_names_read_those_names() {
+    for write in ["h.a = 2", "h.a /= 2", "h[0] = 2", "h.pop", "x, h.a = 1, 2"] {
+        let source = format!("h = {{a: 1}}\ndef f\n  {write}\nend\ndef run\n  f\nend");
+        let script = Engine::new().compile(&source).unwrap();
+        let report = script
+            .check_call("run", &[], &CallOptions::default())
+            .unwrap();
+        assert!(report.incomplete.is_empty(), "{write}: {report:?}");
+        assert!(!report.diagnostics.is_empty(), "{write}: {report:?}");
+        let error = script.call("run", &[], CallOptions::default()).unwrap_err();
+        assert!(
+            error.message.starts_with("undefined variable h"),
+            "{write}: {error}"
+        );
+    }
+}

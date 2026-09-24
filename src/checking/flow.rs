@@ -2825,15 +2825,11 @@ impl Walker<'_> {
                         let slot = state.global_base + index;
                         return self.address_binding(state, pc, slot, target);
                     }
-                    if self.calls.global(self.ctx, name)? {
+                    if self.calls.global(self.ctx, name)? || self.unknown_exports(&state)? {
                         return self.incomplete(pc);
                     }
-                    for root in &self.program.functions[0].local_names {
-                        self.ctx.work_bytes(root.len().max(name.len()))?;
-                        if root == name {
-                            return self.incomplete(pc);
-                        }
-                    }
+                    // A function cannot reach the script's top-level locals, so a name that
+                    // no root binding holds is read like any other name.
                 }
                 Op::AddressValue => {
                     let value = state.stack.data.pop().unwrap().value;
