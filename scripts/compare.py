@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Build, validate, and measure the same compiled calls in Go and Rust."""
+"""Build, validate, and measure compiled calls in Rust, and optionally in Go.
+
+Validation checks every Rust build against the golden corpora and the fixture
+expectations; it does not need Go. --with-go adds the Go v0.70.0 reference
+builds to validation and timing, for benchmark comparisons.
+"""
 import argparse
 import hashlib
 import json
@@ -13,6 +18,7 @@ import time
 from pathlib import Path
 from fixtures import benchmark_cases, conformance_cases, site_benchmark_cases
 from module_fixtures import materialize
+import golden
 
 ROOT=Path(__file__).resolve().parent.parent
 BINS=ROOT/"benchmarks/bin"
@@ -20,13 +26,16 @@ GO=ROOT/"scripts/go"
 CARGO=ROOT/"scripts/cargo"
 ENV={**os.environ,"GOMAXPROCS":"1"}
 VARIANTS=["go-portable","go-simd","rust-portable","rust-simd"]
+RUST_VARIANTS=["rust-portable","rust-simd"]
+# The golden corpora each Rust build is validated against.
+GOLDEN_CORPORA="conformance,language,rejections,compatibility"
 
 
 def run(cmd,**kwargs):
     return subprocess.run([str(x) for x in cmd],check=True,text=True,**kwargs)
 
 
-def build(out):
+def build(out,with_go):
     BINS.mkdir(parents=True,exist_ok=True)
     with (out/"build.log").open("w") as log:
         for name,features in [("rust-portable",[]),("rust-simd",["simd"]),("rust-portable-alloc",["allocation-stats"]),("rust-simd-alloc",["simd","allocation-stats"])]:
@@ -34,9 +43,15 @@ def build(out):
             if features: cmd += ["--features",",".join(features)]
             run(cmd,cwd=ROOT,stdout=log,stderr=log)
             shutil.copy2(ROOT/"target/release/examples/compare",BINS/name)
-        for name,experiment in [("go-portable",""),("go-simd","simd")]:
-            run([GO,"build","-o",BINS/name,"."],cwd=ROOT/"benchmarks/go",env={**ENV,"GOEXPERIMENT":experiment},stdout=log,stderr=log)
-    print("Built four timing binaries and two allocation-instrumented Rust binaries",flush=True)
+        for name,features in [("golden-portable",[]),("golden-simd",["simd"])]:
+            cmd=[CARGO,"build","--release","--locked","--example","golden","--no-default-features"]
+            if features: cmd += ["--features",",".join(features)]
+            run(cmd,cwd=ROOT,stdout=log,stderr=log)
+            shutil.copy2(ROOT/"target/release/examples/golden",BINS/name)
+        if with_go:
+            for name,experiment in [("go-portable",""),("go-simd","simd")]:
+                run([GO,"build","-o",BINS/name,"."],cwd=ROOT/"benchmarks/go",env={**ENV,"GOEXPERIMENT":experiment},stdout=log,stderr=log)
+    print(f"Built {len(VARIANTS)} timing binaries, two allocation-instrumented and two golden Rust binaries",flush=True)
 
 
 def invoke(variant,fixtures,n,mode,path):
@@ -82,16 +97,21 @@ def validate(out):
         records=[json.loads(line) for line in (out/f"validation-{variant}.jsonl").read_text().splitlines()]
         rust.append({r["name"]:tuple(r[k] for k in ["steps","tracked_peak_bytes","tracked_retained_bytes"]) for r in records})
     assert rust[0]==rust[1],"Rust accounting differs between portable and SIMD"
-    validate_rejections(out)
-    return digests["go-portable"]
+    for flavor in ["portable","simd"]:
+        print(f"golden-{flavor}:",flush=True)
+        assert golden.main(["--no-build","--harness",str(BINS/f"golden-{flavor}"),"--corpus",GOLDEN_CORPORA])==0,f"golden-{flavor} differs from the goldens"
+    if any(v.startswith("go-") for v in VARIANTS):
+        validate_rejections(out)
+    return digests[VARIANTS[0]]
 
 
 def validate_rejections(out):
+    """Checks that the Go builds reject at each recorded phase; the goldens cover Rust."""
     cases=[]
     for filename,phase in [("language-errors.json","runtime"),("syntax-errors.json","syntax")]:
         cases += [{**case,"phase":phase} for case in json.loads((ROOT/"tests"/filename).read_text())]
     records=[]
-    for variant in VARIANTS:
+    for variant in [v for v in VARIANTS if v.startswith("go-")]:
         for case in cases:
             fixture={"name":case["name"],"source":case.get("source") or "def run(input)\n"+case["body"]+"\nend","args":[None],"accounting":True}
             for field in ["entropy_byte","function","stdout","stderr"]:
@@ -103,12 +123,8 @@ def validate_rejections(out):
             path.write_text(json.dumps([fixture])+"\n")
             proc=subprocess.run([str(BINS/variant),str(path),"1","validate"],cwd=ROOT,env=ENV,capture_output=True,text=True,errors="replace",timeout=10)
             assert proc.returncode==1,(variant,case["name"],proc.returncode,proc.stdout,proc.stderr)
-            if variant.startswith("go-"):
-                assert case["go_error"] in proc.stderr,(variant,case["name"],proc.stderr)
-                assert proc.stderr.startswith(case["name"]+": compile error:")==(case["phase"]=="syntax"),(variant,case["name"],proc.stderr)
-            else:
-                assert "Error { kind:" in proc.stderr,(variant,case["name"],proc.stderr)
-                assert ("kind: Syntax" in proc.stderr)==(case["phase"]=="syntax"),(variant,case["name"],proc.stderr)
+            assert case["go_error"] in proc.stderr,(variant,case["name"],proc.stderr)
+            assert proc.stderr.startswith(case["name"]+": compile error:")==(case["phase"]=="syntax"),(variant,case["name"],proc.stderr)
             records.append({"variant":variant,"name":case["name"],"phase":case["phase"],"stderr":proc.stderr})
         counts={phase:sum(c["phase"]==phase for c in cases) for phase in ["runtime","syntax"]}
         print(f"{variant}: {counts['runtime']} runtime errors and {counts['syntax']} syntax errors rejected",flush=True)
@@ -125,11 +141,11 @@ def measure(out,rounds,target_ms,expected,suite):
         pilot[variant]={r["name"]:r["ns_per_call"] for r in records}
         pilot_digests[variant]={r["name"]:r["digest"] for r in records}
     if suite=="site":
-        # Site programs are validated elsewhere; here every build must agree with Go.
-        expected=pilot_digests["go-portable"]
+        # Site programs are validated elsewhere; here every build must agree with the first.
+        expected=pilot_digests[VARIANTS[0]]
         for variant in VARIANTS:
             for name,digest in pilot_digests[variant].items():
-                assert digest==expected[name],(variant,name,"output differs from go-portable")
+                assert digest==expected[name],(variant,name,"output differs from "+VARIANTS[0])
     for case in cases:
         slowest=max(pilot[v][case["name"]] for v in VARIANTS)
         case["iterations"]=max(20,min(100000,int(target_ms*1_000_000/slowest)))
@@ -183,7 +199,10 @@ def cpu_name():
 def main():
     parser=argparse.ArgumentParser();parser.add_argument("--out",type=Path,default=ROOT/"benchmarks/results"/time.strftime("%Y-%m-%d-%H%M%S"));parser.add_argument("--skip-build",action="store_true");parser.add_argument("--validate-only",action="store_true");parser.add_argument("--rounds",type=int,default=8);parser.add_argument("--target-ms",type=float,default=75);parser.add_argument("--suite",choices=["core","site"],default="core",help="core micro-benchmarks, or every site program")
     parser.add_argument("--baseline",type=Path,help="Directory containing prior rust-portable/rust-simd timing and allocation binaries, plus a revision file")
+    parser.add_argument("--with-go",action="store_true",help="also build, validate and time the Go v0.70.0 reference (needs Go)")
     args=parser.parse_args();out=args.out.resolve();out.mkdir(parents=True,exist_ok=False)
+    if not args.with_go:
+        VARIANTS[:]=RUST_VARIANTS
     baseline_revision=None
     if args.baseline:
         baseline=args.baseline.resolve()
@@ -198,8 +217,10 @@ def main():
             VARIANTS.append(name)
     if args.target_ms<=0 or (not args.validate_only and (args.rounds<len(VARIANTS) or args.rounds%len(VARIANTS))):
         parser.error("use a positive target time and a round count that is a positive multiple of the variant count")
-    if not args.skip_build: build(out)
-    metadata={"platform":platform.platform(),"machine":platform.machine(),"cpu":cpu_name(),"rustc":run(["rustc","-Vv"],capture_output=True).stdout,"go":run([GO,"version"],capture_output=True).stdout,"go_module":json.loads(run([GO,"list","-m","-json","github.com/mgomes/vibescript"],cwd=ROOT/"benchmarks/go",capture_output=True).stdout),"source_revision":run(["git","rev-parse","HEAD"],cwd=ROOT,capture_output=True).stdout.strip(),"dirty":run(["git","status","--porcelain"],cwd=ROOT,capture_output=True).stdout,"binary_sha256":{name:hashlib.sha256((BINS/name).read_bytes()).hexdigest() for name in VARIANTS},"RUSTFLAGS":os.environ.get("RUSTFLAGS",""),"GOFLAGS":os.environ.get("GOFLAGS",""),"GOMAXPROCS":1,"target_ms":args.target_ms,"command":sys.argv}
+    if not args.skip_build: build(out,args.with_go)
+    go_version=run([GO,"version"],capture_output=True).stdout if args.with_go else None
+    go_module=json.loads(run([GO,"list","-m","-json","github.com/mgomes/vibescript"],cwd=ROOT/"benchmarks/go",capture_output=True).stdout) if args.with_go else None
+    metadata={"platform":platform.platform(),"machine":platform.machine(),"cpu":cpu_name(),"rustc":run(["rustc","-Vv"],capture_output=True).stdout,"go":go_version,"go_module":go_module,"source_revision":run(["git","rev-parse","HEAD"],cwd=ROOT,capture_output=True).stdout.strip(),"dirty":run(["git","status","--porcelain"],cwd=ROOT,capture_output=True).stdout,"binary_sha256":{name:hashlib.sha256((BINS/name).read_bytes()).hexdigest() for name in VARIANTS},"RUSTFLAGS":os.environ.get("RUSTFLAGS",""),"GOFLAGS":os.environ.get("GOFLAGS",""),"GOMAXPROCS":1,"target_ms":args.target_ms,"command":sys.argv}
     metadata["baseline_source_revision"]=baseline_revision
     metadata["allocation_binary_sha256"]={name+"-alloc":hashlib.sha256((BINS/(name+"-alloc")).read_bytes()).hexdigest() for name in VARIANTS if name.startswith("rust")}
     (out/"environment.json").write_text(json.dumps(metadata,indent=2)+"\n")
