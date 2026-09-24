@@ -26675,16 +26675,6 @@
     "go_error": "duration.after does not accept keyword arguments"
   },
   {
-    "name": "anchor_descriptor_error_6",
-    "body": "1.seconds.from_now",
-    "go_error": "from_now is a method and cannot be used as a value; call it with from_now(...)"
-  },
-  {
-    "name": "anchor_descriptor_error_7",
-    "body": "1.seconds.from_now.to_s",
-    "go_error": "from_now is a method and cannot be used as a value; call it with from_now(...)"
-  },
-  {
     "name": "anchor_descriptor_error_8",
     "body": "1.seconds.from_now.call()",
     "go_error": "from_now is a method and cannot be used as a value; call it with from_now(...)"
@@ -26758,16 +26748,6 @@
     "name": "anchor_signature_error_55",
     "body": "1.seconds.ago(in:\"UTC\").to_s",
     "go_error": "duration.before does not accept keyword arguments"
-  },
-  {
-    "name": "anchor_descriptor_error_9",
-    "body": "1.seconds.ago",
-    "go_error": "ago is a method and cannot be used as a value; call it with ago(...)"
-  },
-  {
-    "name": "anchor_descriptor_error_10",
-    "body": "1.seconds.ago.to_s",
-    "go_error": "ago is a method and cannot be used as a value; call it with ago(...)"
   },
   {
     "name": "anchor_descriptor_error_11",
@@ -110468,30 +110448,6 @@
     "go_error": "random_id does not accept keyword arguments"
   },
   {
-    "name": "random_binding_3",
-    "source": "def run(input)\n[srand]\nend",
-    "entropy_byte": 0,
-    "go_error": "srand is a method and cannot be used as a value; call it with srand(...)"
-  },
-  {
-    "name": "random_binding_4",
-    "source": "def run(input)\n[random_id]\nend",
-    "entropy_byte": 0,
-    "go_error": "random_id is a method and cannot be used as a value; call it with random_id(...)"
-  },
-  {
-    "name": "random_binding_5",
-    "source": "def run(input)\nsrand;rand\nend",
-    "entropy_byte": 0,
-    "go_error": "srand is a method and cannot be used as a value; call it with srand(...)"
-  },
-  {
-    "name": "random_binding_6",
-    "source": "def run(input)\nrandom_id\nend",
-    "entropy_byte": 0,
-    "go_error": "random_id is a method and cannot be used as a value; call it with random_id(...)"
-  },
-  {
     "name": "random_declared_rand_0",
     "source": "def rand(x=5)\nx+1\nend\ndef run(input)\n[rand(),rand(10),rand]\nend",
     "entropy_byte": 0,
@@ -119193,13 +119149,6 @@
     "go_error": "missing argument options"
   },
   {
-    "name": "output_puts_bare_uncaught",
-    "stdout": true,
-    "stderr": true,
-    "source": "\ndef run(input)\nputs\nend",
-    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
-  },
-  {
     "name": "output_puts_index_uncaught",
     "stdout": true,
     "stderr": true,
@@ -119225,13 +119174,6 @@
     "stdout": true,
     "stderr": true,
     "source": "\ndef run(input)\nputs::call(\"x\")\ntrue\nend",
-    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
-  },
-  {
-    "name": "output_puts_safe_call_uncaught",
-    "stdout": true,
-    "stderr": true,
-    "source": "\ndef run(input)\nputs&.call(\"x\")\ntrue\nend",
     "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
   },
   {
@@ -119340,13 +119282,6 @@
     "go_error": "return value for to_s expected string, got int"
   },
   {
-    "name": "output_print_bare_uncaught",
-    "stdout": true,
-    "stderr": true,
-    "source": "\ndef run(input)\nprint\nend",
-    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
-  },
-  {
     "name": "output_print_index_uncaught",
     "stdout": true,
     "stderr": true,
@@ -119372,13 +119307,6 @@
     "stdout": true,
     "stderr": true,
     "source": "\ndef run(input)\nprint::call(\"x\")\ntrue\nend",
-    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
-  },
-  {
-    "name": "output_print_safe_call_uncaught",
-    "stdout": true,
-    "stderr": true,
-    "source": "\ndef run(input)\nprint&.call(\"x\")\ntrue\nend",
     "go_error": "print is a method and cannot be used as a value; call it with print(...)"
   },
   {
@@ -119487,13 +119415,6 @@
     "go_error": "return value for to_s expected string, got int"
   },
   {
-    "name": "output_warn_bare_uncaught",
-    "stdout": true,
-    "stderr": true,
-    "source": "\ndef run(input)\nwarn\nend",
-    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
-  },
-  {
     "name": "output_warn_index_uncaught",
     "stdout": true,
     "stderr": true,
@@ -119519,13 +119440,6 @@
     "stdout": true,
     "stderr": true,
     "source": "\ndef run(input)\nwarn::call(\"x\")\ntrue\nend",
-    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
-  },
-  {
-    "name": "output_warn_safe_call_uncaught",
-    "stdout": true,
-    "stderr": true,
-    "source": "\ndef run(input)\nwarn&.call(\"x\")\ntrue\nend",
     "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
   },
   {
@@ -119634,13 +119548,6 @@
     "go_error": "return value for to_s expected string, got int"
   },
   {
-    "name": "output_p_bare_uncaught",
-    "stdout": true,
-    "stderr": true,
-    "source": "\ndef run(input)\np\nend",
-    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
-  },
-  {
     "name": "output_p_index_uncaught",
     "stdout": true,
     "stderr": true,
@@ -119666,13 +119573,6 @@
     "stdout": true,
     "stderr": true,
     "source": "\ndef run(input)\np::call(\"x\")\ntrue\nend",
-    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
-  },
-  {
-    "name": "output_p_safe_call_uncaught",
-    "stdout": true,
-    "stderr": true,
-    "source": "\ndef run(input)\np&.call(\"x\")\ntrue\nend",
     "go_error": "p is a method and cannot be used as a value; call it with p(...)"
   },
   {
@@ -120152,13 +120052,6 @@
     "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
   },
   {
-    "name": "output_guard_puts_itself_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs&.send(:itself,print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
-  },
-  {
     "name": "output_guard_puts_dup_alias_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=puts.send(:dup);f(C.new);true\nend",
     "stdout": true,
@@ -120175,13 +120068,6 @@
   {
     "name": "output_guard_puts_dup_effect_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs.send(:dup,print(\"effect\")) {print(\"block\")}\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
-  },
-  {
-    "name": "output_guard_puts_dup_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs&.send(:dup,print(\"effect\"))\nend",
     "stdout": true,
     "stderr": true,
     "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
@@ -120208,13 +120094,6 @@
     "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
   },
   {
-    "name": "output_guard_puts_clone_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs&.send(:clone,print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
-  },
-  {
     "name": "output_guard_puts_freeze_alias_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=puts.send(:freeze);f(C.new);true\nend",
     "stdout": true,
@@ -120231,13 +120110,6 @@
   {
     "name": "output_guard_puts_freeze_effect_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs.send(:freeze,print(\"effect\")) {print(\"block\")}\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
-  },
-  {
-    "name": "output_guard_puts_freeze_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs&.send(:freeze,print(\"effect\"))\nend",
     "stdout": true,
     "stderr": true,
     "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
@@ -120264,13 +120136,6 @@
     "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
   },
   {
-    "name": "output_guard_puts_tap_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs&.send(:tap,print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
-  },
-  {
     "name": "output_guard_puts_yield_self_alias_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=puts.send(:yield_self);f(C.new);true\nend",
     "stdout": true,
@@ -120287,13 +120152,6 @@
   {
     "name": "output_guard_puts_yield_self_effect_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs.send(:yield_self,print(\"effect\")) {print(\"block\")}\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
-  },
-  {
-    "name": "output_guard_puts_yield_self_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs&.send(:yield_self,print(\"effect\"))\nend",
     "stdout": true,
     "stderr": true,
     "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
@@ -120320,13 +120178,6 @@
     "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
   },
   {
-    "name": "output_guard_puts_send_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs&.send(:send,print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
-  },
-  {
     "name": "output_guard_puts_public_send_alias_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=puts.send(:public_send);f(C.new);true\nend",
     "stdout": true,
@@ -120348,22 +120199,8 @@
     "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
   },
   {
-    "name": "output_guard_puts_public_send_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs&.send(:public_send,print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
-  },
-  {
     "name": "output_guard_puts_call_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs.call(print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
-  },
-  {
-    "name": "output_guard_puts_safe_call_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs&.call(print(\"effect\"))\nend",
     "stdout": true,
     "stderr": true,
     "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
@@ -120397,13 +120234,6 @@
     "go_error": "print is a method and cannot be used as a value; call it with print(...)"
   },
   {
-    "name": "output_guard_print_itself_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint&.send(:itself,print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
-  },
-  {
     "name": "output_guard_print_dup_alias_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=print.send(:dup);f(C.new);true\nend",
     "stdout": true,
@@ -120420,13 +120250,6 @@
   {
     "name": "output_guard_print_dup_effect_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint.send(:dup,print(\"effect\")) {print(\"block\")}\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
-  },
-  {
-    "name": "output_guard_print_dup_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint&.send(:dup,print(\"effect\"))\nend",
     "stdout": true,
     "stderr": true,
     "go_error": "print is a method and cannot be used as a value; call it with print(...)"
@@ -120453,13 +120276,6 @@
     "go_error": "print is a method and cannot be used as a value; call it with print(...)"
   },
   {
-    "name": "output_guard_print_clone_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint&.send(:clone,print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
-  },
-  {
     "name": "output_guard_print_freeze_alias_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=print.send(:freeze);f(C.new);true\nend",
     "stdout": true,
@@ -120476,13 +120292,6 @@
   {
     "name": "output_guard_print_freeze_effect_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint.send(:freeze,print(\"effect\")) {print(\"block\")}\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
-  },
-  {
-    "name": "output_guard_print_freeze_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint&.send(:freeze,print(\"effect\"))\nend",
     "stdout": true,
     "stderr": true,
     "go_error": "print is a method and cannot be used as a value; call it with print(...)"
@@ -120509,13 +120318,6 @@
     "go_error": "print is a method and cannot be used as a value; call it with print(...)"
   },
   {
-    "name": "output_guard_print_tap_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint&.send(:tap,print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
-  },
-  {
     "name": "output_guard_print_yield_self_alias_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=print.send(:yield_self);f(C.new);true\nend",
     "stdout": true,
@@ -120532,13 +120334,6 @@
   {
     "name": "output_guard_print_yield_self_effect_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint.send(:yield_self,print(\"effect\")) {print(\"block\")}\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
-  },
-  {
-    "name": "output_guard_print_yield_self_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint&.send(:yield_self,print(\"effect\"))\nend",
     "stdout": true,
     "stderr": true,
     "go_error": "print is a method and cannot be used as a value; call it with print(...)"
@@ -120565,13 +120360,6 @@
     "go_error": "print is a method and cannot be used as a value; call it with print(...)"
   },
   {
-    "name": "output_guard_print_send_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint&.send(:send,print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
-  },
-  {
     "name": "output_guard_print_public_send_alias_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=print.send(:public_send);f(C.new);true\nend",
     "stdout": true,
@@ -120593,22 +120381,8 @@
     "go_error": "print is a method and cannot be used as a value; call it with print(...)"
   },
   {
-    "name": "output_guard_print_public_send_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint&.send(:public_send,print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
-  },
-  {
     "name": "output_guard_print_call_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint.call(print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
-  },
-  {
-    "name": "output_guard_print_safe_call_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint&.call(print(\"effect\"))\nend",
     "stdout": true,
     "stderr": true,
     "go_error": "print is a method and cannot be used as a value; call it with print(...)"
@@ -120642,13 +120416,6 @@
     "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
   },
   {
-    "name": "output_guard_warn_itself_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn&.send(:itself,print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
-  },
-  {
     "name": "output_guard_warn_dup_alias_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=warn.send(:dup);f(C.new);true\nend",
     "stdout": true,
@@ -120665,13 +120432,6 @@
   {
     "name": "output_guard_warn_dup_effect_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn.send(:dup,print(\"effect\")) {print(\"block\")}\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
-  },
-  {
-    "name": "output_guard_warn_dup_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn&.send(:dup,print(\"effect\"))\nend",
     "stdout": true,
     "stderr": true,
     "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
@@ -120698,13 +120458,6 @@
     "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
   },
   {
-    "name": "output_guard_warn_clone_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn&.send(:clone,print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
-  },
-  {
     "name": "output_guard_warn_freeze_alias_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=warn.send(:freeze);f(C.new);true\nend",
     "stdout": true,
@@ -120721,13 +120474,6 @@
   {
     "name": "output_guard_warn_freeze_effect_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn.send(:freeze,print(\"effect\")) {print(\"block\")}\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
-  },
-  {
-    "name": "output_guard_warn_freeze_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn&.send(:freeze,print(\"effect\"))\nend",
     "stdout": true,
     "stderr": true,
     "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
@@ -120754,13 +120500,6 @@
     "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
   },
   {
-    "name": "output_guard_warn_tap_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn&.send(:tap,print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
-  },
-  {
     "name": "output_guard_warn_yield_self_alias_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=warn.send(:yield_self);f(C.new);true\nend",
     "stdout": true,
@@ -120777,13 +120516,6 @@
   {
     "name": "output_guard_warn_yield_self_effect_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn.send(:yield_self,print(\"effect\")) {print(\"block\")}\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
-  },
-  {
-    "name": "output_guard_warn_yield_self_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn&.send(:yield_self,print(\"effect\"))\nend",
     "stdout": true,
     "stderr": true,
     "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
@@ -120810,13 +120542,6 @@
     "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
   },
   {
-    "name": "output_guard_warn_send_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn&.send(:send,print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
-  },
-  {
     "name": "output_guard_warn_public_send_alias_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=warn.send(:public_send);f(C.new);true\nend",
     "stdout": true,
@@ -120838,22 +120563,8 @@
     "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
   },
   {
-    "name": "output_guard_warn_public_send_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn&.send(:public_send,print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
-  },
-  {
     "name": "output_guard_warn_call_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn.call(print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
-  },
-  {
-    "name": "output_guard_warn_safe_call_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn&.call(print(\"effect\"))\nend",
     "stdout": true,
     "stderr": true,
     "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
@@ -120887,13 +120598,6 @@
     "go_error": "p is a method and cannot be used as a value; call it with p(...)"
   },
   {
-    "name": "output_guard_p_itself_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np&.send(:itself,print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
-  },
-  {
     "name": "output_guard_p_dup_alias_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=p.send(:dup);f(C.new);true\nend",
     "stdout": true,
@@ -120910,13 +120614,6 @@
   {
     "name": "output_guard_p_dup_effect_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np.send(:dup,print(\"effect\")) {print(\"block\")}\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
-  },
-  {
-    "name": "output_guard_p_dup_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np&.send(:dup,print(\"effect\"))\nend",
     "stdout": true,
     "stderr": true,
     "go_error": "p is a method and cannot be used as a value; call it with p(...)"
@@ -120943,13 +120640,6 @@
     "go_error": "p is a method and cannot be used as a value; call it with p(...)"
   },
   {
-    "name": "output_guard_p_clone_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np&.send(:clone,print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
-  },
-  {
     "name": "output_guard_p_freeze_alias_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=p.send(:freeze);f(C.new);true\nend",
     "stdout": true,
@@ -120966,13 +120656,6 @@
   {
     "name": "output_guard_p_freeze_effect_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np.send(:freeze,print(\"effect\")) {print(\"block\")}\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
-  },
-  {
-    "name": "output_guard_p_freeze_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np&.send(:freeze,print(\"effect\"))\nend",
     "stdout": true,
     "stderr": true,
     "go_error": "p is a method and cannot be used as a value; call it with p(...)"
@@ -120999,13 +120682,6 @@
     "go_error": "p is a method and cannot be used as a value; call it with p(...)"
   },
   {
-    "name": "output_guard_p_tap_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np&.send(:tap,print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
-  },
-  {
     "name": "output_guard_p_yield_self_alias_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=p.send(:yield_self);f(C.new);true\nend",
     "stdout": true,
@@ -121022,13 +120698,6 @@
   {
     "name": "output_guard_p_yield_self_effect_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np.send(:yield_self,print(\"effect\")) {print(\"block\")}\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
-  },
-  {
-    "name": "output_guard_p_yield_self_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np&.send(:yield_self,print(\"effect\"))\nend",
     "stdout": true,
     "stderr": true,
     "go_error": "p is a method and cannot be used as a value; call it with p(...)"
@@ -121055,13 +120724,6 @@
     "go_error": "p is a method and cannot be used as a value; call it with p(...)"
   },
   {
-    "name": "output_guard_p_send_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np&.send(:send,print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
-  },
-  {
     "name": "output_guard_p_public_send_alias_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=p.send(:public_send);f(C.new);true\nend",
     "stdout": true,
@@ -121083,22 +120745,8 @@
     "go_error": "p is a method and cannot be used as a value; call it with p(...)"
   },
   {
-    "name": "output_guard_p_public_send_safe_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np&.send(:public_send,print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
-  },
-  {
     "name": "output_guard_p_call_uncaught",
     "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np.call(print(\"effect\"))\nend",
-    "stdout": true,
-    "stderr": true,
-    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
-  },
-  {
-    "name": "output_guard_p_safe_call_uncaught",
-    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np&.call(print(\"effect\"))\nend",
     "stdout": true,
     "stderr": true,
     "go_error": "p is a method and cannot be used as a value; call it with p(...)"

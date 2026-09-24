@@ -13,8 +13,8 @@ It builds `examples/golden.rs`, the engine harness, and the `vibes` binary in re
 | Corpus | Cases | Sources |
 | --- | ---: | --- |
 | `conformance` | 1,248 | generated cases in `scripts/fixtures.py` and the host-binding, required-file, capability, block and signature generators; the site and upstream programs; the benchmark cases |
-| `language` | 118,946 | `tests/language.json` |
-| `rejections` | 27,245 | runtime errors in `tests/language-errors.json` and compile errors in `tests/syntax-errors.json` |
+| `language` | 118,994 | `tests/language.json` |
+| `rejections` | 27,193 | runtime errors in `tests/language-errors.json` and compile errors in `tests/syntax-errors.json` |
 | `compatibility` | 219 | the selected differences from Go: `docs/compatibility-cases.json`, the generators' policy cases and the sources in `docs/*-differences.json` and `docs/computed-call-gaps.json` |
 | `replay` | 57,733 | the calls and compiles Go v0.70.0's test suite made, in `replay/` |
 | `parse` | 35,840 | the site and upstream programs with a token deleted, duplicated or inserted, or cut after a line, as `scripts/parse-sweep.py` makes them; compiled only |
