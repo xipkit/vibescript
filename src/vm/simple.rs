@@ -30,11 +30,11 @@ pub(super) fn run(
             }
             Op::Pop => {
                 step(ctx, frame)?;
-                stack.data.pop().unwrap();
+                discard(stack.data.pop().unwrap());
             }
             Op::Dup => {
                 step(ctx, frame)?;
-                let value = stack.data.last().unwrap().clone();
+                let value = copy(stack.data.last().unwrap());
                 stack.push(ctx, value)?;
             }
             Op::Constant(n) => {
@@ -47,7 +47,9 @@ pub(super) fn run(
                     return Ok(());
                 };
                 step(ctx, frame)?;
-                let mut value = storage.locals.data[slot].clone().unwrap_or_default();
+                let mut value = storage.locals.data[slot]
+                    .as_ref()
+                    .map_or_else(Value::nil, copy);
                 if let Kind::Offset(offset) = &value.0 {
                     return Err(offset.value_error());
                 }
@@ -67,7 +69,7 @@ pub(super) fn run(
                 let value = if let Kind::Builtin(builtin) = value.0 {
                     builtin.read(ctx)?
                 } else {
-                    value.clone()
+                    copy(value)
                 };
                 stack.push(ctx, value)?;
             }
@@ -85,7 +87,7 @@ pub(super) fn run(
                 step(ctx, frame)?;
                 let value = stack.data.last().unwrap();
                 address::refresh(ctx, slot, value, &mut storage.addresses.data, &[])?;
-                storage.locals.data[slot] = Some(value.clone());
+                store(storage, slot, copy(value));
             }
             Op::AddStore(n) => {
                 let Some(slot) = own(function, frame, storage, n).filter(|_| numbers(stack)) else {
@@ -95,7 +97,11 @@ pub(super) fn run(
                 let b = stack.data.pop().unwrap();
                 let a = stack.data.pop().unwrap();
                 let value = match ops::immediate(ctx, "+", &a, &b)? {
-                    Some(value) => value,
+                    Some(value) => {
+                        discard(a);
+                        discard(b);
+                        value
+                    }
                     None => {
                         storage.locals.data[slot] = None;
                         ops::binary(ctx, "+", a, b)?
@@ -104,7 +110,7 @@ pub(super) fn run(
                 if !storage.addresses.data.is_empty() {
                     address::refresh(ctx, slot, &value, &mut storage.addresses.data, &[])?;
                 }
-                storage.locals.data[slot] = Some(value.clone());
+                store(storage, slot, copy(&value));
                 stack.push(ctx, value)?;
             }
             Op::Binary(op) => {
@@ -116,7 +122,11 @@ pub(super) fn run(
                 let b = stack.data.pop().unwrap();
                 let a = stack.data.pop().unwrap();
                 let value = match ops::immediate(ctx, op, &a, &b)? {
-                    Some(value) => value,
+                    Some(value) => {
+                        discard(a);
+                        discard(b);
+                        value
+                    }
                     None => ops::binary(ctx, op, a, b)?,
                 };
                 stack.push(ctx, value)?;
@@ -127,13 +137,13 @@ pub(super) fn run(
             }
             Op::JumpFalse(target) => {
                 step(ctx, frame)?;
-                if !stack.data.pop().unwrap().truthy() {
+                if !truthy(stack.data.pop().unwrap()) {
                     frame.ip = target;
                 }
             }
             Op::JumpTrue(target) => {
                 step(ctx, frame)?;
-                if stack.data.pop().unwrap().truthy() {
+                if truthy(stack.data.pop().unwrap()) {
                     frame.ip = target;
                 }
             }
@@ -145,14 +155,17 @@ pub(super) fn run(
             }
             Op::LoopTest => {
                 step(ctx, frame)?;
-                if !stack.data.pop().unwrap().truthy() {
+                if !truthy(stack.data.pop().unwrap()) {
                     frame.ip = frame.loops.data.last().unwrap().end;
                 }
             }
             Op::LoopBody => {
                 step(ctx, frame)?;
                 let state = frame.loops.data.last_mut().unwrap();
-                state.last = stack.data.pop().unwrap();
+                discard(std::mem::replace(
+                    &mut state.last,
+                    stack.data.pop().unwrap(),
+                ));
                 stack.data.truncate(state.base);
                 storage.addresses.data.truncate(state.address_base);
                 storage.bypasses.data.truncate(state.bypass_base);
@@ -187,6 +200,47 @@ fn own(function: &Function, frame: &Frame, storage: &Storage, local: usize) -> O
     (storage.locals.data[slot].is_some()
         || (!function.initializer && function.captures.get(local).copied().flatten().is_none()))
     .then_some(slot)
+}
+
+/// Clones a value, copying nil, booleans and numbers inline rather than
+/// through the general clone.
+#[inline(always)]
+fn copy(value: &Value) -> Value {
+    match value.0 {
+        Kind::Nil => Value::nil(),
+        Kind::Bool(value) => Value::boolean(value),
+        Kind::Int(value) => Value::int(value),
+        Kind::Float(value) => Value::float(value),
+        _ => value.clone(),
+    }
+}
+
+/// Drops a value. Nil, booleans and numbers own no storage, so they are
+/// forgotten rather than run through the general drop.
+#[inline(always)]
+fn discard(value: Value) {
+    if matches!(
+        value.0,
+        Kind::Nil | Kind::Bool(_) | Kind::Int(_) | Kind::Float(_)
+    ) {
+        std::mem::forget(value);
+    }
+}
+
+/// Reports whether a popped condition is truthy, discarding it.
+#[inline(always)]
+fn truthy(value: Value) -> bool {
+    let truthy = value.truthy();
+    discard(value);
+    truthy
+}
+
+/// Writes a local's slot, discarding the value it held.
+#[inline(always)]
+fn store(storage: &mut Storage, slot: usize, value: Value) {
+    if let Some(previous) = storage.locals.data[slot].replace(value) {
+        discard(previous);
+    }
 }
 
 /// Reports whether the two topmost values are both integers or both floats.
