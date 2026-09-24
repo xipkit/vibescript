@@ -207,24 +207,38 @@ fn named_reducers_and_symbol_roundtrips_use_the_same_native_contracts() {
 }
 
 #[test]
-fn missing_nominal_queries_are_false_and_dynamic_names_remain_incomplete() {
+fn missing_nominal_queries_are_false_and_dynamic_names_are_gradual() {
     for source in [
         "def run; 7.is_type?(:User); end",
         "def run; nil.is_type?(\"User?\"); end",
     ] {
         witness(source, Some("false"), false);
     }
-    let mut ctx = CallContext::new(CallOptions::default());
-    let mut facts = Facts::new(&mut ctx).unwrap();
-    let report = analyze(
-        &mut ctx,
-        &mut facts,
-        "def run(name:string); 7.is_type?(name); end",
-    )
-    .unwrap();
-    assert!(!report.incomplete.data.is_empty(), "{report:?}");
-    drop((report, facts));
-    assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    let classes = "class Box\nend\nenum Mode\n  On\nend\n";
+    for source in [
+        "def run(name:string) -> bool; 7.is_type?(name); end",
+        "def run(name) -> bool; nil.is_type?(name); end",
+        "def run(name:symbol) -> bool; Box.new.is_type?(name); end",
+        "def run(name) -> bool; Box.is_type?(name); end",
+        "def run(name) -> bool; Mode::On.is_type?(name); end",
+        "def run(name) -> bool; begin; \"s\".is_type?(name); rescue RuntimeError; false; end; end",
+    ] {
+        let source = format!("{classes}{source}");
+        for name in ["int", "string?", "Box", "Mode?", "User", "Mode"] {
+            let name = if source.contains("symbol") {
+                Value::symbol(name)
+            } else {
+                Value::bytes(name)
+            };
+            inferred_runtime(&source, &[name], false);
+        }
+    }
+    // A query that is not a type atom raises and keeps the rescue path reachable.
+    let source =
+        "def run(name) -> bool; begin; 7.is_type?(name); rescue RuntimeError; false; end; end";
+    for name in [Value::int(7), Value::bytes(""), Value::bytes("Box.missing")] {
+        inferred_runtime(source, &[name], false);
+    }
 }
 
 #[test]

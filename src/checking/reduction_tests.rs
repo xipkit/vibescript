@@ -476,7 +476,7 @@ fn reducer_analysis_preserves_latched_cancellation_and_deadlines() {
 
 #[test]
 fn remaining_dispatch_and_pending_address_effects_are_explicit() {
-    let source = "def run; [1,2].is_type?(\"x\".upcase); end";
+    let source = "def run; require(\"missing\"); end";
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let report = analyze(&mut ctx, &mut facts, source).unwrap();

@@ -419,8 +419,7 @@ fn root_overrides_and_local_shadowing_select_the_actual_callee() {
 fn unresolved_calls_and_mutable_host_bindings_stay_explicitly_incomplete() {
     for source in [
         "def run; require(\"missing\"); end",
-        "def run; [1].is_type?(\"x\".upcase); end",
-        "def run; begin; 1; rescue; 2; ensure; [1].is_type?(\"x\".upcase); end; end",
+        "def run; begin; 1; rescue; 2; ensure; require(\"missing\"); end; end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
@@ -752,8 +751,7 @@ fn call_analysis_observes_cancellation_and_deadlines_on_empty_and_cached_paths()
 
 #[test]
 fn unfinished_callee_analysis_cannot_disappear_behind_a_never_return_summary() {
-    let source =
-        "def incomplete; [1].is_type?(\"x\".upcase); end; def run -> int; incomplete(); 7; end";
+    let source = "def incomplete; require(\"missing\"); end; def run -> int; incomplete(); 7; end";
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let result = analyze(&mut ctx, &mut facts, source).unwrap();

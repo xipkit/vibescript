@@ -336,7 +336,7 @@ fn hash_member_reads_keep_field_and_builtin_precedence_separate() {
 
 #[test]
 fn unmodeled_collection_operations_remain_explicitly_incomplete() {
-    let source = "def run; [7].is_type?(\"x\".upcase); end";
+    let source = "def run; require(\"missing\"); end";
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let result = analyze(&mut ctx, &mut facts, source).unwrap();

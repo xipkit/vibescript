@@ -624,7 +624,7 @@ fn block_analysis_preserves_latched_cancellation_and_deadlines() {
 #[test]
 fn native_calls_and_nested_yields_remain_incomplete_until_solver_integration() {
     {
-        let source = "def run; [1].is_type?(\"x\".upcase); end";
+        let source = "def run; require(\"missing\"); end";
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
         let report = super::collection_tests::analyze(&mut ctx, &mut facts, source).unwrap();

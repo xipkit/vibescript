@@ -141,7 +141,8 @@ impl Walker<'_> {
                         .facts
                         .union(self.ctx, &[Atom::String.fact(), Atom::Symbol.fact()])?;
                     if self.facts.relation(self.ctx, arm, expected)? != Relation::Rejected {
-                        result.incomplete = true;
+                        values.push(self.ctx, Atom::Bool.fact())?;
+                        result.throws |= self.dynamic_type_errors(state)?;
                     }
                     continue;
                 }
@@ -168,7 +169,8 @@ impl Walker<'_> {
                     Some(Resolution::Known(value)) => Some(value),
                     Some(Resolution::Missing | Resolution::Ambiguous) => None,
                     Some(Resolution::Dynamic) => {
-                        result.incomplete = true;
+                        values.push(self.ctx, Atom::Bool.fact())?;
+                        result.throws |= self.dynamic_type_errors(state)?;
                         continue;
                     }
                     None => continue,
@@ -247,6 +249,21 @@ impl Walker<'_> {
         }
         result.value = self.facts.union(self.ctx, &values.data)?;
         Ok(alternatives)
+    }
+
+    /// Returns the error classes of a type query whose name is not known.
+    ///
+    /// An invalid atom raises a RuntimeError. Resolving the name can also admit a
+    /// supplied root, whose import or initialization may raise any class.
+    fn dynamic_type_errors(&mut self, state: &State) -> Result<u8> {
+        for index in 0..self.roots.len() {
+            self.ctx.charge(1)?;
+            let slot = state.global_base + state.source_slots.roots.data[index];
+            if state.locals.get(self.ctx, slot)?.missing {
+                return Ok(u8::MAX);
+            }
+        }
+        Ok(handlers::bit(ErrorClass::Runtime))
     }
 
     fn nominal_receiver(&self, receiver: Fact) -> Option<Fact> {
