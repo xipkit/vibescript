@@ -43,6 +43,7 @@ mod publication;
 mod rendering;
 mod requires;
 mod roots;
+mod splats;
 mod types;
 use handlers::{Phase, Transfer};
 use native::MemberSite;
@@ -2996,7 +2997,22 @@ impl Walker<'_> {
                             let admitted = splat.admitted != Atom::Never.fact();
                             // Any alternative of the wrong kind fails before the call.
                             if splat.rejected != Atom::Never.fact() {
-                                self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
+                                if admitted {
+                                    let mut failed = state.snapshot(self.ctx)?;
+                                    self.narrow_splat(&mut failed, operand, keyword, false)?;
+                                    self.emit_error(
+                                        &failed,
+                                        pc,
+                                        handlers::bit(ErrorClass::Runtime),
+                                    )?;
+                                    self.narrow_splat(&mut state, operand, keyword, true)?;
+                                } else {
+                                    self.emit_error(
+                                        &state,
+                                        pc,
+                                        handlers::bit(ErrorClass::Runtime),
+                                    )?;
+                                }
                                 self.issue(
                                     pc,
                                     IssueKind::Splat {
