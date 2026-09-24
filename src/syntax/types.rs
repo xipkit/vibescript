@@ -1,4 +1,4 @@
-use super::{Expr, Label, Node, Parser, Parsing, Token, keyword};
+use super::{Expr, Label, Node, Parser, Parsing, Token};
 use crate::{
     Result,
     compilation::{Boxed, Buffer, Bytes, Field, Name, Type, TypeKind},
@@ -434,74 +434,98 @@ impl Parser<'_> {
         Ok(result)
     }
 
-    fn type_boundary(&self, parenthesized: bool) -> Result<bool> {
-        Ok(matches!(
-            self.token(),
-            Token::P(',' | ')' | ':' | '|') | Token::Op("=")
-        ) || (!parenthesized
-            && (matches!(self.token(), Token::EndLine | Token::Eof | Token::Op("->"))
-                || self.tokens[self.pos].line != self.previous()?.end_line)))
+    /// Go's `typeAnnotationBoundaryFollows` for the token after the one at `last`.
+    fn type_boundary(&self, last: usize, parenthesized: bool) -> bool {
+        let next = self.significant(last + 1);
+        match &self.tokens[next].token {
+            Token::P(',' | ')' | ':' | '|') | Token::Op("=") => true,
+            Token::Op("->") | Token::EndLine | Token::Eof => !parenthesized,
+            _ => !parenthesized && self.tokens[next].line != self.tokens[last].line,
+        }
     }
 
+    /// Go's `colonIntroducesKeywordDefault`: whether what follows a
+    /// parameter's colon is a default value rather than a type.
     pub(super) fn keyword_default(&mut self, parenthesized: bool) -> Result<bool> {
-        let result = match self.token() {
-            Token::Word(name) if name == "nil" => self.tokens[self.pos + 1].token != Token::P('|'),
+        let peek = self.significant(self.pos);
+        let result = match &self.tokens[peek].token {
+            Token::Word(name) if *name == "nil" => {
+                self.tokens[self.significant(peek + 1)].token != Token::P('|')
+            }
             Token::P('{') => {
                 let saved = self.pos;
                 let structural = self.type_structural_error;
                 self.type_structural_error = false;
+                self.pos = peek;
                 let annotation = match self.type_expr(1, false) {
-                    Ok(ty) => !self.default_field(&ty)? && self.type_boundary(parenthesized)?,
+                    Ok(ty) => {
+                        !self.default_field(&ty)? && self.type_boundary(self.pos - 1, parenthesized)
+                    }
                     Err(_) => self.type_structural_error,
                 };
                 self.pos = saved;
                 self.type_structural_error = structural;
                 !annotation
             }
-            Token::Word(name) if !keyword(name) => {
-                let next = &self.tokens[self.pos + 1];
-                match &next.token {
-                    Token::P(',' | ')' | ':' | '|') | Token::Op("=") => false,
-                    Token::Op("<") => {
-                        !matches!(
-                            crate::types::builtin_name(name),
-                            Some(
-                                crate::types::BuiltinName::Array | crate::types::BuiltinName::Hash
-                            )
-                        ) && self.locals.contains(self.work, name.as_str())?
-                    }
-                    Token::P('.') => {
-                        if self.locals.contains(self.work, name.as_str())? {
-                            return Ok(true);
-                        }
-                        let saved = self.pos;
-                        let namespace = *name;
-                        self.bump()?;
-                        self.bump()?;
-                        let annotation = if let Token::Word(member) = self.bump()? {
-                            let member = member.trim_end_matches('?');
-                            let looks_like_type = member
-                                .as_bytes()
-                                .first()
-                                .is_some_and(u8::is_ascii_uppercase)
-                                && member.as_bytes().iter().skip(1).any(u8::is_ascii_lowercase);
-                            let constant = namespace == "Math" && matches!(member, "PI" | "E");
-                            self.take_p('?');
-                            looks_like_type && !constant && self.type_boundary(parenthesized)?
-                        } else {
-                            false
-                        };
-                        self.pos = saved;
-                        !annotation
-                    }
-                    Token::EndLine | Token::Eof | Token::Op("->") => parenthesized,
-                    _ => true,
-                }
-            }
-            _ => true,
+            _ if self.ident(peek) => self.name_starts_default(peek, parenthesized)?,
+            _ => self.prefix(peek),
         };
         self.work.checkpoint()?;
         Ok(result)
+    }
+
+    /// Go's `identAfterColonStartsExpression` for the identifier at `peek`.
+    fn name_starts_default(&self, peek: usize, parenthesized: bool) -> Result<bool> {
+        let Token::Word(name) = &self.tokens[peek].token else {
+            unreachable!()
+        };
+        let next = self.significant(peek + 1);
+        Ok(match &self.tokens[next].token {
+            Token::P(',' | ')' | ':' | '|') | Token::Op("=") => false,
+            Token::Op("<") => {
+                !matches!(
+                    crate::types::builtin_name(name),
+                    Some(crate::types::BuiltinName::Array | crate::types::BuiltinName::Hash)
+                ) && self.locals.contains(self.work, name.as_str())?
+            }
+            Token::P('.') => !self.dotted_type_follows(peek, next, parenthesized)?,
+            Token::Op("->") | Token::EndLine | Token::Eof => parenthesized,
+            _ => parenthesized || self.tokens[next].line == self.tokens[peek].line,
+        })
+    }
+
+    /// Go's `dottedTypeAnnotationFollows`: whether `Namespace.Type` reads as a
+    /// qualified type annotation.
+    fn dotted_type_follows(&self, peek: usize, dot: usize, parenthesized: bool) -> Result<bool> {
+        let Token::Word(namespace) = &self.tokens[peek].token else {
+            unreachable!()
+        };
+        if self.locals.contains(self.work, namespace.as_str())? {
+            return Ok(false);
+        }
+        let member = self.significant(dot + 1);
+        if !self.ident(member) {
+            return Ok(false);
+        }
+        let Token::Word(written) = &self.tokens[member].token else {
+            unreachable!()
+        };
+        let name = written.trim_end_matches('?');
+        let looks_like_type = name.as_bytes().first().is_some_and(u8::is_ascii_uppercase)
+            && name.as_bytes().iter().skip(1).any(u8::is_ascii_lowercase);
+        if !looks_like_type || (*namespace == "Math" && matches!(name, "PI" | "E")) {
+            return Ok(false);
+        }
+        if written.ends_with('?') {
+            return Ok(self.type_boundary(member, parenthesized));
+        }
+        let question = self.significant(member + 1);
+        let last = if self.tokens[question].token == Token::P('?') {
+            question
+        } else {
+            member
+        };
+        Ok(self.type_boundary(last, parenthesized))
     }
 
     fn default_field(&self, ty: &Type) -> Result<bool> {
