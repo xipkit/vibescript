@@ -345,23 +345,63 @@ impl<'a> Parser<'a> {
         }
         let mut out = Buffer::with_capacity(self.ctx, self.pos - start)?;
         out.extend(self.ctx, &self.input[start..self.pos])?;
+        // Steps are charged as when each span was appended with `extend` and
+        // each escape charged on its own, but settled in batches: before the
+        // buffer grows or anything fails, and after each chunk of input.
+        let mut pending = 0;
+        let mut settled = self.pos;
         loop {
+            if self.pos - settled >= CHUNK {
+                self.ctx.charge_pending(&mut pending)?;
+                self.ctx.checkpoint()?;
+                settled = self.pos;
+            }
             if self.pos >= self.input.len() {
+                self.ctx.charge_pending(&mut pending)?;
                 return self.err("unterminated JSON string", Failure::End);
             }
             let end = self.input.len().min(self.pos + CHUNK);
             let span = scan::text_span(&self.input[self.pos..end], Class::JsonParse);
             if span.len > 0 {
                 if span.runes != span.len {
-                    self.ctx.charge(span.steps)?;
+                    pending += span.steps;
                 }
-                out.extend(self.ctx, &self.input[self.pos..self.pos + span.len])?;
+                let bytes = &self.input[self.pos..self.pos + span.len];
+                out.extend_deferred(self.ctx, bytes, &mut pending)?;
                 self.pos += span.len;
                 continue;
             }
-            self.ctx.charge(1)?;
+            pending += 1;
             let b = self.input[self.pos];
             self.pos += 1;
+            let escape = match b {
+                b'\\' => self.input.get(self.pos).copied(),
+                _ => None,
+            };
+            let byte = match escape {
+                Some(b'"' | b'\\' | b'/') => escape,
+                Some(b'b') => Some(8),
+                Some(b'f') => Some(12),
+                Some(b'n') => Some(b'\n'),
+                Some(b'r') => Some(b'\r'),
+                Some(b't') => Some(b'\t'),
+                _ => None,
+            };
+            if let Some(byte) = byte {
+                self.pos += 1;
+                out.push_deferred(self.ctx, byte, &mut pending)?;
+                continue;
+            }
+            if b >= 128 {
+                // A rune the span stopped at: invalid or cut by the chunk end.
+                self.pos -= 1;
+                let (ch, n, _) = scan::rune(&self.input[self.pos..]);
+                self.pos += n;
+                let mut buf = [0; 4];
+                out.extend_deferred(self.ctx, ch.encode_utf8(&mut buf).as_bytes(), &mut pending)?;
+                continue;
+            }
+            self.ctx.charge_pending(&mut pending)?;
             match b {
                 b'"' => return Value::from_bytes(self.ctx, out),
                 b'\\' => {
@@ -370,12 +410,6 @@ impl<'a> Parser<'a> {
                     };
                     self.pos += 1;
                     match b {
-                        b'"' | b'\\' | b'/' => out.push(self.ctx, b)?,
-                        b'b' => out.push(self.ctx, 8)?,
-                        b'f' => out.push(self.ctx, 12)?,
-                        b'n' => out.push(self.ctx, b'\n')?,
-                        b'r' => out.push(self.ctx, b'\r')?,
-                        b't' => out.push(self.ctx, b'\t')?,
                         b'u' => {
                             let high = self.hex()?;
                             let cp = if (0xd800..=0xdbff).contains(&high) {
@@ -406,15 +440,8 @@ impl<'a> Parser<'a> {
                         _ => return self.err("invalid JSON escape", Failure::Escape(b)),
                     }
                 }
-                0..=31 => {
-                    return self.err("unescaped control byte in JSON string", Failure::Literal(b));
-                }
                 _ => {
-                    self.pos -= 1;
-                    let (ch, n, _) = scan::rune(&self.input[self.pos..]);
-                    self.pos += n;
-                    let mut buf = [0; 4];
-                    out.extend(self.ctx, ch.encode_utf8(&mut buf).as_bytes())?;
+                    return self.err("unescaped control byte in JSON string", Failure::Literal(b));
                 }
             }
         }
@@ -509,5 +536,203 @@ impl<'a> Parser<'a> {
             self.pos += 1;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{CallOptions, Limits};
+
+    /// The escape-at-a-time string reader the batched one replaces, kept as
+    /// the accounting oracle.
+    fn reference(this: &mut Parser<'_>) -> Result<Value> {
+        this.pos += 1;
+        let start = this.pos;
+        loop {
+            if this.pos >= this.input.len() {
+                return this.err("unterminated JSON string", Failure::End);
+            }
+            let end = this.input.len().min(this.pos + CHUNK);
+            let span = scan::text_span(&this.input[this.pos..end], Class::JsonParse);
+            if span.len > 0 {
+                this.ctx.charge(span.steps)?;
+                this.pos += span.len;
+                continue;
+            }
+            if this.input[this.pos] == b'"' {
+                let value = this.ctx.bytes(&this.input[start..this.pos])?;
+                this.pos += 1;
+                return Ok(value);
+            }
+            break;
+        }
+        let mut out = Buffer::with_capacity(this.ctx, this.pos - start)?;
+        out.extend(this.ctx, &this.input[start..this.pos])?;
+        loop {
+            if this.pos >= this.input.len() {
+                return this.err("unterminated JSON string", Failure::End);
+            }
+            let end = this.input.len().min(this.pos + CHUNK);
+            let span = scan::text_span(&this.input[this.pos..end], Class::JsonParse);
+            if span.len > 0 {
+                if span.runes != span.len {
+                    this.ctx.charge(span.steps)?;
+                }
+                out.extend(this.ctx, &this.input[this.pos..this.pos + span.len])?;
+                this.pos += span.len;
+                continue;
+            }
+            this.ctx.charge(1)?;
+            let b = this.input[this.pos];
+            this.pos += 1;
+            match b {
+                b'"' => return Value::from_bytes(this.ctx, out),
+                b'\\' => {
+                    let Some(&b) = this.input.get(this.pos) else {
+                        return this.err("incomplete JSON escape", Failure::End);
+                    };
+                    this.pos += 1;
+                    match b {
+                        b'"' | b'\\' | b'/' => out.push(this.ctx, b)?,
+                        b'b' => out.push(this.ctx, 8)?,
+                        b'f' => out.push(this.ctx, 12)?,
+                        b'n' => out.push(this.ctx, b'\n')?,
+                        b'r' => out.push(this.ctx, b'\r')?,
+                        b't' => out.push(this.ctx, b'\t')?,
+                        b'u' => {
+                            let high = this.hex()?;
+                            let cp = if (0xd800..=0xdbff).contains(&high) {
+                                if this.input[this.pos..].starts_with(b"\\u") {
+                                    let saved = this.pos;
+                                    this.pos += 2;
+                                    let low = this.hex()?;
+                                    if (0xdc00..=0xdfff).contains(&low) {
+                                        0x10000
+                                            + ((high as u32 - 0xd800) << 10)
+                                            + (low as u32 - 0xdc00)
+                                    } else {
+                                        this.pos = saved;
+                                        0xfffd
+                                    }
+                                } else {
+                                    0xfffd
+                                }
+                            } else if (0xdc00..=0xdfff).contains(&high) {
+                                0xfffd
+                            } else {
+                                high as u32
+                            };
+                            let ch = char::from_u32(cp).unwrap();
+                            let mut buf = [0; 4];
+                            out.extend(this.ctx, ch.encode_utf8(&mut buf).as_bytes())?;
+                        }
+                        _ => return this.err("invalid JSON escape", Failure::Escape(b)),
+                    }
+                }
+                0..=31 => {
+                    return this.err("unescaped control byte in JSON string", Failure::Literal(b));
+                }
+                _ => {
+                    this.pos -= 1;
+                    let (ch, n, _) = scan::rune(&this.input[this.pos..]);
+                    this.pos += n;
+                    let mut buf = [0; 4];
+                    out.extend(this.ctx, ch.encode_utf8(&mut buf).as_bytes())?;
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn batched_strings_match_escape_at_a_time_parsing() {
+        let pieces: [&[u8]; 22] = [
+            b"a",
+            b"plain ",
+            b"\\n",
+            b"\\t",
+            b"\\\"",
+            b"\\\\",
+            b"\\/",
+            b"\\b",
+            b"\\u00e9",
+            b"\\ud83d\\ude42",
+            b"\\ud800",
+            b"\\u12",
+            b"\\x",
+            b"\\",
+            "é".as_bytes(),
+            "界".as_bytes(),
+            "🙂".as_bytes(),
+            b"\x01",
+            b"\xff",
+            b"\xe7\x95",
+            b"\"",
+            b"<>&",
+        ];
+        let mut seed = 0x853c49e6748fea9bu64;
+        let mut next = move |bound: usize| {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            (seed % bound as u64) as usize
+        };
+        for case in 0..600 {
+            let mut input = b"\"".to_vec();
+            let target = [1, 8, 60, 700, 4100, 9000][case % 6] + next(40);
+            while input.len() < target {
+                let piece = pieces[next(pieces.len())];
+                for _ in 0..1 + next(3) * next(40) {
+                    input.extend_from_slice(piece);
+                }
+            }
+            if next(4) != 0 {
+                input.push(b'"');
+            }
+            let mut plain = CallContext::new(CallOptions::default());
+            let _ = reference(&mut Parser::new(&mut plain, &input));
+            let steps = plain.stats().steps as usize;
+            let peak = plain.stats().peak_memory_bytes;
+            for limits in [
+                (None, None),
+                (Some(next(steps + 2) as u64), None),
+                (None, Some(next(peak + 64))),
+                (Some(next(steps + 2) as u64), Some(next(peak + 64))),
+            ] {
+                let run = |read: fn(&mut Parser<'_>) -> Result<Value>| {
+                    let mut ctx = CallContext::new(CallOptions {
+                        limits: Limits {
+                            steps: limits.0,
+                            memory_bytes: limits.1.or(Some(usize::MAX)),
+                            ..Limits::default()
+                        },
+                        ..CallOptions::default()
+                    });
+                    let mut parser = Parser::new(&mut ctx, &input);
+                    let result = read(&mut parser)
+                        .map(|value| value.as_bytes().unwrap().to_vec())
+                        .map_err(|error| (error.kind, error.message));
+                    let (pos, failure) = (parser.pos, parser.failure);
+                    let stats = ctx.stats();
+                    // Only an exhausted step quota may stop at a different
+                    // count and position, since pending steps are charged
+                    // together; the call cannot continue after it either way.
+                    let exact = !matches!(result, Err((ErrorKind::Steps, _)));
+                    (
+                        result,
+                        exact.then_some(pos),
+                        failure,
+                        exact.then_some(stats.steps),
+                        stats.peak_memory_bytes,
+                        stats.retained_memory_bytes,
+                    )
+                };
+                assert_eq!(
+                    run(reference),
+                    run(|parser| parser.string()),
+                    "case {case} {limits:?}"
+                );
+            }
+        }
     }
 }

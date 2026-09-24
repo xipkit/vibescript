@@ -251,6 +251,15 @@ impl CallContext {
         self.charge(units)
     }
 
+    /// Charges and clears steps a loop deferred, such as the work counted by
+    /// [`Buffer::extend_deferred`]. Nothing is charged when none are pending.
+    pub(crate) fn charge_pending(&mut self, pending: &mut u64) -> Result<()> {
+        match std::mem::take(pending) {
+            0 => Ok(()),
+            steps => self.charge(steps),
+        }
+    }
+
     /// Fails with latched step exhaustion when `steps` further units cannot fit
     /// the quota, without consuming them. Materializers use it to reject work
     /// whose size is known up front before allocating or iterating.
@@ -559,6 +568,55 @@ impl<T> Buffer<T> {
             charge.bytes = bytes;
         }
         drop(temporary);
+    }
+}
+
+impl Buffer<u8> {
+    /// Appends `bytes` exactly as [`Self::extend`] does, adding its work to
+    /// `pending` instead of charging it. Pending steps are charged before the
+    /// buffer grows, so growth and its failures follow the same charges.
+    #[inline]
+    pub fn extend_deferred(
+        &mut self,
+        ctx: &mut CallContext,
+        bytes: &[u8],
+        pending: &mut u64,
+    ) -> Result<()> {
+        let length = self.data.len().saturating_add(bytes.len());
+        if length > self.data.capacity() {
+            ctx.charge_pending(pending)?;
+            self.ensure(ctx, length.max(self.data.capacity().saturating_mul(2)))?;
+        }
+        self.data.extend_from_slice(bytes);
+        // One work charge per started 64 bytes, as `extend` charges each chunk.
+        *pending += bytes
+            .chunks(CHUNK)
+            .map(|chunk| (chunk.len() as u64).div_ceil(64))
+            .sum::<u64>();
+        Ok(())
+    }
+
+    /// Appends `byte` exactly as [`Self::push`] does, which charges no work;
+    /// pending steps are charged before the buffer grows.
+    #[inline]
+    pub fn push_deferred(
+        &mut self,
+        ctx: &mut CallContext,
+        byte: u8,
+        pending: &mut u64,
+    ) -> Result<()> {
+        if self.data.len() == self.data.capacity() {
+            ctx.charge_pending(pending)?;
+            let capacity = self
+                .data
+                .capacity()
+                .max(4)
+                .checked_mul(2)
+                .ok_or_else(|| Error::new(ErrorKind::Memory, "allocation size overflow"))?;
+            self.ensure(ctx, capacity)?;
+        }
+        self.data.push(byte);
+        Ok(())
     }
 }
 

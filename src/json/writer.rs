@@ -65,7 +65,7 @@ impl Output {
 
     #[cold]
     fn grow(&mut self, ctx: &mut CallContext, length: usize, pending: &mut u64) -> Result<()> {
-        settle(ctx, pending)?;
+        ctx.charge_pending(pending)?;
         self.check(ctx, length)?;
         self.ensure(
             ctx,
@@ -380,7 +380,7 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
     let mut i = 0;
     while i < input.len() {
         if i - settled >= CHUNK {
-            settle(ctx, &mut pending)?;
+            ctx.charge_pending(&mut pending)?;
             ctx.checkpoint()?;
             settled = i;
         }
@@ -391,7 +391,7 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
             // Go reserves room for the longest escape before any ASCII escape.
             let reserved = out.buffer.data.len().saturating_add(6);
             if out.limit.is_some_and(|limit| reserved > limit) {
-                settle(ctx, &mut pending)?;
+                ctx.charge_pending(&mut pending)?;
                 out.check(ctx, reserved)?;
             }
             let short = match b {
@@ -455,17 +455,9 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
         i += n;
         out.put(ctx, replacement, &mut pending)?;
     }
-    settle(ctx, &mut pending)?;
+    ctx.charge_pending(&mut pending)?;
     out.push(ctx, b'"')?;
     Ok(())
-}
-
-/// Charges steps deferred by [`Output::put`].
-fn settle(ctx: &mut CallContext, pending: &mut u64) -> Result<()> {
-    match std::mem::take(pending) {
-        0 => Ok(()),
-        steps => ctx.charge(steps),
-    }
 }
 
 #[cfg(test)]
