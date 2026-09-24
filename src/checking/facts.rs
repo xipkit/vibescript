@@ -232,6 +232,8 @@ pub(super) struct Facts {
     entries: Buffer<Entry>,
     buckets: Buffer<usize>,
     enumerations: Buffer<Fact>,
+    // Open-addressed positions in `enumerations`, by definition address.
+    enumeration_slots: Buffer<usize>,
     sources: super::sources::Sources,
     max_depth: usize,
     /// The match and error object profiles, built on first use.
@@ -249,6 +251,7 @@ impl Facts {
             entries: Buffer::empty(),
             buckets: Buffer::empty(),
             enumerations: Buffer::empty(),
+            enumeration_slots: Buffer::empty(),
             sources: super::sources::Sources::new(),
             max_depth: 0,
             profiles: [Fact(EMPTY); 2],
@@ -878,8 +881,17 @@ impl Facts {
         let crate::value::Kind::Enum(enumeration) = &value.0 else {
             unreachable!()
         };
-        for &fact in &self.enumerations.data {
-            ctx.charge(1)?;
+        // Probe lengths follow definition addresses, so charges count lookups instead of probes
+        // to keep equivalent checks' budgets repeatable.
+        ctx.charge(1)?;
+        let slots = self.enumeration_slots.data.len();
+        let mut slot = enumeration_slot(&enumeration.definition, slots);
+        while let Some(&fact) = self
+            .enumeration_slots
+            .data
+            .get(slot)
+            .and_then(|&index| self.enumerations.data.get(index))
+        {
             let Node::Enumeration { value, .. } = self.node(fact) else {
                 unreachable!()
             };
@@ -889,6 +901,7 @@ impl Facts {
             if std::sync::Arc::ptr_eq(&enumeration.definition, &previous.definition) {
                 return Ok(fact);
             }
+            slot = (slot + 1) & (slots - 1);
         }
         let mut symbols = Buffer::with_capacity(ctx, enumeration.definition.members.len())?;
         for member in &enumeration.definition.members {
@@ -904,10 +917,51 @@ impl Facts {
                 symbols: Some(symbols),
             },
         )?;
+        let definition = std::sync::Arc::clone(&enumeration.definition);
         let value = ctx.import(value)?;
         let fact = self.intern(ctx, Node::Enumeration { nominal, value })?;
         self.enumerations.push(ctx, fact)?;
+        self.index_enumeration(ctx, &definition, self.enumerations.data.len() - 1)?;
         Ok(fact)
+    }
+
+    /// Records an admitted enumeration's position, keeping the table at most half full.
+    fn index_enumeration(
+        &mut self,
+        ctx: &mut CallContext,
+        definition: &std::sync::Arc<crate::enums::Definition>,
+        index: usize,
+    ) -> Result<()> {
+        let length = self.enumeration_slots.data.len();
+        if self.enumerations.data.len() * 2 > length {
+            let capacity = (length * 2).max(16);
+            let mut slots = Buffer::with_capacity(ctx, capacity)?;
+            ctx.charge(capacity as u64)?;
+            slots.data.resize(capacity, EMPTY);
+            self.enumeration_slots = slots;
+            for (index, &fact) in self.enumerations.data.iter().enumerate() {
+                ctx.charge(1)?;
+                let Node::Enumeration { value, .. } = self.node(fact) else {
+                    unreachable!()
+                };
+                let crate::value::Kind::Enum(enumeration) = &value.0 else {
+                    unreachable!()
+                };
+                let mut slot = enumeration_slot(&enumeration.definition, capacity);
+                while self.enumeration_slots.data[slot] != EMPTY {
+                    slot = (slot + 1) & (capacity - 1);
+                }
+                self.enumeration_slots.data[slot] = index;
+            }
+            return Ok(());
+        }
+        ctx.charge(1)?;
+        let mut slot = enumeration_slot(definition, length);
+        while self.enumeration_slots.data[slot] != EMPTY {
+            slot = (slot + 1) & (length - 1);
+        }
+        self.enumeration_slots.data[slot] = index;
+        Ok(())
     }
 
     /// Represents one member of an admitted enum type.
@@ -1302,6 +1356,13 @@ impl Facts {
         };
         self.intern(ctx, node)
     }
+}
+
+/// Places an enum definition in a power-of-two table by its address, which identifies it.
+fn enumeration_slot(definition: &std::sync::Arc<crate::enums::Definition>, slots: usize) -> usize {
+    let address = std::sync::Arc::as_ptr(definition) as usize as u64;
+    let hash = (address >> 3).wrapping_mul(0x9e37_79b9_7f4a_7c15);
+    (hash ^ (hash >> 29)) as usize & slots.saturating_sub(1)
 }
 
 fn scalar_atom(scalar: Scalar) -> Atom {
