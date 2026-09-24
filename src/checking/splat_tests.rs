@@ -1,5 +1,106 @@
 use crate::{CallOptions, CheckReport, Engine, HostMethod, Signature, SignatureParam, Value};
 
+/// Callees of every parameter shape, in the order the call sites below use them.
+const PRELUDE: &str = "\
+enum Status
+  Draft
+end
+class Box
+end
+class Point
+  def initialize(x, y)
+    @x = x
+  end
+
+  def pair(a, b = 2)
+    [a, b]
+  end
+end
+def rest(*args)
+  args
+end
+def fixed(a, b)
+  [a, b]
+end
+def optional(a, b = 2)
+  [a, b]
+end
+def named(a:, b: 1)
+  [a, b]
+end
+def kw(**opts)
+  opts
+end
+def mixed(a, *more, key: 0, **opts)
+  [a, more, key, opts]
+end
+";
+
+/// A value of each kind a splat can meet, with an annotation admitting it where one exists.
+const KINDS: [(&str, Option<&str>); 25] = [
+    ("1", Some("int")),
+    ("10 ** 30", None),
+    ("1.5", Some("float")),
+    ("\"s\"", Some("string")),
+    (":s", Some("symbol")),
+    ("nil", Some("nil")),
+    ("true", Some("bool")),
+    ("[]", Some("array<int>")),
+    ("[1]", Some("array<int>")),
+    ("[1, 2]", Some("array<int>")),
+    ("[1, 2, 3]", Some("array<any>")),
+    ("{}", Some("hash<string, int>")),
+    ("{ a: 1 }", Some("hash<string, int>")),
+    ("{ a: 1, b: 2 }", Some("{ a: int, b: int }")),
+    ("{ key: 1 }", Some("{ key: int }")),
+    ("1..3", Some("range")),
+    ("money(\"1.00 USD\")", Some("money")),
+    ("5.seconds", Some("duration")),
+    ("Time.now", Some("time")),
+    ("Status", None),
+    ("Status::Draft", Some("Status")),
+    ("Box.new", Some("Box")),
+    ("Box", None),
+    ("/ab/", None),
+    ("JSON", None),
+];
+
+/// Call sites that splat `v` into script functions, methods, constructors, hosts and natives.
+const CALLS: [&str; 32] = [
+    "rest(*v)",
+    "fixed(*v)",
+    "fixed(1, *v)",
+    "fixed(1, 2, 3, *v)",
+    "optional(*v)",
+    "named(*v)",
+    "mixed(*v)",
+    "mixed(1, *v)",
+    "fixed(*v, 1)",
+    "rest(*v, *v)",
+    "kw(**v)",
+    "named(**v)",
+    "named(a: 5, **v)",
+    "named(**v, a: 5)",
+    "rest(**v)",
+    "fixed(**v)",
+    "fixed(1, **v)",
+    "optional(1, **v)",
+    "mixed(1, **v)",
+    "rest(*v, **v)",
+    "Point.new(*v)",
+    "Point.new(1, 2).pair(*v)",
+    "Point.new(1, 2).pair(**v)",
+    "Box.new(*v)",
+    "host(*v)",
+    "host(7, **v)",
+    "loose(*v)",
+    "[0].push(*v)",
+    "[0].first(*v)",
+    "to_int(*v)",
+    "to_int(\"1\", **v)",
+    "JSON.stringify(1, **v)",
+];
+
 fn engine() -> Engine {
     let mut engine = Engine::new();
     let host = HostMethod::new("host", |_, _, _| Ok(Value::bytes(b"ok")))
@@ -42,6 +143,86 @@ fn messages(report: &CheckReport) -> Vec<&str> {
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())
         .collect()
+}
+
+fn splat_message(message: &str) -> bool {
+    message.starts_with("Positional splat must be an array")
+        || message.starts_with("Keyword splat must be a hash")
+}
+
+#[test]
+fn splats_of_every_kind_agree_with_execution() {
+    for call in CALLS {
+        let mut always = true;
+        for (kind, annotation) in KINDS {
+            let source = format!("{PRELUDE}def run\n  v = ({kind})\n  {call}\nend\n");
+            let script = engine()
+                .compile(&source)
+                .unwrap_or_else(|e| panic!("{source}: {e}"));
+            let failure = script
+                .call("run", &[], CallOptions::default())
+                .err()
+                .map(|error| error.to_string());
+            always &= failure.is_some();
+            let report = script
+                .check_call("run", &[], &CallOptions::default())
+                .unwrap();
+            assert!(report.incomplete.is_empty(), "{kind} {call}: {report:?}");
+            assert_eq!(
+                !report.diagnostics.is_empty(),
+                failure.is_some(),
+                "{kind} {call}: {failure:?} {:?}",
+                messages(&report)
+            );
+            assert_eq!(
+                messages(&report)
+                    .iter()
+                    .any(|message| splat_message(message)),
+                failure
+                    .as_deref()
+                    .is_some_and(|message| message.contains("splat argument must be")),
+                "{kind} {call}: {failure:?} {:?}",
+                messages(&report)
+            );
+            // Each declared domain holds one kind, so its splat verdict is this value's. Element
+            // types stay strict for every count that binds, so only arity is compared here.
+            if let Some(annotation) = annotation {
+                let report = check(&format!(
+                    "{PRELUDE}def run(v: {annotation})\n  {call}\nend\n"
+                ));
+                assert!(
+                    report.incomplete.is_empty(),
+                    "{annotation} {call}: {report:?}"
+                );
+                assert_eq!(
+                    messages(&report)
+                        .iter()
+                        .any(|message| splat_message(message)),
+                    failure
+                        .as_deref()
+                        .is_some_and(|message| message.contains("splat argument must be")),
+                    "{annotation} {call}: {failure:?} {:?}",
+                    messages(&report)
+                );
+                assert!(
+                    failure.is_some()
+                        || messages(&report)
+                            .iter()
+                            .all(|message| message.contains(": expected ")),
+                    "{annotation} {call}: {:?}",
+                    messages(&report)
+                );
+            }
+        }
+        // A gradual value spreads into gradual arguments unless every value fails.
+        let report = check(&format!("{PRELUDE}def run(v)\n  {call}\nend\n"));
+        assert!(report.incomplete.is_empty(), "{call}: {report:?}");
+        assert!(
+            report.diagnostics.is_empty() || always,
+            "{call}: {:?}",
+            messages(&report)
+        );
+    }
 }
 
 #[test]
