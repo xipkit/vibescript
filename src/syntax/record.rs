@@ -17,8 +17,8 @@ pub(crate) enum Top {
     Enum(usize),
     /// A class or module declaration.
     Module(usize),
-    /// Any other statement.
-    Statement,
+    /// Any other statement, by index into the entry point's body.
+    Statement(usize),
 }
 
 /// A class alias, which compiles to a copy of its target among the class's

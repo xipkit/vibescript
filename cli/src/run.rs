@@ -10,6 +10,7 @@ use std::{
     ffi::OsString,
     path::{Path, PathBuf},
 };
+use vibescript::tooling::{self, ItemKind};
 use vibescript::{CallOptions, Engine, Error, ErrorKind, Limits, ModuleConfig, Script, Value};
 
 const FLAGS: [Flag; 9] = [
@@ -171,9 +172,13 @@ pub fn execute(invocation: &Invocation, out: &Sink, err: &Sink) -> Result<(), St
 }
 
 fn has_top_level_statements(script: &Script) -> Result<bool, String> {
-    script
-        .outline()
-        .map(|outline| outline.first_statement.is_some())
+    tooling::outline(script.source())
+        .map(|outline| {
+            outline
+                .items
+                .iter()
+                .any(|item| matches!(item.kind, ItemKind::Statement(_)))
+        })
         .map_err(|error| format!("compile failed: {}", render::error(&error, None)))
 }
 

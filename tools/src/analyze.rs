@@ -6,7 +6,7 @@
 //! branches all return. Its scopes, positions and ordering match the
 //! reference implementation's linter.
 
-use vibescript::{Engine, Error, Position, Script};
+use vibescript::{Engine, Error, Position, Script, tooling};
 
 /// The message of an unreachable-statement finding.
 pub const UNREACHABLE: &str = "unreachable statement";
@@ -55,9 +55,7 @@ pub fn analyze(source: &str) -> Result<Vec<Finding>, Error> {
 /// # Ok::<(), vibescript::Error>(())
 /// ```
 pub fn analyze_script(script: &Script) -> Result<Vec<Finding>, Error> {
-    Ok(script
-        .outline()?
-        .unreachable
+    Ok(tooling::unreachable(script.source())?
         .into_iter()
         .map(|unreachable| Finding {
             function: unreachable.function,

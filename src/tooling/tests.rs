@@ -74,7 +74,7 @@ fn outlines_top_level_declarations_in_source_order() {
             (ItemKind::Class, "Wallet", 5),
             (ItemKind::Enum, "Status", 17),
             (ItemKind::Alias, "assist", 22),
-            (ItemKind::Statement, "", 23),
+            (ItemKind::Statement(StatementKind::Assignment), "", 23),
             (ItemKind::Function, "run", 25),
         ]
     );
@@ -121,7 +121,7 @@ fn outlines_modules_constants_and_nested_modules() {
         shape(&billing.children),
         [
             (ItemKind::Constant, "LIMIT", 2),
-            (ItemKind::Statement, "", 3),
+            (ItemKind::Statement(StatementKind::Assignment), "", 3),
             (ItemKind::Module, "Codes", 5),
             (ItemKind::ClassMethod, "code", 13),
         ]
@@ -135,7 +135,10 @@ fn outlines_modules_constants_and_nested_modules() {
     );
     // Class bodies run per instance, so their assignments are statements.
     let class = outline_items("class A\n  LIMIT = 1\nend\n");
-    assert_eq!(shape(&class[0].children), [(ItemKind::Statement, "", 2)]);
+    assert_eq!(
+        shape(&class[0].children),
+        [(ItemKind::Statement(StatementKind::Assignment), "", 2)]
+    );
 }
 
 #[test]
@@ -502,4 +505,55 @@ fn member_receivers_come_from_literals_and_annotations() {
     let mut deep = String::from("x = [1].vibesCompletionProbe__\n");
     deep.push_str(&"[".repeat(2000));
     assert_eq!(member_receiver(&deep, probe), None);
+}
+
+#[test]
+fn statements_report_their_kinds() {
+    let items = outline_items(
+        "puts 1\nx = 1\nuntil x\nend\nwhile x\nend\nx += 1 until x\nreturn if x\nunless x\nend\nfor i in [1]\nend\nbegin\n  1\nrescue\n  2\nend\nraise \"x\"\nbreak\nnext\nif x; 1; end.to_s\n",
+    );
+    let kinds: Vec<_> = items.iter().map(|item| item.kind).collect();
+    use StatementKind::*;
+    assert_eq!(
+        kinds,
+        [
+            Expression, Assignment, Until, While, Until, If, If, For, Begin, Raise, Break, Next,
+            Expression,
+        ]
+        .map(ItemKind::Statement)
+    );
+    // Declarations are not statements.
+    let items = outline_items("def a\nend\nclass B\nend\nenum C\n  D\nend\nalias e a\n");
+    assert!(
+        items
+            .iter()
+            .all(|item| !matches!(item.kind, ItemKind::Statement(_)))
+    );
+}
+
+#[test]
+fn unreachable_statements_follow_the_reference_linter() {
+    let found = |source: &str| -> Vec<String> {
+        unreachable(source)
+            .unwrap()
+            .into_iter()
+            .map(|u| format!("{}:{} {}", u.position.line, u.position.column, u.function))
+            .collect()
+    };
+    assert!(found("def run()\n  value = 1\n  value\nend").is_empty());
+    assert_eq!(found("def run()\n  return 1\n  2\nend"), ["3:3 run"]);
+    assert_eq!(
+        found("def run()\n  [1].each do |x|\n    raise \"boom\"\n    x\n  end\nend"),
+        ["4:5 run block at 2:12"]
+    );
+    assert_eq!(
+        found("puts 1\nclass A\n  raise \"x\"\n  1\nend"),
+        ["4:3 <script>", "4:3 A.<class body>"]
+    );
+    assert_eq!(
+        found("def f\n  return 1\n  x = 2 if true\n  z while false\nend"),
+        ["3:9 f", "4:5 f"]
+    );
+    let compiled = Engine::new().compile("def f(\n").err().unwrap();
+    assert_eq!(unreachable("def f(\n").unwrap_err(), compiled);
 }

@@ -1,147 +1,54 @@
-//! Source-level facts for command-line tooling, gathered without executing code.
-//!
-//! [`Script::outline`] reparses the compiled source and reports its top-level
-//! function declarations, whether top-level code executes anything, and every
-//! statement that can never run because an earlier statement in the same body
-//! always leaves it. The unreachable-statement analysis follows the Go
-//! reference's `vibes analyze` linter: its scopes, positions and terminator rules.
+//! Statements that can never run, as the Go reference's `vibes analyze`
+//! linter reports them: its scopes, positions and terminator rules.
 
+use super::Unreachable;
 use crate::{
-    Position, Result, Script,
-    syntax::{self, Block, Expr, Node, ParamKind, Statement, Stmt, Target, Try, modules::Module},
+    Position, Result,
+    source::Source,
+    syntax::{self, Block, Expr, Node, Statement, Stmt, Target, Try, modules::Module},
 };
 use std::{collections::HashMap, sync::Arc};
 
-/// Source-level facts about a compiled script.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct Outline {
-    /// Top-level function declarations, including aliases, in byte order of their names.
-    pub functions: Vec<FunctionOutline>,
-    /// The kind of the first top-level statement that is not a declaration.
-    ///
-    /// Function, class, module and enum declarations and aliases are not
-    /// statements here, so `None` means the top level only declares names.
-    pub first_statement: Option<StatementKind>,
-    /// Statements that can never run, sorted by position and then by scope.
-    pub unreachable: Vec<Unreachable>,
-}
-
-/// One top-level function declaration.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct FunctionOutline {
-    pub name: String,
-    /// Whether a call must supply an argument: some positional or keyword
-    /// parameter has no default.
-    pub requires_arguments: bool,
-}
-
-/// The syntactic kind of a statement.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum StatementKind {
-    Expression,
-    Assignment,
-    /// An `if` or `unless` statement, including the modifier forms.
-    If,
-    While,
-    Until,
-    For,
-    Return,
-    Raise,
-    Break,
-    Next,
-    Retry,
-    /// A statement-position `begin` block.
-    Begin,
-}
-
-/// A statement that follows a `return`, `raise`, `break`, `next` or `retry`,
-/// or a compound statement whose every path ends in one, in the same body.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Unreachable {
-    /// The enclosing scope: a function name, `<script>` for top-level code,
-    /// `Class#method`, `Class.method`, or `Class.<class body>`, with nested
-    /// namespaces qualified as `Outer::Inner`. Each enclosing block literal
-    /// appends ` block at LINE:COLUMN`, the position of its `do` or `{`.
-    pub function: String,
-    pub position: Position,
-}
-
-impl Script {
-    /// Reports top-level declarations and unreachable statements of the compiled source.
-    ///
-    /// Nothing is executed. The source is parsed again without limits, as it
-    /// already compiled under the engine's guards.
-    ///
-    /// ```
-    /// use vibescript::{Engine, StatementKind};
-    /// let script = Engine::new().compile("def run(x)\n  return x\n  x + 1\nend\nrun(1)")?;
-    /// let outline = script.outline()?;
-    /// assert_eq!(outline.functions[0].name, "run");
-    /// assert!(outline.functions[0].requires_arguments);
-    /// assert_eq!(outline.first_statement, Some(StatementKind::Expression));
-    /// assert_eq!(outline.unreachable[0].function, "run");
-    /// assert_eq!(outline.unreachable[0].position.line, 3);
-    /// # Ok::<(), vibescript::Error>(())
-    /// ```
-    pub fn outline(&self) -> Result<Outline> {
-        let source = &self.inner.code.program.source;
-        let parsed = syntax::parse(source.text(), &())?;
-        let main = &parsed.functions[0];
-        let mut functions: Vec<_> = parsed.functions[1..]
-            .iter()
-            .map(|definition| FunctionOutline {
-                name: definition.name.as_str().to_owned(),
-                requires_arguments: definition.params.iter().any(|param| {
-                    matches!(param.kind, ParamKind::Positional | ParamKind::Keyword)
-                        && param.default.is_none()
-                }),
-            })
-            .collect();
-        functions.sort_by(|a, b| a.name.cmp(&b.name));
-        let first_statement = main
-            .body
-            .iter()
-            .find(|stmt| !matches!(stmt.node, Statement::Module(_)))
-            .map(|stmt| kind(source.text(), stmt));
-
-        let mut lint = Lint {
-            source,
-            interpolations: &parsed.interpolations,
-            reports: Vec::new(),
-            tasks: Vec::new(),
-            results: Vec::new(),
-        };
-        lint.script(&main.body, &parsed.modules);
-        for definition in &parsed.functions[1..] {
-            lint.body(&Arc::from(definition.name.as_str()), &definition.body);
-        }
-        let mut namespaces = Vec::new();
-        qualified(&parsed.modules, "", &mut namespaces);
-        for (name, module) in namespaces {
-            lint.body(&Arc::from(format!("{name}.<class body>")), &module.body);
-            for definition in last_definitions(&module.instance_methods) {
-                let scope = format!("{name}#{}", definition.name.as_str());
-                lint.body(&Arc::from(scope), &definition.body);
-            }
-            for definition in last_definitions(&module.methods) {
-                let scope = format!("{name}.{}", definition.name.as_str());
-                lint.body(&Arc::from(scope), &definition.body);
-            }
-        }
-        let mut unreachable = lint.reports;
-        unreachable.sort_by(|a, b| {
-            (a.position.line, a.position.column, &a.function).cmp(&(
-                b.position.line,
-                b.position.column,
-                &b.function,
-            ))
-        });
-        Ok(Outline {
-            functions,
-            first_statement,
-            unreachable,
-        })
+/// Parses source and reports its unreachable statements, sorted by position
+/// and then by scope.
+pub(super) fn unreachable(text: &str) -> Result<Vec<Unreachable>> {
+    let parsed = syntax::parse(text, &())
+        .map_err(|error| crate::source::parse_error(text, None, error, &()))?;
+    let source = Source::compile(text, &())?;
+    let main = &parsed.functions[0];
+    let mut lint = Lint {
+        source: &source,
+        interpolations: &parsed.interpolations,
+        reports: Vec::new(),
+        tasks: Vec::new(),
+        results: Vec::new(),
+    };
+    lint.script(&main.body, &parsed.modules);
+    for definition in &parsed.functions[1..] {
+        lint.body(&Arc::from(definition.name.as_str()), &definition.body);
     }
+    let mut namespaces = Vec::new();
+    qualified(&parsed.modules, "", &mut namespaces);
+    for (name, module) in namespaces {
+        lint.body(&Arc::from(format!("{name}.<class body>")), &module.body);
+        for definition in last_definitions(&module.instance_methods) {
+            let scope = format!("{name}#{}", definition.name.as_str());
+            lint.body(&Arc::from(scope), &definition.body);
+        }
+        for definition in last_definitions(&module.methods) {
+            let scope = format!("{name}.{}", definition.name.as_str());
+            lint.body(&Arc::from(scope), &definition.body);
+        }
+    }
+    let mut unreachable = lint.reports;
+    unreachable.sort_by(|a, b| {
+        (a.position.line, a.position.column, &a.function).cmp(&(
+            b.position.line,
+            b.position.column,
+            &b.function,
+        ))
+    });
+    Ok(unreachable)
 }
 
 /// Collects namespaces with `Outer::Inner` names, as the reference registers them.
@@ -169,37 +76,6 @@ fn last_definitions<T>(methods: &[(syntax::Definition, T)]) -> Vec<&syntax::Defi
         .filter(|(index, (definition, _))| last[definition.name.as_str()] == *index)
         .map(|(_, (definition, _))| definition)
         .collect()
-}
-
-fn kind(text: &str, stmt: &Stmt) -> StatementKind {
-    let keyword_is = |offset: u32, word: &str| {
-        text.get(offset as usize..)
-            .is_some_and(|rest| rest.starts_with(word))
-    };
-    match &stmt.node {
-        Statement::Expr(Expr {
-            node: Node::Try(attempt),
-            ..
-        }) if !attempt.modifier => StatementKind::Begin,
-        Statement::Expr(_) => StatementKind::Expression,
-        Statement::Assign(..) => StatementKind::Assignment,
-        Statement::If(..) => StatementKind::If,
-        Statement::While(_, _, modifier) => {
-            if keyword_is(modifier.unwrap_or(stmt.offset), "until") {
-                StatementKind::Until
-            } else {
-                StatementKind::While
-            }
-        }
-        Statement::For(..) => StatementKind::For,
-        Statement::Return(_) => StatementKind::Return,
-        Statement::Raise(..) => StatementKind::Raise,
-        Statement::Break(_) => StatementKind::Break,
-        Statement::Next(_) => StatementKind::Next,
-        Statement::Retry => StatementKind::Retry,
-        // Declarations never reach here; a nested class is an expression-like statement.
-        Statement::Module(_) | Statement::UnboundClass(_) => StatementKind::Expression,
-    }
 }
 
 /// The position the reference reports for a statement.
@@ -343,7 +219,7 @@ enum Task<'a> {
 
 /// An explicit-stack walk, since statements nest as deeply as the syntax limit.
 struct Lint<'a> {
-    source: &'a crate::source::Source,
+    source: &'a Source,
     interpolations: &'a [(u32, u32)],
     reports: Vec<Unreachable>,
     tasks: Vec<Task<'a>>,

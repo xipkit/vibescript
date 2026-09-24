@@ -14,7 +14,8 @@ use std::{
     ffi::OsString,
     path::{Path, PathBuf},
 };
-use vibescript::{Script, StatementKind};
+use vibescript::Script;
+use vibescript::tooling::StatementKind;
 use vibescript_tools::test_runner::{self, DiscoverError, Filter, SuiteError, TestFailure};
 
 const FLAGS: [Flag; 6] = [

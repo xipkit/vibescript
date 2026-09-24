@@ -3,7 +3,7 @@
 //! Syntax nests as deeply as the parser's depth guard, so every walk here
 //! keeps its own stack rather than recursing.
 
-use super::{Function, Item, ItemKind, Outline, Parameter, ParameterKind, Rescue};
+use super::{Function, Item, ItemKind, Outline, Parameter, ParameterKind, Rescue, StatementKind};
 use crate::{
     Position,
     compilation::Type,
@@ -48,8 +48,11 @@ pub(super) fn outline(source: &str, declarations: &Declarations, record: &Record
                     .collect();
                 item
             }
-            Top::Module(index) => module(&declarations.modules[*index], record, &at),
-            Top::Statement => Item::new(ItemKind::Statement, "", position),
+            Top::Module(index) => module(source, &declarations.modules[*index], record, &at),
+            Top::Statement(index) => {
+                let stmt = &declarations.functions[0].body[*index];
+                Item::new(ItemKind::Statement(kind(source, stmt)), "", position)
+            }
         });
     }
     Outline { items }
@@ -69,7 +72,7 @@ impl Item {
 }
 
 /// Converts a class or module and its nested modules, innermost first.
-fn module(root: &Module, record: &Record, at: &impl Fn(u32) -> Position) -> Item {
+fn module(source: &str, root: &Module, record: &Record, at: &impl Fn(u32) -> Position) -> Item {
     struct Frame<'a> {
         module: &'a Module,
         nested: Vec<(u32, Item)>,
@@ -92,7 +95,7 @@ fn module(root: &Module, record: &Record, at: &impl Fn(u32) -> Position) -> Item
             continue;
         }
         let frame = stack.pop().expect("the frame was just inspected");
-        let item = members(frame.module, frame.nested, record, at);
+        let item = members(source, frame.module, frame.nested, record, at);
         match stack.last_mut() {
             Some(parent) => parent.nested.push((frame.module.offset, item)),
             None => return item,
@@ -101,6 +104,7 @@ fn module(root: &Module, record: &Record, at: &impl Fn(u32) -> Position) -> Item
 }
 
 fn members(
+    source: &str,
     module: &Module,
     nested: Vec<(u32, Item)>,
     record: &Record,
@@ -141,7 +145,7 @@ fn members(
     for stmt in &module.body {
         let item = match constant(stmt).filter(|_| !module.is_class) {
             Some(name) => Item::new(ItemKind::Constant, name, at(stmt.offset)),
-            None => Item::new(ItemKind::Statement, "", at(stmt.offset)),
+            None => Item::new(ItemKind::Statement(kind(source, stmt)), "", at(stmt.offset)),
         };
         children.push((stmt.offset, item));
     }
@@ -154,6 +158,39 @@ fn members(
     let mut item = Item::new(kind, &module.name, at(module.offset));
     item.children = children.into_iter().map(|(_, item)| item).collect();
     item
+}
+
+/// The syntactic kind of a statement, distinguishing `until` from `while`
+/// by its keyword.
+fn kind(text: &str, stmt: &Stmt) -> StatementKind {
+    let keyword_is = |offset: u32, word: &str| {
+        text.get(offset as usize..)
+            .is_some_and(|rest| rest.starts_with(word))
+    };
+    match &stmt.node {
+        Statement::Expr(Expr {
+            node: Node::Try(attempt),
+            ..
+        }) if !attempt.modifier => StatementKind::Begin,
+        Statement::Expr(_) => StatementKind::Expression,
+        Statement::Assign(..) => StatementKind::Assignment,
+        Statement::If(..) => StatementKind::If,
+        Statement::While(_, _, modifier) => {
+            if keyword_is(modifier.unwrap_or(stmt.offset), "until") {
+                StatementKind::Until
+            } else {
+                StatementKind::While
+            }
+        }
+        Statement::For(..) => StatementKind::For,
+        Statement::Return(_) => StatementKind::Return,
+        Statement::Raise(..) => StatementKind::Raise,
+        Statement::Break(_) => StatementKind::Break,
+        Statement::Next(_) => StatementKind::Next,
+        Statement::Retry => StatementKind::Retry,
+        // Declarations never reach here; a nested class is an expression-like statement.
+        Statement::Module(_) | Statement::UnboundClass(_) => StatementKind::Expression,
+    }
 }
 
 /// The name a plain assignment to a capitalized name declares.

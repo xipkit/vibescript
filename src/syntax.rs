@@ -692,9 +692,10 @@ impl<'a> Parsing<'a> {
                     record.enums.push(member_offsets);
                 });
             } else {
+                let index = top.len();
                 top.push(work, self.statement().await?)?;
                 self.p()
-                    .note(|record| record.top.push((offset, record::Top::Statement)));
+                    .note(|record| record.top.push((offset, record::Top::Statement(index))));
             }
             self.p().lines()?;
         }

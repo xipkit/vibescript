@@ -1,14 +1,16 @@
-//! Read-only views of source declarations and member tables for editor tooling.
+//! Read-only views of source for editors and command-line tools.
 //!
-//! These views never compile or execute code. [`outline`] and [`member_receiver`]
-//! parse with the same source-size and syntax-depth guards as
-//! [`Engine::compile`](crate::Engine::compile); the catalogs describe the
-//! runtime's reserved words and member tables. [`crate::builtins`] lists the
-//! global builtins.
+//! These views never compile or execute code. [`outline`], [`unreachable`] and
+//! [`member_receiver`] parse with the same source-size and syntax-depth guards
+//! as [`Engine::compile`](crate::Engine::compile); a compiled script's text is
+//! available from [`Script::source`](crate::Script::source). The catalogs
+//! describe the runtime's reserved words and member tables;
+//! [`crate::builtins`] lists the global builtins.
 #![doc = include_str!("../docs/tooling.md")]
 
 use crate::{Position, Result};
 
+mod unreachable;
 mod walk;
 
 /// A declaration outline of one source, in source order.
@@ -59,7 +61,26 @@ pub enum ItemKind {
     /// A module constant: a plain assignment to a capitalized name in a module body.
     Constant,
     /// Any other top-level, class-body or module-body statement.
-    Statement,
+    Statement(StatementKind),
+}
+
+/// The syntactic kind of a statement [`Item`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StatementKind {
+    Expression,
+    Assignment,
+    /// An `if` or `unless` statement, including the modifier forms.
+    If,
+    While,
+    Until,
+    For,
+    Return,
+    Raise,
+    Break,
+    Next,
+    Retry,
+    /// A statement-position `begin` block.
+    Begin,
 }
 
 /// Signature and body facts of a function or method.
@@ -78,6 +99,39 @@ pub struct Function {
     /// The start of the body's last statement, counting statements nested in
     /// control flow and `begin` clauses but not in blocks or expressions.
     pub last_statement: Option<Position>,
+}
+
+impl Function {
+    /// Whether a call must supply an argument: some positional or keyword
+    /// parameter has no default.
+    ///
+    /// ```
+    /// let outline = vibescript::tooling::outline("def f(a, b = 1)\nend\ndef g(*rest)\nend\n")?;
+    /// let functions: Vec<_> = outline.items.iter().map(|item| item.function.as_ref().unwrap()).collect();
+    /// assert!(functions[0].requires_arguments());
+    /// assert!(!functions[1].requires_arguments());
+    /// # Ok::<(), vibescript::Error>(())
+    /// ```
+    pub fn requires_arguments(&self) -> bool {
+        self.params.iter().any(|param| {
+            matches!(
+                param.kind,
+                ParameterKind::Positional | ParameterKind::Keyword
+            ) && !param.default
+        })
+    }
+}
+
+/// A statement that follows a `return`, `raise`, `break`, `next` or `retry`,
+/// or a compound statement whose every path ends in one, in the same body.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Unreachable {
+    /// The enclosing scope: a function name, `<script>` for top-level code,
+    /// `Class#method`, `Class.method`, or `Class.<class body>`, with nested
+    /// namespaces qualified as `Outer::Inner`. Each enclosing block literal
+    /// appends ` block at LINE:COLUMN`, the position of its `do` or `{`.
+    pub function: String,
+    pub position: Position,
 }
 
 /// One parameter of a [`Function`].
@@ -209,6 +263,25 @@ pub fn outline(source: &str) -> Result<Outline> {
     let declarations =
         declarations.map_err(|error| crate::source::parse_error(source, None, error, &()))?;
     Ok(walk::outline(source, &declarations, &record))
+}
+
+/// Reports every statement that can never run, as the Go reference's
+/// `vibes analyze` linter does, sorted by position and then by scope.
+///
+/// A statement is unreachable when an earlier statement in the same body
+/// always leaves it: a `return`, `raise`, `break`, `next` or `retry`, or a
+/// compound statement whose every path ends in one. Scopes, positions and
+/// terminator rules follow the reference. Parse failures return the same error
+/// as [`Engine::compile`](crate::Engine::compile).
+///
+/// ```
+/// let unreachable = vibescript::tooling::unreachable("def run(x)\n  return x\n  puts(x)\nend\n")?;
+/// assert_eq!(unreachable[0].function, "run");
+/// assert_eq!((unreachable[0].position.line, unreachable[0].position.column), (3, 3));
+/// # Ok::<(), vibescript::Error>(())
+/// ```
+pub fn unreachable(source: &str) -> Result<Vec<Unreachable>> {
+    unreachable::unreachable(source)
 }
 
 /// Reports the receiver kind of the first member access named `name`, when the

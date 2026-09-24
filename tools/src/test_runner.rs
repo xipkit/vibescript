@@ -15,7 +15,8 @@ use std::{
     fs, io,
     path::{Component, Path, PathBuf},
 };
-use vibescript::{CallOptions, Engine, Error, Limits, Script, StatementKind, Value};
+use vibescript::tooling::{self, ItemKind, StatementKind};
+use vibescript::{CallOptions, Engine, Error, Limits, Script, Value};
 
 /// The prefix that marks a test function.
 pub const TEST_PREFIX: &str = "test_";
@@ -280,27 +281,35 @@ pub fn run_each(
     options: &Options,
     mut report: impl FnMut(TestOutcome),
 ) -> Result<usize, SuiteError> {
-    let outline = script.outline().map_err(SuiteError::Outline)?;
-    if let Some(kind) = outline.first_statement {
-        return Err(SuiteError::TopLevelStatement(kind));
+    let outline = tooling::outline(script.source()).map_err(SuiteError::Outline)?;
+    let mut functions = Vec::new();
+    for item in &outline.items {
+        match (item.kind, &item.function) {
+            (ItemKind::Statement(kind), _) => return Err(SuiteError::TopLevelStatement(kind)),
+            (ItemKind::Function | ItemKind::Alias, Some(function)) => {
+                functions.push((&item.name, function.requires_arguments()));
+            }
+            _ => (),
+        }
     }
+    functions.sort();
     let mut selected = Vec::new();
-    for function in &outline.functions {
-        if !function.name.starts_with(TEST_PREFIX) {
+    for (name, requires_arguments) in functions {
+        if !name.starts_with(TEST_PREFIX) {
             continue;
         }
         if let Some(filter) = &options.filter {
-            if !filter.matches(&function.name).map_err(SuiteError::Filter)? {
+            if !filter.matches(name).map_err(SuiteError::Filter)? {
                 continue;
             }
         }
-        selected.push(function);
+        selected.push((name, requires_arguments));
     }
-    for function in &selected {
-        let failure = if function.requires_arguments {
+    for &(name, requires_arguments) in &selected {
+        let failure = if requires_arguments {
             Some(TestFailure::RequiresArguments)
         } else {
-            match script.call(&function.name, &[], options.call.clone()) {
+            match script.call(name, &[], options.call.clone()) {
                 Ok(_) => None,
                 Err(_) if options.call.cancellation.is_cancelled() => {
                     return Err(SuiteError::Cancelled);
@@ -309,7 +318,7 @@ pub fn run_each(
             }
         };
         report(TestOutcome {
-            name: function.name.clone(),
+            name: name.clone(),
             failure,
         });
     }

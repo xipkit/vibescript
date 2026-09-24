@@ -51,7 +51,6 @@ mod numeric;
 mod objects;
 mod ops;
 mod ordering;
-mod outline;
 mod output;
 mod pairs;
 mod printable;
@@ -78,7 +77,6 @@ pub use capability::{Capability, HostMethod};
 pub use checking::{CheckDiagnostic, CheckReport, CheckedOutcome};
 pub use error::{Diagnostic, Error, ErrorClass, ErrorKind, Position, Result, StackFrame};
 pub use host_call::HostCall;
-pub use outline::{FunctionOutline, Outline, StatementKind, Unreachable};
 pub use signature::{Signature, SignatureParam};
 use std::{collections::BTreeMap, sync::Arc};
 pub use value::Value;
@@ -326,11 +324,26 @@ impl Script {
     pub fn run(&self, options: CallOptions) -> Result<Outcome> {
         self.call("__main__", &[], options)
     }
+    /// Returns the source text the script was compiled from.
+    ///
+    /// Tools can inspect it with [`tooling`] without compiling it again.
+    ///
+    /// ```
+    /// let script = vibescript::Engine::new().compile("def run\n  1\nend\n")?;
+    /// let outline = vibescript::tooling::outline(script.source())?;
+    /// assert_eq!(outline.items[0].name, "run");
+    /// # Ok::<(), vibescript::Error>(())
+    /// ```
+    pub fn source(&self) -> &str {
+        self.inner.code.program.source.text()
+    }
     /// Lists the top-level function, class, module and enum declarations in source order.
     ///
     /// Each span covers the declaration's source text, so a host can carry the
     /// declarations of one script into source it compiles later, as an
-    /// interactive shell does. Declarations nested in other code are not listed.
+    /// interactive shell does. Declarations nested in other code are not listed;
+    /// [`tooling::outline`] describes members, signatures and positions, and
+    /// works on source that has not compiled.
     ///
     /// ```
     /// use vibescript::{DeclarationKind, Engine};
