@@ -138,7 +138,7 @@ end
 
 module Time
   def at(seconds: number, subsec?: number, unit?: :microsecond | :millisecond | :nanosecond, in: string?: = nil) -> time
-  def local(year: int, month: int = 1, day: int = 1, hour: int = 0, min: int = 0, sec: int = 0, usec: number = 0) -> time
+  def local(year: int, month: int = 1, day: int = 1, hour: int = 0, min: int = 0, sec: int = 0, usec: number = 0, in: string?: = nil) -> time
   def now(in: string?: = nil) -> time
   # Parses common formats, or `text` in a Go layout such as "2006-01-02".
   def parse(text: string, layout: string? = nil, in: string?: = nil) -> time
@@ -354,8 +354,8 @@ class array<T>
   def empty? -> bool
   # Raises when `index` is out of bounds, unless a default or block supplies a value.
   def fetch(index: int, default?: T, &block?: int -> T) -> T
-  # Overwrites elements from `start`; a window past the end pads with nil.
-  def fill(value: T, start?: int | range, length?: int) -> array<T?>
+  # Overwrites the elements from `start`, or all of them; raises past the end.
+  def fill(value: T, start?: int | range, length?: int) -> array<T>
   def filter_map<U>(&block: T -> U?) -> array<U>
   def find(&block: T -> bool) -> T?
   def first -> T?
@@ -372,8 +372,8 @@ class array<T>
   def index(value: T, offset: int = 0) -> int?
   # The index of the first element the block accepts.
   def index(&block: T -> bool) -> int?
-  # Inserts before `index`; an index past the end pads with nil.
-  def insert(index: int, *values: array<T>) -> array<T?>
+  # Inserts before `index`; raises past the end.
+  def insert(index: int, *values: array<T>) -> array<T>
   def join(separator: string = "") -> string
   def keep_if(&block: T -> bool) -> array<T>
   def last -> T?

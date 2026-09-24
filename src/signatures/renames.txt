@@ -14,7 +14,8 @@
 # unchanged. A pattern without parentheses matches only a call without
 # arguments or a block, and keywords in a pattern must appear with that value.
 # `manual: hint` marks a change that has no mechanical rewrite; the hint says
-# what to write instead. A trailing `# note` states a further condition.
+# what to write instead. A trailing `# note` states a further condition. When
+# several entries match a call, the first one applies.
 #
 # Builtin type names are also lowercase only: `Int` and every other casing is
 # rewritten to its lowercase spelling, as a rule rather than an entry here.
@@ -157,7 +158,8 @@ Regexp: Regexp.quote(...) => Regex.escape(...)
 Regexp: Regexp.last_match => nil
 Time: Time.gm(...) => Time.utc(...)
 Time: Time.mktime(...) => Time.local(...)
-Time: Time.new(...) => Time.local(...)  # only without a zone argument or `in:`, which Time.local does not take
+Time: Time.new($year, $month, $day, $hour, $min, $sec, $zone, ...) => Time.local($year, $month, $day, $hour, $min, $sec, in: $zone, ...)
+Time: Time.new(...) => Time.local(...)
 Time: Time.at($seconds, $subsec, :usec, ...) => Time.at($seconds, $subsec, :microsecond, ...)
 Time: Time.at($seconds, $subsec, :nsec, ...) => Time.at($seconds, $subsec, :nanosecond, ...)
 Duration: Duration.build($seconds) => Duration.build(seconds: $seconds)
