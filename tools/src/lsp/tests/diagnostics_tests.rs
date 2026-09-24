@@ -81,11 +81,46 @@ fn duplicate_functions_are_reported_at_the_duplicate() {
 
 #[test]
 fn errors_without_positions_are_reported_at_the_document_start() {
-    let source = format!("{}x", " ".repeat(8 << 20));
+    // Like the reference, documents over 1 MiB are not analyzed.
+    let source = format!("{}x", " ".repeat(1 << 20));
     let diagnostics = diagnostics(&source);
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(range(&diagnostics[0]), (0, 0, 0, 1));
+    assert_eq!(
+        diagnostics[0]["message"],
+        "source exceeds maximum size (1048577 > 1048576 bytes)"
+    );
+    // Past a raised limit, the compiler's own guard reports without a position.
+    let mut server = Server::with_options(Options {
+        max_source_bytes: usize::MAX,
+        ..Options::default()
+    });
+    let source = format!("{}x", " ".repeat(8 << 20));
+    let diagnostics = open_diagnostics(&mut server, "file:///tmp/huge.vibe", &source);
+    assert_eq!(range(&diagnostics[0]), (0, 0, 0, 1));
     assert_eq!(diagnostics[0]["message"], "source exceeds 8 MiB");
+}
+
+#[test]
+fn analysis_stops_at_its_deadline() {
+    let mut server = Server::with_options(Options {
+        timeout: std::time::Duration::ZERO,
+        ..Options::default()
+    });
+    let diagnostics = open_diagnostics(
+        &mut server,
+        "file:///tmp/slow.vibe",
+        "def run
+  1
+end
+",
+    );
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0]["severity"], 2);
+    assert_eq!(
+        diagnostics[0]["message"],
+        "compilation stopped: execution deadline exceeded"
+    );
 }
 
 #[test]

@@ -37,7 +37,7 @@ pub struct Range {
 pub enum Severity {
     /// A compile error or a contradiction the static checker proved.
     Error,
-    /// The static check stopped at its limits, so it may have missed errors.
+    /// Analysis stopped at a limit or deadline, so it may have missed errors.
     Warning,
     /// Code the static checker cannot analyze yet.
     Information,
@@ -157,19 +157,23 @@ pub struct SignatureHelp {
     pub active_parameter: u32,
 }
 
-/// Bounds for the static check a [`Document`] runs.
+/// Bounds for the analysis a [`Document`] runs on each text.
 #[derive(Clone, Debug)]
 pub struct Options {
-    /// Step and memory quotas for the check. The defaults allow 20 million
-    /// steps and 64 MiB, more than `vibes check` allows by default.
+    /// Step and memory quotas for the static check. The defaults allow 20
+    /// million steps and 64 MiB, more than `vibes check` allows by default.
     pub limits: Limits,
-    /// The check's deadline, measured from the start of each analysis.
+    /// The deadline for compiling and checking, measured from the start of
+    /// each analysis. The default is two seconds.
     pub timeout: Duration,
     /// Cancels checks in progress, which then report no checker findings.
     pub cancellation: CancellationToken,
     /// Directories required files resolve from during the check. `None` uses
     /// the directory of a `file:` URI and resolves nothing for other URIs.
     pub module_paths: Option<Vec<PathBuf>>,
+    /// The largest text analyzed, in bytes; larger texts get one diagnostic.
+    /// The default is the reference's 1 MiB.
+    pub max_source_bytes: usize,
 }
 
 impl Default for Options {
@@ -183,6 +187,7 @@ impl Default for Options {
             timeout: Duration::from_secs(2),
             cancellation: CancellationToken::new(),
             module_paths: None,
+            max_source_bytes: 1 << 20,
         }
     }
 }

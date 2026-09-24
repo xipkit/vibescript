@@ -6,7 +6,7 @@ use super::text::{line_at, utf16_character};
 use std::path::PathBuf;
 use std::time::Instant;
 use vibescript::tooling::{self, Outline};
-use vibescript::{CallOptions, Engine, Error, ErrorKind, ModuleConfig};
+use vibescript::{CallOptions, Engine, Error, ErrorKind, Limits, ModuleConfig};
 
 /// A diagnostic whose range always moves forward: an empty or inverted range
 /// covers one character from its start, as in the reference.
@@ -57,9 +57,48 @@ pub(crate) struct Analysis {
 /// as `vibes check FILE` resolves them; only diagnostics in the document
 /// itself are reported.
 pub(crate) fn analyze(uri: &str, source: &str, options: &Options) -> Analysis {
+    if source.len() > options.max_source_bytes {
+        return Analysis {
+            diagnostics: vec![diagnostic(
+                Range::default(),
+                Severity::Error,
+                format!(
+                    "source exceeds maximum size ({} > {} bytes)",
+                    source.len(),
+                    options.max_source_bytes
+                ),
+            )],
+            compiled: false,
+            program: Program::Missing,
+            cancelled: false,
+        };
+    }
+    let deadline = Some(Instant::now() + options.timeout);
+    let cancellation = options.cancellation.child_token();
     let engine = engine(uri, options);
-    let script = match engine.compile(source) {
+    // Compilation shares the check's deadline. Its work and memory grow with
+    // the source, which the size limit already bounds, so no quota applies.
+    let compile = CallOptions {
+        limits: Limits {
+            steps: None,
+            memory_bytes: None,
+            ..options.limits.clone()
+        },
+        cancellation: cancellation.clone(),
+        deadline,
+        ..CallOptions::default()
+    };
+    let script = match engine.compile_with_options(source, &compile) {
         Ok(script) => script,
+        Err(error) if error.kind == ErrorKind::Cancelled => return Analysis::cancelled(),
+        Err(error) if matches!(error.kind, ErrorKind::Deadline | ErrorKind::Memory) => {
+            return Analysis {
+                diagnostics: vec![stopped("compilation", &error)],
+                compiled: false,
+                program: Program::Kept,
+                cancelled: false,
+            };
+        }
         Err(error) => {
             let program = match tooling::outline(source) {
                 Ok(outline) => Program::Parsed(outline),
@@ -80,8 +119,8 @@ pub(crate) fn analyze(uri: &str, source: &str, options: &Options) -> Analysis {
     };
     let call = CallOptions {
         limits: options.limits.clone(),
-        cancellation: options.cancellation.child_token(),
-        deadline: Some(Instant::now() + options.timeout),
+        cancellation,
+        deadline,
         ..CallOptions::default()
     };
     let lines: Vec<&str> = source.split('\n').collect();
@@ -101,11 +140,7 @@ pub(crate) fn analyze(uri: &str, source: &str, options: &Options) -> Analysis {
             }
         }
         Err(error) if error.kind == ErrorKind::Cancelled => cancelled = true,
-        Err(error) => diagnostics.push(diagnostic(
-            Range::default(),
-            Severity::Warning,
-            format!("static check stopped: {}", error.message),
-        )),
+        Err(error) => diagnostics.push(stopped("static check", &error)),
     }
     Analysis {
         diagnostics,
@@ -113,6 +148,26 @@ pub(crate) fn analyze(uri: &str, source: &str, options: &Options) -> Analysis {
         program,
         cancelled,
     }
+}
+
+impl Analysis {
+    fn cancelled() -> Self {
+        Self {
+            diagnostics: Vec::new(),
+            compiled: false,
+            program: Program::Kept,
+            cancelled: true,
+        }
+    }
+}
+
+/// A warning that analysis stopped at a limit, so errors may be missing.
+fn stopped(stage: &str, error: &Error) -> Diagnostic {
+    diagnostic(
+        Range::default(),
+        Severity::Warning,
+        format!("{stage} stopped: {}", error.message),
+    )
 }
 
 /// An engine whose required files resolve from the configured directories,
