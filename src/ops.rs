@@ -80,7 +80,7 @@ pub(crate) fn unary(ctx: &mut CallContext, op: &str, value: Value) -> Result<Val
 /// another immediate, charging exactly what [`binary`] charges for them.
 /// Returns `None` for other operands and operators, or when an integer result
 /// overflows, leaving those to [`binary`].
-#[inline]
+#[inline(always)]
 pub(crate) fn immediate(
     ctx: &mut CallContext,
     op: &str,
