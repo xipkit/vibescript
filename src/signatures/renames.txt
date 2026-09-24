@@ -29,6 +29,7 @@ T: $x.eql?($y) => $x == $y
 T: $x.equal?($y) => $x == $y
 T: $x.itself => $x
 T: $x.freeze => $x
+T: $x.frozen? => true
 T: $x.clone => $x.dup
 T: $x.string => $x.to_s
 T: $x.is_a?($type) => $x.is_type?(:$type)
@@ -43,6 +44,8 @@ T: $x.respond_to?(...) => manual: dispatch by name is removed; use case over the
 # Strings.
 string: $x.size => $x.length
 string: $x.intern => $x.to_sym
+string: $x.clear => ""
+string: $x.replace($text) => $text
 string: $x.sub($pattern, ..., regex: true) => $x.sub(Regex.new($pattern), ...)
 string: $x.sub(..., regex: false) => $x.sub(...)
 string: $x.sub!($pattern, ..., regex: true) => $x.sub!(Regex.new($pattern), ...)
@@ -122,6 +125,7 @@ time: $x.tv_sec => $x.to_i
 time: $x.tv_usec => $x.usec
 time: $x.tv_nsec => $x.nsec
 time: $x.to_r => $x.to_f
+time: $x.hash => $x.to_i * 1000000000 + $x.nsec
 time: $x.gmt_offset => $x.utc_offset
 time: $x.gmtoff => $x.utc_offset
 time: $x.gmtime => $x.utc
@@ -150,7 +154,7 @@ Regexp: Regexp.new(...) => Regex.new(...)
 Regexp: Regexp.union(...) => Regex.union(...)
 Regexp: Regexp.escape(...) => Regex.escape(...)
 Regexp: Regexp.quote(...) => Regex.escape(...)
-Regexp: Regexp.last_match => Regex.last_match
+Regexp: Regexp.last_match => nil
 Time: Time.gm(...) => Time.utc(...)
 Time: Time.mktime(...) => Time.local(...)
 Time: Time.new(...) => Time.local(...)  # only without a zone argument or `in:`, which Time.local does not take

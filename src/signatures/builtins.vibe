@@ -127,7 +127,6 @@ end
 
 module Regex
   def escape(text: string) -> string
-  def last_match
   # The first match of `pattern` in `text`.
   def match(pattern: string, text: string) -> string?
   def new(pattern: string) -> regex
@@ -149,7 +148,6 @@ end
 # Members of every type.
 class T
   def dup -> T
-  def frozen? -> bool
   def inspect -> string
   # Tests the value's type without converting it, such as `x.is_type?(:int)`.
   def is_type?(type: symbol) -> bool
@@ -247,7 +245,6 @@ class string
   def chop! -> string?
   def chr -> string
   def clamp(min: string?, max: string?) -> string
-  def clear -> string
   def codepoints -> array<int>
   def concat(*texts: array<string>) -> string
   def count(set: string, *sets: array<string>) -> int
@@ -287,7 +284,6 @@ class string
   def ord -> int
   def partition(separator: string) -> [string, string, string]
   def prepend(*texts: array<string>) -> string
-  def replace(text: string) -> string
   def reverse -> string
   def reverse! -> string?
   def rindex(text: string, offset?: int) -> int?
@@ -574,8 +570,6 @@ class time
   # Formats with a Go layout such as "2006-01-02".
   def format(layout: string) -> string
   def friday? -> bool
-  # Nanoseconds since the Unix epoch.
-  def hash -> int
   def hour -> int
   def httpdate -> string
   def iso8601(digits: int = 0) -> string
