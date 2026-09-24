@@ -323,7 +323,7 @@ impl Run {
             }
             let event = match pending.take() {
                 Some(event) => event,
-                None => match self.advance(ctx) {
+                None => match self.advance(ctx, floor) {
                     Ok(Event::Host) => return Ok(Step::Host),
                     event => event,
                 },
@@ -385,7 +385,7 @@ impl Run {
 
     // Keep opcode temporaries off the Rust stack during host-driven reentry.
     #[inline(never)]
-    fn advance(&mut self, ctx: &mut CallContext) -> Result<Event> {
+    fn advance(&mut self, ctx: &mut CallContext, floor: usize) -> Result<Event> {
         let program = &*self.root;
         let active = &mut self.active;
         let initializer = &mut self.initializer;
@@ -2962,6 +2962,23 @@ impl Run {
                     } else {
                         current
                     };
+                    // A plain call returning its value to the caller's stack
+                    // meets no handler, return type, constructor, initializer,
+                    // releasable program or run boundary, so it unwinds here.
+                    if target == current
+                        && current > floor
+                        && matches!(frame.return_to, ReturnTo::Stack)
+                        && !frame.constructor
+                        && function.return_type.is_none()
+                        && !function.initializer
+                        && !handlers::guards(storage, current)
+                        && !storage.releasing
+                        && !(program.index != 0 && program.file && program.environment.is_some())
+                    {
+                        unwind(frames, storage, stack, current);
+                        stack.push(ctx, value)?;
+                        continue;
+                    }
                     return Ok(Event::Control(Control::Return {
                         target,
                         value,

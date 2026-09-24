@@ -568,6 +568,16 @@ pub(super) fn error(
     Err(error.into_error(ctx)?)
 }
 
+/// Reports whether a handler belongs to `frame` or a frame above it, so that
+/// control leaving `frame` must pass through [`intercept`].
+pub(super) fn guards(storage: &Storage, frame: usize) -> bool {
+    storage
+        .handlers
+        .data
+        .last()
+        .is_some_and(|handler| handler.frame >= frame)
+}
+
 pub(super) fn intercept(
     ctx: &mut CallContext,
     frames: &mut Buffer<Frame>,
