@@ -3807,13 +3807,20 @@ fn enter(
             None => "unexpected positional arguments".to_owned(),
         }));
     }
-    let mut frame = new_frame(ctx, program, storage, Some(function), base)?;
-    frame.home = (function != 0 && !fun.initializer).then_some(frames.data.len());
+    let local_base = open_locals(ctx, program, storage, Some(function))?;
+    let pinned = programs::pin(ctx, storage, program.index)?;
     for (param, arg) in fun.params.iter().zip(args) {
         ctx.charge(1)?;
-        storage.locals.data[frame.local_base + param.slot] = Some(arg.clone());
+        storage.locals.data[local_base + param.slot] = Some(arg.clone());
     }
-    frames.push(ctx, frame)
+    // Built within the push, which spares the frame an intermediate copy.
+    frames.push(
+        ctx,
+        Frame {
+            home: (function != 0 && !fun.initializer).then_some(frames.data.len()),
+            ..Frame::new(pinned, storage, Some(function), base, local_base)
+        },
+    )
 }
 
 fn enter_arguments(
@@ -3917,6 +3924,18 @@ fn new_frame(
     function: Option<usize>,
     base: usize,
 ) -> Result<Frame> {
+    let local_base = open_locals(ctx, program, storage, function)?;
+    let pinned = programs::pin(ctx, storage, program.index)?;
+    Ok(Frame::new(pinned, storage, function, base, local_base))
+}
+
+/// Adds a function's unbound locals to storage, returning where they start.
+fn open_locals(
+    ctx: &mut CallContext,
+    program: &Program,
+    storage: &mut Storage,
+    function: Option<usize>,
+) -> Result<usize> {
     let local_base = storage.locals.data.len();
     let locals = function.map_or(0, |index| program.functions[index].locals);
     let Some(capacity) = local_base.checked_add(locals) else {
@@ -3927,30 +3946,44 @@ fn new_frame(
         ctx.charge(1)?;
         storage.locals.data.push(None);
     }
-    Ok(Frame {
-        program: programs::pin(ctx, storage, program.index)?,
-        host: false,
-        activation: false,
-        receiver: None,
-        constructor: false,
-        return_to: ReturnTo::Stack,
-        function,
-        mutating: false,
-        ip: 0,
-        iteration_base: storage.iterations.data.len(),
-        base,
-        local_base,
-        address_base: storage.addresses.data.len(),
-        bypass_base: storage.bypasses.data.len(),
-        text_base: storage.texts.data.len(),
-        loops: Buffer::empty(),
-        arguments: Buffer::empty(),
-        binding: Buffer::empty(),
-        parent: None,
-        home: None,
-        block: None,
-        block_args: Buffer::empty(),
-    })
+    Ok(local_base)
+}
+
+impl Frame {
+    /// A frame starting `function` over the current extent of storage.
+    #[inline]
+    fn new(
+        program: Arc<Program>,
+        storage: &Storage,
+        function: Option<usize>,
+        base: usize,
+        local_base: usize,
+    ) -> Self {
+        Self {
+            program,
+            host: false,
+            activation: false,
+            receiver: None,
+            constructor: false,
+            return_to: ReturnTo::Stack,
+            function,
+            mutating: false,
+            ip: 0,
+            iteration_base: storage.iterations.data.len(),
+            base,
+            local_base,
+            address_base: storage.addresses.data.len(),
+            bypass_base: storage.bypasses.data.len(),
+            text_base: storage.texts.data.len(),
+            loops: Buffer::empty(),
+            arguments: Buffer::empty(),
+            binding: Buffer::empty(),
+            parent: None,
+            home: None,
+            block: None,
+            block_args: Buffer::empty(),
+        }
+    }
 }
 
 fn resolve_slot(
