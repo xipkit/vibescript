@@ -1,38 +1,40 @@
 {
-  "documents": 238,
+  "documents": 241,
   "methods": {
+    "protocol": {
+      "equal": 33,
+      "response": 1
+    },
     "textDocument/completion": {
-      "equal": 48167
+      "equal": 48716
     },
     "textDocument/definition": {
-      "equal": 86708,
-      "response cut in half": 127
+      "equal": 87590
     },
     "textDocument/didChange": {
       "checker findings": 2,
-      "compile error presentation": 677,
-      "equal": 35
+      "compile error presentation": 685,
+      "equal": 36
     },
     "textDocument/didClose": {
-      "equal": 238
+      "equal": 241
     },
     "textDocument/didOpen": {
-      "checker findings": 72,
-      "equal": 166
+      "checker findings": 73,
+      "compile error presentation": 1,
+      "equal": 167
     },
     "textDocument/documentSymbol": {
-      "equal": 829,
-      "response cut in half": 123
+      "equal": 964
     },
     "textDocument/formatting": {
-      "equal": 238
+      "equal": 241
     },
     "textDocument/hover": {
-      "equal": 110678,
-      "response cut in half": 135
+      "equal": 111783
     },
     "textDocument/signatureHelp": {
-      "equal": 18279
+      "equal": 18442
     }
   }
 }

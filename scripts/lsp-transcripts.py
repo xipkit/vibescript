@@ -34,7 +34,66 @@ def utf16(text, index):
 def corpus():
     documents = sorted((ROOT / 'tests/site').rglob('*.vibe'))
     documents += sorted((REFERENCE / 'examples').rglob('*.vibe'))
+    documents += sorted((ROOT / 'tests/lsp').glob('*.vibe'))
     return documents
+
+
+def message(**fields):
+    return {'jsonrpc': '2.0', **fields}
+
+
+def hover(id, uri, line, character):
+    return message(id=id, method='textDocument/hover',
+                   params={'textDocument': {'uri': uri}, 'position': {'line': line, 'character': character}})
+
+
+# Malformed, unusual and out-of-order messages, with how many replies each gets.
+PROTOCOL = [
+    (b'Content-Length: 9\r\n\r\nnot json!', 0),
+    (b'Content-Length: 5\r\n\r\n[1,2]', 0),
+    (message(id=1, method=7), 0),
+    (message(method='initialize'), 1),
+    (message(id='a', method='initialize', params=None), 1),
+    (message(id=1.5, method='shutdown'), 1),
+    (message(id=None, method='shutdown'), 0),
+    (message(method='shutdown'), 0),
+    (message(id=2, method='workspace/symbol', params={}), 1),
+    (message(method='$/cancelRequest', params={'id': 2}), 0),
+    (message(id=3, result=None), 1),
+    ({'jsonrpc': '2.0', 'ID': 4, 'METHOD': 'shutdown'}, 1),
+    (message(id=5, method='textDocument/hover'), 1),
+    (message(id=6, method='textDocument/hover', params=None), 1),
+    (message(id=7, method='textDocument/hover',
+             params={'textDocument': {'uri': 'file:///p.vibe'}, 'position': {'line': 1.5, 'character': 0}}), 1),
+    (hover(8, 'file:///p.vibe', -1, -5), 1),
+    (message(id=9, method='textDocument/completion',
+             params={'textDocument': {'uri': 'file:///unknown.vibe'}, 'position': {'line': 0, 'character': 0}}), 1),
+    (message(method='textDocument/didOpen',
+             params={'textDocument': {'uri': 'file:///p.vibe', 'text': 'def run\n  1\nend\n'}}), 1),
+    (message(method='textDocument/didOpen',
+             params={'textDocument': {'uri': 'file:///p.vibe', 'text': 'def run\n  1\nend\n'}}), 1),
+    (message(method='textDocument/didChange',
+             params={'textDocument': {'uri': 'file:///p.vibe'}, 'contentChanges': []}), 0),
+    (message(method='textDocument/didChange',
+             params={'textDocument': {'uri': 'file:///p.vibe'},
+                     'contentChanges': [None, {'text': 'def run\n  2\nend\n'}]}), 1),
+    (message(method='textDocument/didChange',
+             params={'textDocument': {'uri': 'file:///p.vibe'}, 'contentChanges': {'text': 'x'}}), 0),
+    (hover(10, 'file:///p.vibe', 0, 5), 1),
+    (hover(11, 'file:///p.vibe', 0, 99), 1),
+    (hover(12, 'file:///p.vibe', 99, 0), 1),
+    (message(id=13, method='textDocument/formatting', params={'textDocument': {'uri': 'file:///missing.vibe'}}), 1),
+    (message(id=14, method='textDocument/formatting', params={'textDocument': {'uri': 5}}), 1),
+    (message(id=15, method='textDocument/documentSymbol', params={'textDocument': {'uri': 'file:///missing.vibe'}}), 1),
+    (message(method='textDocument/didClose', params={'textDocument': {'uri': 'file:///never.vibe'}}), 0),
+    (message(method='textDocument/didClose', params={'textDocument': {'uri': 'file:///p.vibe'}}), 1),
+    (hover(16, 'file:///p.vibe', 0, 5), 1),
+    (message(method='textDocument/didOpen',
+             params={'textDocument': {'uri': 'file:///p%20q/caf%C3%A9.vibe', 'text': 'def run(\n'}}), 1),
+    (message(id=17, method='textDocument/definition',
+             params={'textDocument': {'uri': 'file:///p%20q/caf%C3%A9.vibe'}, 'position': {'line': 0, 'character': 5}}), 1),
+    (message(method='textDocument/didClose', params={'textDocument': {'uri': 'file:///p%20q/caf%C3%A9.vibe'}}), 1),
+]
 
 
 class Server:
@@ -64,8 +123,11 @@ class Server:
             self.replies.put(json.loads(stream.read(length)))
 
     def send(self, message):
-        body = json.dumps(message, ensure_ascii=False).encode()
-        self.process.stdin.write(b'Content-Length: %d\r\n\r\n' % len(body) + body)
+        if isinstance(message, bytes):
+            self.process.stdin.write(message)
+        else:
+            body = json.dumps(message, ensure_ascii=False).encode()
+            self.process.stdin.write(b'Content-Length: %d\r\n\r\n' % len(body) + body)
         self.process.stdin.flush()
 
     def exchange(self, message, expected):
@@ -153,6 +215,11 @@ def record(command, documents, path):
     server = Server(command)
     request = 0
     with path.open('w') as out:
+        for index, (raw, expected) in enumerate(PROTOCOL):
+            replies = server.exchange(raw, expected)
+            shown = raw.decode() if isinstance(raw, bytes) else raw
+            out.write(json.dumps({'document': 'protocol', 'method': 'protocol', 'position': index,
+                                  'message': shown, 'replies': replies}, sort_keys=True) + '\n')
         server.exchange({'jsonrpc': '2.0', 'id': 0, 'method': 'initialize', 'params': {}}, 1)
         server.exchange({'jsonrpc': '2.0', 'method': 'initialized', 'params': {}}, 0)
         for document in documents:
@@ -178,6 +245,8 @@ PHASES = ['as written', 'broken tail', 'shifted and broken', 'cut in half']
 
 def category(method, go, rust, phase):
     """A coarse reason for a difference, for the summary."""
+    if method == 'protocol':
+        return 'response'
     if method in ('textDocument/didOpen', 'textDocument/didChange'):
         go_diagnostics = go[0]['params']['diagnostics'] if go else []
         rust_diagnostics = rust[0]['params']['diagnostics'] if rust else []
@@ -200,7 +269,9 @@ def compare(go_path, rust_path):
             assert (go['document'], go['method'], go['position']) == \
                 (rust['document'], rust['method'], rust['position'])
             method, document = go['method'], go['document']
-            if method == 'textDocument/didOpen':
+            if method == 'protocol':
+                phases[document] = 0
+            elif method == 'textDocument/didOpen':
                 phases[document] = 0
             elif method == 'textDocument/didChange':
                 phases[document] += 1

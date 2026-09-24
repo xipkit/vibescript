@@ -1,0 +1,13 @@
+def helper(n)
+  n
+end
+
+# Runs.
+def run(
+  helper(1)
+end
+
+class Late
+  def value
+  end
+end

@@ -1,0 +1,92 @@
+# Wallet docs.
+class Wallet
+  property cents: int
+  getter owner
+
+  # Balance docs.
+  def balance(currency = "USD") -> money
+    money_cents(cents, currency)
+  end
+  alias total balance
+
+  # Builds an empty wallet.
+  def self.empty(owner: string) -> Wallet
+    Wallet.new
+  end
+
+  private def secret
+    1
+  end
+
+  def cents=(value)
+    @cents = value
+  end
+end
+
+module Billing
+  LIMIT = 100
+
+  module Codes
+    PREFIX = "B"
+
+    # Tags a code.
+    def self.tag(n)
+      PREFIX + n.to_s
+    end
+  end
+
+  def self.code
+    Codes.tag(LIMIT)
+  end
+end
+
+enum Status
+  Draft
+  Published
+end
+
+# Helps.
+def helper(n, *rest, key:, other: 2, **opts)
+  x, (y, z) = [1, [2, 3]]
+  for i in [1, 2]
+    j = i
+  end
+  begin
+    k = 1
+  rescue => err
+    err.message
+  end
+  helper(1, 2, key: 3)
+end
+alias assist helper
+
+def typed(s: string, items: array<int>, m: money?, h: { name: string }) -> string?
+  s.
+  items.
+  m.
+  h.
+  s.upcase
+end
+
+w = Wallet.new
+w.balance
+w.cents = 3
+Billing::LIMIT
+Billing.code
+Billing::Codes.tag(1)
+Status::Draft
+"text".upcase
+[1, 2].map { |v| v * 2 }
+Math::PI
+Math.sqrt(2)
+JSON.parse("{}")
+Time.now
+Regexp.escape("a")
+x = 1.5.round
+y = 10.days.ago
+s = "a".strip!
+t = "a".sub!("a", "b")
+assert x > 1, "big"
+puts(format("%d", 1), 2)
+typed("a", [1], nil, { name: "n" })
+assist(1, key: 2)
