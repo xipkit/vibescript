@@ -146,6 +146,13 @@ checker with predictable results.
   fields all have type `V` is assignable to `hash<string, V>`.
 - Empty literals take their type from context: a declared local, a typed
   parameter, return, property or field, or an element of a typed collection.
+- A tuple type `[A, B]` is an array of exactly those elements, in order.
+  Tuples exist only at compile time; their values are arrays. An array literal
+  of matching length and element types is assignable to a tuple type, and
+  indexing a tuple with an integer literal yields that element's type.
+  Builtins use tuples for fixed-length results and pairs: `partition` returns
+  `[array<T>, array<T>]`, `divmod` returns `[int, int]`, and hash `to_a`
+  returns `array<[string, V]>`.
 
 ### Dynamic values
 
@@ -201,6 +208,26 @@ checker with predictable results.
   a compile error.
 - `&block?:` makes the block optional. Every `yield` must then be guarded by
   `block_given?`, which narrows like a nil check.
+
+### Builtin signatures
+
+- `src/signatures/builtins.vibe` is the signature table: every builtin
+  function, namespace member and member of every value type, written as
+  declarations and printed by `vibes prelude` (ADR-008).
+- Builtin signatures may be generic. `class array<T>` binds `T` to the
+  receiver's element type, `def map<U>` introduces `U`, and `T: B` requires `T`
+  to be a single type assignable to `B`, so `array<int | string>` has no `sort`
+  or `sum`.
+- A builtin name may have several signatures. A call selects one by its number
+  of positional arguments, its keyword names, and whether it passes a block and
+  how many parameters the block declares, never by the types of its arguments:
+  `first` returns `T?` and `first(n)` returns `array<T>`, and a hash's
+  `each { |key, value| }` and `each { |pair| }` bind `(string, V)` and
+  `[string, V]`. The table refuses an overload set in which one call could
+  match two signatures. Script functions are not overloaded.
+- `regex`, `match_data` (a successful match), `error` (what
+  `rescue => error` binds) and `type<T>` (a type literal, such as
+  `JSON.parse_as`'s second argument) are type names in annotations too.
 
 ### Classes, enums and namespaces
 

@@ -89,6 +89,7 @@ conversion family, and keep one form per concept.
 | `eql?`, `equal?` | `==` |
 | `itself`, `tap`, `yield_self` | the expression itself |
 | singular units: `second`, `minute`, `hour`, `day`, `week` | plural: `seconds`, `minutes`, ... |
+| duration `since`, `until`, `after` and `before` without a time, `ago` and `from_now` with one | `ago` and `from_now` count from now; `before(time)` and `after(time)` from a given time |
 | `find_index` | `index` |
 | `mon`, `mday` | `month`, `day` |
 | `tv_sec`, `tv_usec`, `tv_nsec` | `to_i`, `usec`, `nsec` |
@@ -98,7 +99,7 @@ conversion family, and keep one form per concept.
 | `xmlschema`, `rfc3339` | `iso8601` |
 | `rfc822` | `rfc2822` |
 | `Time.gm` | `Time.utc` |
-| `Time.mktime`, `Time.new` | `Time.local` |
+| `Time.mktime`, `Time.new` | `Time.local`, which takes `in:` |
 | `Regexp.*` | `Regex.*` (one namespace) |
 | `Regexp.quote` | `Regex.escape` |
 | `sprintf` | `format` |
@@ -107,8 +108,15 @@ conversion family, and keep one form per concept.
 | type names in any other case, such as `Int` | lowercase `int` |
 
 `count` keeps its counting forms, `count(value)` and `count { ... }`. The
-prelude is the complete, authoritative list; any other synonym found while
-writing it is resolved by the same rule and recorded there.
+prelude lists every canonical name, and `src/signatures/renames.txt` is the
+authoritative list of removed spellings and their rewrites, shared by the
+migration and the compiler's fixes. Writing the signature table resolved more
+synonyms by the same rule, among them `append` → `push`, `unshift` →
+`prepend`, `collect_concat` → `flat_map`, `take(n)` → `first(n)`, `at` and
+`slice` on arrays → `[]`, `store` → `[]=`, `modulo` → `%`, `cover?` →
+`include?`, `intern` → `to_sym`, `next` → `succ` and `reduce(:op)` → a block.
+Members that always answer the same are removed: `frozen?`,
+`Regex.last_match`, string `clear` and `replace`, and time `hash`.
 
 ### Canonical syntax
 
@@ -120,6 +128,7 @@ writing it is resolved by the same rule and recorded there.
 | symbol hash keys, `h[:name]` | string keys, `h["name"]`; `name:` labels remain in literals and keyword arguments |
 | percent literals, `%w[a b]` | `["a", "b"]` |
 | `Hash.new` | `{}` with a declared type |
+| `x.length()`, `uuid()`, `Time.now()` | `x.length`, `uuid`, `Time.now`: a call without arguments has no parentheses |
 
 Symbols remain for enum members. Braces bind to the nearest call, so a block
 always attaches to the call it follows.
@@ -182,6 +191,11 @@ applies to `bool`. Other `case` subjects keep ordinary matching.
 - After an operand, `//` lexes as the operator. The empty regex literal `//` is
   removed.
 
+### No nil padding
+
+`fill` and `insert` past the end of an array raise instead of padding the gap
+with nil, so an `array<T>` never gains elements its type excludes.
+
 ### Static `require`
 
 `require("reports/format", as: "fmt")` takes string literals. A module's
@@ -197,8 +211,8 @@ methods named `send` are unaffected.
 ## Migration
 
 The ADR-007 migration applies these changes in the same pass. `vibes fix`
-rewrites removed spellings, converts `do...end` blocks to braces and symbol keys
-to strings, and rewrites integer `/` to `//` using the operand types the
+rewrites removed spellings, drops the parentheses of calls without arguments,
+converts `do...end` blocks to braces and symbol keys to strings, and rewrites integer `/` to `//` using the operand types the
 compiler has at that point, so existing arithmetic keeps its results.
 Truthiness tests on non-`bool` values, dynamic `require` and dispatch by name
 need rewriting by hand; each has a diagnostic that says so.
