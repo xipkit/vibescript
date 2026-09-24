@@ -431,6 +431,40 @@ fn value_methods_keep_known_bad_inputs_beside_gradual_alternatives() {
 }
 
 #[test]
+fn value_members_ignore_blocks_unless_the_runtime_refuses_them() {
+    for (expression, ty) in [
+        ("Duration.build(7).after {7}", "time"),
+        ("Duration.build(7).ago() {7}", "time"),
+        ("Time.at(0).iso8601 {7}", "string"),
+        ("Time.at(0).round(1) {7}", "time"),
+        ("Time.at(0).format(\"2006\") {7}", "string"),
+        ("money_cents(125,\"USD\").format {7}", "string"),
+        ("/a/.source {7}", "string"),
+        ("/a/.string {7}", "string"),
+        ("/a/.match?(\"a\") {7}", "bool"),
+    ] {
+        witness(&format!("def run -> {ty}; {expression}; end"), None, false);
+    }
+    for expression in [
+        "Time.at(0).year {7}",
+        "Time.at(0).to_s {7}",
+        "Time.at(0).between?(Time.at(0),Time.at(1)) {7}",
+        "Duration.build(7).seconds {7}",
+        "Duration.build(7).inspect {7}",
+        "money_cents(125,\"USD\").cents {7}",
+        "money_cents(125,\"USD\").string {7}",
+        "/a/.inspect {7}",
+        "3.seconds {7}",
+    ] {
+        witness(
+            &format!("def run; begin; {expression}; rescue; 7; end; end"),
+            Some("7"),
+            true,
+        );
+    }
+}
+
+#[test]
 fn temporal_blocks_forwarding_and_introspection_remain_explicitly_incomplete() {
     witness(
         "def run; Time.at(0).is_type?(:User); end",
@@ -440,7 +474,6 @@ fn temporal_blocks_forwarding_and_introspection_remain_explicitly_incomplete() {
     for source in [
         "def run(name:string); Time.at(0).is_type?(name); end",
         "def run(name:string); Time.at(0).send(name,\"%Y\"); end",
-        "def run; Duration.build(7).after {7}; end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();

@@ -114,6 +114,20 @@ pub(super) fn member(
         result.incomplete = true;
         return Ok(result);
     }
+    // A block makes the call explicit, so properties already refuse it;
+    // renderings and `between?` refuse it too and other members ignore it.
+    if args.block.is_some() {
+        let refused = match kind {
+            Atom::Time | Atom::Duration | Atom::Money => {
+                matches!(name, "to_s" | "string" | "inspect" | "between?")
+            }
+            Atom::Regex => name == "inspect",
+            _ => false,
+        };
+        if refused {
+            return reject(ctx, Failure::BuiltinBlock);
+        }
+    }
     if kind == Atom::Money && name == "format" {
         return Ok(outcome(Atom::String.fact()));
     }
