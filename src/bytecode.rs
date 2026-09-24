@@ -34,6 +34,7 @@ pub(crate) enum Op {
     NamespaceAddress(usize, bool),
     AmbientValue(usize, usize),
     AmbientAddress(usize, usize),
+    ImplicitAddress(usize, usize),
     FileValue(usize, usize),
     FileAddress(usize, usize),
     RootAddress(usize, usize),
@@ -900,6 +901,7 @@ impl Compiler<'_> {
             | Op::RootAddress(_, n)
             | Op::AmbientValue(_, n)
             | Op::AmbientAddress(_, n)
+            | Op::ImplicitAddress(_, n)
             | Op::TypeShadowed(_, n)
             | Op::AddressBound(_, n)
             | Op::ReceiverBound(_, n) => *n = target,
@@ -1109,6 +1111,17 @@ impl Compiler<'_> {
                 self.global(name)
             },
         )
+    }
+    // No declaration, function, host or builtin claims the name, so a read that
+    // finds no binding falls back to a member of the running instance or class.
+    fn implicit_name(&mut self, name: &str) -> Result<bool> {
+        Ok(self.namespace.is_some()
+            && !name.starts_with('@')
+            && !matches!(name, "self" | "block_given?")
+            && !self.program.declaration_names.contains_key(name)
+            && !self.program.names.contains_key(name)
+            && self.host_position(name)?.is_none()
+            && self.global(name).is_none())
     }
     // Set the enclosing function aside and generate a block in its place,
     // closing over every scope the block can see.
@@ -2458,28 +2471,30 @@ impl<'a, 'x> Compiling<'a, 'x> {
         self.address_root(receiver, false).await
     }
 
-    /// Addresses `receiver`. An assignment root in an instance method sets `constant`
-    /// so that it writes an existing class constant in place, unless a bound local
-    /// of the same name takes precedence.
-    pub(super) async fn address_root(&self, receiver: &'x Expr, constant: bool) -> Result<()> {
+    /// Addresses `receiver`. An `assignment` root in an instance method writes an
+    /// existing class constant in place, unless a bound local of the same name takes
+    /// precedence. In any class context, an assignment through an unbound name that
+    /// reads a field of the running instance or class writes that field, as in Go,
+    /// while a mutating call through it still receives a copy.
+    pub(super) async fn address_root(&self, receiver: &'x Expr, assignment: bool) -> Result<()> {
         let previous = {
             let mut c = self.c();
             c.work.charge(1)?;
             std::mem::replace(&mut c.offset, receiver.offset)
         };
-        let result = self.address_at(receiver, constant).await;
+        let result = self.address_at(receiver, assignment).await;
         self.c().offset = previous;
         result
     }
 
-    async fn address_at(&self, receiver: &'x Expr, constant: bool) -> Result<()> {
+    async fn address_at(&self, receiver: &'x Expr, assignment: bool) -> Result<()> {
         let (constant, early, root, file) = {
             let mut c = self.c();
             let work = c.work;
             work.charge(1)?;
             let constant = match &receiver.node {
                 Node::Var(name)
-                    if constant
+                    if assignment
                         && c.instance
                         && c.namespace.is_some()
                         && name.chars().next().is_some_and(syntax::unicode::upper)
@@ -2529,13 +2544,13 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 c.emit(Op::NamespaceAddress(name, true));
             }
             Node::Var(name) if self.c().local(name)? => {
-                let (bound, constant, ambient, global) = {
+                let (bound, constant, ambient, global, implicit) = {
                     let mut c = self.c();
                     let work = c.work;
                     let slot = *c.locals.get(work, name)?.unwrap();
                     if c.parameters.contains(work, name.as_str())? {
                         c.emit(Op::AddressLocal(slot));
-                        (None, None, None, true)
+                        (None, None, None, true, None)
                     } else {
                         let bound = c.emit(Op::AddressBound(slot, 0));
                         let constant =
@@ -2550,7 +2565,13 @@ impl<'a, 'x> Compiling<'a, 'x> {
                         } else {
                             false
                         };
-                        (Some(bound), constant, ambient, global)
+                        let implicit = if assignment && !global && c.implicit_name(name)? {
+                            let name = c.call_site(name, false).name;
+                            Some(c.emit(Op::ImplicitAddress(name, 0)))
+                        } else {
+                            None
+                        };
+                        (Some(bound), constant, ambient, global, implicit)
                     }
                 };
                 if let Some(bound) = bound {
@@ -2561,13 +2582,13 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     let mut c = self.c();
                     let end = c.code.len();
                     c.patch(bound, end);
-                    for jump in constant.into_iter().chain(ambient) {
+                    for jump in constant.into_iter().chain(ambient).chain(implicit) {
                         c.patch(jump, end);
                     }
                 }
             }
             Node::Var(name) if self.c().namespace.is_some() => {
-                let (ambient, global) = {
+                let (ambient, global, implicit) = {
                     let mut c = self.c();
                     let index = c.call_site(name, false).name;
                     let ambient = c.emit(Op::AmbientAddress(index, 0));
@@ -2575,7 +2596,12 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     if global {
                         c.emit(Op::NamespaceAddress(index, false));
                     }
-                    (ambient, global)
+                    let implicit = if assignment && !global && c.implicit_name(name)? {
+                        Some(c.emit(Op::ImplicitAddress(index, 0)))
+                    } else {
+                        None
+                    };
+                    (ambient, global, implicit)
                 };
                 if !global {
                     self.expr(receiver).await?;
@@ -2583,7 +2609,9 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 }
                 let mut c = self.c();
                 let end = c.code.len();
-                c.patch(ambient, end);
+                for jump in std::iter::once(ambient).chain(implicit) {
+                    c.patch(jump, end);
+                }
             }
             Node::Var(name) if self.c().global_fallback(name)?.is_some() => {
                 let mut c = self.c();

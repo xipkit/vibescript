@@ -48,6 +48,7 @@ impl<'a> Walker<'a> {
             | Op::RootAddress(name, _)
             | Op::RootCall(name, _)
             | Op::Unbound(name)
+            | Op::ImplicitAddress(name, _)
             | Op::ResolveCall(_, name, _)
             | Op::CallName(_, name) => Some(&self.program.members[name]),
             Op::Global(index)

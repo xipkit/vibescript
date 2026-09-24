@@ -185,3 +185,7 @@ Match-data protection survives temporary results and duplication, including nest
 ## Collections returned by index methods
 
 An index getter returns a logical collection value. A nested write to that temporary leaves both the stored collection and an earlier snapshot unchanged. The `class_index_getter_snapshot` record exercises a grid backed by a hash: after storing `[1]`, saving the getter result and writing `grid[0,0][0] = 8`, Rust returns `[[1],[1]]`. Go v0.70.0 returns `[[8],[8]]`. The Rust expectation follows the selected value-semantics policy and is checked with and without an extra alias.
+
+## Writes through bare field names
+
+In a class, `rows[0] = 9` with no local or method named `rows` writes the `@rows` field, as in Go v0.70.0. Go writes the stored collection without isolating it first, so a snapshot saved from the field earlier, such as `saved = @rows`, changes too. Rust isolates the write as it does for `@rows[0] = 9`, and the snapshot keeps its value, following the selected value-semantics policy. [value_semantics.rs](../tests/value_semantics.rs) checks this.

@@ -786,6 +786,25 @@ impl Run {
                         }
                     }
                 }
+                Op::ImplicitAddress(name, next) => {
+                    let name = &program.members[name];
+                    if file_bindings::root_binding(program, ctx, storage, name)?.is_none()
+                        && global_index(program, name).is_none()
+                    {
+                        let receiver = frame.receiver.clone();
+                        if let Some(address) = namespaces::implicit_address(
+                            program,
+                            ctx,
+                            storage,
+                            namespace,
+                            receiver.as_ref(),
+                            name,
+                        )? {
+                            storage.addresses.push(ctx, address)?;
+                            frames.data[current].ip = next;
+                        }
+                    }
+                }
                 Op::FileValue(name, next) => {
                     let name = &program.members[name];
                     if let Some(mut value) = file_bindings::get(program, ctx, name)? {

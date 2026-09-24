@@ -123320,6 +123320,11 @@
     "go_error": "undefined variable later_unless_local"
   },
   {
+    "name": "implicit_field_write_without_field",
+    "go_error": "unknown member tenant",
+    "source": "class Holder\n def initialize(flag)\n  @tenant=[1] if flag\n end\n def poke\n  tenant[0]=9\n end\nend\ndef run(input)\n Holder.new(false).poke\nend"
+  },
+  {
     "name": "implicit_class_member_before_local_assignment",
     "go_error": "unknown class member missing",
     "source": "class Holder\n seen=missing\n missing=1\nend\ndef run(input)\n 1\nend"

@@ -2221,6 +2221,9 @@ impl Walker<'_> {
                         return Ok(edges);
                     }
                 }
+                Op::ImplicitAddress(name, next) => {
+                    return self.implicit_address(state, pc, name, next);
+                }
                 Op::AmbientValue(name, next) | Op::AmbientAddress(name, next) => {
                     return self.ambient_edges(
                         state,

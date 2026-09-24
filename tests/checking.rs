@@ -1844,3 +1844,42 @@ fn primitive_equality_keeps_abstract_alternatives_and_receiver_dispatch() {
         Some(7)
     );
 }
+
+#[test]
+fn bare_field_writes_update_the_field_in_checks_and_runs() {
+    for (source, expected) in [
+        (
+            "class H;def initialize;@h={};end;def poke;h[:a]=1;h[:b]||=2;h[:a]+=5;@h;end;end;def run;H.new.poke;end",
+            r#"{"a":6,"b":2}"#,
+        ),
+        (
+            "class K;@@counts={n:0};def self.bump;counts[:n]+=1;@@counts[:n];end;end;def run;[K.bump,K.bump];end",
+            "[1,2]",
+        ),
+        (
+            "class H;def initialize;@rows=[1];end;def poke;rows[0]=9;seen=rows;rows=5;[seen,rows,@rows];end;end;def run;H.new.poke;end",
+            "[[9],5,[9]]",
+        ),
+    ] {
+        let script = Engine::new().compile(source).unwrap();
+        let options = CallOptions::default();
+        assert!(
+            script.check_call("run", &[], &options).unwrap().is_clean(),
+            "{source}"
+        );
+        assert!(script.check(&options).unwrap().is_clean(), "{source}");
+        let result = script.call("run", &[], options).unwrap();
+        let json = vibescript::stringify_json(&result.value, CallOptions::default()).unwrap();
+        assert_eq!(json.value.as_bytes(), Some(expected.as_bytes()), "{source}");
+    }
+    let script = Engine::new()
+        .compile("class H;def initialize(flag);@rows=[1] if flag;end;def poke;rows[0]=9;end;end;def run;H.new(false).poke;end")
+        .unwrap();
+    let report = script
+        .check_call("run", &[], &CallOptions::default())
+        .unwrap();
+    assert!(report.incomplete.is_empty(), "{report:?}");
+    assert!(!report.diagnostics.is_empty(), "{report:?}");
+    let error = script.call("run", &[], CallOptions::default()).unwrap_err();
+    assert_eq!(error.message, "unknown member rows");
+}

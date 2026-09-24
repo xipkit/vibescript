@@ -81,6 +81,7 @@ pub(super) fn branches(op: Op) -> bool {
                 | Op::ResolveCall(..)
                 | Op::CallName(..)
                 | Op::Unbound(_)
+                | Op::ImplicitAddress(..)
                 | Op::AutoCall(_)
                 | Op::HostValue(_)
         )

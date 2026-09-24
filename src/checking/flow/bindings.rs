@@ -196,6 +196,40 @@ impl Walker<'_> {
         Ok(false)
     }
 
+    /// Reports whether `read_fallback` resolves `name` before the members of the
+    /// running instance or class.
+    pub(super) fn fallback_bound(&mut self, state: &State, name: &str) -> Result<bool> {
+        if self.ambient_binding(state, name)?.is_some()
+            || self.file_declared_target(name)?.is_some()
+            || self.root_index(state, name)?.is_some()
+            || self.calls.global(self.ctx, name)?
+        {
+            return Ok(true);
+        }
+        self.ctx.work_bytes(name.len())?;
+        if self.program.declaration_names.contains_key(name)
+            || self.program.names.contains_key(name)
+        {
+            return Ok(true);
+        }
+        for host in &self.program.hosts {
+            self.ctx.work_bytes(host.len().max(name.len()))?;
+            if host == name {
+                return Ok(true);
+            }
+        }
+        if self.program.file && self.calls.receiving_binding(self.ctx, name)? != Target::Undefined {
+            return Ok(true);
+        }
+        for (global, _) in &self.program.globals {
+            self.ctx.work_bytes(global.name().len().max(name.len()))?;
+            if global.name() == name {
+                return Ok(true);
+            }
+        }
+        self.unknown_exports(state)
+    }
+
     pub(super) fn read_receiving(
         &mut self,
         state: &mut State,

@@ -141,9 +141,10 @@ impl Walker<'_> {
             | Op::GlobalReceiver(index, _)
             | Op::AddressGlobal(index)
             | Op::ResolveGlobalCall(index) => self.program.globals[index].0.name(),
-            Op::RootAddress(name, _) | Op::Unbound(name) | Op::RootCall(name, _) => {
-                &self.program.members[name]
-            }
+            Op::RootAddress(name, _)
+            | Op::Unbound(name)
+            | Op::ImplicitAddress(name, _)
+            | Op::RootCall(name, _) => &self.program.members[name],
             Op::ResolveCall(slot, name, _) | Op::CallName(slot, name) => {
                 if slot != usize::MAX
                     && state.locals.get(self.ctx, slot)?.value != Atom::Never.fact()

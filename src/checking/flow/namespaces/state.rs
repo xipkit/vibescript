@@ -453,6 +453,65 @@ impl Walker<'_> {
         state.addresses.push(self.ctx, address)
     }
 
+    /// Addresses the field that an unbound bare name reads from the running instance
+    /// or class, so an assignment through it updates the field. Any other resolution
+    /// continues with the name's ordinary read.
+    pub(in super::super) fn implicit_address(
+        &mut self,
+        mut state: State,
+        pc: usize,
+        name: usize,
+        next: usize,
+    ) -> Result<Edges> {
+        let name = &self.program.members[name];
+        let Some(module) = self.function.namespace else {
+            return Ok([Some((pc + 1, state)), None]);
+        };
+        if self.fallback_bound(&state, name)? {
+            return Ok([Some((pc + 1, state)), None]);
+        }
+        let receiver = self.self_value(module)?;
+        let instance = matches!(self.facts.node(receiver), Node::Instance { .. });
+        if instance && name == "class" {
+            return Ok([Some((pc + 1, state)), None]);
+        }
+        let missing = match self.namespace_selection(&state, receiver, name, false, true)? {
+            Selection::Field(_, missing) => missing,
+            Selection::Incomplete => return self.incomplete(pc),
+            _ => return Ok([Some((pc + 1, state)), None]),
+        };
+        if instance {
+            // An absent field reads as a missing member instead.
+            let absent = if missing {
+                Some((pc + 1, state.snapshot(self.ctx)?))
+            } else {
+                None
+            };
+            let Some(mut address) = self.instance_root(&state, receiver)? else {
+                return self.incomplete(pc);
+            };
+            let key = self.facts.string(self.ctx, name.as_bytes())?;
+            address.index(self.ctx, self.facts, &[key])?;
+            address.instance = Some((receiver, key));
+            address.object = Some((receiver, key));
+            state.addresses.push(self.ctx, address)?;
+            return Ok([Some((next, state)), absent]);
+        }
+        let Some(namespace) = self.namespace(&state, receiver)? else {
+            return self.incomplete(pc);
+        };
+        let absent = if missing {
+            let mut absent = state.snapshot(self.ctx)?;
+            self.refine_namespace_fields(&mut absent, namespace.root, name, false)?;
+            self.refine_namespace_fields(&mut state, namespace.root, name, true)?;
+            Some((pc + 1, absent))
+        } else {
+            None
+        };
+        self.push_namespace_field_address(&mut state, namespace.root, name)?;
+        Ok([Some((next, state)), absent])
+    }
+
     fn namespace_address_fallback(
         &mut self,
         state: &mut State,

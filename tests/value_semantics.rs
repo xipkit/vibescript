@@ -65,3 +65,27 @@ fn passing_and_evaluating_collections_cannot_change_earlier_values() {
         );
     }
 }
+
+#[test]
+fn bare_field_writes_leave_earlier_snapshots_unchanged() {
+    // Go v0.70.0 writes through the stored collection without isolating it, so
+    // there the snapshots taken before the writes change too.
+    let body = "class Holder
+ def initialize
+  @rows=[1,[2]]
+  @h={a:1}
+ end
+ def poke
+  saved=[@rows,@rows[1],@h]
+  rows[0]=9
+  rows[1][0]=8
+  h[:a]+=1
+  [saved,@rows,@h]
+ end
+end
+Holder.new.poke";
+    assert_eq!(
+        evaluate(body),
+        serde_json::json!([[[1, [2]], [2], {"a": 1}], [9, [8]], {"a": 2}])
+    );
+}

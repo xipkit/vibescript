@@ -110,7 +110,11 @@ impl Walker<'_> {
         Ok(selected)
     }
 
-    fn instance_root(&mut self, state: &State, receiver: Fact) -> Result<Option<Address>> {
+    pub(super) fn instance_root(
+        &mut self,
+        state: &State,
+        receiver: Fact,
+    ) -> Result<Option<Address>> {
         let Some((root, slot)) = self.instance_slot(state, receiver)? else {
             return Ok(None);
         };

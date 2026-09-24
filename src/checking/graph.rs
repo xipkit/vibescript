@@ -60,6 +60,7 @@ impl Graph {
                 | Op::NamespaceConstantAddress(_, target)
                 | Op::AmbientValue(_, target)
                 | Op::AmbientAddress(_, target)
+                | Op::ImplicitAddress(_, target)
                 | Op::FileValue(_, target)
                 | Op::FileAddress(_, target)
                 | Op::RootAddress(_, target)

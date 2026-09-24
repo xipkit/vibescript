@@ -111,6 +111,49 @@ pub(super) fn implicit(
     )
 }
 
+/// Addresses the field that a bare name reads as an implicit member, or returns
+/// `None` when the name selects a method, helper or nothing at all.
+pub(super) fn implicit_address(
+    program: &Program,
+    ctx: &mut CallContext,
+    storage: &mut Storage,
+    module: Option<usize>,
+    receiver: Option<&Value>,
+    name: &str,
+) -> Result<Option<Address>> {
+    let Some(module) = module else {
+        return Ok(None);
+    };
+    let receiver = if let Some(receiver) = receiver {
+        receiver.clone()
+    } else {
+        value(program, ctx, storage, module)?
+    };
+    if !matches!(
+        implicit(program, ctx, storage, Some(module), Some(&receiver), name)?,
+        Member::Value(_)
+    ) {
+        return Ok(None);
+    }
+    match &receiver.0 {
+        Kind::Instance(_) if name == "class" => Ok(None),
+        Kind::Instance(instance) => crate::objects::address(ctx, instance, name).map(Some),
+        Kind::Namespace(namespace) => {
+            let owner = programs::namespace(ctx, storage, namespace)?;
+            address(
+                &owner,
+                ctx,
+                storage,
+                namespace.definition.index,
+                name,
+                false,
+            )
+            .map(Some)
+        }
+        _ => Ok(None),
+    }
+}
+
 /// Accepts a universal helper, which the generic member dispatch answers for
 /// every receiver; any other name is missing from the class or instance.
 pub(super) fn fallback(
