@@ -35,7 +35,6 @@ mod completion;
 mod contracts;
 mod docs;
 mod document;
-mod format;
 mod hover;
 mod json;
 mod navigation;

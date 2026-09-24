@@ -4,7 +4,7 @@ use super::document::{
     CompletionItem, Diagnostic, Document, Options, Position, Range, SignatureHelp, Symbol,
 };
 use super::json::{self, Invalid, Json};
-use super::{format, hover, navigation, text};
+use super::{hover, navigation, text};
 use serde_json::value::RawValue;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -529,7 +529,7 @@ pub(crate) fn completion_json(item: &CompletionItem) -> Json {
 
 /// One full-document edit when formatting changes the text, or none.
 pub(crate) fn formatting_edits(source: &str, lines: &[String]) -> Json {
-    let formatted = format::format_source(source);
+    let formatted = crate::format::format(source);
     if formatted == source {
         return Json::Array(Vec::new());
     }

@@ -32,7 +32,7 @@ vim.lsp.start({
 | `textDocument/signatureHelp` | Parameter hints for the call around the position on its line, and for a paren-less `assert`. |
 | `textDocument/definition` | The declaring line of a top-level function, class, module, method, module constant, enum or enum member in the same document. |
 | `textDocument/documentSymbol` | Functions, classes and modules with their methods, constants and nested modules, and enums with their members. |
-| `textDocument/formatting` | One full-document edit from the reference's formatter, which trims trailing spaces and tabs, drops trailing blank lines and ends the text with one newline. |
+| `textDocument/formatting` | One full-document edit from `vibescript_tools::format`, the formatter `vibes fmt` uses, which matches the reference's: it trims trailing spaces and tabs, drops trailing blank lines and ends the text with one newline. |
 
 Unknown requests fail with `-32601 method not found`, and requests whose parameters have the wrong shape with `-32602`. Unknown notifications, such as `$/setTrace`, are ignored.
 
