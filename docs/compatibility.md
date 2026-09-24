@@ -12,11 +12,17 @@ The host-block audit records the explicitly selected control-flow preservation r
 
 Go's builtin callbacks receive the capability object as a live `receiver` map: a write into it is visible to the script, and every script alias of the object observes it, because the object keeps a shared mutable identity for the call. Rust follows ADR-006's collection value semantics and publishes into the binding instead, as selected on 2026-09-22. `HostCall::set_receiver_field` writes to the capability or method-bearing global binding that holds the receiver, so that name and its nested hashes observe the write, while copies the script took earlier stay unchanged. Only block-capable and async methods receive the handle, publication cannot replace a method field, and fields cannot be deleted. The documented pattern, where a factory method installs data and the script then reads it through the capability, behaves the same in both implementations.
 
+## Compiling top-level statements
+
+Go's `Engine.Compile` rejects a source with top-level statements (`unsupported top-level statement`), leaving them to `CompileSnippet`. Rust's `Engine::compile` accepts them, and `Script::run` executes them as the script's entrypoint. The `vibes` commands behave the same in both, because the reference CLI compiles scripts with `CompileSnippet`.
+
 ## Static checker strictness
 
 Rust's `vibes check` is deliberately stricter than Go's, as selected on 2026-09-22. Both report a typed boundary when any known alternative of the value fails it, such as passing an `int?` to an `int` parameter. For operators and member calls, Go v0.70.0 reports only when every alternative fails: `nil + 1` is an error, while `v + 1` with `v: int?`, `"x" + items[i]` and `v.upcase` with `v: string?` pass. Rust also reports these whenever a finite known alternative, including `nil` from an index or an empty array before a loop fills it, cannot succeed. Unknown and `any` values stay gradual in both.
 
-Rust also fails the gate when it reaches an expression it does not yet analyze, reporting it as incomplete; Go treats such a value as unknown. Of the 277 site, example and upstream test programs, 196 are clean and 16 are rejected in both checkers. The other 65 are rejected only by Rust: its union-alternative errors, and known failures in deliberate error fixtures that Go's checker does not report. None report incomplete analysis.
+Go reports a reassignment that changes a local's type only in the local's own body; Rust also reports one made inside a block, such as `t = 0` followed by `items.each { |i| t = "s" }`.
+
+Rust also fails the gate when it reaches an expression it does not yet analyze, reporting it as incomplete; Go treats such a value as unknown. Of the 286 site, example and upstream test programs, 205 are clean and 16 are rejected in both checkers. The other 65 are rejected only by Rust: its union-alternative errors, and known failures in deliberate error fixtures that Go's checker does not report. None is rejected only by Go. `scripts/check-sweep.py` extends this to 8,142 programs, adding the documentation examples and the sources recorded from the reference's test suite: none reports incomplete analysis or reaches the sweep's ten-second deadline.
 
 ## Language server diagnostics
 
