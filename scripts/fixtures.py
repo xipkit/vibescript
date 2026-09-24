@@ -173,7 +173,7 @@ def host_global_cases():
     return cases
 
 
-def conformance_cases():
+def conformance_cases(include_language=True):
     cases=[]
 
     def add(name,body,expected,arg=None,source=None):
@@ -223,7 +223,7 @@ def conformance_cases():
     for i in range(30):
         a=rng.randrange(-10000,10000);b=rng.choice([n for n in range(-97,98) if n])
         add(f"arithmetic_{i}",f"[{a}+({b}),{a}-({b}),{a}*({b}),{a}/({b}),{a}%({b})]",[a+b,a-b,a*b,a//b,a%b])
-    for case in json.loads((UPSTREAM.parent/"language.json").read_text()):
+    for case in json.loads((UPSTREAM.parent/"language.json").read_text()) if include_language else []:
         add("language/"+case["name"],case.get("body",""),case["expected"],source=case.get("source"))
         for field in ["entropy_byte","function","stdout","stderr","stdout_hex","stderr_hex"]:
             if field in case:
