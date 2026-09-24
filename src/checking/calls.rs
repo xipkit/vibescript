@@ -575,6 +575,8 @@ struct Job {
     next: usize,
     parents: Buffer<usize>,
     dependencies: Buffer<usize>,
+    // The dependency set, by analysis nesting depth, that last recorded this context.
+    recorded: [usize; NESTING + 1],
     queued: bool,
     returns: Fact,
     throws: u8,
@@ -592,6 +594,9 @@ struct Scheduler<'a> {
     queue: Buffer<usize>,
     current: usize,
     dependencies: Buffer<usize>,
+    // Identifies the dependency set being recorded at each analysis nesting depth.
+    recording: [usize; NESTING + 1],
+    sets: usize,
     search: usize,
     // Contexts created by block walks of the running analysis, whether it is walking blocks,
     // and the depth of analyses summarizing such contexts.
@@ -621,6 +626,8 @@ impl<'a> Scheduler<'a> {
             queue: Buffer::empty(),
             current: EMPTY,
             dependencies: Buffer::empty(),
+            recording: [0; NESTING + 1],
+            sets: 0,
             search: 0,
             created: Buffer::empty(),
             tracking: false,
@@ -653,6 +660,8 @@ impl<'a> Scheduler<'a> {
         }
         self.current = EMPTY;
         self.dependencies = Buffer::empty();
+        self.sets += 1;
+        self.recording[self.nesting] = self.sets;
         Ok(())
     }
 }
@@ -945,6 +954,8 @@ impl Solver<'_, '_> {
         self.state.current = index;
         self.state.jobs.data[index].queued = false;
         self.state.dependencies = Buffer::empty();
+        self.state.sets += 1;
+        self.state.recording[self.state.nesting] = self.state.sets;
         self.state.created = Buffer::empty();
         self.state.tracking = false;
         let mut inputs = Buffer::empty();
@@ -1446,6 +1457,7 @@ impl Solver<'_, '_> {
                 next: self.state.buckets.data[bucket],
                 parents,
                 dependencies: Buffer::empty(),
+                recorded: [EMPTY; NESTING + 1],
                 queued: false,
                 returns: Atom::Never.fact(),
                 throws: 0,

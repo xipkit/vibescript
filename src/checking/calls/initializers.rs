@@ -55,10 +55,15 @@ impl Solver<'_, '_> {
     }
 
     pub(super) fn depend(&mut self, ctx: &mut CallContext, index: usize) -> Result<()> {
-        ctx.charge(self.state.dependencies.data.len() as u64)?;
-        if !self.state.dependencies.data.contains(&index) {
-            self.state.dependencies.push(ctx, index)?;
+        ctx.charge(1)?;
+        // Each set belongs to one analysis, which the first record also made a parent.
+        let depth = self.state.nesting;
+        let set = self.state.recording[depth];
+        if self.state.jobs.data[index].recorded[depth] == set {
+            return Ok(());
         }
+        self.state.jobs.data[index].recorded[depth] = set;
+        self.state.dependencies.push(ctx, index)?;
         ctx.charge(self.state.jobs.data[index].parents.data.len() as u64)?;
         if !self.state.jobs.data[index]
             .parents
