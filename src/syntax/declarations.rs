@@ -313,22 +313,46 @@ impl Parsing<'_> {
             },
         )?;
         let interpolations = std::mem::take(&mut self.p().interpolations);
+        let additions = std::mem::take(&mut self.p().additions);
         Ok(Declarations {
             functions: defs,
             enums,
             modules,
+            additions,
             outline,
             interpolations,
         })
     }
 
-    /// Parses a parameter list, as Go's `parseParamsWithOptions` does.
-    pub(super) async fn parameters(&self, parenthesized: bool) -> Result<Buffer<Parameter>> {
+    /// Parses a parameter list, as Go's `parseParamsWithOptions` does, and
+    /// the typed block parameter that may end it.
+    pub(super) async fn parameters(
+        &self,
+        parenthesized: bool,
+    ) -> Result<(Buffer<Parameter>, Option<super::BlockParam>)> {
         let work = self.p().work;
         work.charge(1)?;
         let mut params: Buffer<Parameter> = Buffer::new();
         let (mut rest, mut keywords, mut keyword_rest) = (false, false, false);
         loop {
+            if self.p().block_param_ahead() {
+                let mut p = self.p();
+                let block = p.block_param()?;
+                work.charge(params.len())?;
+                if params.iter().any(|param| param.name == block.name) {
+                    return Err(Error::syntax(
+                        work,
+                        block.offset as usize + 1,
+                        format_args!("duplicate parameter {}", source_text(&block.name)),
+                    ));
+                }
+                let comma = p.significant(p.pos);
+                if p.tokens[comma].token == Token::P(',') {
+                    p.pos = comma;
+                    return p.err("the block parameter must be the last parameter");
+                }
+                return Ok((params, Some(block)));
+            }
             let (param, offset) = self.parameter(parenthesized).await?;
             let mut p = self.p();
             let order = match param.kind {
@@ -366,7 +390,7 @@ impl Parsing<'_> {
             p.pos = comma + 1;
             p.line_breaks()?;
         }
-        Ok(params)
+        Ok((params, None))
     }
 
     /// Parses one parameter, as Go's `parseParam` does, with its name's offset.

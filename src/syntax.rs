@@ -332,6 +332,19 @@ pub(crate) struct Definition {
     pub return_type: Option<crate::compilation::Type>,
 }
 
+/// A typed block parameter. Its name is a declaration only: `yield` and
+/// `block_given?` are the only ways to reach the block. `&name?:` declares an
+/// optional block, which the runtime treats like a required one: `yield`
+/// without a block fails either way.
+#[derive(Debug)]
+pub(crate) struct BlockParam {
+    pub name: Name,
+    pub params: Buffer<crate::compilation::Type>,
+    /// The block's result type; without one the block's value is discarded.
+    pub result: Option<crate::compilation::Type>,
+    /// The offset of the `&`.
+    pub offset: u32,
+}
 impl Definition {
     fn depth(&self) -> u32 {
         let params = self
@@ -354,6 +367,7 @@ pub(crate) struct Declarations {
     pub functions: Buffer<Definition>,
     pub enums: Buffer<(Name, Buffer<Name>)>,
     pub modules: Buffer<modules::Module>,
+    pub additions: typed::Additions,
     pub outline: Buffer<Outline>,
     /// The byte span of every string interpolation's content, for tooling
     /// that reports positions relative to an interpolation as Go does.
@@ -392,7 +406,9 @@ fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result
         nesting: 0,
         call_end: 0,
         percent_argument: 0,
+        block_name: None,
         type_names: Table::new(),
+        additions: typed::Additions::default(),
     }))
 }
 
@@ -444,9 +460,14 @@ struct Parser<'a> {
     call_end: usize,
     /// The ambiguous percent literal a command call takes as its argument.
     percent_argument: usize,
+    /// The typed block parameter of the function being parsed, whose name is
+    /// a declaration only.
+    block_name: Option<Name>,
     /// The classes and enums the source declares anywhere, which read as
     /// types where an expression could also be meant.
     type_names: Table<()>,
+    /// The typed declarations parsed so far that live beside the tree.
+    additions: typed::Additions,
 }
 
 /// Where a destructuring target list appears.
@@ -2695,6 +2716,7 @@ impl<'a> Parser<'a> {
                 format_args!("expected {expected}, got {got}"),
             ));
         }
+        self.block_reference(name, self.tokens[self.pos - 1].offset)?;
         self.make(Node::Var(Name::new(self.work, name)?), 1)
     }
     /// Reports whether the minus at `sign` folds into the adjacent number.
@@ -2837,7 +2859,9 @@ impl<'a> Parser<'a> {
             nesting: 0,
             call_end: 0,
             percent_argument: 0,
+            block_name: self.block_name.clone(),
             type_names: std::mem::take(&mut self.type_names),
+            additions: std::mem::take(&mut self.additions),
         };
         while parser.token() == &Token::EndLine
             && parser.tokens[parser.pos].line != parser.tokens[parser.pos].end_line
@@ -2854,6 +2878,7 @@ impl<'a> Parser<'a> {
         self.locals = parser.locals;
         self.declared_it = parser.declared_it;
         self.type_names = parser.type_names;
+        self.additions = parser.additions;
         self.interpolations
             .extend(self.work, parser.interpolations)?;
         let expr = match result {

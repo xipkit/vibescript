@@ -1,5 +1,6 @@
 //! The declarations ADR-007 adds, enforced at runtime like parameter
-//! annotations: typed locals, tuple types and the newer type names.
+//! annotations: typed locals, typed block parameters, tuple types and the
+//! newer type names.
 
 use vibescript::{CallOptions, Engine, ErrorKind, stringify_json};
 
@@ -178,6 +179,119 @@ fn malformed_typed_locals_are_positioned_parse_errors() {
     }
 }
 
+const KEEP: &str = "def keep(items: array<int>, &block: int -> bool) -> array<int>
+  kept: array<int> = []
+  items.each { |item| kept << item if yield(item) }
+  kept
+end
+";
+
+#[test]
+fn typed_block_parameters_check_yields_and_results() {
+    for (source, expected) in [
+        (
+            format!("{KEEP}keep([1, 2, 3]) {{ |i| i > 1 }}"),
+            serde_json::json!([2, 3]),
+        ),
+        (
+            "def each_pair(h: hash<string, int>, &block: (string, int))\n  h.keys.map { |k| yield k, h.fetch(k) }\nend\neach_pair({ a: 1 }) { |k, v| v }".into(),
+            // Without a result type the block's value is discarded.
+            serde_json::json!([null]),
+        ),
+        (
+            "def pairs(&block: [string, int] -> string)\n  yield [\"a\", 1]\nend\npairs { |pair| pair[0] }".into(),
+            serde_json::json!("a"),
+        ),
+        (
+            "def maybe(msg: string, &block?: string -> nil)\n  yield msg if block_given?\n  block_given?\nend\n[maybe(\"m\"), maybe(\"m\") { |m| nil }]".into(),
+            serde_json::json!([false, true]),
+        ),
+        (
+            "def twice(&block: ())\n  yield\n  yield\nend\nn = 0\ntwice { n += 1 }\nn".into(),
+            serde_json::json!(2),
+        ),
+        (
+            "def name(&block: () -> string | nil) -> string?\n  yield\nend\n[name { \"a\" }, name { nil }]".into(),
+            serde_json::json!(["a", null]),
+        ),
+        (
+            "def f(&block: int)\n  [1].map { |block| block + 1 }\nend\nf { |x| x }".into(),
+            serde_json::json!([2]),
+        ),
+    ] {
+        assert_eq!(evaluate(&source), expected, "{source}");
+    }
+    for (source, message, at) in [
+        (
+            format!("{KEEP}keep([1]) {{ |i| i }}"),
+            "block result expected bool, got int",
+            (3, 39),
+        ),
+        (
+            "def f(&block: (string, int))\n  yield 1, 2\nend\nf { |a, b| a }".into(),
+            "yield argument 1 expected string, got int",
+            (2, 3),
+        ),
+        (
+            "def f(&block: (string, int))\n  yield \"a\", \"b\"\nend\nf { |a, b| a }".into(),
+            "yield argument 2 expected int, got string",
+            (2, 3),
+        ),
+        (
+            "def f(&block: [string, int])\n  yield [\"a\"]\nend\nf { |pair| pair }".into(),
+            "yield argument 1 expected [string, int], got array<string>",
+            (2, 3),
+        ),
+    ] {
+        let (kind, actual, position) = failure(&source);
+        assert_eq!(kind, ErrorKind::Type, "{source}");
+        assert_eq!((actual.as_str(), position), (message, at), "{source}");
+    }
+    // A required block that is missing keeps its runtime error.
+    let (kind, message, _) = failure("def f(&block: int)\n  yield 1\nend\nf");
+    assert_eq!(
+        (kind, message.as_str()),
+        (ErrorKind::Argument, "no block given")
+    );
+}
+
+#[test]
+fn block_parameter_names_are_declarations_only() {
+    for (source, message) in [
+        (
+            "def f(&block: int)\n  block\nend",
+            "parse error at 2:3: block parameter block is not a value; run the block with `yield`, and ask `block_given?` when it is optional",
+        ),
+        (
+            "def f(&each: int)\n  g(each)\nend",
+            "parse error at 2:5: block parameter each is not a value; run the block with `yield`, and ask `block_given?` when it is optional",
+        ),
+        (
+            "def f(&block?: int)\n  block.call(1)\nend",
+            "parse error at 2:3: block parameter block is not a value; run the block with `yield`, and ask `block_given?` when it is optional",
+        ),
+        (
+            "def f(&block: int, x: int)\nend",
+            "parse error at 1:18: the block parameter must be the last parameter",
+        ),
+        (
+            "def f(block: int, &block: int)\nend",
+            "parse error at 1:20: duplicate parameter block",
+        ),
+        (
+            "def f(&block: (int, string)\nend",
+            "parse error at 2:1: expected \")\", got 'end'",
+        ),
+        // An untyped block parameter keeps its refusal.
+        (
+            "def f(&block)\nend",
+            "parse error at 1:7: block capture parameters are not supported; a block is not a value. Run the caller's block with `yield`, and ask `block_given?` when it is optional",
+        ),
+    ] {
+        assert_eq!(compile_error(source), message, "{source}");
+    }
+}
+
 #[test]
 fn tuple_types_are_arrays_of_exactly_their_elements() {
     let enums = "enum Status\n  Draft\n  Done\nend\n";
@@ -315,14 +429,15 @@ fn newer_type_names_validate_their_values() {
 
 #[test]
 fn the_gradual_checker_accepts_the_new_declarations() {
-    let source = "def run -> int
+    let source = format!(
+        "{KEEP}def run -> int
   pair: [int, string] = [1, \"a\"]
-  total: int = pair[0]
-  [1, 2].each { |i| total += i }
-  total
+  kept = keep([1, 2]) {{ |i| i > 1 }}
+  pair[0] + kept.length
 end
-";
-    let script = Engine::new().compile(source).unwrap();
+"
+    );
+    let script = Engine::new().compile(&source).unwrap();
     let report = script
         .check_call("run", &[], &CallOptions::default())
         .unwrap_or_else(|error| panic!("{error}"));
@@ -333,6 +448,6 @@ end
             .unwrap()
             .value
             .as_int(),
-        Some(4)
+        Some(2)
     );
 }

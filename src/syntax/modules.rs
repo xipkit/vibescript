@@ -284,7 +284,7 @@ impl Parsing<'_> {
             (parenthesized, bare)
         };
         let mut signature = def_line;
-        let params = if parenthesized {
+        let (params, block) = if parenthesized {
             let empty = {
                 let mut p = self.p();
                 p.bump()?;
@@ -292,7 +292,7 @@ impl Parsing<'_> {
                 p.token() == &Token::P(')')
             };
             let params = if empty {
-                Buffer::new()
+                (Buffer::new(), None)
             } else {
                 self.p().groups += 1;
                 let params = self.parameters(true).await?;
@@ -313,7 +313,15 @@ impl Parsing<'_> {
             signature = self.p().previous()?.line;
             params
         } else {
-            Buffer::new()
+            (Buffer::new(), None)
+        };
+        let outer_block = {
+            let mut p = self.p();
+            let name = block.as_ref().map(|block| block.name.clone());
+            if let Some(block) = block {
+                p.additions.blocks.push(work, (offset, block))?;
+            }
+            std::mem::replace(&mut p.block_name, name)
         };
         self.p().note(|record| record.enter_function(&params));
         let return_type = {
@@ -350,6 +358,7 @@ impl Parsing<'_> {
         p.note(super::record::Record::leave_function);
         p.locals = outer_locals;
         p.declared_it = outer_it;
+        p.block_name = outer_block;
         Ok(Function {
             definition: super::Definition {
                 private: false,

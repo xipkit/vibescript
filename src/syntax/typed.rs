@@ -1,10 +1,22 @@
-//! The declarations ADR-007 adds: typed locals and the types they annotate.
+//! The declarations ADR-007 adds: typed locals, typed block parameters
+//! and the types they annotate.
 
-use super::{Expr, Label, Node, Parser, Parsing, Statement, Target, Token, source_text, unicode};
+use super::{
+    BlockParam, Expr, Label, Node, Parser, Parsing, Statement, Target, Token, source_text, unicode,
+};
 use crate::{
     Error, Result,
     compilation::{Boxed, Buffer, Name, Type, TypeKind},
 };
+
+/// The typed declarations that live beside the syntax tree, keyed by the
+/// source offset of the function that makes them, so the tree's nodes keep
+/// their size and accounting.
+#[derive(Debug, Default)]
+pub(crate) struct Additions {
+    /// Typed block parameters, by the offset of their function's `def`.
+    pub blocks: Buffer<(u32, BlockParam)>,
+}
 
 impl Parser<'_> {
     /// Records the classes and enums declared anywhere in the source. The
@@ -82,6 +94,68 @@ impl Parser<'_> {
         Ok(result)
     }
 
+    /// Whether the parameter list continues with a typed block parameter,
+    /// `&name: T` or `&name?: T`.
+    pub(super) fn block_param_ahead(&self) -> bool {
+        self.token() == &Token::Op("&")
+            && matches!(&self.tokens[self.pos + 1].token, Token::Word(w) if !w.starts_with('@'))
+            && self.annotation_colon(self.pos + 1)
+    }
+
+    /// Parses a typed block parameter from its `&`: one argument type, a
+    /// parenthesized list of them, and an optional `-> R` result type.
+    pub(super) fn block_param(&mut self) -> Result<BlockParam> {
+        let work = self.work;
+        work.charge(1)?;
+        let offset = self.tokens[self.pos].offset as u32;
+        self.bump()?;
+        let at = self.tokens[self.pos].offset;
+        let Token::Word(word) = self.bump()? else {
+            unreachable!()
+        };
+        let written = word.strip_suffix('?').unwrap_or(&word);
+        if written.is_empty() || super::keyword(written) || written.ends_with(['?', '!']) {
+            return Err(Error::syntax(work, at, "expected block parameter name"));
+        }
+        let name = Name::new(work, written)?;
+        self.bump()?;
+        self.line_breaks()?;
+        let mut params = Buffer::new();
+        if self.take_p('(') {
+            self.line_breaks()?;
+            if !self.take_p(')') {
+                loop {
+                    params.push(work, self.type_expr(1, false)?)?;
+                    self.line_breaks()?;
+                    if self.take_p(')') {
+                        break;
+                    }
+                    if self.token() != &Token::P(',') {
+                        return self.expected(Label::Char(')'));
+                    }
+                    self.bump()?;
+                    self.line_breaks()?;
+                }
+            }
+        } else {
+            params.push(work, self.type_expr(1, false)?)?;
+        }
+        let arrow = self.significant(self.pos);
+        let result = if self.tokens[arrow].token == Token::Op("->") {
+            self.pos = arrow + 1;
+            self.line_breaks()?;
+            Some(self.type_expr(1, false)?)
+        } else {
+            None
+        };
+        Ok(BlockParam {
+            name,
+            params,
+            result,
+            offset,
+        })
+    }
+
     /// Whether the token at `index` can start a tuple type's first element:
     /// a builtin or declared type name.
     pub(super) fn tuple_start(&self, index: usize) -> bool {
@@ -136,6 +210,24 @@ impl Parser<'_> {
             }
             _ => true,
         }
+    }
+    /// Refuses a reference to the enclosing function's block parameter, which
+    /// is not a value.
+    pub(super) fn block_reference(&self, name: &str, offset: usize) -> Result<()> {
+        let Some(block) = &self.block_name else {
+            return Ok(());
+        };
+        if **block != *name || self.locals.contains(self.work, name)? {
+            return Ok(());
+        }
+        Err(Error::syntax(
+            self.work,
+            offset,
+            format_args!(
+                "block parameter {} is not a value; run the block with `yield`, and ask `block_given?` when it is optional",
+                source_text(name)
+            ),
+        ))
     }
 }
 

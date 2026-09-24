@@ -12,6 +12,7 @@ use std::collections::HashMap;
 mod calls;
 mod errors;
 mod namespaces;
+mod typing;
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Op {
@@ -46,7 +47,7 @@ pub(crate) enum Op {
     TypeShadowed(usize, usize),
     Normalize(usize, usize),
     /// Validates the value on top of the stack against a type, naming it by
-    /// a constant subject such as a typed local's.
+    /// a constant subject: a typed local, a `yield` argument or a block result.
     Check(usize, usize),
     Declaration(usize),
     Global(usize),
@@ -533,6 +534,7 @@ fn compile_mode(
         members: Vec::new(),
         outline,
     };
+    let typing = typing::Typing::new(parsed.additions, work)?;
     for module in parsed.modules {
         program.register_module(module, "", &mut defs, &mut contexts, work)?;
     }
@@ -549,6 +551,7 @@ fn compile_mode(
             namespace: contexts[index].0,
             instance: contexts[index].2,
             program: &mut program,
+            block: None,
             typed: Table::new(),
             outer_typed: Buffer::new(),
             locals: Table::new(),
@@ -562,7 +565,14 @@ fn compile_mode(
             reads: Table::new(),
             assigned: Table::new(),
         });
-        compiling.run(Call::Function(&def, binds_parameters))?;
+        let additions = Additions {
+            block: if index == 0 {
+                None
+            } else {
+                typing.block(def.offset)
+            },
+        };
+        compiling.run(Call::Function(&def, binds_parameters, additions))?;
         let params = compiling.params.take();
         let mut c = compiling.compiler.into_inner();
         let finish = c.emit(Op::Finish);
@@ -625,6 +635,9 @@ struct Compiler<'a> {
     instance: bool,
     namespace: Option<usize>,
     program: &'a mut Program,
+    /// The declared block of the function being generated, which each
+    /// `yield` in it and its blocks is checked against.
+    block: Option<BlockContract>,
     /// The declared type and check subject of each typed local.
     typed: Table<(usize, usize)>,
     /// The typed locals of each enclosing scope, parallel to `outer`.
@@ -639,6 +652,13 @@ struct Compiler<'a> {
     outer: Buffer<Table<usize>>,
     reads: Table<()>,
     assigned: Table<()>,
+}
+
+/// A declared block's argument and result types, each with its check
+/// subject. Without a result type the block's value is discarded.
+struct BlockContract {
+    params: Vec<(usize, usize)>,
+    result: Option<(usize, usize)>,
 }
 
 /// The state of the function being generated, set aside while a nested block
@@ -1313,10 +1333,16 @@ impl Compiler<'_> {
     }
 }
 
+/// What a function's typed declarations add to it: the block it declares.
+#[derive(Clone, Copy)]
+struct Additions<'x> {
+    block: Option<&'x syntax::BlockParam>,
+}
+
 /// Recursive code generation steps that run as tasks instead of native calls.
 #[derive(Clone, Copy)]
 enum Call<'x> {
-    Function(&'x syntax::Definition, bool),
+    Function(&'x syntax::Definition, bool, Additions<'x>),
     Expr(&'x Expr),
     Block(&'x [Stmt]),
     Assign(&'x Target),
@@ -1351,7 +1377,9 @@ impl<'a, 'x> Compiling<'a, 'x> {
 
     fn start(&self, call: Call<'x>) -> Task<'_, ()> {
         match call {
-            Call::Function(def, binds_parameters) => Box::pin(self.function(def, binds_parameters)),
+            Call::Function(def, binds_parameters, additions) => {
+                Box::pin(self.function(def, binds_parameters, additions))
+            }
             Call::Expr(e) => Box::pin(self.expr_task(e)),
             Call::Block(body) => Box::pin(self.block_task(body)),
             Call::Assign(target) => Box::pin(self.assign_value(target)),
@@ -1400,8 +1428,27 @@ impl<'a, 'x> Compiling<'a, 'x> {
         self.tasks.call(Call::Address(receiver)).await
     }
 
-    async fn function(&self, def: &'x syntax::Definition, binds_parameters: bool) -> Result<()> {
+    async fn function(
+        &self,
+        def: &'x syntax::Definition,
+        binds_parameters: bool,
+        additions: Additions<'x>,
+    ) -> Result<()> {
         let work = self.c().work;
+        if let Some(block) = additions.block {
+            let mut c = self.c();
+            let mut params = Vec::with_capacity(block.params.len());
+            for (index, ty) in block.params.iter().enumerate() {
+                let ty = c.annotation(ty)?;
+                let subject = c.subject(&["yield argument ", &(index + 1).to_string()])?;
+                params.push((ty, subject));
+            }
+            let result = match &block.result {
+                Some(ty) => Some((c.annotation(ty)?, c.subject(&["block result"])?)),
+                None => None,
+            };
+            c.block = Some(BlockContract { params, result });
+        }
         let mut params = Vec::new();
         for (i, param) in def.params.iter().enumerate() {
             let (ty, bind) = {
@@ -2134,10 +2181,26 @@ impl<'a, 'x> Compiling<'a, 'x> {
             }
             Node::Yield(args) => {
                 self.c().emit(Op::CheckBlock);
-                for arg in args {
+                for (index, arg) in args.iter().enumerate() {
                     self.expr(arg).await?;
+                    let mut c = self.c();
+                    let check = c.block.as_ref().and_then(|block| block.params.get(index));
+                    if let Some(&(ty, subject)) = check {
+                        c.emit(Op::Check(ty, subject));
+                    }
                 }
-                self.c().emit(Op::Yield(args.len()));
+                let mut c = self.c();
+                c.emit(Op::Yield(args.len()));
+                match c.block.as_ref().map(|block| block.result) {
+                    Some(Some((ty, subject))) => {
+                        c.emit(Op::Check(ty, subject));
+                    }
+                    Some(None) => {
+                        c.emit(Op::Pop);
+                        c.emit(Op::Nil);
+                    }
+                    None => (),
+                }
             }
             Node::BlockCall(call, block) => Box::pin(self.block_call(call, block)).await?,
             Node::ComputedCall(call, args) => {
