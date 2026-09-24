@@ -195,10 +195,11 @@ impl Default for Options {
 /// One analyzed version of a document: its diagnostics, and the declarations
 /// that hover, completion, definitions, symbols and signature help use.
 ///
-/// [`Document::update`] carries declarations across versions. When a new text
-/// does not parse, navigation keeps the last parsed declarations, re-anchored
-/// to the lines that still declare them, and completion and signature help
-/// keep the last compiled ones.
+/// [`Document::update`] carries declarations across versions. When a text
+/// does not parse, navigation uses the declarations of each top-level section
+/// that parses on its own, or else keeps the last parsed declarations,
+/// re-anchored to the lines that still declare them; completion and signature
+/// help keep the last compiled ones.
 ///
 /// ```
 /// use vibescript_tools::lsp::{Document, Position, Severity};

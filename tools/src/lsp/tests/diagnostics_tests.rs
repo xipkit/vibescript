@@ -292,11 +292,10 @@ fn republishing_identical_text_skips_analysis() {
             .unwrap()
             .is_empty()
     );
-    // A failed parse keeps the last program for navigation.
-    assert!(Arc::ptr_eq(
-        document(&server, uri).program.as_ref().unwrap(),
-        &program
-    ));
+    // A failed parse outlines the sections that still parse.
+    let partial = document(&server, uri).program.clone().unwrap();
+    assert!(!Arc::ptr_eq(&partial, &program));
+    assert_eq!(partial.items[0].name, "helper");
 
     // Reverting misses the cache, since the last analysis saw the edit.
     let replies = change(&mut server, uri, source);
@@ -308,7 +307,7 @@ fn republishing_identical_text_skips_analysis() {
     );
     assert!(!Arc::ptr_eq(
         document(&server, uri).program.as_ref().unwrap(),
-        &program
+        &partial
     ));
 }
 

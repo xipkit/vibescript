@@ -295,3 +295,27 @@ fn members_follow_their_container_when_lines_shift() {
         .collect();
     assert_eq!(lines, [3, 7]);
 }
+
+#[test]
+fn a_document_broken_on_open_keeps_the_sections_that_parse() {
+    let mut server = server();
+    let uri = "file:///tmp/broken-open.vibe";
+    let source = "def helper(n)\n  n\nend\n\n# Runs.\ndef run(\n  helper(1)\nend\n\nclass Late\n  def value\n  end\nend\n";
+    open(&mut server, uri, source);
+    assert_eq!(names(&symbols(&mut server, uri)), ["helper", "Late"]);
+    assert_eq!(definition(&server, uri, "value").unwrap().start.line, 10);
+    assert_eq!(
+        hover_at(&mut server, uri, 6, 3),
+        "```vibe\ndef helper(n)\n```"
+    );
+    // Declarations added while the document is broken are found too.
+    change(&mut server, uri, &format!("{source}\ndef added\nend\n"));
+    assert_eq!(
+        names(&symbols(&mut server, uri)),
+        ["helper", "Late", "added"]
+    );
+    // With no section parsing, the last outline stays.
+    change(&mut server, uri, "def (\n");
+    assert_eq!(names(&symbols(&mut server, uri)), Vec::<&str>::new());
+    assert!(document(&server, uri).program.is_some());
+}

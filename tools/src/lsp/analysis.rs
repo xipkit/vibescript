@@ -5,7 +5,7 @@ use super::document::{Diagnostic, Options, Position, Range, Severity};
 use super::text::{line_at, utf16_character};
 use std::path::PathBuf;
 use std::time::Instant;
-use vibescript::tooling::{self, Outline};
+use vibescript::tooling::{self, Item, Outline};
 use vibescript::{CallOptions, Engine, Error, ErrorKind, Limits, ModuleConfig};
 
 /// A diagnostic whose range always moves forward: an empty or inverted range
@@ -103,7 +103,7 @@ pub(crate) fn analyze(uri: &str, source: &str, options: &Options) -> Analysis {
             let program = match tooling::outline(source) {
                 Ok(outline) => Program::Parsed(outline),
                 Err(error) if error.diagnostic.is_none() => Program::Missing,
-                Err(_) => Program::Kept,
+                Err(_) => sections(source).map_or(Program::Kept, Program::Parsed),
             };
             return Analysis {
                 diagnostics: vec![compile_diagnostic(source, &error)],
@@ -158,6 +158,78 @@ impl Analysis {
             program: Program::Kept,
             cancelled: true,
         }
+    }
+}
+
+/// The declarations of each top-level section that parses on its own, when
+/// the whole source does not, or `None` when no section yields any.
+///
+/// The reference's parser recovers from errors and keeps what it could parse;
+/// this port's parser stops at the first error. Splitting the source before
+/// each unindented declaration keyword and after each unindented `end`, and
+/// outlining the sections separately, keeps the declarations an error in
+/// another section would hide.
+pub(crate) fn sections(source: &str) -> Option<Outline> {
+    const STARTS: [&str; 7] = [
+        "def ",
+        "class ",
+        "module ",
+        "enum ",
+        "alias ",
+        "private def ",
+        "export def ",
+    ];
+    let mut items = Vec::new();
+    let mut start = 0;
+    let mut first_line = 0;
+    let mut line = 0;
+    let mut outline = |start: usize, end: usize, first_line: usize| {
+        if let Ok(outline) = tooling::outline(&source[start..end]) {
+            items.extend(outline.items.into_iter().map(|mut item| {
+                shift(&mut item, first_line);
+                item
+            }));
+        }
+    };
+    let mut offset = 0;
+    for text in source.split_inclusive('\n') {
+        let declaration = STARTS.iter().any(|start| text.starts_with(start));
+        if declaration && offset > start {
+            outline(start, offset, first_line);
+            start = offset;
+            first_line = line;
+        }
+        offset += text.len();
+        line += 1;
+        if text.trim_end() == "end" {
+            outline(start, offset, first_line);
+            start = offset;
+            first_line = line;
+        }
+    }
+    if start < source.len() {
+        outline(start, source.len(), first_line);
+    }
+    (!items.is_empty()).then_some(Outline { items })
+}
+
+/// Moves an item parsed from a section down to the section's first line.
+fn shift(item: &mut Item, lines: usize) {
+    let mut pending = vec![item];
+    while let Some(item) = pending.pop() {
+        item.position.line += lines;
+        if let Some(function) = &mut item.function {
+            if let Some(position) = &mut function.last_statement {
+                position.line += lines;
+            }
+            for rescue in &mut function.rescues {
+                rescue.position.line += lines;
+                if let Some(position) = &mut rescue.last_statement {
+                    position.line += lines;
+                }
+            }
+        }
+        pending.extend(item.children.iter_mut());
     }
 }
 
