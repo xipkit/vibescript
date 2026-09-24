@@ -395,7 +395,9 @@ impl Run {
         let storage = &mut self.storage;
         let stack = &mut self.stack;
         loop {
-            programs::advance(ctx, frames, storage, stack.data.len())?;
+            if !storage.activations.data.is_empty() {
+                programs::advance(ctx, frames, storage, stack.data.len())?;
+            }
             if frames.data.is_empty() {
                 while *initializer < program.namespaces.len() {
                     let module = *initializer;
@@ -501,14 +503,14 @@ impl Run {
                 }
                 continue;
             }
-            let op = {
-                let frame = &mut frames.data[current];
-                let op = program.functions[frame.function.unwrap()].code[frame.ip];
-                frame.ip += 1;
-                op
-            };
+            let frame = &mut frames.data[current];
+            let function = &program.functions[frame.function.unwrap()];
+            let op = function.code[frame.ip];
+            frame.ip += 1;
+            let local_base = frame.local_base;
+            let namespace = function.namespace;
+            let caller_instance = matches!(frame.receiver, Some(Value(Kind::Instance(_))));
             ctx.charge(1)?;
-            let local_base = frames.data[current].local_base;
             let mut slot = |slot: usize, skip: bool| -> Result<usize> {
                 // A bound local of the executing frame always resolves to itself.
                 if !skip && storage.locals.data[local_base + slot].is_some() {
@@ -542,12 +544,8 @@ impl Run {
                 }
                 op => op,
             };
-            if !ctx.options.globals.is_empty() || !ctx.capability_names.data.is_empty() {
-                let count = match op {
-                    Op::Call(_, count) | Op::Host(_, count) | Op::NonCallable(count) => Some(count),
-                    _ => None,
-                };
-                if let Some(count) = count {
+            if let Op::Call(_, count) | Op::Host(_, count) | Op::NonCallable(count) = op {
+                if !ctx.options.globals.is_empty() || !ctx.capability_names.data.is_empty() {
                     let target = frames.data[current].arguments.data.pop().unwrap().target;
                     if let Some(target) = target {
                         let base = stack.data.len() - count;
@@ -562,29 +560,18 @@ impl Run {
             let file_local = if let Some(relative) = file_local {
                 let absolute = file_bindings::local_name(op).unwrap();
                 file_bindings::local(program, ctx, frames, storage, current, relative, absolute)?
-                    .then_some(
-                        program.functions[frames.data[current].function.unwrap()].local_names
-                            [relative]
-                            .as_str(),
-                    )
+                    .then_some(function.local_names[relative].as_str())
             } else {
                 None
             };
             let root_local = if let Some(relative) = binding_local {
                 let absolute = file_bindings::local_name(op).unwrap();
-                requires::local(ctx, frames, storage, current, relative, absolute)?.then_some(
-                    program.functions[frames.data[current].function.unwrap()].local_names[relative]
-                        .as_str(),
-                )
+                requires::local(ctx, frames, storage, current, relative, absolute)?
+                    .then_some(function.local_names[relative].as_str())
             } else {
                 None
             };
             let frame = &mut frames.data[current];
-            let namespace = frame
-                .function
-                .and_then(|index| program.functions[index].namespace);
-            let self_value = frame.receiver.clone();
-            let caller_instance = matches!(&self_value, Some(Value(Kind::Instance(_))));
             match op {
                 Op::TryBegin(spec) => handlers::begin(ctx, frames, storage, stack, spec)?,
                 Op::TryBody | Op::TryEnd => {
@@ -798,7 +785,7 @@ impl Run {
                     }
                 }
                 Op::NamespaceSelf(module) => {
-                    let value = if let Some(value) = &self_value {
+                    let value = if let Some(value) = &frame.receiver {
                         value.clone()
                     } else {
                         namespaces::value(program, ctx, storage, module)?
@@ -830,7 +817,7 @@ impl Run {
                 Op::NamespaceVariable(name, optional) => {
                     let raw = &program.members[name];
                     if raw.starts_with('@') && !raw.starts_with("@@") {
-                        let Some(Value(Kind::Instance(instance))) = &self_value else {
+                        let Some(Value(Kind::Instance(instance))) = &frame.receiver else {
                             return Err(Error::new(
                                 ErrorKind::Name,
                                 "no instance context for ivar",
@@ -856,7 +843,7 @@ impl Run {
                 Op::NamespaceAddress(name, optional) => {
                     let raw = &program.members[name];
                     if raw.starts_with('@') && !raw.starts_with("@@") {
-                        let Some(Value(Kind::Instance(instance))) = &self_value else {
+                        let Some(Value(Kind::Instance(instance))) = &frame.receiver else {
                             return Err(Error::new(
                                 ErrorKind::Name,
                                 "no instance context for ivar",
@@ -893,6 +880,7 @@ impl Run {
                 Op::NamespaceStore(name) => {
                     let raw = &program.members[name];
                     if raw.starts_with('@') && !raw.starts_with("@@") {
+                        let self_value = frame.receiver.clone();
                         let Some(Value(Kind::Instance(instance))) = &self_value else {
                             return Err(Error::new(
                                 ErrorKind::Name,
@@ -983,6 +971,7 @@ impl Run {
                     stack.push(ctx, v)?;
                 }
                 Op::TypeShadowed(guard, next) => {
+                    let self_value = frame.receiver.clone();
                     for name in &program.type_guards[guard] {
                         // A method reachable through implicit self also turns
                         // the braced group back into a hash, as a bare call.
@@ -1134,6 +1123,7 @@ impl Run {
                     }
                 }
                 Op::Unbound(name) => {
+                    let self_value = frame.receiver.clone();
                     if let Some(binding) =
                         file_bindings::root_binding(program, ctx, storage, &program.members[name])?
                     {
@@ -2433,13 +2423,14 @@ impl Run {
                         receiver,
                         site,
                         namespace,
-                        self_value.is_some(),
+                        frame.receiver.is_some(),
                     )?;
                     let args = frame.arguments.data.last_mut().unwrap();
                     args.resolve(target, site.parenthesized);
                     args.keep_receiver(Some(selected));
                 }
                 Op::ResolveCall(slot, name, parenthesized) => {
+                    let self_value = frame.receiver.clone();
                     let name_index = name;
                     let name = &program.members[name];
                     let target = if let Some(Some(value)) = storage.locals.data.get(slot) {
@@ -2656,7 +2647,7 @@ impl Run {
                         }
                     };
                     let target = if let Invocation::ImplicitMember(module, name) = target {
-                        let receiver = if let Some(value) = &self_value {
+                        let receiver = if let Some(value) = &frames.data[current].receiver {
                             value.clone()
                         } else {
                             namespaces::value(program, ctx, storage, module)?
