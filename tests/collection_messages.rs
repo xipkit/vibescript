@@ -1500,6 +1500,14 @@ fn range_members_check_calls_in_reference_order() {
             "range.to_a does not take arguments".to_owned(),
         ),
         (&format!("{full}.size"), "range.size overflow".to_owned()),
+        (
+            &format!("{full}.length"),
+            "range.length overflow".to_owned(),
+        ),
+        (
+            "(1..5).length(1, k: 1)",
+            "range.length does not take arguments".to_owned(),
+        ),
         (&format!("{full}.count"), "range.count overflow".to_owned()),
         (
             "(1..5).each(1, k: 1)",

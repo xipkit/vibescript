@@ -89,7 +89,7 @@ impl Receiver {
         if self == Self::Range {
             let refused = match method? {
                 Cover | Include | Member => arguments == 1,
-                Size | ExcludeEnd | ToArray => arguments == 0,
+                Length | Size | ExcludeEnd | ToArray => arguments == 0,
                 First | Last => true,
                 _ => {
                     return self
@@ -505,6 +505,7 @@ impl Receiver {
                         | "member?"
                         | "first"
                         | "last"
+                        | "length"
                         | "size"
                         | "exclude_end?"
                         | "to_a"
@@ -1098,6 +1099,7 @@ pub(crate) mod candidates {
         "to_s",
         "string",
         "inspect",
+        "length",
     ];
     pub(crate) const REGEX: &[&str] = &["match", "match?", "source", "flags", "inspect"];
     pub(crate) const SYMBOL: &[&str] = &["inspect", "id2name", "to_s", "string", "to_sym"];

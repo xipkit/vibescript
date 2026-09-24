@@ -217,7 +217,7 @@ pub(crate) fn method(
             }
             Ok(Value::boolean(range.contains(&args[0])))
         }
-        Size | ToArray => {
+        Length | Size | ToArray => {
             if !args.is_empty() {
                 return Err(argument("does not take arguments"));
             }
@@ -227,10 +227,13 @@ pub(crate) fn method(
                     return ctx.guard(ErrorKind::Arithmetic, "range.to_a result too large");
                 }
                 Err(_) => {
-                    return Err(Error::new(ErrorKind::Arithmetic, "range.size overflow"));
+                    return Err(Error::new(
+                        ErrorKind::Arithmetic,
+                        format!("range.{name} overflow"),
+                    ));
                 }
             };
-            if matches!(method, Size) {
+            if matches!(method, Length | Size) {
                 Ok(Value::int(n))
             } else {
                 range.materialize(ctx, n, false)

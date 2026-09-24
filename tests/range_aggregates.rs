@@ -20,6 +20,9 @@ fn aggregates_support_automatic_and_dynamic_calls() {
         ("(-9223372036854775808..-9223372036854775808).max", i64::MIN),
         ("(0..1).sum(-9223372036854775809)", i64::MIN),
         ("(-1..0).sum(9223372036854775808)", i64::MAX),
+        ("(1..4).length", 4),
+        ("(1...4).length()", 3),
+        ("(4..1).length", 4),
     ] {
         let source = format!("def run -> int; {expression}; end");
         let script = Engine::new().compile(&source).unwrap();

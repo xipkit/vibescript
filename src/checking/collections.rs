@@ -682,7 +682,7 @@ impl Facts {
             "compact" if array || hash => 0..=0,
             "chunk" | "window" if array => 1..=1,
             "inspect" if array || hash => 0..=0,
-            "to_a" | "size" | "exclude_end?" if range => 0..=0,
+            "to_a" | "length" | "size" | "exclude_end?" if range => 0..=0,
             "include?" | "cover?" | "member?" if range => 1..=1,
             "to_a" if hash => 0..=0,
             "join" | "flatten" if array => 0..=1,
@@ -720,8 +720,8 @@ impl Facts {
             "chunk" if array => self.chunk_member(ctx, receiver, args[0], false),
             "window" if array => self.chunk_member(ctx, receiver, args[0], true),
             "inspect" if array || hash => self.inspect_member(ctx, receiver),
-            "to_a" | "size" | "exclude_end?" | "include?" | "cover?" | "member?" | "first"
-            | "last"
+            "to_a" | "length" | "size" | "exclude_end?" | "include?" | "cover?" | "member?"
+            | "first" | "last"
                 if range =>
             {
                 self.range_member(ctx, receiver, name, args)

@@ -94,7 +94,7 @@ impl Facts {
                 Some(range) => self.boolean(ctx, range.exclusive)?,
                 None => Atom::Bool.fact(),
             })),
-            "size" => match literal.map(Literal::length) {
+            "length" | "size" => match literal.map(Literal::length) {
                 // The runtime reports a length beyond 64 bits as an overflow.
                 Some(Some(length)) => match i64::try_from(length) {
                     Ok(length) => Ok(outcome(self.integer(ctx, length)?)),

@@ -121,7 +121,7 @@ fn known_range_failures_are_diagnosed_and_fail_at_runtime() {
         "(1..3).last('x')",
         "(1..3).first(nil)",
         "(1..3).first(1, 2)",
-        "(1..3).length",
+        "(1..3).length(1)",
         "(1..).size",
         "(..3).size",
         "(-9223372036854775808..9223372036854775807).size",

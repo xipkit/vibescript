@@ -5,7 +5,15 @@ use super::*;
 pub(super) fn supported(name: &str) -> bool {
     matches!(
         name,
-        "first" | "last" | "size" | "to_a" | "include?" | "cover?" | "member?" | "exclude_end?"
+        "first"
+            | "last"
+            | "length"
+            | "size"
+            | "to_a"
+            | "include?"
+            | "cover?"
+            | "member?"
+            | "exclude_end?"
     )
 }
 
