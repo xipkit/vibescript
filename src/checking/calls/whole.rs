@@ -342,7 +342,7 @@ impl Solver<'_, '_> {
             }
             exit.globals
                 .snapshot(ctx)?
-                .join_into(ctx, facts, &mut globals)?;
+                .join_allocations_into(ctx, facts, &mut globals)?;
         }
         if globals.data.is_empty() {
             let initial = initial.snapshot(ctx)?;

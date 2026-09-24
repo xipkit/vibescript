@@ -76,6 +76,19 @@ fn whole_scope_keeps_declaration_diagnostics_after_failing_top_level_and_initial
 }
 
 #[test]
+fn declarations_keep_instances_from_each_failing_top_level_history() {
+    // Error exits after different allocations reach the declarations as separate states.
+    let source = "class Order\n  def initialize()\n  end\nend\nclass Holder\n  def initialize()\n  end\n  def check(u: Order)\n    raise \"x\"\n  end\nend\ndef takes_order(value: Order) -> Order\n  value\nend\ndef later -> int\n  false\nend\n[Holder][0].new.check(Order.new)";
+    let script = Engine::new().compile(source).unwrap();
+    let report = script.check(&CallOptions::default()).unwrap();
+    assert!(report.incomplete.is_empty(), "{report:?}");
+    assert_eq!(report.diagnostics.len(), 1, "{report:?}");
+    assert_eq!(report.diagnostics[0].position.line, 16, "{report:?}");
+    let error = script.run(CallOptions::default()).unwrap_err();
+    assert_eq!(error.message, "x");
+}
+
+#[test]
 fn whole_scope_keeps_effective_methods_and_constructor_field_contracts() {
     for (source, clean) in [
         ("class C;def f->int;false;end;def f->int;7;end;end", true),

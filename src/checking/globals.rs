@@ -173,6 +173,52 @@ impl Globals {
         alternatives.push(ctx, self)
     }
 
+    /// Joins like [`Self::join_into`], but keeps states whose instance heaps hold different
+    /// allocation counts apart, so a later declaration check can still select each instance.
+    pub fn join_allocations_into(
+        self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        alternatives: &mut Buffer<Self>,
+    ) -> Result<()> {
+        for current in &mut alternatives.data {
+            ctx.charge(1)?;
+            if current.compatible(ctx, &self)? && current.same_allocations(ctx, facts, &self)? {
+                current.join(ctx, facts, &self, None)?;
+                return Ok(());
+            }
+        }
+        alternatives.push(ctx, self)
+    }
+
+    fn same_allocations(
+        &self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        other: &Self,
+    ) -> Result<bool> {
+        let layout = self.layout.latest(ctx, &other.layout)?;
+        for source in layout.sources() {
+            for root in source.namespaces.clone().step_by(super::namespaces::WIDTH) {
+                ctx.charge(1)?;
+                let heap = root + 2;
+                let (Some(&a), Some(&b)) =
+                    (self.values.data.get(heap), other.values.data.get(heap))
+                else {
+                    continue;
+                };
+                let a = super::heaps::entries(ctx, facts, a)?.map(|entries| entries.data.len());
+                let b = super::heaps::entries(ctx, facts, b)?.map(|entries| entries.data.len());
+                if let (Some(a), Some(b)) = (a, b) {
+                    if a != b {
+                        return Ok(false);
+                    }
+                }
+            }
+        }
+        Ok(true)
+    }
+
     /// Preserves writes from earlier stages of a composed call.
     pub fn inherit_writes(&mut self, ctx: &mut CallContext, earlier: &Self) -> Result<()> {
         self.expand(ctx, &earlier.layout)?;
