@@ -277,6 +277,8 @@ pub(super) enum Failure {
         class: crate::ErrorClass,
     },
     NonCallable,
+    /// Invoking a native method without its receiver.
+    Unbound,
     Undefined,
     HostArity,
     HostKeywords,

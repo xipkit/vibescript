@@ -1235,6 +1235,7 @@ impl Walker<'_> {
                 | Target::Block(_)
                 | Target::Host(_)
                 | Target::NonCallable
+                | Target::Unbound { .. }
                 | Target::Undefined
                 | Target::Unsupported
                 | Target::Value(_)
@@ -1427,6 +1428,7 @@ impl Walker<'_> {
                 Failure::Type { .. }
                 | Failure::DetachedValue(_)
                 | Failure::NonCallable
+                | Failure::Unbound
                 | Failure::Undefined
                 | Failure::HostArity
                 | Failure::HostKeywords

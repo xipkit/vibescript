@@ -205,6 +205,10 @@ fn target(out: &mut Writer<'_>, program: &Program, target: Target) -> Result<()>
             None => out.text("host method"),
         },
         Target::Builtin(builtin) => out.quoted(builtin.name().as_bytes()),
+        Target::Unbound { kind, name } => {
+            let name = program.members.get(name).map_or("method", String::as_str);
+            out.quoted(format!("{kind}.{name}").as_bytes())
+        }
         Target::Helper { name, .. } => out.quoted(name.as_bytes()),
         _ => out.text("call"),
     }
@@ -233,6 +237,18 @@ fn call(
     out.text(": ")?;
     match failure {
         Failure::NonCallable => out.text("value is not callable"),
+        Failure::Unbound => {
+            let Target::Unbound { kind, .. } = selected else {
+                unreachable!()
+            };
+            out.text("requires a ")?;
+            out.text(if kind == "hash" {
+                "hash or object"
+            } else {
+                kind
+            })?;
+            out.text(" receiver, got nil")
+        }
         Failure::Undefined => out.text("undefined callable"),
         Failure::HostArity | Failure::BuiltinArity => out.text("wrong number of arguments"),
         Failure::HostKeywords | Failure::BuiltinKeywords => {

@@ -958,3 +958,47 @@ fn missing_host_signature_types_produce_catchable_diagnostics() {
         assert_eq!(counter.load(Ordering::Relaxed), calls);
     }
 }
+
+#[test]
+fn rescued_member_call_targets_detach_typed_native_methods() {
+    for (source, rejected, expected) in [
+        (
+            "def run; (missing rescue 1.abs)(); end",
+            true,
+            Err("int.abs requires a int receiver, got nil"),
+        ),
+        (
+            "def run; ((0 - 5).abs rescue 2.abs)(); end",
+            true,
+            Err("int.abs requires a int receiver, got nil"),
+        ),
+        (
+            "def run; (missing rescue [1].first)(1); end",
+            true,
+            Err("array.first requires a array receiver, got nil"),
+        ),
+        (
+            "def run; ({a: 1}.keys rescue 1)(); end",
+            true,
+            Err("hash.keys requires a hash or object receiver, got nil"),
+        ),
+        (
+            "def ok; 0 - 5; end; def run -> int; (ok rescue 1.abs)(); end",
+            false,
+            Ok("-5"),
+        ),
+        ("def run -> int; (1.abs)(); end", false, Ok("1")),
+    ] {
+        check(source, rejected);
+        let script = crate::Engine::new().compile(source).unwrap();
+        let result = script
+            .call("run", &[], CallOptions::default())
+            .map(|outcome| outcome.value.to_string())
+            .map_err(|error| error.message);
+        assert_eq!(
+            result,
+            expected.map(str::to_owned).map_err(str::to_owned),
+            "{source}"
+        );
+    }
+}

@@ -79,6 +79,13 @@ impl Walker<'_> {
             self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
             return Ok(Some([None, None]));
         }
+        if let Some(kind) = self.unbound_member(receiver, name)? {
+            state.arguments.data.last_mut().unwrap().target = Target::Unbound {
+                kind,
+                name: site.name,
+            };
+            return Ok(None);
+        }
         let fields = if let Node::Protected(shape, ..) = self.facts.node(receiver) {
             *shape
         } else {
@@ -113,5 +120,34 @@ impl Walker<'_> {
             return Ok(Some([None, None]));
         };
         self.set_call_target(state, pc, field)
+    }
+
+    /// Selects a typed native method as a call target, as the runtime does after fields,
+    /// identity helpers and range rendering. The target no longer carries its receiver,
+    /// so invoking it always fails.
+    fn unbound_member(&mut self, receiver: Fact, name: &str) -> Result<Option<&'static str>> {
+        use crate::members::names::Receiver;
+        let Some(kind) = builtins::native_receiver(self.facts, receiver) else {
+            return Ok(None);
+        };
+        let plain = match self.facts.node(receiver) {
+            Node::Protected(..) => return Ok(None),
+            Node::Hash(..) | Node::Shape(..) => self.facts.plain_hash(receiver),
+            _ => true,
+        };
+        self.ctx.work_bytes(name.len())?;
+        if !plain
+            || kind == Receiver::Hash && !crate::members::hash_builtin(name)
+            || matches!(
+                kind,
+                Receiver::Enum | Receiver::EnumMember | Receiver::Other
+            )
+            || kind.property(name)
+            || matches!(name, "itself" | "eql?" | "equal?")
+            || kind == Receiver::Range && matches!(name, "to_s" | "string" | "inspect")
+        {
+            return Ok(None);
+        }
+        Ok(kind.typed(name).filter(|kind| *kind != "nil"))
     }
 }

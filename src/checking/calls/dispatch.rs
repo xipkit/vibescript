@@ -163,6 +163,7 @@ impl<'a> Solver<'_, 'a> {
                     | Target::Host(_)
                     | Target::Undefined
                     | Target::NonCallable
+                    | Target::Unbound { .. }
             )
         {
             outcome.incomplete = true;
@@ -273,6 +274,7 @@ impl<'a> Solver<'_, 'a> {
             | Target::Deferred(_)
             | Target::Helper { .. } => outcome.incomplete = true,
             Target::NonCallable => outcome.failures.push(ctx, Failure::NonCallable)?,
+            Target::Unbound { .. } => outcome.failures.push(ctx, Failure::Unbound)?,
             Target::Undefined => outcome.failures.push(ctx, Failure::Undefined)?,
         }
         Ok(outcome)

@@ -51,6 +51,11 @@ pub(super) enum Target {
     },
     Block(CallableId),
     Host(CallableId),
+    /// A typed native method selected as a call target, which detaches it from its receiver.
+    Unbound {
+        kind: &'static str,
+        name: usize,
+    },
     NonCallable,
     Undefined,
     Dynamic,
