@@ -20,7 +20,8 @@ use vibescript::CancellationToken;
 /// request named by `$/cancelRequest` is answered with `-32800`, and a
 /// document change queued right behind another change to the same document
 /// replaces it unanalyzed. Without threads, as on WASI, messages are read and
-/// handled strictly in turn.
+/// handled strictly in turn. After the loop returns, the reader thread ends
+/// when its input does.
 ///
 /// ```
 /// use std::io::Cursor;
@@ -85,8 +86,9 @@ struct Messages<R> {
     source: Source<R>,
 }
 
-/// How many decoded messages the reader thread may hold ahead of the server.
-const READ_AHEAD: usize = 64;
+/// How many decoded messages the reader thread may hold ahead of the server,
+/// which bounds the memory a client flooding large changes can pin.
+const READ_AHEAD: usize = 16;
 
 impl<R: Read + Send + 'static> Messages<R> {
     fn new(input: R, in_flight: InFlight) -> Self {
