@@ -79,7 +79,10 @@ pub use checking::{CheckDiagnostic, CheckReport, CheckedOutcome};
 pub use error::{Diagnostic, Error, ErrorClass, ErrorKind, Position, Result, StackFrame};
 pub use host_call::HostCall;
 pub use signature::{Signature, SignatureParam};
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 pub use value::Value;
 
 // Compiles the session guide's examples as doctests.
@@ -97,6 +100,8 @@ type HostCallback =
 #[derive(Default)]
 pub struct Engine {
     hosts: BTreeMap<String, capability::Registered>,
+    /// Hosts registered with [`Self::register`], which refuse keywords.
+    keywordless: BTreeSet<String>,
     loader: Arc<loading::Loader>,
     strict_effects: bool,
     random_source: Option<random::Source>,
@@ -168,7 +173,8 @@ impl Engine {
         name: impl Into<String>,
         function: impl Fn(&mut CallContext, &[Value]) -> Result<Value> + Send + Sync + 'static,
     ) {
-        self.register_with_keywords(name, move |ctx, args, keywords| {
+        let name = name.into();
+        self.register_with_keywords(name.clone(), move |ctx, args, keywords| {
             if !keywords.is_empty() {
                 return Err(Error::new(
                     ErrorKind::Argument,
@@ -177,6 +183,7 @@ impl Engine {
             }
             function(ctx, args)
         });
+        self.keywordless.insert(name);
     }
     /// Registers a synchronous callback that accepts positional and keyword arguments.
     ///
@@ -192,10 +199,10 @@ impl Engine {
         + Sync
         + 'static,
     ) {
-        self.hosts.insert(
-            name.into(),
-            capability::Registered::Callback(Arc::new(function)),
-        );
+        let name = name.into();
+        self.keywordless.remove(&name);
+        self.hosts
+            .insert(name, capability::Registered::Callback(Arc::new(function)));
         self.loader = Arc::new(self.loader.fresh());
     }
 
@@ -205,9 +212,41 @@ impl Engine {
     /// Each invocation receives a fresh grant. Script declarations and explicit
     /// globals retain their normal lookup precedence.
     pub fn register_method(&mut self, name: impl Into<String>, method: HostMethod) {
+        let name = name.into();
+        self.keywordless.remove(&name);
         self.hosts
-            .insert(name.into(), capability::Registered::Method(method));
+            .insert(name, capability::Registered::Method(method));
         self.loader = Arc::new(self.loader.fresh());
+    }
+
+    /// Returns the builtin prelude extended with this host's declarations.
+    ///
+    /// The text is [`signatures::prelude`] followed by the functions
+    /// registered on this engine, then the capabilities and globals that
+    /// `options` grants a call, each as a Vibescript declaration a model can
+    /// read as context. Host methods render their published [`Signature`];
+    /// unsigned functions take and return `any`. A capability built from a
+    /// template renders its methods and data, while a factory capability and
+    /// every data global are `any`, since their values are known only when a
+    /// call starts. The text parses as a [`signatures::Table`].
+    ///
+    /// ```
+    /// use vibescript::{CallOptions, Engine, HostMethod, Signature, SignatureParam};
+    /// let mut engine = Engine::new();
+    /// let charge = HostMethod::new("charge", |ctx, _, _| ctx.bytes(b"ok"))
+    ///     .with_signature(Signature {
+    ///         params: vec![SignatureParam { name: "cents".into(), ty: "int".into(), optional: false }],
+    ///         result: "string".into(),
+    ///         accepts_block: false,
+    ///     })?;
+    /// engine.register_method("charge", charge);
+    /// let prelude = engine.prelude(&CallOptions::default());
+    /// assert!(prelude.starts_with(&vibescript::signatures::prelude()));
+    /// assert!(prelude.ends_with("# A host function.\ndef charge(cents: int) -> string\n"));
+    /// # Ok::<(), vibescript::Error>(())
+    /// ```
+    pub fn prelude(&self, options: &CallOptions) -> String {
+        signatures::host::table(&self.hosts, &self.keywordless, options).to_string()
     }
     /// Compiles UTF-8 source, enforcing source-size and syntax-depth guards.
     pub fn compile(&self, source: &str) -> Result<Script> {

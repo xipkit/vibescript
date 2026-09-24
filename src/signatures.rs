@@ -4,8 +4,10 @@
 //! one typed signature under its one canonical name (ADR-007, static types, and
 //! ADR-008, a canonical surface). The table is written as Vibescript
 //! declarations in `src/signatures/builtins.vibe`, whose header documents the
-//! notation. [`table`] parses it and [`prelude`] prints it. [`renames`] lists
-//! the removed spellings and what replaces each one.
+//! notation. [`table`] parses it, [`prelude`] prints it, and
+//! [`crate::Engine::prelude`] extends the text with a host's functions,
+//! capabilities and globals. [`renames`] lists the removed spellings and what
+//! replaces each one.
 //!
 //! ```
 //! let prelude = vibescript::signatures::prelude();
@@ -16,6 +18,7 @@
 
 use std::sync::OnceLock;
 
+pub(crate) mod host;
 mod parse;
 mod renames;
 mod render;

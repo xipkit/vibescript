@@ -413,3 +413,92 @@ fn every_rename_leaves_a_runtime_spelling_for_a_canonical_one() {
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
+
+#[test]
+fn the_engine_prelude_adds_host_declarations_after_the_builtins() {
+    use crate::{Capability, HostMethod, Signature, SignatureParam};
+    let param = |name: &str, ty: &str, optional| SignatureParam {
+        name: name.into(),
+        ty: ty.into(),
+        optional,
+    };
+    let signed = HostMethod::new_with_block("notify", |_, _, _| Ok(Value::nil()))
+        .with_signature(Signature {
+            params: vec![
+                param("to", "{ name: string, email?: string? }", false),
+                param("", "Array<INT>", true),
+            ],
+            result: "object".into(),
+            accepts_block: true,
+        })
+        .unwrap();
+    let mut engine = Engine::new();
+    engine.register("plain", |_, _| Ok(Value::nil()));
+    engine.register_with_keywords("flexible", |_, _, _| Ok(Value::nil()));
+    engine.register_method("notify", signed.clone());
+    engine.register_method(
+        "visit",
+        HostMethod::new_with_block("visit", |_, _, _| Ok(Value::nil())),
+    );
+    let send = HostMethod::new("SMS.send", |_, _, _| Ok(Value::nil()))
+        .with_signature(Signature {
+            params: vec![param("message", "string", false)],
+            result: "string".into(),
+            accepts_block: false,
+        })
+        .unwrap();
+    let options = CallOptions {
+        capabilities: vec![
+            Capability::from_value(
+                "SMS",
+                Value::object(vec![
+                    (b"send".to_vec(), send.value()),
+                    (b"limit".to_vec(), Value::int(3)),
+                    (
+                        b"tags".to_vec(),
+                        Value::array(vec![Value::bytes("a"), Value::int(1)]),
+                    ),
+                ]),
+            ),
+            Capability::new("Clock", |_| Ok(Value::nil())),
+            Capability::new("config", |_| Ok(Value::nil())),
+        ],
+        globals: [
+            (
+                "config".to_owned(),
+                Value::hash(vec![(b"a".to_vec(), Value::int(1))]),
+            ),
+            ("hook".to_owned(), signed.value()),
+        ]
+        .into_iter()
+        .collect(),
+        ..CallOptions::default()
+    };
+    let prelude = engine.prelude(&options);
+    let builtins = super::prelude();
+    let host = prelude
+        .strip_prefix(&builtins)
+        .expect("the builtin prelude comes first");
+    assert_eq!(
+        host,
+        "\n# A host function.\n\
+         def flexible(*args: array<any>, **keywords: hash<string, any>) -> any\n\
+         \n# A host function.\n\
+         def notify(to: { email?: string?, name: string }, arg2?: array<int>, &block?: (*any) -> any) -> hash<string, any>\n\
+         \n# A host function.\n\
+         def plain(*args: array<any>) -> any\n\
+         \n# A host function.\n\
+         def visit(*args: array<any>, **keywords: hash<string, any>, &block?: (*any) -> any) -> any\n\
+         \n# A capability bound when each call starts, so its members are not known here.\n\
+         Clock: any\n\
+         \n# A capability.\n\
+         module SMS\n  def send(message: string) -> string\n  limit: int\n  tags: array<string | int>\nend\n\
+         \n# A global.\n\
+         config: any\n\
+         \n# A global.\n\
+         def hook(to: { email?: string?, name: string }, arg2?: array<int>, &block?: (*any) -> any) -> hash<string, any>\n"
+    );
+    let table = Table::parse(&prelude).unwrap();
+    assert_eq!(table.to_string(), prelude);
+    assert_eq!(Engine::new().prelude(&CallOptions::default()), builtins);
+}
