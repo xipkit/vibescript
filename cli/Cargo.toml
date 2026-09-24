@@ -14,8 +14,13 @@ allocation-stats = ["vibescript/allocation-stats"]
 tokio = ["vibescript/tokio"]
 
 [dependencies]
+unicode-width = "0.2"
 vibescript = { path = "..", default-features = false }
 vibescript-tools = { path = "../tools" }
+
+# The interactive REPL needs a terminal; WASI builds use its line mode only.
+[target.'cfg(not(target_os = "wasi"))'.dependencies]
+crossterm = { version = "0.29", default-features = false, features = ["bracketed-paste", "events"] }
 
 [[bin]]
 name = "vibes"

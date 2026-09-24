@@ -1,9 +1,14 @@
 mod cli;
+mod repl;
 
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
-    let command = match cli::parse(std::env::args_os().skip(1)) {
+    let mut args = std::env::args_os().skip(1).peekable();
+    if args.next_if(|arg| arg == "repl").is_some() {
+        return repl::run(args);
+    }
+    let command = match cli::parse(args) {
         Ok(command) => command,
         Err(failure) => return report(failure),
     };
