@@ -264,6 +264,12 @@ fn keyed_lookup_and_set_members_contain_runtime_results() {
     assert_eq!(member_contracts(&names), (9_200, 3_312));
 }
 
+#[test]
+fn count_members_contain_runtime_results() {
+    let names = ["getbyte", "first", "last", "take", "drop"];
+    assert_eq!(member_contracts(&names), (5_750, 5_750));
+}
+
 fn accounting(ctx: &mut CallContext) -> crate::Result<()> {
     let mut facts = Facts::new(ctx)?;
     let source = "def run -> string

@@ -854,13 +854,27 @@ impl Facts {
                 for i in 0..self.arm_count(args[0]) {
                     let index = self.arm(args[0], i);
                     ctx.charge(1)?;
-                    let next = match self.atom(index) {
-                        Some(Atom::Int | Atom::Float) => {
-                            outcome(self.nullable(ctx, Atom::Int.fact())?)
+                    let throws = match self.count_arm(index, false) {
+                        Count::Exact(_) => false,
+                        Count::Bounded(bounds) => bounds.min.is_none() || bounds.max.is_none(),
+                        Count::Float => true,
+                        Count::Unknown => {
+                            self.merge_operation(ctx, &mut result, outcome(Atom::Unknown.fact()))?;
+                            continue;
                         }
-                        Some(Atom::Unknown | Atom::Any) => outcome(Atom::Unknown.fact()),
-                        None => unsupported(),
-                        _ => rejected(),
+                        Count::Never => continue,
+                        Count::Invalid => {
+                            self.merge_operation(ctx, &mut result, rejected())?;
+                            continue;
+                        }
+                        Count::Unsupported => {
+                            self.merge_operation(ctx, &mut result, unsupported())?;
+                            continue;
+                        }
+                    };
+                    let next = Operation {
+                        throws,
+                        ..outcome(self.nullable(ctx, Atom::Int.fact())?)
                     };
                     self.merge_operation(ctx, &mut result, next)?;
                 }
@@ -1153,34 +1167,52 @@ impl Facts {
         for i in 0..self.arm_count(args[0]) {
             ctx.charge(1)?;
             let count = self.arm(args[0], i);
-            let next = if let (Node::Tuple(values), Node::Integer(count)) =
-                (self.node(receiver), self.node(count))
-            {
-                if *count < 0 {
-                    rejected()
-                } else {
-                    let count = usize::try_from(*count)
-                        .unwrap_or(usize::MAX)
-                        .min(values.data.len());
-                    let (start, end) = match name {
-                        "last" => (values.data.len() - count, values.data.len()),
-                        "drop" => (count, values.data.len()),
-                        _ => (0, count),
-                    };
-                    let mut selected = Buffer::empty();
-                    selected.extend(ctx, &values.data[start..end])?;
-                    outcome(self.tuple(ctx, &selected.data)?)
+            // Counts follow the runtime's index conversion and must not be negative.
+            let throws = match self.count_arm(count, false) {
+                Count::Exact(count) if count < 0 => {
+                    self.merge_operation(ctx, &mut result, rejected())?;
+                    continue;
                 }
-            } else {
-                match self.atom(count) {
-                    Some(Atom::Int | Atom::Float) => {
-                        let element = self.elements(ctx, receiver)?;
-                        outcome(self.array(ctx, element)?)
+                Count::Exact(count) => {
+                    if let Node::Tuple(values) = self.node(receiver) {
+                        let count = usize::try_from(count)
+                            .unwrap_or(usize::MAX)
+                            .min(values.data.len());
+                        let (start, end) = match name {
+                            "last" => (values.data.len() - count, values.data.len()),
+                            "drop" => (count, values.data.len()),
+                            _ => (0, count),
+                        };
+                        let mut selected = Buffer::empty();
+                        selected.extend(ctx, &values.data[start..end])?;
+                        let next = outcome(self.tuple(ctx, &selected.data)?);
+                        self.merge_operation(ctx, &mut result, next)?;
+                        continue;
                     }
-                    Some(Atom::Any | Atom::Unknown) => outcome(Atom::Unknown.fact()),
-                    None => unsupported(),
-                    _ => rejected(),
+                    false
                 }
+                Count::Bounded(bounds) => {
+                    bounds.min.is_none_or(|min| min < 0) || bounds.max.is_none()
+                }
+                Count::Float => true,
+                Count::Unknown => {
+                    self.merge_operation(ctx, &mut result, outcome(Atom::Unknown.fact()))?;
+                    continue;
+                }
+                Count::Never => continue,
+                Count::Invalid => {
+                    self.merge_operation(ctx, &mut result, rejected())?;
+                    continue;
+                }
+                Count::Unsupported => {
+                    self.merge_operation(ctx, &mut result, unsupported())?;
+                    continue;
+                }
+            };
+            let element = self.elements(ctx, receiver)?;
+            let next = Operation {
+                throws,
+                ..outcome(self.array(ctx, element)?)
             };
             self.merge_operation(ctx, &mut result, next)?;
         }

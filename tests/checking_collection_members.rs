@@ -407,6 +407,34 @@ fn keyed_lookups_remapping_and_set_members_follow_the_documented_examples() {
     )]);
 }
 
+#[test]
+fn count_and_byte_index_arguments_follow_the_runtime_conversion() {
+    exact_ints(&[
+        ("[1, 2, 3].first(2.0).length", 2),
+        ("[1, 2, 3].drop(1.5).first", 2),
+        ("\"abc\".getbyte(1.0) || 0", 98),
+    ]);
+    invalid(&[
+        "\"abc\".getbyte([1])",
+        "\"abc\".getbyte({})",
+        "[1, 2].first([1])",
+        "[1, 2].last([1])",
+        "[1, 2].take([1])",
+        "[1, 2].drop({})",
+    ]);
+    rescues(
+        &[
+            "def run(n: int) -> int; begin; [1].first(n); 0; rescue; 'bad'; end; end",
+            "def run(xs: array<int>, n: float) -> int; begin; xs.take(n); 0; rescue; 'bad'; end; end",
+            "def run(i: int) -> int; begin; 'a'.getbyte(i); 0; rescue; 'bad'; end; end",
+        ],
+        &[
+            "def run(xs: array<int>) -> int; begin; xs.take(1); 0; rescue; 'bad'; end; end",
+            "def run -> int; begin; 'a'.getbyte(0); 0; rescue; 'bad'; end; end",
+        ],
+    );
+}
+
 /// Site programs whose whole-file checks used to stop at one of these
 /// operations. Each now finishes analysis and still runs.
 #[test]
