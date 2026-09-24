@@ -13675,5 +13675,420 @@
     "source": "x = nil\nx = 1\ncase x = 1\nwhen 1 then 2\nend\n",
     "function": "__main__",
     "go_error": "parse error at 3:8: expected when, got \"=\""
+  },
+  {
+    "name": "sweep_module_def_requires_self",
+    "source": "module Scoring\n  def self.with_bonus(score)\nend\ndef score_with_bonus(score)\nend",
+    "go_error": "parse error at 4:1: def score_with_bonus in module Scoring must be def self.score_with_bonus; a module is a namespace, not a method source"
+  },
+  {
+    "name": "sweep_duplicate_enum_member",
+    "source": "enum Status\n  Draft\n  Draft",
+    "go_error": "parse error at 3:3: duplicate enum member Draft"
+  },
+  {
+    "name": "sweep_duplicate_function",
+    "source": "def collect_until(limit)\n  until n >= limit\n  end\nend\ndef \n  collect_until(5)\nend",
+    "go_error": "duplicate function collect_until"
+  },
+  {
+    "name": "sweep_enum_without_members",
+    "source": "enum AccountKind",
+    "go_error": "parse error at 1:1: enum AccountKind must define at least one member"
+  },
+  {
+    "name": "sweep_expected_pipe_got_or",
+    "source": "  [1].map do |x||",
+    "go_error": "parse error at 1:17: expected \"|\", got \"||\""
+  },
+  {
+    "name": "sweep_expected_paren_got_end",
+    "source": "def factorial(n\nend",
+    "go_error": "parse error at 2:1: expected \")\", got 'end'"
+  },
+  {
+    "name": "sweep_expected_brace_got_end_of_input",
+    "source": "  {\n    status: \"active\"",
+    "go_error": "parse error at 2:20: expected \"}\", got end of input"
+  },
+  {
+    "name": "sweep_expected_paren_got_identifier",
+    "source": "def countdown(start\n  out = []",
+    "go_error": "parse error at 2:3: expected \")\", got identifier"
+  },
+  {
+    "name": "sweep_expected_paren_got_integer",
+    "source": "def with_typed_keyword(name: string, score: int  0)",
+    "go_error": "parse error at 1:50: expected \")\", got integer"
+  },
+  {
+    "name": "sweep_expected_paren_got_string",
+    "source": "def greet(name\n  \"hello, \" + name",
+    "go_error": "parse error at 2:3: expected \")\", got string"
+  },
+  {
+    "name": "sweep_expected_paren_got_symbol",
+    "source": "      current = money(\"0.00 \" :+ currency)",
+    "go_error": "parse error at 1:31: expected \")\", got symbol"
+  },
+  {
+    "name": "sweep_expected_block_parameter_got_bracket",
+    "source": "  [1].map do |]x|",
+    "go_error": "parse error at 1:15: expected block parameter, got \"]\""
+  },
+  {
+    "name": "sweep_expected_block_parameter_got_do",
+    "source": "  mapped = [10].map do |do shadow|",
+    "go_error": "parse error at 1:25: expected block parameter, got 'do'"
+  },
+  {
+    "name": "sweep_expected_block_parameter_got_symbol",
+    "source": "  [1].map do |:x|",
+    "go_error": "parse error at 1:15: expected block parameter, got symbol"
+  },
+  {
+    "name": "sweep_expected_end_got_end_of_input",
+    "source": "def run",
+    "go_error": "parse error at 1:7: expected end, got end of input"
+  },
+  {
+    "name": "sweep_expected_enum_member_name_got_bracket",
+    "source": "enum ReviewState\n  ]Approved",
+    "go_error": "parse error at 2:3: expected enum member name, got \"]\""
+  },
+  {
+    "name": "sweep_expected_enum_member_name_got_def",
+    "source": "enum Status\ndef member -> Status",
+    "go_error": "parse error at 2:1: expected enum member name, got 'def'"
+  },
+  {
+    "name": "sweep_expected_enum_member_name_got_symbol",
+    "source": "enum PayoutCadence\n:end",
+    "go_error": "parse error at 2:1: expected enum member name, got symbol"
+  },
+  {
+    "name": "sweep_expected_function_name_got_open_bracket",
+    "source": "def \n  [1].map do |x|",
+    "go_error": "parse error at 2:3: expected function name, got \"[\""
+  },
+  {
+    "name": "sweep_expected_function_name_got_do",
+    "source": "def do run",
+    "go_error": "parse error at 1:5: expected function name, got 'do'"
+  },
+  {
+    "name": "sweep_expected_function_name_got_instance_variable",
+    "source": "  def \n    @age = @age + 1",
+    "go_error": "parse error at 2:5: expected function name, got instance variable"
+  },
+  {
+    "name": "sweep_expected_function_name_got_integer",
+    "source": "def \n  1 / \"hello\"",
+    "go_error": "parse error at 2:3: expected function name, got integer"
+  },
+  {
+    "name": "sweep_expected_function_name_got_string",
+    "source": "def \n  \"ok\"",
+    "go_error": "parse error at 2:3: expected function name, got string"
+  },
+  {
+    "name": "sweep_expected_function_name_got_symbol",
+    "source": "def :explode",
+    "go_error": "parse error at 1:5: expected function name, got symbol"
+  },
+  {
+    "name": "sweep_expected_identifier_got_open_paren",
+    "source": "  def self.(score)",
+    "go_error": "parse error at 1:12: expected identifier, got \"(\""
+  },
+  {
+    "name": "sweep_expected_identifier_got_do",
+    "source": "  def self.do with_bonus(score)",
+    "go_error": "parse error at 1:12: expected identifier, got 'do'"
+  },
+  {
+    "name": "sweep_expected_identifier_got_integer",
+    "source": "enum DigestCadence\n  Hourly\nend\n  if cadence == DigestCadence::\n    1.hour",
+    "go_error": "parse error at 5:5: expected identifier, got integer"
+  },
+  {
+    "name": "sweep_expected_identifier_got_symbol",
+    "source": "class :ReadOnly",
+    "go_error": "parse error at 1:7: expected identifier, got symbol"
+  },
+  {
+    "name": "sweep_expected_member_name_got_integer",
+    "source": "  {\n    ratio: :3.75,",
+    "go_error": "parse error at 2:15: expected member name, got integer"
+  },
+  {
+    "name": "sweep_expected_parameter_name_got_comma",
+    "source": "def countdown(,start)",
+    "go_error": "parse error at 1:15: expected parameter name, got \",\""
+  },
+  {
+    "name": "sweep_expected_parameter_name_got_end",
+    "source": "def collect_until(end limit)",
+    "go_error": "parse error at 1:19: expected parameter name, got 'end'"
+  },
+  {
+    "name": "sweep_expected_parameter_name_got_symbol",
+    "source": "def collect_until(:limit)",
+    "go_error": "parse error at 1:19: expected parameter name, got symbol"
+  },
+  {
+    "name": "sweep_expected_property_name_got_brace",
+    "source": "class Point\n  property }x, y",
+    "go_error": "parse error at 2:12: expected property name, got \"}\""
+  },
+  {
+    "name": "sweep_expected_property_name_got_def",
+    "source": "class ReadOnly\n  getter \n  def initialize",
+    "go_error": "parse error at 3:3: expected property name, got 'def'"
+  },
+  {
+    "name": "sweep_expected_type_name_got_pipe",
+    "source": "  db.each(\"ScoreEntry\", where: { player_id: player_id }) do |entry:|",
+    "go_error": "parse error at 1:68: expected type name, got \"|\""
+  },
+  {
+    "name": "sweep_expected_type_name_got_end",
+    "source": "def return_type_mismatch -> end int",
+    "go_error": "parse error at 1:29: expected type name, got 'end'"
+  },
+  {
+    "name": "sweep_expected_type_name_got_symbol",
+    "source": "def keyword_demo(name: string, score: int = 0) -> :string",
+    "go_error": "parse error at 1:51: expected type name, got symbol"
+  },
+  {
+    "name": "sweep_expected_when_got_do",
+    "source": "  case score\n  do when 100",
+    "go_error": "parse error at 2:3: expected when, got 'do'"
+  },
+  {
+    "name": "sweep_expected_when_got_end_of_input",
+    "source": "  case score",
+    "go_error": "parse error at 1:12: expected when, got end of input"
+  },
+  {
+    "name": "sweep_expected_brace_got_identifier",
+    "source": "  {\n    reminder_delay: reminder_delay_seconds\n    combined: combine_delay_seconds(5.minutes, 10.minutes)",
+    "go_error": "parse error at 3:5: expected }, got identifier"
+  },
+  {
+    "name": "sweep_function_else_requires_rescue",
+    "source": "def decorated_greeting(name)\n  else",
+    "go_error": "parse error at 2:3: function else requires rescue"
+  },
+  {
+    "name": "sweep_symbol_interpolation",
+    "source": "  body = :\"Order #{order_id} is on its way.\"",
+    "go_error": "parse error at 1:10: interpolation is not allowed in a symbol literal"
+  },
+  {
+    "name": "sweep_invalid_destructuring_assignment_target",
+    "source": "  \"ok\"\n,end",
+    "go_error": "parse error at 1:3: invalid destructuring assignment target"
+  },
+  {
+    "name": "sweep_invalid_hash_pair",
+    "source": "  {",
+    "go_error": "parse error at 1:3: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "sweep_invalid_numeric_literal",
+    "source": "  assert amount > 0do , \"amount must be positive\"",
+    "go_error": "parse error at 1:19: invalid numeric literal"
+  },
+  {
+    "name": "sweep_numeric_literal_identifier_suffix",
+    "source": "  {\n    combined: combine_delay_seconds(5.minutes, 10minutes)",
+    "go_error": "parse error at 2:48: malformed numeric literal: identifier cannot immediately follow a number"
+  },
+  {
+    "name": "sweep_modifier_if_after_compound_statement",
+    "source": "def max_value(a, b)\n  end if a > b",
+    "go_error": "parse error at 2:7: modifier if is only supported after expression or assignment statements, or leaf control-flow statements"
+  },
+  {
+    "name": "sweep_modifier_while_after_compound_statement",
+    "source": "def countdown(start)\n  end while n > 0",
+    "go_error": "parse error at 2:7: modifier while is only supported after expression or assignment statements, or leaf control-flow statements"
+  },
+  {
+    "name": "sweep_ordinary_parameter_after_rest",
+    "source": "def arg_type_mismatch(n: ,int)",
+    "go_error": "parse error at 1:27: ordinary parameters must precede rest, keyword, and keyword rest parameters"
+  },
+  {
+    "name": "sweep_parallel_assignment_without_equals",
+    "source": "  Counter.new\n  ,Counter.new",
+    "go_error": "parse error at 2:12: parallel assignment targets require '='"
+  },
+  {
+    "name": "sweep_positional_after_keyword_argument",
+    "source": "  gross = money_cents(cents:, \"USD\")",
+    "go_error": "parse error at 1:31: positional arguments cannot follow keyword arguments"
+  },
+  {
+    "name": "sweep_private_argument",
+    "source": "class Person\n  private |def secret",
+    "go_error": "parse error at 2:11: private expects a method definition, symbol method names, or no argument"
+  },
+  {
+    "name": "sweep_private_placement",
+    "source": "  def birthday\n  private def secret",
+    "go_error": "parse error at 2:3: private is only supported for top-level functions and class methods"
+  },
+  {
+    "name": "sweep_property_takes_a_bare_name",
+    "source": "class CounterWithSetter\n  getter :count",
+    "go_error": "parse error at 2:10: property takes a bare name: property count, not property :count"
+  },
+  {
+    "name": "sweep_trailing_comma_in_block_parameter_list",
+    "source": "  [1].map do |x,|",
+    "go_error": "parse error at 1:17: trailing comma in block parameter list"
+  },
+  {
+    "name": "sweep_unexpected_token_dot",
+    "source": "def \n  ctx.user.id",
+    "go_error": "parse error at 2:6: unexpected token \".\""
+  },
+  {
+    "name": "sweep_unexpected_token_end",
+    "source": "    x.unknown_method\n  ,end",
+    "go_error": "parse error at 2:4: unexpected token 'end'"
+  },
+  {
+    "name": "sweep_unexpected_token_end_of_input",
+    "source": "  case score\n  when 100",
+    "go_error": "parse error at 2:10: unexpected token end of input"
+  },
+  {
+    "name": "sweep_unterminated_percent_array_literal",
+    "source": "  %i[[queued running done]",
+    "go_error": "parse error at 1:3: unterminated percent array literal"
+  },
+  {
+    "name": "parity_do_after_condition_line",
+    "source": "def c\n  1\nend\nif c\n  do 2 end\n  3\nend\n",
+    "go_error": "parse error at 5:3: unexpected token 'do'"
+  },
+  {
+    "name": "parity_do_after_return_line",
+    "source": "def c\n  1\nend\ndef run\n  return c\n  do 2 end\nend\n",
+    "go_error": "parse error at 6:3: unexpected token 'do'"
+  },
+  {
+    "name": "parity_do_in_array_element",
+    "source": "def c\n  1\nend\nx = [c\n  do 2 end]\n",
+    "go_error": "parse error at 5:3: expected \"]\", got 'do'"
+  },
+  {
+    "name": "parity_do_after_command_argument",
+    "source": "def c(x)\n  1\nend\nx = c(c 1\n  do 2 end)\n",
+    "go_error": "parse error at 5:3: expected \")\", got 'do'"
+  },
+  {
+    "name": "parity_do_after_empty_call",
+    "source": "x = [1]\nif x.map()\n  do 2 end\n  3\nend\n",
+    "go_error": "parse error at 3:3: unexpected token 'do'"
+  },
+  {
+    "name": "parity_statement_block_ends_line",
+    "source": "x = [1].map\n  do |v| v end.size\n",
+    "go_error": "parse error at 2:15: unexpected token \".\""
+  },
+  {
+    "name": "parity_multiline_array_index_in_hash",
+    "source": "h = { a: [\n  1\n][0] }\n",
+    "go_error": "parse error at 3:2: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "parity_multiline_hash_call_target",
+    "source": "def run\n  {\n    a: 1,\n    b: f}(\"x\"),\n    c: 2\n  }\nend\n",
+    "go_error": "parse error at 4:11: invalid destructuring assignment target"
+  },
+  {
+    "name": "parity_keyword_property_assignment",
+    "source": "property = 1\n",
+    "go_error": "parse error at 1:1: unexpected token 'property'"
+  },
+  {
+    "name": "parity_keyword_private_value",
+    "source": "x = private\n",
+    "go_error": "parse error at 1:5: unexpected token 'private'"
+  },
+  {
+    "name": "parity_keyword_getter_command",
+    "source": "def f\n  getter x\nend\n",
+    "go_error": "parse error at 2:3: unexpected token 'getter'"
+  },
+  {
+    "name": "parity_percent_after_end",
+    "source": "def tags\n  end %w[a b]\nend\n",
+    "go_error": "parse error at 2:7: unexpected token \"%\""
+  },
+  {
+    "name": "parity_when_leading_comma_value",
+    "source": "x = case 1\nwhen 1\n  ,\"x\"\nwhen 2\n  3\nend\n",
+    "go_error": "parse error at 4:1: unexpected token \"when\""
+  },
+  {
+    "name": "parity_rescue_fallback_next_line",
+    "source": "x = 1 rescue\n2\n",
+    "go_error": "parse error at 1:7: rescue modifier requires fallback expression"
+  },
+  {
+    "name": "parity_rescue_after_continued_begin",
+    "source": "def f\n  begin\n    1\n  end.to_s\nrescue\n  nil\nend\n",
+    "go_error": "parse error at 5:1: rescue modifier requires fallback expression"
+  },
+  {
+    "name": "parity_rescue_after_continued_if",
+    "source": "def run\n  begin\n    if true then 1 end + 1\n  rescue\n    2\n  end\nend\n",
+    "go_error": "parse error at 4:3: rescue modifier requires fallback expression"
+  },
+  {
+    "name": "parity_rescue_modifier_target",
+    "source": "def f(a, b)\n  (a / b) rescue nil\n,end\n",
+    "go_error": "parse error at 2:11: invalid destructuring assignment target"
+  },
+  {
+    "name": "parity_begin_leading_dot",
+    "source": "x = 1\nbegin\n  x\nend\n.to_s\n",
+    "go_error": "parse error at 5:1: unexpected token \".\""
+  },
+  {
+    "name": "parity_negative_literal_target",
+    "source": "-1, x = 1, 2\n",
+    "go_error": "parse error at 1:2: invalid destructuring assignment target"
+  },
+  {
+    "name": "parity_ternary_adjacent_symbol",
+    "source": "c = true\nx = c ?1:2\n",
+    "go_error": "parse error at 2:9: expected \":\", got symbol"
+  },
+  {
+    "name": "parity_index_trailing_comma",
+    "source": "x = [1, 2]\nx[0,]\n",
+    "go_error": "parse error at 2:5: unexpected token \"]\""
+  },
+  {
+    "name": "parity_next_symbol_value",
+    "source": "[1].map { next :x }\n",
+    "go_error": "parse error at 1:16: unexpected token \":\""
+  },
+  {
+    "name": "parity_ivar_parameter_type",
+    "source": "def f(@n:int)\nend\n",
+    "go_error": "parse error at 1:9: expected \")\", got symbol"
+  },
+  {
+    "name": "parity_operator_symbol_member",
+    "source": "p :->.to_s\n",
+    "go_error": "parse error at 1:6: unexpected token \".\""
   }
 ]

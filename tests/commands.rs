@@ -35,31 +35,19 @@ fn syntax_rejections_match_the_reference() {
 }
 
 #[test]
-fn assignment_syntax_errors_use_the_reference_text_and_position() {
+fn syntax_errors_use_the_reference_text_and_position() {
     let cases: serde_json::Value =
         serde_json::from_str(include_str!("syntax-errors.json")).unwrap();
-    let mut checked = 0;
     for case in cases.as_array().unwrap() {
         let name = case["name"].as_str().unwrap();
-        if !name.starts_with("assignment_") {
-            continue;
-        }
         let error = Engine::new()
             .compile(case["source"].as_str().unwrap())
             .err()
             .unwrap_or_else(|| panic!("{name} compiled"));
-        let position = error.diagnostic.as_ref().unwrap().position;
-        assert_eq!(
-            format!(
-                "parse error at {}:{}: {}",
-                position.line, position.column, error.message
-            ),
-            case["go_error"].as_str().unwrap(),
-            "{name}"
-        );
-        checked += 1;
+        // Go goes on to report later errors; the port reports the first.
+        let expected = case["go_error"].as_str().unwrap().lines().next();
+        assert_eq!(error.to_string().lines().next(), expected, "{name}");
     }
-    assert_eq!(checked, 71);
     let error = Engine::new().compile("case 1\nend").err().unwrap();
     assert_eq!(error.message, "expected when, got 'end'");
     for source in ["x = {a: 1", "x = {a: 1, b: 2\n", "x = {a:"] {
