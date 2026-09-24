@@ -71,6 +71,7 @@ impl Walker<'_> {
             // Implicit self dispatches instance methods from instance methods and
             // class methods elsewhere; a method of the other kind may still be
             // reachable from a block whose receiver the walker does not track.
+            // A method's own frame always has its declared receiver.
             if let Some(namespace) = self.function.namespace {
                 let definition = &self.program.namespaces[namespace];
                 let (own, other) = if self.function.instance {
@@ -84,9 +85,11 @@ impl Walker<'_> {
                         return Ok((true, true));
                     }
                 }
-                for method in other {
-                    self.ctx.charge(1)?;
-                    possible |= method.name == *name;
+                if self.function.name == "<block>" {
+                    for method in other {
+                        self.ctx.charge(1)?;
+                        possible |= method.name == *name;
+                    }
                 }
             }
         }

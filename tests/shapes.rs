@@ -134,6 +134,32 @@ fn literal_fallback_uses_bound_names_and_current_lexical_scopes() {
 }
 
 #[test]
+fn methods_of_the_other_kind_leave_braced_groups_as_shapes() {
+    // An instance method's implicit self is the instance, so a class method of the same
+    // name does not shadow the type.
+    let script = Engine::new()
+        .compile(
+            r#"class Api
+  def self.string
+    "class"
+  end
+
+  def load(raw: string)
+    JSON.parse_as(raw, { age: string })
+  end
+end
+
+def run
+  Api.new.load("{\"age\": \"x\"}")["age"]
+end"#,
+        )
+        .unwrap();
+    assert!(script.check(&CallOptions::default()).unwrap().is_clean());
+    let result = script.call("run", &[], CallOptions::default()).unwrap();
+    assert_eq!(result.value.to_string(), "x");
+}
+
+#[test]
 fn implicit_self_methods_keep_braced_groups_as_hashes() {
     // Go's TestShapeLiteralImplicitSelfShadowKeepsHashSemantics.
     let script = Engine::new()
