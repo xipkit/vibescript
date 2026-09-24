@@ -106,11 +106,7 @@ impl Session {
     pub fn is_incomplete(&self, source: &str) -> bool {
         match self.engine.compile(source) {
             Err(error) if error.kind == ErrorKind::Syntax => {
-                error.message.starts_with("unterminated")
-                    || error
-                        .diagnostic
-                        .as_ref()
-                        .is_some_and(|diagnostic| at_end(diagnostic.position, source))
+                error.message.starts_with("unterminated") || error.offset == Some(source.len())
             }
             _ => false,
         }
@@ -232,7 +228,7 @@ impl Session {
             Err(error) => {
                 return self
                     .compile_after_prelude(&source)
-                    .ok_or_else(|| snippet_error(error, input));
+                    .ok_or_else(|| snippet_error(error, input.len()));
             }
         };
         let declared = carry(&source, alone.declarations(), 0);
@@ -249,7 +245,7 @@ impl Session {
         let script = self
             .engine
             .compile(&combined)
-            .map_err(|error| snippet_error(map.remap(error), input))?;
+            .map_err(|error| snippet_error(map.remap(error), combined.len()))?;
         Ok(Compiled::new(script, map, kept, declared))
     }
 
@@ -426,14 +422,10 @@ impl SourceMap {
 }
 
 /// Calls a parse error at the end of the input an unexpected end of snippet,
-/// as the Go REPL does.
-fn snippet_error(mut error: Error, input: &str) -> Error {
-    let at_end = error
-        .diagnostic
-        .as_ref()
-        .is_some_and(|diagnostic| at_end(diagnostic.position, input));
+/// as the Go REPL does. `end` is the length of the compiled source.
+fn snippet_error(mut error: Error, end: usize) -> Error {
     if error.kind == ErrorKind::Syntax
-        && (at_end
+        && (error.offset == Some(end)
             || error.message.contains("end of source")
             || error.message.contains("end of input"))
     {
@@ -455,18 +447,6 @@ fn render_compile_error(error: &Error) -> String {
         }
         _ => error.to_string(),
     }
-}
-
-/// Reports whether a position is at or beyond the end of `source`.
-fn at_end(position: Position, source: &str) -> bool {
-    let lines = source.split('\n').count();
-    let last = source
-        .rsplit('\n')
-        .next()
-        .unwrap_or_default()
-        .chars()
-        .count();
-    (position.line, position.column) >= (lines, last + 1)
 }
 
 /// Renders a code frame for `position` in `text`, in the library's format: a
@@ -531,13 +511,5 @@ mod tests {
                 "{source}"
             );
         }
-    }
-
-    #[test]
-    fn ends_are_found_on_the_last_line() {
-        assert!(at_end(Position { line: 1, column: 6 }, "y = ("));
-        assert!(!at_end(Position { line: 1, column: 5 }, "y = ("));
-        assert!(at_end(Position { line: 2, column: 4 }, "if x\nfoo"));
-        assert!(!at_end(Position { line: 1, column: 9 }, "if x\nfoo"));
     }
 }

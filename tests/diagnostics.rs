@@ -301,9 +301,17 @@ fn invalid_tokens_are_highlighted_before_the_parser_advances() {
         let error = Engine::new().compile(source).err().unwrap();
         check_position(&error, source, source.rfind(token).unwrap());
     }
-    let source = "def run(input)\n 1";
-    let error = Engine::new().compile(source).err().unwrap();
-    check_position(&error, source, source.len());
+    // Like Go, the end of input is located at the last character, or at
+    // column 0 of the line after a final line break.
+    for (source, line, column) in [("def run(input)\n 1", 2, 2), ("def run(input)\n 1\n", 3, 0)] {
+        let error = Engine::new().compile(source).err().unwrap();
+        assert_eq!(error.offset, Some(source.len()), "{error}");
+        assert_eq!(
+            error.diagnostic.as_ref().unwrap().position,
+            Position { line, column },
+            "{error}"
+        );
+    }
 }
 
 #[test]

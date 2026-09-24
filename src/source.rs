@@ -290,13 +290,26 @@ pub(crate) fn parse_error(
         .offset
         .filter(|_| source.len() <= crate::syntax::MAX_SOURCE)
     {
-        let offset = boundary(source, offset);
+        let mut offset = boundary(source, offset);
         let mut position = Position { line: 1, column: 1 };
         for ch in source[..offset].chars() {
             if let Err(error) = work.charge(1) {
                 return error;
             }
             advance(&mut position, ch);
+        }
+        // Go stamps the end of input with the position of the final
+        // character, or column 0 of the line after a final line break.
+        let mut framed = position;
+        if offset == source.len() {
+            match source.chars().next_back() {
+                Some(last) if last != '\n' => {
+                    position.column -= 1;
+                    framed = position;
+                    offset -= last.len_utf8();
+                }
+                _ => position.column = 0,
+            }
         }
         let build = || {
             let mut charge = match error.retained_charge.take() {
@@ -318,7 +331,7 @@ pub(crate) fn parse_error(
             );
             work.bytes(WINDOW * 12)?;
             work.bytes(filename.map_or(0, |name| name.len()))?;
-            let snippet = Snippet::new(source, offset, position, filename.map(|name| &**name));
+            let snippet = Snippet::new(source, offset, framed, filename.map(|name| &**name));
             let (code_frame, storage) =
                 crate::compilation::formatted(work, format_args!("{snippet}"))?;
             Charge::merge(&mut charge, storage);

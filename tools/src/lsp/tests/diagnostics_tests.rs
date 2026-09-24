@@ -53,9 +53,10 @@ fn diagnostics_at_the_end_of_input_still_move_forward() {
             "{diagnostic}"
         );
     }
+    // Like Go, the end of input is located at the last character.
     let diagnostics = self::diagnostics("def run(");
     let (line, start, _, end) = range(&diagnostics[0]);
-    assert_eq!((line, start, end), (0, 8, 9));
+    assert_eq!((line, start, end), (0, 7, 8));
 }
 
 #[test]

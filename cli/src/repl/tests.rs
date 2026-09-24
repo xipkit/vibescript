@@ -252,8 +252,8 @@ fn line_mode_reports_an_input_left_unfinished() {
     let output = run_lines(&mut m, "[1,\n2").unwrap();
     assert_eq!(
         output,
-        "  › [1,\n    2\n  ✗ compile error: parse error at 2:2: unexpected end of snippet\n  \
-         --> line 2, column 2\n 2 | 2\n   |  ^\n\n"
+        "  › [1,\n    2\n  ✗ compile error: parse error at 2:1: unexpected end of snippet\n  \
+         --> line 2, column 1\n 2 | 2\n   | ^\n\n"
     );
     let mut m = model();
     assert_eq!(

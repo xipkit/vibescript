@@ -79,7 +79,7 @@ fn reports_usage_and_compile_errors() {
     let files = Files::new();
     let broken = files.write("broken.vibe", "def run(\n");
     vibes(&["analyze", &broken]).fails(
-        "analysis compile failed: parse error at 2:1: expected name\n  --> line 2, column 1\n 2 | \n   | ^",
+        "analysis compile failed: parse error at 2:0: expected name\n  --> line 2, column 1\n 2 | \n   | ^",
     );
     let missing = files.path("missing.vibe");
     vibes(&["analyze", &missing]).fails(&format!(

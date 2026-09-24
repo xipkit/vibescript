@@ -173,7 +173,8 @@ pub fn float(value: f64) -> String {
 
 /// Renders an engine error as its `Display` does. For an inline `snippet`,
 /// the entrypoint's frames are named `<snippet>` and a parse error that ran
-/// out of source reads `unexpected end of snippet`, as in the reference.
+/// out of source reads `unexpected end of snippet` from column 1 or later, as
+/// in the reference.
 pub fn error(error: &Error, snippet: Option<&str>) -> String {
     let Some(diagnostic) = &error.diagnostic else {
         return error.to_string();
@@ -185,10 +186,16 @@ pub fn error(error: &Error, snippet: Option<&str>) -> String {
         } else {
             &error.message
         };
+        // Like the reference, a snippet reports the end of its input no
+        // earlier than column 1.
+        let mut position = diagnostic.position;
+        if snippet.is_some() {
+            position.column = position.column.max(1);
+        }
         let _ = write!(
             text,
             "parse error at {}: {message}",
-            location(diagnostic.filename.as_deref(), diagnostic.position)
+            location(diagnostic.filename.as_deref(), position)
         );
     } else {
         text.push_str(&error.message);
