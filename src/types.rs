@@ -122,6 +122,57 @@ pub(crate) struct Field {
     pub optional: bool,
 }
 
+impl Type {
+    /// Admits nil, spelling a union's nil as one of its options.
+    pub fn make_nullable(&mut self) {
+        match &mut self.kind {
+            TypeKind::Union(options) => {
+                if !options.iter().any(|option| {
+                    option.nullable || matches!(option.kind, TypeKind::Scalar(Scalar::Nil))
+                }) {
+                    options.push(Type {
+                        name: "nil".into(),
+                        kind: TypeKind::Scalar(Scalar::Nil),
+                        nullable: false,
+                    });
+                }
+            }
+            TypeKind::Scalar(Scalar::Nil | Scalar::Any) => (),
+            _ => self.nullable = true,
+        }
+    }
+
+    /// The height of the type's tree.
+    pub fn height(&self) -> usize {
+        1 + match &self.kind {
+            TypeKind::Array(Some(element)) | TypeKind::Literal(Some(element)) => element.height(),
+            TypeKind::Hash(Some(pair)) => pair.0.height().max(pair.1.height()),
+            TypeKind::Shape(fields, _) => fields
+                .iter()
+                .map(|field| field.ty.height())
+                .max()
+                .unwrap_or(0),
+            TypeKind::Union(options) | TypeKind::Tuple(options) => {
+                options.iter().map(Type::height).max().unwrap_or(0)
+            }
+            _ => 0,
+        }
+    }
+
+    /// The number of type nodes, which bounds what substituting it costs.
+    pub fn nodes(&self) -> usize {
+        1 + match &self.kind {
+            TypeKind::Array(Some(element)) | TypeKind::Literal(Some(element)) => element.nodes(),
+            TypeKind::Hash(Some(pair)) => pair.0.nodes() + pair.1.nodes(),
+            TypeKind::Shape(fields, _) => fields.iter().map(|field| field.ty.nodes()).sum(),
+            TypeKind::Union(options) | TypeKind::Tuple(options) => {
+                options.iter().map(Type::nodes).sum()
+            }
+            _ => 0,
+        }
+    }
+}
+
 #[cfg(test)]
 impl Type {
     pub fn named(name: String) -> Self {

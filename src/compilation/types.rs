@@ -2,6 +2,9 @@ use super::{Boxed, Buffer, Bytes, Name, Work};
 use crate::{Result, types};
 use types::description::{Description, FieldDescription, View};
 
+/// Replaces a named type, such as a type alias, with the type it names.
+pub(crate) type Resolve<'a> = dyn FnMut(&dyn Work, &str) -> Result<Option<types::Type>> + 'a;
+
 #[derive(Debug)]
 pub(crate) struct Type {
     pub name: Name,
@@ -109,6 +112,12 @@ impl Type {
 
     /// Produces compiled metadata without retaining the originating call's budget.
     pub fn compile(&self, work: &dyn Work) -> Result<types::Type> {
+        self.compile_with(work, &mut |_, _| Ok(None))
+    }
+
+    /// Compiles the type, replacing each named leaf that `resolve` knows,
+    /// such as a type alias, with the type it returns.
+    pub fn compile_with(&self, work: &dyn Work, resolve: &mut Resolve<'_>) -> Result<types::Type> {
         work.charge(1)?;
         work.bytes(self.name.len())?;
         let kind = match &self.kind {
@@ -116,12 +125,15 @@ impl Type {
             TypeKind::Array(element) => types::TypeKind::Array(
                 element
                     .as_ref()
-                    .map(|ty| Ok(Box::new(ty.compile(work)?)))
+                    .map(|ty| Ok(Box::new(ty.compile_with(work, resolve)?)))
                     .transpose()?,
             ),
             TypeKind::Hash(pair) => types::TypeKind::Hash(
                 pair.as_ref()
-                    .map(|pair| Ok(Box::new((pair.0.compile(work)?, pair.1.compile(work)?))))
+                    .map(|pair| {
+                        let key = pair.0.compile_with(work, resolve)?;
+                        Ok(Box::new((key, pair.1.compile_with(work, resolve)?)))
+                    })
                     .transpose()?,
             ),
             TypeKind::Shape(fields, open) => {
@@ -130,7 +142,7 @@ impl Type {
                     work.bytes(field.name.len())?;
                     compiled.push(types::Field {
                         name: field.name.to_vec(),
-                        ty: field.ty.compile(work)?,
+                        ty: field.ty.compile_with(work, resolve)?,
                         optional: field.optional,
                     });
                 }
@@ -139,24 +151,32 @@ impl Type {
             TypeKind::Union(options) => {
                 let mut compiled = Vec::with_capacity(options.len());
                 for ty in options {
-                    compiled.push(ty.compile(work)?);
+                    compiled.push(ty.compile_with(work, resolve)?);
                 }
                 types::TypeKind::Union(compiled)
             }
             TypeKind::Tuple(elements) => {
                 let mut compiled = Vec::with_capacity(elements.len());
                 for ty in elements {
-                    compiled.push(ty.compile(work)?);
+                    compiled.push(ty.compile_with(work, resolve)?);
                 }
                 types::TypeKind::Tuple(compiled)
             }
             TypeKind::Literal(described) => types::TypeKind::Literal(
                 described
                     .as_ref()
-                    .map(|ty| Ok(Box::new(ty.compile(work)?)))
+                    .map(|ty| Ok(Box::new(ty.compile_with(work, resolve)?)))
                     .transpose()?,
             ),
-            TypeKind::Named => types::TypeKind::Named,
+            TypeKind::Named => {
+                if let Some(mut resolved) = resolve(work, &self.name)? {
+                    if self.nullable {
+                        resolved.make_nullable();
+                    }
+                    return Ok(resolved);
+                }
+                types::TypeKind::Named
+            }
         };
         Ok(types::Type {
             name: self.name.as_str().to_owned(),

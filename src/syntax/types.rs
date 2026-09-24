@@ -604,12 +604,12 @@ impl Parser<'_> {
 
 impl Parser<'_> {
     /// Whether every leaf of a type an expression could also spell reads as
-    /// a type literal: a builtin type name before ADR-007. The newer builtin
-    /// names stay expressions there, since they commonly name locals such as
-    /// a rescued `error`.
+    /// a type literal: a builtin type name before ADR-007, or a type alias.
+    /// The newer builtin names stay expressions there, since they commonly
+    /// name locals such as a rescued `error`.
     fn literal_leaves(&self, ty: &Type) -> bool {
         match &ty.kind {
-            TypeKind::Named => false,
+            TypeKind::Named => self.is_alias(&ty.name),
             TypeKind::Scalar(Scalar::Regex | Scalar::MatchData | Scalar::Error)
             | TypeKind::Literal(_)
             | TypeKind::Tuple(_) => false,

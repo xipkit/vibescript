@@ -345,6 +345,15 @@ pub(crate) struct BlockParam {
     /// The offset of the `&`.
     pub offset: u32,
 }
+
+/// A type alias, `type Name = T`, declared at the top level or in a module
+/// or class body.
+#[derive(Debug)]
+pub(crate) struct TypeAlias {
+    pub name: Name,
+    pub ty: crate::compilation::Type,
+    pub offset: u32,
+}
 impl Definition {
     fn depth(&self) -> u32 {
         let params = self
@@ -408,6 +417,7 @@ fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result
         percent_argument: 0,
         block_name: None,
         type_names: Table::new(),
+        alias_names: Table::new(),
         additions: typed::Additions::default(),
     }))
 }
@@ -463,9 +473,11 @@ struct Parser<'a> {
     /// The typed block parameter of the function being parsed, whose name is
     /// a declaration only.
     block_name: Option<Name>,
-    /// The classes and enums the source declares anywhere, which read as
-    /// types where an expression could also be meant.
+    /// The type aliases, classes and enums the source declares anywhere,
+    /// which read as types where an expression could also be meant.
     type_names: Table<()>,
+    /// The type aliases among [`Self::type_names`].
+    alias_names: Table<()>,
     /// The typed declarations parsed so far that live beside the tree.
     additions: typed::Additions,
 }
@@ -2861,6 +2873,7 @@ impl<'a> Parser<'a> {
             percent_argument: 0,
             block_name: self.block_name.clone(),
             type_names: std::mem::take(&mut self.type_names),
+            alias_names: std::mem::take(&mut self.alias_names),
             additions: std::mem::take(&mut self.additions),
         };
         while parser.token() == &Token::EndLine
@@ -2878,6 +2891,7 @@ impl<'a> Parser<'a> {
         self.locals = parser.locals;
         self.declared_it = parser.declared_it;
         self.type_names = parser.type_names;
+        self.alias_names = parser.alias_names;
         self.additions = parser.additions;
         self.interpolations
             .extend(self.work, parser.interpolations)?;

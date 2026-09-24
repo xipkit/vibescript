@@ -490,6 +490,13 @@ impl Parsing<'_> {
                         Member::Done
                     }
                     "module" if module && p.module_ahead() => Member::Module,
+                    "type" if p.type_alias_ahead() => {
+                        let alias = p.type_alias()?;
+                        p.additions
+                            .aliases
+                            .push(work, (Some(class.offset), alias))?;
+                        Member::Done
+                    }
                     // A module has no instances, so `@name:` stays the syntax
                     // error it always was there.
                     _ if !module && p.ivar_ahead() => Member::Ivar,

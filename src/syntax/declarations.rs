@@ -15,6 +15,7 @@ pub(super) enum Declared {
     Class(Module),
     Enum(Name, Buffer<Name>, Vec<u32>),
     Alias(Name, Name),
+    TypeAlias(super::TypeAlias),
 }
 
 /// A top-level declaration in source order, for Go's compile checks.
@@ -38,6 +39,7 @@ impl Parsing<'_> {
                     Some(w.as_str())
                 }
                 Token::Word(w) if *w == "alias" && p.alias_ahead() => Some("alias"),
+                Token::Word(w) if *w == "type" && p.type_alias_ahead() => Some("type"),
                 Token::Word(_) if p.module_ahead() => Some("module"),
                 _ => None,
             };
@@ -70,6 +72,15 @@ impl Parsing<'_> {
                     return self.p().err("enum is only supported at the top level");
                 }
                 self.p().enumeration()?
+            }
+            "type" => {
+                let mut p = self.p();
+                if !top {
+                    return p.err(
+                        "type aliases are only supported at the top level and in module or class bodies",
+                    );
+                }
+                Declared::TypeAlias(p.type_alias()?)
             }
             "alias" => {
                 let mut p = self.p();
@@ -159,7 +170,7 @@ impl Parsing<'_> {
                 node: Statement::Unsupported,
             },
             Declared::Class(class) => Statement::UnboundClass(class.name).at(class.offset),
-            Declared::Enum(..) | Declared::Alias(..) => unreachable!(),
+            Declared::Enum(..) | Declared::Alias(..) | Declared::TypeAlias(..) => unreachable!(),
         })
     }
 
@@ -180,7 +191,7 @@ impl Parsing<'_> {
                 },
                 None,
             ),
-            Declared::Enum(..) | Declared::Alias(..) => unreachable!(),
+            Declared::Enum(..) | Declared::Alias(..) | Declared::TypeAlias(..) => unreachable!(),
         })
     }
 
@@ -296,6 +307,7 @@ impl Parsing<'_> {
                     top.push(work, stmt)?;
                     p.note(|record| record.top.push((offset, record::Top::Statement(index))));
                 }
+                Declared::TypeAlias(alias) => p.additions.aliases.push(work, (None, alias))?,
             }
         }
         compile_checks(&order, &modules, &enums, work)?;

@@ -1,8 +1,9 @@
 //! The declarations ADR-007 adds: typed locals, typed block parameters,
-//! instance-variable declarations and the types they annotate.
+//! instance-variable declarations, type aliases and the types they annotate.
 
 use super::{
-    BlockParam, Expr, Label, Node, Parser, Parsing, Statement, Target, Token, source_text, unicode,
+    BlockParam, Expr, Label, Node, Parser, Parsing, Statement, Target, Token, TypeAlias,
+    source_text, unicode,
 };
 use crate::{
     Error, Result,
@@ -24,6 +25,9 @@ pub(crate) struct Ivar {
 pub(crate) struct Additions {
     /// Typed block parameters, by the offset of their function's `def`.
     pub blocks: Buffer<(u32, BlockParam)>,
+    /// Type aliases, by the offset of the declaring module or class, or with
+    /// none at the top level.
+    pub aliases: Buffer<(Option<u32>, TypeAlias)>,
     /// Instance-variable declarations, by the declaring class's offset.
     pub ivars: Buffer<(u32, Ivar)>,
     /// The assignments of their defaults, by the declaring class's offset.
@@ -31,27 +35,40 @@ pub(crate) struct Additions {
 }
 
 impl Parser<'_> {
-    /// Records the classes and enums declared anywhere in the source. The
-    /// scan is linear in tokens the lexer already charged for.
+    /// Records the type aliases, classes and enums declared anywhere in the
+    /// source. The scan is linear in tokens the lexer already charged for.
     pub(super) fn with_type_names(mut self) -> Self {
-        for index in 0..self.tokens.len().saturating_sub(1) {
+        for index in 0..self.tokens.len().saturating_sub(2) {
             let Token::Word(word) = &self.tokens[index].token else {
                 continue;
             };
-            if !matches!(word.as_str(), "class" | "enum") || !self.ident(index + 1) {
+            if !matches!(word.as_str(), "type" | "class" | "enum") || !self.ident(index + 1) {
                 continue;
             }
             let Token::Word(name) = &self.tokens[index + 1].token else {
                 unreachable!()
             };
-            if let Ok(name) = Name::new(&(), name) {
-                let _ = self.type_names.insert(&(), name, ());
+            let alias = *word == "type";
+            if alias && self.tokens[index + 2].token != Token::Op("=") {
+                continue;
             }
+            let Ok(name) = Name::new(&(), name) else {
+                continue;
+            };
+            if alias {
+                let _ = self.alias_names.insert(&(), name.clone(), ());
+            }
+            let _ = self.type_names.insert(&(), name, ());
         }
         self
     }
 
-    /// Whether `name` is a class or enum the source declares.
+    /// Whether `name` is a type alias the source declares.
+    pub(super) fn is_alias(&self, name: &str) -> bool {
+        self.alias_names.contains(&(), name).unwrap_or(false)
+    }
+
+    /// Whether `name` is a type alias, class or enum the source declares.
     pub(super) fn declared_type(&self, name: &str) -> bool {
         self.type_names.contains(&(), name).unwrap_or(false)
     }
@@ -110,6 +127,36 @@ impl Parser<'_> {
     pub(super) fn ivar_ahead(&self) -> bool {
         matches!(self.token(), Token::Word(w) if w.starts_with('@') && !w.starts_with("@@"))
             && self.annotation_colon(self.pos)
+    }
+
+    /// Whether `type` starts a type alias, `type Name = T`, on its line.
+    pub(super) fn type_alias_ahead(&self) -> bool {
+        matches!(self.token(), Token::Word(w) if w == "type")
+            && self.ident(self.pos + 1)
+            && self.tokens[self.pos + 2].token == Token::Op("=")
+            && self.tokens[self.pos + 1].line == self.tokens[self.pos].line
+    }
+
+    /// Parses a type alias from its `type` keyword.
+    pub(super) fn type_alias(&mut self) -> Result<TypeAlias> {
+        self.work.charge(1)?;
+        self.bump()?;
+        let offset = self.tokens[self.pos].offset as u32;
+        let name = self.name()?;
+        if crate::types::builtin_name(&name).is_some() {
+            return Err(Error::syntax(
+                self.work,
+                offset as usize,
+                format_args!(
+                    "type alias {} conflicts with a built-in type",
+                    source_text(&name)
+                ),
+            ));
+        }
+        self.bump()?;
+        self.line_breaks()?;
+        let ty = self.type_expr(1, false)?;
+        Ok(TypeAlias { name, ty, offset })
     }
 
     /// Whether the parameter list continues with a typed block parameter,
@@ -175,7 +222,7 @@ impl Parser<'_> {
     }
 
     /// Whether the token at `index` can start a tuple type's first element:
-    /// a builtin or declared type name.
+    /// a builtin type name or a type the source declares.
     pub(super) fn tuple_start(&self, index: usize) -> bool {
         matches!(&self.tokens[index].token, Token::Word(name)
             if crate::types::builtin_name(name).is_some() || self.declared_type(name))

@@ -91,7 +91,8 @@ impl Program {
             for ivar in ivars {
                 work.bytes(ivar.name.len())?;
                 let ty = self.types.len();
-                self.types.push(ivar.ty.compile(work)?);
+                self.types
+                    .push(typing.aliases.compile(&name, &ivar.ty, work)?);
                 declared.push((ivar.name.into_string(), ty));
             }
             self.ivars.insert(index, declared);

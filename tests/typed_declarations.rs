@@ -1,6 +1,6 @@
 //! The declarations ADR-007 adds, enforced at runtime like parameter
 //! annotations: typed locals, typed block parameters, instance-variable
-//! declarations, tuple types and the newer type names.
+//! declarations, type aliases, tuple types and the newer type names.
 
 use vibescript::{CallOptions, Engine, ErrorKind, stringify_json};
 
@@ -372,6 +372,84 @@ end
 }
 
 #[test]
+fn type_aliases_name_types_anywhere() {
+    for (source, expected) in [
+        (
+            "def total(rewards: array<Reward>) -> int\n  rewards.map { |r| r[\"points\"] }.sum\nend\ntype Reward = { id: string, points: int }\ntotal([{ id: \"a\", points: 3 }, { id: \"b\", points: 4 }])",
+            serde_json::json!(7),
+        ),
+        (
+            "type Id = string\ntype Ids = array<Id>\nids: Ids = [\"a\"]\nids",
+            serde_json::json!(["a"]),
+        ),
+        ("type Id = string\nx: Id? = nil\nx", serde_json::json!(null)),
+        (
+            "type Reward = { id: string }\n[JSON.parse_as(\"{\\\"id\\\": \\\"a\\\"}\", Reward), JSON.parse_as(\"[{\\\"id\\\": \\\"b\\\"}]\", array<Reward>)]",
+            serde_json::json!([{"id": "a"}, [{"id": "b"}]]),
+        ),
+        (
+            "module Geo\n  type Point = [float, float]\n  def self.origin -> Point\n    [0.5, 1.5]\n  end\nend\nGeo.origin",
+            serde_json::json!([0.5, 1.5]),
+        ),
+        (
+            "type Amount = int\nclass Wallet\n  type Entry = [string, Amount]\n  @entries: array<Entry> = []\n  def add(entry: Entry) -> array<Entry>\n    @entries << entry\n  end\nend\nWallet.new.add([\"a\", 1])",
+            serde_json::json!([["a", 1]]),
+        ),
+    ] {
+        assert_eq!(evaluate(source), expected, "{source}");
+    }
+    for (source, message) in [
+        (
+            "type Reward = { points: int }\ndef f(r: Reward)\nend\nf({ points: \"x\" })",
+            "argument r expected { points: int }, got { points: string }",
+        ),
+        (
+            "type Id = string\nx: Id? = nil\nx = 1",
+            "local variable x expected string?, got int",
+        ),
+        (
+            "type Choice = int | string\ndef f(x: Choice?)\nend\nf(1.5)",
+            "argument x expected int | string | nil, got float",
+        ),
+        (
+            "module Geo\n  type Point = [float, float]\n  def self.bad -> Point\n    [0, 0]\n  end\nend\nGeo.bad",
+            "return value for bad expected [float, float], got array<int>",
+        ),
+    ] {
+        let (kind, actual, _) = failure(source);
+        assert_eq!(
+            (kind, actual.as_str()),
+            (ErrorKind::Type, message),
+            "{source}"
+        );
+    }
+    for (source, message) in [
+        (
+            "type A = A?\n1",
+            "parse error at 1:6: type alias A refers to itself",
+        ),
+        (
+            "type A = B\ntype B = array<C>\ntype C = { a: A }\n1",
+            "parse error at 1:6: type alias cycle: A -> B -> C -> A",
+        ),
+        (
+            "type A = int\ntype A = string",
+            "parse error at 2:6: duplicate type alias A",
+        ),
+        (
+            "type int = string",
+            "parse error at 1:6: type alias int conflicts with a built-in type",
+        ),
+        (
+            "def f\n  type A = int\nend",
+            "parse error at 2:3: type aliases are only supported at the top level and in module or class bodies",
+        ),
+    ] {
+        assert_eq!(compile_error(source), message, "{source}");
+    }
+}
+
+#[test]
 fn tuple_types_are_arrays_of_exactly_their_elements() {
     let enums = "enum Status\n  Draft\n  Done\nend\n";
     for (source, expected) in [
@@ -509,10 +587,18 @@ fn newer_type_names_validate_their_values() {
 #[test]
 fn the_gradual_checker_accepts_the_new_declarations() {
     let source = format!(
-        "{KEEP}def run -> int
+        "type Reward = {{ id: string, points: int }}
+class Counter
+  @count: int = 0
+  def bump -> int
+    @count += 1
+  end
+end
+{KEEP}def run -> int
+  rewards: array<Reward> = [{{ id: \"a\", points: 2 }}]
   pair: [int, string] = [1, \"a\"]
   kept = keep([1, 2]) {{ |i| i > 1 }}
-  pair[0] + kept.length
+  rewards[0][\"points\"] + pair[0] + kept.length + Counter.new.bump
 end
 "
     );
@@ -527,6 +613,6 @@ end
             .unwrap()
             .value
             .as_int(),
-        Some(2)
+        Some(5)
     );
 }

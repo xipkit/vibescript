@@ -9,6 +9,7 @@ use crate::{
 };
 use std::collections::HashMap;
 
+mod aliases;
 mod calls;
 mod errors;
 mod namespaces;
@@ -538,7 +539,7 @@ fn compile_mode(
         members: Vec::new(),
         outline,
     };
-    let mut typing = typing::Typing::new(parsed.additions, work)?;
+    let mut typing = typing::Typing::new(parsed.additions, &parsed.modules, work)?;
     for module in parsed.modules {
         program.register_module(module, "", &mut defs, &mut contexts, &mut typing, work)?;
     }
@@ -552,6 +553,7 @@ fn compile_mode(
         let plain = !binds_parameters && def.params.iter().all(|p| p.kind == ParamKind::Positional);
         let compiling = Compiling::new(Compiler {
             work,
+            aliases: &typing.aliases,
             namespace: contexts[index].0,
             instance: contexts[index].2,
             program: &mut program,
@@ -637,6 +639,7 @@ fn expanded(args: &[Argument]) -> bool {
 
 struct Compiler<'a> {
     work: &'a dyn crate::compilation::Work,
+    aliases: &'a aliases::Aliases,
     instance: bool,
     namespace: Option<usize>,
     program: &'a mut Program,
@@ -1114,6 +1117,12 @@ impl Compiler<'_> {
             self.emit(Op::HostValue(host, receiving));
         } else if let Some(global) = global {
             self.emit(Op::Global(global));
+        } else if let Some(alias) = self.aliases.get(
+            aliases::scope(&self.program.namespaces, self.namespace),
+            name,
+        ) {
+            let shape = crate::shapes::compile(alias.clone());
+            self.constant(shape);
         } else {
             let site = self.call_site(name, false);
             self.emit(Op::Unbound(site.name, receiving));
@@ -1176,7 +1185,9 @@ impl Compiler<'_> {
     }
     fn annotation(&mut self, ty: &crate::compilation::Type) -> Result<usize> {
         let index = self.program.types.len();
-        self.program.types.push(ty.compile(self.work)?);
+        let scope = aliases::scope(&self.program.namespaces, self.namespace);
+        let compiled = self.aliases.compile(scope, ty, self.work)?;
+        self.program.types.push(compiled);
         Ok(index)
     }
     /// Adds the subject a value check names in its failure, such as
@@ -2278,7 +2289,8 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     .push(names.iter().map(|name| name.as_str().to_owned()).collect());
                 c.emit(Op::TypeShadowed(index, 0))
             });
-            let shape = crate::shapes::compile(ty.compile(c.work)?);
+            let scope = aliases::scope(&c.program.namespaces, c.namespace);
+            let shape = crate::shapes::compile(c.aliases.compile(scope, ty, c.work)?);
             c.constant(shape);
             guard
         };

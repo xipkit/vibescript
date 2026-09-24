@@ -1,14 +1,16 @@
-//! The typed declarations a program makes beside its syntax tree: typed
-//! block parameters and instance-variable declarations.
+//! The typed declarations a program makes beside its syntax tree: type
+//! aliases, typed block parameters and instance-variable declarations.
 
+use super::aliases::Aliases;
 use crate::{
     Result,
-    compilation::Work,
-    syntax::{BlockParam, Stmt, typed::Additions, typed::Ivar},
+    compilation::{Buffer, Work},
+    syntax::{BlockParam, Stmt, modules::Module, typed::Additions, typed::Ivar},
 };
 use std::collections::HashMap;
 
 pub(super) struct Typing {
+    pub aliases: Aliases,
     /// Typed block parameters, by the offset of their function's `def`.
     blocks: Vec<(u32, BlockParam)>,
     /// Instance-variable declarations, by the declaring class's offset.
@@ -21,9 +23,10 @@ pub(super) struct Typing {
 }
 
 impl Typing {
-    pub fn new(additions: Additions, work: &dyn Work) -> Result<Self> {
+    pub fn new(additions: Additions, modules: &Buffer<Module>, work: &dyn Work) -> Result<Self> {
         let Additions {
             blocks,
+            aliases,
             ivars,
             defaults,
         } = additions;
@@ -31,6 +34,7 @@ impl Typing {
         work.charge(blocks.len())?;
         blocks.sort_by_key(|(offset, _)| *offset);
         Ok(Self {
+            aliases: Aliases::new(aliases, modules, work)?,
             blocks,
             ivars: ivars.into_iter().collect(),
             defaults: defaults.into_iter().collect(),
