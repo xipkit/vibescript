@@ -23,6 +23,8 @@ pub(crate) enum View<'a, T: Description> {
     Hash(Option<&'a (T, T)>),
     Shape(&'a [T::Field], bool),
     Union(&'a [T]),
+    Tuple(&'a [T]),
+    Literal(Option<&'a T>),
     Named,
 }
 
@@ -44,6 +46,8 @@ impl Description for Type {
             TypeKind::Hash(pair) => View::Hash(pair.as_deref()),
             TypeKind::Shape(fields, open) => View::Shape(fields, *open),
             TypeKind::Union(options) => View::Union(options),
+            TypeKind::Tuple(elements) => View::Tuple(elements),
+            TypeKind::Literal(described) => View::Literal(described.as_deref()),
             TypeKind::Named => View::Named,
         }
     }

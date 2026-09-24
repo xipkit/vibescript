@@ -12,6 +12,7 @@ pub(crate) mod modules;
 pub(crate) mod record;
 mod teardown;
 mod tokens;
+pub(crate) mod typed;
 mod types;
 pub(crate) mod unicode;
 mod work;
@@ -367,7 +368,7 @@ pub(crate) struct Outline {
 }
 
 fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result<Parser<'a>> {
-    Ok(Parser {
+    Ok(Parser::with_type_names(Parser {
         work,
         source,
         lex_depth: 0,
@@ -390,7 +391,8 @@ fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result
         nesting: 0,
         call_end: 0,
         percent_argument: 0,
-    })
+        type_names: Table::new(),
+    }))
 }
 
 pub(crate) fn parse_type(source: &str) -> Result<crate::types::Type> {
@@ -441,6 +443,9 @@ struct Parser<'a> {
     call_end: usize,
     /// The ambiguous percent literal a command call takes as its argument.
     percent_argument: usize,
+    /// The classes and enums the source declares anywhere, which read as
+    /// types where an expression could also be meant.
+    type_names: Table<()>,
 }
 
 /// Where a destructuring target list appears.
@@ -2830,6 +2835,7 @@ impl<'a> Parser<'a> {
             nesting: 0,
             call_end: 0,
             percent_argument: 0,
+            type_names: std::mem::take(&mut self.type_names),
         };
         while parser.token() == &Token::EndLine
             && parser.tokens[parser.pos].line != parser.tokens[parser.pos].end_line
@@ -2845,6 +2851,7 @@ impl<'a> Parser<'a> {
         let complete = parser.token() == &Token::Eof;
         self.locals = parser.locals;
         self.declared_it = parser.declared_it;
+        self.type_names = parser.type_names;
         self.interpolations
             .extend(self.work, parser.interpolations)?;
         let expr = match result {

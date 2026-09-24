@@ -35,6 +35,11 @@ pub(crate) enum Scalar {
     Money,
     Range,
     Symbol,
+    Regex,
+    /// A successful regex match.
+    MatchData,
+    /// What `rescue => error` binds.
+    Error,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -42,9 +47,21 @@ pub(crate) enum BuiltinName {
     Scalar(Scalar),
     Array,
     Hash,
+    /// `type<T>`, a type literal.
+    Type,
 }
 
+/// Classifies a builtin type name. The older names match in any case; the
+/// names ADR-007 adds are lowercase only, so a class or enum spelled `Error`
+/// or `Regex` keeps naming itself.
 pub(crate) fn builtin_name(name: &str) -> Option<BuiltinName> {
+    match name {
+        "regex" => return Some(BuiltinName::Scalar(Scalar::Regex)),
+        "match_data" => return Some(BuiltinName::Scalar(Scalar::MatchData)),
+        "error" => return Some(BuiltinName::Scalar(Scalar::Error)),
+        "type" => return Some(BuiltinName::Type),
+        _ => (),
+    }
     let mut folded = [0; 8];
     let mut length = 0;
     for c in name.chars() {
@@ -91,6 +108,10 @@ pub(crate) enum TypeKind {
     Hash(Option<Box<(Type, Type)>>),
     Shape(Vec<Field>, bool),
     Union(Vec<Type>),
+    /// An array of exactly these elements, in order.
+    Tuple(Vec<Type>),
+    /// A type literal, such as `JSON.parse_as`'s schema, describing the type.
+    Literal(Option<Box<Type>>),
     Named,
 }
 
@@ -108,6 +129,7 @@ impl Type {
             Some(BuiltinName::Scalar(scalar)) => TypeKind::Scalar(scalar),
             Some(BuiltinName::Array) => TypeKind::Array(None),
             Some(BuiltinName::Hash) => TypeKind::Hash(None),
+            Some(BuiltinName::Type) => TypeKind::Literal(None),
             None => TypeKind::Named,
         };
         Self {
@@ -192,7 +214,7 @@ fn resolve_names(
                 resolve_names(ctx, &field.ty, names, resolve, depth + 1)?;
             }
         }
-        TypeKind::Union(options) => {
+        TypeKind::Union(options) | TypeKind::Tuple(options) => {
             for option in options {
                 resolve_names(ctx, option, names, resolve, depth + 1)?;
             }
@@ -234,8 +256,44 @@ fn visit(
                 Scalar::Time => matches!(value.0, Kind::Time(_) | Kind::Zoned(_)),
                 Scalar::Money => matches!(value.0, Kind::Money(_)),
                 Scalar::Range => matches!(value.0, Kind::Range(_)),
+                Scalar::Regex => matches!(value.0, Kind::Regex(_)),
+                Scalar::MatchData => {
+                    matches!(&value.0, Kind::Hash(hash) if hash.tag == crate::hash::Tag::Match)
+                }
+                Scalar::Error => {
+                    matches!(&value.0, Kind::Hash(hash) if hash.tag == crate::hash::Tag::Error)
+                }
             };
             Ok(matches.then_some((value, false)))
+        }
+        TypeKind::Literal(_) => Ok(matches!(value.0, Kind::Shape(_)).then_some((value, false))),
+        TypeKind::Tuple(elements) => {
+            let Some(items) = value.as_array() else {
+                return Ok(None);
+            };
+            if items.len() != elements.len() {
+                return Ok(None);
+            }
+            let mut output = None;
+            for (index, (item, element)) in items.iter().zip(elements).enumerate() {
+                let Some((normalized, changed)) =
+                    visit(ctx, element, item.clone(), names, depth + 1)?
+                else {
+                    return Ok(None);
+                };
+                if changed && output.is_none() {
+                    let mut buffer = Buffer::with_capacity(ctx, items.len())?;
+                    buffer.extend(ctx, &items[..index])?;
+                    output = Some(buffer);
+                }
+                if let Some(output) = &mut output {
+                    output.push(ctx, normalized)?;
+                }
+            }
+            match output {
+                Some(output) => Ok(Some((Value::from_array(ctx, output)?, true))),
+                None => Ok(Some((value, false))),
+            }
         }
         TypeKind::Named => {
             let id = std::ptr::from_ref(ty) as usize;

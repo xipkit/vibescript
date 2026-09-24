@@ -38,11 +38,12 @@ pub(crate) trait Work {
                     self.ty(&field.ty)?;
                 }
             }
-            TypeKind::Union(options) => {
+            TypeKind::Union(options) | TypeKind::Tuple(options) => {
                 for option in options {
                     self.ty(option)?;
                 }
             }
+            TypeKind::Literal(Some(described)) => self.ty(described)?,
             _ => (),
         }
         Ok(())

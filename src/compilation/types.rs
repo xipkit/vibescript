@@ -16,6 +16,10 @@ pub(crate) enum TypeKind {
     Hash(Option<Boxed<(Type, Type)>>),
     Shape(Buffer<Field>, bool),
     Union(Buffer<Type>),
+    /// An array of exactly these elements, in order.
+    Tuple(Buffer<Type>),
+    /// `type<T>`, a type literal describing `T`.
+    Literal(Option<Boxed<Type>>),
     Named,
 }
 
@@ -33,6 +37,7 @@ impl Type {
             TypeKind::Array(_) => !hash,
             TypeKind::Hash(_) | TypeKind::Shape(..) => hash,
             TypeKind::Union(options) => options.iter().any(|option| option.captures(hash)),
+            TypeKind::Tuple(_) => !hash,
             _ => false,
         }
     }
@@ -43,6 +48,7 @@ impl Type {
             Some(types::BuiltinName::Scalar(scalar)) => TypeKind::Scalar(scalar),
             Some(types::BuiltinName::Array) => TypeKind::Array(None),
             Some(types::BuiltinName::Hash) => TypeKind::Hash(None),
+            Some(types::BuiltinName::Type) => TypeKind::Literal(None),
             None => TypeKind::Named,
         };
         Self {
@@ -83,6 +89,15 @@ impl Type {
             TypeKind::Union(options) => {
                 TypeKind::Union(options.copy_with(work, |ty| ty.copy(work))?)
             }
+            TypeKind::Tuple(elements) => {
+                TypeKind::Tuple(elements.copy_with(work, |ty| ty.copy(work))?)
+            }
+            TypeKind::Literal(described) => TypeKind::Literal(
+                described
+                    .as_ref()
+                    .map(|ty| Boxed::new(work, ty.copy(work)?))
+                    .transpose()?,
+            ),
             TypeKind::Named => TypeKind::Named,
         };
         Ok(Self {
@@ -128,6 +143,19 @@ impl Type {
                 }
                 types::TypeKind::Union(compiled)
             }
+            TypeKind::Tuple(elements) => {
+                let mut compiled = Vec::with_capacity(elements.len());
+                for ty in elements {
+                    compiled.push(ty.compile(work)?);
+                }
+                types::TypeKind::Tuple(compiled)
+            }
+            TypeKind::Literal(described) => types::TypeKind::Literal(
+                described
+                    .as_ref()
+                    .map(|ty| Ok(Box::new(ty.compile(work)?)))
+                    .transpose()?,
+            ),
             TypeKind::Named => types::TypeKind::Named,
         };
         Ok(types::Type {
@@ -156,6 +184,8 @@ impl Description for Type {
             TypeKind::Hash(pair) => View::Hash(pair.as_deref()),
             TypeKind::Shape(fields, open) => View::Shape(fields, *open),
             TypeKind::Union(options) => View::Union(options),
+            TypeKind::Tuple(elements) => View::Tuple(elements),
+            TypeKind::Literal(described) => View::Literal(described.as_deref()),
             TypeKind::Named => View::Named,
         }
     }

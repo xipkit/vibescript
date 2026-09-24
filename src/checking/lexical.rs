@@ -252,7 +252,7 @@ impl Layouts {
                             pending.push(ctx, &field.ty)?;
                         }
                     }
-                    TypeKind::Union(options) => {
+                    TypeKind::Union(options) | TypeKind::Tuple(options) => {
                         for option in options {
                             ctx.charge(1)?;
                             pending.push(ctx, option)?;

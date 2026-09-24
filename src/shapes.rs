@@ -94,9 +94,10 @@ pub(crate) fn retained(ty: &Type) -> usize {
             TypeKind::Hash(Some(pair)) => {
                 size_of::<(Type, Type)>() + retained(&pair.0) + retained(&pair.1)
             }
-            TypeKind::Union(options) => {
+            TypeKind::Union(options) | TypeKind::Tuple(options) => {
                 options.capacity() * size_of::<Type>() + options.iter().map(retained).sum::<usize>()
             }
+            TypeKind::Literal(Some(described)) => size_of::<Type>() + retained(described),
             TypeKind::Shape(fields, _) => {
                 fields.capacity() * size_of::<crate::types::Field>()
                     + fields
@@ -147,6 +148,9 @@ pub(crate) fn format(
             Scalar::Money => b"money",
             Scalar::Time => b"time",
             Scalar::Range => b"range",
+            Scalar::Regex => b"regex",
+            Scalar::MatchData => b"match_data",
+            Scalar::Error => b"error",
         })?,
         View::Named => out.write(ty.name().as_bytes())?,
         View::Array(element) => {
@@ -169,6 +173,24 @@ pub(crate) fn format(
                 format(&pair.0, out)?;
                 out.write(b", ")?;
                 format(&pair.1, out)?;
+                out.byte(b'>')?;
+            }
+        }
+        View::Tuple(elements) => {
+            out.byte(b'[')?;
+            for (index, element) in elements.iter().enumerate() {
+                if index > 0 {
+                    out.write(b", ")?;
+                }
+                format(element, out)?;
+            }
+            out.byte(b']')?;
+        }
+        View::Literal(described) => {
+            out.write(b"type")?;
+            if let Some(described) = described {
+                out.byte(b'<')?;
+                format(described, out)?;
                 out.byte(b'>')?;
             }
         }

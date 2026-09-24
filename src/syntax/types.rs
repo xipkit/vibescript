@@ -119,7 +119,7 @@ impl Parser<'_> {
         self.work.ty(&ty)?;
         if !boundary
             || matches!(ty.kind, TypeKind::Scalar(Scalar::Nil) | TypeKind::Shape(..))
-            || !builtin_leaves(&ty)
+            || !self.literal_leaves(&ty)
         {
             return Ok(None);
         }
@@ -161,7 +161,7 @@ impl Parser<'_> {
             Ok(ty)
                 if self.token() != &Token::P('?')
                     && !self.default_field(&ty)?
-                    && builtin_leaves(&ty) =>
+                    && self.literal_leaves(&ty) =>
             {
                 Some(ty)
             }
@@ -211,6 +211,8 @@ impl Parser<'_> {
         self.work.charge(1)?;
         let mut ty = if self.take_p('{') {
             self.type_shape(depth)?
+        } else if self.token() == &Token::P('[') {
+            self.type_tuple(depth)?
         } else {
             self.named_type(depth)?
         };
@@ -282,7 +284,10 @@ impl Parser<'_> {
         if self.tokens[open].token != Token::Op("<") {
             return Ok(ty);
         }
-        if !matches!(ty.kind, TypeKind::Array(_) | TypeKind::Hash(_)) {
+        if !matches!(
+            ty.kind,
+            TypeKind::Array(_) | TypeKind::Hash(_) | TypeKind::Literal(_)
+        ) {
             self.pos = index;
             return self.err(format_args!(
                 "type {} does not accept type arguments",
@@ -311,6 +316,17 @@ impl Parser<'_> {
             }
             self.bump()?;
             break;
+        }
+        if matches!(ty.kind, TypeKind::Literal(_)) {
+            if arguments.len() != 1 {
+                return Err(crate::Error::syntax(
+                    self.work,
+                    self.tokens[index].offset,
+                    "type expects exactly 1 type argument",
+                ));
+            }
+            ty.kind = TypeKind::Literal(Some(Boxed::new(self.work, arguments.pop().unwrap())?));
+            return Ok(ty);
         }
         let array = matches!(ty.kind, TypeKind::Array(_));
         let expected = if array { 1 } else { 2 };
@@ -471,6 +487,24 @@ impl Parser<'_> {
                 self.type_structural_error = structural;
                 !annotation
             }
+            // A bracket reads as a tuple type only when every leaf names a type.
+            Token::P('[') if !self.tuple_start(peek + 1) => true,
+            Token::P('[') => {
+                let saved = self.pos;
+                let structural = self.type_structural_error;
+                self.pos = peek;
+                let annotation = match self.type_expr(1, false) {
+                    Ok(ty) => {
+                        self.declared_leaves(&ty)
+                            && !self.default_field(&ty)?
+                            && self.type_boundary(self.pos - 1, parenthesized)
+                    }
+                    Err(_) => false,
+                };
+                self.pos = saved;
+                self.type_structural_error = structural;
+                !annotation
+            }
             _ if self.ident(peek) => self.name_starts_default(peek, parenthesized)?,
             _ => self.prefix(peek),
         };
@@ -489,7 +523,11 @@ impl Parser<'_> {
             Token::Op("<") => {
                 !matches!(
                     crate::types::builtin_name(name),
-                    Some(crate::types::BuiltinName::Array | crate::types::BuiltinName::Hash)
+                    Some(
+                        crate::types::BuiltinName::Array
+                            | crate::types::BuiltinName::Hash
+                            | crate::types::BuiltinName::Type
+                    )
                 ) && self.locals.contains(self.work, name.as_str())?
             }
             Token::P('.') => !self.dotted_type_follows(peek, next, parenthesized)?,
@@ -551,19 +589,38 @@ impl Parser<'_> {
             | TypeKind::Named
             | TypeKind::Array(None)
             | TypeKind::Hash(None) => !ty.nullable && self.locals.contains(self.work, &ty.name)?,
+            TypeKind::Tuple(elements) => {
+                for element in elements {
+                    if self.default_field(element)? {
+                        return Ok(true);
+                    }
+                }
+                false
+            }
             _ => false,
         })
     }
 }
 
-fn builtin_leaves(ty: &Type) -> bool {
-    match &ty.kind {
-        TypeKind::Named => false,
-        TypeKind::Array(Some(element)) => builtin_leaves(element),
-        TypeKind::Hash(Some(pair)) => builtin_leaves(&pair.0) && builtin_leaves(&pair.1),
-        TypeKind::Shape(fields, _) => fields.iter().all(|field| builtin_leaves(&field.ty)),
-        TypeKind::Union(options) => options.iter().all(builtin_leaves),
-        _ => true,
+impl Parser<'_> {
+    /// Whether every leaf of a type an expression could also spell reads as
+    /// a type literal: a builtin type name before ADR-007. The newer builtin
+    /// names stay expressions there, since they commonly name locals such as
+    /// a rescued `error`.
+    fn literal_leaves(&self, ty: &Type) -> bool {
+        match &ty.kind {
+            TypeKind::Named => false,
+            TypeKind::Scalar(Scalar::Regex | Scalar::MatchData | Scalar::Error)
+            | TypeKind::Literal(_)
+            | TypeKind::Tuple(_) => false,
+            TypeKind::Array(Some(element)) => self.literal_leaves(element),
+            TypeKind::Hash(Some(pair)) => {
+                self.literal_leaves(&pair.0) && self.literal_leaves(&pair.1)
+            }
+            TypeKind::Shape(fields, _) => fields.iter().all(|field| self.literal_leaves(&field.ty)),
+            TypeKind::Union(options) => options.iter().all(|option| self.literal_leaves(option)),
+            _ => true,
+        }
     }
 }
 

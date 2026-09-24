@@ -215,6 +215,9 @@ fn annotation(ty: &crate::types::Type) -> Type {
             Scalar::Money => "money",
             Scalar::Range => "range",
             Scalar::Symbol => "symbol",
+            Scalar::Regex => "regex",
+            Scalar::MatchData => "match_data",
+            Scalar::Error => "error",
         }),
         TypeKind::Array(element) => Type::Name(
             "array".into(),
@@ -243,6 +246,11 @@ fn annotation(ty: &crate::types::Type) -> Type {
             *open,
         ),
         TypeKind::Union(arms) => Type::Union(arms.iter().map(annotation).collect()),
+        TypeKind::Tuple(elements) => Type::Tuple(elements.iter().map(annotation).collect()),
+        TypeKind::Literal(described) => Type::Name(
+            "type".into(),
+            described.as_deref().map(annotation).into_iter().collect(),
+        ),
         TypeKind::Named => Type::name(&ty.name),
     };
     if ty.nullable {

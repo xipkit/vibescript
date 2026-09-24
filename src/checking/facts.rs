@@ -1170,6 +1170,7 @@ impl Facts {
             Hash,
             Shape(&'a [crate::types::Field], bool),
             Union(usize),
+            Tuple(usize),
         }
         let mut tasks = Buffer::empty();
         let mut values = Buffer::empty();
@@ -1217,6 +1218,14 @@ impl Facts {
                             }
                             continue;
                         }
+                        TypeKind::Tuple(elements) => {
+                            tasks.push(ctx, Task::Tuple(elements.len()))?;
+                            for element in elements.iter().rev() {
+                                tasks.push(ctx, Task::Visit(element))?;
+                            }
+                            continue;
+                        }
+                        TypeKind::Literal(_) => Atom::Any.fact(),
                         TypeKind::Named => {
                             ctx.work_bytes(ty.name.len())?;
                             if let Some(fact) = resolve(ctx, &ty.name)? {
@@ -1267,6 +1276,13 @@ impl Facts {
                     let fact = self.choice(ctx, &values.data[start..])?;
                     values.data.truncate(start);
                     fact
+                }
+                Task::Tuple(count) => {
+                    let start = values.data.len() - count;
+                    let mut elements = Buffer::with_capacity(ctx, count)?;
+                    elements.extend(ctx, &values.data[start..])?;
+                    values.data.truncate(start);
+                    self.tuple(ctx, &elements.data)?
                 }
             };
             values.push(ctx, fact)?;
@@ -1396,6 +1412,9 @@ fn scalar_atom(scalar: Scalar) -> Atom {
         Scalar::Time => Atom::Time,
         Scalar::Money => Atom::Money,
         Scalar::Range => Atom::Range,
+        Scalar::Regex => Atom::Regex,
+        // The gradual checker does not model these records; ADR-007's checker will.
+        Scalar::MatchData | Scalar::Error => Atom::Any,
         Scalar::Number => unreachable!(),
     }
 }
