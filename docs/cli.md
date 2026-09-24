@@ -12,6 +12,7 @@
 | `vibes help [command]`, `--help`, `-h` | Print the command list or one command's help. |
 | `vibes repl [options]` | Start the interactive REPL. |
 | `vibes lsp` | Serve the language server over stdin and stdout for editors. |
+| `vibes prelude` | Print every builtin signature as Vibescript declarations. |
 
 It also keeps the flat form that predates these commands, `vibes [OPTIONS] FILE` and `vibes [OPTIONS] -e SOURCE`, which prints results as JSON and checks exact calls (see [the flat form](#the-flat-form)), and it prints its version with `vibes --version`.
 
@@ -27,7 +28,7 @@ The formatter, analyzer, test runner, REPL session and language server are also 
 The first argument alone decides what runs, in this order:
 
 1. `-h` or `--help` prints the root help. A first argument the reference rejects outright, `--`, one with leading or trailing whitespace, `-help`, `--h` or a help flag with a value such as `--help=false`, prints the root help and `unknown command "..."` on stderr.
-2. A command name (`run`, `check`, `fmt`, `analyze`, `test`, `lsp`, `repl`, `help` or `h`) runs that command. A file named after a command therefore needs `vibes run check`, or a flat-form option before it.
+2. A command name (`run`, `check`, `fmt`, `analyze`, `test`, `lsp`, `repl`, `prelude`, `help` or `h`) runs that command. A file named after a command therefore needs `vibes run check`, or a flat-form option before it.
 3. `--version` prints `vibescript.rs VERSION`.
 4. A flat-form option (`-e`, `--eval`, `--function`, `--module-path`, `--arg`, `--kwarg`, `--check`, `--checked`, `--steps`, `--memory`, `--recursion`, `--timeout-ms` or `--stats`), or a script path, runs the flat form. A script path is an existing file, or a spelling that contains a path separator or ends in `.vibe`.
 5. Anything else fails as in the reference: `vibes` alone reports `command required` after the root help, a flag such as `-x` or `--bogus` reports `flag provided but not defined: -x`, and any other word reports `unknown command "word"` after the root help.
@@ -143,6 +144,14 @@ vibes lsp
 `vibes lsp` starts the language server that editors launch for `*.vibe` files, speaking the Language Server Protocol over stdin and stdout, as the reference's does. It takes no positional arguments; as with the other commands, `-h` prints its help and an argument fails with `vibes lsp: does not accept positional arguments` and status 1. It exits with status 0 after the client sends `exit` or closes its input, or after an interrupt, and with status 1 when the input's framing is corrupt.
 
 It publishes compile errors on every change and answers hover, completion, signature help, definition, document symbol and formatting requests as the reference does. Its diagnostics add this library's checker findings, with required files resolved from the document's directory as `vibes check` resolves them from the script's. See [the language server](lsp.md) for its features, limits and differences from the reference.
+
+## `vibes prelude`
+
+```sh
+vibes prelude
+```
+
+`vibes prelude` prints the builtin signature table: every builtin function, namespace and member of every value type, under its one canonical name, as Vibescript declarations with typed and generic signatures (ADR-007 and ADR-008). The text is `vibescript::signatures::prelude()`, printed from the same table the compiler checks against, in a stable order; its header explains the notation. A host that registers functions or grants capabilities gets the same text extended with its own declarations from `Engine::prelude`. It takes no positional arguments; an argument fails with `vibes prelude: does not accept positional arguments` and status 1.
 
 ## `vibes repl`
 

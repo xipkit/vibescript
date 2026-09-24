@@ -11,7 +11,7 @@ use std::{
 pub const VIBES: &str = env!("CARGO_BIN_EXE_vibes");
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
-/// The Go reference's root help, byte for byte.
+/// The root help: the Go reference's, byte for byte, plus `prelude`.
 pub const ROOT_HELP: &str = "NAME:
    vibes - run Vibescript programs and development tools
 
@@ -26,6 +26,7 @@ COMMANDS:
    test     discover and run Vibescript tests
    lsp      start the language server over stdio
    repl     start the interactive Vibescript REPL
+   prelude  print the builtin signatures as Vibescript declarations
    help, h  Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
