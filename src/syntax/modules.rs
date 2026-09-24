@@ -1,4 +1,4 @@
-use super::{Definition, Parser, Parsing, Stmt, Token, keyword};
+use super::{Definition, Parser, Parsing, Stmt, Token, keyword, record};
 use crate::{
     Result,
     compilation::{Boxed, Buffer, Name, Table},
@@ -94,6 +94,7 @@ impl Parsing<'_> {
             (outer_locals, outer_it, p.take_p('('))
         };
         let params = self.parameters(parenthesized).await?;
+        self.p().note(|record| record.enter_function(&params));
         let return_type = {
             let mut p = self.p();
             p.line_breaks()?;
@@ -126,6 +127,7 @@ impl Parsing<'_> {
             body
         };
         let mut p = self.p();
+        p.note(record::Record::leave_function);
         p.locals = outer_locals;
         p.declared_it = outer_it;
         Ok(Definition {

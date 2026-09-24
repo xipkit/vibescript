@@ -68,6 +68,7 @@ mod source;
 mod syntax;
 mod text;
 mod time;
+pub mod tooling;
 mod types;
 mod value;
 mod vm;

@@ -8,6 +8,7 @@ mod classes;
 mod errors;
 mod lexer;
 pub(crate) mod modules;
+pub(crate) mod record;
 mod teardown;
 mod tokens;
 mod types;
@@ -19,6 +20,7 @@ use tokens::Tokens;
 // Go's maxSyntaxDepth bounds both parser recursion and syntax tree height.
 const MAX_DEPTH: usize = 1024;
 pub(crate) const MAX_SOURCE: usize = 8 << 20;
+pub(crate) const TOO_DEEP: &str = "syntax nesting too deep";
 
 #[derive(Debug)]
 pub(crate) struct Expr {
@@ -364,6 +366,7 @@ fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result
         declared_it: false,
         type_structural_error: false,
         interpolations: Buffer::new(),
+        record: None,
     })
 }
 
@@ -403,6 +406,8 @@ struct Parser<'a> {
     declared_it: bool,
     type_structural_error: bool,
     interpolations: Buffer<(u32, u32)>,
+    /// Tooling facts, collected only by [`record::parse`].
+    record: Option<Box<record::Record>>,
 }
 
 /// Recursive parsing steps that run as tasks instead of native calls.
@@ -572,7 +577,10 @@ impl<'a> Parsing<'a> {
                     },
                 )?;
                 top.push(work, Statement::Module(module.name.clone()).at(offset))?;
+                let index = modules.len();
                 modules.push(work, module)?;
+                self.p()
+                    .note(|record| record.top.push((offset, record::Top::Module(index))));
             } else if matches!(self.p().token(), Token::Word(word) if matches!(word.as_str(), "def" | "private" | "export"))
             {
                 let name = {
@@ -608,7 +616,9 @@ impl<'a> Parsing<'a> {
                         end: p.declaration_end(first),
                     },
                 )?;
+                let index = defs.len();
                 defs.push(work, definition)?;
+                p.note(|record| record.top.push((offset, record::Top::Function(index))));
             } else if self.p().alias_ahead() {
                 // Go resolves a top-level alias against the functions declared before it.
                 let mut p = self.p();
@@ -631,17 +641,26 @@ impl<'a> Parsing<'a> {
                     },
                 )?;
                 definition.name = name;
+                let index = defs.len();
                 defs.push(work, definition)?;
+                p.note(|record| {
+                    let alias = record::Top::Alias(index, target.to_string());
+                    record.top.push((offset, alias));
+                });
             } else if self.p().word("enum") {
                 let mut p = self.p();
                 p.line_breaks()?;
                 let name = p.enum_name()?;
                 let mut members = Buffer::new();
+                let mut member_offsets = Vec::new();
                 let mut seen = Table::new();
                 p.lines()?;
                 while !matches!(p.token(), Token::Eof)
                     && !matches!(p.token(), Token::Word(w) if w == "end")
                 {
+                    if p.record.is_some() {
+                        member_offsets.push(p.tokens[p.pos].offset as u32);
+                    }
                     let member = if p.word("enum") {
                         Name::new(work, "enum")?
                     } else {
@@ -666,9 +685,16 @@ impl<'a> Parsing<'a> {
                         end: p.declaration_end(first),
                     },
                 )?;
+                let index = enums.len();
                 enums.push(work, (name, members))?;
+                p.note(|record| {
+                    record.top.push((offset, record::Top::Enum(index)));
+                    record.enums.push(member_offsets);
+                });
             } else {
                 top.push(work, self.statement().await?)?;
+                self.p()
+                    .note(|record| record.top.push((offset, record::Top::Statement)));
             }
             self.p().lines()?;
         }
@@ -1860,6 +1886,7 @@ impl<'a> Parsing<'a> {
             p.bump()?;
             p.line_breaks()?;
             let name = p.member_name()?;
+            p.note(|record| record.member(&name, &lhs));
             (name, p.take_p('('))
         };
         if parenthesized {
@@ -2187,6 +2214,12 @@ impl<'a> Parser<'a> {
     fn token(&self) -> &Token<'a> {
         &self.tokens[self.pos].token
     }
+    /// Adds a tooling fact when this parse is recording.
+    fn note(&mut self, add: impl FnOnce(&mut record::Record)) {
+        if let Some(record) = self.record.as_deref_mut() {
+            add(record);
+        }
+    }
     fn err<T>(&self, message: impl std::fmt::Display) -> Result<T> {
         self.work.charge(1)?;
         Err(Error::syntax(
@@ -2291,14 +2324,14 @@ impl<'a> Parser<'a> {
         self.work.charge(1)?;
         self.depth += 1;
         if self.depth > MAX_DEPTH {
-            self.err("syntax nesting too deep")
+            self.err(TOO_DEEP)
         } else {
             Ok(())
         }
     }
     fn check_depth(&self, depth: u32) -> Result<()> {
         if depth as usize > MAX_DEPTH {
-            self.err("syntax nesting too deep")
+            self.err(TOO_DEEP)
         } else {
             Ok(())
         }
@@ -2595,6 +2628,8 @@ impl<'a> Parser<'a> {
             declared_it: self.declared_it,
             type_structural_error: false,
             interpolations: Buffer::new(),
+            // Go parses interpolations without the member probe.
+            record: None,
         };
         while parser.token() == &Token::EndLine
             && parser.tokens[parser.pos].line != parser.tokens[parser.pos].end_line
@@ -3179,20 +3214,17 @@ fn reserved(w: &str) -> bool {
             | "next"
     )
 }
+/// Every reserved word, sorted: the [`reserved`] words and the literal and
+/// declaration words that cannot name a method or variable either.
+pub(crate) const KEYWORDS: [&str; 34] = [
+    "begin", "break", "case", "class", "def", "do", "else", "elsif", "end", "ensure", "enum",
+    "export", "false", "for", "getter", "if", "in", "next", "nil", "private", "property", "raise",
+    "rescue", "retry", "return", "self", "setter", "then", "true", "unless", "until", "when",
+    "while", "yield",
+];
+
 pub(crate) fn keyword(w: &str) -> bool {
-    reserved(w)
-        || matches!(
-            w,
-            "self"
-                | "private"
-                | "property"
-                | "getter"
-                | "setter"
-                | "ensure"
-                | "true"
-                | "false"
-                | "nil"
-        )
+    KEYWORDS.binary_search(&w).is_ok()
 }
 pub(crate) fn unsupported(work: &dyn Work, message: &str) -> Error {
     crate::compilation::error(work, None, format_args!("{message}"))

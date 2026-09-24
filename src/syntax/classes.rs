@@ -109,6 +109,7 @@ impl Parsing<'_> {
                     p.class_properties(&mut class, &kind, method_visibility)?;
                     Member::Declared
                 } else if p.word("alias_method") {
+                    let offset = p.tokens[p.pos - 1].offset as u32;
                     let parens = p.take_p('(');
                     let new = p.class_alias_name(true)?;
                     p.expect_p(',')?;
@@ -116,11 +117,12 @@ impl Parsing<'_> {
                     if parens {
                         p.expect_p(')')?;
                     }
-                    p.class_alias(&mut class, new, old)?;
+                    p.class_alias(&mut class, new, old, offset)?;
                     Member::Declared
                 } else if p.alias_ahead() {
+                    let offset = p.tokens[p.pos].offset as u32;
                     let (new, old) = p.alias_names()?;
-                    p.class_alias(&mut class, new, old)?;
+                    p.class_alias(&mut class, new, old, offset)?;
                     Member::Declared
                 } else if p.removed_mixin()? {
                     return p
@@ -271,7 +273,7 @@ impl Parser<'_> {
         Ok(name)
     }
 
-    fn class_alias(&self, class: &mut Module, new: Name, old: Name) -> Result<()> {
+    fn class_alias(&mut self, class: &mut Module, new: Name, old: Name, offset: u32) -> Result<()> {
         self.work.charge(1)?;
         self.work.charge(class.instance_methods.len())?;
         let Some((target, visibility)) = class
@@ -289,6 +291,15 @@ impl Parser<'_> {
         class
             .instance_methods
             .push(self.work, (definition, visibility))?;
+        let index = class.instance_methods.len() - 1;
+        self.note(|record| {
+            record.aliases.push(super::record::ClassAlias {
+                class: class.offset,
+                index,
+                offset,
+                target: old.to_string(),
+            });
+        });
         Ok(())
     }
 
