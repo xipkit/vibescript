@@ -1255,3 +1255,33 @@ fn checks_evaluate_module_functions_written_through_their_names() {
         );
     }
 }
+
+#[test]
+fn whole_file_checks_skip_the_state_of_a_failed_initialization() {
+    let files = Files::new();
+    for (name, source) in [
+        ("assigned", "x=puts(1);puts=x;def peek;puts;end"),
+        ("same", "puts=puts(1);def peek;[puts,puts.nil?];end"),
+        ("later", "x=uuid;y=5;def peek;y+1;end"),
+        (
+            "method",
+            "x=puts(1);puts=x;class K;def go;puts;end;end;def peek;K.new.go;end",
+        ),
+    ] {
+        files.write(&format!("{name}.vibe"), source);
+    }
+    let mut engine = files.engine();
+    engine.set_output_writer(|_, _| Ok(()));
+    for name in ["assigned", "same", "later", "method"] {
+        let script = engine.compile(&format!("require(:{name}).peek")).unwrap();
+        let report = script.check(&CallOptions::default()).unwrap();
+        assert!(report.is_clean(), "{name}: {report:?}");
+        script.run(CallOptions::default()).unwrap();
+    }
+    files.write("wrong.vibe", "x=uuid;y=5;def peek;y.foo;end");
+    let script = files.engine().compile("require(:wrong).peek").unwrap();
+    let report = script.check(&CallOptions::default()).unwrap();
+    assert!(report.incomplete.is_empty(), "{report:?}");
+    assert_eq!(report.diagnostics.len(), 1, "{report:?}");
+    assert!(script.run(CallOptions::default()).is_err());
+}

@@ -332,10 +332,14 @@ impl Solver<'_, '_> {
                 )?;
                 exit.value = self.state.imports.modules.data[index].exports;
                 result.value = facts.union(ctx, &[result.value, exit.value])?;
+                // A failed initialization publishes nothing, so its partial private state
+                // never reaches the file's declarations.
+                self.state.adapter(world, &handle).required_declarations(
+                    ctx,
+                    facts,
+                    &exit.globals,
+                )?;
             }
-            self.state
-                .adapter(world, &handle)
-                .required_declarations(ctx, facts, &exit.globals)?;
         }
         Ok(result)
     }
