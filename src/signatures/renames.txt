@@ -106,10 +106,14 @@ duration: $x.hour => $x.hours
 duration: $x.day => $x.days
 duration: $x.week => $x.weeks
 duration: $x.format => $x.to_s
-duration: $x.since(...) => $x.after(...)
-duration: $x.from_now(...) => $x.after(...)
-duration: $x.until(...) => $x.before(...)
-duration: $x.ago(...) => $x.before(...)
+duration: $x.since => $x.from_now
+duration: $x.since($start) => $x.after($start)
+duration: $x.until => $x.ago
+duration: $x.until($start) => $x.before($start)
+duration: $x.after => $x.from_now
+duration: $x.before => $x.ago
+duration: $x.from_now($start) => $x.after($start)
+duration: $x.ago($start) => $x.before($start)
 
 # Times.
 time: $x.mon => $x.month

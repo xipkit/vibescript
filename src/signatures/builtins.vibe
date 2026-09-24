@@ -539,12 +539,16 @@ class money
 end
 
 class duration
-  # The time this long after `start`, which defaults to now.
-  def after(start?: time) -> time
-  # The time this long before `start`, which defaults to now.
-  def before(start?: time) -> time
+  # The time this long after `start`.
+  def after(start: time) -> time
+  # The time this long before now.
+  def ago -> time
+  # The time this long before `start`.
+  def before(start: time) -> time
   def between?(min: duration, max: duration) -> bool
   def days -> int
+  # The time this long after now.
+  def from_now -> time
   def hours -> int
   def in_days -> float
   def in_hours -> float

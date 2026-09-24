@@ -894,8 +894,8 @@ fn builtin_signatures_agree_with_the_runtime() {
 const PARENTHESIZED: &[&str] = &[
     "Duration.build",
     "Regex.union",
-    "duration.after",
-    "duration.before",
+    "duration.ago",
+    "duration.from_now",
     "global.p",
     "global.print",
     "global.puts",
