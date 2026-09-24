@@ -13,7 +13,7 @@
 use crate::{
     analyze, check, compat,
     flags::{self, Outcome, Spec},
-    flat, format, repl, run, testing,
+    flat, format, repl, run, signal, testing,
 };
 use std::{
     ffi::{OsStr, OsString},
@@ -247,7 +247,8 @@ fn help(args: &[OsString]) -> Result<(), String> {
     }
 }
 
-/// `vibes lsp`: reserved for the language server.
+/// `vibes lsp`: serves the language server over stdin and stdout until the
+/// client exits or closes its input, or an interrupt arrives.
 fn lsp(args: &[OsString]) -> Result<(), String> {
     let flags = match flags::parse(&LSP_SPEC, args)? {
         Outcome::Help => return print(&flags::help(&LSP_SPEC)),
@@ -256,5 +257,8 @@ fn lsp(args: &[OsString]) -> Result<(), String> {
     if !flags.positionals.is_empty() {
         return Err("vibes lsp: does not accept positional arguments".to_owned());
     }
-    Err("vibes lsp: not available yet in this build".to_owned())
+    let output = io::BufWriter::new(io::stdout().lock());
+    let mut server = vibescript_tools::lsp::Server::new();
+    vibescript_tools::lsp::serve(&mut server, io::stdin(), output, &signal::token())
+        .map_err(|error| format!("vibes lsp: {error}"))
 }

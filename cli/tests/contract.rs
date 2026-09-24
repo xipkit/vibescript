@@ -217,8 +217,10 @@ fn undocumented_extra_arguments_are_rejected() {
 }
 
 #[test]
-fn lsp_is_reserved_and_repl_validates_its_flags_first() {
-    vibes(&["lsp"]).fails("vibes lsp: not available yet in this build");
+fn lsp_serves_stdio_and_repl_validates_its_flags_first() {
+    // Without input the server stops at once, writing nothing.
+    vibes(&["lsp"]).expect(0, "", "");
+    vibes(&["lsp", "extra"]).fails("vibes lsp: does not accept positional arguments");
     vibes(&["repl", "-profile", "nope"]).fails(
         "vibes repl: unknown quota profile \"nope\" (choose one of: low, medium, high, xhigh)",
     );
@@ -393,4 +395,38 @@ fn module_paths_are_repeatable_and_never_split() {
         &main,
     ])
     .expect(0, "first:second\n", "");
+}
+
+/// `TestCLIContractLSPPreservesStdoutFraming`: stdout carries only the
+/// server's framed messages, and exit ends the process cleanly.
+#[test]
+fn lsp_preserves_stdout_framing() {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let frame = |payload: &str| format!("Content-Length: {}\r\n\r\n{payload}", payload.len());
+    let input = frame(r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#)
+        + &frame(r#"{"jsonrpc":"2.0","method":"exit"}"#);
+    let mut child = Command::new(support::VIBES)
+        .arg("lsp")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(input.as_bytes())
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(String::from_utf8_lossy(&output.stderr), "");
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let (header, payload) = stdout.split_once("\r\n\r\n").unwrap();
+    assert_eq!(header, format!("Content-Length: {}", payload.len()));
+    assert!(
+        payload.starts_with(r#"{"jsonrpc":"2.0","id":1,"result":{"capabilities":{"#),
+        "{payload}"
+    );
 }

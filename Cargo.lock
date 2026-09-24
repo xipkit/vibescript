@@ -436,6 +436,7 @@ dependencies = [
  "cap-std",
  "crossterm",
  "libc",
+ "serde_json",
  "unicode-width",
  "vibescript",
  "vibescript-tools",
