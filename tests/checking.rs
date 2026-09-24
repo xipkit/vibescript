@@ -1930,3 +1930,35 @@ fn bare_names_receiving_members_report_the_runtime_failure() {
         Some(&b"[\"1\",\"1\",\"1\",1,[1,2]]"[..])
     );
 }
+
+#[test]
+fn compound_member_writes_follow_their_runtime_outcome() {
+    let programs = [
+        "class K\n property h\n def initialize\n  @h={a:1,b:{c:2}}\n end\n def go\n  @h.a OP 2\n  @h.b.c OP 2\n  @h[:a] OP 2\n  @h\n end\nend\ndef run\n K.new.go\nend",
+        "class K\n property h\n def initialize\n  @h={a:1,b:{c:2}}\n end\n def go\n  h.a OP 2\n  h.b.c OP 2\n  self.h.a OP 2\n  h\n end\nend\ndef run\n K.new.go\nend",
+        "class P\n property v\n def initialize\n  @v=1\n end\nend\nclass K\n def initialize\n  @p=P.new\n end\n def go\n  @p.v OP 2\n  @p.v\n end\nend\ndef run\n K.new.go\nend",
+        "class K\n def initialize\n  @v=1\n end\n def v\n  @v\n end\n def v=(x)\n  @v=x*10\n end\n def go\n  self.v OP 2\n  @v\n end\nend\ndef run\n K.new.go\nend",
+        "class K\n @@h={a:1}\n def self.go\n  @@h.a OP 2\n  @@h\n end\nend\ndef run\n K.go\nend",
+        "def f(x)\n x.a OP 2\n x.a.b OP 2\n x[:a] OP 2\n x\nend\ndef run\n f({a:{b:1}})\nend",
+        "def f(x: any)\n x.a OP 2\n x\nend\ndef run\n f({a:1})\nend",
+        "class P\n property v\n def initialize\n  @v=1\n end\nend\ndef f(p)\n p.v OP 2\n p.v\nend\ndef run\n f(P.new)\nend",
+        "def run\n h={a:nil,b:{c:[1]}}\n h.a OP 2\n h.b.c OP 2\n h\nend",
+    ];
+    let mut failures = 0;
+    for op in ["+=", "-=", "*=", "/=", "%=", "**=", "||=", "&&="] {
+        for program in programs {
+            let source = program.replace("OP", op);
+            let script = Engine::new().compile(&source).unwrap();
+            let report = script
+                .check_call("run", &[], &CallOptions::default())
+                .unwrap();
+            assert!(report.incomplete.is_empty(), "{source}: {report:?}");
+            if script.call("run", &[], CallOptions::default()).is_ok() {
+                assert!(report.is_clean(), "{source}: {report:?}");
+            } else {
+                failures += 1;
+            }
+        }
+    }
+    assert_eq!(failures, 13);
+}

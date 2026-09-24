@@ -2868,6 +2868,15 @@ impl Walker<'_> {
                         let result =
                             self.facts
                                 .collection_member(self.ctx, receiver, site, name, &[])?;
+                        if result.unsupported {
+                            // Gradual and object receivers read through ordinary member dispatch.
+                            if let Some(edges) =
+                                self.member(&mut state, pc, receiver, site, Arguments::new())?
+                            {
+                                return Ok(edges);
+                            }
+                            continue;
+                        }
                         if result.rejected || result.throws {
                             self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                         }
@@ -2881,9 +2890,6 @@ impl Walker<'_> {
                                     arguments,
                                 },
                             )?;
-                        }
-                        if result.unsupported {
-                            return self.incomplete(pc);
                         }
                         if result.value == Atom::Never.fact() {
                             return Ok([None, None]);
