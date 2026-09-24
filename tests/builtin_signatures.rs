@@ -56,6 +56,12 @@ fn substitute(ty: &Type, bindings: &Bindings) -> Type {
             args.iter().map(|arg| substitute(arg, bindings)).collect(),
         ),
         Type::Optional(inner) => Type::Optional(Box::new(substitute(inner, bindings))),
+        Type::Tuple(elements) => Type::Tuple(
+            elements
+                .iter()
+                .map(|element| substitute(element, bindings))
+                .collect(),
+        ),
         Type::Union(arms) => {
             Type::Union(arms.iter().map(|arm| substitute(arm, bindings)).collect())
         }
@@ -135,6 +141,13 @@ fn samples(ty: &Type) -> Vec<String> {
             vec![format!("{{ {} }}", fields.join(", "))]
         }
         Type::Symbol(symbol) => vec![format!(":{symbol}")],
+        Type::Tuple(elements) => {
+            let elements: Vec<String> = elements
+                .iter()
+                .map(|element| samples(element).remove(0))
+                .collect();
+            vec![format!("[{}]", elements.join(", "))]
+        }
         _ => panic!("no samples for {ty}"),
     }
 }
@@ -328,6 +341,13 @@ fn satisfies(value: &Value, ty: &Type) -> bool {
         Type::Symbol(symbol) => {
             value.type_name() == "symbol" && value.as_bytes() == Some(symbol.as_bytes())
         }
+        Type::Tuple(elements) => value.as_array().is_some_and(|items| {
+            items.len() == elements.len()
+                && items
+                    .iter()
+                    .zip(elements)
+                    .all(|(item, ty)| satisfies(item, ty))
+        }),
         _ => panic!("unexpected type {ty}"),
     }
 }
@@ -581,44 +601,13 @@ const EXPECTED: &[(&str, &str)] = &[
     ("match_data.end", "capture index out of bounds"),
     // At least one part is required.
     ("Duration.build", "expects seconds or named parts"),
-    // A replacement or a block, exactly one of them.
-    ("string.sub", "expects pattern and replacement"),
-    (
-        "string.sub",
-        "cannot take both a replacement argument and a block",
-    ),
-    ("string.sub!", "expects pattern and replacement"),
-    (
-        "string.sub!",
-        "cannot take both a replacement argument and a block",
-    ),
-    ("string.gsub", "expects pattern and replacement"),
-    (
-        "string.gsub",
-        "cannot take both a replacement argument and a block",
-    ),
-    ("string.gsub!", "expects pattern and replacement"),
-    (
-        "string.gsub!",
-        "cannot take both a replacement argument and a block",
-    ),
-    // A value or a block, exactly one of them.
-    ("array.index", "takes a value or a block, not both"),
-    (
-        "array.index",
-        "expects a value (with optional offset) or a block",
-    ),
-    ("array.rindex", "takes a value or a block, not both"),
-    (
-        "array.rindex",
-        "expects a value (with optional offset) or a block",
-    ),
     // A length only follows an integer start; a range or substring selects alone.
     ("array.fill", "does not accept a length with a range"),
     ("string.slice", "index must be integer"),
     ("string.byteslice", "start must be an integer"),
-    // Elements, or the block's results, must be [key, value] pairs.
-    ("array.to_h", "pair"),
+    // An exclusive range has no last element to clamp to.
+    ("int.clamp", "exclusive range"),
+    ("float.clamp", "exclusive range"),
     // The path must follow the value's structure.
     ("array.dig", "hash keys must be strings or symbols"),
     ("hash.dig", "hash keys must be strings or symbols"),
