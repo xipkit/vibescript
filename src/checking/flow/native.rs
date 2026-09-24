@@ -141,6 +141,10 @@ impl Walker<'_> {
             }
             Some(Selection::Native) | None => (),
         }
+        // Native arities vary by member, so an uncertain argument shape is a gradual call.
+        if args.uncertain() {
+            return self.dynamic_call(state, pc, args);
+        }
         self.member_native(state, pc, receiver, site, args)
     }
 

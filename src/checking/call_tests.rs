@@ -418,8 +418,6 @@ fn root_overrides_and_local_shadowing_select_the_actual_callee() {
 #[test]
 fn unresolved_calls_and_mutable_host_bindings_stay_explicitly_incomplete() {
     for source in [
-        "def f(*xs); xs; end; def run(xs: array<int>); f(*xs); end",
-        "def f(**xs); xs; end; def run(xs: hash<string,int>); f(**xs); end",
         "def run; require(\"missing\"); end",
         "def run; [1].map! { _1 }; end",
         "def run; begin; 1; rescue; 2; ensure; [1].map! { _1 }; end; end",

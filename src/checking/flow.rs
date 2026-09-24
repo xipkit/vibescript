@@ -1222,6 +1222,31 @@ impl Walker<'_> {
         mut target: Target,
         mut args: Arguments,
     ) -> Result<Option<Edges>> {
+        if args.uncertain() {
+            match target {
+                // Script and host bindings account for every argument shape.
+                Target::Function(_)
+                | Target::Method { .. }
+                | Target::Block(_)
+                | Target::Host(_)
+                | Target::NonCallable
+                | Target::Undefined
+                | Target::Unsupported
+                | Target::Value(_)
+                | Target::Deferred(_) => (),
+                // A module path that a splat spells is not a static name.
+                Target::Builtin(crate::builtin::Builtin::Require) => {
+                    return self.incomplete(pc).map(Some);
+                }
+                // Native arities vary by member, so an uncertain shape is a gradual call.
+                Target::Builtin(_)
+                | Target::Offset(_)
+                | Target::Helper { .. }
+                | Target::Dynamic => {
+                    return self.dynamic_call(state, pc, args);
+                }
+            }
+        }
         if target == Target::Dynamic {
             return self.dynamic_call(state, pc, args);
         }
@@ -2711,6 +2736,24 @@ impl Walker<'_> {
                 }
                 Op::Invoke(Invocation::Member(site, true)) => {
                     let pending = state.arguments.data.pop().unwrap();
+                    // A forwarded name or native arity needs exact arguments, so an uncertain
+                    // shape mutates gradually unless the receiver dispatches to script methods.
+                    if pending.arguments.uncertain()
+                        && (pending.receiver.is_some()
+                            || !self
+                                .namespace_receiver(state.addresses.data.last().unwrap().value)?)
+                    {
+                        if let Some(edges) = self.dynamic_mutation(
+                            &mut state,
+                            pc,
+                            site.into(),
+                            pending.arguments,
+                            false,
+                        )? {
+                            return Ok(edges);
+                        }
+                        continue;
+                    }
                     if let Some(receiver) = pending.receiver {
                         self.forwarded_member(
                             &state,
@@ -2942,73 +2985,34 @@ impl Walker<'_> {
                                 .symbol(self.ctx, self.program.members[name].as_bytes())?;
                             pending.arguments.keyword(self.ctx, name, operand.value)?;
                         }
-                        ArgumentOp::Splat => {
-                            if let super::facts::Node::Tuple(values) =
-                                self.facts.node(operand.value)
-                            {
-                                pending
-                                    .arguments
-                                    .positional
-                                    .extend(self.ctx, &values.data)?;
-                            } else {
-                                if self.facts.known_primitive(self.ctx, operand.value)? {
-                                    self.emit_error(
-                                        &state,
-                                        pc,
-                                        handlers::bit(ErrorClass::Runtime),
-                                    )?;
-                                    self.issue(
-                                        pc,
-                                        IssueKind::Splat {
-                                            actual: operand.value,
-                                            keyword: false,
-                                        },
-                                    )?;
-                                    return Ok([None, None]);
-                                }
-                                return self.incomplete(pc);
+                        ArgumentOp::Splat | ArgumentOp::KeywordSplat => {
+                            let keyword = matches!(kind, ArgumentOp::KeywordSplat);
+                            let splat = super::arguments::split_splat(
+                                self.ctx,
+                                self.facts,
+                                operand.value,
+                                keyword,
+                            )?;
+                            let admitted = splat.admitted != Atom::Never.fact();
+                            // Any alternative of the wrong kind fails before the call.
+                            if splat.rejected != Atom::Never.fact() {
+                                self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
+                                self.issue(
+                                    pc,
+                                    IssueKind::Splat {
+                                        actual: operand.value,
+                                        keyword,
+                                    },
+                                )?;
                             }
-                        }
-                        ArgumentOp::KeywordSplat => {
-                            let mut keywords = Buffer::empty();
-                            let value = if let super::facts::Node::Protected(shape, ..) =
-                                self.facts.node(operand.value)
-                            {
-                                *shape
-                            } else {
-                                operand.value
-                            };
-                            if let super::facts::Node::Shape(fields, false, _, _) =
-                                self.facts.node(value)
-                            {
-                                for field in &fields.data {
-                                    self.ctx.charge(1)?;
-                                    if field.optional {
-                                        return self.incomplete(pc);
-                                    }
-                                    keywords.push(self.ctx, (field.name.clone(), field.value))?;
-                                }
-                            } else {
-                                if self.facts.known_primitive(self.ctx, operand.value)? {
-                                    self.emit_error(
-                                        &state,
-                                        pc,
-                                        handlers::bit(ErrorClass::Runtime),
-                                    )?;
-                                    self.issue(
-                                        pc,
-                                        IssueKind::Splat {
-                                            actual: operand.value,
-                                            keyword: true,
-                                        },
-                                    )?;
-                                    return Ok([None, None]);
-                                }
-                                return self.incomplete(pc);
+                            if !admitted {
+                                return Ok([None, None]);
                             }
-                            for (name, value) in &keywords.data {
-                                let name = self.facts.symbol(self.ctx, name.as_bytes().unwrap())?;
-                                pending.arguments.keyword(self.ctx, name, *value)?;
+                            let pending = &mut state.arguments.data.last_mut().unwrap().arguments;
+                            if keyword {
+                                pending.keyword_splat(self.ctx, self.facts, splat.admitted)?;
+                            } else {
+                                pending.splat(self.ctx, self.facts, splat.admitted)?;
                             }
                         }
                     }

@@ -219,10 +219,11 @@ impl Solver<'_, '_> {
         }
         // Opaque argument validators run before the declarative signature checks.
         outcome.throws = u8::MAX;
+        // The values each checked parameter receives over every count a splat allows.
+        let mut positions = Buffer::empty();
         if host.constrained {
-            let failure = if args.positional.data.len() < host.required
-                || args.positional.data.len() > host.params.data.len()
-            {
+            let counted = args.positions(ctx, facts, host.required, host.params.data.len())?;
+            let failure = if counted.is_none() {
                 Some(Failure::HostArity)
             } else if !args.keywords.data.is_empty() {
                 Some(Failure::HostKeywords)
@@ -235,13 +236,14 @@ impl Solver<'_, '_> {
                 outcome.failures.push(ctx, failure)?;
                 return Ok(());
             }
+            positions = counted.unwrap();
         }
         if host.unresolved && host.source.is_none() {
             outcome.incomplete = true;
             return Ok(());
         }
         let params = host.params.data.len();
-        for (parameter, &actual) in args.positional.data.iter().take(params).enumerate() {
+        for (parameter, &actual) in positions.data.iter().take(params).enumerate() {
             let expected = self
                 .state
                 .values

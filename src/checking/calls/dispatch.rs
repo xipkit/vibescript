@@ -201,6 +201,7 @@ impl<'a> Solver<'_, 'a> {
                     context.receiver = Some(receiver);
                     context.constructor = constructor;
                 }
+                let mut uncertain = false;
                 let inputs = if matches!(target, Target::Block(_)) {
                     context.scope = context.block_scope;
                     context.receiver = context.block_receiver;
@@ -217,6 +218,7 @@ impl<'a> Solver<'_, 'a> {
                         outcome.failures.extend(ctx, &bound.failures.data)?;
                         return Ok(outcome);
                     }
+                    uncertain = bound.uncertain;
                     bound.inputs
                 };
                 let source = facts.source_id(ctx, self.world.source_owner)?;
@@ -245,6 +247,10 @@ impl<'a> Solver<'_, 'a> {
                         let exit = exit.snapshot(ctx)?;
                         outcome.exits.push(ctx, exit)?;
                     }
+                }
+                // Binding can still fail for argument shapes that the inputs leave out.
+                if uncertain {
+                    outcome.throws |= 1 << crate::ErrorClass::Argument as u8;
                 }
             }
             Target::Host(index) => {

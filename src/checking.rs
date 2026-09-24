@@ -219,3 +219,6 @@ mod range_tests;
 
 #[cfg(test)]
 mod join_tests;
+
+#[cfg(test)]
+mod splat_tests;

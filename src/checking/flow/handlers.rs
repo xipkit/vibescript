@@ -160,7 +160,8 @@ impl State {
         }
         for (a, b) in self.arguments.data.iter().zip(&other.arguments.data) {
             ctx.charge(1)?;
-            if a.target != b.target || a.arguments.options_hash != b.arguments.options_hash {
+            // Splats can give the same call different argument layouts on different paths.
+            if a.target != b.target || !a.arguments.same_shape(ctx, &b.arguments)? {
                 return Ok(false);
             }
         }
