@@ -29,13 +29,16 @@ impl Walker<'_> {
         builtins::native_receiver(self.facts, value)
     }
 
+    /// Resolves a forwarded member. `direct` marks a member a reduction calls
+    /// by name, which reaches the receiver's byte fallbacks; `send` accepts
+    /// only the advertised members.
     fn forward_lookup(
         &mut self,
         state: &State,
         receiver: Fact,
         bytes: &[u8],
         name: Option<&str>,
-        implicit: bool,
+        (implicit, direct): (bool, bool),
     ) -> Result<Buffer<Resolution>> {
         let mut output = Buffer::empty();
         if self.namespace_receiver(receiver)? {
@@ -140,7 +143,10 @@ impl Walker<'_> {
             let resolution = if let Some(name) = name {
                 if !hash && kind.property(name) {
                     Resolution::Property
-                } else if universal || kind.available(name) {
+                } else if universal
+                    || kind.available(name)
+                    || direct && kind == Receiver::Symbol && builtins::symbol_fallback(name)
+                {
                     Resolution::Native
                 } else if absent.is_none() {
                     Resolution::Absent
@@ -309,8 +315,13 @@ impl Walker<'_> {
                     continue;
                 }
             }
-            let resolutions =
-                self.forward_lookup(state, call.receiver, bytes, name, call.implicit)?;
+            let resolutions = self.forward_lookup(
+                state,
+                call.receiver,
+                bytes,
+                name,
+                (call.implicit, call.consumed == 0),
+            )?;
             for resolution in resolutions.data {
                 self.ctx.charge(1)?;
                 if matches!(resolution, Resolution::Native)

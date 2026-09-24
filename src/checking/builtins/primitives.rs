@@ -46,7 +46,7 @@ fn universal(name: &str) -> bool {
 
 /// Symbol members served by the runtime's byte-oriented fallbacks, which
 /// introspection does not advertise.
-fn symbol_bytes(name: &str) -> bool {
+pub(super) fn symbol_bytes(name: &str) -> bool {
     matches!(name, "bytesize" | "getbyte" | "to_i") || symbol_search(name)
 }
 

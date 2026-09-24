@@ -546,6 +546,13 @@ fn protected_records_follow_native_call_shapes() {
     )]);
 }
 
+#[test]
+fn reductions_call_named_members_directly_while_send_checks_the_member_table() {
+    exact_ints(&[("[:ab, :b].reduce(:index) || 7", 1)]);
+    exact_nils(&["[:a, :b].reduce(:rindex)"]);
+    invalid(&[":abc.send(:index, \"a\")", ":abc.public_send(:bytesize)"]);
+}
+
 /// Site programs whose whole-file checks used to stop at one of these
 /// operations. Each now finishes analysis and still runs.
 #[test]

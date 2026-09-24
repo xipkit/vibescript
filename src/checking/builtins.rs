@@ -29,6 +29,12 @@ pub(super) fn native_receiver(
     primitives::receiver(facts, value)
 }
 
+/// Whether a symbol serves `name` through the runtime's byte-oriented
+/// fallbacks, which introspection does not advertise.
+pub(super) fn symbol_fallback(name: &str) -> bool {
+    primitives::symbol_bytes(name)
+}
+
 pub(super) fn primitive_member(
     ctx: &mut CallContext,
     facts: &Facts,
