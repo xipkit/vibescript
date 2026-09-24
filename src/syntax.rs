@@ -542,7 +542,7 @@ impl<'a> Parsing<'a> {
                 Box::pin(async move { Ok(Parsed::Expr(self.expression(min).await?)) })
             }
             Call::Tail(lhs, suffix, min) => Box::pin(async move {
-                let result = self.expr_tail(lhs, min, Some(suffix)).await;
+                let result = self.expr_tail(lhs, min, Some(suffix), None).await;
                 self.p().depth -= 1;
                 Ok(Parsed::Expr(result?))
             }),
@@ -773,7 +773,7 @@ impl<'a> Parsing<'a> {
             p.line_exprs += 1;
             p.make_at(Node::Compound(Boxed::new(p.work, stmt)?), depth, offset)?
         };
-        let result = self.expr_tail(expr, 0, None).await;
+        let result = self.expr_tail(expr, 0, None, None).await;
         self.p().line_exprs -= 1;
         Ok(Statement::Expr(result?))
     }
@@ -791,7 +791,7 @@ impl<'a> Parsing<'a> {
         let result = async {
             let mut attempt = self.begin_expression(offset).await?;
             attempt.offset = offset;
-            self.expr_tail(attempt, 0, None).await
+            self.expr_tail(attempt, 0, None, None).await
         }
         .await;
         self.p().line_exprs -= 1;
@@ -1394,8 +1394,12 @@ impl<'a> Parsing<'a> {
             p.work.charge(1)?;
             p.enter()?;
         }
+        let line = {
+            let p = self.p();
+            p.tokens[p.pos].line
+        };
         let lhs = self.prefix().await?;
-        let result = self.expr_tail(lhs, min, None).await;
+        let result = self.expr_tail(lhs, min, None, Some(line)).await;
         self.p().depth -= 1;
         result
     }
@@ -1572,12 +1576,22 @@ impl<'a> Parsing<'a> {
         self.line_expr(0).await
     }
 
-    async fn expr_tail(&self, mut lhs: Expr, min: u8, mut next: Option<Suffix>) -> Result<Expr> {
+    /// Applies suffixes to `lhs`, starting with `next` if given. `line` is the
+    /// line a prefix spanning lines started on, which Go keeps as the limit
+    /// for the first suffix; later suffixes are limited to the line their
+    /// predecessor's last token starts on.
+    async fn expr_tail(
+        &self,
+        mut lhs: Expr,
+        min: u8,
+        mut next: Option<Suffix>,
+        mut line: Option<usize>,
+    ) -> Result<Expr> {
         self.p().work.charge(1)?;
         loop {
             let suffix = match next.take() {
                 Some(suffix) => Some(suffix),
-                None => self.p().expression_suffix(&lhs, min)?,
+                None => self.p().expression_suffix(&lhs, min, line.take())?,
             };
             let Some(suffix) = suffix else {
                 return Ok(lhs);
@@ -1598,6 +1612,8 @@ impl<'a> Parsing<'a> {
                     self.binary_expression(lhs, op, right, offset).await
                 }
             }?;
+            let p = self.p();
+            line = Some(p.tokens[p.previous_index()?].line);
         }
     }
 
@@ -2569,6 +2585,7 @@ impl<'a> Parser<'a> {
         self.enter()?;
         self.work.charge(1)?;
         let offset = self.tokens[self.pos].offset as u32;
+        let line = self.tokens[self.pos].line;
         let mut lhs = match self.bump()? {
             Token::Word(w) => match w.as_str() {
                 "nil" => self.make(Node::Literal(Value::nil()), 1)?,
@@ -2579,7 +2596,7 @@ impl<'a> Parser<'a> {
             token => self.leaf(token)?,
         };
         lhs.offset = offset;
-        Ok(match self.expression_suffix(&lhs, min)? {
+        Ok(match self.expression_suffix(&lhs, min, Some(line))? {
             Some(suffix) => Leaf::Tail(lhs, suffix),
             None => {
                 self.depth -= 1;
@@ -2912,9 +2929,23 @@ impl<'a> Parser<'a> {
         };
         self.make_at(node, d, origin)
     }
-    fn expression_suffix(&mut self, lhs: &Expr, min: u8) -> Result<Option<Suffix>> {
+    fn expression_suffix(
+        &mut self,
+        lhs: &Expr,
+        min: u8,
+        line: Option<usize>,
+    ) -> Result<Option<Suffix>> {
         if let Some(next) = self.continuation_position(min)? {
             self.pos = next;
+        } else if line.is_some_and(|line| self.tokens[self.pos].line > line)
+            && self.line_exprs > 0
+            && self.token() != &Token::EndLine
+            && !self.limit_continues(self.pos)?
+            && !self.begin_call(lhs)
+        {
+            // Go limits a line expression to the line its prefix started on,
+            // so a prefix spanning lines takes only a continuation token.
+            return Ok(None);
         }
         if min == 0
             && (self.command_depth == 0 || self.groups > self.command_group)
@@ -3009,6 +3040,52 @@ impl<'a> Parser<'a> {
                 t.token != Token::EndLine
             })?
             .unwrap())
+    }
+    /// Reports whether parentheses call the value of a begin expression. The
+    /// selected computed-call policy keeps this call where Go's line limit
+    /// would end the expression; see docs/computed-calls.md.
+    fn begin_call(&self, lhs: &Expr) -> bool {
+        self.token() == &Token::P('(')
+            && matches!(&lhs.node, Node::Try(attempt) if !attempt.modifier)
+    }
+    /// Reports whether the token at `index` continues a line expression past
+    /// its line, as Go's `lineLimitedContinuationToken` does.
+    fn limit_continues(&self, index: usize) -> Result<bool> {
+        Ok(match &self.tokens[index].token {
+            Token::P('.' | '?') => true,
+            Token::Words(words) => words.ambiguous,
+            Token::Op("*") => !self.splat_assignment_ahead(index)?,
+            Token::Op("+" | "-") => {
+                let sign = &self.tokens[index];
+                let next = &self.tokens[self.significant(index + 1)];
+                next.token != Token::Eof
+                    && (next.line > sign.line || (next.line == sign.line && next.offset > sign.end))
+            }
+            Token::Op(op) => matches!(
+                *op,
+                "&." | "::"
+                    | "/"
+                    | "**"
+                    | "%"
+                    | ".."
+                    | "..."
+                    | "=="
+                    | "==="
+                    | "!="
+                    | "=~"
+                    | "!~"
+                    | "<"
+                    | "<="
+                    | ">"
+                    | ">="
+                    | "<=>"
+                    | "&&"
+                    | "||"
+                    | "<<"
+                    | "&"
+            ),
+            _ => false,
+        })
     }
     fn can_attach_do(&self) -> bool {
         (self.command_depth == 0 || self.groups > self.command_group)
