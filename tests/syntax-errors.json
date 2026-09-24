@@ -13459,5 +13459,185 @@
     "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nq(&x)\nx\n",
     "function": "__main__",
     "go_error": "parse error at 10:3: block arguments are not supported; a block is not a value. Write the block at the call that runs it, as in `words.map { |word| word.upcase }`"
+  },
+  {
+    "name": "assignment_parenless_argument",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nq x = 3\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:5: unexpected token \"=\""
+  },
+  {
+    "name": "assignment_safe_member",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nh&.a = 3\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:1: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "assignment_safe_member_chain",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nh&.b.c = 3\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:1: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "assignment_later_safe_member",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nh.b&.c = 3\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:1: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "assignment_safe_after_index",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\narr[1]&.first = 3\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:4: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "assignment_safe_compound",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nh&.a += 3\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:1: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "assignment_safe_second_target",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx, h&.a = 1, 2\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:4: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "assignment_safe_first_target",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nh&.a, x = 1, 2\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:1: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "assignment_safe_unknown_operator",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nh&.a |= 3\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:6: unexpected token \"|\""
+  },
+  {
+    "name": "assignment_destructuring_compound",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx, y += 1\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:7: compound assignment is not supported for destructuring targets"
+  },
+  {
+    "name": "assignment_destructuring_logical",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx, y ||= 1\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:8: compound assignment is not supported for destructuring targets"
+  },
+  {
+    "name": "assignment_destructuring_unknown_operator",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx, y |= 3\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:4: parallel assignment targets require '='"
+  },
+  {
+    "name": "assignment_destructuring_without_value",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx, y\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:4: parallel assignment targets require '='"
+  },
+  {
+    "name": "assignment_destructuring_literal",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx, 1 = 1, 2\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:4: invalid destructuring assignment target"
+  },
+  {
+    "name": "assignment_destructuring_call",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nq(1), x = 1, 2\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:1: invalid destructuring assignment target"
+  },
+  {
+    "name": "assignment_destructuring_rests",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\n*x, *y = 1\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:6: duplicate rest assignment target"
+  },
+  {
+    "name": "assignment_destructuring_invalid_operator",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx, y ^= 3\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:4: parallel assignment targets require '='"
+  },
+  {
+    "name": "assignment_splat_invalid_operator",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\n*x, y ^= 3\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:5: parallel assignment targets require '='"
+  },
+  {
+    "name": "assignment_integer_target",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\n1 = 2\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:3: unexpected token \"=\""
+  },
+  {
+    "name": "assignment_nil_target",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nnil = 1\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:5: unexpected token \"=\""
+  },
+  {
+    "name": "assignment_binary_target",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx + 1 = 2\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:7: unexpected token \"=\""
+  },
+  {
+    "name": "assignment_negated_target",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\n-x = 1\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:4: unexpected token \"=\""
+  },
+  {
+    "name": "assignment_call_target",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nq(1) = 2\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:6: unexpected token \"=\""
+  },
+  {
+    "name": "assignment_parenless_call_target",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nq 1 = 2\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:5: unexpected token \"=\""
+  },
+  {
+    "name": "assignment_method_call_target",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nh.a() = 1\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:7: unexpected token \"=\""
+  },
+  {
+    "name": "assignment_string_target",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\n\"s\" = 1\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:5: unexpected token \"=\""
+  },
+  {
+    "name": "assignment_array_target",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\n[x] = 1\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:5: unexpected token \"=\""
+  },
+  {
+    "name": "assignment_ternary_target",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx ? y : z = 1\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:11: unexpected token \"=\""
+  },
+  {
+    "name": "assignment_pipe_operator",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx |= 1\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:3: unexpected token \"|\""
+  },
+  {
+    "name": "assignment_semicolon_value",
+    "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a = 0, k: 0)\n  a\nend\nx = ; 2\nx\n",
+    "function": "__main__",
+    "go_error": "parse error at 10:5: unexpected token \";\""
   }
 ]

@@ -70,18 +70,31 @@ impl Expr {
         std::mem::replace(&mut self.node, Node::Integer(0))
     }
 
-    fn safe_assignment_target(&self) -> bool {
+    /// The offset of the first safe navigation in an assignment target's
+    /// receiver chain, which Go reports there.
+    fn safe_navigation(&self) -> Option<usize> {
         let mut current = self;
         loop {
             current = match &current.node {
-                Node::SafeMember(..) | Node::SafeMethod(..) => return true,
+                Node::SafeMember(..) | Node::SafeMethod(..) => {
+                    return Some(current.offset as usize);
+                }
                 Node::Member(receiver, _)
                 | Node::Method(receiver, _, _, _)
                 | Node::Index(receiver, _)
                 | Node::ComputedCall(receiver, _)
                 | Node::BlockCall(receiver, _) => receiver,
-                _ => return false,
+                _ => return None,
             };
+        }
+    }
+
+    /// Reports whether Go's parser accepts the expression as an assignment target.
+    fn assignable(&self) -> bool {
+        match &self.node {
+            Node::Var(_) => true,
+            Node::Member(..) | Node::Index(..) => self.safe_navigation().is_none(),
+            _ => false,
         }
     }
 }
@@ -1096,8 +1109,20 @@ impl<'a> Parsing<'a> {
             Some(keyword @ ("while" | "until")) => self.while_stmt(keyword == "until").await,
             Some("for") => self.for_stmt().await,
             Some(flow) => self.flow_statement(flow).await,
-            None if self.p().assignment_ahead()? => self.assignment_statement().await,
-            None => Ok(Statement::Expr(self.line_expr(0).await?)),
+            None if self.p().token() == &Token::Op("*") || self.p().assignment_ahead()? => {
+                self.assignment_statement().await
+            }
+            None => {
+                let start = self.p().pos;
+                let expr = self.line_expr(0).await?;
+                // Go reads an expression followed by a comma as a destructuring target list.
+                let listed = self.p().token() == &Token::P(',');
+                if listed {
+                    self.p().pos = start;
+                    return self.assignment_statement().await;
+                }
+                Ok(Statement::Expr(expr))
+            }
         }
     }
 
@@ -1125,21 +1150,56 @@ impl<'a> Parsing<'a> {
     }
 
     async fn assignment_statement(&self) -> Result<Statement> {
+        let start = self.p().pos;
         let (target, _) = self.target(true, false).await?;
         let op = {
             let mut p = self.p();
             p.lines()?;
-            let Token::Op(op) = p.bump()? else {
-                return p.err("expected assignment operator");
+            let op = match p.token() {
+                Token::Op(op) if assignment(op) => Some(*op),
+                _ => None,
             };
-            if !assignment(op) {
-                return p.err("expected assignment operator");
+            // Go parses the statement's expression first and makes it a target only
+            // when a comma or an assignment operator follows.
+            match (op, &target) {
+                (None, Target::Tuple(_)) => {
+                    let last = p.previous_index()?;
+                    return Err(Error::syntax(
+                        p.work,
+                        p.position(last),
+                        "parallel assignment targets require '='",
+                    ));
+                }
+                (None, _) => p.pos = start,
+                (Some(op), Target::Tuple(_)) if op != "=" => {
+                    return Err(Error::syntax(
+                        p.work,
+                        p.position(p.pos),
+                        "compound assignment is not supported for destructuring targets",
+                    ));
+                }
+                (Some(_), Target::Value(expr)) => {
+                    if let Some(offset) = expr.safe_navigation() {
+                        return Err(Error::syntax(
+                            p.work,
+                            offset,
+                            "safe navigation cannot be used as an assignment target",
+                        ));
+                    }
+                    if !expr.assignable() {
+                        return p.unexpected(p.pos);
+                    }
+                }
+                _ => (),
             }
-            if op != "=" && matches!(target, Target::Tuple(_)) {
-                return p.err("compound destructuring assignment is invalid");
+            if op.is_some() {
+                p.pos += 1;
+                p.line_breaks()?;
             }
-            p.lines()?;
             op
+        };
+        let Some(op) = op else {
+            return Ok(Statement::Expr(self.line_expr(0).await?));
         };
         let first = self.line_expr(0).await?;
         let rhs = if matches!(target, Target::Tuple(_)) && self.p().take_p(',') {
@@ -1245,7 +1305,7 @@ impl<'a> Parsing<'a> {
                 if rest {
                     p.bump()?;
                     if has_rest {
-                        return p.err("duplicate rest target");
+                        return p.err("duplicate rest assignment target");
                     }
                     has_rest = true;
                     tuple = true;
@@ -1292,10 +1352,24 @@ impl<'a> Parsing<'a> {
                 Some(Target::Value(p.make(Node::Var(name), 1)?))
             } else {
                 let expression = self.line_expr(0).await?;
-                if expression.safe_assignment_target() {
-                    return self
-                        .p()
-                        .err("safe navigation cannot be used as an assignment target");
+                let p = self.p();
+                // Go checks a statement's lone target only once an operator follows.
+                let listed = !parts.is_empty() || rest || p.token() == &Token::P(',');
+                if !first_expression || listed {
+                    if let Some(offset) = expression.safe_navigation() {
+                        return Err(Error::syntax(
+                            p.work,
+                            offset,
+                            "safe navigation cannot be used as an assignment target",
+                        ));
+                    }
+                }
+                if first_expression && listed && !expression.assignable() {
+                    return Err(Error::syntax(
+                        p.work,
+                        expression.offset as usize,
+                        "invalid destructuring assignment target",
+                    ));
                 }
                 Some(Target::Value(expression))
             };
@@ -2996,6 +3070,18 @@ impl<'a> Parser<'a> {
             }
             _ => self.expected("member name"),
         }
+    }
+    /// The index of the last token before the current one, skipping line breaks.
+    fn previous_index(&self) -> Result<usize> {
+        let mut index = self.pos;
+        while index > 0 {
+            self.work.charge(1)?;
+            index -= 1;
+            if self.tokens[index].token != Token::EndLine {
+                return Ok(index);
+            }
+        }
+        Ok(0)
     }
     fn previous(&self) -> Result<&Lexeme<'a>> {
         Ok(self
