@@ -1444,7 +1444,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 // Like Go, a local assigned earlier in the source exists, as nil,
                 // wherever control skips its assignment: a modifier's body precedes
                 // its condition, and a skipped branch precedes the later ones.
-                if *modifier {
+                if modifier.is_some() {
                     let mut c = self.c();
                     for (_, body) in branches {
                         c.declare_bindings(body)?;
@@ -1473,7 +1473,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             Statement::While(cond, body, modifier) => {
                 let (mark, next) = {
                     let mut c = self.c();
-                    if *modifier {
+                    if modifier.is_some() {
                         c.declare_bindings(body)?;
                     }
                     let mark = c.emit(Op::LoopStart {

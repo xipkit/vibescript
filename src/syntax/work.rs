@@ -252,6 +252,7 @@ impl<'x> Copying<'_, 'x> {
             params.push(self.work, self.place(param).await?)?;
         }
         Ok(Block {
+            offset: value.offset,
             params,
             body: self.body(&value.body).await?,
             implicit: value.implicit,

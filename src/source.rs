@@ -54,6 +54,10 @@ impl Source {
         })
     }
 
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
     fn location(&self, offset: u32) -> (&str, Position) {
         let offset = boundary(&self.text, offset as usize);
         let checkpoint = &self.checkpoints[self

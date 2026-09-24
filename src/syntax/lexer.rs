@@ -52,7 +52,8 @@ pub(super) enum Token<'a> {
 #[derive(Debug, PartialEq)]
 pub(super) enum Part<'a> {
     Text(Bytes),
-    Expr(Buffer<Lexeme<'a>>),
+    /// An interpolation's tokens and the byte span of its content between `#{` and `}`.
+    Expr(Buffer<Lexeme<'a>>, (u32, u32)),
 }
 
 #[derive(Debug, PartialEq)]
@@ -120,7 +121,9 @@ fn copy_parts<'a>(parts: &Buffer<Part<'a>>, work: &dyn Work) -> Result<Buffer<Pa
     parts.copy_with(work, |part| {
         Ok(match part {
             Part::Text(bytes) => Part::Text(bytes.clone()),
-            Part::Expr(tokens) => Part::Expr(tokens.copy_with(work, |token| token.copy(work))?),
+            Part::Expr(tokens, span) => {
+                Part::Expr(tokens.copy_with(work, |token| token.copy(work))?, *span)
+            }
         })
     })
 }
@@ -328,7 +331,7 @@ impl<'a> Lexer<'a, '_> {
                     b'\'' | b'"' => {
                         let parts = self.quoted(s[i], line)?;
                         i = self.pos;
-                        if parts.iter().any(|p| matches!(p, Part::Expr(_))) {
+                        if parts.iter().any(|p| matches!(p, Part::Expr(..))) {
                             Token::Template(parts)
                         } else {
                             Token::Bytes(plain(parts, self.work)?)
@@ -636,7 +639,7 @@ impl<'a> Lexer<'a, '_> {
                     && self.source.as_bytes().get(self.pos + 1) == Some(&b'{') =>
                 {
                     flush(&mut parts, &mut text, self.work)?;
-                    parts.push(self.work, Part::Expr(self.interpolation(line)?))?;
+                    parts.push(self.work, self.interpolation(line)?)?;
                 }
                 0 => return Err(Error::syntax(self.work, self.pos, "unterminated string")),
                 byte => {
@@ -749,7 +752,7 @@ impl<'a> Lexer<'a, '_> {
         ))
     }
 
-    fn interpolation(&mut self, line: usize) -> Result<Buffer<Lexeme<'a>>> {
+    fn interpolation(&mut self, line: usize) -> Result<Part<'a>> {
         if self.depth >= 8 {
             return Err(Error::syntax(
                 self.work,
@@ -758,10 +761,11 @@ impl<'a> Lexer<'a, '_> {
             ));
         }
         self.pos += 2;
+        let start = self.pos as u32;
         self.depth += 1;
         let result = self.tokens(self.limit, line, true, false, None);
         self.depth -= 1;
-        result
+        Ok(Part::Expr(result?, (start, self.pos as u32)))
     }
 
     fn percent_kind(&self) -> Option<(u8, char, char)> {
@@ -825,7 +829,7 @@ impl<'a> Lexer<'a, '_> {
                 && self.source.as_bytes().get(self.pos + 1) == Some(&b'{')
             {
                 flush(&mut parts, &mut text, self.work)?;
-                parts.push(self.work, Part::Expr(self.interpolation(line)?))?;
+                parts.push(self.work, self.interpolation(line)?)?;
                 in_word = true;
             } else {
                 self.pos += c.len_utf8();

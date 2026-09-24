@@ -132,6 +132,8 @@ impl Try {
 }
 #[derive(Debug)]
 pub(crate) struct Block {
+    /// The offset of the opening `do` or `{`.
+    pub offset: u32,
     pub params: Buffer<Target>,
     pub body: Buffer<Stmt>,
     pub implicit: bool,
@@ -242,11 +244,12 @@ pub(crate) enum Statement {
     UnboundClass(Name),
     Expr(Expr),
     Assign(Target, &'static str, Expr),
-    /// Conditions tested in order with their bodies, then the alternate. The
-    /// flag marks a modifier, whose body precedes its condition in the source.
-    If(Buffer<(Expr, Buffer<Stmt>)>, Buffer<Stmt>, bool),
-    /// The flag marks a modifier, whose body precedes its condition.
-    While(Expr, Buffer<Stmt>, bool),
+    /// Conditions tested in order with their bodies, then the alternate. A
+    /// modifier, whose body precedes its condition in the source, records the
+    /// offset of its keyword.
+    If(Buffer<(Expr, Buffer<Stmt>)>, Buffer<Stmt>, Option<u32>),
+    /// A modifier, whose body precedes its condition, records its keyword offset.
+    While(Expr, Buffer<Stmt>, Option<u32>),
     For(Target, Expr, Buffer<Stmt>),
     Return(Option<Expr>),
     Break(Option<Expr>),
@@ -329,6 +332,9 @@ pub(crate) struct Declarations {
     pub enums: Buffer<(Name, Buffer<Name>)>,
     pub modules: Buffer<modules::Module>,
     pub outline: Buffer<Outline>,
+    /// The byte span of every string interpolation's content, for tooling
+    /// that reports positions relative to an interpolation as Go does.
+    pub interpolations: Buffer<(u32, u32)>,
 }
 
 /// A top-level declaration's kind, name and source byte range, in source order.
@@ -357,6 +363,7 @@ fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result
         locals: Table::new(),
         declared_it: false,
         type_structural_error: false,
+        interpolations: Buffer::new(),
     })
 }
 
@@ -395,6 +402,7 @@ struct Parser<'a> {
     locals: Table<()>,
     declared_it: bool,
     type_structural_error: bool,
+    interpolations: Buffer<(u32, u32)>,
 }
 
 /// Recursive parsing steps that run as tasks instead of native calls.
@@ -677,11 +685,13 @@ impl<'a> Parsing<'a> {
                 return_type: None,
             },
         )?;
+        let interpolations = std::mem::take(&mut self.p().interpolations);
         Ok(Declarations {
             functions: defs,
             enums,
             modules,
             outline,
+            interpolations,
         })
     }
 
@@ -940,7 +950,12 @@ impl<'a> Parsing<'a> {
                 .p()
                 .err("modifier requires an expression, assignment, or leaf control statement");
         }
-        self.p().bump()?;
+        let keyword = {
+            let mut p = self.p();
+            let keyword = p.tokens[p.pos].offset as u32;
+            p.bump()?;
+            keyword
+        };
         let mut condition = self.line_expr(0).await?;
         let p = self.p();
         let work = p.work;
@@ -949,12 +964,12 @@ impl<'a> Parsing<'a> {
         }
         let body = Buffer::from_array(work, [stmt.at(offset)])?;
         Ok(if matches!(modifier.as_str(), "while" | "until") {
-            Statement::While(condition, body, true)
+            Statement::While(condition, body, Some(keyword))
         } else {
             Statement::If(
                 Buffer::from_array(work, [(condition, body)])?,
                 Buffer::new(),
-                true,
+                Some(keyword),
             )
         })
     }
@@ -1155,7 +1170,7 @@ impl<'a> Parsing<'a> {
         }
         let body = self.block(&["end"]).await?;
         self.p().expect_word("end")?;
-        Ok(Statement::While(cond, body, false))
+        Ok(Statement::While(cond, body, None))
     }
 
     async fn for_stmt(&self) -> Result<Statement> {
@@ -1313,7 +1328,7 @@ impl<'a> Parsing<'a> {
             self.p().expect_word("end")?;
             break alternate;
         };
-        Ok(Statement::If(branches, alternate, false))
+        Ok(Statement::If(branches, alternate, None))
     }
 
     async fn if_expr(&self, unless: bool) -> Result<Expr> {
@@ -1867,12 +1882,13 @@ impl<'a> Parsing<'a> {
     }
 
     async fn attached_block(&self, brace: bool) -> Result<Block> {
-        let (outer, outer_it) = {
+        let (offset, outer, outer_it) = {
             let mut p = self.p();
             p.work.charge(1)?;
+            let offset = p.tokens[p.pos].offset as u32;
             p.bump()?;
             p.lines()?;
-            (p.locals.copy(p.work)?, p.declared_it)
+            (offset, p.locals.copy(p.work)?, p.declared_it)
         };
         let infer_it = !outer_it;
         let (params, explicit) = self.block_parameters().await?;
@@ -1897,6 +1913,7 @@ impl<'a> Parsing<'a> {
         p.locals = outer;
         p.declared_it = outer_it;
         Ok(Block {
+            offset,
             params,
             body,
             implicit: !explicit,
@@ -2525,7 +2542,7 @@ impl<'a> Parser<'a> {
         symbol: bool,
     ) -> Result<Expr> {
         self.work.charge(1)?;
-        if !parts.iter().any(|part| matches!(part, Part::Expr(_))) {
+        if !parts.iter().any(|part| matches!(part, Part::Expr(..))) {
             let bytes = lexer::plain(parts, self.work)?;
             let value = bytes.into_value(symbol);
             return self.make(Node::Literal(value), 1);
@@ -2536,7 +2553,10 @@ impl<'a> Parser<'a> {
                 self.work,
                 match part {
                     Part::Text(bytes) => self.make(Node::Literal(bytes.into_value(false)), 1)?,
-                    Part::Expr(tokens) => self.interpolation(tokens)?,
+                    Part::Expr(tokens, span) => {
+                        self.interpolations.push(self.work, span)?;
+                        self.interpolation(tokens)?
+                    }
                 },
             )?;
         }
@@ -2574,6 +2594,7 @@ impl<'a> Parser<'a> {
             locals: std::mem::take(&mut self.locals),
             declared_it: self.declared_it,
             type_structural_error: false,
+            interpolations: Buffer::new(),
         };
         while parser.token() == &Token::EndLine
             && parser.tokens[parser.pos].line != parser.tokens[parser.pos].end_line
@@ -2588,6 +2609,8 @@ impl<'a> Parser<'a> {
         let parser = parsing.parser.into_inner();
         self.locals = parser.locals;
         self.declared_it = parser.declared_it;
+        self.interpolations
+            .extend(self.work, parser.interpolations)?;
         match result? {
             Parsed::Expr(expr) => Ok(expr),
             _ => unreachable!(),
