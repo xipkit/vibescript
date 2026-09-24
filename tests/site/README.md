@@ -2,7 +2,7 @@
 
 These 203 files are unchanged copies of `internal/catalog/content` from the local `vibescript.mauriciogomes.com` repository at `5ca06f3b643e56f6b14caeec6cd4671268c55dbb`. Original metadata, source links and attribution remain in each example. [sources.json](sources.json) records SHA-256 hashes; the comparison and audit tools check every file before execution.
 
-All 203 programs match Go Vibescript v0.70.0 in Go/Rust portable and SIMD builds, up from 74 in the initial audit. [cases.json](cases.json) preserves their Go results for native Rust regression tests and the shared comparison harness. Portable and SIMD Rust accounting also agrees with identical inputs and entropy. These are differential tests against Go, not independently derived mathematical proofs of the programs. Passing the corpus does not complete the [language port](../../docs/language-port.md).
+All 203 programs match Go Vibescript v0.70.0 in Go/Rust portable and SIMD builds, up from 74 in the initial audit. [cases.json](cases.json) preserves their Go results for native Rust regression tests and the shared comparison harness, and the [conformance goldens](../golden/README.md) record the Rust observations. Portable and SIMD Rust accounting also agrees with identical inputs and entropy. These are differential tests against Go, not independently derived mathematical proofs of the programs. Passing the corpus does not complete the [language port](../../docs/language-port.md).
 
 [harness.json](harness.json) registers deterministic SMS/email preview capabilities for two examples and selects a typed result format for thirteen programs returning money or duration values. The adapters reproduce the pinned website's `internal/notifications/sms.go` and `email.go` preview results; they send no messages. The unchanged examples call `sms.send` and `email.send` through explicit per-call grants. The [Rust SMS example](../../examples/sms.rs) demonstrates the same capability API. The passing capability-iteration example returns metadata from `run`; it does not exercise host-driven blocks. Host block invocation and native async callbacks remain unfinished.
 
@@ -10,7 +10,7 @@ Typed results use a host-side `['typed-v1', node]` envelope encoded as JSON. Eac
 
 The unchanged money and duration programs retain separate native checks through typed host values in [money.rs](../money.rs) and [duration.rs](../duration.rs). [time_anchors.rs](../time_anchors.rs) verifies duration/time helpers that the corresponding site's `run` does not invoke.
 
-[initial-audit.json](initial-audit.json) preserves the initial errors; [current-audit.json](current-audit.json) records the latest full audit. After building comparison binaries with `scripts/compare.py`, rerun all 203 examples with:
+[initial-audit.json](initial-audit.json) preserves the initial errors; [current-audit.json](current-audit.json) records the latest full audit. After building comparison binaries with `scripts/compare.py --with-go`, rerun all 203 examples against Go with:
 
 ```sh
 python3 scripts/audit-site.py --out .cache/site-audit

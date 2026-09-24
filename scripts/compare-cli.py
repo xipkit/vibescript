@@ -8,7 +8,7 @@ exit status, stdout and stderr for the help and error paths, `fmt` over every
 `.vibe` file in the repository and the reference plus generated whitespace
 cases (stdout, -check and -w), `run` and `analyze` over the script corpus, and
 `test` over a generated suite. Differences are printed; see docs/cli.md for
-the intentional ones.
+the intentional ones. The `cli` golden corpus checks this CLI without Go.
 """
 import argparse
 import json

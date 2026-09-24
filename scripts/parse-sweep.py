@@ -8,7 +8,8 @@ and every prefix of whole lines. Tokens are sampled with a fixed seed. Both
 binaries run `vibes check` (or `--command run`) on every copy, and the first
 `compile failed:` line of each is compared; a copy one side accepts and the
 other rejects is an acceptance difference. Differences are summarized by
-message shape and written to --out.
+message shape and written to --out. The `parse` golden corpus records this
+parser's results on the same kind of copies without Go.
 """
 import argparse
 import collections

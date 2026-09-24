@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Verify selected language semantics and keep unresolved reference differences visible."""
+"""Verify selected language semantics and keep unresolved reference differences visible.
+
+Needs the Go builds from `scripts/compare.py --with-go`; the compatibility
+goldens record the Rust side without Go.
+"""
 import argparse
 import hashlib
 import json

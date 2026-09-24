@@ -122,6 +122,8 @@ assert!(hover.contains("Writes each value"));
 
 Every difference is in diagnostics. On open, 73 documents get checker findings, and the document broken on open reports only the first of the reference's parse errors. After an unparsable edit, 594 documents differ only because the reference reports several parse errors where the port reports the first, which is identical to the reference's, and two halved documents that still parse get checker findings. The remaining protocol difference is the diagnostics for a document broken on open.
 
+The comparison needs Go. The `lsp` [golden corpus](../tests/golden/README.md) records this server's replies to the same sessions over the site programs, the upstream examples and the documents in `tests/lsp`, and `scripts/golden.py` checks them without Go.
+
 ## Differences from the reference
 
 Intentional:

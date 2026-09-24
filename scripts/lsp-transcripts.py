@@ -8,7 +8,8 @@ line start, and signature help after every `(` and `,`; then the same requests
 against three unparsable edits; then close. Both servers are driven in
 lockstep, one message at a time, so read-ahead never changes what they see.
 Transcripts are written to .cache/lsp-transcripts and a summary to stdout, or
-to the file given with --summary.
+to the file given with --summary. The `lsp` golden corpus checks the Rust
+server's replies to the same sessions without Go.
 """
 
 import argparse

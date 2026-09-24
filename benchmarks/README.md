@@ -65,7 +65,7 @@ These are measured follow-up targets, not claims that a full Rust port will reta
 
 ```sh
 ./scripts/check
-python3 scripts/compare.py --rounds 8
+python3 scripts/compare.py --with-go --rounds 8
 python3 scripts/report.py benchmarks/results/<run-directory>
 ```
 

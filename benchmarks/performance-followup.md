@@ -63,7 +63,7 @@ Build the initial Rust comparison binaries from commit `8403e83c4760cee2601b229c
 
 ```sh
 ./scripts/check
-python3 scripts/compare.py --baseline /path/to/preserved/binaries --rounds 12
+python3 scripts/compare.py --with-go --baseline /path/to/preserved/binaries --rounds 12
 python3 scripts/report-followup.py benchmarks/results/<run-directory>
 ```
 

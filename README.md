@@ -141,12 +141,13 @@ SIMD uses 16-byte NEON operations on ARM64 and SSE2 on x86_64, with portable fal
 
 The library, the `vibes` CLI and the test suite [support `wasm32-wasip1`](docs/platforms.md), including module loading from host-provided directories. `./scripts/check-wasi` runs the suite and a filesystem witness under Wasmtime with normal stack limits, and `--node` repeats them under Node. Browser integration and execution on the remaining native platforms are still pending.
 
-## Compare with Go
+## Validation and comparison with Go
 
 ```sh
-python3 scripts/compare.py --rounds 8
+python3 scripts/golden.py
+python3 scripts/compare.py --with-go --rounds 8
 ```
 
-The harness downloads the pinned Go v0.70.0 module using an external-volume cache, then builds Go 1.27.1 with and without `GOEXPERIMENT=simd` and Rust with and without explicit SIMD. Rust measurements always use release builds with thin LTO and one codegen unit. It checks shared cases against expected results before measuring compiled calls with accounting enabled and disabled. Generated cases have independently computed expectations; the [site corpus](tests/site/README.md) adds all 203 unchanged programs with expected outputs verified against Go. The suite also includes 46 invocations from [ten unchanged upstream files](tests/upstream/README.md), six upstream/site examples in the benchmark suite, and hash/JSON scaling cases up to 2,048 keys. Timing uses uninstrumented Rust binaries; separate release binaries count allocations. Raw results include repeated samples, output digests, toolchains, binary hashes, and process peak RSS.
+This implementation is the reference. [The golden corpora](tests/golden/README.md) record its observable behavior on every corpus that was validated against Go, and `scripts/golden.py` checks a build against them; neither needs Go. `scripts/compare.py` validates the Rust builds against the goldens and measures them. With `--with-go`, it downloads the pinned Go v0.70.0 module using an external-volume cache, then builds Go 1.27.1 with and without `GOEXPERIMENT=simd` alongside Rust with and without explicit SIMD. Rust measurements always use release builds with thin LTO and one codegen unit. It checks shared cases against expected results before measuring compiled calls with accounting enabled and disabled. Generated cases have independently computed expectations; the [site corpus](tests/site/README.md) adds all 203 unchanged programs with expected outputs verified against Go. The suite also includes 46 invocations from [ten unchanged upstream files](tests/upstream/README.md), six upstream/site examples in the benchmark suite, and hash/JSON scaling cases up to 2,048 keys. Timing uses uninstrumented Rust binaries; separate release binaries count allocations. Raw results include repeated samples, output digests, toolchains, binary hashes, and process peak RSS.
 
 See the [hash scaling and website results](benchmarks/hash-performance.md), the [first optimization results](benchmarks/performance-followup.md), the [initial comparison](benchmarks/README.md), and the [language completion plan](docs/language-port.md). Native measurements describe the machine recorded in each result directory, and are not a general claim about Rust versus Go.

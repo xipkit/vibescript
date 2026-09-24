@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Run every pinned site example and record compatibility and harness gaps."""
+"""Run every pinned site example in Go and Rust and record compatibility and harness gaps.
+
+Needs the Go builds from `scripts/compare.py --with-go`; the conformance goldens
+cover the site programs without Go.
+"""
 import argparse
 import hashlib
 import json

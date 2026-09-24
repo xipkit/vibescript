@@ -88,7 +88,7 @@ Preserve the four Rust timing/allocation binaries built by `scripts/compare.py -
 
 ```sh
 ./scripts/check
-python3 scripts/compare.py --baseline /path/to/preserved/binaries --rounds 12 --out .cache/hash-comparison
+python3 scripts/compare.py --with-go --baseline /path/to/preserved/binaries --rounds 12 --out .cache/hash-comparison
 python3 scripts/audit-site.py --out .cache/site-audit
 ./scripts/cargo run --release --example sms
 ```
