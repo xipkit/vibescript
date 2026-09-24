@@ -39,9 +39,9 @@ the only runtime type checks are at the edges where dynamic data enters.**
 ```vibe
 def total(items: array<{ price: int, qty: int }>) -> int
   sum = 0
-  items.each do |item|          # item: { price: int, qty: int }
-    sum = sum + item[:price] * item[:qty]
-  end
+  items.each { |item|           # item: { price: int, qty: int }
+    sum = sum + item["price"] * item["qty"]
+  }
   sum
 end
 
@@ -58,7 +58,7 @@ body = JSON.parse(raw)          # any
 body["name"].upcase             # compile error: body is any; narrow it first
 
 user = JSON.parse_as(raw, { name: string, age?: int })
-user[:name].upcase              # user[:name] is string
+user["name"].upcase             # user["name"] is string
 ```
 
 ## Context
@@ -124,8 +124,9 @@ checker with predictable results.
   produced by an operation whose signature includes `nil`: `array[i]` and
   `hash[key]` are `T?`, `find` is `T?`, and `x&.m` adds `nil`.
 - `fetch(i)` and `fetch(key)` return `T` and raise when the element is missing.
-- `if x`, `unless x`, `x.nil?`, `x == nil`, `x.is_type?(:atom)` and early
-  returns narrow a local or parameter in the branches they guard. Narrowing does
+- `x == nil`, `x != nil`, `x.is_type?(:atom)` and early returns narrow a local
+  or parameter in the branches they guard. Conditions are strictly `bool`
+  (ADR-008). Narrowing does
   not apply to member reads or index expressions: bind the value to a local
   first.
 
@@ -147,7 +148,7 @@ checker with predictable results.
 - `any` is the type of values the program cannot know statically:
   `JSON.parse` results, host globals and capability results without signatures,
   and values stored in `any`-typed containers.
-- An `any` value may be compared with `==`, tested with `nil?` and `is_type?`,
+- An `any` value may be compared with `==`, tested with `== nil` and `is_type?`,
   passed or stored where `any` is accepted, and narrowed. Every other use is a
   compile error: calling a member, indexing, using an operator, or passing it to
   a typed parameter.
@@ -169,9 +170,9 @@ checker with predictable results.
   ```vibe
   def keep(items: array<Item>, &block: Item -> bool) -> array<Item>
     kept: array<Item> = []
-    items.each do |item|
+    items.each { |item|
       kept << item if yield(item)
-    end
+    }
     kept
   end
 
