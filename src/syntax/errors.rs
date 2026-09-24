@@ -118,7 +118,16 @@ impl Parsing<'_> {
         let offset = body.offset;
         let rescue_offset = {
             let p = self.p();
-            p.tokens[p.pos - 1].offset as u32
+            let rescue = p.pos - 1;
+            let next = p.significant(p.pos);
+            if p.tokens[next].line != p.tokens[rescue].line || !p.prefix(next) {
+                return Err(Error::syntax(
+                    work,
+                    p.tokens[rescue].offset,
+                    "rescue modifier requires fallback expression",
+                ));
+            }
+            p.tokens[rescue].offset as u32
         };
         let fallback = self.line_expr(0).await?;
         let attempt = Try {
