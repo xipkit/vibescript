@@ -123513,5 +123513,10 @@
     "name": "class_variable_read_outside_class",
     "body": "@@x",
     "go_error": "no class context"
+  },
+  {
+    "name": "undefined_name_in_nested_block_suggests_outer_local",
+    "body": "total = 1\n[1].each { |item| [2].each { |inner| totl } }",
+    "go_error": "undefined variable totl (did you mean \"total\"?)"
   }
 ]

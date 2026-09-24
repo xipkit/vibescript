@@ -3763,21 +3763,31 @@ fn undefined(
         "Duration",
         "Time",
     ];
-    let frame = &frames.data[current];
-    let locals = frame
-        .function
-        .map(|function| frame.program.functions[function].local_names.as_slice())
-        .unwrap_or_default()
-        .iter()
-        .enumerate()
-        .filter(|(slot, _)| {
-            storage
-                .locals
-                .data
-                .get(frame.local_base + slot)
-                .is_some_and(Option::is_some)
-        })
-        .map(|(_, local)| local.as_bytes());
+    // A block also sees the assigned locals of the frames it is written in.
+    let lexical = std::iter::successors(Some(current), |&index| {
+        let frame = &frames.data[index];
+        let block = frame
+            .function
+            .is_some_and(|function| frame.program.functions[function].name == "<block>");
+        block.then_some(frame.parent).flatten()
+    });
+    let locals = lexical.flat_map(|index| {
+        let frame = &frames.data[index];
+        frame
+            .function
+            .map(|function| frame.program.functions[function].local_names.as_slice())
+            .unwrap_or_default()
+            .iter()
+            .enumerate()
+            .filter(|(slot, _)| {
+                storage
+                    .locals
+                    .data
+                    .get(frame.local_base + slot)
+                    .is_some_and(Option::is_some)
+            })
+            .map(|(_, local)| local.as_bytes())
+    });
     let candidates = locals
         .chain(program.names.keys().map(|name| name.as_bytes()))
         .chain(program.declaration_names.keys().map(|name| name.as_bytes()))

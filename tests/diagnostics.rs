@@ -104,6 +104,16 @@ fn class_variable_reads_outside_a_class_have_no_class_context() {
 }
 
 #[test]
+fn blocks_suggest_the_locals_of_their_enclosing_frames() {
+    let source =
+        "def run(input)\n  total = 1\n  [1].each { |item| [2].each { |inner| totl } }\nend";
+    assert_eq!(
+        failure(source).message,
+        "undefined variable totl (did you mean \"total\"?)"
+    );
+}
+
+#[test]
 fn interpolation_and_unicode_use_the_original_source() {
     for source in [
         "def run(input)\n  \"hello #{1/0}!\"\nend",
