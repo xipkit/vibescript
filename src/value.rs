@@ -643,7 +643,23 @@ impl CallContext {
     ///
     /// Containers are copied iteratively; the traversal frames are charged to this call and
     /// released together with any partial result when the import fails.
+    #[inline]
     pub fn import(&mut self, value: &Value) -> Result<Value> {
+        // Immediates hold no storage, so importing one only charges its step.
+        if matches!(
+            value.0,
+            Kind::Nil
+                | Kind::Builtin(_)
+                | Kind::Bool(_)
+                | Kind::Int(_)
+                | Kind::Float(_)
+                | Kind::Money(_)
+                | Kind::Duration(_)
+                | Kind::Time(_)
+        ) {
+            self.charge(1)?;
+            return Ok(value.clone());
+        }
         self.import_value(value, false)
     }
 
