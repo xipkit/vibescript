@@ -463,7 +463,12 @@ impl Walker<'_> {
                         state.stack.push(self.ctx, Operand::new(value))?;
                         Ok(None)
                     } else if self.dynamic(value)? {
-                        self.incomplete(pc).map(Some)
+                        // A gradual field may hold a callable that the read invokes.
+                        self.unknown_call_effects(state, pc)?;
+                        self.emit_error(state, pc, u8::MAX)?;
+                        let value = self.facts.union(self.ctx, &[value, Atom::Unknown.fact()])?;
+                        state.stack.push(self.ctx, Operand::new(value))?;
+                        Ok(None)
                     } else {
                         Ok((!self.read_value(state, pc, value, None)?).then_some([None, None]))
                     }

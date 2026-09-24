@@ -74,6 +74,19 @@ fn general_class_parameters_keep_method_results_and_argument_contracts() {
 }
 
 #[test]
+fn symbolic_receivers_read_untyped_fields_gradually() {
+    let source = "class Bucket\n  def initialize(tenant)\n    @tenant = tenant\n  end\n  def report\n    tenant\n  end\n  def via_self\n    self.tenant\n  end\n  def poke\n    tenant[0] = 9\n  end\nend\ndef run(tenant)\n  b = Bucket.new(tenant)\n  [b.report, b.via_self]\nend";
+    for name in ["Bucket#report", "Bucket#via_self", "Bucket#poke"] {
+        check(source, name, true);
+    }
+    let script = Engine::new().compile(source).unwrap();
+    let result = script
+        .call("run", &[Value::int(5)], CallOptions::default())
+        .unwrap();
+    assert_eq!(result.value.to_string(), "[5, 5]");
+}
+
+#[test]
 fn symbolic_receivers_preserve_possible_aliases_and_definite_self_writes() {
     for (source, clean) in [
         (
