@@ -123318,5 +123318,10 @@
     "name": "unless_body_does_not_see_a_later_else_assignment",
     "body": "unless false\n  later_unless_local\nelse\n  later_unless_local = 1\nend",
     "go_error": "undefined variable later_unless_local"
+  },
+  {
+    "name": "implicit_class_member_before_local_assignment",
+    "go_error": "unknown class member missing",
+    "source": "class Holder\n seen=missing\n missing=1\nend\ndef run(input)\n 1\nend"
   }
 ]

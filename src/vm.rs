@@ -1181,13 +1181,9 @@ impl Run {
                         }
                         stack.push(ctx, value)?;
                     } else {
-                        return Err(undefined(
-                            program,
-                            frames,
-                            storage,
-                            current,
-                            &program.members[name],
-                        ));
+                        implicit_read(
+                            program, ctx, frames, storage, stack, current, namespace, name,
+                        )?;
                     }
                 }
                 Op::ReceiverBound(slot, next) => {
@@ -1204,75 +1200,15 @@ impl Run {
                     }
                 }
                 Op::Unbound(name) => {
-                    let self_value = frame.receiver.clone();
                     if let Some(binding) =
                         file_bindings::root_binding(program, ctx, storage, &program.members[name])?
                     {
                         file_bindings::read_root(ctx, frames, storage, stack, binding)?;
                         continue;
                     }
-                    match namespaces::implicit(
-                        program,
-                        ctx,
-                        storage,
-                        namespace,
-                        self_value.as_ref(),
-                        &program.members[name],
-                    )? {
-                        namespaces::Member::Function(function) => {
-                            enter_arguments(
-                                program,
-                                ctx,
-                                frames,
-                                storage,
-                                function,
-                                Arguments::empty(),
-                                stack.data.len(),
-                            )?;
-                        }
-                        namespaces::Member::Value(value) => stack.push(ctx, value)?,
-                        namespaces::Member::Helper(module, helper) => {
-                            let value = dispatch::helper(
-                                program,
-                                ctx,
-                                frames,
-                                storage,
-                                (module, helper),
-                                &Arguments::empty(),
-                                true,
-                            )?;
-                            stack.push(ctx, value)?;
-                        }
-                        namespaces::Member::Missing => {
-                            let text = &program.members[name];
-                            let Some(module) = namespace else {
-                                return Err(undefined(program, frames, storage, current, text));
-                            };
-                            if !members::names::universal(text) {
-                                return Err(namespaces::missing_implicit(
-                                    storage,
-                                    self_value.as_ref(),
-                                    &program.namespaces[module],
-                                    text,
-                                ));
-                            }
-                            let receiver = if let Some(value) = &self_value {
-                                value.clone()
-                            } else {
-                                namespaces::value(program, ctx, storage, module)?
-                            };
-                            let site = crate::bytecode::CallSite {
-                                name,
-                                method: crate::bytecode::Method::parse(&program.members[name]),
-                                auto: true,
-                                parenthesized: false,
-                                scope: false,
-                            };
-                            let (_, value) =
-                                members::call(ctx, site, &program.members[name], receiver, &[])?;
-                            stack.push(ctx, value)?;
-                        }
-                    }
+                    implicit_read(
+                        program, ctx, frames, storage, stack, current, namespace, name,
+                    )?;
                 }
                 Op::Declaration(index) => {
                     let value = declaration_value(program, ctx, storage, index)?;
@@ -3617,6 +3553,74 @@ fn value_invocation(value: &Value) -> crate::arguments::Target {
         Kind::Builtin(builtin) => crate::arguments::Target::Plain(Invocation::Builtin(*builtin)),
         Kind::Offset(offset) => crate::arguments::Target::Offset(offset.clone()),
         _ => crate::arguments::Target::Plain(Invocation::NonCallable),
+    }
+}
+
+/// Reads a bare name that no binding holds as a member of the running instance
+/// or class, entering a method it selects. Outside a class the name is undefined.
+#[allow(clippy::too_many_arguments)]
+fn implicit_read(
+    program: &Program,
+    ctx: &mut CallContext,
+    frames: &mut Buffer<Frame>,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+    current: usize,
+    namespace: Option<usize>,
+    name: usize,
+) -> Result<()> {
+    let self_value = frames.data[current].receiver.clone();
+    let text = &program.members[name];
+    match namespaces::implicit(program, ctx, storage, namespace, self_value.as_ref(), text)? {
+        namespaces::Member::Function(function) => enter_arguments(
+            program,
+            ctx,
+            frames,
+            storage,
+            function,
+            Arguments::empty(),
+            stack.data.len(),
+        ),
+        namespaces::Member::Value(value) => stack.push(ctx, value),
+        namespaces::Member::Helper(module, helper) => {
+            let value = dispatch::helper(
+                program,
+                ctx,
+                frames,
+                storage,
+                (module, helper),
+                &Arguments::empty(),
+                true,
+            )?;
+            stack.push(ctx, value)
+        }
+        namespaces::Member::Missing => {
+            let Some(module) = namespace else {
+                return Err(undefined(program, frames, storage, current, text));
+            };
+            if !members::names::universal(text) {
+                return Err(namespaces::missing_implicit(
+                    storage,
+                    self_value.as_ref(),
+                    &program.namespaces[module],
+                    text,
+                ));
+            }
+            let receiver = if let Some(value) = self_value {
+                value
+            } else {
+                namespaces::value(program, ctx, storage, module)?
+            };
+            let site = crate::bytecode::CallSite {
+                name,
+                method: crate::bytecode::Method::parse(text),
+                auto: true,
+                parenthesized: false,
+                scope: false,
+            };
+            let (_, value) = members::call(ctx, site, text, receiver, &[])?;
+            stack.push(ctx, value)
+        }
     }
 }
 
