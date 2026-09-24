@@ -947,7 +947,7 @@ impl Run {
                         continue;
                     }
                     let (module, name) =
-                        namespaces::variable_name(namespace, &program.members[name])?;
+                        namespaces::variable_name(namespace, &program.members[name], false)?;
                     let value = namespaces::field(program, ctx, storage, module, name)?;
                     let value = if optional {
                         value.unwrap_or_default()
@@ -972,7 +972,7 @@ impl Run {
                         continue;
                     }
                     let (module, name) =
-                        namespaces::variable_name(namespace, &program.members[name])?;
+                        namespaces::variable_name(namespace, &program.members[name], false)?;
                     let address = if !optional
                         && namespaces::field(program, ctx, storage, module, name)?.is_none()
                     {
@@ -1018,7 +1018,7 @@ impl Run {
                         continue;
                     }
                     let (module, name) =
-                        namespaces::variable_name(namespace, &program.members[name])?;
+                        namespaces::variable_name(namespace, &program.members[name], true)?;
                     namespaces::set(
                         program,
                         ctx,

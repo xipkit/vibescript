@@ -91,6 +91,19 @@ fn writes_and_their_compound_operators_point_at_the_target() {
 }
 
 #[test]
+fn class_variable_reads_outside_a_class_have_no_class_context() {
+    for (body, message) in [
+        ("@@x += 3", "no class context"),
+        ("@@x ||= 3", "no class context"),
+        ("@@x", "no class context"),
+        ("@@x = 3", "no class context for class var"),
+    ] {
+        let source = format!("def run(input)\n  {body}\nend");
+        assert_eq!(failure(&source).message, message, "{body}");
+    }
+}
+
+#[test]
 fn interpolation_and_unicode_use_the_original_source() {
     for source in [
         "def run(input)\n  \"hello #{1/0}!\"\nend",

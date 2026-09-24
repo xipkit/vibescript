@@ -123498,5 +123498,20 @@
     "name": "compound_index_write_on_missing_element",
     "body": "arr = [1]\narr[5] += 2",
     "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "class_variable_compound_outside_class",
+    "body": "@@x += 3",
+    "go_error": "no class context"
+  },
+  {
+    "name": "class_variable_logical_outside_class",
+    "body": "@@x ||= 3",
+    "go_error": "no class context"
+  },
+  {
+    "name": "class_variable_read_outside_class",
+    "body": "@@x",
+    "go_error": "no class context"
   }
 ]

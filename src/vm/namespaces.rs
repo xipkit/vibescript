@@ -514,12 +514,26 @@ pub(super) fn address(
     Ok(Address::field(index, field, value))
 }
 
-pub(super) fn variable_name(module: Option<usize>, name: &str) -> Result<(usize, &str)> {
+/// Resolves a class variable's namespace. Outside a class, Go refuses a read with
+/// "no class context" and a write with "no class context for class var".
+pub(super) fn variable_name(
+    module: Option<usize>,
+    name: &str,
+    write: bool,
+) -> Result<(usize, &str)> {
     if name.starts_with('@') && !name.starts_with("@@") {
         return Err(Error::new(ErrorKind::Name, "no instance context for ivar"));
     }
-    let module =
-        module.ok_or_else(|| Error::new(ErrorKind::Name, "no class context for class var"))?;
+    let module = module.ok_or_else(|| {
+        Error::new(
+            ErrorKind::Name,
+            if write {
+                "no class context for class var"
+            } else {
+                "no class context"
+            },
+        )
+    })?;
     Ok((module, name.strip_prefix("@@").unwrap_or(name)))
 }
 
