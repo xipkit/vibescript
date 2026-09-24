@@ -135,8 +135,12 @@ checker with predictable results.
 - An array literal's element type is the union of its elements' types:
   `[1, 2]` is `array<int>`, `[1, "a"]` is `array<int | string>`.
 - A hash literal is an exact shape: `{ name: "Ada", age: 3 }` is
-  `{ name: string, age: int }`. Reading a declared field with a literal key
-  yields the field type, not `T?`. Writing an undeclared key is an error.
+  `{ name: string, age: int }`. Labels are string keys (ADR-006), so the fields
+  are read as `h["name"]` and `h["age"]`. Reading a declared field with a
+  literal key yields the field type, not `T?`. Reading or writing an undeclared
+  key is an error, and so is indexing a shape with a key known only at runtime:
+  a record is not a dictionary. The diagnostic's fix declares the dictionary
+  type when every field has the same type.
 - A dictionary is declared as `hash<string, V>`:
   `counts: hash<string, int> = {}`. Keys are strings (ADR-006). A shape whose
   fields all have type `V` is assignable to `hash<string, V>`.
