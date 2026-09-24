@@ -502,7 +502,9 @@ impl Constructor {
                     }
                 }
             }
-            if matches!(self, Self::Local | Self::Mktime) {
+            if self == Self::Local {
+                selected = location(ctx, zone_input, true)?;
+            } else if self == Self::Mktime {
                 selected = Some(zone::Zone::local(ctx)?);
             }
         }

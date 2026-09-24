@@ -354,3 +354,36 @@ fn ignored_blocks_and_clock_aliases_follow_reference_call_contracts() {
         );
     }
 }
+
+#[test]
+fn time_local_places_its_parts_in_the_requested_zone() {
+    let result = run(
+        "[Time.local(2024, 1, 2, 3, 4, 5, in: \"Asia/Tokyo\").to_s, \
+         Time.local(2024, 7, 1, in: \"+05:30\").to_s, \
+         Time.local(2024, 1, 2, in: nil) == Time.local(2024, 1, 2), \
+         Time.local(2024, 1, 2, in: \"\") == Time.local(2024, 1, 2), \
+         Time.local(2024, 1, 2, 3, 4, 5, 250000, in: \"UTC\").usec]",
+    );
+    assert_eq!(
+        stringify_json(&result.value, CallOptions::default())
+            .unwrap()
+            .value
+            .as_bytes(),
+        Some(
+            b"[\"2024-01-02T03:04:05+09:00\",\"2024-07-01T00:00:00+05:30\",true,true,250000]"
+                .as_slice()
+        )
+    );
+    let error = Engine::new()
+        .compile("Time.local(2024, in: \"Nowhere/City\")")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap_err();
+    let expected = Engine::new()
+        .compile("Time.at(0, in: \"Nowhere/City\")")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap_err();
+    assert_eq!(error.message, expected.message);
+    assert_eq!(error.kind, expected.kind);
+}
