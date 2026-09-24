@@ -269,6 +269,23 @@ impl Exit {
             && self.globals.equal(ctx, &other.globals)?)
     }
 
+    /// Renames folded objects in the exit and merges their heap entries into summaries.
+    pub fn fold(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        renamer: &mut super::heaps::Renamer<'_>,
+    ) -> Result<()> {
+        if !renamer.active() {
+            return Ok(());
+        }
+        self.globals.fold(ctx, facts, renamer)?;
+        let rename = &mut |ctx: &mut CallContext, fact| renamer.fact(ctx, facts, fact);
+        self.value = rename(ctx, self.value)?;
+        rename_slots(ctx, &mut self.captures, rename)?;
+        self.pending.rename(ctx, rename)
+    }
+
     pub fn widen(
         &mut self,
         ctx: &mut CallContext,

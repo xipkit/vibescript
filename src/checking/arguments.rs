@@ -9,6 +9,19 @@ pub(super) enum Input {
 }
 
 impl Input {
+    /// Maps a supplied value, leaving defaults alone.
+    pub fn rename(
+        self,
+        ctx: &mut CallContext,
+        rename: &mut super::heaps::Rename<'_>,
+    ) -> Result<Self> {
+        Ok(match self {
+            Self::Supplied(value) => Self::Supplied(rename(ctx, value)?),
+            Self::Either(value) => Self::Either(rename(ctx, value)?),
+            Self::Default => Self::Default,
+        })
+    }
+
     pub fn widen(
         self,
         ctx: &mut CallContext,

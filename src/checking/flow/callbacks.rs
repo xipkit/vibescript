@@ -381,7 +381,8 @@ impl Walker<'_> {
             current_error,
             &globals,
         )?;
-        if result.incomplete {
+        // Block summaries that fold the caller's objects are not modeled here.
+        if result.incomplete || !result.folds.data.is_empty() {
             return self.incomplete(pc);
         }
         for failure in result.failures.data {

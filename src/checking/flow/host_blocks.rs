@@ -247,7 +247,8 @@ impl Walker<'_> {
             &globals,
         )?;
         self.call_effects(state, pc, Target::Block(block.function), &result)?;
-        if result.incomplete {
+        // Block summaries that fold the caller's objects are not modeled here.
+        if result.incomplete || !result.folds.data.is_empty() {
             self.incomplete(pc)?;
         }
         let mut repeat = Buffer::empty();

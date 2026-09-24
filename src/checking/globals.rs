@@ -64,6 +64,37 @@ impl Globals {
         Ok(globals)
     }
 
+    /// Maps every shared value and suspended address.
+    pub fn rename(
+        &mut self,
+        ctx: &mut CallContext,
+        rename: &mut super::heaps::Rename<'_>,
+    ) -> Result<()> {
+        for value in &mut self.values.data {
+            *value = rename(ctx, *value)?;
+        }
+        self.pending.rename(ctx, rename)
+    }
+
+    /// Renames folded objects and merges their heap entries into the summaries.
+    pub fn fold(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        renamer: &mut super::heaps::Renamer<'_>,
+    ) -> Result<()> {
+        if !renamer.active() {
+            return Ok(());
+        }
+        self.rename(ctx, &mut |ctx, fact| renamer.fact(ctx, facts, fact))?;
+        for index in 0..self.values.data.len() {
+            ctx.charge(1)?;
+            let value = self.values.data[index];
+            self.values.data[index] = renamer.merge(ctx, facts, index, value)?;
+        }
+        Ok(())
+    }
+
     pub fn hash(&self, ctx: &mut CallContext, hash: &mut impl Hasher) -> Result<()> {
         ctx.charge(
             self.values.data.len() as u64
@@ -246,7 +277,17 @@ impl Globals {
                 .get(index)
                 .copied()
                 .unwrap_or_else(|| self.layout.initial(index).value);
-            let value = facts.joined(ctx, *a, b, depth)?;
+            // Heaps of different lengths or with summaries join entry by entry and keep
+            // object positions.
+            let heap = if *a != b && super::heaps::is_heap(ctx, &self.layout, index)? {
+                super::heaps::join(ctx, facts, *a, b, depth)?
+            } else {
+                None
+            };
+            let value = match heap {
+                Some(value) => value,
+                None => facts.joined(ctx, *a, b, depth)?,
+            };
             changed |= *a != value;
             *a = value;
         }

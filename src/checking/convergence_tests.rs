@@ -300,3 +300,126 @@ fn allocations_in_loops_and_callbacks_keep_fresh_objects_exact() {
         witnessed(source, true);
     }
 }
+
+#[test]
+fn recursion_through_new_objects_reaches_a_summary() {
+    for source in [
+        r##"
+        class Counter
+          def value(n)
+            if n > 0
+              Counter.new.value(n - 1)
+            else
+              0
+            end
+          end
+        end
+        def run(n)
+          Counter.new.value(n) + 1
+        end
+        "##,
+        r##"
+        class Node
+          def initialize(depth)
+            @depth = depth
+          end
+          def build(n)
+            if n > 0
+              Node.new(@depth + 1).build(n - 1)
+            else
+              @depth
+            end
+          end
+        end
+        def run(n)
+          Node.new(0).build(n) + 1
+        end
+        "##,
+        r##"
+        class Tree
+          def initialize(n)
+            if n > 0
+              @child = Tree.new(n - 1)
+            else
+              @child = nil
+            end
+          end
+          def size
+            child = @child
+            if child.nil?
+              1
+            else
+              1 + child.size
+            end
+          end
+        end
+        def run(n)
+          Tree.new(n).size
+        end
+        "##,
+        r##"
+        class Node
+          def initialize(value, rest)
+            @value = value
+            @rest = rest
+          end
+          def value
+            @value
+          end
+        end
+        def build(n)
+          if n == 0
+            nil
+          else
+            Node.new(n, build(n - 1))
+          end
+        end
+        def run(n)
+          head = build(n)
+          if head.nil?
+            0
+          else
+            head.value + 1
+          end
+        end
+        "##,
+        r##"
+        class Tree
+          def grow(n, kids: array)
+            if n > 0
+              kids << Tree.new
+              grow(n - 1, kids)
+            end
+            kids.length
+          end
+        end
+        def run(n)
+          Tree.new.grow(n, [])
+        end
+        "##,
+        r##"
+        class Walker
+          def step(n)
+            if n > 0
+              hop(n - 1)
+            else
+              0
+            end
+          end
+        end
+        class Hopper
+          def self.go(n)
+            Walker.new.step(n)
+          end
+        end
+        def hop(n)
+          Hopper.go(n)
+        end
+        def run(n)
+          hop(n) + 1
+        end
+        "##,
+    ] {
+        witnessed(source, true);
+    }
+}

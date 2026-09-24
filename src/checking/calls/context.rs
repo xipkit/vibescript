@@ -1,5 +1,6 @@
 use super::*;
 use crate::checking::blocks::{Capture, Closure, Layer, Parent};
+use crate::checking::facts::{InstanceKind, Node};
 use crate::checking::globals::Globals;
 use crate::checking::pending::Pending;
 
@@ -137,12 +138,34 @@ impl Context {
             && self.globals.equal(ctx, &other.globals)?)
     }
 
-    pub fn compatible(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
+    /// Compares contexts for a recursive summary. With `facts`, receivers may be different
+    /// objects of one class, which heap folding can summarize together.
+    pub fn compatible_with(
+        &self,
+        ctx: &mut CallContext,
+        other: &Self,
+        facts: Option<&Facts>,
+    ) -> Result<bool> {
         ctx.charge(self.inherited.data.len() as u64 + 1)?;
+        let receivers = self.receiver == other.receiver
+            || facts.is_some_and(|facts| match (self.receiver, other.receiver) {
+                (Some(a), Some(b)) => match (facts.node(a), facts.node(b)) {
+                    (
+                        Node::Instance {
+                            class: a, kind: x, ..
+                        },
+                        Node::Instance {
+                            class: b, kind: y, ..
+                        },
+                    ) => a == b && *x != InstanceKind::Captured && *y != InstanceKind::Captured,
+                    _ => false,
+                },
+                _ => false,
+            });
         if self.kind != other.kind
             || self.scope != other.scope
             || self.block_scope != other.block_scope
-            || self.receiver != other.receiver
+            || !receivers
             || self.block_receiver != other.block_receiver
             || self.ambient != other.ambient
             || self.block_ambient != other.block_ambient
@@ -179,6 +202,34 @@ impl Context {
                 && next.inherited.data.ends_with(&self.inherited.data))
                 || self.globals.pending.addresses.data.len()
                     < next.globals.pending.addresses.data.len()))
+    }
+
+    /// Renames folded objects in every fact the context carries and merges their heap entries.
+    pub fn fold(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        renamer: &mut crate::checking::heaps::Renamer<'_>,
+    ) -> Result<()> {
+        if !renamer.active() {
+            return Ok(());
+        }
+        self.globals.fold(ctx, facts, renamer)?;
+        let rename = &mut |ctx: &mut CallContext, fact| renamer.fact(ctx, facts, fact);
+        for receiver in [&mut self.receiver, &mut self.block_receiver]
+            .into_iter()
+            .flatten()
+        {
+            *receiver = rename(ctx, *receiver)?;
+        }
+        crate::checking::blocks::rename_layers(ctx, &mut self.inherited, rename)?;
+        for capture in &mut self.captures.data {
+            capture.value = rename(ctx, capture.value)?;
+        }
+        for argument in &mut self.arguments.data {
+            *argument = rename(ctx, *argument)?;
+        }
+        self.pending.rename(ctx, rename)
     }
 
     pub fn widen(
@@ -344,7 +395,7 @@ mod tests {
         let mut context = Context::receiving(&mut ctx, &first).unwrap();
         let other = Context::receiving(&mut ctx, &second).unwrap();
         assert!(!context.equal(&mut ctx, &other).unwrap());
-        assert!(!context.compatible(&mut ctx, &other).unwrap());
+        assert!(!context.compatible_with(&mut ctx, &other, None).unwrap());
         let copied = context.incoming(&mut ctx).unwrap().unwrap();
         assert_eq!(copied.function, a);
         assert_eq!(copied.ambient, Some(a));
@@ -386,7 +437,7 @@ mod tests {
         let mut changed = context.snapshot(&mut ctx).unwrap();
         changed.inherited.data[0].function = a;
         assert!(!context.equal(&mut ctx, &changed).unwrap());
-        assert!(!context.compatible(&mut ctx, &changed).unwrap());
+        assert!(!context.compatible_with(&mut ctx, &changed, None).unwrap());
         drop((
             context, other, copied, forwarded, changed, first, second, facts,
         ));
@@ -516,7 +567,9 @@ mod tests {
                     2 => {
                         let mut other = Context::plain();
                         other.kind = Kind::Invoked { given: false };
-                        Context::plain().compatible(&mut ctx, &other).unwrap_err()
+                        Context::plain()
+                            .compatible_with(&mut ctx, &other, None)
+                            .unwrap_err()
                     }
                     3 => Context::plain().incoming(&mut ctx).unwrap_err(),
                     4 => {

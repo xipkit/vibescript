@@ -1562,6 +1562,7 @@ impl Walker<'_> {
                 }
             }
         };
+        self.fold_state(state, &result.folds)?;
         self.call_effects(state, pc, target, &result)?;
         if result.incomplete {
             return self.incomplete(pc).map(Some);
@@ -1582,6 +1583,17 @@ impl Walker<'_> {
         }
         state.stack.push(self.ctx, Operand::new(result.value))?;
         Ok(None)
+    }
+
+    /// Renames the caller's references to objects a recursive summary folded.
+    fn fold_state(&mut self, state: &mut State, folds: &Buffer<super::heaps::Fold>) -> Result<()> {
+        if folds.data.is_empty() {
+            return Ok(());
+        }
+        let layout = state.global_layout.clone();
+        let mut renamer =
+            super::heaps::Renamer::new(&folds.data, &layout, self.program, self.source);
+        state.fold(self.ctx, self.facts, &mut renamer)
     }
 
     fn call_effects(

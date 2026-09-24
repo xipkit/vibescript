@@ -67,6 +67,7 @@ pub(super) fn value_member(
 fn outcome(value: Fact) -> Outcome {
     Outcome {
         exits: Buffer::empty(),
+        folds: Buffer::empty(),
         value,
         throws: 0,
         failures: Buffer::empty(),

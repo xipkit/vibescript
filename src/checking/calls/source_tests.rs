@@ -120,7 +120,10 @@ fn recursion_and_whole_file_reachability_do_not_confuse_sources() {
     solver.state.current = first;
     assert!(
         solver
-            .ancestor(&mut ctx, Ancestor::Function(source_a, function, &context))
+            .ancestor(
+                &mut ctx,
+                Ancestor::Function(source_a, function, &context, &facts, &[])
+            )
             .unwrap()
             .is_some()
     );
@@ -149,7 +152,7 @@ fn recursion_and_whole_file_reachability_do_not_confuse_sources() {
         registered(&mut ctx, &facts, &mut state, world(&code, b), &other);
     let mut solver = state.adapter(world_index, &other_handle);
     for target in [
-        Ancestor::Function(source_b, function, &context),
+        Ancestor::Function(source_b, function, &context, &facts, &[]),
         Ancestor::Expanding(source_b, function, &expanded),
     ] {
         assert!(solver.ancestor(&mut ctx, target).unwrap().is_none());

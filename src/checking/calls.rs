@@ -113,6 +113,9 @@ pub(super) struct Outcome {
     pub incomplete: bool,
     pub pending: Option<usize>,
     pub exits: Buffer<blocks::Exit>,
+    /// Objects the caller allocated that a recursive summary folded; the caller renames its
+    /// own references before applying the exits.
+    pub folds: Buffer<super::heaps::Fold>,
 }
 
 pub(super) enum HostBoundary<'a> {
@@ -130,6 +133,7 @@ impl Outcome {
             incomplete: false,
             pending: None,
             exits: Buffer::empty(),
+            folds: Buffer::empty(),
         }
     }
 }
@@ -382,6 +386,7 @@ impl Calls for Unavailable {
             failures: Buffer::empty(),
             incomplete: true,
             exits: Buffer::empty(),
+            folds: Buffer::empty(),
             pending: None,
         })
     }
@@ -653,7 +658,9 @@ impl<'a> Scheduler<'a> {
 }
 
 enum Ancestor<'a> {
-    Function(SourceId, usize, &'a Context),
+    /// A context of the same function whose receiver may be another object of its class,
+    /// other than the listed jobs.
+    Function(SourceId, usize, &'a Context, &'a Facts, &'a [usize]),
     Expanding(SourceId, usize, &'a Context),
     Job(usize),
 }
@@ -1000,6 +1007,9 @@ impl Solver<'_, '_> {
             flow::analyze_body(ctx, facts, body, self)?
         };
         let mut returns = report.normal_returns;
+        if self.state.jobs.data[index].cyclic {
+            returns = self.fold_summary(ctx, facts, index, &mut report, returns)?;
+        }
         let previous = self.state.jobs.data[index].returns;
         if self.state.jobs.data[index].cyclic
             && previous != Atom::Never.fact()
@@ -1070,6 +1080,85 @@ impl Solver<'_, '_> {
             }
         }
         Ok(())
+    }
+
+    /// Folds the objects a recursive summary allocated beyond its previous summary, so that
+    /// recursion that allocates on every level reaches a fixed point. Objects the previous
+    /// summary already returned keep their identity.
+    fn fold_summary(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        index: usize,
+        report: &mut Report,
+        returns: Fact,
+    ) -> Result<Fact> {
+        let Some(previous) = &self.state.jobs.data[index].report else {
+            return Ok(returns);
+        };
+        let Some(first) = report.block_exits.data.first() else {
+            return Ok(returns);
+        };
+        let layout = first.globals.layout.clone();
+        let mut heaps = Buffer::empty();
+        for heap in super::heaps::slots(ctx, &layout)?.data {
+            let mut earlier = Buffer::empty();
+            for exit in &previous.block_exits.data {
+                ctx.charge(1)?;
+                if let Some(&value) = exit.globals.values.data.get(heap) {
+                    earlier.push(ctx, value)?;
+                }
+            }
+            let mut later = Buffer::empty();
+            for exit in &report.block_exits.data {
+                ctx.charge(1)?;
+                if let Some(&value) = exit.globals.values.data.get(heap) {
+                    later.push(ctx, value)?;
+                }
+            }
+            if earlier.data.is_empty() || later.data.is_empty() {
+                continue;
+            }
+            let earlier = facts.union(ctx, &earlier.data)?;
+            let later = facts.union(ctx, &later.data)?;
+            heaps.push(ctx, (heap, earlier, later))?;
+        }
+        let job = &self.state.jobs.data[index];
+        let receiver = job
+            .widened_context
+            .as_ref()
+            .unwrap_or(&job.context)
+            .receiver;
+        let preferred = self.summarized(ctx, facts, &layout, receiver)?;
+        let folds = super::heaps::folds(
+            ctx,
+            facts,
+            &layout,
+            preferred,
+            |_, heap| {
+                Ok(heaps
+                    .data
+                    .iter()
+                    .find(|entry| entry.0 == heap)
+                    .map(|entry| entry.1))
+            },
+            |_, heap| {
+                Ok(heaps
+                    .data
+                    .iter()
+                    .find(|entry| entry.0 == heap)
+                    .map(|entry| entry.2))
+            },
+        )?;
+        if folds.data.is_empty() {
+            return Ok(returns);
+        }
+        let mut renamer =
+            super::heaps::Renamer::new(&folds.data, &layout, self.world.program, self.source);
+        for exit in &mut report.block_exits.data {
+            exit.fold(ctx, facts, &mut renamer)?;
+        }
+        renamer.fact(ctx, facts, returns)
     }
 
     /// Records a context created by a block walk of the running analysis, so that analysis can
@@ -1171,6 +1260,36 @@ impl Solver<'_, '_> {
         current_error: u16,
         context: &Context,
     ) -> Result<usize> {
+        self.request_folding(ctx, facts, function, inputs, current_error, context)
+            .map(|(index, _)| index)
+    }
+
+    /// Finds or creates the context for a call. A recursive call reuses and widens an ancestor
+    /// context; objects the caller allocated beyond that context fold into heap summaries, and
+    /// the returned folds tell the caller to rename its own references to them.
+    fn request_folding(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        function: usize,
+        inputs: &[Input],
+        current_error: u16,
+        context: &Context,
+    ) -> Result<(usize, Buffer<super::heaps::Fold>)> {
+        self.request_context(ctx, facts, function, inputs, current_error, context, true)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn request_context(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        function: usize,
+        inputs: &[Input],
+        current_error: u16,
+        context: &Context,
+        recursive: bool,
+    ) -> Result<(usize, Buffer<super::heaps::Fold>)> {
         ctx.charge(inputs.len() as u64 + 1)?;
         let layout = self.prepare(ctx, facts)?;
         let mut normalized;
@@ -1202,14 +1321,37 @@ impl Solver<'_, '_> {
                     && job.error_key == current_error
                     && job.context.equal(ctx, context)?
                 {
-                    return Ok(index);
+                    return Ok((index, Buffer::empty()));
                 }
                 index = job.next;
             }
         }
-        if self.requested(function) {
-            if let Some(path) = self.ancestor(ctx, Ancestor::Function(source, function, context))? {
+        if recursive && self.requested(function) {
+            // Recursion through a new receiver object fits an ancestor whose receiver the
+            // folded call matches; otherwise the first ancestor starts a summary context.
+            let mut tried = Buffer::empty();
+            let mut summary = None;
+            while let Some(path) = self.ancestor(
+                ctx,
+                Ancestor::Function(source, function, context, facts, &tried.data),
+            )? {
                 let index = path.data[0];
+                tried.push(ctx, index)?;
+                let (folds, folded_context, folded_inputs) =
+                    self.fold_request(ctx, facts, &layout, index, context, inputs)?;
+                let job = &self.state.jobs.data[index];
+                let effective = job.widened_context.as_ref().unwrap_or(&job.context);
+                let receiver = folded_context.as_ref().unwrap_or(context).receiver;
+                if effective.receiver != receiver {
+                    if summary.is_none() {
+                        summary = Some((folds, folded_context, folded_inputs));
+                    }
+                    continue;
+                }
+                let context = folded_context.as_ref().unwrap_or(context);
+                let inputs = folded_inputs
+                    .as_ref()
+                    .map_or(inputs, |inputs| &inputs.data[..]);
                 self.cycle(ctx, &path.data)?;
                 let depth = *self.state.jobs.data[index]
                     .input_depth
@@ -1237,7 +1379,25 @@ impl Solver<'_, '_> {
                     self.state.jobs.data[index].widened_context = Some(widened_context);
                     self.enqueue(ctx, index)?;
                 }
-                return Ok(index);
+                return Ok((index, folds));
+            }
+            if let Some((folds, folded_context, folded_inputs)) = summary {
+                // The deeper calls share a context of their own, which their recursion then
+                // reuses as its ancestor.
+                let context = folded_context.as_ref().unwrap_or(context);
+                let inputs = folded_inputs
+                    .as_ref()
+                    .map_or(inputs, |inputs| &inputs.data[..]);
+                let (index, _) = self.request_context(
+                    ctx,
+                    facts,
+                    function,
+                    inputs,
+                    current_error,
+                    context,
+                    false,
+                )?;
+                return Ok((index, folds));
             }
         }
         if self.state.jobs.data.len() >= self.state.buckets.data.len() / 2 {
@@ -1297,7 +1457,83 @@ impl Solver<'_, '_> {
             .functions
             .data[function] = true;
         self.enqueue(ctx, index)?;
-        Ok(index)
+        Ok((index, Buffer::empty()))
+    }
+
+    /// Finds the heap summary entry a folded receiver stands for, so later folds of the same
+    /// recursion keep summarizing its objects there.
+    fn summarized(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        layout: &super::globals::layout::Layout,
+        receiver: Option<Fact>,
+    ) -> Result<Option<(usize, usize)>> {
+        let Some(receiver) = receiver else {
+            return Ok(None);
+        };
+        let super::facts::Node::Instance {
+            class,
+            slot,
+            kind: super::facts::InstanceKind::Folded,
+        } = *facts.node(receiver)
+        else {
+            return Ok(None);
+        };
+        let source = facts.source_id(ctx, self.world.source_owner)?;
+        Ok(
+            super::heaps::heap_of(ctx, facts, layout, self.world.program, source, class)?
+                .map(|heap| (heap, slot)),
+        )
+    }
+
+    /// Folds the objects a recursive call allocated beyond an ancestor context, returning the
+    /// folds and the folded context and inputs when any object folded.
+    #[allow(clippy::type_complexity)]
+    fn fold_request(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        layout: &super::globals::layout::Layout,
+        ancestor: usize,
+        context: &Context,
+        inputs: &[Input],
+    ) -> Result<(
+        Buffer<super::heaps::Fold>,
+        Option<Context>,
+        Option<Buffer<Input>>,
+    )> {
+        let job = &self.state.jobs.data[ancestor];
+        let receiver = job
+            .widened_context
+            .as_ref()
+            .unwrap_or(&job.context)
+            .receiver;
+        let preferred = self.summarized(ctx, facts, layout, receiver)?;
+        let job = &self.state.jobs.data[ancestor];
+        let effective = job.widened_context.as_ref().unwrap_or(&job.context);
+        let folds = super::heaps::folds(
+            ctx,
+            facts,
+            layout,
+            preferred,
+            |_, heap| Ok(effective.globals.values.data.get(heap).copied()),
+            |_, heap| Ok(context.globals.values.data.get(heap).copied()),
+        )?;
+        if folds.data.is_empty() {
+            return Ok((folds, None, None));
+        }
+        let source = facts.source_id(ctx, self.world.source_owner)?;
+        let mut folded = context.snapshot(ctx)?;
+        let mut renamed = Buffer::empty();
+        renamed.extend(ctx, inputs)?;
+        let mut renamer =
+            super::heaps::Renamer::new(&folds.data, layout, self.world.program, source);
+        folded.fold(ctx, facts, &mut renamer)?;
+        for input in &mut renamed.data {
+            *input = input.rename(ctx, &mut |ctx, fact| renamer.fact(ctx, facts, fact))?;
+        }
+        Ok((folds, Some(folded), Some(renamed)))
     }
 
     fn ancestor(
@@ -1325,16 +1561,16 @@ impl Solver<'_, '_> {
             ctx.charge(1)?;
             let index = pending.data[cursor].0;
             let matched = match target {
-                Ancestor::Function(source, function, context) => {
-                    self.state.jobs.data[index].source == source
-                        && self.state.jobs.data[index].function == function
-                        && self.state.jobs.data[index]
+                Ancestor::Function(source, function, context, facts, tried) => {
+                    let job = &self.state.jobs.data[index];
+                    job.source == source
+                        && job.function == function
+                        && !tried.contains(&index)
+                        && job
                             .context
                             .globals
                             .same_initialization(ctx, &context.globals)?
-                        && self.state.jobs.data[index]
-                            .context
-                            .compatible(ctx, context)?
+                        && job.context.compatible_with(ctx, context, Some(facts))?
                 }
                 Ancestor::Expanding(source, function, context) => {
                     self.state.jobs.data[index].source == source
@@ -1754,6 +1990,7 @@ impl Calls for Solver<'_, '_> {
             incomplete: false,
             pending: None,
             exits: Buffer::empty(),
+            folds: Buffer::empty(),
         };
         if !args.admit(ctx, facts, &mut outcome.failures)? {
             return Ok(outcome);

@@ -234,8 +234,15 @@ impl<'a> Solver<'_, 'a> {
                     return Ok(outcome);
                 }
                 let fresh = self.state.jobs.data.len();
-                let index =
-                    self.request(ctx, facts, function, &inputs.data, current_error, &context)?;
+                let (index, folds) = self.request_folding(
+                    ctx,
+                    facts,
+                    function,
+                    &inputs.data,
+                    current_error,
+                    &context,
+                )?;
+                outcome.folds = folds;
                 self.depend(ctx, index)?;
                 if index == fresh {
                     self.created(ctx, index)?;
