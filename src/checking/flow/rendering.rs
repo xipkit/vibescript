@@ -107,9 +107,17 @@ impl Walker<'_> {
                 } else {
                     self.string_conversion(&entry.state, pc, original)?
                 };
-                for Converted { state, value } in conversions.data {
-                    let mut values = Buffer::empty();
-                    values.extend(self.ctx, &entry.values.data)?;
+                // The last conversion takes the operands; only alternatives before it copy them.
+                let mut operands = Some(entry.values);
+                let mut conversions = conversions.data.into_iter().peekable();
+                while let Some(Converted { state, value }) = conversions.next() {
+                    let mut values = if conversions.peek().is_some() {
+                        let mut values = Buffer::empty();
+                        values.extend(self.ctx, &operands.as_ref().unwrap().data)?;
+                        values
+                    } else {
+                        operands.take().unwrap()
+                    };
                     values.data[index] = value;
                     if output.is_some() {
                         self.emit_error(&state, pc, u8::MAX)?;
