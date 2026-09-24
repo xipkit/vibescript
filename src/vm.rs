@@ -394,115 +394,125 @@ impl Run {
         let frames = &mut self.frames;
         let storage = &mut self.storage;
         let stack = &mut self.stack;
+        // The executing frame is rechecked only after an instruction changes
+        // the frame stack or queues a program activation.
+        let mut settled = usize::MAX;
         loop {
-            if !storage.activations.data.is_empty() {
-                programs::advance(ctx, frames, storage, stack.data.len())?;
-            }
-            if frames.data.is_empty() {
-                while *initializer < program.namespaces.len() {
-                    let module = *initializer;
-                    *initializer += 1;
-                    if let Some(body) = program.namespaces[module].body {
-                        let state = namespaces::state(program, ctx, storage, module)?;
-                        if !storage.namespaces.data[state].initialized {
-                            enter_arguments(
+            if frames.data.len() != settled || !storage.activations.data.is_empty() {
+                settled = usize::MAX;
+                if !storage.activations.data.is_empty() {
+                    programs::advance(ctx, frames, storage, stack.data.len())?;
+                }
+                if frames.data.is_empty() {
+                    while *initializer < program.namespaces.len() {
+                        let module = *initializer;
+                        *initializer += 1;
+                        if let Some(body) = program.namespaces[module].body {
+                            let state = namespaces::state(program, ctx, storage, module)?;
+                            if !storage.namespaces.data[state].initialized {
+                                enter_arguments(
+                                    program,
+                                    ctx,
+                                    frames,
+                                    storage,
+                                    body,
+                                    Arguments::empty(),
+                                    0,
+                                )?;
+                                break;
+                            }
+                        }
+                    }
+                    if frames.data.is_empty() {
+                        let (function, input) = pending_entry.take().unwrap();
+                        enter_arguments(program, ctx, frames, storage, function, input, 0)
+                            .map_err(entry_binding)?;
+                    }
+                }
+                let current = frames.data.len() - 1;
+                if !Arc::ptr_eq(active, &frames.data[current].program) {
+                    *active = frames.data[current].program.clone();
+                    if storage.releasing {
+                        programs::release(ctx, storage)?;
+                    }
+                }
+                let program = &**active;
+                if frames.data[current].host {
+                    return Ok(Event::Host);
+                }
+                if frames.data[current].function.is_none() {
+                    ctx.charge(1)?;
+                    let iteration =
+                        &mut storage.iterations.data[frames.data[current].iteration_base];
+                    let returned = if iteration.waiting() {
+                        Some(stack.data.pop().unwrap())
+                    } else {
+                        None
+                    };
+                    match iteration.advance(ctx, returned)? {
+                        Progress::Yield(args, count) => {
+                            for value in &args[..count] {
+                                crate::exports::check(ctx, value)?;
+                            }
+                            let block = frames.data[current].block.unwrap();
+                            enter_block(
+                                ctx,
+                                frames,
+                                storage,
+                                block,
+                                &args[..count],
+                                stack.data.len(),
+                            )?;
+                        }
+                        Progress::Call(receiver, operation, argument) => {
+                            dispatch::reduce(
                                 program,
                                 ctx,
                                 frames,
                                 storage,
-                                body,
-                                Arguments::empty(),
-                                0,
+                                stack,
+                                [receiver, operation, argument],
                             )?;
-                            break;
+                        }
+                        Progress::Done(mut value) => {
+                            let mutation = iteration.take_mutation();
+                            if frames.data[current].mutating {
+                                let address = storage.addresses.data.pop().unwrap();
+                                if let Some(mutation) = mutation {
+                                    let guard_program = programs::address(ctx, storage, &address)?;
+                                    let guard = address_guard(
+                                        guard_program.as_deref(),
+                                        ctx,
+                                        frames,
+                                        storage,
+                                        &address,
+                                    )?;
+                                    value = address.apply(
+                                        ctx,
+                                        address::Bindings {
+                                            recover: !storage.handlers.data.is_empty(),
+                                            guard,
+                                            locals: &mut storage.locals.data,
+                                            globals: &mut storage.globals.data,
+                                            namespaces: &mut storage.namespaces.data,
+                                        },
+                                        &mut storage.addresses.data,
+                                        |ctx, receiver| mutation.apply(ctx, receiver, value),
+                                    )?;
+                                }
+                            }
+                            unwind(frames, storage, stack, current);
+                            crate::exports::check(ctx, &value)?;
+                            stack.push(ctx, value)?;
                         }
                     }
+                    continue;
                 }
-                if frames.data.is_empty() {
-                    let (function, input) = pending_entry.take().unwrap();
-                    enter_arguments(program, ctx, frames, storage, function, input, 0)
-                        .map_err(entry_binding)?;
-                }
+                settled = frames.data.len();
             }
             let current = frames.data.len() - 1;
-            if !Arc::ptr_eq(active, &frames.data[current].program) {
-                *active = frames.data[current].program.clone();
-                if storage.releasing {
-                    programs::release(ctx, storage)?;
-                }
-            }
             let program = &**active;
             let hosts = &program.code.hosts;
-            if frames.data[current].host {
-                return Ok(Event::Host);
-            }
-            if frames.data[current].function.is_none() {
-                ctx.charge(1)?;
-                let iteration = &mut storage.iterations.data[frames.data[current].iteration_base];
-                let returned = if iteration.waiting() {
-                    Some(stack.data.pop().unwrap())
-                } else {
-                    None
-                };
-                match iteration.advance(ctx, returned)? {
-                    Progress::Yield(args, count) => {
-                        for value in &args[..count] {
-                            crate::exports::check(ctx, value)?;
-                        }
-                        let block = frames.data[current].block.unwrap();
-                        enter_block(
-                            ctx,
-                            frames,
-                            storage,
-                            block,
-                            &args[..count],
-                            stack.data.len(),
-                        )?;
-                    }
-                    Progress::Call(receiver, operation, argument) => {
-                        dispatch::reduce(
-                            program,
-                            ctx,
-                            frames,
-                            storage,
-                            stack,
-                            [receiver, operation, argument],
-                        )?;
-                    }
-                    Progress::Done(mut value) => {
-                        let mutation = iteration.take_mutation();
-                        if frames.data[current].mutating {
-                            let address = storage.addresses.data.pop().unwrap();
-                            if let Some(mutation) = mutation {
-                                let guard_program = programs::address(ctx, storage, &address)?;
-                                let guard = address_guard(
-                                    guard_program.as_deref(),
-                                    ctx,
-                                    frames,
-                                    storage,
-                                    &address,
-                                )?;
-                                value = address.apply(
-                                    ctx,
-                                    address::Bindings {
-                                        recover: !storage.handlers.data.is_empty(),
-                                        guard,
-                                        locals: &mut storage.locals.data,
-                                        globals: &mut storage.globals.data,
-                                        namespaces: &mut storage.namespaces.data,
-                                    },
-                                    &mut storage.addresses.data,
-                                    |ctx, receiver| mutation.apply(ctx, receiver, value),
-                                )?;
-                            }
-                        }
-                        unwind(frames, storage, stack, current);
-                        crate::exports::check(ctx, &value)?;
-                        stack.push(ctx, value)?;
-                    }
-                }
-                continue;
-            }
             let frame = &mut frames.data[current];
             let function = &program.functions[frame.function.unwrap()];
             let op = function.code[frame.ip];
