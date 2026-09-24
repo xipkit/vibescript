@@ -104,6 +104,30 @@ mod tests {
         assert_eq!(format_bytes(b"a\xff \r\n"), b"a\xff\n");
     }
 
+    #[test]
+    fn typed_declarations_round_trip() {
+        let source = "type Reward = { id: string, points: int }
+
+class Counter
+  @count: int = 0
+  @name: string
+end
+
+def keep(items: array<Reward>, &block: Reward -> bool) -> array<Reward>
+  kept: array<Reward> = []
+  items.each { |item| kept << item if yield(item) }
+  kept
+end
+
+def each_pair(h: hash<string, int>, &block?: (string, int))
+  pair: [string, int]? = nil
+  h.keys.each { |k| yield k, h.fetch(k) } if block_given?
+end
+";
+        assert!(is_formatted(source));
+        assert_eq!(format(&source.replace('\n', "  \r\n")), source);
+    }
+
     /// The reference's formatter fuzz properties, over generated input.
     #[test]
     fn output_is_canonical_and_idempotent() {

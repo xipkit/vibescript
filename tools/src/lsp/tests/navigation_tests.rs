@@ -319,3 +319,61 @@ fn a_document_broken_on_open_keeps_the_sections_that_parse() {
     assert_eq!(names(&symbols(&mut server, uri)), Vec::<&str>::new());
     assert!(document(&server, uri).program.is_some());
 }
+
+/// Typed locals, block parameters, instance-variable declarations, type
+/// aliases and tuple types, which every request must serve without failing.
+const TYPED: &str = "type Reward = { id: string, points: int }
+
+class Counter
+  @count: int = 0
+  @name: string
+  type Entry = [string, int]
+  def bump(entry: Entry) -> int
+    @count += entry[1]
+  end
+end
+
+def keep(items: array<Reward>, &block: Reward -> bool) -> array<Reward>
+  kept: array<Reward> = []
+  items.each { |item| kept << item if yield(item) }
+  kept
+end
+
+def run()
+  pair: [int, string]? = nil
+  keep([]) { |reward| reward[\"points\"] > 1 }
+end
+";
+
+#[test]
+fn every_request_serves_the_typed_declarations() {
+    let mut server = server();
+    let uri = "file:///tmp/typed.vibe";
+    assert!(open_diagnostics(&mut server, uri, TYPED).is_empty());
+    let symbols = symbols(&mut server, uri);
+    assert_eq!(names(&symbols), ["Counter", "keep", "run"]);
+    assert_eq!(names(symbols[0]["children"].as_array().unwrap()), ["bump"]);
+    let lines: Vec<&str> = TYPED.lines().collect();
+    for (line, text) in lines.iter().enumerate() {
+        for character in 0..=text.len() {
+            let (line, character) = (line as i64, character as i64);
+            for method in [
+                "textDocument/hover",
+                "textDocument/definition",
+                "textDocument/completion",
+                "textDocument/signatureHelp",
+            ] {
+                let response = request(&mut server, method, position(uri, line, character));
+                assert!(
+                    response.get("error").is_none(),
+                    "{method} {line}:{character}"
+                );
+            }
+        }
+    }
+    let hover = hover_at(&mut server, uri, 11, 5);
+    assert!(
+        hover.contains("def keep(items: array<Reward>) -> array<Reward>"),
+        "{hover}"
+    );
+}
