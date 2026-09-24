@@ -230,10 +230,13 @@ impl Exit {
         previous: &Self,
         depth: usize,
     ) -> Result<()> {
-        self.pending
-            .join(ctx, facts, &previous.pending, Some(depth))?;
-        self.globals
-            .join(ctx, facts, &previous.globals, Some(depth))?;
+        // Widening compares each fact with the earlier one to find what grows.
+        let mut pending = previous.pending.snapshot(ctx)?;
+        pending.join(ctx, facts, &self.pending, Some(depth))?;
+        self.pending = pending;
+        let mut globals = previous.globals.snapshot(ctx)?;
+        globals.join(ctx, facts, &self.globals, Some(depth))?;
+        self.globals = globals;
         self.value = facts.widen(ctx, previous.value, self.value, depth)?;
         self.captures.merge(ctx, &previous.captures, |ctx, a, b| {
             facts.widen(ctx, b, a, depth)
