@@ -38,7 +38,7 @@ Unknown requests fail with `-32601 method not found`, and requests whose paramet
 
 ### Diagnostics
 
-Every open and change compiles the document. A compile error is published in the reference's form: severity 1 (error), source `vibes-lsp`, the parser's bare message, and a range in UTF-16 units. The port's parser stops at its first error, where the reference's parser reports every error it recovers from, and its messages are its own, such as `expected name` where the reference says `expected function name, got integer`. The reference spans the offending token; a port error carries only a position, so its range covers the identifier, number or keyword starting there, or one character. Errors without a position, such as an oversized source, are reported at the start of the document.
+Every open and change compiles the document. A compile error is published in the reference's form: severity 1 (error), source `vibes-lsp`, the parser's bare message, and a range in UTF-16 units. The port's parser stops at its first error, where the reference's parser reports every error it recovers from; that first error has the reference's message and position. The reference spans the offending token; a port error carries only a position, so its range covers the identifier, number or keyword starting there, or one character. Errors without a position, such as an oversized source, are reported at the start of the document.
 
 When the document compiles, the server also runs the static checker over the whole document, as `vibes check FILE` does: top-level code and every function and method declaration, including unused ones. The reference's server reports compile errors only, so these findings are new:
 
@@ -118,16 +118,16 @@ assert!(hover.contains("Writes each value"));
 | `didClose` diagnostics | 241 | 241 |
 | Protocol session | 34 | 33 |
 | `didOpen` diagnostics | 241 | 167 |
-| `didChange` diagnostics | 723 | 36 |
+| `didChange` diagnostics | 723 | 127 |
 
-Every difference is in diagnostics. On open, 73 documents get checker findings, and the document broken on open reports the port's single parse error. After each unparsable edit, the port reports its single parse error where the reference reports several with its own messages, and two halved documents that still parse get checker findings. The remaining protocol difference is the diagnostics for a document broken on open.
+Every difference is in diagnostics. On open, 73 documents get checker findings, and the document broken on open reports only the first of the reference's parse errors. After an unparsable edit, 594 documents differ only because the reference reports several parse errors where the port reports the first, which is identical to the reference's, and two halved documents that still parse get checker findings. The remaining protocol difference is the diagnostics for a document broken on open.
 
 ## Differences from the reference
 
 Intentional:
 
 - Diagnostics include the static checker's findings, as described in [diagnostics](#diagnostics), and required files resolve from the document's directory for the check.
-- Parse errors follow the port's parser: one error per document, its own messages, and a range covering the word at the error position.
+- Parse errors follow the port's parser: one error per document, with the reference's message and position, and a range covering the word at the error position.
 - A body over 8 MiB is skipped and the server continues; the reference exits. The port also rejects header blocks over 64 KiB.
 - Queued requests can be cancelled, consecutive changes to one document are analyzed once, and a superseded analysis publishes nothing, where threads exist. The reference handles every message in turn.
 - The static check and compilation stop at a deadline and the check at its quotas; the reference has no deadline but checks nothing.
@@ -135,5 +135,4 @@ Intentional:
 Consequences of the port's parser, which stops at its first error:
 
 - A document that does not parse is outlined section by section. Where a broken section hides a declaration the reference's recovering parser still finds, such as a function whose body is cut off, the port does not list it; where a section no longer parses at all, the port keeps the last outline for it only if no section parses.
-- Duplicate top-level definitions are a parse error at the second definition's name, where the reference compiles the document and reports `duplicate function NAME` at the document start.
 

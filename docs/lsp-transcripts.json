@@ -13,8 +13,8 @@
     },
     "textDocument/didChange": {
       "checker findings": 2,
-      "compile error presentation": 685,
-      "equal": 36
+      "compile error presentation": 594,
+      "equal": 127
     },
     "textDocument/didClose": {
       "equal": 241
