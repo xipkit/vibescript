@@ -342,6 +342,14 @@ fn dispatch(
     receiver: Value,
     args: &[Value],
 ) -> Result<(Value, Value)> {
+    // No probe below serves a string's or array's length or size, and each
+    // declines them without charging, so they go straight to the builtin.
+    if let Some(method @ (Method::Length | Method::Size)) = site.method {
+        if !site.scope && args.is_empty() && matches!(receiver.0, Kind::Bytes(_) | Kind::Array(_)) {
+            let result = ops::method(ctx, method, name, receiver.clone(), args)?;
+            return Ok((receiver, result));
+        }
+    }
     if forwarding::applicable(ctx, site, name, &receiver)? {
         forwarding::method(name, args)?;
         return Err(Error::new(
