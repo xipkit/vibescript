@@ -1,4 +1,5 @@
 use super::*;
+use crate::checking::flow::bypass::Bypass;
 
 impl Walker<'_> {
     pub(in super::super) fn resolve_name(
@@ -6,6 +7,37 @@ impl Walker<'_> {
         state: &mut State,
         pc: usize,
         op: Op,
+    ) -> Result<Option<Edges>> {
+        match self.bypass(state, pc, op)? {
+            Bypass::Kept => self.resolve_binding(state, pc, op, true),
+            Bypass::Name { ambient } => {
+                let Op::ResolveCall(_, name, parenthesized) = op else {
+                    unreachable!()
+                };
+                let op = Op::ResolveCall(usize::MAX, name, parenthesized);
+                self.resolve_binding(state, pc, op, ambient)
+            }
+            Bypass::Outer(binding) => {
+                let Op::ResolveCall(_, _, parenthesized) = op else {
+                    unreachable!()
+                };
+                let target = if binding.missing {
+                    Target::Unsupported
+                } else {
+                    self.value_target(binding.value)?
+                };
+                self.call_target(state, pc, target, true, parenthesized)
+            }
+            Bypass::Unsupported => self.incomplete(pc).map(Some),
+        }
+    }
+
+    fn resolve_binding(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        op: Op,
+        ambient: bool,
     ) -> Result<Option<Edges>> {
         let (slot, name, named, parenthesized) = match op {
             Op::ResolveCall(slot, name, parenthesized) => (slot, name, true, parenthesized),
@@ -31,7 +63,7 @@ impl Walker<'_> {
                             &self.program.members[name],
                             present,
                         )?;
-                        let edges = self.resolve_name(&mut next, pc, op)?;
+                        let edges = self.resolve_binding(&mut next, pc, op, ambient)?;
                         self.member_edges(pc, next, edges)?;
                     }
                     return Ok(Some([None, None]));
@@ -43,17 +75,28 @@ impl Walker<'_> {
                 return Ok(Some([None, None]));
             };
             for mut next in alternatives.data {
-                let edges = self.resolve_name(&mut next, pc, op)?;
+                let edges = self.resolve_binding(&mut next, pc, op, ambient)?;
                 self.member_edges(pc, next, edges)?;
             }
         }
-        let Some(target) = self.target(state, pc, slot, name, named)? else {
+        let Some(target) = self.target(state, pc, slot, name, named, ambient)? else {
             return Ok(Some([None, None]));
         };
         if target == Target::Undefined {
             self.namespace_name_error(state, pc)?;
             return Ok(Some([None, None]));
         }
+        self.call_target(state, pc, target, named, parenthesized)
+    }
+
+    fn call_target(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        target: Target,
+        named: bool,
+        parenthesized: bool,
+    ) -> Result<Option<Edges>> {
         if named {
             state.arguments.push(
                 self.ctx,

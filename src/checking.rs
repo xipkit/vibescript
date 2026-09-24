@@ -225,3 +225,6 @@ mod splat_tests;
 
 #[cfg(test)]
 mod loop_control_tests;
+
+#[cfg(test)]
+mod shadowing_tests;

@@ -13,11 +13,22 @@ pub(super) struct TypeSource {
     pub capture: usize,
 }
 
+#[derive(Clone, Copy)]
+struct Bypass {
+    start: usize,
+    end: usize,
+    slot: usize,
+}
+
 struct Layout {
     // Slots after compiled locals relay bindings used only by descendant blocks.
     additional: Buffer<Capture>,
     shadows: Buffer<bool>,
+    // Assignment values whose same-name calls skip the assigned binding.
+    bypasses: Buffer<Bypass>,
     parent: Option<usize>,
+    // The parent's instruction that attaches this block.
+    attach: usize,
     forwarding: bool,
     // The function or a nested block yields to, or tests for, the function's incoming block.
     observes_block: bool,
@@ -40,12 +51,34 @@ impl Layouts {
             let mut shadows = Buffer::with_capacity(ctx, function.locals)?;
             let mut forwarding = false;
             let mut observes_block = false;
+            let mut bypasses = Buffer::empty();
+            let mut open = Buffer::empty();
             ctx.charge(function.locals as u64)?;
             shadows.data.resize(function.locals, false);
-            for op in &function.code {
+            for (pc, op) in function.code.iter().enumerate() {
                 ctx.charge(1)?;
-                if let Op::Shadow(slot) = *op {
-                    shadows.data[slot] = true;
+                match *op {
+                    Op::Shadow(slot) => shadows.data[slot] = true,
+                    Op::Bypass(slot) => {
+                        open.push(ctx, bypasses.data.len())?;
+                        let end = function.code.len();
+                        bypasses.push(
+                            ctx,
+                            Bypass {
+                                start: pc,
+                                end,
+                                slot,
+                            },
+                        )?;
+                    }
+                    Op::BypassEnd(count) => {
+                        for _ in 0..count {
+                            ctx.charge(1)?;
+                            let index = open.data.pop().unwrap();
+                            bypasses.data[index].end = pc;
+                        }
+                    }
+                    _ => (),
                 }
                 forwarding |= matches!(op, Op::Yield(_));
                 observes_block |= matches!(op, Op::Yield(_) | Op::BlockGiven(..) | Op::CheckBlock);
@@ -55,7 +88,9 @@ impl Layouts {
                 Layout {
                     additional: Buffer::empty(),
                     shadows,
+                    bypasses,
                     parent: None,
+                    attach: 0,
                     forwarding,
                     observes_block,
                     types: Buffer::empty(),
@@ -63,12 +98,13 @@ impl Layouts {
             )?;
         }
         for (index, function) in program.functions.iter().enumerate() {
-            for op in &function.code {
+            for (pc, op) in function.code.iter().enumerate() {
                 ctx.charge(1)?;
                 if let Op::Attach(child) = *op {
-                    let parent = &mut functions.data[child].parent;
-                    assert!(parent.is_none() || *parent == Some(index));
-                    *parent = Some(index);
+                    let layout = &mut functions.data[child];
+                    assert!(layout.parent.is_none() || layout.parent == Some(index));
+                    layout.parent = Some(index);
+                    layout.attach = pc;
                 }
             }
         }
@@ -326,6 +362,33 @@ impl Layouts {
             parent = self.functions.data[function].parent;
         }
         Ok(None)
+    }
+
+    /// Reports whether a same-name call at `pc` skips `slot`, because an assignment to
+    /// that binding is evaluating the value that contains the call.
+    pub fn bypassed(
+        &self,
+        ctx: &mut CallContext,
+        function: usize,
+        pc: usize,
+        slot: usize,
+    ) -> Result<bool> {
+        let bypasses = &self.functions.data[function].bypasses.data;
+        ctx.charge(bypasses.len() as u64 + 1)?;
+        Ok(bypasses
+            .iter()
+            .any(|bypass| bypass.slot == slot && bypass.start < pc && pc < bypass.end))
+    }
+
+    /// Returns a block's enclosing function and the instruction there that attaches it.
+    pub fn attachment(
+        &self,
+        ctx: &mut CallContext,
+        function: usize,
+    ) -> Result<Option<(usize, usize)>> {
+        ctx.charge(1)?;
+        let layout = &self.functions.data[function];
+        Ok(layout.parent.map(|parent| (parent, layout.attach)))
     }
 
     pub fn forwarding(&self, ctx: &mut CallContext, function: usize) -> Result<bool> {

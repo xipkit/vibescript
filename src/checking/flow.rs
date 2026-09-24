@@ -25,6 +25,7 @@ use crate::{
 mod ambient;
 mod attached;
 mod bindings;
+mod bypass;
 mod call_targets;
 mod callbacks;
 mod collection_blocks;
@@ -1456,6 +1457,7 @@ impl Walker<'_> {
         slot: usize,
         name: usize,
         named: bool,
+        ambient: bool,
     ) -> Result<Option<Target>> {
         if slot != usize::MAX {
             let binding = state.locals.get(self.ctx, slot)?;
@@ -1475,7 +1477,7 @@ impl Walker<'_> {
                 self.value_target(field.value).map(Some)
             };
         }
-        if let Some((_, binding)) = self.ambient_binding(state, name)? {
+        if let Some((_, binding)) = self.ambient_binding(state, name)?.filter(|_| ambient) {
             return if binding.missing {
                 Ok(Some(Target::Unsupported))
             } else {
@@ -2944,6 +2946,8 @@ impl Walker<'_> {
                         arguments: Arguments::new(),
                     },
                 )?,
+                // Same-name calls consult the lexical assignment ranges instead.
+                Op::Bypass(_) | Op::BypassEnd(_) => (),
                 Op::ResolveCall(..) | Op::CallName(..) => {
                     if let Some(edges) = self.resolve_name(&mut state, pc, op)? {
                         return Ok(edges);
