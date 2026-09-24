@@ -14,3 +14,4 @@ implementation, which is the reference going forward.
 | [005](005-dev-mode-module-reloading.md) | Dev-mode module reloading | Accepted |
 | [006](006-slim-language-for-predictable-sandboxing.md) | Slim the language for predictable sandboxing | Accepted |
 | [007](007-static-types.md) | Static types with local inference | Accepted |
+| [008](008-canonical-surface-for-ai-authors.md) | A canonical surface for AI authors | Accepted |
