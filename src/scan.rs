@@ -5,7 +5,7 @@ pub(crate) enum Class {
     JsonStringify,
 }
 
-fn ordinary(b: u8, class: Class) -> bool {
+pub(crate) fn ordinary(b: u8, class: Class) -> bool {
     match class {
         Class::Ascii => b < 128,
         Class::JsonParse => (32..128).contains(&b) && b != b'"' && b != b'\\',

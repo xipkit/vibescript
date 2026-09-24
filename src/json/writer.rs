@@ -44,6 +44,35 @@ impl Output {
         Ok(())
     }
 
+    /// Appends `bytes` as [`Self::extend`] does, adding its work to `pending`
+    /// instead of charging it. Pending steps are settled before the limit
+    /// check can fail or the buffer grows, so both happen after the same
+    /// charges as with `extend`.
+    #[inline(always)]
+    fn put(&mut self, ctx: &mut CallContext, bytes: &[u8], pending: &mut u64) -> Result<()> {
+        let length = self.buffer.data.len().saturating_add(bytes.len());
+        if length > self.buffer.data.capacity() || self.limit.is_some_and(|limit| length > limit) {
+            self.grow(ctx, length, pending)?;
+        }
+        if let [byte] = bytes {
+            self.buffer.data.push(*byte);
+        } else {
+            self.buffer.data.extend_from_slice(bytes);
+        }
+        *pending += (bytes.len() as u64).div_ceil(64);
+        Ok(())
+    }
+
+    #[cold]
+    fn grow(&mut self, ctx: &mut CallContext, length: usize, pending: &mut u64) -> Result<()> {
+        settle(ctx, pending)?;
+        self.check(ctx, length)?;
+        self.ensure(
+            ctx,
+            length.max(self.buffer.data.capacity().saturating_mul(2)),
+        )
+    }
+
     fn extend(&mut self, ctx: &mut CallContext, bytes: &[u8]) -> Result<()> {
         let length = self.buffer.data.len().saturating_add(bytes.len());
         self.check(ctx, length)?;
@@ -342,62 +371,283 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
         )?;
     }
     out.push(ctx, b'"')?;
+    // Steps are charged as when every span and escape was appended with
+    // `Output::extend`, but settled in batches: before anything that can fail
+    // or grow the buffer, so failures and growth follow the same charges, and
+    // after each chunk of input, so cancellation stays responsive.
+    let mut pending = 0;
+    let mut settled = 0;
     let mut i = 0;
     while i < input.len() {
-        let span = scan::text_span(&input[i..input.len().min(i + CHUNK)], Class::JsonStringify);
+        if i - settled >= CHUNK {
+            settle(ctx, &mut pending)?;
+            ctx.checkpoint()?;
+            settled = i;
+        }
+        let b = input[i];
+        if b < 128 && !scan::ordinary(b, Class::JsonStringify) {
+            pending += 1;
+            i += 1;
+            // Go reserves room for the longest escape before any ASCII escape.
+            let reserved = out.buffer.data.len().saturating_add(6);
+            if out.limit.is_some_and(|limit| reserved > limit) {
+                settle(ctx, &mut pending)?;
+                out.check(ctx, reserved)?;
+            }
+            let short = match b {
+                b'"' | b'\\' => b,
+                b'\n' => b'n',
+                b'\r' => b'r',
+                b'\t' => b't',
+                8 => b'b',
+                12 => b'f',
+                _ => 0,
+            };
+            if short != 0 {
+                out.put(ctx, &[b'\\', short], &mut pending)?;
+            } else {
+                let hex = b"0123456789abcdef";
+                let unicode = [
+                    b'\\',
+                    b'u',
+                    b'0',
+                    b'0',
+                    hex[(b >> 4) as usize],
+                    hex[(b & 15) as usize],
+                ];
+                out.put(ctx, &unicode, &mut pending)?;
+            }
+            continue;
+        }
+        let window = &input[i..input.len().min(i + CHUNK)];
+        if b < 128 {
+            // An ordinary run ending at an escape or the window is exactly
+            // the span `text_span` would find, so it skips the rune scan.
+            let n = scan::prefix(window, Class::JsonStringify);
+            if window.get(n).is_none_or(|&next| next < 128) {
+                out.put(ctx, &window[..n], &mut pending)?;
+                i += n;
+                continue;
+            }
+        }
+        let span = scan::text_span(window, Class::JsonStringify);
         if span.len > 0 {
             if span.runes != span.len {
-                ctx.charge(span.steps)?;
+                pending += span.steps;
             }
-            out.extend(ctx, &input[i..i + span.len])?;
+            out.put(ctx, &window[..span.len], &mut pending)?;
             i += span.len;
             continue;
         }
-        ctx.charge(1)?;
-        let b = input[i];
-        i += 1;
-        if b.is_ascii() {
-            // Go reserves room for the longest escape before any ASCII escape.
-            out.check(ctx, out.buffer.data.len().saturating_add(6))?;
+        // A rune the span stopped at: invalid, a line or paragraph separator,
+        // or cut by the end of the chunk.
+        pending += 1;
+        let (ch, n, valid) = scan::rune(&input[i..]);
+        let replacement: &[u8] = if ch == '\u{2028}' {
+            b"\\u2028"
+        } else if ch == '\u{2029}' {
+            b"\\u2029"
+        } else if !valid {
+            b"\\ufffd"
+        } else {
+            &input[i..i + n]
+        };
+        i += n;
+        out.put(ctx, replacement, &mut pending)?;
+    }
+    settle(ctx, &mut pending)?;
+    out.push(ctx, b'"')?;
+    Ok(())
+}
+
+/// Charges steps deferred by [`Output::put`].
+fn settle(ctx: &mut CallContext, pending: &mut u64) -> Result<()> {
+    match std::mem::take(pending) {
+        0 => Ok(()),
+        steps => ctx.charge(steps),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{CallOptions, Limits};
+
+    /// The per-span and per-escape writer this module batches, kept as the
+    /// accounting oracle.
+    fn reference(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usize) -> Result<()> {
+        out.check(
+            ctx,
+            out.buffer
+                .data
+                .len()
+                .saturating_add(input.len())
+                .saturating_add(2),
+        )?;
+        let headroom = if input.len() >= CHUNK { open } else { 0 };
+        let minimum = out.buffer.data.len() + input.len() + 2 + headroom;
+        if minimum > out.buffer.data.capacity() {
+            out.ensure(
+                ctx,
+                minimum.max(out.buffer.data.capacity().saturating_mul(2)),
+            )?;
         }
-        match b {
-            b'"' => out.extend(ctx, b"\\\"")?,
-            b'\\' => out.extend(ctx, b"\\\\")?,
-            b'\n' => out.extend(ctx, b"\\n")?,
-            b'\r' => out.extend(ctx, b"\\r")?,
-            b'\t' => out.extend(ctx, b"\\t")?,
-            8 => out.extend(ctx, b"\\b")?,
-            12 => out.extend(ctx, b"\\f")?,
-            0..=31 | b'<' | b'>' | b'&' => {
-                let hex = b"0123456789abcdef";
-                out.extend(
-                    ctx,
-                    &[
-                        b'\\',
-                        b'u',
-                        b'0',
-                        b'0',
-                        hex[(b >> 4) as usize],
-                        hex[(b & 15) as usize],
-                    ],
-                )?;
+        out.push(ctx, b'"')?;
+        let mut i = 0;
+        while i < input.len() {
+            let span = scan::text_span(&input[i..input.len().min(i + CHUNK)], Class::JsonStringify);
+            if span.len > 0 {
+                if span.runes != span.len {
+                    ctx.charge(span.steps)?;
+                }
+                out.extend(ctx, &input[i..i + span.len])?;
+                i += span.len;
+                continue;
             }
-            _ => {
-                i -= 1;
-                let (ch, n, valid) = scan::rune(&input[i..]);
-                i += n;
-                if ch == '\u{2028}' {
-                    out.extend(ctx, b"\\u2028")?;
-                } else if ch == '\u{2029}' {
-                    out.extend(ctx, b"\\u2029")?;
-                } else if !valid {
-                    out.extend(ctx, b"\\ufffd")?;
-                } else {
-                    out.extend(ctx, &input[i - n..i])?;
+            ctx.charge(1)?;
+            let b = input[i];
+            i += 1;
+            if b.is_ascii() {
+                out.check(ctx, out.buffer.data.len().saturating_add(6))?;
+            }
+            match b {
+                b'"' => out.extend(ctx, b"\\\"")?,
+                b'\\' => out.extend(ctx, b"\\\\")?,
+                b'\n' => out.extend(ctx, b"\\n")?,
+                b'\r' => out.extend(ctx, b"\\r")?,
+                b'\t' => out.extend(ctx, b"\\t")?,
+                8 => out.extend(ctx, b"\\b")?,
+                12 => out.extend(ctx, b"\\f")?,
+                0..=31 | b'<' | b'>' | b'&' => {
+                    let hex = b"0123456789abcdef";
+                    out.extend(
+                        ctx,
+                        &[
+                            b'\\',
+                            b'u',
+                            b'0',
+                            b'0',
+                            hex[(b >> 4) as usize],
+                            hex[(b & 15) as usize],
+                        ],
+                    )?;
+                }
+                _ => {
+                    i -= 1;
+                    let (ch, n, valid) = scan::rune(&input[i..]);
+                    i += n;
+                    if ch == '\u{2028}' {
+                        out.extend(ctx, b"\\u2028")?;
+                    } else if ch == '\u{2029}' {
+                        out.extend(ctx, b"\\u2029")?;
+                    } else if !valid {
+                        out.extend(ctx, b"\\ufffd")?;
+                    } else {
+                        out.extend(ctx, &input[i - n..i])?;
+                    }
+                }
+            }
+        }
+        out.push(ctx, b'"')?;
+        Ok(())
+    }
+
+    #[test]
+    fn batched_escaping_matches_per_escape_output_and_accounting() {
+        let pieces: [&[u8]; 20] = [
+            b"a",
+            b"plain text ",
+            b"\"",
+            b"\\",
+            b"\n",
+            b"\t",
+            b"\r",
+            b"\x08",
+            b"\x0c",
+            b"\x00",
+            b"\x1f",
+            b"<>&",
+            b"\x7f",
+            "é".as_bytes(),
+            "界".as_bytes(),
+            "🙂".as_bytes(),
+            "\u{2028}\u{2029}".as_bytes(),
+            b"\xff",
+            b"\xe7\x95",
+            b"\xf0\x9f\x99",
+        ];
+        let mut seed = 0x9e3779b97f4a7c15u64;
+        let mut next = move |bound: usize| {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            (seed % bound as u64) as usize
+        };
+        for case in 0..400 {
+            let mut input = Vec::new();
+            let target = [0, 1, 7, 100, 4095, 4097, 9000][case % 7] + next(64);
+            while input.len() < target {
+                let piece = pieces[next(pieces.len())];
+                for _ in 0..1 + next(3) * next(40) {
+                    input.extend_from_slice(piece);
+                }
+            }
+            let open = next(3);
+            let mut plain = CallContext::new(CallOptions::default());
+            let mut expected = Output::new(None, true);
+            reference(&mut plain, &input, &mut expected, open).unwrap();
+            let steps = plain.stats().steps;
+            let bytes = expected.buffer.data.len();
+            for limits in [
+                (None, None, None),
+                (Some(next(steps as usize + 2) as u64), None, None),
+                (None, Some(next(bytes * 2 + 64)), None),
+                (None, None, Some(next(bytes + 8))),
+                (
+                    Some(next(steps as usize + 2) as u64),
+                    Some(next(bytes * 2 + 64)),
+                    Some(next(bytes + 8)),
+                ),
+            ] {
+                let run = |write: fn(&mut CallContext, &[u8], &mut Output, usize) -> Result<()>| {
+                    let mut ctx = CallContext::new(CallOptions {
+                        limits: Limits {
+                            steps: limits.0,
+                            memory_bytes: limits.1.or(Some(usize::MAX)),
+                            ..Limits::default()
+                        },
+                        ..CallOptions::default()
+                    });
+                    let mut out = Output::new(limits.2, true);
+                    let result = write(&mut ctx, &input, &mut out, open);
+                    let stats = ctx.stats();
+                    (
+                        result.map(|()| {
+                            (
+                                out.buffer.data.clone(),
+                                stats.steps,
+                                stats.peak_memory_bytes,
+                                stats.retained_memory_bytes,
+                            )
+                        }),
+                        stats.peak_memory_bytes,
+                    )
+                };
+                let (want, want_peak) = run(reference);
+                let (got, got_peak) = run(write_string);
+                match (want, got) {
+                    (Ok(want), Ok(got)) => assert_eq!(want, got, "case {case} {limits:?}"),
+                    (Err(want), Err(got)) => {
+                        assert_eq!(
+                            (want.kind, want.message),
+                            (got.kind, got.message),
+                            "case {case} {limits:?}"
+                        );
+                        assert_eq!(want_peak, got_peak, "case {case} {limits:?}");
+                    }
+                    (want, got) => panic!("case {case} {limits:?}: {want:?} vs {got:?}"),
                 }
             }
         }
     }
-    out.push(ctx, b'"')?;
-    Ok(())
 }
