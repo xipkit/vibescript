@@ -21,7 +21,7 @@ module Ns
 end
 
 class hash<string, V?>
-  getter size?: bool
+  def size? -> bool
   def compact -> hash<string, V>
   def each(&block: ()) -> :done
 end
@@ -135,6 +135,11 @@ fn signature_files_report_malformed_declarations() {
             "comments go on their own line",
         ),
         ("module M\n  getter x: int\nend", 2, "expected `:`"),
+        (
+            "class time\n  getter year: int\nend",
+            2,
+            "expected a member declaration or `end`",
+        ),
         ("def f(x: \"a)", 1, "unterminated string"),
         (
             "def f(a: int)\ndef f(b: string)",
@@ -390,9 +395,6 @@ fn every_builtin_global_has_one_signature_or_a_rename() {
                     if !served && !renamed {
                         problems.push(format!("{}.{name} is not a runtime member", module.name));
                     }
-                    if matches!(member, Member::Getter(_)) {
-                        problems.push(format!("{}.{name} is a getter in a namespace", module.name));
-                    }
                 }
             }
             _ => {}
@@ -412,6 +414,7 @@ fn every_rename_leaves_a_runtime_spelling_for_a_canonical_one() {
         let receiver = rename.receiver.as_str();
         let name = rename.name.as_str();
         let served = match receiver {
+            "*" => true,
             "global" => functions.contains(name),
             "type" => crate::types::builtin_name(name).is_some(),
             "T" => runtime.values().any(|names| names.contains(name)),

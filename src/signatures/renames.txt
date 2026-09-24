@@ -7,8 +7,9 @@
 #   receiver: pattern => replacement
 #
 # The receiver is a class from builtins.vibe (`T` for every type), `global`
-# for a global function, a namespace such as `Time`, or `type` for a type name
-# in annotations. In a pattern, `$x` is the receiver expression and `$name`
+# for a global function, a namespace such as `Time`, `type` for a type name
+# in annotations, or `*` for a rule that applies to every name, whose `$name`
+# stands for that name. In a pattern, `$x` is the receiver expression and `$name`
 # one argument; `...` is every other argument and the block, passed through
 # unchanged. A pattern without parentheses matches only a call without
 # arguments or a block, and keywords in a pattern must appear with that value.
@@ -17,6 +18,10 @@
 #
 # Builtin type names are also lowercase only: `Int` and every other casing is
 # rewritten to its lowercase spelling, as a rule rather than an entry here.
+
+# Every call: one without arguments is written without parentheses.
+*: $x.$name() => $x.$name  # a block, if any, stays
+*: $name() => $name  # a block, if any, stays
 
 # Every type.
 T: $x.nil? => $x == nil

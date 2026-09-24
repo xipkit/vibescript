@@ -78,8 +78,6 @@ pub struct Class {
 #[non_exhaustive]
 pub enum Member {
     Function(Function),
-    /// A property, read without parentheses.
-    Getter(Constant),
     /// A namespace constant such as `Math::PI`.
     Constant(Constant),
 }
@@ -89,12 +87,12 @@ impl Member {
     pub fn name(&self) -> &str {
         match self {
             Self::Function(function) => &function.name,
-            Self::Getter(value) | Self::Constant(value) => &value.name,
+            Self::Constant(value) => &value.name,
         }
     }
 }
 
-/// A named value of one type: a constant, getter or host global.
+/// A named value of one type: a namespace constant or a host global.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Constant {
     pub doc: Vec<String>,

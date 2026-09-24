@@ -6,7 +6,8 @@ use std::sync::OnceLock;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Rename {
     /// Whose spelling it is: a class from the signature table (`T` for every
-    /// type), `global`, a namespace such as `Time`, or `type` for type names.
+    /// type), `global`, a namespace such as `Time`, `type` for type names, or
+    /// `*` for a rule that applies to every name.
     pub receiver: String,
     /// The removed member, function or type name.
     pub name: String,
@@ -122,7 +123,7 @@ pub(super) fn parse(source: &str) -> Result<Vec<Rename>, String> {
 fn removed_name(receiver: &str, pattern: &str) -> Option<String> {
     let rest = match pattern.strip_prefix("$x.") {
         Some(rest) => rest,
-        None if receiver == "global" || receiver == "type" => pattern,
+        None if matches!(receiver, "global" | "type" | "*") => pattern,
         None => pattern.strip_prefix(receiver)?.strip_prefix('.')?,
     };
     let end = rest.find('(').unwrap_or(rest.len());

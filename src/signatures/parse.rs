@@ -424,10 +424,6 @@ impl Parser {
                     self.overload(scope, &function, start)?;
                     Member::Function(function)
                 }
-                Token::Word(word) if word == "getter" && class => {
-                    self.pos += 1;
-                    Member::Getter(self.constant(doc)?)
-                }
                 Token::Word(_) if !class => Member::Constant(self.constant(doc)?),
                 _ => return self.fail("expected a member declaration or `end`"),
             };

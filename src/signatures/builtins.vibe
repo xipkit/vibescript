@@ -5,11 +5,13 @@
 #
 # Declarations
 #   def name(params) -> R        a function or member; without `-> R` it returns nil
-#   getter name: T               a property, read without parentheses
 #   NAME: T                      a namespace constant
 #   module Name ... end          a namespace such as Math
 #   class T ... end              the members of every value of type T
 #   type name = T                a type alias
+#
+# A call without arguments is written without parentheses, such as
+# `items.length`, `uuid` or `Time.now`.
 #
 # Parameters
 #   name: T                      required
@@ -149,21 +151,19 @@ class bool
 end
 
 class int
-  getter days: duration
-  getter hours: duration
-  getter minutes: duration
-  getter seconds: duration
-  getter weeks: duration
   def abs -> int
   def between?(min: number, max: number) -> bool
   def ceil(digits: int = 0) -> int
   def clamp(min: number?, max: number?) -> number
+  def days -> duration
   def div(divisor: number) -> int
   def divmod(divisor: number) -> array<number>
   def downto(limit: int, &block: int) -> int
   def even? -> bool
   def fdiv(divisor: number) -> float
   def floor(digits: int = 0) -> int
+  def hours -> duration
+  def minutes -> duration
   def negative? -> bool
   def nonzero? -> int?
   def odd? -> bool
@@ -171,6 +171,7 @@ class int
   def pred -> int
   def remainder(divisor: number) -> number
   def round(digits: int = 0) -> int
+  def seconds -> duration
   def step(limit: int, by: int = 1, &block: int) -> int
   def succ -> int
   def times(&block: int) -> int
@@ -178,6 +179,7 @@ class int
   def to_i -> int
   def to_s -> string
   def upto(limit: int, &block: int) -> int
+  def weeks -> duration
   def zero? -> bool
 end
 
@@ -480,78 +482,78 @@ class range
 end
 
 class money
-  getter cents: int
-  getter currency: string
   def between?(min: money, max: money) -> bool
+  def cents -> int
+  def currency -> string
   def to_s -> string
 end
 
 class duration
-  getter days: int
-  getter hours: int
-  getter in_days: float
-  getter in_hours: float
-  getter in_minutes: float
-  getter in_months: float
-  getter in_seconds: float
-  getter in_weeks: float
-  getter in_years: float
-  getter iso8601: string
-  getter minutes: int
-  getter parts: { days: int, hours: int, minutes: int, seconds: int }
-  getter to_i: int
-  getter weeks: int
   # The time this long after `start`, which defaults to now.
   def after(start?: time) -> time
   # The time this long before `start`, which defaults to now.
   def before(start?: time) -> time
   def between?(min: duration, max: duration) -> bool
+  def days -> int
+  def hours -> int
+  def in_days -> float
+  def in_hours -> float
+  def in_minutes -> float
+  def in_months -> float
+  def in_seconds -> float
+  def in_weeks -> float
+  def in_years -> float
+  def iso8601 -> string
+  def minutes -> int
+  def parts -> { days: int, hours: int, minutes: int, seconds: int }
+  def to_i -> int
   def to_s -> string
+  def weeks -> int
 end
 
 class time
-  getter day: int
-  getter dst?: bool
-  getter friday?: bool
-  # Nanoseconds since the Unix epoch.
-  getter hash: int
-  getter hour: int
-  getter min: int
-  getter monday?: bool
-  getter month: int
-  getter nsec: int
-  getter saturday?: bool
-  getter sec: int
-  getter subsec: float
-  getter sunday?: bool
-  getter thursday?: bool
-  # [sec, min, hour, day, month, year, wday, yday, dst?, zone]
-  getter to_a: array<int | bool | string>
-  getter to_f: float
-  getter to_i: int
-  getter tuesday?: bool
-  getter usec: int
-  getter utc: time
-  getter utc?: bool
-  getter utc_offset: int
-  getter wday: int
-  getter wednesday?: bool
-  getter yday: int
-  getter year: int
-  getter zone: string
   def between?(min: time, max: time) -> bool
   def ceil -> time
+  def day -> int
+  def dst? -> bool
   def floor -> time
   # Formats with a Go layout such as "2006-01-02".
   def format(layout: string) -> string
+  def friday? -> bool
+  # Nanoseconds since the Unix epoch.
+  def hash -> int
+  def hour -> int
   def httpdate -> string
   def iso8601(digits: int = 0) -> string
   def localtime(zone: string? = nil) -> time
+  def min -> int
+  def monday? -> bool
+  def month -> int
+  def nsec -> int
   def rfc2822 -> string
   def round(digits: int = 0) -> time
+  def saturday? -> bool
+  def sec -> int
   # Formats with a Ruby-style pattern such as "%Y-%m-%d".
   def strftime(format: string) -> string
+  def subsec -> float
+  def sunday? -> bool
+  def thursday? -> bool
+  # [sec, min, hour, day, month, year, wday, yday, dst?, zone]
+  def to_a -> array<int | bool | string>
+  def to_f -> float
+  def to_i -> int
   def to_s -> string
+  def tuesday? -> bool
+  def usec -> int
+  def utc -> time
+  def utc? -> bool
+  def utc_offset -> int
+  def wday -> int
+  def wednesday? -> bool
+  def yday -> int
+  def year -> int
+  def zone -> string
 end
 
 class regex
@@ -563,33 +565,33 @@ end
 
 # The result of a successful regex match.
 class match_data
-  getter captures: array<string?>
-  getter named_captures: hash<string, string?>
-  getter post_match: string
-  getter pre_match: string
-  getter to_s: string
   def begin(group: int) -> int?
+  def captures -> array<string?>
   def end(group: int) -> int?
+  def named_captures -> hash<string, string?>
+  def post_match -> string
+  def pre_match -> string
+  def to_s -> string
 end
 
 # The value a `rescue => error` clause binds.
 class error
-  getter backtrace: array<string>
-  getter class: string
-  getter code_frame: string
-  getter message: string
+  def backtrace -> array<string>
+  def class -> string
+  def code_frame -> string
+  def message -> string
 end
 
 # An enum, such as `Status` in `enum Status`.
 class enum_type
-  getter name: string
+  def name -> string
   def to_s -> string
 end
 
 # A member of any enum, such as `Status::Draft`.
 class enum_value
-  getter enum: enum_type
-  getter name: string
-  getter symbol: symbol
+  def enum -> enum_type
+  def name -> string
+  def symbol -> symbol
   def to_s -> string
 end

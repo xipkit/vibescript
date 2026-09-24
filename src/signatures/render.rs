@@ -60,12 +60,11 @@ fn members(f: &mut Formatter<'_>, members: &[Member]) -> fmt::Result {
     for member in members {
         let doc = match member {
             Member::Function(function) => &function.doc,
-            Member::Getter(value) | Member::Constant(value) => &value.doc,
+            Member::Constant(value) => &value.doc,
         };
         comments(f, "  ", doc)?;
         match member {
             Member::Function(function) => writeln!(f, "  {function}")?,
-            Member::Getter(Constant { name, ty, .. }) => writeln!(f, "  getter {name}: {ty}")?,
             Member::Constant(Constant { name, ty, .. }) => writeln!(f, "  {name}: {ty}")?,
         }
     }

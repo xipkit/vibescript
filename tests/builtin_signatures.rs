@@ -355,9 +355,12 @@ enum Target {
 struct Call {
     /// The signature, such as `array.map` or `Math.sqrt`.
     path: String,
+    /// The call as the language writes it: without parentheses when it
+    /// passes no arguments.
     source: String,
-    /// The call without parentheses, when it passes no arguments or block.
-    bare: Option<String>,
+    /// The call with empty parentheses, when it passes no arguments, for the
+    /// members the runtime does not yet call without them.
+    parenthesized: Option<String>,
     result: Type,
     block: Option<(Vec<Type>, Option<Type>)>,
 }
@@ -452,16 +455,22 @@ fn variants(
                 Target::Namespace(namespace) => format!("{namespace}.{spelling}"),
                 Target::Global => spelling.to_owned(),
             };
-            let mut source = format!("{prefix}({})", arguments.join(", "));
+            let (mut source, mut parenthesized) = if arguments.is_empty() {
+                (prefix.clone(), Some(format!("{prefix}()")))
+            } else {
+                (format!("{prefix}({})", arguments.join(", ")), None)
+            };
             if let Some((_, _, body)) = block {
                 source.push_str(&format!(" {body}"));
+                if let Some(parenthesized) = &mut parenthesized {
+                    parenthesized.push_str(&format!(" {body}"));
+                }
             }
-            let bare = (arguments.is_empty() && block.is_none()).then(|| prefix.clone());
             if seen.insert(source.clone()) {
                 calls.push(Call {
                     path: path.to_owned(),
                     source,
-                    bare,
+                    parenthesized,
                     result: result.clone(),
                     block: block
                         .as_ref()
@@ -622,7 +631,11 @@ fn expected(path: &str, error: &Error) -> bool {
 }
 
 fn check(harness: &Harness, call: &Call, problems: &mut Vec<String>) {
-    let outcome = match harness.run(&call.source) {
+    let source = match &call.parenthesized {
+        Some(parenthesized) if PARENTHESIZED.contains(&call.path.as_str()) => parenthesized,
+        _ => &call.source,
+    };
+    let outcome = match harness.run(source) {
         Ok(outcome) => outcome,
         Err(error) => {
             problems.push(format!("{}\n    {error}", call.source));
@@ -764,10 +777,10 @@ fn calls() -> Vec<Call> {
                                 &bindings,
                             ));
                         }
-                        Member::Constant(constant) | Member::Getter(constant) => calls.push(Call {
+                        Member::Constant(constant) => calls.push(Call {
                             path: path.clone(),
                             source: format!("{namespace}::{spelled}"),
-                            bare: None,
+                            parenthesized: None,
                             result: constant.ty.clone(),
                             block: None,
                         }),
@@ -812,13 +825,6 @@ fn calls() -> Vec<Call> {
                                             &bindings,
                                         ));
                                     }
-                                    Member::Getter(getter) => calls.push(Call {
-                                        path: path.clone(),
-                                        source: format!("({receiver}).{spelled}"),
-                                        bare: None,
-                                        result: substitute(&getter.ty, &bindings),
-                                        block: None,
-                                    }),
                                     _ => unreachable!(),
                                 }
                             }
@@ -892,9 +898,10 @@ fn builtin_signatures_agree_with_the_runtime() {
     );
 }
 
-/// Zero-argument members the runtime refuses to call without parentheses,
-/// although the language allows parenless calls. Each is a method whose
-/// bare name the runtime reads as a value; the switchover makes these calls.
+/// Members the runtime refuses to call without arguments unless the call has
+/// parentheses, which the language never writes. The runtime reads each bare
+/// name as a value; phase 4 makes these calls. Until then the agreement test
+/// calls them with `()`.
 const PARENTHESIZED: &[&str] = &[
     "Duration.build",
     "Regex.union",
@@ -910,19 +917,14 @@ const PARENTHESIZED: &[&str] = &[
 
 #[test]
 fn zero_argument_calls_work_without_parentheses() {
-    let calls: Vec<Call> = calls()
-        .into_iter()
-        .filter(|call| call.bare.is_some())
-        .collect();
     let harness = Harness::new();
     let mut refused = BTreeSet::new();
-    for call in &calls {
-        let bare = call.bare.as_deref().unwrap();
-        let outcome = harness.run(bare).unwrap();
+    for call in calls().iter().filter(|call| call.parenthesized.is_some()) {
+        let outcome = harness.run(&call.source).unwrap();
         if let Err(error) = outcome.result {
             let shape = matches!(error.kind, ErrorKind::Type | ErrorKind::Argument);
             if shape && !expected(&call.path, &error) {
-                refused.insert(call.path.clone());
+                refused.insert(call.path.as_str().to_owned());
             }
         }
     }
