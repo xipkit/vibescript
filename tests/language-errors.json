@@ -110738,6 +110738,11 @@
     "go_error": "unexpected return"
   },
   {
+    "name": "module_body_flow_6",
+    "source": "module M\nnext\nend\ndef run(input)\n9\nend",
+    "go_error": "next used outside of loop"
+  },
+  {
     "name": "module_saved_4",
     "source": "x=1\nmodule M\n [2].each{x+=1}\n C=x\nend\n[x,M.C]",
     "function": "__main__",

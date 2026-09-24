@@ -779,7 +779,11 @@ pub(super) fn loop_control(
             }
         });
     }
-    if frame.parent.is_none() {
+    // A namespace body keeps its declaring frame as a parent, but it is not a block.
+    let initializer = frame
+        .function
+        .is_some_and(|index| frame.program.functions[index].initializer);
+    if frame.parent.is_none() || initializer {
         return invalid_loop_control(frames, breaking, value);
     }
     if !breaking {
