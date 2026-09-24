@@ -4,7 +4,10 @@
 
 use super::MAX_ZONE_BYTES;
 use crate::{CallContext, ErrorKind, Result, budget::Buffer};
-use std::io::{self, Read, Seek, SeekFrom};
+use std::{
+    io::{self, Read, Seek, SeekFrom},
+    ops::Range,
+};
 
 pub(super) struct Source<R> {
     reader: R,
@@ -201,6 +204,81 @@ impl<R: Read + Seek> Source<R> {
     }
 }
 
+/// The directory of a stored archive held in memory, sorted by entry name so
+/// a lookup need not rescan it. It finds exactly what [`Source::zip`] finds.
+pub(super) struct Index<'a> {
+    archive: &'a [u8],
+    /// Each name's range and its payload's, or `None` where `zip` rejects the
+    /// entry. Only the first entry of a repeated name is kept, as `zip` stops
+    /// at the first match.
+    entries: Vec<(Range<usize>, Option<Range<usize>>)>,
+}
+
+impl<'a> Index<'a> {
+    /// Reads the directory the way [`Source::zip`] scans it, stopping where
+    /// the scan would stop.
+    pub fn new(archive: &'a [u8]) -> Self {
+        let size = archive.len() as u64;
+        let read = |start: u64, length: u64| {
+            let end = start.checked_add(length).filter(|&end| end <= size)?;
+            Some(&archive[start as usize..end as usize])
+        };
+        let mut entries = Vec::new();
+        let tail = size.checked_sub(22);
+        let end = tail.and_then(|tail| read(tail, 22));
+        if let (Some(tail), Some(end)) = (tail, end.filter(|end| end[..4] == *b"PK\x05\x06")) {
+            let mut position = little4(end, 16);
+            let limit = position + little4(end, 12);
+            for _ in 0..if limit > tail { 0 } else { little2(end, 10) } {
+                let Some(central) = read(position, 46)
+                    .filter(|central| position + 46 <= limit && central[..4] == *b"PK\x01\x02")
+                else {
+                    break;
+                };
+                let length = little2(central, 28);
+                let start = position + 46;
+                position = start + length + little2(central, 30) + little2(central, 32);
+                if position > limit {
+                    break;
+                }
+                let name = start as usize..(start + length) as usize;
+                let offset = little4(central, 42);
+                let payload = read(offset, 30)
+                    .filter(|local| {
+                        little2(central, 10) == 0
+                            && local[..4] == *b"PK\x03\x04"
+                            && little2(local, 8) == 0
+                            && little2(local, 26) == length
+                            && read(offset + 30, length) == Some(&archive[name.clone()])
+                    })
+                    .and_then(|local| {
+                        let start = offset + 30 + length + little2(local, 28);
+                        let size = little4(central, 24);
+                        read(start, size).map(|_| start as usize..(start + size) as usize)
+                    });
+                entries.push((name, payload));
+            }
+        }
+        entries.sort_by(|a, b| archive[a.0.clone()].cmp(&archive[b.0.clone()]));
+        entries.dedup_by(|later, first| archive[later.0.clone()] == archive[first.0.clone()]);
+        Self { archive, entries }
+    }
+
+    /// Returns the payload stored under `name`, charging a step per probe.
+    pub fn get(&self, ctx: &mut CallContext, name: &[u8]) -> Result<Option<&'a [u8]>> {
+        let mut probes = 0;
+        let found = self.entries.binary_search_by(|entry| {
+            probes += 1;
+            self.archive[entry.0.clone()].cmp(name)
+        });
+        ctx.charge(probes)?;
+        Ok(found
+            .ok()
+            .and_then(|index| self.entries[index].1.clone())
+            .map(|payload| &self.archive[payload]))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -358,6 +436,58 @@ mod tests {
                 "field {start}"
             );
             assert_eq!(ctx.stats().peak_memory_bytes, 0, "field {start}");
+        }
+    }
+
+    #[test]
+    fn indexed_lookups_find_exactly_what_the_directory_scan_finds() {
+        let check = |bytes: &[u8], names: &[&[u8]], label: &str| {
+            let index = Index::new(bytes);
+            for &name in names {
+                let mut ctx = CallContext::new(CallOptions::default());
+                let scanned = read_zip(&mut ctx, bytes, name).unwrap();
+                let indexed = index.get(&mut ctx, name).unwrap();
+                assert_eq!(
+                    indexed,
+                    scanned.as_ref().map(|buffer| buffer.data.as_slice()),
+                    "{label} {}",
+                    String::from_utf8_lossy(name)
+                );
+            }
+        };
+        let names: [&[u8]; 6] = [b"zone", b"wanted", b"large", b"a", b"missing", b""];
+        let original = archive(&[
+            (b"zone", b"payload"),
+            (b"wanted", b"zone data"),
+            (b"wanted", b"later"),
+            (b"a", b""),
+        ]);
+        check(&original, &names, "original");
+        for length in 0..original.len() {
+            check(&original[..length], &names, &format!("length {length}"));
+        }
+        // Corrupting any byte, including in the first copy of a repeated
+        // name, must leave both lookups agreeing.
+        for start in 0..original.len() {
+            let mut bytes = original.clone();
+            bytes[start] ^= 0xff;
+            check(&bytes, &names, &format!("byte {start}"));
+        }
+        let bundled = super::super::BUNDLED;
+        let index = Index::new(bundled);
+        let mut names: Vec<&[u8]> = index
+            .entries
+            .iter()
+            .map(|entry| &bundled[entry.0.clone()])
+            .collect();
+        assert_eq!(names.len(), 598);
+        names.extend([&b"Not/AZone"[..], b"america/new_york", b"", b"Z"]);
+        check(bundled, &names, "bundled");
+        // A lookup charges its logarithmic probes, not the directory scan.
+        for name in names {
+            let mut ctx = CallContext::new(CallOptions::default());
+            index.get(&mut ctx, name).unwrap();
+            assert!(ctx.stats().steps <= 12, "{:?}", ctx.stats());
         }
     }
 

@@ -10,7 +10,7 @@ use crate::{
 };
 use std::{
     fs::File,
-    io::{self, Cursor},
+    io,
     mem::size_of,
     path::{Path, PathBuf},
     sync::{Arc, OnceLock},
@@ -44,6 +44,7 @@ const MAX_ZONE_BYTES: usize = 10 << 20;
 const BUNDLED: &[u8] = include_bytes!("zone/data/zoneinfo.zip");
 
 static ZONEINFO: OnceLock<Option<std::ffi::OsString>> = OnceLock::new();
+static BUNDLED_INDEX: OnceLock<source::Index<'static>> = OnceLock::new();
 #[cfg(not(any(
     windows,
     target_os = "android",
@@ -409,12 +410,17 @@ impl Zone {
         Ok(result)
     }
 
+    /// Loads a zone from the bundled database. Its directory is indexed once
+    /// per process, since it is part of the binary; each lookup still copies
+    /// and parses the zone, as Go's `LoadLocation` does.
     fn bundled(ctx: &mut CallContext, name: &[u8]) -> Result<Option<Arc<Self>>> {
-        let mut source = source::Source::new(Cursor::new(BUNDLED), BUNDLED.len() as u64);
-        match source.zip(ctx, name)? {
-            Some(buffer) => Self::from_buffer(ctx, buffer),
-            None => Ok(None),
-        }
+        let index = BUNDLED_INDEX.get_or_init(|| source::Index::new(BUNDLED));
+        let Some(payload) = index.get(ctx, name)? else {
+            return Ok(None);
+        };
+        let mut buffer = Buffer::with_capacity(ctx, payload.len())?;
+        buffer.extend(ctx, payload)?;
+        Self::from_buffer(ctx, buffer)
     }
 
     fn search(
