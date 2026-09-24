@@ -952,14 +952,33 @@ pub(crate) fn method(
                     "array.sum accepts at most an initial value",
                 ));
             }
-            let array = value.as_array().ok_or_else(type_error)?;
+            let mut rest = value.as_array().ok_or_else(type_error)?;
             let mut sum = args.first().cloned().unwrap_or_else(|| Value::int(0));
-            for item in array {
+            while let Some(item) = rest.first() {
+                // Integers add in place until one would overflow, each still
+                // charged its step; `binary` handles every other addition.
+                if let Kind::Int(mut total) = sum.0 {
+                    let run = rest
+                        .iter()
+                        .take(CHUNK)
+                        .take_while(|item| match item.0 {
+                            Kind::Int(n) => total.checked_add(n).map(|n| total = n).is_some(),
+                            _ => false,
+                        })
+                        .count();
+                    if run > 0 {
+                        ctx.charge_each(run as u64)?;
+                        sum = Value::int(total);
+                        rest = &rest[run..];
+                        continue;
+                    }
+                }
                 ctx.charge(1)?;
                 if matches!(sum.0, Kind::Bytes(_)) != matches!(item.0, Kind::Bytes(_)) {
                     return Err(Error::new(ErrorKind::Type, SUM_INCOMPATIBLE));
                 }
                 sum = binary(ctx, "+", sum, item.clone()).map_err(sum_incompatible)?;
+                rest = &rest[1..];
             }
             Ok(sum)
         }
@@ -1305,6 +1324,81 @@ mod tests {
 
     fn ints(values: &[i64]) -> Value {
         Value::array(values.iter().copied().map(Value::int).collect())
+    }
+
+    #[test]
+    fn integer_runs_sum_like_elementwise_addition_under_every_quota() {
+        // The element-at-a-time sum the integer runs must reproduce.
+        fn reference(ctx: &mut CallContext, array: &[Value], initial: Value) -> Result<Value> {
+            let mut sum = initial;
+            for item in array {
+                ctx.charge(1)?;
+                if matches!(sum.0, Kind::Bytes(_)) != matches!(item.0, Kind::Bytes(_)) {
+                    return Err(Error::new(ErrorKind::Type, SUM_INCOMPATIBLE));
+                }
+                sum = binary(ctx, "+", sum, item.clone()).map_err(sum_incompatible)?;
+            }
+            Ok(sum)
+        }
+        let near = i64::MAX - 5000;
+        let cases = [
+            (0..6000).map(Value::int).collect::<Vec<_>>(),
+            (0..3000)
+                .map(|i| Value::int(if i % 1000 == 999 { near } else { i }))
+                .collect(),
+            (0..3000)
+                .map(|i| match i % 7 {
+                    0 => Value::float(0.5),
+                    1 => Value::int(-near),
+                    _ => Value::int(i),
+                })
+                .collect(),
+            (0..100)
+                .map(|i| if i == 60 { Value::nil() } else { Value::int(i) })
+                .collect(),
+            vec![Value::int(1), Value::bytes("a")],
+        ];
+        for items in cases {
+            for initial in [None, Some(Value::int(near)), Some(Value::float(1.5))] {
+                let args: Vec<Value> = initial.iter().cloned().collect();
+                let start = initial.clone().unwrap_or_else(|| Value::int(0));
+                let mut full = context(None, None);
+                let expected = reference(&mut full, &items, start.clone());
+                let needed = full.stats().steps;
+                for limit in (0..=needed + 1)
+                    .step_by(37)
+                    .chain([needed.saturating_sub(1), needed])
+                {
+                    let mut want_ctx = context(Some(limit), None);
+                    let want = reference(&mut want_ctx, &items, start.clone());
+                    let mut got_ctx = context(Some(limit), None);
+                    let got = method(
+                        &mut got_ctx,
+                        Method::Sum,
+                        "sum",
+                        Value::array(items.clone()),
+                        &args,
+                    );
+                    match (&want, &got) {
+                        (Ok(a), Ok(b)) => assert_eq!(a.to_string(), b.to_string()),
+                        (Err(a), Err(b)) => assert_eq!((a.kind, &a.message), (b.kind, &b.message)),
+                        _ => panic!("{limit}: {want:?} vs {got:?}"),
+                    }
+                    assert_eq!(want_ctx.stats().steps, got_ctx.stats().steps, "{limit}");
+                }
+                if let Ok(expected) = expected {
+                    let mut ctx = context(None, None);
+                    let actual = method(
+                        &mut ctx,
+                        Method::Sum,
+                        "sum",
+                        Value::array(items.clone()),
+                        &args,
+                    );
+                    assert_eq!(actual.unwrap().to_string(), expected.to_string());
+                }
+            }
+        }
     }
 
     fn pairs(entries: &[(&str, Value)]) -> Value {

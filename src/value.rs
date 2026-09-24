@@ -473,11 +473,12 @@ impl Value {
         })
     }
     pub(crate) fn from_array(ctx: &mut CallContext, values: Buffer<Value>) -> Result<Self> {
-        let mut depth = 1;
-        for v in &values.data {
-            ctx.charge(1)?;
-            depth = depth.max(v.depth() + 1);
-        }
+        ctx.charge_each(values.data.len() as u64)?;
+        let depth = values
+            .data
+            .iter()
+            .map(|v| v.depth() + 1)
+            .fold(1, usize::max);
         Ok(Self(Kind::Array(Heap::new(ctx, values, depth)?)))
     }
     pub(crate) fn from_hash(ctx: &mut CallContext, hash: Hash) -> Result<Self> {

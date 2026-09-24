@@ -235,6 +235,22 @@ impl CallContext {
         Ok(())
     }
 
+    /// Charges `units` single steps at once. It fails exactly where charging
+    /// them one at a time would, leaving the same counter and latched error,
+    /// so a loop can charge a run of elements before processing them.
+    pub(crate) fn charge_each(&mut self, units: u64) -> Result<()> {
+        if units == 0 {
+            return Ok(());
+        }
+        if let Some(limit) = self.options.limits.steps {
+            let room = limit.saturating_sub(self.steps);
+            if units > room {
+                return self.charge(room + 1);
+            }
+        }
+        self.charge(units)
+    }
+
     /// Fails with latched step exhaustion when `steps` further units cannot fit
     /// the quota, without consuming them. Materializers use it to reject work
     /// whose size is known up front before allocating or iterating.
@@ -568,6 +584,46 @@ impl<T: Clone> Buffer<T> {
 mod limit_tests {
     use super::*;
     use crate::{ErrorClass, json, regex};
+
+    #[test]
+    fn charging_a_run_matches_charging_each_step() {
+        let context = |limit| {
+            CallContext::new(CallOptions {
+                limits: Limits {
+                    steps: limit,
+                    ..Limits::default()
+                },
+                ..CallOptions::default()
+            })
+        };
+        for limit in [
+            None,
+            Some(0),
+            Some(1),
+            Some(15),
+            Some(16),
+            Some(17),
+            Some(40),
+        ] {
+            for before in [0, 1, 15, 16, 39] {
+                for units in [0, 1, 2, 16, 24, 41, 1000] {
+                    let mut each = context(limit);
+                    let mut run = context(limit);
+                    let prepared = each.charge(before).is_ok();
+                    assert_eq!(run.charge(before).is_ok(), prepared);
+                    let expected = (0..units).try_for_each(|_| each.charge(1));
+                    let actual = run.charge_each(units);
+                    assert_eq!(
+                        actual.map_err(|error| (error.kind, error.message)),
+                        expected.map_err(|error| (error.kind, error.message)),
+                        "{limit:?} {before} {units}"
+                    );
+                    assert_eq!(run.stats().steps, each.stats().steps);
+                    assert_eq!(run.exhausted(), each.exhausted());
+                }
+            }
+        }
+    }
 
     #[test]
     fn rejected_json_and_regex_inputs_allow_further_work_without_retaining_scratch() {

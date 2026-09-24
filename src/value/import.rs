@@ -9,7 +9,7 @@
 use super::{Bytes, Heap, Kind, Value};
 use crate::{
     CallContext, ErrorKind, Result,
-    budget::{Buffer, MAX_VALUE_DEPTH},
+    budget::{Buffer, CHUNK, MAX_VALUE_DEPTH},
     hash::Hash,
     range::Range,
 };
@@ -73,6 +73,33 @@ impl CallContext {
         while let Some(frame) = frames.data.last_mut() {
             if let Some(value) = produced.take() {
                 frame.accept(value);
+            }
+            if let Frame::Array { source, out } = frame {
+                // Plain scalars import as copies, so a run of them is charged
+                // its per-element steps at once and copied into the capacity
+                // reserved when the frame opened.
+                let rest = &source.buffer.data[out.data.len()..];
+                let run = rest
+                    .iter()
+                    .take(CHUNK)
+                    .take_while(|value| {
+                        matches!(
+                            value.0,
+                            Kind::Nil
+                                | Kind::Bool(_)
+                                | Kind::Int(_)
+                                | Kind::Float(_)
+                                | Kind::Money(_)
+                                | Kind::Duration(_)
+                                | Kind::Time(_)
+                        )
+                    })
+                    .count();
+                if run > 0 {
+                    self.charge_each(run as u64)?;
+                    out.data.extend_from_slice(&rest[..run]);
+                    continue;
+                }
             }
             match frame.next_child() {
                 Some(child) => {

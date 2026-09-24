@@ -415,3 +415,45 @@ fn imports_observe_cancellation_deadlines_and_latched_exhaustion() {
     assert_eq!(ctx.import(&mixed_chain(4)).unwrap_err(), error);
     assert_eq!(ctx.stats().retained_memory_bytes, 0);
 }
+
+#[test]
+fn scalar_runs_import_at_one_step_per_element_under_every_quota() {
+    let mut items = Vec::new();
+    for i in 0..5000 {
+        items.push(match i % 97 {
+            0 => Value::bytes(format!("s{i}")),
+            1 => Value::array(vec![Value::int(i), Value::nil()]),
+            2 => Value::float(i as f64 / 2.0),
+            3 => Value::nil(),
+            4 => Value::boolean(i % 2 == 0),
+            _ => Value::int(i),
+        });
+    }
+    let host = Value::array(items);
+    let mut ctx = context();
+    let imported = ctx.import(&host).unwrap();
+    let stats = ctx.stats();
+    assert!(crate::ops::equal(&mut ctx, &imported, &host, 0).unwrap());
+    drop(imported);
+    for limit in (0..=stats.steps)
+        .step_by(97)
+        .chain([stats.steps - 1, stats.steps])
+    {
+        let mut ctx = context();
+        ctx.options.limits.steps = Some(limit);
+        match ctx.import(&host) {
+            Ok(imported) => {
+                assert_eq!(limit, stats.steps);
+                assert_eq!(ctx.stats().steps, stats.steps);
+                assert_eq!(ctx.stats().peak_memory_bytes, stats.peak_memory_bytes);
+                drop(imported);
+            }
+            // Charging a run at once fails where charging each element would.
+            Err(error) => {
+                assert_eq!(error.kind, ErrorKind::Steps);
+                assert_eq!(ctx.stats().steps, limit + 1, "{limit}");
+            }
+        }
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+}
