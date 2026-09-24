@@ -498,7 +498,10 @@ fn member_arm(
     if enums::supported(facts, receiver) {
         return enums::member(ctx, facts, receiver, site, name, args).map(Some);
     }
-    if args.block.is_some() && !values::supported(facts, receiver, name) {
+    if args.block.is_some()
+        && !values::supported(facts, receiver, name)
+        && !matches!(facts.node(receiver), Node::Protected(..))
+    {
         let mut result = outcome(Atom::Never.fact());
         result.incomplete = true;
         return Ok(Some(result));

@@ -132,6 +132,9 @@ fn invoke_offset(
     if !args.keywords.data.is_empty() {
         return reject(ctx, Failure::BuiltinKeywords);
     }
+    if args.block.is_some() {
+        return reject(ctx, Failure::BuiltinBlock);
+    }
     if args.positional.data.len() != 1 {
         return reject(ctx, Failure::BuiltinArity);
     }
@@ -264,6 +267,9 @@ fn known_member(
         if !args.keywords.data.is_empty() {
             return reject(ctx, Failure::BuiltinKeywords);
         }
+        if args.block.is_some() {
+            return reject(ctx, Failure::BuiltinBlock);
+        }
         if args.positional.data.len() != usize::from(matches!(name, "eql?" | "equal?")) {
             return reject(ctx, Failure::BuiltinArity);
         }
@@ -283,12 +289,21 @@ fn known_member(
             _ => receiver,
         }));
     }
-    if !args.keywords.data.is_empty()
-        && !matches!(name, "length" | "size" | "empty?" | "keys" | "values")
-    {
-        let mut result = outcome(Atom::Never.fact());
-        result.incomplete = true;
-        return Ok(result);
+    // Protected records dispatch the remaining hash members like plain hashes.
+    if facts.refuses_call_shape(
+        shape,
+        site,
+        name,
+        args.positional.data.len(),
+        !args.keywords.data.is_empty(),
+        args.block.is_some(),
+    ) {
+        let refusal = if args.keywords.data.is_empty() {
+            Failure::BuiltinBlock
+        } else {
+            Failure::BuiltinKeywords
+        };
+        return reject(ctx, refusal);
     }
     let operation = facts.collection_member(ctx, shape, site, name, &args.positional.data)?;
     let mut result = outcome(operation.value);

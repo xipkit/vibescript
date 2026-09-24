@@ -526,6 +526,26 @@ fn universal_helpers_on_general_hashes_use_the_native_helper() {
     ]);
 }
 
+#[test]
+fn protected_records_follow_native_call_shapes() {
+    exact_ints(&[
+        ("\"abc\".match(\"b\").keys { |v| v }.length", 7),
+        ("\"abc\".match(\"b\").size(a: 1)", 7),
+    ]);
+    invalid(&[
+        "\"abc\".match(\"b\").inspect { |v| v }",
+        "\"abc\".match(\"b\").to_a(a: 1)",
+        "\"abc\".match(\"b\").begin(0) { |v| v }",
+        "\"abc\".match(\"b\").frozen? { |v| v }",
+    ]);
+    // A general hash may be a protected record.
+    witnesses(vec![(
+        "def run(x: hash) -> array; x.keys { |v| v }; end",
+        vec![Value::hash(vec![(b"a".to_vec(), Value::int(1))])],
+        Value::array(vec![Value::bytes("a")]),
+    )]);
+}
+
 /// Site programs whose whole-file checks used to stop at one of these
 /// operations. Each now finishes analysis and still runs.
 #[test]
