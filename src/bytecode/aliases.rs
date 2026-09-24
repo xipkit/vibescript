@@ -20,6 +20,9 @@ pub(super) struct Aliases {
     /// Resolved aliases by scope and name. The scope is empty for the top
     /// level and a module or class's qualified name otherwise.
     scopes: HashMap<String, HashMap<String, types::Type>>,
+    /// Whether the program's own declarations leave the signature table's
+    /// aliases, such as `comparable`, visible.
+    builtins: bool,
 }
 
 struct Declared {
@@ -34,6 +37,7 @@ struct Resolving<'a> {
     resolved: Vec<Option<types::Type>>,
     /// The aliases being resolved, innermost last.
     path: Vec<usize>,
+    builtins: bool,
 }
 
 impl Aliases {
@@ -43,10 +47,15 @@ impl Aliases {
     pub fn new(
         declarations: Buffer<(Option<u32>, TypeAlias)>,
         modules: &Buffer<Module>,
+        declared: impl Fn(&str) -> bool,
         work: &dyn Work,
     ) -> Result<Self> {
+        let builtins = !declared("comparable");
         if declarations.is_empty() {
-            return Ok(Self::default());
+            return Ok(Self {
+                builtins,
+                ..Self::default()
+            });
         }
         let mut qualified = HashMap::new();
         let mut stack: Vec<(&Module, String)> = modules
@@ -78,6 +87,7 @@ impl Aliases {
             index: HashMap::new(),
             resolved: vec![None; declared.len()],
             path: Vec::new(),
+            builtins,
         };
         for (position, entry) in declared.iter().enumerate() {
             work.charge(1)?;
@@ -100,23 +110,19 @@ impl Aliases {
                 .or_default()
                 .insert(entry.alias.name.to_string(), resolved.unwrap());
         }
-        Ok(Self { scopes })
+        Ok(Self { scopes, builtins })
     }
 
     /// The type `name` names as an alias seen from `scope`: the scope's own
-    /// aliases, then each enclosing module's, then the top level's.
+    /// aliases, then each enclosing module's, then the top level's, then the
+    /// signature table's.
     pub fn get(&self, scope: &str, name: &str) -> Option<&types::Type> {
-        if self.scopes.is_empty() {
-            return None;
-        }
-        scopes(scope).find_map(|scope| self.scopes.get(scope)?.get(name))
+        let declared = scopes(scope).find_map(|scope| self.scopes.get(scope)?.get(name));
+        declared.or_else(|| crate::signatures::alias_type(name).filter(|_| self.builtins))
     }
 
     /// Compiles an annotation written in `scope`, substituting its aliases.
     pub fn compile(&self, scope: &str, ty: &Type, work: &dyn Work) -> Result<types::Type> {
-        if self.scopes.is_empty() {
-            return ty.compile(work);
-        }
         let mut nodes = 0;
         let compiled = ty.compile_with(work, &mut |work, name| {
             let Some(resolved) = self.get(scope, name) else {
@@ -129,7 +135,7 @@ impl Aliases {
             }
             Ok(Some(resolved.clone()))
         })?;
-        if compiled.height() > 2 * MAX_HEIGHT {
+        if nodes > 0 && compiled.height() > 2 * MAX_HEIGHT {
             return Err(crate::compilation::error(
                 work,
                 None,
@@ -175,7 +181,7 @@ impl Resolving<'_> {
         let mut nodes = 0;
         let compiled = entry.alias.ty.compile_with(work, &mut |work, name| {
             let Some(target) = self.lookup(&entry.scope, name) else {
-                return Ok(None);
+                return Ok(self.builtin(name).cloned());
             };
             self.resolve(target, work)?;
             let resolved = self.resolved[target].as_ref().unwrap();
@@ -200,6 +206,10 @@ impl Resolving<'_> {
 
     fn lookup(&self, scope: &str, name: &str) -> Option<usize> {
         scopes(scope).find_map(|scope| self.index.get(&(scope, name)).copied())
+    }
+
+    fn builtin(&self, name: &str) -> Option<&'static types::Type> {
+        crate::signatures::alias_type(name).filter(|_| self.builtins)
     }
 }
 

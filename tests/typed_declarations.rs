@@ -403,7 +403,18 @@ fn type_aliases_name_types_anywhere() {
     ] {
         assert_eq!(evaluate(source), expected, "{source}");
     }
+    // The signature table's aliases name types like the builtin names.
+    assert_eq!(
+        evaluate(
+            "def f(x: comparable) -> comparable\n  x\nend\n[f(1), f(\"a\"), f(:b), f(2.5), f(90.seconds).to_i]"
+        ),
+        serde_json::json!([1, "a", "b", 2.5, 90])
+    );
     for (source, message) in [
+        (
+            "def f(x: comparable)\nend\nf([1])",
+            "argument x expected number | string | symbol | time | duration | money, got array<int>",
+        ),
         (
             "type Reward = { points: int }\ndef f(r: Reward)\nend\nf({ points: \"x\" })",
             "argument r expected { points: int }, got { points: string }",

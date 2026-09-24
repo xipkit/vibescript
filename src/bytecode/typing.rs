@@ -23,7 +23,14 @@ pub(super) struct Typing {
 }
 
 impl Typing {
-    pub fn new(additions: Additions, modules: &Buffer<Module>, work: &dyn Work) -> Result<Self> {
+    /// Collects a program's typed declarations. `declared` reports whether
+    /// the program declares a class, module or enum of a name.
+    pub fn new(
+        additions: Additions,
+        modules: &Buffer<Module>,
+        declared: impl Fn(&str) -> bool,
+        work: &dyn Work,
+    ) -> Result<Self> {
         let Additions {
             blocks,
             aliases,
@@ -34,7 +41,7 @@ impl Typing {
         work.charge(blocks.len())?;
         blocks.sort_by_key(|(offset, _)| *offset);
         Ok(Self {
-            aliases: Aliases::new(aliases, modules, work)?,
+            aliases: Aliases::new(aliases, modules, declared, work)?,
             blocks,
             ivars: ivars.into_iter().collect(),
             defaults: defaults.into_iter().collect(),

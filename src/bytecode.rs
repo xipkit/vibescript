@@ -539,7 +539,11 @@ fn compile_mode(
         members: Vec::new(),
         outline,
     };
-    let mut typing = typing::Typing::new(parsed.additions, &parsed.modules, work)?;
+    let declared = |name: &str| {
+        program.declaration_names.contains_key(name)
+            || parsed.modules.iter().any(|module| module.name == name)
+    };
+    let mut typing = typing::Typing::new(parsed.additions, &parsed.modules, declared, work)?;
     for module in parsed.modules {
         program.register_module(module, "", &mut defs, &mut contexts, &mut typing, work)?;
     }

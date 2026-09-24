@@ -268,6 +268,29 @@ pub fn table() -> &'static Table {
     })
 }
 
+/// The runtime type an alias of the table, such as `comparable`, names, for
+/// annotations that name it like a builtin type.
+pub(crate) fn alias_type(name: &str) -> Option<&'static crate::types::Type> {
+    static ALIASES: OnceLock<Vec<(String, crate::types::Type)>> = OnceLock::new();
+    ALIASES
+        .get_or_init(|| {
+            table()
+                .items
+                .iter()
+                .filter_map(|item| match item {
+                    Item::Alias(alias) => {
+                        let ty = crate::syntax::parse_type(&alias.ty.to_string())
+                            .unwrap_or_else(|error| panic!("alias {}: {error}", alias.name));
+                        Some((alias.name.clone(), ty))
+                    }
+                    _ => None,
+                })
+                .collect()
+        })
+        .iter()
+        .find_map(|(alias, ty)| (alias == name).then_some(ty))
+}
+
 /// The builtin prelude: [`table`] printed as Vibescript declarations.
 ///
 /// The text is stable across calls and parses back to the same table.

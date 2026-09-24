@@ -224,8 +224,15 @@ impl Parser<'_> {
     /// Whether the token at `index` can start a tuple type's first element:
     /// a builtin type name or a type the source declares.
     pub(super) fn tuple_start(&self, index: usize) -> bool {
-        matches!(&self.tokens[index].token, Token::Word(name)
-            if crate::types::builtin_name(name).is_some() || self.declared_type(name))
+        matches!(&self.tokens[index].token, Token::Word(name) if self.type_name(name))
+    }
+
+    /// Whether `name` names a builtin type, one of the signature table's
+    /// aliases or a type the source declares.
+    fn type_name(&self, name: &str) -> bool {
+        crate::types::builtin_name(name).is_some()
+            || crate::signatures::alias_type(name).is_some()
+            || self.declared_type(name)
     }
 
     /// Parses a tuple type from its `[`: an array of exactly these elements.
@@ -262,7 +269,7 @@ impl Parser<'_> {
     /// builtin type or one the source declares, so it reads as a type.
     pub(super) fn declared_leaves(&self, ty: &Type) -> bool {
         match &ty.kind {
-            TypeKind::Named => self.declared_type(&ty.name),
+            TypeKind::Named => self.type_name(&ty.name),
             TypeKind::Array(Some(element)) => self.declared_leaves(element),
             TypeKind::Hash(Some(pair)) => {
                 self.declared_leaves(&pair.0) && self.declared_leaves(&pair.1)
