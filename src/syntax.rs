@@ -541,6 +541,8 @@ impl<'a> Parsing<'a> {
     async fn program(&self) -> Result<Declarations> {
         let work = self.p().work;
         let mut defs = Buffer::new();
+        // Indexes top-level functions by name so duplicate checks stay linear.
+        let mut def_names: Table<usize> = Table::new();
         let mut enums = Buffer::new();
         let mut modules = Buffer::new();
         let mut top = Buffer::new();
@@ -595,8 +597,7 @@ impl<'a> Parsing<'a> {
                     if name.starts_with('@') {
                         return p.err("expected function name");
                     }
-                    work.charge(defs.len())?;
-                    if defs.iter().any(|d: &Definition| d.name == name) || name == "__main__" {
+                    if def_names.contains(work, &name)? || name == "__main__" {
                         return p.err("duplicate or reserved function name");
                     }
                     (name, private)
@@ -617,19 +618,20 @@ impl<'a> Parsing<'a> {
                     },
                 )?;
                 let index = defs.len();
+                def_names.insert(work, definition.name.clone(), index)?;
                 defs.push(work, definition)?;
                 p.note(|record| record.top.push((offset, record::Top::Function(index))));
             } else if self.p().alias_ahead() {
                 // Go resolves a top-level alias against the functions declared before it.
                 let mut p = self.p();
                 let (name, target) = p.alias_names()?;
-                work.charge(defs.len())?;
-                if defs.iter().any(|d: &Definition| d.name == name) || name == "__main__" {
+                if def_names.contains(work, &name)? || name == "__main__" {
                     return p.err("duplicate or reserved function name");
                 }
-                let Some(original) = defs.iter().rev().find(|d| d.name == target) else {
+                let Some(&original) = def_names.get(work, &target)? else {
                     return p.err("alias target function is not defined");
                 };
+                let original = &defs[original];
                 let mut definition = work::definition(work, original)?;
                 outline.push(
                     work,
@@ -642,6 +644,7 @@ impl<'a> Parsing<'a> {
                 )?;
                 definition.name = name;
                 let index = defs.len();
+                def_names.insert(work, definition.name.clone(), index)?;
                 defs.push(work, definition)?;
                 p.note(|record| {
                     let alias = record::Top::Alias(index, target.to_string());
