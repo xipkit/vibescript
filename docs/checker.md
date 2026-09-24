@@ -22,6 +22,8 @@ Local-state snapshots share metered radix-tree nodes. Assignments copy only shar
 
 The flow corpus contains 60 scripts checked by both implementations. Nine decisions intentionally differ from Go v0.70.0: Rust preserves known default and loop-assignment facts and follows reachable loop exits. Each difference includes a Rust execution witness, including default-quota exhaustion for an unconditional loop whose trailing return is unreachable. These are checker-decision fixtures, separate from the runtime compatibility audit. A further 972 scalar operand/operator combinations compare inferred outcomes with the Rust runtime.
 
+A reachable `break` or `next` that no loop of its frame receives is a known error. The runtime raises a RuntimeError in that frame unless a calling frame is looping or running a block; then the frame unwinds through its `ensure` clauses and the call raises LocalJumpError. Analysis does not know the callers, so it keeps both errors. Blocks keep their own `break` and `next` transfers.
+
 The walker reports incomplete analysis at reachable operations it cannot model. Opaque conversions, dynamic required-file discovery and the remaining paths listed below remain unfinished. A partial return summary or an empty diagnostic list is not sufficient to approve a script. The public exact-call gate enforces that distinction; unsupported paths prevent checked execution.
 
 ## Function calls

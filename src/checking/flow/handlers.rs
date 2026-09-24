@@ -343,6 +343,36 @@ impl Walker<'_> {
         }
     }
 
+    /// Reports a `break` or `next` that no loop of this frame receives.
+    ///
+    /// The runtime raises a RuntimeError here unless a calling frame is looping or
+    /// running a block. The analysis does not know its callers, so it keeps this
+    /// error beside the LocalJumpError that the transfer raises at the call.
+    pub(super) fn loop_guard(&mut self, state: &State, pc: usize, breaking: bool) -> Result<()> {
+        self.issue(pc, IssueKind::LoopControl { breaking })?;
+        self.emit_error(state, pc, bit(ErrorClass::Runtime))
+    }
+
+    pub(super) fn frame_loop_control(
+        &mut self,
+        mut state: State,
+        pc: usize,
+        op: Op,
+    ) -> Result<Edges> {
+        let (breaking, value) = match op {
+            Op::Break(value) => (true, value),
+            Op::Next(value) => (false, value),
+            _ => unreachable!(),
+        };
+        // A value follows its own guard instruction, which already reported the error.
+        if value {
+            state.stack.data.pop().unwrap();
+        } else {
+            self.loop_guard(&state, pc, breaking)?;
+        }
+        self.transfer(state, pc, Transfer::InvalidJump)
+    }
+
     pub(super) fn transfer(
         &mut self,
         mut state: State,

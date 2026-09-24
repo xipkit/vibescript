@@ -45,6 +45,11 @@ pub(super) fn issue(
             out.fact(facts, expected)?;
         }
         IssueKind::MissingBlock => out.text("No block was supplied for yield")?,
+        IssueKind::LoopControl { breaking } => out.text(if breaking {
+            "break used outside of loop"
+        } else {
+            "next used outside of loop"
+        })?,
         IssueKind::BlockGivenArguments => out.text("block_given? does not accept arguments")?,
         IssueKind::Ordering { name, left, right } => {
             member(&mut out, program, name)?;

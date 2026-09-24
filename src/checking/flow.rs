@@ -65,6 +65,9 @@ pub(super) enum IssueKind {
         ambiguous: bool,
     },
     MissingBlock,
+    LoopControl {
+        breaking: bool,
+    },
     Ordering {
         name: usize,
         left: Fact,
@@ -3342,9 +3345,14 @@ impl Walker<'_> {
                     }
                     return Ok(edges);
                 }
+                Op::LoopGuard(breaking) => {
+                    if state.loops.data.is_empty() && self.block_inputs.is_none() {
+                        self.loop_guard(&state, pc, breaking)?;
+                    }
+                }
                 Op::LoopBody | Op::Next(_) | Op::Break(_) => {
-                    if state.loops.data.is_empty() {
-                        if self.block_inputs.is_some() && !matches!(op, Op::LoopBody) {
+                    if state.loops.data.is_empty() && !matches!(op, Op::LoopBody) {
+                        if self.block_inputs.is_some() {
                             let supplied = matches!(op, Op::Next(true) | Op::Break(true));
                             let value = if supplied {
                                 state.stack.data.pop().unwrap().value
@@ -3362,7 +3370,7 @@ impl Walker<'_> {
                             };
                             return self.transfer(state, pc, transfer);
                         }
-                        return self.incomplete(pc);
+                        return self.frame_loop_control(state, pc, op);
                     }
                     let current = state.loops.data.last_mut().unwrap();
                     let mut value = Atom::Never.fact();

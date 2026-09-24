@@ -222,3 +222,6 @@ mod join_tests;
 
 #[cfg(test)]
 mod splat_tests;
+
+#[cfg(test)]
+mod loop_control_tests;
