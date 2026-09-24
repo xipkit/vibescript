@@ -428,7 +428,11 @@ impl Parser<'_> {
         let saved = self.pos;
         self.bump()?;
         self.line_breaks()?;
-        let result = self.type_atom(depth).is_ok() && matches!(self.token(), Token::P(',' | '|'));
+        let result = self.type_atom(depth).is_ok()
+            && matches!(
+                self.tokens[self.significant(self.pos)].token,
+                Token::P(',' | '|')
+            );
         self.pos = saved;
         self.work.checkpoint()?;
         Ok(result)
