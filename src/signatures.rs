@@ -186,6 +186,8 @@ pub enum Type {
     Shape(Vec<Field>, bool),
     /// Exactly one symbol, such as `:ascii`.
     Symbol(String),
+    /// `[A, B]`: an array of exactly these elements, checked at compile time.
+    Tuple(Vec<Type>),
 }
 
 impl Type {
@@ -210,9 +212,9 @@ impl Table {
         parse::table(source)
     }
 
-    /// The global function named `name`.
-    pub fn function(&self, name: &str) -> Option<&Function> {
-        self.items.iter().find_map(|item| match item {
+    /// The global function's overloads named `name`, in declaration order.
+    pub fn functions<'a>(&'a self, name: &'a str) -> impl Iterator<Item = &'a Function> + 'a {
+        self.items.iter().filter_map(move |item| match item {
             Item::Function(function) if function.name == name => Some(function),
             _ => None,
         })
@@ -237,16 +239,20 @@ impl Class {
         }
     }
 
-    /// The member named `name`.
-    pub fn member(&self, name: &str) -> Option<&Member> {
-        self.members.iter().find(|member| member.name() == name)
+    /// The members named `name`: one, or each overload in declaration order.
+    pub fn named<'a>(&'a self, name: &'a str) -> impl Iterator<Item = &'a Member> + 'a {
+        self.members
+            .iter()
+            .filter(move |member| member.name() == name)
     }
 }
 
 impl Module {
-    /// The member named `name`.
-    pub fn member(&self, name: &str) -> Option<&Member> {
-        self.members.iter().find(|member| member.name() == name)
+    /// The members named `name`: one, or each overload in declaration order.
+    pub fn named<'a>(&'a self, name: &'a str) -> impl Iterator<Item = &'a Member> + 'a {
+        self.members
+            .iter()
+            .filter(move |member| member.name() == name)
     }
 }
 

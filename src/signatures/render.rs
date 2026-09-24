@@ -104,6 +104,16 @@ fn pattern(f: &mut Formatter<'_>, class: &Class, ty: &Type, seen: &mut Vec<Strin
             pattern(f, class, inner, seen)?;
             f.write_char('?')
         }
+        Type::Tuple(elements) => {
+            f.write_char('[')?;
+            for (index, element) in elements.iter().enumerate() {
+                if index > 0 {
+                    f.write_str(", ")?;
+                }
+                pattern(f, class, element, seen)?;
+            }
+            f.write_char(']')
+        }
         ty => write!(f, "{ty}"),
     }
 }
@@ -252,6 +262,16 @@ impl Display for Type {
                 f.write_str(" }")
             }
             Self::Symbol(name) => write!(f, ":{name}"),
+            Self::Tuple(elements) => {
+                f.write_char('[')?;
+                for (index, element) in elements.iter().enumerate() {
+                    if index > 0 {
+                        f.write_str(", ")?;
+                    }
+                    write!(f, "{element}")?;
+                }
+                f.write_char(']')
+            }
         }
     }
 }

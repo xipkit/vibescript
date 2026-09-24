@@ -12,6 +12,9 @@ def show(*values: array<any>)
 
 def pick(from: int = 1, to?: int, strict: bool: = false, name: string:) -> int?
 
+# An overload, selected by its required block.
+def pick(&block: [int, string] -> int) -> [int, int?]
+
 module Ns
   LIMIT: int
   def run<U: ordered>(input: { id: string, \"odd key\"?: U?, ... }, &block?: (U, *any) -> U | nil) -> array<U>
@@ -33,7 +36,15 @@ fn signature_files_round_trip() {
     let table = Table::parse(SAMPLE).unwrap();
     assert_eq!(table.to_string(), SAMPLE);
     assert_eq!(table.header, ["A sample table."]);
-    let pick = table.function("pick").unwrap();
+    let mut picks = table.functions("pick");
+    let pick = picks.next().unwrap();
+    assert_eq!(
+        picks.next().unwrap().result,
+        Some(Type::Tuple(vec![
+            Type::name("int"),
+            Type::Optional(Box::new(Type::name("int")))
+        ]))
+    );
     let kinds: Vec<_> = pick
         .params
         .iter()
@@ -49,14 +60,14 @@ fn signature_files_round_trip() {
         ]
     );
     assert_eq!(pick.params[0].default.as_deref(), Some("1"));
-    let Some(Member::Function(run)) = table.module("Ns").unwrap().member("run") else {
+    let Some(Member::Function(run)) = table.module("Ns").unwrap().named("run").next() else {
         panic!("run is a function");
     };
     let block = run.block.as_ref().unwrap();
     assert!(block.optional);
     assert_eq!(block.params, [Type::Var("U".into())]);
     assert_eq!(block.rest, Some(Type::name("any")));
-    let Some(Item::Class(class)) = table.items.get(4) else {
+    let Some(Item::Class(class)) = table.items.get(5) else {
         panic!("a class");
     };
     assert_eq!(class.base(), "hash");
@@ -70,6 +81,17 @@ fn signature_files_round_trip() {
             ]
         )
     );
+}
+
+#[test]
+fn overloads_differ_in_arity_keywords_or_blocks() {
+    let source = "def f(a: int:)\n\ndef f(b: int:)\n\n\
+        class hash<string, V>\n  def each(&block: (string, V))\n  def each(&block: [string, V])\n  \
+        def first -> V?\n  def first(count: int) -> array<V>\n  def sub(p: string, r: string)\n  \
+        def sub(p: string, &block: string -> string)\nend\n";
+    let table = Table::parse(source).unwrap();
+    assert_eq!(table.functions("f").count(), 2);
+    assert_eq!(table.to_string(), source);
 }
 
 #[test]
@@ -98,9 +120,9 @@ fn signature_files_report_malformed_declarations() {
             "a type variable is a single capital letter",
         ),
         (
-            "class array<T>\n  def f\n  def f\nend",
+            "module M\n  A: int\n  def A -> int\nend",
             3,
-            "duplicate member f",
+            "duplicate member A",
         ),
         (
             "def f\n# floating\n\ndef g",
@@ -114,6 +136,36 @@ fn signature_files_report_malformed_declarations() {
         ),
         ("module M\n  getter x: int\nend", 2, "expected `:`"),
         ("def f(x: \"a)", 1, "unterminated string"),
+        (
+            "def f(a: int)\ndef f(b: string)",
+            2,
+            "overloads of f could accept the same call",
+        ),
+        (
+            "def f(a?: int)\ndef f",
+            2,
+            "overloads of f could accept the same call",
+        ),
+        (
+            "def f(**k: hash<string, any>)\ndef f(a: int:)",
+            2,
+            "overloads of f could accept the same call",
+        ),
+        (
+            "class hash<string, V>\n  def each(&block: (string, V))\n  def each(&block?: (V, V))\nend",
+            3,
+            "overloads of each could accept the same call",
+        ),
+        (
+            "class array<T>\n  def f\nend\n\nclass array<T?>\n  def f -> T\nend",
+            6,
+            "overloads of f could accept the same call",
+        ),
+        (
+            "class array<T>\n  NAME: int\nend",
+            2,
+            "expected a member declaration or `end`",
+        ),
     ] {
         let error = Table::parse(source).unwrap_err();
         assert_eq!(
@@ -246,21 +298,20 @@ fn every_runtime_member_has_one_signature_or_a_rename() {
     for (receiver, names) in &runtime {
         let own = declared.get(*receiver);
         for name in names {
-            let count = own.and_then(|own| own.get(name)).copied().unwrap_or(0)
-                + universal.get(name).copied().unwrap_or(0) * usize::from(*receiver != "T");
-            match count {
-                1 => {}
-                0 if renamed(receiver, name) => {}
-                0 => problems.push(format!("{receiver}.{name} has no signature or rename")),
-                _ => problems.push(format!("{receiver}.{name} has {count} signatures")),
+            let own = own.and_then(|own| own.get(name)).copied().unwrap_or(0);
+            let shared = universal.get(name).copied().unwrap_or(0) * usize::from(*receiver != "T");
+            match (own, shared) {
+                (0, 0) if renamed(receiver, name) => {}
+                (0, 0) => problems.push(format!("{receiver}.{name} has no signature or rename")),
+                (_, 0) | (0, _) => {}
+                _ => problems.push(format!(
+                    "{receiver}.{name} is declared for it and every type"
+                )),
             }
         }
     }
     for (base, names) in &declared {
-        for (name, &count) in names {
-            if count > 1 {
-                problems.push(format!("{base}.{name} is declared {count} times"));
-            }
+        for name in names.keys() {
             if base != "T" && universal.contains_key(name) {
                 problems.push(format!("{base}.{name} repeats a member of every type"));
             }
@@ -300,14 +351,15 @@ fn every_builtin_global_has_one_signature_or_a_rename() {
     let table = table();
     let mut problems = Vec::new();
     for name in &functions {
-        if table.function(name).is_none() && !renamed("global", name) {
+        if table.functions(name).next().is_none() && !renamed("global", name) {
             problems.push(format!("{name} has no signature or rename"));
         }
     }
     for (namespace, members) in &namespaces {
         let module = table.module(namespace);
         for name in members {
-            if module.and_then(|module| module.member(name)).is_none() && !renamed(namespace, name)
+            if module.is_none_or(|module| module.named(name).next().is_none())
+                && !renamed(namespace, name)
             {
                 problems.push(format!("{namespace}.{name} has no signature or rename"));
             }
@@ -317,9 +369,6 @@ fn every_builtin_global_has_one_signature_or_a_rename() {
     for item in &table.items {
         match item {
             Item::Function(function) => {
-                if !seen.insert(function.name.clone()) {
-                    problems.push(format!("{} is declared twice", function.name));
-                }
                 if !functions.contains(&function.name)
                     && !implemented_through_rename("global", None, &function.name)
                 {
@@ -383,10 +432,10 @@ fn every_rename_leaves_a_runtime_spelling_for_a_canonical_one() {
             continue;
         };
         let declared = match (receiver, namespace) {
-            ("global", None) => table.function(canonical).is_some(),
+            ("global", None) => table.functions(canonical).next().is_some(),
             (_, Some(namespace)) => table
                 .module(namespace)
-                .is_some_and(|module| module.member(canonical).is_some()),
+                .is_some_and(|module| module.named(canonical).next().is_some()),
             (receiver, None) => {
                 let has = |base: &str| {
                     [base, "T"].iter().any(|base| {

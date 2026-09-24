@@ -5,7 +5,7 @@ use super::{
     Alias, Block, Class, Constant, Field, Function, Item, Member, Module, Param, ParamKind, Table,
     Type, TypeParam,
 };
-use std::fmt;
+use std::{collections::BTreeMap, fmt};
 
 /// A syntax error in a signature file, at a one-based line and column.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -45,8 +45,9 @@ struct Lexed {
     column: usize,
 }
 
-const PUNCTUATION: [&str; 17] = [
-    "...", "->", "**", "(", ")", "<", ">", "{", "}", ",", ":", "|", "?", "=", "*", "&", ".",
+const PUNCTUATION: [&str; 19] = [
+    "...", "->", "**", "(", ")", "[", "]", "<", ">", "{", "}", ",", ":", "|", "?", "=", "*", "&",
+    ".",
 ];
 
 fn lex(source: &str) -> Result<Vec<Lexed>> {
@@ -161,6 +162,9 @@ struct Parser {
     pos: usize,
     /// Type variables in scope, innermost last.
     vars: Vec<String>,
+    /// The call shapes of each function name declared so far, keyed by its
+    /// scope: global functions, a module, or every class on one base type.
+    shapes: BTreeMap<(String, String), Vec<Shape>>,
 }
 
 pub(super) fn table(source: &str) -> Result<Table> {
@@ -168,6 +172,7 @@ pub(super) fn table(source: &str) -> Result<Table> {
         tokens: lex(source)?,
         pos: 0,
         vars: Vec::new(),
+        shapes: BTreeMap::new(),
     };
     let header = parser.header();
     let mut items = Vec::new();
@@ -181,7 +186,10 @@ pub(super) fn table(source: &str) -> Result<Table> {
                 break;
             }
             Token::Word(word) if word == "def" => {
-                items.push(Item::Function(parser.function(doc)?));
+                let start = parser.pos;
+                let function = parser.function(doc)?;
+                parser.overload("", &function, start)?;
+                items.push(Item::Function(function));
             }
             Token::Word(word) if word == "module" => items.push(Item::Module(parser.module(doc)?)),
             Token::Word(word) if word == "class" => items.push(Item::Class(parser.class(doc)?)),
@@ -320,7 +328,7 @@ impl Parser {
         self.keyword("module")?;
         let name = self.word("a module name")?;
         self.line_end()?;
-        let members = self.members(false)?;
+        let members = self.members(&format!("module {name}"), false)?;
         Ok(Module { doc, name, members })
     }
 
@@ -333,7 +341,11 @@ impl Parser {
             .map(|var: &TypeParam| var.name.clone())
             .collect();
         self.line_end()?;
-        let members = self.members(true)?;
+        let scope = match &receiver {
+            Type::Name(name, _) | Type::Var(name) => format!("class {name}"),
+            _ => String::new(),
+        };
+        let members = self.members(&scope, true)?;
         self.vars.clear();
         Ok(Class {
             doc,
@@ -346,6 +358,17 @@ impl Parser {
     /// A class's receiver pattern: a type whose capitalized names introduce
     /// type variables, each optionally bounded with `: B`.
     fn pattern(&mut self, vars: &mut Vec<TypeParam>) -> Result<Type> {
+        if self.eat("[") {
+            let mut elements = Vec::new();
+            loop {
+                elements.push(self.pattern(vars)?);
+                if !self.eat(",") {
+                    break;
+                }
+            }
+            self.expect("]")?;
+            return Ok(Type::Tuple(elements));
+        }
         let word = match self.peek().clone() {
             Token::Word(word) => word,
             Token::Literal(literal) if literal == "nil" => literal,
@@ -386,16 +409,21 @@ impl Parser {
         Ok(if nullable { optional(ty) } else { ty })
     }
 
-    fn members(&mut self, class: bool) -> Result<Vec<Member>> {
+    fn members(&mut self, scope: &str, class: bool) -> Result<Vec<Member>> {
         let mut members: Vec<Member> = Vec::new();
         loop {
             let doc = self.doc()?;
+            let start = self.pos;
             let member = match self.peek().clone() {
                 Token::Word(word) if word == "end" && doc.is_empty() => {
                     self.pos += 1;
                     return Ok(members);
                 }
-                Token::Word(word) if word == "def" => Member::Function(self.function(doc)?),
+                Token::Word(word) if word == "def" => {
+                    let function = self.function(doc)?;
+                    self.overload(scope, &function, start)?;
+                    Member::Function(function)
+                }
                 Token::Word(word) if word == "getter" && class => {
                     self.pos += 1;
                     Member::Getter(self.constant(doc)?)
@@ -403,12 +431,36 @@ impl Parser {
                 Token::Word(_) if !class => Member::Constant(self.constant(doc)?),
                 _ => return self.fail("expected a member declaration or `end`"),
             };
-            if members.iter().any(|other| other.name() == member.name()) {
+            let overload = |other: &Member| {
+                matches!(other, Member::Function(_)) && matches!(member, Member::Function(_))
+            };
+            if members
+                .iter()
+                .any(|other| other.name() == member.name() && !overload(other))
+            {
+                self.pos = start;
                 return self.fail(format!("duplicate member {}", member.name()));
             }
             members.push(member);
             self.line_end()?;
         }
+    }
+
+    /// Records a function's call shape, refusing an overload that could
+    /// accept the same call as an earlier one.
+    fn overload(&mut self, scope: &str, function: &Function, start: usize) -> Result<()> {
+        let shape = Shape::of(function);
+        let key = (scope.to_owned(), function.name.clone());
+        let shapes = self.shapes.entry(key).or_default();
+        if shapes.iter().any(|other| other.overlaps(&shape)) {
+            self.pos = start;
+            return self.fail(format!(
+                "overloads of {} could accept the same call",
+                function.name
+            ));
+        }
+        shapes.push(shape);
+        Ok(())
     }
 
     fn constant(&mut self, doc: Vec<String>) -> Result<Constant> {
@@ -630,6 +682,17 @@ impl Parser {
                 Ok(ty)
             }
             Token::Punct("{") => self.shape(),
+            Token::Punct("[") => {
+                let mut elements = Vec::new();
+                loop {
+                    elements.push(self.ty()?);
+                    if !self.eat(",") {
+                        break;
+                    }
+                }
+                self.expect("]")?;
+                Ok(Type::Tuple(elements))
+            }
             Token::Symbol(symbol) => Ok(Type::Symbol(symbol)),
             Token::Literal(literal) if literal == "nil" => Ok(Type::name("nil")),
             Token::Word(word) if self.vars.contains(&word) => Ok(Type::Var(word)),
@@ -748,4 +811,77 @@ fn unescape(text: &str) -> String {
         }
     }
     out
+}
+
+/// The calls a signature accepts, by the properties overload selection
+/// reads: the positional argument count, the keyword names, and whether a
+/// block is given and how many parameters it declares.
+struct Shape {
+    positional: (usize, Option<usize>),
+    required: Vec<String>,
+    /// The keywords a call may pass, or `None` for any.
+    keywords: Option<Vec<String>>,
+    /// The block's parameter counts, or `None` without a block.
+    block: Option<(usize, Option<usize>)>,
+    block_required: bool,
+}
+
+impl Shape {
+    fn of(function: &Function) -> Self {
+        let mut shape = Self {
+            positional: (0, Some(0)),
+            required: Vec::new(),
+            keywords: Some(Vec::new()),
+            block: function.block.as_ref().map(|block| {
+                let count = block.params.len();
+                (count, block.rest.is_none().then_some(count))
+            }),
+            block_required: function.block.as_ref().is_some_and(|block| !block.optional),
+        };
+        for param in &function.params {
+            match param.kind {
+                ParamKind::Positional => {
+                    shape.positional.1 = shape.positional.1.map(|max| max + 1);
+                    if !param.optional {
+                        shape.positional.0 += 1;
+                    }
+                }
+                ParamKind::Rest => shape.positional.1 = None,
+                ParamKind::Keyword => {
+                    if !param.optional {
+                        shape.required.push(param.name.clone());
+                    }
+                    if let Some(keywords) = &mut shape.keywords {
+                        keywords.push(param.name.clone());
+                    }
+                }
+                ParamKind::KeywordRest => shape.keywords = None,
+            }
+        }
+        shape
+    }
+
+    /// Whether some call is accepted by both shapes.
+    fn overlaps(&self, other: &Self) -> bool {
+        let below = |count: usize, max: Option<usize>| max.is_none_or(|max| count <= max);
+        let positional = below(self.positional.0, other.positional.1)
+            && below(other.positional.0, self.positional.1);
+        let allowed = |shape: &Self, name: &String| {
+            shape
+                .keywords
+                .as_ref()
+                .is_none_or(|keywords| keywords.contains(name))
+        };
+        let keywords = self
+            .required
+            .iter()
+            .chain(&other.required)
+            .all(|name| allowed(self, name) && allowed(other, name));
+        let without = !self.block_required && !other.block_required;
+        let with = match (self.block, other.block) {
+            (Some(left), Some(right)) => below(left.0, right.1) && below(right.0, left.1),
+            _ => false,
+        };
+        positional && keywords && (without || with)
+    }
 }
