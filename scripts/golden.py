@@ -209,6 +209,8 @@ def replay_cases():
         if "inputs" in spec:
             out["inputs"] = spec["inputs"]
             out["_input"] = inputs[spec["inputs"]]
+        if "static_error" in spec:
+            out["_static_error"] = spec["static_error"]
         cases.append(out)
     return cases
 
