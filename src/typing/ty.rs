@@ -85,6 +85,8 @@ pub(crate) enum Kind {
     Var(u32),
     /// Exactly one symbol, as signatures spell `:ascii`.
     SymbolLit(Box<str>),
+    /// The object `require` returns, by the index of the required module.
+    Exports(u32),
 }
 
 /// A field of a shape.
@@ -560,6 +562,7 @@ impl Types {
                 out.push(':');
                 out.push_str(name);
             }
+            Kind::Exports(_) => out.push_str("module"),
         }
     }
 
@@ -572,9 +575,11 @@ impl Types {
                 Kind::Array(_) | Kind::Tuple(_) => "array".to_owned(),
                 Kind::Hash(_) | Kind::Shape(..) | Kind::EmptyHash => "hash".to_owned(),
                 Kind::TypeLit(_) => "type".to_owned(),
-                Kind::Namespace(_) | Kind::EnumType(_) | Kind::Builtin(_) | Kind::AnyEnumType => {
-                    "namespace".to_owned()
-                }
+                Kind::Namespace(_)
+                | Kind::EnumType(_)
+                | Kind::Builtin(_)
+                | Kind::AnyEnumType
+                | Kind::Exports(_) => "namespace".to_owned(),
                 Kind::Instance(_) | Kind::EnumValue(_) => self.display(member),
                 Kind::AnyEnum => "enum_value".to_owned(),
                 Kind::Error => "unknown".to_owned(),

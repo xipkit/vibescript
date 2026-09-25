@@ -94,7 +94,21 @@ impl<'a> Checker<'a> {
                 self.frame.flow.live = false;
                 return Ty::NEVER;
             }
-            "require" => return self.require(&call),
+            "require" => {
+                self.require(&call);
+                let path = call
+                    .args
+                    .iter()
+                    .find_map(|arg| match (&arg.kind, &arg.value.node) {
+                        (ArgumentKind::Positional, Node::Literal(value)) => value.as_bytes(),
+                        _ => None,
+                    });
+                let id = path.and_then(|path| self.modules.exports(&String::from_utf8_lossy(path)));
+                return match id {
+                    Some(id) => self.exports_type(id),
+                    None => Ty::ANY,
+                };
+            }
             "block_given?" => return Ty::BOOL,
             _ => (),
         }
@@ -123,6 +137,9 @@ impl<'a> Checker<'a> {
             return self.call_sigs(&call, &[(sig, Vec::new())]);
         }
         if let Some(sig) = self.program.hosts.get(name).cloned() {
+            return self.call_sigs(&call, &[(sig, Vec::new())]);
+        }
+        if let Some(sig) = self.modules.published.get(name).cloned() {
             return self.call_sigs(&call, &[(sig, Vec::new())]);
         }
         if let Some(functions) = sigs::index().globals.get(name) {
@@ -170,7 +187,7 @@ impl<'a> Checker<'a> {
     }
 
     /// `require` with literal module names.
-    fn require(&mut self, call: &Call<'a, '_>) -> Ty {
+    fn require(&mut self, call: &Call<'a, '_>) {
         for arg in call.args {
             let literal = matches!(&arg.value.node, Node::Literal(value) if value.as_bytes().is_some() || super::symbol_text(value).is_some());
             self.expr(&arg.value, None);
@@ -187,7 +204,6 @@ impl<'a> Checker<'a> {
                 ));
             }
         }
-        Ty::ANY
     }
 
     /// Checks arguments and a block without a signature, as after an error.
@@ -427,6 +443,14 @@ impl<'a> Checker<'a> {
                 }
             }
             Kind::Namespace(ns) => self.namespace_member(call, ns, ty),
+            Kind::Exports(id) => match self.exported(id, call.name) {
+                Some(sig) => self.call_sigs(call, &[(sig, Vec::new())]),
+                None => {
+                    self.unknown_export(id, call.name, call.name_span);
+                    self.loose_args(call);
+                    Ty::ERROR
+                }
+            },
             Kind::Builtin(index) => self.builtin_member(call, index, ty),
             _ => {
                 let _ = receiver;

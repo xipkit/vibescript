@@ -95,6 +95,24 @@ impl Loader {
         self.cache.clear();
     }
 
+    /// The source text of the file a non-relative `require` of `request`
+    /// would load, and its root-relative filename, for the static checker.
+    /// Unreadable, denied and missing files give none.
+    pub fn source(&self, request: &str) -> Option<(String, Arc<[u8]>)> {
+        let mut ctx = CallContext::new(crate::CallOptions::default());
+        let mut candidates = self
+            .resolver
+            .candidates(&mut ctx, request.as_bytes(), None)
+            .ok()?;
+        while let Some(candidate) = candidates.next(&mut ctx).ok()? {
+            if let Some(source) = self.resolver.read(&mut ctx, &candidate).ok()? {
+                let text = std::str::from_utf8(source.contents.as_bytes()?).ok()?;
+                return Some((text.to_owned(), candidate.origin().filename()));
+            }
+        }
+        None
+    }
+
     pub fn load(
         &self,
         ctx: &mut CallContext,
@@ -172,8 +190,13 @@ impl Loader {
                     })?;
                 ctx.work_bytes(source_text.len())?;
                 let origin = candidate.origin();
-                let compiled =
-                    crate::code::Code::compile_module(ctx, source_text, receiving, origin.clone());
+                let compiled = crate::code::Code::compile_module(
+                    ctx,
+                    source_text,
+                    receiving,
+                    origin.clone(),
+                    self,
+                );
                 ctx.checkpoint()?;
                 let code = compiled?;
                 self.cache

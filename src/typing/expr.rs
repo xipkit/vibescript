@@ -265,6 +265,9 @@ impl<'a> Checker<'a> {
         if let Some(ty) = self.declaration(name) {
             return ty;
         }
+        if let Some(&id) = self.modules.aliases.get(name) {
+            return self.exports_type(id);
+        }
         if is_constant(name) {
             if let Some(ty) = self.constant(name, self.frame.owner) {
                 return ty;

@@ -34,22 +34,28 @@ impl Code {
         result
     }
 
+    #[cfg(test)]
     pub fn compile(
         source: &str,
         registered: &BTreeMap<String, Registered>,
         static_types: bool,
     ) -> Result<Arc<Self>> {
-        Self::compile_typed(source, registered.iter(), false, None, &(), static_types)
+        let typing = static_types.then_some(Typing { loader: None });
+        Self::compile_typed(source, registered.iter(), false, None, &(), typing)
     }
 
-    /// Compiles host source, charging the work to `work`.
+    /// Compiles host source, charging the work to `work`. In static mode,
+    /// `loader` resolves the files the source requires.
     pub fn compile_metered(
         source: &str,
         registered: &BTreeMap<String, Registered>,
         work: &dyn crate::compilation::Work,
-        static_types: bool,
+        static_types: Option<&crate::loading::Loader>,
     ) -> Result<Arc<Self>> {
-        Self::compile_typed(source, registered.iter(), false, None, work, static_types)
+        let typing = static_types.map(|loader| Typing {
+            loader: Some(loader),
+        });
+        Self::compile_typed(source, registered.iter(), false, None, work, typing)
     }
 
     #[cfg(test)]
@@ -65,14 +71,18 @@ impl Code {
         source: &str,
         receiving: &Self,
         origin: crate::loading::Origin,
+        loader: &crate::loading::Loader,
     ) -> Result<Arc<Self>> {
+        let typing = receiving.static_types.then_some(Typing {
+            loader: Some(loader),
+        });
         Self::compile_typed(
             source,
             receiving.program.hosts.iter().zip(&receiving.hosts),
             true,
             Some(origin),
             &crate::compilation::Meter(std::cell::RefCell::new(ctx)),
-            receiving.static_types,
+            typing,
         )
     }
 
@@ -84,7 +94,7 @@ impl Code {
         origin: Option<crate::loading::Origin>,
         work: &dyn crate::compilation::Work,
     ) -> Result<Arc<Self>> {
-        Self::compile_typed(source, registered, file, origin, work, false)
+        Self::compile_typed(source, registered, file, origin, work, None)
     }
 
     fn compile_typed<'a>(
@@ -93,8 +103,9 @@ impl Code {
         file: bool,
         origin: Option<crate::loading::Origin>,
         work: &dyn crate::compilation::Work,
-        static_types: bool,
+        typing: Option<Typing<'_>>,
     ) -> Result<Arc<Self>> {
+        let static_types = typing.is_some();
         work.checkpoint()?;
         let mut names = Vec::new();
         for (name, _) in registered.clone() {
@@ -104,15 +115,17 @@ impl Code {
         let filename = origin.as_ref().map(crate::loading::Origin::filename);
         let parse_error =
             |error| crate::source::parse_error(source, filename.as_ref(), error, work);
-        let mut program = if static_types {
+        let mut program = if let Some(typing) = typing {
             let (parsed, tokens) =
                 crate::syntax::parse_with_tokens(source, work).map_err(parse_error)?;
+            let resolve = |path: &str| typing.loader.and_then(|loader| loader.source(path));
             let checked = crate::typing::check(&crate::typing::Input {
                 source,
                 parsed: &parsed,
                 tokens: &tokens,
                 hosts: registered.clone().collect(),
                 file,
+                modules: typing.loader.is_some().then_some(&resolve),
             });
             work.charge(usize::try_from(checked.steps).unwrap_or(usize::MAX))?;
             work.checkpoint()?;
@@ -122,7 +135,10 @@ impl Code {
                 let diagnostics = checked
                     .diagnostics
                     .into_iter()
-                    .map(|diagnostic| diagnostic.in_file(filename.clone()))
+                    .map(|diagnostic| match diagnostic.file {
+                        Some(_) => diagnostic,
+                        None => diagnostic.in_file(filename.clone()),
+                    })
                     .collect();
                 return Err(Error::from_diagnostics(
                     crate::ErrorKind::Type,
@@ -180,6 +196,12 @@ impl Code {
             }
         }))
     }
+}
+
+/// How a static compilation resolves what it requires.
+#[derive(Clone, Copy)]
+struct Typing<'a> {
+    loader: Option<&'a crate::loading::Loader>,
 }
 
 impl fmt::Debug for Code {

@@ -159,12 +159,14 @@ impl Engine {
     pub fn type_check(&self, source: &str) -> Result<typing::Checked> {
         let (parsed, tokens) = syntax::parse_with_tokens(source, &())
             .map_err(|error| source::parse_error(source, None, error, &()))?;
+        let resolve = |path: &str| self.loader.source(path);
         Ok(typing::check(&typing::Input {
             source,
             parsed: &parsed,
             tokens: &tokens,
             hosts: self.hosts.iter().collect(),
             file: false,
+            modules: Some(&resolve),
         }))
     }
     /// Checks that a command line can call `function` in `source` with
@@ -196,6 +198,7 @@ impl Engine {
                 tokens: &tokens,
                 hosts: self.hosts.iter().collect(),
                 file: false,
+                modules: None,
             },
             function,
             count,
@@ -337,7 +340,12 @@ impl Engine {
     }
     /// Compiles UTF-8 source, enforcing source-size and syntax-depth guards.
     pub fn compile(&self, source: &str) -> Result<Script> {
-        let code = code::Code::compile(source, &self.hosts, self.static_types)?;
+        let code = code::Code::compile_metered(
+            source,
+            &self.hosts,
+            &(),
+            self.static_types.then_some(&*self.loader),
+        )?;
         Ok(self.script(code))
     }
 
@@ -374,7 +382,7 @@ impl Engine {
             source,
             &self.hosts,
             &compilation::Meter(std::cell::RefCell::new(&mut ctx)),
-            self.static_types,
+            self.static_types.then_some(&*self.loader),
         )?;
         ctx.checkpoint()?;
         Ok(self.script(code))

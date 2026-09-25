@@ -18,6 +18,8 @@ mod conditions;
 mod engine;
 #[path = "static_types/locals.rs"]
 mod locals;
+#[path = "static_types/modules.rs"]
+mod modules;
 #[path = "static_types/narrowing.rs"]
 mod narrowing;
 #[path = "static_types/operators.rs"]

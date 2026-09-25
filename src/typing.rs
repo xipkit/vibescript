@@ -14,6 +14,7 @@ mod calls;
 mod check;
 mod expr;
 mod flow;
+mod modules;
 mod program;
 mod sigs;
 mod spans;
@@ -29,7 +30,13 @@ pub(crate) struct Input<'a> {
     pub hosts: Vec<(&'a String, &'a Registered)>,
     /// Whether the source is a required file rather than a host script.
     pub file: bool,
+    /// Finds the source and filename of a module `require` names, when the
+    /// engine can load modules.
+    pub modules: Option<&'a Modules<'a>>,
 }
+
+/// Resolves a required module's name to its source and filename.
+pub(crate) type Modules<'a> = dyn Fn(&str) -> Option<(String, std::sync::Arc<[u8]>)> + 'a;
 
 /// The result of checking one source.
 #[derive(Clone, Debug, Default)]
@@ -41,6 +48,9 @@ pub struct Checked {
     /// A deterministic count of the checker's work, which grows linearly
     /// with the program; compilation charges it to the step quota.
     pub steps: u64,
+    /// The signatures of the functions a required file exports, as
+    /// signature declarations.
+    pub(crate) exports: Vec<String>,
 }
 
 /// The static type of the receiver at each member call, keyed by the byte
@@ -132,6 +142,11 @@ impl fmt::Display for ReceiverType {
 
 /// Checks one parsed source.
 pub(crate) fn check(input: &Input<'_>) -> Checked {
+    check_nested(input, 0)
+}
+
+/// Checks a source `depth` requires deep.
+fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     let mut checker = Checker {
         source: input.source,
         parsed: input.parsed,
@@ -146,8 +161,8 @@ pub(crate) fn check(input: &Input<'_>) -> Checked {
         purposes: Vec::new(),
         mute: 0,
         steps: 0,
+        modules: modules::Required::new(input, depth),
     };
-    let _ = input.file;
     for (name, host) in &input.hosts {
         let function = crate::signatures::host::function(name, host);
         let sig = checker
@@ -159,7 +174,13 @@ pub(crate) fn check(input: &Input<'_>) -> Checked {
             .insert((*name).clone(), std::rc::Rc::new(sig));
     }
     checker.declare_program(input.parsed);
+    checker.require_modules(input.parsed);
     checker.check_all();
+    let exports = if input.file {
+        checker.export_declarations()
+    } else {
+        Vec::new()
+    };
     let mut diagnostics = checker.diagnostics;
     diagnostics.sort_by_key(|d| (d.span.start, d.span.end));
     diagnostics.dedup_by(|a, b| a.code == b.code && a.span == b.span && a.message == b.message);
@@ -169,6 +190,7 @@ pub(crate) fn check(input: &Input<'_>) -> Checked {
         diagnostics,
         calls: CallTypes::from_entries(checker.calls),
         steps,
+        exports,
     }
 }
 
@@ -190,6 +212,7 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
         purposes: Vec::new(),
         mute: 0,
         steps: 0,
+        modules: modules::Required::new(input, 0),
     };
     checker.declare_program(input.parsed);
     checker.diagnostics.clear();
@@ -217,6 +240,8 @@ pub(crate) struct Checker<'a> {
     mute: u32,
     /// Work done outside the types, spans and flow of the current function.
     steps: u64,
+    /// The modules the program requires, and the names they publish.
+    modules: modules::Required<'a>,
 }
 
 /// The name of a symbol literal's value.

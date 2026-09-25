@@ -261,8 +261,15 @@ impl Error {
             .iter()
             .find(|diagnostic| diagnostic.is_error())
             .or(diagnostics.first());
+        // A diagnostic in a required file has no position in this source.
         let (message, offset) = match first {
-            Some(first) => (format!("{first}"), Some(first.span.start)),
+            Some(first) if first.file.is_none() || first.file == source.filename => {
+                (format!("{first}"), Some(first.span.start))
+            }
+            Some(first) => {
+                let file = first.file.as_deref().unwrap_or_default();
+                (format!("{}: {first}", String::from_utf8_lossy(file)), None)
+            }
             None => (String::from("compilation failed"), None),
         };
         let diagnostic = offset.map(|offset| {
