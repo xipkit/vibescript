@@ -37,11 +37,11 @@ fn hash_yield_shapes_and_iteration_order_are_explicit() {
 fn sparse_numeric_iteration_reaches_integer_boundaries_in_bounded_work() {
     for (source, expected) in [
         (
-            "a=[];(-9223372036854775808..9223372036854775807).step(9223372036854775807) {|n|a.push(n)};a",
+            "a: array<int> = [];(-9223372036854775808..9223372036854775807).step(9223372036854775807) {|n|a.push(n)};a",
             "[-9223372036854775808,-1,9223372036854775806]",
         ),
         (
-            "a=[];9223372036854775807.step(-9223372036854775808,-9223372036854775808) {|n|a.push(n)};a",
+            "a: array<int> = [];9223372036854775807.step(-9223372036854775808,-9223372036854775808) {|n|a.push(n)};a",
             "[9223372036854775807,-1]",
         ),
         (
@@ -108,7 +108,8 @@ fn discarded_results_and_nonlocal_exits_release_iteration_roots() {
         "{a:1}.transform_values {allocate();return 7}",
         "[1].map {next allocate()};7",
     ] {
-        let source = format!("def work()\n{body}\nend\ndef run()\n200.times {{work()}}\n7\nend");
+        let source =
+            format!("def work() -> any\n{body}\nend\ndef run() -> int\n200.times {{work}}\n7\nend");
         let result = engine
             .compile(&source)
             .unwrap()
@@ -167,7 +168,7 @@ fn cycles_observe_limits_and_cancellation_before_later_host_effects() {
 #[test]
 fn nested_builtin_blocks_use_the_vm_recursion_limit() {
     let script = Engine::new()
-        .compile("def recurse()\n[1].map {recurse()}\nend")
+        .compile("def recurse() -> array<any>\n[1].map {recurse}\nend")
         .unwrap();
     let error = script
         .call(
@@ -232,10 +233,10 @@ fn flat_map_checks_unflattened_hash_results_before_the_next_block() {
 
 #[test]
 fn grouping_checks_every_result_wrapper_before_another_block() {
-    for (method, depth) in [
-        ("partition", 9_999),
-        ("group_by", 9_999),
-        ("group_by_stable", 9_998),
+    for (method, depth, key) in [
+        ("partition", 9_999, "true"),
+        ("group_by", 9_999, ":key"),
+        ("group_by_stable", 9_998, ":key"),
     ] {
         let mut value = Value::int(1);
         for _ in 0..depth {
@@ -249,7 +250,8 @@ fn grouping_checks_every_result_wrapper_before_another_block() {
             seen.fetch_add(1, Ordering::SeqCst);
             Ok(Value::nil())
         });
-        let source = format!("def run(input)\ninput.{method} {{entered();:key}}\nend");
+        let source =
+            format!("def run(input: array<any>) -> any\ninput.{method} {{entered();{key}}}\nend");
         let error = engine
             .compile(&source)
             .unwrap()
