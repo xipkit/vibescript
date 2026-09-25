@@ -758,10 +758,33 @@ def export_path(key):
     return path if path.endswith(".vibe") else path + ".vibe"
 
 
+def case_inputs(case, index):
+    """The invocation `vibes migrate --inputs` runs for a case, naming its exported source."""
+    key = case.get("_source_key", case["id"])
+    record = {"file": index[key]}
+    for field in CASE_FIELDS + ["module_allow", "module_deny", "module_development", "allow_require",
+                                "memory", "recursion"]:
+        if field in case:
+            record[field] = case[field]
+    given = case.get("_input")
+    if given is not None:
+        for field in ["typed_args", "typed_kwargs", "typed_globals"]:
+            if given.get(field):
+                record[field] = given[field]
+    if case.get("_files"):
+        first = next(iter(case["_files"]))
+        record["module_paths"] = [index[f"{key}::{first}"].rsplit("/", first.count("/") + 1)[0]]
+    return record
+
+
 def export(corpora, directory):
     for corpus in corpora:
-        index, used = {}, set()
-        for case in corpus.cases():
+        if not corpus.migratable:
+            print(f"{corpus.name}: not migrated, so not exported")
+            continue
+        index, used, invocations = {}, set(), []
+        cases = corpus.cases()
+        for case in cases:
             for key, text in source_keys(case):
                 if key in index:
                     continue
@@ -771,8 +794,13 @@ def export(corpora, directory):
                 used.add(path.lower())
                 write_source(directory / corpus.name / path, text)
                 index[key] = path
+        for case in cases:
+            if case.get("function") is not None:
+                invocations.append(case_inputs(case, index))
         (directory / corpus.name / "index.json").write_text(canonical(index) + "\n")
-        print(f"{corpus.name}: exported {len(index)} sources to {directory / corpus.name}")
+        write_jsonl(directory / corpus.name / "inputs.jsonl", invocations)
+        print(f"{corpus.name}: exported {len(index)} sources and {len(invocations)} invocations "
+              f"to {directory / corpus.name}")
 
 
 def load_sources(directory):
@@ -789,8 +817,12 @@ def load_sources(directory):
 class Report:
     def __init__(self, show):
         self.show, self.failed = show, False
+        self.cases = {}
 
     def section(self, corpus, total, problems, notes):
+        self.cases[corpus] = {"total": total, **{
+            category: {"blocking": entry["blocking"], "cases": [cid for cid, _ in entry["cases"]]}
+            for category, entry in problems.items() if entry["cases"]}}
         blocking = {k: v for k, v in problems.items() if v["blocking"]}
         count = sum(len(v["cases"]) for v in blocking.values())
         status = "FAILED" if count else "ok"
@@ -1110,6 +1142,8 @@ def main(argv=None):
                         help="run the sources in an --export tree (such as a migrated copy) against the goldens")
     parser.add_argument("--override", type=Path, metavar="FILE",
                         help='a JSON map {"corpus": {"source key": "source"}} of sources to run instead')
+    parser.add_argument("--failures", type=Path, metavar="FILE",
+                        help="also write every problem's case ids, by corpus and category, as JSON")
     args = parser.parse_args(argv)
     if args.list:
         for corpus in CORPORA.values():
@@ -1137,6 +1171,8 @@ def main(argv=None):
     report = Report(args.show)
     for corpus in corpora:
         check_corpus(corpus, args, overrides, report)
+    if args.failures:
+        args.failures.write_text(canonical(report.cases) + "\n")
     return 1 if report.failed else 0
 
 
