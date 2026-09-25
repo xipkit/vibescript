@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -30,11 +32,11 @@ const GUARDS: &[(&str, &str)] = &[
         "int.downto bounds must fit in a 64-bit integer",
     ),
     (
-        "9223372036854775808.step(0)",
+        "9223372036854775808.step(0) {entered()}",
         "int.step bounds must fit in a 64-bit integer",
     ),
     (
-        "0.step(9223372036854775808,0)",
+        "0.step(9223372036854775808,0) {entered()}",
         "int.step bounds must fit in a 64-bit integer",
     ),
     (
@@ -42,7 +44,7 @@ const GUARDS: &[(&str, &str)] = &[
         "int.step bounds must fit in a 64-bit integer",
     ),
     (
-        "(1..3).step(9223372036854775808)",
+        "(1..3).step(9223372036854775808) {entered()}",
         "range.step step must fit in a 64-bit integer",
     ),
     (
@@ -62,15 +64,7 @@ const GUARDS: &[(&str, &str)] = &[
         "array.fill window is too large",
     ),
     (
-        "a.fill(9223372036854775807,1) {entered()}",
-        "array.fill window is too large",
-    ),
-    (
         "a.fill(0,0..9223372036854775807)",
-        "array.fill window is too large",
-    ),
-    (
-        "a.fill(..9223372036854775807) {entered()}",
         "array.fill window is too large",
     ),
 ];
@@ -86,7 +80,7 @@ fn representational_guards_recover_without_callbacks_or_partial_mutation() {
     });
     for (expression, message) in GUARDS {
         let source = format!(
-            "a=[1,2];begin\n{expression}\nrescue LimitError=>e\n[e.type,e.message,a,a.fill(0,1,1)]\nend"
+            "a=[1,2];begin\n{expression}\nrescue LimitError=>e\n[e.class,e.message,a,a.fill(0,1,1)]\nend"
         );
         let mut options = CallOptions::default();
         options.limits.steps = Some(10_000);
@@ -119,24 +113,35 @@ fn representational_guards_recover_without_callbacks_or_partial_mutation() {
         );
         assert_eq!(calls.load(Ordering::SeqCst), 0, "{expression}");
     }
+    // fill takes no block, so its block form is refused before anything
+    // runs.
+    let mut checked = common::static_engine();
+    checked.register("entered", |_, _| panic!("entered ran"));
+    for (expression, expected) in [
+        ("a.fill(9223372036854775807,1) {entered()}", &["V0305"][..]),
+        (
+            "a.fill(..9223372036854775807) {entered()}",
+            &["V0101", "V0305"],
+        ),
+    ] {
+        let error = checked
+            .compile(&format!("a=[1,2]\n{expression}"))
+            .err()
+            .unwrap();
+        assert_eq!(common::codes(&error), expected, "{expression}");
+    }
 }
 
 #[test]
 fn validation_order_distinguishes_runtime_errors_from_limits() {
     for (expression, expected) in [
-        ("9223372036854775808.times", "RuntimeError"),
-        ("9223372036854775808.times(1) {0}", "RuntimeError"),
-        ("9223372036854775808.upto(nil) {0}", "RuntimeError"),
-        ("9223372036854775808.upto(1)", "RuntimeError"),
-        ("9223372036854775808.step(1,:bad)", "LimitError"),
-        ("0.step(9223372036854775808,0)", "LimitError"),
-        ("0.step(1.5,9223372036854775808)", "RuntimeError"),
-        ("(1..).step(9223372036854775808)", "LimitError"),
-        ("(0..9223372036854775807).size", "RuntimeError"),
+        ("0.step(9223372036854775808,0) {0}", "LimitError"),
+        ("(1..).step(9223372036854775808) {0}", "LimitError"),
+        ("(0..9223372036854775807).length", "RuntimeError"),
         ("[1,2].fill(0,-10..9223372036854775807)", "RuntimeError"),
     ] {
         let source =
-            format!("begin\n{expression}\nrescue LimitError | RuntimeError => e\ne.type\nend");
+            format!("begin\n{expression}\nrescue LimitError | RuntimeError => e\ne.class\nend");
         let output = Engine::new()
             .compile(&source)
             .unwrap()
@@ -148,8 +153,21 @@ fn validation_order_distinguishes_runtime_errors_from_limits() {
             "{expression}"
         );
     }
+    // A missing block and arguments of the wrong type or count are refused
+    // before any bound is checked.
+    for (expression, expected) in [
+        ("9223372036854775808.times", &["V0304"][..]),
+        ("9223372036854775808.times(1) {0}", &["V0301"]),
+        ("9223372036854775808.upto(nil) {0}", &["V0101"]),
+        ("9223372036854775808.upto(1)", &["V0304"]),
+        ("9223372036854775808.step(1,:bad)", &["V0304", "V0101"]),
+        ("0.step(1.5,9223372036854775808)", &["V0304", "V0101"]),
+    ] {
+        let error = common::static_engine().compile(expression).err().unwrap();
+        assert_eq!(common::codes(&error), expected, "{expression}");
+    }
     let error = Engine::new()
-        .compile("begin\n0.step(9223372036854775808)\nrescue\n42\nend")
+        .compile("begin\n0.step(9223372036854775808) {0}\nrescue\n42\nend")
         .unwrap()
         .run(CallOptions::default())
         .unwrap_err();
@@ -159,7 +177,7 @@ fn validation_order_distinguishes_runtime_errors_from_limits() {
 
 #[test]
 fn recovered_guards_release_storage_and_preserve_exact_budgets() {
-    let source = "def guarded\na=[1,2];begin\na.fill(9223372036854775807,1) {0}\nrescue LimitError=>e\ne.message;42\nend\nend\ndef run(n)\ni=0;while i<n\nguarded();i+=1\nend;42\nend";
+    let source = "def guarded -> array<int> | int\na=[1,2];begin\na.fill(0,9223372036854775807,1)\nrescue LimitError=>e\ne.message;42\nend\nend\ndef run(n: int) -> int\ni=0;while i<n\nguarded;i+=1\nend;42\nend";
     let script = Engine::new().compile(source).unwrap();
     let first = script
         .call("run", &[Value::int(1)], CallOptions::default())
@@ -218,7 +236,7 @@ fn cancellation_and_actual_exhaustion_cannot_be_replaced_or_rescued() {
             captured.fetch_add(1, Ordering::SeqCst);
             Ok(Value::nil())
         });
-        let source = "begin\nstop().step(9223372036854775808);after()\nrescue LimitError | RuntimeError\nafter()\nensure\nafter()\nend";
+        let source = "begin\nstop().as(int).step(9223372036854775808) {after()};after()\nrescue LimitError | RuntimeError\nafter()\nensure\nafter()\nend";
         let error = engine
             .compile(source)
             .unwrap()
