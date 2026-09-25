@@ -5,8 +5,8 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 use vibescript::{
-    CallOptions, Capability, CheckReport, CheckedOutcome, Engine, ErrorKind, HostMethod, Limits,
-    Position, Signature, Value,
+    CallOptions, Capability, CheckReport, CheckedOutcome, ErrorKind, HostMethod, Limits, Position,
+    Signature, Value,
 };
 
 fn check(source: &str) -> CheckReport {

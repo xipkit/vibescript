@@ -1,6 +1,6 @@
 mod common;
 
-use vibescript::{CallOptions, CheckReport, Engine, Script, Value};
+use vibescript::{CallOptions, CheckReport, Script, Value};
 
 fn compile(source: &str) -> Script {
     common::gradual_engine()

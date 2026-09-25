@@ -1,8 +1,8 @@
 mod common;
 
 use vibescript::{
-    CallOptions, Capability, CheckReport, Engine, ErrorKind, HostMethod, Script, Signature,
-    SignatureParam, Value,
+    CallOptions, Capability, CheckReport, ErrorKind, HostMethod, Script, Signature, SignatureParam,
+    Value,
 };
 
 fn compile(source: &str) -> Script {

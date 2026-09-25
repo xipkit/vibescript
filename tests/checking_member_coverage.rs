@@ -4,7 +4,7 @@
 mod common;
 
 use std::collections::BTreeMap;
-use vibescript::{CallOptions, CheckReport, Engine, ErrorKind, Script, Value};
+use vibescript::{CallOptions, CheckReport, ErrorKind, Script, Value};
 
 const PRELUDE: &str = "enum Status\n  Draft\n  Published\nend\n\
     def failure\n  begin\n    raise \"bad\"\n  rescue => error\n    error\n  end\nend\n";

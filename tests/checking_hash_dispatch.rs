@@ -1,6 +1,6 @@
 mod common;
 
-use vibescript::{CallOptions, Engine, ErrorKind, Value};
+use vibescript::{CallOptions, ErrorKind, Value};
 
 #[test]
 fn hash_lookup_order_keeps_direct_scoped_and_forwarded_failures_distinct() {

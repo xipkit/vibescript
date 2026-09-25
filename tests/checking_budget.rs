@@ -1,6 +1,6 @@
 mod common;
 
-use vibescript::{CallOptions, CheckDiagnostic, CheckReport, Engine, ErrorKind, Limits, Script};
+use vibescript::{CallOptions, CheckDiagnostic, CheckReport, ErrorKind, Limits, Script};
 
 const DEFAULT_STEPS: u64 = 1_000_000;
 

@@ -5,7 +5,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 use vibescript::{
-    CallOptions, Capability, CheckReport, Engine, ErrorKind, HostMethod, Limits, Signature, Value,
+    CallOptions, Capability, CheckReport, ErrorKind, HostMethod, Limits, Signature, Value,
 };
 
 fn object(whole: Value, captures: Vec<Value>, named: Value) -> Value {

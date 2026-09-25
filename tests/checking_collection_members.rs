@@ -1,9 +1,7 @@
 mod common;
 
 use std::{fs, path::Path};
-use vibescript::{
-    CallOptions, CheckReport, CheckedOutcome, Engine, ErrorClass, Limits, Script, Value,
-};
+use vibescript::{CallOptions, CheckReport, CheckedOutcome, ErrorClass, Limits, Script, Value};
 
 fn compile(source: &str) -> Script {
     common::gradual_engine()

@@ -1,6 +1,6 @@
 mod common;
 
-use vibescript::{CallOptions, Engine, ErrorKind, Value};
+use vibescript::{CallOptions, ErrorKind, Value};
 
 fn check(source: &str, bad_return: bool) -> vibescript::Script {
     let script = common::gradual_engine()

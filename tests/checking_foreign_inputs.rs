@@ -1,6 +1,6 @@
 mod common;
 
-use vibescript::{CallOptions, Engine, Script, Value};
+use vibescript::{CallOptions, Script, Value};
 
 fn values(source: &str) -> (Value, Value) {
     let script = common::gradual_engine().compile(source).unwrap();

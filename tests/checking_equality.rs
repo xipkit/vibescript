@@ -1,6 +1,6 @@
 mod common;
 
-use vibescript::{CallOptions, Engine, ErrorKind, Limits, Value};
+use vibescript::{CallOptions, ErrorKind, Limits, Value};
 
 fn options() -> CallOptions {
     CallOptions {

@@ -5,7 +5,7 @@
 
 mod common;
 
-use vibescript::{CallOptions, Engine, Limits};
+use vibescript::{CallOptions, Limits};
 
 fn repeat(count: usize, item: impl Fn(usize) -> String) -> String {
     (0..count).map(item).collect()
