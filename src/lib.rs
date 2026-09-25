@@ -2,7 +2,7 @@
 //!
 //! ```
 //! use vibescript::{Engine, Value, CallOptions};
-//! let script = Engine::new().compile("def add(a, b)\n a + b\nend")?;
+//! let script = Engine::new().compile("def add(a: int, b: int) -> int\n a + b\nend")?;
 //! let result = script.call("add", &[Value::int(20), Value::int(22)], CallOptions::default())?;
 //! assert_eq!(result.value.as_int(), Some(42));
 //! # Ok::<(), vibescript::Error>(())
@@ -615,12 +615,12 @@ impl Script {
     ///
     /// ```
     /// use vibescript::{DeclarationKind, Engine};
-    /// let source = "x = 1\ndef double(n)\n  n * 2\nend\ndouble(x)";
+    /// let source = "x = 1\ndef double(n: int) -> int\n  n * 2\nend\ndouble(x)";
     /// let script = Engine::new().compile(source)?;
     /// let declaration = &script.declarations()[0];
     /// assert_eq!(declaration.kind, DeclarationKind::Function);
     /// assert_eq!(declaration.name, "double");
-    /// assert_eq!(&source[declaration.span.clone()], "def double(n)\n  n * 2\nend");
+    /// assert_eq!(&source[declaration.span.clone()], "def double(n: int) -> int\n  n * 2\nend");
     /// # Ok::<(), vibescript::Error>(())
     /// ```
     pub fn declarations(&self) -> &[Declaration] {
@@ -640,8 +640,10 @@ impl Script {
     ///
     /// ```
     /// use vibescript::{CallOptions, Engine};
-    /// let engine = Engine::new();
-    /// let (_, bindings) = engine.compile("total = 40")?.run_bindings(CallOptions::default())?;
+    /// let (_, bindings) = Engine::new().compile("total = 40")?.run_bindings(CallOptions::default())?;
+    /// // The next input reads `total` as a global the host supplies.
+    /// let mut engine = Engine::new();
+    /// engine.declare_global("total", "int")?;
     /// let options = CallOptions { globals: bindings, ..CallOptions::default() };
     /// let (outcome, bindings) = engine.compile("total += 2")?.run_bindings(options)?;
     /// assert_eq!(outcome.value.as_int(), Some(42));

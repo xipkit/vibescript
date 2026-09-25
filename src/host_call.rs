@@ -84,13 +84,16 @@ impl<'a> HostCall<'a> {
     ///         .map(|(_, value)| value.clone());
     ///     Ok(value.unwrap_or_else(Value::nil))
     /// });
-    /// let counter = Capability::new("counter", move |_| {
-    ///     Ok(Value::object(vec![
+    /// let binding = move || {
+    ///     Value::object(vec![
     ///         (b"value".to_vec(), Value::int(5)),
     ///         (b"read".to_vec(), read.value()),
-    ///     ]))
-    /// });
-    /// let script = Engine::new().compile("counter.read()")?;
+    ///     ])
+    /// };
+    /// let mut engine = Engine::new();
+    /// engine.declare_capability(&Capability::from_value("counter", binding()))?;
+    /// let counter = Capability::new("counter", move |_| Ok(binding()));
+    /// let script = engine.compile("counter.read()")?;
     /// let result = script.run(CallOptions {
     ///     capabilities: vec![counter],
     ///     ..CallOptions::default()
@@ -129,10 +132,16 @@ impl<'a> HostCall<'a> {
     ///     call.set_receiver_field(b"limit", &Value::int(10))?;
     ///     Ok(Value::nil())
     /// });
-    /// let config = Capability::new("config", move |_| {
-    ///     Ok(Value::object(vec![(b"install".to_vec(), install.value())]))
-    /// });
-    /// let script = Engine::new().compile("config.install()\nconfig[:limit] + 1")?;
+    /// let binding = move || {
+    ///     Value::object(vec![
+    ///         (b"limit".to_vec(), Value::int(0)),
+    ///         (b"install".to_vec(), install.value()),
+    ///     ])
+    /// };
+    /// let mut engine = Engine::new();
+    /// engine.declare_capability(&Capability::from_value("config", binding()))?;
+    /// let config = Capability::new("config", move |_| Ok(binding()));
+    /// let script = engine.compile("config.install()\nconfig.limit + 1")?;
     /// let result = script.run(CallOptions {
     ///     capabilities: vec![config],
     ///     ..CallOptions::default()

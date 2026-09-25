@@ -47,14 +47,18 @@ pub(crate) enum Registered {
 ///
 /// ```
 /// use vibescript::{CallOptions, Capability, Engine, HostMethod, Value};
-/// let sms = Capability::new("SMS", |_| {
+/// let binding = || {
 ///     let send = HostMethod::new("SMS.send", |ctx, _, _| {
 ///         ctx.charge(1)?;
 ///         ctx.bytes(b"queued")
 ///     });
-///     Ok(Value::object(vec![(b"send".to_vec(), send.value())]))
-/// });
-/// let script = Engine::new().compile("SMS.send(\"hello\")")?;
+///     Value::object(vec![(b"send".to_vec(), send.value())])
+/// };
+/// let sms = Capability::new("SMS", move |_| Ok(binding()));
+/// // Static types read the capability's members from a template of its value.
+/// let mut engine = Engine::new();
+/// engine.declare_capability(&Capability::from_value("SMS", binding()))?;
+/// let script = engine.compile("SMS.send(\"hello\")")?;
 /// let result = script.run(CallOptions {
 ///     capabilities: vec![sms],
 ///     ..CallOptions::default()
@@ -229,7 +233,7 @@ impl HostMethod {
     ///         call.call_block(args.to_vec()).await
     ///     })
     /// }));
-    /// let script = engine.compile("def run;visit(20){|n|n+1};end")?;
+    /// let script = engine.compile("def run -> int;visit(20){|n|n.as(int)+1}.as(int);end")?;
     /// let runtime = tokio::runtime::Builder::new_current_thread().enable_time().build().unwrap();
     /// let result = runtime.block_on(async {
     ///     Runner::new(1)?.call(script, "run".into(), vec![], CallOptions::default()).await

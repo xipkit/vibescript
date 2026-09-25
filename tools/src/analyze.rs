@@ -31,7 +31,7 @@ pub struct Finding {
 ///
 /// ```
 /// use vibescript_tools::analyze::{analyze, UNREACHABLE};
-/// let findings = analyze("def run()\n  return 1\n  2\nend")?;
+/// let findings = analyze("def run() -> int\n  return 1\n  2\nend")?;
 /// assert_eq!(findings.len(), 1);
 /// assert_eq!(findings[0].function, "run");
 /// assert_eq!((findings[0].position.line, findings[0].position.column), (3, 3));
@@ -49,7 +49,7 @@ pub fn analyze(source: &str) -> Result<Vec<Finding>, Error> {
 /// ```
 /// use vibescript::Engine;
 /// use vibescript_tools::analyze::analyze_script;
-/// let script = Engine::new().compile("[1].each do |x|\n  raise \"boom\"\n  x\nend")?;
+/// let script = Engine::new().compile("[1].each { |x|\n  raise \"boom\"\n  x\n}")?;
 /// let findings = analyze_script(&script)?;
 /// assert_eq!(findings[0].function, "<script> block at 1:10");
 /// # Ok::<(), vibescript::Error>(())

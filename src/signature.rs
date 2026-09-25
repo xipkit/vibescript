@@ -21,7 +21,9 @@ use std::sync::Arc;
 /// engine.register_method("echo", echo);
 /// let output = engine.compile("echo(\"hello\")")?.run(CallOptions::default())?;
 /// assert_eq!(output.value.as_bytes(), Some(b"hello".as_slice()));
-/// assert!(engine.compile("echo(7)")?.run(CallOptions::default()).is_err());
+/// // Static types refuse the integer argument; without them, the contract does.
+/// let refused = engine.compile("echo(7)").and_then(|script| script.run(CallOptions::default()));
+/// assert!(refused.is_err());
 /// # Ok::<(), vibescript::Error>(())
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
