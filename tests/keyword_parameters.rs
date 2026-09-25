@@ -1,6 +1,8 @@
 //! Keyword parameters are declared after a bare `*` or a rest parameter
 //! (ADR-007), and bind by name at runtime whether or not static types are on.
 
+mod common;
+
 use vibescript::{
     CallOptions, Engine, ErrorKind, Value,
     tooling::{self, ParameterKind},
@@ -27,19 +29,55 @@ fn keywords_after_a_bare_star_bind_by_name() {
     );
     let required = "def need(*, name: string) -> string\n  name\nend\n";
     assert_eq!(run(required, "need(name: \"n\")").unwrap(), "n");
-    let error = run(required, "need()").unwrap_err();
+    // A call that misses a keyword, passes one by position or names an
+    // unknown one is refused at compile time.
+    for (source, call, code, at) in [
+        (required, "need()", "V0303", "need()"),
+        (
+            SEND,
+            "send_email(\"a@b.c\", \"d@e.f\")",
+            "V0301",
+            "send_email(",
+        ),
+        (SEND, "send_email(\"a@b.c\", bcc: \"x\")", "V0302", "bcc"),
+    ] {
+        let program = format!("{source}def run -> string\n  {call}\nend\n");
+        let error = common::static_engine().compile(&program).err().unwrap();
+        assert_eq!(common::codes(&error), [code], "{call}");
+        let start = program.rfind(call).unwrap() + call.find(at).unwrap();
+        assert_eq!(error.diagnostics()[0].span.start, start, "{call}");
+    }
+    // A host's call binds by name when it starts, and is refused the same way.
+    let need = Engine::new().compile(required).unwrap();
+    let error = need
+        .call_with_keywords("need", &[], &[], CallOptions::default())
+        .unwrap_err();
     assert_eq!(error.kind, ErrorKind::Argument);
     assert!(
         error.message.contains("missing keyword argument name"),
         "{error}"
     );
+    let send = Engine::new().compile(SEND).unwrap();
     // A keyword is never bound by position.
-    let error = run(SEND, "send_email(\"a@b.c\", \"d@e.f\")").unwrap_err();
+    let error = send
+        .call(
+            "send_email",
+            &[Value::bytes("a@b.c"), Value::bytes("d@e.f")],
+            CallOptions::default(),
+        )
+        .unwrap_err();
     assert!(
         error.message.contains("unexpected positional arguments"),
         "{error}"
     );
-    let error = run(SEND, "send_email(\"a@b.c\", bcc: \"x\")").unwrap_err();
+    let error = send
+        .call_with_keywords(
+            "send_email",
+            &[Value::bytes("a@b.c")],
+            &[("bcc".into(), Value::bytes("x"))],
+            CallOptions::default(),
+        )
+        .unwrap_err();
     assert!(
         error.message.contains("unexpected keyword argument bcc"),
         "{error}"
@@ -51,7 +89,7 @@ fn keywords_after_a_rest_parameter_need_no_star() {
     let join = "def join(*items: array<int>, sep: string = \",\") -> string\n  items.map { |i| i.to_s }.join(sep)\nend\n";
     assert_eq!(run(join, "join(1, 2, 3, sep: \"-\")").unwrap(), "1-2-3");
     assert_eq!(run(join, "join(1, 2)").unwrap(), "1,2");
-    let untyped = "def pick(*items, key)\n  key\nend\n";
+    let untyped = "def pick(*items: array<int>, key: string) -> string\n  key\nend\n";
     assert_eq!(run(untyped, "pick(1, key: \"k\")").unwrap(), "k");
 }
 
@@ -82,10 +120,16 @@ fn typed_keywords_check_their_arguments_and_defaults() {
 
 #[test]
 fn the_removed_forms_still_run_without_static_types() {
+    let run = |source: &str, call: &str| {
+        let source = format!("{source}def run -> string\n  {call}\nend\n");
+        let script = common::gradual_engine().compile(&source).unwrap();
+        let result = script.call("run", &[], CallOptions::default()).unwrap();
+        String::from_utf8(result.value.as_bytes().unwrap().to_vec()).unwrap()
+    };
     let source = "def old(a, retries: 2, name:)\n  \"#{a}#{retries}#{name}\"\nend\n";
-    assert_eq!(run(source, "old(1, name: \"x\")").unwrap(), "12x");
+    assert_eq!(run(source, "old(1, name: \"x\")"), "12x");
     let typed = "def old(a, name: string:)\n  name\nend\n";
-    assert_eq!(run(typed, "old(1, name: \"y\")").unwrap(), "y");
+    assert_eq!(run(typed, "old(1, name: \"y\")"), "y");
 }
 
 #[test]
