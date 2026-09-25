@@ -1,12 +1,12 @@
-# Classes in Rust
+# Classes
 
-Classes group state and methods. Instances have shared identity: assigning an instance to another variable, or calling `dup`, refers to the same object. Arrays and hashes stored in its fields still follow collection value semantics.
+Classes group state and methods. Instances have shared identity: assigning an instance to another variable, or calling `dup`, refers to the same object. Arrays and hashes stored in its fields still follow collection value semantics. Classes are nominal and have no inheritance, so an instance's type is exactly its class.
 
 ```vibe
 class Counter
   property count: int
 
-  def initialize(@count = 0)
+  def initialize(@count: int = 0)
   end
 
   def increment(n: int = 1)
@@ -16,7 +16,7 @@ class Counter
   alias bump increment
 end
 
-def run(input)
+def run -> [int, bool]
   counter = Counter.new(10)
   copy = counter.dup
   copy.bump(3)
@@ -24,13 +24,13 @@ def run(input)
 end
 ```
 
-This returns `[13, true]`. Constructors forward positional arguments, keywords and an attached block to `initialize`. The constructor returns the new instance regardless of the initializer's return value or return annotation. A `break` from the attached block instead becomes the result of `new`, unchecked by that annotation: with `def initialize; yield; end`, `C.new { break 7 }` returns `7`. With no initializer, arguments are evaluated and ignored; an attached block is ignored. A written `initialize` method is private by default.
+This returns `[13, true]`. Constructors forward positional arguments, keywords and an attached block to `initialize`, which declares its parameter types like any method. The constructor returns the new instance regardless of the initializer's return value. Without an initializer, `new` takes no arguments. A written `initialize` method is private by default.
 
 ## Fields and accessors
 
-`@name` accesses an instance variable. Missing instance variables read as nil. The `@name` parameter shorthand assigns the bound value to both the parameter and its backing field.
+`@name` reads or writes an instance variable, and every instance variable is declared: in the class body as `@count: int = 0`, which gives each instance that default before `initialize` runs; as `@name: string` without a default, which `initialize` must assign on every path (V0205); or by a `property`, `getter` or `setter`. Reading or assigning an undeclared instance variable is a compile error (V0204). The `@name: T` parameter shorthand assigns the bound argument to that declared field.
 
-`property` generates a getter and setter; `getter` and `setter` generate one half. A member assignment calls its setter when present, rejects a getter-only property, and otherwise writes a raw field. Arrays or hashes returned by a generated getter are collection values: mutating that result does not write through the getter. Methods can update the backing field directly.
+`property` generates a getter and setter; `getter` and `setter` generate one half. A member assignment such as `counter.count = 3` calls the setter, and one without a setter is a compile error. Arrays or hashes returned by a generated getter are collection values: updating that result does not write through the getter. Methods update the backing field directly.
 
 ```vibe
 class Basket
@@ -40,114 +40,109 @@ class Basket
     @items = [1]
   end
 
-  def append(value: int)
+  def add(value: int)
     @items.push(value)
   end
 end
 
-def run(input)
+def run -> array<array<int>>
   basket = Basket.new
   snapshot = basket.items
-  basket.append(2)
+  basket.add(2)
   [snapshot, basket.items]
 end
 ```
 
-This returns `[[1], [1, 2]]`. Typed generated accessors also guard direct backing-field writes, shorthand parameters and nested mutations. Rejected nested mutations preserve the previous field value. Enforcing property types on nested mutations follows the selected policy. A handwritten setter takes over the write contract, so backing-field writes stay dynamic beside that setter. Nominal class types accept instances of the exact declared class; nullable class fields can hold nil.
+This returns `[[1], [1, 2]]`. Declared field types also guard the shorthand parameters, nested updates and values imported from the host; a rejected nested update preserves the previous field value. A nullable field, such as `@next: Node? = nil`, can hold `nil`.
 
 ## Class state and visibility
 
-Class methods use `def self.name`. Class variables use `@@name` and are shared within one invocation. Every call starts with independent class state.
+Class methods use `def self.name`. Class variables are declared with a value, `@@name: T = value`, and are shared within one invocation. Every call starts with independent class state.
 
 ```vibe
 class Counter
-  @@instances = 0
+  @@instances: int = 0
 
   def initialize
     @@instances += 1
   end
 
-  def self.instances
+  def self.instances -> int
     @@instances
   end
 end
 
-def run(input)
+def run -> int
   Counter.new
   Counter.new
   Counter.instances
 end
 ```
 
-This returns `2` on every call. Uppercase assignments in a class body or class method write class constants. In instance methods, assignments normally create method locals; explicitly referring to a class member accesses the class state. An indexed or member assignment rooted at a class constant, such as `LIST[0] = 9`, writes that constant in place unless a method local of the same name is bound, as in Go. Mutating calls such as `LIST.push(9)` still leave the constant unchanged.
+This returns `2` on every call. Uppercase assignments in a class body define class constants, read as `LIMIT` inside the class and `Counter::LIMIT` outside it. Nested classes are named through their scope, `Outer::Inner`, in types as in values.
 
-A bare name that no local, method or declaration claims reads the instance field of that name, or the class variable in a class body or class method. As in Go, an indexed or member assignment through it, such as `rows[0] = 9` or `totals[:count] += 1`, writes that field in place, including before a method local of the same name is assigned. Mutating calls such as `rows.push(9)` leave the field unchanged, and a `property` or `getter` of that name returns a value the assignment cannot reach.
+Methods and accessors support public, private and protected sections, inline modifiers such as `private def helper`, and symbol directives. Ordinary private calls require an implicit receiver. Protected instance methods allow callers from the same class's instances; protected class methods allow callers from that class's class methods. Aliases preserve the target definition and its visibility at the alias declaration. The static checker does not check visibility yet, so a call to a private method through an explicit receiver compiles and fails when it runs.
 
-Methods and accessors support public, private and protected sections, inline modifiers and symbol directives. Ordinary private calls require an implicit receiver. Protected instance methods allow callers from the same class's instances; protected class methods allow callers from that class's class methods. [Dynamic `send`](forwarding.md) can reach private and protected methods; `public_send` retains normal explicit-receiver visibility. Aliases preserve the target definition and its visibility at the alias declaration.
-
-Instances expose `class`, `respond_to?`, `is_a?`, `kind_of?` and `instance_of?`. The class predicates compare exact class identity. Private and protected methods are reported by `respond_to?` when called implicitly on the current receiver or with a true second argument.
+An instance's class is tested with `value.is_type?(:Counter)` and asserted with the checked cast `value.as(Counter)`.
 
 ## Operators and indexed access
 
-Instances can define `+`, `-`, `*`, `/`, `%`, `**`, `<<`, `&`, `==`, `!=`, `<`, `<=`, `>`, `>=` and `<=>`. Operator syntax calls the left instance's method. Compound assignments use the corresponding operator and store its result. An explicit `!=` takes precedence; otherwise `!=` negates the truthiness of the result from `==`.
+Instances can define `+`, `-`, `*`, `/`, `%`, `**`, `<<`, `&`, `==`, `!=`, `<`, `<=`, `>`, `>=` and `<=>`, each with typed parameters and a declared result. Operator syntax calls the left instance's method, and an operator the class does not define is a compile error (V0108); `<` is not derived from `<=>`. Compound assignments use the corresponding operator and store its result. An explicit `!=` takes precedence; otherwise `!=` negates the result of `==`.
 
 ```vibe
 class Counter
   getter value: int
 
-  def initialize(@value)
+  def initialize(@value: int)
   end
 
-  def +(amount: int)
+  def +(amount: int) -> Counter
     Counter.new(@value + amount)
   end
 
-  def to_s
+  def to_s -> string
     "count=#{@value}"
   end
 end
 
-def run(input)
+def run -> [int, int, string]
   before = Counter.new(2)
   after = before + 3
   [before.value, after.value, "#{after}"]
 end
 ```
 
-This returns `[2, 5, "count=5"]`. Direct interpolation, output helpers and the `format`/`sprintf` globals call a `to_s` that accepts zero arguments, including private methods and methods with optional parameters. A required parameter or a non-string result preserves the default instance rendering. Containers keep their own element rendering, as does the string `%` operator. Errors and exhausted limits propagate through the conversion.
+This returns `[2, 5, "count=5"]`. Interpolation, output helpers and `format` call a `to_s` that accepts zero arguments, including private methods and methods with optional parameters. A required parameter or a non-string result preserves the default instance rendering. Containers keep their own element rendering, as does the string `%` operator. Errors and exhausted limits propagate through the conversion.
 
-`[]` receives the index selectors; `[]=` receives those selectors followed by the assigned value. Indexed assignment returns the assigned value, while still enforcing the setter's return annotation. Plain assignment evaluates the RHS before its target; compound assignment evaluates its receiver and selectors once before reading and updating the value.
+`[]` receives the index selectors; `[]=` receives those selectors followed by the assigned value. Indexed assignment returns the assigned value. Plain assignment evaluates the right-hand side before its target; compound assignment evaluates its receiver and selectors once before reading and updating the value.
 
 ```vibe
 class Grid
-  def initialize
-    @cells = {}
+  @cells: hash<string, int> = {}
+
+  def [](row: int, column: int) -> int
+    @cells.fetch("#{row}:#{column}", 0)
   end
 
-  def [](row, column)
-    @cells.fetch("#{row}:#{column}", nil)
-  end
-
-  def []=(row, column, value)
+  def []=(row: int, column: int, value: int)
     @cells["#{row}:#{column}"] = value
   end
 end
 
-def run(input)
+def run -> [int, int]
   grid = Grid.new
   grid[1, 2] = 4
   grid[1, 2] += 5
-  grid[3, 4] ||= 7
   [grid[1, 2], grid[3, 4]]
 end
 ```
 
-This returns `[9, 7]`. Arrays and hashes returned by an index getter remain collection values. Mutating the returned temporary does not write into stored collections or earlier snapshots; returned instances retain their shared identity. Operator and index syntax enforce method visibility and normal call boundaries.
+This returns `[9, 0]`. Arrays and hashes returned by an index getter remain collection values. Updating the returned temporary does not write into stored collections or earlier snapshots; returned instances retain their shared identity. Operator and index syntax enforce method visibility and normal call boundaries.
 
 ## Limits and retained values
 
 Object fields, identity storage, imports and graph traversal are accounted. Cycles are supported and unreachable objects are reclaimed. Cancellation, deadlines and exhausted limits stay latched through constructors, methods and cleanup. A host may retain an instance after a successful or failed call.
 
-Instances returned to Rust can be passed back to the same compiled script. Imports preserve shared references and cycles within the new call while isolating mutations from the source value. Concurrent calls also get independent imported objects and class state.
+Instances returned to Rust can be passed back to the same compiled script. Imports preserve shared references and cycles within the new call while isolating updates from the source value. Concurrent calls also get independent imported objects and class state.
 
-Inheritance, singleton classes, `super`, and module mixins are outside the Vibescript language.
+Inheritance, singleton classes, `super`, and module mixins are outside the language.

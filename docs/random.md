@@ -4,34 +4,34 @@
 
 ## Random numbers
 
-`rand` or `rand(nil)` returns a float in `[0, 1)`. `rand(n)` returns an integer from zero through `n - 1`; the bound must be a positive signed 64-bit integer.
+`rand` returns a float in `[0, 1)`. `rand(n)` returns an integer from zero through `n - 1`; the bound must be a positive signed 64-bit integer.
 
 `rand(range)` accepts bounded integer ranges, including descending ranges and the complete signed 64-bit interval. Exclusive ranges omit their written end. Empty and open-ended ranges are errors.
 
-```vibescript
+```vibe
 srand(42)
 first = [rand, rand(10), rand(1..3)]
 previous = srand(42)
 [first == [rand, rand(10), rand(1..3)], previous] # [true, 42]
 ```
 
-`srand(seed)` takes a signed 64-bit integer and returns the previous seed, or `nil` before the first seed in that call. Omitting the seed, or passing `nil`, obtains a new seed from the entropy reader. Repeating a seed reproduces the Go v0.70.0 sequence, including mixed float, bounded-integer and wide-range draws. Calls and threads keep independent seeded state.
+`srand(seed)` takes a signed 64-bit integer and returns the previous seed, or `nil` before the first seed in that call, so its result is an `int?`. Omitting the seed, or passing `nil`, obtains a new seed from the entropy reader. Repeating a seed reproduces the same sequence, including mixed float, bounded-integer and wide-range draws, as Go v0.70.0 did. Calls and threads keep independent seeded state.
 
 Seeded `rand` is predictable and unsuitable for secrets. Unseeded `rand` reads entropy directly.
 
 ## UUIDs and tokens
 
-`uuid` auto-invokes and returns a lowercase, hyphenated UUID with a Unix-millisecond timestamp and version/variant bits defined by [RFC 9562 version 7](https://www.rfc-editor.org/rfc/rfc9562.html#name-uuid-version-7).
+`uuid` returns a lowercase, hyphenated UUID with a Unix-millisecond timestamp and version/variant bits defined by [RFC 9562 version 7](https://www.rfc-editor.org/rfc/rfc9562.html#name-uuid-version-7).
 
-```vibescript
+```vibe
 id = uuid
-[id.length, id[14], id[19].match?("[89ab]")]
+[id.length, id[14], id[19]&.match?("[89ab]")]
 # [36, "7", true]
 ```
 
 `random_id(length = 16)` returns an alphanumeric ASCII token. Length must be an integer between 1 and 1024. Rejection sampling gives every character the same probability.
 
-```vibescript
+```vibe
 token = random_id(8)
 [token.length, token.match?("^[a-zA-Z0-9]+$")] # [8, true]
 ```

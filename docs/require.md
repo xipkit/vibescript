@@ -27,23 +27,30 @@ Strict effects is disabled by default. Enable it with `Engine::set_strict_effect
 
 Argument expressions run before the permission check. A denied `require` raises a catchable `RuntimeError` beginning with `strict effects: ` before validating the builtin's signature, inspecting a file, compiling, initializing or populating the cache. Cancellation and exhausted budgets still terminate execution. The permission governs the builtin `require`; registered host callbacks and ordinary script functions remain explicitly available through their normal bindings. Rust's separate host-global and namespaced capability contracts remain unfinished.
 
-`require` takes one string or symbol, an optional `as:` alias and no block. It returns an object containing the file's public top-level functions and enums. Ordinary `def` and `export def` are public; `private def`, classes and file variables stay private. Export names are also made available in the receiving execution root when they do not overwrite an existing binding. An alias must be an identifier and must not conflict with the root or current scope. Requiring the same file with the same alias is allowed.
+`require(path: string, *, as: string? = nil)` takes the module name, and optionally an alias, as string literals (V0309), so the compiler resolves the file and checks it before the requiring script runs; the file's exports have the types their declarations give them. It returns an object containing the file's public top-level functions and enums. Ordinary `def` and `export def` are public; `private def`, classes and file variables stay private. Export names are also made available in the receiving execution root when they do not overwrite an existing binding. An alias must be an identifier and must not conflict with the root or current scope. Requiring the same file with the same alias is allowed. The static checker does not yet see a module's enums from the requiring script, so a function that returns one is typed `any` there.
 
-Invalid arguments and aliases raise `RuntimeError`, matching the Go reference's script-visible exception class. Rust hosts can still identify these failures by `ErrorKind::Argument`. Static checking follows the same rescue selection as execution.
+Invalid arguments and aliases raise `RuntimeError`. Rust hosts can still identify these failures by `ErrorKind::Argument`.
 
-```vibescript
-counter = require("counter", as: :Counter)
-counter.add(2)
-Counter.add(3)
+```vibe module=counter.vibe
+export def add(amount: int) -> int
+  amount + 1
+end
+```
+
+```vibe
+counter = require("counter", as: "Counter")
+counter.add(2) # 3
+Counter.add(3) # 4
+add(4)         # 5
 ```
 
 Class and namespace initializers run before the file body. Successful initialization publishes exports and aliases; failed initialization can be rescued and retried. A file initializes once per call, while a later call starts independent state. Circular imports report their dependency chain.
 
 Unreachable private state from failed initializations is reclaimed within the call, including instance data and unused class metadata. Rejected aliases do not execute the file body. Retrying a failed parent preserves dependencies that initialized successfully, and state explicitly retained by host callbacks remains valid. Pending calls and writes keep their targets alive during argument evaluation and collection.
 
-Exported functions remain attached to their module. `counter.add(2)`, `counter::add(2)` and `counter[:add](2)` call them. Reading `counter[:add]` or `counter::add` as data raises a type error, as do storage, arguments, returns and collection operations that extract function values. A zero-parameter dotted member can auto-invoke. As in Go, a required file binds its own functions, and the receiving root binds published exports, as ordinary values, so a bare function name that receives a member stays a function: `helper.to_s`, `helper&.to_s` and `helper.call(1)` fail with `a function has no member to_s; call helper(...) directly` (or `call`), while `helper`, `helper[0]` and `helper + [2]` still run it. Mutating members such as `helper.pop` fail the same way, and a write through the name, such as `helper[0] = 5` or `helper << 3`, updates the result of calling it rather than the binding. Existing stateless builtin descriptors retain their separate behavior. This follows the selected [documented callable restriction](compatibility.md#builtin-descriptors), including where Go v0.70.0 accepts detached functions.
+Exported functions remain attached to their module: `counter.add(2)` calls one, and a function is never a value that can be stored, passed or returned. A zero-argument export is called without parentheses. A required file binds its own functions, and the receiving root binds published exports. This follows the [documented callable restriction](compatibility.md#builtin-descriptors).
 
-Returned module objects retain their compiled code, host callbacks and private environment. Importing them into any script call copies their mutable state, preserving shared references within that call. Execution uses the receiving limits, cancellation token and module policy. Required code can resolve receiving root functions, host functions, nominal declarations and published aliases; the receiver's ordinary function locals remain private. Assigning a name inside the required file creates or updates its own binding. As in Go, the file's top-level locals, functions and declarations share one scope, so a call such as `helper = helper()` assigning a file-scope name skips that whole scope and resolves the call in the receiving root, failing with `undefined variable helper` when nothing there answers. The same applies inside the file's functions and blocks, while a parameter or block parameter of that name is skipped alone.
+Returned module objects retain their compiled code, host callbacks and private environment. Importing them into any script call copies their mutable state, preserving shared references within that call. Execution uses the receiving limits, cancellation token and module policy. Required code can resolve receiving root functions, host functions, nominal declarations and published aliases; the receiver's ordinary function locals remain private. Assigning a name inside the required file creates or updates its own binding. The file's top-level locals, functions and declarations share one scope, so a call such as `helper = helper(1)` assigning a file-scope name skips that whole scope and resolves the call in the receiving root, failing with `undefined variable helper` when nothing there answers. The same applies inside the file's functions and blocks, while a parameter or block parameter of that name is skipped alone.
 
 Production mode reuses cached compilation until `Engine::clear_module_cache`. Development mode rechecks file metadata between calls. Active calls pin both normalized requests and resolved files, so cache clearing or file replacement does not change their selected code. Changing the module configuration or registered host callbacks creates a new loader snapshot for subsequent scripts; previously compiled scripts keep their earlier configuration and callbacks.
 

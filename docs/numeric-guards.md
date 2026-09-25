@@ -11,17 +11,17 @@ Integer arithmetic supports arbitrary precision. Products of long integers use K
 | `int.step` | Arity, keywords and integer limit type; oversized values precede stride and block validation |
 | `range.step` | Arity, keywords and integer stride type; oversized strides precede block and open-range validation |
 
-`range.to_a` raises `LimitError` when its element count cannot fit the supported representation. `range.size` overflow remains a `RuntimeError`. Bounded `first(n)` reads from an endless range stop at the signed-integer ceiling: `(9223372036854775807..).first(3)` returns `[9223372036854775807]`. Bounded reads from a full-width finite range remain supported.
+`range.to_a` raises `LimitError` when its element count cannot fit the supported representation. `range.length` overflow remains a `RuntimeError`. Bounded `first(n)` reads from an endless range stop at the signed-integer ceiling: `(9223372036854775807..).first(3)` returns `[9223372036854775807]`. Bounded reads from a full-width finite range remain supported.
 
-`array.fill` rejects an overflowing window before allocating its result or invoking its block. Negative counts still leave the array unchanged. Range selectors preserve their existing bounds and clamping rules.
+`array.fill` rejects an overflowing window before allocating its result. Negative counts still leave the array unchanged. Range selectors preserve their existing bounds and clamping rules.
 
 Use an explicit filter to recover from these limits:
 
-```vibescript
+```vibe
 begin
-  0.step(9223372036854775808)
+  0.step(9223372036854775808) { |i| i }
 rescue LimitError => error
-  error.type # "LimitError"
+  error.class # "LimitError"
 end
 ```
 

@@ -11,15 +11,13 @@ The CLI configures stdout and stderr automatically and prints its final JSON res
 | `warn` | Error | String form | Newline | `nil` |
 | `p` | Output | Inspection | Newline | `nil`, its single argument, or an array of its arguments |
 
-`puts()` writes one newline. The other helpers write nothing with no arguments. Every helper requires its writer to be configured, including empty calls. Arguments run before validation; keywords are rejected first, then blocks, then missing writers. Bare helper names are methods rather than values: write `puts()` to invoke an empty call. Local parameters, registered host functions, and ordinary function declarations follow the normal name resolution rules.
+`puts` with no arguments writes one newline. The other helpers write nothing with no arguments. Every helper requires its writer to be configured, including empty calls. Arguments run before validation; keywords are rejected first, then blocks, then missing writers. A bare helper name is a call, so `puts` alone writes one newline; the helpers are never values. Local parameters, registered host functions, and ordinary function declarations follow the normal name resolution rules.
 
-An original helper cannot become a value through `send`, `public_send`, or `.call`. Those receiver errors occur before their arguments and blocks run. Reassigning a global to a permitted namespace export follows the existing global binding rules.
-
-```vibescript
+```vibe
 puts "hello", 7
 print "x", "y"
 warn "careful"
-p({a: [1, "two"]})
+p({ a: [1, "two"] })
 ```
 
 The output stream receives `hello\n7\nxy{a: [1, "two"]}\n`, and the error stream receives `careful\n`. The final expression returns `{a: [1, "two"]}`. The returned collections retain logical value semantics; changing a returned copy does not change an earlier collection. Class instances retain their normal identity semantics, and protected values retain their tags.

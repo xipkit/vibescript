@@ -2,31 +2,31 @@
 
 Source modules group constants and methods:
 
-```vibescript
+```vibe
 module Scoring
   BONUS = 10
 
-  def self.with_bonus(score)
+  def self.with_bonus(score: int) -> int
     score + BONUS
   end
 end
 
-def run
+def run -> int
   Scoring.with_bonus(80)
 end
 ```
 
-This returns `90`. Methods use the same positional, default, keyword, rest, type-annotation and synchronous-block contracts as other script functions. Modules can nest. Their names start with an ASCII uppercase letter.
+This returns `90`. Methods follow the same rules as other script functions: typed positional, default, rest and `*` keyword parameters, a declared result, and a typed `&block` parameter when they yield. Modules can nest, and a nested module or class is named `Outer::Inner`. Their names start with an ASCII uppercase letter. A module may also declare type aliases, `type Score = int`, used inside it and, qualified, outside.
 
-`Scoring::BONUS` reads a constant. Dotted access checks methods before fields, so a method can share a constant's name. Scoped access never invokes a method. `def self.name=` declares a setter; assignments retain the assigned value even when the setter returns something else.
+`Scoring::BONUS` reads a constant. Dotted access checks methods before fields, so a method can share a constant's name. `def self.name=` declares a setter; assignments retain the assigned value even when the setter returns something else.
 
-Use `public`, `private` or `protected` as a visibility section, before a method definition, or with a previously defined method name such as `private :helper`. Private methods require an implicit receiver. Protected methods allow an explicit receiver from the same module. `respond_to?` reports methods and respects visibility; fields are data.
+Use `public`, `private` or `protected` as a visibility section, before a method definition, or with a previously defined method name such as `private :helper`. Private methods require an implicit receiver. Protected methods allow an explicit receiver from the same module.
 
 Module bodies run once per invocation, with nested bodies initialized before their parent. Snippet bodies execute at their declaration's position. A body can read earlier top-level locals and update a lower-case local already bound there. Module methods have their own declaration scope. Assignments in a block stop at the module-body boundary; reads and addressed collection mutations can still reach ambient values.
 
-`@@name` accesses a module variable. Uppercase assignments within a module create its constants. `M.name = value` writes a field or calls its setter. Nested indexed assignment through `M::ARRAY` updates that field; `M.ARRAY` is an evaluated getter result.
+`@@name` accesses a module variable, declared with a value as `@@count: int = 0`. Uppercase assignments within a module create its constants. `M.name = value` writes a field or calls its setter. Nested indexed assignment through `M::ARRAY` updates that field; `M.ARRAY` is an evaluated getter result.
 
-Module aliases, including `dup`, share identity and state within a call. Collections stored in fields retain value semantics: assigning an array to a field does not let later field mutations change the original local, and a returned array keeps its earlier value. These two selected differences from Go are recorded in [the compatibility audit](compatibility.md).
+Module aliases, including `dup`, share identity and state within a call. Collections stored in fields retain value semantics: assigning an array to a field does not let later field mutations change the original local, and a returned array keeps its earlier value. The [compatibility notes](compatibility.md) record how this differs from Go.
 
 Module fields, namespace metadata, imported values, call frames and pending writes use the invocation's memory budget. Lookups, initialization and method execution consume steps and observe cancellation. State is released on completion or failure, including references from a module field back to the same module.
 
@@ -40,4 +40,4 @@ Rejected host values and values that a callback imports but does not return keep
 
 Required files distinguish multiple captured environments of the same compiled program. Captured class/module state and completed initializer markers survive in returned values, and every receiving call copies that state. Aliases within a call share their imported scope; separate environments have distinct identity, protected access and nominal types. Initialization failures belong to one environment, not every use of its compiled code. Ordinary source declarations retain the fresh initialization behavior above.
 
-This implements source namespace declarations and [classes](classes.md), including the selected [cross-script isolation contract](compatibility.md#state-isolation-across-host-calls). [File loading](require.md) adds `require`, private file state and attached exported calls. Host capability namespaces are described in [host capabilities](capabilities.md). A replay of Go's module tests matches Go in 241 of 242 cases; the remaining case is the documented rule against extracting a required function as a value.
+This implements source namespace declarations and [classes](classes.md), including the selected [cross-script isolation contract](compatibility.md#state-isolation-across-host-calls). [File loading](require.md) adds `require`, private file state and attached exported calls. Host capability namespaces are described in [host capabilities](capabilities.md).
