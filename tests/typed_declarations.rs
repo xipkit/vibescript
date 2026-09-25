@@ -400,6 +400,15 @@ fn class_variable_declarations_assign_in_body_order() {
         ),
         // Only a class or module body declares one.
         ("@@x: int = 1", "parse error at 1:4: unexpected token \":\""),
+        // A member that only resembles a declaration keeps its old error.
+        (
+            "class C\n  @@x: = 1\nend",
+            "parse error at 2:6: unexpected token \":\"",
+        ),
+        (
+            "class C\n  @@x: 1\nend",
+            "parse error at 2:6: unexpected token \":\"",
+        ),
     ] {
         assert_eq!(compile_error(source), message, "{source}");
     }

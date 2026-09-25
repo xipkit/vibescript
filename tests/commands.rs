@@ -21,11 +21,23 @@ fn command_nesting_reaches_its_limit_and_rejects_hostile_input() {
     }
 }
 
+/// Reference rejections that ADR-007 syntax accepts: a class variable
+/// declaration, `@@x: int=1`, in a module body.
+const ACCEPTED: [&str; 1] = ["module_edge_16"];
+
 #[test]
 fn syntax_rejections_match_the_reference() {
     let cases: serde_json::Value =
         serde_json::from_str(include_str!("syntax-errors.json")).unwrap();
     for case in cases.as_array().unwrap() {
+        if ACCEPTED.contains(&case["name"].as_str().unwrap()) {
+            assert!(
+                Engine::new()
+                    .compile(case["source"].as_str().unwrap())
+                    .is_ok()
+            );
+            continue;
+        }
         let error = Engine::new()
             .compile(case["source"].as_str().unwrap())
             .err()
@@ -40,6 +52,9 @@ fn syntax_errors_use_the_reference_text_and_position() {
         serde_json::from_str(include_str!("syntax-errors.json")).unwrap();
     for case in cases.as_array().unwrap() {
         let name = case["name"].as_str().unwrap();
+        if ACCEPTED.contains(&name) {
+            continue;
+        }
         let error = Engine::new()
             .compile(case["source"].as_str().unwrap())
             .err()

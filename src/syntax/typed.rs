@@ -135,10 +135,29 @@ impl Parser<'_> {
     }
 
     /// Whether a class or module body member declares a class variable,
-    /// `@@name: T = value`.
-    pub(super) fn class_var_ahead(&self) -> bool {
-        matches!(self.token(), Token::Word(w) if w.starts_with("@@"))
-            && self.annotation_colon(self.pos)
+    /// `@@name: T = value`. As for a typed local, a member that only
+    /// resembles one keeps the error it had before: the declaration needs a
+    /// type followed by `=`, or a builtin or declared type ending its line.
+    pub(super) fn class_var_ahead(&mut self) -> Result<bool> {
+        if !matches!(self.token(), Token::Word(w) if w.starts_with("@@"))
+            || !self.annotation_colon(self.pos)
+        {
+            return Ok(false);
+        }
+        let (start, structural) = (self.pos, self.type_structural_error);
+        self.pos += 2;
+        let parsed = self.type_expr(1, false);
+        self.work.checkpoint()?;
+        let result = match parsed {
+            Ok(_) if self.token() == &Token::Op("=") => true,
+            Ok(ty) => {
+                matches!(self.token(), Token::EndLine | Token::Eof) && self.declared_leaves(&ty)
+            }
+            Err(_) => false,
+        };
+        self.pos = start;
+        self.type_structural_error = structural;
+        Ok(result)
     }
 
     /// Whether `type` starts a type alias, `type Name = T`, on its line.

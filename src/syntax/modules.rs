@@ -501,7 +501,7 @@ impl Parsing<'_> {
                     // A module has no instances, so `@name:` stays the syntax
                     // error it always was there.
                     _ if !module && p.ivar_ahead() => Member::Ivar,
-                    _ if p.class_var_ahead() => Member::ClassVar,
+                    _ if p.class_var_ahead()? => Member::ClassVar,
                     "include" | "extend" if p.mixin_directive()? => {
                         return p.err(format_args!(
                             "{word} is not supported; modules are namespaces: {NAMESPACES}"
