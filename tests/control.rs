@@ -6,7 +6,17 @@ use vibescript::{
 };
 
 fn result_json(source: &str) -> serde_json::Value {
-    let result = Engine::new()
+    json_of(&Engine::new(), source)
+}
+
+/// The result of `source` in the ADR-004 language, for the gradual
+/// checker's tests.
+fn gradual_result_json(source: &str) -> serde_json::Value {
+    json_of(&common::gradual_engine(), source)
+}
+
+fn json_of(engine: &Engine, source: &str) -> serde_json::Value {
+    let result = engine
         .compile(source)
         .unwrap()
         .run(CallOptions::default())
@@ -17,7 +27,7 @@ fn result_json(source: &str) -> serde_json::Value {
 
 #[test]
 fn range_iteration_terminates_at_integer_boundaries() {
-    let source = "max=9223372036854775807\nmin=-max-1\na=[]\nfor n in max..max\na.push(n)\nend\nfor n in min..min\na.push(n)\nend\nfor n in (max-1)..max\na.push(n)\nend\nfor n in (min+1)..min\na.push(n)\nend\na";
+    let source = "max=9223372036854775807\nmin=-max-1\na: array<int> =[]\nfor n in max..max\na.push(n)\nend\nfor n in min..min\na.push(n)\nend\nfor n in (max-1)..max\na.push(n)\nend\nfor n in (min+1)..min\na.push(n)\nend\na";
     assert_eq!(
         result_json(source),
         serde_json::json!([
@@ -43,13 +53,13 @@ fn hash_loop_expressions_preserve_break_values() {
 fn loops_hold_collection_snapshots() {
     assert_eq!(
         result_json(
-            "a=[1,2]\nout=[]\nx=for n in a\nout.push(n)\na.push(3)\na[1]=9\nend\n[x,a,out]"
+            "a=[1,2]\nout: array<int> =[]\nx=for n in a\nout.push(n)\na.push(3)\na[1]=9\nend\n[x,a,out]"
         ),
         serde_json::json!([[1, 2], [1, 9, 3, 3], [1, 2]])
     );
     assert_eq!(
         result_json(
-            "h={a:1,b:2}\nout=[]\nx=for k,v in h\nh[:b]=9\nh[:c]=3\nout.push([k,v])\nend\n[x,h,out]"
+            "h: hash<string, int> ={a:1,b:2}\nout: array<[string, int]> =[]\nx=for k,v in h\nh[\"b\"]=9\nh[\"c\"]=3\nout.push([k,v])\nend\n[x,h,out]"
         ),
         serde_json::json!([{"a":1,"b":2},{"a":1,"b":9,"c":3},[["a",1],["b",2]]])
     );
@@ -59,7 +69,7 @@ fn loops_hold_collection_snapshots() {
 fn empty_loops_and_pattern_comparisons_consume_steps() {
     for source in [
         "for n in 0..9223372036854775807\nend",
-        "until false\nend",
+        "while !false\nend",
         "case -1\nwhen *(1..10000).to_a then 1\nend",
     ] {
         let script = Engine::new().compile(source).unwrap();
@@ -77,11 +87,11 @@ fn empty_loops_and_pattern_comparisons_consume_steps() {
         );
     }
     let script = Engine::new()
-        .compile("def run(input)\ncase -1\nwhen *input then 1\nend\nend")
+        .compile("def run(input: array<int>) -> int?\ncase -1\nwhen *input then 1\nend\nend")
         .unwrap();
     let input = Value::array((0..1000).map(Value::int).collect());
     let baseline = Engine::new()
-        .compile("def run(input)\ninput\nend")
+        .compile("def run(input: array<int>) -> array<int>\ninput\nend")
         .unwrap()
         .call("run", std::slice::from_ref(&input), CallOptions::default())
         .unwrap();
@@ -134,7 +144,7 @@ fn running_for_loop_observes_cancellation() {
 fn destructuring_rest_storage_is_reserved_before_copying() {
     let input = Value::array((0..1000).map(Value::int).collect());
     let baseline = Engine::new()
-        .compile("def run(input)\ninput\nend")
+        .compile("def run(input: array<int>) -> array<int>\ninput\nend")
         .unwrap()
         .call("run", std::slice::from_ref(&input), CallOptions::default())
         .unwrap();
@@ -146,7 +156,7 @@ fn destructuring_rest_storage_is_reserved_before_copying() {
         ..CallOptions::default()
     };
     let script = Engine::new()
-        .compile("def run(input)\n*rest=input\nrest\nend")
+        .compile("def run(input: array<int>) -> array<int>\n*rest=input\nrest\nend")
         .unwrap();
     assert_eq!(
         script
@@ -156,7 +166,7 @@ fn destructuring_rest_storage_is_reserved_before_copying() {
         ErrorKind::Memory
     );
     let discard = Engine::new()
-        .compile("def run(input)\nfirst,* = input\nfirst\nend")
+        .compile("def run(input: array<int>) -> int?\nfirst,* = input\nfirst\nend")
         .unwrap();
     assert_eq!(
         discard
@@ -178,7 +188,7 @@ fn loop_unwinding_releases_sources_payloads_and_frames() {
         "case input\nwhen (for n in [input]\nreturn 7\nend) then 9\nend",
     ] {
         let source = format!(
-            "def f(input)\n{body}\nend\ndef run(input)\ni=0\nwhile i<100\nf(input)\ni+=1\nend\n7\nend"
+            "def f(input: string) -> any\n{body}\nend\ndef run(input: string) -> int\ni=0\nwhile i<100\nf(input)\ni+=1\nend\n7\nend"
         );
         let script = Engine::new().compile(&source).unwrap();
         let result = script
@@ -249,7 +259,11 @@ fn range_matchers_compare_range_targets_by_equality() {
         ("case (1...5)\nwhen 1..5 then false\nelse true\nend", true),
         ("[1..3, 4].any?(1..3) && [(1..3)].count(1..3) == 1", true),
     ] {
-        assert_eq!(result_json(source), serde_json::json!(expected), "{source}");
+        assert_eq!(
+            gradual_result_json(source),
+            serde_json::json!(expected),
+            "{source}"
+        );
     }
     // The checker folds known range targets and keeps a range among unknown matches.
     for source in [
@@ -318,7 +332,11 @@ fn float_range_membership_is_exact_beyond_double_precision() {
         ("(1..).include?(1.0/0) && !(1..3).include?(1.0/0)", true),
         ("(3...1).include?(1.5) && !(3...1).include?(1.0)", true),
     ] {
-        assert_eq!(result_json(source), serde_json::json!(expected), "{source}");
+        assert_eq!(
+            gradual_result_json(source),
+            serde_json::json!(expected),
+            "{source}"
+        );
     }
     let script = common::gradual_engine()
         .compile(
@@ -332,21 +350,55 @@ fn float_range_membership_is_exact_beyond_double_precision() {
 }
 
 #[test]
-fn locals_assigned_earlier_in_the_source_exist_where_control_skips_them() {
-    let source = "def branch\n  if false\n    x = 1\n  else\n    x\n  end\nend\ndef unless_else\n  unless true\n    u = 1\n  else\n    u\n  end\nend\ndef elsif_condition\n  if false\n    e = 1\n  elsif e.nil?\n    \"ok\"\n  end\nend\ny = 1 if y.nil?\nz = 1 until z\ni = 0\ni = i + 1 while i < 3\nseen = [1, 2].map { |v| s = v if s.nil?; s }\n[branch, unless_else, elsif_condition, y, z, i, seen]";
-    assert_eq!(
-        result_json(source),
-        serde_json::json!([null, null, "ok", 1, 1, 3, [1, 2]])
-    );
-    for source in [
-        "before = later\nif false\n  later = 1\nend",
-        "if true\n  later\nelse\n  later = 1\nend",
+fn locals_read_where_control_skips_their_assignment_are_refused() {
+    // A local must be assigned on every path that reaches a read, so reads
+    // that found nil, or failed as undefined, at run time are refused.
+    for (source, codes, at) in [
+        (
+            "def branch -> int?\n  if false\n    x = 1\n  else\n    x\n  end\nend",
+            &["V0202"][..],
+            "x\n  end",
+        ),
+        (
+            "def negated_else -> int?\n  if !true\n    u = 1\n  else\n    u\n  end\nend",
+            &["V0202"],
+            "u\n  end",
+        ),
+        (
+            "def elsif_condition -> string?\n  if false\n    e: int? = 1\n    \"no\"\n  \
+             elsif e == nil\n    \"ok\"\n  end\nend",
+            &["V0202"],
+            "e ==",
+        ),
+        ("y = 1 if y == nil", &["V0201"], "y =="),
+        ("z = 1 while z == nil", &["V0201"], "z =="),
+        (
+            "seen = [1, 2].map { |v| s = v if s == nil; s }",
+            &["V0201", "V0202"],
+            "s ==",
+        ),
+        (
+            "before = later\nif false\n  later = 1\nend",
+            &["V0201"],
+            "later",
+        ),
+        (
+            "if true\n  later\nelse\n  later = 1\nend",
+            &["V0201"],
+            "later",
+        ),
     ] {
-        let script = Engine::new().compile(source).unwrap();
-        let error = script.run(CallOptions::default()).unwrap_err();
-        assert!(
-            error.message.contains("undefined variable later"),
+        let error = common::static_engine().compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), codes, "{source}");
+        assert_eq!(
+            error.diagnostics()[0].span.start,
+            source.find(at).unwrap(),
             "{source}"
         );
     }
+    // A statement modifier loop still assigns a local it reads.
+    assert_eq!(
+        result_json("i = 0\ni = i + 1 while i < 3\ni"),
+        serde_json::json!(3)
+    );
 }
