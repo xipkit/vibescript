@@ -6,19 +6,19 @@
 # tags: popular, math, vectors, geometry
 # vibe: 0.2
 
-def dot(left, right)
-  (left[0] * right[0]) + (left[1] * right[1]) + (left[2] * right[2])
+def dot(left: array<int>, right: array<int>) -> int
+  (left.fetch(0) * right.fetch(0)) + (left.fetch(1) * right.fetch(1)) + (left.fetch(2) * right.fetch(2))
 end
 
-def cross(left, right)
+def cross(left: array<int>, right: array<int>) -> array<int>
   [
-    (left[1] * right[2]) - (left[2] * right[1]),
-    (left[2] * right[0]) - (left[0] * right[2]),
-    (left[0] * right[1]) - (left[1] * right[0])
+    (left.fetch(1) * right.fetch(2)) - (left.fetch(2) * right.fetch(1)),
+    (left.fetch(2) * right.fetch(0)) - (left.fetch(0) * right.fetch(2)),
+    (left.fetch(0) * right.fetch(1)) - (left.fetch(1) * right.fetch(0))
   ]
 end
 
-def run
+def run -> { cross: array<int>, dot: int }
   left = [3, -5, 4]
   right = [2, 6, 5]
   {

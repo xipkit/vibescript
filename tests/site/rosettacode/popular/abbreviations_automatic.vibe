@@ -6,7 +6,7 @@
 # tags: popular, strings, search, prefixes
 # vibe: 0.2
 
-def commands
+def commands -> array<string>
   [
     "add",
     "append",
@@ -20,12 +20,12 @@ def commands
   ]
 end
 
-def unique_prefix?(prefix, commands)
+def unique_prefix?(prefix: string, commands: array<string>) -> bool
   matches = 0
   index = 0
 
   while index < commands.length
-    if commands[index].index(prefix) == 0
+    if commands.fetch(index).index(prefix) == 0
       matches = matches + 1
     end
     index = index + 1
@@ -34,13 +34,13 @@ def unique_prefix?(prefix, commands)
   matches == 1
 end
 
-def shortest_abbreviation(command, commands)
+def shortest_abbreviation(command: string, commands: array<string>) -> string
   length = 1
 
   while length <= command.length
     prefix = command.slice(0, length)
-    if unique_prefix?(prefix, commands)
-      return prefix
+    if unique_prefix?(prefix.as(string), commands)
+      return prefix.as(string)
     end
     length = length + 1
   end
@@ -48,12 +48,12 @@ def shortest_abbreviation(command, commands)
   command
 end
 
-def automatic_abbreviations(commands)
-  rows = []
+def automatic_abbreviations(commands: array<string>) -> array<{ abbreviation: string, command: string }>
+  rows: array<{ abbreviation: string, command: string }> = []
   index = 0
 
   while index < commands.length
-    command = commands[index]
+    command = commands.fetch(index)
     rows = rows.push({
       command: command,
       abbreviation: shortest_abbreviation(command, commands)
@@ -64,12 +64,12 @@ def automatic_abbreviations(commands)
   rows
 end
 
-def resolve(token, commands)
-  matches = []
+def resolve(token: string, commands: array<string>) -> string
+  matches: array<string> = []
   index = 0
 
   while index < commands.length
-    command = commands[index]
+    command = commands.fetch(index)
     if command.index(token.downcase) == 0
       matches = matches.push(command)
     end
@@ -79,13 +79,13 @@ def resolve(token, commands)
   if matches.empty?
     "unknown"
   elsif matches.length == 1
-    matches[0]
+    matches.fetch(0)
   else
     "ambiguous"
   end
 end
 
-def run
+def run -> { abbreviations: array<{ abbreviation: string, command: string }>, resolve_app: string, resolve_c: string, resolve_pr: string }
   available = commands
   {
     abbreviations: automatic_abbreviations(available),

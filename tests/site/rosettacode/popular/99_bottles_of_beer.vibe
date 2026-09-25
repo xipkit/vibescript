@@ -6,17 +6,17 @@
 # tags: rosetta-code, popular, strings, loops, conditionals
 # vibe: 0.2
 
-def bottle_phrase(count)
+def bottle_phrase(count: int) -> string
   if count == 0
     "no more bottles of beer"
   elsif count == 1
     "1 bottle of beer"
   else
-    count + " bottles of beer"
+    count.to_s + " bottles of beer"
   end
 end
 
-def action_line(count)
+def action_line(count: int) -> string
   if count == 0
     "Go to the store and buy some more"
   elsif count == 1
@@ -26,7 +26,7 @@ def action_line(count)
   end
 end
 
-def next_count(count)
+def next_count(count: int) -> int
   if count == 0
     99
   else
@@ -34,7 +34,7 @@ def next_count(count)
   end
 end
 
-def verse(count)
+def verse(count: int) -> string
   current = bottle_phrase(count)
   upcoming = bottle_phrase(next_count(count))
   text = current.capitalize + " on the wall, " + current + ".\n"
@@ -42,7 +42,7 @@ def verse(count)
   text
 end
 
-def sing(start)
+def sing(start: int) -> string
   song = ""
   for count in start..0
     if song == ""
@@ -54,6 +54,6 @@ def sing(start)
   song
 end
 
-def run
+def run -> string
   sing(99)
 end

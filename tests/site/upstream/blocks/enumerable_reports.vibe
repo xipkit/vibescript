@@ -1,19 +1,19 @@
 # vibe: 1.0
 
-def total_raised_by_currency(donations)
-  grouped = {}
-  donations.each do |donation|
-    currency = donation[:amount].currency
+def total_raised_by_currency(donations: array<{ amount: money }>) -> hash<string, money>
+  grouped: hash<string, money> = {}
+  donations.each { |donation|
+    currency = donation["amount"].currency
     current = grouped[currency]
     if current == nil
       current = money("0.00 " + currency)
     end
-    grouped[currency] = current + donation[:amount]
-  end
+    grouped[currency] = current + donation["amount"]
+  }
   grouped
 end
 
-def run
+def run -> hash<string, money>
   donations = [
     { amount: money("25.00 USD") },
     { amount: money("50.00 USD") },

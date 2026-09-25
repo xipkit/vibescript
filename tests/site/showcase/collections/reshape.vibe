@@ -6,29 +6,29 @@
 # tags: collections, arrays, enumerable
 # vibe: 0.4
 
-def paginate(items, per_page)
-  pages = []
-  items.each_slice(per_page) do |page|
+def paginate(items: array<int>, per_page: int) -> array<array<int>>
+  pages: array<array<int>> = []
+  items.each_slice(per_page) { |page|
     pages.push(page)
-  end
+  }
   pages
 end
 
-def rolling_totals(values, window)
-  totals = []
-  values.each_cons(window) do |group|
+def rolling_totals(values: array<int>, window: int) -> array<int>
+  totals: array<int> = []
+  values.each_cons(window) { |group|
     totals.push(group.sum)
-  end
+  }
   totals
 end
 
-def run
+def run -> { endpoints: array<int?>, first_three: array<int>, pages: array<array<int>>, rest: array<int>, rolling_totals: array<int> }
   ids = [101, 102, 103, 104, 105, 106, 107]
   readings = [3, 5, 4, 8, 6]
 
   {
     pages: paginate(ids, 3),
-    first_three: ids.take(3),
+    first_three: ids.first(3),
     rest: ids.drop(3),
     endpoints: ids.values_at(0, -1),
     rolling_totals: rolling_totals(readings, 2)

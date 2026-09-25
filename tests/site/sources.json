@@ -5,815 +5,815 @@
   "files": [
     {
       "path": "rosettacode/popular/100_doors.vibe",
-      "sha256": "40399c13fdceec878e8a5e1d4f7c1fe7d40387d2b85ff37c4164e5de4609aa11"
+      "sha256": "c5957c6c88971fbc0ec4a9e778cbf8fa08c9dd3450f9d6922db5b27de95f8c29"
     },
     {
       "path": "rosettacode/popular/99_bottles_of_beer.vibe",
-      "sha256": "c8249abb248bb95a583356fb01c4c250cadd015aa17ce5c9c8f910ec9087ecdf"
+      "sha256": "bf51f42bbef24e44c911fc4876f747105c9a0fa15c48390028f123b90e0688c1"
     },
     {
       "path": "rosettacode/popular/a_b.vibe",
-      "sha256": "f1ebe0b6b58b5b936b80e029ba72e88dad74c8cec6fc9a7cf541242c7de7ea97"
+      "sha256": "d286671b90ef76721cd2144f02192db9e5f464eedb0a31da062b3e198658ca1a"
     },
     {
       "path": "rosettacode/popular/a_plus_b.vibe",
-      "sha256": "2875f481bc21a391e3dff223f0c8aeb7dcd0ad4d560ede605e73bd4acc6808d2"
+      "sha256": "16c08ab8f36baf848315af13ee6a26975c858a7216a0f338eb4b249c444ee257"
     },
     {
       "path": "rosettacode/popular/abbreviations_automatic.vibe",
-      "sha256": "8b0e43766c7f0e9794609ea518d223b57aaff6a9005404b2b5d781ff7209f195"
+      "sha256": "745d4c8b3c3a0a76a8bf90102240195a91a4ac8ff3a58bd3bcb1a3679e01ba69"
     },
     {
       "path": "rosettacode/popular/abbreviations_simple.vibe",
-      "sha256": "f39f5128a36ed89c212c41741f4b84b96db25edb6c52f76713306534f90aa90d"
+      "sha256": "502c2950655119450175d3ad1364697dd75749a42006c07a3eb096acc6a8c99d"
     },
     {
       "path": "rosettacode/popular/abc_problem.vibe",
-      "sha256": "20479ac48ec6e6470ce134120fe787c2f0a0e2b862b550758a980462ac54fbfa"
+      "sha256": "88c0c3565f5654097a9c6757a84efa685457819dd22626b19330fb441954128e"
     },
     {
       "path": "rosettacode/popular/abundant_deficient_and_perfect_number_classifications.vibe",
-      "sha256": "9939fb35226ed6a61e3d28231eb70cd0cd82791fbc23f5827c52a4b412e13b33"
+      "sha256": "5f2cc7b5b8b66f354ce7c33866b80578d7cb6aaefd9ac1321b48a6785943e315"
     },
     {
       "path": "rosettacode/popular/abundant_odd_numbers.vibe",
-      "sha256": "a2d285db0af85e511ae45b86f8bc935d9ed24ccdfdae9d1249fd1467aefa9ab4"
+      "sha256": "8e73f33a166accb852026f7f3bf2b45d38a4efa72aeeb8f3c1bc7612a48f9ef9"
     },
     {
       "path": "rosettacode/popular/ackermann_function.vibe",
-      "sha256": "9f26f03befa36d00084bc7e77f40ef6bb0cb02226faa99da5a07e79f3121b3e2"
+      "sha256": "6d84d51ae0f82c6a637d888cf5da05fe78a9e074f102f895035fc91a77b4f232"
     },
     {
       "path": "rosettacode/popular/align_columns.vibe",
-      "sha256": "3ea9e98ed9c606caee9462c8e216a00b54f162a72b394daa63645ad16f29d09f"
+      "sha256": "cff57c671f2bf2575b813e995eb7082c9457bd077db45d3355ecb192c2ff1580"
     },
     {
       "path": "rosettacode/popular/aliquot_sequence_classifications.vibe",
-      "sha256": "94ad794476fa4c1d5f124128d2f52f65b6c2b26455098faa85779f97248f1d7d"
+      "sha256": "1ae3a0ee1a4d38cdf025594bcfedcecb9860418933ad8f8a8ca38564c9d769f2"
     },
     {
       "path": "rosettacode/popular/anagrams.vibe",
-      "sha256": "d61cd2b7550ba6e04b68f00790a3d2715682fbccd9cf69625e39a2dd207415b4"
+      "sha256": "8533cfdc17d30dca093baa7587167825c0830ef72326d503a3fa5897deb81e2c"
     },
     {
       "path": "rosettacode/popular/angle_difference_between_two_bearings.vibe",
-      "sha256": "70229600f76e0a12b7aa838381ef79212ad1354a18daef333fcd6da36fa9ff69"
+      "sha256": "e96ba00f3d72cfb1ae2c208b0bae105d0c677cc79f006a66b07bec1ab5ad94ba"
     },
     {
       "path": "rosettacode/popular/angles_geometric_normalization_and_conversion.vibe",
-      "sha256": "df8bb2ce80ab180b4a2ca82d0d446a0706a7212b9a494e2aa8c59bcaa72385be"
+      "sha256": "2e283b12353574cfd34b0c5213085d78596b3fbb1f58773fcdbac246fc27293d"
     },
     {
       "path": "rosettacode/popular/arrays.vibe",
-      "sha256": "f3193080c865dd17ec3d615bf2eb40d14122317d31dda9e301d7a631dbeb73af"
+      "sha256": "4c27930b25820fe9642f6a2990e94a9dceb3a25a984818d1af68c71d792351fa"
     },
     {
       "path": "rosettacode/popular/bacon_cipher.vibe",
-      "sha256": "151d4a1f7044ec45455e708146ba691539313b85ffcee357e70e6925f376e1e7"
+      "sha256": "77ab6b1417104f2ea7bb8a167bfe798cbadd1e25cdcd629e7a402f6c14d7f151"
     },
     {
       "path": "rosettacode/popular/balanced_brackets.vibe",
-      "sha256": "90f963568ec918afa6b960bfbd911fcfc990cc76da57b2698a745f4b3411767f"
+      "sha256": "59f08a23de8ff288a2bbe3a80bd9ec30db2b14d57246be054c626d2d89e795f0"
     },
     {
       "path": "rosettacode/popular/balanced_ternary.vibe",
-      "sha256": "c2a420783ed63e43fb0d1508fc7e6a3d4285099f20154c5cc36b9ef99aabc22d"
+      "sha256": "cad790ea71646e08e2773e156eb185eb0535edfc38e23d6ab33d5f7f41656913"
     },
     {
       "path": "rosettacode/popular/best_shuffle.vibe",
-      "sha256": "562b1bf0d31f0cf37b3afb89fbd8e864a2ef9322a182203ad153d537949b190c"
+      "sha256": "c4f5474f039d8b931a437c1172871c185b878a424d78d66313adc9e27ed5171d"
     },
     {
       "path": "rosettacode/popular/binary_digits.vibe",
-      "sha256": "25eb21fa77ada6f934dd27e43467256be345526151544034ff1f4ffcec18cfd1"
+      "sha256": "eeda0fb068947e9305be2ebcf0b261e545eecccafd53bf755bd845c94a751c35"
     },
     {
       "path": "rosettacode/popular/binary_search.vibe",
-      "sha256": "0f96ecf9f6c6b6a78cdb0d449144b14a06421ae27a0060255793d7538978add9"
+      "sha256": "18bdb128a2d290c2a7f09ac7e87db986743d4121c878614e84bf8f3a8f92dc77"
     },
     {
       "path": "rosettacode/popular/binary_strings.vibe",
-      "sha256": "0e0f5a483d5ec78334c8833600c59773c6e1b80c45002f116c1db19b0a3b320b"
+      "sha256": "2d64cccd206f9bd54bfc46ef2832a10ea3f4ed26941332d85a60d7229e5d8b3d"
     },
     {
       "path": "rosettacode/popular/bitwise_operations.vibe",
-      "sha256": "4019efee92cdc13818d6e566c415110498e8f43619303f1774293917cc82665a"
+      "sha256": "9d783044bf519702f8a15d01bfcf408881309d74204a3e7be2fe6f0cfbf271d0"
     },
     {
       "path": "rosettacode/popular/box_the_compass.vibe",
-      "sha256": "70b5225fded8178a3ea1c8340edf3a153138c9faac1df6483a39a19d32d2fadb"
+      "sha256": "318173ecb5cd150ae061c6de4d791216c13dfab1b7b486efb50948055b11f4e3"
     },
     {
       "path": "rosettacode/popular/brazilian_numbers.vibe",
-      "sha256": "a4927a177aa837c10e15751cad10f8a6e905fb93ea46c81017e1a8e5472f5cdf"
+      "sha256": "061b31389c9975eaf402f9ac40b20d69a790ebfc765a12e81e2f019e1736141b"
     },
     {
       "path": "rosettacode/popular/bubble_sort.vibe",
-      "sha256": "d7e209425dc731ea2c5fb5ec4f624779a38449762e9dd440f7977b74c2dfec00"
+      "sha256": "9204875fc875cda2625b9a155e830c9cb67e128085a850f5068b8a6c8deac896"
     },
     {
       "path": "rosettacode/popular/caesar_cipher.vibe",
-      "sha256": "7e678ab12d2869df528138af8f558c6c9ecb87bdfb1e4d65b37380faafd0cc49"
+      "sha256": "c6e5d8a854bebd06f305d51a9c7f52fc2e67ca96289cd2407a2014a6bda3f540"
     },
     {
       "path": "rosettacode/popular/call_a_function.vibe",
-      "sha256": "9bc26f3c6d9691bf2c74b723ffd0c14de8000f742dc20e44fe76f513e2ea919d"
+      "sha256": "96379ea0459ef894a165eb582f3f3e20234acc57f18c49c7e30ab6c9a86ff145"
     },
     {
       "path": "rosettacode/popular/cartesian_product_of_two_or_more_lists.vibe",
-      "sha256": "510328a91dc7b9b9643d5cf8db2cfe4d10338ff36470de96eaa06c3c110ceaa7"
+      "sha256": "4be0395ac674a55cf57edaaa56b9a2d7f19500cea31a87caa0b6b93a169cfd5e"
     },
     {
       "path": "rosettacode/popular/catalan_numbers.vibe",
-      "sha256": "b223ac09b30f6b688b3ef7d3463f116acca1870e3f9d8fc2fec0295a22712b00"
+      "sha256": "b490cb2dcabcb69e565bcc08727d8326f520ba88f3f7b24156d88608cb079449"
     },
     {
       "path": "rosettacode/popular/chinese_zodiac.vibe",
-      "sha256": "f38f6821367655d6dd5ae85f89ddd4c6d1a42de73d7819698e49fd529696df2c"
+      "sha256": "eef33a8695be54e68d07ef4f9cae1a1835a2388cb4c9a9ac1863345cd62104f9"
     },
     {
       "path": "rosettacode/popular/conditional_structures.vibe",
-      "sha256": "25b8fb4768da7935de62911ce1e0637aab2fceda10d44db5ee5a88fa078404ab"
+      "sha256": "52d5bcebe05eef1126650de09c463f1e2bb05b28b17b20c5fb7028d57595aa77"
     },
     {
       "path": "rosettacode/popular/day_of_the_week.vibe",
-      "sha256": "cbfd0b1c96db9046d87a3fa116085679adf2b804f0a404a668f5425001bde761"
+      "sha256": "a3cfb742eae6fde0122c7c270caa0380a776d27020e22aa6af065f78a9be7189"
     },
     {
       "path": "rosettacode/popular/determine_if_a_string_is_numeric.vibe",
-      "sha256": "10a5fa05446d5132c8ff7d7a0784491842bd0fc957bf12a595271a1f87d379ed"
+      "sha256": "3c0470434bc9da81b101f3016e9d89328b59e926c2621cd715a4fcecc00541f0"
     },
     {
       "path": "rosettacode/popular/determine_if_a_string_is_squeezable.vibe",
-      "sha256": "85d7d06d62af5184656906709b51fee80b449729ba112a814395162d8309cb4c"
+      "sha256": "0d0e6c4c2e188a43b2a9616c1ef0dd006495fab0752481d2876cb0b455641721"
     },
     {
       "path": "rosettacode/popular/digital_root.vibe",
-      "sha256": "2f3e69ada35b27a4778043a4c6f0cfa19e4a308c5955f71a70430dfbd8cb51b3"
+      "sha256": "1d03a4d61a21d369410a274b82b12255c4652acb67281bdae93bfe5c42492b50"
     },
     {
       "path": "rosettacode/popular/discordian_date.vibe",
-      "sha256": "8e2d8514cbfa56d2957e9d823bb11e944ca5d2656daeec9da573d2315578efe7"
+      "sha256": "96d3dd81e11f6fb9f6ae96662f44cab33d42529967ec920aacddeb133533365a"
     },
     {
       "path": "rosettacode/popular/dot_product.vibe",
-      "sha256": "d765ef7c6934d641e6f02f82fba154271959347ca4a9ae3dd5da52762a1da372"
+      "sha256": "bece208d77b461b3d6627bc97034002fc424e213b78379bb6043ad8173580849"
     },
     {
       "path": "rosettacode/popular/ethiopian_multiplication.vibe",
-      "sha256": "ca1afe82fb8f96035667d99955517cae40195fc075417ef4f93a97bf464125df"
+      "sha256": "2ad294f3a9285c1fc15d8fdc646ecba10c7685852fce22be418b7c96cd277b9a"
     },
     {
       "path": "rosettacode/popular/factorial.vibe",
-      "sha256": "b2b80f26c8f2a27adab26f38202e502f16381cb8ba6a1f9795fd8431f9fca531"
+      "sha256": "b46ebf26f00b5f5f9d7ff2f7a2127ef0cda95349dc6a94898be9d83598df307f"
     },
     {
       "path": "rosettacode/popular/factors_of_an_integer.vibe",
-      "sha256": "d88fc915a55d4e14fcb25586e0d7164ab3f67d23197051a4817c35207fd9985b"
+      "sha256": "d765108727c9f37a6691a0ad1346cfd6dce71415728f890fe570b9d6cacbaa8e"
     },
     {
       "path": "rosettacode/popular/farey_sequence.vibe",
-      "sha256": "5a1339b0f10e98bc366fd2bd4bfdca421a1d2875ccbaf873fd1ea696e925eeae"
+      "sha256": "2c5c30406ea6449a0daf8a1369e50bb3d62dbba6d53120e324b3b1b4876c507d"
     },
     {
       "path": "rosettacode/popular/fibonacci_n_step_number_sequences.vibe",
-      "sha256": "2ffe5f306caa89c5dfed8de9b6d4f2ff9e038f5aacec9cf72dcc884a64a6aa26"
+      "sha256": "8fca22a2552535aacc8e686db9320a8fe9036e3d1a6feeac49687f74347b47a1"
     },
     {
       "path": "rosettacode/popular/fibonacci_sequence.vibe",
-      "sha256": "657a65067e6a28ffe900970175ca21350c056bf3141ec7ffcf187b0f207969f8"
+      "sha256": "2e8c31ce69ec440a9e934c09af4215e880decfda71581bb32d16307e44795ea1"
     },
     {
       "path": "rosettacode/popular/fibonacci_word.vibe",
-      "sha256": "513427d1c013b2eda1dc2366180008ecd3ca128d3256eba9cfe3085310de0a00"
+      "sha256": "4b5732a23fcaa695f2d98642353917756cfb5bd824181027f5ed9d037589268f"
     },
     {
       "path": "rosettacode/popular/find_palindromic_numbers_in_both_binary_and_ternary_bases.vibe",
-      "sha256": "ef72b4c03ff4fc76fabd31856d15541c42fadc7399fc9d52e628caa801300a8d"
+      "sha256": "8348a8235257bb224ee5a5c7dd739cd702981dc721451054f4e21041457ddb81"
     },
     {
       "path": "rosettacode/popular/find_words_which_contain_the_most_consonants.vibe",
-      "sha256": "7430f53a11af6304a147007046538f21a1b96e859d774736b4400f6e8569a8e9"
+      "sha256": "5d406553dd92e3c1626a2e538b5b644153890bda9ac388f51d8e4e54318c60a7"
     },
     {
       "path": "rosettacode/popular/fizzbuzz.vibe",
-      "sha256": "64ddfde29937a30b37c793144be288ef6200f4e6e86ec28497f299d1cdd7e228"
+      "sha256": "1c7bbcc1f1dfbb841d5eecd2d7f89e5d47cda54363518889c8e4084c4c4aae2b"
     },
     {
       "path": "rosettacode/popular/floyd_s_triangle.vibe",
-      "sha256": "2cb8ec28496d87d59c9ae8e9b1b78ea486c7ee586379649f011aa2be5708fab9"
+      "sha256": "7d2c57f7f166fd2a6c06b5d2a2db8544f0e47da90c15de97261ba162b733e07a"
     },
     {
       "path": "rosettacode/popular/four_bit_adder.vibe",
-      "sha256": "0f5c6eec84e815de64224203931197a5dcb20f7b828857aec8521fcfdf82e048"
+      "sha256": "4f1c585cc4ac5524b7116d168cc19750ca93cc61e087150c48954a6a819444d8"
     },
     {
       "path": "rosettacode/popular/fraction_reduction.vibe",
-      "sha256": "b409468925662187730890af08379ef410febdb5d5d4c863e6fb72b5308449f7"
+      "sha256": "1b4659965eebaa27024981167f8d4271c86962161f7cb16e2b8514b411432a7f"
     },
     {
       "path": "rosettacode/popular/gray_code.vibe",
-      "sha256": "a3b7ee40caf12986cb2fbdcbbf301a847ed275cc17dd3c5d5959edb7429d1fc1"
+      "sha256": "54c38d11b8536d1fee92953f1c2d4f559b1e31d9bcdf24bb12c919c3f020ac3c"
     },
     {
       "path": "rosettacode/popular/greatest_common_divisor.vibe",
-      "sha256": "7afb7b161e65064ad1064256394836e4312e33109b1a523b19e49b49a68b18fb"
+      "sha256": "7bfce02156e4f1400be1377b7b6aa118284557d220ac7a4c2fd2f7cfcc4933de"
     },
     {
       "path": "rosettacode/popular/greedy_algorithm_for_egyptian_fractions.vibe",
-      "sha256": "60617cf07b5f3a520f6cac6abb4c1a2810beaf13f92fe4ee2c8a05e8ca895645"
+      "sha256": "045ca4d46a7593f3be33c624a13342cacc4509e852603b3f3654b1a722cf2a9b"
     },
     {
       "path": "rosettacode/popular/hailstone_sequence.vibe",
-      "sha256": "f3f792b68af10948c1c9fe175e6fde6077c91f67f7afc03b5400d80e7181c45a"
+      "sha256": "e7dc3d527851f6a380ae356d0e35dfda7df3caec80e17c4392f0f9cc7be54e3a"
     },
     {
       "path": "rosettacode/popular/hamming_numbers.vibe",
-      "sha256": "f4409dfd72a67ba22e9eedb601e7255cdf122d01ed02ee56a35134fa4c44e70d"
+      "sha256": "90074fd6f97eb373f504f823c8c54a2b8eabbd066f2e11ebb8e8fc52287c27b9"
     },
     {
       "path": "rosettacode/popular/happy_numbers.vibe",
-      "sha256": "a831ac704081037782bdb90a60f1c260e361f67a7f1b8ed25e48341af8a6a386"
+      "sha256": "5632ab0ada0e7b8fb53d7b7ef8e82e6a8e6ce4f88e8fb46403513e19a62ecbd2"
     },
     {
       "path": "rosettacode/popular/harshad_numbers.vibe",
-      "sha256": "d539b3159ccef5a90df2e8cb89c00e50923ce8700d7c43db9cff61c0831c2e60"
+      "sha256": "e3033461f729218bf2802e13c20ac825578c682a3fafa07ecddb512da796e603"
     },
     {
       "path": "rosettacode/popular/heronian_triangles.vibe",
-      "sha256": "93440ca19c11ac78334c7274de0528496b9b9bffd81aeb21d7ef0c5a3caa91f4"
+      "sha256": "4da76ba6a1c2a2b11d0eaf59a44025fb9d4dd3cebac14f1a4ce69258c517d457"
     },
     {
       "path": "rosettacode/popular/humble_numbers.vibe",
-      "sha256": "f12aaad1bd329517b4629a74b7aa0f23c788a62945d8db92fd910cbed8b935fc"
+      "sha256": "19834c62740865f621f2319f86eb171bad276f6d9efdca965dba395d17acd18a"
     },
     {
       "path": "rosettacode/popular/i_before_e_except_after_c.vibe",
-      "sha256": "c228fde080e04b9bc374aedf490c68adb558d5b2db10b2fa10fd3d19f431a97e"
+      "sha256": "53cb84cb7895821bf482e1e604d8a4e0f63f264db10867f3c4c1ecb2f6e51926"
     },
     {
       "path": "rosettacode/popular/insertion_sort.vibe",
-      "sha256": "d2a70ae307786003728af1d159736e0455d9bba3a98f5a1839bbe601f30bdd94"
+      "sha256": "770d42f01facf9443f4f620d68c6ad716d190970c3735c16cf364784e42d67e8"
     },
     {
       "path": "rosettacode/popular/isqrt_integer_square_root_of_x.vibe",
-      "sha256": "fc71d81b57a770a864fbb362888a513f5db8d05babfb6dcf8396df202710c4ec"
+      "sha256": "123bad7a70afb7239d0bb50d316a3d06e195aa098414fd0bc8fc501974df0e3a"
     },
     {
       "path": "rosettacode/popular/josephus_problem.vibe",
-      "sha256": "c39d271b0bacf3be3a23f5a6a5ed879ffa0b8255545e1171414ef1c8a3b3aab4"
+      "sha256": "39f5f65911e7a1ac6756039198e2a50065f563d44312c3ce6bd8b48a1e010758"
     },
     {
       "path": "rosettacode/popular/kaprekar_numbers.vibe",
-      "sha256": "64ecb10944e72379aefbbf6da13b6e4e7790a42a1c82ef50147f2b422c5aef5e"
+      "sha256": "47f42c813b42d03d31734c73d26fe9b04048c209e5a0ebb7c7f17e9f2122a3d4"
     },
     {
       "path": "rosettacode/popular/kaprekar_routine.vibe",
-      "sha256": "10d2d08955b0452083dfcef177f1c4557f953f09348989f838fcac2c29287fb3"
+      "sha256": "582eab8ae52f46b6728b2a7612d1ecbf2ea2524e3b67797b5105491e774a0b32"
     },
     {
       "path": "rosettacode/popular/last_letter_first_letter.vibe",
-      "sha256": "fa8c61dcb965201c4a1c648f8af4708fdab2426ebcd8623ea98276c2ff64edf3"
+      "sha256": "ef980d33ee16012a5074507895c2bab252aa4e5f88c89e7d767fe105bee762ac"
     },
     {
       "path": "rosettacode/popular/leap_year.vibe",
-      "sha256": "fc402622026da24e94cebb8a264167452ea80bbb358841cab93715a392e5c96b"
+      "sha256": "b39bf48574d6e5f9df336c13f09b3b8fdc034b5795d429efd84cfac981179ef3"
     },
     {
       "path": "rosettacode/popular/letter_frequency.vibe",
-      "sha256": "91a256b6a04ae2506ddd85920e9522112e04cdbef8e78cc482d6dc91f4eb129b"
+      "sha256": "bbfef6405e968cc5d9ac79db7cfe20d1efdab80651314978a564d353659d739d"
     },
     {
       "path": "rosettacode/popular/levenshtein_distance.vibe",
-      "sha256": "c16e32b8622a68993c0e820ee8128989ada14aa6c72b631caf755a35657a566e"
+      "sha256": "4c7ccb0960d93122bc85580569066440883836edfdeb1b17e0422ea094ae8667"
     },
     {
       "path": "rosettacode/popular/long_multiplication.vibe",
-      "sha256": "9d3dac20f747f58871fa7be808b8807cf21e02faae9c4d521ef46a49ef662299"
+      "sha256": "37e6503e6cfa7d528c1e6e72e9b1b0a88dff58ff32c07ef653d5c6c387ed833d"
     },
     {
       "path": "rosettacode/popular/look_and_say_sequence.vibe",
-      "sha256": "d8372f5d6b9f15d14d306b5fdb37a05a2fff53c7dfc3a4976154f45e690a8231"
+      "sha256": "22f05b61737bac3a7382326259539e04bef1470ee8d7cf4724064d83715f2729"
     },
     {
       "path": "rosettacode/popular/luhn_test_of_credit_card_numbers.vibe",
-      "sha256": "fc38eca07e35a7994818485cda723715b85d4cf3161d607bc62a0d93d5bdac53"
+      "sha256": "367bfac82552e48488494be8971e1b1396d31105344394f13f155b070a2aabea"
     },
     {
       "path": "rosettacode/popular/lychrel_numbers.vibe",
-      "sha256": "99a75eed522cde132f718b53953fdc2e9c99c1d1ab455b4062c2a1d8cb9c40e4"
+      "sha256": "48a31e4b3707fd013503a272fcdc0569a45739a00bf8c6c5e1bec0334f39973d"
     },
     {
       "path": "rosettacode/popular/magic_squares_of_odd_order.vibe",
-      "sha256": "6915004a85c0a8d7a1d01aae5e31b7ffd571030723c25c804e3d36e27cd06495"
+      "sha256": "c90f3382b4b093a205e41166bf0de67dc3c5f46d43ecd7cd815578157ce37fbb"
     },
     {
       "path": "rosettacode/popular/matrix_multiplication.vibe",
-      "sha256": "847e7e9acb1e103d6ecb89fd59d05c64eee638b4880b7c60575072abe7fe8b16"
+      "sha256": "e730938d621b048df6a0f5ef13d44405731f17ddeb6bb23d7b6ad75eeb8a7995"
     },
     {
       "path": "rosettacode/popular/matrix_transposition.vibe",
-      "sha256": "88335097c6e9398a8fb1d8b2d2a4a9be382ce9d78f7348ad5d8cad1641fd6e43"
+      "sha256": "6337d06f6a57c3292b9cc2287151942d64767a03259fdcfc3e83b5daa295f824"
     },
     {
       "path": "rosettacode/popular/middle_three_digits.vibe",
-      "sha256": "ec6e7acf1db8912467e57476879ca850951288a3d80ccf304cf0a8793ddb8c4c"
+      "sha256": "7149d62074af5782ef36671e8606a4a4d413f3b08e090f92a7a852eb93c943ce"
     },
     {
       "path": "rosettacode/popular/minimum_multiple_of_m_where_digital_sum_equals_m.vibe",
-      "sha256": "b1121066a497c7d076431e613dcd341f55ad7bacb75f63623201ba994e0e5cb2"
+      "sha256": "5627551b84500e444f9e35c648b95c538923de6fbe1f8ad01c469a726e052b7f"
     },
     {
       "path": "rosettacode/popular/morse_code.vibe",
-      "sha256": "3154db15bb845b3221e221ba72c4c09e5686bc6c0390e0968403d5a9d568d2cd"
+      "sha256": "ed2350c85ea24c7d7dd57e77500132f6d4202caebe47daa2bdfeed4b04f13537"
     },
     {
       "path": "rosettacode/popular/multiplication_tables.vibe",
-      "sha256": "c672926dfe57395773fea34c5cf42638bad46867696712ad2dc919049113fb06"
+      "sha256": "908f89625a72c34413141661b2db12f471731cb0904294d4c646114bff0939a4"
     },
     {
       "path": "rosettacode/popular/n_smooth_numbers.vibe",
-      "sha256": "e32bdbd1cd8fe0501cbe0642b3689e0995a3304794f0f6d4a5aaf8a87ad871b5"
+      "sha256": "31187c1735d13cdf8105b0275a71dcb50fe0f8a1d47cced79b94b7bbe5a22c07"
     },
     {
       "path": "rosettacode/popular/narcissistic_decimal_number.vibe",
-      "sha256": "a86cf55d919d7d5079983785466de78c6d9f87ea66fd6ef369cf8954e47b6dca"
+      "sha256": "012b7b082dbd50b12b6136cf7425a7572d4b185882044b88fe322e4d268b89c1"
     },
     {
       "path": "rosettacode/popular/natural_sorting.vibe",
-      "sha256": "456e41a46db383bfc46fa90d642c211932b31a5c9f05316564912ac86c086a89"
+      "sha256": "ad6454b07de5204925e55f4c320a88b1257345b45bf0d940612fff97566843ad"
     },
     {
       "path": "rosettacode/popular/number_names.vibe",
-      "sha256": "660f6723d27e0af377e933e5cdd183eb014216cadf7c49518879ce29abb4df0c"
+      "sha256": "493cdb6541b84aedb62ea9c3af468b9c19a3f3aa5cb498ba4a6ddad4db5266a1"
     },
     {
       "path": "rosettacode/popular/numerical_integration.vibe",
-      "sha256": "92204a80d1bc591563219b677381eacd9e5fd5ffe4fc6c4c6937af3520851444"
+      "sha256": "79628348f33c010a5865f1bf93086250f4cfcff9f659b4261d6e7809da251b68"
     },
     {
       "path": "rosettacode/popular/palindrome_detection.vibe",
-      "sha256": "4b81391f4d9f4aaa5afda9647b3033f137dce2b93c7fb5f9e72d6025d3a60a95"
+      "sha256": "5b49a6e3834095b2e18356fef24fccca0c3b770deaa6d56665094014e7f7ec2d"
     },
     {
       "path": "rosettacode/popular/palindromic_gapful_numbers.vibe",
-      "sha256": "94c7ea8873b19ba2aacd56341476a4a1a6a14b5194590029624740944f9ffefd"
+      "sha256": "4847b1aa824820ceffa32df5b12e832326262eab5bff510516467788b4b08701"
     },
     {
       "path": "rosettacode/popular/pangram_checker.vibe",
-      "sha256": "134a9a22734c09baacd6732beee94aee6686071882ae2106ce089add52be2e23"
+      "sha256": "e549411aecf6d35e7a751905dd186d1cf70bf7a06f1e04a046678df173f81ca1"
     },
     {
       "path": "rosettacode/popular/parse_an_ip_address.vibe",
-      "sha256": "8d56446892368be2baffb96530068add903b7cb3662170f163e36904f499efd8"
+      "sha256": "cc16f42a41a8cc1934fe75bedcf12d0d78ca80e56e5de6ae911be10fc0b317c8"
     },
     {
       "path": "rosettacode/popular/pascals_triangle.vibe",
-      "sha256": "4eaf70f0f9e681842a3e44280503ae261d34ccfd3ada6b86f4c3d1d14f2c2731"
+      "sha256": "935bc308a0fe35b95f7a3fe687998edd39c3f11cb4afb14d25833059f59238f2"
     },
     {
       "path": "rosettacode/popular/permutations.vibe",
-      "sha256": "8bfbe67b3ec6fcedc31760e87859f842827aa3051e3b4f98ae7cfab7c76d14d0"
+      "sha256": "2c9f3df48e64c691ebbda7d18abf01a855428de08a5bc8fb2ce2b5f797898ea4"
     },
     {
       "path": "rosettacode/popular/pig_latin.vibe",
-      "sha256": "5433d259b4aba5a240dd5fa4adebe60e760e0d51d9b890165a5fedd6170291be"
+      "sha256": "4d34be4e9e1ff32256c1d16b50f46b12d8a5d4a8d6be21519182a2d3d008343d"
     },
     {
       "path": "rosettacode/popular/playing_cards.vibe",
-      "sha256": "08a0846f7e83f104e0dde5eff9c13825876e23f5837a5d290421238ce8b4f31c"
+      "sha256": "d40a3ec0831fe142349dbe49f47a60a7ed00ffb11ec4126eafcc062897008d5a"
     },
     {
       "path": "rosettacode/popular/prime_decomposition.vibe",
-      "sha256": "2fce2a90fcc57951b08c66e718b43c89745644d6b94e812892bca8c1df081c22"
+      "sha256": "4e2f879ef31bad85c1e6a7d4cde468735ae8a341f8a4754fa24523aac5ebdb14"
     },
     {
       "path": "rosettacode/popular/priority_queue.vibe",
-      "sha256": "fb8f8d07831202ac43c1e0828c0eb88f2060420aff9fbffd9f6031b8acc4df3b"
+      "sha256": "a8c584a036035d837bc9bd652eff35906429eb942b5e566ce3a4a80273417670"
     },
     {
       "path": "rosettacode/popular/pythagorean_triples.vibe",
-      "sha256": "b530cf4b9a5d49723d38b61b777f3302367b45ad290afd4bcde2a2e11b62be0d"
+      "sha256": "9f76d868def16f8b9cffe5baa7a054b3946dddf4cf52a36164d108abc6230813"
     },
     {
       "path": "rosettacode/popular/range_extraction.vibe",
-      "sha256": "54b7fde1650d4698a97beeb91209f4f73692e975b4acea91992b5d4c025e7f35"
+      "sha256": "25d5f170fccd8b25ae4d4b2400176d10ef060af30da49f6e819589fbf4b9fbc0"
     },
     {
       "path": "rosettacode/popular/roman_numerals_decode.vibe",
-      "sha256": "8a028cb8528461a24fb2454765fed9e7e64b476786b215ac41867f0f348d8b33"
+      "sha256": "49159ba9d707bfe50e09a6f36690ab5218b012153b6fdc10d68d5bec4208954b"
     },
     {
       "path": "rosettacode/popular/roman_numerals_encode.vibe",
-      "sha256": "60f28264243e90980ee8fc51e6912622134b9ff60bce24f734849eb44a7e5e4e"
+      "sha256": "413903b65557e864f8ae6e6fb6290c6ab70120c838c9f2355174d4275ecfba3c"
     },
     {
       "path": "rosettacode/popular/rot_13.vibe",
-      "sha256": "7e2560aa8b095a87d28883bb16d71f2352ac60367a5d9d082b19af3d0d90c42f"
+      "sha256": "b61573cbd819fc207d4dc864324c52089e272b5cde4fa4dce532779216aeedf8"
     },
     {
       "path": "rosettacode/popular/run_length_encoding.vibe",
-      "sha256": "2b54a3c37d45ec901d46039cc9c8687a8f87960a24246735b7e7b448509be8c9"
+      "sha256": "6c6240108e8adfcace280c02ad0b154e9c58434f8fa18de75313807da5dbd5ed"
     },
     {
       "path": "rosettacode/popular/selection_sort.vibe",
-      "sha256": "73a024760bf2c47d91753e1ffed3b0cd81a1ccf1e8ae55c11aeac32471b11361"
+      "sha256": "e7a9dcae0d0b723937b784919d7d3e962326db03997daa419f9741fc12f2e8f5"
     },
     {
       "path": "rosettacode/popular/sequence_of_primorial_primes.vibe",
-      "sha256": "d68b349af85b39ce9825d95607e1da6f92601c008c6cd2f1db212990e5b5dbcf"
+      "sha256": "9d14b3c5f3ca26388d6b4524eaf4772e87f7201b4bec7c57a3f0eafac7685755"
     },
     {
       "path": "rosettacode/popular/set.vibe",
-      "sha256": "7835d3264a7720b4268b8c160db1e09e5cb9c5686a3e630f46ff16d2ca1ec696"
+      "sha256": "fa35264d181573d436997322bacbae7619350858a00ec1c6be05bb37df9f326a"
     },
     {
       "path": "rosettacode/popular/show_ascii_table.vibe",
-      "sha256": "8d99e87738f13d3c60996efc7d1dcc627887cf3843d8d5d57a67881d927a4f13"
+      "sha256": "4f461b09976158e5af977d713cd6b84b591301d19fa4702bba536aff52bb0629"
     },
     {
       "path": "rosettacode/popular/sieve_of_eratosthenes.vibe",
-      "sha256": "545442111d81b9bf8cda3e18340217c812fb20bb10ddfe7e2146392914b17be7"
+      "sha256": "4d3989c3dcd5b03e177540a8f6ca07523bf19389d7d3c7a81cfea76c6761b0e1"
     },
     {
       "path": "rosettacode/popular/smith_numbers.vibe",
-      "sha256": "7b1fdcdbb4890424a23777a6f6216a8a3275181edf8ee05021ba1591cbcd8aa0"
+      "sha256": "625844496273256b6b80eb7e69e67c3e97e209283ed76d46b05a95cd30692c93"
     },
     {
       "path": "rosettacode/popular/spiral_matrix.vibe",
-      "sha256": "98596c9bb9338d83fe7ff22eff23ba8b8f8f357242dbb37d3a6656f59504667c"
+      "sha256": "02bec1813b5c8691538ab805fb746dc1780a39fba682d9a9abe7edd6a394121d"
     },
     {
       "path": "rosettacode/popular/square_free_integers.vibe",
-      "sha256": "b2afe06930ddeff21a15412f8d844891e6cc294c3acd042abbd42fb5c5bc7418"
+      "sha256": "735aa942c9ada179326e6dc748aec91505a6c7a9d78089131fbd0cb739b83432"
     },
     {
       "path": "rosettacode/popular/stack.vibe",
-      "sha256": "800fc6b3c4a74aeda43f1cb7899b81d7d48eb452702fc9b88abbe2cb3c1d67e8"
+      "sha256": "ceca1a3975c041fc6ce2b982a9d291b324b13afb470f060baa137c13bad1a801"
     },
     {
       "path": "rosettacode/popular/string_comparison.vibe",
-      "sha256": "10f853c6aa34689670f93011fd2ca1cdae41c07b085e7167b6afb3fc7f5c39ba"
+      "sha256": "ef00736983d50dd9b2f9cd4cbf1c78f9510710bb37021e5e9a523a54e87cdee3"
     },
     {
       "path": "rosettacode/popular/string_matching.vibe",
-      "sha256": "d32fff1746096bfc7f873d21765d7090dc4d601cf4dd647e3a28bc93796aa9b8"
+      "sha256": "41bf18c736b7103a2e0399e634606de446f5e9ef6b76bcfa2ade287308230f9e"
     },
     {
       "path": "rosettacode/popular/substring.vibe",
-      "sha256": "95ba1216535e6ab918054d08d7953bd7ded811eb8627ccffbb59f07df731903c"
+      "sha256": "d999eb23095e5a36d076c77135d82ef2dfc2046e558400ecdd0846502889b7d4"
     },
     {
       "path": "rosettacode/popular/sum_multiples_of_3_and_5.vibe",
-      "sha256": "d50c27b8df12afdf28bfeeda10bf31407ff74ef6cc6b234a861f474cad51e7cc"
+      "sha256": "73cc02e1deda2bb1d9e1f459089242838e446146bfe003c54dee285284cfe149"
     },
     {
       "path": "rosettacode/popular/taxicab_numbers.vibe",
-      "sha256": "70ab4945678ac434f0c2bdfc2bd2db4fb8fe9c943e950fd81dbf165eff17b2b1"
+      "sha256": "b2a8f7a28abd97653643dbd0d85bbabaf9c2955257265af7390bcd8f18aca0a1"
     },
     {
       "path": "rosettacode/popular/temperature_conversion.vibe",
-      "sha256": "2543a7d3c33057f5b271bf2d4db27a7ebfd5069490ffbdbbd9fdd631d2d77c81"
+      "sha256": "2835fdffef37a6362c8cb3755a5d240da52bb6e8b8901c875ee9164accd61ea7"
     },
     {
       "path": "rosettacode/popular/ternary_logic.vibe",
-      "sha256": "c34d149823553161965a426cf085c66c9ce00f73c08c8b48d229075b179b2ef3"
+      "sha256": "1d4e1a58c79b913fbc0e13eaf18a7613a415bfa306e9f40d2b7b1607abc1af92"
     },
     {
       "path": "rosettacode/popular/top_rank_per_group.vibe",
-      "sha256": "8c59da076537b1f238e430c84aab598cd4d17272bf0e4bb6393d119108deb0e1"
+      "sha256": "164f461155e8df09641998756ef67de82456cda6bfd58004637aa933c353dcc1"
     },
     {
       "path": "rosettacode/popular/topological_sort.vibe",
-      "sha256": "a6b7a4f2fd933b1f7a5c266596c8a17c0299c1cecbb1fc6e223305aa20ad5367"
+      "sha256": "b792450e70d82d2e424f91a5ec4f12f08c8d98524bb74fa5b35f391aaa569c59"
     },
     {
       "path": "rosettacode/popular/total_circles_area.vibe",
-      "sha256": "06f269668a877dca27e7de3b51148e0b61bb5afb2a645f8100ff35cf8b75740e"
+      "sha256": "d2ab5b9c961fc5ed37244ced88f6eabcc57029d401c01a366547a53e63a75a48"
     },
     {
       "path": "rosettacode/popular/towers_of_hanoi.vibe",
-      "sha256": "35a080af649f17ba8b453566ed4bf4467164c98c6d59bf1ed722b47edf0129d5"
+      "sha256": "2991e3d5f782804747a6fe10ac66aa39b8c33993db9b849cb0a12750a7686eed"
     },
     {
       "path": "rosettacode/popular/tree_traversal.vibe",
-      "sha256": "386d2136dd7c5855c39c5b46c6d310c898b286ba9f3543bab5c9bddb40dc229e"
+      "sha256": "49435657cb5a14661492eac55126c05a338ec3cf87042ad404c6974732d19fe6"
     },
     {
       "path": "rosettacode/popular/truth_table.vibe",
-      "sha256": "65e854808fe28f67df26f62ad902f7e284aa88c6842f659493bd327d93848819"
+      "sha256": "1a1d0f5fe3157233621339b03e8273ac87f9d75bea9ec8a1bddb125ab32bc03e"
     },
     {
       "path": "rosettacode/popular/upc.vibe",
-      "sha256": "aca8d76bc7134a769f24f9a4eb9d33bb73c9360bfc72807d08b1718e59f7226a"
+      "sha256": "10209556d47cb81202f996caad8f59e294362c764aac30cf12e7980ed488cdf3"
     },
     {
       "path": "rosettacode/popular/url_parser.vibe",
-      "sha256": "483fd5f46e8aa5f31160aa6b2b0d30199750b5ad9abc7c235b0053ae0473ec3f"
+      "sha256": "63267cfc85bd0e9c59c0f0ad2aec39763f285627aa26efa90c738545b8db794c"
     },
     {
       "path": "rosettacode/popular/utf_8_encode_and_decode.vibe",
-      "sha256": "53341d84eb80a0007c722e6a995f37bb29c570e57b21e29e78e3f2af5fbd2200"
+      "sha256": "4955fb7a2bf60da36b81a1ae9333617f25a9156d8fdd767518d186d8f921fa4f"
     },
     {
       "path": "rosettacode/popular/variables.vibe",
-      "sha256": "7093e10975ecb66b0ad6baf4b5ce9e75cc00b57fdf7da9a1ad995c42e7e27a71"
+      "sha256": "436472f5d97acd13dd5210795b5344f6fc1c8da1de50981c501b327125ee4454"
     },
     {
       "path": "rosettacode/popular/vector_products.vibe",
-      "sha256": "36f5b9d59a5f71cf197cee035cab74b6fb9df7bcbb4ec71431892759ccbb3a87"
+      "sha256": "4f7f03e4046c18aa3188c27e265effce516f1f75ca05b551e4e59d44e8e17874"
     },
     {
       "path": "rosettacode/popular/vigen_re_cipher.vibe",
-      "sha256": "0ee304a3cf063c4f283c2918230118a3c46eef2ce4692f978434d669d4e9f458"
+      "sha256": "4dff28c85de2edb58335fb28675fec520143d6cbcc4a1f505b5812475c5920f5"
     },
     {
       "path": "rosettacode/popular/word_frequency.vibe",
-      "sha256": "6fdeae287ce44c7994b268a855b729625b851e1b4b9060f1cff9043962378321"
+      "sha256": "65fe5e96f1cc912ecc6a12079b4457de9691763ebb9c5b1166bc0028aa26c273"
     },
     {
       "path": "rosettacode/popular/word_wrap.vibe",
-      "sha256": "9f84d2381d5c304169321bf64292cbeb7f6cd9bdd24da34baaa42917a689cbb9"
+      "sha256": "ab2e0694f70435ea8741877c2cedb9eceba3ce854a9a0d4219a7c64a2ed6576e"
     },
     {
       "path": "rosettacode/popular/zeckendorf_number_representation.vibe",
-      "sha256": "b8c703bff4d68507c5a6b43be99e029c37bb57683afb6a7233efa80b1e740dd0"
+      "sha256": "8cba38ba2900ea435cf02d554613022aa882997c4ea4585d9c0956d52a8fee9c"
     },
     {
       "path": "rosettacode/popular/zig_zag_matrix.vibe",
-      "sha256": "03ca91b8d39460ff85534a55bd8095fc40ae8cf33af0e376884d0e958fa8be52"
+      "sha256": "95c6d1f99a5cb82d1e83c7e8aab943f6f52242b450a51cf14cb18f8905af6e3b"
     },
     {
       "path": "showcase/automation/maintenance_window.vibe",
-      "sha256": "7d2e4316f52b89222e48de31014cf0e2765fc95dbf95ed7796d558a956035e5a"
+      "sha256": "8a38e3a8704c418c5effe32f442f91214be326e1c58213a198646cdd28e51863"
     },
     {
       "path": "showcase/automation/retry_backoff.vibe",
-      "sha256": "61c71ad04000e157772ca0a3973809baa2779d5953d4d2ec0d4f29512a9d4322"
+      "sha256": "94302553be6b7529fec79e1e006e463df958ebde97c0f70b431593f0d873d98d"
     },
     {
       "path": "showcase/collections/hash_projection.vibe",
-      "sha256": "09589a92704984547c75720d53ba12ae12e6d8c5bef4d556cc389ba4e47cae9e"
+      "sha256": "f76f5baa88b8228fc7cb8414cbb4fbaebb434a50e44684cfe40794dd041515b1"
     },
     {
       "path": "showcase/collections/matrix_report.vibe",
-      "sha256": "967f1c46e2a8cf3d7064b8e9acc60aa62607363a3979889ff4db6e3b9a7eafc0"
+      "sha256": "b09c19f41e4b48ec77ce5d39b2205c6d8d954cf5ba00cfaeed356ce4b34dc5b1"
     },
     {
       "path": "showcase/collections/reshape.vibe",
-      "sha256": "3a2dd3a8e0fc020eba3acf9b5fdafa55afd7af6983528f1013f833156d8add50"
+      "sha256": "ee6c9aafd14224e1056b894d14f56833ff1c2baff6a14c9c06a754952a42448b"
     },
     {
       "path": "showcase/commerce/quote_approval.vibe",
-      "sha256": "0bbb9f8c8e46e384a704608d36e313700c2cd4ae33483e87d77b28ad88c87cc0"
+      "sha256": "e7bd173adb177ff88b3cb59385e908581de162950e8a61c9a5c0070a7ad86861"
     },
     {
       "path": "showcase/commerce/shipping_quote.vibe",
-      "sha256": "31a6c14ff50e04888f316085eee3e801829e5ca094a5332904bd5a57b89abdb5"
+      "sha256": "f103a1aaf6124fdfb2d7d8c5c41592b91c107219785508e9f19f1aca23738f93"
     },
     {
       "path": "showcase/finance/late_fee.vibe",
-      "sha256": "8c7a72f232496fe126b872ec3461b3370da5e24c7c68e89e011ed6d03708a9a5"
+      "sha256": "751c785f2979176573f56a51773e30ab12ca08e9fd6c9f69d6ef5bf54fb66553"
     },
     {
       "path": "showcase/finance/late_fee_policy.vibe",
-      "sha256": "fea1bf42138e6613234d28553bc89533e51075e4876981358155bec2adbdb07d"
+      "sha256": "e606bc0b5f8321bcc826c5b169acb46b1b82ce733b1fe821779b51331e951321"
     },
     {
       "path": "showcase/finance/payout_schedule.vibe",
-      "sha256": "c29bfb3f61e383c94b2c766644a8faac1ac24e50e867ab35256b05be58d07fef"
+      "sha256": "27cee216c7c3d2eb2de5518f368f36073af0946d94a6277f6b6ff2e4f298c385"
     },
     {
       "path": "showcase/finance/statement_grid.vibe",
-      "sha256": "c5e7e9e1ca2c751f4924530d44007320467e11ec6eb28f7be39eb9c738dffcb0"
+      "sha256": "a6a80f9875e1320a14ab0b3734f5a7525b6ddef6caa3898a1450c9e7736693a2"
     },
     {
       "path": "showcase/finance/subscription_billing.vibe",
-      "sha256": "fafdee6dce1e24fad5059107659bcea3006bb252888ae5d444f0d8ad3b598445"
+      "sha256": "f7a79134aae6d0f13a90c61e0153d6ef8c33faca235cabfed14c2aaac60bc749"
     },
     {
       "path": "showcase/language/synchronous_blocks.vibe",
-      "sha256": "68d8408f2d2617eac70c5603d48529326287c04f97fcc3ee287d9af220c376a4"
+      "sha256": "bcd4a56fba2c1055ca555d5ccd39c2e9e9c7ed30fdb18892a3130c34880051d9"
     },
     {
       "path": "showcase/language/value_boundaries.vibe",
-      "sha256": "a9d92b471c327a0476b727647266c784f42f3988ad1861d2d5b96d8a72e5cf35"
+      "sha256": "35225c06a631aae6373e518e76f3ba0b12e3a046bb3450c8327b4f3b06fd8739"
     },
     {
       "path": "showcase/math/chudnovsky_pi.vibe",
-      "sha256": "ebc92be33ca9e649e8b43640365c2d257d22e7d7c3b4473596817a514a9c603d"
+      "sha256": "c3de5a7fe6fd689af9226686a00b75c049ad53d4e29c4f14f10ee6ceeef60169"
     },
     {
       "path": "showcase/notifications/digest_schedule.vibe",
-      "sha256": "6501145fe5e7d7cd411114ae4fdb4d64a35f376de53835895d9cce530d0aba24"
+      "sha256": "af37c759a1ba7f7bed891b4a7edd8b40c337337c99158485bf6bdbd4645b549f"
     },
     {
       "path": "showcase/notifications/email.vibe",
-      "sha256": "630d42444508472646872247c66ceb3492202f82948d90d38b09dfdfece9ac1f"
+      "sha256": "575f155c157c44e8a2148b19381e7911d665bdb08cd1b8aa75857bbfde88993f"
     },
     {
       "path": "showcase/notifications/reminder_schedule.vibe",
-      "sha256": "b4bcc0f219280b04b3622d2acf301e973dda75c6df588abf780fcdb9f9967d8f"
+      "sha256": "424d622a1ff57afc408e98d72fdc192421c96fd42197039561ab7feb8065f41d"
     },
     {
       "path": "showcase/notifications/sms.vibe",
-      "sha256": "857fe3f5ceabc8b7792a1acbcae15ba51eb8091b4fa1736f6f1669c9b95e383d"
+      "sha256": "0b04fbbea613e01388c65ed5226331c3ac89e34b8810ceec93ceca5b7afec4f8"
     },
     {
       "path": "showcase/numbers/big_integers.vibe",
-      "sha256": "a681eedc02bb912147ba9013f813e35bfb119d2146dd26ecc3765f086a97bdb5"
+      "sha256": "bd6755b3247fbf4b97ff2c8b500146133128747ec224cc5bb698040d70344c6f"
     },
     {
       "path": "showcase/numbers/literals_and_rounding.vibe",
-      "sha256": "7912e6273a354eac42949f5e97517d79c9a4bcfab1771355ce05c1e9dac11ee4"
+      "sha256": "6f3f8357a0ad2660fe333ef9a41006201a168b537c20b8cc3f26fb522b5867fc"
     },
     {
       "path": "showcase/operations/log_digest.vibe",
-      "sha256": "5e7fa9b90e57a7cc2a01ef0ee0671b990b6d18c20996ed49b83b4d225c8a5432"
+      "sha256": "a370d0dfd07cd3b42d69df5a71146b1ed7dec1590d21916a63452543a9b6727e"
     },
     {
       "path": "showcase/operations/on_call_handoff.vibe",
-      "sha256": "4f5ba78590fa17297fdef840b1ec2c1fb4e93e3be4cb7ce7b1145bc365ca1e95"
+      "sha256": "15523b7048ea75097ee6d9f90341150c6976daf0410a7560b92196a55b55ea34"
     },
     {
       "path": "showcase/policies/refund_decision.vibe",
-      "sha256": "0be48524ed21c1f67055626d3e612ea6521f39d33da9f99d2a503d9fcf683196"
+      "sha256": "f649d7733cc02263cabc3ac45d19db6e56c9ceb369d6e6fdebd90dfd1026acf4"
     },
     {
       "path": "showcase/policies/trial_offer.vibe",
-      "sha256": "f5b278f6676b6fe67005c14109f648f23f736303b526aec4fd3f6bf25bdc808f"
+      "sha256": "5bbdb8f53426cf84b468a6de8016d7212491ef0f551cc263dcce55b42afc534f"
     },
     {
       "path": "showcase/reliability/resilient_parse.vibe",
-      "sha256": "60b19f1f56cb017b8b27a9e36d2442662924ba53f214c482b4d09562a8e8912a"
+      "sha256": "07151f755364a40b7b12ce5b908dbc8922a985a90e2a6ef462be8ae0f0359756"
     },
     {
       "path": "showcase/security/session_expiry.vibe",
-      "sha256": "c5a0e76a7daedd3ec28bc53b1eeb83d3123957863d79e01e0876ed3b6a16f1a2"
+      "sha256": "9eb0b10114b2d74a699a12ac54c10dc922d26acd04addfc1af0034a27e58e786"
     },
     {
       "path": "showcase/strings/text_toolkit.vibe",
-      "sha256": "4df4e8750090856894d0383a31d9ff3e4347b3e94bf3ad6772f17a3e9fe34c71"
+      "sha256": "d6deddafda35d49ebd06568a0cf1dfabb147038069eb174559309449f78ffe48"
     },
     {
       "path": "showcase/strings/word_arrays.vibe",
-      "sha256": "0a18f5f3b74887cfec79ad078b72e33a732c7cf080baff4e45a01831668b8554"
+      "sha256": "67fa5167359f0aba87c2b00eb1287f56e00d4d279bb88b40e9da727dbcf2881c"
     },
     {
       "path": "showcase/support/escalation_policy.vibe",
-      "sha256": "737fe0766c346b1208460e60103233b3abe539e981352c9306710b2d012ed1f6"
+      "sha256": "de9c7e192c525ccc3f9644120debda7d3447817c60f60f442d43c078b4a8c8ac"
     },
     {
       "path": "showcase/time/timestamps.vibe",
-      "sha256": "b6fa6e753a9184199088d16885b416b5dc91494919e324c3cd0dc21345fcc81e"
+      "sha256": "e72629a3a0624d246079d287a7cb4e86224b6ed62aadee7f4e0ade79b1c8da8e"
     },
     {
       "path": "showcase/workflows/approval_chain.vibe",
-      "sha256": "d29b1c3742c066ff7a3e0297ac1862fecf0729fbf413b157510d20b4b0a4f62f"
+      "sha256": "b87b01f3ab7d2a3d026412b6362c8b4ce7730bd9ce21a690f3c96cc5716e334f"
     },
     {
       "path": "showcase/workflows/release_readiness.vibe",
-      "sha256": "26240a1c84a655c735ecaeb017bb1253af0797f8a2dbb4396e565191823cec2f"
+      "sha256": "412a7828fca9f61fe37f9253c33b0399a314113bd26042a08c3c07392e6d77be"
     },
     {
       "path": "upstream/arrays/extras.vibe",
-      "sha256": "ae8779c341bea1a6eadd6bcc296879010e8a4e3652dac6f34c62d5b01c278f21"
+      "sha256": "41c74ba15aa97639ec14a61811c75b9195cce86ff41b0c9076aff68a43bc4039"
     },
     {
       "path": "upstream/background/jobs_and_events.vibe",
-      "sha256": "03863e1e27ade809db187bd606474a897b69ca1bb9ebd3832d1156415b94ffd4"
+      "sha256": "09ce6837c3b4ff6f389429035e7485e1306c700ec3e1f89f8c1a11d4568632b9"
     },
     {
       "path": "upstream/basics/functions_and_calls.vibe",
-      "sha256": "3fb0230d4ea83f93854df400992948c92cf551cf1cfed0b0e1126feaa5e94a4a"
+      "sha256": "3713d476599511f8fb20be94ddbe48a89e0bd047daa2f32913c9ebf9a1fb334f"
     },
     {
       "path": "upstream/basics/literals_and_operators.vibe",
-      "sha256": "cc093ad41699215107cd9424ee3ae1dbbd45cc295f9338cf43750ba0ee1729df"
+      "sha256": "56cb3d3c5584aa5b66ab368c2c27ad3cdc606a90d5f3f47bb8320289d993c500"
     },
     {
       "path": "upstream/basics/namespaces.vibe",
-      "sha256": "a124ce1dfd95cff50c26eae0288a7c6099b7b19b47d1d4d8662045f9ea8c8028"
+      "sha256": "a09eaf8683b92bb0319de2495fbf7577a01ba61f9f436ee4fec044133b0d0581"
     },
     {
       "path": "upstream/blocks/advanced.vibe",
-      "sha256": "2bba3ad85009473a933ccc5bda7dac80c430471a1a3351699316d48a996d25a0"
+      "sha256": "bfcf0d29294ddcefbcb8e38ddd9e48b42630bd84bac2dcc408b6d9c97d7811bd"
     },
     {
       "path": "upstream/blocks/enumerable_reports.vibe",
-      "sha256": "3a4b295a79d85223d83c16c942504d228989b76eb49b829a5cc9ad6dd5c18b41"
+      "sha256": "b58fcc6849b395dc61fd446fcaa48c59db33921e05a9125ba4e560594bb07736"
     },
     {
       "path": "upstream/blocks/transformations.vibe",
-      "sha256": "e421089a73b6b976805f1cb6bd63ef343bf8024fd3c7301c850bf6e3161a91d8"
+      "sha256": "41288791ef9af3ead7155d7b83e34a08f041558efb7613e5a99e065c11ef2ed3"
     },
     {
       "path": "upstream/blocks/yield_patterns.vibe",
-      "sha256": "55aed5ad3da34af17a436439e445052cc4a4312000bc940f6b85f6aa1b4a7721"
+      "sha256": "a6b5df63edd245c0f12bdfddee1ef6557e46d8c61337883f204256b37fc999c6"
     },
     {
       "path": "upstream/capabilities/context_access.vibe",
-      "sha256": "14562d22f884f70ea4f290cefe5f368e76a9c465172fd1af6c7b2e01613eb5ff"
+      "sha256": "52c6122293b0018d8d6119fa0e9f880d60758609ae451949677a53ace9312d62"
     },
     {
       "path": "upstream/capabilities/database_queries.vibe",
-      "sha256": "b94e82824edf396c949898b9671b57525aa02749dc029aadce7445a698340ea4"
+      "sha256": "8bc8446e6dd8d0b4aeca77c0222c89176f9f011eb4017dce339a26402686f901"
     },
     {
       "path": "upstream/capabilities/iteration.vibe",
-      "sha256": "20d88ddcffa95fbcd61283602a212e22ed3616c7907d78cd250e521cc082e7a4"
+      "sha256": "f21f6d8e87580c24b157b77c4b8029933c36573ff3c57ea037de14bc88521d1c"
     },
     {
       "path": "upstream/collections/arrays.vibe",
-      "sha256": "09c0d543dd323f4b785c31b8c44a91a31a900ee6776a3164649ab0afdaabfaef"
+      "sha256": "09610dee0aef63acbc1cf4dabddd2bcdb5893470855ca4a66046e5a0eaff7584"
     },
     {
       "path": "upstream/collections/hashes.vibe",
-      "sha256": "a3768c5ece7efc638c3bf1feee1102da5c0baddc8ad8f572e06a290777cdd808"
+      "sha256": "fca154bb47bcb1f9f1bc6f187026e6ed0f1c12867ebeea449ccaf1618a9a758a"
     },
     {
       "path": "upstream/collections/symbols.vibe",
-      "sha256": "1ced4d6d6048306113c7fe36550381e88944585929f5ee833a8fa155a92c73a2"
+      "sha256": "e674d12b599034076602bbc9cfa9c9293a483e7fa4e501f7a29a703153ebafed"
     },
     {
       "path": "upstream/control_flow/case_when.vibe",
-      "sha256": "089cf8d48cd9bd8c73b97da60e26d25971541a02c9523623b8177f22933e7f2c"
+      "sha256": "5a8e2d4db5162a5577294cef4851f14a927c145a4c0fb034b0fa43161eaea3bf"
     },
     {
       "path": "upstream/control_flow/conditionals.vibe",
-      "sha256": "0a0b79328deed139c6c981aef72b3cc00af9223d7cc282ae1ac0fbeb34849be2"
+      "sha256": "2ca80f36a78823dc9281f827b80d359c8fb98378dcb845943c8fee6ca6d7b343"
     },
     {
       "path": "upstream/control_flow/loop_control.vibe",
-      "sha256": "f995532aec0e871d9d07a1e60b7b6e786688cd093dadac4639783b1440b207c0"
+      "sha256": "60d1f46c9699c2f0c50261f6011ac98e0fcde43fe2ca7045312ee87894700ba9"
     },
     {
       "path": "upstream/control_flow/recursion.vibe",
-      "sha256": "3d07b85e6976fc85dab9eb9a1bbe5968aae702255cf2e5e98658b2a5e09a156e"
+      "sha256": "9525ac38912573b95ca8a7bdf2d9c1f279594cc0e1691673df5d77ca311addb7"
     },
     {
       "path": "upstream/control_flow/until_loop.vibe",
-      "sha256": "12b086d8df21558c131dec6c56330e2af7439e660b3124808f82fa67aaa199b7"
+      "sha256": "f7c72119163b7d21ffde176af96434104cde2c897c56a2c33d69a40765922be0"
     },
     {
       "path": "upstream/control_flow/while_loop.vibe",
-      "sha256": "208a1fde89109c021f345991edeecf6f1fd4fd93dcf5a9bc5e837034d14de09a"
+      "sha256": "7a9edccc1da4a06f9e47a694bb5d10322bb52e7095fddcae0b78e99bb1aa3d6b"
     },
     {
       "path": "upstream/durations/durations.vibe",
-      "sha256": "56e7aeaa114a009bdc2c3dd9fc3bb48e232d38df0605dc8f1c725821edb8b9bf"
+      "sha256": "e46033325ff88aa280a3aa5c6ca88f087fed8e6307c52d36b41cfbc5adbce4e3"
     },
     {
       "path": "upstream/enums/operations.vibe",
-      "sha256": "ef476ac1cf1f40bf7a53845eb639b7b0ccbe05bedb0a98b54cbbca75987cbc69"
+      "sha256": "92f931489d448a85c9a88855277b386f6917561651919618fc1fba440dfbaa70"
     },
     {
       "path": "upstream/errors/assertions.vibe",
-      "sha256": "b98645a5eabe0df724cc90f156c54a99db57bbcde3fd3404fc20617ba1a0bf78"
+      "sha256": "45f604a8cc82a578c2f9f3d4fb1cfcbdcccf0a42ac710179dd83b9e0bae6fb05"
     },
     {
       "path": "upstream/hashes/operations.vibe",
-      "sha256": "cb85bf838e33026f4602a6d8b2bf8b104644e7d4fa9c2532875824d5b6819520"
+      "sha256": "e38e488dc1fdc035bb444563787119b6bd9907849230875f38eb8b6849446e62"
     },
     {
       "path": "upstream/hashes/transformations.vibe",
-      "sha256": "04f0adb49b6905f8cd56749f3f48aa1d2817fc6e0faecdcc6c6b356c925fcb9b"
+      "sha256": "84cf00335d065c89fb0b2381dba69628ba772d87f0f4ebffbf01d9147dc87607"
     },
     {
       "path": "upstream/loops/advanced.vibe",
-      "sha256": "eebee98014842f521a61e1a8e1c16d919eba5ff3e74e6b713401d13fbe37414e"
+      "sha256": "203ca3bab55cddd6c7d14c5a341d65a51171b12792f4d6f0f6834a012524571b"
     },
     {
       "path": "upstream/loops/fizzbuzz.vibe",
-      "sha256": "39105c5151128db872dca01803f26422bd89e13cbe81823cc44b793f5580509b"
+      "sha256": "4057326e72409cd4363ef14177f17e1b58a4e9b3ac56332d22e270f82db17717"
     },
     {
       "path": "upstream/loops/iteration.vibe",
-      "sha256": "66dd508b19930af6dbbf192e65e06635e22bab4f884b0d31cb66b97f8bd35056"
+      "sha256": "6b86708051fac2eb05127c79268fc713ecc3096fae20a91f9c6f810c39cbdb84"
     },
     {
       "path": "upstream/money/operations.vibe",
-      "sha256": "cc313f34741f8486121499c3a3474646cb258bb84addc3ea8472626f7846785d"
+      "sha256": "c667da54b04046e0334997cbf64fb48ccec7c263d2523e8f526b3d74830387d7"
     },
     {
       "path": "upstream/policies/access_control.vibe",
-      "sha256": "dbca55a86ec5bf0774cbc1a5946c9df128fc9416e3bdb3d3adc47dfee7823695"
+      "sha256": "dd1ed6b34768d1caaa9d149f926e8c8b0fea424741c2ebf4306279fad363bcd0"
     },
     {
       "path": "upstream/ranges/usage.vibe",
-      "sha256": "d3a3c58b44c964572ca7ae46ba2ffb305924877c4c01e17dc5fa4904853122f5"
+      "sha256": "a7282fa8d51ca55f2536b092f288a2ff47f69387276ddbdd2d018e7aa84784c5"
     },
     {
       "path": "upstream/stdlib/core_utilities.vibe",
-      "sha256": "2440c0cf3697cd3a55e362be8c1df2b4e0dc8a74a496dc115d431b62485460c4"
+      "sha256": "e8955a1a0968fa2f8e2e3d9efcc330d2a4e319773c208b481c58b60a462df1ee"
     },
     {
       "path": "upstream/strings/operations.vibe",
-      "sha256": "8844828e7058a3de5e8d40a6c2f61ec3f548f9ee4ecb09a039c23bdb91d072c5"
+      "sha256": "efccbcce26cbf3193d759e5000606ca1209ac9903a136f10f88d5e7dea73efc9"
     },
     {
       "path": "upstream/time/duration.vibe",
-      "sha256": "ba0f4988c861600b14e001695a85cc3539a343b0cdf8e5cff3557e1dce21d5bf"
+      "sha256": "cb72de2e649f1692993f26e6a4ab251a92220b1b286d140de88a7aae22042d15"
     }
   ]
 }

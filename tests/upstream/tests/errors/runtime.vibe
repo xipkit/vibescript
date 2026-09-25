@@ -1,16 +1,16 @@
-def div_by_zero
-  1 / 0
+def div_by_zero -> int
+  1 // 0
 end
 
-def mod_by_zero
+def mod_by_zero -> int
   1 % 0
 end
 
-def array_non_integer_index
+def array_non_integer_index -> int?
   [1, 2, 3]["x"]
 end
 
-def string_non_integer_index
+def string_non_integer_index -> string?
   "hello"["x"]
 end
 

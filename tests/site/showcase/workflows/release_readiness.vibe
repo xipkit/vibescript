@@ -39,7 +39,7 @@ def publishable?(status: ReleaseStatus, launch_at: time?) -> bool
   status == ReleaseStatus::Scheduled && launch_at != nil
 end
 
-def release_report(name: string, status: ReleaseStatus, launch_at: time? = nil) -> hash
+def release_report(name: string, status: ReleaseStatus, launch_at: time? = nil) -> hash<string, bool | string>
   {
     name: name,
     status: status.name,
@@ -50,7 +50,7 @@ def release_report(name: string, status: ReleaseStatus, launch_at: time? = nil) 
   }
 end
 
-def run
+def run -> { draft: hash<string, bool | string>, scheduled: hash<string, bool | string> }
   launch_at = 2.hours.after(Time.at(1700000000))
   {
     draft: release_report("billing-v2", ReleaseStatus::Draft),

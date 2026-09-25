@@ -6,11 +6,11 @@
 # tags: popular, strings, validation, parsing
 # vibe: 0.2
 
-def digit?(char)
+def digit?(char: string) -> bool
   char >= "0" && char <= "9"
 end
 
-def numeric?(text)
+def numeric?(text: string) -> bool
   if text == ""
     return false
   end
@@ -29,7 +29,7 @@ def numeric?(text)
 
   while index < text.length
     char = text.slice(index)
-    if digit?(char)
+    if digit?(char.as(string))
       seen_digit = true
     elsif char == "." && !seen_decimal
       seen_decimal = true
@@ -42,7 +42,7 @@ def numeric?(text)
   seen_digit
 end
 
-def run
+def run -> array<{ numeric: bool, text: string }>
   [
     { text: "42", numeric: numeric?("42") },
     { text: "-17.5", numeric: numeric?("-17.5") },

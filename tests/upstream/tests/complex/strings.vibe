@@ -1,43 +1,43 @@
 # String utilities
 
-def slugify(text)
+def slugify(text: string) -> string
   text.strip.downcase.split(" ").join("-")
 end
 
-def initials(name)
+def initials(name: string) -> string
   parts = name.split(" ")
   out = ""
   for p in parts
-    out = out + p[0]
+    out = out + p[0].as(string)
   end
   out
 end
 
-def titleize(name)
+def titleize(name: string) -> string
   name.strip
 end
 
-def wrap(text, width)
+def wrap(text: string, width: int) -> array<string>
   words = text.split(" ")
   line = ""
-  lines = []
-  words.each do |w|
+  lines: array<string> = []
+  words.each { |w|
     if line == ""
       line = w
-    elsif (line.size + 1 + w.size) <= width
+    elsif (line.length + 1 + w.length) <= width
       line = line + " " + w
     else
       lines = lines + [line]
       line = w
     end
-  end
+  }
   if line != ""
     lines = lines + [line]
   end
   lines
 end
 
-def run
+def run -> { initials: string, slug: string, title: string, wrapped: array<string> }
   {
     slug: slugify(" Hello World "),
     initials: initials("Ada Lovelace"),

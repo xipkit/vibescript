@@ -6,17 +6,17 @@
 # tags: popular, math, loops
 # vibe: 0.2
 
-def digit_sum(n)
+def digit_sum(n: int) -> int
   total = 0
   remaining = n
   while remaining > 0
     total = total + (remaining % 10)
-    remaining = remaining / 10
+    remaining = remaining // 10
   end
   total
 end
 
-def digital_root(n)
+def digital_root(n: int) -> { persistence: int, root: int }
   persistence = 0
   value = n
   while value >= 10
@@ -26,16 +26,16 @@ def digital_root(n)
   { root: value, persistence: persistence }
 end
 
-def run
+def run -> array<{ number: int, persistence: int, root: int }>
   numbers = [627615, 39, 999999999, 0, 10, 493193]
-  results = []
+  results: array<{ number: int, persistence: int, root: int }> = []
   i = 0
-  while i < numbers.size
-    dr = digital_root(numbers[i])
+  while i < numbers.length
+    dr = digital_root(numbers.fetch(i))
     results = results.push({
-      number: numbers[i],
-      root: dr[:root],
-      persistence: dr[:persistence]
+      number: numbers.fetch(i),
+      root: dr["root"],
+      persistence: dr["persistence"]
     })
     i = i + 1
   end

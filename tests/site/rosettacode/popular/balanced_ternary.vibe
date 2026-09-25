@@ -6,7 +6,7 @@
 # tags: popular, math, numerals, conversion
 # vibe: 0.2
 
-def flip_digits(text)
+def flip_digits(text: string) -> string
   output = ""
   index = 0
 
@@ -25,7 +25,7 @@ def flip_digits(text)
   output
 end
 
-def positive_balanced_ternary(value)
+def positive_balanced_ternary(value: int) -> string
   if value == 0
     return "0"
   end
@@ -35,7 +35,7 @@ def positive_balanced_ternary(value)
 
   while current > 0
     remainder = current % 3
-    current = current / 3
+    current = current // 3
 
     if remainder == 0
       digits = "0" + digits
@@ -50,7 +50,7 @@ def positive_balanced_ternary(value)
   digits
 end
 
-def balanced_ternary(value)
+def balanced_ternary(value: int) -> string
   if value < 0
     return flip_digits(positive_balanced_ternary(-value))
   end
@@ -58,7 +58,7 @@ def balanced_ternary(value)
   positive_balanced_ternary(value)
 end
 
-def run
+def run -> { negative_ten: string, positive_forty_two: string, positive_ten: string, zero: string }
   {
     zero: balanced_ternary(0),
     positive_ten: balanced_ternary(10),

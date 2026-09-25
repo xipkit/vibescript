@@ -6,17 +6,17 @@
 # tags: popular, math, search, integers
 # vibe: 0.2
 
-def isqrt(value)
+def isqrt(value: int) -> int
   if value < 2
     return value
   end
 
   low = 1
-  high = (value / 2) + 1
+  high = (value // 2) + 1
   answer = 1
 
   while low <= high
-    middle = (low + high) / 2
+    middle = (low + high) // 2
     square = middle * middle
 
     if square == value
@@ -32,13 +32,13 @@ def isqrt(value)
   answer
 end
 
-def run
+def run -> array<{ isqrt: int, value: int }>
   values = [0, 1, 2, 3, 4, 10, 27, 81, 12345]
-  rows = []
+  rows: array<{ isqrt: int, value: int }> = []
   index = 0
 
   while index < values.length
-    value = values[index]
+    value = values.fetch(index)
     rows = rows.push({
       value: value,
       isqrt: isqrt(value)

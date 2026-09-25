@@ -1,5 +1,5 @@
 # Grüße.
-def grüße(名前)
+def grüße(名前: string) -> string
   "😀" + 名前
 end
 

@@ -6,15 +6,15 @@
 # tags: popular, math, calculus, approximation
 # vibe: 0.2
 
-def square(value)
+def square(value: float) -> float
   value * value
 end
 
-def line(value)
+def line(value: float) -> float
   (3 * value) + 2
 end
 
-def trapezoidal_square(start_value, finish_value, steps)
+def trapezoidal_square(start_value: float, finish_value: float, steps: int) -> float
   width = (finish_value - start_value) / steps
   total = (square(start_value) + square(finish_value)) / 2
   step = 1
@@ -27,7 +27,7 @@ def trapezoidal_square(start_value, finish_value, steps)
   total * width
 end
 
-def trapezoidal_line(start_value, finish_value, steps)
+def trapezoidal_line(start_value: float, finish_value: float, steps: int) -> float
   width = (finish_value - start_value) / steps
   total = (line(start_value) + line(finish_value)) / 2
   step = 1
@@ -40,7 +40,7 @@ def trapezoidal_line(start_value, finish_value, steps)
   total * width
 end
 
-def run
+def run -> { integral_of_three_x_plus_two: float, integral_of_x_squared: float }
   {
     integral_of_x_squared: trapezoidal_square(0.0, 1.0, 50),
     integral_of_three_x_plus_two: trapezoidal_line(0.0, 5.0, 50)

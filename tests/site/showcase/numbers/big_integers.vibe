@@ -6,24 +6,24 @@
 # tags: numbers, bignum, math
 # vibe: 0.4
 
-def factorial(n)
-  (1..n).to_a.reduce(:*)
+def factorial(n: int) -> int
+  (1..n).to_a.reduce(1) { |product, x| product * x }
 end
 
-def fibonacci(count)
+def fibonacci(count: int) -> int
   previous = 0
   current = 1
-  count.times do
+  count.times {
     previous, current = current, previous + current
-  end
+  }
   previous
 end
 
-def exact_json_round_trip?(value)
+def exact_json_round_trip?(value: int) -> bool
   JSON.parse(JSON.stringify(value)) == value
 end
 
-def run
+def run -> { factorial_50: int, factorial_50_digits: int, fibonacci_300: int, json_stays_exact: bool, still_an_int: bool, two_to_the_256: int }
   huge = factorial(50)
 
   {

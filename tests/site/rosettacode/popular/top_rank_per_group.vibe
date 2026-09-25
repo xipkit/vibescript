@@ -6,7 +6,7 @@
 # tags: popular, arrays, ranking, hashes
 # vibe: 0.2
 
-def rows
+def rows -> array<{ group: string, name: string, score: int }>
   [
     { group: "blue", name: "Ava", score: 92 },
     { group: "blue", name: "Ben", score: 88 },
@@ -17,25 +17,25 @@ def rows
   ]
 end
 
-def better_rank?(candidate, current)
+def better_rank?(candidate: { group: string, name: string, score: int }, current: { group: string, name: string, score: int }?) -> bool
   if current == nil
     true
-  elsif candidate[:score] > current[:score]
+  elsif candidate["score"] > current["score"]
     true
-  elsif candidate[:score] < current[:score]
+  elsif candidate["score"] < current["score"]
     false
   else
-    candidate[:name] < current[:name]
+    candidate["name"] < current["name"]
   end
 end
 
-def top_rank_per_group(rows)
-  best = {}
+def top_rank_per_group(rows: array<{ group: string, name: string, score: int }>) -> array<{ group: string, name: string, score: int }>
+  best: hash<string, { group: string, name: string, score: int }> = {}
   index = 0
 
   while index < rows.length
-    row = rows[index]
-    key = row[:group]
+    row = rows.fetch(index)
+    key = row["group"]
     if better_rank?(row, best[key])
       best[key] = row
     end
@@ -43,16 +43,16 @@ def top_rank_per_group(rows)
   end
 
   groups = ["blue", "green", "red"]
-  output = []
+  output: array<{ group: string, name: string, score: int }> = []
   index = 0
   while index < groups.length
-    output = output.push(best[groups[index]])
+    output = output.push(best.fetch(groups.fetch(index)))
     index = index + 1
   end
 
   output
 end
 
-def run
+def run -> array<{ group: string, name: string, score: int }>
   top_rank_per_group(rows)
 end

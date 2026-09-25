@@ -1,16 +1,16 @@
 class Counter
-  @@instances = 0
+  @@instances: int = 0
 
   def initialize
     @@instances = @@instances + 1
   end
 
-  def self.instances
+  def self.instances -> int
     @@instances
   end
 end
 
-def run
+def run -> { after: int, before: int }
   before = Counter.instances
   Counter.new
   Counter.new

@@ -6,41 +6,41 @@
 # tags: popular, math, simulation
 # vibe: 0.2
 
-def josephus(n, k)
-  circle = []
+def josephus(n: int, k: int) -> { elimination_order: array<int>, survivor: int }
+  circle: array<int> = []
   i = 0
   while i < n
     circle = circle.push(i)
     i = i + 1
   end
 
-  order = []
+  order: array<int> = []
   index = 0
 
-  while circle.size > 0
-    index = (index + k - 1) % circle.size
-    removed = circle[index]
+  while circle.length > 0
+    index = (index + k - 1) % circle.length
+    removed = circle.fetch(index)
     order = order.push(removed)
 
-    new_circle = []
+    new_circle: array<int> = []
     j = 0
-    while j < circle.size
+    while j < circle.length
       if j != index
-        new_circle = new_circle.push(circle[j])
+        new_circle = new_circle.push(circle.fetch(j))
       end
       j = j + 1
     end
     circle = new_circle
 
-    if index >= circle.size
+    if index >= circle.length
       index = 0
     end
   end
 
-  { survivor: order[order.size - 1], elimination_order: order }
+  { survivor: order.fetch(order.length - 1), elimination_order: order }
 end
 
-def run
+def run -> { classic: { elimination_order: array<int>, survivor: int }, small: { elimination_order: array<int>, survivor: int } }
   {
     classic: josephus(41, 3),
     small: josephus(5, 2)

@@ -1,20 +1,20 @@
 # vibe: 1.0
 
-def greet(name)
+def greet(name: string) -> string
   "hello " + name
 end
 
-def decorated_greeting(name)
+def decorated_greeting(name: string) -> string
   message = greet(name)
   "[" + message + "]"
 end
 
-def sum_three(a, b, c)
+def sum_three(a: int, b: int, c: int) -> int
   add_two = a + b
   add_two + c
 end
 
-def max_value(a, b)
+def max_value(a: int, b: int) -> int
   if a > b
     a
   else
@@ -22,7 +22,7 @@ def max_value(a, b)
   end
 end
 
-def run
+def run -> { decorated: string, greet: string, max: int, sum: int }
   {
     greet: greet("vibescript"),
     decorated: decorated_greeting("vibescript"),

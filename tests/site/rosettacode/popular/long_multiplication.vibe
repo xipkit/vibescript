@@ -6,11 +6,11 @@
 # tags: popular, math, formatting, digits
 # vibe: 0.2
 
-def digit_value(char)
-  "0123456789".index(char)
+def digit_value(char: string) -> int
+  "0123456789".index(char).as(int)
 end
 
-def power_of_ten(exponent)
+def power_of_ten(exponent: int) -> int
   value = 1
   count = 0
 
@@ -22,14 +22,14 @@ def power_of_ten(exponent)
   value
 end
 
-def partial_products(multiplicand, multiplier)
-  digits = "" + multiplier
-  products = []
+def partial_products(multiplicand: int, multiplier: int) -> array<int>
+  digits = "" + multiplier.to_s
+  products: array<int> = []
   shift = 0
   index = digits.length - 1
 
   while index >= 0
-    products = products.push(multiplicand * digit_value(digits.slice(index)) * power_of_ten(shift))
+    products = products.push(multiplicand * digit_value(digits.slice(index).as(string)) * power_of_ten(shift))
     shift = shift + 1
     index = index - 1
   end
@@ -37,7 +37,7 @@ def partial_products(multiplicand, multiplier)
   products
 end
 
-def run
+def run -> { multiplicand: int, multiplier: int, partials: array<int>, product: int }
   multiplicand = 123
   multiplier = 45
   {

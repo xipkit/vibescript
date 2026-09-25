@@ -1,96 +1,96 @@
 # vibe: 1.0
 
-def first_two(values)
+def first_two(values: array<int>) -> array<int>
   values.first(2)
 end
 
-def last_three(values)
+def last_three(values: array<int>) -> array<int>
   values.last(3)
 end
 
-def numeric_sum(values)
+def numeric_sum(values: array<int>) -> int
   values.sum
 end
 
-def double_sum(values)
-  values.reduce(0) do |total, value|
+def double_sum(values: array<int>) -> int
+  values.reduce(0) { |total, value|
     total + (value * 2)
-  end
+  }
 end
 
-def push_and_pop(values, extra)
+def push_and_pop(values: array<int>, extra: int) -> { array: array<int>, popped: int }
   values.push(extra)
   popped = values.pop
   {
     array: values,
-    popped: popped
+    popped: popped.as(int)
   }
 end
 
-def uniq_values(values)
+def uniq_values(values: array<int>) -> array<int>
   values.uniq
 end
 
-def concat_values(first, second)
+def concat_values(first: array<int>, second: array<int>) -> array<int>
   first + second
 end
 
-def subtract_values(first, second)
+def subtract_values(first: array<int>, second: array<int>) -> array<int>
   first - second
 end
 
-def shovel_value(values, extra)
+def shovel_value(values: array<int>, extra: int) -> array<int>
   values << extra
 end
 
-def accumulate_with_shovel(values)
-  result = []
+def accumulate_with_shovel(values: array<int>) -> array<int>
+  result: array<int> = []
   for value in values
     result = result << value
   end
   result
 end
 
-def intersect_values(first, second)
+def intersect_values(first: array<int>, second: array<int>) -> array<int>
   first & second
 end
 
-def include_value(values, value)
+def include_value(values: array<int>, value: int) -> bool
   values.include?(value)
 end
 
-def first_match(values, threshold)
-  values.find do |value|
+def first_match(values: array<int>, threshold: int) -> int
+  values.find { |value|
     value > threshold
-  end
+  }.as(int)
 end
 
-def first_match_index(values, threshold)
-  values.find_index do |value|
+def first_match_index(values: array<int>, threshold: int) -> int
+  values.index { |value|
     value > threshold
-  end
+  }.as(int)
 end
 
-def count_value(values, value)
+def count_value(values: array<int>, value: int) -> int
   values.count(value)
 end
 
-def count_large(values, threshold)
-  values.count do |value|
+def count_large(values: array<int>, threshold: int) -> int
+  values.count { |value|
     value > threshold
-  end
+  }
 end
 
-def predicate_snapshot(values)
-  any_large = values.any? do |value|
+def predicate_snapshot(values: array<int>) -> { all_positive: bool, any_large: bool, none_negative: bool }
+  any_large = values.any? { |value|
     value > 10
-  end
-  all_positive = values.all? do |value|
+  }
+  all_positive = values.all? { |value|
     value > 0
-  end
-  none_negative = values.none? do |value|
+  }
+  none_negative = values.none? { |value|
     value < 0
-  end
+  }
 
   {
     any_large: any_large,
@@ -99,53 +99,53 @@ def predicate_snapshot(values)
   }
 end
 
-def sort_values(values)
+def sort_values(values: array<int>) -> array<int>
   values.sort
 end
 
-def sort_desc(values)
-  values.sort do |a, b|
+def sort_desc(values: array<int>) -> array<int>
+  values.sort { |a, b|
     b - a
-  end
+  }
 end
 
-def sort_words_by_length(words)
-  words.sort_by do |word|
+def sort_words_by_length(words: array<string>) -> array<string>
+  words.sort_by { |word|
     word.length
-  end
+  }
 end
 
-def partition_even(values)
-  values.partition do |value|
+def partition_even(values: array<int>) -> array<array<int>>
+  values.partition { |value|
     value % 2 == 0
-  end
+  }
 end
 
-def group_by_status(players)
-  players.group_by do |player|
-    player[:status]
-  end
+def group_by_status(players: array<{ name: string, status: string }>) -> hash<string, array<{ name: string, status: string }>>
+  players.group_by { |player|
+    player["status"]
+  }
 end
 
-def tally_statuses(statuses)
+def tally_statuses(statuses: array<string>) -> hash<string, int>
   statuses.tally
 end
 
-def chunk_values(values, size)
+def chunk_values(values: array<int>, size: int) -> array<array<int>>
   values.chunk(size)
 end
 
-def window_values(values, size)
+def window_values(values: array<int>, size: int) -> array<array<int>>
   values.window(size)
 end
 
-def group_by_stable_status(players)
-  players.group_by_stable do |player|
-    player[:status]
-  end
+def group_by_stable_status(players: array<{ name: string, status: string }>) -> array<array<string | array<{ name: string, status: string }>>>
+  players.group_by_stable { |player|
+    player["status"]
+  }
 end
 
-def run
+def run -> hash<string, array<array<array<{ name: string, status: string }> | int | string> | int | string> | bool | hash<string, array<int | { name: string, status: string }> | bool | int> | int>
   values = [2, 4, 4, 7, 12, 15]
   words = ["pear", "kiwi", "banana", "fig"]
   players = [

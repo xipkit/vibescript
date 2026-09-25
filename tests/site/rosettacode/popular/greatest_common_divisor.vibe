@@ -6,7 +6,7 @@
 # tags: popular, math, euclid, loops
 # vibe: 0.2
 
-def gcd(a, b)
+def gcd(a: int, b: int) -> int
   left = a.abs
   right = b.abs
 
@@ -19,7 +19,7 @@ def gcd(a, b)
   left
 end
 
-def run
+def run -> { eight_forty_five: int, large_pair: int, negative_six_nine: int, nine_six: int, six_nine: int, zero_negative_ten: int, zero_ten: int, zero_zero: int }
   {
     zero_zero: gcd(0, 0),
     zero_ten: gcd(0, 10),

@@ -6,24 +6,24 @@
 # tags: popular, math, sequences, iteration
 # vibe: 0.2
 
-def trailing_sum(values, count)
+def trailing_sum(values: array<int>, count: int) -> int
   total = 0
   index = values.length - count
 
   while index < values.length
-    total = total + values[index]
+    total = total + values.fetch(index)
     index = index + 1
   end
 
   total
 end
 
-def n_step_sequence(seed, count)
-  values = []
+def n_step_sequence(seed: array<int>, count: int) -> array<int>
+  values: array<int> = []
   index = 0
 
   while index < seed.length && values.length < count
-    values = values.push(seed[index])
+    values = values.push(seed.fetch(index))
     index = index + 1
   end
 
@@ -34,7 +34,7 @@ def n_step_sequence(seed, count)
   values
 end
 
-def run
+def run -> { tetranacci: array<int>, tribonacci: array<int> }
   {
     tribonacci: n_step_sequence([0, 0, 1], 12),
     tetranacci: n_step_sequence([0, 0, 0, 1], 12)

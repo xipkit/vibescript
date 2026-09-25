@@ -6,11 +6,11 @@
 # tags: popular, matrices, math, algorithms
 # vibe: 0.2
 
-def blank_square(size)
-  rows = []
+def blank_square(size: int) -> array<array<int>>
+  rows: array<array<int>> = []
   row = 0
   while row < size
-    current = []
+    current: array<int> = []
     column = 0
     while column < size
       current = current.push(0)
@@ -22,17 +22,17 @@ def blank_square(size)
   rows
 end
 
-def set_cell(square, row, column, value)
-  current = square[row]
+def set_cell(square: array<array<int>>, row: int, column: int, value: int) -> array<array<int>>
+  current = square.fetch(row)
   current[column] = value
   square[row] = current
   square
 end
 
-def magic_square(size)
+def magic_square(size: int) -> array<array<int>>
   square = blank_square(size)
   row = 0
-  column = size / 2
+  column = size // 2
   value = 1
 
   while value <= size * size
@@ -47,7 +47,7 @@ def magic_square(size)
       next_column = 0
     end
 
-    if square[next_row][next_column] != 0
+    if square.fetch(next_row)[next_column] != 0
       row = row + 1
       if row >= size
         row = 0
@@ -63,6 +63,6 @@ def magic_square(size)
   square
 end
 
-def run
+def run -> array<array<int>>
   magic_square(3)
 end

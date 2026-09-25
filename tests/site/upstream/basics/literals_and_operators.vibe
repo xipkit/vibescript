@@ -1,18 +1,18 @@
 # vibe: 1.0
 
-def add_numbers(a, b)
+def add_numbers(a: int, b: int) -> int
   a + b
 end
 
-def combine_strings(first, second)
+def combine_strings(first: string, second: string) -> string
   first + " " + second
 end
 
-def negate(value)
+def negate(value: int) -> int
   -value
 end
 
-def truth_table(flag)
+def truth_table(flag: bool) -> bool
   if flag
     true
   else
@@ -20,7 +20,7 @@ def truth_table(flag)
   end
 end
 
-def mix_literals
+def mix_literals -> { answer: int, flags: array<bool?>, quote: string, ratio: float }
   {
     answer: 42,
     ratio: 3.75,
@@ -29,7 +29,7 @@ def mix_literals
   }
 end
 
-def run
+def run -> { add: int, combine: string, literals: { answer: int, flags: array<bool?>, quote: string, ratio: float }, negate: int, truth: bool }
   {
     add: add_numbers(10, 25),
     combine: combine_strings("hello", "world"),

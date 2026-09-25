@@ -6,16 +6,16 @@
 # tags: popular, arrays, basics, collections
 # vibe: 0.4
 
-def run
+def run -> { count: int, expanded: array<int>, first: int, last: int, original: array<int>, total: int }
   values = [3, 1, 4]
   expanded = values.dup.push(1, 5, 9)
 
   {
     original: values,
     expanded: expanded,
-    first: expanded.first,
-    last: expanded.last,
-    count: expanded.size,
+    first: expanded.fetch(0),
+    last: expanded.fetch(-1),
+    count: expanded.length,
     total: expanded.sum
   }
 end

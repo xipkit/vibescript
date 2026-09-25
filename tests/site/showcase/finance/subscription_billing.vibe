@@ -38,7 +38,7 @@ def seats_total(plan: PlanTier, seats: int) -> money
   money_cents(seat_fee_cents(plan) * seats, "USD")
 end
 
-def invoice(plan: PlanTier, seats: int, discount: money) -> hash
+def invoice(plan: PlanTier, seats: int, discount: money) -> hash<string, int | money | string>
   base = base_fee(plan)
   seats_fee = seats_total(plan, seats)
   subtotal = base + seats_fee
@@ -55,7 +55,7 @@ def invoice(plan: PlanTier, seats: int, discount: money) -> hash
   }
 end
 
-def run
+def run -> { growth: hash<string, int | money | string>, scale: hash<string, int | money | string> }
   {
     growth: invoice(PlanTier::Growth, 4, money("10.00 USD")),
     scale: invoice(PlanTier::Scale, 12, money("0.00 USD"))

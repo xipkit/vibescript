@@ -1,9 +1,9 @@
-def run
+def run -> { empty_lower: string, empty_size: int, empty_split: array<string>, empty_trim: string, empty_upper: string, first_char: string?, last_char: string?, lower: string, split_dash: array<string>, split_space: array<string>, trimmed: string, upper: string }
   empty = ""
   single = "x"
   multi = "hello world"
 
-  empty_size = empty.size
+  empty_size = empty.length
   empty_upper = empty.upcase
   empty_lower = empty.downcase
   empty_trim = empty.strip

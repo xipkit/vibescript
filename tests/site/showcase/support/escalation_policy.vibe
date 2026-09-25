@@ -32,7 +32,7 @@ def escalation_target(severity: TicketSeverity) -> string
   end
 end
 
-def ticket_sla(ticket_id: string, severity: TicketSeverity, opened_at: time) -> hash
+def ticket_sla(ticket_id: string, severity: TicketSeverity, opened_at: time) -> hash<string, string>
   window = response_window(severity)
   target = escalation_target(severity)
 
@@ -46,7 +46,7 @@ def ticket_sla(ticket_id: string, severity: TicketSeverity, opened_at: time) -> 
   }
 end
 
-def run
+def run -> { critical: hash<string, string>, high: hash<string, string> }
   opened_at = Time.at(1700200000)
 
   {

@@ -6,7 +6,7 @@
 # tags: popular, strings, basics, comparison
 # vibe: 0.2
 
-def compare_strings(left, right)
+def compare_strings(left: string, right: string) -> int
   if left < right
     -1
   elsif left > right
@@ -16,7 +16,7 @@ def compare_strings(left, right)
   end
 end
 
-def run
+def run -> array<{ left: string, result: int, right: string }>
   [
     { left: "alpha", right: "beta", result: compare_strings("alpha", "beta") },
     { left: "gamma", right: "gamma", result: compare_strings("gamma", "gamma") },

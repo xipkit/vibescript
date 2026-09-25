@@ -1,37 +1,38 @@
 class Counter
-  def initialize(start)
+  @count: int
+  def initialize(start: int)
     @count = start
   end
 
-  def value
+  def value -> int
     @count
   end
 
-  def increment
+  def increment -> int
     @count = @count + 1
   end
 
-  private def secret
+  private def secret -> int
     42
   end
 end
 
 class ReadOnly
-  getter name
+  getter name: string
 
-  def initialize(name)
+  def initialize(name: string)
     @name = name
   end
 end
 
 class WriteOnly
-  setter value
+  setter value: int
 
   def initialize
     @value = 0
   end
 
-  def get_internal
+  def get_internal -> int
     @value
   end
 end
@@ -41,7 +42,7 @@ def undefined_method
   c.nonexistent
 end
 
-def private_method_external
+def private_method_external -> int
   c = Counter.new(0)
   c.secret
 end
@@ -51,11 +52,11 @@ def write_to_readonly
   r.name = "changed"
 end
 
-def wrong_init_args
+def wrong_init_args -> Counter
   Counter.new
 end
 
-def run
+def run -> { counter: int, readonly: string, writeonly: int }
   c = Counter.new(5)
   c.increment
   c.increment

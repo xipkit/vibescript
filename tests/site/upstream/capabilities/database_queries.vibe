@@ -1,21 +1,21 @@
 # vibe: 1.0
 # uses: db
 
-def load_player(id)
+def load_player(id: string) -> any
   db.find("Player", id)
 end
 
-def top_players(limit)
+def top_players(limit: int) -> any
   db.query("Player", order: { raised: :desc }, limit: limit)
 end
 
-def increment_total(id, amount)
-  player = db.find("Player", id)
-  updated = player[:raised] + amount
+def increment_total(id: string, amount: money) -> any
+  player = db.find("Player", id).as(hash<string, any>)
+  updated = player["raised"].as(money) + amount
   db.update("Player", id, { raised: updated })
 end
 
-def run
+def run -> { functions: array<string>, note: string }
   {
     note: "This example requires the db capability which is injected by the host application.",
     functions: ["load_player", "top_players", "increment_total"]

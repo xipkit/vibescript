@@ -1,6 +1,6 @@
 # vibe: 1.0
 
-def label(score)
+def label(score: int) -> string
   case score
   when 100
     "perfect"
@@ -11,6 +11,6 @@ def label(score)
   end
 end
 
-def run
+def run -> array<string>
   [label(100), label(95), label(70)]
 end

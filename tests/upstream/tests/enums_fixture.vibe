@@ -19,18 +19,18 @@ def publish(status: Status) -> Status
   status
 end
 
-def block_names(values) -> array
-  values.map do |status: Status|
+def block_names(values: array<Status>) -> array<string>
+  values.map { |status: Status|
     status.name
-  end
+  }
 end
 
-def facts -> hash
+def facts -> hash<string, bool | string | symbol>
   draft = Status::Draft
 
   {
     same: draft == Status::Draft,
-    symbol_same: draft == :draft,
+    symbol_same: draft == draft.symbol,
     cross_enum_same: draft == ReviewState::Draft,
     name: draft.name,
     symbol: draft.symbol,
@@ -39,11 +39,11 @@ def facts -> hash
   }
 end
 
-def run
+def run -> { facts: hash<string, bool | string | symbol>, member_name: string, names: array<string>, published_name: string }
   {
-    member_name: member().name,
+    member_name: member.name,
     published_name: publish(:published).name,
     names: block_names([:draft, Status::Published]),
-    facts: facts()
+    facts: facts
   }
 end

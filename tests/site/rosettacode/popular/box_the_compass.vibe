@@ -6,7 +6,7 @@
 # tags: popular, navigation, lookup, geometry
 # vibe: 0.2
 
-def compass_points
+def compass_points -> array<string>
   [
     "North",
     "North by east",
@@ -43,7 +43,7 @@ def compass_points
   ]
 end
 
-def compass_boundaries
+def compass_boundaries -> array<float>
   [
     5.625,
     16.875,
@@ -80,7 +80,7 @@ def compass_boundaries
   ]
 end
 
-def normalize_heading(degrees)
+def normalize_heading(degrees: float) -> float
   while degrees < 0.0
     degrees = degrees + 360.0
   end
@@ -90,21 +90,21 @@ def normalize_heading(degrees)
   degrees
 end
 
-def heading_to_point(degrees)
+def heading_to_point(degrees: float) -> string
   heading = normalize_heading(degrees)
   boundaries = compass_boundaries
   points = compass_points
   index = 0
-  while index < boundaries.size
-    if heading < boundaries[index]
-      return points[index]
+  while index < boundaries.length
+    if heading < boundaries.fetch(index)
+      return points.fetch(index)
     end
     index = index + 1
   end
-  points[0]
+  points.fetch(0)
 end
 
-def sample_headings
+def sample_headings -> array<float>
   [
     0.0,
     16.87,
@@ -142,21 +142,21 @@ def sample_headings
   ]
 end
 
-def build_rows
-  rows = []
+def build_rows -> array<{ degrees: float, index: int, point: string }>
+  rows: array<{ degrees: float, index: int, point: string }> = []
   headings = sample_headings
   index = 0
-  while index < headings.size
+  while index < headings.length
     rows = rows + [{
       index: (index % 32) + 1,
-      point: heading_to_point(headings[index]),
-      degrees: headings[index]
+      point: heading_to_point(headings.fetch(index)),
+      degrees: headings.fetch(index)
     }]
     index = index + 1
   end
   rows
 end
 
-def run
+def run -> array<{ degrees: float, index: int, point: string }>
   build_rows
 end

@@ -6,7 +6,7 @@
 # tags: popular, strings, crypto, substitution
 # vibe: 0.2
 
-def rotate_index(index, shift)
+def rotate_index(index: int, shift: int) -> int
   rotated = index + shift
 
   while rotated >= 26
@@ -20,36 +20,36 @@ def rotate_index(index, shift)
   rotated
 end
 
-def rotate_char(char, shift)
+def rotate_char(char: string, shift: int) -> string
   upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
   lower = "abcdefghijklmnopqrstuvwxyz"
 
   upper_index = upper.index(char)
   if upper_index != nil
-    return upper.slice(rotate_index(upper_index, shift))
+    return upper.slice(rotate_index(upper_index, shift)).as(string)
   end
 
   lower_index = lower.index(char)
   if lower_index != nil
-    return lower.slice(rotate_index(lower_index, shift))
+    return lower.slice(rotate_index(lower_index, shift)).as(string)
   end
 
   char
 end
 
-def rot13(text)
+def rot13(text: string) -> string
   output = ""
   index = 0
 
   while index < text.length
-    output = output + rotate_char(text.slice(index), 13)
+    output = output + rotate_char(text.slice(index).as(string), 13)
     index = index + 1
   end
 
   output
 end
 
-def run
+def run -> { decoded: string, encoded: string, plain: string }
   plain = "Vibescript keeps Rosetta examples runnable."
   encoded = rot13(plain)
   {

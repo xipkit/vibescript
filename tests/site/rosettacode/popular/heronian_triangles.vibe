@@ -6,17 +6,17 @@
 # tags: popular, geometry, search, triangles
 # vibe: 0.4
 
-def isqrt(value)
+def isqrt(value: int) -> int
   if value < 2
     return value
   end
 
   low = 1
-  high = (value / 2) + 1
+  high = (value // 2) + 1
   answer = 1
 
   while low <= high
-    middle = (low + high) / 2
+    middle = (low + high) // 2
     square = middle * middle
 
     if square == value
@@ -32,8 +32,8 @@ def isqrt(value)
   answer
 end
 
-def heronian_triangles(limit, count)
-  values = []
+def heronian_triangles(limit: int, count: int) -> array<{ area: int, sides: array<int> }>
+  values: array<{ area: int, sides: array<int> }> = []
   a = 1
 
   while a <= limit && values.length < count
@@ -46,7 +46,7 @@ def heronian_triangles(limit, count)
           if area_term > 0
             root = isqrt(area_term)
             if root * root == area_term && root % 4 == 0
-              values << { sides: [a, b, c], area: root / 4 }
+              values << { sides: [a, b, c], area: root // 4 }
             end
           end
         end
@@ -60,14 +60,14 @@ def heronian_triangles(limit, count)
   values
 end
 
-def heronian_area(a, b, c)
+def heronian_area(a: int, b: int, c: int) -> int
   area_term = (a + b + c) * (-a + b + c) * (a - b + c) * (a + b - c)
   root = isqrt(area_term)
-  root / 4
+  root // 4
 end
 
-def run
-  [[3, 4, 5], [5, 5, 6], [5, 12, 13], [8, 15, 17]].map do |sides|
-    { sides:, area: heronian_area(sides[0], sides[1], sides[2]) }
-  end
+def run -> array<{ area: int, sides: array<int> }>
+  [[3, 4, 5], [5, 5, 6], [5, 12, 13], [8, 15, 17]].map { |sides|
+    { sides:, area: heronian_area(sides.fetch(0), sides.fetch(1), sides.fetch(2)) }
+  }
 end

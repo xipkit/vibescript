@@ -22,7 +22,7 @@ def trial_length(kind: AccountKind) -> duration
   end
 end
 
-def trial_offer(account_id: string, kind: AccountKind, created_at: time) -> hash
+def trial_offer(account_id: string, kind: AccountKind, created_at: time) -> hash<string, string>
   length = trial_length(kind)
 
   {
@@ -34,7 +34,7 @@ def trial_offer(account_id: string, kind: AccountKind, created_at: time) -> hash
   }
 end
 
-def run
+def run -> { enterprise: hash<string, string>, personal: hash<string, string> }
   created_at = Time.at(1700800000)
 
   {

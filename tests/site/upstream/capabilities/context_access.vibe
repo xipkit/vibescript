@@ -1,15 +1,15 @@
 # vibe: 1.0
 # uses: ctx
 
-def current_user_id
+def current_user_id -> any
   ctx.user.id
 end
 
-def coach?
+def coach? -> bool
   ctx.user.role == "coach"
 end
 
-def run
+def run -> { functions: array<string>, note: string }
   {
     note: "This example requires the ctx capability which is injected by the host application.",
     functions: ["current_user_id", "coach?"]

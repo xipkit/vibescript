@@ -1,6 +1,6 @@
 # vibe: 1.0
 
-def factorial(n)
+def factorial(n: int) -> int
   if n <= 1
     1
   else
@@ -8,7 +8,7 @@ def factorial(n)
   end
 end
 
-def fibonacci(n)
+def fibonacci(n: int) -> int
   if n <= 1
     n
   else

@@ -1,29 +1,29 @@
 # vibe: 1.0
 
-def head(values)
-  values[0]
+def head(values: array<int>) -> int
+  values.fetch(0)
 end
 
-def tail(values)
-  values[1]
+def tail(values: array<int>) -> int
+  values.fetch(1)
 end
 
-def build_matrix(x, y)
+def build_matrix(x: int, y: int) -> array<array<int>>
   [[x, y], [y, x]]
 end
 
-def replace_first(values, value)
+def replace_first(values: array<int>, value: int) -> array<int>
   values[0] = value
   values
 end
 
-def update_without_aliasing(values, value)
+def update_without_aliasing(values: array<int>, value: int) -> { original: array<int>, updated: array<int> }
   original = values
   values[0] = value
   { updated: values, original: original }
 end
 
-def run
+def run -> { head: int, matrix: array<array<int>>, replaced: array<int>, tail: int }
   {
     head: head([10, 20, 30]),
     tail: tail([10, 20, 30]),

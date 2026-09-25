@@ -6,19 +6,19 @@
 # tags: popular, math, search, digits
 # vibe: 0.2
 
-def digit_sum(value)
+def digit_sum(value: int) -> int
   total = 0
   current = value
 
   while current > 0
     total = total + (current % 10)
-    current = current / 10
+    current = current // 10
   end
 
   total
 end
 
-def minimum_multiple(m)
+def minimum_multiple(m: int) -> int
   value = m
 
   while digit_sum(value) != m
@@ -28,7 +28,7 @@ def minimum_multiple(m)
   value
 end
 
-def run
+def run -> array<{ m: int, value: int }>
   [
     { m: 10, value: minimum_multiple(10) },
     { m: 12, value: minimum_multiple(12) },

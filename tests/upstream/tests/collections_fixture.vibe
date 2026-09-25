@@ -1,17 +1,17 @@
 # Collections, sizing, and indexing fixture
 
-def first_initial(name)
-  name.split(" ")[0][0]
+def first_initial(name: string) -> string
+  name.split(" ").fetch(0)[0].as(string)
 end
 
-def sizes(arr)
-  { arr: arr.size, str: "hello".size }
+def sizes(arr: array<string>) -> { arr: int, str: int }
+  { arr: arr.length, str: "hello".length }
 end
 
-def run
+def run -> { initial: string, sizes: { arr: int, str: int } }
   names = ["Ada Lovelace", "Grace Hopper"]
   {
-    initial: first_initial(names[0]),
+    initial: first_initial(names.fetch(0)),
     sizes: sizes(names)
   }
 end

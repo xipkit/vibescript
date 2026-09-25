@@ -6,7 +6,7 @@
 # tags: popular, math, multiplication, loops
 # vibe: 0.2
 
-def ethiopian_multiply(left, right)
+def ethiopian_multiply(left: int, right: int) -> int
   total = 0
   a = left
   b = right
@@ -15,14 +15,14 @@ def ethiopian_multiply(left, right)
     if a.odd?
       total = total + b
     end
-    a = a / 2
+    a = a // 2
     b = b * 2
   end
 
   total
 end
 
-def run
+def run -> { seventeen_thirty_four: int, three_digit_pair: int, twenty_seven_eighty_two: int }
   {
     seventeen_thirty_four: ethiopian_multiply(17, 34),
     twenty_seven_eighty_two: ethiopian_multiply(27, 82),

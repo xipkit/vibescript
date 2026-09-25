@@ -6,13 +6,13 @@
 # tags: popular, math, search, cubes
 # vibe: 0.4
 
-def sum_key(left, right)
+def sum_key(left: int, right: int) -> string
   "#{left ** 3 + right ** 3}"
 end
 
-def taxicab_numbers(limit)
-  groups = {}
-  order = []
+def taxicab_numbers(limit: int) -> array<{ decompositions: array<array<int>>, value: string }>
+  groups: hash<string, array<array<int>>> = {}
+  order: array<string> = []
   left = 1
 
   while left <= limit
@@ -23,22 +23,22 @@ def taxicab_numbers(limit)
         groups[key] = []
         order << key
       end
-      groups[key] << [left, right]
+      groups[key] = groups.fetch(key) + [[left, right]]
       right = right + 1
     end
     left = left + 1
   end
 
-  rows = []
-  order.each do |key|
-    if groups[key].length > 1
-      rows << { value: key, decompositions: groups[key] }
+  rows: array<{ decompositions: array<array<int>>, value: string }> = []
+  order.each { |key|
+    if groups.fetch(key).length > 1
+      rows << { value: key, decompositions: groups.fetch(key) }
     end
-  end
+  }
 
   rows
 end
 
-def run
+def run -> array<{ decompositions: array<array<int>>, value: string }>
   taxicab_numbers(12).first(2)
 end

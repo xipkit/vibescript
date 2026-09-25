@@ -6,11 +6,11 @@
 # tags: popular, math, numbers, strings
 # vibe: 0.2
 
-def digit_value(char)
-  "0123456789".index(char)
+def digit_value(char: string) -> int
+  "0123456789".index(char).as(int)
 end
 
-def to_int(text)
+def to_int(text: string) -> int
   if text == ""
     return 0
   end
@@ -18,23 +18,23 @@ def to_int(text)
   value = 0
   index = 0
   while index < text.length
-    value = (value * 10) + digit_value(text.slice(index))
+    value = (value * 10) + digit_value(text.slice(index).as(string))
     index = index + 1
   end
   value
 end
 
-def kaprekar?(number)
+def kaprekar?(number: int) -> bool
   if number == 1
     return true
   end
 
-  square = "" + (number * number)
+  square = "" + (number * number).to_s
   split = 1
 
   while split < square.length
-    left = to_int(square.slice(0, split))
-    right = to_int(square.slice(split, square.length - split))
+    left = to_int(square.slice(0, split).as(string))
+    right = to_int(square.slice(split, square.length - split).as(string))
     if right != 0 && left + right == number
       return true
     end
@@ -44,7 +44,7 @@ def kaprekar?(number)
   false
 end
 
-def run
+def run -> array<{ kaprekar: bool, value: int }>
   [
     { value: 1, kaprekar: kaprekar?(1) },
     { value: 45, kaprekar: kaprekar?(45) },

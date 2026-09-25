@@ -6,7 +6,7 @@
 # tags: popular, search, strings, recursion
 # vibe: 0.4
 
-def blocks
+def blocks -> array<string>
   [
     "BO", "XK", "DQ", "CP", "NA",
     "GT", "RE", "TG", "QD", "FS",
@@ -15,21 +15,21 @@ def blocks
   ]
 end
 
-def block_matches?(block, letter)
+def block_matches?(block: string, letter: string) -> bool
   block.start_with?(letter) || block.slice(1) == letter
 end
 
-def can_make_from?(letters, letter_index, available_blocks)
-  if letter_index >= letters.size
+def can_make_from?(letters: array<string>, letter_index: int, available_blocks: array<string>) -> bool
+  if letter_index >= letters.length
     return true
   end
 
-  letter = letters[letter_index]
+  letter = letters.fetch(letter_index)
   block_index = 0
 
-  while block_index < available_blocks.size
-    if block_matches?(available_blocks[block_index], letter)
-      remaining = available_blocks.take(block_index) + available_blocks.drop(block_index + 1)
+  while block_index < available_blocks.length
+    if block_matches?(available_blocks.fetch(block_index), letter)
+      remaining = available_blocks.first(block_index) + available_blocks.drop(block_index + 1)
       if can_make_from?(letters, letter_index + 1, remaining)
         return true
       end
@@ -40,11 +40,11 @@ def can_make_from?(letters, letter_index, available_blocks)
   false
 end
 
-def can_make?(word)
+def can_make?(word: string) -> bool
   can_make_from?(word.upcase.chars, 0, blocks)
 end
 
-def run
+def run -> { a: bool, bark: bool, book: bool, common: bool, confuse: bool, squad: bool, treat: bool }
   {
     a: can_make?("A"),
     bark: can_make?("BARK"),

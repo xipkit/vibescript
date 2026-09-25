@@ -6,12 +6,12 @@
 # tags: popular, arrays, matrices, indexing
 # vibe: 0.2
 
-def blank_matrix(size)
-  matrix = []
+def blank_matrix(size: int) -> array<array<int>>
+  matrix: array<array<int>> = []
   row = 0
 
   while row < size
-    current = []
+    current: array<int> = []
     column = 0
     while column < size
       current = current.push(0)
@@ -24,14 +24,14 @@ def blank_matrix(size)
   matrix
 end
 
-def set_cell(matrix, row, column, value)
-  current = matrix[row]
+def set_cell(matrix: array<array<int>>, row: int, column: int, value: int) -> array<array<int>>
+  current = matrix.fetch(row)
   current[column] = value
   matrix[row] = current
   matrix
 end
 
-def zig_zag_matrix(size)
+def zig_zag_matrix(size: int) -> array<array<int>>
   matrix = blank_matrix(size)
   diagonal = 0
   value = 0
@@ -71,6 +71,6 @@ def zig_zag_matrix(size)
   matrix
 end
 
-def run
+def run -> array<array<int>>
   zig_zag_matrix(5)
 end

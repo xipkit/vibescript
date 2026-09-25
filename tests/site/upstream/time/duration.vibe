@@ -1,14 +1,14 @@
 # vibe: 1.0
 
-def after_time(base)
+def after_time(base: time) -> string
   5.minutes.after(base).to_s
 end
 
-def ago_time(base)
-  2.hours.ago(base).to_s
+def ago_time(base: time) -> string
+  2.hours.before(base).to_s
 end
 
-def duration_parts
+def duration_parts -> { iso: string, parts: { days: int, hours: int, minutes: int, seconds: int } }
   d = Duration.parse("P1DT1H1M1S")
   {
     iso: d.iso8601,
@@ -16,19 +16,19 @@ def duration_parts
   }
 end
 
-def duration_parse_build
-  Duration.build(90).iso8601
+def duration_parse_build -> string
+  Duration.build(seconds: 90).iso8601
 end
 
-def duration_to_i
+def duration_to_i -> int
   Duration.parse("P1DT30M").to_i
 end
 
-def duration_until(base)
-  90.minutes.until(base).to_s
+def duration_until(base: time) -> string
+  90.minutes.before(base).to_s
 end
 
-def duration_math
+def duration_math -> { add: string, compare: { eq: bool, gt: bool, lt: bool }, divide: string, divide_duration: float, modulo: string, multiply: string, multiply_left: string, subtract: string }
   d1 = 4.seconds + 2.hours
   d2 = 2.hours - 4.seconds
   d3 = 10.seconds * 3
@@ -54,11 +54,11 @@ def duration_math
   }
 end
 
-def duration_to_i_math
+def duration_to_i_math -> int
   (3.seconds + 5.seconds).to_i
 end
 
-def run
+def run -> { math: { add: string, compare: { eq: bool, gt: bool, lt: bool }, divide: string, divide_duration: float, modulo: string, multiply: string, multiply_left: string, subtract: string }, parse_build: string, parts: { iso: string, parts: { days: int, hours: int, minutes: int, seconds: int } }, to_i: int, to_i_math: int }
   {
     parts: duration_parts,
     parse_build: duration_parse_build,

@@ -6,20 +6,20 @@
 # tags: popular, numbers, strings, validation
 # vibe: 0.2
 
-def substring(text, start_index, count)
+def substring(text: string, start_index: int, count: int) -> string
   output = ""
   offset = 0
 
   while offset < count && start_index + offset < text.length
-    output = output + text.slice(start_index + offset)
+    output = output + text.slice(start_index + offset).as(string)
     offset = offset + 1
   end
 
   output
 end
 
-def middle_three_digits(value)
-  digits = "" + value.abs
+def middle_three_digits(value: int) -> string
+  digits = "" + value.abs.to_s
 
   if digits.length < 3
     return "too short"
@@ -29,12 +29,12 @@ def middle_three_digits(value)
     return "even digit count"
   end
 
-  middle = (digits.length - 3) / 2
+  middle = (digits.length - 3) // 2
   substring(digits, middle, 3)
 end
 
-def run
-  rows = []
+def run -> array<array<int | string>>
+  rows: array<array<int | string>> = []
   rows = rows.push(["input", "middle_three"])
   rows = rows.push([123, middle_three_digits(123)])
   rows = rows.push([12345, middle_three_digits(12345)])

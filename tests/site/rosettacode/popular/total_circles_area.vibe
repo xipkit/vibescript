@@ -6,23 +6,23 @@
 # tags: popular, math, geometry, floats
 # vibe: 0.2
 
-def area(radius)
+def area(radius: float) -> float
   3.141592653589793 * radius * radius
 end
 
-def total_area(radii)
+def total_area(radii: array<float>) -> float
   total = 0.0
   index = 0
 
-  while index < radii.size
-    total = total + area(radii[index])
+  while index < radii.length
+    total = total + area(radii.fetch(index))
     index = index + 1
   end
 
   total
 end
 
-def run
+def run -> { radii: array<float>, total_area: float }
   radii = [1.0, 2.5, 4.0]
   {
     radii: radii,

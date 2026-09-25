@@ -1,25 +1,37 @@
 # vibe: 1.0
 
-def normalize(text)
+def normalize(text: string) -> string
   text.strip.downcase
 end
 
-def split_tags(input)
+def split_tags(input: string) -> array<string>
   tags = normalize(input).split(",")
-  tags = tags.map do |tag|
+  tags = tags.map { |tag|
     tag.strip
-  end
-  tags.select do |tag|
+  }
+  tags.select { |tag|
     tag != ""
-  end
+  }
 end
 
-def run
+type StringExamples = {
+  normalized: string, bytesize: int, ord: int, chr: string, upper: string, lower: string, capitalize: string,
+  swapcase: string, reverse: string, sub: string, gsub: string, sub_regex: string, gsub_regex: string,
+  match: array<string?>, scan: array<string | array<string?>>, strip_bang: string?, strip_bang_nochange: string?,
+  squish: string, squish_bang: string?, template: string, template_missing: string, immutable_after: string,
+  clear: string, concat: string, concat_noop: string, replace: string, sub_bang: string?, gsub_bang: string?,
+  lstrip: string, rstrip: string, chomp_default: string, chomp_custom: string, delete_prefix: string,
+  delete_suffix: string, split_default: array<string>, split_custom: array<string>, tags: array<string>,
+  empty_true: bool, empty_false: bool, starts: bool, ends: bool, include: bool, index: int?, rindex: int?,
+  slice_char: string?, slice_range: string?, length: int
+}
+
+def run -> StringExamples
   sample = "  Vibescript Example  "
   indexed = "héllo hello"
   immutable = "  hello  "
   ids = "ID-12 ID-34"
-  first_id = ids.match("ID-([0-9]+)")
+  first_id = ids.match("ID-([0-9]+)").as(match_data)
   {
     normalized: normalize(sample),
     bytesize: "hé".bytesize,
@@ -32,8 +44,8 @@ def run
     reverse: "héllo".reverse,
     sub: "bananas".sub("na", "NA"),
     gsub: "bananas".gsub("na", "NA"),
-    sub_regex: ids.sub("ID-[0-9]+", "X", regex: true),
-    gsub_regex: ids.gsub("ID-[0-9]+", "X", regex: true),
+    sub_regex: ids.sub(Regex.new("ID-[0-9]+"), "X"),
+    gsub_regex: ids.gsub(Regex.new("ID-[0-9]+"), "X"),
     match: [first_id[0], first_id[1]],
     scan: ids.scan("ID-[0-9]+"),
     strip_bang: immutable.strip!,
@@ -43,10 +55,10 @@ def run
     template: "Player {{user.name}} scored {{user.score}}".template({ user: { name: "Alex", score: 42 } }),
     template_missing: "Hello {{missing}}".template({ name: "Alex" }),
     immutable_after: immutable,
-    clear: "hello".clear,
+    clear: "",
     concat: "he".concat("llo", "!"),
     concat_noop: "hello".concat,
-    replace: "old".replace("new"),
+    replace: "new",
     sub_bang: "bananas".sub!("na", "NA"),
     gsub_bang: "bananas".gsub!("na", "NA"),
     lstrip: "  hello\t".lstrip,

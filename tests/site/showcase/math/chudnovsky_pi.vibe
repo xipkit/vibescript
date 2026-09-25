@@ -10,7 +10,7 @@
 # Binary splitting: each leaf holds one series term's P, Q, T; merges combine
 # ranges with T(a,b) = Q(m,b)T(a,m) + P(a,m)T(m,b), exactly as the Go
 # implementation does across CPU cores. 10939058860032000 is 640320^3 / 24.
-def split_series(a, b)
+def split_series(a: int, b: int) -> array<int>
   if b - a == 1
     if a == 0
       p = 1
@@ -25,32 +25,32 @@ def split_series(a, b)
     end
     [p, q, t]
   else
-    m = (a + b) / 2
+    m = (a + b) // 2
     left = split_series(a, m)
     right = split_series(m, b)
     [
-      left[0] * right[0],
-      left[1] * right[1],
-      right[1] * left[2] + left[0] * right[2]
+      left.fetch(0) * right.fetch(0),
+      left.fetch(1) * right.fetch(1),
+      right.fetch(1) * left.fetch(2) + left.fetch(0) * right.fetch(2)
     ]
   end
 end
 
 # Integer Newton square root. The float seed is inflated above the true root,
 # so the sequence descends monotonically and stops exactly at floor(sqrt(n)).
-def integer_sqrt(n, seed)
-  x = (seed + n / seed) / 2
-  y = (x + n / x) / 2
+def integer_sqrt(n: int, seed: int) -> int
+  x = (seed + n // seed) // 2
+  y = (x + n // x) // 2
   while y < x
     x = y
-    y = (x + n / x) / 2
+    y = (x + n // x) // 2
   end
   x
 end
 
-def matching_digits(computed, reference)
+def matching_digits(computed: string, reference: string) -> int
   pairs = computed.chars.zip(reference.chars)
-  first_mismatch = pairs.find_index { |pair| pair[0] != pair[1] }
+  first_mismatch = pairs.index { |pair| pair[0] != pair[1] }
   if first_mismatch == nil
     computed.length
   else
@@ -58,10 +58,10 @@ def matching_digits(computed, reference)
   end
 end
 
-def run
+def run -> { digits_per_term: float, matching_reference_digits: int, pi_100_digits: string, terms_used: int }
   digits = 100
   scale = digits + 5
-  terms = scale / 14 + 2
+  terms = scale // 14 + 2
 
   p, q, t = split_series(0, terms)
 
@@ -69,7 +69,7 @@ def run
   sqrt_c = integer_sqrt(10005 * (10 ** (2 * scale)), seed)
 
   # pi * 10^scale = 426880 * sqrt(10005 * 10^(2*scale)) * Q / T
-  pi = (q * 426880 * sqrt_c) / t
+  pi = (q.as(int) * 426880 * sqrt_c) // t.as(int)
   computed = "3.#{pi.to_s.slice(1, digits)}"
   reference = "3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679"
 

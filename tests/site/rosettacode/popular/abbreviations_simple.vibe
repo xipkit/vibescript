@@ -6,7 +6,7 @@
 # tags: popular, strings, search, basics
 # vibe: 0.2
 
-def commands
+def commands -> array<string>
   [
     "add",
     "append",
@@ -20,12 +20,12 @@ def commands
   ]
 end
 
-def matches_for(token)
-  results = []
+def matches_for(token: string) -> array<string>
+  results: array<string> = []
   available = commands
   index = 0
-  while index < available.size
-    command = available[index]
+  while index < available.length
+    command = available.fetch(index)
     if command.index(token.downcase) == 0
       results = results + [command]
     end
@@ -34,18 +34,18 @@ def matches_for(token)
   results
 end
 
-def resolve(token)
+def resolve(token: string) -> string
   matches = matches_for(token)
   if matches.empty?
     "unknown"
-  elsif matches.size == 1
-    matches[0]
+  elsif matches.length == 1
+    matches.fetch(0)
   else
     "ambiguous"
   end
 end
 
-def run
+def run -> { add: string, ambiguous: string, append: string, delete: string, unknown: string }
   {
     add: resolve("ad"),
     append: resolve("app"),

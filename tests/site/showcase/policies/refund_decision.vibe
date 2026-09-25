@@ -34,8 +34,8 @@ def refund_amount(total: money, decision: RefundDecision) -> money
   end
 end
 
-def refund_quote(total: money, purchased_at: time, requested_at: time, used: bool) -> hash
-  age = Duration.build((requested_at - purchased_at).to_i)
+def refund_quote(total: money, purchased_at: time, requested_at: time, used: bool) -> hash<string, bool | money | string>
+  age = Duration.build(seconds: (requested_at - purchased_at).to_i)
   decision = refund_decision(age, used)
 
   {
@@ -46,7 +46,7 @@ def refund_quote(total: money, purchased_at: time, requested_at: time, used: boo
   }
 end
 
-def run
+def run -> { denied: hash<string, bool | money | string>, full: hash<string, bool | money | string>, partial: hash<string, bool | money | string> }
   purchased_at = Time.at(1700000000)
   {
     full: refund_quote(money("89.00 USD"), purchased_at, 3.days.after(purchased_at), false),

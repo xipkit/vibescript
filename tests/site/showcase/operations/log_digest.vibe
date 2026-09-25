@@ -6,35 +6,35 @@
 # tags: operations, strings, collections, logs
 # vibe: 0.4
 
-def digest(text: string) -> array
-  entries = []
-  text.each_line do |line|
+def digest(text: string) -> array<{ level: string, message: string }>
+  entries: array<{ level: string, message: string }> = []
+  text.each_line { |line|
     trimmed = line.strip
     if !trimmed.empty?
       parts = trimmed.partition(" ")
       entries.push({ level: parts[0], message: parts[2] })
     end
-  end
+  }
   entries
 end
 
-def counts_by_level(entries: array) -> hash
-  counts = {}
-  grouped = entries.group_by { |entry| entry[:level] }
-  grouped.each do |level, items|
+def counts_by_level(entries: array<{ level: string, message: string }>) -> hash<string, int>
+  counts: hash<string, int> = {}
+  grouped = entries.group_by { |entry| entry.as({ level: string, message: string })["level"] }
+  grouped.each { |level, items|
     counts[level] = items.length
-  end
+  }
   counts
 end
 
-def run
+def run -> { counts_by_level: hash<string, int>, entry_count: int, first_message: string, warnings: array<string> }
   log = "INFO service started\nWARN disk at 82%\nERROR upstream timeout\nINFO healthy\nWARN memory high"
   entries = digest(log)
 
   {
     entry_count: entries.length,
-    first_message: entries[0][:message],
+    first_message: entries[0].as({ level: string, message: string })["message"],
     counts_by_level: counts_by_level(entries),
-    warnings: entries.select { |entry| entry[:level] == "WARN" }.map { |entry| entry[:message] }
+    warnings: entries.select { |entry| entry.as({ level: string, message: string })["level"] == "WARN" }.map { |entry| entry.as({ level: string, message: string })["message"] }
   }
 end

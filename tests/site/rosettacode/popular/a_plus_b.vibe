@@ -6,11 +6,11 @@
 # tags: popular, basics, arithmetic, math
 # vibe: 0.2
 
-def add_pair(left, right)
+def add_pair(left: int, right: int) -> int
   left + right
 end
 
-def run
+def run -> { first: int, second: int, third: int }
   {
     first: add_pair(3, 4),
     second: add_pair(-8, 13),

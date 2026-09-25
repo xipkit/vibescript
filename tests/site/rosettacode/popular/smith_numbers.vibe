@@ -6,19 +6,19 @@
 # tags: popular, math, primes, factorization
 # vibe: 0.2
 
-def digit_sum(value)
+def digit_sum(value: int) -> int
   total = 0
   current = value.abs
 
   while current > 0
     total = total + (current % 10)
-    current = current / 10
+    current = current // 10
   end
 
   total
 end
 
-def prime?(number)
+def prime?(number: int) -> bool
   if number < 2
     return false
   end
@@ -34,7 +34,7 @@ def prime?(number)
   true
 end
 
-def factor_digit_sum(number)
+def factor_digit_sum(number: int) -> int
   total = 0
   remaining = number
   factor = 2
@@ -42,7 +42,7 @@ def factor_digit_sum(number)
   while factor * factor <= remaining
     while remaining % factor == 0
       total = total + digit_sum(factor)
-      remaining = remaining / factor
+      remaining = remaining // factor
     end
     factor = factor + 1
   end
@@ -54,7 +54,7 @@ def factor_digit_sum(number)
   total
 end
 
-def smith?(number)
+def smith?(number: int) -> bool
   if prime?(number)
     return false
   end
@@ -62,7 +62,7 @@ def smith?(number)
   digit_sum(number) == factor_digit_sum(number)
 end
 
-def run
+def run -> array<{ smith: bool, value: int }>
   [
     { value: 4, smith: smith?(4) },
     { value: 22, smith: smith?(22) },

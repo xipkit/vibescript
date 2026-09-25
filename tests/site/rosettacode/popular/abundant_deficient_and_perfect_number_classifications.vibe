@@ -6,7 +6,7 @@
 # tags: popular, math, number-theory, classification
 # vibe: 0.2
 
-def proper_divisor_sum(number)
+def proper_divisor_sum(number: int) -> int
   if number == 1
     return 0
   end
@@ -17,7 +17,7 @@ def proper_divisor_sum(number)
   while candidate * candidate <= number
     if number % candidate == 0
       total = total + candidate
-      other = number / candidate
+      other = number // candidate
       if other != candidate
         total = total + other
       end
@@ -28,7 +28,7 @@ def proper_divisor_sum(number)
   total
 end
 
-def classification(number)
+def classification(number: int) -> string
   divisor_sum = proper_divisor_sum(number)
   if divisor_sum < number
     "deficient"
@@ -39,7 +39,7 @@ def classification(number)
   end
 end
 
-def run
+def run -> array<{ classification: string, value: int }>
   [
     { value: 12, classification: classification(12) },
     { value: 15, classification: classification(15) },

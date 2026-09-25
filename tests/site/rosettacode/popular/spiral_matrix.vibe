@@ -6,11 +6,11 @@
 # tags: popular, matrices, arrays, indexing
 # vibe: 0.2
 
-def blank_matrix(size)
-  rows = []
+def blank_matrix(size: int) -> array<array<int>>
+  rows: array<array<int>> = []
   row = 0
   while row < size
-    current = []
+    current: array<int> = []
     column = 0
     while column < size
       current = current.push(0)
@@ -22,14 +22,14 @@ def blank_matrix(size)
   rows
 end
 
-def set_cell(matrix, row, column, value)
-  current = matrix[row]
+def set_cell(matrix: array<array<int>>, row: int, column: int, value: int) -> array<array<int>>
+  current = matrix.fetch(row)
   current[column] = value
   matrix[row] = current
   matrix
 end
 
-def spiral_matrix(size)
+def spiral_matrix(size: int) -> array<array<int>>
   matrix = blank_matrix(size)
   top = 0
   bottom = size - 1
@@ -78,6 +78,6 @@ def spiral_matrix(size)
   matrix
 end
 
-def run
+def run -> array<array<int>>
   spiral_matrix(5)
 end

@@ -6,15 +6,18 @@
 # tags: popular, trees, recursion, data-structures
 # vibe: 0.2
 
-def node(value, left = nil, right = nil)
-  {
-    value: value,
-    left: left,
-    right: right
-  }
+class TreeNode
+  getter value: string, left: TreeNode?, right: TreeNode?
+
+  def initialize(@value: string, @left: TreeNode?, @right: TreeNode?)
+  end
 end
 
-def sample_tree
+def node(value: string, left: TreeNode? = nil, right: TreeNode? = nil) -> TreeNode
+  TreeNode.new(value, left, right)
+end
+
+def sample_tree -> TreeNode
   node(
     "F",
     node(
@@ -38,47 +41,49 @@ def sample_tree
   )
 end
 
-def preorder(node)
+def preorder(node: TreeNode?) -> array<string>
   if node == nil
     []
   else
-    [node[:value]] + preorder(node[:left]) + preorder(node[:right])
+    [node.value] + preorder(node.left) + preorder(node.right)
   end
 end
 
-def inorder(node)
+def inorder(node: TreeNode?) -> array<string>
   if node == nil
     []
   else
-    inorder(node[:left]) + [node[:value]] + inorder(node[:right])
+    inorder(node.left) + [node.value] + inorder(node.right)
   end
 end
 
-def postorder(node)
+def postorder(node: TreeNode?) -> array<string>
   if node == nil
     []
   else
-    postorder(node[:left]) + postorder(node[:right]) + [node[:value]]
+    postorder(node.left) + postorder(node.right) + [node.value]
   end
 end
 
-def level_order(root)
+def level_order(root: TreeNode?) -> array<string>
   if root == nil
     return []
   end
 
-  queue = [root]
-  output = []
+  queue: array<TreeNode> = [root]
+  output: array<string> = []
   index = 0
 
   while index < queue.length
-    current = queue[index]
-    output = output.push(current[:value])
-    if current[:left] != nil
-      queue = queue.push(current[:left])
+    current = queue.fetch(index)
+    output = output.push(current.value)
+    left = current.left
+    if left != nil
+      queue = queue.push(left)
     end
-    if current[:right] != nil
-      queue = queue.push(current[:right])
+    right = current.right
+    if right != nil
+      queue = queue.push(right)
     end
     index = index + 1
   end
@@ -86,7 +91,7 @@ def level_order(root)
   output
 end
 
-def run
+def run -> { inorder: array<string>, level_order: array<string>, postorder: array<string>, preorder: array<string> }
   tree = sample_tree
   {
     preorder: preorder(tree),

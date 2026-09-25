@@ -27,7 +27,7 @@ def freeze_notice(environment: Environment) -> duration
   end
 end
 
-def maintenance_plan(environment: Environment, starts_at: time) -> hash
+def maintenance_plan(environment: Environment, starts_at: time) -> hash<string, string>
   length = window_length(environment)
   notice = freeze_notice(environment)
 
@@ -35,12 +35,12 @@ def maintenance_plan(environment: Environment, starts_at: time) -> hash
     environment: environment.name,
     starts_at: starts_at.format("2006-01-02T15:04:05Z"),
     ends_at: length.after(starts_at).format("2006-01-02T15:04:05Z"),
-    freeze_at: notice.ago(starts_at).format("2006-01-02T15:04:05Z"),
+    freeze_at: notice.before(starts_at).format("2006-01-02T15:04:05Z"),
     duration: length.iso8601
   }
 end
 
-def run
+def run -> { production: hash<string, string>, sandbox: hash<string, string> }
   starts_at = Time.at(1700600000)
 
   {

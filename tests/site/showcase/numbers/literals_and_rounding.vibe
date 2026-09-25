@@ -6,7 +6,7 @@
 # tags: numbers, literals, math
 # vibe: 0.4
 
-def permission_bits
+def permission_bits -> { execute: int, read: int, read_write: int, write: int }
   {
     read: 0b100,
     write: 0b010,
@@ -15,7 +15,7 @@ def permission_bits
   }
 end
 
-def named_sizes
+def named_sizes -> { hex_flags: int, kilobyte: float, megabyte: float, octal_mode: int }
   {
     kilobyte: 1e3,
     megabyte: 1e6,
@@ -24,7 +24,7 @@ def named_sizes
   }
 end
 
-def rounding(value: float) -> hash
+def rounding(value: float) -> hash<string, number>
   {
     whole: value.round,
     cents: value.round(2),
@@ -33,7 +33,7 @@ def rounding(value: float) -> hash
   }
 end
 
-def run
+def run -> { is_even: bool, named_sizes: { hex_flags: int, kilobyte: float, megabyte: float, octal_mode: int }, next_id: int, permission_bits: { execute: int, read: int, read_write: int, write: int }, rounding: hash<string, number> }
   {
     permission_bits: permission_bits,
     named_sizes: named_sizes,

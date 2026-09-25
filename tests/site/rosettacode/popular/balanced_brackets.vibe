@@ -6,7 +6,7 @@
 # tags: popular, parsing, stack, strings
 # vibe: 0.4
 
-def opener_for(char)
+def opener_for(char: string) -> string?
   if char == ")"
     "("
   elsif char == "]"
@@ -18,17 +18,17 @@ def opener_for(char)
   end
 end
 
-def closer?(char)
+def closer?(char: string) -> bool
   char == ")" || char == "]" || char == "}"
 end
 
-def balanced_brackets?(text)
-  stack = []
+def balanced_brackets?(text: string) -> bool
+  stack: array<string> = []
   depth = 0
   index = 0
 
   while index < text.length
-    char = text.slice(index)
+    char = text.slice(index).as(string)
 
     if char == "(" || char == "[" || char == "{"
       stack.push(char)
@@ -52,7 +52,7 @@ def balanced_brackets?(text)
   depth == 0
 end
 
-def run
+def run -> { crossed_false: bool, incomplete_false: bool, mixed_true: bool, nested_true: bool }
   {
     nested_true: balanced_brackets?("{[()()]}"),
     mixed_true: balanced_brackets?("function(x) { return [x, x + 1] }"),

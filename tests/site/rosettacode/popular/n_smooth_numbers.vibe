@@ -6,13 +6,13 @@
 # tags: popular, math, sequences, factors
 # vibe: 0.2
 
-def smooth?(number, limit)
+def smooth?(number: int, limit: int) -> bool
   remaining = number
   factor = 2
 
   while factor <= limit
     while remaining % factor == 0
-      remaining = remaining / factor
+      remaining = remaining // factor
     end
     factor = factor + 1
   end
@@ -20,8 +20,8 @@ def smooth?(number, limit)
   remaining == 1
 end
 
-def smooth_numbers(limit, count)
-  values = []
+def smooth_numbers(limit: int, count: int) -> array<int>
+  values: array<int> = []
   candidate = 1
 
   while values.length < count
@@ -34,6 +34,6 @@ def smooth_numbers(limit, count)
   values
 end
 
-def run
+def run -> array<int>
   smooth_numbers(5, 20)
 end

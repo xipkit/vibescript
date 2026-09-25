@@ -1,4 +1,4 @@
-def helper(n)
+def helper(n: int) -> int
   n
 end
 

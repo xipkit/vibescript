@@ -6,20 +6,20 @@
 # tags: popular, strings, parsing, hashes
 # vibe: 0.2
 
-def parse_query(text)
+def parse_query(text: string) -> array<{ key: string, value: string }>
   if text == ""
     return []
   end
 
   parts = text.split("&")
-  output = []
+  output: array<{ key: string, value: string }> = []
   index = 0
 
   while index < parts.length
-    entry = parts[index].split("=")
+    entry = parts.fetch(index).split("=")
     output = output.push({
-      key: entry[0],
-      value: entry[1]
+      key: entry.fetch(0),
+      value: entry.fetch(1)
     })
     index = index + 1
   end
@@ -27,10 +27,10 @@ def parse_query(text)
   output
 end
 
-def parse_url(url)
+def parse_url(url: string) -> { host: string, path: string, query: array<{ key: string, value: string }>, scheme: string }
   scheme_parts = url.split("://")
-  scheme = scheme_parts[0]
-  remainder = scheme_parts[1]
+  scheme = scheme_parts.fetch(0)
+  remainder = scheme_parts.fetch(1)
 
   slash_index = remainder.index("/")
   if slash_index == nil
@@ -39,25 +39,25 @@ def parse_url(url)
 
   host = remainder.slice(0, slash_index)
   path_and_query = remainder.slice(slash_index, remainder.length - slash_index)
-  question_index = path_and_query.index("?")
+  question_index = path_and_query.as(string).index("?")
 
   if question_index == nil
     {
       scheme: scheme,
-      host: host,
-      path: path_and_query,
+      host: host.as(string),
+      path: path_and_query.as(string),
       query: []
     }
   else
     {
       scheme: scheme,
-      host: host,
-      path: path_and_query.slice(0, question_index),
-      query: parse_query(path_and_query.slice(question_index + 1, path_and_query.length - question_index - 1))
+      host: host.as(string),
+      path: path_and_query.as(string).slice(0, question_index).as(string),
+      query: parse_query(path_and_query.as(string).slice(question_index + 1, path_and_query.as(string).length - question_index - 1).as(string))
     }
   end
 end
 
-def run
+def run -> { host: string, path: string, query: array<{ key: string, value: string }>, scheme: string }
   parse_url("https://example.com/docs/guide?page=2&lang=en")
 end

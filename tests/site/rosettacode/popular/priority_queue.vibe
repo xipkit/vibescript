@@ -6,52 +6,56 @@
 # tags: popular, data-structures, sorting, queues
 # vibe: 0.4
 
-def new_priority_queue
+def new_priority_queue -> { items: array<{ priority: int, value: string }> }
   {
     items: []
   }
 end
 
-def compare_entries(left, right)
-  priority_gap = left[:priority] - right[:priority]
+def compare_entries(left: { priority: int, value: string }, right: { priority: int, value: string }) -> int
+  priority_gap = left["priority"] - right["priority"]
   if priority_gap != 0
     priority_gap
-  elsif left[:value] < right[:value]
+  elsif left["value"] < right["value"]
     -1
-  elsif left[:value] > right[:value]
+  elsif left["value"] > right["value"]
     1
   else
     0
   end
 end
 
-def enqueue(queue, priority, value)
-  items = queue[:items] + [{ priority: priority, value: value }]
-  queue[:items] = items.sort do |left, right|
-    compare_entries(left, right)
+def enqueue(queue: { items: array<{ priority: int, value: string }> }, priority: int, value: string) -> { items: array<{ priority: int, value: string }> }
+  entry = { priority: priority, value: value }
+  items = queue["items"]
+  index = items.index { |item| compare_entries(entry, item) < 0 }
+  if index == nil
+    queue["items"] = items + [entry]
+  else
+    queue["items"] = items.first(index) + [entry] + items.drop(index)
   end
   queue
 end
 
-def dequeue(queue)
-  value = queue[:items].pop
+def dequeue(queue: { items: array<{ priority: int, value: string }> }) -> { item: { priority: int, value: string }, queue: { items: array<{ priority: int, value: string }> } }
+  value = queue["items"].pop
   {
     queue: queue,
-    item: value
+    item: value.as({ priority: int, value: string })
   }
 end
 
-def peek(queue)
-  items = queue[:items]
+def peek(queue: { items: array<{ priority: int, value: string }> }) -> { priority: int, value: string }?
+  items = queue["items"]
   if items.empty?
     nil
   else
-    items[items.length - 1]
+    items.fetch(items.length - 1)
   end
 end
 
-def run
-  queue = new_priority_queue
+def run -> { first_out: { priority: int, value: string }, peek_before_dequeue: { priority: int, value: string }, remaining: array<{ priority: int, value: string }>, second_out: { priority: int, value: string } }
+  queue: { items: array<{ priority: int, value: string }> } = new_priority_queue
   queue = enqueue(queue, 2, "write tests")
   queue = enqueue(queue, 5, "ship feature")
   queue = enqueue(queue, 3, "review docs")
@@ -59,13 +63,13 @@ def run
 
   top_before = peek(queue)
   first = dequeue(queue)
-  queue = first[:queue]
+  queue = first["queue"]
   second = dequeue(queue)
 
   {
-    peek_before_dequeue: top_before,
-    first_out: first[:item],
-    second_out: second[:item],
-    remaining: second[:queue][:items]
+    peek_before_dequeue: top_before.as({ priority: int, value: string }),
+    first_out: first["item"],
+    second_out: second["item"],
+    remaining: second["queue"]["items"]
   }
 end

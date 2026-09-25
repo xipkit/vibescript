@@ -6,7 +6,7 @@
 # tags: popular, basics, control-flow, conditionals
 # vibe: 0.2
 
-def classify_temperature(value)
+def classify_temperature(value: int) -> string
   if value < 0
     "freezing"
   elsif value < 15
@@ -18,7 +18,7 @@ def classify_temperature(value)
   end
 end
 
-def classify_sign(value)
+def classify_sign(value: int) -> string
   if value < 0
     "negative"
   elsif value == 0
@@ -28,7 +28,7 @@ def classify_sign(value)
   end
 end
 
-def run
+def run -> { signs: array<string>, temperatures: array<string> }
   {
     temperatures: [
       classify_temperature(-4),

@@ -6,20 +6,20 @@
 # tags: popular, strings, sorting, parsing
 # vibe: 0.2
 
-def digit?(char)
+def digit?(char: string) -> bool
   char >= "0" && char <= "9"
 end
 
-def digit_value(char)
-  "0123456789".index(char)
+def digit_value(char: string) -> int
+  "0123456789".index(char).as(int)
 end
 
-def read_number(text, start_index)
+def read_number(text: string, start_index: int) -> { next_index: int, value: int }
   value = 0
   index = start_index
 
-  while index < text.length && digit?(text.slice(index))
-    value = (value * 10) + digit_value(text.slice(index))
+  while index < text.length && digit?(text.slice(index).as(string))
+    value = (value * 10) + digit_value(text.slice(index).as(string))
     index = index + 1
   end
 
@@ -29,7 +29,7 @@ def read_number(text, start_index)
   }
 end
 
-def natural_compare(left, right)
+def natural_compare(left: string, right: string) -> int
   left_index = 0
   right_index = 0
 
@@ -37,18 +37,18 @@ def natural_compare(left, right)
     left_char = left.slice(left_index)
     right_char = right.slice(right_index)
 
-    if digit?(left_char) && digit?(right_char)
+    if digit?(left_char.as(string)) && digit?(right_char.as(string))
       left_number = read_number(left, left_index)
       right_number = read_number(right, right_index)
-      if left_number[:value] != right_number[:value]
-        return left_number[:value] - right_number[:value]
+      if left_number["value"] != right_number["value"]
+        return left_number["value"] - right_number["value"]
       end
-      left_index = left_number[:next_index]
-      right_index = right_number[:next_index]
+      left_index = left_number["next_index"]
+      right_index = right_number["next_index"]
     else
-      if left_char < right_char
+      if left_char.as(string) < right_char.as(string)
         return -1
-      elsif left_char > right_char
+      elsif left_char.as(string) > right_char.as(string)
         return 1
       end
       left_index = left_index + 1
@@ -65,12 +65,12 @@ def natural_compare(left, right)
   end
 end
 
-def natural_sort(values)
-  values.sort do |left, right|
+def natural_sort(values: array<string>) -> array<string>
+  values.sort { |left, right|
     natural_compare(left, right)
-  end
+  }
 end
 
-def run
+def run -> array<string>
   natural_sort(["file2.txt", "file10.txt", "file1.txt", "file20.txt", "file3.txt"])
 end

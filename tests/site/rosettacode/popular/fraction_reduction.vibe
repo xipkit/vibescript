@@ -6,7 +6,7 @@
 # tags: popular, math, fractions, gcd
 # vibe: 0.2
 
-def gcd(a, b)
+def gcd(a: int, b: int) -> int
   left = a.abs
   right = b.abs
 
@@ -19,10 +19,10 @@ def gcd(a, b)
   left
 end
 
-def reduce_fraction(numerator, denominator)
+def reduce_fraction(numerator: int, denominator: int) -> { denominator: int, numerator: int }
   divisor = gcd(numerator, denominator)
-  reduced_numerator = numerator / divisor
-  reduced_denominator = denominator / divisor
+  reduced_numerator = numerator // divisor
+  reduced_denominator = denominator // divisor
 
   if reduced_denominator < 0
     reduced_numerator = -reduced_numerator
@@ -35,7 +35,7 @@ def reduce_fraction(numerator, denominator)
   }
 end
 
-def run
+def run -> array<{ original: array<int>, reduced: { denominator: int, numerator: int } }>
   [
     { original: [42, 56], reduced: reduce_fraction(42, 56) },
     { original: [13, 39], reduced: reduce_fraction(13, 39) },

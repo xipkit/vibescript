@@ -1,29 +1,29 @@
-def twice
+def twice(&block: () -> int) -> int
   yield
   yield
 end
 
-def with_value(val)
+def with_value(val: int, &block: int -> int) -> int
   yield(val)
 end
 
-def transform(a, b)
+def transform(a: int, b: int, &block: int -> int) -> int
   yield(a) + yield(b)
 end
 
-def run
+def run -> { count: int, doubled: int, sum: int }
   count = 0
-  twice do
+  twice {
     count = count + 1
-  end
+  }
 
-  doubled = with_value(21) do |x|
+  doubled = with_value(21) { |x|
     x * 2
-  end
+  }
 
-  sum = transform(3, 4) do |n|
+  sum = transform(3, 4) { |n|
     n * 10
-  end
+  }
 
   { count: count, doubled: doubled, sum: sum }
 end

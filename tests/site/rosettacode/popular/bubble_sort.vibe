@@ -6,17 +6,17 @@
 # tags: popular, sorting, arrays, loops
 # vibe: 0.2
 
-def bubble_sort(arr)
-  n = arr.size
+def bubble_sort(arr: array<int>) -> array<int>
+  n = arr.length
   swapped = true
 
   while swapped
     swapped = false
     i = 1
     while i < n
-      if arr[i - 1] > arr[i]
-        temp = arr[i - 1]
-        arr[i - 1] = arr[i]
+      if arr.fetch(i - 1) > arr.fetch(i)
+        temp = arr.fetch(i - 1)
+        arr[i - 1] = arr.fetch(i)
         arr[i] = temp
         swapped = true
       end
@@ -28,7 +28,7 @@ def bubble_sort(arr)
   arr
 end
 
-def run
+def run -> { already: array<int>, reversed: array<int>, single: array<int>, sorted: array<int> }
   {
     sorted: bubble_sort([64, 34, 25, 12, 22, 11, 90]),
     already: bubble_sort([1, 2, 3, 4, 5]),

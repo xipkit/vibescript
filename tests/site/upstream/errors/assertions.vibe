@@ -1,21 +1,21 @@
 # vibe: 1.0
 
-def ensure_positive(amount)
+def ensure_positive(amount: int) -> int
   assert amount > 0, "amount must be positive"
   amount
 end
 
-def ensure_currency(pledge)
+def ensure_currency(pledge: money) -> money
   assert pledge.currency == "USD", "only USD pledges supported"
   pledge
 end
 
-def guard_present(value)
+def guard_present(value: string) -> string
   assert value != nil
   value
 end
 
-def run
+def run -> { currency: money, positive: int, present: string }
   {
     positive: ensure_positive(42),
     currency: ensure_currency(money("25.00 USD")),

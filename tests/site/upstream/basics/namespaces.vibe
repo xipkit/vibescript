@@ -3,16 +3,16 @@
 module Scoring
   BONUS = 10
 
-  def self.with_bonus(score)
+  def self.with_bonus(score: int) -> int
     score + BONUS
   end
 end
 
-def score_with_bonus(score)
+def score_with_bonus(score: int) -> int
   Scoring.with_bonus(score)
 end
 
-def run
+def run -> { base: int, with_bonus: int }
   {
     base: 80,
     with_bonus: score_with_bonus(80)

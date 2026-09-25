@@ -5,8 +5,8 @@
 # summary: Emit the classic FizzBuzz sequence up to a chosen limit.
 # tags: popular, loops, strings, basics
 
-def fizzbuzz(limit)
-  lines = []
+def fizzbuzz(limit: int) -> array<string>
+  lines: array<string> = []
   for value in 1..limit
     if value % 15 == 0
       lines = lines.push("FizzBuzz")
@@ -15,13 +15,12 @@ def fizzbuzz(limit)
     elsif value % 5 == 0
       lines = lines.push("Buzz")
     else
-      lines = lines.push("" + value)
+      lines = lines.push("" + value.to_s)
     end
   end
   lines
 end
 
-def run
+def run -> array<string>
   fizzbuzz(30)
 end
-

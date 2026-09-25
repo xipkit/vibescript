@@ -6,24 +6,24 @@
 # tags: popular, math, sequences
 # vibe: 0.2
 
-def digit_sum(n)
+def digit_sum(n: int) -> int
   total = 0
   remaining = n
   while remaining > 0
     total = total + (remaining % 10)
-    remaining = remaining / 10
+    remaining = remaining // 10
   end
   total
 end
 
-def harshad?(n)
+def harshad?(n: int) -> bool
   n > 0 && n % digit_sum(n) == 0
 end
 
-def first_harshad(count)
-  results = []
+def first_harshad(count: int) -> array<int>
+  results: array<int> = []
   n = 1
-  while results.size < count
+  while results.length < count
     if harshad?(n)
       results = results.push(n)
     end
@@ -32,7 +32,7 @@ def first_harshad(count)
   results
 end
 
-def first_harshad_above(threshold)
+def first_harshad_above(threshold: int) -> int
   n = threshold + 1
   while true
     if harshad?(n)
@@ -42,7 +42,7 @@ def first_harshad_above(threshold)
   end
 end
 
-def run
+def run -> { first_20: array<int>, first_above_1000: int }
   {
     first_20: first_harshad(20),
     first_above_1000: first_harshad_above(1000)

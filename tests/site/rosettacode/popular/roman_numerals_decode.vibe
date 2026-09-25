@@ -6,7 +6,7 @@
 # tags: popular, strings, math, conversion
 # vibe: 0.2
 
-def roman_value(char)
+def roman_value(char: string) -> int
   if char == "M"
     return 1000
   elsif char == "D"
@@ -25,14 +25,14 @@ def roman_value(char)
   0
 end
 
-def from_roman(roman)
+def from_roman(roman: string) -> int
   total = 0
   i = 0
 
   while i < roman.length
-    current = roman_value(roman.slice(i))
+    current = roman_value(roman.slice(i).as(string))
     if i + 1 < roman.length
-      next_val = roman_value(roman.slice(i + 1))
+      next_val = roman_value(roman.slice(i + 1).as(string))
       if current < next_val
         total = total + (next_val - current)
         i = i + 2
@@ -49,7 +49,7 @@ def from_roman(roman)
   total
 end
 
-def run
+def run -> { i: int, iv: int, mmxxiv: int, xcix: int, xlii: int }
   {
     i: from_roman("I"),
     iv: from_roman("IV"),

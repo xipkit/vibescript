@@ -6,11 +6,11 @@
 # tags: popular, strings, ciphers, encoding
 # vibe: 0.2
 
-def alphabet
+def alphabet -> string
   "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 end
 
-def digit_to_ab(value)
+def digit_to_ab(value: int) -> string
   if value == 0
     "A"
   else
@@ -18,30 +18,30 @@ def digit_to_ab(value)
   end
 end
 
-def bacon_code(index)
+def bacon_code(index: int) -> string
   digits = ""
   current = index
   count = 0
 
   while count < 5
     digits = digit_to_ab(current % 2) + digits
-    current = current / 2
+    current = current // 2
     count = count + 1
   end
 
   digits
 end
 
-def encode(text)
-  output = []
+def encode(text: string) -> string
+  output: array<string> = []
   index = 0
 
   while index < text.length
-    char = text.slice(index).upcase
+    char = text.slice(index).as(string).upcase
     if char == " "
       output = output.push("/")
     else
-      output = output.push(bacon_code(alphabet.index(char)))
+      output = output.push(bacon_code(alphabet.index(char).as(int)))
     end
     index = index + 1
   end
@@ -49,7 +49,7 @@ def encode(text)
   output.join(" ")
 end
 
-def decode(text)
+def decode(text: string) -> string
   parts = text.split(" ")
   output = ""
   index = 0
@@ -62,7 +62,7 @@ def decode(text)
       letter_index = 0
       while letter_index < alphabet.length
         if bacon_code(letter_index) == part
-          output = output + alphabet.slice(letter_index)
+          output = output + alphabet.slice(letter_index).as(string)
           break
         end
         letter_index = letter_index + 1
@@ -74,7 +74,7 @@ def decode(text)
   output
 end
 
-def run
+def run -> { decoded: string, encoded: string }
   encoded = encode("VIBE CODE")
   {
     encoded: encoded,

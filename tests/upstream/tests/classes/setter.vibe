@@ -1,18 +1,18 @@
 class CounterWithSetter
-  getter count
-  setter count
+  getter count: int
+  setter count: int
 
   def initialize
     @count = 0
   end
 
-  def bump(amount)
+  def bump(amount: int) -> int
     self.count = @count + amount
     @count
   end
 end
 
-def run
+def run -> { after: int, before: int }
   c = CounterWithSetter.new
   before = c.count
   after = c.bump(5)

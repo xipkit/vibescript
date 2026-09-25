@@ -14,7 +14,7 @@ def unary_mismatch
   -"hello"
 end
 
-def arg_type_mismatch(n: int)
+def arg_type_mismatch(n: int) -> int
   n
 end
 

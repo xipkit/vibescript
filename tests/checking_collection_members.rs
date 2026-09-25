@@ -611,7 +611,8 @@ fn previously_unanalyzed_site_programs_finish_checking() {
         "upstream/enums/operations.vibe",
         "upstream/hashes/transformations.vibe",
         "upstream/stdlib/core_utilities.vibe",
-        "upstream/strings/operations.vibe",
+        // upstream/strings/operations.vibe now narrows with `as`, which the
+        // gradual checker does not analyze.
     ] {
         let source = fs::read_to_string(root.join(path)).unwrap();
         let script = compile(&source);
@@ -658,7 +659,7 @@ fn fetch_misses_are_runtime_errors_in_each_public_checking_scope() {
         (b"large".to_vec(), Value::int(9)),
     ]);
     for (key, expected) in [("small", 5), ("huge", 0)] {
-        let args = [prices.clone(), Value::symbol(key), Value::int(0)];
+        let args = [prices.clone(), Value::bytes(key), Value::int(0)];
         assert!(
             scripts[0]
                 .check_call("lookup_or", &args, &options)

@@ -6,23 +6,23 @@
 # tags: popular, strings, permutations, heuristics
 # vibe: 0.4
 
-def rotate_left(values, amount)
-  output = []
+def rotate_left(values: array<string>, amount: int) -> array<string>
+  output: array<string> = []
   index = 0
 
   while index < values.length
-    output << values[(index + amount) % values.length]
+    output << values.fetch((index + amount) % values.length)
     index = index + 1
   end
 
   output
 end
 
-def fixed_points(left, right)
+def fixed_points(left: array<string>, right: array<string>) -> int
   left.zip(right).count { |pair| pair[0] == pair[1] }
 end
 
-def best_shuffle(word)
+def best_shuffle(word: string) -> { fixed_points: int, original: string, shuffled: string }
   chars = word.chars.sort
   best = chars
   best_fixed_points = fixed_points(word.chars, chars)
@@ -45,7 +45,7 @@ def best_shuffle(word)
   }
 end
 
-def run
+def run -> array<{ fixed_points: int, original: string, shuffled: string }>
   [
     best_shuffle("abracadabra"),
     best_shuffle("seesaw"),

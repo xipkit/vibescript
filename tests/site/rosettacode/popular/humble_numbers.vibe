@@ -6,7 +6,7 @@
 # tags: popular, math, sequences, dynamic-programming
 # vibe: 0.2
 
-def humble_numbers(count)
+def humble_numbers(count: int) -> array<int>
   values = [1]
   by_two = 0
   by_three = 0
@@ -14,10 +14,10 @@ def humble_numbers(count)
   by_seven = 0
 
   while values.length < count
-    next_two = values[by_two] * 2
-    next_three = values[by_three] * 3
-    next_five = values[by_five] * 5
-    next_seven = values[by_seven] * 7
+    next_two = values.fetch(by_two) * 2
+    next_three = values.fetch(by_three) * 3
+    next_five = values.fetch(by_five) * 5
+    next_seven = values.fetch(by_seven) * 7
 
     next_value = next_two
     if next_three < next_value
@@ -51,10 +51,10 @@ def humble_numbers(count)
   values
 end
 
-def run
+def run -> { first_twenty_five: array<int>, twenty_fifth: int }
   values = humble_numbers(25)
   {
     first_twenty_five: values,
-    twenty_fifth: values[24]
+    twenty_fifth: values.fetch(24)
   }
 end

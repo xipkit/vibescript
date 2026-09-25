@@ -6,24 +6,24 @@
 # tags: popular, arrays, modeling, basics
 # vibe: 0.2
 
-def ranks
+def ranks -> array<string>
   ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
 end
 
-def suits
+def suits -> array<string>
   ["spades", "hearts", "diamonds", "clubs"]
 end
 
-def build_deck
-  deck = []
+def build_deck -> array<{ rank: string, suit: string }>
+  deck: array<{ rank: string, suit: string }> = []
   suit_index = 0
 
-  while suit_index < suits.size
+  while suit_index < suits.length
     rank_index = 0
-    while rank_index < ranks.size
+    while rank_index < ranks.length
       deck = deck.push({
-        rank: ranks[rank_index],
-        suit: suits[suit_index]
+        rank: ranks.fetch(rank_index),
+        suit: suits.fetch(suit_index)
       })
       rank_index = rank_index + 1
     end
@@ -33,11 +33,11 @@ def build_deck
   deck
 end
 
-def run
+def run -> { count: int, first_three: array<{ rank: string, suit: string }>, last_three: array<{ rank: string, suit: string }> }
   deck = build_deck
   {
-    count: deck.size,
-    first_three: [deck[0], deck[1], deck[2]],
-    last_three: [deck[deck.size - 3], deck[deck.size - 2], deck[deck.size - 1]]
+    count: deck.length,
+    first_three: [deck.fetch(0), deck.fetch(1), deck.fetch(2)],
+    last_three: [deck.fetch(deck.length - 3), deck.fetch(deck.length - 2), deck.fetch(deck.length - 1)]
   }
 end

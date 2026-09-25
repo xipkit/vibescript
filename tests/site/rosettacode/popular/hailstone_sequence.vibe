@@ -5,8 +5,8 @@
 # summary: Build a hailstone sequence and report its length.
 # tags: popular, math, loops, sequences
 
-def hailstone(value)
-  sequence = []
+def hailstone(value: int) -> array<int>
+  sequence: array<int> = []
   current = value
 
   while true
@@ -14,17 +14,17 @@ def hailstone(value)
     if current == 1
       return sequence
     elsif current.even?
-      current = current / 2
+      current = current // 2
     else
       current = (current * 3) + 1
     end
   end
 end
 
-def run
+def run -> { first_ten: array<int>, last_ten: array<int>, length: int }
   sequence = hailstone(27)
   {
-    length: sequence.size,
+    length: sequence.length,
     first_ten: sequence.first(10),
     last_ten: sequence.last(10)
   }

@@ -6,13 +6,13 @@
 # tags: popular, math, sequences, combinatorics
 # vibe: 0.2
 
-def catalan_numbers(count)
+def catalan_numbers(count: int) -> array<int>
   values = [1]
   index = 0
 
   while values.length < count
-    current = values[index]
-    next_value = current * 2 * ((2 * index) + 1) / (index + 2)
+    current = values.fetch(index)
+    next_value = current * 2 * ((2 * index) + 1) // (index + 2)
     values = values.push(next_value)
     index = index + 1
   end
@@ -20,6 +20,6 @@ def catalan_numbers(count)
   values
 end
 
-def run
+def run -> array<int>
   catalan_numbers(10)
 end

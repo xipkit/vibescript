@@ -6,31 +6,31 @@
 # tags: popular, arrays, combinatorics, iteration
 # vibe: 0.2
 
-def reverse_values(values)
-  reversed = []
-  index = values.size - 1
+def reverse_values(values: array<string>) -> array<string>
+  reversed: array<string> = []
+  index = values.length - 1
 
   while index >= 0
-    reversed = reversed.push(values[index])
+    reversed = reversed.push(values.fetch(index))
     index = index - 1
   end
 
   reversed
 end
 
-def prefix_all(values, prefix)
-  output = []
+def prefix_all(values: array<string>, prefix: string) -> array<string>
+  output: array<string> = []
   index = 0
 
-  while index < values.size
-    output = output.push(prefix + values[index])
+  while index < values.length
+    output = output.push(prefix + values.fetch(index))
     index = index + 1
   end
 
   output
 end
 
-def gray_code(bits)
+def gray_code(bits: int) -> array<string>
   if bits == 0
     [""]
   else
@@ -39,6 +39,6 @@ def gray_code(bits)
   end
 end
 
-def run
+def run -> array<string>
   gray_code(4)
 end

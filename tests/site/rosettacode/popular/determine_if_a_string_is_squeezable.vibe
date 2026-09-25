@@ -6,25 +6,25 @@
 # tags: popular, strings, parsing, basics
 # vibe: 0.4
 
-def squeeze(text)
+def squeeze(text: string) -> string
   result = ""
-  previous = nil
+  previous: string? = nil
 
-  text.chars.each do |char|
+  text.chars.each { |char|
     if char != previous
       result = result + char
       previous = char
     end
-  end
+  }
 
   result
 end
 
-def squeezable?(text, target)
+def squeezable?(text: string, target: string) -> bool
   squeeze(text) == target
 end
 
-def run
+def run -> { balloon: bool, mismatch: bool, mississippi: bool, no_change: bool }
   {
     balloon: squeezable?("baalllloooon", "balon"),
     mississippi: squeezable?("mississippi", "misisipi"),

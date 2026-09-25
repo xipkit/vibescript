@@ -6,7 +6,7 @@
 # tags: popular, math, geometry, search
 # vibe: 0.2
 
-def gcd(a, b)
+def gcd(a: int, b: int) -> int
   left = a.abs
   right = b.abs
 
@@ -19,8 +19,8 @@ def gcd(a, b)
   left
 end
 
-def pythagorean_triples(limit)
-  triples = []
+def pythagorean_triples(limit: int) -> array<array<int>>
+  triples: array<array<int>> = []
   m = 2
 
   while (m * m) + 1 <= limit
@@ -47,7 +47,7 @@ def pythagorean_triples(limit)
   triples
 end
 
-def run
+def run -> { count: int, triples: array<array<int>> }
   triples = pythagorean_triples(50)
   {
     count: triples.length,

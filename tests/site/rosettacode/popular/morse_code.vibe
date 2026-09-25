@@ -6,7 +6,7 @@
 # tags: popular, strings, encoding, lookup
 # vibe: 0.2
 
-def morse_for(char)
+def morse_for(char: string) -> string?
   if char == "A"
     ".-"
   elsif char == "B"
@@ -84,12 +84,12 @@ def morse_for(char)
   end
 end
 
-def encode_morse(text)
-  codes = []
+def encode_morse(text: string) -> string
+  codes: array<string> = []
   index = 0
 
   while index < text.length
-    char = text.slice(index).upcase
+    char = text.slice(index).as(string).upcase
     if char == " "
       codes = codes + ["/"]
     else
@@ -104,7 +104,7 @@ def encode_morse(text)
   codes.join(" ")
 end
 
-def run
+def run -> { sos: string, vibe: string }
   {
     sos: encode_morse("SOS"),
     vibe: encode_morse("VIBE 2026")

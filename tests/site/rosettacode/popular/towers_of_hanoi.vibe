@@ -6,7 +6,7 @@
 # tags: popular, recursion, classic-cs, puzzles
 # vibe: 0.2
 
-def hanoi_moves(disks, from_peg, to_peg, spare_peg)
+def hanoi_moves(disks: int, from_peg: int, to_peg: int, spare_peg: int) -> array<{ disk: int, from: int, to: int }>
   if disks == 0
     []
   else
@@ -14,10 +14,10 @@ def hanoi_moves(disks, from_peg, to_peg, spare_peg)
   end
 end
 
-def run
+def run -> { move_count: int, moves: array<{ disk: int, from: int, to: int }> }
   moves = hanoi_moves(3, 1, 3, 2)
   {
-    move_count: moves.size,
+    move_count: moves.length,
     moves: moves
   }
 end

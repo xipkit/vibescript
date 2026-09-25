@@ -22,7 +22,7 @@ def shift_length(level: CoverageLevel) -> duration
   end
 end
 
-def handoff_packet(service: string, level: CoverageLevel, started_at: time) -> hash
+def handoff_packet(service: string, level: CoverageLevel, started_at: time) -> hash<string, string>
   length = shift_length(level)
   ends_at = length.after(started_at)
 
@@ -31,12 +31,12 @@ def handoff_packet(service: string, level: CoverageLevel, started_at: time) -> h
     level: level.name,
     starts_at: started_at.format("2006-01-02T15:04:05Z"),
     ends_at: ends_at.format("2006-01-02T15:04:05Z"),
-    reminder_at: 30.minutes.ago(ends_at).format("2006-01-02T15:04:05Z"),
+    reminder_at: 30.minutes.before(ends_at).format("2006-01-02T15:04:05Z"),
     summary: "{{service}} {{level}} handoff".template({ service: service, level: level.name })
   }
 end
 
-def run
+def run -> { commander: hash<string, string>, primary: hash<string, string> }
   started_at = Time.at(1701100000)
 
   {

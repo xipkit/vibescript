@@ -47,5 +47,50 @@
   },
   "upstream/money/operations.vibe": {
     "result_encoding": "typed"
+  },
+  "upstream/background/jobs_and_events.vibe": {
+    "static_error": {
+      "code": "V0201",
+      "at": [
+        6,
+        3
+      ]
+    }
+  },
+  "upstream/capabilities/context_access.vibe": {
+    "static_error": {
+      "code": "V0201",
+      "at": [
+        5,
+        3
+      ]
+    }
+  },
+  "upstream/capabilities/database_queries.vibe": {
+    "static_error": {
+      "code": "V0201",
+      "at": [
+        5,
+        3
+      ]
+    }
+  },
+  "upstream/capabilities/iteration.vibe": {
+    "static_error": {
+      "code": "V0201",
+      "at": [
+        6,
+        3
+      ]
+    }
+  },
+  "upstream/policies/access_control.vibe": {
+    "static_error": {
+      "code": "V0201",
+      "at": [
+        5,
+        3
+      ]
+    }
   }
 }

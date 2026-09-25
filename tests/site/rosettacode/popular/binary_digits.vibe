@@ -6,7 +6,7 @@
 # tags: popular, numbers, strings, conversion
 # vibe: 0.2
 
-def binary_digits(value)
+def binary_digits(value: int) -> string
   if value == 0
     return "0"
   end
@@ -15,14 +15,14 @@ def binary_digits(value)
   current = value
 
   while current > 0
-    digits = "" + (current % 2) + digits
-    current = current / 2
+    digits = "" + (current % 2).to_s + digits
+    current = current // 2
   end
 
   digits
 end
 
-def run
+def run -> array<{ binary: string, value: int }>
   [
     { value: 0, binary: binary_digits(0) },
     { value: 5, binary: binary_digits(5) },

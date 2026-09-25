@@ -21,9 +21,9 @@ def base_delay(profile: RetryProfile) -> duration
   end
 end
 
-def retry_schedule(profile: RetryProfile, start: time, attempts: int) -> array
+def retry_schedule(profile: RetryProfile, start: time, attempts: int) -> array<{ at: string, attempt: int, delay: string }>
   delay = base_delay(profile)
-  rows = []
+  rows: array<{ at: string, attempt: int, delay: string }> = []
   current = start
   multiplier = 1
   attempt = 1
@@ -43,7 +43,7 @@ def retry_schedule(profile: RetryProfile, start: time, attempts: int) -> array
   rows
 end
 
-def run
+def run -> { careful: array<{ at: string, attempt: int, delay: string }>, fast: array<{ at: string, attempt: int, delay: string }> }
   start = Time.at(1700000000)
   {
     fast: retry_schedule(RetryProfile::Fast, start, 4),

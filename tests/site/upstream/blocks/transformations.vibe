@@ -1,24 +1,24 @@
 # vibe: 1.0
 
-def double_each(pledges)
-  pledges.map do |pledge|
+def double_each(pledges: array<int>) -> array<int>
+  pledges.map { |pledge|
     pledge * 2
-  end
+  }
 end
 
-def select_large_donations(donations)
-  donations.select do |donation|
-    donation[:amount] > money("50.00 USD")
-  end
+def select_large_donations(donations: array<{ amount: money }>) -> array<{ amount: money }>
+  donations.select { |donation|
+    donation["amount"] > money("50.00 USD")
+  }
 end
 
-def total_scores(scores)
-  scores.reduce(0) do |running_total, score|
+def total_scores(scores: array<int>) -> int
+  scores.reduce(0) { |running_total, score|
     running_total + score
-  end
+  }
 end
 
-def run
+def run -> { doubled: array<int>, total: int }
   {
     doubled: double_each([10, 20, 30]),
     total: total_scores([100, 200, 300])

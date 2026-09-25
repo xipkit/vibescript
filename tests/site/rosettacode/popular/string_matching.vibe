@@ -6,7 +6,7 @@
 # tags: popular, strings, search, loops
 # vibe: 0.2
 
-def matches_at?(text, pattern, start_index)
+def matches_at?(text: string, pattern: string, start_index: int) -> bool
   offset = 0
 
   while offset < pattern.length
@@ -19,8 +19,8 @@ def matches_at?(text, pattern, start_index)
   true
 end
 
-def string_matching(text, pattern)
-  matches = []
+def string_matching(text: string, pattern: string) -> array<int>
+  matches: array<int> = []
   index = 0
 
   while index + pattern.length <= text.length
@@ -33,7 +33,7 @@ def string_matching(text, pattern)
   matches
 end
 
-def run
+def run -> { aba_in_ababa: array<int>, ana_in_bananas: array<int> }
   {
     aba_in_ababa: string_matching("ababa", "aba"),
     ana_in_bananas: string_matching("bananas", "ana")

@@ -6,12 +6,12 @@
 # tags: popular, strings, compression, loops
 # vibe: 0.2
 
-def encode(text)
+def encode(text: string) -> array<{ char: string, count: int }>
   if text == ""
     return []
   end
 
-  output = []
+  output: array<{ char: string, count: int }> = []
   current = text.slice(0)
   count = 1
   index = 1
@@ -23,7 +23,7 @@ def encode(text)
       count = count + 1
     else
       output = output.push({
-        char: current,
+        char: current.as(string),
         count: count
       })
       current = char
@@ -34,20 +34,20 @@ def encode(text)
   end
 
   output.push({
-    char: current,
+    char: current.as(string),
     count: count
   })
 end
 
-def decode(runs)
+def decode(runs: array<{ char: string, count: int }>) -> string
   output = ""
   index = 0
 
-  while index < runs.size
-    entry = runs[index]
-    entry[:count].times do
-      output = output + entry[:char]
-    end
+  while index < runs.length
+    entry = runs.fetch(index)
+    entry["count"].times {
+      output = output + entry["char"]
+    }
 
     index = index + 1
   end
@@ -55,7 +55,7 @@ def decode(runs)
   output
 end
 
-def run
+def run -> { decoded: string, encoded: array<{ char: string, count: int }>, sample: string }
   sample = "AAABBCCCC"
   encoded = encode(sample)
   {

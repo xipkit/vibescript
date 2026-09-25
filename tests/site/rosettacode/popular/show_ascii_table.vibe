@@ -6,17 +6,17 @@
 # tags: popular, strings, tables, ascii
 # vibe: 0.2
 
-def sample_characters
+def sample_characters -> array<string>
   [" ", "!", "\"", "#", "$", "%", "&", "'", "(", ")", "*", "+"]
 end
 
-def build_rows
-  rows = []
+def build_rows -> array<{ character: string, code: int, printable: bool }>
+  rows: array<{ character: string, code: int, printable: bool }> = []
   characters = sample_characters
   index = 0
 
-  while index < characters.size
-    symbol = characters[index]
+  while index < characters.length
+    symbol = characters.fetch(index)
     rows = rows + [{
       code: symbol.ord,
       character: symbol,
@@ -28,6 +28,6 @@ def build_rows
   rows
 end
 
-def run
+def run -> array<{ character: string, code: int, printable: bool }>
   build_rows
 end

@@ -14,6 +14,6 @@ def welcome(address: string, name: string) -> hash
   email.send(address, subject, body)
 end
 
-def run
+def run -> hash
   welcome("alex@example.com", "Alex")
 end

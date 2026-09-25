@@ -8,11 +8,11 @@
 # feature_rank: -3
 # uses: sms
 
-def delivery_update(phone, order_id)
+def delivery_update(phone: string, order_id: string) -> hash
   body = "Order #{order_id} is on its way."
   sms.send(phone, body)
 end
 
-def run
+def run -> hash
   delivery_update("+12025550123", "1042")
 end

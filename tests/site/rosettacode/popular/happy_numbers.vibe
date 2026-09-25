@@ -6,20 +6,20 @@
 # tags: popular, math, sequences, number-theory
 # vibe: 0.2
 
-def digit_square_sum(value)
+def digit_square_sum(value: int) -> int
   current = value
   total = 0
 
   while current > 0
     digit = current % 10
     total = total + (digit * digit)
-    current = current / 10
+    current = current // 10
   end
 
   total
 end
 
-def happy?(value)
+def happy?(value: int) -> bool
   current = value
 
   while current != 1 && current != 4
@@ -29,8 +29,8 @@ def happy?(value)
   current == 1
 end
 
-def first_happy_numbers(count)
-  values = []
+def first_happy_numbers(count: int) -> array<int>
+  values: array<int> = []
   candidate = 1
 
   while values.length < count
@@ -43,7 +43,7 @@ def first_happy_numbers(count)
   values
 end
 
-def run
+def run -> { first_five: array<int>, nineteen: bool, twenty: bool }
   {
     first_five: first_happy_numbers(5),
     nineteen: happy?(19),

@@ -1,7 +1,7 @@
 # vibe: 1.0
 
-def countdown(start)
-  out = []
+def countdown(start: int) -> array<int>
+  out: array<int> = []
   n = start
   while n > 0
     out = out + [n]
@@ -10,6 +10,6 @@ def countdown(start)
   out
 end
 
-def run
+def run -> array<int>
   countdown(5)
 end

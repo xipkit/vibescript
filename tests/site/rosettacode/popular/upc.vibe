@@ -6,16 +6,16 @@
 # tags: popular, strings, validation, checksum
 # vibe: 0.2
 
-def digit_value(char)
-  "0123456789".index(char)
+def digit_value(char: string) -> int
+  "0123456789".index(char).as(int)
 end
 
-def valid_upc?(code)
+def valid_upc?(code: string) -> bool
   sum = 0
   index = 0
 
   while index < code.length
-    digit = digit_value(code.slice(index))
+    digit = digit_value(code.slice(index).as(string))
     if index.even?
       sum = sum + (digit * 3)
     else
@@ -27,7 +27,7 @@ def valid_upc?(code)
   sum % 10 == 0
 end
 
-def run
+def run -> array<{ code: string, valid: bool }>
   [
     { code: "036000291452", valid: valid_upc?("036000291452") },
     { code: "042100005264", valid: valid_upc?("042100005264") },

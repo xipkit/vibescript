@@ -14,7 +14,7 @@ end
 
 def settlement_delay(cadence: PayoutCadence) -> duration
   if cadence == PayoutCadence::Daily
-    1.day
+    1.days
   elsif cadence == PayoutCadence::Weekly
     7.days
   else
@@ -22,7 +22,7 @@ def settlement_delay(cadence: PayoutCadence) -> duration
   end
 end
 
-def payout_job(batch_id: string, cadence: PayoutCadence, total: money, closed_at: time) -> hash
+def payout_job(batch_id: string, cadence: PayoutCadence, total: money, closed_at: time) -> hash<string, money | string>
   delay = settlement_delay(cadence)
 
   {
@@ -34,7 +34,7 @@ def payout_job(batch_id: string, cadence: PayoutCadence, total: money, closed_at
   }
 end
 
-def run
+def run -> { daily: hash<string, money | string>, monthly: hash<string, money | string> }
   closed_at = Time.at(1700400000)
 
   {

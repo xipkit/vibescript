@@ -192,7 +192,9 @@ fn settled_contexts_and_join_caches_obey_exact_and_sampled_limits() {
 fn forking_exact_iterations_check_anagrams_within_a_fraction_of_the_budget() {
     // Each pass over the literal word list could add or extend a group under an unknown key,
     // doubling the alternatives of the captured hash; checking once needed 51.9M steps.
-    let source = include_str!("site/rosettacode/popular/anagrams.vibe");
+    // The site program before its migration to static types, whose untyped
+    // grouping hash is what forks the gradual checker.
+    let source = ANAGRAMS;
     let script = Engine::new().compile(source).unwrap();
     let expected = script.check(&unlimited()).unwrap();
     assert!(
@@ -241,3 +243,44 @@ fn exact_iterations_resume_after_summarizing_each_new_block_context() {
     same_report(&report, &expected);
     exact_limits(&Engine::new().compile(&literal_each(12)).unwrap());
 }
+
+/// `tests/site/rosettacode/popular/anagrams.vibe` as it was before the migration.
+const ANAGRAMS: &str = r#"# title: Anagrams
+# source: https://rosettacode.org/wiki/Anagrams
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Group a fixed word list into anagram sets using sorted-letter signatures.
+# tags: popular, strings, hashes, sorting
+# vibe: 0.4
+
+def signature(word)
+  word.downcase.chars.sort.join("")
+end
+
+def anagram_groups(words)
+  groups = {}
+  order = []
+
+  words.each do |word|
+    key = signature(word)
+    if groups[key] == nil
+      groups[key] = []
+      order << key
+    end
+    groups[key] << word
+  end
+
+  output = []
+  order.each do |key|
+    if groups[key].length > 1
+      output << groups[key].sort
+    end
+  end
+
+  output
+end
+
+def run
+  anagram_groups(["care", "race", "acre", "dog", "god", "note", "tone", "vibe"])
+end
+"#;

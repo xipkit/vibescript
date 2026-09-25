@@ -1,15 +1,15 @@
 # vibe: 1.0
 # uses: db
 
-def total_raised_for_player(player_id)
+def total_raised_for_player(player_id: string) -> money
   total = money("0.00 USD")
-  db.each("ScoreEntry", where: { player_id: player_id }) do |entry|
-    total = total + entry[:amount]
-  end
+  db.each("ScoreEntry", where: { player_id: player_id }) { |entry|
+    total = total + entry.as(hash<string, any>)["amount"].as(money)
+  }
   total
 end
 
-def run
+def run -> { functions: array<string>, note: string }
   {
     note: "This example requires the db capability which is injected by the host application.",
     functions: ["total_raised_for_player"]

@@ -1,6 +1,6 @@
 # vibe: 1.0
 
-def inclusive_range_sum(start, finish)
+def inclusive_range_sum(start: int, finish: int) -> int
   total = 0
   for value in start..finish
     total = total + value
@@ -8,7 +8,7 @@ def inclusive_range_sum(start, finish)
   total
 end
 
-def exclusive_range_sum(start, finish)
+def exclusive_range_sum(start: int, finish: int) -> int
   total = 0
   for value in start...finish
     total = total + value
@@ -16,33 +16,33 @@ def exclusive_range_sum(start, finish)
   total
 end
 
-def descending_range_collect(start, finish)
+def descending_range_collect(start: int, finish: int) -> string
   output = ""
   for value in start..finish
     if output == ""
-      output = value
+      output = value.to_s
     else
-      output = output + "," + value
+      output = "#{output},#{value}"
     end
   end
   output
 end
 
-def range_even_numbers(start, finish)
+def range_even_numbers(start: int, finish: int) -> string
   output = ""
   for value in start..finish
     if value % 2 == 0
       if output == ""
-        output = value
+        output = value.to_s
       else
-        output = output + "," + value
+        output = "#{output},#{value}"
       end
     end
   end
   output
 end
 
-def run
+def run -> { descending: string, evens: string, inclusive_sum: int }
   {
     inclusive_sum: inclusive_range_sum(1, 10),
     descending: descending_range_collect(5, 1),

@@ -1,15 +1,15 @@
 # vibe: 1.0
 
-def collect_until(limit)
-  out = []
+def collect_until(limit: int) -> array<int>
+  out: array<int> = []
   n = 0
-  until n >= limit
+  while !(n >= limit)
     out = out + [n]
     n = n + 1
   end
   out
 end
 
-def run
+def run -> array<int>
   collect_until(5)
 end

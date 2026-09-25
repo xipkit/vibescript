@@ -13,6 +13,9 @@ enum ApprovalState
   Blocked
 end
 
+type ApprovalStep = { due_at: string, due_in: string, label: string }
+type Approval = { change_id: string, checks_passed: bool, next_state: string, state: string, steps: array<ApprovalStep> }
+
 def next_state(state: ApprovalState, checks_passed: bool) -> ApprovalState
   if state == ApprovalState::Draft
     ApprovalState::Review
@@ -25,7 +28,7 @@ def next_state(state: ApprovalState, checks_passed: bool) -> ApprovalState
   end
 end
 
-def approval_step(label: string, due_in: duration, opened_at: time) -> hash
+def approval_step(label: string, due_in: duration, opened_at: time) -> ApprovalStep
   {
     label: label,
     due_in: due_in.iso8601,
@@ -33,9 +36,9 @@ def approval_step(label: string, due_in: duration, opened_at: time) -> hash
   }
 end
 
-def approval_chain(change_id: string, state: ApprovalState, checks_passed: bool, opened_at: time) -> hash
+def approval_chain(change_id: string, state: ApprovalState, checks_passed: bool, opened_at: time) -> Approval
   target_state = next_state(state, checks_passed)
-  steps = []
+  steps: array<ApprovalStep> = []
 
   if state == ApprovalState::Draft
     steps = steps.push(approval_step("peer review", 2.hours, opened_at))
@@ -55,7 +58,7 @@ def approval_chain(change_id: string, state: ApprovalState, checks_passed: bool,
   }
 end
 
-def run
+def run -> { pending: Approval, ready: Approval }
   opened_at = Time.at(1701000000)
 
   {

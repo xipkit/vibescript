@@ -1,18 +1,18 @@
 # vibe: 1.0
 
-def reminder_delay_seconds
-  (5.minutes).seconds
+def reminder_delay_seconds -> int
+  (5.minutes).to_i
 end
 
-def event_window
+def event_window -> duration
   2.hours
 end
 
-def combine_delay_seconds(first, second)
-  first.seconds + second.seconds
+def combine_delay_seconds(first: duration, second: duration) -> int
+  first.to_i + second.to_i
 end
 
-def run
+def run -> { combined: int, event_window: duration, reminder_delay: int }
   {
     reminder_delay: reminder_delay_seconds,
     event_window: event_window,

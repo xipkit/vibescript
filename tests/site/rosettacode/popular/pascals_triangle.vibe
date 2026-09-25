@@ -6,24 +6,24 @@
 # tags: popular, math, arrays, iteration
 # vibe: 0.2
 
-def next_row(previous)
+def next_row(previous: array<int>) -> array<int>
   if previous.empty?
     return [1]
   end
 
   row = [1]
   index = 1
-  while index < previous.size
-    row = row.push(previous[index - 1] + previous[index])
+  while index < previous.length
+    row = row.push(previous.fetch(index - 1) + previous.fetch(index))
     index = index + 1
   end
   row = row.push(1)
   row
 end
 
-def build_triangle(rows_count)
-  rows = []
-  current = []
+def build_triangle(rows_count: int) -> array<array<int>>
+  rows: array<array<int>> = []
+  current: array<int> = []
   produced = 0
 
   while produced < rows_count
@@ -35,6 +35,6 @@ def build_triangle(rows_count)
   rows
 end
 
-def run
+def run -> array<array<int>>
   build_triangle(7)
 end

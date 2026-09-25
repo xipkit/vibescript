@@ -6,11 +6,11 @@
 # tags: popular, math, geometry, conversion
 # vibe: 0.2
 
-def pi
+def pi -> float
   3.141592653589793
 end
 
-def normalize_360(angle)
+def normalize_360(angle: int) -> int
   value = angle
 
   while value < 0
@@ -24,7 +24,7 @@ def normalize_360(angle)
   value
 end
 
-def normalize_180(angle)
+def normalize_180(angle: int) -> int
   value = normalize_360(angle)
 
   if value >= 180
@@ -34,15 +34,15 @@ def normalize_180(angle)
   end
 end
 
-def degrees_to_radians(angle)
+def degrees_to_radians(angle: int) -> float
   angle * pi / 180
 end
 
-def radians_to_degrees(angle)
+def radians_to_degrees(angle: float) -> float
   angle * 180 / pi
 end
 
-def run
+def run -> { degrees_from_half_pi: float, normalized_725: int, normalized_negative_45: int, radians_from_225: float, signed_225: int, signed_725: int }
   {
     normalized_725: normalize_360(725),
     normalized_negative_45: normalize_360(-45),

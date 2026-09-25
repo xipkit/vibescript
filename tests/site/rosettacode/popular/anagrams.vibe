@@ -6,33 +6,33 @@
 # tags: popular, strings, hashes, sorting
 # vibe: 0.4
 
-def signature(word)
+def signature(word: string) -> string
   word.downcase.chars.sort.join("")
 end
 
-def anagram_groups(words)
-  groups = {}
-  order = []
+def anagram_groups(words: array<string>) -> array<array<string>>
+  groups: hash<string, array<string>> = {}
+  order: array<string> = []
 
-  words.each do |word|
+  words.each { |word|
     key = signature(word)
     if groups[key] == nil
       groups[key] = []
       order << key
     end
-    groups[key] << word
-  end
+    groups[key] = groups.fetch(key) + [word]
+  }
 
-  output = []
-  order.each do |key|
-    if groups[key].length > 1
-      output << groups[key].sort
+  output: array<array<string>> = []
+  order.each { |key|
+    if groups.fetch(key).length > 1
+      output << groups.fetch(key).sort
     end
-  end
+  }
 
   output
 end
 
-def run
+def run -> array<array<string>>
   anagram_groups(["care", "race", "acre", "dog", "god", "note", "tone", "vibe"])
 end

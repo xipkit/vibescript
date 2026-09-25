@@ -6,11 +6,11 @@
 # tags: popular, graphs, sorting, dependencies
 # vibe: 0.2
 
-def nodes
+def nodes -> array<string>
   ["shop", "cook", "eat", "clean", "sleep"]
 end
 
-def edge_pairs
+def edge_pairs -> array<array<string>>
   [
     ["shop", "cook"],
     ["cook", "eat"],
@@ -20,50 +20,50 @@ def edge_pairs
   ]
 end
 
-def topological_sort
-  graph = {}
-  indegree = {}
+def topological_sort -> array<string>
+  graph: hash<string, array<string>> = {}
+  indegree: hash<string, int> = {}
   items = nodes
   index = 0
 
   while index < items.length
-    indegree[items[index]] = 0
+    indegree[items.fetch(index)] = 0
     index = index + 1
   end
 
   pairs = edge_pairs
   index = 0
   while index < pairs.length
-    from = pairs[index][0]
-    to = pairs[index][1]
+    from = pairs.fetch(index).fetch(0)
+    to = pairs.fetch(index).fetch(1)
     if graph[from] == nil
       graph[from] = []
     end
-    graph[from] = graph[from].push(to)
-    indegree[to] = indegree[to] + 1
+    graph[from] = graph.fetch(from).push(to)
+    indegree[to] = indegree.fetch(to) + 1
     index = index + 1
   end
 
-  queue = []
+  queue: array<string> = []
   index = 0
   while index < items.length
-    if indegree[items[index]] == 0
-      queue = queue.push(items[index])
+    if indegree[items.fetch(index)] == 0
+      queue = queue.push(items.fetch(index))
     end
     index = index + 1
   end
 
-  output = []
+  output: array<string> = []
   queue_index = 0
   while queue_index < queue.length
-    current = queue[queue_index]
+    current = queue.fetch(queue_index)
     output = output.push(current)
     neighbors = graph[current]
     if neighbors != nil
       neighbor_index = 0
       while neighbor_index < neighbors.length
-        neighbor = neighbors[neighbor_index]
-        indegree[neighbor] = indegree[neighbor] - 1
+        neighbor = neighbors.fetch(neighbor_index)
+        indegree[neighbor] = indegree.fetch(neighbor) - 1
         if indegree[neighbor] == 0
           queue = queue.push(neighbor)
         end
@@ -76,6 +76,6 @@ def topological_sort
   output
 end
 
-def run
+def run -> array<string>
   topological_sort
 end

@@ -6,11 +6,11 @@
 # tags: collections, arrays, matrix
 # vibe: 0.4
 
-def column_totals(rows)
+def column_totals(rows: array<array<int>>) -> array<int>
   rows.transpose.map { |column| column.sum }
 end
 
-def run
+def run -> { by_metric: array<array<int | string | nil>>, daily_totals: array<int>, grand_total: int }
   labels = ["signups", "errors", "refunds"]
   daily = [
     [10, 3, 1],

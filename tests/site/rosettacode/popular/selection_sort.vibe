@@ -6,21 +6,21 @@
 # tags: popular, sorting, arrays, loops
 # vibe: 0.2
 
-def selection_sort(arr)
+def selection_sort(arr: array<int>) -> array<int>
   i = 0
-  while i < arr.size - 1
+  while i < arr.length - 1
     min_idx = i
     j = i + 1
-    while j < arr.size
-      if arr[j] < arr[min_idx]
+    while j < arr.length
+      if arr.fetch(j) < arr.fetch(min_idx)
         min_idx = j
       end
       j = j + 1
     end
 
     if min_idx != i
-      temp = arr[i]
-      arr[i] = arr[min_idx]
+      temp = arr.fetch(i)
+      arr[i] = arr.fetch(min_idx)
       arr[min_idx] = temp
     end
 
@@ -30,7 +30,7 @@ def selection_sort(arr)
   arr
 end
 
-def run
+def run -> { already: array<int>, reversed: array<int>, sorted: array<int> }
   {
     sorted: selection_sort([64, 25, 12, 22, 11]),
     already: selection_sort([1, 2, 3, 4, 5]),

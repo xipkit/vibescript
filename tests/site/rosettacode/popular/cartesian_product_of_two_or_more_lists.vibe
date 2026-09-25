@@ -6,20 +6,20 @@
 # tags: popular, arrays, combinatorics, iteration
 # vibe: 0.2
 
-def cartesian_product(lists)
-  combinations = [[]]
+def cartesian_product(lists: array<array<int | string>>) -> array<array<int | string>>
+  combinations: array<array<int | string>> = [[]]
   list_index = 0
 
   while list_index < lists.length
-    current = lists[list_index]
-    next_combinations = []
+    current = lists.fetch(list_index)
+    next_combinations: array<array<int | string>> = []
     combination_index = 0
 
     while combination_index < combinations.length
-      prefix = combinations[combination_index]
+      prefix = combinations.fetch(combination_index)
       value_index = 0
       while value_index < current.length
-        next_combinations = next_combinations.push(prefix + [current[value_index]])
+        next_combinations = next_combinations.push(prefix + [current.fetch(value_index)])
         value_index = value_index + 1
       end
       combination_index = combination_index + 1
@@ -32,7 +32,7 @@ def cartesian_product(lists)
   combinations
 end
 
-def run
+def run -> { three_lists: array<array<int | string>>, two_lists: array<array<int | string>> }
   {
     two_lists: cartesian_product([["red", "blue"], [1, 2, 3]]),
     three_lists: cartesian_product([["small", "large"], ["circle", "square"], ["solid", "outline"]])

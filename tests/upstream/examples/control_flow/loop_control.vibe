@@ -1,7 +1,7 @@
 # vibe: 1.0
 
-def odds_below(limit)
-  out = []
+def odds_below(limit: int) -> array<int>
+  out: array<int> = []
   n = 0
   while n < limit
     n = n + 1
@@ -16,6 +16,6 @@ def odds_below(limit)
   out
 end
 
-def run
+def run -> array<int>
   odds_below(10)
 end

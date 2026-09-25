@@ -6,12 +6,12 @@
 # tags: popular, math, tables, loops
 # vibe: 0.2
 
-def multiplication_table(limit)
-  rows = []
+def multiplication_table(limit: int) -> array<array<int>>
+  rows: array<array<int>> = []
   row = 1
 
   while row <= limit
-    current = []
+    current: array<int> = []
     column = 1
     while column <= limit
       current = current + [row * column]
@@ -24,6 +24,6 @@ def multiplication_table(limit)
   rows
 end
 
-def run
+def run -> array<array<int>>
   multiplication_table(6)
 end

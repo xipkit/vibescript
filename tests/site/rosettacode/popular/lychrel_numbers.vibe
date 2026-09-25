@@ -6,22 +6,22 @@
 # tags: popular, numbers, iteration, palindromes, bignum
 # vibe: 0.4
 
-def palindrome?(number)
+def palindrome?(number: int) -> bool
   text = number.to_s
   text == text.reverse
 end
 
-def reverse_number(number)
+def reverse_number(number: int) -> int
   reversed = 0
   current = number
   while current > 0
     reversed = (reversed * 10) + (current % 10)
-    current = current / 10
+    current = current // 10
   end
   reversed
 end
 
-def lychrel_candidate?(number, limit)
+def lychrel_candidate?(number: int, limit: int) -> bool
   current = number
   iteration = 0
 
@@ -36,7 +36,7 @@ def lychrel_candidate?(number, limit)
   true
 end
 
-def run
+def run -> array<{ lychrel_candidate: bool, value: int }>
   [
     { value: 56, lychrel_candidate: lychrel_candidate?(56, 200) },
     { value: 57, lychrel_candidate: lychrel_candidate?(57, 200) },

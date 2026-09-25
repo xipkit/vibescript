@@ -6,20 +6,20 @@
 # tags: popular, math, arrays, nested-loops
 # vibe: 0.2
 
-def matrix_multiply(left, right)
-  product = []
+def matrix_multiply(left: array<array<int>>, right: array<array<int>>) -> array<array<int>>
+  product: array<array<int>> = []
   row_index = 0
 
-  while row_index < left.size
-    row = []
+  while row_index < left.length
+    row: array<int> = []
     column_index = 0
 
-    while column_index < right[0].size
+    while column_index < right.fetch(0).length
       total = 0
       inner_index = 0
 
-      while inner_index < right.size
-        total = total + (left[row_index][inner_index] * right[inner_index][column_index])
+      while inner_index < right.length
+        total = total + (left.fetch(row_index).fetch(inner_index) * right.fetch(inner_index).fetch(column_index))
         inner_index = inner_index + 1
       end
 
@@ -34,7 +34,7 @@ def matrix_multiply(left, right)
   product
 end
 
-def run
+def run -> array<array<int>>
   left = [
     [1, 2, 3],
     [4, 5, 6]

@@ -6,21 +6,21 @@
 # tags: popular, strings, slicing, basics
 # vibe: 0.2
 
-def substring(text, start_index, count)
+def substring(text: string, start_index: int, count: int) -> string
   output = ""
   offset = 0
 
   while offset < count && start_index + offset < text.length
-    output = output + text.slice(start_index + offset)
+    output = output + text.slice(start_index + offset).as(string)
     offset = offset + 1
   end
 
   output
 end
 
-def run
+def run -> array<array<int | string>>
   sample = "Vibescript examples"
-  rows = []
+  rows: array<array<int | string>> = []
   rows = rows.push(["start", "count", "value"])
   rows = rows.push([0, 10, substring(sample, 0, 10)])
   rows = rows.push([4, 6, substring(sample, 4, 6)])

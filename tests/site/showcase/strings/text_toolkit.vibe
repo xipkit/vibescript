@@ -6,7 +6,7 @@
 # tags: strings, text, formatting
 # vibe: 0.4
 
-def split_setting(line: string) -> hash
+def split_setting(line: string) -> hash<string, bool | string>
   parts = line.partition("=")
   {
     key: parts[0],
@@ -31,7 +31,7 @@ def flagged?(line: string) -> bool
   line.start_with?("WARN", "ERROR")
 end
 
-def run
+def run -> { banner: string, domain: string, info_flagged: bool, initials: string, no_assignment: hash<string, bool | string>, setting: hash<string, bool | string>, warn_flagged: bool }
   {
     setting: split_setting("timeout=30"),
     no_assignment: split_setting("bare-token"),

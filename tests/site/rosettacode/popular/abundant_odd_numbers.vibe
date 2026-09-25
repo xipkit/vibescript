@@ -6,7 +6,7 @@
 # tags: popular, math, number-theory, divisors
 # vibe: 0.2
 
-def proper_divisor_sum(number)
+def proper_divisor_sum(number: int) -> int
   if number == 1
     return 0
   end
@@ -17,7 +17,7 @@ def proper_divisor_sum(number)
   while candidate * candidate <= number
     if number % candidate == 0
       total = total + candidate
-      other = number / candidate
+      other = number // candidate
       if other != candidate
         total = total + other
       end
@@ -28,11 +28,11 @@ def proper_divisor_sum(number)
   total
 end
 
-def abundant?(number)
+def abundant?(number: int) -> bool
   proper_divisor_sum(number) > number
 end
 
-def run
+def run -> array<{ abundant: bool, value: int }>
   [
     { value: 315, abundant: abundant?(315) },
     { value: 945, abundant: abundant?(945) },

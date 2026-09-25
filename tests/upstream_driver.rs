@@ -727,9 +727,9 @@ fn all_vibe_files_compile_and_run() {
     for program in &programs {
         let id = format!("all/{}", program.stem);
         let text = source(&program.path);
-        let declares_run = text
-            .lines()
-            .any(|line| line == "def run" || line.starts_with("def run("));
+        let declares_run = text.lines().any(|line| {
+            line == "def run" || line.starts_with("def run(") || line.starts_with("def run ->")
+        });
         assert_eq!(
             declares_run, program.defines_run,
             "{}: manifest defines_run disagrees with the source text",

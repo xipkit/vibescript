@@ -6,16 +6,16 @@
 # tags: popular, math, loops, project-euler
 # vibe: 0.2
 
-def sum_divisible_by(divisor, limit)
-  count = (limit - 1) / divisor
-  divisor * count * (count + 1) / 2
+def sum_divisible_by(divisor: int, limit: int) -> int
+  count = (limit - 1) // divisor
+  divisor * count * (count + 1) // 2
 end
 
-def sum_multiples(limit)
+def sum_multiples(limit: int) -> int
   sum_divisible_by(3, limit) + sum_divisible_by(5, limit) - sum_divisible_by(15, limit)
 end
 
-def run
+def run -> { below_one_hundred: int, below_one_thousand: int, below_ten: int }
   {
     below_ten: sum_multiples(10),
     below_one_hundred: sum_multiples(100),

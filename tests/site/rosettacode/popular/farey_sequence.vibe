@@ -6,11 +6,11 @@
 # tags: popular, math, fractions, sequences
 # vibe: 0.2
 
-def fraction_text(numerator, denominator)
-  ("" + numerator) + "/" + ("" + denominator)
+def fraction_text(numerator: int, denominator: int) -> string
+  ("" + numerator.to_s) + "/" + ("" + denominator.to_s)
 end
 
-def farey_sequence(order)
+def farey_sequence(order: int) -> array<string>
   left_numerator = 0
   left_denominator = 1
   right_numerator = 1
@@ -20,7 +20,7 @@ def farey_sequence(order)
   while right_numerator <= order
     values = values.push(fraction_text(right_numerator, right_denominator))
 
-    multiplier = (order + left_denominator) / right_denominator
+    multiplier = (order + left_denominator) // right_denominator
     next_left_numerator = right_numerator
     next_left_denominator = right_denominator
     next_right_numerator = (multiplier * right_numerator) - left_numerator
@@ -35,7 +35,7 @@ def farey_sequence(order)
   values
 end
 
-def run
+def run -> { order_five: array<string>, order_seven_count: int }
   {
     order_five: farey_sequence(5),
     order_seven_count: farey_sequence(7).length

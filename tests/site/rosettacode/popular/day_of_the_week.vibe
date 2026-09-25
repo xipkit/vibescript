@@ -6,7 +6,7 @@
 # tags: popular, dates, math, calendars
 # vibe: 0.2
 
-def weekday(year, month, day)
+def weekday(year: int, month: int, day: int) -> string
   adjusted_year = year
   adjusted_month = month
 
@@ -16,24 +16,24 @@ def weekday(year, month, day)
   end
 
   century_year = adjusted_year % 100
-  zero_based_century = adjusted_year / 100
+  zero_based_century = adjusted_year // 100
   code = (
     day +
-      ((13 * (adjusted_month + 1)) / 5) +
+      ((13 * (adjusted_month + 1)) // 5) +
       century_year +
-      (century_year / 4) +
-      (zero_based_century / 4) +
+      (century_year // 4) +
+      (zero_based_century // 4) +
       (5 * zero_based_century)
   ) % 7
 
-  weekday_names[code]
+  weekday_names.fetch(code)
 end
 
-def weekday_names
+def weekday_names -> array<string>
   ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 end
 
-def run
+def run -> array<{ date: string, weekday: string }>
   [
     { date: "2026-03-08", weekday: weekday(2026, 3, 8) },
     { date: "2024-02-29", weekday: weekday(2024, 2, 29) },

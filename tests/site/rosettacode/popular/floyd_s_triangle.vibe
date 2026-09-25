@@ -6,13 +6,13 @@
 # tags: popular, arrays, formatting, sequences
 # vibe: 0.2
 
-def floyd_triangle(rows_count)
-  rows = []
+def floyd_triangle(rows_count: int) -> array<array<int>>
+  rows: array<array<int>> = []
   current = 1
   row_size = 1
 
   while row_size <= rows_count
-    row = []
+    row: array<int> = []
     index = 0
     while index < row_size
       row = row.push(current)
@@ -26,6 +26,6 @@ def floyd_triangle(rows_count)
   rows
 end
 
-def run
+def run -> array<array<int>>
   floyd_triangle(7)
 end

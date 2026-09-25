@@ -5,8 +5,8 @@
 # summary: Produce the opening terms of the Fibonacci sequence iteratively.
 # tags: popular, math, loops, arrays
 
-def fibonacci_terms(count)
-  values = []
+def fibonacci_terms(count: int) -> array<int>
+  values: array<int> = []
   a = 0
   b = 1
   produced = 0
@@ -22,7 +22,6 @@ def fibonacci_terms(count)
   values
 end
 
-def run
+def run -> array<int>
   fibonacci_terms(15)
 end
-

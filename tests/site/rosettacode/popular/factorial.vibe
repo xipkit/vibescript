@@ -6,7 +6,7 @@
 # tags: popular, math, recursion, loops, bignum
 # vibe: 0.4
 
-def recursive_factorial(n)
+def recursive_factorial(n: int) -> int
   if n <= 1
     1
   else
@@ -14,7 +14,7 @@ def recursive_factorial(n)
   end
 end
 
-def iterative_factorial(n)
+def iterative_factorial(n: int) -> int
   result = 1
   value = 2
   while value <= n
@@ -24,11 +24,10 @@ def iterative_factorial(n)
   result
 end
 
-def run
+def run -> { iterative_50: int, recursive_10: int, recursive_25: int }
   {
     recursive_10: recursive_factorial(10),
     recursive_25: recursive_factorial(25),
     iterative_50: iterative_factorial(50)
   }
 end
-

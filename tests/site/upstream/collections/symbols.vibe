@@ -1,21 +1,21 @@
 # vibe: 1.0
 
-def permission_keys
+def permission_keys -> array<symbol>
   [:read, :write, :delete]
 end
 
-def fetch_hash_key(record, key)
-  record[key]
+def fetch_hash_key(record: hash<string, string>, key: symbol) -> string?
+  record[key.to_s]
 end
 
-def normalized_hash_view(record)
+def normalized_hash_view(record: { name: string, role: string }) -> { keys: array<string>, same_entry: bool }
   {
-    same_entry: record[:name] == record["name"],
+    same_entry: record["name"] == record["name"],
     keys: record.keys
   }
 end
 
-def run
+def run -> { fetched: string?, keys: array<symbol>, normalized: { keys: array<string>, same_entry: bool } }
   record = { name: "Alice", role: "coach" }
   {
     keys: permission_keys,

@@ -6,7 +6,7 @@
 # tags: popular, strings, formatting, math
 # vibe: 0.2
 
-def ones
+def ones -> array<string>
   [
     "zero",
     "one",
@@ -21,7 +21,7 @@ def ones
   ]
 end
 
-def teens
+def teens -> array<string>
   [
     "ten",
     "eleven",
@@ -36,7 +36,7 @@ def teens
   ]
 end
 
-def tens_names
+def tens_names -> array<string>
   [
     "",
     "",
@@ -51,30 +51,30 @@ def tens_names
   ]
 end
 
-def under_hundred(number)
+def under_hundred(number: int) -> string
   if number < 10
-    ones[number]
+    ones.fetch(number)
   elsif number < 20
-    teens[number - 10]
+    teens.fetch(number - 10)
   else
-    tens = tens_names[number / 10]
+    tens = tens_names.fetch(number // 10)
     remainder = number % 10
     if remainder == 0
       tens
     else
-      tens + "-" + ones[remainder]
+      tens + "-" + ones.fetch(remainder)
     end
   end
 end
 
-def under_thousand(number)
-  hundreds = number / 100
+def under_thousand(number: int) -> string
+  hundreds = number // 100
   remainder = number % 100
 
   if hundreds == 0
     under_hundred(remainder)
   else
-    text = ones[hundreds] + " hundred"
+    text = ones.fetch(hundreds) + " hundred"
     if remainder == 0
       text
     else
@@ -83,11 +83,11 @@ def under_thousand(number)
   end
 end
 
-def number_name(number)
+def number_name(number: int) -> string
   if number < 1000
     under_thousand(number)
   else
-    thousands = number / 1000
+    thousands = number // 1000
     remainder = number % 1000
     text = under_thousand(thousands) + " thousand"
     if remainder == 0
@@ -98,7 +98,7 @@ def number_name(number)
   end
 end
 
-def run
+def run -> { forty_two: string, nine_hundred_ninety_nine: string, three_hundred_five: string, twelve_thousand_three_hundred_four: string, zero: string }
   {
     zero: number_name(0),
     forty_two: number_name(42),

@@ -6,7 +6,7 @@
 # tags: popular, numbers, search, divisibility
 # vibe: 0.4
 
-def palindromic_gapful?(number)
+def palindromic_gapful?(number: int) -> bool
   text = number.to_s
   if text.length < 3
     return false
@@ -17,12 +17,12 @@ def palindromic_gapful?(number)
   end
 
   digits = text.chars
-  divisor = (digits.first.to_i * 10) + digits.last.to_i
+  divisor = (digits.fetch(0).to_i * 10) + digits.fetch(-1).to_i
   number % divisor == 0
 end
 
-def first_palindromic_gapful_numbers(count)
-  values = []
+def first_palindromic_gapful_numbers(count: int) -> array<int>
+  values: array<int> = []
 
   outer = 1
   while outer <= 9 && values.length < count
@@ -41,7 +41,7 @@ def first_palindromic_gapful_numbers(count)
   while values.length < count
     inner = 0
     while inner < 100 && values.length < count
-      tens = inner / 10
+      tens = inner // 10
       ones = inner % 10
       candidate = (outer * 1000) + (tens * 100) + (ones * 10) + outer
       if palindromic_gapful?(candidate)
@@ -55,6 +55,6 @@ def first_palindromic_gapful_numbers(count)
   values
 end
 
-def run
+def run -> array<int>
   first_palindromic_gapful_numbers(10)
 end

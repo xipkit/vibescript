@@ -6,7 +6,7 @@
 # tags: popular, numbers, bases, palindromes
 # vibe: 0.4
 
-def digits_in_base(number, base)
+def digits_in_base(number: int, base: int) -> string
   if number == 0
     return "0"
   end
@@ -16,18 +16,18 @@ def digits_in_base(number, base)
 
   while current > 0
     digits = "#{current % base}#{digits}"
-    current = current / base
+    current = current // base
   end
 
   digits
 end
 
-def palindrome?(text)
+def palindrome?(text: string) -> bool
   text == text.reverse
 end
 
-def first_shared_palindromes(count)
-  values = []
+def first_shared_palindromes(count: int) -> array<int>
+  values: array<int> = []
   candidate = 1
 
   while values.length < count
@@ -40,12 +40,12 @@ def first_shared_palindromes(count)
   values
 end
 
-def run
-  [1, 6643].map do |value|
+def run -> array<{ binary: string, ternary: string, value: int }>
+  [1, 6643].map { |value|
     {
       value:,
       binary: digits_in_base(value, 2),
       ternary: digits_in_base(value, 3)
     }
-  end
+  }
 end

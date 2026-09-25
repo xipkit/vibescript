@@ -6,7 +6,7 @@
 # tags: popular, numbers, base-conversion, search
 # vibe: 0.4
 
-def base_digits(number, base)
+def base_digits(number: int, base: int) -> string
   if number == 0
     return "0"
   end
@@ -16,18 +16,18 @@ def base_digits(number, base)
 
   while current > 0
     digits = "#{current % base}#{digits}"
-    current = current / base
+    current = current // base
   end
 
   digits
 end
 
-def same_digits?(text)
+def same_digits?(text: string) -> bool
   digits = text.chars
   digits.all? { |digit| digit == digits.first }
 end
 
-def brazilian?(number)
+def brazilian?(number: int) -> bool
   base = 2
   while base <= number - 2
     digits = base_digits(number, base)
@@ -39,8 +39,8 @@ def brazilian?(number)
   false
 end
 
-def first_brazilian_numbers(count)
-  values = []
+def first_brazilian_numbers(count: int) -> array<int>
+  values: array<int> = []
   candidate = 7
 
   while values.length < count
@@ -53,6 +53,6 @@ def first_brazilian_numbers(count)
   values
 end
 
-def run
+def run -> array<int>
   first_brazilian_numbers(10)
 end

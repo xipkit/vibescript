@@ -6,22 +6,22 @@
 # tags: popular, strings, ciphers, encoding
 # vibe: 0.2
 
-def alphabet
+def alphabet -> string
   "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 end
 
-def shift_char(char, key_char, direction)
+def shift_char(char: string, key_char: string, direction: string) -> string
   char_index = alphabet.index(char)
   key_index = alphabet.index(key_char)
 
   if direction == "encode"
-    alphabet.slice((char_index + key_index) % 26)
+    alphabet.slice((char_index.as(int) + key_index.as(int)) % 26).as(string)
   else
-    alphabet.slice((char_index - key_index + 26) % 26)
+    alphabet.slice((char_index.as(int) - key_index.as(int) + 26) % 26).as(string)
   end
 end
 
-def apply_vigenere(text, key, direction)
+def apply_vigenere(text: string, key: string, direction: string) -> string
   output = ""
   key_index = 0
   index = 0
@@ -29,9 +29,9 @@ def apply_vigenere(text, key, direction)
   while index < text.length
     char = text.slice(index)
     if char == " "
-      output = output + char
+      output = output + char.as(string)
     else
-      output = output + shift_char(char, key.slice(key_index % key.length), direction)
+      output = output + shift_char(char.as(string), key.slice(key_index % key.length).as(string), direction)
       key_index = key_index + 1
     end
     index = index + 1
@@ -40,7 +40,7 @@ def apply_vigenere(text, key, direction)
   output
 end
 
-def run
+def run -> { decoded: string, encoded: string }
   plain = "VIBESCRIPT ROCKS"
   key = "CODE"
   encoded = apply_vigenere(plain, key, "encode")

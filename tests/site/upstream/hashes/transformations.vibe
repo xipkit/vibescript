@@ -1,64 +1,64 @@
 # vibe: 1.0
 
-def rename_keys(record, mapping)
-  record.transform_keys do |key|
-    mapping.fetch(key) do
+def rename_keys(record: hash<string, int | string>, mapping: hash<string, string>) -> hash<string, int | string>
+  record.transform_keys { |key|
+    mapping.fetch(key) {
       key
-    end
-  end
+    }
+  }
 end
 
-def compact_hash(record)
+def compact_hash(record: hash<string, int?>) -> hash<string, int>
   record.compact
 end
 
-def select_keys(record, keys)
-  result = {}
-  keys.each do |key|
+def select_keys(record: hash<string, int | string>, keys: array<string>) -> hash<string, int | string>
+  result: hash<string, int | string> = {}
+  keys.each { |key|
     value = record[key]
     if value != nil
       result[key] = value
     end
-  end
+  }
   result
 end
 
-def public_fields(record)
-  record.slice(:name, :raised, :goal)
+def public_fields(record: hash<string, int | string>) -> hash<string, int | string>
+  record.slice("name", "raised", "goal")
 end
 
-def without_private(record)
-  record.except(:internal, "token")
+def without_private(record: hash<string, int | string>) -> hash<string, int | string>
+  record.except("internal", "token")
 end
 
-def normalize_values(record)
-  record.transform_values do |value|
+def normalize_values(record: hash<string, int?>) -> hash<string, int>
+  record.transform_values { |value|
     if value == nil
       0
     else
       value
     end
-  end
+  }
 end
 
-def active_only(record)
-  record.select do |key, value|
+def active_only(record: hash<string, string>) -> hash<string, string>
+  record.select { |key, value|
     value == "active"
-  end
+  }
 end
 
-def non_zero(record)
-  record.reject do |key, value|
+def non_zero(record: hash<string, int>) -> hash<string, int>
+  record.reject { |key, value|
     value == 0
-  end
+  }
 end
 
-def remap_profile(record)
+def remap_profile(record: hash<string, int | string>) -> hash<string, int | string>
   record.remap_keys({ "first_name": :name, "total_raised": :raised })
 end
 
-def deep_transform_profile(record)
-  record.deep_transform_keys do |key|
+def deep_transform_profile(record: hash<string, int | hash<string, int>>) -> hash<string, int | hash<string, int>>
+  record.deep_transform_keys { |key|
     if key == "player_id"
       :playerId
     elsif key == "total_raised"
@@ -68,14 +68,14 @@ def deep_transform_profile(record)
     else
       key
     end
-  end
+  }
 end
 
-def run
+def run -> { active_only: hash<string, string>, compact: hash<string, int>, deep_transform: hash<string, int | hash<string, int>>, non_zero: hash<string, int>, normalize: hash<string, int>, public: hash<string, int | string>, select_keys: hash<string, int | string>, without_private: hash<string, int | string> }
   record = { name: "Alice", internal: "secret", token: "abc", status: "active", score: 0, goal: 100 }
   {
     compact: compact_hash({ a: 1, b: nil, c: 3 }),
-    select_keys: select_keys(record, [:name, :goal]),
+    select_keys: select_keys(record, ["name", "goal"]),
     public: public_fields({ name: "Alice", raised: 500, goal: 1000, token: "x" }),
     without_private: without_private(record),
     normalize: normalize_values({ a: 1, b: nil, c: 3 }),

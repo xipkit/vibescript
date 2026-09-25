@@ -1,6 +1,6 @@
 # Upstream Vibescript programs
 
-These 48 files are copied unchanged from Go Vibescript v0.70.0 under its MIT license: nine `examples/` programs and all 39 programs under Go's `tests/` tree. `sources.json` pins the repository, commit, paths, and SHA-256 hashes. Passing any of the checks below does not establish full language compatibility.
+These 48 files come from Go Vibescript v0.70.0 under its MIT license: nine `examples/` programs and all 39 programs under Go's `tests/` tree, rewritten into the statically typed language of ADR-007 and ADR-008 with the same results. `sources.json` pins the repository, commit and paths, and the SHA-256 hashes of the rewritten files. `tests/errors/{arguments,attributes,classes,runtime,types}.vibe` and `tests/blocks/{block_arity,block_error_propagation,error_cases}.vibe` keep the calls that exist to fail, so they do not compile with static types. Passing any of the checks below does not establish full language compatibility.
 
 ## Shared comparison corpus
 

@@ -264,23 +264,25 @@ fn invalid_and_cancelled_anchors_stop_before_later_host_effects() {
 }
 
 #[test]
-fn unchanged_upstream_anchor_helpers_accept_strings_and_host_times() {
+fn upstream_anchor_helpers_take_host_times() {
     let script = Engine::new()
         .compile(include_str!("site/upstream/time/duration.vibe"))
         .unwrap();
-    for input in [
-        Value::bytes("2024-01-01T00:00:00Z"),
-        Value::time(1704067200, 0).unwrap(),
+    let input = Value::time(1704067200, 0).unwrap();
+    for (method, expected) in [
+        ("after_time", "2024-01-01T00:05:00Z"),
+        ("ago_time", "2023-12-31T22:00:00Z"),
+        ("duration_until", "2023-12-31T22:30:00Z"),
     ] {
-        for (method, expected) in [
-            ("after_time", "2024-01-01T00:05:00Z"),
-            ("ago_time", "2023-12-31T22:00:00Z"),
-            ("duration_until", "2023-12-31T22:30:00Z"),
-        ] {
-            let result = script
-                .call(method, std::slice::from_ref(&input), CallOptions::default())
-                .unwrap();
-            assert_eq!(result.value.as_bytes(), Some(expected.as_bytes()));
-        }
+        let result = script
+            .call(method, std::slice::from_ref(&input), CallOptions::default())
+            .unwrap();
+        assert_eq!(result.value.as_bytes(), Some(expected.as_bytes()));
     }
+    // The typed helpers refuse the string anchors the untyped ones parsed.
+    let text = Value::bytes("2024-01-01T00:00:00Z");
+    let error = script
+        .call("after_time", &[text], CallOptions::default())
+        .unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Type, "{error}");
 }

@@ -36,7 +36,7 @@ def shipping_fee(speed: ShippingSpeed, subtotal: money) -> money
   end
 end
 
-def shipping_quote(speed: ShippingSpeed, subtotal: money, purchased_at: time) -> hash
+def shipping_quote(speed: ShippingSpeed, subtotal: money, purchased_at: time) -> hash<string, money | string>
   fee = shipping_fee(speed, subtotal)
   transit = transit_time(speed)
   eta = transit.after(purchased_at)
@@ -51,7 +51,7 @@ def shipping_quote(speed: ShippingSpeed, subtotal: money, purchased_at: time) ->
   }
 end
 
-def run
+def run -> { economy: hash<string, money | string>, same_day: hash<string, money | string> }
   purchased_at = Time.at(1700000000)
   {
     economy: shipping_quote(ShippingSpeed::Economy, money("125.00 USD"), purchased_at),

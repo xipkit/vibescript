@@ -6,7 +6,7 @@
 # tags: popular, search, arrays, divide-and-conquer
 # vibe: 0.2
 
-def midpoint(low, high)
+def midpoint(low: int, high: int) -> int
   middle = low
   span = high - low
   step = 0
@@ -21,10 +21,10 @@ def midpoint(low, high)
   middle
 end
 
-def binary_search(values, target, low, high)
+def binary_search(values: array<int>, target: int, low: int, high: int) -> int?
   while low <= high
     middle = midpoint(low, high)
-    candidate = values[middle]
+    candidate = values.fetch(middle)
 
     if candidate == target
       return middle
@@ -40,7 +40,7 @@ def binary_search(values, target, low, high)
   nil
 end
 
-def run
+def run -> { found_first: int?, found_last: int?, found_middle: int?, missing: int? }
   values = [-31, -4, 0, 1, 5, 9, 12, 17, 23, 42, 77]
   {
     found_middle: binary_search(values, 23, 0, 10),

@@ -1,25 +1,25 @@
 class Helper
-  private def secret
+  private def secret -> int
     42
   end
 
-  def call_internal
+  def call_internal -> int
     secret
   end
 
-  def attempt(other)
+  def attempt(other: Helper) -> int
     other.secret
   end
 end
 
-def run
+def run -> { internal: int }
   a = Helper.new
   {
     internal: a.call_internal
   }
 end
 
-def violate
+def violate -> int
   a = Helper.new
   a.attempt(Helper.new)
 end

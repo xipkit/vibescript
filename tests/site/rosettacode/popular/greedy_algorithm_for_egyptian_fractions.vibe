@@ -6,7 +6,7 @@
 # tags: popular, math, fractions, greedy, bignum
 # vibe: 0.4
 
-def gcd(a, b)
+def gcd(a: int, b: int) -> int
   left = a.abs
   right = b.abs
 
@@ -19,28 +19,28 @@ def gcd(a, b)
   left
 end
 
-def egyptian_fraction(numerator, denominator)
-  terms = []
+def egyptian_fraction(numerator: int, denominator: int) -> array<string>
+  terms: array<string> = []
   left = numerator
   right = denominator
 
   while left != 0
-    unit = (right + left - 1) / left
+    unit = (right + left - 1) // left
     terms << "1/#{unit}"
     left = (left * unit) - right
     right = right * unit
 
     if left != 0
       divisor = gcd(left, right)
-      left = left / divisor
-      right = right / divisor
+      left = left // divisor
+      right = right // divisor
     end
   end
 
   terms
 end
 
-def run
+def run -> { eight_elevenths: array<string>, five_one_hundred_twenty_firsts: array<string>, three_sevenths: array<string> }
   {
     three_sevenths: egyptian_fraction(3, 7),
     eight_elevenths: egyptian_fraction(8, 11),

@@ -1,20 +1,20 @@
 # vibe: 1.0
 
-def add_pledges
+def add_pledges -> money
   money("50.00 USD") + money("12.50 USD")
 end
 
-def net_after_fee(cents)
+def net_after_fee(cents: int) -> money
   gross = money_cents(cents, "USD")
   fee = money("1.75 USD")
   gross - fee
 end
 
-def exceeds_goal?(raised, goal)
+def exceeds_goal?(raised: money, goal: money) -> bool
   raised > goal
 end
 
-def run
+def run -> { added: money, exceeds: bool, net: money }
   {
     added: add_pledges,
     net: net_after_fee(5000),

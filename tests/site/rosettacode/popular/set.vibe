@@ -5,21 +5,21 @@
 # summary: Find the union, intersection, and difference of array-backed sets.
 # tags: popular, arrays, sets, basics
 
-def set_union(left, right)
+def set_union(left: array<int>, right: array<int>) -> array<int>
   (left + right).uniq
 end
 
-def set_intersection(left, right)
-  left.select do |value|
+def set_intersection(left: array<int>, right: array<int>) -> array<int>
+  left.select { |value|
     right.include?(value)
-  end
+  }
 end
 
-def set_difference(left, right)
+def set_difference(left: array<int>, right: array<int>) -> array<int>
   left - right
 end
 
-def run
+def run -> { difference: array<int>, intersection: array<int>, union: array<int> }
   left = [1, 2, 3, 4]
   right = [3, 4, 5, 6]
 

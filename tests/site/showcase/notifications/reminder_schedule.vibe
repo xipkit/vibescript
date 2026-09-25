@@ -24,9 +24,9 @@ def lead_time(channel: ReminderChannel) -> duration
   end
 end
 
-def reminder_job(invoice_id: string, due_at: time, channel: ReminderChannel) -> hash
+def reminder_job(invoice_id: string, due_at: time, channel: ReminderChannel) -> hash<string, string>
   delta = lead_time(channel)
-  send_at = delta.ago(due_at)
+  send_at = delta.before(due_at)
 
   {
     invoice_id: invoice_id,
@@ -37,7 +37,7 @@ def reminder_job(invoice_id: string, due_at: time, channel: ReminderChannel) -> 
   }
 end
 
-def run
+def run -> { email: hash<string, string>, push: hash<string, string>, sms: hash<string, string> }
   due_at = Time.at(1700600000)
   {
     email: reminder_job("inv_2026_0042", due_at, ReminderChannel::Email),

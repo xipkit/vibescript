@@ -1,5 +1,5 @@
 class ReadOnly
-  getter val
+  getter val: int
   def initialize
     @val = 1
   end

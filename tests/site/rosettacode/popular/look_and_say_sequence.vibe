@@ -6,7 +6,7 @@
 # tags: popular, strings, math, sequences
 # vibe: 0.2
 
-def look_and_say(term)
+def look_and_say(term: string) -> string
   result = ""
   i = 0
 
@@ -16,24 +16,24 @@ def look_and_say(term)
     while i + count < term.length && term.slice(i + count) == char
       count = count + 1
     end
-    result = result + count + char
+    result = result + count.to_s + char.as(string)
     i = i + count
   end
 
   result
 end
 
-def sequence(n)
+def sequence(n: int) -> array<string>
   terms = ["1"]
   i = 1
   while i < n
-    terms = terms.push(look_and_say(terms[i - 1]))
+    terms = terms.push(look_and_say(terms.fetch(i - 1)))
     i = i + 1
   end
   terms
 end
 
-def run
+def run -> { term_1: string, term_2: string, term_3: string, term_4: string, term_5: string }
   {
     term_1: look_and_say("1"),
     term_2: look_and_say("11"),

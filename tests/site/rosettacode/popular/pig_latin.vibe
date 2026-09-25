@@ -6,33 +6,33 @@
 # tags: popular, strings, transformation
 # vibe: 0.2
 
-def is_vowel(char)
+def is_vowel(char: string) -> bool
   vowels = "aeiouAEIOU"
   vowels.index(char) != nil
 end
 
-def pig_word(word)
+def pig_word(word: string) -> string
   if word.length == 0
     return ""
   end
 
-  if is_vowel(word.slice(0))
+  if is_vowel(word.slice(0).as(string))
     return word + "ay"
   end
 
   i = 0
   while i < word.length
-    if is_vowel(word.slice(i))
+    if is_vowel(word.slice(i).as(string))
       consonants = ""
       j = 0
       while j < i
-        consonants = consonants + word.slice(j)
+        consonants = consonants + word.slice(j).as(string)
         j = j + 1
       end
       rest = ""
       j = i
       while j < word.length
-        rest = rest + word.slice(j)
+        rest = rest + word.slice(j).as(string)
         j = j + 1
       end
       return rest + consonants + "ay"
@@ -43,18 +43,18 @@ def pig_word(word)
   word + "ay"
 end
 
-def pig_latin(sentence)
+def pig_latin(sentence: string) -> string
   words = sentence.split(" ")
-  translated = []
+  translated: array<string> = []
   i = 0
-  while i < words.size
-    translated = translated.push(pig_word(words[i]))
+  while i < words.length
+    translated = translated.push(pig_word(words.fetch(i)))
     i = i + 1
   end
   translated.join(" ")
 end
 
-def run
+def run -> { apple: string, hello: string, sentence: string, string: string, world: string }
   {
     hello: pig_word("hello"),
     world: pig_word("world"),

@@ -6,15 +6,15 @@
 # tags: popular, basics, functions, strings
 # vibe: 0.2
 
-def greet(name)
+def greet(name: string) -> string
   "hello, " + name
 end
 
-def emphasize(text)
+def emphasize(text: string) -> string
   text.upcase + "!"
 end
 
-def run
+def run -> { combined: string, excited: string, greeting: string }
   greeting = greet("vibescript")
   {
     greeting: greeting,

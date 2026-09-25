@@ -6,7 +6,7 @@
 # tags: popular, basics, variables, arithmetic
 # vibe: 0.2
 
-def run
+def run -> { count: int, label: string, sentence: string, total: int }
   count = 3
   label = "examples"
   total = count * 7
@@ -18,6 +18,6 @@ def run
     count: count,
     label: label,
     total: total,
-    sentence: count + " " + label + " ready"
+    sentence: count.to_s + " " + label + " ready"
   }
 end

@@ -32,7 +32,7 @@ def late_fee(standing: AccountStanding) -> money
   end
 end
 
-def account_snapshot(invoice_id: string, balance: money, overdue: duration) -> hash
+def account_snapshot(invoice_id: string, balance: money, overdue: duration) -> hash<string, money | string>
   standing = standing_for(overdue)
   fee = late_fee(standing)
 
@@ -46,7 +46,7 @@ def account_snapshot(invoice_id: string, balance: money, overdue: duration) -> h
   }
 end
 
-def run
+def run -> { delinquent: hash<string, money | string>, grace: hash<string, money | string> }
   {
     grace: account_snapshot("inv_310", money("240.00 USD"), 7.days),
     delinquent: account_snapshot("inv_311", money("240.00 USD"), 28.days)

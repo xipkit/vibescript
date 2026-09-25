@@ -6,7 +6,7 @@
 # tags: popular, strings, rules, basics
 # vibe: 0.2
 
-def obeys_rule?(word)
+def obeys_rule?(word: string) -> bool
   lower = word.downcase
 
   if lower.index("cie") != nil
@@ -25,7 +25,7 @@ def obeys_rule?(word)
   false
 end
 
-def run
+def run -> { ancient: bool, believe: bool, ceiling: bool, science: bool, weird: bool }
   {
     believe: obeys_rule?("believe"),
     ceiling: obeys_rule?("ceiling"),

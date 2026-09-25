@@ -6,7 +6,7 @@
 # tags: popular, strings, crypto, substitution
 # vibe: 0.2
 
-def rotate_index(index, shift)
+def rotate_index(index: int, shift: int) -> int
   rotated = index + shift
 
   while rotated >= 26
@@ -20,36 +20,36 @@ def rotate_index(index, shift)
   rotated
 end
 
-def rotate_char(char, shift)
+def rotate_char(char: string, shift: int) -> string
   upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
   lower = "abcdefghijklmnopqrstuvwxyz"
 
   upper_index = upper.index(char)
   if upper_index != nil
-    return upper.slice(rotate_index(upper_index, shift))
+    return upper.slice(rotate_index(upper_index, shift)).as(string)
   end
 
   lower_index = lower.index(char)
   if lower_index != nil
-    return lower.slice(rotate_index(lower_index, shift))
+    return lower.slice(rotate_index(lower_index, shift)).as(string)
   end
 
   char
 end
 
-def caesar_cipher(text, shift)
+def caesar_cipher(text: string, shift: int) -> string
   output = ""
   index = 0
 
   while index < text.length
-    output = output + rotate_char(text.slice(index), shift)
+    output = output + rotate_char(text.slice(index).as(string), shift)
     index = index + 1
   end
 
   output
 end
 
-def run
+def run -> { decoded: string, encoded: string, plain: string }
   plain = "The quick brown fox jumps over the lazy dog."
   encoded = caesar_cipher(plain, 3)
   {

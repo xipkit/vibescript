@@ -1,6 +1,6 @@
 # vibe: 1.0
 
-def make_player(name, goal)
+def make_player(name: string, goal: int) -> { goal: int, name: string, raised: int, status: string }
   {
     name: name,
     goal: goal,
@@ -9,20 +9,20 @@ def make_player(name, goal)
   }
 end
 
-def mark_complete(player)
-  player[:status] = "complete"
+def mark_complete(player: { goal: int, name: string, raised: int, status: string }) -> { goal: int, name: string, raised: int, status: string }
+  player["status"] = "complete"
   player
 end
 
-def total_with_bonus(row, bonus)
-  row[:raised] + bonus
+def total_with_bonus(row: { raised: int }, bonus: int) -> int
+  row["raised"] + bonus
 end
 
-def nested_lookup(record)
-  record[:meta][:tag]
+def nested_lookup(record: { meta: { tag: string } }) -> string
+  record["meta"]["tag"]
 end
 
-def run
+def run -> { completed: { goal: int, name: string, raised: int, status: string }, nested: string, player: { goal: int, name: string, raised: int, status: string }, with_bonus: int }
   player = make_player("Alice", 1000)
   completed = mark_complete(make_player("Bob", 500))
   {

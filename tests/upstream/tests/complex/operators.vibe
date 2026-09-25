@@ -1,5 +1,5 @@
-def run
-  int_arith = 10 + 5 - 3 * 2 / 2
+def run -> { bool_ops: { and_ff: bool, and_tf: bool, and_tt: bool, not_f: bool, not_t: bool, or_ff: bool, or_tf: bool, or_tt: bool }, comparisons: { eq_bool: bool, eq_int: bool, eq_nil: bool, eq_str: bool, ge: bool, gt: bool, le: bool, lt: bool, neq_int: bool, neq_str: bool }, float_arith: float, int_arith: int, mixed: float, modulo: { neg_dividend: int, pos: int }, neg_float: float, neg_int: int, string_concat: string }
+  int_arith = 10 + 5 - 3 * 2 // 2
   float_arith = 10.5 + 2.5 - 1.0
   mixed = 10 + 2.5
 

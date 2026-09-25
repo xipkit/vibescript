@@ -6,7 +6,7 @@
 # tags: popular, math, primes, sequences
 # vibe: 0.2
 
-def prime?(number)
+def prime?(number: int) -> bool
   if number < 2
     return false
   end
@@ -22,16 +22,16 @@ def prime?(number)
   true
 end
 
-def run
+def run -> array<{ minus_one_prime: bool, plus_one_prime: bool, prime: int, primorial_minus_one: int, primorial_plus_one: int }>
   primes = [2, 3, 5, 7, 11]
   primorial = 1
-  rows = []
+  rows: array<{ minus_one_prime: bool, plus_one_prime: bool, prime: int, primorial_minus_one: int, primorial_plus_one: int }> = []
   index = 0
 
   while index < primes.length
-    primorial = primorial * primes[index]
+    primorial = primorial * primes.fetch(index)
     rows = rows.push({
-      prime: primes[index],
+      prime: primes.fetch(index),
       primorial_minus_one: primorial - 1,
       minus_one_prime: prime?(primorial - 1),
       primorial_plus_one: primorial + 1,

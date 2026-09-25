@@ -1,5 +1,5 @@
-def run
-  empty = []
+def run -> { compacted: array<int>, empty_first: int?, empty_first_n: array<int>, empty_joined: string, empty_last: int?, empty_last_n: array<int>, empty_size: int, empty_sum: int, first_more: array<int>, first_zero: array<int>, flat_all: array<any>, flat_one: array<any>, joined: string, last_more: array<int>, last_zero: array<int>, pushed: array<int>, single_first: int?, single_last: int?, summed: int, uniq_arr: array<int> }
+  empty: array<int> = []
   single = [42]
   multi = [1, 2, 3, 4, 5]
 
@@ -7,7 +7,7 @@ def run
   empty_last = empty.last
   empty_first_n = empty.first(3)
   empty_last_n = empty.last(3)
-  empty_size = empty.size
+  empty_size = empty.length
 
   single_first = single.first
   single_last = single.last

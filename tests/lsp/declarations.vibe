@@ -1,10 +1,10 @@
 # Wallet docs.
 class Wallet
   property cents: int
-  getter owner
+  getter owner: string?
 
   # Balance docs.
-  def balance(currency = "USD") -> money
+  def balance(currency: string = "USD") -> money
     money_cents(cents, currency)
   end
   alias total balance
@@ -14,11 +14,11 @@ class Wallet
     Wallet.new
   end
 
-  private def secret
+  private def secret -> int
     1
   end
 
-  def cents=(value)
+  def cents=(value: int)
     @cents = value
   end
 end
@@ -30,12 +30,12 @@ module Billing
     PREFIX = "B"
 
     # Tags a code.
-    def self.tag(n)
+    def self.tag(n: int) -> string
       PREFIX + n.to_s
     end
   end
 
-  def self.code
+  def self.code -> string
     Codes.tag(LIMIT)
   end
 end
@@ -46,7 +46,7 @@ enum Status
 end
 
 # Helps.
-def helper(n, *rest, key:, other: 2, **opts)
+def helper(n: int, *rest: array<int>, key: int, other: int = 2, **opts: hash<string, int>) -> int
   x, (y, z) = [1, [2, 3]]
   for i in [1, 2]
     j = i
@@ -61,10 +61,10 @@ end
 alias assist helper
 
 def typed(s: string, items: array<int>, m: money?, h: { name: string }) -> string?
-  s.
-  items.
-  m.
-  h.
+  s.length
+  items.length
+  m&.cents
+  h.length
   s.upcase
 end
 
@@ -81,7 +81,7 @@ Math::PI
 Math.sqrt(2)
 JSON.parse("{}")
 Time.now
-Regexp.escape("a")
+Regex.escape("a")
 x = 1.5.round
 y = 10.days.ago
 s = "a".strip!

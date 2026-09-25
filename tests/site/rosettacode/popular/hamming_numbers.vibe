@@ -6,16 +6,16 @@
 # tags: popular, math, sequences, dynamic-programming
 # vibe: 0.2
 
-def hamming_numbers(count)
+def hamming_numbers(count: int) -> array<int>
   values = [1]
   by_two = 0
   by_three = 0
   by_five = 0
 
-  while values.size < count
-    next_two = values[by_two] * 2
-    next_three = values[by_three] * 3
-    next_five = values[by_five] * 5
+  while values.length < count
+    next_two = values.fetch(by_two) * 2
+    next_three = values.fetch(by_three) * 3
+    next_five = values.fetch(by_five) * 5
 
     next_value = next_two
     if next_three < next_value
@@ -25,7 +25,7 @@ def hamming_numbers(count)
       next_value = next_five
     end
 
-    if next_value != values[values.size - 1]
+    if next_value != values[values.length - 1]
       values = values + [next_value]
     end
 
@@ -43,10 +43,10 @@ def hamming_numbers(count)
   values
 end
 
-def run
+def run -> { first_twenty: array<int>, twentieth: int }
   values = hamming_numbers(20)
   {
     first_twenty: values,
-    twentieth: values[19]
+    twentieth: values.fetch(19)
   }
 end

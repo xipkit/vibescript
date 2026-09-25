@@ -6,7 +6,7 @@
 # tags: popular, logic, booleans, truth-tables
 # vibe: 0.2
 
-def logic_not(value)
+def logic_not(value: string) -> string
   if value == "T"
     "F"
   elsif value == "F"
@@ -16,7 +16,7 @@ def logic_not(value)
   end
 end
 
-def logic_and(left, right)
+def logic_and(left: string, right: string) -> string
   if left == "F" || right == "F"
     "F"
   elsif left == "T" && right == "T"
@@ -26,7 +26,7 @@ def logic_and(left, right)
   end
 end
 
-def logic_or(left, right)
+def logic_or(left: string, right: string) -> string
   if left == "T" || right == "T"
     "T"
   elsif left == "F" && right == "F"
@@ -36,16 +36,16 @@ def logic_or(left, right)
   end
 end
 
-def truth_rows
+def truth_rows -> array<array<string>>
   values = ["T", "M", "F"]
-  rows = []
+  rows: array<array<string>> = []
   left_index = 0
 
-  while left_index < values.size
+  while left_index < values.length
     right_index = 0
-    while right_index < values.size
-      left = values[left_index]
-      right = values[right_index]
+    while right_index < values.length
+      left = values.fetch(left_index)
+      right = values.fetch(right_index)
       rows = rows.push([
         left,
         right,
@@ -61,8 +61,8 @@ def truth_rows
   rows
 end
 
-def run
-  rows = []
+def run -> array<array<string>>
+  rows: array<array<string>> = []
   rows = rows.push(["left", "right", "and", "or", "not_left"])
   rows + truth_rows
 end

@@ -14,7 +14,7 @@ end
 
 def cadence_window(cadence: DigestCadence) -> duration
   if cadence == DigestCadence::Hourly
-    1.hour
+    1.hours
   elsif cadence == DigestCadence::Daily
     24.hours
   else
@@ -22,7 +22,7 @@ def cadence_window(cadence: DigestCadence) -> duration
   end
 end
 
-def digest_job(channel_id: string, cadence: DigestCadence, anchor: time) -> hash
+def digest_job(channel_id: string, cadence: DigestCadence, anchor: time) -> hash<string, string>
   window = cadence_window(cadence)
 
   {
@@ -34,7 +34,7 @@ def digest_job(channel_id: string, cadence: DigestCadence, anchor: time) -> hash
   }
 end
 
-def run
+def run -> { hourly: hash<string, string>, weekly: hash<string, string> }
   anchor = Time.at(1700900000)
 
   {

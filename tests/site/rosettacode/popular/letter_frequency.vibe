@@ -6,15 +6,15 @@
 # tags: popular, strings, hashes, counting
 # vibe: 0.2
 
-def letter_frequency(text)
-  counts = {}
+def letter_frequency(text: string) -> hash<string, int>
+  counts: hash<string, int> = {}
   normalized = text.downcase
   index = 0
 
   while index < normalized.length
     char = normalized.slice(index)
-    if char >= "a" && char <= "z"
-      counts[char] = counts.fetch(char, 0) + 1
+    if char.as(string) >= "a" && char.as(string) <= "z"
+      counts[char.as(string)] = counts.fetch(char.as(string), 0) + 1
     end
     index = index + 1
   end
@@ -22,6 +22,6 @@ def letter_frequency(text)
   counts
 end
 
-def run
+def run -> hash<string, int>
   letter_frequency("Vibescript makes Rosetta Code tasks feel concrete.")
 end

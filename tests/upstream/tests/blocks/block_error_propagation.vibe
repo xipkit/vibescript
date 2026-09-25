@@ -1,9 +1,9 @@
 def explode
-  [1].map do |x|
+  [1].map { |x|
     x.unknown_method
-  end
+  }
 end
 
-def run
+def run -> string
   "ok"
 end

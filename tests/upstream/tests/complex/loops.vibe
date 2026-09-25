@@ -1,6 +1,6 @@
 # Loop patterns
 
-def sum_matrix(matrix)
+def sum_matrix(matrix: array<array<int>>) -> int
   total = 0
   for row in matrix
     for cell in row
@@ -10,8 +10,8 @@ def sum_matrix(matrix)
   total
 end
 
-def flatten_once(values)
-  out = []
+def flatten_once(values: array<array<int>>) -> array<int>
+  out: array<int> = []
   for arr in values
     for v in arr
       out = out + [v]
@@ -20,15 +20,15 @@ def flatten_once(values)
   out
 end
 
-def countdown(from: int) -> array
-  out = []
+def countdown(from: int) -> array<int>
+  out: array<int> = []
   for i in from..0
     out = out + [i]
   end
   out
 end
 
-def run
+def run -> { countdown: array<int>, flat: array<int>, sum: int }
   matrix = [[1, 2], [3, 4]]
   {
     sum: sum_matrix(matrix),

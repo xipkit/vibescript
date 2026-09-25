@@ -1,22 +1,22 @@
-def yield_without_block
+def yield_without_block(&block: int -> int) -> int
   yield(42)
 end
 
-def yield_in_nested
-  [1].each do |x|
+def yield_in_nested(&block: int) -> array<int>
+  [1].each { |x|
     yield(x)
-  end
+  }
 end
 
-def double_yield
+def double_yield(&block: int -> int) -> int
   yield(1)
   yield(2)
 end
 
-def run
+def run -> { count: int }
   count = 0
-  double_yield do |x|
+  double_yield { |x|
     count = count + x
-  end
+  }
   { count: count }
 end

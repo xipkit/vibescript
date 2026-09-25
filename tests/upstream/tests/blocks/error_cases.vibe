@@ -6,14 +6,14 @@ def map_without_block
   [1, 2, 3].map
 end
 
-def reduce_empty_without_init
-  [].reduce do |acc, x|
+def reduce_empty_without_init -> int?
+  [].reduce { |acc, x|
     acc + x
-  end
+  }
 end
 
-def reduce_empty_with_init
-  [].reduce(10) do |acc, x|
+def reduce_empty_with_init -> int
+  [].reduce(10) { |acc, x|
     acc + x
-  end
+  }
 end

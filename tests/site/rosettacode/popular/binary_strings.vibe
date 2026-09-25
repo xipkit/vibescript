@@ -6,23 +6,23 @@
 # tags: popular, strings, recursion, combinatorics
 # vibe: 0.2
 
-def binary_strings(length)
+def binary_strings(length: int) -> array<string>
   if length == 0
     [""]
   else
     tails = binary_strings(length - 1)
-    output = []
+    output: array<string> = []
     index = 0
     while index < tails.length
-      output = output.push("0" + tails[index])
-      output = output.push("1" + tails[index])
+      output = output.push("0" + tails.fetch(index))
+      output = output.push("1" + tails.fetch(index))
       index = index + 1
     end
     output
   end
 end
 
-def run
+def run -> { length_four_count: int, length_three: array<string> }
   {
     length_three: binary_strings(3),
     length_four_count: binary_strings(4).length

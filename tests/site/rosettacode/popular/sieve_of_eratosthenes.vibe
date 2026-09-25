@@ -6,8 +6,8 @@
 # tags: popular, math, primes, arrays
 # vibe: 0.2
 
-def sieve(limit)
-  flags = []
+def sieve(limit: int) -> array<int>
+  flags: array<bool> = []
   value = 0
   while value <= limit
     flags = flags.push(true)
@@ -21,7 +21,7 @@ def sieve(limit)
 
   candidate = 2
   while candidate * candidate <= limit
-    if flags[candidate]
+    if flags.fetch(candidate)
       composite = candidate * candidate
       while composite <= limit
         flags[composite] = false
@@ -31,10 +31,10 @@ def sieve(limit)
     candidate = candidate + 1
   end
 
-  primes = []
+  primes: array<int> = []
   value = 2
   while value <= limit
-    if flags[value]
+    if flags.fetch(value)
       primes = primes.push(value)
     end
     value = value + 1
@@ -43,7 +43,7 @@ def sieve(limit)
   primes
 end
 
-def run
+def run -> { count: int, limit: int, primes: array<int> }
   primes = sieve(50)
   {
     limit: 50,

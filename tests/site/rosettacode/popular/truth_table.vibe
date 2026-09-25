@@ -5,7 +5,7 @@
 # summary: Enumerate boolean combinations for common logical operators.
 # tags: popular, booleans, basics, operators
 
-def truth_row(a, b)
+def truth_row(a: bool, b: bool) -> { a: bool, and: bool, b: bool, not_a: bool, or: bool, xor: bool }
   {
     a: a,
     b: b,
@@ -16,7 +16,7 @@ def truth_row(a, b)
   }
 end
 
-def run
+def run -> array<{ a: bool, and: bool, b: bool, not_a: bool, or: bool, xor: bool }>
   [
     truth_row(true, true),
     truth_row(true, false),
@@ -24,4 +24,3 @@ def run
     truth_row(false, false)
   ]
 end
-

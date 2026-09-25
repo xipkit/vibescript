@@ -1,6 +1,6 @@
 # vibe: 1.0
 
-def sum_range(limit)
+def sum_range(limit: int) -> int
   total = 0
   for i in 1..limit
     total = total + i
@@ -8,7 +8,7 @@ def sum_range(limit)
   total
 end
 
-def product_range(limit)
+def product_range(limit: int) -> int
   product = 1
   for i in 1..limit
     product = product * i
@@ -16,7 +16,7 @@ def product_range(limit)
   product
 end
 
-def countdown_total(start)
+def countdown_total(start: int) -> int
   total = 0
   for i in start..1
     total = total + i
@@ -24,33 +24,33 @@ def countdown_total(start)
   total
 end
 
-def total_with_each(values)
+def total_with_each(values: array<int>) -> int
   total = 0
-  values.each do |value|
+  values.each { |value|
     total = total + value
-  end
+  }
   total
 end
 
-def double_values(values)
-  values.map do |value|
+def double_values(values: array<int>) -> array<int>
+  values.map { |value|
     value * 2
-  end
+  }
 end
 
-def select_above(values, threshold)
-  values.select do |value|
+def select_above(values: array<int>, threshold: int) -> array<int>
+  values.select { |value|
     value > threshold
-  end
+  }
 end
 
-def reduce_sum(values)
-  values.reduce(0) do |running_total, value|
+def reduce_sum(values: array<int>) -> int
+  values.reduce(0) { |running_total, value|
     running_total + value
-  end
+  }
 end
 
-def run
+def run -> { above_5: array<int>, countdown: int, doubled: array<int>, product_range: int, reduce: int, sum_range: int, total_each: int }
   nums = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
   {
     sum_range: sum_range(10),
