@@ -164,9 +164,12 @@ mod tests {
 
     #[test]
     fn nested_fixes_apply_over_rounds_innermost_first() {
-        let source = "x = nil\nputs 1 unless x.nil?\n";
+        let source = "def check(x: int?)\n  puts 1 unless x.nil?\nend\n";
         let fixed = fix(source, surface).unwrap();
-        assert_eq!(fixed.source, "x = nil\nputs 1 if x != nil\n");
+        assert_eq!(
+            fixed.source,
+            "def check(x: int?)\n  puts 1 if x != nil\nend\n"
+        );
         let codes: Vec<Code> = fixed.applied.iter().map(|a| a.diagnostic.code).collect();
         assert_eq!(codes, [Code::NIL_PREDICATE, Code::UNLESS]);
         assert!(fixed.remaining.is_empty());

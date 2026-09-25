@@ -45,28 +45,22 @@ pub fn check_tokens(source: &str, tokens: &[tooling::Token], calls: &CallTypes) 
 /// Adds the removed spellings in `source` to a static check's diagnostics,
 /// in source order.
 ///
-/// A name the static checker could not resolve inside a removed spelling,
-/// such as the unknown member `size`, is left out: the spelling's own
-/// diagnostic names what replaces it.
+/// A static checker's diagnostic inside a removed spelling, such as the
+/// unknown member `nil?` or the missing block of `reduce(:+)`, is left
+/// out: the spelling's own diagnostic says what replaces it.
 pub(crate) fn add_to(
     checked: &mut crate::typing::Checked,
     source: &str,
     tokens: &[tooling::Token],
 ) {
-    use crate::diagnostic::Code;
     let surface = check_tokens(source, tokens, &checked.calls);
     if surface.is_empty() {
         return;
     }
-    let overlaps =
-        |a: Span, b: Span| a.start < b.end.max(b.start + 1) && b.start < a.end.max(a.start + 1);
     checked.diagnostics.retain(|diagnostic| {
-        !matches!(
-            diagnostic.code,
-            Code::UNKNOWN_MEMBER | Code::UNDEFINED_NAME | Code::NO_OVERLOAD | Code::UNKNOWN_TYPE
-        ) || !surface
-            .iter()
-            .any(|removed| overlaps(removed.span, diagnostic.span))
+        !surface.iter().any(|removed| {
+            removed.span.start <= diagnostic.span.start && diagnostic.span.end <= removed.span.end
+        })
     });
     checked.diagnostics.extend(surface);
     checked

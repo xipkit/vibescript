@@ -372,7 +372,7 @@ fn the_static_server_publishes_codes_and_offers_quick_fixes() {
     let uri = "file:///tmp/static-session.vibe";
     session.notify(
         "textDocument/didOpen",
-        json!({"textDocument": {"uri": uri, "text": "x = nil\nputs 1 unless x.nil?\n"}}),
+        json!({"textDocument": {"uri": uri, "text": "def check(x: int?)\n  puts 1 unless x.nil?\nend\n"}}),
     );
     let published = session.next();
     let codes: Vec<&str> = published["params"]["diagnostics"]
@@ -387,7 +387,7 @@ fn the_static_server_publishes_codes_and_offers_quick_fixes() {
         "textDocument/codeAction",
         json!({
             "textDocument": {"uri": uri},
-            "range": {"start": {"line": 1, "character": 0}, "end": {"line": 1, "character": 20}},
+            "range": {"start": {"line": 1, "character": 0}, "end": {"line": 1, "character": 22}},
             "context": {"diagnostics": []},
         }),
     );
