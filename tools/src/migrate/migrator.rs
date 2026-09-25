@@ -390,6 +390,17 @@ impl<'a> Hooks<'a> for Migrator<'a> {
         self.receiver_types(expr, call).map(|types| types.any)
     }
 
+    fn field_holds_data(&self, expr: &'a Expr, call: &'a Call) -> bool {
+        self.receiver_types(expr, call)
+            .and_then(|types| types.hash.as_deref())
+            .is_none_or(|shape| {
+                shape
+                    .fields
+                    .get(call.name.as_bytes())
+                    .is_some_and(|(types, seen)| *seen == shape.count && !types.any)
+            })
+    }
+
     fn receiver_field(&self, expr: &'a Expr, call: &'a Call) -> bool {
         self.receiver_types(expr, call)
             .and_then(|types| types.hash.as_deref())

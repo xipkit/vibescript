@@ -506,19 +506,27 @@ fn hash_fields_are_indexed_not_dotted() {
         fixed_statically(source, Code::FIELD_ACCESS),
         "def f(doc: { meta: { id: string } }, counts: hash<string, int>) -> string\n  counts[\"seen\"] = 1\n  doc[\"meta\"][\"id\"]\nend\n"
     );
-    // A hash literal is a hash without the checker's types.
+    // A hash literal is a hash without the checker's types, and keeps
+    // reading as the receiver in parentheses.
     round_trip(
-        "n = { \"a\" => 1 }.a\n"
-            .replace("{ \"a\" => 1 }", "{ a: 1 }")
-            .as_str(),
+        "n = { a: 1 }.a\n",
         Code::FIELD_ACCESS,
         ".a",
-        "n = { a: 1 }[\"a\"]\n",
+        "n = ({ a: 1 })[\"a\"]\n",
     );
-    // Safe navigation, and a value that is not always a hash, are reported
-    // without a fix.
+    // The index joins a receiver the dot continued from the line before,
+    // and an update reads and writes the field.
+    let source = "def f(h: { a: int }) -> int\n  h.a += 1\n  h\n    .a\nend\n";
+    assert_eq!(
+        fixed_statically(source, Code::FIELD_ACCESS),
+        "def f(h: { a: int }) -> int\n  h[\"a\"] += 1\n  h[\"a\"]\nend\n"
+    );
+    // Safe navigation, destructuring, and a value that is not always a
+    // hash are reported without a fix.
     for source in [
         "def f(user: { name: string }?) -> string?\n  user&.name\nend\n",
+        "def f(user: { name: string }) -> string\n  user.name, other = \"a\", \"b\"\n  other\nend\n",
+        "a = 1\nn = {\n  a:\n}.a\n",
         "class User\n  def name -> string\n    \"a\"\n  end\nend\ndef f(user: { name: string } | User) -> string\n  user.name\nend\n",
     ] {
         let found = checked(source, Code::FIELD_ACCESS);
@@ -532,6 +540,7 @@ fn hash_fields_are_indexed_not_dotted() {
         "def f(h: { as: int }) -> { as: int }\n  h.as({ as: int })\nend\n",
         "def f(value: any) -> any\n  value.name\nend\n",
         "def f(t: time) -> int\n  t.year\nend\n",
+        "shape = ({ x: int }).x\n",
     ] {
         assert!(checked(source, Code::FIELD_ACCESS).is_empty(), "{source}");
     }

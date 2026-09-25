@@ -116,6 +116,19 @@ impl Rule {
     }
 }
 
+/// How a dot reaches a hash field.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Access {
+    /// `h.name` as a value.
+    Read,
+    /// `h.name = value`, the only target of an assignment.
+    Write,
+    /// `h.name += value` and the other operators that read the field first.
+    Update,
+    /// `h.name, other = ...` or a loop variable, which an index cannot be.
+    Destructure,
+}
+
 /// Why a migration leaves a finding to a person.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]

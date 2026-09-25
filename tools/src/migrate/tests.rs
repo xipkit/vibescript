@@ -143,6 +143,20 @@ fn indexes_hash_fields_read_with_a_dot() {
     );
     assert!(out.contains("user.name"), "{out}");
     assert!(codes.contains(&Code::Receiver), "{codes:?}");
+    // An update of a field every hash had is indexed; a dot read calls a
+    // function the hash holds, and a destructured target cannot be an index.
+    let source = "def run\n  t = { now: Time::now }\n  h = { a: 1 }\n  h.a += 1\n  h.a, b = 2, 3\n  h\n  .a = 4\n  [t.now.year > 2000, h, b]\nend\n";
+    let (out, codes) = compatible(source, &[("run", json!([]))]);
+    assert!(out.contains("[t.now.year > 2000, h, b]"), "{out}");
+    assert!(
+        out.contains("h[\"a\"] += 1\n  h.a, b = 2, 3\n  h[\"a\"] = 4\n"),
+        "{out}"
+    );
+    assert_eq!(
+        codes.iter().filter(|code| **code == Code::Receiver).count(),
+        2,
+        "{codes:?}"
+    );
 }
 
 #[test]

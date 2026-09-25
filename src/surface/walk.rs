@@ -2,7 +2,7 @@
 //! construct, where each expression stands, and which locals are in scope.
 
 use super::{
-    Rule,
+    Access, Rule,
     context::{Place, Scope, collect_expr, collect_locals, collect_rescued},
     hooks::{Annotation, Probe},
     rules::Rules,
@@ -59,8 +59,13 @@ pub trait Walk<'a>: Rules<'a> {
 
     /// Walks an assignment's targets and values.
     fn assign(&mut self, stmt: &'a Stmt, assign: &'a Assign) {
+        let access = match (assign.targets.len(), self.token_text(assign.op)) {
+            (1, "=") => Access::Write,
+            (1, _) => Access::Update,
+            _ => Access::Destructure,
+        };
         for target in &assign.targets {
-            self.target(target);
+            self.target_with(target, access);
         }
         for value in &assign.values {
             self.expr(value, Place::Loose);
@@ -68,8 +73,14 @@ pub trait Walk<'a>: Rules<'a> {
         self.after_assign(stmt, assign);
     }
 
-    /// Walks what an assignment target reads, such as an indexed receiver.
+    /// Walks what a destructured target reads, such as an indexed receiver.
     fn target(&mut self, target: &'a Target) {
+        self.target_with(target, Access::Destructure);
+    }
+
+    /// Walks what an assignment target reads, where a field it names with a
+    /// dot is reached as `access` says.
+    fn target_with(&mut self, target: &'a Target, access: Access) {
         match target {
             Target::Expr(expr) => match &expr.kind {
                 ExprKind::Index(receiver, _, selectors, _) => {
@@ -84,7 +95,7 @@ pub trait Walk<'a>: Rules<'a> {
                         self.expr(receiver, Place::Tight);
                     }
                     if self.frozen == 0 {
-                        self.field_access(expr, call, true);
+                        self.field_access(expr, call, access);
                     }
                 }
                 _ => (),
@@ -431,7 +442,7 @@ pub trait Walk<'a>: Rules<'a> {
         if self.frozen > 0 {
             return;
         }
-        if self.field_access(expr, call, false) || self.rename(expr, call, place) {
+        if self.field_access(expr, call, Access::Read) || self.rename(expr, call, place) {
             return;
         }
         self.empty_parens(expr, call);

@@ -3,7 +3,7 @@
 //! is not safe where the construct stands.
 
 use super::{
-    Finding, Reason, Rule,
+    Access, Finding, Reason, Rule,
     context::{
         Place, namespace_member_takes_no_arguments, namespace_name, simple, string_literal,
         symbol_literal,
@@ -537,27 +537,45 @@ pub trait Rules<'a>: Hooks<'a> {
     }
 
     /// Rewrites a hash field read or written with a dot, `h.name`, as the
-    /// index `h["name"]`: dot calls methods only. A read applies where the
-    /// receiver is a hash and the name is not a hash method, and a write,
-    /// which always sets a field, wherever the receiver is a hash. Returns
-    /// whether it reported the access.
-    fn field_access(&mut self, expr: &'a Expr, call: &'a Call, write: bool) -> bool {
+    /// index `h["name"]`: dot calls methods only. A read, or an update that
+    /// reads first, applies where the receiver is a hash, the name is not a
+    /// hash method and every hash held data under it; a write, which always
+    /// sets a field, wherever the receiver is a hash. Returns whether it
+    /// reported the access.
+    fn field_access(&mut self, expr: &'a Expr, call: &'a Call, access: Access) -> bool {
         let (Some(receiver), Some(operator)) = (&call.receiver, call.operator) else {
             return false;
         };
+        let reads = matches!(access, Access::Read | Access::Update);
         if call.args.is_some()
             || call.block.is_some()
             || call.scoped(self.tokens)
-            || (!write && super::context::hash_method(&call.name))
+            || (reads && super::context::hash_method(&call.name))
         {
             return false;
         }
-        let kinds = match self.static_kind(receiver) {
-            Some(kind) => vec![kind],
-            None => self.receiver_kinds(expr, call).unwrap_or_default(),
+        // A braced literal of names, such as `{ x: int }`, may be a type.
+        let typed_literal = |mut literal: &Expr| loop {
+            match &literal.kind {
+                ExprKind::Group(_, inner, _) => literal = inner,
+                ExprKind::Hash(entries) => {
+                    break entries.iter().all(|entry| {
+                        entry.shorthand || matches!(entry.value.kind, ExprKind::Name(_))
+                    });
+                }
+                _ => break false,
+            }
+        };
+        let kinds = match self.receiver_kinds(expr, call) {
+            Some(kinds) if !kinds.is_empty() => kinds,
+            _ if typed_literal(receiver) => Vec::new(),
+            _ => self.static_kind(receiver).into_iter().collect(),
         };
         let hashes = kinds.iter().filter(|kind| *kind == "hash").count();
-        let Some(key) = string_literal(call.name.as_bytes()).filter(|_| hashes > 0) else {
+        // A host or module object answers a dot with its own members.
+        let object = kinds.iter().any(|kind| kind == "object");
+        let Some(key) = string_literal(call.name.as_bytes()).filter(|_| hashes > 0 && !object)
+        else {
             return false;
         };
         let span = Span {
@@ -567,6 +585,26 @@ pub trait Rules<'a>: Hooks<'a> {
         let removed = self.text(span).to_owned();
         let receiver_text = excerpt(self.text(receiver.span));
         let indexed = format!("`{receiver_text}[{key}]`");
+        // The index joins its receiver, so nothing but space may part them.
+        let between = self.text(Span {
+            start: receiver.span.end,
+            end: span.start,
+        });
+        // A brace or keyword expression followed by `[` can read as a
+        // separate statement, as `{ a: 1 }` at the start of one does, so it
+        // is parenthesized; a parenthesized group that spans lines is
+        // followed by a new expression, not an index.
+        let wrap = matches!(
+            receiver.kind,
+            ExprKind::Hash(_)
+                | ExprKind::If(_)
+                | ExprKind::Case(_)
+                | ExprKind::Begin(_)
+                | ExprKind::Loop(_)
+                | ExprKind::BlockCall(..)
+        );
+        let multiline_group = (wrap || matches!(receiver.kind, ExprKind::Group(..)))
+            && self.text(receiver.span).contains('\n');
         let by_hand = if hashes < kinds.len() {
             Some(format!(
                 "{removed} reaches a hash field on a value that is not always a hash; index the field by hand where it is one"
@@ -575,10 +613,23 @@ pub trait Rules<'a>: Hooks<'a> {
             Some(format!(
                 "{removed} reaches a hash field through `&.`; test for nil and index the field by hand"
             ))
-        } else if !write && !self.call_returned(expr, call) {
-            // A read of a missing field raises, where the index reads nil.
+        } else if access == Access::Destructure {
             Some(format!(
-                "{removed} raised in a recorded run, where the index would read nil; index the field by hand"
+                "{removed} is destructured into, which an index cannot be; assign the field by hand"
+            ))
+        } else if multiline_group {
+            Some(format!(
+                "{removed} follows a receiver that spans lines, after which `[` starts a new expression; index the field by hand"
+            ))
+        } else if between.contains('#') {
+            Some(format!(
+                "a comment parts {removed} from its receiver; index the field by hand"
+            ))
+        } else if reads && !self.field_holds_data(expr, call) {
+            // A dot read raises at a missing field and calls a function,
+            // where the index reads nil or the function.
+            Some(format!(
+                "{removed} read a missing field or a function in a recorded run, which the index reads differently; index the field by hand"
             ))
         } else {
             None
@@ -594,7 +645,16 @@ pub trait Rules<'a>: Hooks<'a> {
         }
         let advice = format!("hash fields are indexed: {indexed}");
         let previous = self.enter(Rule::FieldAccess, span, removed, advice);
-        self.edits.text(span, format!("[{key}]"));
+        if wrap {
+            self.edits.wrap(receiver.span, "(", ")");
+        }
+        self.edits.text(
+            Span {
+                start: receiver.span.end,
+                end: span.end,
+            },
+            format!("[{key}]"),
+        );
         self.leave(previous);
         true
     }

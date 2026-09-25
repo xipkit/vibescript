@@ -84,6 +84,14 @@ pub trait Hooks<'a>: DerefMut<Target = Surface<'a>> {
         None
     }
 
+    /// Whether every hash the receiver held had data under the member's
+    /// name: a dot read raises at a missing field and calls a function,
+    /// where the index reads nil or the function.
+    fn field_holds_data(&self, expr: &'a Expr, call: &'a Call) -> bool {
+        let _ = (expr, call);
+        true
+    }
+
     /// Whether the receiver is a hash with a field of the member's name,
     /// which answers the call instead.
     fn receiver_field(&self, expr: &'a Expr, call: &'a Call) -> bool {
