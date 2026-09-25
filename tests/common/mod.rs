@@ -58,3 +58,21 @@ pub fn gradual_engine() -> vibescript::Engine {
     engine.set_static_types(false);
     engine
 }
+
+/// An engine that type checks statically whatever the build's default, for
+/// tests of compile-time diagnostics.
+pub fn static_engine() -> vibescript::Engine {
+    let mut engine = vibescript::Engine::new();
+    engine.set_static_types(true);
+    engine
+}
+
+/// The codes of the static diagnostics a failed compilation reports, such
+/// as `V0201`, in source order.
+pub fn codes(error: &vibescript::Error) -> Vec<String> {
+    error
+        .diagnostics()
+        .iter()
+        .map(|diagnostic| diagnostic.code.to_string())
+        .collect()
+}
