@@ -3,6 +3,7 @@ mod common;
 use std::sync::{Arc, Mutex};
 use vibescript::{CallOptions, Capability, Engine, HostMethod, Signature, SignatureParam, Value};
 
+/// The ADR-004 state the gradual checker's test reads.
 const STATE: &str = "
     class Node
       def initialize; @value=1; @next=self; end
@@ -18,26 +19,60 @@ const STATE: &str = "
     node=Node.new
 ";
 
+/// A module value has no static type, so the class state that crosses the
+/// boundary belongs to a class whose instance carries it.
+const TYPED_STATE: &str = "
+    class Node
+      @next: Node
+      @value: int
+      def initialize; @value=1; @next=self; end
+      def value -> int; @value; end
+      def bump -> int; @value+=1; end
+      def next_node -> Node; @next; end
+    end
+    class Counter
+      @@value: int=1
+      def value -> int; @@value; end
+      def bump -> int; @@value+=1; end
+    end
+    type Pair = { node: Node, counter: Counter }
+    type Captured = [Pair, Node]
+    node=Node.new
+    counter=Counter.new
+";
+
+fn capability(methods: &[(&str, HostMethod)]) -> Capability {
+    Capability::from_value(
+        "cap",
+        Value::object(
+            methods
+                .iter()
+                .map(|(name, method)| (name.as_bytes().to_vec(), method.value()))
+                .collect(),
+        ),
+    )
+}
+
 fn options(methods: &[(&str, HostMethod)]) -> CallOptions {
     CallOptions {
-        capabilities: vec![Capability::from_value(
-            "cap",
-            Value::object(
-                methods
-                    .iter()
-                    .map(|(name, method)| (name.as_bytes().to_vec(), method.value()))
-                    .collect(),
-            ),
-        )],
+        capabilities: vec![capability(methods)],
         ..CallOptions::default()
     }
 }
 
+/// An engine that declares the `cap` capability `methods` make, and the
+/// options that grant it.
+fn declared(methods: &[(&str, HostMethod)]) -> (Engine, CallOptions) {
+    let mut engine = Engine::new();
+    engine.declare_capability(&capability(methods)).unwrap();
+    (engine, options(methods))
+}
+
 const ARGUMENTS: &str = "
-    before=cap.capture({node:node,counter:Counter}, alias:node) { node.bump; Counter.bump }
-    [before[0][:node].value, before[0][:counter].value,
-     before[0][:node]==before[1], before[1]==before[1].next_node,
-     node.value, Counter.value]
+    before=cap.capture({node:node,counter:counter}, alias:node) { node.bump; counter.bump }.as(Captured)
+    [before[0][\"node\"].value, before[0][\"counter\"].value,
+     before[0][\"node\"]==before[1], before[1]==before[1].next_node,
+     node.value, counter.value]
 ";
 
 #[test]
@@ -47,10 +82,11 @@ fn host_arguments_snapshot_state_and_preserve_aliases_across_positional_and_keyw
         call.context()
             .array(&[args[0].clone(), keywords[0].1.clone()])
     });
-    let outcome = Engine::new()
-        .compile(&format!("{STATE}\n{ARGUMENTS}"))
+    let (engine, options) = declared(&[("capture", capture)]);
+    let outcome = engine
+        .compile(&format!("{TYPED_STATE}\n{ARGUMENTS}"))
         .unwrap()
-        .run(options(&[("capture", capture)]))
+        .run(options)
         .unwrap();
     assert_eq!(outcome.value.to_string(), "[1, 1, true, true, 2, 2]");
 }
@@ -69,12 +105,12 @@ fn registered_callback_arguments_survive_later_script_mutation() {
     });
     let outcome = engine
         .compile(&format!(
-            "{STATE}
-             capture({{node:node,counter:Counter}}, alias:node)
-             node.bump; Counter.bump
-             before=read()
-             [before[0][:node].value,before[0][:counter].value,
-              before[0][:node]==before[1],before[1]==before[1].next_node]"
+            "{TYPED_STATE}
+             capture({{node:node,counter:counter}}, alias:node)
+             node.bump; counter.bump
+             before=read().as(Captured)
+             [before[0][\"node\"].value,before[0][\"counter\"].value,
+              before[0][\"node\"]==before[1],before[1]==before[1].next_node]"
         ))
         .unwrap()
         .run(CallOptions::default())
@@ -93,17 +129,18 @@ fn retained_host_results_are_isolated_from_script_mutation() {
     let read = HostMethod::new("cap.read", move |_, _, _| {
         Ok(saved.lock().unwrap().as_ref().unwrap().clone())
     });
-    let outcome = Engine::new()
+    let (engine, options) = declared(&[("retain", retain), ("read", read)]);
+    let outcome = engine
         .compile(&format!(
-            "{STATE}
-             copy=cap.retain({{node:node,counter:Counter}})
-             copy[:node].bump; copy[:counter].bump
-             before=cap.read()
-             [before[:node].value,before[:counter].value,
-              node.value,Counter.value,copy[:node].value,copy[:counter].value]"
+            "{TYPED_STATE}
+             copy=cap.retain({{node:node,counter:counter}}).as(Pair)
+             copy[\"node\"].bump; copy[\"counter\"].bump
+             before=cap.read().as(Pair)
+             [before[\"node\"].value,before[\"counter\"].value,
+              node.value,counter.value,copy[\"node\"].value,copy[\"counter\"].value]"
         ))
         .unwrap()
-        .run(options(&[("retain", retain), ("read", read)]))
+        .run(options)
         .unwrap();
     assert_eq!(outcome.value.to_string(), "[1, 1, 1, 1, 2, 2]");
 }
@@ -115,17 +152,18 @@ fn block_results_are_snapshots_when_the_host_receives_them() {
         call.call_block(&[Value::boolean(true)])?;
         Ok(before)
     });
-    let outcome = Engine::new()
+    let (engine, options) = declared(&[("capture", capture)]);
+    let outcome = engine
         .compile(&format!(
-            "{STATE}
-             before=cap.capture do |mutate|
-               if mutate; node.bump; Counter.bump; end
-               {{node:node,counter:Counter}}
-             end
-             [before[:node].value,before[:counter].value,node.value,Counter.value]"
+            "{TYPED_STATE}
+             before=cap.capture {{ |mutate|
+               if mutate == true; node.bump; counter.bump; end
+               {{node:node,counter:counter}}
+             }}.as(Pair)
+             [before[\"node\"].value,before[\"counter\"].value,node.value,counter.value]"
         ))
         .unwrap()
-        .run(options(&[("capture", capture)]))
+        .run(options)
         .unwrap();
     assert_eq!(outcome.value.to_string(), "[1, 1, 2, 2]");
 }
@@ -142,17 +180,18 @@ async fn asynchronous_host_arguments_keep_snapshots_across_suspension_and_block_
                 .array(&[args[0].clone(), keywords[0].1.clone()])
         })
     });
+    let (engine, options) = declared(&[("capture", capture)]);
     let outcome = vibescript::asynchronous::Runner::new(1)
         .unwrap()
         .call(
-            Engine::new()
+            engine
                 .compile(&format!(
-                    "{STATE}\ndef run\nnode=Node.new\n{ARGUMENTS}\nend"
+                    "{TYPED_STATE}\ndef run -> array<int | bool>\nnode=Node.new\ncounter=Counter.new\n{ARGUMENTS}\nend"
                 ))
                 .unwrap(),
             "run".into(),
             vec![],
-            options(&[("capture", capture)]),
+            options,
         )
         .await
         .unwrap();
@@ -165,19 +204,22 @@ fn block_arguments_isolate_host_state_and_preserve_aliases_between_slots() {
         let changed = call.call_block(&[args[0].clone(), args[0].clone()])?;
         call.context().array(&[args[0].clone(), changed])
     });
-    let outcome = Engine::new()
+    let (engine, options) = declared(&[("capture", capture)]);
+    let outcome = engine
         .compile(&format!(
-            "{STATE}
-             result=cap.capture({{node:node,counter:Counter}}) do |first,second|
-               first[:node].bump; first[:counter].bump
-               [second[:node].value,second[:counter].value,
-                first[:node]==second[:node]]
-             end
-             [result[0][:node].value,result[0][:counter].value,
-              result[1],node.value,Counter.value]"
+            "{TYPED_STATE}
+             type Result = [Pair, [int, int, bool]]
+             result=cap.capture({{node:node,counter:counter}}) {{ |first,second|
+               a=first.as(Pair); b=second.as(Pair)
+               a[\"node\"].bump; a[\"counter\"].bump
+               [b[\"node\"].value,b[\"counter\"].value,
+                a[\"node\"]==b[\"node\"]]
+             }}.as(Result)
+             [result[0][\"node\"].value,result[0][\"counter\"].value,
+              result[1],node.value,counter.value]"
         ))
         .unwrap()
-        .run(options(&[("capture", capture)]))
+        .run(options)
         .unwrap();
     assert_eq!(outcome.value.to_string(), "[1, 1, [2, 2, true], 1, 1]");
 }
@@ -204,16 +246,18 @@ fn contracts_retain_isolated_argument_and_result_values() {
     let read = HostMethod::new("cap.read", move |ctx, _, _| {
         ctx.array(&saved.lock().unwrap())
     });
-    let outcome = Engine::new()
+    let (engine, options) = declared(&[("capture", capture), ("read", read)]);
+    let outcome = engine
         .compile(&format!(
-            "{STATE}
-             copy=cap.capture(node) {{ node.bump }}
+            "{TYPED_STATE}
+             copy=cap.capture(node) {{ node.bump }}.as(Node)
              copy.bump
-             before=cap.read()
-             [before[0].value,before[1].value,node.value,copy.value]"
+             type Nodes = array<Node>
+             before=cap.read().as(Nodes)
+             [before.fetch(0).value,before.fetch(1).value,node.value,copy.value]"
         ))
         .unwrap()
-        .run(options(&[("capture", capture), ("read", read)]))
+        .run(options)
         .unwrap();
     assert_eq!(outcome.value.to_string(), "[1, 1, 2, 2]");
 }
@@ -228,9 +272,10 @@ fn host_boundaries_preserve_the_full_documented_value_depth() {
     for _ in 0..10_000 {
         input = Value::array(vec![input]);
     }
-    let mut options = options(&[("echo", echo)]);
+    let (mut engine, mut options) = declared(&[("echo", echo)]);
+    engine.declare_global("input", "").unwrap();
     options.globals.insert("input".into(), input);
-    let outcome = Engine::new()
+    let outcome = engine
         .compile("cap.echo(input, tag:1) { |value| value }")
         .unwrap()
         .run(options)
@@ -309,17 +354,18 @@ async fn synchronous_bridge_keeps_host_arguments_isolated() {
         call.context()
             .array(&[args[0].clone(), keywords[0].1.clone()])
     });
+    let (engine, options) = declared(&[("capture", capture)]);
     let outcome = vibescript::asynchronous::Runner::new(1)
         .unwrap()
         .call(
-            Engine::new()
+            engine
                 .compile(&format!(
-                    "{STATE}\ndef run\nnode=Node.new\n{ARGUMENTS}\nend"
+                    "{TYPED_STATE}\ndef run -> array<int | bool>\nnode=Node.new\ncounter=Counter.new\n{ARGUMENTS}\nend"
                 ))
                 .unwrap(),
             "run".into(),
             vec![],
-            options(&[("capture", capture)]),
+            options,
         )
         .await
         .unwrap();
@@ -337,25 +383,27 @@ async fn asynchronous_block_results_are_snapshots_at_each_return() {
             Ok(before)
         })
     });
+    let (engine, options) = declared(&[("capture", capture)]);
     let outcome = vibescript::asynchronous::Runner::new(1)
         .unwrap()
         .call(
-            Engine::new()
+            engine
                 .compile(&format!(
-                    "{STATE}
-                     def run
+                    "{TYPED_STATE}
+                     def run -> array<int>
                        node=Node.new
-                       before=cap.capture do |mutate|
-                         if mutate; node.bump; Counter.bump; end
-                         {{node:node,counter:Counter}}
-                       end
-                       [before[:node].value,before[:counter].value,node.value,Counter.value]
+                       counter=Counter.new
+                       before=cap.capture {{ |mutate|
+                         if mutate == true; node.bump; counter.bump; end
+                         {{node:node,counter:counter}}
+                       }}.as(Pair)
+                       [before[\"node\"].value,before[\"counter\"].value,node.value,counter.value]
                      end"
                 ))
                 .unwrap(),
             "run".into(),
             vec![],
-            options(&[("capture", capture)]),
+            options,
         )
         .await
         .unwrap();
