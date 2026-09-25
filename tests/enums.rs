@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -20,21 +22,21 @@ fn evaluate(body: &str) -> serde_json::Value {
 fn nominal_values_support_reflection_collections_and_serialization() {
     assert_eq!(
         evaluate(
-            "[Status.name,Status::HTTPServer.name,Status::HTTPServer.symbol,Status::HTTPServer.enum==Status,Status::Draft==Review::Draft,Status::Draft==:draft,Status::Draft==Status::Draft]"
+            "[Status.name,Status::HTTPServer.name,Status::HTTPServer.symbol,Status::HTTPServer.enum==Status,Status::Draft==Review::Draft,Status::Draft==Status::Draft]"
         ),
-        serde_json::json!([
-            "Status",
-            "HTTPServer",
-            "http_server",
-            true,
-            false,
-            false,
-            true
-        ])
+        serde_json::json!(["Status", "HTTPServer", "http_server", true, false, true])
+    );
+    // A member never equals a symbol, so comparing them is refused.
+    let source = format!("{DECLARATIONS}Status::Draft==:draft");
+    let error = common::static_engine().compile(&source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0101"]);
+    assert_eq!(
+        error.diagnostics()[0].span.start,
+        source.find(":draft").unwrap()
     );
     assert_eq!(
         evaluate(
-            "[Status::Draft.string,Status.inspect,\"#{Status::Draft}\",[Status::Draft,Status::Done].to_s,[Status::Draft,Status::Done].join(\" / \"),JSON.stringify({state:Status::HTTPServer}),[Status::Draft,Status::Draft,Review::Draft].uniq.length]"
+            "[Status::Draft.to_s,Status.inspect,\"#{Status::Draft}\",[Status::Draft,Status::Done].to_s,[Status::Draft,Status::Done].join(\" / \"),JSON.stringify({state:Status::HTTPServer}),[Status::Draft,Status::Draft,Review::Draft].uniq.length]"
         ),
         serde_json::json!([
             "Status::Draft",
@@ -71,7 +73,7 @@ fn nominal_values_support_reflection_collections_and_serialization() {
 fn declarations_preserve_forward_lookup_shadowing_and_identifier_boundaries() {
     for name in ["Status", "JSON", "Math", "now", "module", "État"] {
         let source = format!(
-            "def run(input)\nif false;{name}=1;end;before={name};{name}={name}::Draft;[before.name,{name}.name]\nend\nenum {name}\nDraft\nend"
+            "def run(input: any) -> array<string>\nbefore={name};{name}={name}::Draft;[before.name,{name}.name]\nend\nenum {name}\nDraft\nend"
         );
         let output = Engine::new()
             .compile(&source)
@@ -83,9 +85,28 @@ fn declarations_preserve_forward_lookup_shadowing_and_identifier_boundaries() {
         assert_eq!(values[1].as_bytes(), Some(b"Draft".as_slice()));
     }
     assert_eq!(
-        evaluate("Status ||= 1;[Status.name,[1].map{|Status|Status},[1].map{Status::Draft.name}]"),
+        evaluate("[Status.name,[1].map{|Status|Status},[1].map{Status::Draft.name}]"),
         serde_json::json!(["Status", [1], ["Draft"]])
     );
+    // A local assigned on one path only, and `||=` on an enum, are refused
+    // rather than falling back to the enum.
+    for (body, code, at) in [
+        (
+            "def run -> string\nif false;Status=Status::Draft;end;Status.name\nend\n",
+            "V0202",
+            "Status.name",
+        ),
+        ("Status ||= 1\n", "V0104", "Status ||="),
+    ] {
+        let source = format!("{DECLARATIONS}{body}");
+        let error = common::static_engine().compile(&source).err().unwrap();
+        assert_eq!(common::codes(&error), [code], "{body}");
+        assert_eq!(
+            error.diagnostics()[0].span.start,
+            source.find(at).unwrap(),
+            "{body}"
+        );
+    }
     for source in [
         "enum State\nA\na\nend",
         "enum State\n_\n__\nend",
@@ -125,7 +146,9 @@ fn declarations_preserve_forward_lookup_shadowing_and_identifier_boundaries() {
 fn host_imports_preserve_nominal_identity_without_retaining_the_script() {
     assert_eq!(size_of::<Value>(), 16);
     let source = format!(
-        "{DECLARATIONS}def member\nStatus::Draft\nend\ndef compare(a,b)\n[a==b,a.enum==b.enum]\nend"
+        "{DECLARATIONS}def member -> Status\nStatus::Draft\nend\n\
+         def compare(a: Status, b: any) -> array<bool>\n[a==b,b.is_type?(:Status) && a.enum==b.enum]\nend\n\
+         def kind -> any\nStatus::Draft.enum\nend"
     );
     let script = Engine::new().compile(&source).unwrap();
     let first = script.call("member", &[], CallOptions::default()).unwrap();
@@ -157,12 +180,17 @@ fn host_imports_preserve_nominal_identity_without_retaining_the_script() {
         let json = stringify_json(&result.value, CallOptions::default()).unwrap();
         assert_eq!(json.value.as_bytes(), Some(expected));
     }
+    // Another script can only hold a foreign enum as `any`, so the first
+    // script reads its enum before the host passes it on.
+    let kind = script
+        .call("kind", &[], CallOptions::default())
+        .unwrap()
+        .value;
     drop(script);
-    let member = first.value;
     let mut engine = Engine::new();
-    engine.register("state", move |ctx, _| ctx.import(&member));
+    engine.register("state", move |ctx, _| ctx.import(&kind));
     let output = engine
-        .compile("state().enum")
+        .compile("state()")
         .unwrap()
         .run(CallOptions::default())
         .unwrap();
@@ -201,7 +229,7 @@ fn unused_declarations_are_lazy_and_repeated_member_storage_is_reclaimed() {
     assert_eq!(output.stats.retained_memory_bytes, 0);
 
     let source = format!(
-        "{DECLARATIONS}i=0;while i<2000;state=Status::Draft;text=state.to_s;i+=1;end;state"
+        "{DECLARATIONS}i=0;state=Status::Draft;while i<2000;state=Status::Draft;text=state.to_s;i+=1;end;state"
     );
     let script = Engine::new().compile(&source).unwrap();
     for _ in 0..3 {
@@ -224,42 +252,31 @@ fn unused_declarations_are_lazy_and_repeated_member_storage_is_reclaimed() {
 }
 
 #[test]
-fn argument_evaluation_precedes_call_errors_and_blocks_are_not_invoked() {
-    let calls = Arc::new(AtomicUsize::new(0));
-    let counter = calls.clone();
-    let mut engine = Engine::new();
-    engine.register("mark", move |_, _| {
-        counter.fetch_add(1, Ordering::Relaxed);
-        Ok(Value::int(1))
-    });
-    for expression in [
-        "Status(mark())",
-        "Status::Draft(mark())",
-        "Status::Draft.name(mark())",
-        "if false;Status=1;end;Status(mark())",
+fn calls_of_enums_and_blocks_for_their_members_are_refused() {
+    let mut engine = common::static_engine();
+    engine.register("mark", |_, _| panic!("mark ran"));
+    for (expression, code, at) in [
+        ("Status(mark())", "V0201", 0),
+        ("Status::Draft(mark())", "V0203", 8),
+        ("Status::Draft.name(mark())", "V0301", 14),
+        ("if false;Status=1;end;Status(mark())", "V0310", 22),
+        ("Status.to_s{mark()}", "V0305", 11),
+        ("Status::Draft.to_s{mark()}", "V0305", 18),
+        ("Status.inspect{mark()}", "V0305", 14),
+        ("Status::Draft.inspect{mark()}", "V0305", 21),
+        ("Status.dup{mark()}", "V0305", 10),
+        ("Status::Draft.dup{mark()}", "V0305", 17),
     ] {
-        calls.store(0, Ordering::Relaxed);
         let error = engine
             .compile(&format!("{DECLARATIONS}{expression};mark()"))
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap_err();
-        assert_eq!(error.kind, ErrorKind::Type, "{expression}");
-        assert_eq!(calls.load(Ordering::Relaxed), 1);
-    }
-    for receiver in ["Status", "Status::Draft"] {
-        for method in ["to_s", "string", "inspect", "nil?", "itself", "dup"] {
-            calls.store(0, Ordering::Relaxed);
-            let error = engine
-                .compile(&format!(
-                    "{DECLARATIONS}{receiver}.{method}{{mark()}};mark()"
-                ))
-                .unwrap()
-                .run(CallOptions::default())
-                .unwrap_err();
-            assert_eq!(error.kind, ErrorKind::Argument);
-            assert_eq!(calls.load(Ordering::Relaxed), 0);
-        }
+            .err()
+            .unwrap();
+        assert_eq!(common::codes(&error), [code], "{expression}");
+        assert_eq!(
+            error.diagnostics()[0].span.start,
+            DECLARATIONS.len() + at,
+            "{expression}"
+        );
     }
 }
 
