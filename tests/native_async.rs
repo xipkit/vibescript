@@ -102,54 +102,88 @@ fn native_waits_release_the_only_worker_for_another_call() {
 #[test]
 fn mixed_blocks_preserve_mutations_handlers_initialization_and_control() {
     single_worker(async {
-        let mut engine = methods();
-        engine.register_method(
-            "swallow",
-            HostMethod::new_with_block("swallow", |call, _, _| {
-                assert_eq!(
-                    call.call_block(&[]).unwrap_err().kind,
-                    ErrorKind::ControlFlow
-                );
-                assert_eq!(
-                    call.call_block(&[]).unwrap_err().kind,
-                    ErrorKind::ControlFlow
-                );
-                Ok(Value::int(999))
-            }),
-        );
-        engine.register_method(
-            "swallow_async",
-            HostMethod::new_async("swallow_async", |call, _, _| {
-                Box::pin(async move {
+        let register = |mut engine: Engine| {
+            engine.register_method(
+                "swallow",
+                HostMethod::new_with_block("swallow", |call, _, _| {
                     assert_eq!(
-                        call.call_block(vec![]).await.unwrap_err().kind,
+                        call.call_block(&[]).unwrap_err().kind,
                         ErrorKind::ControlFlow
                     );
-                    tokio::task::yield_now().await;
                     assert_eq!(
-                        call.call_block(vec![]).await.unwrap_err().kind,
+                        call.call_block(&[]).unwrap_err().kind,
                         ErrorKind::ControlFlow
                     );
                     Ok(Value::int(999))
-                })
-            }),
-        );
+                }),
+            );
+            engine.register_method(
+                "swallow_async",
+                HostMethod::new_async("swallow_async", |call, _, _| {
+                    Box::pin(async move {
+                        assert_eq!(
+                            call.call_block(vec![]).await.unwrap_err().kind,
+                            ErrorKind::ControlFlow
+                        );
+                        tokio::task::yield_now().await;
+                        assert_eq!(
+                            call.call_block(vec![]).await.unwrap_err().kind,
+                            ErrorKind::ControlFlow
+                        );
+                        Ok(Value::int(999))
+                    })
+                }),
+            );
+            engine
+        };
+        let engine = register(methods());
+        // Compound assignment to an array element reads the element as
+        // optional, which static types refuse.
+        let mut untyped = methods();
+        untyped.set_static_types(false);
+        let untyped = register(untyped);
         let runner = Runner::new(1).unwrap();
-        for (source, expected) in [
-            ("def run;sync(){later(){sync(){later(7)}}};end", "7"),
-            ("def run;a=[1];a[-1]+=later(){a.push(2);3};a;end", "[4, 2]"),
-            ("module M;N=later(7);end;def run;M::N;end", "7"),
+        for (engine, source, expected) in [
             (
-                "def run;n=1;begin;later(){sync(){raise 'stop'}};rescue;n+=2;ensure;n+=later(4);end;n;end",
+                &engine,
+                "def run -> any;sync(){later(){sync(){later(7)}}};end",
                 "7",
             ),
-            ("def run;swallow(){later();return 7};false;end", "7"),
-            ("def run;swallow(){later();break 7};end", "7"),
             (
-                "def run;swallow_async(){sync(){later();return 7}};false;end",
+                &untyped,
+                "def run;a=[1];a[-1]+=later(){a.push(2);3};a;end",
+                "[4, 2]",
+            ),
+            (
+                &engine,
+                "module M;N=later(7);end;def run -> any;M::N;end",
                 "7",
             ),
-            ("def run;swallow_async(){later();break 7};end", "7"),
+            (
+                &engine,
+                "def run -> int;n=1;begin;later(){sync(){raise 'stop'}};rescue;n+=2;ensure;n+=later(4).as(int);end;n;end",
+                "7",
+            ),
+            (
+                &engine,
+                "def run -> any;swallow(){later();return 7};false;end",
+                "7",
+            ),
+            (
+                &engine,
+                "def run -> any;swallow(){later();break 7};end",
+                "7",
+            ),
+            (
+                &engine,
+                "def run -> any;swallow_async(){sync(){later();return 7}};false;end",
+                "7",
+            ),
+            (
+                &engine,
+                "def run -> any;swallow_async(){later();break 7};end",
+                "7",
+            ),
         ] {
             let result = runner
                 .call(
@@ -239,20 +273,35 @@ async fn async_capabilities_keep_contracts_grants_and_attachment_rules() {
         })],
         ..CallOptions::default()
     };
-    let runner = Runner::new(1).unwrap();
-    for expression in [
-        "typed.echo(7)",
-        "typed::echo(7)",
-        "typed[:echo](7)",
-        "typed.send(:echo,7)",
-        "typed.public_send(:echo,7)",
-        "typed&.echo(7)",
-        "typed.dup.echo(7)",
-    ] {
+    // The engine declares the capability each call's factory builds.
+    let template = Capability::from_value(
+        "typed",
+        Value::object(vec![(b"echo".to_vec(), method.value())]),
+    );
+    let declaring = || {
         let mut engine = Engine::new();
+        engine.declare_capability(&template).unwrap();
+        engine
+    };
+    let runner = Runner::new(1).unwrap();
+    for (typed, expression) in [
+        (true, "typed.echo(7)"),
+        (true, "typed::echo(7)"),
+        (true, "typed&.echo(7)"),
+        (true, "typed.dup.echo(7)"),
+        // Indexing the capability and dispatch by name compile only
+        // without static types.
+        (false, "typed[:echo](7)"),
+        (false, "typed.send(:echo,7)"),
+        (false, "typed.public_send(:echo,7)"),
+    ] {
+        let mut engine = declaring();
+        if !typed {
+            engine.set_static_types(false);
+        }
         engine.set_strict_effects(true);
         let script = engine
-            .compile(&format!("def run;{expression};end"))
+            .compile(&format!("def run -> any;{expression};end"))
             .unwrap();
         let value = runner
             .call(script, "run".into(), vec![], options())
@@ -262,21 +311,29 @@ async fn async_capabilities_keep_contracts_grants_and_attachment_rules() {
         assert_eq!(value.stats.retained_memory_bytes, 0);
     }
     assert_eq!(calls.load(Ordering::Relaxed), 7);
-    for expression in ["typed.echo('bad')", "typed[:echo]", "f=typed::echo;f(7)"] {
-        let script = Engine::new()
-            .compile(&format!("def run;{expression};end"))
+    // Calls that do not match the declared method are refused before
+    // anything runs.
+    for (expression, codes) in [
+        ("typed.echo('bad')", &["V0101"][..]),
+        ("typed[:echo]", &["V0112", "V0409"]),
+        ("f=typed::echo;f(7)", &["V0301", "V0310"]),
+    ] {
+        let mut engine = declaring();
+        engine.set_static_types(true);
+        let error = engine
+            .compile(&format!("def run -> any;{expression};end"))
+            .err()
             .unwrap();
-        assert!(
-            runner
-                .call(script, "run".into(), vec![], options())
-                .await
-                .is_err(),
-            "{expression}"
-        );
+        let found: Vec<String> = error
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| diagnostic.code.to_string())
+            .collect();
+        assert_eq!(found, codes, "{expression}");
     }
     assert_eq!(calls.load(Ordering::Relaxed), 7);
-    let script = Engine::new()
-        .compile("def run;begin;typed.echo(7);rescue;42;end;end")
+    let script = declaring()
+        .compile("def run -> int;begin;typed.echo(7);rescue;42;end;end")
         .unwrap();
     assert_eq!(
         script.call("run", &[], options()).unwrap().value.as_int(),
@@ -479,12 +536,14 @@ fn native_and_mixed_recursion_reach_the_default_limit() {
         let engine = methods();
         let runner = Runner::new(1).unwrap();
         for body in [
-            "later(){recurse()}",
-            "sync(){recurse()}",
-            "later(){sync(){recurse()}}",
+            "later(){recurse}",
+            "sync(){recurse}",
+            "later(){sync(){recurse}}",
         ] {
             let script = engine
-                .compile(&format!("def recurse;{body};end;def run;recurse();end"))
+                .compile(&format!(
+                    "def recurse -> any;{body};end;def run -> any;recurse;end"
+                ))
                 .unwrap();
             let error = runner
                 .call(script, "run".into(), vec![], CallOptions::default())
@@ -499,12 +558,19 @@ fn native_and_mixed_recursion_reach_the_default_limit() {
 #[tokio::test]
 async fn async_storage_has_exact_limits_and_releases_ephemeral_charges() {
     let engine = methods();
+    // Compound assignment to an array element reads the element as
+    // optional, which static types refuse.
+    let mut untyped = methods();
+    untyped.set_static_types(false);
     let runner = Runner::new(1).unwrap();
-    for source in [
-        "def run;later(7);end",
-        "def run;later(){sync(){later(7)}};end",
-        "def run;a=[1];a[-1]+=later(){a.push(2);3};a;end",
-        "def run;begin;later(){raise 'ordinary'};rescue;later(7);end;end",
+    for (engine, source) in [
+        (&engine, "def run -> any;later(7);end"),
+        (&engine, "def run -> any;later(){sync(){later(7)}};end"),
+        (&untyped, "def run;a=[1];a[-1]+=later(){a.push(2);3};a;end"),
+        (
+            &engine,
+            "def run -> any;begin;later(){raise 'ordinary'};rescue;later(7);end;end",
+        ),
     ] {
         let script = engine.compile(source).unwrap();
         let baseline = runner
@@ -722,11 +788,14 @@ async fn async_keywords_result_contracts_and_constructor_calls_preserve_boundari
     );
     let runner = Runner::new(1).unwrap();
     for (source, expected) in [
-        ("def run;keywords(4,tag:5);end", "[4, 5]"),
-        ("def run;typed(){break 7};end", "7"),
-        ("def run -> string;typed(){return 'outer'};end", "outer"),
+        ("def run -> any;keywords(4,tag:5);end", "[4, 5]"),
+        ("def run -> int;typed(){break 7};end", "7"),
         (
-            "class Box;property n;def initialize;@n=later(7);end;end;def run;later(){Box.new.n};end",
+            "def run -> int | string;typed(){return 'outer'};end",
+            "outer",
+        ),
+        (
+            "class Box;property n: any;def initialize;@n=later(7);end;end;def run -> any;later(){Box.new.n};end",
             "7",
         ),
     ] {
@@ -741,7 +810,9 @@ async fn async_keywords_result_contracts_and_constructor_calls_preserve_boundari
             .unwrap_or_else(|e| panic!("{source}: {e}"));
         assert_eq!(result.value.to_string(), expected, "{source}");
     }
-    let script = engine.compile("def run;typed(){break 'bad'};end").unwrap();
+    let script = engine
+        .compile("def run -> any;typed(){break 'bad'};end")
+        .unwrap();
     assert_eq!(
         runner
             .call(script, "run".into(), vec![], CallOptions::default())
