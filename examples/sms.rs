@@ -113,7 +113,11 @@ mod tests {
             sender: "Demo".into(),
         }))
         .unwrap();
+        // The capability's contract checks arguments at runtime, which is
+        // reachable only without static types; with them, main shows the
+        // declared capability instead.
         let mut engine = Engine::new();
+        engine.set_static_types(false);
         engine.set_strict_effects(true);
         let options = CallOptions {
             capabilities: vec![sms],
@@ -141,8 +145,10 @@ mod tests {
         let script = engine.compile("sms.send(\"phone\",\"body\")").unwrap();
         options.cancellation.cancel();
         assert_eq!(script.run(options).unwrap_err().kind, ErrorKind::Cancelled);
+        let mut undeclared = Engine::new();
+        undeclared.set_static_types(false);
         assert_eq!(
-            Engine::new()
+            undeclared
                 .compile("sms.send(\"phone\",\"body\")")
                 .unwrap()
                 .run(CallOptions::default())
