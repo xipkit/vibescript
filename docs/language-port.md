@@ -1,5 +1,7 @@
 # Complete the Vibescript language in Rust
 
+> This is the historical plan and log of the port from Go v0.70.0, which held the Rust implementation to Go's results. Since 2026-09-24 the Rust implementation is the reference and the language is the statically typed one of [ADR-007](adr/007-static-types.md) and [ADR-008](adr/008-canonical-surface-for-ai-authors.md); see the [language guide](language.md). The Go compatibility this page describes applies to the earlier, dynamically typed language.
+
 The active objective is to implement the remainder of Vibescript, using Go v0.70.0 at commit `5cba216c33bea8890787d64efb2ab926a761fb1b` as the compatibility reference. This replaces the earlier goal of building a performance experiment around a subset. Performance passes resume after language coverage; existing accounting and cancellation contracts remain required throughout.
 
 The full release source is available locally at `.cache/reference-go-0.70.0` on the external volume. The normative references are its `docs/language_reference.md`, `docs/stdlib_core_utilities.md`, focused language guides, implementation, and tests. The site corpus is useful coverage but is not the complete specification.

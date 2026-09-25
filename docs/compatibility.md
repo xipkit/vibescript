@@ -1,6 +1,6 @@
-# Known differences from Go v0.70.0
+# Differences from Go v0.70.0
 
-The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The separate compatibility audit covers thirty-three collection, regex and control-flow differences, forty-two host-binding differences, eight required-file differences, sixteen attached-capability-method differences, eight host-block control-flow differences, twenty-eight host-signature differences, and two previously different mutation cases that now agree. It retains the observed Go outputs and checks each Rust result against its port contract.
+This implementation began as a port of Go Vibescript v0.70.0 (`5cba216c33bea8890787d64efb2ab926a761fb1b`) and matched it except for the differences below, each selected deliberately while the port was the follower. Since 2026-09-24 it is the reference: the language moved to the static types of [ADR-007](adr/007-static-types.md) and the canonical surface of [ADR-008](adr/008-canonical-surface-for-ai-authors.md), and the Go implementation is deprecated and keeps the ADR-004 language. The runtime rules each section selects still hold, and the `compatibility` [golden corpus](../tests/golden/README.md) records them. The audit tools named below still compare against Go for programs Go can parse.
 
 ## Attached capability methods and host blocks
 
@@ -15,18 +15,6 @@ Go's builtin callbacks receive the capability object as a live `receiver` map: a
 ## Compiling top-level statements
 
 Go's `Engine.Compile` rejects a source with top-level statements (`unsupported top-level statement`), leaving them to `CompileSnippet`. Rust's `Engine::compile` accepts them, and `Script::run` executes them as the script's entrypoint. The `vibes` commands behave the same in both, because the reference CLI compiles scripts with `CompileSnippet`.
-
-## Static checker strictness
-
-Rust's `vibes check` is deliberately stricter than Go's, as selected on 2026-09-22. Both report a typed boundary when any known alternative of the value fails it, such as passing an `int?` to an `int` parameter. For operators and member calls, Go v0.70.0 reports only when every alternative fails: `nil + 1` is an error, while `v + 1` with `v: int?`, `"x" + items[i]` and `v.upcase` with `v: string?` pass. Rust also reports these whenever a finite known alternative, including `nil` from an index or an empty array before a loop fills it, cannot succeed. Unknown and `any` values stay gradual in both.
-
-Go reports a reassignment that changes a local's type only in the local's own body; Rust also reports one made inside a block, such as `t = 0` followed by `items.each { |i| t = "s" }`.
-
-Rust also fails the gate when it reaches an expression it does not yet analyze, reporting it as incomplete; Go treats such a value as unknown. Of the 286 site, example and upstream test programs, 205 are clean and 16 are rejected in both checkers. The other 65 are rejected only by Rust: its union-alternative errors, and known failures in deliberate error fixtures that Go's checker does not report. None is rejected only by Go. `scripts/check-sweep.py` extends this to 8,142 programs, adding the documentation examples and the sources recorded from the reference's test suite: none reports incomplete analysis or reaches the sweep's ten-second deadline.
-
-## Language server diagnostics
-
-The Go reference's `vibes lsp` publishes compile errors only. This port's server also publishes the static checker's findings for the whole document, so documents the checker rejects show errors in the editor, and the stricter checker described above applies there too: 73 of the 241 documents in the [language server comparison](lsp.md#comparison-with-the-reference) get findings the reference does not report. The port's parser reports only its first error, which matches the reference's first error in text and position (see [source diagnostics](diagnostics.md)); hover, completion, signature help, definitions, symbols and formatting match the reference across the comparison.
 
 ## Out-of-range float calendar fields
 
@@ -84,14 +72,14 @@ Go's `for` range counters can wrap when an inclusive loop reaches the maximum or
 
 In Go, an expression-valued hash loop loses its break result when the hash helper returns to the outer loop evaluator:
 
-```vibescript
-x = for key, value in {a: 1}
+```vibe
+counts: hash<string, int> = { a: 1 }
+x = for key, value in counts
   break 7
 end
-x
 ```
 
-Go returns `{a: 1}`; Rust returns the selected break value, `7`. With a bare `break`, Go still returns the hash and Rust returns `nil`. Rust applies the same break-result rules to array, range, hash, and while loops. Both hash-loop cases are intentional differences under the selected contract.
+Go returns the hash; Rust returns the selected break value, `7`. With a bare `break`, Go still returns the hash and Rust returns `nil`. Rust applies the same break-result rules to array, range, hash, and while loops. Both hash-loop cases are intentional differences under the selected contract.
 
 ## Mutation during collection iteration
 
@@ -99,7 +87,7 @@ Rust captures an immutable collection snapshot for iteration and for the normal 
 
 Go's result can depend on whether another script local aliases the collection. With no alias, this returns `[[1,2,3,3],[1,2,3,3]]` in Go and `[[1,2],[1,2,3,3]]` in Rust:
 
-```vibescript
+```vibe
 a = [1, 2]
 x = for value in a
   a.push(3)
@@ -194,4 +182,4 @@ An index getter returns a logical collection value. A nested write to that tempo
 
 ## Writes through bare field names
 
-In a class, `rows[0] = 9` with no local or method named `rows` writes the `@rows` field, as in Go v0.70.0. Go writes the stored collection without isolating it first, so a snapshot saved from the field earlier, such as `saved = @rows`, changes too. Rust isolates the write as it does for `@rows[0] = 9`, and the snapshot keeps its value, following the selected value-semantics policy. [value_semantics.rs](../tests/value_semantics.rs) checks this.
+Without static types, `rows[0] = 9` in a class method with no local or method named `rows` writes the `@rows` field, as in Go v0.70.0. Go writes the stored collection without isolating it first, so a snapshot saved from the field earlier, such as `saved = @rows`, changes too. Rust isolates the write as it does for `@rows[0] = 9`, and the snapshot keeps its value, following the selected value-semantics policy. [value_semantics.rs](../tests/value_semantics.rs) checks this. With static types a bare name must be a local or a function in scope (V0201), so the field is always written as `@rows[0] = 9`.

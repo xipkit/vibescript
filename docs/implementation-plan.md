@@ -1,5 +1,7 @@
 # Rust core experiment
 
+> The original plan for this repository, kept as history. It was superseded by the [language completion plan](language-port.md), and since 2026-09-24 this implementation is the reference; see the [language guide](language.md).
+
 Build an embeddable Rust implementation of a useful Vibescript subset, then compare equivalent compiled calls against Go v0.70.0 with and without Go 1.27.1 SIMD. Keep the Go checkout unchanged.
 
 The first core includes named positional functions, top-level statements, integers and floats, booleans and nil, byte strings and symbols, arrays and insertion-ordered hashes, assignment, indexing, arithmetic, comparisons, conditionals, while loops, return/break/next, selected string and collection methods, JSON parsing/stringification, and synchronous host functions. Unsupported language features must produce errors, not silently change behavior. Integer overflow reports an error until arbitrary precision is implemented.
