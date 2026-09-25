@@ -42,8 +42,8 @@ fn streams_preserve_bytes_separators_empty_calls_and_return_values() {
     let script = engine
         .compile(
             r#"
-def run(input)
-a=puts();b=print();c=warn();d=p()
+def run(input: string) -> array<array<any>?>
+a=puts;b=print;c=warn;d=p
 puts(nil,"a\nb",input)
 print("x","",nil)
 warn("careful",input)
@@ -77,41 +77,49 @@ end
 #[test]
 fn writers_are_required_even_for_empty_calls_and_validation_precedes_rendering() {
     for method in ["puts", "print", "warn", "p"] {
-        for (tail, expected) in [
-            ("()", "writer is not configured"),
-            ("(a:1)", "does not accept keyword arguments"),
-            ("() {raise \"block ran\"}", "does not accept blocks"),
+        let script = Engine::new().compile(method).unwrap();
+        let error = script.run(CallOptions::default()).unwrap_err();
+        assert!(
+            error.message.contains("writer is not configured"),
+            "{method}: {error}"
+        );
+        // Keywords and blocks are refused before any argument or rendering
+        // runs; `p` has no signature for them at all.
+        let (keyword, block) = if method == "p" {
+            ("V0301", "V0301")
+        } else {
+            ("V0302", "V0305")
+        };
+        for (tail, codes) in [
+            ("(a:1)", vec![keyword]),
+            (" {raise \"block ran\"}", vec![block]),
             (
                 "(a:1) {raise \"block ran\"}",
-                "does not accept keyword arguments",
+                if method == "p" {
+                    vec![keyword]
+                } else {
+                    vec![keyword, block]
+                },
+            ),
+            (
+                "(C.new,a:argument()) {raise \"block ran\"}",
+                if method == "p" {
+                    vec![keyword]
+                } else {
+                    vec![keyword, block]
+                },
             ),
         ] {
-            let script = Engine::new().compile(&format!("{method}{tail}")).unwrap();
-            let error = script.run(CallOptions::default()).unwrap_err();
-            assert!(error.message.contains(expected), "{method}{tail}: {error}");
+            let mut engine = common::static_engine();
+            engine.register("argument", |_, _| panic!("argument ran"));
+            let source = format!(
+                "class C\ndef to_s -> string\nraise \"render ran\"\nend\nend\n{method}{tail}"
+            );
+            let error = engine.compile(&source).err().unwrap();
+            assert_eq!(common::codes(&error), codes, "{source}");
+            let call = source.rfind(method).unwrap();
+            assert!(error.diagnostics()[0].span.start >= call, "{source}");
         }
-        let (mut engine, stdout, stderr) = engine();
-        let evaluations = Arc::new(AtomicUsize::new(0));
-        let seen = evaluations.clone();
-        engine.register("argument", move |_, _| {
-            seen.fetch_add(1, Ordering::SeqCst);
-            Ok(Value::nil())
-        });
-        let source = format!(
-            "class C\ndef to_s\nraise \"render ran\"\nend\nend\n{method}(C.new,a:argument()) {{raise \"block ran\"}}"
-        );
-        let error = engine
-            .compile(&source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap_err();
-        assert_eq!(
-            error.message,
-            format!("{method} does not accept keyword arguments")
-        );
-        assert_eq!(evaluations.load(Ordering::SeqCst), 1);
-        assert!(bytes(&stdout).is_empty());
-        assert!(bytes(&stderr).is_empty());
     }
 }
 
@@ -133,35 +141,48 @@ fn registered_host_functions_override_output_helpers_without_requiring_writers()
 fn output_helpers_read_without_arguments_write_at_once_and_cannot_escape() {
     for name in ["puts", "print", "warn", "p"] {
         let empty: &[u8] = if name == "puts" { b"\n" } else { b"" };
-        for operation in [
-            "itself",
-            "dup",
-            "clone",
-            "freeze",
-            "tap",
-            "yield_self",
-            "send",
-            "public_send",
+        let (mut engine, stdout, stderr) = engine();
+        engine.register("effect", |_, _| Ok(Value::nil()));
+        // Reading the helper calls it, so what follows receives its nil result.
+        let source = format!("{name}&.call(effect())");
+        let output = engine
+            .compile(&source)
+            .unwrap()
+            .run(CallOptions::default())
+            .unwrap();
+        assert_eq!(output.value.type_name(), "nil", "{source}");
+        assert_eq!(bytes(&stdout), empty, "{source}");
+        assert!(bytes(&stderr).is_empty());
+        // Every other way to call its result, or to reach it by name, is
+        // refused before anything runs.
+        for (source, codes, at) in [
+            (format!("{name}.call(effect())"), &["V0203"][..], "call"),
+            (format!("{name}.call(*[effect()])"), &["V0203"], "call"),
+            (
+                format!("f={name}.send(:itself,effect()) {{effect()}};f(7)"),
+                &["V0405", "V0310"],
+                "send",
+            ),
+            (
+                format!("h={{f:{name}.public_send(:itself)}};h.f(7)"),
+                &["V0405", "V0203"],
+                "public_send",
+            ),
+            (
+                format!("{name}&.send(:itself,effect())"),
+                &["V0405"],
+                "send",
+            ),
         ] {
-            let (mut engine, stdout, stderr) = engine();
-            engine.register("effect", |_, _| Ok(Value::nil()));
-            for source in [
-                format!("{name}.call(effect())"),
-                format!("{name}&.call(effect())"),
-                format!("{name}.call(*[effect()])"),
-                format!("f={name}.send(:{operation},effect()) {{effect()}};f(7)"),
-                format!("h={{f:{name}.public_send(:{operation})}};h.f(7)"),
-                format!("{name}&.send(:{operation},effect())"),
-            ] {
-                stdout.lock().unwrap().clear();
-                // Reading the helper calls it, so what follows receives its nil result.
-                let result = engine.compile(&source).unwrap().run(CallOptions::default());
-                if let Ok(output) = result {
-                    assert_eq!(output.value.type_name(), "nil", "{source}");
-                }
-                assert_eq!(bytes(&stdout), empty, "{source}");
-                assert!(bytes(&stderr).is_empty());
-            }
+            let mut engine = common::static_engine();
+            engine.register("effect", |_, _| panic!("effect ran"));
+            let error = engine.compile(&source).err().unwrap();
+            assert_eq!(common::codes(&error), codes, "{source}");
+            assert_eq!(
+                error.diagnostics()[0].span.start,
+                source.find(at).unwrap(),
+                "{source}"
+            );
         }
     }
 }
@@ -171,7 +192,7 @@ fn bare_output_helpers_run_like_empty_calls() {
     let (engine, stdout, stderr) = engine();
     let script = engine
         .compile(
-            "def run
+            "def run -> array<nil>
   a = puts
   b = print
   c = warn
@@ -188,16 +209,10 @@ end",
     );
     assert_eq!(bytes(&stdout), b"\n\n");
     assert!(bytes(&stderr).is_empty());
-    for (source, message) in [
-        ("puts { 1 }", "puts does not accept blocks"),
-        ("p do\nend", "p does not accept blocks"),
-    ] {
-        let error = engine
-            .compile(source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap_err();
-        assert_eq!(error.message, message, "{source}");
+    // A helper takes no block, so one is refused before anything runs.
+    for (source, code) in [("puts { 1 }", "V0305"), ("p {\n}", "V0301")] {
+        let error = common::static_engine().compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), [code], "{source}");
     }
     let error = Engine::new()
         .compile("puts")
@@ -217,12 +232,12 @@ fn class_rendering_resumes_after_nested_calls_and_keeps_partial_output() {
         .compile(
             r##"
 class C
-property count
+property count: int
 def initialize
 @count=0
 end
 private
-def to_s(prefix:"C")
+def to_s(*, prefix: string = "C") -> string
 @count+=1
 print "nested:"
 "#{prefix}#{@count}"
@@ -261,8 +276,8 @@ fn non_string_and_required_to_s_methods_use_default_rendering() {
     for definition in [
         "def to_s\n7\nend",
         "def to_s\n:symbol\nend",
-        "def to_s(x)\nraise \"called\"\nend",
-        "def to_s(x:)\nraise \"called\"\nend",
+        "def to_s(x: any)\nraise \"called\"\nend",
+        "def to_s(*, x: any)\nraise \"called\"\nend",
     ] {
         let (engine, stdout, _) = engine();
         engine
@@ -291,7 +306,7 @@ n=p(m)
 copy=n.dup
 puts(copy);p([copy])
 begin
-copy.captures.push("x")
+copy.as(match_data).captures.push("x")
 rescue RuntimeError=>e
 puts(e)
 end
@@ -316,7 +331,9 @@ fn each_rendered_argument_has_its_own_recoverable_limit() {
     for method in ["puts", "print", "warn", "p"] {
         let (engine, stdout, stderr) = engine();
         let script = engine
-            .compile(&format!("def run(input)\n{method}(input,input)\n7\nend"))
+            .compile(&format!(
+                "def run(input: string) -> int\n{method}(input,input)\n7\nend"
+            ))
             .unwrap();
         let payload = LIMIT - if method == "p" { 2 } else { 0 };
         let output = script
@@ -339,7 +356,7 @@ fn each_rendered_argument_has_its_own_recoverable_limit() {
         drop(writes);
         writer.lock().unwrap().clear();
         let source = format!(
-            "def run(input)\nbegin\n{method}(\"before\",input,\"after\")\nrescue LimitError=>e\n[e.type,e.message]\nend\nend"
+            "def run(input: string) -> any\nbegin\n{method}(\"before\",input,\"after\")\nrescue LimitError=>e\n[e.class,e.message]\nend\nend"
         );
         let output = engine
             .compile(&source)
@@ -364,7 +381,9 @@ fn each_rendered_argument_has_its_own_recoverable_limit() {
 #[test]
 fn escaped_inspect_output_is_capped_after_expansion() {
     let (engine, stdout, _) = engine();
-    let script = engine.compile("def run(input)\np(input)\nend").unwrap();
+    let script = engine
+        .compile("def run(input: string)\np(input)\nend")
+        .unwrap();
     let error = script
         .call(
             "run",
@@ -470,7 +489,9 @@ fn output_scratch_is_released_between_iterations_and_calls() {
     let mut engine = Engine::new();
     engine.set_output_writer(|_, _| Ok(()));
     let script = engine
-        .compile("def run(n)\ni=0\nwhile i<n\nputs([\"x\"*4096,nil]);p({a:i})\ni+=1\nend\nnil\nend")
+        .compile(
+            "def run(n: int)\ni=0\nwhile i<n\nputs([\"x\"*4096,nil]);p({a:i})\ni+=1\nend\nnil\nend",
+        )
         .unwrap();
     let options = CallOptions {
         limits: Limits {
@@ -664,7 +685,7 @@ fn concurrent_calls_isolate_cancellation_and_pending_rendering() {
         }
         Ok(Value::nil())
     });
-    let script=engine.compile("class C\nproperty n\ndef initialize(n)\n@n=n\nend\ndef to_s\ncheck(@n);@n.to_s\nend\nend\ndef run(n)\nputs(C.new(n));n\nend").unwrap();
+    let script=engine.compile("class C\nproperty n: int\ndef initialize(n: int)\n@n=n\nend\ndef to_s -> string\ncheck(@n);@n.to_s\nend\nend\ndef run(n: int) -> int\nputs(C.new(n));n\nend").unwrap();
     common::scope(|scope| {
         let jobs = (0..8)
             .map(|n| {
