@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -45,24 +47,30 @@ fn hash_chain(height: usize, leaf: Value) -> Value {
 fn nested_equality_policies_are_preserved() {
     assert_eq!(
         run(
-            "n=0.0/0.0;a=[[n]];[[[1]]==[[1.0]],[[1]].eql?([[1.0]]),{a:[1]}=={a:[1.0]},\
-             {a:[1]}.eql?({a:[1.0]}),[[n]]==[[n]],a==a,{a:{b:[1,:x]}}=={a:{b:[1,\"x\"]}},\
+            "n=0.0/0.0;a=[[n]];[[[1]]==[[1.0]],{a:[1]}=={a:[1.0]},\
+             [[n]]==[[n]],a==a,{a:{b:[1,:x]}}=={a:{b:[1,\"x\"]}},\
              [[1,[2]]]==[[1,[2,3]]],[[1],[2]] != [[1],[3]],{a:{b:1}}=={b:{a:1}},[{}]==[{}],[[]]==[[]]]"
         ),
-        "[true,false,true,false,false,false,false,false,true,false,true,true]"
+        "[true,true,false,false,false,false,true,false,true,true]"
     );
 }
 
 #[test]
-fn nested_ordering_is_lexicographic_with_early_exits() {
-    assert_eq!(
-        run(
-            "[[[1,2],[9]]<=>[[1,3],[0]],[[1]]<=>[[1,2]],[[1]]<=>[[\"a\"]],[[1,2]]<=>[[1,2],[0]],\
-             [[1,2],[9]]<=>[[1,2],[9]],[[[1,2],[9]],[[1,2],[0]],[[1,1],[5]]].sort,\
-             [[[1,2],[9]],[[1,2],[0]],[[1,1],[5]]].min,[[[1,2],[9]],[[1,2],[0]],[[1,1],[5]]].max]"
-        ),
-        "[-1,-1,null,-1,0,[[[1,1],[5]],[[1,2],[0]],[[1,2],[9]]],[[1,1],[5]],[[1,2],[9]]]"
-    );
+fn nested_collections_have_no_static_ordering() {
+    // Ordering compares numbers, strings, symbols, money, durations and
+    // times, so comparing or sorting nested arrays is refused before it runs.
+    for (source, code, operator) in [
+        ("[[1,2],[9]]<=>[[1,3],[0]]", "V0108", "<=>"),
+        ("[[1]]<=>[[\"a\"]]", "V0108", "<=>"),
+        ("[[[1,2],[9]],[[1,2],[0]]].sort", "V0115", "sort"),
+        ("[[[1,2],[9]],[[1,2],[0]]].min", "V0115", "min"),
+        ("[[[1,2],[9]],[[1,2],[0]]].max", "V0115", "max"),
+    ] {
+        let error = common::static_engine().compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), [code], "{source}");
+        let span = error.diagnostics()[0].span;
+        assert_eq!(&source[span.start..span.end], operator, "{source}");
+    }
 }
 
 #[test]
@@ -83,8 +91,8 @@ fn join_separators_and_flatten_depth_forms_are_preserved() {
 fn deep_host_values_walk_every_importable_level() {
     let script = Engine::new()
         .compile(
-            "def probe(x)\n1\nend\ndef same(a,b)\na==b\nend\ndef strict(a,b)\na.eql?(b)\nend\n\
-             def cmp(a,b)\na<=>b\nend\ndef joined(a)\na.join(\"-\")\nend\ndef flat(a)\na.flatten.length\nend",
+            "def probe(x: any) -> int\n1\nend\ndef same(a: any,b: any) -> bool\na==b\nend\n\
+             def joined(a: array<any>) -> string\na.join(\"-\")\nend\ndef flat(a: array<any>) -> int\na.flatten.length\nend",
         )
         .unwrap();
     for height in [128, 10_000] {
@@ -109,12 +117,7 @@ fn deep_host_values_walk_every_importable_level() {
         };
         assert_eq!(call("same", &[a.clone(), b.clone()]), "true");
         assert_eq!(call("same", &[a.clone(), c.clone()]), "false");
-        assert_eq!(call("strict", &[a.clone(), b.clone()]), "true");
         assert_eq!(call("same", &[ha.clone(), hb.clone()]), "true");
-        assert_eq!(call("strict", &[ha.clone(), hb.clone()]), "true");
-        assert_eq!(call("cmp", &[a.clone(), b.clone()]), "0");
-        assert_eq!(call("cmp", &[a.clone(), c.clone()]), "-1");
-        assert_eq!(call("cmp", &[c.clone(), a.clone()]), "1");
         assert_eq!(call("joined", std::slice::from_ref(&a)), "\"1\"");
         assert_eq!(call("flat", std::slice::from_ref(&a)), "1");
     }
@@ -124,7 +127,7 @@ fn deep_host_values_walk_every_importable_level() {
 fn shared_graph_equality_compares_each_shared_pair_once() {
     // 2^40 paths through 40 distinct pairs of shared arrays.
     let outcome = Engine::new()
-        .compile("a=[0];b=[0];40.times {a=[a,a];b=[b,b]};a==b")
+        .compile("a: array<any> = [0];b: array<any> = [0];40.times {a=[a,a];b=[b,b]};a==b")
         .unwrap()
         .run(CallOptions {
             limits: Limits {
@@ -152,14 +155,7 @@ fn cancellation_during_collection_walks_prevents_later_effects() {
         seen.fetch_add(1, Ordering::SeqCst);
         Ok(Value::nil())
     });
-    for expression in [
-        "a==b",
-        "a.eql?(b)",
-        "a<=>b",
-        "[a,b].sort",
-        "a.join(\",\")",
-        "a.flatten",
-    ] {
+    for expression in ["a==b", "a.join(\",\")", "a.flatten"] {
         let error = engine
             .compile(&format!(
                 "a=(1..64).to_a.chunk(4);b=(1..64).to_a.chunk(4);cancel();{expression};effect()"
