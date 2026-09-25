@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -7,7 +9,7 @@ use vibescript::{CallOptions, Engine, ErrorKind, Limits, Value};
 #[test]
 fn default_and_custom_layouts_preserve_independently_known_instants() {
     let script = Engine::new()
-        .compile("def run(text,layout)\nTime.parse(text,layout,in:\"UTC\")\nend")
+        .compile("def run(text: string,layout: string?) -> time\nTime.parse(text,layout,in:\"UTC\")\nend")
         .unwrap();
     for (text, layout, seconds, nanos) in [
         ("1970-01-01", None, 0, 0),
@@ -46,7 +48,7 @@ fn default_and_custom_layouts_preserve_independently_known_instants() {
 #[test]
 fn explicit_zones_resolve_wall_times_and_preserve_offset_instants() {
     let script = Engine::new()
-        .compile("def run(text,layout,zone)\nTime.parse(text,layout,in:zone)\nend")
+        .compile("def run(text: string,layout: string?,zone: string) -> time\nTime.parse(text,layout,in:zone)\nend")
         .unwrap();
     for (text, layout, zone, seconds, rendered) in [
         (
@@ -100,7 +102,7 @@ fn explicit_zones_resolve_wall_times_and_preserve_offset_instants() {
         assert_eq!(result.value.to_string(), rendered);
     }
     let script = Engine::new().compile(
-        "def run(zone)\nt=Time.parse(\"1970-01-01T00:00:00-00:00\",in:zone);[t.rfc2822,t.zone]\nend",
+        "def run(zone: string?) -> array<string>\nt=Time.parse(\"1970-01-01T00:00:00-00:00\",in:zone);[t.rfc2822,t.zone]\nend",
     ).unwrap();
     for (zone, suffix, name) in [
         (Value::nil(), "-0000", "-00:00"),
@@ -117,7 +119,7 @@ fn explicit_zones_resolve_wall_times_and_preserve_offset_instants() {
 #[test]
 fn long_inputs_and_layouts_use_bounded_scratch_and_release_storage() {
     let script = Engine::new()
-        .compile("def run(text,layout)\nTime.parse(text,layout,in:\"UTC\")\nend")
+        .compile("def run(text: string,layout: string?) -> time\nTime.parse(text,layout,in:\"UTC\")\nend")
         .unwrap();
     for (text, layout, seconds, nanos) in [
         (
@@ -205,7 +207,7 @@ fn parsed_zone_imports_charge_each_call_and_release_abandoned_headers() {
         let mut engine = Engine::new();
         engine.register("host_time", move |ctx, _| ctx.import(&host));
         let script = engine
-            .compile("def run(n)\nt=host_time();n.times {t=t+1;t=t-1};t\nend")
+            .compile("def run(n: int) -> time\nt=host_time().as(time);n.times {t=t+1;t=t-1};t\nend")
             .unwrap();
         let short = script
             .call("run", &[Value::int(1)], CallOptions::default())
@@ -225,7 +227,7 @@ fn parsed_zone_imports_charge_each_call_and_release_abandoned_headers() {
         );
         assert!(long.stats.peak_memory_bytes <= short.stats.peak_memory_bytes + 1024);
         let utc = engine
-            .compile("host_time().getutc")
+            .compile("host_time().as(time).utc")
             .unwrap()
             .run(CallOptions::default())
             .unwrap();
@@ -234,7 +236,7 @@ fn parsed_zone_imports_charge_each_call_and_release_abandoned_headers() {
 }
 
 #[test]
-fn aliases_ignore_blocks_and_exhaustion_stops_before_host_effects() {
+fn aliases_parse_and_exhaustion_stops_before_host_effects() {
     let effects = Arc::new(AtomicUsize::new(0));
     let mut engine = Engine::new();
     let seen = effects.clone();
@@ -251,9 +253,8 @@ fn aliases_ignore_blocks_and_exhaustion_stops_before_host_effects() {
         Ok(Value::bytes("1970-01-01"))
     });
     for source in [
-        "f=Time::parse;f(\"1970-01-01\") {effect()}",
-        "ns=Time;ns.parse(\"1970-01-01\") do;effect();end",
-        "Time::parse(\"1970-01-01\") {effect()}",
+        "ns=Time;ns.parse(\"1970-01-01\")",
+        "Time::parse(\"1970-01-01\")",
     ] {
         let result = engine
             .compile(source)
@@ -262,17 +263,7 @@ fn aliases_ignore_blocks_and_exhaustion_stops_before_host_effects() {
             .unwrap();
         assert_eq!(result.value.as_time(), Some((0, 0)));
     }
-    for argument in [
-        "nil",
-        "1",
-        "true",
-        "[]",
-        "{}",
-        ":\"1970-01-01\"",
-        "\"2023-02-29\"",
-        "\"2024-01-01T23:59:60Z\"",
-        "\"2024-01-01\",:\"2006-01-02\"",
-    ] {
+    for argument in ["\"2023-02-29\"", "\"2024-01-01T23:59:60Z\""] {
         let script = engine
             .compile(&format!("Time.parse({argument});effect()"))
             .unwrap();
@@ -282,8 +273,8 @@ fn aliases_ignore_blocks_and_exhaustion_stops_before_host_effects() {
         );
     }
     for (call, kind) in [
-        ("cancel()", ErrorKind::Cancelled),
-        ("exhaust()", ErrorKind::Steps),
+        ("cancel().as(string)", ErrorKind::Cancelled),
+        ("exhaust().as(string)", ErrorKind::Steps),
     ] {
         let script = engine
             .compile(&format!("Time.parse({call});effect()"))
@@ -291,4 +282,29 @@ fn aliases_ignore_blocks_and_exhaustion_stops_before_host_effects() {
         assert_eq!(script.run(CallOptions::default()).unwrap_err().kind, kind);
     }
     assert_eq!(effects.load(Ordering::SeqCst), 0);
+    // The parser read as a value, a block it never takes and arguments of
+    // the wrong type are refused before anything runs.
+    let mut checked = common::static_engine();
+    checked.register("effect", |_, _| panic!("effect ran"));
+    for (source, expected) in [
+        (
+            "f=Time::parse;f(\"1970-01-01\") {effect()}",
+            &["V0301", "V0310"][..],
+        ),
+        ("ns=Time;ns.parse(\"1970-01-01\") {effect()}", &["V0305"]),
+        ("Time::parse(\"1970-01-01\") {effect()}", &["V0305"]),
+        ("Time.parse(nil);effect()", &["V0101"]),
+        ("Time.parse(1);effect()", &["V0101"]),
+        ("Time.parse(true);effect()", &["V0101"]),
+        ("Time.parse([]);effect()", &["V0101"]),
+        ("Time.parse({});effect()", &["V0101"]),
+        ("Time.parse(:\"1970-01-01\");effect()", &["V0101"]),
+        (
+            "Time.parse(\"2024-01-01\",:\"2006-01-02\");effect()",
+            &["V0101"],
+        ),
+    ] {
+        let error = checked.compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), expected, "{source}");
+    }
 }
