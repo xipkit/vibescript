@@ -471,7 +471,18 @@ fn compile_mode(
     file: bool,
     work: &dyn crate::compilation::Work,
 ) -> Result<Program> {
-    let parsed = syntax::parse(source, work)?;
+    compile_parsed(source, syntax::parse(source, work)?, hosts, file, work)
+}
+
+/// Compiles parsed declarations of `source`, such as ones the static type
+/// checker has already read.
+pub(crate) fn compile_parsed(
+    source: &str,
+    parsed: syntax::Declarations,
+    hosts: Vec<String>,
+    file: bool,
+    work: &dyn crate::compilation::Work,
+) -> Result<Program> {
     let mut outline = Vec::with_capacity(parsed.outline.len());
     for entry in parsed.outline {
         work.bytes(entry.name.len())?;

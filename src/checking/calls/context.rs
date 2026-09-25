@@ -347,7 +347,8 @@ mod tests {
 
     fn identities(ctx: &mut CallContext, facts: &mut Facts) -> [CallableId; 2] {
         std::array::from_fn(|_| {
-            let code = crate::code::Code::compile("def run;7;end", &Default::default()).unwrap();
+            let code =
+                crate::code::Code::compile("def run;7;end", &Default::default(), false).unwrap();
             let owner = facts.source_owner(ctx, &code, None).unwrap();
             facts
                 .source_id(ctx, owner)

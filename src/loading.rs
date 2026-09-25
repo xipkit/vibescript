@@ -308,7 +308,7 @@ mod tests {
             ..ModuleConfig::default()
         })
         .unwrap();
-        let receiving = crate::code::Code::compile("nil", &Default::default()).unwrap();
+        let receiving = crate::code::Code::compile("nil", &Default::default(), false).unwrap();
         let run = |ctx: &mut CallContext| {
             loader.load(ctx, &mut Buffer::empty(), b"answer", None, &receiving)
         };
@@ -367,7 +367,7 @@ mod tests {
             ..ModuleConfig::default()
         })
         .unwrap();
-        let receiving = crate::code::Code::compile("nil", &Default::default()).unwrap();
+        let receiving = crate::code::Code::compile("nil", &Default::default(), false).unwrap();
         let mut context = CallContext::new(CallOptions::default());
         let memory = Arc::downgrade(&context.identity());
         let mut pins = Buffer::empty();

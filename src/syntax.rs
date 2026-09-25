@@ -432,6 +432,8 @@ pub(crate) fn parse_type(source: &str) -> Result<crate::types::Type> {
     ty.compile(&())
 }
 
+pub(crate) use record::parse_with_tokens;
+
 pub(crate) fn parse(source: &str, work: &dyn crate::compilation::Work) -> Result<Declarations> {
     let parsing = Parsing::new(parser(source, work)?);
     match parsing.run(Call::Program)? {

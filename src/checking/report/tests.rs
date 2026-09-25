@@ -101,6 +101,7 @@ fn named(source: &str, filename: Option<&[u8]>) -> Arc<crate::code::Code> {
             hosts: Vec::new(),
             origin: None,
             exports: Vec::new(),
+            static_types: false,
         }
     })
 }

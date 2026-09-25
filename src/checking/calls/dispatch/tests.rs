@@ -799,6 +799,7 @@ fn foreign_dispatch_keeps_one_budget_and_releases_interrupted_summaries() {
     let caller = Code::compile(
         "def run;a=[1];a[-1]+=lib.remote(4) {|n| a.push(9);n};a;end",
         &Default::default(),
+        false,
     )
     .unwrap();
     let callee = Code::compile_file("def remote(n);yield n;end", &Default::default()).unwrap();

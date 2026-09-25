@@ -173,11 +173,29 @@ pub(crate) fn parse(source: &str, probe: Option<&str>) -> (Result<Declarations>,
 /// Parses source and lists the tokens the parser finally read, after its
 /// regex and percent-literal re-reads.
 pub(crate) fn tokens(source: &str) -> Result<Vec<crate::tooling::Token>> {
-    use super::lexer::{Part, Token};
-    use crate::tooling::TokenKind;
     let parsing = Parsing::new(parser(source, &())?);
     parsing.run(Call::Program)?;
-    let parser = parsing.parser.into_inner();
+    Ok(token_list(source, &parsing.parser.into_inner()))
+}
+
+/// Parses source like [`super::parse`], also returning the tokens the parser
+/// finally read, as [`tokens`] lists them.
+pub(crate) fn parse_with_tokens(
+    source: &str,
+    work: &dyn crate::compilation::Work,
+) -> Result<(Declarations, Vec<crate::tooling::Token>)> {
+    let parsing = Parsing::new(parser(source, work)?);
+    let declarations = match parsing.run(Call::Program)? {
+        Parsed::Program(declarations) => declarations,
+        _ => unreachable!(),
+    };
+    let tokens = token_list(source, &parsing.parser.into_inner());
+    Ok((declarations, tokens))
+}
+
+fn token_list(source: &str, parser: &super::Parser<'_>) -> Vec<crate::tooling::Token> {
+    use super::lexer::{Part, Token};
+    use crate::tooling::TokenKind;
     let text = |parts: &[Part<'_>]| {
         parts
             .iter()
@@ -232,5 +250,5 @@ pub(crate) fn tokens(source: &str) -> Result<Vec<crate::tooling::Token>> {
             line: lexeme.line,
         });
     }
-    Ok(tokens)
+    tokens
 }

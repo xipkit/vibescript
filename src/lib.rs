@@ -73,6 +73,7 @@ mod text;
 mod time;
 pub mod tooling;
 mod types;
+pub mod typing;
 mod value;
 mod vm;
 
@@ -107,6 +108,7 @@ pub struct Engine {
     keywordless: BTreeSet<String>,
     loader: Arc<loading::Loader>,
     strict_effects: bool,
+    static_types: bool,
     random_source: Option<random::Source>,
     output_writer: Option<output::Writer>,
     error_writer: Option<output::Writer>,
@@ -126,6 +128,44 @@ impl Engine {
     /// unused values. Earlier scripts retain their previous mode. Disabled by default.
     pub fn set_strict_effects(&mut self, enabled: bool) {
         self.strict_effects = enabled;
+    }
+    /// Type checks subsequently compiled scripts and the files they require
+    /// statically (ADR-007).
+    ///
+    /// When enabled, a program with type errors does not compile: the error's
+    /// [`Error::diagnostics`] lists every type error with its code, spans,
+    /// expected and found types and fixes. Disabled by default until the
+    /// static checker replaces the gradual one; the setting then goes away.
+    ///
+    /// ```
+    /// let mut engine = vibescript::Engine::new();
+    /// engine.set_static_types(true);
+    /// let script = engine.compile("def add(a: int, b: int) -> int\n  a + b\nend\n")?;
+    /// # Ok::<(), vibescript::Error>(())
+    /// ```
+    pub fn set_static_types(&mut self, enabled: bool) {
+        self.static_types = enabled;
+        self.loader = Arc::new(self.loader.fresh());
+    }
+    /// Type checks `source` without compiling it, as [`Self::set_static_types`]
+    /// does, returning every diagnostic and the static receiver type of each
+    /// member call. Only a syntax error fails.
+    ///
+    /// ```
+    /// let checked = vibescript::Engine::new().type_check("def size(items: array<int>) -> int\n  items.length\nend\n")?;
+    /// assert!(checked.diagnostics.is_empty());
+    /// # Ok::<(), vibescript::Error>(())
+    /// ```
+    pub fn type_check(&self, source: &str) -> Result<typing::Checked> {
+        let (parsed, tokens) = syntax::parse_with_tokens(source, &())
+            .map_err(|error| source::parse_error(source, None, error, &()))?;
+        Ok(typing::check(&typing::Input {
+            source,
+            parsed: &parsed,
+            tokens: &tokens,
+            hosts: self.hosts.iter().collect(),
+            file: false,
+        }))
     }
     /// Configures required files for subsequently compiled scripts.
     ///
@@ -263,7 +303,7 @@ impl Engine {
     }
     /// Compiles UTF-8 source, enforcing source-size and syntax-depth guards.
     pub fn compile(&self, source: &str) -> Result<Script> {
-        let code = code::Code::compile(source, &self.hosts)?;
+        let code = code::Code::compile(source, &self.hosts, self.static_types)?;
         Ok(self.script(code))
     }
 
@@ -300,6 +340,7 @@ impl Engine {
             source,
             &self.hosts,
             &compilation::Meter(std::cell::RefCell::new(&mut ctx)),
+            self.static_types,
         )?;
         ctx.checkpoint()?;
         Ok(self.script(code))

@@ -1,4 +1,4 @@
-use crate::{CallContext, Result, bytecode::Program, capability::Registered};
+use crate::{CallContext, Error, Result, bytecode::Program, capability::Registered};
 use std::{collections::BTreeMap, fmt, sync::Arc};
 
 pub(crate) struct Code {
@@ -6,6 +6,8 @@ pub(crate) struct Code {
     pub hosts: Vec<Registered>,
     pub origin: Option<crate::loading::Origin>,
     pub exports: Vec<(String, Export)>,
+    /// Whether the code and the files it requires are type checked statically.
+    pub static_types: bool,
 }
 
 pub(crate) enum Export {
@@ -32,8 +34,12 @@ impl Code {
         result
     }
 
-    pub fn compile(source: &str, registered: &BTreeMap<String, Registered>) -> Result<Arc<Self>> {
-        Self::compile_mode(source, registered.iter(), false, None, &())
+    pub fn compile(
+        source: &str,
+        registered: &BTreeMap<String, Registered>,
+        static_types: bool,
+    ) -> Result<Arc<Self>> {
+        Self::compile_typed(source, registered.iter(), false, None, &(), static_types)
     }
 
     /// Compiles host source, charging the work to `work`.
@@ -41,8 +47,9 @@ impl Code {
         source: &str,
         registered: &BTreeMap<String, Registered>,
         work: &dyn crate::compilation::Work,
+        static_types: bool,
     ) -> Result<Arc<Self>> {
-        Self::compile_mode(source, registered.iter(), false, None, work)
+        Self::compile_typed(source, registered.iter(), false, None, work, static_types)
     }
 
     #[cfg(test)]
@@ -59,21 +66,34 @@ impl Code {
         receiving: &Self,
         origin: crate::loading::Origin,
     ) -> Result<Arc<Self>> {
-        Self::compile_mode(
+        Self::compile_typed(
             source,
             receiving.program.hosts.iter().zip(&receiving.hosts),
             true,
             Some(origin),
             &crate::compilation::Meter(std::cell::RefCell::new(ctx)),
+            receiving.static_types,
         )
     }
 
+    #[cfg(test)]
     fn compile_mode<'a>(
         source: &str,
         registered: impl Iterator<Item = (&'a String, &'a Registered)> + Clone,
         file: bool,
         origin: Option<crate::loading::Origin>,
         work: &dyn crate::compilation::Work,
+    ) -> Result<Arc<Self>> {
+        Self::compile_typed(source, registered, file, origin, work, false)
+    }
+
+    fn compile_typed<'a>(
+        source: &str,
+        registered: impl Iterator<Item = (&'a String, &'a Registered)> + Clone,
+        file: bool,
+        origin: Option<crate::loading::Origin>,
+        work: &dyn crate::compilation::Work,
+        static_types: bool,
     ) -> Result<Arc<Self>> {
         work.checkpoint()?;
         let mut names = Vec::new();
@@ -82,12 +102,40 @@ impl Code {
             names.push(name.clone());
         }
         let filename = origin.as_ref().map(crate::loading::Origin::filename);
-        let mut program = if file {
+        let parse_error =
+            |error| crate::source::parse_error(source, filename.as_ref(), error, work);
+        let mut program = if static_types {
+            let (parsed, tokens) =
+                crate::syntax::parse_with_tokens(source, work).map_err(parse_error)?;
+            let checked = crate::typing::check(&crate::typing::Input {
+                source,
+                parsed: &parsed,
+                tokens: &tokens,
+                hosts: registered.clone().collect(),
+                file,
+            });
+            work.checkpoint()?;
+            if checked.diagnostics.iter().any(|d| d.is_error()) {
+                let mut text = crate::source::Source::compile(source, work)?;
+                text.filename = filename.clone();
+                let diagnostics = checked
+                    .diagnostics
+                    .into_iter()
+                    .map(|diagnostic| diagnostic.in_file(filename.clone()))
+                    .collect();
+                return Err(Error::from_diagnostics(
+                    crate::ErrorKind::Type,
+                    diagnostics,
+                    &text,
+                ));
+            }
+            crate::bytecode::compile_parsed(source, parsed, names, file, work)
+        } else if file {
             crate::bytecode::compile_file(source, names, work)
         } else {
             crate::bytecode::compile(source, names, work)
         }
-        .map_err(|error| crate::source::parse_error(source, filename.as_ref(), error, work))?;
+        .map_err(parse_error)?;
         program.source.filename = filename;
         let mut hosts = Vec::new();
         for (name, host) in registered {
@@ -127,6 +175,7 @@ impl Code {
                 hosts,
                 origin,
                 exports,
+                static_types,
             }
         }))
     }

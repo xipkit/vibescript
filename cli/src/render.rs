@@ -171,6 +171,27 @@ pub fn float(value: f64) -> String {
     out
 }
 
+/// Renders a static diagnostic as `label:line:column: error[V0101]: message`
+/// followed by the source line, notes and fixes. A diagnostic in a required
+/// file names the file, since `source` is not its text.
+pub fn diagnostic(
+    diagnostic: &vibescript::diagnostic::Diagnostic,
+    source: &str,
+    label: &str,
+) -> String {
+    if let Some(file) = &diagnostic.file {
+        return format!("{}: {diagnostic}\n", String::from_utf8_lossy(file));
+    }
+    let position = diagnostic.span.position(source);
+    let rendered = diagnostic.render(source);
+    let body = rendered.split_once('\n').map_or("", |(_, rest)| rest);
+    let body = body.split_once('\n').map_or("", |(_, rest)| rest);
+    format!(
+        "{label}:{}:{}: {diagnostic}\n{body}",
+        position.line, position.column
+    )
+}
+
 /// Renders an engine error as its `Display` does. For an inline `snippet`,
 /// the entrypoint's frames are named `<snippet>` and a parse error that ran
 /// out of source reads `unexpected end of snippet` from column 1 or later, as

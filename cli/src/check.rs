@@ -19,7 +19,7 @@ use std::{
 };
 use vibescript::{CallOptions, CheckDiagnostic, CheckReport, Script, Stats, Value};
 
-const FLAGS: [Flag; 8] = [
+const FLAGS: [Flag; 9] = [
     Flag::new(
         &["module-path"],
         Kind::Strings,
@@ -56,6 +56,11 @@ const FLAGS: [Flag; 8] = [
         "analysis deadline in milliseconds",
     ),
     Flag::new(&["stats"], Kind::Bool, "print analysis counters on stderr"),
+    Flag::new(
+        &["static"],
+        Kind::Bool,
+        "type check statically (ADR-007) instead of running the gradual checker",
+    ),
 ];
 
 pub const SPEC: Spec = Spec {
@@ -134,7 +139,7 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
     };
     let module_dirs = source::module_paths(&directory, &module_paths)
         .map_err(|error| format!("compute module paths: {error}"))?;
-    let engine = run::engine(&module_dirs, &Sink::Stdout, &Sink::Stderr)?;
+    let mut engine = run::engine(&module_dirs, &Sink::Stdout, &Sink::Stderr)?;
     let (text, snippet) = match text {
         Ok(snippet) => (snippet, true),
         Err(script) => (
@@ -142,6 +147,10 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
             false,
         ),
     };
+    if flags.bool("static") {
+        engine.set_static_types(true);
+        return static_check(&engine, &text, &label, snippet);
+    }
     let script = engine.compile(&text).map_err(|error| {
         format!(
             "compile failed: {}",
@@ -177,6 +186,38 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
     } else {
         Err(format!("check failed with {} issue(s)", issues.len()))
     }
+}
+
+/// `vibes check --static`: compiles with the static checker and prints every
+/// diagnostic, or `No issues found`.
+fn static_check(
+    engine: &vibescript::Engine,
+    text: &str,
+    label: &str,
+    snippet: bool,
+) -> Result<(), String> {
+    let error = match engine.compile(text) {
+        Ok(_) => {
+            println!("No issues found");
+            return Ok(());
+        }
+        Err(error) => error,
+    };
+    if error.diagnostics().is_empty() {
+        return Err(format!(
+            "compile failed: {}",
+            render::error(&error, snippet.then_some(text))
+        ));
+    }
+    let mut out = io::stdout().lock();
+    for diagnostic in error.diagnostics() {
+        write!(out, "{}", render::diagnostic(diagnostic, text, label))
+            .map_err(|error| format!("write check output: {}", compat::reason(&error)))?;
+    }
+    out.flush()
+        .map_err(|error| format!("write check output: {}", compat::reason(&error)))?;
+    let errors = error.diagnostics().iter().filter(|d| d.is_error()).count();
+    Err(format!("check failed with {errors} error(s)"))
 }
 
 /// `line:column: message (function)`, without the function when it is empty.

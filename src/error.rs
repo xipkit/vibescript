@@ -252,7 +252,6 @@ impl Error {
 
     /// Builds a compile error from diagnostics, of which at least one should be
     /// an error. The first error sets the message, offset and code frame.
-    #[allow(dead_code)]
     pub(crate) fn from_diagnostics(
         kind: ErrorKind,
         diagnostics: Vec<crate::diagnostic::Diagnostic>,

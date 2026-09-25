@@ -27,8 +27,8 @@ fn registered<'a>(
 
 #[test]
 fn same_function_indexes_keep_separate_summaries_across_sources_and_scopes() {
-    let first = Code::compile("def run;7;end", &Default::default()).unwrap();
-    let second = Code::compile("def run;false;end", &Default::default()).unwrap();
+    let first = Code::compile("def run;7;end", &Default::default(), false).unwrap();
+    let second = Code::compile("def run;false;end", &Default::default(), false).unwrap();
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let mut producer = CallContext::new(CallOptions::default());
@@ -90,7 +90,7 @@ fn same_function_indexes_keep_separate_summaries_across_sources_and_scopes() {
 
 #[test]
 fn recursion_and_whole_file_reachability_do_not_confuse_sources() {
-    let code = Code::compile("def run;7;end", &Default::default()).unwrap();
+    let code = Code::compile("def run;7;end", &Default::default(), false).unwrap();
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let mut producer = CallContext::new(CallOptions::default());
@@ -188,8 +188,8 @@ fn recursion_and_whole_file_reachability_do_not_confuse_sources() {
 
 #[test]
 fn an_unregistered_queued_source_cannot_use_another_sources_program() {
-    let first = Code::compile("def run;7;end", &Default::default()).unwrap();
-    let second = Code::compile("nil", &Default::default()).unwrap();
+    let first = Code::compile("def run;7;end", &Default::default(), false).unwrap();
+    let second = Code::compile("nil", &Default::default(), false).unwrap();
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let a = facts.source_owner(&mut ctx, &first, None).unwrap();
@@ -222,8 +222,8 @@ fn an_unregistered_queued_source_cannot_use_another_sources_program() {
 #[test]
 fn identical_diagnostics_and_incomplete_locations_survive_source_collection() {
     let text = "def run;begin;1+nil;rescue;nil;end;require 'missing';end";
-    let first = Code::compile(text, &Default::default()).unwrap();
-    let second = Code::compile(text, &Default::default()).unwrap();
+    let first = Code::compile(text, &Default::default(), false).unwrap();
+    let second = Code::compile(text, &Default::default(), false).unwrap();
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let a = facts.source_owner(&mut ctx, &first, None).unwrap();
@@ -287,8 +287,8 @@ fn identical_diagnostics_and_incomplete_locations_survive_source_collection() {
 
 #[test]
 fn qualified_call_targets_never_dispatch_through_an_unrelated_source() {
-    let first = Code::compile("def run;7;end", &Default::default()).unwrap();
-    let second = Code::compile("def run;9;end", &Default::default()).unwrap();
+    let first = Code::compile("def run;7;end", &Default::default(), false).unwrap();
+    let second = Code::compile("def run;9;end", &Default::default(), false).unwrap();
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let a = facts.source_owner(&mut ctx, &first, None).unwrap();
@@ -354,7 +354,7 @@ fn qualified_call_targets_never_dispatch_through_an_unrelated_source() {
 #[test]
 fn foreign_source_fast_paths_preserve_latched_failures_and_cancellation() {
     for reason in [ErrorKind::Steps, ErrorKind::Cancelled, ErrorKind::Deadline] {
-        let code = Code::compile("def run;7;end", &Default::default()).unwrap();
+        let code = Code::compile("def run;7;end", &Default::default(), false).unwrap();
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
         let owner = facts.source_owner(&mut ctx, &code, None).unwrap();

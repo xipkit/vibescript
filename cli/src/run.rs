@@ -13,7 +13,7 @@ use std::{
 use vibescript::tooling::{self, ItemKind};
 use vibescript::{CallOptions, Engine, Error, ErrorKind, Limits, ModuleConfig, Script, Value};
 
-const FLAGS: [Flag; 9] = [
+const FLAGS: [Flag; 10] = [
     Flag::new(
         &["function"],
         Kind::String,
@@ -23,6 +23,11 @@ const FLAGS: [Flag; 9] = [
         &["check"],
         Kind::Bool,
         "compile and validate static contracts without executing",
+    ),
+    Flag::new(
+        &["static"],
+        Kind::Bool,
+        "type check statically (ADR-007) and refuse a script with type errors",
     ),
     Flag::new(
         &["e"],
@@ -68,6 +73,8 @@ pub struct Invocation {
     /// The `-function` value, if given.
     pub function: Option<String>,
     pub check: bool,
+    /// Whether to type check statically before running (`--static`).
+    pub static_types: bool,
     pub module_dirs: Vec<PathBuf>,
     pub arguments: Vec<Value>,
     pub limits: Limits,
@@ -82,6 +89,7 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
     let limits = profiles::resolve(&flags).map_err(|error| format!("vibes run: {error}"))?;
     let module_paths = flags.strings("module-path");
     let check = flags.bool("check");
+    let static_types = flags.bool("static");
     if let Some(snippet) = flags.value("e") {
         if flags.bool("watch") {
             return Err("vibes run: -e cannot be combined with -watch".to_owned());
@@ -93,7 +101,7 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
             return Err("vibes run: -e does not accept positional arguments".to_owned());
         }
         let snippet = String::from_utf8_lossy(&compat::bytes(snippet)).into_owned();
-        return evaluate(&snippet, &module_paths, limits, check);
+        return evaluate(&snippet, &module_paths, limits, check, static_types);
     }
     let Some((script, arguments)) = flags.positionals.split_first() else {
         return Err("vibes run: script path required".to_owned());
@@ -107,6 +115,7 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
         script,
         function: flags.string("function"),
         check,
+        static_types,
         module_dirs,
         arguments: arguments
             .iter()
@@ -149,12 +158,18 @@ fn forward(sink: &Sink, bytes: &[u8]) -> vibescript::Result<()> {
 
 /// Compiles and runs, or checks, one script file.
 pub fn execute(invocation: &Invocation, out: &Sink, err: &Sink) -> Result<(), String> {
-    let engine = engine(&invocation.module_dirs, out, err)?;
+    let mut engine = engine(&invocation.module_dirs, out, err)?;
+    engine.set_static_types(invocation.static_types);
     let source =
         source::read(&invocation.script).map_err(|error| format!("read script: {error}"))?;
-    let script = engine
-        .compile(&source)
-        .map_err(|error| format!("compile failed: {}", render::error(&error, None)))?;
+    let script = engine.compile(&source).map_err(|error| {
+        compile_failure(
+            &error,
+            &source,
+            &invocation.script.display().to_string(),
+            None,
+        )
+    })?;
     let function = match invocation.function.as_deref() {
         Some(SCRIPT_ENTRYPOINT) => "__main__",
         Some(function) => function,
@@ -169,6 +184,24 @@ pub fn execute(invocation: &Invocation, out: &Sink, err: &Sink) -> Result<(), St
         .call(function, &invocation.arguments, options)
         .map_err(|error| format!("execution failed: {}", render::error(&error, None)))?;
     print_result(&outcome.value, out)
+}
+
+/// The message for a failed compilation: every static diagnostic, rendered
+/// against the source and headed by `label`, or the error itself.
+pub fn compile_failure(error: &Error, source: &str, label: &str, snippet: Option<&str>) -> String {
+    if error.diagnostics().is_empty() {
+        return format!("compile failed: {}", render::error(error, snippet));
+    }
+    let mut text = format!(
+        "compile failed with {} diagnostic(s)",
+        error.diagnostics().len()
+    );
+    for diagnostic in error.diagnostics() {
+        text.push('\n');
+        text.push_str(&render::diagnostic(diagnostic, source, label));
+    }
+    text.truncate(text.trim_end().len());
+    text
 }
 
 fn has_top_level_statements(script: &Script) -> Result<bool, String> {
@@ -198,6 +231,7 @@ fn evaluate(
     module_paths: &[OsString],
     limits: Limits,
     check: bool,
+    static_types: bool,
 ) -> Result<(), String> {
     if compat::trim_space(snippet).is_empty() {
         return Err("vibes run: -e requires a non-empty snippet".to_owned());
@@ -206,10 +240,11 @@ fn evaluate(
         .map_err(|error| format!("resolve working directory: {}", compat::reason(&error)))?;
     let module_dirs = source::module_paths(&directory, module_paths)
         .map_err(|error| format!("compute module paths: {error}"))?;
-    let engine = engine(&module_dirs, &Sink::Stdout, &Sink::Stderr)?;
+    let mut engine = engine(&module_dirs, &Sink::Stdout, &Sink::Stderr)?;
+    engine.set_static_types(static_types);
     let script = engine
         .compile(snippet)
-        .map_err(|error| format!("compile failed: {}", render::error(&error, Some(snippet))))?;
+        .map_err(|error| compile_failure(&error, snippet, "<eval>", Some(snippet)))?;
     let options = options(limits);
     if check {
         return check::snippet(&script, &options);

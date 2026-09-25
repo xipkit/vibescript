@@ -45,6 +45,7 @@ USAGE:
 OPTIONS:
    --function string                              function to invoke; without it, top-level statements run when present, otherwise run
    --check                                        compile and validate static contracts without executing
+   --static                                       type check statically (ADR-007) and refuse a script with type errors
    -e string                                      evaluate an inline snippet instead of a script file
    --watch                                        re-run whenever the script or its modules change
    --module-path string [ --module-path string ]  add a module search directory (repeatable)
