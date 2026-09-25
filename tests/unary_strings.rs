@@ -7,8 +7,12 @@ use vibescript::{CallOptions, CancellationToken, Engine, ErrorKind, Value};
 #[test]
 fn unary_plus_preserves_raw_bytes_and_accounted_backing_storage() {
     let engine = Engine::new();
-    let identity = engine.compile("def run(value)\nvalue\nend").unwrap();
-    let unary = engine.compile("def run(value)\n+value\nend").unwrap();
+    let identity = engine
+        .compile("def run(value: string) -> string\nvalue\nend")
+        .unwrap();
+    let unary = engine
+        .compile("def run(value: string) -> string\n+value\nend")
+        .unwrap();
     for length in [0, 8, 1 << 20] {
         let mut bytes = vec![b'x'; length];
         bytes.extend_from_slice(&[0, 0xff, 0xc0, 0x80]);
@@ -70,7 +74,7 @@ fn cancellation_during_the_operand_prevents_the_consumer_call() {
         Ok(Value::nil())
     });
     let error = engine
-        .compile("consume(+operand())")
+        .compile("consume(+operand().as(string))")
         .unwrap()
         .run(CallOptions {
             cancellation: token,
