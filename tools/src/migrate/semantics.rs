@@ -44,6 +44,17 @@ impl<'a> Migrator<'a> {
     fn boolean_syntax(&self, expr: &Expr) -> bool {
         match &expr.kind {
             ExprKind::True | ExprKind::False => true,
+            // A parameter declared `bool`.
+            ExprKind::Name(name) => self.scope().def.is_some_and(|def| {
+                def.params.iter().any(|param| {
+                    param.name == *name
+                        && param.ty.as_ref().is_some_and(|ty| {
+                            !ty.nullable
+                                && matches!(&ty.kind, TypeKind::Named(tok, _)
+                                    if self.token_text(*tok).eq_ignore_ascii_case("bool"))
+                        })
+                })
+            }),
             ExprKind::Group(_, inner, _) => self.boolean_syntax(inner),
             ExprKind::Unary(op, _) => self.token_text(*op) == "!",
             ExprKind::Binary(op, left, right) => match self.token_text(*op) {

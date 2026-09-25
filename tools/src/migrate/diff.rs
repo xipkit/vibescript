@@ -17,7 +17,12 @@ pub fn unified_diff(path: &str, old: &str, new: &str) -> String {
     let a: Vec<&str> = old.split_inclusive('\n').collect();
     let b: Vec<&str> = new.split_inclusive('\n').collect();
     let script = edit_script(&a, &b);
-    let mut out = format!("--- a/{path}\n+++ b/{path}\n");
+    // An absolute path is labelled as it is, a relative one as git does.
+    let mut out = if path.starts_with('/') {
+        format!("--- {path}\n+++ {path}\n")
+    } else {
+        format!("--- a/{path}\n+++ b/{path}\n")
+    };
     // Group changes into hunks with their context.
     let mut index = 0;
     while index < script.len() {

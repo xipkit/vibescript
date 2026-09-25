@@ -367,3 +367,13 @@ fn distrusts_runs_it_cannot_reproduce() {
         migration.source
     );
 }
+
+#[test]
+fn infers_results_of_functions_no_run_reached() {
+    // The checker's inference from declared parameters, then literal exits.
+    let source = "def next_id(n: int)\n  n + 1\nend\ndef label(flag: bool)\n  return \"on\" if flag\n  nil\nend\n";
+    let (out, codes) = compatible(source, &[]);
+    assert!(out.contains("def next_id(n: int) -> int\n"), "{out}");
+    assert!(out.contains("def label(flag: bool) -> string?\n"), "{out}");
+    assert!(codes.is_empty(), "{codes:?}");
+}

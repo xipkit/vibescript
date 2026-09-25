@@ -284,13 +284,57 @@ impl<'a> Migrator<'a> {
                 self.edits.insert(end, format!(" -> {ty}"));
             }
             _ => {
-                if returns_value(&def.body) || value_body(&def.body) {
-                    let ty =
-                        self.annotation(None, None, end, &format!("the result of {}", def.name));
-                    self.edits.insert(end, format!(" -> {ty}"));
+                if !returns_value(&def.body) && !value_body(&def.body) {
+                    return;
                 }
+                // Unobserved: what the checker infers, then a result every
+                // exit spells as a literal, then `any`.
+                let inferred = self.checker_result(def);
+                if inferred.as_deref() == Some("nil") {
+                    return;
+                }
+                let ty = match inferred.or_else(|| static_result(&def.body)) {
+                    Some(ty) => ty,
+                    None => {
+                        self.annotation(None, None, end, &format!("the result of {}", def.name))
+                    }
+                };
+                if ty.contains("any") {
+                    self.report(
+                        Code::Any,
+                        end,
+                        format!(
+                            "the result of {} is annotated with any; narrow it",
+                            def.name
+                        ),
+                    );
+                }
+                self.edits.insert(end, format!(" -> {ty}"));
             }
         }
+    }
+
+    /// The result type the gradual checker infers for a function, rewritten
+    /// in annotation syntax, when it names only types an annotation can.
+    fn checker_result(&self, def: &'a Def) -> Option<String> {
+        let script = self.script?;
+        let class = self.scope().class;
+        let name = match class {
+            Some(class) if def.class_method => format!("{}.{}", class.name, def.name),
+            Some(class) => format!("{}#{}", class.name, def.name),
+            None => def.name.clone(),
+        };
+        let options = vibescript::CallOptions {
+            limits: vibescript::Limits {
+                steps: Some(2_000_000),
+                memory_bytes: Some(64 << 20),
+                ..vibescript::Limits::default()
+            },
+            deadline: Some(std::time::Instant::now() + std::time::Duration::from_secs(2)),
+            ..vibescript::CallOptions::default()
+        };
+        let text = script.inferred_result(&name, &options).ok()??;
+        annotation_from_checker(&text, &|name| self.known_type(name))
     }
 
     /// Declares the block of a function that yields, as `&block: A -> R`.
@@ -660,6 +704,164 @@ fn literal_type(expr: &Expr) -> Option<String> {
         }
         .to_owned(),
     )
+}
+
+/// The type of a body's result when every exit is a literal whose type the
+/// syntax fixes: its last expression and every `return`.
+fn static_result(body: &[Stmt]) -> Option<String> {
+    let mut exits = Vec::new();
+    let mut unknown = false;
+    visit_stmts(body, &mut |stmt| {
+        if let StmtKind::Flow(tok, value) = &stmt.kind {
+            let _ = tok;
+            match value {
+                Some(value) => exits.push(static_type(value)),
+                None => unknown = true,
+            }
+        }
+    });
+    match body.last().map(|stmt| &stmt.kind) {
+        Some(StmtKind::Expr(expr)) => exits.push(static_type(expr)),
+        _ => unknown = true,
+    }
+    if unknown {
+        return None;
+    }
+    let mut types: Vec<String> = exits.into_iter().collect::<Option<_>>()?;
+    types.sort();
+    types.dedup();
+    let nil = types.iter().any(|ty| ty == "nil");
+    types.retain(|ty| ty != "nil");
+    Some(match (types.as_slice(), nil) {
+        ([], _) => return None,
+        ([one], true) => format!("{one}?"),
+        (_, true) => format!("{} | nil", types.join(" | ")),
+        (_, false) => types.join(" | "),
+    })
+}
+
+/// The type an expression's syntax alone fixes.
+fn static_type(expr: &Expr) -> Option<String> {
+    Some(match &expr.kind {
+        ExprKind::Integer => "int".to_owned(),
+        ExprKind::Float => "float".to_owned(),
+        ExprKind::Str | ExprKind::Template(_) => "string".to_owned(),
+        ExprKind::Symbol => "symbol".to_owned(),
+        ExprKind::True | ExprKind::False => "bool".to_owned(),
+        ExprKind::Nil => "nil".to_owned(),
+        ExprKind::Group(_, inner, _) => return static_type(inner),
+        ExprKind::Array(items) if !items.is_empty() => {
+            let mut types: Vec<String> = items.iter().map(static_type).collect::<Option<_>>()?;
+            types.sort();
+            types.dedup();
+            if types.iter().any(|ty| ty == "nil") {
+                return None;
+            }
+            format!("array<{}>", types.join(" | "))
+        }
+        _ => return None,
+    })
+}
+
+/// Rewrites a type as the checker spells it, such as `{"name": string} |
+/// nil`, in annotation syntax, or `None` when it names something no
+/// annotation can, such as an unknown value, a builtin or an open shape.
+fn annotation_from_checker(text: &str, known: &dyn Fn(&str) -> bool) -> Option<String> {
+    if [
+        "unknown",
+        "never",
+        "builtin",
+        "attached method",
+        "enum ",
+        "...",
+        "type<",
+    ]
+    .iter()
+    .any(|word| text.contains(word))
+    {
+        return None;
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '"' => {
+                let mut key = String::new();
+                for c in chars.by_ref() {
+                    if c == '"' {
+                        break;
+                    }
+                    key.push(c);
+                }
+                let label = key
+                    .chars()
+                    .next()
+                    .is_some_and(|c| c == '_' || c.is_ascii_alphabetic())
+                    && key.chars().all(|c| c == '_' || c.is_ascii_alphanumeric());
+                if !label {
+                    return None;
+                }
+                out.push_str(&key);
+            }
+            '{' => out.push_str("{ "),
+            '}' => out.push_str(" }"),
+            c if c.is_alphabetic() || c == '_' => {
+                let mut word = c.to_string();
+                while let Some(&next) = chars.peek() {
+                    if next.is_alphanumeric() || next == '_' || next == '.' {
+                        word.push(next);
+                        chars.next();
+                    } else {
+                        break;
+                    }
+                }
+                let builtin = matches!(
+                    word.as_str(),
+                    "int"
+                        | "float"
+                        | "string"
+                        | "bool"
+                        | "nil"
+                        | "symbol"
+                        | "duration"
+                        | "time"
+                        | "money"
+                        | "range"
+                        | "any"
+                        | "array"
+                        | "hash"
+                ) || (word == "regex" && super::compat::regex_type());
+                if !builtin && !known(&word) {
+                    return None;
+                }
+                out.push_str(&word);
+            }
+            c => out.push(c),
+        }
+    }
+    // Spell a union with nil as the renderer does: `T?`, or nil last.
+    let mut arms = Vec::new();
+    let (mut depth, mut start) = (0usize, 0);
+    for (index, c) in out.char_indices() {
+        match c {
+            '<' | '{' | '[' => depth += 1,
+            '>' | '}' | ']' => depth = depth.saturating_sub(1),
+            '|' if depth == 0 => {
+                arms.push(out[start..index].trim().to_owned());
+                start = index + 1;
+            }
+            _ => (),
+        }
+    }
+    arms.push(out[start..].trim().to_owned());
+    let nil = arms.iter().any(|arm| arm == "nil");
+    arms.retain(|arm| arm != "nil");
+    Some(match (arms.len(), nil) {
+        (0, _) => "nil".to_owned(),
+        (1, true) => format!("{}?", arms[0]),
+        (_, true) => format!("{} | nil", arms.join(" | ")),
+        _ => arms.join(" | "),
+    })
 }
 
 /// Whether a body has an explicit `return` of a value.

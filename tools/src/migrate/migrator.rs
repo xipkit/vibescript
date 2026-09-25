@@ -44,17 +44,20 @@ fn unchanged(source: &str, diagnostics: Vec<Diagnostic>) -> Migration {
 }
 
 fn migrate_on_stack(source: &str, facts: Option<&Facts>, options: &Options) -> Migration {
-    if let Err(error) = vibescript::Engine::new().compile(source) {
-        let offset = error.offset.unwrap_or(0);
-        let message = format!(
-            "does not compile, so it was left unchanged: {}",
-            error.message
-        );
-        return unchanged(
-            source,
-            vec![diagnostic(source, Code::Unparsed, offset, message)],
-        );
-    }
+    let script = match vibescript::Engine::new().compile(source) {
+        Ok(script) => script,
+        Err(error) => {
+            let offset = error.offset.unwrap_or(0);
+            let message = format!(
+                "does not compile, so it was left unchanged: {}",
+                error.message
+            );
+            return unchanged(
+                source,
+                vec![diagnostic(source, Code::Unparsed, offset, message)],
+            );
+        }
+    };
     let tree = match parse::parse(source) {
         Ok(tree) => tree,
         Err(fail) => {
@@ -66,6 +69,7 @@ fn migrate_on_stack(source: &str, facts: Option<&Facts>, options: &Options) -> M
         }
     };
     let mut migrator = Migrator::new(source, &tree, facts, options);
+    migrator.script = Some(&script);
     migrator.program(&tree.body);
     let mut diagnostics = std::mem::take(&mut migrator.diagnostics);
     diagnostics.sort_by_key(|d| (d.offset, d.code));
@@ -192,6 +196,8 @@ pub(crate) struct Migrator<'a> {
     pub scopes: Vec<Scope<'a>>,
     /// Conditions by the offset of their branch.
     pub conditions: HashMap<usize, Vec<(usize, &'a Types)>>,
+    /// The compiled source, for the checker's inferences.
+    pub script: Option<&'a vibescript::Script>,
     /// Expressions a rename rewrote as an operator, such as `x.nil?` as `x == nil`.
     pub operator_rewrites: HashSet<Span>,
     /// The offsets of every `&&` and `||`, where they test their left operand.
@@ -231,6 +237,7 @@ impl<'a> Migrator<'a> {
             declared: Declared::default(),
             scopes: Vec::new(),
             conditions,
+            script: None,
             operator_rewrites: HashSet::new(),
             first_assignments: HashSet::new(),
             def_ranges: Vec::new(),
