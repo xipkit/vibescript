@@ -11,7 +11,7 @@ fn main() -> vibescript::Result<()> {
     assert_eq!(error.kind, ErrorKind::Arithmetic);
     assert_eq!(error.class(), Some(ErrorClass::ZeroDivision));
     assert_eq!(error.message, "division by zero");
-    assert_eq!(error.diagnostic.as_ref().unwrap().position, Position { line: 2, column: 6 });
+    assert_eq!(error.diagnostic.as_ref().unwrap().position, Position { line: 2, column: 5 });
     Ok(())
 }
 ```

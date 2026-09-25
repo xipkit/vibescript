@@ -121,7 +121,7 @@ fn other_operands_are_refused_at_compile_time() {
         // An operand that cannot divide is reported at the operator, and a
         // nil operand where it is read.
         let at = match code {
-            "V0108" => source.find(" // ").unwrap() + 2,
+            "V0108" => source.find(" // ").unwrap() + 1,
             _ => source.find("nil").unwrap(),
         };
         assert_eq!(error.diagnostics()[0].span.start, at, "{expression}");
@@ -196,9 +196,16 @@ fn floor_division_binds_like_multiplication() {
 
 #[test]
 fn floor_division_errors_point_at_the_operator() {
-    let error = failure("x = 7\n  x // 0");
-    let position = &error.diagnostic.as_ref().unwrap().position;
-    assert_eq!((position.line, position.column), (3, 6));
+    // The operator's first slash, not its second.
+    for (body, column) in [("x = 7\n  x // 0", 5), ("x = 0\n  1 + 8 // x", 9)] {
+        let error = failure(body);
+        let position = &error.diagnostic.as_ref().unwrap().position;
+        assert_eq!((position.line, position.column), (3, column), "{body}");
+    }
+    let source = "def run -> int\n  7 // \"a\"\nend\n";
+    let checked = Engine::new().type_check(source).unwrap();
+    let span = checked.diagnostics[0].span;
+    assert_eq!(&source[span.start..span.end], "//");
 }
 
 #[test]

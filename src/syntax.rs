@@ -3127,8 +3127,13 @@ impl<'a> Parser<'a> {
         let Some((left, right)) = binding_power(op) else {
             return Ok(None);
         };
-        // Go locates a binary expression at its operator's token.
-        let offset = self.position(self.pos) as u32;
+        // Go locates a binary expression at its operator's token; `//`,
+        // which Go lacks, is located at its start.
+        let offset = if op == "//" {
+            self.tokens[self.pos].offset
+        } else {
+            self.position(self.pos)
+        } as u32;
         Ok((left >= min).then_some(Suffix::Binary(op, right, offset)))
     }
     fn member_name(&mut self) -> Result<Name> {
