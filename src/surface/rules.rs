@@ -552,18 +552,12 @@ pub trait Rules<'a>: Hooks<'a> {
         {
             return false;
         }
-        let hash = match self.static_kind(receiver) {
-            Some(kind) => kind == "hash",
-            None => self
-                .receiver_kinds(expr, call)
-                .is_some_and(|kinds| !kinds.is_empty() && kinds.iter().all(|kind| kind == "hash")),
+        let kinds = match self.static_kind(receiver) {
+            Some(kind) => vec![kind],
+            None => self.receiver_kinds(expr, call).unwrap_or_default(),
         };
-        // A write sets the field either way; a read that raised in a
-        // recorded run, at a missing field, would read nil instead.
-        if !hash || (!write && !self.call_returned(expr, call)) {
-            return false;
-        }
-        let Some(key) = string_literal(call.name.as_bytes()) else {
+        let hashes = kinds.iter().filter(|kind| *kind == "hash").count();
+        let Some(key) = string_literal(call.name.as_bytes()).filter(|_| hashes > 0) else {
             return false;
         };
         let span = Span {
@@ -572,14 +566,33 @@ pub trait Rules<'a>: Hooks<'a> {
         };
         let removed = self.text(span).to_owned();
         let receiver_text = excerpt(self.text(receiver.span));
-        if call.safe(self.tokens) {
-            let advice = format!(
-                "hash fields are indexed; test `{receiver_text}` for nil, then index `{receiver_text}[{key}]`"
+        let indexed = format!("`{receiver_text}[{key}]`");
+        let by_hand = if hashes < kinds.len() {
+            Some(format!(
+                "{removed} reaches a hash field on a value that is not always a hash; index the field by hand where it is one"
+            ))
+        } else if call.safe(self.tokens) {
+            Some(format!(
+                "{removed} reaches a hash field through `&.`; test for nil and index the field by hand"
+            ))
+        } else if !write && !self.call_returned(expr, call) {
+            // A read of a missing field raises, where the index reads nil.
+            Some(format!(
+                "{removed} raised in a recorded run, where the index would read nil; index the field by hand"
+            ))
+        } else {
+            None
+        };
+        if let Some(message) = by_hand {
+            let finding = Finding::new(Reason::Receiver, span, message).spelling(
+                Rule::FieldAccess,
+                removed,
+                format!("hash fields are indexed, as in {indexed}, once the value is a hash"),
             );
-            self.report(Finding::removed(Rule::FieldAccess, span, removed, advice));
+            self.report(finding);
             return true;
         }
-        let advice = format!("hash fields are indexed: `{receiver_text}[{key}]`");
+        let advice = format!("hash fields are indexed: {indexed}");
         let previous = self.enter(Rule::FieldAccess, span, removed, advice);
         self.edits.text(span, format!("[{key}]"));
         self.leave(previous);

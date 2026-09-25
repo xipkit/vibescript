@@ -132,15 +132,17 @@ fn indexes_hash_fields_read_with_a_dot() {
         "{out}"
     );
     // A read that raised in a recorded run, or on a receiver that was not
-    // always a hash, is left alone.
+    // always a hash, is left for a person.
     let source = "def run(user)\n  user.name\nend\n";
-    let (out, _) = compatible(source, &[("run", json!([{"id": 1}]))]);
+    let (out, codes) = compatible(source, &[("run", json!([{"id": 1}]))]);
     assert!(out.contains("user.name"), "{out}");
-    let (out, _) = compatible(
+    assert!(codes.contains(&Code::Receiver), "{codes:?}");
+    let (out, codes) = compatible(
         source,
         &[("run", json!([{"name": "a"}])), ("run", json!(["x"]))],
     );
     assert!(out.contains("user.name"), "{out}");
+    assert!(codes.contains(&Code::Receiver), "{codes:?}");
 }
 
 #[test]

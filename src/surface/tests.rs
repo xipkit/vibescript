@@ -515,11 +515,16 @@ fn hash_fields_are_indexed_not_dotted() {
         ".a",
         "n = { a: 1 }[\"a\"]\n",
     );
-    // Safe navigation is reported without a fix.
-    let source = "def f(user: { name: string }?) -> string?\n  user&.name\nend\n";
-    let found = checked(source, Code::FIELD_ACCESS);
-    assert_eq!(found.len(), 1, "{found:?}");
-    assert!(found[0].fixes.is_empty());
+    // Safe navigation, and a value that is not always a hash, are reported
+    // without a fix.
+    for source in [
+        "def f(user: { name: string }?) -> string?\n  user&.name\nend\n",
+        "class User\n  def name -> string\n    \"a\"\n  end\nend\ndef f(user: { name: string } | User) -> string\n  user.name\nend\n",
+    ] {
+        let found = checked(source, Code::FIELD_ACCESS);
+        assert_eq!(found.len(), 1, "{source}: {found:?}");
+        assert!(found[0].fixes.is_empty(), "{source}");
+    }
     // Methods, casts, other receivers and untyped values are left alone.
     for source in [
         "def f(h: hash<string, int>) -> int\n  h.length + h.keys.length\nend\n",
