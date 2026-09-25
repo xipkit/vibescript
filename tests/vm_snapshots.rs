@@ -1,3 +1,9 @@
+//! The programs these tests run read another program's instances and
+//! modules, which reach them through a capability's data. A program cannot
+//! name a class or module another program declares, and a module value has
+//! no static type, so those programs keep the ADR-004 language explicitly;
+//! the programs that build the state are typed.
+
 mod common;
 
 use std::{
@@ -16,15 +22,17 @@ fn payload() -> Value {
     Engine::new()
         .compile(
             "class Node
+               @next: Node
+               @value: int
                def initialize; @value=1; @next=self; end
-               def value; @value; end
-               def bump; @value+=1; end
-               def next_node; @next; end
+               def value -> int; @value; end
+               def bump -> int; @value+=1; end
+               def next_node -> Node; @next; end
              end
              module Counter
-               @@value=1
-               def self.value; @@value; end
-               def self.bump; @@value+=1; end
+               @@value: int=1
+               def self.value -> int; @@value; end
+               def self.bump -> int; @@value+=1; end
              end
              node=Node.new
              {node:node, alias:node, counter:Counter}",
@@ -69,7 +77,7 @@ const SOURCE: &str = "
 
 #[test]
 fn receiver_snapshots_isolate_instances_and_module_state_across_block_reentry() {
-    let outcome = Engine::new()
+    let outcome = common::gradual_engine()
         .compile(SOURCE)
         .unwrap()
         .run(options(capture()))
@@ -79,7 +87,7 @@ fn receiver_snapshots_isolate_instances_and_module_state_across_block_reentry() 
 
 #[test]
 fn each_receiver_read_has_fresh_state_without_reusing_the_import_cache() {
-    let outcome = Engine::new()
+    let outcome = common::gradual_engine()
         .compile(
             "first=cap.capture { cap[:data][:counter].bump }
              second=cap.capture { cap[:data][:counter].bump }
@@ -95,7 +103,7 @@ fn each_receiver_read_has_fresh_state_without_reusing_the_import_cache() {
 
 #[test]
 fn mutating_a_returned_snapshot_does_not_change_the_receiver_or_another_snapshot() {
-    let outcome = Engine::new()
+    let outcome = common::gradual_engine()
         .compile(
             "snapshots=cap.capture { nil }
              old=snapshots[0][:data]
@@ -127,7 +135,7 @@ async fn async_receiver_snapshots_survive_suspension_and_block_reentry() {
     let outcome = vibescript::asynchronous::Runner::new(1)
         .unwrap()
         .call(
-            Engine::new()
+            common::gradual_engine()
                 .compile(&format!("def run\n{SOURCE}\nend"))
                 .unwrap(),
             "run".into(),
@@ -154,7 +162,7 @@ fn saved_snapshot() -> (Engine, CallOptions, Arc<AtomicUsize>, SnapshotStore) {
         Ok(Value::nil())
     });
     let read = saved.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register("take_snapshot", move |_, _| {
         Ok(read.lock().unwrap().take().unwrap())
     });
@@ -253,7 +261,7 @@ fn captured_file_snapshots_do_not_resume_or_replay_source_initializers() {
 
 #[test]
 fn dropped_vm_snapshots_release_all_invocation_storage() {
-    let result = Engine::new()
+    let result = common::gradual_engine()
         .compile("cap.capture { cap[:data][:counter].bump }; nil")
         .unwrap()
         .run(options(capture()))
@@ -278,7 +286,7 @@ fn retained_vm_snapshots_keep_state_when_imported_by_a_later_invocation() {
     let snapshot = saved.lock().unwrap().take().unwrap();
     let mut options = CallOptions::default();
     options.globals.insert("old".into(), snapshot);
-    let result = Engine::new()
+    let result = common::gradual_engine()
         .compile("[old[:data].value, old[:data].later]")
         .unwrap()
         .run(options)
@@ -290,7 +298,7 @@ fn retained_vm_snapshots_keep_state_when_imported_by_a_later_invocation() {
 
 #[test]
 fn vm_snapshots_keep_class_state_shared_inside_each_copy() {
-    let result = Engine::new()
+    let result = common::gradual_engine()
         .compile(
             "class Meter
            @@value=1
@@ -316,7 +324,7 @@ fn vm_snapshots_keep_class_state_shared_inside_each_copy() {
 
 #[test]
 fn transitive_foreign_modules_and_direct_aliases_share_one_snapshot_environment() {
-    let result = Engine::new()
+    let result = common::gradual_engine()
         .compile(
             "module Local
            @@peer=cap[:data][:counter]
@@ -344,7 +352,7 @@ fn transitive_foreign_modules_and_direct_aliases_share_one_snapshot_environment(
 fn unbound_module_snapshots_still_read_the_receiving_invocations_ambient_globals() {
     let mut options = options(capture());
     options.globals.insert("count".into(), Value::int(3));
-    let result = Engine::new()
+    let result = common::gradual_engine()
         .compile(
             "module Reads
            def self.value; count; end
@@ -365,7 +373,7 @@ async fn synchronous_callbacks_on_the_async_runner_snapshot_vm_state() {
     let result = vibescript::asynchronous::Runner::new(1)
         .unwrap()
         .call(
-            Engine::new()
+            common::gradual_engine()
                 .compile(&format!("def run\n{SOURCE}\nend"))
                 .unwrap(),
             "run".into(),
@@ -380,7 +388,7 @@ async fn synchronous_callbacks_on_the_async_runner_snapshot_vm_state() {
 #[test]
 fn vm_state_in_deep_receivers_uses_the_default_stack_through_copy_and_drop() {
     let mut value = Engine::new()
-        .compile("module Deep; @@value=9; def self.value; @@value; end; end; Deep")
+        .compile("module Deep; @@value: int=9; def self.value -> int; @@value; end; end; Deep")
         .unwrap()
         .run(CallOptions::default())
         .unwrap()
@@ -389,7 +397,7 @@ fn vm_state_in_deep_receivers_uses_the_default_stack_through_copy_and_drop() {
         value = Value::array(vec![value]);
     }
     let read = HostMethod::new_with_block("cap.read", |call, _, _| Ok(call.receiver()?.unwrap()));
-    let result = Engine::new()
+    let result = common::gradual_engine()
         .compile("cap.read()")
         .unwrap()
         .run(CallOptions {
@@ -417,7 +425,7 @@ fn vm_state_in_deep_receivers_uses_the_default_stack_through_copy_and_drop() {
     let mut options = CallOptions::default();
     options.globals.insert("data".into(), value.clone());
     assert_eq!(
-        Engine::new()
+        common::gradual_engine()
             .compile("data.value")
             .unwrap()
             .run(options)
