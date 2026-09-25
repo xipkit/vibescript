@@ -59,6 +59,10 @@ impl Session {
         let stdout = Arc::new(Mutex::new(Vec::new()));
         let stderr = Arc::new(Mutex::new(Vec::new()));
         let mut engine = Engine::new();
+        // Each input sees the earlier inputs' variables as runtime globals,
+        // which static types do not declare yet, so the session keeps the
+        // ADR-004 language until it binds their types across inputs.
+        engine.set_static_types(false);
         let out = stdout.clone();
         engine.set_output_writer(move |_, bytes| {
             out.lock().unwrap().extend_from_slice(bytes);
