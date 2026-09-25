@@ -25,7 +25,7 @@ fn rejected_updates_preserve_local_and_nested_bindings() {
             serde_json::json!([1]),
         ),
         (
-            "a=[[1]];begin\na.fetch(0)[9]=2\nrescue\na\nend",
+            "a: [array<int>] = [[1]];begin\na[0][9]=2\nrescue\na\nend",
             serde_json::json!([[1]]),
         ),
         (
@@ -37,7 +37,7 @@ fn rejected_updates_preserve_local_and_nested_bindings() {
             serde_json::json!({"a":[1]}),
         ),
         (
-            "a=[[1],[2]];a[1]=begin\na.fetch(0).insert(-9, 2)\nrescue\na.fetch(0)\nend;a",
+            "a: [array<int>, array<int>] = [[1],[2]];a[1]=begin\na[0].insert(-9, 2)\nrescue\na[0]\nend;a",
             serde_json::json!([[1], [1]]),
         ),
     ] {
