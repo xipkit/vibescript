@@ -28,11 +28,11 @@ Tools complete and list names from this map instead of keeping a parallel table.
 use vibescript::{DeclarationKind, Engine};
 
 fn main() -> vibescript::Result<()> {
-    let source = "x = 1\ndef double(n)\n  n * 2\nend\ndouble(x)";
+    let source = "x = 1\ndef double(n: int) -> int\n  n * 2\nend\ndouble(x)";
     let script = Engine::new().compile(source)?;
     let declaration = &script.declarations()[0];
     assert_eq!(declaration.kind, DeclarationKind::Function);
-    assert_eq!(&source[declaration.span.clone()], "def double(n)\n  n * 2\nend");
+    assert_eq!(&source[declaration.span.clone()], "def double(n: int) -> int\n  n * 2\nend");
     Ok(())
 }
 ```
@@ -51,9 +51,9 @@ fn main() -> vibescript::Result<()> {
     let engine = Engine::new();
     let mut session = BTreeMap::new();
     for source in [
-        "class Box\n  def initialize(n)\n    @n = n\n  end\nend\nitems = [Box.new(1)]",
+        "class Box\n  @n: int\n\n  def initialize(n: int)\n    @n = n\n  end\nend\nitems = [Box.new(1)]",
         "items.push(Box.new(2))\ncount = items.length",
-        "kept = items.all? { |item| item.is_a?(Box) }",
+        "kept = items.all? { |item| item.is_type?(:Box) }",
     ] {
         let options = CallOptions { globals: session, ..CallOptions::default() };
         session = engine.compile(source)?.run_bindings(options)?.1;
@@ -64,4 +64,4 @@ fn main() -> vibescript::Result<()> {
 }
 ```
 
-The values follow the result's contracts. They are isolated snapshots: the host's original globals are unchanged, and a later call cannot change a returned value. Passing them back as globals continues the session. Instances keep their fields and compiled code, and still belong to the class values passed with them, so `is_a?`, type annotations and enum comparisons behave as in one script. Each call starts class and module state afresh, as for any separately compiled namespace. A module object returned by `require` keeps its private file state, but the export names that `require` published into the root are not bindings; keep the returned object to use them later. Functions are not values, so they are not bindings; carry them as source with `Script::declarations`. Capturing the bindings charges the run's work budget, and a failed run returns only its error.
+The values follow the result's contracts. They are isolated snapshots: the host's original globals are unchanged, and a later call cannot change a returned value. Passing them back as globals continues the session. Instances keep their fields and compiled code, and still belong to the class values passed with them, so `is_type?`, type annotations and enum comparisons behave as in one script. Each call starts class and module state afresh, as for any separately compiled namespace. A module object returned by `require` keeps its private file state, but the export names that `require` published into the root are not bindings; keep the returned object to use them later. Functions are not values, so they are not bindings; carry them as source with `Script::declarations`. Capturing the bindings charges the run's work budget, and a failed run returns only its error.

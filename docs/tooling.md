@@ -22,7 +22,7 @@ assert_eq!(member_receiver(probe, "probe"), Some("string"));
 
 ## Declaration outlines
 
-`outline(source)` parses one source and returns its top-level items in source order: functions, aliases, classes, modules, enums and plain statements. Each statement reports its syntactic kind, such as an assignment, an `if` or `unless`, or a `begin` block, so a tool can tell whether top-level code executes anything, as `vibes run` and `vibes test` do. Classes and modules list their instance methods, `def self.` methods, property declarations, aliases, module constants, nested modules and body statements; enums list their members. Each item has a one-based line and Unicode character column, like the positions in compile diagnostics. A declaration's position is its first keyword or modifier, so `private def secret` starts at `private`; enum members and properties start at their names.
+`outline(source)` parses one source and returns its top-level items in source order: functions, aliases, classes, modules, enums and plain statements. Each statement reports its syntactic kind, such as an assignment, an `if` or a `begin` block, so a tool can tell whether top-level code executes anything, as `vibes run` and `vibes test` do. Classes and modules list their instance methods, `def self.` methods, property declarations, aliases, module constants, nested modules and body statements; enums list their members. Each item has a one-based line and Unicode character column, like the positions in compile diagnostics. A declaration's position is its first keyword or modifier, so `private def secret` starts at `private`; enum members and properties start at their names.
 
 Functions, methods and aliases carry signature and body facts; `Function::requires_arguments()` reports whether a call must supply an argument. Parameters report their kind, their annotation in the canonical form used by type errors, whether they have a default and whether they assign an instance variable. Bodies report the local names they assign outside blocks, their named rescue clauses and where their last statement begins. These facts describe the syntax only. They are not scopes: a name assigned in one branch is listed even when another path never assigns it.
 
@@ -33,7 +33,7 @@ Outlining uses the compiler's parser with the same source-size and syntax-depth 
 `unreachable(source)` reports every statement that can never run because an earlier statement in the same body always leaves it: a `return`, `raise`, `break`, `next` or `retry`, or a compound statement whose every path ends in one, such as an `if` whose branches all return. Scopes, positions and ordering follow the Go reference's `vibes analyze` linter: a scope is a function name, `<script>`, `Class#method`, `Class.method` or `Class.<class body>`, and each enclosing block appends ` block at LINE:COLUMN`. Positions inside a string interpolation count from the interpolation's first non-space character, as the reference's do.
 
 ```rust
-let found = vibescript::tooling::unreachable("def run()\n  [1].each do |x|\n    raise \"boom\"\n    x\n  end\nend\n")?;
+let found = vibescript::tooling::unreachable("def run\n  [1].each { |x|\n    raise \"boom\"\n    x\n  }\nend\n")?;
 assert_eq!(found[0].function, "run block at 2:12");
 assert_eq!((found[0].position.line, found[0].position.column), (4, 5));
 # Ok::<(), vibescript::Error>(())

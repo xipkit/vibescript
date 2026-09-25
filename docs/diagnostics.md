@@ -6,12 +6,12 @@ Compile and execution failures expose an `Error` with a category, a bare message
 use vibescript::{CallOptions, Engine, ErrorClass, ErrorKind, Position, Value};
 
 fn main() -> vibescript::Result<()> {
-    let script = Engine::new().compile("def divide(a, b)\n  a / b\nend")?;
+    let script = Engine::new().compile("def divide(a: int, b: int) -> int\n  a // b\nend")?;
     let error = script.call("divide", &[Value::int(1), Value::int(0)], CallOptions::default()).unwrap_err();
     assert_eq!(error.kind, ErrorKind::Arithmetic);
     assert_eq!(error.class(), Some(ErrorClass::ZeroDivision));
     assert_eq!(error.message, "division by zero");
-    assert_eq!(error.diagnostic.as_ref().unwrap().position, Position { line: 2, column: 5 });
+    assert_eq!(error.diagnostic.as_ref().unwrap().position, Position { line: 2, column: 6 });
     Ok(())
 }
 ```
