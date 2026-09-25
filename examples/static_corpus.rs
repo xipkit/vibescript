@@ -16,7 +16,7 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
-use vibescript::Engine;
+use vibescript::{Engine, ModuleConfig};
 
 const CORPORA: [&str; 5] = [
     "conformance",
@@ -203,12 +203,28 @@ fn check_all(root: &Path, files: &[String]) -> Vec<Outcome> {
             std::thread::Builder::new()
                 .stack_size(256 << 20)
                 .spawn(move || {
-                    let engine = Engine::new();
+                    let plain = Engine::new();
                     loop {
                         let Some(file) = queue.lock().unwrap().pop() else {
                             break;
                         };
-                        let source = fs::read_to_string(root.join(&file)).unwrap_or_default();
+                        let path = root.join(&file);
+                        let source = fs::read_to_string(&path).unwrap_or_default();
+                        // A case's required files sit beside it, in `<name>.files/`.
+                        let modules = path.with_extension("files");
+                        let with_modules = modules.is_dir().then(|| {
+                            let mut engine = Engine::new();
+                            engine
+                                .set_module_config(ModuleConfig {
+                                    paths: vec![modules],
+                                    ..ModuleConfig::default()
+                                })
+                                .map(|()| engine)
+                        });
+                        let engine = match &with_modules {
+                            Some(Ok(engine)) => engine,
+                            _ => &plain,
+                        };
                         let start = Instant::now();
                         let checked =
                             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
