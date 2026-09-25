@@ -85,21 +85,19 @@ fn mutable_blocks_preserve_host_inputs_across_calls() {
 #[test]
 fn fill_growth_observes_steps_before_reserving_the_complete_gap() {
     // Filling past the end pads the gap until ADR-008's switchover.
-    for source in ["[1].fill(7,1000000000,0)"] {
-        let error = Engine::new()
-            .compile(source)
-            .unwrap()
-            .run(CallOptions {
-                limits: Limits {
-                    steps: Some(300),
-                    memory_bytes: Some(64_000),
-                    ..Limits::default()
-                },
-                ..CallOptions::default()
-            })
-            .unwrap_err();
-        assert_eq!(error.kind, ErrorKind::Steps, "{source}");
-    }
+    let error = Engine::new()
+        .compile("[1].fill(7,1000000000,0)")
+        .unwrap()
+        .run(CallOptions {
+            limits: Limits {
+                steps: Some(300),
+                memory_bytes: Some(64_000),
+                ..Limits::default()
+            },
+            ..CallOptions::default()
+        })
+        .unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Steps);
     // `fill` takes no block now.
     for source in ["[1].fill(1000000000,0) {7}", "[1].fill(0,1000000000) {7}"] {
         let error = common::static_engine().compile(source).err().unwrap();
