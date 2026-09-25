@@ -1,25 +1,52 @@
+mod common;
+
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicUsize, Ordering},
 };
-use vibescript::{CallOptions, Engine, ErrorKind, Limits, Value};
+use vibescript::{CallOptions, Engine, ErrorKind, HostMethod, Limits, Signature, Value};
+
+/// The code and offset of each static diagnostic that refuses `source`.
+fn refused(source: &str) -> Vec<(String, usize)> {
+    let error = common::static_engine()
+        .compile(source)
+        .err()
+        .unwrap_or_else(|| panic!("{source} compiled"));
+    error
+        .diagnostics()
+        .iter()
+        .map(|d| (d.code.to_string(), d.span.start))
+        .collect()
+}
+
+fn at(source: &str, expected: &[(&str, &str)]) -> Vec<(String, usize)> {
+    expected
+        .iter()
+        .map(|(code, text)| {
+            let offset = source
+                .find(text)
+                .unwrap_or_else(|| panic!("{text} in {source}"));
+            ((*code).to_owned(), offset)
+        })
+        .collect()
+}
 
 #[test]
 fn json_parse_requires_strings_through_every_call_form() {
-    for source in [
-        "JSON.parse(:\"7\")",
-        "JSON::parse(:\"7\")",
-        "(JSON.parse)(:\"7\")",
-        "JSON[:parse](:\"7\")",
-        "JSON.send(:parse,:\"7\")",
-        "JSON.parse_as(:\"7\",int)",
+    // Each is refused before running; indexing a namespace and `send` are
+    // removed.
+    for (source, expected) in [
+        ("JSON.parse(:\"7\")", vec![("V0101", ":\"7")]),
+        ("JSON::parse(:\"7\")", vec![("V0101", ":\"7")]),
+        ("(JSON.parse)(:\"7\")", vec![("V0101", ":\"7")]),
+        (
+            "JSON[:parse](:\"7\")",
+            vec![("V0112", "JSON"), ("V0409", ":parse")],
+        ),
+        ("JSON.send(:parse,:\"7\")", vec![("V0405", "send")]),
+        ("JSON.parse_as(:\"7\",int)", vec![("V0101", ":\"7")]),
     ] {
-        let error = Engine::new()
-            .compile(source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap_err();
-        assert_eq!(error.kind, ErrorKind::Type, "{source}: {error}");
+        assert_eq!(refused(source), at(source, &expected), "{source}");
     }
 }
 
@@ -34,7 +61,7 @@ fn run(source: &str) -> vibescript::Outcome {
 #[test]
 fn float_strings_match_independent_binary64_rounding_expectations() {
     let script = Engine::new()
-        .compile("def convert(input)\nto_float(input)\nend")
+        .compile("def convert(input: string) -> float\nto_float(input)\nend")
         .unwrap();
     // Python float/fromhex supplies these bits independently of either interpreter.
     let cases: serde_json::Value =
@@ -99,7 +126,7 @@ fn conversion_and_math_preserve_integer_types_and_ieee_special_values() {
 #[test]
 fn namespace_assignments_are_visible_within_one_execution_and_reset_between_calls() {
     let script = Engine::new().compile(
-        "def read()\nMath.PI\nend\ndef change()\nMath={PI:7};read()\nend\ndef constants()\n[Math.PI,JSON.keys]\nend"
+        "def read -> float\nMath.PI\nend\ndef change -> float\nMath={PI:7.0};read\nend\ndef constant -> float\nMath.PI\nend"
     ).unwrap();
     for _ in 0..3 {
         assert_eq!(
@@ -107,29 +134,29 @@ fn namespace_assignments_are_visible_within_one_execution_and_reset_between_call
                 .call("change", &[], CallOptions::default())
                 .unwrap()
                 .value
-                .as_int(),
-            Some(7)
+                .as_float(),
+            Some(7.0)
         );
         let result = script
-            .call("constants", &[], CallOptions::default())
+            .call("constant", &[], CallOptions::default())
             .unwrap();
-        let values = result.value.as_array().unwrap();
-        assert_eq!(values[0].as_float(), Some(std::f64::consts::PI));
-        assert_eq!(values[1].to_string(), "[parse, parse_as, stringify]");
+        assert_eq!(result.value.as_float(), Some(std::f64::consts::PI));
     }
-    assert_eq!(
-        run("m=Math;m.PI=7;[m.PI,Math.PI]").value.to_string(),
-        "[7, 3.141592653589793]"
-    );
     assert_eq!(run("Math=7;[1].each {Math=8};Math").value.as_int(), Some(7));
-    assert_eq!(
-        run("[1].each {if false;Math=7;end;Math.PI}")
-            .value
-            .to_string(),
-        "[1]"
-    );
-    assert_eq!(run("Math.clear;Math=={}").value.to_string(), "false");
-    assert_eq!(run("Math.replace({});Math=={}").value.to_string(), "false");
+    // A namespace is not a hash, so it has no fields to write, list, clear
+    // or replace, and a local assigned on one path cannot be read.
+    for (source, expected) in [
+        ("m=Math;m.PI=7;[m.PI,Math.PI]", vec![("V0203", "PI=")]),
+        ("JSON.keys", vec![("V0203", "keys")]),
+        (
+            "[1].each {if false;Math=7;end;Math.PI}",
+            vec![("V0202", "Math.PI"), ("V0203", "PI}")],
+        ),
+        ("Math.clear;Math=={}", vec![("V0203", "clear")]),
+        ("Math.replace({});Math=={}", vec![("V0203", "replace")]),
+    ] {
+        assert_eq!(refused(source), at(source, &expected), "{source}");
+    }
 }
 
 #[test]
@@ -147,7 +174,7 @@ fn host_and_parameter_bindings_override_builtins_and_blocks_capture_parameters()
         Some(11)
     );
     let script = Engine::new()
-        .compile("def run(Math)\n[1].map {[2].map {Math.PI}}\nend")
+        .compile("def run(Math: hash<string, int>) -> array<array<int?>>\n[1].map {[2].map {Math[\"PI\"]}}\nend")
         .unwrap();
     let input = Value::hash(vec![(b"PI".to_vec(), Value::int(7))]);
     assert_eq!(
@@ -158,17 +185,27 @@ fn host_and_parameter_bindings_override_builtins_and_blocks_capture_parameters()
             .to_string(),
         "[[7]]"
     );
-    assert_eq!(run("f=Math::sqrt;f(9)").value.as_float(), Some(3.0));
-    assert_eq!(
-        run("Math[\"map\"]=Math[\"sqrt\"];Math.map(9)")
-            .value
-            .as_float(),
-        Some(3.0)
-    );
-    assert_eq!(
-        run("to_int=Math::sqrt;to_int(9)").value.as_float(),
-        Some(3.0)
-    );
+    // A builtin is not a value to bind or store.
+    for (source, expected) in [
+        (
+            "f=Math::sqrt;f(9)",
+            vec![("V0301", "sqrt"), ("V0310", "f(9)")],
+        ),
+        (
+            "Math[\"map\"]=Math[\"sqrt\"];Math.map(9)",
+            vec![
+                ("V0112", "Math[\"map\"]"),
+                ("V0112", "Math[\"sqrt\"]"),
+                ("V0203", "map(9)"),
+            ],
+        ),
+        (
+            "to_int=Math::sqrt;to_int(9)",
+            vec![("V0301", "sqrt"), ("V0310", "to_int(9)")],
+        ),
+    ] {
+        assert_eq!(refused(source), at(source, &expected), "{source}");
+    }
 }
 
 #[test]
@@ -185,11 +222,20 @@ fn namespaces_retained_by_hosts_keep_their_memory_charge_until_released() {
         held.lock().unwrap().take();
         Ok(Value::nil())
     });
-    engine.register("tracked", |ctx, _| {
+    // Typed, so the script reads the count without a cast, which would
+    // hold memory of its own.
+    let tracked = HostMethod::new("tracked", |ctx, _, _| {
         Ok(Value::int(ctx.stats().retained_memory_bytes as i64))
-    });
+    })
+    .with_signature(Signature {
+        params: vec![],
+        result: "int".into(),
+        accepts_block: false,
+    })
+    .unwrap();
+    engine.register_method("tracked", tracked);
     let retained_result = engine
-        .compile("retain(Math);Math=nil;nil")
+        .compile("retain(Math);Math=0;nil")
         .unwrap()
         .run(CallOptions::default())
         .unwrap();
@@ -197,7 +243,7 @@ fn namespaces_retained_by_hosts_keep_their_memory_charge_until_released() {
     let original = retained.lock().unwrap().take().unwrap();
     assert_eq!(original.type_name(), "object");
     let script = Engine::new()
-        .compile("def run(input)\ninput.clear;input\nend")
+        .compile("def run(input: hash<string, any>) -> hash<string, any>\ninput.clear;input\nend")
         .unwrap();
     let cleared = script
         .call(
@@ -210,7 +256,7 @@ fn namespaces_retained_by_hosts_keep_their_memory_charge_until_released() {
     assert!(cleared.value.as_hash().unwrap().is_empty());
     assert_eq!(original.as_hash().unwrap().len(), 16);
     let result = engine
-        .compile("retain(Math);Math=nil;a=tracked();release();b=tracked();a-b")
+        .compile("retain(Math);Math=0;a=tracked();release();b=tracked();a-b")
         .unwrap()
         .run(CallOptions::default())
         .unwrap();
@@ -227,12 +273,12 @@ fn replacing_an_ordinary_hash_reuses_the_imported_storage() {
     );
     let engine = Engine::new();
     let baseline = engine
-        .compile("def run(input)\ninput\nend")
+        .compile("def run(input: hash<string, int>) -> hash<string, int>\ninput\nend")
         .unwrap()
         .call("run", std::slice::from_ref(&input), CallOptions::default())
         .unwrap();
     let result = engine
-        .compile("def run(input)\na={};a.replace(input);nil\nend")
+        .compile("def run(input: hash<string, int>)\na: hash<string, int> = {};a.replace(input);nil\nend")
         .unwrap()
         .call("run", &[input], CallOptions::default())
         .unwrap();
@@ -248,7 +294,7 @@ fn replacing_an_ordinary_hash_reuses_the_imported_storage() {
 #[test]
 fn long_float_scans_bound_work_and_temporary_memory() {
     let script = Engine::new()
-        .compile("def run(input)\nto_float(input)\nend")
+        .compile("def run(input: string) -> float\nto_float(input)\nend")
         .unwrap();
     for text in [
         format!("0.{}1e131073", "0".repeat(131072)),
@@ -319,26 +365,44 @@ fn invalid_builtin_calls_fail_before_later_effects_and_do_not_invoke_blocks() {
         "to_int(1.5)",
         "to_int(\"1_000\")",
         "to_float(\"NaN\")",
-        "to_float(:one)",
         "Math.sqrt(-1)",
         "Math.log(2,-1)",
         "Math.asin(2)",
-        "Math.sqrt(9,x:1)",
-        "Math::sqrt(9,2)",
         "Math.PI()",
-        "Math.sqrt",
-        "{a:1}::a",
-        "Math.sqrt(9) {effect()}",
-        "JSON.parse(\"1\") {effect()}",
-        "JSON.stringify(1) {effect()}",
-        "JSON.parse()",
-        "JSON.stringify(1,2)",
         "JSON.parse_as(\"1\",\"int\")",
-        "Math=7;Math(9)",
     ] {
         let script = engine.compile(&format!("{expression};effect()")).unwrap();
         assert!(script.run(CallOptions::default()).is_err(), "{expression}");
         assert_eq!(effects.load(Ordering::SeqCst), 0, "{expression}");
+    }
+    // Calls whose shape is wrong are refused before anything runs.
+    let mut engine = common::static_engine();
+    engine.register("effect", |_, _| panic!("effect ran"));
+    for (expression, code, text) in [
+        ("to_float(:one)", "V0101", ":one"),
+        ("Math.sqrt(9,x:1)", "V0302", "x:"),
+        ("Math::sqrt(9,2)", "V0301", "sqrt"),
+        ("Math.sqrt", "V0301", "sqrt"),
+        ("{a:1}::a", "V0203", "::a"),
+        ("Math.sqrt(9) {effect()}", "V0305", "{effect"),
+        ("JSON.parse(\"1\") {effect()}", "V0305", "{effect"),
+        ("JSON.stringify(1) {effect()}", "V0305", "{effect"),
+        ("JSON.parse()", "V0301", "parse"),
+        ("JSON.stringify(1,2)", "V0301", "stringify"),
+        ("Math=7;Math(9)", "V0310", "Math(9)"),
+    ] {
+        let source = format!("{expression};effect()");
+        let error = engine.compile(&source).err().unwrap();
+        let found: Vec<(String, usize)> = error
+            .diagnostics()
+            .iter()
+            .map(|d| (d.code.to_string(), d.span.start))
+            .collect();
+        let mut expected = at(&source, &[(code, text)]);
+        if text == "::a" {
+            expected[0].1 += 2;
+        }
+        assert_eq!(found, expected, "{expression}");
     }
 }
 
@@ -354,9 +418,9 @@ fn cancellation_and_ignored_quota_errors_prevent_builtin_results() {
         Ok(Value::int(9))
     });
     for source in [
-        "to_float(cancel())",
-        "to_int(cancel())",
-        "JSON.parse(cancel())",
+        "to_float(cancel().as(string))",
+        "to_int(cancel().as(string))",
+        "JSON.parse(cancel().as(string))",
     ] {
         let error = engine
             .compile(source)
@@ -366,8 +430,8 @@ fn cancellation_and_ignored_quota_errors_prevent_builtin_results() {
         assert_eq!(error.kind, ErrorKind::Cancelled, "{source}");
     }
     for source in [
-        "Math.sqrt(ignore())",
-        "to_float(ignore())",
+        "Math.sqrt(ignore().as(int))",
+        "to_float(ignore().as(int))",
         "JSON.stringify(ignore())",
     ] {
         let error = engine
@@ -449,12 +513,22 @@ fn builtin_catalog_lists_the_names_scripts_reach() {
             }
         }
         for path in paths {
-            let result = Engine::new()
-                .compile(&path)
-                .unwrap()
-                .run(CallOptions::default());
-            if let Err(error) = result {
-                assert_ne!(error.kind, ErrorKind::Name, "{path}: {error}");
+            match Engine::new().compile(&path) {
+                Ok(script) => {
+                    if let Err(error) = script.run(CallOptions::default()) {
+                        assert_ne!(error.kind, ErrorKind::Name, "{path}: {error}");
+                    }
+                }
+                // Static types refuse a callable read as a value, or a
+                // removed name with its replacement, but know every name.
+                Err(error) => {
+                    let codes: Vec<String> = error
+                        .diagnostics()
+                        .iter()
+                        .map(|d| d.code.to_string())
+                        .collect();
+                    assert!(!codes.contains(&"V0201".to_owned()), "{path}: {error}");
+                }
             }
         }
     }
