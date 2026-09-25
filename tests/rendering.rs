@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -16,7 +18,9 @@ fn evaluate(source: &str) -> serde_json::Value {
 
 #[test]
 fn inspection_preserves_raw_bytes_and_literal_interpolation_markers() {
-    let script = Engine::new().compile("def run(x)\nx.inspect\nend").unwrap();
+    let script = Engine::new()
+        .compile("def run(x: string) -> string\nx.inspect\nend")
+        .unwrap();
     let output = script
         .call(
             "run",
@@ -50,11 +54,11 @@ fn nested_literals_round_trip_and_inspection_keeps_hash_order() {
         serde_json::json!(text)
     );
     assert_eq!(
-        evaluate("h={inspect:7,b:2,a:1};h.delete(:b);h[:b]=3;h.inspect"),
+        evaluate("h={inspect:7,b:2,a:1};h.delete(\"b\");h[\"b\"]=3;h.inspect"),
         serde_json::json!("{inspect: 7, a: 1, b: 3}")
     );
     assert_eq!(
-        evaluate("x=nil;128.times{x=[x]};x.inspect.bytesize"),
+        evaluate("x: any =nil;128.times{x=[x]};x.as(array<any>).inspect.bytesize"),
         serde_json::json!(259)
     );
 }
@@ -62,17 +66,23 @@ fn nested_literals_round_trip_and_inspection_keeps_hash_order() {
 #[test]
 fn projections_preserve_selector_order_and_collection_values() {
     assert_eq!(
-        evaluate("a=[[1],[2]];out=a.values_at(0,1,0);out[0].push(9);[a,out]"),
+        evaluate("a=[[1],[2]];out=a.values_at(0,1,0);out[0]&.push(9);[a,out]"),
         serde_json::json!([[[1], [2]], [[1, 9], [2], [1]]])
     );
     assert_eq!(
-        evaluate("h={b:[2],a:[1]};out=h.values_at(:a,:missing,:b,:a);out[0].push(9);[h,out]"),
+        evaluate(
+            "h={b:[2],a:[1]};out=h.values_at(\"a\",\"missing\",\"b\",\"a\");out[0]&.push(9);[h,out]"
+        ),
         serde_json::json!([{"b":[2],"a":[1]},[[1,9],null,[2],[1]]])
     );
     assert_eq!(
-        evaluate("[10,20,30].values_at(-1,0..2,5,1...4,2..1,1.9,-1.9)"),
-        serde_json::json!([30, 10, 20, 30, null, 20, 30, null, 20, 30])
+        evaluate("[10,20,30].values_at(-1,0..2,5,1...4,2..1)"),
+        serde_json::json!([30, 10, 20, 30, null, 20, 30, null])
     );
+    // A float selector is refused before anything runs.
+    let source = "[10,20,30].values_at(1.9,-1.9)";
+    let error = common::static_engine().compile(source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0101", "V0101"]);
     assert_eq!(
         evaluate(
             "[[].values_at(..-1),[1,2,3].values_at(-2...),[1].values_at(9223372036854775807..9223372036854775807)]"
@@ -104,15 +114,18 @@ fn templates_resolve_data_paths_and_serialize_scalars() {
             "{{\u{b}name}}"
         ])
     );
-    assert_eq!(
-        evaluate("\"{{length}}\".template(JSON)"),
-        serde_json::json!("{{length}}")
-    );
+    // A namespace is not a context, and a method is not a value.
+    for (source, code) in [
+        ("\"{{length}}\".template(JSON)", "V0101"),
+        ("\"{{x}}\".template({x:JSON::parse})", "V0301"),
+        ("\"{{utc}}\".template(Time)", "V0101"),
+    ] {
+        let error = common::static_engine().compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), [code], "{source}");
+    }
     for source in [
         "\"{{x}}\".template({},strict:true)",
         "\"{{x}}\".template({x:[]})",
-        "\"{{x}}\".template({x:JSON::parse})",
-        "\"{{utc}}\".template(Time)",
     ] {
         assert!(
             Engine::new()
@@ -126,49 +139,26 @@ fn templates_resolve_data_paths_and_serialize_scalars() {
 }
 
 #[test]
-fn ignored_blocks_and_rejected_arguments_do_not_invoke_host_effects() {
-    let calls = Arc::new(AtomicUsize::new(0));
-    let count = calls.clone();
-    let mut engine = Engine::new();
-    engine.register("effect", move |_, _| {
-        count.fetch_add(1, Ordering::SeqCst);
-        Ok(Value::int(7))
-    });
-    for source in [
-        "[1].values_at(0){effect()}",
-        "{x:1}.values_at(:x){effect()}",
-        "\"{{x}}\".template({x:1}){effect()}",
+fn blocks_and_rejected_arguments_are_refused_before_host_effects() {
+    let mut engine = common::static_engine();
+    engine.register("effect", |_, _| panic!("effect ran"));
+    for (source, expected) in [
+        ("[1].values_at(0){effect()}", &["V0305"][..]),
+        ("{x:1}.values_at(\"x\"){effect()}", &["V0305"]),
+        ("\"{{x}}\".template({x:1}){effect()}", &["V0305"]),
+        ("nil.inspect{effect()}", &["V0305"]),
+        ("[].inspect{effect()}", &["V0305"]),
+        ("{}.inspect{effect()}", &["V0305"]),
+        ("[1].values_at(0,bad:1){effect()}", &["V0302", "V0305"]),
+        (
+            "\"x\".template({},strict:nil){effect()}",
+            &["V0101", "V0305"],
+        ),
+        ("nil.inspect(effect())", &["V0301"]),
     ] {
-        engine
-            .compile(source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap();
+        let error = engine.compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), expected, "{source}");
     }
-    for source in [
-        "nil.inspect{effect()}",
-        "[].inspect{effect()}",
-        "{}.inspect{effect()}",
-        "[1].values_at(0,bad:1){effect()}",
-        "\"x\".template({},strict:nil){effect()}",
-    ] {
-        assert!(
-            engine
-                .compile(source)
-                .unwrap()
-                .run(CallOptions::default())
-                .is_err()
-        );
-    }
-    assert_eq!(calls.load(Ordering::SeqCst), 0);
-    assert!(
-        engine
-            .compile("nil.inspect(effect())")
-            .unwrap()
-            .run(CallOptions::default())
-            .is_err()
-    );
-    assert_eq!(calls.load(Ordering::SeqCst), 1);
 }
 
 #[test]
@@ -177,7 +167,7 @@ fn rendered_results_release_source_context_and_temporary_storage() {
     bytes.extend_from_slice(b"Ada");
     let large = Value::bytes(bytes);
     let script = Engine::new()
-        .compile("def inspect(x)\nx.inspect\nend\ndef template(x)\n\"{{name}}\".template(x)\nend")
+        .compile("def inspect(x: string) -> string\nx.inspect\nend\ndef template(x: { name: string }) -> string\n\"{{name}}\".template(x)\nend")
         .unwrap();
     let output = script
         .call(
@@ -195,7 +185,7 @@ fn rendered_results_release_source_context_and_temporary_storage() {
     assert_eq!(output.value.as_bytes().unwrap(), b"Ada");
     assert!(output.stats.retained_memory_bytes < 1024);
 
-    let repeated = Engine::new().compile("i=0;while i<500;i+=1;text=\"{{x}}\".template({x:i});out={x:i}.values_at(:x).inspect;end;nil").unwrap();
+    let repeated = Engine::new().compile("i=0;while i<500;i+=1;text=\"{{x}}\".template({x:i});out={x:i}.values_at(\"x\").inspect;end;nil").unwrap();
     let output = repeated
         .run(CallOptions {
             limits: Limits {
@@ -224,7 +214,9 @@ fn large_scans_and_projection_growth_stop_before_later_host_calls() {
         "(\"{{\"+input+\"}}\").template({})",
     ] {
         let script = engine
-            .compile(&format!("def run(input)\n{expression};effect()\nend"))
+            .compile(&format!(
+                "def run(input: string) -> any\n{expression};effect()\nend"
+            ))
             .unwrap();
         let options = CallOptions {
             limits: Limits {
