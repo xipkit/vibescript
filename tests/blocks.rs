@@ -39,7 +39,7 @@ fn block_control_flow_releases_pending_arguments_and_receivers() {
         def named(*, payload: any,done: any) -> any\ndone\nend\n\
         def defaulted(*, payload: any,done: any = zero {return 7}) -> any\ndone\nend\n";
     for body in [
-        "a=[input];a.fetch(0).push(zero {return 7}.as(int))",
+        "a=[input];a[0]&.push(zero {return 7}.as(int))",
         "sink(input,zero {return 7})",
         "named(payload:input,done:zero {return 7})",
         "defaulted(payload:input)",
