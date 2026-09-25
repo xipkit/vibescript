@@ -378,6 +378,17 @@ impl<'a> Migrator<'a> {
         if !self.options.new_syntax || self.token_text(assign.op) != "=" {
             return;
         }
+        // A typed local is declared already.
+        if let [Target::Typed(inner, _)] = assign.targets.as_slice()
+            && let Target::Expr(Expr {
+                kind: ExprKind::Name(name),
+                ..
+            }) = &**inner
+        {
+            let def = self.scope().def.map_or(usize::MAX, |def| def.keyword);
+            self.first_assignments.insert((def, name.clone()));
+            return;
+        }
         let ([Target::Expr(target)], [value]) =
             (assign.targets.as_slice(), assign.values.as_slice())
         else {
@@ -566,10 +577,24 @@ impl<'a> Migrator<'a> {
                 }
             }
         }
+        // Declarations go on lines of their own after `class Name`.
         let header_end = self.source[self.tokens[class.name_tok].end..]
             .find('\n')
-            .map(|index| self.tokens[class.name_tok].end + index);
+            .map(|index| self.tokens[class.name_tok].end + index)
+            .filter(|end| {
+                *end < self.tokens[class.end].start
+                    && self.source[self.tokens[class.name_tok].end..*end]
+                        .trim()
+                        .is_empty()
+            });
         let Some(header_end) = header_end else {
+            self.report(
+                Code::Syntax,
+                self.tokens[class.keyword].start,
+                format!(
+                    "{name}'s instance variables need declarations on lines of their own; split the class onto lines to add them"
+                ),
+            );
             return;
         };
         let indent = format!("{}  ", self.indentation(self.tokens[class.keyword].start));
