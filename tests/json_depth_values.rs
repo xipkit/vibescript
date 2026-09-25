@@ -173,7 +173,9 @@ fn interrupted_imports_release_partially_built_containers() {
 
 #[test]
 fn deep_arguments_are_rejected_as_limit_errors() {
-    let script = Engine::new().compile("def run(x)\nx\nend").unwrap();
+    let script = Engine::new()
+        .compile("def run(x: any) -> any\nx\nend")
+        .unwrap();
     let error = script
         .call("run", &[array_chain(DEEP)], CallOptions::default())
         .unwrap_err();
