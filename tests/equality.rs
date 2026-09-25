@@ -1,3 +1,9 @@
+//! `==` compares values. The removed `eql?` and `equal?`, the strict and
+//! identity comparisons they made, and builtins read as values are reported
+//! by the surface and builtin tests.
+
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -15,20 +21,6 @@ fn result(source: &str) -> serde_json::Value {
 }
 
 #[test]
-fn strict_equality_checks_numeric_kinds_at_every_depth() {
-    assert_eq!(
-        result(
-            "[1.eql?(1.0),1.equal?(1.0),[1].eql?([1.0]),[1].equal?([1.0]),{a:[1]}.eql?({a:[1.0]}),{a:[1]}.equal?({a:[1.0]}),[1,:x].eql?([1,\"x\"])]"
-        ),
-        serde_json::json!([false, false, false, true, false, true, false])
-    );
-    assert_eq!(
-        result("a=0.0/0.0;[a.eql?(a),a.equal?(0.0/0.0),[a].equal?([a]),(-0.0).eql?(0.0)]"),
-        serde_json::json!([false, true, false, true])
-    );
-}
-
-#[test]
 fn integer_float_equality_does_not_round_away_distinct_values() {
     for (integer, float, expected) in [
         (9_007_199_254_740_993, 9_007_199_254_740_992.0, false),
@@ -43,7 +35,7 @@ fn integer_float_equality_does_not_round_away_distinct_values() {
         (i64::MIN, f64::NEG_INFINITY, false),
     ] {
         let output = Engine::new()
-            .compile("def run(a,b)\n[a == b,b == a,a != b,[a].equal?([b]),{x:a}.equal?({x:b}),a.eql?(b),a.equal?(b)]\nend")
+            .compile("def run(a: int, b: float) -> array<bool>\n[a == b,b == a,a != b,[a] == [b],{x:a} == {x:b}]\nend")
             .unwrap()
             .call("run", &[Value::int(integer),Value::float(float)], CallOptions::default())
             .unwrap();
@@ -56,140 +48,48 @@ fn integer_float_equality_does_not_round_away_distinct_values() {
             .collect();
         assert_eq!(
             values,
-            vec![
-                expected, expected, !expected, expected, expected, false, false
-            ],
+            vec![expected, expected, !expected, expected, expected],
             "{integer} / {float}"
         );
     }
 }
 
 #[test]
-fn identity_preserves_big_payloads_and_nominal_values() {
+fn comparisons_capture_the_receiver_before_argument_mutation() {
     assert_eq!(
-        result(
-            "a=9223372036854775808;[a.eql?(a+0),a.equal?(a),a.equal?(a.dup),a.equal?(a+0),a.equal?(+a),a.equal?(-(-a))]"
-        ),
-        serde_json::json!([true, true, true, false, true, false])
-    );
-    let source = "enum E\nA\nB\nend\nclass C\nend\na=C.new;[E.equal?(E),E::A.equal?(E::A),E::A.equal?(E::B),E::A.eql?(E::A),C.equal?(C),a.equal?(a),a.equal?(C.new)]";
-    assert_eq!(
-        result(source),
-        serde_json::json!([true, true, false, true, true, true, false])
-    );
-    let integer = Value::parse_integer("9223372036854775808", 10).unwrap();
-    let output = Engine::new()
-        .compile("def run(a,b)\na.equal?(b)\nend")
-        .unwrap()
-        .call("run", &[integer.clone(), integer], CallOptions::default())
-        .unwrap();
-    assert_eq!(output.value.to_string(), "true");
-}
-
-#[test]
-fn scoped_exports_and_match_offset_callables_support_equality() {
-    assert_eq!(
-        result(
-            "[JSON::parse.eql?(nil),JSON::parse.equal?(JSON::parse),JSON::parse.equal?(JSON::stringify),(JSON::parse.eql?)(JSON::parse)]"
-        ),
-        serde_json::json!([false, true, false, true])
-    );
-    assert_eq!(
-        result(
-            "m=\"ab\".match(/(b)/);[m[:begin].eql?(nil),m[:begin].equal?(m[:begin]),m[:begin].equal?(m[:end]),(m[:begin].eql?)(m[:begin])]"
-        ),
-        serde_json::json!([false, true, false, true])
-    );
-}
-
-#[test]
-fn wrapped_calls_capture_the_receiver_before_argument_mutation() {
-    assert_eq!(
-        result("a=[1];r=(a.eql?)(a.push(2));[r,a]"),
+        result("a=[1];r=(a == a.push(2));[r,a]"),
         serde_json::json!([false, [1, 2]])
     );
     assert_eq!(
-        result("a=[[1]];r=(a.equal?)(begin\na[0].push(2);a\nend);[r,a]"),
+        result("a=[[1]];r=(a == begin\na[0]&.push(2);a\nend);[r,a]"),
         serde_json::json!([false, [[1, 2]]])
     );
     assert_eq!(
-        result("class C\nproperty link\nend\na=C.new;a.link=a;[(a.equal?)(a.link),a.eql?(a.link)]"),
-        serde_json::json!([true, true])
+        result("class C\nproperty link: C?\nend\na=C.new;a.link=a;[a == a.link]"),
+        serde_json::json!([true])
     );
 }
 
 #[test]
-fn overrides_and_temporal_block_contracts_keep_their_precedence() {
+fn hash_fields_named_like_removed_predicates_stay_data() {
     assert_eq!(
-        result(
-            "class C\ndef eql?(x)\nx+3\nend\ndef equal?(x)\nx+4\nend\nend\na=C.new;[a.eql?(2),(a.equal?)(2)]"
-        ),
-        serde_json::json!([5, 6])
+        result("h={\"eql?\":3,\"equal?\":4};[h == h,h[\"eql?\"],h[\"equal?\"]]"),
+        serde_json::json!([true, 3, 4])
     );
+    // A method named like a removed predicate cannot be called by it.
+    let source = "class C\ndef eql?(x: int) -> int\nx+3\nend\ndef equal?(x: int) -> int\nx+4\nend\nend\na=C.new;[a.eql?(2),a.equal?(2)]";
+    let error = common::static_engine().compile(source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0403", "V0403"]);
     assert_eq!(
-        result(
-            "[1.seconds.eql?(1.seconds) {raise \"unused\"},Time.at(0).eql?(Time.at(0)) {raise \"unused\"}]"
-        ),
-        serde_json::json!([true, true])
+        error.diagnostics()[0].span.start,
+        source.find("eql?(2)").unwrap()
     );
-    assert_eq!(
-        result("h={\"eql?\":3,\"equal?\":4};[h.eql?(h),h.equal?(h),h[\"eql?\"],h[\"equal?\"]]"),
-        serde_json::json!([true, true, 3, 4])
-    );
-}
-
-#[test]
-fn detached_predicates_and_invalid_calls_reject_before_block_effects() {
-    for expression in [
-        "1.eql?",
-        "[1].equal?",
-        "1.seconds.eql?",
-        "Time.at(0).equal?",
-    ] {
-        let error = Engine::new()
-            .compile(expression)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap_err();
-        assert_eq!(error.kind, ErrorKind::Type, "{expression}: {error}");
-        assert!(
-            error.message.contains("cannot be used as a value"),
-            "{error}"
-        );
-    }
-    let calls = Arc::new(AtomicUsize::new(0));
-    let captured = calls.clone();
-    let mut engine = Engine::new();
-    engine.register("entered", move |_, _| {
-        captured.fetch_add(1, Ordering::SeqCst);
-        Ok(Value::nil())
-    });
-    for (source, message) in [
-        ("1.eql?()", "int.eql? expects 1 argument, got 0"),
-        ("1.eql?(1,2)", "int.eql? expects 1 argument, got 2"),
-        (
-            "1.eql?(1,x:2) {entered()}",
-            "int.eql? does not accept keyword arguments",
-        ),
-        (
-            "(1.equal?)(1) {entered()}",
-            "int.equal? does not accept a block",
-        ),
-    ] {
-        let error = engine
-            .compile(source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap_err();
-        assert_eq!(error.message, message);
-    }
-    assert_eq!(calls.load(Ordering::SeqCst), 0);
 }
 
 #[test]
 fn comparisons_meter_raw_bytes_and_release_captured_values() {
     let script = Engine::new()
-        .compile("def run(a,b)\n[(a.eql?)(b),a.equal?(b)]\nend")
+        .compile("def run(a: string, b: string) -> array<bool>\n[a == b,b == a]\nend")
         .unwrap();
     let mut data = vec![0xff; 64 << 10];
     data[0] = 0;
@@ -230,21 +130,24 @@ fn cancellation_during_arguments_prevents_comparison_and_later_effects() {
         captured.fetch_add(1, Ordering::SeqCst);
         Ok(Value::nil())
     });
-    let error = engine.compile("begin\n((\"x\"*8192).eql?)(stop());after()\nrescue LimitError | RuntimeError\nafter()\nensure\nafter()\nend").unwrap().run(CallOptions { cancellation: token, ..CallOptions::default() }).unwrap_err();
+    let error = engine.compile("begin\n(\"x\"*8192) == stop();after()\nrescue LimitError | RuntimeError\nafter()\nensure\nafter()\nend").unwrap().run(CallOptions { cancellation: token, ..CallOptions::default() }).unwrap_err();
     assert_eq!(error.kind, ErrorKind::Cancelled);
     assert_eq!(calls.load(Ordering::SeqCst), 0);
 }
 
 #[test]
 fn enum_imports_preserve_aliases_and_rebind_owned_arguments() {
-    let script = Engine::new().compile("enum E\nA\nB\nend\ndef make\n[E,E::A,E::A,E::B]\nend\ndef check(x)\n[x[0].equal?(E),x[1].equal?(E::A),x[1].equal?(x[2]),x[3].enum.equal?(x[0]),x[1].equal?(x[3])]\nend").unwrap();
+    let script = Engine::new().compile("enum E\nA\nB\nend\ndef make -> array<any>\n[E,E::A,E::A,E::B]\nend\ndef check(x: array<any>) -> array<bool>\n[x.fetch(0) == E,x.fetch(1) == E::A,x.fetch(1) == x.fetch(2),x.fetch(3).as(E).enum == x.fetch(0),x.fetch(1) == x.fetch(3)]\nend").unwrap();
     let output = script.call("make", &[], CallOptions::default()).unwrap();
     let args = [output.value.clone()];
     let checked = script.call("check", &args, CallOptions::default()).unwrap();
     assert_eq!(checked.value.to_string(), "[true, true, true, true, false]");
 
+    // Another script holds the foreign members as `any`.
     let foreign = Engine::new()
-        .compile("def check(x)\n[x[1].equal?(x[2]),x[3].enum.equal?(x[0]),x[1].equal?(x[3])]\nend")
+        .compile(
+            "def check(x: array<any>) -> array<bool>\n[x.fetch(1) == x.fetch(2),x.fetch(1) == x.fetch(3)]\nend",
+        )
         .unwrap();
     assert_eq!(
         foreign
@@ -252,7 +155,7 @@ fn enum_imports_preserve_aliases_and_rebind_owned_arguments() {
             .unwrap()
             .value
             .to_string(),
-        "[true, true, false]"
+        "[true, false]"
     );
     let mut options = CallOptions::default();
     options.limits.steps = Some(checked.stats.steps);
@@ -267,7 +170,7 @@ fn enum_imports_preserve_aliases_and_rebind_owned_arguments() {
 
 #[test]
 fn enum_rebinding_reaches_instance_fields_and_keyword_arguments() {
-    let script = Engine::new().compile("enum E\nA\nend\nclass Box\nproperty items\nend\ndef make\nb=Box.new;b.items=[E::A,E::A];b\nend\ndef check(box:,item:)\n[box.items[0].equal?(E::A),box.items[0].equal?(box.items[1]),item.equal?(E::A)]\nend\ndef member\nE::A\nend").unwrap();
+    let script = Engine::new().compile("enum E\nA\nend\nclass Box\nproperty items: array<E>\nend\ndef make -> Box\nb=Box.new;b.items=[E::A,E::A];b\nend\ndef check(*, box: Box, item: E) -> array<bool>\n[box.items.fetch(0) == E::A,box.items.fetch(0) == box.items.fetch(1),item == E::A]\nend\ndef member -> E\nE::A\nend").unwrap();
     let value = script
         .call("make", &[], CallOptions::default())
         .unwrap()
@@ -288,25 +191,7 @@ fn enum_rebinding_reaches_instance_fields_and_keyword_arguments() {
     assert!(output.stats.retained_memory_bytes < 1024);
 }
 
-#[test]
-fn callback_enum_results_keep_separate_identity_from_the_invocation() {
-    let captured = Arc::new(std::sync::Mutex::new(Value::nil()));
-    let returned = captured.clone();
-    let mut engine = Engine::new();
-    engine.register("saved", move |_, _| Ok(returned.lock().unwrap().clone()));
-    let script = engine.compile("enum E\nA\nend\ndef make\nE::A\nend\ndef check(input)\na=saved();[input.equal?(E::A),a.eql?(E::A),a.equal?(E::A)]\nend").unwrap();
-    let member = script
-        .call("make", &[], CallOptions::default())
-        .unwrap()
-        .value;
-    *captured.lock().unwrap() = member.clone();
-    let output = script
-        .call("check", &[member], CallOptions::default())
-        .unwrap();
-    assert_eq!(output.value.to_string(), "[true, true, false]");
-}
-
-const SHARED_DAG: &str = "def build(d)\n  cur = [1]\n  i = 0\n  while i < d\n    cur = [cur, cur]\n    i = i + 1\n  end\n  cur\nend\n";
+const SHARED_DAG: &str = "def build(d: int) -> array<any>\n  cur: array<any> = [1]\n  i = 0\n  while i < d\n    cur = [cur, cur]\n    i = i + 1\n  end\n  cur\nend\n";
 
 fn run_with(source: &str, limits: vibescript::Limits) -> Result<(String, u64), ErrorKind> {
     let output = Engine::new()
@@ -328,7 +213,7 @@ fn run_with(source: &str, limits: vibescript::Limits) -> Result<(String, u64), E
 fn shared_structures_compare_each_pair_of_containers_once() {
     // The reference runs this with a 5,000,000-step and 64 MiB quota.
     let source = format!(
-        "{SHARED_DAG}s = \"ab\" * 2048\na = [build(24), s]\nb = [build(24), s]\n((a == b) && ((a <=> b) == 0)).to_s"
+        "{SHARED_DAG}s = \"ab\" * 2048\na = [build(24), s]\nb = [build(24), s]\n(a == b).to_s"
     );
     let limits = vibescript::Limits {
         steps: Some(5_000_000),
@@ -336,18 +221,16 @@ fn shared_structures_compare_each_pair_of_containers_once() {
         ..vibescript::Limits::default()
     };
     assert_eq!(run_with(&source, limits).unwrap().0, "\"true\"");
-    // Every walk that compares elements shares the memo.
+    // Every walk that compares elements shares the memo. Arrays are not
+    // ordered, so `<=>` on them is refused (see the ordering tests).
     for expression in [
         "a == b",
-        "a.eql?(b)",
-        "a.equal?(b)",
         "[a].include?(b)",
         "[a].index(b)",
         "[a].count(b)",
-        "[a, b].uniq.size",
-        "([a] - [b]).size",
+        "[a, b].uniq.length",
+        "([a] - [b]).length",
         "{x: a} == {x: b}",
-        "(a <=> b)",
         "case a\nwhen b\n  1\nend",
     ] {
         let unlimited = vibescript::Limits {
@@ -379,12 +262,12 @@ fn shared_structures_compare_each_pair_of_containers_once() {
 }
 
 #[test]
-fn ordering_remembers_shared_pairs_beyond_any_fixed_window() {
+fn equality_remembers_shared_pairs_beyond_any_fixed_window() {
     // Each level separates the two references to its child with 300 distinct
     // completed pairs, more than a bounded window of recent pairs retains.
     let source = |depth: usize| {
         format!(
-            "def build(d)\n  cur = [1]\n  i = 0\n  while i < d\n    fill = (0..300).to_a.map {{ |k| [k] }}\n    cur = [cur] + fill + [cur]\n    i = i + 1\n  end\n  cur\nend\na = build({depth})\nb = build({depth})\n[a <=> b, a == b]"
+            "def build(d: int) -> array<any>\n  cur: array<any> = [1]\n  i = 0\n  while i < d\n    fill = (0..300).to_a.map {{ |k| [k] }}\n    cur = [cur] + fill + [cur]\n    i = i + 1\n  end\n  cur\nend\na = build({depth})\nb = build({depth})\n[a == b]"
         )
     };
     let unlimited = vibescript::Limits {
@@ -392,12 +275,12 @@ fn ordering_remembers_shared_pairs_beyond_any_fixed_window() {
         ..vibescript::Limits::default()
     };
     let base = |depth: usize| {
-        let source = source(depth).replace("[a <=> b, a == b]", "nil");
+        let source = source(depth).replace("[a == b]", "nil");
         run_with(&source, unlimited.clone()).unwrap().1
     };
     let cost = |depth: usize| {
         let (value, steps) = run_with(&source(depth), unlimited.clone()).unwrap();
-        assert_eq!(value, "[0,true]");
+        assert_eq!(value, "[true]");
         steps - base(depth)
     };
     let (small, large) = (cost(8), cost(16));
