@@ -843,6 +843,7 @@ impl<'a> Checker<'a> {
         match op {
             "=" => self.assign(target, value, stmt),
             "||=" | "&&=" => {
+                let outer = self.memo.replace(super::Memo::default());
                 let current = self.target_read(target);
                 if current != Ty::ERROR && current != Ty::BOOL {
                     let span = self.target_span(target);
@@ -859,11 +860,16 @@ impl<'a> Checker<'a> {
                     );
                 }
                 let ty = self.expr(value, Some(current));
+                self.memo.as_mut().unwrap().replay = true;
                 self.target_write(target, ty, value);
+                self.restore_memo(outer);
                 ty
             }
             _ => {
                 let operator = &op[..op.len() - 1];
+                // The write reuses the types the read found for the target's
+                // receiver and selectors instead of checking them again.
+                let outer = self.memo.replace(super::Memo::default());
                 let current = self.target_read(target);
                 let right = self.expr(value, None);
                 let span = self.spans.stmt(stmt);
@@ -874,7 +880,9 @@ impl<'a> Checker<'a> {
                     span,
                     Some((target_expr(target), value)),
                 );
+                self.memo.as_mut().unwrap().replay = true;
                 self.target_write(target, result, value);
+                self.restore_memo(outer);
                 result
             }
         }

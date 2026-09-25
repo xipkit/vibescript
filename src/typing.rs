@@ -36,7 +36,13 @@ pub(crate) struct Input<'a> {
 }
 
 /// Resolves a required module's name to its source and filename.
-pub(crate) type Modules<'a> = dyn Fn(&str) -> Option<(String, std::sync::Arc<[u8]>)> + 'a;
+pub(crate) type Modules<'a> = dyn Fn(&str) -> Option<(String, std::sync::Arc<[u8]>)> + Sync + 'a;
+
+/// Sources longer than this are checked on a thread with [`STACK`] bytes of
+/// stack: the checker recurses once per level of syntax, which the parser
+/// bounds, and a short source cannot nest deeply.
+const SHALLOW: usize = 1024;
+const STACK: usize = 64 << 20;
 
 /// The result of checking one source.
 #[derive(Clone, Debug, Default)]
@@ -142,6 +148,20 @@ impl fmt::Display for ReceiverType {
 
 /// Checks one parsed source.
 pub(crate) fn check(input: &Input<'_>) -> Checked {
+    #[cfg(not(target_os = "wasi"))]
+    if input.source.len() > SHALLOW {
+        return std::thread::scope(|scope| {
+            let checking = std::thread::Builder::new()
+                .stack_size(STACK)
+                .spawn_scoped(scope, || check_nested(input, 0));
+            match checking {
+                Ok(handle) => handle
+                    .join()
+                    .unwrap_or_else(|panic| std::panic::resume_unwind(panic)),
+                Err(_) => check_nested(input, 0),
+            }
+        });
+    }
     check_nested(input, 0)
 }
 
@@ -162,6 +182,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         mute: 0,
         steps: 0,
         modules: modules::Required::new(input, depth),
+        memo: None,
     };
     for (name, host) in &input.hosts {
         let function = crate::signatures::host::function(name, host);
@@ -213,6 +234,7 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
         mute: 0,
         steps: 0,
         modules: modules::Required::new(input, 0),
+        memo: None,
     };
     checker.declare_program(input.parsed);
     checker.diagnostics.clear();
@@ -242,6 +264,16 @@ pub(crate) struct Checker<'a> {
     steps: u64,
     /// The modules the program requires, and the names they publish.
     modules: modules::Required<'a>,
+    /// Expression types recorded while checking a call on one alternative
+    /// of a union receiver, which the other alternatives replay.
+    memo: Option<Memo>,
+}
+
+/// Expression types by node, recorded or replayed.
+#[derive(Default)]
+pub(crate) struct Memo {
+    types: HashMap<usize, ty::Ty>,
+    replay: bool,
 }
 
 /// The name of a symbol literal's value.

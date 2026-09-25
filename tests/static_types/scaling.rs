@@ -11,7 +11,7 @@ fn repeat(count: usize, item: impl Fn(usize) -> String) -> String {
 /// statement or expression.
 type Shape = (&'static str, usize, fn(usize) -> String);
 
-const SHAPES: [Shape; 11] = [
+const SHAPES: [Shape; 14] = [
     ("functions calling their predecessor", 200, |count| {
         "def f0(n: int) -> int\n  n\nend\n".to_owned()
             + &repeat(count, |i| {
@@ -77,6 +77,41 @@ const SHAPES: [Shape; 11] = [
             repeat(count, |i| format!("    y = {i}\n    break if x == {i}\n"))
         )
     }),
+    (
+        "calls on a union receiver nested in their arguments",
+        60,
+        |count| {
+            let mut argument = "1".to_owned();
+            for _ in 0..count {
+                argument = format!("u.first({argument}).length");
+            }
+            format!("def f(u: array<int> | array<int?>) -> int\n  {argument}\nend\n")
+        },
+    ),
+    ("nested hash literals", 100, |count| {
+        let mut value = "1".to_owned();
+        for _ in 0..count {
+            value = format!("{{ a: {value} }}");
+        }
+        format!(
+            "def f -> any
+  x = {value}
+  x
+end\n"
+        )
+    }),
+    (
+        "compound assignments through nested receivers",
+        100,
+        |count| {
+            format!(
+                "def f(rows: array<array<int>>) -> int\n{}  0\nend\n",
+                repeat(count, |i| format!(
+                    "  rows.fetch({i})[0] = rows.fetch({i}).fetch(0) + 1\n"
+                ))
+            )
+        },
+    ),
     ("loops assigning many locals", 100, |count| {
         format!(
             "def f(x: int) -> int\n{}  while x > 0\n{}    x -= 1\n  end\n  0\nend\n",
@@ -107,4 +142,32 @@ fn doubling_a_program_at_most_doubles_the_checking_work() {
             2 * count
         );
     }
+}
+
+#[test]
+fn syntax_as_deep_as_the_parser_allows_checks_on_a_small_stack() {
+    let chain = format!(
+        "def f(s: string) -> string\n  s{}\nend\n",
+        ".upcase".repeat(1000)
+    );
+    let mut sum = "1".to_owned();
+    for _ in 0..1000 {
+        sum = format!("({sum} + 1)");
+    }
+    let sum = format!("def f -> int\n  {sum}\nend\n");
+    std::thread::Builder::new()
+        .stack_size(512 << 10)
+        .spawn(move || {
+            for source in [chain, sum] {
+                let checked = Engine::new().type_check(&source).unwrap();
+                assert!(
+                    checked.diagnostics.is_empty(),
+                    "{:?}",
+                    checked.diagnostics.first()
+                );
+            }
+        })
+        .unwrap()
+        .join()
+        .unwrap();
 }

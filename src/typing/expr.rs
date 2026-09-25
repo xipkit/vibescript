@@ -89,6 +89,24 @@ impl<'a> Checker<'a> {
 
     pub(super) fn expr_want(&mut self, expr: &'a Expr, want: Want) -> Ty {
         self.steps += 1;
+        let key = std::ptr::from_ref(expr) as usize;
+        if let Some(memo) = &self.memo {
+            if memo.replay {
+                if let Some(&ty) = memo.types.get(&key) {
+                    return ty;
+                }
+            }
+        }
+        let ty = self.expr_uncached(expr, want);
+        if let Some(memo) = &mut self.memo {
+            if !memo.replay {
+                memo.types.insert(key, ty);
+            }
+        }
+        ty
+    }
+
+    fn expr_uncached(&mut self, expr: &'a Expr, want: Want) -> Ty {
         let hint = want.hint();
         match &expr.node {
             Node::Integer(_) | Node::BigInteger(..) => Ty::INT,
@@ -438,35 +456,18 @@ impl<'a> Checker<'a> {
                 hint
             }
             Some((hint, Kind::EmptyHash)) if entries.is_empty() => hint,
-            Some((_, Kind::Any)) => {
-                for (_, entry) in entries {
-                    self.expr(entry, None);
-                }
-                if entries.is_empty() {
-                    return Ty::EMPTY_HASH;
-                }
-                let fields: Vec<Field> = Vec::new();
-                let _ = fields;
-                self.shape_of(entries)
-            }
             _ => {
                 if entries.is_empty() {
                     return Ty::EMPTY_HASH;
-                }
-                for (_, entry) in entries {
-                    self.expr(entry, None);
                 }
                 self.shape_of(entries)
             }
         }
     }
 
-    /// The exact shape of a hash literal whose entries were checked; their
-    /// types are recomputed without re-checking.
+    /// The exact shape of a hash literal, checking each entry once.
     fn shape_of(&mut self, entries: &'a [(crate::compilation::Bytes, Expr)]) -> Ty {
         let mut fields = Vec::with_capacity(entries.len());
-        self.mute += 1;
-        let mark = self.frame.flow.mark();
         for (key, entry) in entries {
             let ty = self.expr(entry, None);
             fields.push(Field {
@@ -475,8 +476,6 @@ impl<'a> Checker<'a> {
                 optional: false,
             });
         }
-        self.frame.flow.rollback(mark);
-        self.mute -= 1;
         self.types.shape(fields, false)
     }
 
@@ -1023,9 +1022,11 @@ impl<'a> Checker<'a> {
             }
             (Kind::Union(_), _) => {
                 let alternatives = self.types.members(ty);
-                let first = alternatives[0];
-                let result = self.index_type(expr, receiver, first, selectors);
+                let outer = self.memo.replace(super::Memo::default());
+                let result = self.index_type(expr, receiver, alternatives[0], selectors);
                 let mut results = vec![result];
+                // The other alternatives reuse the selectors' types.
+                self.memo.as_mut().unwrap().replay = true;
                 self.mute += 1;
                 for &alternative in &alternatives[1..] {
                     let mark = self.frame.flow.mark();
@@ -1033,6 +1034,7 @@ impl<'a> Checker<'a> {
                     self.frame.flow.rollback(mark);
                 }
                 self.mute -= 1;
+                self.restore_memo(outer);
                 self.types.union(&results)
             }
             _ => {

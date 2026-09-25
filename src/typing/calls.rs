@@ -386,9 +386,11 @@ impl<'a> Checker<'a> {
             self.loose_args(call);
             return Ty::ERROR;
         };
+        let outer = self.memo.replace(super::Memo::default());
         results.push(self.member(call, receiver, first));
-        // The other alternatives reuse the checked arguments without
-        // reporting their errors twice.
+        // The other alternatives reuse the arguments' types, without
+        // checking them or reporting their errors again.
+        self.memo.as_mut().unwrap().replay = true;
         self.mute += 1;
         for &alternative in rest {
             let mark = self.frame.flow.mark();
@@ -396,6 +398,7 @@ impl<'a> Checker<'a> {
             self.frame.flow.rollback(mark);
         }
         self.mute -= 1;
+        self.restore_memo(outer);
         self.types.union(&results)
     }
 
@@ -743,14 +746,32 @@ impl<'a> Checker<'a> {
             }
             return value_ty;
         }
+        let outer = self.memo.replace(super::Memo::default());
         self.dispatch(&call, receiver, ty);
+        // The assigned value was checked as the setter's argument.
+        let assigned = self
+            .memo
+            .as_ref()
+            .and_then(|memo| {
+                memo.types
+                    .get(&(std::ptr::from_ref(value) as usize))
+                    .copied()
+            })
+            .unwrap_or(Ty::ERROR);
+        self.restore_memo(outer);
         let _ = value_ty;
-        self.mute += 1;
-        let mark = self.frame.flow.mark();
-        let assigned = self.expr(value, None);
-        self.frame.flow.rollback(mark);
-        self.mute -= 1;
         assigned
+    }
+
+    /// Restores an enclosing memo, keeping what the inner one recorded when
+    /// the enclosing one records too.
+    pub(super) fn restore_memo(&mut self, outer: Option<super::Memo>) {
+        let inner = std::mem::replace(&mut self.memo, outer);
+        if let (Some(inner), Some(outer)) = (inner, self.memo.as_mut()) {
+            if !outer.replay {
+                outer.types.extend(inner.types);
+            }
+        }
     }
 
     /// A method of a script class called with index syntax, `[]` or `[]=`.
