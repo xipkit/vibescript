@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -17,7 +19,7 @@ fn float_scaling_matches_independent_exact_rational_expectations() {
     let cases: serde_json::Value =
         serde_json::from_str(include_str!("duration-float-cases.json")).unwrap();
     let script = Engine::new()
-        .compile("def multiply(d,f)\nd*f\nend\ndef divide(d,f)\nd/f\nend")
+        .compile("def multiply(d: duration,f: float) -> duration\nd*f\nend\ndef divide(d: duration,f: float) -> duration\nd/f\nend")
         .unwrap();
     for case in cases.as_array().unwrap() {
         let seconds = case["seconds"].as_i64().unwrap();
@@ -54,7 +56,7 @@ fn duration_imports_remain_inline_and_preserve_the_host_value() {
     assert_eq!(Value::int(1).as_duration(), None);
     let input = Value::duration(3600);
     let script = Engine::new()
-        .compile("def run(input)\ninput+=30.minutes;input\nend")
+        .compile("def run(input: duration) -> duration\ninput+=30.minutes;input\nend")
         .unwrap();
     let result = script
         .call("run", std::slice::from_ref(&input), CallOptions::default())
@@ -104,7 +106,7 @@ fn duration_parts_and_strings_retain_accounted_output_storage() {
 #[test]
 fn long_duration_parsing_bounds_work_and_uses_fixed_scratch() {
     let script = Engine::new()
-        .compile("def run(input)\nDuration.parse(input)\nend")
+        .compile("def run(input: string) -> duration\nDuration.parse(input)\nend")
         .unwrap();
     for (text, expected) in [
         (format!("{}1s", "0".repeat(131072)), 1),
@@ -191,24 +193,19 @@ fn invalid_duration_operations_stop_before_host_effects() {
     });
     for source in [
         "Duration.build",
-        "Duration.build(1,seconds:2)",
         "Duration.build(hours:1e309)",
-        "Duration.build(2**63)",
+        "Duration.build(seconds: 2**63)",
         "Duration.parse(\"1.5s\")",
         "Duration.parse(\"9223372037s\")",
         "Duration.parse(\"PT1S1M\")",
-        "Duration.build(2**63-1)+1.seconds",
-        "Duration.build(-2**63)-1.seconds",
-        "Duration.build(-2**63)/-1",
-        "Duration.build(2**63-1)*2.0",
+        "Duration.build(seconds: 2**63-1)+1.seconds",
+        "Duration.build(seconds: -2**63)-1.seconds",
+        "Duration.build(seconds: -2**63)/-1",
+        "Duration.build(seconds: 2**63-1)*2.0",
         "1.seconds/(0.0/0.0)",
         "1.seconds/0.0",
         "1.seconds/0.seconds",
         "1.seconds%0.seconds",
-        "1.seconds.seconds()",
-        "1.seconds.iso8601()",
-        "1.seconds.to_s {effect()}",
-        "1.seconds.equal?(1.seconds) {effect()}",
         "JSON.stringify(1.seconds)",
     ] {
         let result = engine
@@ -218,36 +215,60 @@ fn invalid_duration_operations_stop_before_host_effects() {
         assert!(result.is_err(), "{source}");
         assert_eq!(effects.load(Ordering::SeqCst), 0, "{source}");
     }
+    // A positional argument beside keywords, removed members, attribute
+    // parentheses and blocks are refused before anything runs.
+    let mut checked = common::static_engine();
+    checked.register("effect", |_, _| panic!("effect ran"));
+    for (source, code) in [
+        ("Duration.build(1,seconds:2)", "V0301"),
+        ("1.seconds.seconds()", "V0401"),
+        ("1.seconds.iso8601()", "V0412"),
+        ("1.seconds.to_s {effect()}", "V0305"),
+        ("1.seconds.equal?(1.seconds) {effect()}", "V0403"),
+    ] {
+        let error = checked
+            .compile(&format!("{source};effect()"))
+            .err()
+            .unwrap();
+        assert_eq!(common::codes(&error), [code], "{source}");
+    }
 }
 
 #[test]
-fn duration_builtin_aliases_preserve_keywords_and_do_not_invoke_ignored_blocks() {
-    let effects = Arc::new(AtomicUsize::new(0));
-    let mut engine = Engine::new();
-    let observed = effects.clone();
-    engine.register("effect", move |_, _| {
-        observed.fetch_add(1, Ordering::SeqCst);
-        Ok(Value::nil())
-    });
+fn duration_builders_take_keywords_and_refuse_blocks() {
     for source in [
-        "Duration.build(hours:1,minutes:2) {effect()}",
-        "f=Duration::build;f(hours:1,minutes:2) {effect()}",
-        "Duration.parse(\"PT1H2M\",ignored:1) {effect()}",
+        "Duration.build(hours:1,minutes:2)",
+        "Duration.parse(\"PT1H2M\")",
     ] {
-        let result = engine
+        let result = Engine::new()
             .compile(source)
             .unwrap()
             .run(CallOptions::default())
             .unwrap();
         assert_eq!(result.value.as_duration(), Some(3720));
     }
-    let equal = engine
-        .compile("1.seconds.eql?(1.seconds) {effect()}")
-        .unwrap()
-        .run(CallOptions::default())
-        .unwrap();
-    assert_eq!(equal.value.to_string(), "true");
-    assert_eq!(effects.load(Ordering::SeqCst), 0);
+    // Blocks, unknown keywords, removed members and a local called as a
+    // function are refused before anything runs.
+    let mut checked = common::static_engine();
+    checked.register("effect", |_, _| panic!("effect ran"));
+    for (source, expected) in [
+        (
+            "Duration.build(hours:1,minutes:2) {effect()}",
+            &["V0305"][..],
+        ),
+        (
+            "f=Duration::build;f(hours:1,minutes:2) {effect()}",
+            &["V0310"],
+        ),
+        (
+            "Duration.parse(\"PT1H2M\",ignored:1) {effect()}",
+            &["V0302", "V0305"],
+        ),
+        ("1.seconds.eql?(1.seconds) {effect()}", &["V0403"]),
+    ] {
+        let error = checked.compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), expected, "{source}");
+    }
 }
 
 #[test]
@@ -262,10 +283,9 @@ fn cancellation_and_ignored_quota_failures_prevent_duration_results() {
         Ok(Value::int(1))
     });
     for (source, expected) in [
-        ("Duration.parse(cancel())", ErrorKind::Cancelled),
-        ("Duration.build(seconds:ignore())", ErrorKind::Steps),
-        ("Duration.parse(\"1s\",ignored:ignore())", ErrorKind::Steps),
-        ("1.seconds*ignore()", ErrorKind::Steps),
+        ("Duration.parse(cancel().as(string))", ErrorKind::Cancelled),
+        ("Duration.build(seconds:ignore().as(int))", ErrorKind::Steps),
+        ("1.seconds*ignore().as(int)", ErrorKind::Steps),
     ] {
         let error = engine
             .compile(source)
@@ -274,6 +294,13 @@ fn cancellation_and_ignored_quota_failures_prevent_duration_results() {
             .unwrap_err();
         assert_eq!(error.kind, expected, "{source}");
     }
+    let mut checked = common::static_engine();
+    checked.register("ignore", |_, _| panic!("ignore ran"));
+    let error = checked
+        .compile("Duration.parse(\"1s\",ignored:ignore())")
+        .err()
+        .unwrap();
+    assert_eq!(common::codes(&error), ["V0302"]);
 }
 
 #[test]
@@ -294,7 +321,7 @@ fn unchanged_duration_example_returns_typed_host_values() {
 
 #[test]
 fn bare_duration_builders_and_clock_anchors_run_like_empty_calls() {
-    for source in ["Duration.build", "Duration.build()"] {
+    for source in ["Duration.build"] {
         let error = Engine::new()
             .compile(source)
             .unwrap()
