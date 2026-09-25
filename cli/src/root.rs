@@ -11,7 +11,7 @@
 //! 5. Anything else is an undefined flag or an unknown command, as in the reference.
 
 use crate::{
-    analyze, check, compat,
+    analyze, check, compat, fix,
     flags::{self, Outcome, Spec},
     flat, format, migrate, prelude, repl, run, signal, testing,
 };
@@ -41,7 +41,7 @@ const LSP_SPEC: Spec = Spec {
 };
 
 /// Every command, in the order the root help lists them.
-const COMMANDS: [&Spec; 10] = [
+const COMMANDS: [&Spec; 11] = [
     &run::SPEC,
     &check::SPEC,
     &format::SPEC,
@@ -51,6 +51,7 @@ const COMMANDS: [&Spec; 10] = [
     &repl::SPEC,
     &prelude::SPEC,
     &migrate::SPEC,
+    &fix::SPEC,
     &HELP_SPEC,
 ];
 
@@ -121,6 +122,7 @@ fn run_command(name: &str, args: &[OsString]) -> Result<(), String> {
         "lsp" => lsp(args),
         "prelude" => prelude::command(args),
         "migrate" => migrate::command(args),
+        "fix" => fix::command(args),
         _ => help(args),
     }
 }

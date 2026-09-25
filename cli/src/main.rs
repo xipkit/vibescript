@@ -1,10 +1,11 @@
 //! The `vibes` command line: Go-compatible commands (`run`, `check`, `fmt`,
-//! `analyze`, `test`, `lsp`, `repl`, `help`), `prelude`, and the flat form
-//! that runs a file directly.
+//! `analyze`, `test`, `lsp`, `repl`, `help`), `prelude`, `migrate`, `fix`,
+//! and the flat form that runs a file directly.
 
 mod analyze;
 mod check;
 mod compat;
+mod fix;
 mod flags;
 mod flat;
 mod format;

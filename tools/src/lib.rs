@@ -5,6 +5,7 @@
 //! front end over this crate.
 
 pub mod analyze;
+pub mod fix;
 pub mod format;
 #[cfg(feature = "lsp")]
 pub mod lsp;
