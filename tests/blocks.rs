@@ -10,9 +10,9 @@ use vibescript::{CallOptions, CancellationToken, Engine, ErrorKind, Limits, Valu
 fn captured_writes_preserve_host_inputs_and_independent_calls() {
     let script = Engine::new()
         .compile(
-            "def zero()\nyield\nend\n\
-             def run(input)\na=input;old=a\n\
-             zero {zero {a[0]+=1;a.push(7)}}\n[a,old]\nend",
+            "def zero(&block: () -> array<int>) -> array<int>\nyield\nend\n\
+             def run(input: array<int>) -> array<array<int>>\na=input;old=a\n\
+             zero {zero {a[0]=a.fetch(0)+1;a.push(7)}}\n[a,old]\nend",
         )
         .unwrap();
     let input = Value::array(vec![Value::int(2)]);
@@ -34,12 +34,12 @@ fn captured_writes_preserve_host_inputs_and_independent_calls() {
 #[test]
 fn block_control_flow_releases_pending_arguments_and_receivers() {
     let input = Value::array((0..512).map(Value::int).collect());
-    let definitions = "def zero()\nyield\nend\n\
-        def sink(a,b)\nb\nend\n\
-        def named(payload:,done:)\ndone\nend\n\
-        def defaulted(payload:,done:zero {return 7})\ndone\nend\n";
+    let definitions = "def zero(&block: () -> any) -> any\nyield\nend\n\
+        def sink(a: any,b: any) -> any\nb\nend\n\
+        def named(*, payload: any,done: any) -> any\ndone\nend\n\
+        def defaulted(*, payload: any,done: any = zero {return 7}) -> any\ndone\nend\n";
     for body in [
-        "a=[input];a[0].push(zero {return 7})",
+        "a=[input];a.fetch(0).push(zero {return 7}.as(int))",
         "sink(input,zero {return 7})",
         "named(payload:input,done:zero {return 7})",
         "defaulted(payload:input)",
@@ -48,8 +48,8 @@ fn block_control_flow_releases_pending_arguments_and_receivers() {
         "zero {next 7}",
     ] {
         let source = format!(
-            "{definitions}\ndef work(input)\n{body}\nend\n\
-             def run(input)\nfor i in 1..200\nwork(input)\nend\n7\nend"
+            "{definitions}\ndef work(input: array<int>) -> any\n{body}\nend\n\
+             def run(input: array<int>) -> int\nfor i in 1..200\nwork(input)\nend\n7\nend"
         );
         let result = Engine::new()
             .compile(&source)
@@ -83,12 +83,12 @@ fn block_destructuring_charges_its_copy_before_entering_the_body() {
     });
     let input = Value::array((0..512).map(Value::int).collect());
     let baseline = engine
-        .compile("def run(input)\ninput.length\nend")
+        .compile("def run(input: array<int>) -> int\ninput.length\nend")
         .unwrap()
         .call("run", std::slice::from_ref(&input), CallOptions::default())
         .unwrap();
     let script = engine
-        .compile("def one(x)\nyield x\nend\ndef run(input)\none(input){|(*rest)|entered()}\nend")
+        .compile("def one(x: array<int>, &block: array<int> -> int) -> int\nyield x\nend\ndef run(input: array<int>) -> int\none(input){|(*rest)|entered().as(int)}\nend")
         .unwrap();
     for (limits, kind) in [
         (
@@ -141,15 +141,13 @@ fn block_errors_and_cancellation_prevent_later_host_calls() {
         Ok(Value::nil())
     });
     for (source, kind) in [
-        ("yield tick()", ErrorKind::Argument),
         ("block_given?(tick())", ErrorKind::Argument),
-        ("missing {tick()}", ErrorKind::Name),
         (
-            "def zero()\nyield\nend\nzero {cancel();tick()}",
+            "def zero(&block: () -> any) -> any\nyield\nend\nzero {cancel();tick()}",
             ErrorKind::Cancelled,
         ),
         (
-            "def zero()\nyield\nend\nzero {return 7}",
+            "def zero(&block: () -> any) -> any\nyield\nend\nzero {return 7}",
             ErrorKind::Argument,
         ),
     ] {
@@ -165,11 +163,21 @@ fn block_errors_and_cancellation_prevent_later_host_calls() {
         );
         assert_eq!(calls.load(Ordering::SeqCst), 0);
     }
+    // A yield without a declared block and a call of a missing function
+    // are refused before anything runs.
+    for (source, code) in [("yield tick()", "V0308"), ("missing {tick()}", "V0201")] {
+        let mut engine = common::static_engine();
+        engine.register("tick", |_, _| panic!("tick ran"));
+        let error = engine.compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), [code], "{source}");
+        assert_eq!(error.diagnostics()[0].span.start, 0, "{source}");
+    }
 }
 
 #[test]
 fn block_recursion_and_syntax_depth_are_bounded() {
-    let source = "def zero()\nyield\nend\ndef recurse()\nzero {recurse()}\nend";
+    let source =
+        "def zero(&block: () -> any) -> any\nyield\nend\ndef recurse() -> any\nzero {recurse}\nend";
     let script = Engine::new().compile(source).unwrap();
     let error = script
         .call(
@@ -219,7 +227,8 @@ fn nested_frame_storage_is_reserved_before_the_block_runs() {
         Ok(Value::int(7))
     });
     let count = 512;
-    let mut source = "def zero()\nyield\nend\ndef run()\n".to_owned();
+    let mut source =
+        "def zero(&block: () -> int) -> int\nyield\nend\ndef run() -> int\n".to_owned();
     for index in 0..count {
         source.push_str(&format!("outer{index}=1\n"));
     }
@@ -227,7 +236,7 @@ fn nested_frame_storage_is_reserved_before_the_block_runs() {
     for index in 0..count {
         source.push_str(&format!("inner{index}=2\n"));
     }
-    source.push_str("entered()\n}\nend\n");
+    source.push_str("entered().as(int)\n}\nend\n");
     let script = engine.compile(&source).unwrap();
     let error = script
         .call(
@@ -252,18 +261,18 @@ fn nested_frame_storage_is_reserved_before_the_block_runs() {
 
 #[test]
 fn breaking_a_receiving_loop_restores_local_call_lookup() {
-    let script = Engine::new()
-        .compile(
-            "def id(x)\nx\nend\n\
-             def receive()\nid=9\nwhile true\nid=yield id(3)\nend\nid(4)\nend\n\
-             def run(input)\nreceive {break 7}\nend",
-        )
-        .unwrap();
-    let error = script
-        .call("run", &[Value::nil()], CallOptions::default())
-        .unwrap_err();
-    assert_eq!(error.kind, ErrorKind::Type);
-    assert!(error.message.contains("non-callable"));
+    // A local named like a function hides it, so calling the name is
+    // refused before anything runs.
+    let source = "def id(x: int) -> int\nx\nend\n\
+                  def receive(&block: int -> int) -> int\nid=9\nwhile true\nid=yield id(3)\nend\nid(4)\nend\n\
+                  def run(input: any) -> int\nreceive {break 7}\nend";
+    let error = common::static_engine().compile(source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0310", "V0310"]);
+    let calls: Vec<usize> = error.diagnostics().iter().map(|d| d.span.start).collect();
+    assert_eq!(
+        calls,
+        [source.find("id(3)").unwrap(), source.find("id(4)").unwrap()]
+    );
 }
 
 #[test]
