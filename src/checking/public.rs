@@ -103,6 +103,23 @@ impl Script {
         Ok(report)
     }
 
+    /// The result type the checker infers for a function or method from its
+    /// declared parameter types, spelled as the checker's diagnostics spell
+    /// types, or `None` when the analysis did not finish. Migration tools
+    /// use it for code that no recorded run reached.
+    #[cfg(feature = "observe")]
+    pub fn inferred_result(&self, name: &str, options: &CallOptions) -> Result<Option<String>> {
+        let mut ctx = self.checking_context(options);
+        let checked = entry::check_function(&mut ctx, self, name, options)?;
+        if checked.pending.is_some() || !checked.analysis.incomplete.data.is_empty() {
+            return Ok(None);
+        }
+        let mut writer = super::report::types::Writer::new(&mut ctx);
+        writer.fact(&checked.facts, checked.analysis.returns)?;
+        let (text, _charge) = writer.finish();
+        Ok(Some(text))
+    }
+
     fn checking_context(&self, options: &CallOptions) -> CallContext {
         let mut ctx = CallContext::new(CallOptions {
             globals: Default::default(),

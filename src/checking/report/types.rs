@@ -8,7 +8,7 @@ const LIMIT: usize = 4096;
 const DEPTH: usize = 16;
 const ITEMS: usize = 16;
 
-pub(super) struct Writer<'a> {
+pub(in crate::checking) struct Writer<'a> {
     pub ctx: &'a mut CallContext,
     bytes: Buffer<u8>,
     truncated: bool,

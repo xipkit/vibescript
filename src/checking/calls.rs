@@ -547,7 +547,7 @@ pub(super) struct Location {
 
 #[derive(Debug)]
 pub(super) struct Analysis {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "observe"))]
     pub returns: Fact,
     #[cfg(test)]
     pub throws: u8,
@@ -834,7 +834,7 @@ fn analyze_entry(
     };
     if rejected {
         return Ok(Analysis {
-            #[cfg(test)]
+            #[cfg(any(test, feature = "observe"))]
             returns: Atom::Never.fact(),
             #[cfg(test)]
             throws: admission_throws,
@@ -884,7 +884,7 @@ fn analyze_entry(
     let entry = solver.request(ctx, facts, function, inputs, flow::NO_ERROR, &context)?;
     solver.solve(ctx, facts)?;
     let result = Analysis {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "observe"))]
         returns: solver.state.jobs.data[entry].returns,
         #[cfg(test)]
         throws: solver.state.jobs.data[entry].throws | admission_throws,

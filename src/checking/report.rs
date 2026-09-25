@@ -13,7 +13,7 @@ use std::cmp::Ordering;
 mod message;
 #[cfg(test)]
 mod tests;
-mod types;
+pub(super) mod types;
 
 pub(super) fn build(
     ctx: &mut CallContext,

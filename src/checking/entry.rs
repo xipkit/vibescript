@@ -181,7 +181,7 @@ pub(super) fn check(ctx: &mut CallContext, call: Call<'_>) -> Result<Check> {
 
 fn empty(_returns: Fact, _throws: u8) -> Analysis {
     Analysis {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "observe"))]
         returns: _returns,
         #[cfg(test)]
         throws: _throws,

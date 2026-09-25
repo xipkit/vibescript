@@ -78,7 +78,7 @@ pub(in crate::checking) fn analyze(
     }
     solver.solve(ctx, facts)?;
     let analysis = Analysis {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "observe"))]
         returns: solver.state.jobs.data[entry].returns,
         #[cfg(test)]
         throws: solver.state.jobs.data[entry].throws,
