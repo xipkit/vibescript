@@ -1,3 +1,5 @@
+mod common;
+
 use std::{
     sync::{
         Arc,
@@ -30,9 +32,9 @@ fn concat_preserves_value_bindings_and_argument_order() {
     assert_eq!(
         evaluate(
             r#"
-s="a";alias=s;out=s.concat("b".tap{s="b"},"c")
+s="a";alias=s;out=s.concat(begin;s="b";"b";end,"c")
 a=["x"];h={text:"y"}
-[s,alias,out,a[0].concat("!"),a,h.text.concat("?"),h,"q".concat(*["r","s"]),
+[s,alias,out,a.fetch(0).concat("!"),a,h["text"].concat("?"),h,"q".concat(*["r","s"]),
  "é\xff".concat("\x00").bytes,"a".concat,"a".concat("","")]
 "#
         ),
@@ -46,8 +48,8 @@ fn symbol_conversion_preserves_raw_bytes_without_becoming_a_string() {
         evaluate(
             r#"
 s="a\xff\x00";symbol=s.to_sym
-[symbol==s,symbol==s.intern,symbol.to_s.bytes,"".intern=="".to_sym,
- "two words".to_sym=="two words".intern,"+".intern==:+]
+[symbol==s,symbol==s.to_sym,symbol.to_s.bytes,"".to_sym=="".to_sym,
+ "two words".to_sym=="two words".to_sym,"+".to_sym==:+]
 "#
         ),
         serde_json::json!([false, true, [97, 255, 0], true, true, true])
@@ -127,26 +129,28 @@ fn string_bounds_follow_byte_order_and_short_circuit_between() {
             r#"
 ["a".clamp("m","z"),"zz".clamp("m","z"),"n".clamp("m","z"),
  "x".clamp(nil,nil),"a".clamp("b",nil),"z".clamp(nil,"y"),
- "m".between?("a","z"),"a".between?("z",nil),
+ "m".between?("a","z"),"a".between?("z","b"),
  "\xff".clamp("\xfe","\xff").bytes,"é".between?("z","\xff")]
 "#
         ),
         serde_json::json!(["m", "z", "n", "x", "b", "y", true, false, [255], true])
     );
+    assert!(
+        Engine::new()
+            .compile("\"a\".clamp(\"z\",\"a\")")
+            .unwrap()
+            .run(CallOptions::default())
+            .is_err()
+    );
+    // between? takes two strings, even where the first bound decides.
     for source in [
-        "\"a\".clamp(\"z\",\"a\")",
+        "\"a\".between?(\"z\",nil)",
         "\"a\".clamp(\"b\",:z)",
         "\"a\".between?(nil,\"z\")",
         "\"m\".between?(\"a\",nil)",
     ] {
-        assert!(
-            Engine::new()
-                .compile(source)
-                .unwrap()
-                .run(CallOptions::default())
-                .is_err(),
-            "{source}"
-        );
+        let error = common::static_engine().compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0101"], "{source}");
     }
 }
 
@@ -195,17 +199,20 @@ fn substring_offsets_count_characters_and_invalid_bytes_match_replacement_runes(
 [
  "héllo hello".index("llo"),"héllo hello".index("llo",6),
  "héllo hello".rindex("llo",4),"hello".index("l",-3),"hello".rindex("l",-2),
- "hello".index("l",-9),"hello".rindex(nil,-9),"a".rindex("",99),"a".index("",99),
- "ababa".rindex("aba",1),"ababa".rindex("aba",2),"éa".index("a",1.9),
+ "hello".index("l",-9),"a".rindex("",99),"a".index("",99),
+ "ababa".rindex("aba",1),"ababa".rindex("aba",2),
  "a\xffb\xfe".index("�"),"a\xffb\xfe".rindex("\xff"),"a\xffb\xfe".index("\xfe",2),
  "é".index("\xa9"),"\xff".index("�"),"�".index("\xff")
 ]
 "#
         ),
-        serde_json::json!([
-            2, 8, 2, 2, 3, null, null, 1, null, 0, 2, 1, 1, 3, 3, null, 0, 0
-        ])
+        serde_json::json!([2, 8, 2, 2, 3, null, 1, null, 0, 2, 1, 3, 3, null, 0, 0])
     );
+    // A nil needle and a float offset are refused before anything runs.
+    for source in ["\"hello\".rindex(nil,-9)", "\"éa\".index(\"a\",1.9)"] {
+        let error = common::static_engine().compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0101"], "{source}");
+    }
 }
 
 #[test]
@@ -217,53 +224,54 @@ fn signatures_validate_arguments_before_later_host_effects() {
         count.fetch_add(1, Ordering::SeqCst);
         Ok(Value::int(7))
     });
-    for source in [
-        "\"x\".concat(:x)",
-        "\"x\".concat(\"y\",nil)",
-        "\"x\".split(:x)",
-        "\"x\".split(nil,1.0)",
-        "\"x\".split(nil,9223372036854775808)",
-        "\"x\".split(nil,0,1)",
-        "\"x\".to_sym{effect()}",
-        "\"x\".intern(extra:1)",
-        "\"1\".to_i{effect()}",
-        "\"1\".to_f(extra:1)",
-        "\"x\".to_s{effect()}",
-        "\"x\".string{effect()}",
-        "\"x\".clamp(nil,nil){effect()}",
-        "\"x\".between?(\"a\",\"z\",extra:1)",
-        "\"aba\".find_index(\"a\")",
-    ] {
-        assert!(
-            engine
-                .compile(&format!("{source};effect()"))
-                .unwrap()
-                .run(CallOptions::default())
-                .is_err(),
-            "{source}"
-        );
-    }
-    for source in [
-        "\"x\".concat(\"y\",extra:1){effect()}",
-        "\"ff\".hex(extra:1){effect()}",
-        "\"17\".oct(extra:1){effect()}",
-        "\"a b\".split(nil,2,extra:1){effect()}",
-    ] {
-        engine
-            .compile(source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap();
-    }
-    assert_eq!(calls.load(Ordering::SeqCst), 0);
     assert!(
         engine
-            .compile("\"x\".concat(effect());effect()")
+            .compile("\"x\".split(nil,9223372036854775808);effect()")
+            .unwrap()
+            .run(CallOptions::default())
+            .is_err()
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    // A host value of the wrong type fails at its cast, after its call.
+    assert!(
+        engine
+            .compile("\"x\".concat(effect().as(string));effect()")
             .unwrap()
             .run(CallOptions::default())
             .is_err()
     );
     assert_eq!(calls.load(Ordering::SeqCst), 1);
+    // Other bad arguments, keywords and blocks are refused before
+    // anything runs.
+    let mut checked = common::static_engine();
+    checked.register("effect", |_, _| panic!("effect ran"));
+    for (source, expected) in [
+        ("\"x\".concat(:x)", &["V0101"][..]),
+        ("\"x\".concat(\"y\",nil)", &["V0101"]),
+        ("\"x\".split(:x)", &["V0101"]),
+        ("\"x\".split(nil,1.0)", &["V0101"]),
+        ("\"x\".split(nil,0,1)", &["V0301"]),
+        ("\"x\".to_sym{effect()}", &["V0305"]),
+        ("\"1\".to_i{effect()}", &["V0305"]),
+        ("\"1\".to_f(extra:1)", &["V0302"]),
+        ("\"x\".to_s{effect()}", &["V0305"]),
+        ("\"x\".clamp(nil,nil){effect()}", &["V0305"]),
+        ("\"x\".between?(\"a\",\"z\",extra:1)", &["V0302"]),
+        ("\"aba\".find_index(\"a\")", &["V0203"]),
+        ("\"x\".concat(\"y\",extra:1){effect()}", &["V0302", "V0305"]),
+        ("\"ff\".hex(extra:1){effect()}", &["V0302", "V0305"]),
+        ("\"17\".oct(extra:1){effect()}", &["V0302", "V0305"]),
+        (
+            "\"a b\".split(nil,2,extra:1){effect()}",
+            &["V0302", "V0305"],
+        ),
+    ] {
+        let error = checked
+            .compile(&format!("{source};effect()"))
+            .err()
+            .unwrap();
+        assert_eq!(common::codes(&error), expected, "{source}");
+    }
 }
 
 #[test]
@@ -279,7 +287,7 @@ fn split_results_detach_and_repeated_discarded_results_release_memory() {
         ..CallOptions::default()
     };
     let script = Engine::new()
-        .compile("def run(text)\ntext.split(\",\")[0]\nend")
+        .compile("def run(text: string) -> string\ntext.split(\",\").fetch(0)\nend")
         .unwrap();
     let output = script
         .call("run", std::slice::from_ref(&input), options.clone())
@@ -291,7 +299,7 @@ fn split_results_detach_and_repeated_discarded_results_release_memory() {
     );
     assert!(output.stats.retained_memory_bytes < 1024);
     let script = Engine::new()
-        .compile("def run(text)\n30.times{text.split(\",\");text.concat(\"!\")};nil\nend")
+        .compile("def run(text: string)\n30.times{text.split(\",\");text.concat(\"!\")};nil\nend")
         .unwrap();
     let output = script.call("run", &[input], options).unwrap();
     assert_eq!(output.stats.retained_memory_bytes, 0);
@@ -317,7 +325,9 @@ fn cancellation_deadlines_and_work_limits_stop_before_followup_effects() {
         "text.clamp(text,nil)",
     ] {
         let script = engine
-            .compile(&format!("def run(text)\n{body};effect()\nend"))
+            .compile(&format!(
+                "def run(text: string) -> any\n{body};effect()\nend"
+            ))
             .unwrap();
         let cancellation = CancellationToken::new();
         cancellation.cancel();
@@ -376,7 +386,7 @@ fn steps(source: &str, limits: Limits) -> Result<u64, ErrorKind> {
 fn byte_scans_and_repetition_are_charged_as_bulk_byte_work() {
     assert_eq!(
         evaluate(
-            "s = \"ab,\" * 5\n[s, (\"é\" * 3).size, \"\" * 4, \"x\" * 0, s.split(\",\"), s.split(\",\", 2), \
+            "s = \"ab,\" * 5\n[s, (\"é\" * 3).length, \"\" * 4, \"x\" * 0, s.split(\",\"), s.split(\",\", 2), \
              s.partition(\"b,a\"), s.rpartition(\"b,a\"), s.index(\"b,\"), s.rindex(\"b,\"), s.index(\"a\", 4), \
              s.include?(\",,\"), s.sub(\",\", \";\"), s.gsub(\",a\", \"-\")]"
         ),
@@ -409,15 +419,15 @@ fn byte_scans_and_repetition_are_charged_as_bulk_byte_work() {
         .unwrap()
     };
     for operation in [
-        "big.split(\"|\").size",
-        "big.partition(\"|\").size",
-        "big.rpartition(\"a|\").size",
+        "big.split(\"|\").length",
+        "big.partition(\"|\").length",
+        "big.rpartition(\"a|\").length",
         "big.index(\"zzz\")",
         "big.rindex(\"zzz\", 5)",
         "big.include?(\"zz|\")",
-        "big.sub(\"zzz\", \"y\").size",
-        "big.gsub(\"|z\", \"\").size",
-        "big.scan(\"zzz\").size",
+        "big.sub(\"zzz\", \"y\").length",
+        "big.gsub(\"|z\", \"\").length",
+        "big.scan(\"zzz\").length",
     ] {
         let cost = |n: usize| {
             let source = format!("big = \"abcdefghij\" * {n} + \"|zzz\"\n{operation}");
