@@ -226,16 +226,18 @@ pub(crate) fn keyword_doc(word: &str) -> Option<&'static str> {
         }
         "break" => "Exits the nearest loop; `break value` becomes the loop's value.",
         "case" => {
-            "Opens a multi-branch match whose `when` clauses compare with case equality (`===`)."
+            "Opens a multi-branch match; over an enum or `bool` it must handle every value or have an `else`."
         }
         "class" => {
             "Declares a class grouping behavior and methods; instances are created with `Klass.new`."
         }
-        "def" => "Declares a function or method; the body runs until the matching `end`.",
-        "do" => "Opens a block (`do |args| ... end`) passed to a call.",
-        "else" => "Fallback branch of an `if`, `unless`, `case`, or `begin`/`rescue`.",
+        "def" => {
+            "Declares a function or method with typed parameters and an optional `-> T` result."
+        }
+        "do" => "Removed block opener: blocks are written with braces, `{ |args| ... }`.",
+        "else" => "Fallback branch of an `if`, `case`, or `begin`/`rescue`.",
         "elsif" => "Adds another condition branch to an `if`.",
-        "end" => "Closes a `def`, `class`, `if`, `do`, or other block opener.",
+        "end" => "Closes a `def`, `class`, `module`, `if`, `while`, or other opener.",
         "ensure" => "Runs cleanup code whether the protected body raised or not.",
         "enum" => "Declares a nominal state set; members are accessed with `::` (`Status::Draft`).",
         "export" => "Marks a top-level function as exported from a module file.",
@@ -245,7 +247,7 @@ pub(crate) fn keyword_doc(word: &str) -> Option<&'static str> {
             "Declares a read-only accessor backed by the instance variable of the same name."
         }
         "if" => {
-            "Runs its body when the condition is truthy; also usable as a modifier and as an expression."
+            "Runs its body when the `bool` condition is true; also usable as a modifier and as an expression."
         }
         "in" => "Separates the loop variable from the collection in `for ... in`.",
         "next" => "Skips to the next iteration of the nearest loop.",
@@ -266,19 +268,21 @@ pub(crate) fn keyword_doc(word: &str) -> Option<&'static str> {
         "setter" => "Declares a write-only accessor (`x=`) backed by an instance variable.",
         "then" => "Optional separator between a condition and its single-line body.",
         "true" => "Boolean true literal.",
-        "unless" => {
-            "Runs its body when the condition is falsy; also usable as a statement modifier."
+        "unless" => "Removed: write `if !condition`.",
+        "until" => "Removed: write `while !condition`.",
+        "when" => "One branch of a `case`: a value, range or regex to match, then one expression.",
+        "while" => {
+            "Loops while its `bool` condition stays true; also usable as a statement modifier."
         }
-        "until" => "Loops until its condition becomes truthy; also usable as a statement modifier.",
-        "when" => "One branch of a `case`, matched with case equality (`===`).",
-        "while" => "Loops while its condition stays truthy; also usable as a statement modifier.",
-        "yield" => "Invokes the block passed to the current method.",
+        "yield" => {
+            "Invokes the block the current function declares with a typed `&block` parameter."
+        }
         "alias" => "Declares an alternate name for a method: `alias new_name old_name`.",
         "alias_method" => "Declares an alternate method name: `alias_method :new_name, :old_name`.",
         "module" => {
             "Declares a namespace of `def self.` functions, constants, and nested modules; contextual — it only opens a declaration before a constant name."
         }
-        "protected" => "Marks subsequent methods callable only within the class family.",
+        "protected" => "Marks subsequent methods callable only from instances of the same class.",
         "public" => "Restores public visibility for subsequent method declarations.",
         _ => return None,
     })
