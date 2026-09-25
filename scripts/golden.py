@@ -142,12 +142,18 @@ def language_cases():
     return cases
 
 
+# Reference rejections that ADR-007 syntax accepts, as tests/commands.rs lists
+# them: a class variable declaration in a module body.
+ACCEPTED_SYNTAX = {"module_edge_16"}
+
+
 def rejection_cases():
     cases = []
     for filename in ["language-errors.json", "syntax-errors.json"]:
         for case in json.loads((ROOT / "tests" / filename).read_text()):
             out = engine_case(case["name"], case)
-            out["_phase"] = "compile" if filename == "syntax-errors.json" else "call"
+            if case["name"] not in ACCEPTED_SYNTAX:
+                out["_phase"] = "compile" if filename == "syntax-errors.json" else "call"
             cases.append(out)
     return cases
 
