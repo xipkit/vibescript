@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -6,7 +8,7 @@ use vibescript::{CallOptions, Engine, ErrorKind, Limits, Value};
 
 fn script() -> vibescript::Script {
     Engine::new().compile(
-        "def go(t,layout)\nt.format(layout)\nend\ndef percent(t,layout)\nt.strftime(layout)\nend",
+        "def go(t: time,layout: string) -> string\nt.format(layout)\nend\ndef percent(t: time,layout: string) -> string\nt.strftime(layout)\nend",
     ).unwrap()
 }
 
@@ -263,33 +265,26 @@ fn formatter_signatures_and_cancellation_prevent_later_host_effects() {
     });
     for method in ["format", "strftime"] {
         let layout = if method == "format" { "2006" } else { "%Y" };
-        for call in [
-            format!("t.{method}(nil)"),
-            format!("t.{method}(1)"),
-            format!("t.{method}()"),
-            format!("t.{method}(\"x\",\"y\")"),
-            format!("t.{method}(\"x\",other:1)"),
-            format!("t.{method}"),
+        // A layout of the wrong type or arity, and a block the formatter
+        // never takes, are refused before anything runs.
+        for (call, expected) in [
+            (format!("t.{method}(nil)"), &["V0101"][..]),
+            (format!("t.{method}(1)"), &["V0101"]),
+            (format!("t.{method}()"), &["V0301", "V0412"]),
+            (format!("t.{method}(\"x\",\"y\")"), &["V0301"]),
+            (format!("t.{method}(\"x\",other:1)"), &["V0302"]),
+            (format!("t.{method}"), &["V0301"]),
+            (format!("t.{method}(\"{layout}\") {{effect()}}"), &["V0305"]),
         ] {
-            assert!(
-                engine
-                    .compile(&format!("t=Time.utc(2024);{call};effect()"))
-                    .unwrap()
-                    .run(CallOptions::default())
-                    .is_err()
-            );
-        }
-        for suffix in [" {effect()}", " do;effect();end"] {
-            let result = engine
-                .compile(&format!("Time.utc(2024).{method}(\"{layout}\"){suffix}"))
-                .unwrap()
-                .run(CallOptions::default())
-                .unwrap();
-            assert_eq!(result.value.as_bytes(), Some(b"2024".as_slice()));
+            let mut checked = common::static_engine();
+            checked.register("effect", |_, _| panic!("effect ran"));
+            let source = format!("t=Time.utc(2024);{call};effect()");
+            let error = checked.compile(&source).err().unwrap();
+            assert_eq!(common::codes(&error), expected, "{source}");
         }
         for (argument, kind) in [
-            ("cancel()", ErrorKind::Cancelled),
-            ("exhaust()", ErrorKind::Steps),
+            ("cancel().as(string)", ErrorKind::Cancelled),
+            ("exhaust().as(string)", ErrorKind::Steps),
         ] {
             assert_eq!(
                 engine
