@@ -20,17 +20,19 @@ fn payload() -> Value {
     fs::write(
         dir.join("state.vibe"),
         "class Node
+               @next: Node
+               @value: int
                def initialize; @value=1; @next=self; end
-               def value; @value; end
-               def bump; @value+=1; end
-               def next_node; @next; end
+               def value -> int; @value; end
+               def bump -> int; @value+=1; end
+               def next_node -> Node; @next; end
              end
              module Counter
-               @@value=1
-               def self.value; @@value; end
-               def self.bump; @@value+=1; end
+               @@value: int=1
+               def self.value -> int; @@value; end
+               def self.bump -> int; @@value+=1; end
              end
-             def payload
+             def payload -> { alias: Node, counter: any, node: Node }
                node=Node.new
                {node:node, alias:node, counter:Counter}
              end",
@@ -44,7 +46,7 @@ fn payload() -> Value {
         })
         .unwrap();
     let result = engine
-        .compile("require(:state).payload()")
+        .compile("require(\"state\").payload")
         .unwrap()
         .run(CallOptions {
             allow_require: true,
@@ -54,17 +56,29 @@ fn payload() -> Value {
     result.unwrap().value
 }
 
+fn capability(method: HostMethod) -> Capability {
+    Capability::from_value(
+        "cap",
+        Value::object(vec![
+            (b"data".to_vec(), payload()),
+            (b"capture".to_vec(), method.value()),
+        ]),
+    )
+}
+
 fn options(method: HostMethod) -> CallOptions {
     CallOptions {
-        capabilities: vec![Capability::from_value(
-            "cap",
-            Value::object(vec![
-                (b"data".to_vec(), payload()),
-                (b"capture".to_vec(), method.value()),
-            ]),
-        )],
+        capabilities: vec![capability(method)],
         ..CallOptions::default()
     }
+}
+
+/// Compiles a program that calls methods of instances and modules in the
+/// capability's data. Static types refuse it, since the data is `any` and
+/// the instances belong to another call's classes, which no cast names; so
+/// the snapshots are observed without static types.
+fn compile(source: &str) -> vibescript::Script {
+    common::gradual_engine().compile(source).unwrap()
 }
 
 fn capture() -> HostMethod {
@@ -77,69 +91,72 @@ fn capture() -> HostMethod {
 }
 
 const SOURCE: &str = "
-    snapshots=cap.capture { cap[:data][:node].bump; cap[:data][:counter].bump }
-    old=snapshots[0][:data]
-    new=snapshots[1][:data]
-    [old[:node].value, old[:counter].value,
-     new[:node].value, new[:counter].value,
-     old[:node]==old[:alias], old[:node]==old[:node].next_node,
-     old[:node]==new[:node]]
+    snapshots=cap.capture { cap[\"data\"][\"node\"].bump; cap[\"data\"][\"counter\"].bump }
+    old=snapshots[0][\"data\"]
+    new=snapshots[1][\"data\"]
+    [old[\"node\"].value, old[\"counter\"].value,
+     new[\"node\"].value, new[\"counter\"].value,
+     old[\"node\"]==old[\"alias\"], old[\"node\"]==old[\"node\"].next_node,
+     old[\"node\"]==new[\"node\"]]
 ";
 
 #[test]
+fn static_types_refuse_calling_the_capability_data() {
+    let mut engine = common::static_engine();
+    engine.declare_capability(&capability(capture())).unwrap();
+    let source = "snapshots=cap.capture { cap.data[\"node\"].bump }";
+    let error = engine.compile(source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0106"]);
+    assert_eq!(
+        error.diagnostics()[0].span.start,
+        source.find("bump").unwrap()
+    );
+}
+
+#[test]
 fn receiver_snapshots_isolate_instances_and_module_state_across_block_reentry() {
-    let outcome = Engine::new()
-        .compile(SOURCE)
-        .unwrap()
-        .run(options(capture()))
-        .unwrap();
+    let outcome = compile(SOURCE).run(options(capture())).unwrap();
     assert_eq!(outcome.value.to_string(), "[1, 1, 2, 2, true, true, false]");
 }
 
 #[test]
 fn each_receiver_read_has_fresh_state_without_reusing_the_import_cache() {
-    let outcome = Engine::new()
-        .compile(
-            "first=cap.capture { cap[:data][:node].bump }
-             second=cap.capture { cap[:data][:node].bump }
-             [first[0][:data][:node].value, first[1][:data][:node].value,
-              second[0][:data][:node].value, second[1][:data][:node].value,
-              cap[:data][:node].value]",
-        )
-        .unwrap()
-        .run(options(capture()))
-        .unwrap();
+    let outcome = compile(
+        "first=cap.capture { cap[\"data\"][\"node\"].bump }
+             second=cap.capture { cap[\"data\"][\"node\"].bump }
+             [first[0][\"data\"][\"node\"].value, first[1][\"data\"][\"node\"].value,
+              second[0][\"data\"][\"node\"].value, second[1][\"data\"][\"node\"].value,
+              cap[\"data\"][\"node\"].value]",
+    )
+    .run(options(capture()))
+    .unwrap();
     assert_eq!(outcome.value.to_string(), "[1, 2, 2, 3, 3]");
 }
 
 #[test]
 fn mutating_a_returned_snapshot_does_not_change_the_receiver_or_another_snapshot() {
-    let outcome = Engine::new()
-        .compile(
-            "snapshots=cap.capture { nil }
-             old=snapshots[0][:data]
-             old[:node].bump
-             old[:counter].bump
-             [old[:alias].value, old[:counter].value,
-              snapshots[1][:data][:node].value, snapshots[1][:data][:counter].value,
-              cap[:data][:node].value, cap[:data][:counter].value]",
-        )
-        .unwrap()
-        .run(options(capture()))
-        .unwrap();
+    let outcome = compile(
+        "snapshots=cap.capture { nil }
+             old=snapshots[0][\"data\"]
+             old[\"node\"].bump
+             old[\"counter\"].bump
+             [old[\"alias\"].value, old[\"counter\"].value,
+              snapshots[1][\"data\"][\"node\"].value, snapshots[1][\"data\"][\"counter\"].value,
+              cap[\"data\"][\"node\"].value, cap[\"data\"][\"counter\"].value]",
+    )
+    .run(options(capture()))
+    .unwrap();
     assert_eq!(outcome.value.to_string(), "[2, 2, 1, 1, 1, 1]");
 }
 
 #[test]
 fn receiver_reads_snapshot_state_when_requested_after_arguments_run() {
-    let outcome = Engine::new()
-        .compile(
-            "snapshots=cap.capture(cap[:data][:node].bump) { cap[:data][:node].bump }
-             [snapshots[0][:data][:node].value, snapshots[1][:data][:node].value]",
-        )
-        .unwrap()
-        .run(options(capture()))
-        .unwrap();
+    let outcome = compile(
+        "snapshots=cap.capture(cap[\"data\"][\"node\"].bump) { cap[\"data\"][\"node\"].bump }
+             [snapshots[0][\"data\"][\"node\"].value, snapshots[1][\"data\"][\"node\"].value]",
+    )
+    .run(options(capture()))
+    .unwrap();
     assert_eq!(outcome.value.to_string(), "[2, 3]");
 }
 
@@ -159,9 +176,7 @@ async fn async_receiver_snapshots_survive_suspension_and_block_reentry() {
     let outcome = vibescript::asynchronous::Runner::new(1)
         .unwrap()
         .call(
-            Engine::new()
-                .compile(&format!("def run\n{SOURCE}\nend"))
-                .unwrap(),
+            compile(&format!("def run\n{SOURCE}\nend")),
             "run".into(),
             vec![],
             options(method),
@@ -177,9 +192,7 @@ async fn bridged_sync_callbacks_keep_the_same_snapshot_isolation() {
     let outcome = vibescript::asynchronous::Runner::new(1)
         .unwrap()
         .call(
-            Engine::new()
-                .compile(&format!("def run\n{SOURCE}\nend"))
-                .unwrap(),
+            compile(&format!("def run\n{SOURCE}\nend")),
             "run".into(),
             vec![],
             options(capture()),
