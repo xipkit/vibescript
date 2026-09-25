@@ -1,48 +1,73 @@
+mod common;
+
 use std::time::Instant;
 use vibescript::{CallOptions, Engine, Error, ErrorClass, ErrorKind, Limits, Value};
 
+fn program(declarations: &str, body: &str) -> String {
+    format!("{declarations}\ndef run(input: any) -> any\n{body}\nend")
+}
+
+fn options() -> CallOptions {
+    CallOptions {
+        limits: Limits {
+            steps: Some(5_000_000),
+            memory_bytes: Some(64 << 20),
+            recursion: 32,
+        },
+        ..CallOptions::default()
+    }
+}
+
 fn failure(declarations: &str, body: &str) -> Error {
     Engine::new()
-        .compile(&format!("{declarations}\ndef run(input)\n{body}\nend"))
+        .compile(&program(declarations, body))
         .unwrap()
-        .call(
-            "run",
-            &[Value::nil()],
-            CallOptions {
-                limits: Limits {
-                    steps: Some(5_000_000),
-                    memory_bytes: Some(64 << 20),
-                    recursion: 32,
-                },
-                ..CallOptions::default()
-            },
-        )
+        .call("run", &[Value::nil()], options())
+        .unwrap_err()
+}
+
+/// The static diagnostic codes of a body the checker refuses, asserting
+/// that each points into the body.
+fn refused(declarations: &str, body: &str) -> Vec<String> {
+    let source = program(declarations, body);
+    let error = common::static_engine().compile(&source).err().unwrap();
+    let start = source.find(&format!("\n{body}\nend")).unwrap() + 1;
+    for diagnostic in error.diagnostics() {
+        assert!(
+            (start..start + body.len()).contains(&diagnostic.span.start),
+            "{body}: {diagnostic:?}"
+        );
+    }
+    common::codes(&error)
+}
+
+/// Calls `target` from the host, where arguments are checked at run time.
+fn host_failure(declaration: &str, args: &[Value], keywords: &[(&str, Value)]) -> Error {
+    let keywords: Vec<(String, Value)> = keywords
+        .iter()
+        .map(|(name, value)| (name.to_string(), value.clone()))
+        .collect();
+    Engine::new()
+        .compile(declaration)
+        .unwrap()
+        .call_with_keywords("target", args, &keywords, options())
         .unwrap_err()
 }
 
 #[test]
 fn language_classes_are_independent_of_native_error_categories() {
     for (source, class) in [
-        ("1 + nil", ErrorClass::Runtime),
-        ("[1][\"x\"]", ErrorClass::Runtime),
-        ("1 < \"x\"", ErrorClass::Argument),
-        ("[1] < [2]", ErrorClass::Argument),
-        ("1.clamp(\"x\",2)", ErrorClass::Runtime),
-        ("unknown()", ErrorClass::Runtime),
-        ("Math.sqrt()", ErrorClass::Runtime),
-        ("1.div()", ErrorClass::Runtime),
-        ("1 / 0", ErrorClass::ZeroDivision),
+        ("1 // 0", ErrorClass::ZeroDivision),
         ("1 % 0", ErrorClass::ZeroDivision),
-        ("9223372036854775808 / 0", ErrorClass::ZeroDivision),
+        ("9223372036854775808 // 0", ErrorClass::ZeroDivision),
         ("1.0.div(0)", ErrorClass::ZeroDivision),
         ("1.remainder(0)", ErrorClass::ZeroDivision),
         ("1.divmod(0)", ErrorClass::ZeroDivision),
         ("money(\"1 USD\") / 0", ErrorClass::Runtime),
         ("Duration.parse(\"1h\") / 0", ErrorClass::ZeroDivision),
-        ("1.hour / 0.0", ErrorClass::ZeroDivision),
-        ("1.hour / 0.seconds", ErrorClass::ZeroDivision),
-        ("1.hour % 0.seconds", ErrorClass::ZeroDivision),
-        ("yield", ErrorClass::LocalJump),
+        ("1.hours / 0.0", ErrorClass::ZeroDivision),
+        ("1.hours / 0.seconds", ErrorClass::ZeroDivision),
+        ("1.hours % 0.seconds", ErrorClass::ZeroDivision),
         ("break", ErrorClass::Runtime),
         ("next", ErrorClass::Runtime),
     ] {
@@ -50,8 +75,23 @@ fn language_classes_are_independent_of_native_error_categories() {
         assert_eq!(error.class(), Some(class), "{source}: {error}");
         assert!(error.diagnostic.is_some());
     }
-    assert_eq!(failure("", "1 < nil").kind, ErrorKind::Type);
-    assert_eq!(failure("", "1 / 0").kind, ErrorKind::Arithmetic);
+    assert_eq!(failure("", "1 // 0").kind, ErrorKind::Arithmetic);
+    // The type errors behind the other classes are refused before a
+    // program runs.
+    for (source, codes) in [
+        ("1 + nil", &["V0107"][..]),
+        ("1 < nil", &["V0107"]),
+        ("[1][\"x\"]", &["V0101"]),
+        ("1 < \"x\"", &["V0108"]),
+        ("[1] < [2]", &["V0108"]),
+        ("1.clamp(\"x\",2)", &["V0101"]),
+        ("unknown()", &["V0201"]),
+        ("Math.sqrt()", &["V0301"]),
+        ("1.div", &["V0301"]),
+        ("yield", &["V0308"]),
+    ] {
+        assert_eq!(refused("", source), codes, "{source}");
+    }
     for source in ["1.fdiv(0)", "1.0 / 0"] {
         let output = Engine::new()
             .compile(source)
@@ -64,53 +104,70 @@ fn language_classes_are_independent_of_native_error_categories() {
 
 #[test]
 fn script_binding_has_argument_errors_before_defaults_or_type_checks() {
-    for (declarations, body, class) in [
-        ("def target(a)\n a\nend", "target()", ErrorClass::Argument),
+    let int = Value::int;
+    for (declaration, args, keywords, class) in [
         (
-            "def target(a)\n a\nend",
-            "target(1,2)",
+            "def target(a: int) -> int\n a\nend",
+            vec![],
+            vec![],
             ErrorClass::Argument,
         ),
         (
-            "def target(a=1)\n a\nend",
-            "target(1,2)",
+            "def target(a: int) -> int\n a\nend",
+            vec![int(1), int(2)],
+            vec![],
             ErrorClass::Argument,
         ),
         (
-            "def target(a=1/0)\n a\nend",
-            "target(1,2)",
+            "def target(a: int = 1) -> int\n a\nend",
+            vec![int(1), int(2)],
+            vec![],
             ErrorClass::Argument,
         ),
         (
-            "def target(a:int)\n a\nend",
-            "target(1,2)",
+            "def target(a: int = 1 // 0) -> int\n a\nend",
+            vec![int(1), int(2)],
+            vec![],
             ErrorClass::Argument,
         ),
         (
-            "def target(a:int)\n a\nend",
-            "target(\"x\")",
+            "def target(a: int) -> int\n a\nend",
+            vec![Value::bytes("x")],
+            vec![],
             ErrorClass::Runtime,
         ),
         (
-            "def target -> int\n \"x\"\nend",
-            "target()",
-            ErrorClass::Runtime,
-        ),
-        ("def target(a:)\n a\nend", "target()", ErrorClass::Argument),
-        (
-            "def target(a:)\n a\nend",
-            "target(a:1,b:2)",
+            "def target(*, a: int) -> int\n a\nend",
+            vec![],
+            vec![],
             ErrorClass::Argument,
         ),
         (
-            "def target(a=1,b:)\n a\nend",
-            "target(b:1,c:2)",
+            "def target(*, a: int) -> int\n a\nend",
+            vec![],
+            vec![("a", int(1)), ("b", int(2))],
             ErrorClass::Argument,
         ),
-        ("def target(a)\n a\nend", "target(*1)", ErrorClass::Runtime),
+        (
+            "def target(a: int = 1, *, b: int) -> int\n a\nend",
+            vec![],
+            vec![("b", int(1)), ("c", int(2))],
+            ErrorClass::Argument,
+        ),
     ] {
-        assert_eq!(failure(declarations, body).class(), Some(class), "{body}");
+        let error = host_failure(declaration, &args, &keywords);
+        assert_eq!(error.class(), Some(class), "{declaration}: {error}");
     }
+    // A result of the wrong type and a splat of a non-array are refused
+    // before a program runs.
+    let source = "def target -> int\n \"x\"\nend";
+    let error = common::static_engine().compile(source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0101"]);
+    assert_eq!(error.diagnostics()[0].span.start, source.find('"').unwrap());
+    assert_eq!(
+        refused("def target(a: int) -> int\n a\nend", "target(*1)"),
+        ["V0101"]
+    );
 }
 
 #[test]
@@ -119,8 +176,8 @@ fn operation_guards_expose_the_limit_class_without_changing_native_kinds() {
         ("random_id(1025)", ErrorKind::OutputLimit),
         ("JSON.parse(\"?\"*1048577)", ErrorKind::OutputLimit),
         ("JSON.stringify(\"a\"*1048576)", ErrorKind::OutputLimit),
-        ("Regexp.new(\"a\"*16385)", ErrorKind::Memory),
-        ("Regexp.new(\"(?:ab){1000}\"*101)", ErrorKind::Memory),
+        ("Regex.new(\"a\"*16385)", ErrorKind::Memory),
+        ("Regex.new(\"(?:ab){1000}\"*101)", ErrorKind::Memory),
         ("Regex.match(\"a\",\"a\"*1048577)", ErrorKind::Memory),
         ("(\"a\"*20000).scan(\"()\"*1000)", ErrorKind::Memory),
         ("(\"a\"*40000).scan(\"a\")", ErrorKind::OutputLimit),
@@ -141,7 +198,7 @@ fn operation_guards_expose_the_limit_class_without_changing_native_kinds() {
         assert_eq!(error.class(), Some(ErrorClass::Limit), "{source}: {error}");
     }
     assert_eq!(
-        failure("def recurse\n recurse()\nend", "recurse()").class(),
+        failure("def recurse -> any\n recurse\nend", "recurse").class(),
         Some(ErrorClass::Limit)
     );
 }
@@ -210,7 +267,7 @@ fn host_classes_survive_diagnostics_and_cannot_disguise_current_exhaustion() {
         ctx.cancellation().cancel();
         Err(Error::new(ErrorKind::Host, "replacement").with_class(ErrorClass::Limit))
     });
-    let script = engine.compile("def run(which)\n if which == 0\n failure()\n elsif which == 1\n spent()\n else\n cancel()\n end\nend").unwrap();
+    let script = engine.compile("def run(which: int)\n if which == 0\n failure()\n elsif which == 1\n spent()\n else\n cancel()\n end\nend").unwrap();
     for (input, kind, class) in [
         (0, ErrorKind::Host, Some(ErrorClass::Assertion)),
         (1, ErrorKind::Steps, Some(ErrorClass::Limit)),
@@ -226,7 +283,7 @@ fn host_classes_survive_diagnostics_and_cannot_disguise_current_exhaustion() {
     let error = script
         .call(
             "run",
-            &[Value::nil()],
+            &[Value::int(0)],
             CallOptions {
                 deadline: Some(Instant::now()),
                 ..CallOptions::default()
