@@ -1,8 +1,6 @@
-use std::sync::{
-    Arc,
-    atomic::{AtomicUsize, Ordering},
-};
-use vibescript::{CallOptions, Engine, ErrorKind, Limits, Value};
+mod common;
+
+use vibescript::{CallOptions, Engine, Limits, Value};
 
 #[test]
 fn full_unicode_modes_follow_independently_known_mappings() {
@@ -19,7 +17,9 @@ fn full_unicode_modes_follow_independently_known_mappings() {
         ("upcase", "ΐ", "Ι\u{308}\u{301}"),
     ] {
         let script = Engine::new()
-            .compile(&format!("def run(input)\ninput.{method}\nend"))
+            .compile(&format!(
+                "def run(input: string) -> string\ninput.{method}\nend"
+            ))
             .unwrap();
         let input = Value::bytes(source);
         let result = script
@@ -36,7 +36,7 @@ fn full_unicode_modes_follow_independently_known_mappings() {
 
 #[test]
 fn invalid_bytes_select_ascii_mapping_for_the_entire_receiver() {
-    let script = Engine::new().compile("def run(input)\n[input.upcase,input.downcase,input.capitalize,input.swapcase,input.downcase(:fold),input]\nend").unwrap();
+    let script = Engine::new().compile("def run(input: string) -> array<string>\n[input.upcase,input.downcase,input.capitalize,input.swapcase,input.downcase(:fold),input]\nend").unwrap();
     let source = b"\xc3\x89A\xffz";
     let result = script
         .call("run", &[Value::bytes(source)], CallOptions::default())
@@ -56,7 +56,7 @@ fn invalid_bytes_select_ascii_mapping_for_the_entire_receiver() {
 
 #[test]
 fn bang_methods_leave_receivers_and_aliases_unchanged() {
-    let script = Engine::new().compile("def run(input)\na=[input];h={key:input};v=input.upcase!;[input,a[0],h.key,v,v.upcase!]\nend").unwrap();
+    let script = Engine::new().compile("def run(input: string) -> array<string?>\na=[input];h={key:input};v=input.upcase!;[input,a[0],h[\"key\"],v,v.as(string).upcase!]\nend").unwrap();
     let input = Value::bytes("Straße");
     let result = script
         .call("run", std::slice::from_ref(&input), CallOptions::default())
@@ -82,7 +82,10 @@ fn comparisons_use_ascii_ordering_and_unicode_simple_folding() {
         ("casecmp?", "ı", "I", Value::boolean(false)),
     ] {
         let script = Engine::new()
-            .compile(&format!("def run(a,b)\na.{method}(b)\nend"))
+            .compile(&format!(
+                "def run(a: string,b: string) -> {}\na.{method}(b)\nend",
+                if method == "casecmp" { "int" } else { "bool" }
+            ))
             .unwrap();
         let result = script
             .call(
@@ -99,7 +102,7 @@ fn comparisons_use_ascii_ordering_and_unicode_simple_folding() {
         assert_eq!(result.stats.retained_memory_bytes, 0);
     }
     let script = Engine::new()
-        .compile("def run(a,b)\na.casecmp?(b)\nend")
+        .compile("def run(a: string,b: string) -> bool\na.casecmp?(b)\nend")
         .unwrap();
     let left = "ſΣK".repeat(32768);
     let right = "sςk".repeat(32768);
@@ -120,7 +123,7 @@ fn comparisons_use_ascii_ordering_and_unicode_simple_folding() {
 #[test]
 fn output_storage_has_an_independent_lifetime_and_repeated_transforms_release_old_values() {
     let script = Engine::new()
-        .compile("def run(input)\noutput=input.upcase;input=nil;output\nend")
+        .compile("def run(input: string) -> string\noutput=input.upcase;input=\"\";output\nend")
         .unwrap();
     let text = "ΐ".repeat(8192);
     let input = Value::bytes(text.clone());
@@ -133,7 +136,9 @@ fn output_storage_has_an_independent_lifetime_and_repeated_transforms_release_ol
     assert!(result.stats.retained_memory_bytes < expected.len() + 256);
     assert!(result.stats.peak_memory_bytes < text.len() + expected.len() + 12000);
     assert_eq!(input.as_bytes(), Some(text.as_bytes()));
-    let import = Engine::new().compile("def run(input)\ninput\nend").unwrap();
+    let import = Engine::new()
+        .compile("def run(input: string) -> string\ninput\nend")
+        .unwrap();
     let imported = import
         .call(
             "run",
@@ -145,7 +150,7 @@ fn output_storage_has_an_independent_lifetime_and_repeated_transforms_release_ol
     drop(result);
     assert_eq!(imported.value.as_bytes(), Some(expected.as_bytes()));
     let repeat = Engine::new()
-        .compile("def run(input)\nfor i in 1..128\ninput=input.swapcase\nend\ninput\nend")
+        .compile("def run(input: string) -> string\nfor i in 1..128\ninput=input.swapcase\nend\ninput\nend")
         .unwrap();
     let result = repeat
         .call(
@@ -165,14 +170,9 @@ fn output_storage_has_an_independent_lifetime_and_repeated_transforms_release_ol
 }
 
 #[test]
-fn keywords_are_evaluated_blocks_are_ignored_and_errors_prevent_later_host_effects() {
-    let calls = Arc::new(AtomicUsize::new(0));
-    let count = calls.clone();
-    let mut engine = Engine::new();
-    engine.register("touch", move |_, _| {
-        count.fetch_add(1, Ordering::Relaxed);
-        Ok(Value::int(1))
-    });
+fn keywords_blocks_and_bad_modes_are_refused_before_host_effects() {
+    let mut engine = common::static_engine();
+    engine.register("touch", |_, _| panic!("touch ran"));
     for method in [
         "upcase",
         "downcase",
@@ -183,28 +183,17 @@ fn keywords_are_evaluated_blocks_are_ignored_and_errors_prevent_later_host_effec
         "capitalize!",
         "swapcase!",
     ] {
-        calls.store(0, Ordering::Relaxed);
-        let script = engine
-            .compile(&format!(
-                "def run(input)\ninput.{method}(ignored:touch()){{touch()}}\nend"
-            ))
-            .unwrap();
-        script
-            .call("run", &[Value::bytes("Straße")], CallOptions::default())
-            .unwrap();
-        assert_eq!(calls.load(Ordering::Relaxed), 1, "{method}");
-        for option in ["nil", "\"ascii\"", ":bad", ":ascii,:ascii"] {
-            calls.store(0, Ordering::Relaxed);
-            let script = engine
-                .compile(&format!(
-                    "def run(input)\ninput.{method}({option});touch()\nend"
-                ))
-                .unwrap();
-            let error = script
-                .call("run", &[Value::bytes("Straße")], CallOptions::default())
-                .unwrap_err();
-            assert_eq!(error.kind, ErrorKind::Argument, "{method} {option}");
-            assert_eq!(calls.load(Ordering::Relaxed), 0);
+        for (call, code) in [
+            ("(ignored:touch())", "V0302"),
+            ("{touch()}", "V0305"),
+            ("(nil)", "V0101"),
+            ("(\"ascii\")", "V0101"),
+            ("(:bad)", "V0101"),
+            ("(:ascii,:ascii)", "V0301"),
+        ] {
+            let source = format!("def run(input: string)\ninput.{method}{call};touch()\nend");
+            let error = engine.compile(&source).err().unwrap();
+            assert_eq!(common::codes(&error), [code], "{source}");
         }
     }
 }
