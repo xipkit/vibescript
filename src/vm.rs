@@ -3463,6 +3463,10 @@ fn resolve_type(
     enum_only: bool,
 ) -> Result<Value> {
     ctx.work_bytes(name.len())?;
+    if let Some((outer, inner)) = name.split_once("::") {
+        let outer = resolve_type(program, ctx, frames, storage, lexical, outer, false)?;
+        return nested_type(program, ctx, storage, &outer, inner);
+    }
     let (binding, member) = name
         .split_once('.')
         .map_or((name, None), |(a, b)| (a, Some(b)));
@@ -3585,6 +3589,43 @@ fn resolve_type(
         return resolve_type(&root, ctx, frames, storage, None, name, enum_only);
     }
     Err(Error::new(ErrorKind::Type, "unknown named type"))
+}
+
+/// The class or module `path`, such as `Inner` or `Inner::Deeper`, that
+/// the namespace `outer` nests, where the program declares both.
+fn nested_type(
+    program: &Program,
+    ctx: &mut CallContext,
+    storage: &mut Storage,
+    outer: &Value,
+    path: &str,
+) -> Result<Value> {
+    let unknown = || Error::new(ErrorKind::Type, "unknown named type");
+    let (name, rest) = path
+        .split_once("::")
+        .map_or((path, None), |(a, b)| (a, Some(b)));
+    let Kind::Namespace(namespace) = &outer.0 else {
+        return Err(unknown());
+    };
+    let definition = &namespace.definition;
+    let declared = program
+        .namespaces
+        .get(definition.index)
+        .is_some_and(|candidate| std::sync::Arc::ptr_eq(candidate, definition));
+    ctx.charge(definition.nested.len() as u64)?;
+    let nested = definition
+        .nested
+        .iter()
+        .find(|(candidate, _)| candidate == name)
+        .map(|(_, index)| *index);
+    let (true, Some(index)) = (declared, nested) else {
+        return Err(unknown());
+    };
+    let value = namespaces::value(program, ctx, storage, index)?;
+    match rest {
+        Some(rest) => nested_type(program, ctx, storage, &value, rest),
+        None => Ok(value),
+    }
 }
 
 fn type_name_matches(

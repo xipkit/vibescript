@@ -102,3 +102,24 @@ fn locals_named_like_types_stay_values() {
         "{error}"
     );
 }
+
+#[test]
+fn nested_namespaces_are_named_through_their_scope() {
+    let source = "module A\n  module B\n  end\nend\ndef keep(x: A::B?) -> A::B?\n  x\nend\n";
+    let script = Engine::new().compile(source).unwrap();
+    let kept = script
+        .call("keep", &[Value::nil()], CallOptions::default())
+        .unwrap();
+    assert_eq!(kept.value.to_string(), "nil");
+    let error = script
+        .call("keep", &[Value::int(3)], CallOptions::default())
+        .unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Type);
+    let missing = "module A\nend\ndef keep(x: A::Missing?)\n  x\nend\n";
+    let error = Engine::new()
+        .compile(missing)
+        .unwrap()
+        .call("keep", &[Value::nil()], CallOptions::default())
+        .unwrap_err();
+    assert!(error.message.contains("unknown type A::Missing"), "{error}");
+}

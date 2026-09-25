@@ -2013,12 +2013,35 @@ impl<'s> Parser<'s> {
                 !matches!(name, "array" | "hash" | "object") && self.locals.contains(name)
             }
             TokenKind::Punct('.') => !self.dotted_type_follows(peek, next, parenthesized),
+            TokenKind::Operator("::") => !self.scoped_type_follows(peek, parenthesized),
             TokenKind::Operator("->")
             | TokenKind::Newline
             | TokenKind::Semicolon
             | TokenKind::Eof => parenthesized,
             _ => parenthesized || self.tokens[next].line == self.tokens[peek].line,
         }
+    }
+
+    /// Whether `Outer::Inner` after a parameter's colon reads as a nested
+    /// class's type rather than a default.
+    fn scoped_type_follows(&self, peek: usize, parenthesized: bool) -> bool {
+        let mut last = peek;
+        loop {
+            let scope = self.significant(last + 1);
+            if !self.is_op(scope, "::") {
+                break;
+            }
+            let member = self.significant(scope + 1);
+            if !self.ident(member) {
+                return false;
+            }
+            last = member;
+        }
+        let question = self.significant(last + 1);
+        if self.is_p(question, '?') {
+            last = question;
+        }
+        self.type_boundary(last, parenthesized)
     }
 
     fn dotted_type_follows(&self, peek: usize, dot: usize, parenthesized: bool) -> bool {
@@ -3632,6 +3655,31 @@ impl<'s> Parser<'s> {
         let tok = self.bump();
         let written = self.text(tok);
         let nullable = written.ends_with('?');
+        let scope = self.significant(self.pos);
+        if !builtin_type(written.trim_end_matches('?')) && self.is_op(scope, "::") && !nullable {
+            // A nested class or module, `Outer::Inner`.
+            let mut names = vec![tok];
+            loop {
+                let scope = self.significant(self.pos);
+                if !self.is_op(scope, "::") || self.text(*names.last().unwrap()).ends_with('?') {
+                    break;
+                }
+                self.pos = self.significant(scope + 1);
+                if !self.ident(self.pos) {
+                    return self.fail("expected identifier");
+                }
+                names.push(self.bump());
+            }
+            let last = *names.last().unwrap();
+            return Ok(TypeExpr {
+                span: Span {
+                    start,
+                    end: self.tokens[last].end,
+                },
+                nullable: self.text(last).ends_with('?'),
+                kind: TypeKind::Qualified(names),
+            });
+        }
         let dot = self.significant(self.pos);
         if !builtin_type(written.trim_end_matches('?')) && self.is_p(dot, '.') && !nullable {
             self.pos = self.significant(dot + 1);

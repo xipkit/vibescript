@@ -355,8 +355,38 @@ impl Parser<'_> {
         }
         let mut ty = Type::named(Name::new(self.work, name)?);
         ty.nullable = name.len() < written.len();
+        // A class or module nested in another is named through each, as
+        // `Outer::Inner`, as a value is.
+        loop {
+            let scope = self.significant(self.pos);
+            if !matches!(ty.kind, TypeKind::Named) || self.tokens[scope].token != Token::Op("::") {
+                break;
+            }
+            if ty.nullable {
+                self.pos = index;
+                return self.err(format_args!(
+                    "nullable suffix on {name} is misplaced; write {name}::Name? instead",
+                    name = super::source_text(&ty.name)
+                ));
+            }
+            self.pos = self.significant(scope + 1);
+            if !self.ident(self.pos) {
+                return self.expected(Label::Text("identifier"));
+            }
+            index = self.pos;
+            let Token::Word(member) = self.bump()? else {
+                unreachable!()
+            };
+            let member = member.as_str();
+            ty.nullable = member.ends_with('?');
+            let member = member.strip_suffix('?').unwrap_or(member);
+            ty.name = Name::join(self.work, &[&ty.name, "::", member])?;
+        }
         let dot = self.significant(self.pos);
-        if matches!(ty.kind, TypeKind::Named) && self.tokens[dot].token == Token::P('.') {
+        if matches!(ty.kind, TypeKind::Named)
+            && !ty.name.contains("::")
+            && self.tokens[dot].token == Token::P('.')
+        {
             if ty.nullable {
                 self.pos = index;
                 return self.err(format_args!(
@@ -628,9 +658,32 @@ impl Parser<'_> {
                 ) && self.locals.contains(self.work, name.as_str())?
             }
             Token::P('.') => !self.dotted_type_follows(peek, next, parenthesized)?,
+            Token::Op("::") => !self.scoped_type_follows(peek, parenthesized)?,
             Token::Op("->") | Token::EndLine | Token::Eof => parenthesized,
             _ => parenthesized || self.tokens[next].line == self.tokens[peek].line,
         })
+    }
+
+    /// Whether `Outer::Inner` after a parameter's colon reads as a nested
+    /// class's type rather than a default.
+    fn scoped_type_follows(&self, peek: usize, parenthesized: bool) -> Result<bool> {
+        let mut last = peek;
+        loop {
+            let scope = self.significant(last + 1);
+            if self.tokens[scope].token != Token::Op("::") {
+                break;
+            }
+            let member = self.significant(scope + 1);
+            if !self.ident(member) {
+                return Ok(false);
+            }
+            last = member;
+        }
+        let question = self.significant(last + 1);
+        if self.tokens[question].token == Token::P('?') {
+            last = question;
+        }
+        Ok(self.type_boundary(last, parenthesized))
     }
 
     /// Go's `dottedTypeAnnotationFollows`: whether `Namespace.Type` reads as a
