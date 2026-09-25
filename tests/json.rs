@@ -17,7 +17,9 @@ fn options() -> CallOptions {
 fn script_parse_limits_count_all_input_bytes_and_allow_the_exact_boundary() {
     for expression in ["JSON.parse(input)", "JSON.parse_as(input,int)"] {
         let script = Engine::new()
-            .compile(&format!("def parse(input)\n{expression}\nend"))
+            .compile(&format!(
+                "def parse(input: string) -> any\n{expression}\nend"
+            ))
             .unwrap();
         let mut raw = vec![b' '; CAP - 1];
         raw.push(b'7');
@@ -47,7 +49,7 @@ fn script_parse_limits_count_all_input_bytes_and_allow_the_exact_boundary() {
 #[test]
 fn script_stringify_limits_include_escapes_delimiters_and_hash_keys() {
     let script = Engine::new()
-        .compile("def encode(input)\nJSON.stringify(input)\nend")
+        .compile("def encode(input: any) -> string\nJSON.stringify(input)\nend")
         .unwrap();
     let cases = [
         (
