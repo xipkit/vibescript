@@ -165,6 +165,8 @@ pub(crate) struct Facts {
     pub receivers: Keyed<usize>,
     /// How often each member call started and returned, by offset and name.
     pub calls: Keyed<usize, (usize, usize)>,
+    /// What member calls returned, by offset and name.
+    pub results: Keyed<usize>,
     /// Index receivers and their selectors, by offset.
     pub indexes: HashMap<usize, (Types, Types)>,
     /// Binary operators by offset: the operand types and how often both were integers.
@@ -263,6 +265,7 @@ impl Facts {
         self.loads.merge_with(other.loads, join);
         self.instance.merge_with(other.instance, join);
         self.receivers.merge_with(other.receivers, join);
+        self.results.merge_with(other.results, join);
         self.calls
             .merge_with(other.calls, |mine, (started, returned)| {
                 mine.0 += started;
@@ -327,7 +330,10 @@ impl Facts {
                 add(self.receivers.entry(offset, member), values);
                 self.calls.entry(offset, member).0 += 1;
             }
-            Site::Result { member } => self.calls.entry(offset, member).1 += 1,
+            Site::Result { member } => {
+                self.calls.entry(offset, member).1 += 1;
+                add(self.results.entry(offset, member), values);
+            }
             Site::Index => {
                 if let [receiver, keys @ ..] = values {
                     let entry = self.indexes.entry(offset).or_default();

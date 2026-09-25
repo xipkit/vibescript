@@ -316,12 +316,17 @@ impl<'a> Migrator<'a> {
                 Member::Class(inner) => self.declare_class(inner, &name),
                 Member::Ivar(..) => (),
                 Member::Other(span) => {
+                    // `send` reaches private and protected methods, which a
+                    // direct call from outside the class does not.
                     let text = self.text(*span).trim();
-                    if text == "private" {
+                    if text == "private" || text == "protected" {
                         private = true;
-                    } else if text == "public" || text == "protected" {
+                    } else if text == "public" {
                         private = false;
-                    } else if let Some(names) = text.strip_prefix("private ") {
+                    } else if let Some(names) = text
+                        .strip_prefix("private ")
+                        .or_else(|| text.strip_prefix("protected "))
+                    {
                         for name in names.split(',') {
                             let name = name.trim().trim_start_matches(':');
                             self.declared.private_methods.insert(name.to_owned());
@@ -705,6 +710,16 @@ impl<'a> Migrator<'a> {
         }
         if let Some(args) = &call.args {
             self.args(args);
+            // After a local, such as a block's implicit `it`, a percent
+            // literal is a command argument where an array would index.
+            if args.parens.is_none()
+                && call.receiver.is_none()
+                && (self.local(&call.name) || call.name == "it")
+                && let Some(first) = args.items.first()
+                && matches!(first.value.kind, ExprKind::Words)
+            {
+                self.edits.wrap(first.value.span, "(", ")");
+            }
         }
         if let Some(block) = &call.block {
             let end = call
@@ -746,6 +761,23 @@ impl<'a> Migrator<'a> {
         self.statements(&block.body);
         self.scopes.pop();
         if block.brace {
+            return;
+        }
+        // Parentheses would turn a command's bare keywords from an options
+        // hash into keyword arguments, so such a block stays as written.
+        if let Some(call) = owner
+            && let Some(args) = &call.args
+            && args.parens.is_none()
+            && args
+                .items
+                .iter()
+                .any(|arg| matches!(arg.kind, ArgKind::Keyword(_) | ArgKind::KeywordSplat))
+        {
+            self.report(
+                Code::Syntax,
+                self.tokens[block.open].start,
+                "this do block's call passes bare keywords, which parentheses would bind differently; convert it to braces by hand",
+            );
             return;
         }
         let open = &self.tokens[block.open];
@@ -1111,7 +1143,10 @@ impl<'a> Migrator<'a> {
             }
             _ => None,
         });
-        let Some(name) = symbol.filter(|name| method_name(name)) else {
+        let dispatch_name = |name: &String| {
+            method_name(name) && !matches!(name.as_str(), "send" | "public_send" | "respond_to?")
+        };
+        let Some(name) = symbol.filter(dispatch_name) else {
             if observed.is_some() || first.is_some_and(|arg| arg.kind == ArgKind::Positional) {
                 self.report(
                     Code::Dispatch,
@@ -1226,6 +1261,16 @@ impl<'a> Migrator<'a> {
         if place == Place::Tight && call.args.is_none() {
             return;
         }
+        // `Hash.new` may read a field a script stored on the namespace.
+        if self
+            .facts
+            .and_then(|facts| facts.results.get(&self.compiler_offset(expr), "new"))
+            .is_some_and(|types| {
+                types.scalars.len() + usize::from(types.array.is_some()) > 0 || types.any
+            })
+        {
+            return;
+        }
         let text = if place == Place::Tight { "({})" } else { "{}" };
         self.edits.text(expr.span, text);
     }
@@ -1316,7 +1361,15 @@ impl<'a> Migrator<'a> {
                     None => (written, ""),
                 };
                 let lower = name.to_ascii_lowercase();
-                if parse::respelled_type(&lower) {
+                // `name: nil` would declare a keyword default.
+                if lower == "nil" && name != "nil" {
+                    self.report(
+                        Code::Rename,
+                        self.tokens[*tok].start,
+                        format!("type names are lowercase, but {name} as `nil` would read as a keyword default here; respell it by hand"),
+                    );
+                }
+                if parse::respelled_type(&lower) && lower != "nil" {
                     let canonical = if lower == "object" { "hash" } else { &lower };
                     if canonical != name {
                         self.edits
@@ -1534,11 +1587,14 @@ impl<'a> Migrator<'a> {
                 .filter(|p| p.receiver == kind || p.receiver == "T")
                 .find_map(|p| migrator.match_args(call, p).map(|c| (p, c)))
         };
-        // A hash field of the member's name answers the call instead.
-        if self
-            .receiver_types(expr, call)
-            .and_then(|types| types.hash.as_deref())
-            .is_some_and(|shape| shape.fields.contains_key(call.name.as_bytes()))
+        // A hash field of the member's name answers the call instead. A
+        // rescued error's fields are its members.
+        let error = self.static_kind(receiver).as_deref() == Some("error");
+        if !error
+            && self
+                .receiver_types(expr, call)
+                .and_then(|types| types.hash.as_deref())
+                .is_some_and(|shape| shape.fields.contains_key(call.name.as_bytes()))
         {
             self.report(
                 Code::Receiver,
