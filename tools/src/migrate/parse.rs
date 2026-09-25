@@ -156,6 +156,9 @@ struct Parser<'s> {
     call_end: usize,
     /// The typed block parameter the latest parameter list ended with.
     block_param: Option<Span>,
+    /// Where this parser's tokens start: an interpolation's come after the
+    /// source's own.
+    floor: usize,
 }
 
 /// Parser state that a speculative parse restores.
@@ -192,6 +195,7 @@ impl<'s> Parser<'s> {
             nesting: 0,
             call_end: 0,
             block_param: None,
+            floor: 0,
         }
     }
 
@@ -341,13 +345,13 @@ impl<'s> Parser<'s> {
 
     fn previous_index(&self) -> usize {
         let mut index = self.pos;
-        while index > 0 {
+        while index > self.floor {
             index -= 1;
             if !self.end_line(index) {
                 return index;
             }
         }
-        0
+        self.floor
     }
 
     fn previous(&self) -> &Token {
@@ -357,13 +361,13 @@ impl<'s> Parser<'s> {
     /// The end of the last token before the current one, for spans.
     fn last_end(&self) -> usize {
         let mut index = self.pos;
-        while index > 0 {
+        while index > self.floor {
             index -= 1;
             if !self.end_line(index) {
                 return self.tokens[index].end;
             }
         }
-        0
+        self.tokens[self.floor].start
     }
 
     fn start(&self) -> usize {
@@ -2451,16 +2455,24 @@ impl<'s> Parser<'s> {
     }
 
     /// Parses an interpolation's content as an expression of its own.
+    /// The fragment's tokens join the tree's after its end, so every token
+    /// index in the tree refers to one list.
     fn interpolation(&mut self, span: std::ops::Range<usize>) -> Option<Expr> {
         let text = &self.source[span.clone()];
         let tokens = lex(text, span.start).ok()?;
-        let mut parser = Parser::new(self.source, tokens);
+        let base = self.tokens.len();
+        self.tokens.extend(tokens);
+        let mut parser = Parser::new(self.source, std::mem::take(&mut self.tokens));
+        parser.pos = base;
+        parser.floor = base;
         parser.locals = self.locals.clone();
         parser.declared_it = self.declared_it;
         parser.lines();
-        let expr = parser.line_expr(0).ok()?;
+        let expr = parser.line_expr(0).ok();
         parser.lines();
-        parser.eof(parser.pos).then_some(expr)
+        let complete = parser.eof(parser.pos);
+        self.tokens = parser.tokens;
+        expr.filter(|_| complete)
     }
 
     fn word_expression(&mut self, word: &str, tok: Tok) -> Result<Expr> {
@@ -2926,9 +2938,7 @@ impl<'s> Parser<'s> {
     }
 
     fn token_at(&self, offset: usize) -> Tok {
-        self.tokens
-            .partition_point(|token| token.start < offset)
-            .min(self.tokens.len() - 1)
+        token_at(&self.tokens, offset)
     }
 
     fn command_arguments(&mut self) -> Result<Vec<Arg>> {
@@ -3644,6 +3654,23 @@ pub(crate) fn respelled_type(name: &str) -> bool {
 /// The token that starts at `offset`.
 fn start_token(parser: &Parser<'_>, offset: usize) -> Tok {
     parser.token_at(offset)
+}
+
+/// The token that starts at `offset`. The source's tokens are sorted, and
+/// each interpolation's follow them.
+pub(crate) fn token_at(tokens: &[Token], offset: usize) -> Tok {
+    let end = tokens
+        .iter()
+        .position(|token| token.kind == TokenKind::Eof)
+        .map_or(tokens.len(), |eof| eof + 1);
+    let index = tokens[..end].partition_point(|token| token.start < offset);
+    if index < end && tokens[index].start == offset {
+        return index;
+    }
+    tokens[end..]
+        .iter()
+        .position(|token| token.start == offset && token.kind != TokenKind::Eof)
+        .map_or(index.min(tokens.len() - 1), |found| end + found)
 }
 
 /// Whether a lowercase type name is one of the builtin types.

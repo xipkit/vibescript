@@ -216,10 +216,20 @@ impl<'a> Migrator<'a> {
     }
 
     fn compare(&mut self, expr: &'a Expr, tight: bool, suffix: &str) {
+        // `x != nil? 1 : 2` would lex `nil?` as a name.
+        let glued = self.source[expr.span.end..]
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_alphanumeric() || matches!(c, '_' | '?' | '!'));
+        let suffix = if glued {
+            format!("{suffix} ")
+        } else {
+            suffix.to_owned()
+        };
         if tight {
             self.edits.wrap(expr.span, "(", &format!("){suffix}"));
         } else {
-            self.edits.wrap(expr.span, "", suffix);
+            self.edits.wrap(expr.span, "", &suffix);
         }
     }
 
@@ -243,7 +253,18 @@ impl<'a> Migrator<'a> {
                 } else {
                     "=="
                 };
-                self.edits.text(self.token_span(*op), flipped);
+                // `i==3` flipped as `i!=3` would lex `i!` as a name.
+                let start = self.tokens[*op].start;
+                let glued = self.source[..start]
+                    .chars()
+                    .next_back()
+                    .is_some_and(|c| c.is_alphanumeric() || matches!(c, '_' | '?' | '!'));
+                let text = if glued {
+                    format!(" {flipped}")
+                } else {
+                    flipped.to_owned()
+                };
+                self.edits.text(self.token_span(*op), text);
             }
             ExprKind::Unary(op, operand)
                 if self.token_text(*op) == "!" && self.primary(operand) =>

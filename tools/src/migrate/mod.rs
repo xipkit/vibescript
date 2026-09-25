@@ -118,6 +118,8 @@ pub enum Code {
     /// A local first assigned where its declaration cannot go, such as
     /// inside a block.
     Local,
+    /// An instance variable that `initialize` does not assign on every path.
+    Initialize,
     /// A rewrite that needs syntax today's runtime does not accept yet.
     Syntax,
     /// A migration step that failed; the source was left alone.
@@ -139,6 +141,7 @@ impl Code {
             Self::Condition => "condition",
             Self::Case => "case",
             Self::Local => "local",
+            Self::Initialize => "initialize",
             Self::Syntax => "syntax",
             Self::Internal => "internal",
         }

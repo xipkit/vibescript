@@ -151,6 +151,12 @@ impl<'a> Migrator<'a> {
             match param.kind {
                 ParamKind::Positional => {
                     let mut ty = self.annotation(observed, param.default.as_ref(), name_end, &what);
+                    // `x: array<int>={}` would lex `>=`.
+                    let separator = if self.source[name_end..].starts_with('=') {
+                        " "
+                    } else {
+                        ""
+                    };
                     if ty == "nil" {
                         // `name: nil` declares a keyword default. A parameter
                         // that only ever held nil and is never read takes any
@@ -161,7 +167,7 @@ impl<'a> Migrator<'a> {
                             "any".to_owned()
                         };
                     }
-                    self.edits.insert(name_end, format!(": {ty}"));
+                    self.edits.insert(name_end, format!(": {ty}{separator}"));
                 }
                 ParamKind::Rest => {
                     let ty = match observed.and_then(|types| types.array.as_deref()) {
@@ -380,6 +386,10 @@ impl<'a> Migrator<'a> {
         let ExprKind::Name(name) = &target.kind else {
             return;
         };
+        // A capitalized name is a constant, not a local.
+        if name.chars().next().is_some_and(char::is_uppercase) {
+            return;
+        }
         let scope = self.scope();
         if scope
             .def
@@ -414,7 +424,11 @@ impl<'a> Migrator<'a> {
             target.span.start,
             &format!("local {name}"),
         );
-        self.edits.insert(target.span.end, format!(": {ty}"));
+        // `x: array<int>=[]` would lex `>=`, so the `=` gets a space.
+        let spaced = self.source[target.span.end..].starts_with(' ');
+        let separator = if spaced { "" } else { " " };
+        self.edits
+            .insert(target.span.end, format!(": {ty}{separator}"));
     }
 
     /// The types a local held in the current function, and at one assignment.
@@ -590,10 +604,17 @@ impl<'a> Migrator<'a> {
                     format!("{ty}?").replace("any?", "any")
                 }
             };
-            if set {
-                lines.push_str(&format!("\n{indent}@{ivar}: {ty}"));
-            } else {
-                lines.push_str(&format!("\n{indent}@{ivar}: {ty} = nil"));
+            // A default would create the field before the program assigns
+            // it, which code that asks for the field could tell apart.
+            lines.push_str(&format!("\n{indent}@{ivar}: {ty}"));
+            if !set {
+                self.report(
+                    Code::Initialize,
+                    at,
+                    format!(
+                        "instance variable @{ivar} is not assigned on every path through initialize; assign it there or give it a default"
+                    ),
+                );
             }
         }
         self.edits.insert(header_end, lines);

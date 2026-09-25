@@ -271,7 +271,7 @@ fn declares_instance_variables_and_types_properties() {
     let source = "class Counter\n  property step\n  def initialize(start)\n    @count = start\n    @step = 1\n  end\n  def bump\n    @last = @count\n    @count += @step\n  end\nend\ndef run\n  c = Counter.new(5)\n  c.bump\n  c.step\nend\n";
     let (out, _) = full(source, &[("run", json!([]))]);
     assert!(
-        out.contains("class Counter\n  @count: int\n  @last: int? = nil\n"),
+        out.contains("class Counter\n  @count: int\n  @last: int?\n"),
         "{out}"
     );
     assert!(out.contains("property step: int\n"), "{out}");

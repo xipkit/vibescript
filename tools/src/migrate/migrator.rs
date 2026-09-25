@@ -151,8 +151,10 @@ pub(crate) fn diagnostic(source: &str, code: Code, offset: usize, message: Strin
 /// low-precedence operator needs parentheses.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Place {
-    /// Anywhere a whole expression may stand: a statement, an argument, a
-    /// value being assigned, returned or tested.
+    /// A whole statement, whose value may be discarded.
+    Statement,
+    /// Anywhere a whole expression may stand: an argument, a value being
+    /// assigned, returned or tested.
     Loose,
     /// An operand, a receiver or an indexed value.
     Tight,
@@ -374,7 +376,7 @@ impl<'a> Migrator<'a> {
 
     fn stmt(&mut self, stmt: &'a Stmt) {
         match &stmt.kind {
-            StmtKind::Expr(expr) => self.expr(expr, Place::Loose),
+            StmtKind::Expr(expr) => self.expr(expr, Place::Statement),
             StmtKind::Assign(assign) => self.assign(stmt, assign),
             StmtKind::If(node) => self.if_node(node, self.tokens[node.keyword].start),
             StmtKind::While(node) => self.while_node(node),
@@ -872,9 +874,7 @@ impl<'a> Migrator<'a> {
     }
 
     fn words(&mut self, expr: &'a Expr, place: Place) {
-        let tok = self
-            .tokens
-            .partition_point(|token| token.start < expr.span.start);
+        let tok = self.token_at(expr.span.start);
         let TokenKind::Words { symbols, entries } = &self.tokens[tok].kind else {
             return;
         };
@@ -951,7 +951,7 @@ impl<'a> Migrator<'a> {
     }
 
     pub fn token_at(&self, offset: usize) -> Tok {
-        self.tokens.partition_point(|token| token.start < offset)
+        parse::token_at(self.tokens, offset)
     }
 
     /// Whether `x.name()` and `x.name` do the same: a hash receiver may hold
@@ -1857,7 +1857,17 @@ impl<'a> Migrator<'a> {
             Rewrite::Template(pieces) => pieces,
         };
         let receiver = call.and_then(|call| call.receiver.as_ref());
-        let exact = !(pattern.receiver == "time" && pattern.name == "hash");
+        // `time.hash` wraps where its replacement does not, float modulo
+        // refuses operands `%` takes, and `h[k] = v` is only a statement.
+        // `%` refuses a float operand that `modulo` takes.
+        let integer_divisor = captures
+            .values
+            .get("divisor")
+            .and_then(|span| self.expr_at(call, *span))
+            .is_some_and(|divisor| matches!(divisor.kind, ExprKind::Integer));
+        let exact = !(pattern.receiver == "time" && pattern.name == "hash")
+            && !(pattern.name == "modulo" && (pattern.receiver == "float" || !integer_divisor))
+            && (pattern.name != "store" || place == Place::Statement);
         let assignable = pattern.name != "store"
             || receiver.is_some_and(|r| match &r.kind {
                 ExprKind::Name(name) => self.local(name),
