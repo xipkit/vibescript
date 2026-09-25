@@ -289,11 +289,14 @@ impl<'a> Migrator<'a> {
                 }
                 // Unobserved: what the checker infers, then a result every
                 // exit spells as a literal, then `any`. A function that ran
-                // but never returned, such as one a block broke out of, gets
-                // `any`.
-                let entered = self
-                    .facts
-                    .is_some_and(|facts| facts.starts.contains_key(&offset));
+                // but never returned may have had a block break out of it
+                // with a value, unless it never yields.
+                let mut yields = Vec::new();
+                find_yields(&def.body, true, &mut yields, &mut false);
+                let entered = !yields.is_empty()
+                    && self
+                        .facts
+                        .is_some_and(|facts| facts.starts.contains_key(&offset));
                 let inferred = if entered {
                     None
                 } else {
