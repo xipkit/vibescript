@@ -1295,6 +1295,13 @@ impl<'a> Checker<'a> {
                 }
             }
             None if self.frame.namespace_body => {
+                // No syntax declares a class variable's type, so one first
+                // assigned an empty literal stays unchecked.
+                let ty = if self.needs_context(ty) {
+                    Ty::ERROR
+                } else {
+                    ty
+                };
                 self.constants.insert(key, ty);
             }
             None => {

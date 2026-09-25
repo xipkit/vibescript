@@ -533,7 +533,8 @@ impl<'a> Checker<'a> {
                     )
                 })
                 .collect();
-            return self.call_sigs(call, &candidates);
+            let result = self.call_sigs(call, &candidates);
+            return self.member_result(call, ty, result);
         }
         if call.name == "as" {
             return self.cast(call, ty);
@@ -876,6 +877,18 @@ impl<'a> Checker<'a> {
             if splat {
                 splatted = true;
                 let ty = self.expr(value, None);
+                if self.operand(value, ty) && self.types.element(ty).is_none() {
+                    let span = self.spans.expr(value);
+                    let found = self.types.display(ty);
+                    self.report(
+                        Diagnostic::error(
+                            Code::TYPE_MISMATCH,
+                            span,
+                            format!("a splat spreads an array, found {found}"),
+                        )
+                        .with_types("array<any>", found),
+                    );
+                }
                 if let Some(element) = self.types.element(ty) {
                     for param in positional_params.iter().skip(index) {
                         self.unify(param.ty, element, &mut bindings);
@@ -950,7 +963,19 @@ impl<'a> Checker<'a> {
                     }
                 }
                 ArgumentKind::KeywordSplat => {
-                    self.expr(&arg.value, None);
+                    let ty = self.expr(&arg.value, None);
+                    if self.operand(&arg.value, ty) && self.types.hash_value(ty).is_none() {
+                        let span = self.spans.expr(&arg.value);
+                        let found = self.types.display(ty);
+                        self.report(
+                            Diagnostic::error(
+                                Code::TYPE_MISMATCH,
+                                span,
+                                format!("a keyword splat spreads a hash, found {found}"),
+                            )
+                            .with_types("hash<string, any>", found),
+                        );
+                    }
                 }
                 _ => (),
             }
@@ -1002,6 +1027,21 @@ impl<'a> Checker<'a> {
         match sig.result {
             Some(result) => self.types.close(result, &bindings),
             None => Ty::NIL,
+        }
+    }
+
+    /// The type of a member call's result. Iterating members return their
+    /// receiver unchanged, so a shape or tuple keeps its exact type.
+    fn member_result(&mut self, call: &Call<'a, '_>, receiver: Ty, result: Ty) -> Ty {
+        let exact = matches!(self.types.kind(receiver), Kind::Shape(..) | Kind::Tuple(_));
+        let iterating = matches!(
+            call.name,
+            "each" | "each_with_index" | "each_key" | "each_value" | "reverse_each"
+        );
+        if exact && iterating && result != Ty::ERROR {
+            receiver
+        } else {
+            result
         }
     }
 

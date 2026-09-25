@@ -109,9 +109,13 @@ impl<'a> Checker<'a> {
             Node::Unary(op, value) => self.unary(expr, op, value),
             Node::Binary(op, left, right) => self.binary(expr, op, left, right),
             Node::Range(start, end, _) => {
+                // A range counts integers; float endpoints convert.
                 for bound in [start, end].into_iter().flatten() {
                     let ty = self.expr(bound, None);
-                    self.operand(bound, ty);
+                    if self.operand(bound, ty) && !self.types.assignable(ty, Ty::NUMBER) {
+                        let span = self.spans.expr(bound);
+                        self.mismatch(span, Ty::NUMBER, ty, &Purpose::Operand);
+                    }
                 }
                 Ty::RANGE
             }
@@ -593,7 +597,9 @@ impl<'a> Checker<'a> {
             }
             "==" | "!=" | "===" => {
                 let lt = self.expr(left, None);
-                self.expr(right, Some(lt));
+                // A symbol compared with an enum member names a member.
+                let hint = matches!(self.types.kind(lt), Kind::EnumValue(_)).then_some(lt);
+                self.expr(right, hint);
                 Ty::BOOL
             }
             _ => {
