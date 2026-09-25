@@ -184,7 +184,8 @@ fn bare_names_receiving_call_follow_the_reference_rules() {
     let mut checked = 0;
     for case in cases.as_array().unwrap() {
         let name = case["name"].as_str().unwrap();
-        if !name.starts_with("call_receiver_") {
+        // Cases moved from the language corpus succeed without static types.
+        if !name.starts_with("call_receiver_") || case.get("go_error").is_none() {
             continue;
         }
         let error = Engine::new()

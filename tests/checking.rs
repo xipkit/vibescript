@@ -1891,7 +1891,10 @@ fn bare_names_receiving_members_report_the_runtime_failure() {
     let mut checked = 0;
     for case in cases.as_array().unwrap() {
         let name = case["name"].as_str().unwrap();
-        if !name.starts_with("call_receiver_") && !name.starts_with("call_member_unknown_") {
+        // Cases moved from the language corpus succeed without static types.
+        if !name.starts_with("call_receiver_") && !name.starts_with("call_member_unknown_")
+            || case.get("go_error").is_none()
+        {
             continue;
         }
         let source = case["source"]
