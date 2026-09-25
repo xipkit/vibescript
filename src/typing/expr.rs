@@ -715,8 +715,15 @@ impl<'a> Checker<'a> {
         };
         let sig = self.program.fns[id].sig.clone();
         if let Some(param) = sig.params.first() {
-            if !self.types.assignable(right, param.ty) {
-                self.mismatch(span, param.ty, right, &Purpose::Operand);
+            // A rest parameter collects the operand into its array.
+            let expected = match param.kind {
+                sigs::ParamKind::Rest => self.types.element(param.ty),
+                _ => Some(param.ty),
+            };
+            if let Some(expected) = expected
+                && !self.types.assignable(right, expected)
+            {
+                self.mismatch(span, expected, right, &Purpose::Operand);
             }
         }
         sig.result.unwrap_or(Ty::NIL)

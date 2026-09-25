@@ -46,3 +46,10 @@ fn operators_refuse_optional_and_any_operands() {
     codes("def f(n: int?) -> int\n  n * 2\nend\n", &["V0107"]);
     codes("def f(n: any) -> int\n  n * 2\nend\n", &["V0106"]);
 }
+
+#[test]
+fn a_class_operator_with_a_rest_parameter_takes_its_elements() {
+    let class = "class C\n  def +(*values: array<int>) -> int\n    values.length\n  end\nend\n";
+    clean(&format!("{class}x: int = C.new + 3\n"));
+    codes(&format!("{class}x = C.new + \"a\"\n"), &["V0101"]);
+}
