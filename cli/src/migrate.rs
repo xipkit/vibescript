@@ -22,7 +22,7 @@ use std::{
 };
 use vibescript_tools::migrate::{self, Invocation, Migration, Observations, Options};
 
-const FLAGS: [Flag; 4] = [
+const FLAGS: [Flag; 5] = [
     Flag::new(
         &["write"],
         Kind::Bool,
@@ -42,6 +42,11 @@ const FLAGS: [Flag; 4] = [
         &["compatible"],
         Kind::Bool,
         "make only the changes today's runtime accepts",
+    ),
+    Flag::new(
+        &["no-repair"],
+        Kind::Bool,
+        "skip repairing the migration with the static checker's diagnostics",
     ),
 ];
 
@@ -105,7 +110,14 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
             }
         }
     }
-    let migrations = migrate_all(&sources, &observations, &options);
+    let mut migrations = migrate_all(&sources, &observations, &options);
+    if options.new_syntax && !flags.bool("no-repair") {
+        // A file checks against the migrated files it requires.
+        if flags.bool("write") {
+            write_changed(&files, &migrations)?;
+        }
+        migrations = repair_all(&sources, &migrations, &invocations, &observations);
+    }
     let out = Sink::Stdout;
     let mut reports = Vec::new();
     let mut text = String::new();
@@ -203,23 +215,54 @@ fn workers() -> usize {
     std::thread::available_parallelism().map_or(4, |n| n.get())
 }
 
+fn write_changed(files: &[(PathBuf, String)], migrations: &[Migration]) -> Result<(), String> {
+    for ((path, _), migration) in files.iter().zip(migrations) {
+        if migration.changed {
+            std::fs::write(path, &migration.source)
+                .map_err(|error| format!("write {}: {}", path.display(), compat::reason(&error)))?;
+        }
+    }
+    Ok(())
+}
+
+/// Each file's invocations: those that name it, and those that name none.
+struct Runs {
+    by_file: std::collections::HashMap<String, Vec<Invocation>>,
+    everywhere: Vec<Invocation>,
+}
+
+impl Runs {
+    fn new(invocations: &[Invocation]) -> Self {
+        let mut runs = Self {
+            by_file: std::collections::HashMap::new(),
+            everywhere: Vec::new(),
+        };
+        for invocation in invocations {
+            match &invocation.file {
+                Some(file) => runs
+                    .by_file
+                    .entry(file.clone())
+                    .or_default()
+                    .push(invocation.clone()),
+                None => runs.everywhere.push(invocation.clone()),
+            }
+        }
+        runs
+    }
+
+    fn of(&self, label: &str) -> Vec<Invocation> {
+        let mut runs = self.everywhere.clone();
+        runs.extend(self.by_file.get(label).into_iter().flatten().cloned());
+        runs
+    }
+}
+
 /// Runs every file's invocations with observation.
 fn observe_all(sources: &[(String, String)], invocations: &[Invocation]) -> Observations {
     if invocations.is_empty() {
         return Observations::default();
     }
-    let mut by_file: std::collections::HashMap<&str, Vec<Invocation>> =
-        std::collections::HashMap::new();
-    let mut everywhere = Vec::new();
-    for invocation in invocations {
-        match &invocation.file {
-            Some(file) => by_file
-                .entry(file.as_str())
-                .or_default()
-                .push(invocation.clone()),
-            None => everywhere.push(invocation.clone()),
-        }
-    }
+    let runs = Runs::new(invocations);
     let merged = Mutex::new(Observations::default());
     let next = AtomicUsize::new(0);
     std::thread::scope(|scope| {
@@ -232,8 +275,7 @@ fn observe_all(sources: &[(String, String)], invocations: &[Invocation]) -> Obse
                     let Some((label, source)) = sources.get(index) else {
                         break;
                     };
-                    let mut runs = everywhere.clone();
-                    runs.extend(by_file.get(label.as_str()).into_iter().flatten().cloned());
+                    let runs = runs.of(label);
                     if runs.is_empty() {
                         continue;
                     }
@@ -266,6 +308,41 @@ fn migrate_all(
                     *results[index].lock().unwrap() = Some(migration);
                 }
             });
+        }
+    });
+    results
+        .into_iter()
+        .map(|slot| slot.into_inner().unwrap().unwrap())
+        .collect()
+}
+
+/// Repairs every migration with the static checker's diagnostics, keeping
+/// what each file's invocations do.
+fn repair_all(
+    sources: &[(String, String)],
+    migrations: &[Migration],
+    invocations: &[Invocation],
+    observations: &Observations,
+) -> Vec<Migration> {
+    let runs = Runs::new(invocations);
+    let results: Vec<Mutex<Option<Migration>>> = sources.iter().map(|_| Mutex::new(None)).collect();
+    let next = AtomicUsize::new(0);
+    std::thread::scope(|scope| {
+        for _ in 0..workers() {
+            // Recorded runs may recurse as deeply as their limits allow.
+            let worker = std::thread::Builder::new().stack_size(1 << 30);
+            let spawned = worker.spawn_scoped(scope, || {
+                loop {
+                    let index = next.fetch_add(1, Ordering::Relaxed);
+                    let Some((label, source)) = sources.get(index) else {
+                        break;
+                    };
+                    let repaired =
+                        migrate::repair(source, &migrations[index], &runs.of(label), observations);
+                    *results[index].lock().unwrap() = Some(repaired);
+                }
+            });
+            spawned.expect("spawn a repair worker");
         }
     });
     results

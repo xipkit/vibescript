@@ -20,12 +20,22 @@ fn prints_a_diff_typed_from_recorded_calls() {
         Some(&files.0),
         &["migrate", "lib", "--inputs", "inputs.jsonl"],
     );
+    // The static checker finds that the `if` gives nil when its test fails.
     run.expect(
+        0,
+        "--- a/half.vibe\n+++ b/half.vibe\n@@ -1,3 +1,3 @@\n-def half(n)\n-  n / 2 unless n.nil?\n+def half(n: int) -> int?\n+  n // 2 if n != nil\n end\n",
+        "",
+    );
+    assert_eq!(files.read("lib/half.vibe"), HALF);
+    let unrepaired = vibes_in(
+        Some(&files.0),
+        &["migrate", "lib", "--inputs", "inputs.jsonl", "--no-repair"],
+    );
+    unrepaired.expect(
         0,
         "--- a/half.vibe\n+++ b/half.vibe\n@@ -1,3 +1,3 @@\n-def half(n)\n-  n / 2 unless n.nil?\n+def half(n: int) -> int\n+  n // 2 if n != nil\n end\n",
         "",
     );
-    assert_eq!(files.read("lib/half.vibe"), HALF);
 }
 
 #[test]
@@ -44,7 +54,7 @@ fn writes_files_and_a_second_pass_changes_nothing() {
         ],
     );
     run.expect(0, "", "");
-    let migrated = "def half(n: int) -> int\n  n // 2 if n != nil\nend\n";
+    let migrated = "def half(n: int) -> int?\n  n // 2 if n != nil\nend\n";
     assert_eq!(files.read("half.vibe"), migrated);
     let again = vibes_in(
         Some(&files.0),

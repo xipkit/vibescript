@@ -159,12 +159,14 @@ vibes prelude
 ## `vibes migrate`
 
 ```sh
-vibes migrate [--write] [--inputs FILE] [--report json] [--compatible] <file or directory>...
+vibes migrate [--write] [--inputs FILE] [--report json] [--compatible] [--no-repair] <file or directory>...
 ```
 
 `vibes migrate` rewrites scripts written for the ADR-004 language into the language of ADR-007 and ADR-008. It renames removed spellings from the rename table, turns `do ... end` blocks into braces, `unless` and `until` into `if !` and `while !`, symbol hash keys into strings, percent literals into arrays and `Hash.new` into `{}`, replaces `nil?`, empty argument parentheses and dispatch by a literal name, and annotates parameters, results, the blocks functions yield to, locals whose first value does not fix their type, instance variables and properties. Integer `/` becomes `//`, and a condition on an optional value becomes `!= nil`.
 
 Types come from existing annotations, then from values observed while running the invocations in `--inputs`, a JSON Lines file of calls with the golden corpora's fields (`function`, `args`, `typed_args`, `globals`, `module_paths` and so on) and an optional `file` relative to the directory being migrated; without an observation a type is `any`, which the report flags. A file with a recorded call that needs host capabilities is annotated without observations, since its other calls may not cover what that one does.
+
+The migration then repairs each file with the static checker's diagnostics until it type checks or no repair helps. A repair narrows a value where it is used, such as `x.fetch(i)` for an index the runs never found missing, a checked cast `.as(T)` of an `any` or optional value to the type the runs saw, `to_s` where `+` joined a string with a number, or a string for a symbol hash key; or it widens an annotation the migration wrote to the types the checker found, such as a result a rescued branch returns or a record indexed with computed keys, which becomes a dictionary. A repair is kept only when it leaves fewer errors and, where the file's invocations can run, when each of them still returns the same value or raises the same error and writes the same output. `--no-repair` skips the repair.
 
 Without `--write` it prints a unified diff; with it, it rewrites the files. Everything it cannot do safely, such as a condition on a value that is sometimes `false`, a rename whose receiver type is unknown, or dispatch by a name known only at runtime, is reported on stderr as `file:line:column: code: message`, or as a JSON array on stdout with `--report json`. `--compatible` makes only the changes the linked runtime accepts without the new declarations. `scripts/migrate-corpora.py` migrates the golden corpora this way and checks the results against their goldens.
 

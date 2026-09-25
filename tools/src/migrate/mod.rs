@@ -22,6 +22,10 @@
 //! instead of guessed. Comments and layout outside the rewritten tokens are
 //! kept, and the result is in the formatter's canonical form.
 //!
+//! [`repair`] then feeds the static checker's diagnostics back into the
+//! migration until it type checks or no repair helps, keeping only the
+//! repairs after which the recorded invocations still do what they did.
+//!
 //! ```
 //! use vibescript_tools::migrate::{Invocation, Options, migrate, observe};
 //! let source = "def half(n)\n  n / 2 unless n.nil?\nend\n";
@@ -36,14 +40,21 @@ mod annotate;
 mod compat;
 mod diff;
 mod migrator;
+mod narrow;
 mod observe;
+mod probe;
+mod repair;
 mod semantics;
+mod sites;
 #[cfg(test)]
 mod tests;
+mod ty;
 mod types;
+mod widen;
 
 pub use diff::unified_diff;
 pub use observe::{Invocation, Observations, observe};
+pub use repair::repair;
 
 /// How far a migration goes.
 #[derive(Clone, Debug)]

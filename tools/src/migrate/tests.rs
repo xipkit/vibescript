@@ -1,6 +1,6 @@
 //! One test per rewrite rule, and end-to-end fixtures.
 
-use super::{Code, Invocation, Observations, Options, migrate, observe};
+use super::{Code, Invocation, Observations, Options, migrate, observe, repair};
 use serde_json::json;
 
 /// Migrates `source` after running `calls`, each `(function, args)`.
@@ -397,4 +397,117 @@ fn infers_results_of_functions_no_run_reached() {
     assert!(out.contains("def next_id(n: int) -> int\n"), "{out}");
     assert!(out.contains("def label(flag: bool) -> string?\n"), "{out}");
     assert!(codes.is_empty(), "{codes:?}");
+}
+
+/// Migrates `source` after running `calls`, then repairs the migration with
+/// the static checker, returning the result and its static errors.
+fn repaired(source: &str, calls: &[(&str, serde_json::Value)]) -> (String, Vec<String>) {
+    let invocations: Vec<Invocation> = calls
+        .iter()
+        .map(|(function, args)| {
+            Invocation::from_json(json!({"function": function, "args": args}), ".".as_ref())
+                .unwrap()
+        })
+        .collect();
+    let observations = observe(source, &invocations);
+    let migration = migrate(source, &observations, &Options::default());
+    let repaired = repair(source, &migration, &invocations, &observations);
+    let errors = vibescript::Engine::new()
+        .type_check(&repaired.source)
+        .unwrap()
+        .diagnostics
+        .iter()
+        .filter(|d| d.is_error())
+        .map(|d| d.message.clone())
+        .collect();
+    (repaired.source, errors)
+}
+
+#[test]
+fn widens_a_result_to_what_an_unrun_branch_returns() {
+    let source = "def run(n)\n  begin\n    raise \"no\" if n > 0\n    [n, \"ok\"]\n  rescue => e\n    [e.message]\n  end\nend\n";
+    let (out, errors) = repaired(source, &[("run", json!([1]))]);
+    assert!(
+        out.starts_with("def run(n: int) -> array<int | string>\n"),
+        "{out}"
+    );
+    assert!(errors.is_empty(), "{errors:?}");
+}
+
+#[test]
+fn reads_an_index_the_runs_never_missed_with_fetch() {
+    let source = "def run(items)\n  items[0] + 1\nend\n";
+    let (out, errors) = repaired(source, &[("run", json!([[1, 2]]))]);
+    assert!(out.contains("items.fetch(0) + 1"), "{out}");
+    assert!(errors.is_empty(), "{errors:?}");
+}
+
+#[test]
+fn keeps_a_write_through_an_index_that_fetch_would_copy() {
+    let source = "def run\n  a = [[1]]\n  a[0].push(2)\n  a\nend\n";
+    let (out, _) = repaired(source, &[("run", json!([]))]);
+    assert!(out.contains("a[0].push(2)"), "{out}");
+}
+
+#[test]
+fn narrows_a_parsed_value_where_it_is_assigned() {
+    let source = "def run(raw)\n  data = JSON.parse(raw)\n  data[\"n\"] + 1\nend\n";
+    let (out, errors) = repaired(source, &[("run", json!(["{\"n\": 1}"]))]);
+    assert!(
+        out.contains("data = JSON.parse(raw).as({ n: int })"),
+        "{out}"
+    );
+    assert!(errors.is_empty(), "{errors:?}");
+}
+
+#[test]
+fn converts_what_plus_joins_to_a_string() {
+    let source = "def run(count)\n  count + \" items\"\nend\n";
+    let (out, errors) = repaired(source, &[("run", json!([3]))]);
+    assert!(out.contains("count.to_s + \" items\""), "{out}");
+    assert!(errors.is_empty(), "{errors:?}");
+}
+
+#[test]
+fn types_a_function_no_run_reached_from_its_callers() {
+    let source = "def twice(x)\n  x * 2\nend\ndef run(flag)\n  flag ? twice(3) : 0\nend\n";
+    let (out, errors) = repaired(source, &[("run", json!([false]))]);
+    assert!(out.starts_with("def twice(x: int) -> int\n"), "{out}");
+    assert!(errors.is_empty(), "{errors:?}");
+}
+
+#[test]
+fn spells_out_an_authors_bare_collections() {
+    let source =
+        "def keys(h: hash) -> array\n  h.keys\nend\ndef run(input)\n  keys({ a: 1 })\nend\n";
+    let (out, errors) = repaired(source, &[("run", json!([null]))]);
+    assert!(
+        out.starts_with("def keys(h: hash<string, int>) -> array<string>\n"),
+        "{out}"
+    );
+    assert!(errors.is_empty(), "{errors:?}");
+}
+
+#[test]
+fn types_a_parameter_the_runs_only_passed_nil_from_its_callers() {
+    let source = "def show(m)\n  return \"none\" if m == nil\n  m.captures.length.to_s\nend\ndef run(text)\n  show(text.match(/x(y)/))\nend\n";
+    let (out, errors) = repaired(source, &[("run", json!(["z"]))]);
+    assert!(out.contains("def show(m: match_data?)"), "{out}");
+    assert!(errors.is_empty(), "{errors:?}");
+}
+
+#[test]
+fn declares_a_record_read_with_computed_keys_a_dictionary() {
+    let source = "def run(n)\n  h = {}\n  h[\"k\" + n.to_s] = n\n  h[\"k\" + n.to_s]\nend\n";
+    let (out, errors) = repaired(source, &[("run", json!([1]))]);
+    assert!(out.contains("h: hash<string, int> = {}"), "{out}");
+    assert!(errors.is_empty(), "{errors:?}");
+}
+
+#[test]
+fn widens_a_local_an_unrun_branch_assigns() {
+    let source = "def run(flag)\n  x = 1\n  x = \"s\" if flag\n  x\nend\n";
+    let (out, errors) = repaired(source, &[("run", json!([false]))]);
+    assert!(out.contains("x: int | string = 1"), "{out}");
+    assert!(errors.is_empty(), "{errors:?}");
 }

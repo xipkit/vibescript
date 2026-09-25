@@ -445,7 +445,27 @@ pub fn observe(source: &str, invocations: &[Invocation]) -> Observations {
     }
 }
 
+/// How a run sets up its host: as observation runs do, generously, or
+/// exactly as the golden harness does, whose outcomes a repair must keep.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Semantics {
+    Observation,
+    Golden,
+}
+
 fn run(source: &str, invocation: &Invocation, collector: Arc<Collector>) -> Result<(), String> {
+    execute(source, invocation, Some(collector), Semantics::Observation).map(|_| ())
+}
+
+/// Runs one invocation of `source` with observation, returning what it did,
+/// or why it could not run at all.
+fn execute(
+    source: &str,
+    invocation: &Invocation,
+    collector: Option<Arc<Collector>>,
+    semantics: Semantics,
+) -> Result<Outcome, String> {
+    let golden = semantics == Semantics::Golden;
     let mut engine = Engine::new();
     engine.set_strict_effects(invocation.flag("strict_effects"));
     let paths = invocation.strings("module_paths");
@@ -480,27 +500,182 @@ fn run(source: &str, invocation: &Invocation, collector: Arc<Collector>) -> Resu
             Ok(output.len())
         });
     }
-    // Without a writer, output helpers raise, and some recorded runs rely on that.
-    if invocation.fields.get("stdout").and_then(Json::as_bool) != Some(false) {
-        engine.set_output_writer(|_, _| Ok(()));
-    }
-    if invocation.fields.get("stderr").and_then(Json::as_bool) != Some(false) {
-        engine.set_error_writer(|_, _| Ok(()));
-    }
-    engine.set_observer(collector);
-    let script = engine.compile(source).map_err(|e| e.to_string())?;
-    let Some(function) = invocation.function() else {
-        return Ok(());
+    let stdout: Capture = Capture::default();
+    let stderr: Capture = Capture::default();
+    // Without a writer, output helpers raise, and some recorded runs rely on
+    // that. The golden harness sets one only when a case asks for it.
+    let stream = |name: &str| match invocation.fields.get(name).and_then(Json::as_bool) {
+        Some(flag) => flag,
+        None => !golden,
     };
-    let (options, args, keywords) = inputs(invocation)?;
+    if stream("stdout") {
+        let buffer = stdout.clone();
+        engine.set_output_writer(move |_, bytes| {
+            buffer.lock().unwrap().extend_from_slice(bytes);
+            Ok(())
+        });
+    }
+    if stream("stderr") {
+        let buffer = stderr.clone();
+        engine.set_error_writer(move |_, bytes| {
+            buffer.lock().unwrap().extend_from_slice(bytes);
+            Ok(())
+        });
+    }
+    if let Some(collector) = collector {
+        engine.set_observer(collector);
+    }
+    let script = match engine.compile(source) {
+        Ok(script) => script,
+        Err(error) if golden => {
+            return Ok(Outcome::new(
+                Err(Failure::of("compile", &error)),
+                &stdout,
+                &stderr,
+            ));
+        }
+        Err(error) => return Err(error.to_string()),
+    };
+    let Some(function) = invocation.function() else {
+        return Ok(Outcome::new(Ok("compiled".to_owned()), &stdout, &stderr));
+    };
+    let (options, args, keywords) = inputs(invocation, semantics)?;
     // Errors are part of what a run does; the facts before them stand.
-    let _ = script.call_with_keywords(function, &args, &keywords, options);
-    Ok(())
+    let result = match script.call_with_keywords(function, &args, &keywords, options) {
+        Ok(outcome) => Ok(canonical(&outcome.value, 0)),
+        Err(error) => Err(Failure::of("call", &error)),
+    };
+    Ok(Outcome::new(result, &stdout, &stderr))
+}
+
+type Capture = Arc<Mutex<Vec<u8>>>;
+
+/// What one recorded invocation observably did, as the golden corpora
+/// record it: its value or error, and its output streams. Error positions
+/// are left out, since a migration moves them.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Outcome {
+    result: Result<String, Failure>,
+    stdout: Vec<u8>,
+    stderr: Vec<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Failure {
+    phase: &'static str,
+    kind: String,
+    class: Option<&'static str>,
+    message: Vec<u8>,
+}
+
+impl Failure {
+    fn of(phase: &'static str, error: &vibescript::Error) -> Self {
+        Self {
+            phase,
+            kind: format!("{:?}", error.kind),
+            class: error.class().map(|class| class.name()),
+            message: error.message_bytes().to_vec(),
+        }
+    }
+}
+
+impl Outcome {
+    fn new(result: Result<String, Failure>, stdout: &Capture, stderr: &Capture) -> Self {
+        Self {
+            result,
+            stdout: stdout.lock().unwrap().clone(),
+            stderr: stderr.lock().unwrap().clone(),
+        }
+    }
+
+    /// Whether the two outcomes differ only where accounting moved: both
+    /// ran out of the same quota.
+    pub fn same(&self, other: &Outcome) -> bool {
+        if self == other {
+            return true;
+        }
+        let quota = |outcome: &Outcome| match &outcome.result {
+            Err(failure) if matches!(failure.kind.as_str(), "Steps" | "Memory") => {
+                Some(failure.kind.clone())
+            }
+            _ => None,
+        };
+        quota(self).is_some() && quota(self) == quota(other)
+    }
+}
+
+/// A value's type and contents, which tells apart everything the golden
+/// corpora do.
+fn canonical(value: &Value, depth: usize) -> String {
+    if depth > 256 {
+        return "<deep>".to_owned();
+    }
+    let kind = value.type_name();
+    match kind {
+        "array" => {
+            let items: Vec<String> = value
+                .as_array()
+                .unwrap_or_default()
+                .iter()
+                .map(|item| canonical(item, depth + 1))
+                .collect();
+            format!("array[{}]", items.join(","))
+        }
+        "hash" | "object" => {
+            let entries: Vec<String> = value
+                .as_hash()
+                .unwrap_or_default()
+                .iter()
+                .map(|(key, item)| format!("{:?}=>{}", key.as_bytes(), canonical(item, depth + 1)))
+                .collect();
+            format!("{kind}{{{}}}", entries.join(","))
+        }
+        "float" => format!(
+            "float:{:016x}",
+            value.as_float().unwrap_or_default().to_bits()
+        ),
+        "string" | "symbol" => format!("{kind}:{:?}", value.as_bytes().unwrap_or_default()),
+        _ => format!("{kind}:{value:?}"),
+    }
+}
+
+/// What running a source's recorded invocations did, and the facts they
+/// observed of it when asked to.
+pub(crate) struct Replay {
+    /// Each invocation's outcome, in order.
+    pub outcomes: Vec<Outcome>,
+    pub facts: Option<Facts>,
+}
+
+/// Runs `invocations` of `source` exactly as the golden harness does,
+/// observing them when `observing`. Fails when an invocation cannot be set
+/// up.
+pub(crate) fn replay(
+    source: &str,
+    invocations: &[Invocation],
+    observing: bool,
+) -> Result<Replay, String> {
+    let collector = observing.then(|| Arc::new(Collector::default()));
+    let mut outcomes = Vec::with_capacity(invocations.len());
+    for invocation in invocations {
+        outcomes.push(execute(
+            source,
+            invocation,
+            collector.clone(),
+            Semantics::Golden,
+        )?);
+    }
+    let facts = collector.map(|collector| {
+        let collector = Arc::try_unwrap(collector).unwrap_or_default();
+        let (mut sources, _) = collector.state.into_inner().unwrap();
+        sources.remove(source).unwrap_or_default()
+    });
+    Ok(Replay { outcomes, facts })
 }
 
 type Inputs = (CallOptions, Vec<Value>, Vec<(String, Value)>);
 
-fn inputs(invocation: &Invocation) -> Result<Inputs, String> {
+fn inputs(invocation: &Invocation, semantics: Semantics) -> Result<Inputs, String> {
     let fields = &invocation.fields;
     let mut args = Vec::new();
     for arg in fields
@@ -558,9 +733,15 @@ fn inputs(invocation: &Invocation) -> Result<Inputs, String> {
         .unwrap_or(true);
     let limit = |name: &str, default: u64| match fields.get(name) {
         Some(Json::Null) => None,
+        Some(value) if semantics == Semantics::Golden => value.as_u64(),
         Some(value) => Some(value.as_u64().unwrap_or(default).max(default)),
         None => metered.then_some(default),
     };
+    let timeout = match semantics {
+        Semantics::Golden => fields.get("timeout_ms").and_then(Json::as_u64),
+        Semantics::Observation => None,
+    };
+    let timeout = timeout.unwrap_or(60_000);
     let options = CallOptions {
         globals,
         allow_require: invocation.flag("allow_require"),
@@ -572,7 +753,7 @@ fn inputs(invocation: &Invocation) -> Result<Inputs, String> {
                 .and_then(Json::as_u64)
                 .map_or(256, |depth| depth as usize),
         },
-        deadline: Some(Instant::now() + Duration::from_secs(60)),
+        deadline: Some(Instant::now() + Duration::from_millis(timeout)),
         ..CallOptions::default()
     };
     Ok((options, args, keywords))
