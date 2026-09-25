@@ -1,12 +1,13 @@
 //! Type checks the migrated golden corpora with the static checker.
 //!
-//! Usage: `static_corpus [WORK] [--corpus a,b] [--out FILE] [--examples N]`
+//! Usage: `static_corpus [WORK] [--corpus a,b] [--out FILE] [--examples N] [--all]`
 //!
 //! WORK is the full migration's tree, `.cache/migrate/work/full` by default,
 //! as `scripts/migrate-corpora.py` writes it. Every source the migrator
 //! rewrote without a manual diagnostic is checked; the summary counts, per
 //! corpus, the sources and cases that check clean and the diagnostics of the
 //! others by code, with examples. `--out` writes every diagnostic as JSON.
+//! `--all` checks every source, including those that need manual work.
 //! `scripts/static-corpus.py` builds and runs this.
 use serde_json::{Value as Json, json};
 use std::{
@@ -40,6 +41,7 @@ fn main() {
     let mut corpora: Vec<String> = CORPORA.iter().map(|c| c.to_string()).collect();
     let mut out = None;
     let mut examples = 5;
+    let mut all = false;
     let mut index = 0;
     while index < args.len() {
         match args[index].as_str() {
@@ -51,6 +53,7 @@ fn main() {
                 index += 1;
                 out = Some(PathBuf::from(&args[index]));
             }
+            "--all" => all = true,
             "--examples" => {
                 index += 1;
                 examples = args[index].parse().expect("--examples takes a number");
@@ -80,7 +83,7 @@ fn main() {
         let entries: Vec<Json> = serde_json::from_str(&text).expect("report is JSON");
         let automatic: Vec<String> = entries
             .iter()
-            .filter(|entry| entry["diagnostics"].as_array().is_some_and(Vec::is_empty))
+            .filter(|entry| all || entry["diagnostics"].as_array().is_some_and(Vec::is_empty))
             .map(|entry| entry["file"].as_str().unwrap().to_owned())
             .collect();
         let manual: BTreeSet<String> = entries
