@@ -69,6 +69,18 @@ pub(crate) fn table(
     table
 }
 
+/// A registered host function's signature, as the static checker reads it:
+/// its published signature, or `any` arguments and result without one.
+pub(crate) fn function(name: &str, host: &Registered) -> Function {
+    match host {
+        Registered::Callback(_) => unsigned(name, true, false),
+        Registered::Method(method) => match &method.value().0 {
+            Kind::Host(bound) => method_function(name, bound),
+            _ => unreachable!(),
+        },
+    }
+}
+
 fn documented(item: Item, doc: &str) -> Item {
     let doc = vec![doc.to_owned()];
     match item {

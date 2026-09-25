@@ -8,7 +8,16 @@
 //! the receiver's type, such as typed renames of removed spellings, consult.
 
 use crate::{capability::Registered, diagnostic::Diagnostic, syntax::Declarations};
-use std::fmt;
+use std::{collections::HashMap, fmt};
+
+mod calls;
+mod check;
+mod expr;
+mod flow;
+mod program;
+mod sigs;
+mod spans;
+mod ty;
 
 /// What the checker reads: one source, parsed, with the host functions and
 /// capabilities its engine registers.
@@ -67,7 +76,6 @@ impl CallTypes {
         self.entries.is_empty()
     }
 
-    #[allow(dead_code)]
     pub(crate) fn from_entries(mut entries: Vec<(usize, ReceiverType)>) -> Self {
         entries.sort_by_key(|(offset, _)| *offset);
         entries.dedup_by_key(|(offset, _)| *offset);
@@ -84,7 +92,6 @@ pub struct ReceiverType {
 }
 
 impl ReceiverType {
-    #[allow(dead_code)]
     pub(crate) fn new(name: String, bases: Vec<String>) -> Self {
         Self { name, bases }
     }
@@ -122,12 +129,68 @@ impl fmt::Display for ReceiverType {
 
 /// Checks one parsed source.
 pub(crate) fn check(input: &Input<'_>) -> Checked {
-    let _ = (
-        input.source,
-        input.parsed,
-        input.tokens,
-        &input.hosts,
-        input.file,
-    );
-    Checked::default()
+    let mut checker = Checker {
+        source: input.source,
+        parsed: input.parsed,
+        spans: spans::Spans::new(input.source, input.tokens),
+        types: ty::Types::new(),
+        program: program::Program::default(),
+        converter: sigs::Converter::default(),
+        diagnostics: Vec::new(),
+        calls: Vec::new(),
+        constants: HashMap::new(),
+        frame: check::Frame::new(None, false, None, String::new()),
+        purposes: Vec::new(),
+        mute: 0,
+    };
+    let _ = input.file;
+    for (name, host) in &input.hosts {
+        let function = crate::signatures::host::function(name, host);
+        let sig = checker
+            .converter
+            .convert_owned(&mut checker.types, &function, None);
+        checker
+            .program
+            .hosts
+            .insert((*name).clone(), std::rc::Rc::new(sig));
+    }
+    checker.declare_program(input.parsed);
+    checker.check_all();
+    let mut diagnostics = checker.diagnostics;
+    diagnostics.sort_by_key(|d| (d.span.start, d.span.end));
+    diagnostics.dedup_by(|a, b| a.code == b.code && a.span == b.span && a.message == b.message);
+    Checked {
+        diagnostics,
+        calls: CallTypes::from_entries(checker.calls),
+    }
+}
+
+/// The state of one check.
+pub(crate) struct Checker<'a> {
+    source: &'a str,
+    parsed: &'a Declarations,
+    spans: spans::Spans<'a>,
+    types: ty::Types,
+    program: program::Program<'a>,
+    converter: sigs::Converter,
+    diagnostics: Vec<Diagnostic>,
+    calls: Vec<(usize, ReceiverType)>,
+    /// Constants of class and module bodies, by namespace and name.
+    constants: HashMap<(Option<program::NsId>, String), ty::Ty>,
+    frame: check::Frame,
+    /// Why the value being checked against a type is checked, innermost last.
+    purposes: Vec<check::Purpose>,
+    /// While positive, diagnostics are dropped: a second look at code that
+    /// was already checked.
+    mute: u32,
+}
+
+/// The name of a symbol literal's value.
+fn symbol_text(value: &crate::Value) -> Option<String> {
+    match &value.0 {
+        crate::value::Kind::Symbol(symbol) => {
+            Some(String::from_utf8_lossy(&symbol.data).into_owned())
+        }
+        _ => None,
+    }
 }
