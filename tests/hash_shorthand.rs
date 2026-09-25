@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -18,12 +20,12 @@ fn evaluate(source: &str) -> serde_json::Value {
 fn omitted_values_use_ordinary_lookup_and_implicit_block_parameters() {
     assert_eq!(
         evaluate(
-            "def name\n7\nend\ndef with_parameter(value)\n{value:}\nend\nname=3;[name,{name:},with_parameter(4),[5].map{{it:}},[[6,7]].map{{_1:,_2:}}]"
+            "def name -> int\n7\nend\ndef with_parameter(value: int) -> { value: int }\n{value:}\nend\nname=3;[name,{name:},with_parameter(4),[5].map{{it:}},[[6,7]].map{{_1:,_2:}}]"
         ),
         serde_json::json!([3, {"name":3}, {"value":4}, [{"it":5}], [{"_1":[6,7],"_2":null}]])
     );
     assert_eq!(
-        evaluate("def name\n7\nend\n{name:}"),
+        evaluate("def name -> int\n7\nend\n{name:}"),
         serde_json::json!({"name":7})
     );
     assert_eq!(
@@ -54,28 +56,23 @@ fn labels_allow_physical_newlines_but_require_values_for_quoted_keys() {
             "{source}"
         );
     }
+    // An omitted value names a local, function or builtin, so a missing
+    // name or a keyword is refused before anything runs.
     for source in ["{missing:}", "{nil:}", "{true:}", "{false:}", "{end:}"] {
-        assert_eq!(
-            Engine::new()
-                .compile(source)
-                .unwrap()
-                .run(CallOptions::default())
-                .unwrap_err()
-                .kind,
-            ErrorKind::Name,
-            "{source}"
-        );
+        let error = common::static_engine().compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0201"], "{source}");
+        assert_eq!(error.diagnostics()[0].span.start, 1, "{source}");
     }
 }
 
 #[test]
 fn shorthand_preserves_snapshots_nested_writes_and_host_input_isolation() {
     assert_eq!(
-        evaluate("a=[1];h={a:,updated:a.push(2)};h.a.push(3);[a,h]"),
+        evaluate("a=[1];h={a:,updated:a.push(2)};h[\"a\"].push(3);[a,h]"),
         serde_json::json!([[1,2],{"a":[1,3],"updated":[1,2]}])
     );
     let script = Engine::new()
-        .compile("def run(input)\nh={input:};h.input.push(2);[input,h.input]\nend")
+        .compile("def run(input: array<int>) -> array<array<int>>\nh={input:};h[\"input\"].push(2);[input,h[\"input\"]]\nend")
         .unwrap();
     let input = Value::array(vec![Value::int(1)]);
     let output = script
@@ -90,7 +87,7 @@ fn shorthand_preserves_snapshots_nested_writes_and_host_input_isolation() {
 #[test]
 fn temporary_hash_storage_is_reclaimed_and_failures_stop_before_host_effects() {
     let script = Engine::new()
-        .compile("s=\"x\"*4096;i=0;while i<500;h={s:,i:};i+=1;end;h.keys")
+        .compile("s=\"x\"*4096;i=0;h: hash<string, string | int> = {};while i<500;h={s:,i:};i+=1;end;h.keys")
         .unwrap();
     let output = script
         .run(CallOptions {
@@ -111,18 +108,17 @@ fn temporary_hash_storage_is_reclaimed_and_failures_stop_before_host_effects() {
         counter.fetch_add(1, Ordering::Relaxed);
         Ok(Value::nil())
     });
-    let script = engine.compile("{missing:};mark()").unwrap();
-    assert_eq!(
-        script.run(CallOptions::default()).unwrap_err().kind,
-        ErrorKind::Name
-    );
+    let mut refusing = common::static_engine();
+    refusing.register("mark", |_, _| panic!("mark ran"));
+    let error = refusing.compile("{missing:};mark()").err().unwrap();
+    assert_eq!(common::codes(&error), ["V0201"]);
     let fields = (0..128)
         .map(|i| format!("field{i}:input"))
         .collect::<Vec<_>>()
         .join(",");
     let script = engine
         .compile(&format!(
-            "def run(input)\nh={{{fields}}};{{input:,h:}};mark()\nend"
+            "def run(input: int) -> any\nh={{{fields}}};{{input:,h:}};mark()\nend"
         ))
         .unwrap();
     for kind in [
