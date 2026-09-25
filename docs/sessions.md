@@ -48,7 +48,10 @@ use std::collections::BTreeMap;
 use vibescript::{CallOptions, Engine};
 
 fn main() -> vibescript::Result<()> {
-    let engine = Engine::new();
+    // Later inputs read the earlier ones' bindings, including the class, as
+    // globals, which static types cannot declare yet.
+    let mut engine = Engine::new();
+    engine.set_static_types(false);
     let mut session = BTreeMap::new();
     for source in [
         "class Box\n  @n: int\n\n  def initialize(n: int)\n    @n = n\n  end\nend\nitems = [Box.new(1)]",
