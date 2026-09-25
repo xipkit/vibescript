@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -24,10 +26,13 @@ fn interpolations_preserve_bytes_and_evaluate_parts_in_order() {
 }
 
 #[test]
-fn percent_symbols_keep_their_kind_and_do_not_change_host_inputs() {
+fn interpolated_symbols_keep_their_kind_and_do_not_change_host_inputs() {
     let input = Value::bytes(vec![0xff, b'a']);
     let result = Engine::new()
-        .compile("def run(input)\n%I[pre#{1}post #{nil} #{input}]\nend")
+        .compile(
+            "def run(input: string) -> array<symbol>\n\
+             [\"pre#{1}post\".to_sym,\"#{nil}\".to_sym,\"#{input}\".to_sym]\nend",
+        )
         .unwrap()
         .call("run", std::slice::from_ref(&input), CallOptions::default())
         .unwrap();
@@ -38,13 +43,19 @@ fn percent_symbols_keep_their_kind_and_do_not_change_host_inputs() {
         assert_eq!(value.as_bytes(), Some(expected));
     }
     assert_eq!(input.as_bytes(), Some(&b"\xffa"[..]));
+    // Percent literals were removed for array literals.
+    let error = common::static_engine()
+        .compile("def run(input: string) -> array<symbol>\n%I[pre#{1}post #{nil} #{input}]\nend")
+        .err()
+        .unwrap();
+    assert_eq!(common::codes(&error), ["V0410"]);
 }
 
 #[test]
 fn retained_prefixes_and_completed_words_count_against_later_allocations() {
     for source in [
         format!("\"{}\"", "#{allocate()}".repeat(100)),
-        format!("%I[{}]", "prefix#{allocate()}suffix ".repeat(100)),
+        format!("[{}]", "\"prefix#{allocate()}suffix\".to_sym,".repeat(100)),
     ] {
         let calls = Arc::new(AtomicUsize::new(0));
         let seen = calls.clone();
@@ -71,16 +82,17 @@ fn retained_prefixes_and_completed_words_count_against_later_allocations() {
 }
 
 #[test]
-fn nonlocal_exits_release_partial_strings_and_percent_words() {
+fn nonlocal_exits_release_partial_strings_and_words() {
     let mut engine = Engine::new();
     engine.register("allocate", |ctx, _| ctx.bytes(&[b'x'; 8192]));
     for body in [
         r##""#{allocate()}#{[1].map {return 7}}#{allocate()}""##,
-        r##"%I[#{allocate()} next#{allocate()}#{[1].each {return 7}}]"##,
-        r##"a=[];a.push("#{allocate()}#{[1].map {return 7}}");a"##,
+        r##"["#{allocate()}".to_sym,"next#{allocate()}#{[1].each {return 7}}".to_sym]"##,
+        r##"a: array<any> =[];a.push("#{allocate()}#{[1].map {return 7}}");a"##,
         r##"while true; "#{allocate()}#{[1].map {return 7}}";end"##,
     ] {
-        let source = format!("def work()\n{body}\nend\ndef run()\n200.times {{work()}};7\nend");
+        let source =
+            format!("def work() -> any\n{body}\nend\ndef run() -> int\n200.times {{work}};7\nend");
         let result = engine
             .compile(&source)
             .unwrap()
@@ -116,8 +128,8 @@ fn cancellation_during_interpolation_prevents_later_effects() {
     });
     for source in [
         r##""before #{cancel()} after #{effect()}""##,
-        r##"%W[first second#{cancel()} #{effect()}]"##,
-        r##"%I[first second#{cancel()} #{effect()}]"##,
+        r##"["first","second#{cancel()}","#{effect()}"]"##,
+        r##"[:first,"second#{cancel()}".to_sym,"#{effect()}".to_sym]"##,
     ] {
         let error = engine
             .compile(source)
@@ -136,7 +148,7 @@ fn interpolation_rendering_bounds_shared_graph_expansion() {
         input = Value::array(vec![input.clone(), input]);
     }
     let error = Engine::new()
-        .compile("def run(input)\n\"prefix #{input} suffix\"\nend")
+        .compile("def run(input: any) -> string\n\"prefix #{input} suffix\"\nend")
         .unwrap()
         .call(
             "run",
@@ -156,7 +168,7 @@ fn interpolation_rendering_bounds_shared_graph_expansion() {
 
 #[test]
 fn interpolation_nesting_reaches_eight_and_rejects_excessive_source() {
-    for (prefix, suffix) in [("\"#{", "}\""), ("%W[#{", "}]")] {
+    for (prefix, suffix) in [("\"#{", "}\""), ("[\"#{", "}\"]")] {
         let source = format!("{}7{}", prefix.repeat(8), suffix.repeat(8));
         Engine::new()
             .compile(&source)
@@ -191,7 +203,7 @@ fn interpolation_nesting_reaches_eight_and_rejects_excessive_source() {
 #[test]
 fn repeated_modulo_disambiguation_preserves_following_tokens() {
     let body = "n += total %w[0];".repeat(10_000);
-    let source = format!("w=[3];total=10;n=0;{body}n");
+    let source = format!("w: [int] = [3];total=10;n=0;{body}n");
     let result = Engine::new()
         .compile(&source)
         .unwrap()
@@ -234,26 +246,40 @@ fn malformed_literal_combinations_return_errors_without_panicking() {
 
 #[test]
 fn interpolation_publishes_loop_bindings_without_publishing_block_locals() {
-    for (body, expected) in [
+    // The static checker does not let a for loop's variable be read after
+    // the loop yet (V0202), so the cases that read one run without static
+    // types.
+    for (published, body, expected) in [
         (
-            "w=[3];r=%W[#{for x in [10];x;end} #{x %w[0]}];[r,x]",
+            true,
+            "w: [int] = [3];r=[\"#{for x in [10];x;end}\",\"#{x %w[0]}\"];[r,x]",
             serde_json::json!([["[10]", "1"], 10]),
         ),
         (
+            true,
             "r=\"#{for x in [];x;end}\";[r,x]",
             serde_json::json!(["[]", null]),
         ),
         (
-            "r=\"#{[10].map {|x|x}}\";w=[3];[r,x %w[0]]",
+            false,
+            "r=\"#{[10].map {|x|x}}\";w=[3];[r,x [\"0\"]]",
             serde_json::json!(["[10]", 1]),
         ),
         (
+            true,
             "r=\"#{for it in [10];it;end}\";[r,[1,2].map {it}]",
             serde_json::json!(["[10]", [10, 10]]),
         ),
     ] {
-        let source = format!("def x(*args)\nargs.length\nend\ndef run()\n{body}\nend");
-        let result = Engine::new()
+        let source = format!(
+            "def x(*args: array<any>) -> int\nargs.length\nend\ndef run() -> array<any>\n{body}\nend"
+        );
+        let engine = if published {
+            common::gradual_engine()
+        } else {
+            Engine::new()
+        };
+        let result = engine
             .compile(&source)
             .unwrap()
             .call("run", &[], CallOptions::default())
@@ -276,8 +302,8 @@ fn numbers_may_abut_keywords_but_not_identifiers() {
             .value
     };
     for (source, expected) in [
-        ("x = 5if true\nx", 5),
-        ("x = 5unless false\nx", 5),
+        ("x = 0\nx = 5if true\nx", 5),
+        ("x = 0\nx = 5if !false\nx", 5),
         ("x = 0\nx += 1while x < 3\nx", 3),
         ("if true then 5end", 5),
         ("if false then 1else 2end", 2),
@@ -289,8 +315,8 @@ fn numbers_may_abut_keywords_but_not_identifiers() {
         assert_eq!(run(source).as_int(), Some(expected), "{source}");
     }
     for (source, expected) in [
-        ("x = 1e3if true\nx", 1000.0),
-        ("1E-2unless false", 0.01),
+        ("x = 0.0\nx = 1e3if true\nx", 1000.0),
+        ("1E-2if !false", 0.01),
         ("if true then 2.5end", 2.5),
         ("-1e3if true", -1000.0),
         ("2 * 1.5e1if true", 30.0),
@@ -298,6 +324,11 @@ fn numbers_may_abut_keywords_but_not_identifiers() {
         let value = run(source);
         assert_eq!(value.type_name(), "float", "{source}");
         assert_eq!(value.as_float(), Some(expected), "{source}");
+    }
+    // unless was removed for `if !`.
+    for source in ["x = 5unless false", "1E-2unless false"] {
+        let error = common::static_engine().compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0407"], "{source}");
     }
     for source in [
         "5ifx", "5if_foo", "5if?", "5ifé", "5elf", "123abc", "1.5x", "1e3foo", "1e", "1e_3", "1e+",
@@ -315,7 +346,7 @@ fn numbers_may_abut_keywords_but_not_identifiers() {
 #[test]
 fn float_interpolation_uses_reference_special_values_and_exponents() {
     let script = Engine::new()
-        .compile("def run(input)\n\"#{input}\"\nend")
+        .compile("def run(input: float) -> string\n\"#{input}\"\nend")
         .unwrap();
     for (value, expected) in [
         (f64::NAN, "NaN"),
