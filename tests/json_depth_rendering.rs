@@ -45,11 +45,11 @@ fn nested_hashes(depth: usize, leaf: Value) -> Value {
 fn sinks(engine: &Engine) -> Script {
     engine
         .compile(
-            "def render(x)\nx.to_s\nend\n\
-             def interpolate(x)\n\"<#{x}>\"\nend\n\
-             def inspect_value(x)\nx.inspect\nend\n\
-             def project(x)\nformat(\"%.5s|%s\", x, x)\nend\n\
-             def emit(x)\nputs(x)\np(x)\nprint(x)\nnil\nend",
+            "def render(x: array<any> | hash<string, any>) -> string\nx.to_s\nend\n\
+             def interpolate(x: array<any> | hash<string, any>) -> string\n\"<#{x}>\"\nend\n\
+             def inspect_value(x: array<any> | hash<string, any>) -> string\nx.inspect\nend\n\
+             def project(x: array<any> | hash<string, any>) -> string\nformat(\"%.5s|%s\", x, x)\nend\n\
+             def emit(x: array<any> | hash<string, any>)\nputs(x)\np(x)\nprint(x)\nnil\nend",
         )
         .unwrap()
 }
@@ -137,7 +137,7 @@ fn special_hashes_keep_their_spelling_inside_nested_containers() {
     let (engine, stdout) = engine();
     let script = engine
         .compile(
-            "def run(o)\n\
+            "def run(o: { a: any, z: int }) -> array<string>\n\
              m = \"abc\".match(/b/)\n\
              x = [[m, o], {k: [o]}]\n\
              puts(x)\n\
