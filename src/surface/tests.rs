@@ -113,6 +113,26 @@ fn the_static_checkers_receiver_types_decide_typed_renames() {
     assert!(found[1].1.as_deref().unwrap().ends_with("e = 5.days\n"));
     // Without them, `include?` could be an array's, and is left alone.
     assert!(with_code(source, Code::REMOVED_NAME).len() == 1);
+    // An optional receiver renames as what it narrows to.
+    let optional = "def f(items: array<int>?) -> int\n  items.size\nend\n";
+    let checked = Engine::new().type_check(optional).unwrap();
+    let size = checked
+        .diagnostics
+        .iter()
+        .find(|d| d.code == Code::REMOVED_NAME)
+        .expect("a removed name");
+    assert!(size.applicable_fix().is_some(), "{size:?}");
+    // An `any` receiver is unknown, and `size` is removed on every type.
+    let untyped = "def f(items) -> int\n  items.size\nend\n";
+    let checked = Engine::new().type_check(untyped).unwrap();
+    assert!(
+        checked
+            .diagnostics
+            .iter()
+            .any(|d| d.code == Code::REMOVED_NAME && &untyped[d.span.start..d.span.end] == "size"),
+        "{:?}",
+        checked.diagnostics
+    );
 }
 
 #[test]

@@ -190,10 +190,18 @@ impl<'a> Hooks<'a> for Checker<'a> {
 
     fn receiver_kinds(&self, _: &'a syntax::Expr, call: &'a syntax::Call) -> Option<Vec<String>> {
         let receiver = self.receiver(call)?;
+        // An `any` receiver is as unknown as an untyped one.
+        if receiver.bases().iter().any(|base| base == "any") {
+            return None;
+        }
+        // An optional receiver must be narrowed before a call, which the
+        // checker reports; the spelling is decided by what it narrows to.
+        let bases = receiver.bases();
+        let present = bases.iter().any(|base| base != "nil");
         Some(
-            receiver
-                .bases()
+            bases
                 .iter()
+                .filter(|base| !present || *base != "nil")
                 .map(|base| match base.as_str() {
                     "array" | "hash" | "int" | "float" | "string" | "bool" | "nil" | "symbol"
                     | "time" | "duration" | "money" | "range" | "regex" | "match_data"
