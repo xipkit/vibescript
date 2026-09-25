@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -6,7 +8,7 @@ use vibescript::{CallOptions, Engine, ErrorKind, Limits, Value};
 
 #[test]
 fn command_nesting_reaches_its_limit_and_rejects_hostile_input() {
-    let source = format!("def id(x)\nx\nend\n{}7", "id ".repeat(64));
+    let source = format!("def id(x: int) -> int\nx\nend\n{}7", "id ".repeat(64));
     let result = Engine::new()
         .compile(&source)
         .unwrap()
@@ -31,10 +33,15 @@ fn syntax_rejections_match_the_reference() {
         serde_json::from_str(include_str!("syntax-errors.json")).unwrap();
     for case in cases.as_array().unwrap() {
         if ACCEPTED.contains(&case["name"].as_str().unwrap()) {
+            // Accepted syntax, whatever the static types say of the program.
+            let compiled = Engine::new().compile(case["source"].as_str().unwrap());
             assert!(
-                Engine::new()
-                    .compile(case["source"].as_str().unwrap())
-                    .is_ok()
+                compiled
+                    .as_ref()
+                    .err()
+                    .is_none_or(|error| error.kind != ErrorKind::Syntax),
+                "{}",
+                case["name"]
             );
             continue;
         }
@@ -80,8 +87,8 @@ fn call_parentheses_preserve_argument_accounting_and_exhaustion() {
     let mut baseline = None;
     for invocation in ["sink(*input,mode:true)", "sink *input,mode:true"] {
         let source = format!(
-            "def sink(*args,**keywords)\nargs.length+keywords.length\nend\n\
-             def run(input)\n{invocation}\nend"
+            "def sink(*args: array<int>,**keywords: hash<string, bool>) -> int\nargs.length+keywords.length\nend\n\
+             def run(input: array<int>) -> int\n{invocation}\nend"
         );
         let script = Engine::new().compile(&source).unwrap();
         let result = script
@@ -143,17 +150,16 @@ fn bare_calls_resolve_names_and_cancel_before_later_arguments() {
         ctx.cancellation().cancel();
         Ok(Value::int(1))
     });
+    // A missing name is refused before any argument runs.
     for source in ["missing tick 0", "missing.push tick 0"] {
-        let error = engine
-            .compile(source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap_err();
-        assert_eq!(error.kind, ErrorKind::Name);
-        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        let mut checked = common::static_engine();
+        checked.register("tick", |_, _| panic!("tick ran"));
+        let error = checked.compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0201"], "{source}");
+        assert_eq!(error.diagnostics()[0].span.start, 0, "{source}");
     }
     let error = engine
-        .compile("def sink(*args)\n0\nend\nsink cancel(0),tick(0)")
+        .compile("def sink(*args: array<any>) -> int\n0\nend\nsink cancel(0),tick(0)")
         .unwrap()
         .run(CallOptions::default())
         .unwrap_err();
