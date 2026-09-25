@@ -126,12 +126,20 @@ Members that always answer the same are removed: `frozen?`,
 | `until cond` | `while !cond` |
 | `do \|x\| ... end` blocks | `{ \|x\| ... }`, on one line or several |
 | symbol hash keys, `h[:name]` | string keys, `h["name"]`; `name:` labels remain in literals and keyword arguments |
+| a hash field read or written with a dot, `h.name` | `h["name"]`; dot calls methods only |
+| keyword parameters `name:`, `name: default` and `name: T:` | `*, name: T` and `*, name: T = default` (ADR-007) |
 | percent literals, `%w[a b]` | `["a", "b"]` |
 | `Hash.new` | `{}` with a declared type |
 | `x.length()`, `uuid()`, `Time.now()` | `x.length`, `uuid`, `Time.now`: a call without arguments has no parentheses |
 
 Symbols remain for enum members. Braces bind to the nearest call, so a block
 always attaches to the call it follows.
+
+Hashes are read by index only. A field never answers a dot, so it cannot
+shadow a member, and `h.as(T)` is always the cast. `h.name` on a hash or shape
+is reported with the fix `h["name"]` wherever the receiver's static type is a
+hash. Without static types, the runtime reads fields with a dot until the
+switchover.
 
 ### Diagnostics
 
@@ -212,8 +220,10 @@ methods named `send` are unaffected.
 
 The ADR-007 migration applies these changes in the same pass. `vibes fix`
 rewrites removed spellings, drops the parentheses of calls without arguments,
-converts `do...end` blocks to braces and symbol keys to strings, and rewrites integer `/` to `//` using the operand types the
-compiler has at that point, so existing arithmetic keeps its results.
+converts `do...end` blocks to braces and symbol keys to strings, indexes hash
+fields read with a dot, moves keyword parameters after a bare `*` with the type
+of a literal default, and rewrites integer `/` to `//` using the operand types
+the compiler has at that point, so existing arithmetic keeps its results.
 Truthiness tests on non-`bool` values, dynamic `require` and dispatch by name
 need rewriting by hand; each has a diagnostic that says so.
 

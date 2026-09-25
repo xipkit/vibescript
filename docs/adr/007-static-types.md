@@ -95,6 +95,13 @@ checker with predictable results.
 
 - Every parameter, including optional, keyword and rest parameters, declares a
   type: `def greet(name: string, times: int = 1, **opts: hash<string, any>)`.
+- Keyword parameters follow a bare `*` or a rest parameter and are declared
+  like positional ones: `def send_email(to: string, *, cc: string? = nil,
+  retries: int = 3)` and `def join(*items: array<int>, sep: string = ",")`.
+  Calls pass them by name, as in `send_email("a@b.c", retries: 5)`. The forms
+  `name:`, `name: default` and `name: T:` are removed (ADR-008): `name: 2`
+  read as a keyword default while `name: int` read as a typed positional
+  parameter, and a typed keyword could not have a default.
 - A function that returns a value declares `-> T`. A function without `->`
   returns `nil`: its final expression is evaluated for effect only, and
   `return value` inside it is an error.
@@ -157,8 +164,9 @@ checker with predictable results.
 ### Dynamic values
 
 - `any` is the type of values the program cannot know statically:
-  `JSON.parse` results, host globals and capability results without signatures,
-  and values stored in `any`-typed containers.
+  `JSON.parse` results, host globals declared without a type, results of host
+  functions and capability methods without signatures, and values stored in
+  `any`-typed containers.
 - An `any` value may be compared with `==`, tested with `== nil` and `is_type?`,
   passed or stored where `any` is accepted, and narrowed. Every other use is a
   compile error: calling a member, indexing, using an operator, or passing it to
@@ -235,7 +243,8 @@ checker with predictable results.
   variables are declared in the class body: `@count: int = 0` gives each
   instance that default before `initialize` runs, and `@name: string` without a
   default must be assigned on every path through `initialize`. Reading or
-  assigning an undeclared instance variable is an error.
+  assigning an undeclared instance variable is an error. Class variables are
+  declared the same way, with a value: `@@count: int = 0`.
 - Methods follow the function rules. `initialize` declares its parameter types.
 - Classes are nominal and have no inheritance (ADR-006), so there is no subtype
   relation beyond unions, `nil` and `any`.
@@ -249,6 +258,14 @@ checker with predictable results.
   are dynamic. The result has the declared return type.
 - Host functions and capabilities with signatures are typed by them. Without a
   signature they accept `any` arguments and return `any`.
+- A host declares the globals and capabilities each call supplies:
+  `Engine::declare_global(name, type)`, and `Engine::declare_capability`, which
+  types a capability's methods by their published signatures and its data by
+  its template's values. A global declared without a type, and a capability
+  built by a factory, are `any`. A bare name that is neither in scope nor
+  declared is a compile error (V0201), not `any`. `Engine::prelude` lists the
+  declarations, and each call checks at entry that its globals and
+  capabilities match them, as it checks arguments.
 - The CLI passes arguments as strings. `vibes run script.vibe a b` requires the
   entry function's parameters to accept `string`, or a rest parameter to accept
   `array<string>`, and reports a type error before running otherwise.
@@ -257,7 +274,8 @@ checker with predictable results.
 
 - A typed boundary between two well-typed parts of a program is proven at
   compile time and is not rechecked at runtime. Runtime type checks remain at
-  host entry, `JSON.parse_as`, checked casts, and capability results.
+  host entry, including declared globals and capabilities, `JSON.parse_as`,
+  checked casts, and capability results.
 - Step, memory and recursion accounting are unchanged. Sizes, loop counts and
   arbitrary-precision arithmetic stay dynamic, so every existing charge remains.
 
