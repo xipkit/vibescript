@@ -42,7 +42,19 @@ impl Files {
     }
 
     fn engine(&self) -> Engine {
-        let mut engine = Engine::new();
+        self.configure(Engine::new())
+    }
+
+    /// An engine for programs that resolve names at runtime in ways static
+    /// types do not: a required file reading its own top-level variables or
+    /// the receiving script's declarations, relative or computed requires,
+    /// and modules held as `any` values. Tests of the gradual checker use it
+    /// too.
+    fn dynamic_engine(&self) -> Engine {
+        self.configure(common::gradual_engine())
+    }
+
+    fn configure(&self, mut engine: Engine) -> Engine {
         engine
             .set_module_config(ModuleConfig {
                 paths: vec![self.0.clone()],
@@ -73,7 +85,7 @@ fn require_argument_and_alias_errors_have_the_reference_runtime_class() {
     files.write("module.vibe", "effect(); def value; 7; end");
     let effects = Arc::new(AtomicUsize::new(0));
     for strict in [false, true] {
-        let mut engine = files.engine();
+        let mut engine = files.dynamic_engine();
         engine.set_strict_effects(strict);
         let captured = effects.clone();
         engine.register("effect", move |_, _| {
@@ -149,7 +161,9 @@ fn host_signatures_resolve_required_source_types_defaults_and_root_fallbacks() {
     files.write("levels.vibe", "enum Level; Debug; Info; end; def run(x=level(:debug)); [x==Level::Debug, level(:info)==Level::Info]; end");
     files.write("fallback.vibe", "def run; level(:root)==Level::Root; end");
     for strict in [false, true] {
-        let mut engine = files.engine();
+        // The required files resolve `tag`'s and `level`'s types and the
+        // fallback's `Level` from the receiving script at runtime.
+        let mut engine = files.dynamic_engine();
         engine.set_strict_effects(strict);
         for (method, ty) in [("tag", "Widget"), ("level", "Level")] {
             engine.register_method(
@@ -191,18 +205,27 @@ fn host_signatures_resolve_required_source_types_defaults_and_root_fallbacks() {
 #[test]
 fn required_files_use_the_receiving_calls_capability_grants() {
     let files = Files::new();
-    files.write("notify.vibe", "def notify(n); sms.deliver(n); end");
-    let mut engine = files.engine();
-    engine.set_strict_effects(true);
-    let script = engine
-        .compile("def run; require(:notify).notify(21); end")
-        .unwrap();
+    files.write(
+        "notify.vibe",
+        "def notify(n: int) -> any; sms.deliver(n); end",
+    );
     let calls = Arc::new(AtomicUsize::new(0));
     let observed = calls.clone();
     let method = vibescript::HostMethod::new("sms.deliver", move |_, args, _| {
         observed.fetch_add(1, Ordering::Relaxed);
         Ok(Value::int(args[0].as_int().unwrap() * 2))
     });
+    let mut engine = files.engine();
+    engine.set_strict_effects(true);
+    engine
+        .declare_capability(&vibescript::Capability::from_value(
+            "sms",
+            Value::object(vec![(b"deliver".to_vec(), method.value())]),
+        ))
+        .unwrap();
+    let script = engine
+        .compile("def run -> any; require(\"notify\").notify(21); end")
+        .unwrap();
     let options = CallOptions {
         allow_require: true,
         capabilities: vec![vibescript::Capability::new("sms", move |_| {
@@ -230,7 +253,8 @@ fn required_files_use_the_receiving_calls_capability_grants() {
             },
         )
         .unwrap_err();
-    assert_eq!(error.kind, ErrorKind::Name);
+    assert_eq!(error.kind, ErrorKind::Argument);
+    assert!(error.message.contains("missing capability sms"), "{error}");
     assert_eq!(calls.load(Ordering::Relaxed), 2);
 }
 
@@ -249,7 +273,7 @@ fn require_denied(error: &Error) {
 fn cold_compilation_obeys_limits_without_publishing_or_initializing() {
     let files = Files::new();
     let source = format!(
-        "initialized();def unused;{}end;def value;42;end",
+        "initialized();def unused -> array<int>;{}end;def value -> int;42;end",
         "[1,2,3].map{|n|n+1};".repeat(256)
     );
     files.write("answer.vibe", &source);
@@ -267,9 +291,9 @@ fn cold_compilation_obeys_limits_without_publishing_or_initializing() {
         Ok(Value::nil())
     });
     let script = engine
-        .compile("begin;require(:answer).value;rescue;unwound();ensure;unwound();end")
+        .compile("begin;require(\"answer\").value;rescue;unwound();ensure;unwound();end")
         .unwrap();
-    let probe = engine.compile("require(:answer).value").unwrap();
+    let probe = engine.compile("require(\"answer\").value").unwrap();
     let mut unlimited = CallOptions::default();
     unlimited.limits.steps = None;
     let cold = script.run(unlimited.clone()).unwrap();
@@ -329,7 +353,7 @@ fn cold_module_type_and_percent_parsing_cannot_rescue_exhaustion() {
         Ok(Value::nil())
     });
     let script = engine
-        .compile("begin;require(:input);rescue;effect();ensure;effect();end")
+        .compile("begin;require(\"input\");rescue;effect();ensure;effect();end")
         .unwrap();
     for source in [
         format!("x=1;x %w[{}", "abc ".repeat(1024)),
@@ -349,11 +373,8 @@ fn cold_module_type_and_percent_parsing_cannot_rescue_exhaustion() {
 fn required_compilation_accepts_deep_type_literals() {
     let files = Files::new();
     let literal = format!("{}int{}", "{x:".repeat(63), "}".repeat(63));
-    files.write(
-        "deep.vibe",
-        &format!("schema={literal};def value;schema;end"),
-    );
-    let script = files.engine().compile("require(:deep).value").unwrap();
+    files.write("deep.vibe", &format!("def value -> any;{literal};end"));
+    let script = files.engine().compile("require(\"deep\").value").unwrap();
     let expected = format!("{}int{}", "{ x: ".repeat(63), " }".repeat(63));
     for _ in 0..2 {
         let result = script.run(CallOptions::default()).unwrap();
@@ -371,7 +392,7 @@ fn required_compilation_rejects_excessive_nesting_without_initializing() {
         captured.fetch_add(1, Ordering::SeqCst);
         Ok(Value::nil())
     });
-    let script = engine.compile("require(:deep)").unwrap();
+    let script = engine.compile("require(\"deep\")").unwrap();
     for (prefix, suffix) in [
         ("(", ")"),
         ("[", "]"),
@@ -406,7 +427,7 @@ fn required_compilation_rejects_excessive_nesting_without_initializing() {
 #[test]
 fn require_permission_is_per_call_and_engine_modes_are_snapshotted() {
     let files = Files::new();
-    files.write("answer.vibe", "effect();def value;42;end");
+    files.write("answer.vibe", "effect();def value -> int;42;end");
     let effects = Arc::new(AtomicUsize::new(0));
     let captured = effects.clone();
     let mut engine = files.engine();
@@ -414,7 +435,7 @@ fn require_permission_is_per_call_and_engine_modes_are_snapshotted() {
         captured.fetch_add(1, Ordering::SeqCst);
         Ok(Value::nil())
     });
-    let source = "def run(add:0);require(:answer).value+add;end";
+    let source = "def run(*, add: int = 0) -> int;require(\"answer\").value+add;end";
     let permissive = engine.compile(source).unwrap();
     assert_eq!(
         permissive
@@ -424,11 +445,12 @@ fn require_permission_is_per_call_and_engine_modes_are_snapshotted() {
             .as_int(),
         Some(42)
     );
-    fs::remove_file(files.0.join("answer.vibe")).unwrap();
     engine.set_strict_effects(true);
     let restricted = engine.compile(source).unwrap();
     engine.set_strict_effects(false);
     let later = engine.compile(source).unwrap();
+    // Every call keeps using the module compiled before its file went away.
+    fs::remove_file(files.0.join("answer.vibe")).unwrap();
     let mut expected = 1;
     for (script, strict) in [(&permissive, false), (&restricted, true), (&later, false)] {
         for allow in [false, true, false] {
@@ -481,14 +503,16 @@ fn require_permission_is_per_call_and_engine_modes_are_snapshotted() {
 fn denied_require_does_not_inspect_initialize_or_cache_modules() {
     let files = Files::new();
     files.write("blocked.vibe", "effect();def value;1;end");
-    files.write("allowed.vibe", "effect();def value;2;end");
+    files.write("allowed.vibe", "effect();def value -> int;2;end");
     files.write("invalid.vibe", "def");
     fs::write(files.0.join("bytes.vibe"), [0xff]).unwrap();
     fs::create_dir(files.0.join("directory.vibe")).unwrap();
     for development in [false, true] {
         let effects = Arc::new(AtomicUsize::new(0));
         let captured = effects.clone();
-        let mut engine = Engine::new();
+        // Static types resolve each required file at compile time, so a
+        // denied require is only reached, uninspected, without them.
+        let mut engine = common::gradual_engine();
         engine.set_strict_effects(true);
         engine
             .set_module_config(ModuleConfig {
@@ -503,18 +527,18 @@ fn denied_require_does_not_inspect_initialize_or_cache_modules() {
             Ok(Value::nil())
         });
         for expression in [
-            "require(:blocked)",
-            "require(:invalid)",
-            "require(:bytes)",
-            "require(:directory)",
-            "require(:missing)",
+            "require(\"blocked\")",
+            "require(\"invalid\")",
+            "require(\"bytes\")",
+            "require(\"directory\")",
+            "require(\"missing\")",
             "require(\"../escape\")",
             "require()",
             "require(1)",
-            "require(:blocked,:allowed)",
-            "require(:blocked,as:123)",
-            "require(:blocked,unknown:true)",
-            "require(:blocked){effect()}",
+            "require(\"blocked\",\"allowed\")",
+            "require(\"blocked\",as:123)",
+            "require(\"blocked\",unknown:true)",
+            "require(\"blocked\"){effect()}",
         ] {
             let error = engine
                 .compile(expression)
@@ -525,7 +549,7 @@ fn denied_require_does_not_inspect_initialize_or_cache_modules() {
             assert_eq!(effects.load(Ordering::SeqCst), 0, "{expression}");
         }
         let result = engine
-            .compile("require(:allowed).value")
+            .compile("require(\"allowed\").value")
             .unwrap()
             .run(CallOptions {
                 allow_require: true,
@@ -539,10 +563,12 @@ fn denied_require_does_not_inspect_initialize_or_cache_modules() {
 
 #[test]
 fn require_permission_follows_argument_evaluation_and_precedes_builtin_validation() {
+    // The module name and alias are computed, which static types refuse
+    // (`require` takes string literals).
     let files = Files::new();
     files.write("answer.vibe", "effect();def value;42;end");
     let events = Arc::new(Mutex::new(Vec::new()));
-    let mut engine = files.engine();
+    let mut engine = files.dynamic_engine();
     engine.set_strict_effects(true);
     for (name, label, result) in [
         ("module_name", "name", b"answer".as_slice()),
@@ -594,6 +620,8 @@ fn require_permission_follows_argument_evaluation_and_precedes_builtin_validatio
 
 #[test]
 fn imported_code_uses_the_receivers_require_permission() {
+    // The required files require their siblings by relative path, which
+    // static types do not resolve, and a module held as `any` is called.
     let files = Files::new();
     files.write(
         "pkg/main.vibe",
@@ -612,7 +640,7 @@ def tools;Tools;end
     );
     files.write("pkg/child.vibe", "visited();def value;42;end");
     for producer_strict in [false, true] {
-        let mut producer = files.engine();
+        let mut producer = files.dynamic_engine();
         producer.set_strict_effects(producer_strict);
         let module = producer
             .compile("require(\"pkg/main\")")
@@ -625,7 +653,7 @@ def tools;Tools;end
             .value;
         drop(producer);
         for receiver_strict in [false, true] {
-            let mut engine = Engine::new();
+            let mut engine = common::gradual_engine();
             engine.set_strict_effects(receiver_strict);
             let visits = Arc::new(AtomicUsize::new(0));
             let captured = visits.clone();
@@ -688,7 +716,7 @@ def tools;Tools;end
 #[test]
 fn require_permission_does_not_override_module_roots_or_policy() {
     let files = Files::new();
-    files.write("answer.vibe", "def value;42;end");
+    files.write("answer.vibe", "def value -> int;42;end");
     for (config, message) in [
         (ModuleConfig::default(), "module paths not configured"),
         (
@@ -719,8 +747,10 @@ fn require_permission_does_not_override_module_roots_or_policy() {
         let mut engine = Engine::new();
         engine.set_strict_effects(true);
         engine.set_module_config(config).unwrap();
+        // The module cannot load, so static types know nothing of it and
+        // the program only requires it.
         let error = engine
-            .compile("require(:answer).value")
+            .compile("require(\"answer\")")
             .unwrap()
             .run(CallOptions {
                 allow_require: true,
@@ -733,7 +763,9 @@ fn require_permission_does_not_override_module_roots_or_policy() {
 
 #[test]
 fn strict_effects_preserves_explicit_host_and_script_overrides() {
-    let mut engine = Engine::new();
+    // A host function and a script function named `require` replace the
+    // builtin at runtime; static types still read `require` as the builtin.
+    let mut engine = common::gradual_engine();
     engine.set_strict_effects(true);
     engine.register("require", |_, _| Ok(Value::int(77)));
     let registered = engine.compile("require(:ignored)").unwrap();
@@ -763,7 +795,7 @@ fn strict_effects_preserves_explicit_host_and_script_overrides() {
 fn repeated_require_denials_release_memory_and_obey_execution_limits() {
     let mut engine = Engine::new();
     engine.set_strict_effects(true);
-    let script = engine.compile("def run(n);i=0;while i<n;begin;require(:disabled);rescue=>e;raise \"wrong failure\" unless e.message.start_with?(\"strict effects:\");end;i+=1;end;42;end").unwrap();
+    let script = engine.compile("def run(n: int) -> int;i=0;while i<n;begin;require(\"disabled\");rescue=>e;raise \"wrong failure\" if !e.message.start_with?(\"strict effects:\");end;i+=1;end;42;end").unwrap();
     let mut options = CallOptions::default();
     options.limits.steps = None;
     options.limits.memory_bytes = Some(64 << 10);
@@ -808,8 +840,10 @@ fn repeated_require_denials_release_memory_and_obey_execution_limits() {
 
 #[test]
 fn require_permission_never_masks_cancellation_or_latched_exhaustion() {
+    // The module name is computed, which static types refuse (`require`
+    // takes string literals).
     for cancel in [false, true] {
-        let mut engine = Engine::new();
+        let mut engine = common::gradual_engine();
         engine.set_strict_effects(true);
         let token = CancellationToken::new();
         let signal = token.clone();
@@ -854,11 +888,11 @@ fn require_permission_never_masks_cancellation_or_latched_exhaustion() {
 async fn tokio_calls_keep_require_permission_independent() {
     use vibescript::asynchronous::Runner;
     let files = Files::new();
-    files.write("answer.vibe", "def value;42;end");
-    let mut engine = files.engine();
+    files.write("answer.vibe", "def value -> int;42;end");
+    let mut engine = files.dynamic_engine();
     engine.set_strict_effects(true);
     let script = engine
-        .compile("def run(add:0);require(:answer).value+add;end")
+        .compile("def run(*, add: int = 0) -> int;require(\"answer\").value+add;end")
         .unwrap();
     let runner = Runner::new(1).unwrap();
     for allow in [false, true, false] {
@@ -885,6 +919,8 @@ async fn tokio_calls_keep_require_permission_independent() {
 
 #[test]
 fn required_diagnostics_follow_the_source_at_each_call_site() {
+    // The required file requires its sibling by relative path, which static
+    // types do not resolve.
     let files = Files::new();
     files.write(
         "pkg/main.vibe",
@@ -892,7 +928,7 @@ fn required_diagnostics_follow_the_source_at_each_call_site() {
     );
     files.write("pkg/inner.vibe", "def fail\n 1/0\nend");
     let script = files
-        .engine()
+        .dynamic_engine()
         .compile("def run\n require(\"pkg/main\").fail()\nend")
         .unwrap();
     let error = script.call("run", &[], CallOptions::default()).unwrap_err();
@@ -953,7 +989,7 @@ fn required_parse_and_initializer_failures_identify_the_failed_file() {
             .starts_with("parse error at pkg/broken.vibe:2:2:")
     );
 
-    for source in ["1/0", "class C\n X=1/0\nend", "module C\n X=1/0\nend"] {
+    for source in ["1%0", "class C\n X=1%0\nend", "module C\n X=1%0\nend"] {
         files.write("pkg/broken.vibe", source);
         engine.clear_module_cache();
         let error = script.run(CallOptions::default()).unwrap_err();
@@ -963,7 +999,7 @@ fn required_parse_and_initializer_failures_identify_the_failed_file() {
             diagnostic.filename.as_deref(),
             Some(b"pkg/broken.vibe".as_slice())
         );
-        assert_eq!(error.offset, Some(source.find('/').unwrap()));
+        assert_eq!(error.offset, Some(source.find('%').unwrap()));
         assert_eq!(diagnostic.frames[0].filename, diagnostic.filename);
         assert!(!error.to_string().contains("__main__"));
     }
@@ -971,9 +1007,11 @@ fn required_parse_and_initializer_failures_identify_the_failed_file() {
 
 #[test]
 fn required_parse_errors_are_rescuable_without_caching_failed_sources() {
+    // The required file does not parse when the program compiles, so static
+    // types know nothing of its `answer`.
     let files = Files::new();
     files.write("broken.vibe", "def answer(");
-    let engine = files.engine();
+    let engine = files.dynamic_engine();
     let script = engine
         .compile("def run;events=[];value=begin;require(:broken).answer;rescue=>e;events.push(e.type);7;ensure;events.push(\"ensure\");end;[value,events];end")
         .unwrap();
@@ -1003,7 +1041,7 @@ fn rescued_required_syntax_keeps_its_origin_and_obeys_receiving_limits() {
     let engine = files.engine();
     assert_eq!(engine.compile("def answer(").err().unwrap().class(), None);
     let error = engine
-        .compile("begin;require(:broken);rescue;raise;end")
+        .compile("begin;require(\"broken\");rescue;raise;end")
         .unwrap()
         .run(CallOptions::default())
         .unwrap_err();
@@ -1015,7 +1053,7 @@ fn rescued_required_syntax_keeps_its_origin_and_obeys_receiving_limits() {
     );
     assert!(error.diagnostic.as_ref().unwrap().frames.is_empty());
     let script = engine
-        .compile("begin;require(:broken);rescue RuntimeError=>e;[e.type,e.code_frame.include?(\"broken.vibe\"),e.backtrace.empty?];end")
+        .compile("begin;require(\"broken\");rescue RuntimeError=>e;[e.class,e.code_frame.include?(\"broken.vibe\"),e.backtrace.empty?];end")
         .unwrap();
     let baseline = script.run(CallOptions::default()).unwrap();
     assert_eq!(
@@ -1052,16 +1090,28 @@ fn required_binding_defaults_and_blocks_keep_their_expression_origins() {
     let files = Files::new();
     files.write(
         "calls.vibe",
-        "def typed(n:int);n;end\ndef default(n=1/0);n;end\ndef invoke;yield;end\ndef returned -> int;\"bad\";end",
+        "def typed(n:int);n;end\ndef default(n: any =1//0) -> any;n;end\ndef invoke(&block: () -> any) -> any;yield;end",
     );
-    let engine = files.engine();
-    for (expression, file, line) in [
-        ("m.typed(\"bad\")", None, 3),
-        ("m.returned()", None, 3),
-        ("m.default()", Some(b"calls.vibe".as_slice()), 2),
-        ("m.invoke{1/0}", None, 3),
+    // A wrong argument now fails the cast at the call site, where the
+    // parameter check failed before. Until the switchover the runtime reads
+    // `m.default` without parentheses as a function value, while static
+    // types refuse `m.default()`, so that call runs without them.
+    for (expression, file, line, engine) in [
+        (
+            "m.typed(JSON.parse(\"\\\"bad\\\"\").as(int))",
+            None,
+            3,
+            files.engine(),
+        ),
+        (
+            "m.default()",
+            Some(b"calls.vibe".as_slice()),
+            2,
+            files.dynamic_engine(),
+        ),
+        ("m.invoke{1//0}", None, 3, files.engine()),
     ] {
-        let source = format!("def run\n m=require(:calls)\n {expression}\nend");
+        let source = format!("def run -> any\n m=require(\"calls\")\n {expression}\nend");
         let error = engine
             .compile(&source)
             .unwrap()
@@ -1075,12 +1125,25 @@ fn required_binding_defaults_and_blocks_keep_their_expression_origins() {
         );
         assert_eq!(diagnostic.position.line, line, "{expression}: {error}");
     }
+    // A required file whose function returns the wrong type does not
+    // compile, and the diagnostic names that file.
+    files.write("returns.vibe", "def returned -> int;\"bad\";end");
+    let mut engine = files.engine();
+    engine.set_static_types(true);
+    let error = engine
+        .compile("def run -> any\n m=require(\"returns\")\n m.returned\nend")
+        .err()
+        .unwrap();
+    assert_eq!(common::codes(&error), ["V0101"]);
+    assert_eq!(
+        error.diagnostics()[0].file.as_deref(),
+        Some(b"returns.vibe".as_slice())
+    );
 }
-
 #[test]
 fn rescued_required_errors_keep_named_snippets_and_traces_through_reraise() {
     let files = Files::new();
-    files.write("pkg/failure.vibe", "def fail\n 1/0\nend");
+    files.write("pkg/failure.vibe", "def fail\n 1%0\nend");
     let script = files
         .engine()
         .compile(
@@ -1093,7 +1156,7 @@ fn rescued_required_errors_keep_named_snippets_and_traces_through_reraise() {
     assert_eq!(
         json(&output.value),
         serde_json::json!([
-            "  --> pkg/failure.vibe:2:3\n 2 |  1/0\n   |   ^",
+            "  --> pkg/failure.vibe:2:3\n 2 |  1%0\n   |   ^",
             ["pkg/failure.vibe:2:3:in `fail`", "2:1:in `fail`"],
         ])
     );
@@ -1127,11 +1190,13 @@ fn rescued_required_errors_keep_named_snippets_and_traces_through_reraise() {
 
 #[test]
 fn imported_module_errors_keep_original_filenames_without_retaining_host_state() {
+    // The receiver calls a module the host passes in, which static types
+    // hold as `any` and never call.
     let files = Files::new();
     files.write("original/module.vibe", "def fail\n host()\nend");
     let state = Arc::new(AtomicUsize::new(0));
     let captured = state.clone();
-    let mut engine = files.engine();
+    let mut engine = files.dynamic_engine();
     engine.register("host", move |_, _| {
         captured.fetch_add(1, Ordering::Relaxed);
         Err(vibescript::Error::new(ErrorKind::Host, "host failed"))
@@ -1143,7 +1208,9 @@ fn imported_module_errors_keep_original_filenames_without_retaining_host_state()
         .unwrap()
         .value;
     drop(engine);
-    let receiver = Engine::new().compile("def run(m)\n m.fail()\nend").unwrap();
+    let receiver = common::gradual_engine()
+        .compile("def run(m)\n m.fail()\nend")
+        .unwrap();
     let error = receiver
         .call("run", &[module], CallOptions::default())
         .unwrap_err();
@@ -1166,6 +1233,8 @@ fn imported_module_errors_keep_original_filenames_without_retaining_host_state()
 
 #[test]
 fn module_exports_share_private_state_and_reset_each_call() {
+    // The module's functions share the file's top-level variables, which
+    // static types do not resolve inside a function.
     let files = Files::new();
     files.write(
         "counter.vibe",
@@ -1182,7 +1251,7 @@ end
 "#,
     );
     let script = files
-        .engine()
+        .dynamic_engine()
         .compile(
             r#"def run
  m=require("counter",as: :Counter)
@@ -1201,12 +1270,14 @@ end"#,
 
 #[test]
 fn indexed_scoped_and_symbolic_calls_keep_the_module_target() {
+    // The module's functions read the file's top-level variables, and the
+    // calls index the module; static types resolve neither.
     let files = Files::new();
     files.write(
         "calls.vibe",
         "x=0\ndef add(n=1);x+=n;x;end\ndef apply(n,extra:2);yield(n+extra);end",
     );
-    let engine = files.engine();
+    let engine = files.dynamic_engine();
     for expression in [
         "m.add(2)",
         "m::add(2)",
@@ -1246,8 +1317,13 @@ fn indexed_scoped_and_symbolic_calls_keep_the_module_target() {
 #[test]
 fn exported_functions_cannot_be_extracted_stored_passed_or_returned() {
     let files = Files::new();
-    files.write("functions.vibe", "def fn(n);n;end\ndef zero;7;end");
-    let mut engine = files.engine();
+    files.write(
+        "functions.vibe",
+        "def fn(n: any) -> any;n;end\ndef zero -> int;7;end",
+    );
+    // Static types never index or enumerate a module, so the escapes run
+    // without them; the refusals follow.
+    let mut engine = files.dynamic_engine();
     let effects = Arc::new(AtomicUsize::new(0));
     let captured = effects.clone();
     engine.register("effect", move |_, _| {
@@ -1291,12 +1367,42 @@ fn exported_functions_cannot_be_extracted_stored_passed_or_returned() {
             "{expression}: {error:?}"
         );
     }
+    // Static types never index, enumerate or splat a module, so each of those
+    // escapes is refused at compile time.
+    let mut refusing = files.engine();
+    refusing.set_static_types(true);
+    refusing.register("effect", |_, _| panic!("effect ran"));
+    for expression in [
+        "m[\"fn\"]",
+        "m[\"zero\"]",
+        "m.fetch(\"fn\")",
+        "m.dig(\"fn\")",
+        "m.values",
+        "(m.values)(effect())",
+        "(m.fetch_values(\"fn\"))(effect())",
+        "m.values_at(\"fn\")",
+        "m.fetch_values(\"fn\")",
+        "x=m[\"fn\"];x(1)",
+        "[m[\"fn\"]]",
+        "{value:m[\"fn\"]}",
+        "effect(m[\"fn\"])",
+        "m.each_value{|fn|effect(fn)}",
+        "m.each{|key,fn|effect(fn)}",
+        "m.each_value{effect()}",
+        "for key,fn in m;effect(fn);end",
+        "effect(**m)",
+        "m[\"fn\"].call(1)",
+    ] {
+        let source = format!("m=require(\"functions\");{expression};effect()");
+        let error = refusing.compile(&source).err().expect(expression);
+        assert!(!common::codes(&error).is_empty(), "{expression}: {error:?}");
+    }
 }
 
 #[test]
 fn aliases_reuse_a_module_but_reject_conflicts_before_initialization() {
     let files = Files::new();
-    files.write("module.vibe", "effect();def value;7;end");
+    files.write("module.vibe", "effect();def value -> int;7;end");
     let mut engine = files.engine();
     let effects = Arc::new(AtomicUsize::new(0));
     let captured = effects.clone();
@@ -1305,20 +1411,28 @@ fn aliases_reuse_a_module_but_reject_conflicts_before_initialization() {
         Ok(Value::nil())
     });
     let output = engine
-        .compile("a=require(:module,as: :M);b=require(:module,as: :M);[a.value,b.value,M.value]")
+        .compile("a=require(\"module\",as: \"M\");b=require(\"module\",as: \"M\");[a.value,b.value,M.value]")
         .unwrap()
         .run(CallOptions::default())
         .unwrap();
     assert_eq!(json(&output.value), serde_json::json!([7, 7, 7]));
     assert_eq!(effects.swap(0, Ordering::SeqCst), 1);
     for source in [
-        "M=nil;require(:module,as: :M)",
-        "def M;1;end;require(:module,as: :M)",
-        "require(:module,as: :Math)",
-        "require(:module,as: :effect)",
-        "def run(M);require(:module,as: :M);end;run(1)",
-        "module Scope;M=1;def self.load;require(:module,as: :M);end;end;Scope.load",
+        "M=nil;require(\"module\",as: \"M\")",
+        "def M -> int;1;end;require(\"module\",as: \"M\")",
+        "require(\"module\",as: \"Math\")",
+        "require(\"module\",as: \"effect\")",
+        "def run(M: int) -> any;require(\"module\",as: \"M\");end;run(1)",
+        "module Scope;M=1;def self.load -> any;require(\"module\",as: \"M\");end;end;Scope.load",
     ] {
+        // The runtime rejects an alias that names an existing binding;
+        // static types instead bind the alias over it.
+        let mut engine = files.dynamic_engine();
+        let captured = effects.clone();
+        engine.register("effect", move |_, _| {
+            captured.fetch_add(1, Ordering::SeqCst);
+            Ok(Value::nil())
+        });
         let error = engine
             .compile(source)
             .unwrap()
@@ -1331,11 +1445,13 @@ fn aliases_reuse_a_module_but_reject_conflicts_before_initialization() {
 
 #[test]
 fn retained_modules_are_isolated_at_call_boundaries() {
+    // The module's functions share the file's top-level variables, which
+    // static types do not resolve inside a function.
     let files = Files::new();
     files.write("counter.vibe", "x=0;def add(n);x+=n;x;end");
-    let maker = files.engine().compile("require(:counter)").unwrap();
+    let maker = files.dynamic_engine().compile("require(:counter)").unwrap();
     let module = maker.run(CallOptions::default()).unwrap().value;
-    let receiver = Engine::new()
+    let receiver = common::gradual_engine()
         .compile("def run(m);[m.add(2),m.add(3)];end")
         .unwrap();
     for _ in 0..2 {
@@ -1350,7 +1466,7 @@ fn retained_modules_are_isolated_at_call_boundaries() {
 #[test]
 fn failed_initialization_is_retryable_and_does_not_publish_exports() {
     let files = Files::new();
-    files.write("failure.vibe", "attempt();def exported;7;end");
+    files.write("failure.vibe", "attempt();def exported -> int;7;end");
     let mut engine = files.engine();
     let attempts = Arc::new(AtomicUsize::new(0));
     let captured = attempts.clone();
@@ -1363,9 +1479,9 @@ fn failed_initialization_is_retryable_and_does_not_publish_exports() {
     });
     let output = engine
         .compile(
-            r#"first=begin;require(:failure,as: :M);rescue;true;end
+            r#"first=begin;require("failure",as: "M");rescue;true;end
 missing=begin;exported();rescue;true;end
-m=require(:failure,as: :M)
+m=require("failure",as: "M")
 [first,missing,m.exported,M.exported,exported()]"#,
         )
         .unwrap()
@@ -1381,10 +1497,10 @@ m=require(:failure,as: :M)
 #[test]
 fn host_transfers_cannot_admit_detached_exported_functions() {
     let files = Files::new();
-    files.write("exports.vibe", "def fn(n);n;end");
+    files.write("exports.vibe", "def fn(n: any);n;end");
     let module = files
         .engine()
-        .compile("require(:exports)")
+        .compile("require(\"exports\")")
         .unwrap()
         .run(CallOptions::default())
         .unwrap()
@@ -1399,7 +1515,9 @@ fn host_transfers_cannot_admit_detached_exported_functions() {
         captured.fetch_add(1, Ordering::SeqCst);
         Ok(Value::nil())
     });
-    let receiver = engine.compile("def run(m);effect();m;end").unwrap();
+    let receiver = engine
+        .compile("def run(m: any) -> any;effect();m;end")
+        .unwrap();
     for value in [
         function.clone(),
         Value::array(vec![function.clone()]),
@@ -1411,7 +1529,15 @@ fn host_transfers_cannot_admit_detached_exported_functions() {
         assert_eq!(error.kind, ErrorKind::Type);
         assert_eq!(effects.load(Ordering::SeqCst), 0);
     }
-    for expression in ["detached()", "detached()(1)", "effect(detached())"] {
+    // Static types never call a host's result, so calling the detached
+    // function is refused at compile time.
+    let mut refusing = common::static_engine();
+    refusing.register("detached", |_, _| panic!("detached ran"));
+    refusing.register("effect", |_, _| panic!("effect ran"));
+    let error = refusing.compile("detached()(1);effect()").err().unwrap();
+    assert_eq!(common::codes(&error), ["V0106"]);
+    assert_eq!(error.diagnostics()[0].span.start, 0);
+    for expression in ["detached()", "effect(detached())"] {
         let source = format!("{expression};effect()");
         let error = engine
             .compile(&source)
@@ -1434,13 +1560,13 @@ fn failed_initialization_releases_unreachable_private_values() {
         ),
         (
             "instances",
-            "class Box;def initialize;@payload=\"x\"*16384;end;end;item=Box.new;raise \"failed\"",
+            "class Box;@payload: string;def initialize;@payload=\"x\"*16384;end;end;item=Box.new;raise \"failed\"",
         ),
     ] {
         files.write("failure.vibe", source);
         let script = files
             .engine()
-            .compile("def run(n);n.times{begin;require(:failure);rescue;nil;end};nil;end")
+            .compile("def run(n: int);n.times{begin;require(\"failure\");rescue;nil;end};nil;end")
             .unwrap();
         let counts: &[i64] = if name == "instances" {
             &[100, 1000, 5000]
@@ -1461,6 +1587,8 @@ fn failed_initialization_releases_unreachable_private_values() {
 
 #[test]
 fn escaped_failed_file_state_survives_collection_and_remains_isolated() {
+    // The module's functions read the file's top-level `items`, and the
+    // receiver calls a module held as `any`; static types resolve neither.
     let files = Files::new();
     files.write("failure.vibe", "payload=\"x\"*256;raise \"failed\"");
     files.write(
@@ -1479,7 +1607,7 @@ save(Counter)
 raise "failed""#,
     );
     let saved = Arc::new(Mutex::new(None));
-    let mut engine = files.engine();
+    let mut engine = files.dynamic_engine();
     let captured = saved.clone();
     engine.register("save", move |_, args| {
         *captured.lock().unwrap() = Some(args[0].clone());
@@ -1498,7 +1626,7 @@ raise "failed""#,
         .unwrap()
         .value;
     assert!(saved.lock().unwrap().is_none());
-    let receiver = Engine::new()
+    let receiver = common::gradual_engine()
         .compile("def run(m);[m.values,m.add(9),m::Nested.read,m.identity==m];end;def identity(m);m.identity;end")
         .unwrap();
     let module = receiver
@@ -1514,7 +1642,7 @@ raise "failed""#,
             serde_json::json!([[7, 8], [7, 8, 9], [3], true])
         );
     }
-    let mut consumer = files.engine();
+    let mut consumer = files.dynamic_engine();
     consumer.register("provide", move |_, _| Ok(module.clone()));
     for (expression, expected) in [
         (
@@ -1542,12 +1670,12 @@ raise "failed""#,
 #[test]
 fn cached_compilation_preserves_each_scripts_registered_callbacks() {
     let files = Files::new();
-    files.write("host.vibe", "def value;host_value();end");
+    files.write("host.vibe", "def value -> int;host_value().as(int);end");
     let mut engine = files.engine();
     engine.register("host_value", |_, _| Ok(Value::int(1)));
-    let first = engine.compile("require(:host).value").unwrap();
+    let first = engine.compile("require(\"host\").value").unwrap();
     engine.register("host_value", |_, _| Ok(Value::int(2)));
-    let second = engine.compile("require(:host).value").unwrap();
+    let second = engine.compile("require(\"host\").value").unwrap();
     for (script, expected) in [(&second, 2), (&first, 1), (&second, 2), (&first, 1)] {
         assert_eq!(
             script.run(CallOptions::default()).unwrap().value.as_int(),
@@ -1555,12 +1683,13 @@ fn cached_compilation_preserves_each_scripts_registered_callbacks() {
         );
     }
     let module = engine
-        .compile("require(:host)")
+        .compile("require(\"host\")")
         .unwrap()
         .run(CallOptions::default())
         .unwrap()
         .value;
-    let mut receiving = Engine::new();
+    // A module the host passes in is `any`, which static types never call.
+    let mut receiving = common::gradual_engine();
     receiving.register("host_value", |_, _| Ok(Value::int(99)));
     let receiver = receiving.compile("def run(m);m.value;end").unwrap();
     assert_eq!(
@@ -1578,11 +1707,11 @@ fn cold_compilation_inherits_mixed_hosts_through_nested_requires() {
     let files = Files::new();
     files.write(
         "leaf.vibe",
-        "def value;[alpha(),middle(zeta()){ |n| n+1 },zeta()];end",
+        "def value -> array<int>;[alpha().as(int),middle(zeta()){ |n| n.as(int)+1 }.as(int),zeta().as(int)];end",
     );
     files.write(
         "parent.vibe",
-        "leaf=require(:leaf);def value;leaf.value;end",
+        "def value -> array<int>;require(\"leaf\").value;end",
     );
     let calls = Arc::new(AtomicUsize::new(0));
     let mut engine = files.engine();
@@ -1597,7 +1726,7 @@ fn cold_compilation_inherits_mixed_hosts_through_nested_requires() {
         "middle",
         vibescript::HostMethod::new_with_block("middle", |call, args, _| call.call_block(args)),
     );
-    let source = "require(:parent).value";
+    let source = "require(\"parent\").value";
     let original = engine.compile(source).unwrap();
     engine.register("alpha", |_, _| Ok(Value::int(100)));
     engine.register("zeta", |_, _| Ok(Value::int(300)));
@@ -1621,17 +1750,19 @@ fn alias_rejections_release_unpublished_scopes_without_running_initializers() {
     let files = Files::new();
     files.write(
         "rejected.vibe",
-        "enum State;Ready;end;def value;1;end;effect()",
+        "enum State;Ready;end;def value -> int;1;end;effect()",
     );
     let effects = Arc::new(AtomicUsize::new(0));
     let captured = effects.clone();
-    let mut engine = files.engine();
+    // The runtime rejects an alias that names an existing function; static
+    // types instead bind the alias over the function.
+    let mut engine = files.dynamic_engine();
     engine.register("effect", move |_, _| {
         captured.fetch_add(1, Ordering::SeqCst);
         Ok(Value::nil())
     });
     let script = engine
-        .compile("def taken;7;end;def run(n);n.times{begin;require(:rejected,as: :taken);rescue;nil;end};taken;end")
+        .compile("def taken -> int;7;end;def run(n: int) -> int;n.times{begin;require(\"rejected\",as: \"taken\");rescue;nil;end};taken;end")
         .unwrap();
     // Module lookup scratch scales with the platform's PATH_MAX, so leave room
     // for it; a per-iteration leak would still exhaust this across 1,000 calls.
@@ -1648,13 +1779,15 @@ fn alias_rejections_release_unpublished_scopes_without_running_initializers() {
 
 #[test]
 fn failed_parents_preserve_completed_dependencies_when_scope_slots_are_reused() {
+    // The module's functions read the file's top-level variables, which
+    // static types do not resolve inside a function.
     let files = Files::new();
     files.write("stable.vibe", "effect();count=0;def add;count+=1;count;end");
     files.write("a.vibe", "require(:stable);payload=\"x\"*256;require(:b)");
     files.write("b.vibe", "require(:a)");
     let effects = Arc::new(AtomicUsize::new(0));
     let captured = effects.clone();
-    let mut engine = files.engine();
+    let mut engine = files.dynamic_engine();
     engine.register("effect", move |_, _| {
         captured.fetch_add(1, Ordering::SeqCst);
         Ok(Value::nil())
@@ -1674,7 +1807,7 @@ fn failed_parents_preserve_completed_dependencies_when_scope_slots_are_reused() 
 fn cache_modes_clear_and_pins_keep_per_call_compilation_consistent() {
     let files = Files::new();
     for development in [false, true] {
-        files.write("cache.vibe", "def value;1;end");
+        files.write("cache.vibe", "def value -> int;1;end");
         let mut engine = Engine::new();
         engine
             .set_module_config(ModuleConfig {
@@ -1683,12 +1816,12 @@ fn cache_modes_clear_and_pins_keep_per_call_compilation_consistent() {
                 ..ModuleConfig::default()
             })
             .unwrap();
-        let script = engine.compile("require(:cache).value").unwrap();
+        let script = engine.compile("require(\"cache\").value").unwrap();
         assert_eq!(
             script.run(CallOptions::default()).unwrap().value.as_int(),
             Some(1)
         );
-        files.write("cache.vibe", "def value;222;end");
+        files.write("cache.vibe", "def value -> int;222;end");
         assert_eq!(
             script.run(CallOptions::default()).unwrap().value.as_int(),
             Some(if development { 222 } else { 1 })
@@ -1699,13 +1832,13 @@ fn cache_modes_clear_and_pins_keep_per_call_compilation_consistent() {
             Some(222)
         );
     }
-    files.write("cache.vibe", "def value;1;end");
+    files.write("cache.vibe", "def value -> int;1;end");
     let mut engine = files.engine();
     let cache_file = files.0.join("cache.vibe");
     let holder = Arc::new(std::sync::OnceLock::<std::sync::Weak<Engine>>::new());
     let captured = holder.clone();
     engine.register("replace_source", move |_, _| {
-        fs::write(&cache_file, "def value;222;end").unwrap();
+        fs::write(&cache_file, "def value -> int;222;end").unwrap();
         captured
             .get()
             .unwrap()
@@ -1717,7 +1850,9 @@ fn cache_modes_clear_and_pins_keep_per_call_compilation_consistent() {
     let engine = Arc::new(engine);
     holder.set(Arc::downgrade(&engine)).unwrap();
     let script = engine
-        .compile("a=require(:cache);replace_source();b=require(\"cache.vibe\");[a.value,b.value]")
+        .compile(
+            "a=require(\"cache\");replace_source();b=require(\"cache.vibe\");[a.value,b.value]",
+        )
         .unwrap();
     assert_eq!(
         json(&script.run(CallOptions::default()).unwrap().value),
@@ -1725,7 +1860,7 @@ fn cache_modes_clear_and_pins_keep_per_call_compilation_consistent() {
     );
     assert_eq!(
         engine
-            .compile("require(:cache).value")
+            .compile("require(\"cache\").value")
             .unwrap()
             .run(CallOptions::default())
             .unwrap()
@@ -1737,13 +1872,15 @@ fn cache_modes_clear_and_pins_keep_per_call_compilation_consistent() {
 
 #[test]
 fn relative_imports_policy_and_cycle_diagnostics_use_file_origins() {
+    // The required files require their siblings by relative path, which
+    // static types do not resolve.
     let files = Files::new();
     files.write(
         "package/main.vibe",
         "m=require(\"./child\");def value;m.value;end",
     );
     files.write("package/child.vibe", "def value;7;end");
-    let engine = files.engine();
+    let engine = files.dynamic_engine();
     assert_eq!(
         engine
             .compile("require(\"package/main\").value")
@@ -1766,7 +1903,7 @@ fn relative_imports_policy_and_cycle_diagnostics_use_file_origins() {
         error.message.contains("a.vibe -> b.vibe -> a.vibe"),
         "{error:?}"
     );
-    let mut denied = Engine::new();
+    let mut denied = common::gradual_engine();
     denied
         .set_module_config(ModuleConfig {
             paths: vec![files.0.clone()],
@@ -1784,19 +1921,23 @@ fn relative_imports_policy_and_cycle_diagnostics_use_file_origins() {
 
 #[test]
 fn exported_calls_observe_receiving_budgets_and_cancellation() {
+    // The receiver calls a module the host passes in, which static types
+    // hold as `any` and never call.
     let files = Files::new();
     files.write(
         "work.vibe",
         "def work(n);a=[];for i in 1..n;a.push(i);end;a.length;end",
     );
     let module = files
-        .engine()
+        .dynamic_engine()
         .compile("require(:work)")
         .unwrap()
         .run(CallOptions::default())
         .unwrap()
         .value;
-    let receiver = Engine::new().compile("def run(m);m.work(100);end").unwrap();
+    let receiver = common::gradual_engine()
+        .compile("def run(m);m.work(100);end")
+        .unwrap();
     let baseline = receiver
         .call("run", std::slice::from_ref(&module), CallOptions::default())
         .unwrap();
@@ -1846,6 +1987,8 @@ fn exported_calls_observe_receiving_budgets_and_cancellation() {
 
 #[test]
 fn required_code_resolves_receiving_declarations_aliases_and_private_assignment() {
+    // The required file resolves the receiving script's declarations and
+    // aliases at runtime, which static types do not.
     let files = Files::new();
     files.write(
         "reader.vibe",
@@ -1859,14 +2002,14 @@ def local;secret;end
     );
     files.write("peer.vibe", "def zero;17;end");
     let module = files
-        .engine()
+        .dynamic_engine()
         .compile("require(:reader)")
         .unwrap()
         .run(CallOptions::default())
         .unwrap()
         .value;
     let receiver = files
-        .engine()
+        .dynamic_engine()
         .compile(
             r#"
 class Root
@@ -1901,13 +2044,15 @@ end
 
 #[test]
 fn required_environments_and_root_aliases_preserve_captured_negative_indices() {
+    // The module's functions read the file's top-level variables and the
+    // receiving script's aliases, which static types do not resolve.
     let files = Files::new();
     files.write("empty.vibe", "nil");
     files.write(
         "rows.vibe",
         "rows=[[1]];def change;before=rows;x=rows[-1].push((while true;rows.push([9]);break 2;end));[x,rows,before];end",
     );
-    let engine = files.engine();
+    let engine = files.dynamic_engine();
     for source in [
         "require(:rows).change",
         "require(:empty,as: :Rows);Rows=[[1]];def change;before=Rows;x=Rows[-1].push((while true;Rows.push([9]);break 2;end));[x,Rows,before];end;change",
@@ -1926,6 +2071,8 @@ fn required_environments_and_root_aliases_preserve_captured_negative_indices() {
 
 #[test]
 fn required_files_read_receiving_globals_and_keep_private_assignments() {
+    // The required file reads the receiving script's globals and its own
+    // top-level variables, which static types do not resolve in a function.
     let files = Files::new();
     files.write(
         "read.vibe",
@@ -1935,7 +2082,7 @@ fn required_files_read_receiving_globals_and_keep_private_assignments() {
         "private.vibe",
         "payload=[7];def read;payload;end;def change;payload.push(8);end",
     );
-    let script = files.engine().compile("def helper;99;end;class Box;end;m=require(:read);p=require(:private);before=m.read;m.change;p.change;[before,m.read,p.read,payload]").unwrap();
+    let script = files.dynamic_engine().compile("def helper;99;end;class Box;end;m=require(:read);p=require(:private);before=m.read;m.change;p.change;[before,m.read,p.read,payload]").unwrap();
     let input = Value::array(vec![Value::int(1)]);
     let opts = CallOptions {
         globals: [
@@ -1961,11 +2108,13 @@ fn required_files_read_receiving_globals_and_keep_private_assignments() {
 
 #[test]
 fn receiving_module_aliases_do_not_replace_foreign_static_call_targets() {
+    // The receiver calls an instance of another script's class, which
+    // static types hold as `any` and never call.
     let files = Files::new();
     files.write("empty.vibe", "nil");
-    let original = Engine::new().compile("def helper;7;end;class C;def run;[helper,helper(),helper(*[]),helper{1},(helper)()];end;end;C.new").unwrap().run(CallOptions::default()).unwrap().value;
+    let original = common::gradual_engine().compile("def helper;7;end;class C;def run;[helper,helper(),helper(*[]),helper{1},(helper)()];end;end;C.new").unwrap().run(CallOptions::default()).unwrap().value;
     let receiver = files
-        .engine()
+        .dynamic_engine()
         .compile("def run(value);require(:empty,as: :helper);value.run;end")
         .unwrap();
     assert_eq!(
@@ -1983,7 +2132,8 @@ fn receiving_module_aliases_do_not_replace_foreign_static_call_targets() {
 fn dynamic_root_aliases_support_assignment_nested_writes_and_parameter_shadowing() {
     let files = Files::new();
     files.write("empty.vibe", "1");
-    let engine = files.engine();
+    // A root alias is a runtime global that functions assign and read.
+    let engine = files.dynamic_engine();
     let output = engine
         .compile(
             r#"
@@ -2019,10 +2169,12 @@ def bump;A+=2;A;end
 
 #[test]
 fn required_enums_resolve_global_and_alias_type_annotations() {
+    // The annotations name enums through runtime globals and aliases, which
+    // static types do not resolve.
     let files = Files::new();
     files.write("state.vibe", "enum State\n Ready\nend");
     let output = files
-        .engine()
+        .dynamic_engine()
         .compile(
             r#"
 def plain(value: State);value.name;end
@@ -2039,16 +2191,18 @@ require(:state,as: :M)
 
 #[test]
 fn foreign_required_functions_can_find_new_receiving_hosts_and_root_functions() {
+    // The required file finds hosts and functions of the receiving script at
+    // runtime, and the receiver calls a module held as `any`.
     let files = Files::new();
     files.write("foreign.vibe", "def run;[late_host(),shared(),Math()];end");
     let module = files
-        .engine()
+        .dynamic_engine()
         .compile("require(:foreign)")
         .unwrap()
         .run(CallOptions::default())
         .unwrap()
         .value;
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register("late_host", |_, _| Ok(Value::int(3)));
     let receiver = engine
         .compile("def shared;5;end\ndef Math;7;end\ndef run(m);m.run;end")
@@ -2066,12 +2220,14 @@ fn foreign_required_functions_can_find_new_receiving_hosts_and_root_functions() 
 
 #[test]
 fn exported_targets_are_selected_before_arguments_change_the_module() {
+    // The arguments write the module's functions as fields, which static
+    // types refuse.
     let files = Files::new();
     files.write(
         "selection.vibe",
         "def fn(n);n+1;end\ndef push(n,extra:0);n+extra+2;end",
     );
-    let engine = files.engine();
+    let engine = files.dynamic_engine();
     for (expression, expected) in [
         ("m.fn(begin;m.fn=7;end)", 8),
         ("m[:fn](begin;m.fn=7;end)", 8),
@@ -2093,10 +2249,15 @@ fn exported_targets_are_selected_before_arguments_change_the_module() {
 #[test]
 fn auto_calls_in_mutation_paths_preserve_returned_collection_values() {
     let files = Files::new();
-    files.write("collections.vibe", "data=[1];def items;data;end");
+    files.write(
+        "collections.vibe",
+        "data=[1];def items -> array<int>;data;end",
+    );
+    // `items` reads the file's top-level `data`, and the program reads the
+    // module's keys, neither of which static types resolve.
     let output = files
-        .engine()
-        .compile("m=require(:collections);m.items.push(2);[m.items,m.keys]")
+        .dynamic_engine()
+        .compile("m=require(\"collections\");m.items.push(2);[m.items,m.keys]")
         .unwrap()
         .run(CallOptions::default())
         .unwrap();
@@ -2105,12 +2266,13 @@ fn auto_calls_in_mutation_paths_preserve_returned_collection_values() {
 
 #[test]
 fn namespace_initializers_run_before_file_bodies_once_per_call() {
+    // The program reads a module's keys, which static types do not type.
     let files = Files::new();
     files.write(
         "order.vibe",
         "class Hidden\n event(1)\nend\nevent(2)\ndef value;3;end",
     );
-    let mut engine = files.engine();
+    let mut engine = files.dynamic_engine();
     let events = Arc::new(std::sync::Mutex::new(Vec::new()));
     let captured = events.clone();
     engine.register("event", move |_, args| {
@@ -2131,6 +2293,8 @@ fn namespace_initializers_run_before_file_bodies_once_per_call() {
 
 #[test]
 fn receiving_policy_controls_relative_require_from_retained_functions() {
+    // The required files require their siblings by relative path, which
+    // static types do not resolve.
     let files = Files::new();
     files.write(
         "package/main.vibe",
@@ -2138,13 +2302,13 @@ fn receiving_policy_controls_relative_require_from_retained_functions() {
     );
     files.write("package/child.vibe", "def value;7;end");
     let module = files
-        .engine()
+        .dynamic_engine()
         .compile("require(\"package/main\")")
         .unwrap()
         .run(CallOptions::default())
         .unwrap()
         .value;
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine
         .set_module_config(ModuleConfig {
             deny: vec!["package/child".into()],
@@ -2156,7 +2320,9 @@ fn receiving_policy_controls_relative_require_from_retained_functions() {
         .call("run", std::slice::from_ref(&module), CallOptions::default())
         .unwrap_err();
     assert!(error.message.contains("denied by policy"), "{error:?}");
-    let receiver = Engine::new().compile("def run(m);m.child;end").unwrap();
+    let receiver = common::gradual_engine()
+        .compile("def run(m);m.child;end")
+        .unwrap();
     assert_eq!(
         receiver
             .call("run", &[module], CallOptions::default())
@@ -2180,7 +2346,7 @@ fn configured_cache_source_limits_and_mid_initializer_cancellation_are_enforced(
             ..ModuleConfig::default()
         })
         .unwrap();
-    let script = engine.compile("require(:one);require(:two)").unwrap();
+    let script = engine.compile("require(\"one\");require(\"two\")").unwrap();
     let error = script.run(CallOptions::default()).unwrap_err();
     assert!(error.message.contains("cache limit reached"), "{error:?}");
     engine
@@ -2191,7 +2357,7 @@ fn configured_cache_source_limits_and_mid_initializer_cancellation_are_enforced(
         })
         .unwrap();
     let error = engine
-        .compile("require(:one)")
+        .compile("require(\"one\")")
         .unwrap()
         .run(CallOptions::default())
         .unwrap_err();
@@ -2199,7 +2365,7 @@ fn configured_cache_source_limits_and_mid_initializer_cancellation_are_enforced(
         error.message.contains("source exceeds maximum size"),
         "{error:?}"
     );
-    files.write("cancel.vibe", "stop();effect();def value;1;end");
+    files.write("cancel.vibe", "stop();effect();def value -> int;1;end");
     let mut engine = files.engine();
     let token = CancellationToken::new();
     let captured = token.clone();
@@ -2214,7 +2380,7 @@ fn configured_cache_source_limits_and_mid_initializer_cancellation_are_enforced(
         Ok(Value::nil())
     });
     let script = engine
-        .compile("begin;require(:cancel);rescue;effect();ensure;effect();end;effect()")
+        .compile("begin;require(\"cancel\");rescue;effect();ensure;effect();end;effect()")
         .unwrap();
     let error = script
         .run(CallOptions {
@@ -2231,7 +2397,7 @@ fn required_files_keep_host_block_control_and_error_source_locations() {
     let files = Files::new();
     files.write(
         "worker.vibe",
-        "def work(n)\n visit(n) { |x| raise \"from block\" if x==0; return x+1 }\n 99\nend",
+        "def work(n: int) -> int\n visit(n) { |x| raise \"from block\" if x==0; return x.as(int)+1 }\n 99\nend",
     );
     let captured = Arc::new(Mutex::new(None));
     let seen = captured.clone();
@@ -2244,6 +2410,10 @@ fn required_files_keep_host_block_control_and_error_source_locations() {
         }
         result
     });
+    let mut engine = files.engine();
+    engine
+        .declare_capability(&vibescript::Capability::from_value("visit", method.value()))
+        .unwrap();
     let opts = CallOptions {
         allow_require: true,
         capabilities: vec![vibescript::Capability::new("visit", move |_| {
@@ -2251,9 +2421,8 @@ fn required_files_keep_host_block_control_and_error_source_locations() {
         })],
         ..CallOptions::default()
     };
-    let script = files
-        .engine()
-        .compile("def run(n); require(:worker).work(n); end")
+    let script = engine
+        .compile("def run(n: int) -> int; require(\"worker\").work(n); end")
         .unwrap();
     assert_eq!(
         script
@@ -2275,9 +2444,11 @@ fn required_files_keep_host_block_control_and_error_source_locations() {
 
 #[test]
 fn run_bindings_keep_required_modules_but_not_their_published_exports() {
+    // The module's functions read the file's top-level variables, which
+    // static types do not resolve inside a function.
     let files = Files::new();
     files.write("counter.vibe", "total = 0\ndef add(n)\n  total += n\nend\n");
-    let engine = files.engine();
+    let engine = files.dynamic_engine();
     let (outcome, bindings) = engine
         .compile("counter = require(\"counter\")\nadd(2)")
         .unwrap()
@@ -2301,6 +2472,8 @@ fn run_bindings_keep_required_modules_but_not_their_published_exports() {
 
 #[test]
 fn same_name_calls_in_required_files_skip_the_file_scope() {
+    // A required file's name that is both a function and a top-level
+    // variable resolves at runtime in ways static types do not model.
     let files = Files::new();
     for (name, source) in [
         ("plain", "def helper\n  1\nend\nhelper = helper()\n"),
@@ -2332,7 +2505,7 @@ fn same_name_calls_in_required_files_skip_the_file_scope() {
     ] {
         files.write(&format!("{name}.vibe"), source);
     }
-    let engine = files.engine();
+    let engine = files.dynamic_engine();
     let error = engine
         .compile("require(:plain)")
         .unwrap()
@@ -2377,6 +2550,9 @@ fn same_name_calls_in_required_files_skip_the_file_scope() {
 
 #[test]
 fn required_file_functions_stay_values_as_member_receivers() {
+    // A required file's function name read without a call is a function
+    // value at runtime, where static types read a call, and the program
+    // reads the module's published exports.
     let files = Files::new();
     for (name, source) in [
         ("top", "def helper\n  1\nend\nx = helper.to_s\n"),
@@ -2395,7 +2571,7 @@ fn required_file_functions_stay_values_as_member_receivers() {
     ] {
         files.write(&format!("{name}.vibe"), source);
     }
-    let engine = files.engine();
+    let engine = files.dynamic_engine();
     for (name, member, line, column) in [
         ("top", "to_s", 4, 5),
         ("safe", "to_s", 2, 5),
@@ -2447,12 +2623,14 @@ fn required_file_functions_stay_values_as_member_receivers() {
 
 #[test]
 fn writes_through_module_function_names_update_their_results() {
+    // A required file's function name read without a call is a function
+    // value at runtime, where static types read a call.
     let files = Files::new();
     files.write(
         "m.vibe",
         "def helper;[1];end\ndef peek\n  helper.push(2)\nend",
     );
-    let engine = files.engine();
+    let engine = files.dynamic_engine();
     let value = engine
         .compile("require(:m)\nhelper[0] = 5\nhelper << 3\nhelper")
         .unwrap()
