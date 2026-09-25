@@ -10,8 +10,11 @@
 
 use crate::{Position, Result};
 
+mod tokens;
 mod unreachable;
 mod walk;
+
+pub use tokens::{Token, TokenKind, tokens};
 
 /// A declaration outline of one source, in source order.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

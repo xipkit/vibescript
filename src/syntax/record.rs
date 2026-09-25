@@ -169,3 +169,68 @@ pub(crate) fn parse(source: &str, probe: Option<&str>) -> (Result<Declarations>,
         .unwrap_or_default();
     (result, record)
 }
+
+/// Parses source and lists the tokens the parser finally read, after its
+/// regex and percent-literal re-reads.
+pub(crate) fn tokens(source: &str) -> Result<Vec<crate::tooling::Token>> {
+    use super::lexer::{Part, Token};
+    use crate::tooling::TokenKind;
+    let parsing = Parsing::new(parser(source, &())?);
+    parsing.run(Call::Program)?;
+    let parser = parsing.parser.into_inner();
+    let text = |parts: &[Part<'_>]| {
+        parts
+            .iter()
+            .map(|part| match part {
+                Part::Text(bytes) => Some(bytes.as_ref().to_vec()),
+                Part::Expr(..) => None,
+            })
+            .collect::<Option<Vec<_>>>()
+            .map(|pieces| pieces.concat())
+    };
+    let mut tokens = Vec::with_capacity(parser.tokens.len());
+    for lexeme in parser.tokens.range(0..parser.tokens.len()) {
+        let kind = match &lexeme.token {
+            Token::Word(_) => TokenKind::Word,
+            Token::Symbol(name) => TokenKind::Symbol {
+                name: name.as_bytes().to_vec(),
+                quoted: false,
+            },
+            Token::QuotedSymbol(name) => TokenKind::Symbol {
+                name: name.as_ref().to_vec(),
+                quoted: true,
+            },
+            Token::Int(_) | Token::BigInt(..) => TokenKind::Integer,
+            Token::Float(_) => TokenKind::Float,
+            Token::Bytes(bytes) => TokenKind::String(bytes.as_ref().to_vec()),
+            Token::Template(parts) => TokenKind::Template(
+                parts
+                    .iter()
+                    .filter_map(|part| match part {
+                        Part::Expr(_, (start, end)) => Some(*start as usize..*end as usize - 1),
+                        Part::Text(_) => None,
+                    })
+                    .collect(),
+            ),
+            Token::Words(words) => TokenKind::Words {
+                symbols: words.symbol,
+                entries: words.entries.iter().map(|entry| text(entry)).collect(),
+            },
+            Token::Regex(..) => TokenKind::Regex,
+            Token::P(c) => TokenKind::Punct(*c),
+            Token::Op(op) => TokenKind::Operator(op),
+            Token::EndLine if source.as_bytes().get(lexeme.offset) == Some(&b';') => {
+                TokenKind::Semicolon
+            }
+            Token::EndLine => TokenKind::Newline,
+            Token::Invalid(_) => TokenKind::Invalid,
+            Token::Eof => TokenKind::Eof,
+        };
+        tokens.push(crate::tooling::Token {
+            kind,
+            span: lexeme.offset..lexeme.end,
+            line: lexeme.line,
+        });
+    }
+    Ok(tokens)
+}
