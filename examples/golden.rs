@@ -8,6 +8,10 @@
 //! streams) and its accounting counters. `scripts/golden.py` drives this binary
 //! and compares the records with the committed goldens. Records are flushed one
 //! at a time so the driver can resume after the process dies.
+//!
+//! A case with `static_types` compiles with the static checker, declaring the
+//! globals and capabilities it supplies by their values' types, as a statically
+//! typed host would. A compilation that fails records its diagnostics' codes.
 use serde_json::{Value as Json, json};
 use std::{
     collections::{BTreeMap, HashMap},
@@ -20,7 +24,7 @@ use std::{
     },
     time::{Duration, Instant},
 };
-use vibescript::{CallOptions, Engine, Error, Limits, ModuleConfig, Value, parse_json};
+use vibescript::{CallOptions, Capability, Engine, Error, Limits, ModuleConfig, Value, parse_json};
 
 #[path = "support/blocks.rs"]
 mod blocks;
@@ -110,6 +114,8 @@ fn observe(case: &Json) -> Json {
 
 fn execute(case: &Json, stdout: &Capture, stderr: &Capture) -> Json {
     let mut engine = Engine::new();
+    let static_types = flag(case, "static_types");
+    engine.set_static_types(static_types);
     engine.set_strict_effects(flag(case, "strict_effects"));
     if case.get("module_paths").is_some() {
         let config = ModuleConfig {
@@ -166,14 +172,53 @@ fn execute(case: &Json, stdout: &Capture, stderr: &Capture) -> Json {
         Ok(method) => method,
         Err(error) => return failure("setup", &error),
     };
-    let script = match engine.compile(case["source"].as_str().unwrap_or_default()) {
+    // A statically typed host declares what each call supplies before compiling.
+    let mut prepared = None;
+    if static_types {
+        match inputs(case, signature.clone()) {
+            Ok(inputs) => {
+                if let Err(error) = declare(&mut engine, case, &inputs.0, signature.as_ref()) {
+                    return failure("setup", &error);
+                }
+                prepared = Some(inputs);
+            }
+            Err(message) => return json!({"phase": "setup", "error": {"message": message}}),
+        }
+    }
+    let source = case["source"].as_str().unwrap_or_default();
+    let script = match engine.compile(source) {
         Ok(script) => script,
-        Err(error) => return failure("compile", &error),
+        Err(error) => {
+            let mut record = failure("compile", &error);
+            let diagnostics: Vec<Json> = error
+                .diagnostics()
+                .iter()
+                .filter(|diagnostic| diagnostic.is_error())
+                .map(|diagnostic| {
+                    // A diagnostic in a required file has no position in this source.
+                    let at = diagnostic.file.is_none().then(|| {
+                        let at = diagnostic.span.position(source);
+                        [at.line, at.column]
+                    });
+                    json!({
+                        "code": diagnostic.code.to_string(),
+                        "at": at,
+                        "file": diagnostic.file.as_deref().map(String::from_utf8_lossy),
+                        "message": diagnostic.message,
+                    })
+                })
+                .collect();
+            if let Some(first) = diagnostics.first() {
+                record["error"]["code"] = first["code"].clone();
+                record["diagnostics"] = Json::Array(diagnostics);
+            }
+            return record;
+        }
     };
     let Some(function) = case["function"].as_str() else {
         return json!({"phase": "compiled"});
     };
-    let (options, args, keywords) = match inputs(case, signature) {
+    let (options, args, keywords) = match prepared.map_or_else(|| inputs(case, signature), Ok) {
         Ok(inputs) => inputs,
         Err(message) => return json!({"phase": "setup", "error": {"message": message}}),
     };
@@ -202,6 +247,44 @@ fn execute(case: &Json, stdout: &Capture, stderr: &Capture) -> Json {
 }
 
 type Inputs = (CallOptions, Vec<Value>, Vec<(String, Value)>);
+
+/// Declares the globals and capabilities a call supplies, each typed by its
+/// value, as a statically typed host would. A capability built when a call
+/// starts is declared by a fresh value of the same kind.
+fn declare(
+    engine: &mut Engine,
+    case: &Json,
+    options: &CallOptions,
+    signature: Option<&vibescript::HostMethod>,
+) -> vibescript::Result<()> {
+    let mut declared = Vec::new();
+    for (name, value) in &options.globals {
+        declared.push(Capability::from_value(name.clone(), value.clone()));
+    }
+    if flag(case, "capability_probe") {
+        declared.push(Capability::from_value("host", probe::template()));
+    }
+    if flag(case, "block_probe") {
+        declared.push(Capability::from_value("blocks", blocks::template()));
+    }
+    for name in strings(&case["notifications"]) {
+        declared.push(support::notification(&name)?);
+    }
+    if let Some(method) = signature
+        && case["signature_probe"]["registration"]
+            .as_str()
+            .is_none_or(|registration| registration == "capability")
+    {
+        declared.push(Capability::from_value(
+            "typed",
+            Value::object(vec![(b"echo".to_vec(), method.value())]),
+        ));
+    }
+    for capability in &declared {
+        engine.declare_capability(capability)?;
+    }
+    Ok(())
+}
 
 fn inputs(case: &Json, signature: Option<vibescript::HostMethod>) -> Result<Inputs, String> {
     let mut args = Vec::new();

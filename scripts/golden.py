@@ -105,6 +105,8 @@ def engine_case(cid, case):
     for field in CASE_FIELDS:
         if field in case:
             out[field] = case[field]
+    if "static_error" in case:
+        out["_static_error"] = case["static_error"]
     if "args" not in case:
         out["args"] = [] if out["function"] == "__main__" else [None]
     if case.get("files") is not None:
@@ -152,7 +154,8 @@ def rejection_cases():
     for filename in ["language-errors.json", "syntax-errors.json"]:
         for case in json.loads((ROOT / "tests" / filename).read_text()):
             out = engine_case(case["name"], case)
-            if case["name"] not in ACCEPTED_SYNTAX:
+            # A case the static checker rejects keeps its recorded outcome without static types.
+            if case["name"] not in ACCEPTED_SYNTAX and "static_error" not in case:
                 out["_phase"] = "compile" if filename == "syntax-errors.json" else "call"
             cases.append(out)
     return cases
@@ -673,8 +676,21 @@ def same_json(a, b):
     return a == b
 
 
-def expectation_failure(case, observation):
+def static_error_failure(case, observation):
+    """Checks a case the static checker must reject; returns a message or None."""
+    expected = case["_static_error"]
+    error = observation.get("error", {})
+    got = {"phase": observation["phase"], "code": error.get("code"), "at": error.get("at")}
+    want = {"phase": "compile", "code": expected["code"], "at": expected["at"]}
+    if got != want:
+        return f"expected a static {want['code']} error at {want['at']}, got {canonical(got)}: {error.get('message', '')[:200]}"
+    return None
+
+
+def expectation_failure(case, observation, static=False):
     """Checks a generator's independent expectation; returns a message or None."""
+    if static and "_static_error" in case:
+        return static_error_failure(case, observation)
     if "_phase" in case and observation["phase"] != case["_phase"]:
         return f"expected a {case['_phase']} error, got {observation['phase']}"
     if "_expected" not in case:
@@ -957,6 +973,9 @@ def check_corpus(corpus, args, overrides, report):
     """Runs one corpus and reports how it compares with its goldens, or records them."""
     started = time.monotonic()
     cases = corpus.cases()
+    if args.static and corpus.kind == "engine":
+        for case in cases:
+            case["static_types"] = True
     if corpus.name in overrides:
         if not corpus.migratable:
             raise SystemExit(f"{corpus.name}: sources cannot be overridden")
@@ -1015,7 +1034,7 @@ def check_corpus(corpus, args, overrides, report):
         if observation.get("phase") in ("panic", "crash", "hang") or "failure" in observation:
             add("crashes", cid, describe(actual[cid]))
         if corpus.kind == "engine":
-            message = expectation_failure(by_id[cid], observation)
+            message = expectation_failure(by_id[cid], observation, args.static)
             if message:
                 # A legacy corpus keeps its goldens as these expectations.
                 add("observable differences" if corpus.legacy else "expectation failures", cid, message)
@@ -1023,6 +1042,9 @@ def check_corpus(corpus, args, overrides, report):
         problems["observable differences"]["blocking"] = True
     if not corpus.legacy and (golden or not args.record):
         for cid in ids:
+            # The goldens record outcomes without static types; a static rejection is checked above.
+            if args.static and "_static_error" in by_id[cid]:
+                continue
             compare_case(by_id[cid], golden.get(cid), actual[cid], varies.get(cid), table, add)
         for cid in sorted(set(golden) - set(ids)):
             add("stale goldens", cid, "golden has no case")
@@ -1034,6 +1056,10 @@ def check_corpus(corpus, args, overrides, report):
         notes += counter_lines
         if drifted and args.strict_counters and not args.record:
             add("observable differences", corpus.name, "counters drifted (--strict-counters)")
+    if args.observations:
+        with open(args.observations, "a", encoding="utf-8") as out:
+            for cid in ids:
+                out.write(canonical({"corpus": corpus.name, **observed[0][cid]}) + "\n")
     elapsed = f"{time.monotonic() - started:.0f}s"
     if not args.record:
         report.section(corpus.name, len(ids), problems, notes + [f"checked in {elapsed}"])
@@ -1139,6 +1165,11 @@ def main(argv=None):
     parser.add_argument("--show", type=int, default=10, help="examples shown per category")
     parser.add_argument("--record", action="store_true",
                         help="record the goldens from this build instead of checking them")
+    parser.add_argument("--static", action="store_true",
+                        help="compile engine cases with static types, declaring the globals and capabilities each "
+                             "supplies; a case with a static_error expects that compile error instead of its golden")
+    parser.add_argument("--observations", type=Path, metavar="FILE",
+                        help="also write every engine case's raw observation, one JSON line each")
     parser.add_argument("--strict-counters", action="store_true", help="fail when accounting counters drift")
     parser.add_argument("--strict-quota", action="store_true",
                         help="fail when a quota-limited case changes outcome under a quota error")
@@ -1175,6 +1206,8 @@ def main(argv=None):
     if args.record and overrides:
         parser.error("--record records the original sources; drop --sources and --override")
     report = Report(args.show)
+    if args.observations:
+        args.observations.write_text("")
     for corpus in corpora:
         check_corpus(corpus, args, overrides, report)
     if args.failures:
