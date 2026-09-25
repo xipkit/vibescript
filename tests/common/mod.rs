@@ -49,3 +49,12 @@ impl<T> Finished<T> {
         Ok(self.0)
     }
 }
+
+/// An engine for tests of the gradual checker (`Script::check` and its
+/// relatives), which reads the ADR-004 language until it is removed, so it
+/// does not type check statically even when the build forces static types.
+pub fn gradual_engine() -> vibescript::Engine {
+    let mut engine = vibescript::Engine::new();
+    engine.set_static_types(false);
+    engine
+}

@@ -1,7 +1,9 @@
+mod common;
+
 use vibescript::{CallOptions, CancellationToken, Engine, ErrorKind, Limits, Value};
 
 fn compile(source: &str) -> vibescript::Script {
-    Engine::new().compile(source).unwrap()
+    common::gradual_engine().compile(source).unwrap()
 }
 
 #[test]

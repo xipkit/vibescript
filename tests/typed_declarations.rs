@@ -3,6 +3,8 @@
 //! declarations, type aliases, tuple types and the newer type names. A
 //! class-variable declaration's type is the static checker's alone.
 
+mod common;
+
 use vibescript::{CallOptions, Engine, ErrorKind, stringify_json};
 
 fn evaluate(source: &str) -> serde_json::Value {
@@ -656,7 +658,7 @@ end
 end
 "
     );
-    let script = Engine::new().compile(&source).unwrap();
+    let script = common::gradual_engine().compile(&source).unwrap();
     let report = script
         .check_call("run", &[], &CallOptions::default())
         .unwrap_or_else(|error| panic!("{error}"));

@@ -1,7 +1,9 @@
+mod common;
+
 use vibescript::{CallOptions, Engine, ErrorKind, Value};
 
 fn check(source: &str, bad_return: bool) -> vibescript::Script {
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile(source)
         .unwrap_or_else(|error| panic!("{source}: {error}"));
     let report = script

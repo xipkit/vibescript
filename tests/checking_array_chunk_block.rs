@@ -1,3 +1,5 @@
+mod common;
+
 use vibescript::{CallOptions, CheckReport, Engine, ErrorKind, Script, Value, stringify_json};
 
 fn json(value: &Value) -> serde_json::Value {
@@ -6,7 +8,7 @@ fn json(value: &Value) -> serde_json::Value {
 }
 
 fn compile(source: &str) -> Script {
-    Engine::new()
+    common::gradual_engine()
         .compile(source)
         .unwrap_or_else(|error| panic!("{source}: {error}"))
 }

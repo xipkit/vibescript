@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -137,7 +139,7 @@ fn literal_fallback_uses_bound_names_and_current_lexical_scopes() {
 fn methods_of_the_other_kind_leave_braced_groups_as_shapes() {
     // An instance method's implicit self is the instance, so a class method of the same
     // name does not shadow the type.
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile(
             r#"class Api
   def self.string
@@ -162,7 +164,7 @@ end"#,
 #[test]
 fn implicit_self_methods_keep_braced_groups_as_hashes() {
     // Go's TestShapeLiteralImplicitSelfShadowKeepsHashSemantics.
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile(
             r#"class Formatter
   def string

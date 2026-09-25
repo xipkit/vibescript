@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -8,7 +10,7 @@ use vibescript::{
 };
 
 fn check(source: &str) -> CheckReport {
-    Engine::new()
+    common::gradual_engine()
         .compile(source)
         .unwrap()
         .check_call("run", &[], &CallOptions::default())
@@ -22,7 +24,7 @@ fn equality_branch(setup: &str, expression: &str, expected: bool, options: CallO
         ("'wrong'", "7")
     };
     let source = format!("{setup}; def run -> int; if {expression}; {yes}; else; {no}; end; end");
-    let script = Engine::new().compile(&source).unwrap();
+    let script = common::gradual_engine().compile(&source).unwrap();
     let report = script.check_call("run", &[], &options).unwrap();
     assert!(report.is_clean(), "{source}: {report:?}");
     assert_eq!(
@@ -127,7 +129,7 @@ fn structural_equality_general_inputs_retain_both_results_without_host_effects()
         let source = format!(
             "class C; def {op}(other); 7; end; end; def make; C.new; end; def run(x:any)->int; if (x {op} []).is_type?(:bool); 7; else; 'wrong'; end; end"
         );
-        let script = Engine::new().compile(&source).unwrap();
+        let script = common::gradual_engine().compile(&source).unwrap();
         let report = script
             .check_function("run", &CallOptions::default())
             .unwrap();
@@ -152,13 +154,13 @@ fn structural_equality_general_inputs_retain_both_results_without_host_effects()
         "a:hash<string,int>,b:hash<string,int>",
     ] {
         let source = format!("def run({parameters}) -> bool; a == b; end");
-        let script = Engine::new().compile(&source).unwrap();
+        let script = common::gradual_engine().compile(&source).unwrap();
         let report = script
             .check_function("run", &CallOptions::default())
             .unwrap();
         assert!(report.is_clean(), "{source}: {report:?}");
         let source = format!("def run({parameters}) -> int; if a == b; 7; else; 'wrong'; end; end");
-        let report = Engine::new()
+        let report = common::gradual_engine()
             .compile(&source)
             .unwrap()
             .check_function("run", &CallOptions::default())
@@ -170,7 +172,7 @@ fn structural_equality_general_inputs_retain_both_results_without_host_effects()
     }
     let calls = Arc::new(AtomicUsize::new(0));
     let count = calls.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register("tick", move |_, _| {
         count.fetch_add(1, Ordering::Relaxed);
         Ok(Value::int(7))
@@ -199,7 +201,7 @@ fn structural_equality_general_inputs_retain_both_results_without_host_effects()
 
 #[test]
 fn whole_file_check_includes_unused_declarations_and_preserves_call_scopes() {
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile("7;def unused(n:string)->int;n;end;class C;private def bad->bool;7;end;end")
         .unwrap();
     assert!(
@@ -219,7 +221,7 @@ fn whole_file_check_includes_unused_declarations_and_preserves_call_scopes() {
     );
     assert!(report.stats.steps > 0);
     assert!(report.stats.retained_memory_bytes > 0);
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile("x=7;module M;K=x;def self.value->int;K;end;end")
         .unwrap();
     assert!(script.check(&CallOptions::default()).unwrap().is_clean());
@@ -234,7 +236,7 @@ fn whole_file_check_includes_unused_declarations_and_preserves_call_scopes() {
 #[test]
 fn whole_file_checks_constructor_and_block_domains_without_host_effects() {
     let effects = Arc::new(AtomicUsize::new(0));
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     let count = effects.clone();
     engine.register("tick", move |_, _| {
         count.fetch_add(1, Ordering::Relaxed);
@@ -262,7 +264,7 @@ fn whole_file_checks_constructor_and_block_domains_without_host_effects() {
 
 #[test]
 fn whole_file_reports_missing_required_files_without_running_them() {
-    let report = Engine::new()
+    let report = common::gradual_engine()
         .compile("def unused;require('missing');end")
         .unwrap()
         .check(&CallOptions::default())
@@ -291,7 +293,7 @@ fn checked_rendering_rejects_bad_conversion_contracts_before_host_effects() {
         let effects = Arc::new(AtomicUsize::new(0));
         let writes = Arc::new(AtomicUsize::new(0));
         let count = effects.clone();
-        let mut engine = Engine::new();
+        let mut engine = common::gradual_engine();
         engine.register("effect", move |_, _| {
             count.fetch_add(1, Ordering::Relaxed);
             Ok(Value::nil())
@@ -339,7 +341,7 @@ fn checked_rendering_rejects_bad_conversion_contracts_before_host_effects() {
 fn checked_forwarding_and_predicates_reject_bad_calls_before_host_effects() {
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register("effect", move |_, _| {
         count.fetch_add(1, Ordering::Relaxed);
         Ok(Value::nil())
@@ -387,7 +389,7 @@ fn checked_operators_reject_bad_results_before_host_effects() {
     ] {
         let effects = Arc::new(AtomicUsize::new(0));
         let count = effects.clone();
-        let mut engine = Engine::new();
+        let mut engine = common::gradual_engine();
         engine.register("effect", move |_, _| {
             count.fetch_add(1, Ordering::Relaxed);
             Ok(Value::nil())
@@ -421,7 +423,7 @@ fn checked_operators_reject_bad_results_before_host_effects() {
 fn checked_constructors_reject_bad_property_writes_before_host_effects() {
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register("effect", move |_, _| {
         count.fetch_add(1, Ordering::Relaxed);
         Ok(Value::nil())
@@ -460,7 +462,7 @@ fn checked_constructors_reject_bad_property_writes_before_host_effects() {
 fn checked_namespace_calls_report_callee_types_before_host_effects() {
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register("effect", move |_, args| {
         count.fetch_add(1, Ordering::Relaxed);
         Ok(args[0].clone())
@@ -504,7 +506,7 @@ fn checked_namespace_calls_report_callee_types_before_host_effects() {
 fn checked_namespace_state_is_initialized_only_during_accepted_execution() {
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register("effect", move |_, _| {
         count.fetch_add(1, Ordering::Relaxed);
         Ok(Value::nil())
@@ -535,7 +537,7 @@ fn checked_namespace_state_is_initialized_only_during_accepted_execution() {
 
 #[test]
 fn public_calls_bind_keywords_defaults_rest_and_concrete_paths() {
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile("def unused()->int;\"bad\";end;def run(a:int,b:2,**rest);[a,b,rest[:x]];end")
         .unwrap();
     let args = [Value::int(7)];
@@ -557,7 +559,7 @@ fn public_calls_bind_keywords_defaults_rest_and_concrete_paths() {
             .unwrap(),
     );
     assert_eq!(outcome.value.to_string(), "[7, 5, 9]");
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile("def run(flag)->int;if flag;\"bad\";else;7;end;end")
         .unwrap();
     assert!(
@@ -577,7 +579,7 @@ fn public_calls_bind_keywords_defaults_rest_and_concrete_paths() {
 #[test]
 fn reports_source_positions_and_known_parameter_and_return_types() {
     let source = "def run(x:int) -> int\n  x\nend";
-    let script = Engine::new().compile(source).unwrap();
+    let script = common::gradual_engine().compile(source).unwrap();
     let report = script
         .check_call(
             "run",
@@ -610,7 +612,7 @@ fn reports_source_positions_and_known_parameter_and_return_types() {
 fn rejection_precedes_callbacks_defaults_and_initializer_effects() {
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register("effect", move |_, _| {
         count.fetch_add(1, Ordering::Relaxed);
         Ok(Value::int(7))
@@ -650,7 +652,7 @@ fn rejection_precedes_callbacks_defaults_and_initializer_effects() {
 fn dynamic_unknowns_are_clean_and_runtime_failures_remain_errors() {
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register("read", move |_, _| {
         count.fetch_add(1, Ordering::Relaxed);
         Ok(Value::bytes(b"bad".to_vec()))
@@ -688,7 +690,7 @@ fn checked_calls_preserve_value_isolation_and_ignored_block_transfers() {
     let driver = Value::object(vec![(b"visit".to_vec(), method.value())]);
     let input = Value::array(vec![Value::int(1)]);
     for (transfer, expected) in [("break 7", "[7, [1, 2]]"), ("return 9", "9")] {
-        let script = Engine::new()
+        let script = common::gradual_engine()
             .compile(&format!(
                 "def run(driver,a);n=driver.visit{{a.push(2);{transfer}}};[n,a];end"
             ))
@@ -713,7 +715,7 @@ fn checked_calls_preserve_value_isolation_and_ignored_block_transfers() {
 fn report_retention_does_not_keep_code_callbacks_or_arguments_alive() {
     let marker = Arc::new(());
     let weak = Arc::downgrade(&marker);
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register("effect", move |_, _| {
         let _ = &marker;
         Ok(Value::nil())
@@ -741,7 +743,9 @@ fn report_retention_does_not_keep_code_callbacks_or_arguments_alive() {
         panic!("argument callback ran")
     });
     let input = Value::object(vec![(b"send".to_vec(), method.value())]);
-    let script = Engine::new().compile("def run(x:int);x;end").unwrap();
+    let script = common::gradual_engine()
+        .compile("def run(x:int);x;end")
+        .unwrap();
     let report = script
         .check_call("run", std::slice::from_ref(&input), &CallOptions::default())
         .unwrap();
@@ -772,7 +776,7 @@ fn diagnostics_are_sorted_deduplicated_and_stable_across_contexts() {
         previous = Some(messages);
     }
     let source = "def second()->int;\"bad\";end\ndef first()->int;\"bad\";end\ndef run(flag);if flag;first();else;second();end;end";
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register("unknown", |_, _| panic!("checker executed"));
     let script = engine
         .compile(&format!("{source}\ndef root;run(unknown());end"))
@@ -795,7 +799,7 @@ fn diagnostics_are_sorted_deduplicated_and_stable_across_contexts() {
 fn guards_cancellation_and_quotas_stop_before_execution() {
     let calls = Arc::new(AtomicUsize::new(0));
     let count = calls.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register("effect", move |_, _| {
         count.fetch_add(1, Ordering::Relaxed);
         Ok(Value::nil())
@@ -836,7 +840,7 @@ fn guards_cancellation_and_quotas_stop_before_execution() {
 
 #[test]
 fn public_reports_obey_exact_and_sampled_work_and_memory_limits() {
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile("def run(flag);if flag;[1]+\"bad\";else;{}+2;end;end")
         .unwrap();
     let input = [Value::boolean(true)];
@@ -895,7 +899,7 @@ fn public_reports_obey_exact_and_sampled_work_and_memory_limits() {
 
 #[test]
 fn lazy_globals_and_strict_validation_keep_their_entry_order() {
-    let script = Engine::new().compile("def run;7;end").unwrap();
+    let script = common::gradual_engine().compile("def run;7;end").unwrap();
     let options = CallOptions {
         globals: [("unused".into(), Value::bytes(vec![b'x'; 128 * 1024]))].into(),
         limits: Limits {
@@ -911,7 +915,7 @@ fn lazy_globals_and_strict_validation_keep_their_entry_order() {
             .as_int(),
         Some(7)
     );
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.set_strict_effects(true);
     let script = engine.compile("def run(x);x;end").unwrap();
     let options = CallOptions {
@@ -938,13 +942,15 @@ fn lazy_globals_and_strict_validation_keep_their_entry_order() {
 #[test]
 fn descriptors_remain_attached_and_old_grants_are_rejected() {
     let method = HostMethod::new("send", |_, _, _| panic!("invalid grant called"));
-    let producer = Engine::new().compile("def run(x);x;end").unwrap();
+    let producer = common::gradual_engine()
+        .compile("def run(x);x;end")
+        .unwrap();
     let fresh = Value::object(vec![(b"send".to_vec(), method.value())]);
     let old = producer
         .call("run", &[fresh], CallOptions::default())
         .unwrap()
         .value;
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile("def run(sms);sms.send();end")
         .unwrap();
     let CheckedOutcome::Rejected(report) = script
@@ -965,7 +971,9 @@ fn descriptors_remain_attached_and_old_grants_are_rejected() {
 
 #[test]
 fn diagnostic_text_preserves_raw_keys_and_distinct_enum_declarations() {
-    let script = Engine::new().compile("def run(x:int);x;end").unwrap();
+    let script = common::gradual_engine()
+        .compile("def run(x:int);x;end")
+        .unwrap();
     let input = Value::object(vec![(vec![b'\n', 0xff, 0], Value::int(1))]);
     let report = script
         .check_call("run", &[input], &CallOptions::default())
@@ -976,13 +984,13 @@ fn diagnostic_text_preserves_raw_keys_and_distinct_enum_declarations() {
         "{text}"
     );
     assert!(!text.contains('\n') && !text.contains('\0'));
-    let other = Engine::new()
+    let other = common::gradual_engine()
         .compile("enum State;Ready;end;State::Ready")
         .unwrap()
         .run(CallOptions::default())
         .unwrap()
         .value;
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile("enum State;Ready;end;def run(x:State);x;end")
         .unwrap();
     let report = script
@@ -1043,7 +1051,7 @@ fn invalid_scalar_members_are_diagnosed_in_each_checking_scope() {
                 (format!("value:{ty}"), "value", vec![value.clone()])
             };
             let source = format!("def run({parameter});({receiver}).{name}{tail};end");
-            let script = Engine::new().compile(&source).unwrap();
+            let script = common::gradual_engine().compile(&source).unwrap();
             let options = CallOptions::default();
             let error = script.call("run", &args, options.clone()).unwrap_err();
             assert_eq!(
@@ -1074,7 +1082,7 @@ fn invalid_native_checked_calls_reject_before_argument_effects() {
     for method in ["chr", "missing_native"] {
         let writes = Arc::new(AtomicUsize::new(0));
         let output = writes.clone();
-        let mut engine = Engine::new();
+        let mut engine = common::gradual_engine();
         engine.set_output_writer(move |_, _| {
             output.fetch_add(1, Ordering::SeqCst);
             Ok(())
@@ -1100,7 +1108,7 @@ fn invalid_native_checked_calls_reject_before_argument_effects() {
 #[test]
 fn native_member_diagnosis_preserves_unions_and_source_overrides() {
     let source = "def run(value:int|string)->string;value.chr;end";
-    let script = Engine::new().compile(source).unwrap();
+    let script = common::gradual_engine().compile(source).unwrap();
     let options = CallOptions::default();
     let general = script.check_function("run", &options).unwrap();
     assert!(general.incomplete.is_empty(), "{general:?}");
@@ -1120,7 +1128,7 @@ fn native_member_diagnosis_preserves_unions_and_source_overrides() {
         "module Letter;def self.chr -> string;'a';end;end;def run -> string;Letter.chr;end",
         "def run -> int;:abc.bytesize;end",
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = common::gradual_engine().compile(source).unwrap();
         let report = script.check_call("run", &[], &options).unwrap();
         assert!(report.is_clean(), "{source}: {report:?}");
         assert!(matches!(
@@ -1129,7 +1137,7 @@ fn native_member_diagnosis_preserves_unions_and_source_overrides() {
         ));
     }
     // An unknown receiver defers dispatch validation to runtime.
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile("def run(value);value.missing_native;end")
         .unwrap();
     let report = script.check_function("run", &options).unwrap();
@@ -1149,7 +1157,7 @@ fn unknown_member_callbacks_work_in_each_public_checking_scope_without_execution
         Ok(Value::int(13))
     });
     let args = [Value::object(vec![(b"visit".to_vec(), method.value())])];
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile("def run(value);n=0;result=value.visit {|item|n+=1};[result,n];end")
         .unwrap();
     let options = CallOptions::default();
@@ -1178,7 +1186,7 @@ fn unknown_callback_bodies_report_known_type_errors_before_host_execution() {
         call.call_block(&[])
     });
     let args = [Value::object(vec![(b"visit".to_vec(), method.value())])];
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile("def take(n:int);n;end;def run(value);value.visit {take('bad')};end")
         .unwrap();
     let options = CallOptions::default();
@@ -1204,7 +1212,7 @@ fn unknown_script_callee_cleanup_can_replace_block_control_transfers() {
             let source = format!(
                 "class C;def visit;begin;yield;ensure;{cleanup};end;end;end;def run(value)->int;n=0;result=value.visit {{n+=1;{transfer}}};if n=={visits} && result==9;'wrong';else;0;end;end;def execute;run(C.new);end"
             );
-            let script = Engine::new().compile(&source).unwrap();
+            let script = common::gradual_engine().compile(&source).unwrap();
             let options = CallOptions::default();
             let report = script.check_function("run", &options).unwrap();
             assert!(report.incomplete.is_empty(), "{source}: {report:?}");
@@ -1224,7 +1232,7 @@ fn unknown_member_lookup_errors_preserve_argument_evaluation_order() {
         let source = format!(
             "def run(value)->int;n=0;begin;value.{member}((begin;n=7;9;end));rescue RuntimeError;if n==0;'wrong';else;0;end;end;end"
         );
-        let script = Engine::new().compile(&source).unwrap();
+        let script = common::gradual_engine().compile(&source).unwrap();
         let options = CallOptions::default();
         let report = script.check_function("run", &options).unwrap();
         assert!(report.incomplete.is_empty(), "{source}: {report:?}");
@@ -1244,7 +1252,7 @@ fn unknown_member_lookup_errors_preserve_argument_evaluation_order() {
 
 #[test]
 fn unknown_member_results_defer_to_runtime_contracts_and_exact_call_checks() {
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile("def run(value)->int;value.foo;end")
         .unwrap();
     let options = CallOptions::default();
@@ -1266,7 +1274,7 @@ fn structural_hash_iteration_works_in_each_public_checking_scope() {
         let source = format!(
             "def run(h:{annotation})->int;total=0;for key,value in h;total+=value;end;total;end"
         );
-        let script = Engine::new().compile(&source).unwrap();
+        let script = common::gradual_engine().compile(&source).unwrap();
         for object in [false, true] {
             let entries = vec![
                 (b"a".to_vec(), Value::int(7)),
@@ -1300,7 +1308,7 @@ fn structural_hash_iteration_works_in_each_public_checking_scope() {
 fn for_traversal_does_not_assume_native_method_dispatch() {
     let source =
         "def run(h:hash<string,int>)->int;total=0;for key,value in h;total+=value;end;total;end";
-    let script = Engine::new().compile(source).unwrap();
+    let script = common::gradual_engine().compile(source).unwrap();
     let args = [Value::object(vec![(b"each".to_vec(), Value::int(7))])];
     assert!(
         script
@@ -1316,7 +1324,7 @@ fn for_traversal_does_not_assume_native_method_dispatch() {
     };
     assert_eq!(outcome.value.as_int(), Some(7));
 
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile("def run(h:hash<string,int>);h.each {|key,value| value};end")
         .unwrap();
     let report = script
@@ -1335,7 +1343,7 @@ fn for_traversal_does_not_assume_native_method_dispatch() {
 fn known_instance_iteration_is_diagnosed_before_constructor_effects() {
     let writes = Arc::new(AtomicUsize::new(0));
     let output = writes.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.set_output_writer(move |_, _| {
         output.fetch_add(1, Ordering::SeqCst);
         Ok(())
@@ -1371,7 +1379,7 @@ fn general_scope_checks_defaults_and_all_declared_parameter_values() {
             Value::int(0),
         ),
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = common::gradual_engine().compile(source).unwrap();
         let options = CallOptions::default();
         assert!(
             script
@@ -1397,7 +1405,7 @@ fn general_scope_checks_defaults_and_all_declared_parameter_values() {
                 .all(|d| d.function == "run" && !d.code_frame.is_empty())
         );
     }
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile("false+true;def unused->int;false;end;def run(x:int)->int;x+1;end")
         .unwrap();
     assert!(
@@ -1406,7 +1414,9 @@ fn general_scope_checks_defaults_and_all_declared_parameter_values() {
             .unwrap()
             .is_clean()
     );
-    let script = Engine::new().compile("def run;yield;end").unwrap();
+    let script = common::gradual_engine()
+        .compile("def run;yield;end")
+        .unwrap();
     let report = script
         .check_function("run", &CallOptions::default())
         .unwrap();
@@ -1420,7 +1430,7 @@ fn general_scope_checks_defaults_and_all_declared_parameter_values() {
 
 #[test]
 fn general_scope_resolves_initialized_types_and_variadic_collection_domains() {
-    let script = Engine::new().compile("enum State;Ready;Done;end;module M;Math.store(:Status,State);end;def run(*items:array<Math.Status>,**extra:hash<symbol,Math.Status>)->array<array<State>>;[items,extra.values];end").unwrap();
+    let script = common::gradual_engine().compile("enum State;Ready;Done;end;module M;Math.store(:Status,State);end;def run(*items:array<Math.Status>,**extra:hash<symbol,Math.Status>)->array<array<State>>;[items,extra.values];end").unwrap();
     let report = script
         .check_function("run", &CallOptions::default())
         .unwrap();
@@ -1438,7 +1448,7 @@ fn general_scope_resolves_initialized_types_and_variadic_collection_domains() {
         "def run(**extra)->array<string>;extra.keys;end",
         "def run(**extra:hash<symbol,int>?)->array<string>;extra.keys;end",
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = common::gradual_engine().compile(source).unwrap();
         let report = script
             .check_function("run", &CallOptions::default())
             .unwrap();
@@ -1457,7 +1467,7 @@ fn general_scope_resolves_initialized_types_and_variadic_collection_domains() {
 
 #[test]
 fn general_scope_preserves_lazy_globals_strict_validation_and_factory_isolation() {
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile("def run(x:int)->int;x+1;end")
         .unwrap();
     let options = CallOptions {
@@ -1479,7 +1489,7 @@ fn general_scope_preserves_lazy_globals_strict_validation_and_factory_isolation(
     assert!(report.diagnostics.is_empty());
     assert_eq!(report.incomplete.len(), 1);
     assert!(report.incomplete[0].message.contains("sms"));
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.set_strict_effects(true);
     let script = engine.compile("def run(x);x;end").unwrap();
     let options = CallOptions {
@@ -1504,7 +1514,7 @@ fn general_scope_preserves_lazy_globals_strict_validation_and_factory_isolation(
 fn general_reports_obey_quotas_cancellation_and_deadlines_without_effects() {
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register("effect", move |_, _| {
         count.fetch_add(1, Ordering::Relaxed);
         Ok(Value::int(7))
@@ -1551,7 +1561,7 @@ fn general_reports_obey_quotas_cancellation_and_deadlines_without_effects() {
 
 #[test]
 fn general_method_reports_select_declarations_and_preserve_constructor_rules() {
-    let script = Engine::new().compile("class C;def initialize(@n: int)->int;'bad';end;private def read->int;'bad';end;def self.read->int;7;end;end;module M;module N;def self.answer->int;7;end;end;end;def unused->int;false;end").unwrap();
+    let script = common::gradual_engine().compile("class C;def initialize(@n: int)->int;'bad';end;private def read->int;'bad';end;def self.read->int;7;end;end;module M;module N;def self.answer->int;7;end;end;end;def unused->int;false;end").unwrap();
     for name in ["C.new", "C.read", "M::N.answer"] {
         let report = script
             .check_function(name, &CallOptions::default())
@@ -1601,7 +1611,7 @@ fn general_method_checks_never_execute_constructors_initializers_or_host_effects
         accepts_block: false,
     })
     .unwrap();
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register_method("tick", method);
     let count = effects.clone();
     engine.set_output_writer(move |_, _| {
@@ -1625,7 +1635,7 @@ fn general_method_checks_never_execute_constructors_initializers_or_host_effects
 fn checked_top_level_preserves_source_order_and_tracks_ambient_captures() {
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register("effect", move |_, _| {
         count.fetch_add(1, Ordering::Relaxed);
         Ok(Value::nil())
@@ -1699,7 +1709,7 @@ fn opaque_left_equality_does_not_assume_native_boolean_results() {
         "class Plain;end;class C;def !=(other);7;end;end;def make;C.new;end;def run(x:any)->int;if (x != Plain.new).is_type?(:bool);7;else;'wrong';end;end",
         "class Plain;end;class C;def !=(other);7;end;end;def make;C.new;end;def run(x)->int;if (x != Plain).is_type?(:bool);7;else;'wrong';end;end",
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = common::gradual_engine().compile(source).unwrap();
         let report = script.check_function("run", &options).unwrap();
         assert!(!report.is_clean(), "{source}: {report:?}");
         let made = script.call("make", &[], options.clone()).unwrap().value;
@@ -1714,7 +1724,7 @@ fn opaque_left_equality_does_not_assume_native_boolean_results() {
     }
     // A missing != falls back to a negated ==, but the receiver's class is
     // unknown, so the result still must not be assumed boolean.
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile("class Plain;end;class C;def ==(other);7;end;end;def run(x:any)->int;if (x != Plain.new).is_type?(:bool);7;else;'wrong';end;end")
         .unwrap();
     assert!(!script.check_function("run", &options).unwrap().is_clean());
@@ -1731,7 +1741,7 @@ fn opaque_left_equality_does_not_assume_native_boolean_results() {
         "class Plain;end;class C;def ==(other);7;end;end;def run->int;C.new==Plain.new;end",
         "class Plain;end;class C;def !=(other);7;end;end;def run->int;C.new != Plain;end",
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = common::gradual_engine().compile(source).unwrap();
         let report = script.check_function("run", &options).unwrap();
         assert!(report.is_clean(), "{source}: {report:?}");
     }
@@ -1798,7 +1808,7 @@ fn primitive_equality_keeps_abstract_alternatives_and_receiver_dispatch() {
         "def run(x:int)->int;if x==1.0;7;else;'wrong';end;end",
         "def run(x:int|float)->int;if x==1;7;else;'wrong';end;end",
     ] {
-        let report = Engine::new()
+        let report = common::gradual_engine()
             .compile(source)
             .unwrap()
             .check_function("run", &CallOptions::default())
@@ -1811,7 +1821,7 @@ fn primitive_equality_keeps_abstract_alternatives_and_receiver_dispatch() {
     for left in ["1", "1.0", "'a'", "nil", "true", ":a"] {
         let source =
             format!("def run(x:any)->int;if ({left}==x).is_type?(:bool);7;else;'wrong';end;end");
-        let script = Engine::new().compile(&source).unwrap();
+        let script = common::gradual_engine().compile(&source).unwrap();
         let report = script
             .check_function("run", &CallOptions::default())
             .unwrap();
@@ -1828,7 +1838,7 @@ fn primitive_equality_keeps_abstract_alternatives_and_receiver_dispatch() {
         }
     }
     let source = "class C;def ==(other);7;end;end;def run -> int; C.new=='a'; end";
-    let script = Engine::new().compile(source).unwrap();
+    let script = common::gradual_engine().compile(source).unwrap();
     assert!(
         script
             .check_call("run", &[], &CallOptions::default())
@@ -1861,7 +1871,7 @@ fn bare_field_writes_update_the_field_in_checks_and_runs() {
             "[[9],5,[9]]",
         ),
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = common::gradual_engine().compile(source).unwrap();
         let options = CallOptions::default();
         assert!(
             script.check_call("run", &[], &options).unwrap().is_clean(),
@@ -1872,7 +1882,7 @@ fn bare_field_writes_update_the_field_in_checks_and_runs() {
         let json = vibescript::stringify_json(&result.value, CallOptions::default()).unwrap();
         assert_eq!(json.value.as_bytes(), Some(expected.as_bytes()), "{source}");
     }
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile("class H;def initialize(flag);@rows=[1] if flag;end;def poke;rows[0]=9;end;end;def run;H.new(false).poke;end")
         .unwrap();
     let report = script
@@ -1901,7 +1911,7 @@ fn bare_names_receiving_members_report_the_runtime_failure() {
             .as_str()
             .map(str::to_owned)
             .unwrap_or_else(|| format!("def run(input)\n{}\nend", case["body"].as_str().unwrap()));
-        let script = Engine::new().compile(&source).unwrap();
+        let script = common::gradual_engine().compile(&source).unwrap();
         let report = script
             .check_call("run", &[Value::nil()], &CallOptions::default())
             .unwrap();
@@ -1913,7 +1923,7 @@ fn bare_names_receiving_members_report_the_runtime_failure() {
         checked += 1;
     }
     assert_eq!(checked, 32);
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile(
             "def helper\n1\nend\ndef list\n[1]\nend\n\
              def run\n[helper.to_s, helper&.to_s, helper.to_s(), list.pop, list.push(2)]\nend",
@@ -1951,7 +1961,7 @@ fn compound_member_writes_follow_their_runtime_outcome() {
     for op in ["+=", "-=", "*=", "/=", "%=", "**=", "||=", "&&="] {
         for program in programs {
             let source = program.replace("OP", op);
-            let script = Engine::new().compile(&source).unwrap();
+            let script = common::gradual_engine().compile(&source).unwrap();
             let report = script
                 .check_call("run", &[], &CallOptions::default())
                 .unwrap();
@@ -1970,7 +1980,7 @@ fn compound_member_writes_follow_their_runtime_outcome() {
 fn function_writes_through_script_local_names_read_those_names() {
     for write in ["h.a = 2", "h.a /= 2", "h[0] = 2", "h.pop", "x, h.a = 1, 2"] {
         let source = format!("h = {{a: 1}}\ndef f\n  {write}\nend\ndef run\n  f\nend");
-        let script = Engine::new().compile(&source).unwrap();
+        let script = common::gradual_engine().compile(&source).unwrap();
         let report = script
             .check_call("run", &[], &CallOptions::default())
             .unwrap();

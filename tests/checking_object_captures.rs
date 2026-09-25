@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -50,7 +52,7 @@ fn same(actual: &Value, expected: &Value, source: &str) {
 
 fn returns(template: Value, expression: &str, annotation: &str, expected: Value) {
     let source = format!("def run -> {annotation};{expression};end");
-    let script = Engine::new().compile(&source).unwrap();
+    let script = common::gradual_engine().compile(&source).unwrap();
     let options = options(template);
     clean(&script.check_function("run", &options).unwrap(), &source);
     clean(&script.check_call("run", &[], &options).unwrap(), &source);
@@ -207,7 +209,7 @@ fn invalid_numeric_capture_access_is_catchable_and_stops_the_success_path() {
         let source = format!(
             "def run -> int;begin;cap[{index}];'unreachable';rescue RuntimeError;7;end;end"
         );
-        let script = Engine::new().compile(&source).unwrap();
+        let script = common::gradual_engine().compile(&source).unwrap();
         let options = options(template);
         for report in [
             script.check_function("run", &options).unwrap(),
@@ -239,7 +241,7 @@ fn invalid_numeric_capture_access_is_catchable_and_stops_the_success_path() {
 
 #[test]
 fn nonfinite_host_selectors_reject_before_the_following_expression() {
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile("def run(i:float) -> int;begin;cap[i];'bad';rescue RuntimeError;7;end;end")
         .unwrap();
     let options = options(object(Value::int(7), vec![], Value::nil()));
@@ -288,7 +290,7 @@ fn structural_contracts_keep_possible_index_failures_in_rescue_flow() {
         let source = format!(
             "def run(h:{annotation}) -> int;begin;h[0];0;rescue RuntimeError;'bad';end;end"
         );
-        let script = Engine::new().compile(&source).unwrap();
+        let script = common::gradual_engine().compile(&source).unwrap();
         let options = CallOptions::default();
         let report = script.check_function("run", &options).unwrap();
         assert!(report.incomplete.is_empty(), "{source}: {report:?}");
@@ -329,7 +331,7 @@ fn generic_array_captures_keep_the_last_item_present() {
         };
         let source =
             format!("def run(h:{{to_s:int,captures:array<int>}}) -> {annotation};h[{index}];end");
-        let script = Engine::new().compile(&source).unwrap();
+        let script = common::gradual_engine().compile(&source).unwrap();
         let options = CallOptions::default();
         clean(&script.check_function("run", &options).unwrap(), &source);
         for captures in [
@@ -352,7 +354,7 @@ fn broad_selectors_keep_valid_results_and_invalid_kind_failures() {
         let source = format!(
             "def run(i:{annotation}) -> int;begin;cap[i];0;rescue RuntimeError;'bad';end;end"
         );
-        let script = Engine::new().compile(&source).unwrap();
+        let script = common::gradual_engine().compile(&source).unwrap();
         let options = options(object(Value::int(7), vec![], Value::nil()));
         let report = script.check_function("run", &options).unwrap();
         assert!(report.incomplete.is_empty(), "{source}: {report:?}");
@@ -394,7 +396,7 @@ fn broad_selectors_keep_valid_results_and_invalid_kind_failures() {
 fn large_integer_selectors_keep_the_rescue_reachable() {
     let source =
         "def run -> int;begin;cap[9223372036854775808];0;rescue RuntimeError;'bad';end;end";
-    let script = Engine::new().compile(source).unwrap();
+    let script = common::gradual_engine().compile(source).unwrap();
     let options = options(object(Value::int(7), vec![], Value::nil()));
     let report = script.check_call("run", &[], &options).unwrap();
     assert!(report.incomplete.is_empty(), "{report:?}");
@@ -414,7 +416,7 @@ fn large_integer_selectors_keep_the_rescue_reachable() {
 #[test]
 fn rooted_numeric_capture_mutations_fail_before_argument_effects() {
     let source = "def run -> int;n=0;begin;cap[1].push(begin;n=1;8;end);rescue RuntimeError;if n==0;'bad';else;0;end;end;end";
-    let script = Engine::new().compile(source).unwrap();
+    let script = common::gradual_engine().compile(source).unwrap();
     let options = options(object(
         Value::nil(),
         vec![Value::array(vec![Value::int(7)])],
@@ -456,7 +458,7 @@ fn extracted_capture_arrays_are_value_snapshots() {
 #[test]
 fn optional_root_fields_preserve_plain_hash_and_capture_fallback_results() {
     let source = "def run(h:{to_s:int,named_captures:{name:int},name?:string}) -> int|string|nil;h[:name];end";
-    let script = Engine::new().compile(source).unwrap();
+    let script = common::gradual_engine().compile(source).unwrap();
     let options = CallOptions::default();
     clean(&script.check_function("run", &options).unwrap(), source);
     for plain in [false, true] {
@@ -496,7 +498,7 @@ fn optional_root_fields_preserve_plain_hash_and_capture_fallback_results() {
             );
         }
     }
-    let narrow = Engine::new()
+    let narrow = common::gradual_engine()
         .compile(&source.replace("int|string|nil", "int"))
         .unwrap();
     let report = narrow.check_function("run", &options).unwrap();
@@ -580,7 +582,7 @@ fn host_methods_found_through_captures_remain_attached() {
     ));
     for (i, selection) in ["cap[0]", "cap[:answer]"].into_iter().enumerate() {
         let source = format!("def run -> int;{selection}();end");
-        let script = Engine::new().compile(&source).unwrap();
+        let script = common::gradual_engine().compile(&source).unwrap();
         clean(&script.check_call("run", &[], &options).unwrap(), &source);
         assert_eq!(calls.load(Ordering::Relaxed), i);
         assert_eq!(
@@ -592,7 +594,7 @@ fn host_methods_found_through_captures_remain_attached() {
             Some(99)
         );
         let source = format!("def run;f={selection};f();end");
-        let script = Engine::new().compile(&source).unwrap();
+        let script = common::gradual_engine().compile(&source).unwrap();
         let report = script.check_call("run", &[], &options).unwrap();
         assert!(report.incomplete.is_empty(), "{source}: {report:?}");
         assert!(!report.diagnostics.is_empty(), "{source}: {report:?}");
@@ -611,7 +613,7 @@ fn capture_analysis_obeys_accounting_and_cancellation() {
         (0..96).map(Value::int).collect(),
         Value::hash(vec![(b"name".to_vec(), Value::int(11))]),
     ));
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile("def run -> int;cap[-1]+cap[:name];end")
         .unwrap();
     let baseline = script.check_call("run", &[], &options).unwrap();

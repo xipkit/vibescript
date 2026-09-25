@@ -847,7 +847,7 @@ fn checker_facts_follow_runtime_outcomes() {
             7,
         ),
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = common::gradual_engine().compile(source).unwrap();
         let report = script
             .check_call("run", &[], &CallOptions::default())
             .unwrap();
@@ -872,7 +872,7 @@ fn checker_facts_follow_runtime_outcomes() {
         "[1].repeated_combination(:x)",
         "[1].repeated_permutation",
     ] {
-        let script = Engine::new()
+        let script = common::gradual_engine()
             .compile(&format!("def run; {expression}; end"))
             .unwrap();
         let report = script

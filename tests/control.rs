@@ -1,3 +1,5 @@
+mod common;
+
 use std::time::Duration;
 use vibescript::{
     CallOptions, CancellationToken, Engine, ErrorKind, Limits, Value, stringify_json,
@@ -255,13 +257,13 @@ fn range_matchers_compare_range_targets_by_equality() {
         "def run -> int; case (7...7) when 7...7 then 7 else 'wrong' end; end",
         "def run -> int; if (1..3) === (1...3); 'wrong'; else; 7; end; end",
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = common::gradual_engine().compile(source).unwrap();
         let report = script
             .check_function("run", &CallOptions::default())
             .unwrap();
         assert!(report.is_clean(), "{source}: {report:?}");
     }
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile(
             "def run(x) -> int; case x when 1..5 then (x == (1..5) ? 'range' : 7) else 9 end; end",
         )
@@ -318,7 +320,7 @@ fn float_range_membership_is_exact_beyond_double_precision() {
     ] {
         assert_eq!(result_json(source), serde_json::json!(expected), "{source}");
     }
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile(
             "def run -> int\ncase 9007199254740992.0\nwhen 9007199254740993..9007199254740993 then 'wrong'\nelse 7\nend\nend",
         )

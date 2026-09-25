@@ -1,3 +1,5 @@
+mod common;
+
 use vibescript::{CallOptions, Engine, ErrorKind, Value};
 
 #[test]
@@ -14,7 +16,7 @@ fn hash_lookup_order_keeps_direct_scoped_and_forwarded_failures_distinct() {
             let source = format!(
                 "def run(h:{annotation})->int;n=0;begin;{call};rescue RuntimeError;if n==0;'bad';else;0;end;end;end"
             );
-            let script = Engine::new().compile(&source).unwrap();
+            let script = common::gradual_engine().compile(&source).unwrap();
             let options = CallOptions::default();
             let report = script.check_function("run", &options).unwrap();
             assert!(report.incomplete.is_empty(), "{source}: {report:?}");
@@ -40,7 +42,7 @@ fn optional_hash_fields_can_fail_before_argument_effects() {
         let source = format!(
             "def run(h:{annotation})->int;n=0;begin;h.missing((begin;n=7;9;end));rescue RuntimeError;if n==0;'bad';else;0;end;end;end"
         );
-        let script = Engine::new().compile(&source).unwrap();
+        let script = common::gradual_engine().compile(&source).unwrap();
         let options = CallOptions::default();
         let report = script.check_function("run", &options).unwrap();
         assert!(report.incomplete.is_empty(), "{source}: {report:?}");
@@ -84,7 +86,7 @@ fn general_hash_member_reads_preserve_declared_value_types() {
     ] {
         for member in ["a", "a.to_s"] {
             let source = format!("def run(h:hash<string,{value_type}>)->bool;h.{member};end");
-            let script = Engine::new().compile(&source).unwrap();
+            let script = common::gradual_engine().compile(&source).unwrap();
             let options = CallOptions::default();
             let report = script.check_function("run", &options).unwrap();
             assert!(report.incomplete.is_empty(), "{source}: {report:?}");
@@ -119,7 +121,7 @@ fn general_hash_forwarded_field_calls_keep_catchable_failures() {
             let source = format!(
                 "def run(h:{annotation})->int;begin;h.{method}(:a);rescue RuntimeError;7;end;end"
             );
-            let script = Engine::new().compile(&source).unwrap();
+            let script = common::gradual_engine().compile(&source).unwrap();
             let options = CallOptions::default();
             let report = script.check_function("run", &options).unwrap();
             assert!(report.incomplete.is_empty(), "{source}: {report:?}");
@@ -152,7 +154,7 @@ fn noncallable_hash_fields_without_native_fallbacks_remain_diagnostics() {
         "h.public_send(:a)",
     ] {
         let source = format!("def run(h:hash<string,int>);{call};end");
-        let script = Engine::new().compile(&source).unwrap();
+        let script = common::gradual_engine().compile(&source).unwrap();
         let options = CallOptions::default();
         let report = script.check_function("run", &options).unwrap();
         assert!(report.incomplete.is_empty(), "{source}: {report:?}");
@@ -174,7 +176,7 @@ fn noncallable_hash_fields_without_native_fallbacks_remain_diagnostics() {
 
 #[test]
 fn contracts_admitting_protected_hashes_do_not_approve_mutation_paths() {
-    let engine = Engine::new();
+    let engine = common::gradual_engine();
     for (constructor, annotations, operations) in [
         (
             "\"a\".match(\"(a)\")",

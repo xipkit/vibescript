@@ -1,3 +1,5 @@
+mod common;
+
 use vibescript::{CallOptions, Engine, ErrorKind};
 
 const DECLARATIONS: &str =
@@ -59,7 +61,7 @@ fn assert_too_deep(source: &str, name: &str) {
 #[test]
 fn every_form_reaches_the_reference_syntax_depth_on_the_default_stack() {
     for &(name, prefix, inner, suffix, depth) in FORMS {
-        let script = Engine::new()
+        let script = common::gradual_engine()
             .compile(&nested(prefix, inner, suffix, depth))
             .unwrap_or_else(|error| panic!("{name}: {error}"));
         // Some shapes fail at runtime, but none may exhaust the native stack.

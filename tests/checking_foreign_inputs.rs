@@ -1,7 +1,9 @@
+mod common;
+
 use vibescript::{CallOptions, Engine, Script, Value};
 
 fn values(source: &str) -> (Value, Value) {
-    let script = Engine::new().compile(source).unwrap();
+    let script = common::gradual_engine().compile(source).unwrap();
     let class = script
         .call("klass", &[], CallOptions::default())
         .unwrap()
@@ -40,7 +42,7 @@ fn whole_file_inputs_use_the_defining_property_and_constructor() {
         ("def run(x:Foreign)->string;x.n;end", false),
         ("def run(x:Foreign);x.n='bad';end", false),
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = common::gradual_engine().compile(source).unwrap();
         assert_eq!(
             script
                 .call("run", std::slice::from_ref(&instance), options.clone())
@@ -68,7 +70,7 @@ fn single_function_inputs_preserve_conservative_fields_and_typed_writes() {
         ("def run(x:Foreign);x.n='bad';end", false),
         ("def run(x:Foreign)->string;x.answer;end", false),
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = common::gradual_engine().compile(source).unwrap();
         general(&script, &options, clean);
         if clean {
             assert_eq!(
@@ -107,7 +109,7 @@ fn foreign_inputs_preserve_possible_aliases_and_distinguish_new_objects() {
         ("c=Foreign.new;if a==c;false;else;7;end", true),
         ("a.n=false;a.n=7;a.n", true),
     ] {
-        let script = Engine::new()
+        let script = common::gradual_engine()
             .compile(&format!("def run(a:Foreign,b:Foreign)->int;{body};end"))
             .unwrap();
         let result = script.call(
@@ -169,7 +171,7 @@ fn foreign_classes_in_collection_and_nullable_inputs_keep_their_methods_and_alia
             false,
         ),
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = common::gradual_engine().compile(source).unwrap();
         assert_eq!(
             script.call("run", &[argument], options.clone()).is_ok(),
             clean,
@@ -198,7 +200,7 @@ fn equal_class_names_from_different_sources_keep_separate_domains_and_heaps() {
         ("a.n='wrong';7", false),
         ("b.n=7;7", false),
     ] {
-        let script = Engine::new()
+        let script = common::gradual_engine()
             .compile(&format!(
                 "class Box;property n:bool;def initialize;@n=false;end;end;def run(a:A,b:B)->int;{body};end"
             ))
@@ -213,7 +215,9 @@ fn equal_class_names_from_different_sources_keep_separate_domains_and_heaps() {
         general(&script, &options, clean);
         check(&script, &options, clean);
     }
-    let script = Engine::new().compile("def run(a:A)->B;a;end").unwrap();
+    let script = common::gradual_engine()
+        .compile("def run(a:A)->B;a;end")
+        .unwrap();
     general(&script, &options, false);
     check(&script, &options, false);
 }
@@ -254,7 +258,7 @@ fn foreign_constructor_summaries_preserve_missing_fields_and_recursive_inputs() 
             globals: [("Foreign".into(), class)].into(),
             ..Default::default()
         };
-        let script = Engine::new()
+        let script = common::gradual_engine()
             .compile("def run(x:Foreign)->int;x.n;end")
             .unwrap();
         assert_eq!(
@@ -276,7 +280,7 @@ fn checking_foreign_inputs_never_executes_initializers_constructors_or_callbacks
 
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register_method(
         "probe",
         HostMethod::new("probe", move |_, _, _| {
@@ -303,7 +307,7 @@ fn checking_foreign_inputs_never_executes_initializers_constructors_or_callbacks
         globals: [("Foreign".into(), class)].into(),
         ..Default::default()
     };
-    let receiver = Engine::new()
+    let receiver = common::gradual_engine()
         .compile("def run(x:Foreign)->int;x.n=7;x.answer;end")
         .unwrap();
     let before = effects.load(Ordering::Relaxed);
@@ -351,7 +355,7 @@ fn foreign_types_survive_defaults_and_variadic_parameter_binding() {
             vec![("a".to_owned(), instance.clone())],
         ),
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = common::gradual_engine().compile(source).unwrap();
         script
             .call_with_keywords("run", &args, &keywords, options.clone())
             .unwrap();
@@ -368,7 +372,7 @@ fn pending_foreign_field_targets_keep_reentrant_alias_writes() {
         globals: [("Foreign".into(), class)].into(),
         ..Default::default()
     };
-    let script = Engine::new().compile("def replace(c:Foreign);c.items=['bad'];7;end;def run(a:Foreign,b:Foreign)->array<int>;a.items=[1];a.items[0]=replace(b);a.items;end").unwrap();
+    let script = common::gradual_engine().compile("def replace(c:Foreign);c.items=['bad'];7;end;def run(a:Foreign,b:Foreign)->array<int>;a.items=[1];a.items[0]=replace(b);a.items;end").unwrap();
     assert!(
         script
             .call("run", &[instance.clone(), instance], options.clone())

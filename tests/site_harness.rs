@@ -1,3 +1,5 @@
+mod common;
+
 use serde_json::{Value as Json, json};
 use vibescript::{CallOptions, CheckedOutcome, Engine, ErrorKind, HostMethod, Value};
 
@@ -96,7 +98,7 @@ fn unchanged_notification_examples_run_through_checked_template_grants() {
             json!({"status":"preview", "to":"alex@example.com", "subject":"Welcome, Alex!", "body":"Hi Alex,\n\nYour account is ready. Thanks for joining us."}),
         ),
     ] {
-        let mut engine = Engine::new();
+        let mut engine = common::gradual_engine();
         engine.set_strict_effects(true);
         let script = engine.compile(source).unwrap();
         let options = CallOptions {

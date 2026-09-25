@@ -25,7 +25,7 @@ impl Files {
     }
 
     fn engine(&self) -> Engine {
-        let mut engine = Engine::new();
+        let mut engine = common::gradual_engine();
         engine
             .set_module_config(ModuleConfig {
                 paths: vec![self.0.clone()],
@@ -63,14 +63,14 @@ fn accepts(script: &Script, args: &[Value], options: &CallOptions) {
 
 #[test]
 fn supplied_instances_preserve_aliases_fields_and_call_isolation() {
-    let source = Engine::new()
+    let source = common::gradual_engine()
         .compile("class Box;property n:int;def initialize;@n=5;end;end;def make;Box.new;end")
         .unwrap();
     let value = source
         .call("make", &[], CallOptions::default())
         .unwrap()
         .value;
-    let receiver = Engine::new()
+    let receiver = common::gradual_engine()
         .compile("def run(a,b)->int;a.n+=1;if a==b && b.n==6;7;else;false;end;end")
         .unwrap();
     accepts(&receiver, &[value.clone(), value], &CallOptions::default());
@@ -88,7 +88,7 @@ fn captured_namespace_state_survives_without_repeating_initializers() {
         .call("make", &[], CallOptions::default())
         .unwrap()
         .value;
-    let receiver = Engine::new()
+    let receiver = common::gradual_engine()
         .compile("def run(c)->int;c.bump;if c.value==2 && c::Nested::N==3;7;else;false;end;end")
         .unwrap();
     accepts(&receiver, &[value], &CallOptions::default());
@@ -113,24 +113,24 @@ fn captures_of_one_source_keep_distinct_class_identity_and_state() {
         .call("make", &[], CallOptions::default())
         .unwrap()
         .value;
-    let receiver = Engine::new().compile("def run(a,b,again)->int;a.bump;again.bump;if a != b && a==again && a.value==2 && b.value==0;7;else;false;end;end").unwrap();
+    let receiver = common::gradual_engine().compile("def run(a,b,again)->int;a.bump;again.bump;if a != b && a==again && a.value==2 && b.value==0;7;else;false;end;end").unwrap();
     accepts(&receiver, &[a.clone(), b, a], &CallOptions::default());
 }
 
 #[test]
 fn cyclic_instance_graphs_keep_nested_container_aliases() {
-    let source = Engine::new().compile("class Node;property links;property n:int;def initialize;@n=1;@links=[];end;end;def make;a=Node.new;b=Node.new;a.links=[b];b.links=[a];a;end").unwrap();
+    let source = common::gradual_engine().compile("class Node;property links;property n:int;def initialize;@n=1;@links=[];end;end;def make;a=Node.new;b=Node.new;a.links=[b];b.links=[a];a;end").unwrap();
     let value = source
         .call("make", &[], CallOptions::default())
         .unwrap()
         .value;
-    let receiver = Engine::new().compile("def run(a)->int;b=a.links[0];b.links[0].n=4;if a.n==4 && b.n==1 && b.links[0]==a;7;else;false;end;end").unwrap();
+    let receiver = common::gradual_engine().compile("def run(a)->int;b=a.links[0];b.links[0].n=4;if a.n==4 && b.n==1 && b.links[0]==a;7;else;false;end;end").unwrap();
     accepts(&receiver, &[value], &CallOptions::default());
 }
 
 #[test]
 fn lazy_instance_globals_do_not_replace_already_mutated_objects() {
-    let source = Engine::new().compile("class Box;property n:int;def initialize(n=1);@n=n;end;end;def make;[Box.new(3),Box.new(5)];end").unwrap();
+    let source = common::gradual_engine().compile("class Box;property n:int;def initialize(n=1);@n=n;end;end;def make;[Box.new(3),Box.new(5)];end").unwrap();
     let values = source
         .call("make", &[], CallOptions::default())
         .unwrap()
@@ -140,12 +140,12 @@ fn lazy_instance_globals_do_not_replace_already_mutated_objects() {
         globals: [("other".into(), args[1].clone())].into(),
         ..Default::default()
     };
-    let receiver = Engine::new().compile("def run(a)->int;a.n=4;b=a.class.new(8);other.n=6;if a.n==4 && b.n==8 && other.n==6;7;else;false;end;end").unwrap();
+    let receiver = common::gradual_engine().compile("def run(a)->int;a.n=4;b=a.class.new(8);other.n=6;if a.n==4 && b.n==8 && other.n==6;7;else;false;end;end").unwrap();
     accepts(&receiver, &[args[0].clone()], &options);
 }
 
 fn traced_namespace(marker: i64) -> Value {
-    let source = Engine::new()
+    let source = common::gradual_engine()
         .compile(&format!(
             "class Remote;trace.push({marker});def self.value;7;end;end;def make;Remote;end"
         ))
@@ -165,7 +165,7 @@ fn traced_namespace(marker: i64) -> Value {
 
 #[test]
 fn foreign_initializers_follow_input_order_before_the_receiving_script() {
-    let receiver = Engine::new().compile(
+    let receiver = common::gradual_engine().compile(
         "class Local;trace.push(3);end;def run(input)->int;if trace.length==3 && trace[0]==1 && trace[1]==2 && trace[2]==3;7;else;false;end;end"
     ).unwrap();
     let options = CallOptions {
@@ -214,7 +214,7 @@ fn duplicate_keywords_keep_the_runtime_source_admission_order() {
         } else {
             "trace.length==3 && trace[0]==1 && trace[1]==2 && trace[2]==3"
         };
-        let script = Engine::new()
+        let script = common::gradual_engine()
             .compile(&format!(
                 "def run(a:,b:)->int;if {expected};7;else;false;end;end"
             ))
@@ -238,7 +238,7 @@ fn duplicate_keywords_keep_the_runtime_source_admission_order() {
 
 #[test]
 fn deferred_sources_initialize_at_the_read_and_unused_sources_stay_unread() {
-    let receiver = Engine::new().compile(
+    let receiver = common::gradual_engine().compile(
         "def run->int;trace.push(0);a.value;trace.push(2);a.value;if trace.length==3 && trace[0]==0 && trace[1]==1 && trace[2]==2;7;else;false;end;end"
     ).unwrap();
     let options = CallOptions {
@@ -289,7 +289,7 @@ fn branching_type_options_with_initializer(
     use vibescript::{HostMethod, Signature};
     let choices = Arc::new(AtomicUsize::new(0));
     let called = choices.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register_method(
         "choose",
         HostMethod::new("choose", move |_, _, _| {
@@ -332,14 +332,14 @@ fn deferred_property_initializers_preserve_writes_to_other_fields() {
         ] {
             let (mut options, choices) =
                 branching_type_options_with_initializer(choice, "if trace.length>0;box.note=9;end");
-            let producer = Engine::new().compile(&format!("class Holder;property note;property item:C?;property items:array<C?>;def initialize;@note=1;@items=[nil];end;def bind(@item);end;def work;{body};end;end;def make;Holder.new;end")).unwrap();
+            let producer = common::gradual_engine().compile(&format!("class Holder;property note;property item:C?;property items:array<C?>;def initialize;@note=1;@items=[nil];end;def bind(@item);end;def work;{body};end;end;def make;Holder.new;end")).unwrap();
             let holder = producer.call("make", &[], options.clone()).unwrap().value;
             options.globals.insert("box".into(), holder.clone());
             options
                 .globals
                 .insert("trace".into(), Value::array(vec![Value::int(5)]));
             choices.store(0, Ordering::Relaxed);
-            let receiver = Engine::new().compile("def run(target)->int;target.work;if target.note==9 && box.note==9 && trace.length==3;7;else;false;end;end").unwrap();
+            let receiver = common::gradual_engine().compile("def run(target)->int;target.work;if target.note==9 && box.note==9 && trace.length==3;7;else;false;end;end").unwrap();
             accepts(&receiver, &[holder], &options);
             assert_eq!(choices.load(Ordering::Relaxed), 2, "{body}");
         }
@@ -402,10 +402,10 @@ fn deferred_property_types_resume_direct_stores_and_completed_mutations() {
             ),
         ] {
             let (options, choices) = branching_type_options(choice);
-            let producer = Engine::new().compile(&format!("class Holder;property item:C?;property items:array<C?>;def initialize;@items=[nil,nil];end;def bind(@item);end;def work->int;value=begin;{body};end;if {valid};7;else;false;end;end;end;def make;Holder.new;end")).unwrap();
+            let producer = common::gradual_engine().compile(&format!("class Holder;property item:C?;property items:array<C?>;def initialize;@items=[nil,nil];end;def bind(@item);end;def work->int;value=begin;{body};end;if {valid};7;else;false;end;end;end;def make;Holder.new;end")).unwrap();
             let holder = producer.call("make", &[], options.clone()).unwrap().value;
             choices.store(0, Ordering::Relaxed);
-            let receiver = Engine::new().compile(&format!("def run(box)->int;n=box.work;C.value;if n==7 && trace.length=={} && trace[0]==9 && trace[{}]==0;7;else;false;end;end", effects + 2, effects)).unwrap();
+            let receiver = common::gradual_engine().compile(&format!("def run(box)->int;n=box.work;C.value;if n==7 && trace.length=={} && trace[0]==9 && trace[{}]==0;7;else;false;end;end", effects + 2, effects)).unwrap();
             accepts(&receiver, &[holder], &options);
             assert_eq!(choices.load(Ordering::Relaxed), 2, "{body}");
         }
@@ -423,10 +423,10 @@ fn deferred_property_rejections_preserve_fields_and_cleanup_on_every_branch() {
             "@items.fill{1}",
         ] {
             let (options, choices) = branching_type_options(choice);
-            let producer = Engine::new().compile(&format!("class Holder;property item:C?;property items:array<C?>;def initialize;@items=[nil,nil];end;def bind(@item);end;def work->int;trace.push(9);begin;{body};false;rescue RuntimeError;if @item==nil && @items.length==2 && @items[0]==nil;7;else;false;end;ensure;trace.push(8);end;end;end;def make;Holder.new;end")).unwrap();
+            let producer = common::gradual_engine().compile(&format!("class Holder;property item:C?;property items:array<C?>;def initialize;@items=[nil,nil];end;def bind(@item);end;def work->int;trace.push(9);begin;{body};false;rescue RuntimeError;if @item==nil && @items.length==2 && @items[0]==nil;7;else;false;end;ensure;trace.push(8);end;end;end;def make;Holder.new;end")).unwrap();
             let holder = producer.call("make", &[], options.clone()).unwrap().value;
             choices.store(0, Ordering::Relaxed);
-            let receiver = Engine::new().compile("def run(box)->int;value=box.work;if value==7 && trace[0]==9 && trace.last==8;7;else;false;end;end").unwrap();
+            let receiver = common::gradual_engine().compile("def run(box)->int;value=box.work;if value==7 && trace[0]==9 && trace.last==8;7;else;false;end;end").unwrap();
             for _ in 0..2 {
                 let before = choices.load(Ordering::Relaxed);
                 let report = receiver
@@ -458,7 +458,7 @@ fn deferred_property_types_resolve_in_the_current_source() {
     for choice in [false, true] {
         for method in ["def write;@item=nil;end", "def write(@item=nil);end"] {
             let (options, choices) = branching_type_options(choice);
-            let script = Engine::new().compile(&format!("class Holder;property item:C?;{method};end;def run->int;box=Holder.new;box.write;if box.item==nil && trace.length==2 && trace[0]==0;7;else;false;end;end")).unwrap();
+            let script = common::gradual_engine().compile(&format!("class Holder;property item:C?;{method};end;def run->int;box=Holder.new;box.write;if box.item==nil && trace.length==2 && trace[0]==0;7;else;false;end;end")).unwrap();
             accepts(&script, &[], &options);
             let report = script.check_function("run", &options).unwrap();
             assert!(report.is_clean(), "{method}: {report:?}");
@@ -473,7 +473,7 @@ fn deferred_predicates_resume_native_and_namespace_calls() {
         for receiver in ["nil", "[1]", "Local", "Local.new", "M"] {
             for call in ["is_type?(\"C\")", "send(:is_type?, \"C\")"] {
                 let (options, choices) = branching_type_options(choice);
-                let script = Engine::new().compile(&format!("class Local;end;module M;end;def run->int;answer={receiver}.{call};if !answer && trace.length==2 && trace[0]==0;7;else;false;end;end")).unwrap();
+                let script = common::gradual_engine().compile(&format!("class Local;end;module M;end;def run->int;answer={receiver}.{call};if !answer && trace.length==2 && trace[0]==0;7;else;false;end;end")).unwrap();
                 accepts(&script, &[], &options);
                 let report = script.check_function("run", &options).unwrap();
                 assert!(report.is_clean(), "{receiver}.{call}: {report:?}");
@@ -491,7 +491,7 @@ fn deferred_predicate_name_alternatives_only_initialize_the_selected_type() {
         .globals
         .insert("D".into(), other.globals["C"].clone());
     for receiver in ["nil", "Local.new"] {
-        let script = Engine::new().compile(&format!("class Local;end;def run(flag:bool)->int;name=if flag;\"C\";else;\"D\";end;answer={receiver}.is_type?(begin;trace.push(9);name;end);if !answer && trace.length==3 && trace[0]==9 && trace[1]==0;7;else;false;end;end")).unwrap();
+        let script = common::gradual_engine().compile(&format!("class Local;end;def run(flag:bool)->int;name=if flag;\"C\";else;\"D\";end;answer={receiver}.is_type?(begin;trace.push(9);name;end);if !answer && trace.length==3 && trace[0]==9 && trace[1]==0;7;else;false;end;end")).unwrap();
         for flag in [false, true] {
             accepts(&script, &[Value::boolean(flag)], &options);
         }
@@ -520,7 +520,7 @@ fn deferred_predicate_alternatives_preserve_invalid_queries() {
             ("\"C\"", "\"Missing.Type\""),
         ] {
             let (options, choices) = branching_type_options(true);
-            let script = Engine::new().compile(&format!("class Local;end;def run(flag:bool)->int;name=if flag;{};else;{};end;begin;{receiver}.is_type?(name);7;rescue RuntimeError;7;end;end", names.0, names.1)).unwrap();
+            let script = common::gradual_engine().compile(&format!("class Local;end;def run(flag:bool)->int;name=if flag;{};else;{};end;begin;{receiver}.is_type?(name);7;rescue RuntimeError;7;end;end", names.0, names.1)).unwrap();
             for flag in [false, true] {
                 assert_eq!(
                     script
@@ -566,7 +566,7 @@ fn deferred_type_branches_resume_supplied_default_and_return_boundaries() {
             ),
         ] {
             let (options, choices) = branching_type_options(choice);
-            let script = Engine::new().compile(&format!("{definitions};def run->int;{call};C.value;if trace.length=={length} && trace[0]=={first};7;else;false;end;end")).unwrap();
+            let script = common::gradual_engine().compile(&format!("{definitions};def run->int;{call};C.value;if trace.length=={length} && trace[0]=={first};7;else;false;end;end")).unwrap();
             accepts(&script, &[], &options);
             assert_eq!(choices.load(Ordering::Relaxed), 2);
             for function in ["run", "target"] {
@@ -589,7 +589,7 @@ fn deferred_host_contract_branches_resume_without_repeating_callbacks_or_blocks(
                 let calls = Arc::new(AtomicUsize::new(0));
                 let blocks = Arc::new(AtomicUsize::new(0));
                 let called = calls.clone();
-                let mut engine = Engine::new();
+                let mut engine = common::gradual_engine();
                 let method = if body.is_some() {
                     let entered = blocks.clone();
                     HostMethod::new_with_block("probe", move |call, _, _| {
@@ -742,7 +742,7 @@ fn deferred_import_branches_resume_file_reads_and_alias_conflicts() {
 
 #[test]
 fn deferred_source_continuations_keep_contradictions_from_either_history() {
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile("def run->int;C.value;if trace[1]==1;7;else;false;end;end")
         .unwrap();
     for choice in [false, true] {
@@ -778,7 +778,7 @@ fn captured_private_bindings_are_read_without_reexecuting_the_file() {
         .call("make", &[], CallOptions::default())
         .unwrap()
         .value;
-    let receiver = Engine::new()
+    let receiver = common::gradual_engine()
         .compile("def run(c)->int;c.bump;if c.read==6;7;else;false;end;end")
         .unwrap();
     accepts(&receiver, &[value], &CallOptions::default());
@@ -786,7 +786,7 @@ fn captured_private_bindings_are_read_without_reexecuting_the_file() {
 
 #[test]
 fn alternate_lazy_roots_keep_every_nested_source_activation() {
-    let child = Engine::new()
+    let child = common::gradual_engine()
         .compile("class Child;trace.push(2);end;def make;Child.new;end")
         .unwrap();
     let options = CallOptions {
@@ -794,7 +794,7 @@ fn alternate_lazy_roots_keep_every_nested_source_activation() {
         ..Default::default()
     };
     let child = child.call("make", &[], options.clone()).unwrap().value;
-    let parent = Engine::new().compile("class Parent;trace.push(1);property child;end;def make(child);p=Parent.new;p.child=child;p;end").unwrap();
+    let parent = common::gradual_engine().compile("class Parent;trace.push(1);property child;end;def make(child);p=Parent.new;p.child=child;p;end").unwrap();
     let parent = parent.call("make", &[child], options).unwrap().value;
     let options = CallOptions {
         globals: [
@@ -805,7 +805,7 @@ fn alternate_lazy_roots_keep_every_nested_source_activation() {
         .into(),
         ..Default::default()
     };
-    let receiver = Engine::new().compile("def run(flag:bool)->int;if flag;left;else;right;end;if trace.length==2 && trace[0]==1 && trace[1]==2;7;else;false;end;end").unwrap();
+    let receiver = common::gradual_engine().compile("def run(flag:bool)->int;if flag;left;else;right;end;if trace.length==2 && trace[0]==1 && trace[1]==2;7;else;false;end;end").unwrap();
     for flag in [false, true] {
         accepts(&receiver, &[Value::boolean(flag)], &options);
     }
@@ -815,7 +815,7 @@ fn alternate_lazy_roots_keep_every_nested_source_activation() {
 
 #[test]
 fn failed_source_activation_is_catchable_and_does_not_repeat() {
-    let producer = Engine::new().compile("class Remote;trace.push(1);if fail;raise(\"boom\");end;def self.value;7;end;end;def make;Remote;end").unwrap();
+    let producer = common::gradual_engine().compile("class Remote;trace.push(1);if fail;raise(\"boom\");end;def self.value;7;end;end;def make;Remote;end").unwrap();
     let value = producer
         .call(
             "make",
@@ -840,13 +840,13 @@ fn failed_source_activation_is_catchable_and_does_not_repeat() {
         .into(),
         ..Default::default()
     };
-    let receiver = Engine::new().compile("def run->int;n=0;begin;remote.value;rescue;n+=1;end;begin;remote.value;rescue;n+=1;end;if n==2 && trace.length==1 && trace[0]==1;7;else;false;end;end").unwrap();
+    let receiver = common::gradual_engine().compile("def run->int;n=0;begin;remote.value;rescue;n+=1;end;begin;remote.value;rescue;n+=1;end;if n==2 && trace.length==1 && trace[0]==1;7;else;false;end;end").unwrap();
     accepts(&receiver, &[], &options);
 }
 
 #[test]
 fn aliases_published_by_a_failed_initializer_keep_the_source_failure() {
-    let producer = Engine::new().compile("class Remote;N=0;cache=Remote;if fail;raise(\"boom\");end;def self.value;0;end;end;def make;Remote;end").unwrap();
+    let producer = common::gradual_engine().compile("class Remote;N=0;cache=Remote;if fail;raise(\"boom\");end;def self.value;0;end;end;def make;Remote;end").unwrap();
     let value = producer
         .call(
             "make",
@@ -879,7 +879,7 @@ fn aliases_published_by_a_failed_initializer_keep_the_source_failure() {
         "cache.send(:value)",
         "cache.public_send(:value)",
     ] {
-        let receiver = Engine::new().compile(&format!("def run->int;begin;remote;rescue;nil;end;v=begin;{expression};rescue;7;end;if v==7;7;else;false;end;end")).unwrap();
+        let receiver = common::gradual_engine().compile(&format!("def run->int;begin;remote;rescue;nil;end;v=begin;{expression};rescue;7;end;if v==7;7;else;false;end;end")).unwrap();
         accepts(&receiver, &[], &options);
     }
 }
@@ -892,7 +892,7 @@ fn declaration_inputs_can_alias_a_captured_global_in_both_mutation_directions() 
         "other.n=7;a.n=false;other.n",
         "a.n=false;other.n",
     ] {
-        let script = Engine::new().compile(&format!(
+        let script = common::gradual_engine().compile(&format!(
             "class Box;property n;def initialize;@n=0;end;end;def make;Box.new;end;def run(a:Box)->int;{body};end"
         )).unwrap();
         let value = script
@@ -935,7 +935,7 @@ fn foreign_general_inputs_keep_required_file_bindings_and_distinct_captures() {
         globals: [("A".into(), a[0].clone()), ("B".into(), b[0].clone())].into(),
         ..Default::default()
     };
-    let receiver = Engine::new()
+    let receiver = common::gradual_engine()
         .compile("def run(a:A,b:B)->int;a.n=7;b.n=9;if a==b;false;else;a.answer;end;end")
         .unwrap();
     assert_eq!(
@@ -959,7 +959,7 @@ fn foreign_general_inputs_keep_required_file_bindings_and_distinct_captures() {
 
 #[test]
 fn foreign_property_type_lookup_initializes_a_deferred_namespace() {
-    let producer = Engine::new()
+    let producer = common::gradual_engine()
         .compile("class Holder;property item:C?;end;def make;Holder.new;end")
         .unwrap();
     let value = producer
@@ -974,7 +974,7 @@ fn foreign_property_type_lookup_initializes_a_deferred_namespace() {
         .into(),
         ..Default::default()
     };
-    let receiver = Engine::new().compile("def run(holder)->int;holder.item=nil;if trace.length==1 && trace[0]==1;7;else;false;end;end").unwrap();
+    let receiver = common::gradual_engine().compile("def run(holder)->int;holder.item=nil;if trace.length==1 && trace[0]==1;7;else;false;end;end").unwrap();
     accepts(&receiver, &[value], &options);
 }
 
@@ -985,7 +985,7 @@ fn host_signature_lookups_initialize_deferred_sources_without_executing_the_host
     for result_type in [false, true] {
         let calls = Arc::new(AtomicUsize::new(0));
         let called = calls.clone();
-        let mut engine = Engine::new();
+        let mut engine = common::gradual_engine();
         engine.register_method(
             "probe",
             HostMethod::new("probe", move |_, _, _| {
@@ -1035,7 +1035,7 @@ fn host_block_boundaries_initialize_deferred_signature_sources() {
             for body in ["nil", "break nil"] {
                 let calls = Arc::new(AtomicUsize::new(0));
                 let called = calls.clone();
-                let mut engine = Engine::new();
+                let mut engine = common::gradual_engine();
                 let method = HostMethod::new_with_block("probe", move |call, _, _| {
                     called.fetch_add(1, Ordering::Relaxed);
                     for _ in 0..rounds {

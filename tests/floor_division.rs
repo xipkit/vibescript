@@ -1,6 +1,8 @@
 //! `//` floor division (ADR-008): integers floor at any size, a float operand
 //! gives a floored float, and `/` keeps its meaning until the switchover.
 
+mod common;
+
 use std::sync::{Arc, Mutex};
 use vibescript::{CallOptions, Engine, ErrorClass, ErrorKind, Value};
 
@@ -185,7 +187,7 @@ fn floor_division_errors_point_at_the_operator() {
 #[test]
 fn the_checker_types_floor_division() {
     let check = |source: &str| {
-        Engine::new()
+        common::gradual_engine()
             .compile(source)
             .unwrap()
             .check(&CallOptions::default())

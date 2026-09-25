@@ -1,3 +1,5 @@
+mod common;
+
 use vibescript::{CallOptions, CheckReport, ErrorKind, Script, Value};
 
 // Runtime hash contracts fall into three key families. Builtin keys other than
@@ -8,7 +10,7 @@ use vibescript::{CallOptions, CheckReport, ErrorKind, Script, Value};
 // for each family.
 
 fn compile(source: &str) -> Script {
-    vibescript::Engine::new().compile(source).unwrap()
+    common::gradual_engine().compile(source).unwrap()
 }
 
 fn check_function(script: &Script, name: &str, source: &str) -> CheckReport {
@@ -227,7 +229,7 @@ fn impossible_host_results_keep_failure_without_running_callbacks_during_analysi
         ..Signature::default()
     })
     .unwrap();
-    let mut engine = vibescript::Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register_method("read", method);
     let source = "def run()->int;begin;read();\"unreachable\";rescue RuntimeError;0;end;end";
     let script = engine.compile(source).unwrap();

@@ -656,7 +656,7 @@ def host; visit(fetch()); end
 
 #[test]
 fn instance_methods_write_class_constants_in_place() {
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile(
             r#"
 class Consts
@@ -722,7 +722,7 @@ end
 
 #[test]
 fn block_break_replaces_the_constructor_result() {
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile(
             r#"
 class Built

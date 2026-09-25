@@ -1,3 +1,5 @@
+mod common;
+
 use vibescript::{CallOptions, CheckDiagnostic, CheckReport, Engine, ErrorKind, Limits, Script};
 
 const DEFAULT_STEPS: u64 = 1_000_000;
@@ -69,7 +71,7 @@ const PROGRAMS: [(&str, &str); 9] = [
 #[test]
 fn loop_heavy_programs_check_within_the_default_budget_with_unchanged_reports() {
     for (name, source) in PROGRAMS {
-        let script = Engine::new().compile(source).unwrap();
+        let script = common::gradual_engine().compile(source).unwrap();
         let expected = script.check(&unlimited()).unwrap();
         assert!(
             expected.stats.steps < DEFAULT_STEPS,
@@ -111,14 +113,18 @@ fn nested_loops(depth: usize) -> String {
 #[test]
 fn new_callee_specializations_do_not_repeat_their_callers() {
     // Every call provisionally returned nothing, so each caller pass reached one more callee.
-    let script = Engine::new().compile(&sequential_calls(250)).unwrap();
+    let script = common::gradual_engine()
+        .compile(&sequential_calls(250))
+        .unwrap();
     let report = script.check(&CallOptions::default()).unwrap();
     assert!(report.is_clean(), "{report:?}");
     assert!(report.stats.steps < DEFAULT_STEPS / 4, "{:?}", report.stats);
     // Callees created inside loops are summarized before the loop continues, beyond the
     // bounded nesting depth as well.
     for depth in [3, 12] {
-        let script = Engine::new().compile(&nested_loops(depth)).unwrap();
+        let script = common::gradual_engine()
+            .compile(&nested_loops(depth))
+            .unwrap();
         let expected = script.check(&unlimited()).unwrap();
         assert!(expected.incomplete.is_empty(), "{expected:?}");
         assert!(
@@ -184,7 +190,7 @@ fn settled_contexts_and_join_caches_obey_exact_and_sampled_limits() {
         include_str!("site/rosettacode/popular/magic_squares_of_odd_order.vibe").to_string(),
         nested_loops(4),
     ] {
-        exact_limits(&Engine::new().compile(&source).unwrap());
+        exact_limits(&common::gradual_engine().compile(&source).unwrap());
     }
 }
 
@@ -195,7 +201,7 @@ fn forking_exact_iterations_check_anagrams_within_a_fraction_of_the_budget() {
     // The site program before its migration to static types, whose untyped
     // grouping hash is what forks the gradual checker.
     let source = ANAGRAMS;
-    let script = Engine::new().compile(source).unwrap();
+    let script = common::gradual_engine().compile(source).unwrap();
     let expected = script.check(&unlimited()).unwrap();
     assert!(
         expected.stats.steps < DEFAULT_STEPS / 5,
@@ -231,7 +237,9 @@ fn literal_each(count: usize) -> String {
 fn exact_iterations_resume_after_summarizing_each_new_block_context() {
     // Every element reaches a new block context, and the walk used to repeat all earlier
     // passes after summarizing it: 150 elements needed about 1.9M steps.
-    let script = Engine::new().compile(&literal_each(150)).unwrap();
+    let script = common::gradual_engine()
+        .compile(&literal_each(150))
+        .unwrap();
     let expected = script.check(&unlimited()).unwrap();
     assert!(expected.is_clean(), "{expected:?}");
     assert!(
@@ -241,7 +249,7 @@ fn exact_iterations_resume_after_summarizing_each_new_block_context() {
     );
     let report = script.check(&CallOptions::default()).unwrap();
     same_report(&report, &expected);
-    exact_limits(&Engine::new().compile(&literal_each(12)).unwrap());
+    exact_limits(&common::gradual_engine().compile(&literal_each(12)).unwrap());
 }
 
 /// `tests/site/rosettacode/popular/anagrams.vibe` as it was before the migration.

@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{Arc, Mutex};
 use vibescript::{
     CallOptions, CancellationToken, Engine, ErrorKind, Limits, Value, stringify_json,
@@ -194,7 +196,7 @@ fn finite_floats_truncate_at_integer_sites() {
             serde_json::json!(["abab", ""]),
         ),
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = common::gradual_engine().compile(source).unwrap();
         let report = script.check(&CallOptions::default()).unwrap();
         assert!(report.diagnostics.is_empty(), "{source}: {report:?}");
         let result = script.run(CallOptions::default()).unwrap();
@@ -212,12 +214,12 @@ fn finite_floats_truncate_at_integer_sites() {
         ("\"ab\" * -1.5", "negative argument for string repetition"),
         ("\"ab\" * (1.0/0)", "unsupported multiplication operands"),
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = common::gradual_engine().compile(source).unwrap();
         let error = script.run(CallOptions::default()).unwrap_err();
         assert_eq!(error.message, message, "{source}");
     }
     // Truncated literal bounds become known range facts; known unconvertible floats are reported.
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile("def run -> int; if (1.2..3.9) == (1..3); 7; else; 'wrong'; end; end")
         .unwrap();
     let report = script
@@ -225,7 +227,7 @@ fn finite_floats_truncate_at_integer_sites() {
         .unwrap();
     assert!(report.is_clean(), "{report:?}");
     for source in ["def run; (1..1e19); end", "def run; (-1e300..1.5); end"] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = common::gradual_engine().compile(source).unwrap();
         let report = script
             .check_function("run", &CallOptions::default())
             .unwrap();

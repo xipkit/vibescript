@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -266,7 +268,7 @@ fn breaking_a_receiving_loop_restores_local_call_lookup() {
 
 #[test]
 fn implicit_it_stays_callable_through_rescue_callee_branches() {
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile(
             "def it(value)\nvalue + 1\nend\n\
              def fallback(value)\nvalue + 10\nend\n\

@@ -55,7 +55,7 @@ fn granted(template: Value) -> CallOptions {
 }
 
 fn strict(source: &str) -> Script {
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.set_strict_effects(true);
     engine.compile(source).unwrap()
 }
@@ -310,7 +310,7 @@ fn value_templates_preserve_precedence_expired_grants_and_strict_validation() {
         globals: [("sms".into(), Value::int(7))].into(),
         ..deliverer()
     };
-    let script = Engine::new().compile("sms").unwrap();
+    let script = common::gradual_engine().compile("sms").unwrap();
     assert_eq!(
         script.run(shadowed.clone()).unwrap().value.as_int(),
         Some(7)
@@ -321,7 +321,7 @@ fn value_templates_preserve_precedence_expired_grants_and_strict_validation() {
             .unwrap()
             .is_clean()
     );
-    let script = Engine::new().compile("sms.deliver(1)").unwrap();
+    let script = common::gradual_engine().compile("sms.deliver(1)").unwrap();
     for later_wins in [true, false] {
         let mut capabilities = vec![
             Capability::from_value("sms", Value::int(1)),
@@ -342,7 +342,9 @@ fn value_templates_preserve_precedence_expired_grants_and_strict_validation() {
             assert_eq!(result.unwrap().value.to_string(), "[1]");
         }
     }
-    let script = Engine::new().compile("def run(sms); sms; end").unwrap();
+    let script = common::gradual_engine()
+        .compile("def run(sms); sms; end")
+        .unwrap();
     assert!(
         script
             .check_call("run", &[Value::int(7)], &deliverer())
@@ -357,9 +359,11 @@ fn value_templates_preserve_precedence_expired_grants_and_strict_validation() {
             .as_int(),
         Some(7)
     );
-    let saver = Engine::new().compile("def save; sms; end").unwrap();
+    let saver = common::gradual_engine()
+        .compile("def save; sms; end")
+        .unwrap();
     let saved = saver.call("save", &[], deliverer()).unwrap().value;
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile("def use; sms.deliver(); end")
         .unwrap();
     let expired = CallOptions {
@@ -426,7 +430,7 @@ impl Files {
     }
 
     fn engine(&self) -> Engine {
-        let mut engine = Engine::new();
+        let mut engine = common::gradual_engine();
         engine
             .set_module_config(ModuleConfig {
                 paths: vec![self.0.clone()],
@@ -451,7 +455,7 @@ impl Drop for Files {
 fn value_templates_bind_eagerly_and_serve_required_files() {
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register("effect", move |_, _| {
         count.fetch_add(1, Ordering::Relaxed);
         Ok(Value::nil())

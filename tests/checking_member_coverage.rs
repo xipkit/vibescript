@@ -109,7 +109,7 @@ impl Receiver {
             .map_or(String::new(), |ty| format!("(x: {ty})"));
         let returns = returns.map_or(String::new(), |ty| format!(" -> {ty}"));
         let source = format!("{PRELUDE}def run{parameter}{returns}\n{body}\nend\n");
-        Engine::new()
+        common::gradual_engine()
             .compile(&source)
             .unwrap_or_else(|error| panic!("{source}: {error}"))
     }
@@ -396,7 +396,7 @@ fn members_of_union_receivers_are_analyzed() {
                     for name in names {
                         for shape in SHAPES {
                             let source = format!("def run(x: {ty})\n  x.{name}{shape}\nend\n");
-                            let script = Engine::new()
+                            let script = common::gradual_engine()
                                 .compile(&source)
                                 .unwrap_or_else(|error| panic!("{source}: {error}"));
                             if !check(&script).incomplete.is_empty() {

@@ -3,6 +3,8 @@
 //! initializer restarted the top-level analysis, sequential branches walked every later join
 //! again, and several lookups scanned every earlier declaration.
 
+mod common;
+
 use vibescript::{CallOptions, Engine, Limits};
 
 fn repeat(count: usize, item: impl Fn(usize) -> String) -> String {
@@ -56,7 +58,7 @@ const SHAPES: [Shape; 8] = [
 
 /// Checks the whole file, or with a name the named function as a call checks it.
 fn steps(source: &str, function: Option<&str>) -> u64 {
-    let script = Engine::new().compile(source).unwrap();
+    let script = common::gradual_engine().compile(source).unwrap();
     let options = CallOptions {
         limits: Limits {
             steps: None,

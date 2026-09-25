@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicUsize, Ordering},
@@ -362,7 +364,7 @@ fn checking_allows_fields_a_host_method_may_publish() {
         "cfg.install()\ncfg.fetch(:limit) + 1",
         "cfg.install()\n[cfg.name, cfg[:limit]]",
     ] {
-        let script = Engine::new()
+        let script = common::gradual_engine()
             .compile(&format!("def run\n{body}\nend"))
             .unwrap();
         let report = script.check_call("run", &[], &options).unwrap();
@@ -425,7 +427,7 @@ fn host_globals_holding_methods_are_live_like_capabilities() {
         "g".into(),
         Value::object(vec![(b"install".to_vec(), install.value())]),
     );
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile("def run\npublished = g.install()\n[published, g[:limit] + 1]\nend")
         .unwrap();
     assert!(script.check_call("run", &[], &options).unwrap().is_clean());

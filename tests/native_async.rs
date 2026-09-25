@@ -1,5 +1,7 @@
 #![cfg(feature = "tokio")]
 
+mod common;
+
 use std::{
     future::{pending, poll_fn},
     sync::{
@@ -552,7 +554,7 @@ async fn async_storage_has_exact_limits_and_releases_ephemeral_charges() {
 fn checking_async_signatures_never_constructs_or_polls_host_futures() {
     let called = Arc::new(AtomicUsize::new(0));
     let observed = called.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register_method(
         "later",
         HostMethod::new_async("later", move |_, _, _| {

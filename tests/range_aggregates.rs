@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicU64, AtomicUsize, Ordering},
@@ -25,7 +27,7 @@ fn aggregates_support_automatic_and_dynamic_calls() {
         ("(4..1).length", 4),
     ] {
         let source = format!("def run -> int; {expression}; end");
-        let script = Engine::new().compile(&source).unwrap();
+        let script = common::gradual_engine().compile(&source).unwrap();
         let report = script
             .check_call("run", &[], &CallOptions::default())
             .unwrap();
@@ -40,7 +42,7 @@ fn aggregates_support_automatic_and_dynamic_calls() {
 fn empty_ranges_keep_the_seed_or_return_nil() {
     for seed in ["2**100", "-2**100"] {
         let source = format!("def run; (2...2).sum({seed}) == {seed}; end");
-        let script = Engine::new().compile(&source).unwrap();
+        let script = common::gradual_engine().compile(&source).unwrap();
         assert_eq!(
             script
                 .call("run", &[], CallOptions::default())
@@ -51,7 +53,7 @@ fn empty_ranges_keep_the_seed_or_return_nil() {
         );
     }
     for expression in ["(2...2).min", "(2...2).max"] {
-        let script = Engine::new()
+        let script = common::gradual_engine()
             .compile(&format!(
                 "def run -> int; if {expression} == nil; 7; else; 'wrong'; end; end"
             ))
@@ -75,7 +77,7 @@ fn empty_ranges_keep_the_seed_or_return_nil() {
 fn invalid_calls_fail_before_iteration_or_block_effects() {
     let effects = Arc::new(AtomicUsize::new(0));
     let seen = effects.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register("effect", move |_, _| {
         seen.fetch_add(1, Ordering::SeqCst);
         Ok(Value::int(0))

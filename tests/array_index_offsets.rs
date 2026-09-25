@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicU64, AtomicUsize, Ordering},
@@ -19,7 +21,7 @@ fn checker_tracks_offsets_and_does_not_drop_possible_misses() {
     ] {
         let source =
             format!("def run -> int; if {expression} == {expected}; 7; else; 'wrong'; end; end");
-        let script = Engine::new().compile(&source).unwrap();
+        let script = common::gradual_engine().compile(&source).unwrap();
         let report = script
             .check_call("run", &[], &CallOptions::default())
             .unwrap();
@@ -36,7 +38,7 @@ fn checker_tracks_offsets_and_does_not_drop_possible_misses() {
     for method in ["index", "find_index", "rindex"] {
         for offset in ["-1", "-1.5", "'bad'", "true", "nil"] {
             let source = format!("def run; [].{method}(1,{offset}); end");
-            let script = Engine::new().compile(&source).unwrap();
+            let script = common::gradual_engine().compile(&source).unwrap();
             let report = script
                 .check_call("run", &[], &CallOptions::default())
                 .unwrap();
@@ -52,7 +54,7 @@ fn checker_tracks_offsets_and_does_not_drop_possible_misses() {
         }
     }
     let source = "def run(offset:int) -> int; [1,1].index(1,offset); end";
-    let script = Engine::new().compile(source).unwrap();
+    let script = common::gradual_engine().compile(source).unwrap();
     let report = script.check(&CallOptions::default()).unwrap();
     assert!(!report.is_clean(), "a dynamic offset can miss: {report:?}");
 }

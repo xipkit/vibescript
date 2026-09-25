@@ -1,9 +1,11 @@
+mod common;
+
 use vibescript::{CallOptions, CheckReport, ErrorKind, Script, Value};
 
 const CONSUME: &str = "def consume(h:{x?:int})->int;if h.empty?;0;else;\"bad\";end;end";
 
 fn compile(source: &str) -> Script {
-    vibescript::Engine::new().compile(source).unwrap()
+    common::gradual_engine().compile(source).unwrap()
 }
 
 fn check(script: &Script, name: &str, source: &str) -> CheckReport {

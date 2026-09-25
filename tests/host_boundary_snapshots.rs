@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{Arc, Mutex};
 use vibescript::{CallOptions, Capability, Engine, HostMethod, Signature, SignatureParam, Value};
 
@@ -257,7 +259,7 @@ fn snapshots_preserve_declared_types_without_sharing_mutable_state() {
         "def initialize;",
         "@@shared=1; def shared; @@shared; end; def bump_shared; @@shared+=1; end; def initialize;",
     );
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile(&format!(
             "{state}
              class Holder; property item:Node; end

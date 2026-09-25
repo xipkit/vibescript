@@ -1,10 +1,12 @@
+mod common;
+
 use std::{fs, path::Path};
 use vibescript::{
     CallOptions, CheckReport, CheckedOutcome, Engine, ErrorClass, Limits, Script, Value,
 };
 
 fn compile(source: &str) -> Script {
-    Engine::new()
+    common::gradual_engine()
         .compile(source)
         .unwrap_or_else(|error| panic!("{source}: {error}"))
 }

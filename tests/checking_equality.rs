@@ -1,3 +1,5 @@
+mod common;
+
 use vibescript::{CallOptions, Engine, ErrorKind, Limits, Value};
 
 fn options() -> CallOptions {
@@ -45,7 +47,7 @@ fn typed_source(setup: &str, params: &str, expression: &str, expected: bool) -> 
 /// The checker must select the typed branch exactly and execution must agree.
 fn branch(setup: &str, expression: &str, expected: bool, options: &CallOptions) {
     let source = typed_source(setup, "", expression, expected);
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile(&source)
         .unwrap_or_else(|e| panic!("{source}: {e}"));
     let report = script.check_call("run", &[], options).unwrap();
@@ -61,7 +63,7 @@ fn branch(setup: &str, expression: &str, expected: bool, options: &CallOptions) 
 fn conservative(setup: &str, expression: &str, expected: bool, options: &CallOptions) {
     for order in [true, false] {
         let source = typed_source(setup, "", expression, order);
-        let report = Engine::new()
+        let report = common::gradual_engine()
             .compile(&source)
             .unwrap_or_else(|e| panic!("{source}: {e}"))
             .check_call("run", &[], options)
@@ -72,7 +74,7 @@ fn conservative(setup: &str, expression: &str, expected: bool, options: &CallOpt
         );
     }
     let source = format!("{setup}; def run -> bool; {expression}; end");
-    let output = Engine::new()
+    let output = common::gradual_engine()
         .compile(&source)
         .unwrap()
         .call("run", &[], options.clone())
@@ -82,7 +84,7 @@ fn conservative(setup: &str, expression: &str, expected: bool, options: &CallOpt
 
 fn typed_branch(params: &str, expression: &str, expected: bool, inputs: &[Vec<Value>]) {
     let source = typed_source("", params, expression, expected);
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile(&source)
         .unwrap_or_else(|e| panic!("{source}: {e}"));
     let report = script
@@ -100,7 +102,7 @@ fn typed_branch(params: &str, expression: &str, expected: bool, inputs: &[Vec<Va
 fn typed_conservative(params: &str, expression: &str, runtime: &[(Vec<Value>, bool)]) {
     for order in [true, false] {
         let source = typed_source("", params, expression, order);
-        let report = Engine::new()
+        let report = common::gradual_engine()
             .compile(&source)
             .unwrap_or_else(|e| panic!("{source}: {e}"))
             .check_function("run", &CallOptions::default())
@@ -111,7 +113,7 @@ fn typed_conservative(params: &str, expression: &str, runtime: &[(Vec<Value>, bo
         );
     }
     let source = format!("def run({params}) -> bool; {expression}; end");
-    let script = Engine::new().compile(&source).unwrap();
+    let script = common::gradual_engine().compile(&source).unwrap();
     for (args, expected) in runtime {
         let output = script
             .call("run", args, CallOptions::default())
@@ -302,7 +304,7 @@ fn helpers_preserve_instance_enum_and_source_override_dispatch() {
     }
     // Source methods named after the helpers keep precedence over the native ones.
     let source = format!("{setup}; def run -> int; C.new.eql?(2) + C.new.equal?(3); end");
-    let script = Engine::new().compile(&source).unwrap();
+    let script = common::gradual_engine().compile(&source).unwrap();
     let report = script.check_call("run", &[], &options).unwrap();
     assert!(report.is_clean(), "{report:?}");
     assert_eq!(
@@ -345,7 +347,7 @@ fn helpers_keep_protected_values_and_temporal_block_contracts() {
         "Time.at(0).eql?(Time.at(0)) {raise \"unused\"}",
     ] {
         let source = format!("def run -> bool; {expression}; end");
-        let script = Engine::new().compile(&source).unwrap();
+        let script = common::gradual_engine().compile(&source).unwrap();
         let report = script.check_call("run", &[], &options).unwrap();
         assert!(report.is_clean(), "{source}: {report:?}");
         assert!(
@@ -375,7 +377,7 @@ fn helpers_reject_bad_call_shapes_without_running_blocks() {
         ("[1].equal?", ErrorKind::Type),
     ] {
         let source = format!("def run -> bool; {expression}; end");
-        let script = Engine::new().compile(&source).unwrap();
+        let script = common::gradual_engine().compile(&source).unwrap();
         let report = script
             .check_call("run", &[], &CallOptions::default())
             .unwrap();
@@ -391,7 +393,7 @@ fn helpers_reject_bad_call_shapes_without_running_blocks() {
 #[test]
 fn helper_checks_obey_exact_and_sampled_work_and_memory_limits() {
     let options = options();
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile(
             "def run -> int; if [1,[2,{a:[3]}]].eql?([1.0,[2.0,{a:[3.0]}]]); return 'wrong'; end; if [nan].equal?([nan]); return 'wrong'; end; if ({a:big}).eql?({a:1.0}); return 'wrong'; end; 7; end",
         )

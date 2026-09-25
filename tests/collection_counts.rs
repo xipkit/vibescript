@@ -1,3 +1,5 @@
+mod common;
+
 use vibescript::{CallOptions, Engine, ErrorKind, Limits, Value};
 
 #[test]
@@ -9,7 +11,7 @@ fn wide_slice_counts_preserve_checker_schedules_and_block_effects() {
                     "def run -> int; seen=0; {array}.{method}({width}){{|part|seen+=1}}; \
                      if seen=={expected}; 7; else; 'wrong'; end; end"
                 );
-                let script = Engine::new().compile(&source).unwrap();
+                let script = common::gradual_engine().compile(&source).unwrap();
                 let report = script
                     .check_call("run", &[], &CallOptions::default())
                     .unwrap_or_else(|error| panic!("{source}: {error}"));

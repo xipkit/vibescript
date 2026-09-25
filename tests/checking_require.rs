@@ -32,7 +32,7 @@ impl Files {
         fs::write(path, source).unwrap();
     }
     fn engine(&self) -> Engine {
-        let mut engine = Engine::new();
+        let mut engine = common::gradual_engine();
         engine
             .set_module_config(ModuleConfig {
                 paths: vec![self.0.clone()],
@@ -757,7 +757,7 @@ fn import_policy_strict_effects_cancellation_and_limits_precede_initialization()
             kind
         );
     }
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine
         .set_module_config(ModuleConfig {
             paths: vec![files.0.clone()],
