@@ -446,6 +446,7 @@ pub trait Walk<'a>: Rules<'a> {
             return;
         }
         self.empty_parens(expr, call);
+        self.scoped_call(call);
         self.dispatch(expr, call);
         self.hash_new(expr, call, place);
         self.require(call);

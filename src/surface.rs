@@ -90,6 +90,8 @@ pub enum Rule {
     KeywordParameter,
     /// A hash field read or written with a dot, `h.name`.
     FieldAccess,
+    /// A function or method called with `::`, such as `JSON::parse(x)`.
+    ScopedCall,
 }
 
 impl Rule {
@@ -112,6 +114,7 @@ impl Rule {
             Self::Require => Code::DYNAMIC_REQUIRE,
             Self::KeywordParameter => Code::KEYWORD_PARAMETER,
             Self::FieldAccess => Code::FIELD_ACCESS,
+            Self::ScopedCall => Code::SCOPED_CALL,
         })
     }
 }

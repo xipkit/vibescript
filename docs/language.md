@@ -522,6 +522,7 @@ These are compile errors with static types, and `vibes fix` rewrites most of the
 | `5.minutes`, `5.minutes.ago`, `5.minutes.before(t)` | `5.minute`, `5.minutes.ago(t)` |
 | `items.index(x)`, `items.first(2)`, `items.push(x)`, `items.prepend(x)` | `find_index`, `take`, `append`, `unshift` |
 | `uuid`, `x.length` | `uuid()`, `x.length()` |
+| `JSON.parse(x)`, `Pricing.with_tax(1)` | `JSON::parse(x)`, `Pricing::with_tax(1)` |
 | `def f(x: int, *, retries: int = 3)` | `def f(x: int, retries: 3)` |
 | `7 // 2` for floor division | `7 / 2` on ints |
 | a direct call, or `case` over an enum | `send`, `public_send`, `respond_to?` |

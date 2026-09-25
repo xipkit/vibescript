@@ -131,6 +131,7 @@ Members that always answer the same are removed: `frozen?`,
 | percent literals, `%w[a b]` | `["a", "b"]` |
 | `Hash.new` | `{}` with a declared type |
 | `x.length()`, `uuid()`, `Time.now()` | `x.length`, `uuid`, `Time.now`: a call without arguments has no parentheses |
+| `JSON::parse(x)`, `Pricing::with_tax(1)` | `JSON.parse(x)`, `Pricing.with_tax(1)`: `::` names only constants, nested types and enum members |
 
 Symbols remain for enum members. Braces bind to the nearest call, so a block
 always attaches to the call it follows.

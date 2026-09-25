@@ -493,6 +493,39 @@ pub trait Rules<'a>: Hooks<'a> {
         self.leave(previous);
     }
 
+    /// Rewrites a call written with `::`, such as `JSON::parse(x)` or
+    /// `Pricing::with_tax(1)`, with a dot: `::` names only constants,
+    /// nested types and enum members, which are capitalized and take no
+    /// arguments.
+    fn scoped_call(&mut self, call: &'a Call) {
+        let (Some(receiver), Some(operator)) = (&call.receiver, call.operator) else {
+            return;
+        };
+        let lowercase = call
+            .name
+            .chars()
+            .next()
+            .is_some_and(|c| c == '_' || c.is_lowercase());
+        // Arguments without parentheses do not make a scoped name a call.
+        let command = call.args.as_ref().is_some_and(|args| args.parens.is_none());
+        if !call.scoped(self.tokens)
+            || command
+            || (!lowercase && call.args.is_none() && call.block.is_none())
+        {
+            return;
+        }
+        let span = self.token_span(operator);
+        let receiver = excerpt(self.text(receiver.span));
+        let advice = format!(
+            "use `{receiver}.{}`; `::` names only constants, nested types and enum members",
+            call.name
+        );
+        let removed = format!("{receiver}::{}", call.name);
+        let previous = self.enter(Rule::ScopedCall, span, removed, advice);
+        self.edits.text(span, ".");
+        self.leave(previous);
+    }
+
     /// Rewrites symbols naming a required module as strings, and reports a
     /// `require` whose names are not literals.
     fn require(&mut self, call: &'a Call) {

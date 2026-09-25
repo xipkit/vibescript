@@ -595,9 +595,9 @@ fn every_surface_code_is_registered_with_a_test() {
         .map(|info| info.code)
         .filter(|code| code.area() == Some(crate::diagnostic::Area::Surface))
         .collect();
-    assert_eq!(surface.len(), 15);
+    assert_eq!(surface.len(), 16);
     assert_eq!(surface.first(), Some(&Code::REMOVED_NAME));
-    assert_eq!(surface.last(), Some(&Code::FIELD_ACCESS));
+    assert_eq!(surface.last(), Some(&Code::SCOPED_CALL));
 }
 
 #[test]
