@@ -180,6 +180,8 @@ struct Parser<'s> {
     call_end: usize,
     /// The typed block parameter the latest parameter list ended with.
     block_param: Option<Span>,
+    /// The bare `*` the latest parameter list's keyword parameters follow.
+    keyword_star: Option<Tok>,
     /// Where this parser's tokens start: an interpolation's come after the
     /// source's own.
     floor: usize,
@@ -225,6 +227,7 @@ impl<'s> Parser<'s> {
             nesting: 0,
             call_end: 0,
             block_param: None,
+            keyword_star: None,
             floor: 0,
             depth: 0,
             limit: usize::MAX,
@@ -1656,6 +1659,7 @@ impl<'s> Parser<'s> {
         let mut signature = def_line;
         let mut parens = None;
         self.block_param = None;
+        self.keyword_star = None;
         let params = if parenthesized {
             let open = self.bump();
             self.line_breaks();
@@ -1683,6 +1687,7 @@ impl<'s> Parser<'s> {
             Vec::new()
         };
         let block = self.block_param.take();
+        let star = self.keyword_star.take();
         let arrow = self.significant(self.pos);
         let result = if self.is_op(arrow, "->") && self.tokens[arrow].line == signature {
             self.pos = arrow + 1;
@@ -1710,6 +1715,7 @@ impl<'s> Parser<'s> {
             },
             class_method,
             params,
+            star,
             block,
             parens,
             result,
@@ -1780,8 +1786,22 @@ impl<'s> Parser<'s> {
     }
 
     fn parameters(&mut self, parenthesized: bool) -> Result<Vec<Param>> {
-        let mut params = Vec::new();
+        let mut params: Vec<Param> = Vec::new();
         loop {
+            // A bare `*` makes the parameters after it keyword parameters.
+            if self.at_op("*") && self.is_p(self.significant(self.pos + 1), ',') {
+                if self.keyword_star.is_some()
+                    || params
+                        .iter()
+                        .any(|param| param.kind != ParamKind::Positional)
+                {
+                    return self.fail("misplaced bare *");
+                }
+                self.keyword_star = Some(self.bump());
+                self.pos = self.significant(self.pos) + 1;
+                self.line_breaks();
+                continue;
+            }
             if self.at_op("&")
                 && self.word_at(self.pos + 1).is_some()
                 && self.annotation_colon(self.pos + 1)
@@ -1812,7 +1832,12 @@ impl<'s> Parser<'s> {
                 });
                 break;
             }
-            let param = self.parameter(parenthesized)?;
+            let strict = self.keyword_star.is_some();
+            let mut param = self.parameter(parenthesized, strict)?;
+            let rest = params.iter().any(|param| param.kind == ParamKind::Rest);
+            if (strict || rest) && param.kind == ParamKind::Positional {
+                param.kind = ParamKind::Keyword;
+            }
             self.locals.insert(param.name.clone());
             self.declared_it |= param.name == "it";
             params.push(param);
@@ -1826,7 +1851,10 @@ impl<'s> Parser<'s> {
         Ok(params)
     }
 
-    fn parameter(&mut self, parenthesized: bool) -> Result<Param> {
+    /// Parses one parameter; a `strict` one follows a bare `*` and is
+    /// written only as `name`, `name: T`, `name = default` or
+    /// `name: T = default`.
+    fn parameter(&mut self, parenthesized: bool, strict: bool) -> Result<Param> {
         let start = self.start();
         let mut kind = match self.kind() {
             TokenKind::Operator("*") => {
@@ -1858,8 +1886,9 @@ impl<'s> Parser<'s> {
         let name = word.strip_prefix('@').unwrap_or(word).to_owned();
         let mut ty = None;
         let colon = self.significant(self.pos);
+        let mut keyword_colon = None;
         if self.is_p(colon, ':') {
-            let plain = kind == ParamKind::Positional && !instance;
+            let plain = kind == ParamKind::Positional && !instance && !strict;
             self.pos = colon + 1;
             if plain && self.ends_required_keyword(colon, parenthesized) {
                 return Ok(Param {
@@ -1869,6 +1898,7 @@ impl<'s> Parser<'s> {
                     instance,
                     ty: None,
                     default: None,
+                    keyword_colon: Some(colon),
                     span: Span {
                         start,
                         end: self.last_end(),
@@ -1889,6 +1919,7 @@ impl<'s> Parser<'s> {
                     instance,
                     ty: None,
                     default: Some(default),
+                    keyword_colon: Some(colon),
                     span: Span {
                         start,
                         end: self.last_end(),
@@ -1899,6 +1930,7 @@ impl<'s> Parser<'s> {
             ty = Some(self.type_expr(1, false)?);
             let trailing = self.significant(self.pos);
             if plain && self.is_p(trailing, ':') {
+                keyword_colon = Some(trailing);
                 self.pos = trailing + 1;
                 if !self.ends_required_keyword(trailing, parenthesized) {
                     // A typed keyword with a default, `name: T: = value`.
@@ -1929,6 +1961,7 @@ impl<'s> Parser<'s> {
             instance,
             ty,
             default,
+            keyword_colon,
             span: Span {
                 start,
                 end: self.last_end(),

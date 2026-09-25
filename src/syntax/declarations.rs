@@ -338,6 +338,11 @@ impl Parsing<'_> {
 
     /// Parses a parameter list, as Go's `parseParamsWithOptions` does, and
     /// the typed block parameter that may end it.
+    ///
+    /// Parameters after a bare `*` or a `*rest` parameter are keyword
+    /// parameters (ADR-007): `def send(to: string, *, cc: string? = nil)`.
+    /// After a bare `*` every parameter is written `name: T = default`; after
+    /// `*rest` the removed keyword forms, such as `name: default`, still parse.
     pub(super) async fn parameters(
         &self,
         parenthesized: bool,
@@ -346,7 +351,35 @@ impl Parsing<'_> {
         work.charge(1)?;
         let mut params: Buffer<Parameter> = Buffer::new();
         let (mut rest, mut keywords, mut keyword_rest) = (false, false, false);
+        let mut marker = false;
         loop {
+            if self.p().keyword_marker_ahead() {
+                let mut p = self.p();
+                let message = if marker {
+                    Some("duplicate `*` before keyword parameters")
+                } else if rest {
+                    Some(
+                        "parameters after a rest parameter are keyword parameters already; remove the bare `*`",
+                    )
+                } else if keywords || keyword_rest {
+                    Some("a bare `*` must precede keyword and keyword rest parameters")
+                } else {
+                    None
+                };
+                if let Some(message) = message {
+                    return p.err(message);
+                }
+                p.bump()?;
+                p.pos = p.significant(p.pos) + 1;
+                p.line_breaks()?;
+                let named = p.ident(p.pos)
+                    || matches!(p.token(), Token::Word(w) if w.starts_with('@') && !w.starts_with("@@"));
+                if !named {
+                    return p.err("a bare `*` must be followed by keyword parameters");
+                }
+                marker = true;
+                continue;
+            }
             if self.p().block_param_ahead() {
                 let mut p = self.p();
                 let block = p.block_param()?;
@@ -365,7 +398,10 @@ impl Parsing<'_> {
                 }
                 return Ok((params, Some(block)));
             }
-            let (param, offset) = self.parameter(parenthesized).await?;
+            let (mut param, offset) = self.parameter(parenthesized, marker).await?;
+            if (marker || rest) && param.kind == ParamKind::Positional {
+                param.kind = ParamKind::Keyword;
+            }
             let mut p = self.p();
             let order = match param.kind {
                 ParamKind::Positional if rest || keywords || keyword_rest => {
@@ -406,7 +442,9 @@ impl Parsing<'_> {
     }
 
     /// Parses one parameter, as Go's `parseParam` does, with its name's offset.
-    async fn parameter(&self, parenthesized: bool) -> Result<(Parameter, usize)> {
+    /// A `strict` parameter follows a bare `*` and is written only as
+    /// `name`, `name: T`, `name = default` or `name: T = default`.
+    async fn parameter(&self, parenthesized: bool, strict: bool) -> Result<(Parameter, usize)> {
         let work = self.p().work;
         let (mut kind, name, instance, offset) = {
             let mut p = self.p();
@@ -457,7 +495,7 @@ impl Parsing<'_> {
             (p.tokens[colon].token == Token::P(':')).then_some(colon)
         };
         if let Some(colon) = colon {
-            let plain = kind == ParamKind::Positional && !instance;
+            let plain = kind == ParamKind::Positional && !instance && !strict;
             let keyword = {
                 let mut p = self.p();
                 p.pos = colon + 1;
@@ -581,6 +619,12 @@ fn ordinary_order(param: &Parameter, earlier: &Buffer<Parameter>) -> String {
 }
 
 impl Parser<'_> {
+    /// Whether a bare `*` followed by a comma begins the keyword parameters.
+    fn keyword_marker_ahead(&self) -> bool {
+        self.token() == &Token::Op("*")
+            && self.tokens[self.significant(self.pos + 1)].token == Token::P(',')
+    }
+
     /// Go's `peekEndsRequiredKeywordParam` for the token after the colon at `colon`.
     fn ends_required_keyword(&self, colon: usize, parenthesized: bool) -> bool {
         let next = self.significant(colon + 1);

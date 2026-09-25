@@ -176,6 +176,8 @@ pub struct Def {
     pub name_span: Span,
     pub class_method: bool,
     pub params: Vec<Param>,
+    /// The bare `*` before the keyword parameters, when written.
+    pub star: Option<Tok>,
     /// A typed block parameter, `&block: A -> R`, already declared.
     pub block: Option<Span>,
     /// The parameter list's parentheses.
@@ -202,6 +204,10 @@ pub struct Param {
     pub instance: bool,
     pub ty: Option<TypeExpr>,
     pub default: Option<Expr>,
+    /// The colon of a keyword parameter written in a removed form: after
+    /// the name in `name:` and `name: default`, or after the type in
+    /// `name: T:` and `name: T: = default`.
+    pub keyword_colon: Option<Tok>,
     /// The span from the sigil or name through the default.
     pub span: Span,
 }

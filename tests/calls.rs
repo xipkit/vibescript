@@ -435,7 +435,6 @@ fn invalid_parameter_and_argument_order_is_rejected() {
     for source in [
         "def f(*a,*b)\nend",
         "def f(**a,**b)\nend",
-        "def f(*a,b)\nend",
         "def f(a:,b)\nend",
         "def f(**a,b:)\nend",
         "def f(*a=[])\nend",
@@ -449,6 +448,8 @@ fn invalid_parameter_and_argument_order_is_rejected() {
             "{source}"
         );
     }
+    // A parameter after a rest parameter is a keyword parameter.
+    assert!(Engine::new().compile("def f(*a,b)\nend").is_ok());
     let source = format!(
         "def f(a={}1{})\na\nend",
         "f(".repeat(1100),

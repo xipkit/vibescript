@@ -23,7 +23,7 @@ Use `T?` for nullable values and `A | B` for unions. Union arms are tried in sou
 
 `array<T>` validates elements. `hash<string, T>` and `hash<symbol, T>` share the language's string/symbol keyspace. Shape fields are required by default; `attempts?: int` permits omission, while `attempts: int?` requires a field that may contain nil. A final `...` permits extra fields. Quoted field names preserve a literal trailing question mark.
 
-Typed positional defaults use `state: Status = :draft`; typed required keywords use `state: Status:`. Captures accept collection annotations such as `*states: array<Status>` and `**fields: hash<string, Status>`. `state: nil` remains an optional keyword default; use a union such as `state: nil | Status` for a nil-leading type annotation.
+Typed positional defaults use `state: Status = :draft`. Keyword parameters follow a bare `*` or a rest parameter and are typed the same way: `def publish(id: string, *, state: Status = :draft, note: string)`, called as `publish("a", note: "x")`. Captures accept collection annotations such as `*states: array<Status>` and `**fields: hash<string, Status>`. Without static types the removed keyword forms `state:`, `state: :draft` and `state: Status:` still run; static types report them (V0414) with the rewrite. In those forms `state: nil` is an optional keyword default; use a union such as `state: nil | Status` for a nil-leading type annotation.
 
 Blocks support simple and destructured bindings:
 
