@@ -1,3 +1,5 @@
+mod common;
+
 use vibescript::{CallOptions, Engine, stringify_json};
 
 fn evaluate(body: &str) -> serde_json::Value {
@@ -56,13 +58,13 @@ fn passing_and_evaluating_collections_cannot_change_earlier_values() {
     for body in [
         "a=[1];x=a+a.push(2);[x,a]",
         "a=[1];left=a;x=left+a.push(2);[x,a]",
-        "def combine(left,right)\nleft+right\nend\na=[1];x=combine(a,a.push(2));[x,a]",
+        "def combine(left: array<int>,right: array<int>) -> array<int>\nleft+right\nend\na=[1];x=combine(a,a.push(2));[x,a]",
     ] {
         assert_eq!(evaluate(body), serde_json::json!([[1, 1, 2], [1, 2]]));
     }
     for alias in ["", "copy=later;"] {
         let body = format!(
-            "h={{a:1}};later={{a:3,b:4}};{alias}r=h.merge({{a:2}},later){{|k,o,n|later.a=9;o+n}};[later,r]"
+            "h={{a:1}};later={{a:3,b:4}};{alias}r=h.merge({{a:2}},later){{|k,o,n|later[\"a\"]=9;o+n}};[later,r]"
         );
         assert_eq!(
             evaluate(&body),
@@ -72,19 +74,21 @@ fn passing_and_evaluating_collections_cannot_change_earlier_values() {
 }
 
 #[test]
-fn bare_field_writes_leave_earlier_snapshots_unchanged() {
+fn field_writes_leave_earlier_snapshots_unchanged() {
     // Go v0.70.0 writes through the stored collection without isolating it, so
     // there the snapshots taken before the writes change too.
     let body = "class Holder
+  @h: { a: int }
+  @rows: [int, array<int>]
  def initialize
   @rows=[1,[2]]
   @h={a:1}
  end
- def poke
+ def poke -> array<any>
   saved=[@rows,@rows[1],@h]
-  rows[0]=9
-  rows[1][0]=8
-  h[:a]+=1
+  @rows[0]=9
+  @rows[1][0]=8
+  @h[\"a\"]+=1
   [saved,@rows,@h]
  end
 end
@@ -92,5 +96,25 @@ Holder.new.poke";
     assert_eq!(
         evaluate(body),
         serde_json::json!([[[1, [2]], [2], {"a": 1}], [9, [8]], {"a": 2}])
+    );
+}
+
+#[test]
+fn bare_field_names_are_not_in_scope() {
+    // A field is written through its `@` name; a bare `rows` names nothing.
+    let body = "class Holder
+  @rows: array<int>
+ def initialize
+  @rows=[1]
+ end
+ def poke
+  rows[0]=9
+ end
+end";
+    let error = common::static_engine().compile(body).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0201"]);
+    assert_eq!(
+        error.diagnostics()[0].span.start,
+        body.find("rows[0]").unwrap()
     );
 }
