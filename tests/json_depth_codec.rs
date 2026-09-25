@@ -100,10 +100,10 @@ fn parse_and_stringify_share_one_container_limit_including_empty_containers() {
 fn script_builtins_apply_the_same_container_limit() {
     let limit = DEPTH;
     let parse = Engine::new()
-        .compile("def run(s)\nJSON.parse(s)\nend")
+        .compile("def run(s: string) -> any\nJSON.parse(s)\nend")
         .unwrap();
     let encode = Engine::new()
-        .compile("def run(v)\nJSON.stringify(v)\nend")
+        .compile("def run(v: any) -> string\nJSON.stringify(v)\nend")
         .unwrap();
     for text in texts(limit) {
         let parsed = parse
@@ -132,8 +132,8 @@ fn script_builtins_apply_the_same_container_limit() {
 #[test]
 fn deepest_json_values_survive_instance_and_module_fields() {
     for source in [
-        "class Box; property value; def initialize(@value); @flag=0; end; def touch; @flag+=1; end; end; def run(input); box=Box.new(JSON.parse(input)); box.touch; box.value=box.value; JSON.stringify(box.value)==input; end",
-        "module Box; def self.put(v); @@value=v; @@flag=1; end; def self.get; @@value; end; end; def run(input); Box.put(JSON.parse(input)); JSON.stringify(Box.get)==input; end",
+        "class Box; property value: any; @flag: int; def initialize(@value: any); @flag=0; end; def touch -> int; @flag+=1; end; end; def run(input: string) -> bool; box=Box.new(JSON.parse(input)); box.touch; box.value=box.value; JSON.stringify(box.value)==input; end",
+        "module Box; @@value: any = nil; @@flag: int = 0; def self.put(v: any) -> int; @@value=v; @@flag=1; end; def self.get -> any; @@value; end; end; def run(input: string) -> bool; Box.put(JSON.parse(input)); JSON.stringify(Box.get)==input; end",
     ] {
         let script = Engine::new().compile(source).unwrap();
         for text in texts(DEPTH) {
@@ -151,7 +151,9 @@ fn malformed_input_after_a_complete_deep_sibling_is_recoverable() {
     let limit = DEPTH;
     let deep = nested("[", "]", limit - 1, "1");
     let script = Engine::new()
-        .compile("def run(s)\nbegin\nJSON.parse(s)\nrescue => e\ne.message\nend\nend")
+        .compile(
+            "def run(s: string) -> any\nbegin\nJSON.parse(s)\nrescue => e\ne.message\nend\nend",
+        )
         .unwrap();
     for (text, expected, script_message) in [
         (
