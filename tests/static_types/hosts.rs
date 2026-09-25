@@ -1,7 +1,8 @@
 //! Globals and capabilities a host declares: the checker types each name by
-//! its declaration.
+//! its declaration, and a bare name no declaration or scope explains is an
+//! error.
 
-use super::support::{describe, errors_with};
+use super::support::{describe, error, errors_with};
 use vibescript::{
     Capability, Engine, HostMethod, Signature, SignatureParam, Value, diagnostic::Diagnostic,
 };
@@ -58,6 +59,20 @@ fn engine() -> Engine {
         ))
         .unwrap();
     engine
+}
+
+#[test]
+fn an_undeclared_bare_name_is_an_error() {
+    error(
+        "def run -> any\n  config\nend\n",
+        "V0201",
+        "the host declares no global or capability of that name",
+    );
+    error(
+        "def run -> any\n  Config\nend\n",
+        "V0201",
+        "declares no global",
+    );
 }
 
 #[test]
@@ -235,7 +250,8 @@ fn required_files_see_the_declared_names() {
     let limits = "def doubled -> int\n  config[\"limit\"] * 2\nend\n";
     let (mut engine, directory) = super::modules::engine(&[("limits.vibe", limits)]);
     let source = "def run -> int\n  require(\"limits\")\n  doubled\nend\n";
-    codes_with(&engine, source, &["V0106"]);
+    let found = codes_with(&engine, source, &["V0201"]);
+    assert_eq!(found[0].file.as_deref(), Some(b"limits.vibe".as_slice()));
     engine
         .declare_global("config", "{ region: string, limit: int }")
         .unwrap();

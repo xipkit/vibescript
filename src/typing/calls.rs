@@ -184,14 +184,17 @@ impl<'a> Checker<'a> {
             self.loose_args(&call);
             return Ty::ERROR;
         }
-        if bare {
-            // A value the host supplies when each call starts.
-            return Ty::ANY;
-        }
+        let message = if bare {
+            format!(
+                "`{name}` is not a local, function or builtin in scope, and the host declares no global or capability of that name"
+            )
+        } else {
+            format!("`{name}` is not a function, method or builtin in scope")
+        };
         self.report(Diagnostic::error(
             Code::UNDEFINED_NAME,
             call.name_span,
-            format!("`{name}` is not a function, method or builtin in scope"),
+            message,
         ));
         self.loose_args(&call);
         Ty::ERROR

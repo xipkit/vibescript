@@ -2,7 +2,7 @@
 //! default mode is unchanged, host functions are typed by their signatures,
 //! and the checker reports each member call's receiver type.
 
-use super::support::{clean, codes, errors_with};
+use super::support::errors_with;
 use vibescript::{
     CallOptions, Engine, ErrorKind, HostMethod, Signature, SignatureParam, Value, diagnostic::Code,
 };
@@ -69,12 +69,6 @@ fn signed_host_functions_are_typed_and_unsigned_ones_take_any() {
     assert!(errors_with(&engine, "def run -> any\n  lookup(1, \"x\")\nend\n").is_empty());
     let found = errors_with(&engine, "def run -> int\n  lookup(1).length\nend\n");
     assert_eq!(found[0].code, Code::ANY_USE);
-}
-
-#[test]
-fn host_globals_supplied_per_call_are_any() {
-    clean("def run -> any\n  config\nend\n");
-    codes("def run -> int\n  config.length\nend\n", &["V0106"]);
 }
 
 #[test]
