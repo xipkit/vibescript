@@ -11,7 +11,7 @@ fn repeat(count: usize, item: impl Fn(usize) -> String) -> String {
 /// statement or expression.
 type Shape = (&'static str, usize, fn(usize) -> String);
 
-const SHAPES: [Shape; 9] = [
+const SHAPES: [Shape; 11] = [
     ("functions calling their predecessor", 200, |count| {
         "def f0(n: int) -> int\n  n\nend\n".to_owned()
             + &repeat(count, |i| {
@@ -62,6 +62,19 @@ const SHAPES: [Shape; 9] = [
         format!(
             "def f -> array<int>\n  [{}]\nend\n",
             repeat(count, |i| format!("{i}, "))
+        )
+    }),
+    ("one branch assigning many locals", 200, |count| {
+        format!(
+            "def f(x: int) -> int\n{}  if x > 0\n{}  end\n  0\nend\n",
+            repeat(count, |i| format!("  v{i} = {i}\n")),
+            repeat(count, |i| format!("    v{i} = x\n"))
+        )
+    }),
+    ("a block with many breaks", 200, |count| {
+        format!(
+            "def f(xs: array<int>) -> int\n  y = 0\n  xs.each {{ |x|\n{}  }}\n  y\nend\n",
+            repeat(count, |i| format!("    y = {i}\n    break if x == {i}\n"))
         )
     }),
     ("loops assigning many locals", 100, |count| {

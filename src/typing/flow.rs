@@ -101,9 +101,10 @@ impl Flow {
     /// exit such as `break`, which the enclosing loop joins.
     pub fn peek(&mut self, mark: Mark) -> Branch {
         let mut changes: Vec<(LocalId, VarState)> = Vec::new();
+        let mut seen: HashMap<LocalId, ()> = HashMap::new();
         let steps = (self.trail.len() - mark.trail) as u64;
         for &(id, _) in &self.trail[mark.trail..] {
-            if !changes.iter().any(|(seen, _)| *seen == id) {
+            if seen.insert(id, ()).is_none() {
                 changes.push((id, self.vars[id as usize]));
             }
         }
@@ -128,24 +129,19 @@ impl Flow {
             self.live = false;
             return;
         }
-        let mut ids: Vec<LocalId> = live
+        let finals: Vec<HashMap<LocalId, VarState>> = live
             .iter()
-            .flat_map(|branch| branch.changes.iter().map(|(id, _)| *id))
+            .map(|branch| branch.changes.iter().copied().collect())
             .collect();
+        let mut ids: Vec<LocalId> = finals.iter().flat_map(|map| map.keys().copied()).collect();
         ids.sort_unstable();
         ids.dedup();
         for id in ids {
             self.steps += live.len() as u64;
             let base = self.vars[id as usize];
-            let states: Vec<VarState> = live
+            let states: Vec<VarState> = finals
                 .iter()
-                .map(|branch| {
-                    branch
-                        .changes
-                        .iter()
-                        .find(|(changed, _)| *changed == id)
-                        .map_or(base, |(_, state)| *state)
-                })
+                .map(|map| map.get(&id).copied().unwrap_or(base))
                 .collect();
             let assigned = states.iter().all(|state| state.assigned);
             let tys: Vec<Ty> = states
