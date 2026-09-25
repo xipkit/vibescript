@@ -3,7 +3,7 @@
 use super::catalog::Catalog;
 use super::docs::builtin_docs;
 use super::document::SignatureHelp;
-use super::hover::param_labels;
+use super::hover::{param_labels, params_text};
 use super::text::{character_index, mask_code, word_char};
 use vibescript::tooling::{ItemKind, Outline};
 
@@ -25,7 +25,7 @@ pub(crate) fn help<S: AsRef<str>>(
         });
         if let Some(item) = function {
             let labels = param_labels(item.function.as_ref());
-            let mut label = format!("{}({})", item.name, labels.join(", "));
+            let mut label = format!("{}({})", item.name, params_text(item.function.as_ref()));
             if let Some(result) = item.function.as_ref().and_then(|f| f.return_type.as_ref()) {
                 label.push_str(" -> ");
                 label.push_str(result);

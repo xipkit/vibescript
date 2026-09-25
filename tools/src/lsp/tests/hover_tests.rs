@@ -283,14 +283,23 @@ fn hover_resolves_qualified_and_nested_symbols() {
 }
 
 #[test]
-fn hover_renders_typed_required_keywords_in_declaration_form() {
-    let value = hover_value(
+fn hover_renders_keyword_parameters_after_a_bare_star() {
+    for source in [
         "# Greets loudly.\ndef f(name: string:)\n  name\nend\n",
-        1,
+        "# Greets loudly.\ndef f(*, name: string)\n  name\nend\n",
+    ] {
+        let value = hover_value(source, 1, 5);
+        assert!(value.contains("def f(*, name: string)"), "{value}");
+    }
+    let value = hover_value(
+        "def f(*rest: array<int>, name: string = \"a\")\n  name\nend\n",
+        0,
         5,
     );
-    assert!(value.contains("def f(name: string:)"), "{value}");
-    assert!(!value.contains("name:: string"), "{value}");
+    assert!(
+        value.contains("def f(*rest: array<int>, name: string = …)"),
+        "{value}"
+    );
 }
 
 #[test]

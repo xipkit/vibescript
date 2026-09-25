@@ -431,9 +431,8 @@ pub(crate) fn signature(item: &Item, class_method: bool) -> String {
     let function = item.function.as_ref();
     let params = function.map_or(&[][..], |function| function.params.as_slice());
     if !params.is_empty() {
-        let labels: Vec<String> = params.iter().map(param_label).collect();
         signature.push('(');
-        signature.push_str(&labels.join(", "));
+        signature.push_str(&params_text(function));
         signature.push(')');
     }
     if let Some(result) = function.and_then(|function| function.return_type.as_ref()) {
@@ -444,27 +443,13 @@ pub(crate) fn signature(item: &Item, class_method: bool) -> String {
 }
 
 /// One parameter in declaration form: its name, annotation and a default
-/// marker. An optional keyword spells its default right after the colon.
+/// marker.
 pub(crate) fn param_label(param: &Parameter) -> String {
     let target = match param.kind {
-        ParameterKind::Keyword => format!("{}:", param.name),
         ParameterKind::Rest => format!("*{}", param.name),
         ParameterKind::KeywordRest => format!("**{}", param.name),
         _ => param.name.clone(),
     };
-    if param.kind == ParameterKind::Keyword {
-        match &param.type_annotation {
-            None if param.default => return format!("{target} …"),
-            Some(ty) => {
-                let mut label = format!("{}: {ty}:", param.name);
-                if param.default {
-                    label.push_str(" = …");
-                }
-                return label;
-            }
-            None => (),
-        }
-    }
     let mut label = target;
     if let Some(ty) = &param.type_annotation {
         label.push_str(": ");
@@ -474,6 +459,26 @@ pub(crate) fn param_label(param: &Parameter) -> String {
         label.push_str(" = …");
     }
     label
+}
+
+/// A function's parameters in declaration form, with the bare `*` that
+/// starts its keyword parameters unless a rest parameter already does.
+pub(crate) fn params_text(function: Option<&Function>) -> String {
+    let params = function.map_or(&[][..], |function| function.params.as_slice());
+    let first = params
+        .iter()
+        .position(|param| param.kind == ParameterKind::Keyword);
+    let mut labels = Vec::with_capacity(params.len() + 1);
+    for (index, param) in params.iter().enumerate() {
+        let rest = params[..index]
+            .iter()
+            .any(|param| param.kind == ParameterKind::Rest);
+        if first == Some(index) && !rest {
+            labels.push("*".to_owned());
+        }
+        labels.push(param_label(param));
+    }
+    labels.join(", ")
 }
 
 /// The parameter labels of a function's signature.

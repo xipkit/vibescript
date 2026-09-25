@@ -38,17 +38,26 @@ fn signature_help_for_user_functions() {
 }
 
 #[test]
-fn optional_keywords_render_their_default_after_the_colon() {
-    let result = help(
+fn keyword_parameters_render_after_a_bare_star() {
+    for source in [
         "def configure(host:, port: 8080, scheme: \"https\")\n  host\nend\n\ndef run()\n  configure(host: \"a\")\nend\n",
+        "def configure(*, host, port = 8080, scheme = \"https\")\n  host\nend\n\ndef run()\n  configure(host: \"a\")\nend\n",
+    ] {
+        let result = help(source, 5, 18);
+        let label = result["signatures"][0]["label"].as_str().unwrap();
+        assert_eq!(label, "configure(*, host, port = …, scheme = …)");
+        assert_eq!(
+            result["signatures"][0]["parameters"],
+            json!([{"label": "host"}, {"label": "port = …"}, {"label": "scheme = …"}])
+        );
+    }
+    let result = help(
+        "def join(*items: array<int>, sep: string = \",\") -> string\n  \"\"\nend\n\ndef run()\n  join(1, sep: \"-\")\nend\n",
         5,
-        18,
+        10,
     );
     let label = result["signatures"][0]["label"].as_str().unwrap();
-    assert!(
-        label.contains("configure(host:, port: …, scheme: …)"),
-        "{label}"
-    );
+    assert_eq!(label, "join(*items: array<int>, sep: string = …) -> string");
 }
 
 #[test]
@@ -61,8 +70,11 @@ fn param_labels_follow_declaration_syntax() {
         instance: false,
     };
     for (param, want) in [
-        (param("host", ParameterKind::Keyword, None, false), "host:"),
-        (param("port", ParameterKind::Keyword, None, true), "port: …"),
+        (param("host", ParameterKind::Keyword, None, false), "host"),
+        (
+            param("port", ParameterKind::Keyword, None, true),
+            "port = …",
+        ),
         (
             param("count", ParameterKind::Positional, None, true),
             "count = …",
@@ -73,11 +85,11 @@ fn param_labels_follow_declaration_syntax() {
         ),
         (
             param("name", ParameterKind::Keyword, Some("string"), false),
-            "name: string:",
+            "name: string",
         ),
         (
             param("name", ParameterKind::Keyword, Some("string"), true),
-            "name: string: = …",
+            "name: string = …",
         ),
         (
             param("rest", ParameterKind::Rest, Some("array<int>"), false),
