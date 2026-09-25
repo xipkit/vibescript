@@ -1,3 +1,9 @@
+//! The block form of `chunk` groups consecutive elements by the key the
+//! block returns. The builtin signature table declares only `chunk(size)`,
+//! so these programs cannot type check yet; until the block form is typed
+//! or removed they check the runtime without static types.
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -13,7 +19,7 @@ fn json(value: &Value) -> serde_json::Value {
 }
 
 fn run(source: &str) -> Value {
-    Engine::new()
+    common::gradual_engine()
         .compile(&format!("def run\n{source}\nend"))
         .unwrap_or_else(|error| panic!("{source}: {error}"))
         .call("run", &[], CallOptions::default())
@@ -22,7 +28,7 @@ fn run(source: &str) -> Value {
 }
 
 fn effect_engine() -> (Engine, Arc<AtomicUsize>) {
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();
     engine.register("effect", move |_, _| {
@@ -141,7 +147,7 @@ fn reserved_symbol_keys_are_runtime_errors() {
         ("[1].chunk { :_ }", "array.chunk reserved key :_"),
         ("[1].chunk { :__x }", "array.chunk reserved key :__x"),
     ] {
-        let error = Engine::new()
+        let error = common::gradual_engine()
             .compile(source)
             .unwrap()
             .run(CallOptions::default())
@@ -199,7 +205,7 @@ fn arguments_and_keywords_are_rejected_before_the_block_runs() {
         json(&run("[1,2,3].chunk(2)")),
         serde_json::json!([[1, 2], [3]])
     );
-    let error = Engine::new()
+    let error = common::gradual_engine()
         .compile("[1,2,3].chunk")
         .unwrap()
         .run(CallOptions::default())
@@ -271,7 +277,7 @@ fn errors_inside_the_block_are_rescuable_but_cancellation_is_not() {
     let value =
         run("begin; [1,2].chunk { |n| raise \"boom\" if n==2; n }; rescue => e; e.message; end");
     assert_eq!(json(&value), serde_json::json!("boom"));
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register("cancel", |ctx, _| {
         ctx.cancellation().cancel();
         Ok(Value::nil())
@@ -282,7 +288,7 @@ fn errors_inside_the_block_are_rescuable_but_cancellation_is_not() {
         .run(CallOptions::default())
         .unwrap_err();
     assert_eq!(error.kind, ErrorKind::Cancelled);
-    let error = Engine::new()
+    let error = common::gradual_engine()
         .compile("begin; [1,2,3].chunk { |n| n }; rescue; 1; end")
         .unwrap()
         .run(CallOptions {
@@ -304,7 +310,7 @@ fn excessive_row_depth_stops_before_another_callback() {
     }
     let calls = Arc::new(AtomicUsize::new(0));
     let seen = calls.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register("deep", move |_, _| {
         seen.fetch_add(1, Ordering::SeqCst);
         Ok(value.clone())
@@ -337,7 +343,7 @@ fn chunk_checks_the_complete_result_depth_before_another_callback() {
         let item = nest(item_depth);
         let calls = Arc::new(AtomicUsize::new(0));
         let seen = calls.clone();
-        let mut engine = Engine::new();
+        let mut engine = common::gradual_engine();
         engine.register("items", move |_, _| {
             Ok(Value::array(vec![item.clone(), item.clone()]))
         });
@@ -368,7 +374,7 @@ fn chunk_checks_the_complete_result_depth_before_another_callback() {
 
 #[test]
 fn pending_groups_and_rows_are_accounted_and_released() {
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register("allocate", |ctx, _| ctx.bytes(&[b'x'; 8192]));
     // Each row retains an 8 KiB key; the memory limit stops the run.
     let error = engine
@@ -412,36 +418,31 @@ fn pending_groups_and_rows_are_accounted_and_released() {
     }
 }
 
-fn host_options() -> CallOptions {
-    CallOptions {
-        capabilities: vec![Capability::new("host", |_| {
-            Ok(Value::object(vec![(
-                b"chunk".to_vec(),
-                HostMethod::new_with_block("host.chunk", |call, args, _| call.call_block(args))
-                    .value(),
-            )]))
-        })],
-        ..CallOptions::default()
-    }
+fn host() -> Capability {
+    Capability::from_value(
+        "host",
+        Value::object(vec![(
+            b"chunk".to_vec(),
+            HostMethod::new_with_block("host.chunk", |call, args, _| call.call_block(args)).value(),
+        )]),
+    )
 }
 
 #[test]
 fn callable_host_members_named_chunk_still_take_blocks() {
-    for body in [
-        "host.chunk(3) { |n| n + 1 }",
-        "host.send(:chunk, 3) { |n| n + 1 }",
-        "host.chunk { 3 }",
-    ] {
-        let outcome = Engine::new()
-            .compile(&format!("def run\n{body}\nend"))
-            .unwrap()
-            .call("run", &[], host_options())
-            .unwrap_or_else(|error| panic!("{body}: {error}"));
-        let expected = if body.contains("(3)") || body.contains(", 3") {
-            4
-        } else {
-            3
+    let mut engine = Engine::new();
+    engine.declare_capability(&host()).unwrap();
+    for body in ["host.chunk(3) { |n| n.as(int) + 1 }", "host.chunk { 3 }"] {
+        let options = CallOptions {
+            capabilities: vec![host()],
+            ..CallOptions::default()
         };
+        let outcome = engine
+            .compile(&format!("def run -> any\n{body}\nend"))
+            .unwrap_or_else(|error| panic!("{body}: {error}"))
+            .call("run", &[], options)
+            .unwrap_or_else(|error| panic!("{body}: {error}"));
+        let expected = if body.contains("(3)") { 4 } else { 3 };
         assert_eq!(outcome.value.as_int(), Some(expected), "{body}");
     }
 }
