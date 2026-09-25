@@ -245,23 +245,23 @@ fn json_check(
     module_dirs: &[PathBuf],
 ) -> Result<(), String> {
     use vibescript::diagnostic::{Code, Diagnostic, Span};
-    let error = match engine.compile(text) {
-        Ok(_) => return Ok(()),
-        Err(error) => error,
-    };
-    let syntax;
-    let diagnostics = if error.diagnostics().is_empty() {
-        if error.kind != vibescript::ErrorKind::Syntax {
-            return Err(format!("compile failed: {}", render::error(&error, None)));
+    let diagnostics = match engine.compile(text) {
+        // A program that compiles may still have warnings.
+        Ok(_) => engine
+            .type_check(text)
+            .map(|checked| checked.diagnostics)
+            .unwrap_or_default(),
+        Err(error) if error.diagnostics().is_empty() => {
+            if error.kind != vibescript::ErrorKind::Syntax {
+                return Err(format!("compile failed: {}", render::error(&error, None)));
+            }
+            let at = Span::at(error.offset.unwrap_or(0));
+            vec![Diagnostic::error(Code::SYNTAX, at, error.message.clone())]
         }
-        let at = Span::at(error.offset.unwrap_or(0));
-        syntax = [Diagnostic::error(Code::SYNTAX, at, error.message.clone())];
-        &syntax[..]
-    } else {
-        error.diagnostics()
+        Err(error) => error.diagnostics().to_vec(),
     };
     let mut out = io::stdout().lock();
-    for diagnostic in diagnostics {
+    for diagnostic in &diagnostics {
         let module = diagnostic
             .file
             .as_deref()
@@ -272,8 +272,10 @@ fn json_check(
     }
     out.flush()
         .map_err(|error| format!("write check output: {}", compat::reason(&error)))?;
-    let errors = diagnostics.iter().filter(|d| d.is_error()).count();
-    Err(format!("check failed with {errors} error(s)"))
+    match diagnostics.iter().filter(|d| d.is_error()).count() {
+        0 => Ok(()),
+        errors => Err(format!("check failed with {errors} error(s)")),
+    }
 }
 
 /// The text of a required file, by its root-relative name, or nothing when

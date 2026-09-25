@@ -163,13 +163,19 @@ fn check_json_prints_one_object_per_diagnostic() {
 }
 
 #[test]
-fn check_json_is_silent_for_a_clean_script_and_codes_syntax_errors() {
+fn check_json_prints_warnings_and_codes_syntax_errors() {
     let files = Files::new();
     files.write(
         "clean.vibe",
         "names = [\"ada\", \"grace\"]\nn = names.length\nputs n if n != 0\n",
     );
     vibes_in(Some(&files.0), &["check", "--json", "clean.vibe"]).expect(0, "", "");
+    // A program that compiles prints its warnings and succeeds.
+    files.write("warned.vibe", "x = 1\nif x == nil\n  puts 1\nend\n");
+    let run = vibes_in(Some(&files.0), &["check", "--json", "warned.vibe"]);
+    assert_eq!(run.status, Some(0), "{run:?}");
+    let line: serde_json::Value = serde_json::from_str(run.stdout.trim_end()).unwrap();
+    assert_eq!(line["severity"], "warning");
     files.write("broken.vibe", "x = (1\n");
     let run = vibes_in(Some(&files.0), &["check", "--json", "broken.vibe"]);
     assert_eq!(run.status, Some(1), "{run:?}");
