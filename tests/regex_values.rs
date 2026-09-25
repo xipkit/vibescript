@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -25,14 +27,14 @@ fn regex_values_preserve_flags_operators_and_literal_boundaries() {
     let script = Engine::new()
         .compile(
             r##"
-def take(*args)
+def take(*args: array<int | regex>) -> array<string>
  args.map {|v| "#{v}"}
 end
-def run(r)
+def run(r: regex) -> array<bool | int | string | array<string> | nil>
  [r.source,r.flags,r.match?("A\nB"),"éA\nB" =~ r,r !~ "ab",
-  r === "A\nB",r === 7,/a/i == Regexp.new("a"),/a/ == Regexp.new("a"),
-  Regexp.union("a.b","c?").match?("xxc?yy"),Regexp.escape("a+b/c"),
-  take(/#/,7),take(/[/]/),"#{/a\/b/im}",12/3/2]
+  r === "A\nB",r === 7,/a/i == Regex.new("a"),/a/ == Regex.new("a"),
+  Regex.union("a.b", "c?").match?("xxc?yy"),Regex.escape("a+b/c"),
+  take(/#/,7),take(/[/]/),"#{/a\/b/im}",12//3//2]
 end
 "##,
         )
@@ -59,7 +61,7 @@ end
         ])
     );
     let script = Engine::new()
-        .compile("def take(x,y);[x.source,y];end\ntake /#/,7")
+        .compile("def take(x: regex,y: int) -> array<int | string>;[x.source,y];end\ntake /#/,7")
         .unwrap();
     assert_eq!(
         json(&script.run(CallOptions::default()).unwrap().value),
@@ -82,14 +84,12 @@ fn match_data_has_named_captures_character_offsets_and_detached_windows() {
     let script = Engine::new()
         .compile(
             r##"
-m="éab!".match(/(?<x>a)(b)?(?<missing>z)?/)
-n="a".match(/(?<x>a)|(?<x>b)/)
-f=m[:begin]
-g=m[:end]
-[m[0],m[-1],m[-2],m[9],m[:x],m[:missing],m.captures,m.named_captures,
- m.pre_match,m.post_match,m.to_s,"#{m}",f(0),g(0),m.begin(1),m.end(1),
- m.begin(3),m.end(-1),n[:x],"éab".match("a",-2)[0],"éab".match("$",99)[0],
- "éab".match("a",-9),"a\xffb".match(/(.)b/)[1].bytes]
+m="éab!".match(/(?<x>a)(b)?(?<missing>z)?/).as(match_data)
+n="a".match(/(?<x>a)|(?<x>b)/).as(match_data)
+[m[0],m[-1],m[-2],m[9],m["x"],m["missing"],m.captures,m.named_captures,
+ m.pre_match,m.post_match,m.to_s,"#{m}",m.begin(0),m.end(0),m.begin(1),m.end(1),
+ m.begin(3),m.end(-1),n["x"],"éab".match("a",-2).as(match_data)[0],"éab".match("$",99).as(match_data)[0],
+ "éab".match("a",-9),"a\xffb".match(/(.)b/).as(match_data)[1].as(string).bytes]
 "##,
         )
         .unwrap();
@@ -104,22 +104,12 @@ g=m[:end]
 }
 
 #[test]
-fn scan_blocks_preserve_match_shapes_context_and_control_flow() {
+fn scans_preserve_match_shapes_and_refuse_blocks() {
     let script = Engine::new()
         .compile(
             r##"
-def early()
- "abab".scan(/ab/) {return 41}
- 9
-end
-out=[]
-original="ab ab".scan(/(a)(b)/) {|a,b| out.push([a,b])}
-ignored=[]
-data=/a/.match("ab") {ignored.push(1)}
 ["abc".scan(/a*/),"éa".scan(//),"ab cd".scan(/\b[a-z]{2}/),
- "ab".scan(/(a)|(b)/),"aaa".scan(/(a){0}/),out,original,
- "aba".scan(/a/) {break 17},"aba".scan(/a/) {next 7},early(),
- "ab".match(/a/) {|m| m.to_s+"!"},"ab".match(/z/) {17},ignored,data[0]]
+ "ab".scan(/(a)|(b)/),"aaa".scan(/(a){0}/),"ab ab".scan(/(a)(b)/)]
 "##,
         )
         .unwrap();
@@ -132,26 +122,45 @@ data=/a/.match("ab") {ignored.push(1)}
             ["ab", "cd"],
             [["a", null], [null, "b"]],
             [[null], [null], [null], [null]],
-            [["a", "b"], ["a", "b"]],
-            "ab ab",
-            17,
-            "aba",
-            41,
-            "a!",
-            null,
-            [],
-            "a"
+            [["a", "b"], ["a", "b"]]
         ])
     );
+    // scan and match take no block; iterate their results instead.
+    for source in [
+        "def early -> int\n \"abab\".scan(/ab/) {return 41}\n 9\nend",
+        "\"ab ab\".scan(/(a)(b)/) {|a,b| a}",
+        "/a/.match(\"ab\") {1}",
+        "\"aba\".scan(/a/) {break 17}",
+        "\"aba\".scan(/a/) {next 7}",
+        "\"ab\".match(/a/) {|m| m.to_s+\"!\"}",
+        "\"ab\".match(/z/) {17}",
+    ] {
+        let error = common::static_engine().compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0305"], "{source}");
+    }
 }
 
 #[test]
-fn escaped_accessors_retain_only_offsets_and_survive_host_imports() {
+fn match_accessors_are_calls_and_small_matches_detach() {
+    // An accessor is called, not read as a value.
+    for (source, expected) in [
+        (
+            "m=\"xA\".match(/A/);f=m[:begin];f(0)",
+            &["V0107", "V0409", "V0310"][..],
+        ),
+        (
+            "m=\"xA\".match(/A/).as(match_data);f=m[\"begin\"];f(0)",
+            &["V0310"],
+        ),
+    ] {
+        let error = common::static_engine().compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), expected, "{source}");
+    }
+    let script = Engine::new()
+        .compile("def run(text: string) -> int?\ntext.match(/A/).as(match_data).begin(0)\nend")
+        .unwrap();
     let mut subject = vec![b'x'; 1 << 20];
     subject[17] = b'A';
-    let script = Engine::new()
-        .compile("def run(text)\nm=text.match(/A/);m[:begin]\nend")
-        .unwrap();
     let output = script
         .call(
             "run",
@@ -165,20 +174,10 @@ fn escaped_accessors_retain_only_offsets_and_survive_host_imports() {
             },
         )
         .unwrap();
-    assert_eq!(output.value.type_name(), "builtin");
-    assert!(
-        output.stats.retained_memory_bytes < 1024,
-        "{:?}",
-        output.stats
-    );
-    let consumer = Engine::new().compile("def run(f)\nf(0)\nend").unwrap();
-    let imported = consumer
-        .call("run", &[output.value], CallOptions::default())
-        .unwrap();
-    assert_eq!(json(&imported.value), serde_json::json!(17));
-    assert_eq!(imported.stats.retained_memory_bytes, 0);
+    assert_eq!(json(&output.value), serde_json::json!(17));
+    assert_eq!(output.stats.retained_memory_bytes, 0);
     let script = Engine::new()
-        .compile("def run(text)\ntext.match(/A/)[0]\nend")
+        .compile("def run(text: string) -> string?\ntext.match(/A/).as(match_data)[0]\nend")
         .unwrap();
     let output = script
         .call(
@@ -200,36 +199,24 @@ fn protected_fields_and_bad_accessors_stop_later_host_effects() {
         count.fetch_add(1, Ordering::SeqCst);
         Ok(Value::nil())
     });
+    // The checker reads an accessor name as a capture, so the last two
+    // cases compile and fail when the accessor is read as a value.
     for operation in [
-        "m[:to_s]=7",
         "m.captures.push(\"x\")",
         "m.captures[0]=\"x\"",
-        "m.named_captures[:x]=\"q\"",
-        "m.dup.clear",
+        "m.named_captures[\"x\"]=\"q\"",
         "m.dup.captures.push(\"x\")",
         "m.dup.captures[0]=\"x\"",
-        "m.dup.named_captures[:x]=\"x\"",
-        "m.dup.captures.delete_if{effect()}",
-        "m.itself.captures.clear",
-        "\"a\".match(/(a)/).captures.push(\"x\")",
-        "[m].dup[0].clear",
-        "m.to_s=7",
-        "m.clear",
-        "m.replace({})",
-        "m.delete(:absent)",
-        "m.store(:x,1)",
-        "m.keep_if {effect()}",
-        "m.delete_if {effect()}",
-        "m.begin",
+        "m.dup.named_captures[\"x\"]=\"x\"",
+        "m.dup.captures.delete_if{effect().as(bool)}",
+        "m.captures.clear",
+        "\"a\".match(/(a)/).as(match_data).captures.push(\"x\")",
         "m.begin(-4)",
         "m.end(2)",
-        "m.begin(0,extra:1)",
-        "m.begin(0){effect()}",
-        "f=m[:begin];f",
-        "f=m[:begin];f(nil)",
-        "Time=m[:begin];Time",
+        "f=m[\"begin\"];f",
+        "Time=m[\"begin\"];Time",
     ] {
-        let source = format!("m=\"a\".match(/(a)/);{operation};effect()");
+        let source = format!("m=\"a\".match(/(a)/).as(match_data);{operation};effect()");
         assert!(
             engine
                 .compile(&source)
@@ -240,14 +227,35 @@ fn protected_fields_and_bad_accessors_stop_later_host_effects() {
         );
     }
     assert_eq!(calls.load(Ordering::SeqCst), 0);
+    // Writes through match data, hash members it lacks and bad accessor
+    // calls are refused before anything runs.
+    let mut checked = common::static_engine();
+    checked.register("effect", |_, _| panic!("effect ran"));
+    for (operation, expected) in [
+        ("m[\"to_s\"]=7", &["V0112"][..]),
+        ("m.dup.clear", &["V0203"]),
+        ("[m].dup[0].clear", &["V0107", "V0203"]),
+        ("m.to_s=7", &["V0203"]),
+        ("m.clear", &["V0203"]),
+        ("m.replace({})", &["V0203"]),
+        ("m.delete(\"absent\")", &["V0203"]),
+        ("m.store(\"x\",1)", &["V0203"]),
+        ("m.keep_if {effect()}", &["V0203"]),
+        ("m.delete_if {effect()}", &["V0203"]),
+        ("m.begin", &["V0301"]),
+        ("m.begin(0,extra:1)", &["V0302"]),
+        ("m.begin(0){effect()}", &["V0305"]),
+        ("f=m[\"begin\"];f(nil)", &["V0310"]),
+    ] {
+        let source = format!("m=\"a\".match(/(a)/).as(match_data);{operation};effect()");
+        let error = checked.compile(&source).err().unwrap();
+        assert_eq!(common::codes(&error), expected, "{operation}");
+    }
 }
 
 #[test]
 fn streaming_matches_observe_limits_and_cancellation() {
-    for source in [
-        "\"a\".match(/(a?){1000}/)",
-        "\"a\".scan(/(a?){1000}/) {nil}",
-    ] {
+    for source in ["\"a\".match(/(a?){1000}/)", "\"a\".scan(/(a?){1000}/)"] {
         let script = Engine::new().compile(source).unwrap();
         let error = script
             .run(CallOptions {
@@ -271,7 +279,7 @@ fn streaming_matches_observe_limits_and_cancellation() {
         Ok(Value::nil())
     });
     let error = engine
-        .compile("\"aaa\".scan(/a/) {stop()}")
+        .compile("\"aaa\".scan(/a/).each {|m| stop()}")
         .unwrap()
         .run(CallOptions {
             cancellation: token,
@@ -336,9 +344,9 @@ fn selected_regex_policies_preserve_anchors_and_match_data_identity() {
 }
 
 #[test]
-fn scans_enforce_fixed_output_caps_and_release_discarded_block_results() {
+fn scans_enforce_fixed_output_caps_and_release_discarded_iteration_results() {
     let script = Engine::new()
-        .compile("def run(text)\ntext.scan(/^a+$/).length\nend")
+        .compile("def run(text: string) -> int\ntext.scan(/^a+$/).length\nend")
         .unwrap();
     let options = || CallOptions {
         limits: Limits {
@@ -365,7 +373,9 @@ fn scans_enforce_fixed_output_caps_and_release_discarded_block_results() {
         .unwrap_err();
     assert_eq!(error.kind, ErrorKind::OutputLimit);
     let script = Engine::new()
-        .compile("def run(text)\ntext.scan(/a/) {\"x\"*65536}\nend")
+        .compile(
+            "def run(text: string) -> string\ntext.scan(/a/).each {|m| \"x\"*65536}\ntext\nend",
+        )
         .unwrap();
     let result = script
         .call(
