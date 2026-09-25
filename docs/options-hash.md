@@ -1,29 +1,36 @@
-# Options hashes and method calls
+# Keyword arguments and options hashes
 
-Parenthesized instance, class and module methods keep keyword arguments separate from positional arguments. A method with a positional `options` parameter accepts an explicit hash or a keyword named `options`:
+Keyword arguments bind only to keyword parameters, which a function declares after a bare `*` or a rest parameter. A hash is a positional value like any other and is passed explicitly:
 
-```ruby
+```vibe
 class Server
-  def configure(options)
-    options[:retries]
+  def configure(options: hash<string, int>) -> int
+    options.fetch("retries", 1)
+  end
+
+  def connect(host: string, *, retries: int = 1, verbose: bool = false) -> string
+    "#{host} x#{retries}"
   end
 end
 
 server = Server.new
-server.configure({retries: 3})          # 3
-server.configure(options: {retries: 3}) # 3
-server.configure(retries: 3)            # ArgumentError: missing argument options
+server.configure({ retries: 3 })   # 3
+server.connect("db", retries: 3)   # "db x3"
+server.connect "db", verbose: true # "db x1"
 ```
 
-Calls without parentheses, plain function calls, constructors and builtin `send`/`public_send` forwarding can combine keywords into a trailing positional options hash. The target must have a positional or rest parameter available to receive it and no declared keyword or keyword-rest parameters. A keyword matching the next positional parameter binds that parameter directly.
+Keywords never fold into a trailing positional hash, with or without parentheses, so passing keywords to a function that declares none is a compile error:
 
-```ruby
-server.configure retries: 3
-server.send(:configure, retries: 3)
+```vibe error=V0301,V0302
+class Server
+  def configure(options: hash<string, int>) -> int
+    options.fetch("retries", 1)
+  end
+end
+
+Server.new.configure(retries: 3)
 ```
 
-The same rules apply through implicit method lookup, safe navigation, ordinary parentheses around a method, rescue-selected calls, splats and attached blocks. The resolved target determines the rule: an ordinary script method named `call`, `send` or `public_send` stays strict when called with parentheses. Builtin exports retain their own keyword contracts. File imports and exported script function values remain part of the unfinished language port.
+A call must pass every required keyword (V0303) and no keyword the signature does not declare (V0302). Argument expressions run before binding, in source order; an invalid binding cannot execute defaults, the method body or its block. Safe navigation skips arguments and blocks for a nil receiver. Cancellation and exhausted budgets remain uncatchable, and abandoned argument and receiver storage is reclaimed.
 
-Argument expressions run before binding. An invalid binding cannot execute defaults, the method body or its block. Safe navigation skips arguments and blocks for a nil receiver. Typed options are checked after the correct binding is selected. Cancellation and exhausted budgets remain uncatchable, and abandoned argument and receiver storage is reclaimed.
-
-The focused reference comparison covers 619 call and parameter combinations plus three previously failing forwarding-audit controls. All 622 expectations are in the shared corpus, with 89 additional uncaught argument rejections. Twenty-six cases have existing [diagnostic wording differences](options-hash-differences.json); their error classes agree with Go. Six resolved type diagnostics now have exact message checks. Native tests also cover callback order, cancellation, exact budgets, stable peak memory across repeated failures and receiver collection cycles.
+Until the switchover, a script compiled without static types keeps the options-hash rule it inherited: calls without parentheses, plain function calls and constructors can combine keywords into a trailing positional hash when the target declares no keyword parameters, while parenthesized method calls keep keywords separate. The focused comparison of those rules with Go has [recorded wording differences](options-hash-differences.json) that remain part of the `compatibility` golden corpus.

@@ -1,37 +1,50 @@
-# Dynamic method calls
+# Dispatch by name
 
-`send` and `public_send` call a method named by a string or symbol. Remaining positional arguments, keywords and the attached block go to the selected method.
+`send`, `public_send` and `respond_to?` were removed by [ADR-008](adr/008-canonical-surface-for-ai-authors.md). With static types a call names its member in the source (V0405), so every call is checked against its signature and private methods and capabilities are reachable only as written. Code that chose a member from data converts the data to an enum once, at the edge, and matches it with `case`, which must name every member or have an `else`:
 
 ```vibe
-class Basket
-  getter items
+enum Action
+  Deposit
+  Withdraw
+end
 
-  def initialize
-    @items = []
+class Account
+  getter balance: int
+
+  def initialize(@balance: int)
   end
 
-  private def append(value)
-    @items.send(:push, value)
+  def apply(action: Action, amount: int) -> int
+    @balance = case action
+               when Action::Deposit
+                 @balance + amount
+               when Action::Withdraw
+                 @balance - amount
+               end
+    @balance
   end
 end
 
-def run(input)
-  basket = Basket.new
-  basket.send(:append, 3)
-  basket.public_send(:items)
+def parse_action(name: string) -> Action?
+  case name
+  when "deposit"
+    Action::Deposit
+  when "withdraw"
+    Action::Withdraw
+  else
+    nil
+  end
 end
+
+account = Account.new(10)
+payload = JSON.parse_as("{\"action\": \"deposit\", \"amount\": 5}", { action: string, amount: int })
+action = parse_action(payload["action"])
+if action != nil
+  account.apply(action, payload["amount"])
+end
+account.balance # 15
 ```
 
-This returns `[3]`. `send` can reach private and protected methods. `public_send` uses normal explicit-receiver visibility: private methods reject, and protected methods require the appropriate same-class caller. Each nested forwarding helper establishes its own access rule, so `value.public_send(:send, :private_method)` can invoke the private method. Script overrides of either helper retain their own visibility and signature.
+`vibes migrate` rewrites a `send` whose name is a literal into the direct call and reports the others. Capability methods that happen to be named `send`, such as `sms.send(...)`, are ordinary calls and are unaffected.
 
-Arrays, hashes, scalars, namespaces, enums and callable builtin exports support forwarding. Plain hash entries cannot replace the universal helpers. Callable exports in namespace objects can replace them; non-callable data cannot. Raw byte strings can name callable hash entries, including names that are not valid UTF-8. A selected data property is read and then rejected as non-callable: `Time.at(0).send(:year)` does not invoke a method. Regex `source` and `flags`, array `size` and other automatic methods remain callable.
-
-Forwarded script methods and constructors accept the reference's options-hash binding. For example, `object.send(:configure, retries: 3)` can supply `{retries: 3}` to a positional `options` parameter. Ordinary parenthesized methods keep [strict keyword binding](options-hash.md). Builtin exports keep their own keyword rules. Blocks retain normal `return`, `break` and `next` behavior, including the existing rule that `zip` ignores a block.
-
-An addressed collection mutator updates its original binding while preserving other collection values. Reads use the receiver value evaluated before their arguments, even when an argument mutates the same collection. Non-mutating methods and returned temporaries do not keep that write path. Generated getters return collection values; a method can mutate the backing instance variable directly. Protected match data and rescued errors allow reads and reject writes, including forwarded writes after duplication. Typed arguments, returns and backing-field guards apply to forwarded calls.
-
-Ordinary parentheses retain the receiver: `(items.send)(:push, 2)` updates `items`. Helpers selected through `rescue` follow the existing [computed-call rules](computed-calls.md). Safe navigation skips method-name arguments, remaining arguments and blocks when the receiver is nil.
-
-Nested forwarding uses an iterative lookup loop. It accounts for name scans and argument traversal without consuming a VM recursion frame per helper or repeatedly shifting the argument list. Diagnostics preserve raw method-name bytes and charge their storage. Cancellation, deadlines and exhausted limits remain latched. Tests cover exact work and memory quotas, long forwarding chains, mutation paths and reclamation after failed calls.
-
-The [reference differences](forwarding-differences.json) record six cases following the selected match-data policy and two cases retaining Rust's existing typed nested-write guards. Twelve further cases follow the selected collection snapshot semantics when arguments mutate a forwarded receiver. Thirty-seven additional cases have the same error class with different diagnostic wording; four resolved type diagnostics now have exact message checks. These are separate from the 1,107 shared forwarding and lookup evaluations and 74 uncaught runtime rejection cases. The three ordinary-call options-hash failures are fixed and included in the shared options-binding corpus.
+Until the switchover, a script compiled without static types still runs the removed helpers: `send` reaches private and protected methods, `public_send` keeps explicit-receiver visibility, and both pass the remaining arguments, keywords and block to the selected method. The [reference differences](forwarding-differences.json) recorded while porting them remain part of the `compatibility` golden corpus.

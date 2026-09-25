@@ -1,25 +1,27 @@
 # Computed calls
 
-Call targets can be selected by rescue modifiers, read from collections, or returned by a call. Script functions remain confined to call syntax, as required by ADR-006:
+In the static language a call target is a name: a function, a method on a typed receiver, a namespace member or a host function or capability the host declares. A parenthesized expression, a value read from a collection or a `rescue` modifier cannot be called (V0310), and a name that is not in scope is a compile error (V0201), so every call is checked against its signature. Choose between functions with `if` or `case` instead:
 
-```vibescript
-def fallback(value)
+```vibe
+def primary(value: int) -> int
   value + 1
 end
 
-(missing rescue fallback)(41)
+def fallback(value: int) -> int
+  value - 1
+end
+
+def run(use_primary: bool) -> int
+  if use_primary
+    primary(41)
+  else
+    fallback(41)
+  end
+end
 ```
 
-Target selection finishes before positional arguments, keywords, splats and an attached block are passed to the callee. The rescue above catches lookup failures while selecting `fallback`; errors from its arguments or body propagate to the surrounding handler. Nested selections preserve this boundary. Private implicit methods, class methods, constructors, stored builtin exports and registered host capabilities use the same existing binding rules.
+Script functions remain confined to call syntax, as required by ADR-006: they are never values.
 
-Selected class methods and bound helpers retain their receivers while arguments run. For example, reassigning the variable that supplied a receiver does not redirect an already selected method. Go's shared primitive member implementations still require direct member-call syntax to supply a receiver; wrapping `"abc".size` in a rescue does not bind the string. A safe member access on nil selects nil and subsequently fails if called.
+Until the switchover, a script compiled without static types can still select a call target at runtime: by a `rescue` modifier, as in `(missing rescue fallback)(41)`, from a collection, or from the value of a `begin` expression, as in `(begin JSON::parse end)("[8]")`. Target selection finishes before positional arguments, keywords, splats and an attached block are passed to the callee, so the rescue catches lookup failures while selecting the target and not errors from its arguments or body. Selected class methods and bound helpers retain their receivers while arguments run, targets live in accounted argument storage rather than escaping as values, and unwinding discards abandoned targets and arguments. Lookup errors are catchable at the expression where lookup fails. The [probe cases](computed-call-gaps.json) record the intentional differences from Go and remain part of the `compatibility` golden corpus.
 
-Targets live in accounted argument storage rather than escaping as script-function values. Unwinding discards abandoned targets and arguments. Cancellation and actual work or memory exhaustion remain uncatchable. Match data and error objects retain their selected protection policy through duplicates and wrapped mutator lookup.
-
-Parentheses after a `begin` expression call its selected value: `(begin JSON::parse end)("[8]")` returns the array `[8]`. Selection, including retries and ensure cleanup, finishes before arguments run. This is an explicitly selected difference from Go's parsing, which sometimes treats the parentheses as a separate expression.
-
-Eleven native integration tests cover binding, call order, executable-value restrictions, receiver capture, reclamation, exact memory and step limits, cancellation, host keywords, protection, begin-expression calls and parser depth. The focused reference comparison also exercises shared primitive members and temporal properties. Permanent shared conformance cases exclude intentional and unresolved differences and values the JSON comparison harness cannot encode.
-
-[The probe cases](computed-call-gaps.json) record four intentional differences: three begin-call cases and one missing namespace member. Rust makes lookup errors catchable at the expression where lookup fails, following the selected policy; Go can let that error escape to an outer rescue. These cases are not counted as passing shared conformance. [Equality predicates](equality.md), including enum helpers and detached-comparison errors, are implemented. Other type-error wording differences remain pending. The full language port still has the broader requirements listed in [the language plan](language-port.md).
-
-Explicit calls to a member named call also resolve their target before evaluating arguments. See [member call selection](call-member.md) for lookup failures, callable hash fields and block behavior.
+Explicit calls to a member named `call` also resolve their target before evaluating arguments. See [member call selection](call-member.md).

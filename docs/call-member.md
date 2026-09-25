@@ -1,5 +1,7 @@
 # Calls to a member named call
 
+With static types, `.call(...)` is an ordinary method call: a class may define a `call` method, while a function or builtin name is never a value, so `helper.call(1)` is a compile error. The rules below describe how the runtime selects the target, and, until the switchover, how it treats a script compiled without static types.
+
 An explicit `.call(...)` resolves its member before evaluating arguments. Missing and inaccessible members stop positional arguments, keyword arguments, splats and attached blocks from running. Safe navigation on nil skips the whole call. An existing non-callable data field keeps ordinary argument evaluation before the invocation error.
 
 A bare name receiving `call` follows Go's auto-invocation rules. `helper.call`, `helper&.call` and, for a zero-parameter function, `helper.call()` or `helper.call { }` keep the function as a value and fail with `a function has no member call; call helper(...) directly`; `helper.call(1)` runs the function first. Builtins and implicit methods behave alike, so `puts.call` reports `a method has no member call; call puts(...) directly` and a method `helper` of class `K` reports `K#helper`.

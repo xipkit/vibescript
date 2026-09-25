@@ -1,9 +1,13 @@
 # Empty hash construction
 
-`Hash.new` and `Hash.new()` create fresh empty hashes. Scoped access, namespace aliases, indexed lookup, `send` and `public_send` use the same constructor. Missing keys read as nil; `fetch(key, fallback)` or its block form supplies a fallback for an individual lookup.
+`Hash.new` was removed by [ADR-008](adr/008-canonical-surface-for-ai-authors.md) (V0411). An empty hash is the literal `{}`, which takes its type from a declaration, a typed parameter, return or field, or an element of a typed collection:
 
-The constructor accepts no defaults, keywords or blocks. Keyword validation precedes the default/block rejection. Arguments retain normal evaluation order, and rejected blocks do not run. A returned hash has the same logical value semantics as a hash literal: changing one binding leaves an earlier copy unchanged.
+```vibe
+counts: hash<string, int> = {}
+counts["draft"] = 2
+counts.fetch("done", 0) # 0
+```
 
-Each empty hash's storage is accounted for before allocation. Keeping many hashes consumes the memory budget; repeatedly discarding hashes keeps peak storage bounded. Cancellation and exhausted work or memory remain latched, and later calls start with fresh state.
+Hashes carry no default value: a missing key reads as `nil`, so `counts["done"]` has type `int?`, and `fetch(key, fallback)` or its block form supplies a fallback for one lookup. A new hash has the same logical value semantics as any other: changing one binding leaves an earlier copy unchanged, and each empty hash's storage is accounted before allocation.
 
-Five native tests cover construction, aliases, argument order, exact work limits, sampled memory boundaries, retention and cancellation. The shared corpus adds 178 reference-checked evaluations and eleven uncaught rejections. One `tap` case follows the selected collection-value policy, and seventeen cases retain differing diagnostic wording. Those observations remain explicit in [the difference record](hash-new-differences.json).
+Until the switchover, a script compiled without static types can still call `Hash.new`, which accepts no default, keywords or block. Its [difference record](hash-new-differences.json) remains part of the `compatibility` golden corpus.

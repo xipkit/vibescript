@@ -1,9 +1,19 @@
 # Repeated block execution
 
-`loop { ... }` or `loop do ... end` invokes its block until `break`. A break payload becomes the result; a bare break returns nil. `next` starts another iteration, discarding its payload. Ordinary block results are also discarded. A return leaves the enclosing method, and ordinary control transfers honor ensure clauses.
+`loop { ... }` runs its block until `break`. A break value becomes the result, and a bare `break` gives `nil`; the signature is `loop(&block: ()) -> any`, so narrow the result or declare the local it is stored in. `next` starts another iteration, discarding its value, and ordinary block results are discarded too. A `return` leaves the enclosing function, and every control transfer honors `ensure` clauses.
 
-The block receives no arguments. Ordinary parameters therefore receive nil, while nested rest destructuring receives an empty tail. Type annotations still apply before the body runs. Calls reject positional arguments first, then keywords, then a missing block. Invalid calls preserve argument evaluation order and never invoke the rejected block. Registered host functions and script functions can override the global helper under the usual name-resolution rules.
+```vibe
+count = 0
+result = loop {
+  count += 1
+  next if count < 3
+  break count * 10
+}
+result # 30
+```
 
-The helper is a direct call target and cannot be read as an ordinary value. Its native frame holds the block and call roots for the duration of execution, charges work on every iteration and uses the existing recursion limit. Discarded results are released before the next block call; retained results continue consuming the memory budget. Cancellation and exhausted limits remain uncatchable and prevent subsequent rescue or ensure effects.
+The block receives no arguments. Calls reject positional arguments and keywords, and `loop` without a block is a compile error (V0304). Script functions can shadow the global helper under the usual name-resolution rules.
 
-Six native tests cover results, binding, nested control flow, validation order, host overrides, method boundaries, retained and discarded storage, work/memory/recursion limits, cancellation and independent subsequent calls. The shared corpus adds 53 matching expectations, six runtime rejections and one syntax rejection. Rust also accepts `loop { break :done }` according to the documented break-value rule; Go v0.70.0 rejects that compact spelling during parsing. The exact observation is retained in [the difference record](loop-differences.json).
+`loop` is a direct call target and cannot be read as a value. Its native frame holds the block and call roots for the duration of execution, charges work on every iteration and uses the recursion limit. Discarded results are released before the next block call; retained results continue consuming the memory budget. Cancellation and exhausted limits remain uncatchable and prevent subsequent rescue or ensure effects.
+
+A block without parameters whose first statement is a word followed by a symbol, such as `loop { break :done }`, currently parses as a hash literal and fails with a syntax error, as it does in Go v0.70.0; write `break(:done)` instead. The [difference record](loop-differences.json) kept from the port predates this parse and still lists the compact spelling as accepted.
