@@ -30,6 +30,19 @@ fn fixes_files_in_place_and_reports_each_fix() {
 }
 
 #[test]
+fn fixes_rewrite_whole_expressions() {
+    let files = Files::new();
+    let source = "def pick(values: array<int>, i: int, n: int) -> int\n  values[(i + n) % values.length] + 1\nend\n";
+    files.write("pick.vibe", source);
+    let run = vibes_in(Some(&files.0), &["fix", "pick.vibe"]);
+    assert_eq!(run.status, Some(0), "{run:?}");
+    assert_eq!(
+        files.read("pick.vibe"),
+        "def pick(values: array<int>, i: int, n: int) -> int\n  values.fetch((i + n) % values.length) + 1\nend\n"
+    );
+}
+
+#[test]
 fn a_dry_run_prints_a_diff_and_writes_nothing() {
     let files = Files::new();
     files.write("names.vibe", OLD);

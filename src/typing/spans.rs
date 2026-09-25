@@ -3,9 +3,18 @@
 
 use crate::{
     diagnostic::Span,
-    syntax::{Argument, Block, Expr, Node, Statement, Stmt, Target},
+    syntax::{Argument, Block, CallForm, Expr, Node, Statement, Stmt, Target},
     tooling::{Token, TokenKind},
 };
+
+/// What follows a node's rightmost child in the source, which the tree
+/// does not locate.
+enum Trail<'e> {
+    /// Nothing: the child ends the node.
+    None,
+    /// A member name after `.`, `&.` or `::`, and whether `()` follows it.
+    Member(&'e str, bool),
+}
 
 pub(crate) struct Spans<'a> {
     source: &'a str,
@@ -90,18 +99,68 @@ impl<'a> Spans<'a> {
         self.token(offset)
     }
 
-    /// The span of an expression, from its first token to its last.
+    /// The span of an expression, from its first token to its last,
+    /// including the parentheses of a group it starts with.
     pub fn expr(&self, expr: &Expr) -> Span {
         let start = first_offset(expr);
         let last = self.last(expr);
-        Span::new(start, self.close(start, last))
+        let end = self.close(start, last);
+        Span::new(self.open(start, end), end)
     }
 
     /// The span of a statement.
     pub fn stmt(&self, stmt: &Stmt) -> Span {
         let start = stmt.offset as usize;
-        let last = stmt_last(stmt).max(start);
+        let value = match &stmt.node {
+            Statement::Expr(value) | Statement::Assign(_, _, value) => Some(value),
+            Statement::Return(value) | Statement::Break(value) | Statement::Next(value) => {
+                value.as_ref()
+            }
+            _ => None,
+        };
+        let last = match value {
+            Some(value) => self.last(value).max(stmt_last(stmt)),
+            None => stmt_last(stmt),
+        };
+        let last = last.max(start);
         Span::new(start, self.close(start, last))
+    }
+
+    /// Moves `start` back over each `(` that opens a group closing before
+    /// `end`, as `(a + b)` does in `(a + b) * c`, whose tree starts at `a`.
+    fn open(&self, mut start: usize, end: usize) -> usize {
+        let Some(mut first) = self.token_at(start) else {
+            return start;
+        };
+        while first > 0 && self.tokens[first - 1].kind == TokenKind::Punct('(') {
+            // The matching `)` must come before the expression's end.
+            let mut depth = 0;
+            let mut closes = None;
+            for index in first - 1..self.tokens.len() {
+                self.step(1);
+                let token = &self.tokens[index];
+                if token.span.start >= end {
+                    break;
+                }
+                match token.kind {
+                    TokenKind::Punct('(' | '[' | '{') => depth += 1,
+                    TokenKind::Punct(')' | ']' | '}') => {
+                        depth -= 1;
+                        if depth == 0 {
+                            closes = Some(token.span.end);
+                            break;
+                        }
+                    }
+                    _ => (),
+                }
+            }
+            if closes.is_none_or(|close| close >= end) {
+                break;
+            }
+            first -= 1;
+            start = self.tokens[first].span.start;
+        }
+        start
     }
 
     /// The end of a node that starts at `start` and whose last child starts
@@ -187,17 +246,100 @@ impl<'a> Spans<'a> {
         None
     }
 
-    /// The start of an expression's last token-bearing child, remembered
-    /// per node so a chain of calls costs linear work.
+    /// The start of an expression's last token, remembered per node so a
+    /// chain of calls costs linear work. The tree locates every child but
+    /// not a member's name, so the path of rightmost children is followed
+    /// down to one the tree locates, and each member name on it is found
+    /// in the tokens after its receiver.
     fn last(&self, expr: &Expr) -> usize {
-        let key = std::ptr::from_ref(expr) as usize;
-        if let Some(&last) = self.lasts.borrow().get(&key) {
+        let mut path: Vec<(&Expr, Trail<'_>)> = Vec::new();
+        let mut current = expr;
+        let mut position = loop {
+            let key = std::ptr::from_ref(current) as usize;
+            if let Some(&known) = self.lasts.borrow().get(&key) {
+                break known;
+            }
+            let (next, trail) = match &current.node {
+                Node::Member(receiver, name)
+                | Node::SafeMember(receiver, name)
+                | Node::Scope(receiver, name, None) => {
+                    (&**receiver, Trail::Member(name.as_str(), false))
+                }
+                Node::Scope(receiver, name, Some(args)) if args.is_empty() => {
+                    (&**receiver, Trail::Member(name.as_str(), true))
+                }
+                Node::Method(receiver, name, args, form)
+                | Node::SafeMethod(receiver, name, args, form)
+                    if args.is_empty() =>
+                {
+                    let parenthesized = matches!(form, CallForm::Parenthesized);
+                    (&**receiver, Trail::Member(name.as_str(), parenthesized))
+                }
+                // A command call ends with its last argument.
+                Node::Method(_, _, args, CallForm::Bare | CallForm::Auto)
+                | Node::SafeMethod(_, _, args, CallForm::Bare | CallForm::Auto)
+                | Node::Call(_, args, CallForm::Bare | CallForm::Auto)
+                    if !args.is_empty() =>
+                {
+                    (&args[args.len() - 1].value, Trail::None)
+                }
+                Node::Binary(_, _, right) => (&**right, Trail::None),
+                Node::Unary(_, value) => (&**value, Trail::None),
+                Node::Range(_, Some(end), _) => (&**end, Trail::None),
+                _ => {
+                    let (last, visited) = last_offset_counted(current, &self.lasts);
+                    self.step(visited);
+                    break last;
+                }
+            };
+            path.push((current, trail));
+            current = next;
+        };
+        let key = std::ptr::from_ref(current) as usize;
+        self.lasts.borrow_mut().insert(key, position);
+        for (node, trail) in path.into_iter().rev() {
+            if let Trail::Member(name, parenthesized) = trail {
+                position = self.name_after(position, name, parenthesized);
+            }
+            let key = std::ptr::from_ref(node) as usize;
+            self.lasts.borrow_mut().insert(key, position);
+        }
+        position
+    }
+
+    /// The start of the member name `name` that follows a receiver whose
+    /// last token starts at `last`, after `.`, `&.` or `::` and any
+    /// closing brackets and line breaks, or of the `)` that ends it when
+    /// `parenthesized`; `last` when the tokens do not show one.
+    fn name_after(&self, last: usize, name: &str, parenthesized: bool) -> usize {
+        let Some(mut index) = self.token_at(last) else {
+            return last;
+        };
+        index += 1;
+        let limit = self.tokens.len().min(index + 64);
+        while index < limit {
+            self.step(1);
+            match &self.tokens[index].kind {
+                TokenKind::Punct(')' | ']' | '}') | TokenKind::Newline => index += 1,
+                TokenKind::Punct('.') | TokenKind::Operator("&." | "::") => break,
+                _ => return last,
+            }
+        }
+        index += 1;
+        while index < limit && self.tokens[index].kind == TokenKind::Newline {
+            index += 1;
+        }
+        if index >= limit || self.text(index) != name {
             return last;
         }
-        let (last, visited) = last_offset_counted(expr, &self.lasts);
-        self.step(visited);
-        self.lasts.borrow_mut().insert(key, last);
-        last
+        let at = self.tokens[index].span.start;
+        if parenthesized
+            && self.tokens.get(index + 1).map(|token| &token.kind) == Some(&TokenKind::Punct('('))
+            && self.tokens.get(index + 2).map(|token| &token.kind) == Some(&TokenKind::Punct(')'))
+        {
+            return self.tokens[index + 2].span.start;
+        }
+        at
     }
 
     /// The offset of the operator token of a binary expression starting at

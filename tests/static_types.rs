@@ -32,3 +32,5 @@ mod operators;
 mod scaling;
 #[path = "static_types/signatures.rs"]
 mod signatures;
+#[path = "static_types/spans.rs"]
+mod spans;
