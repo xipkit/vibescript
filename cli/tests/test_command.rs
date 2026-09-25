@@ -88,12 +88,15 @@ fn filters_tests_by_regular_expression() {
 #[test]
 fn discovers_nested_files_and_resolves_modules() {
     let files = Files::new();
-    files.write("helper.vibe", "def double(n)\n  n * 2\nend\n");
+    files.write("helper.vibe", "def double(n: int) -> int\n  n * 2\nend\n");
     files.write(
         "nested/deep_test.vibe",
         "def test_double()\n  helper = require(\"helper\")\n  assert helper.double(2) == 4\nend\n",
     );
-    files.write("nested/sibling.vibe", "def triple(n)\n  n * 3\nend\n");
+    files.write(
+        "nested/sibling.vibe",
+        "def triple(n: int) -> int\n  n * 3\nend\n",
+    );
     files.write(
         "nested/sibling_test.vibe",
         "def test_triple()\n  helper = require(\"sibling\")\n  assert helper.triple(3) == 9\nend\n",
@@ -121,7 +124,7 @@ fn reports_files_that_cannot_run() {
     files.write("assign_test.vibe", "x = 1\n");
     files.write(
         "params_test.vibe",
-        "def test_needs_arg(value)\n  assert value\nend\n\ndef test_default_ok(value = 1)\n  assert value == 1\nend\n",
+        "def test_needs_arg(value: bool)\n  assert value\nend\n\ndef test_default_ok(value: int = 1)\n  assert value == 1\nend\n",
     );
     let run = vibes_in(Some(&files.0), &["test"]);
     assert_eq!(run.status, Some(1));

@@ -11,34 +11,37 @@ fn reports_unreachable_statements_like_the_reference() {
     let files = Files::new();
     for (source, findings) in [
         ("def run()\n  value = 1\n  value\nend", vec![]),
-        ("def double(x)\n  x * 2\nend\n\ndouble(3)", vec![]),
-        ("def run()\n  return 1\n  2\nend", vec!["3:3 (run)"]),
         (
-            "def run()\n  if false\n    return 1\n  elsif true\n    return 2\n  else\n    return 3\n  end\n  4\nend",
+            "def double(x: int) -> int\n  x * 2\nend\n\ndouble(3)",
+            vec![],
+        ),
+        ("def run() -> int\n  return 1\n  2\nend", vec!["3:3 (run)"]),
+        (
+            "def run() -> int\n  if false\n    return 1\n  elsif true\n    return 2\n  else\n    return 3\n  end\n  4\nend",
             vec!["9:3 (run)"],
         ),
         (
-            "def run()\n  begin\n    return 1\n  ensure\n    value = 2\n  end\n  3\nend",
+            "def run() -> int\n  begin\n    return 1\n  ensure\n    value = 2\n  end\n  3\nend",
             vec!["7:3 (run)"],
         ),
         (
-            "def run()\n  begin\n    1\n  rescue\n    2\n  else\n    return 3\n    4\n  end\nend",
+            "def run() -> int\n  begin\n    1\n  rescue\n    2\n  else\n    return 3\n    4\n  end\nend",
             vec!["8:5 (run)"],
         ),
         (
-            "def run()\n  begin\n    1\n  rescue\n    return 2\n  else\n    return 3\n  end\n  4\nend",
+            "def run() -> int\n  begin\n    1\n  rescue\n    return 2\n  else\n    return 3\n  end\n  4\nend",
             vec!["9:3 (run)"],
         ),
         (
-            "class Reporter\n  def instance_path()\n    return 1\n    2\n  end\n\n  def self.class_path()\n    return 3\n    4\n  end\nend\n\ndef run()\n  Reporter.new.instance_path\nend",
+            "class Reporter\n  def instance_path() -> int\n    return 1\n    2\n  end\n\n  def self.class_path() -> int\n    return 3\n    4\n  end\nend\n\ndef run() -> int\n  Reporter.new.instance_path\nend",
             vec!["4:5 (Reporter#instance_path)", "9:5 (Reporter.class_path)"],
         ),
         (
-            "def run()\n  [1].each do |x|\n    raise \"boom\"\n    x\n  end\nend",
+            "def run() -> array<int>\n  [1].each { |x|\n    raise \"boom\"\n    x\n  }\nend",
             vec!["4:5 (run block at 2:12)"],
         ),
         (
-            "def run()\n  %I[#{capture { raise \"boom\"; 1 }}]\nend",
+            "def capture(&block: () -> int) -> int\n  yield\nend\n\ndef run() -> string\n  \"#{capture { raise \"boom\"; 1 }}\"\nend",
             vec!["1:25 (run block at 1:9)"],
         ),
         (

@@ -232,18 +232,21 @@ fn lsp_serves_stdio_and_repl_validates_its_flags_first() {
 #[test]
 fn run_stops_parsing_flags_at_the_first_positional() {
     let files = Files::new();
-    let echo = files.write("echo.vibe", "def run(value)\n  value\nend\n");
+    let echo = files.write(
+        "echo.vibe",
+        "def run(value: string) -> string\n  value\nend\n",
+    );
     vibes(&["run", &echo, "-check="]).expect(0, "-check=\n", "");
     vibes(&["run", "--", &echo, "-check="]).expect(0, "-check=\n", "");
     let pair = files.write(
         "pair.vibe",
-        "def run(first, second)\n  first + \":\" + second\nend\n",
+        "def run(first: string, second: string) -> string\n  first + \":\" + second\nend\n",
     );
     vibes(&["run", &pair, "--", "-check"]).expect(0, "--:-check\n", "");
     for first in ["", " "] {
         vibes(&["run", &pair, first, "-check"]).expect(0, &format!("{first}:-check\n"), "");
     }
-    files.write("-", "def run(value)\n  value\nend\n");
+    files.write("-", "def run(value: string) -> string\n  value\nend\n");
     let dir = Some(files.0.as_path());
     vibes_in(dir, &["run", "-", "argument"]).expect(0, "argument\n", "");
 }
@@ -362,7 +365,7 @@ fn explicit_zero_quota_selects_the_engine_default() {
     let files = Files::new();
     let script = files.write(
         "count.vibe",
-        "def count(n)\n  i = 0\n  while i < n\n    i = i + 1\n  end\n  i\nend\n\nputs count(200000)\n",
+        "def count(n: int) -> int\n  i = 0\n  while i < n\n    i = i + 1\n  end\n  i\nend\n\nputs count(200000)\n",
     );
     vibes(&["run", &script]).expect(0, "200000\n", "");
     let run = vibes(&["run", "-step-quota=0", &script]);
@@ -378,10 +381,13 @@ fn explicit_zero_quota_selects_the_engine_default() {
 #[test]
 fn module_paths_are_repeatable_and_never_split() {
     let files = Files::new();
-    files.write("first,modules/first.vibe", "def value\n  \"first\"\nend\n");
+    files.write(
+        "first,modules/first.vibe",
+        "def value -> string\n  \"first\"\nend\n",
+    );
     files.write(
         "second-modules/second.vibe",
-        "def value\n  \"second\"\nend\n",
+        "def value -> string\n  \"second\"\nend\n",
     );
     let main = files.write(
         "main/main.vibe",

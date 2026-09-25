@@ -12,32 +12,32 @@ fn runs_files_with_the_reference_defaults() {
     for (name, source, args, stdout) in [
         (
             "greet.vibe",
-            "def greet(name)\n  name\nend",
+            "def greet(name: string) -> string\n  name\nend",
             vec!["-function", "greet"],
             "hello\n",
         ),
         ("run.vibe", "def run\n  \"ok\"\nend", vec![], "ok\n"),
         (
             "class.vibe",
-            "class Settings\n  @@limit = 10\n\n  def self.limit\n    @@limit\n  end\nend\n\ndef run\n  Settings.limit\nend",
+            "class Settings\n  @@limit: int = 10\n\n  def self.limit -> int\n    @@limit\n  end\nend\n\ndef run -> int\n  Settings.limit\nend",
             vec![],
             "10\n",
         ),
         (
             "double.vibe",
-            "def double(x)\n  x * 2\nend\n\ndouble(3)",
+            "def double(x: int) -> int\n  x * 2\nend\n\ndouble(3)",
             vec![],
             "6\n",
         ),
         (
             "explicit.vibe",
-            "def greet(name)\n  name\nend\n\ngreet(\"top\")",
+            "def greet(name: string) -> string\n  name\nend\n\ngreet(\"top\")",
             vec!["-function", "greet"],
             "hello\n",
         ),
         (
             "deferred.vibe",
-            "class Settings\n  @@limit = 10\n\n  def self.limit\n    @@limit\n  end\nend\n\ndef run\n  Settings.limit\nend\n\n99",
+            "class Settings\n  @@limit: int = 10\n\n  def self.limit -> int\n    @@limit\n  end\nend\n\ndef run -> int\n  Settings.limit\nend\n\n99",
             vec!["-function", "run"],
             "10\n",
         ),
@@ -198,7 +198,7 @@ fn snippet_errors_name_the_snippet() {
         assert!(run.stderr.contains(want), "{want:?}: {}", run.stderr);
     }
     assert!(!run.stderr.contains("__eval__"), "{}", run.stderr);
-    let run = vibes(&["run", "-e", "x = 1\n1 / 0"]);
+    let run = vibes(&["run", "-e", "x = 1\n1 // 0"]);
     assert_eq!(run.status, Some(1));
     for want in [
         "execution failed",
@@ -209,20 +209,20 @@ fn snippet_errors_name_the_snippet() {
         assert!(run.stderr.contains(want), "{want:?}: {}", run.stderr);
     }
     let files = Files::new();
-    files.write("helper.vibe", "def boom()\n  1 / 0\nend\n");
+    files.write("helper.vibe", "def boom\n  1 // 0\nend\n");
     let dir = files.0.to_str().unwrap();
     let run = vibes(&[
         "run",
         "-module-path",
         dir,
         "-e",
-        "helper = require(\"helper\")\nhelper.boom()",
+        "helper = require(\"helper\")\nhelper.boom",
     ]);
     assert_eq!(run.status, Some(1));
     for want in [
         "execution failed",
         "division by zero",
-        "1 / 0",
+        "1 // 0",
         "at boom (2:",
     ] {
         assert!(run.stderr.contains(want), "{want:?}: {}", run.stderr);
@@ -293,7 +293,7 @@ fn quota_profiles_reach_execution() {
     let files = Files::new();
     let script = files.write(
         "count.vibe",
-        "\ndef count(n)\n  i = 0\n  while i < n\n    i = i + 1\n  end\n  i\nend\n\nputs count(2000000)\n",
+        "\ndef count(n: int) -> int\n  i = 0\n  while i < n\n    i = i + 1\n  end\n  i\nend\n\nputs count(2000000)\n",
     );
     vibes(&["run", &script]).expect(0, "2000000\n", "");
     let run = vibes(&["run", "-profile", "low", &script]);
@@ -324,7 +324,7 @@ fn quota_profiles_reach_execution() {
     vibes(&["run", "-profile", "gigantic", "-e", "1"]).fails(
         "vibes run: unknown quota profile \"gigantic\" (choose one of: low, medium, high, xhigh)",
     );
-    let recursive = files.write("deep.vibe", "def f(n)\n  f(n + 1)\nend\nf(0)\n");
+    let recursive = files.write("deep.vibe", "def f(n: int) -> int\n  f(n + 1)\nend\nf(0)\n");
     let run = vibes(&["run", "-recursion-limit", "5", &recursive]);
     assert!(
         run.stderr
@@ -373,14 +373,15 @@ fn static_mode_refuses_type_errors_and_entry_arguments_that_are_not_strings() {
         "greet.vibe",
         "def run(name: string, times: int) -> string\n  name * times\nend\n",
     );
-    // Without the checker the call fails when it starts.
+    // Without static types the call fails when it starts; with them on by
+    // default, the command line's strings are refused before it runs.
     let run = vibes(&["run", &path, "ada", "2"]);
-    assert!(
-        run.stderr
-            .starts_with("execution failed: argument times expected int, got string"),
-        "{}",
-        run.stderr
-    );
+    let refusal = if vibescript::STATIC_TYPES_BY_DEFAULT {
+        "compile failed with 1 diagnostic(s)"
+    } else {
+        "execution failed: argument times expected int, got string"
+    };
+    assert!(run.stderr.starts_with(refusal), "{}", run.stderr);
     let run = vibes(&["run", "--static", &path, "ada", "2"]);
     assert_eq!(run.status, Some(1), "{}", run.stdout);
     assert!(
