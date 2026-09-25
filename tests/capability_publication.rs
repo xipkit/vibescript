@@ -5,7 +5,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 use vibescript::{
-    CallOptions, CancellationToken, Capability, Engine, ErrorKind, HostMethod, Limits, Value,
+    CallOptions, CancellationToken, Capability, ErrorKind, HostMethod, Limits, Value,
 };
 
 fn field(value: &Value, name: &str) -> Option<Value> {
@@ -86,15 +86,17 @@ fn methods(prefix: &str) -> Vec<(Vec<u8>, Value)> {
     ]
 }
 
+fn fields() -> Vec<(Vec<u8>, Value)> {
+    let mut inner = methods("cap.inner");
+    inner.push((b"tag".to_vec(), Value::int(2)));
+    let mut fields = methods("cap");
+    fields.push((b"tag".to_vec(), Value::int(1)));
+    fields.push((b"inner".to_vec(), Value::object(inner)));
+    fields
+}
+
 fn capability() -> Capability {
-    Capability::new("cap", |_| {
-        let mut inner = methods("cap.inner");
-        inner.push((b"tag".to_vec(), Value::int(2)));
-        let mut fields = methods("cap");
-        fields.push((b"tag".to_vec(), Value::int(1)));
-        fields.push((b"inner".to_vec(), Value::object(inner)));
-        Ok(Value::object(fields))
-    })
+    Capability::new("cap", |_| Ok(Value::object(fields())))
 }
 
 fn options() -> CallOptions {
@@ -104,8 +106,12 @@ fn options() -> CallOptions {
     }
 }
 
+/// Runs `body`, which reads and writes the capability's fields by index.
+/// Static types never index a namespace, since a host may publish any field
+/// into it, so these programs run without static types; a static program
+/// sees publications through the capability's methods instead.
 fn run(body: &str, options: CallOptions) -> vibescript::Result<vibescript::Outcome> {
-    Engine::new()
+    common::gradual_engine()
         .compile(&format!("def run\n{body}\nend"))
         .unwrap()
         .call("run", &[], options)
@@ -129,6 +135,31 @@ fn published_fields_are_visible_to_later_script_reads() {
         ("cap.put(:k, 1)\ncap.put(:k, 2)\ncap[:k]", "2"),
         ("cap.put(:k, 5)\ncap.keys.include?(\"k\")", "true"),
     ]);
+}
+
+#[test]
+fn static_programs_see_publications_through_capability_methods() {
+    let mut engine = common::static_engine();
+    engine
+        .declare_capability(&Capability::from_value("cap", Value::object(fields())))
+        .unwrap();
+    let script = engine
+        .compile("def run -> any\ncap.put(\"k\", 5)\ncap.get(\"k\")\nend")
+        .unwrap();
+    let result = script.call("run", &[], options()).unwrap();
+    assert_eq!(result.value.to_string(), "5");
+    for source in [
+        "def run -> any\ncap.put(\"k\", 5)\ncap[\"k\"]\nend",
+        "def run\ncap[\"k\"] = 6\nnil\nend",
+    ] {
+        let error = engine.compile(source).err().unwrap();
+        assert_eq!(common::codes(&error)[0], "V0112", "{source}");
+        assert_eq!(
+            error.diagnostics()[0].span.start,
+            source.find("cap[").unwrap(),
+            "{source}"
+        );
+    }
 }
 
 #[test]
@@ -237,7 +268,7 @@ fn publications_end_with_the_invocation() {
         })],
         ..CallOptions::default()
     };
-    let script = Engine::new()
+    let script = common::gradual_engine()
         .compile("def run(v)\nbefore = cap[:k]\ncap.put(:k, v)\n[before, cap[:k]]\nend")
         .unwrap();
     let first = script
