@@ -17,6 +17,36 @@ fn granted(method: HostMethod) -> CallOptions {
     }
 }
 
+/// The `sms` capability that `granted` binds, as a template the static
+/// checker reads: a namespace with an unsigned `deliver`.
+fn declared() -> Capability {
+    Capability::from_value(
+        "sms",
+        Value::object(vec![(b"deliver".to_vec(), echo().value())]),
+    )
+}
+
+/// An engine that declares the `sms` capability.
+fn engine() -> Engine {
+    let mut engine = Engine::new();
+    engine.declare_capability(&declared()).unwrap();
+    engine
+}
+
+/// Asserts that `source` is refused at compile time with `code` at the first
+/// occurrence of `at`.
+#[track_caller]
+fn refused(engine: &mut Engine, source: &str, code: &str, at: &str) {
+    engine.set_static_types(true);
+    let error = engine.compile(source).err().unwrap();
+    assert_eq!(common::codes(&error)[0], code, "{source}");
+    assert_eq!(
+        error.diagnostics()[0].span.start,
+        source.find(at).unwrap(),
+        "{source}"
+    );
+}
+
 fn echo() -> HostMethod {
     HostMethod::new("sms.deliver", |ctx, args, keywords| {
         let mut values = args.to_vec();
@@ -31,28 +61,28 @@ fn capability_methods_support_named_scoped_computed_and_forwarded_calls() {
         "sms.deliver(1, 2)",
         "sms.deliver 1, 2",
         "sms::deliver(1, 2)",
-        "sms[:deliver](1, 2)",
-        "(sms[:deliver])(1, 2)",
-        "sms.send(:deliver, 1, 2)",
-        "sms.public_send(:deliver, 1, 2)",
         "sms.deliver(*[1], last: 2)",
         "sms.deliver(1, **{last: 2})",
         "local = sms; local.deliver(1, 2)",
         "sms.dup.deliver(1, 2)",
-        "[sms][0].deliver(1, 2)",
+        "[sms].fetch(0).deliver(1, 2)",
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = engine().compile(source).unwrap();
         let output = script
             .run(granted(echo()))
             .unwrap_or_else(|error| panic!("{source}: {error}"));
         assert_eq!(output.value.to_string(), "[1, 2]", "{source}");
+    }
+    // A namespace is not indexed, so a member is never computed.
+    for source in ["sms[\"deliver\"](1, 2)", "(sms[\"deliver\"])(1, 2)"] {
+        refused(&mut engine(), source, "V0112", "sms[");
     }
 }
 
 #[test]
 fn grants_bind_in_order_before_initializers() {
     let order = Arc::new(Mutex::new(Vec::new()));
-    let mut engine = Engine::new();
+    let mut engine = engine();
     engine.set_strict_effects(true);
     let script = engine
         .compile("module M; C=sms.deliver(3); end; M.C")
@@ -83,7 +113,9 @@ fn explicit_globals_take_precedence_over_capability_bindings() {
         })],
         ..CallOptions::default()
     };
-    let script = Engine::new().compile("sms").unwrap();
+    let mut engine = Engine::new();
+    engine.declare_global("sms", "int").unwrap();
+    let script = engine.compile("sms").unwrap();
     assert_eq!(script.run(opts).unwrap().value.as_int(), Some(7));
     assert_eq!(bound.load(Ordering::Relaxed), 1);
 }
@@ -102,6 +134,9 @@ fn explicit_global_method_grants_remain_callable_without_becoming_values() {
     };
     let mut engine = Engine::new();
     engine.register("deliver", |_, _| panic!("shadowed registered function ran"));
+    engine
+        .declare_capability(&Capability::from_value("deliver", echo().value()))
+        .unwrap();
     for options in [granted, globals] {
         for source in ["deliver(1, 2)", "deliver(*[1, 2])", "(deliver)(1, 2)"] {
             let output = engine
@@ -111,7 +146,7 @@ fn explicit_global_method_grants_remain_callable_without_becoming_values() {
                 .unwrap();
             assert_eq!(output.value.to_string(), "[1, 2]", "{source}");
         }
-        for source in ["deliver", "value=deliver;value(1)", "[deliver]"] {
+        for source in ["deliver", "[deliver]"] {
             let error = engine
                 .compile(source)
                 .unwrap()
@@ -123,6 +158,8 @@ fn explicit_global_method_grants_remain_callable_without_becoming_values() {
             );
         }
     }
+    // A local is never called.
+    refused(&mut engine, "value=deliver;value(1)", "V0310", "value(");
 }
 
 #[test]
@@ -150,7 +187,7 @@ fn deferred_callback_metadata_stays_charged_until_destruction() {
         });
         Ok(Value::object(vec![(b"run".to_vec(), descriptor.value())]))
     });
-    let script = Engine::new()
+    let script = engine()
         .compile("i=0;while i<16;temporary=sms.deliver();temporary=nil;i+=1;end;7")
         .unwrap();
     let output = script.run(granted(method.clone())).unwrap();
@@ -175,9 +212,15 @@ fn capability_factories_create_fresh_state_for_each_concurrent_invocation() {
         })],
         ..CallOptions::default()
     };
-    let script = Engine::new()
-        .compile("[counter.bump(), counter.bump()]")
+    let mut engine = Engine::new();
+    let bump = HostMethod::new("counter.bump", |_, _, _| Ok(Value::int(0)));
+    engine
+        .declare_capability(&Capability::from_value(
+            "counter",
+            Value::object(vec![(b"bump".to_vec(), bump.value())]),
+        ))
         .unwrap();
+    let script = engine.compile("[counter.bump(), counter.bump()]").unwrap();
     common::scope(|scope| {
         let workers: Vec<_> = (0..6)
             .map(|_| {
@@ -226,8 +269,8 @@ fn contracts_validate_arguments_before_effects_and_each_successful_result() {
             Ok(())
         },
     );
-    let script = Engine::new()
-        .compile("def run(n); sms.deliver(n); end")
+    let script = engine()
+        .compile("def run(n: any) -> any; sms.deliver(n); end")
         .unwrap();
     let error = script
         .call("run", &[Value::bytes("bad")], granted(method.clone()))
@@ -279,16 +322,38 @@ fn contracts_follow_method_identity_including_factory_results() {
         ],
         ..CallOptions::default()
     };
-    let script = Engine::new().compile("result=begin; factory.make().deliver(); rescue TypeError; 7; end; [result, other.deliver(), {a: 1}.merge({b: 2})]").unwrap();
+    // A host result is `any`, which static types never call, so only a
+    // program without them reaches the returned method.
+    let source = "result=begin; factory.make().deliver(); rescue TypeError; 7; end; [result, other.deliver(), {a: 1}.merge({b: 2})]";
+    let script = common::gradual_engine().compile(source).unwrap();
     assert_eq!(
         script.run(opts).unwrap().value.to_string(),
         "[7, 42, {a: 1, b: 2}]"
     );
+    let mut engine = Engine::new();
+    for (name, member) in [("factory", "make"), ("other", "deliver")] {
+        let method = HostMethod::new(format!("{name}.{member}"), |_, _, _| Ok(Value::nil()));
+        engine
+            .declare_capability(&Capability::from_value(
+                name,
+                Value::object(vec![(member.as_bytes().to_vec(), method.value())]),
+            ))
+            .unwrap();
+    }
+    refused(&mut engine, source, "V0106", "deliver(); rescue");
 }
 
 #[test]
 fn saved_namespaces_cannot_reuse_grants_in_later_calls_even_with_unlimited_memory() {
-    let script = Engine::new()
+    // A saved namespace is `any` to static types, which never call it, so
+    // only a program without them reaches the revoked grant.
+    refused(
+        &mut engine(),
+        "def save -> any; sms; end; def use(saved: any) -> any; saved.deliver(); end",
+        "V0106",
+        "deliver()",
+    );
+    let script = common::gradual_engine()
         .compile("def save; sms; end; def use(saved); saved.deliver(); end")
         .unwrap();
     for unlimited in [false, true] {
@@ -314,19 +379,8 @@ fn saved_namespaces_cannot_reuse_grants_in_later_calls_even_with_unlimited_memor
 
 #[test]
 fn capability_methods_cannot_escape_through_reads_containers_or_host_arguments() {
-    for source in [
-        "sms.deliver",
-        "sms::deliver",
-        "sms[:deliver]",
-        "a=sms::deliver; a(1)",
-        "a=sms[:deliver]; a(1)",
-        "[sms[:deliver]]",
-        "{f: sms[:deliver]}",
-        "identity(sms[:deliver])",
-        "sms.deliver.to_s",
-        "sms[:deliver].clone",
-    ] {
-        let mut engine = Engine::new();
+    for source in ["sms.deliver", "sms::deliver"] {
+        let mut engine = engine();
         engine.register("identity", |_, _| panic!("detached method reached host"));
         let error = engine
             .compile(source)
@@ -338,6 +392,22 @@ fn capability_methods_cannot_escape_through_reads_containers_or_host_arguments()
             error.message.contains("cannot be used as a value"),
             "{source}: {error}"
         );
+    }
+    // A namespace is not indexed, a local is never called and a method's
+    // result is `any`, so the other escapes do not compile.
+    for (source, code, at) in [
+        ("sms[\"deliver\"]", "V0112", "sms["),
+        ("a=sms::deliver; a(1)", "V0310", "a(1)"),
+        ("a=sms[\"deliver\"]; a(1)", "V0112", "sms["),
+        ("[sms[\"deliver\"]]", "V0112", "sms["),
+        ("{f: sms[\"deliver\"]}", "V0112", "sms["),
+        ("identity(sms[\"deliver\"])", "V0112", "sms["),
+        ("sms.deliver.to_s", "V0106", "to_s"),
+        ("sms[\"deliver\"].dup", "V0112", "sms["),
+    ] {
+        let mut engine = engine();
+        engine.register("identity", |_, _| panic!("detached method reached host"));
+        refused(&mut engine, source, code, at);
     }
 }
 
@@ -390,7 +460,7 @@ fn cancellation_and_latched_exhaustion_stop_every_callback_boundary() {
                 Ok(())
             },
         );
-        let script = Engine::new()
+        let script = engine()
             .compile("begin; sms.deliver(); rescue; 9; ensure; sms.deliver(); end")
             .unwrap();
         assert_eq!(
@@ -409,7 +479,7 @@ fn cancellation_and_latched_exhaustion_stop_every_callback_boundary() {
         },
         |_, _| Ok(()),
     );
-    let script = Engine::new()
+    let script = engine()
         .compile("begin; sms.deliver(); rescue; 9; end")
         .unwrap();
     assert_eq!(
@@ -421,7 +491,7 @@ fn cancellation_and_latched_exhaustion_stop_every_callback_boundary() {
 #[test]
 fn names_metadata_and_results_are_charged_and_released() {
     let method = HostMethod::new("sms.deliver", |_, _, _| Ok(Value::int(7)));
-    let script = Engine::new().compile("sms.deliver()").unwrap();
+    let script = engine().compile("sms.deliver()").unwrap();
     let output = script.run(granted(method.clone())).unwrap();
     assert_eq!(output.stats.retained_memory_bytes, 0);
     for (steps, memory, error) in [
@@ -463,15 +533,17 @@ fn names_metadata_and_results_are_charged_and_released() {
 #[test]
 fn host_returns_are_isolated_and_can_admit_foreign_script_programs() {
     let foreign = Engine::new()
-        .compile("module M; @@n=0; def self.bump; @@n+=1; end; end; M")
+        .compile("module M; @@n: int=0; def self.bump -> int; @@n+=1; end; end; M")
         .unwrap()
         .run(CallOptions::default())
         .unwrap()
         .value;
     let method = HostMethod::new("sms.deliver", move |_, _, _| Ok(foreign.clone()));
-    let script = Engine::new()
-        .compile("m=sms.deliver(); [m.bump(), m.bump()]")
-        .unwrap();
+    // A host result is `any`, which static types never call, so only a
+    // program without them reaches the foreign module.
+    let source = "m=sms.deliver(); [m.bump(), m.bump()]";
+    refused(&mut engine(), source, "V0106", "bump");
+    let script = common::gradual_engine().compile(source).unwrap();
     for _ in 0..3 {
         assert_eq!(
             script
@@ -485,8 +557,8 @@ fn host_returns_are_isolated_and_can_admit_foreign_script_programs() {
     let data = Value::array(vec![Value::int(1)]);
     let retained = data.clone();
     let method = HostMethod::new("sms.deliver", move |_, _, _| Ok(data.clone()));
-    let script = Engine::new()
-        .compile("a=sms.deliver(); a.push(2); [a, sms.deliver()]")
+    let script = engine()
+        .compile("a=sms.deliver().as(array<int>); a.push(2); [a, sms.deliver()]")
         .unwrap();
     assert_eq!(
         script.run(granted(method)).unwrap().value.to_string(),
@@ -500,23 +572,27 @@ fn rejected_blocks_and_missing_members_skip_callback_effects() {
     let method = HostMethod::new("sms.deliver", |_, _, _| {
         panic!("invalid invocation ran host")
     });
-    let script = Engine::new()
-        .compile("begin; sms.deliver(1) { 2 }; rescue ArgumentError; 7; end")
-        .unwrap();
-    assert_eq!(
-        script.run(granted(method.clone())).unwrap().value.as_int(),
-        Some(7)
+    // A block for a method that takes none and a missing member do not
+    // compile, so the host is never reached.
+    let _ = method;
+    refused(
+        &mut engine(),
+        "begin; sms.deliver(1) { 2 }; rescue ArgumentError; 7; end",
+        "V0305",
+        "{ 2 }",
     );
-    let script = Engine::new()
-        .compile("begin; sms.missing(sms.deliver()); rescue; 9; end")
-        .unwrap();
-    assert_eq!(script.run(granted(method)).unwrap().value.as_int(), Some(9));
+    refused(
+        &mut engine(),
+        "begin; sms.missing(sms.deliver()); rescue; 9; end",
+        "V0203",
+        "missing",
+    );
 }
 
 #[test]
 fn selected_methods_survive_argument_replacement_of_their_namespace() {
     for name in ["deliver", "push", "call", "map", "send"] {
-        for args in ["replace()", "*[replace()]"] {
+        for args in ["replace", "*[replace]"] {
             let method = HostMethod::new(format!("sms.{name}"), |_, args, _| Ok(args[0].clone()));
             let member = name.as_bytes().to_vec();
             let opts = CallOptions {
@@ -525,8 +601,17 @@ fn selected_methods_survive_argument_replacement_of_their_namespace() {
                 })],
                 ..CallOptions::default()
             };
-            let source = format!("def replace; sms=nil; 42; end; [sms.{name}({args}), sms]");
-            let script = Engine::new().compile(&source).unwrap();
+            let template = HostMethod::new(format!("sms.{name}"), |_, _, _| Ok(Value::nil()));
+            let mut engine = Engine::new();
+            engine
+                .declare_capability(&Capability::from_value(
+                    "sms",
+                    Value::object(vec![(name.as_bytes().to_vec(), template.value())]),
+                ))
+                .unwrap();
+            let source =
+                format!("def replace -> int; sms: nil = nil; 42; end; [sms.{name}({args}), sms]");
+            let script = engine.compile(&source).unwrap();
             assert_eq!(
                 script
                     .run(opts)
@@ -588,11 +673,19 @@ fn binding_is_guarded_before_and_after_host_code_and_precedes_initialization() {
 
 #[test]
 fn expired_grants_stay_revoked_inside_foreign_instance_graphs() {
-    let script = Engine::new().compile(
+    // A saved namespace is `any` to static types, which never call it, so
+    // only a program without them reaches the revoked grant.
+    refused(
+        &mut engine(),
+        "class Box; @saved: any; def initialize(cap: any); @saved=cap; end; def read -> any; @saved.deliver(); end; end",
+        "V0106",
+        "deliver()",
+    );
+    let script = common::gradual_engine().compile(
         "class Box; def initialize(cap); @saved=cap; @next=self; end; def next_node; @next; end; def read; @saved.deliver(); end; end; def make; Box.new(sms); end"
     ).unwrap();
     let saved = script.call("make", &[], granted(echo())).unwrap().value;
-    let consumer = Engine::new()
+    let consumer = common::gradual_engine()
         .compile("def run(box); box.next_node.read; end")
         .unwrap();
     for opts in [CallOptions::default(), granted(echo())] {
@@ -610,7 +703,7 @@ fn expired_grants_stay_revoked_inside_foreign_instance_graphs() {
 fn host_retention_keeps_charges_and_a_new_call_accounts_its_own_namespace() {
     let retained = Arc::new(Mutex::new(None));
     let held = retained.clone();
-    let mut engine = Engine::new();
+    let mut engine = engine();
     engine.register("retain", move |_, args| {
         *held.lock().unwrap() = Some(args[0].clone());
         Ok(Value::nil())
@@ -620,7 +713,7 @@ fn host_retention_keeps_charges_and_a_new_call_accounts_its_own_namespace() {
     assert!(output.stats.retained_memory_bytes > 0);
     let saved = retained.lock().unwrap().take().unwrap();
     let receiver = Engine::new()
-        .compile("def take(value); value; end")
+        .compile("def take(value: any) -> any; value; end")
         .unwrap();
     let copied = receiver
         .call("take", &[saved], CallOptions::default())
