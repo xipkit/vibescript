@@ -56,6 +56,9 @@ fn notification_previews_use_explicit_grants_and_validate_inputs() {
     ] {
         let mut engine = Engine::new();
         engine.set_strict_effects(true);
+        engine
+            .declare_capability(&support::notification(name).unwrap())
+            .unwrap();
         let script = engine.compile(&format!("{name}.send({args})")).unwrap();
         let options = CallOptions {
             capabilities: vec![support::notification(name).unwrap()],
@@ -64,22 +67,34 @@ fn notification_previews_use_explicit_grants_and_validate_inputs() {
         let output = script.run(options.clone()).unwrap();
         let encoded = support::encode(&output.value, "json", CallOptions::default()).unwrap();
         assert_eq!(serde_json::from_slice::<Json>(&encoded).unwrap(), expected);
+        // The engine declares the capability, so a call without the grant
+        // fails when it starts.
         assert_eq!(
             script.run(CallOptions::default()).unwrap_err().kind,
-            ErrorKind::Name
+            ErrorKind::Argument
         );
         options.cancellation.cancel();
         assert_eq!(script.run(options).unwrap_err().kind, ErrorKind::Cancelled);
-        for invalid in ["", "1", "false, false", "a: 1"] {
-            let script = engine.compile(&format!("{name}.send({invalid})")).unwrap();
-            assert!(
-                script
-                    .run(CallOptions {
-                        capabilities: vec![support::notification(name).unwrap()],
-                        ..CallOptions::default()
-                    })
-                    .is_err()
-            );
+        // Arguments that do not match the preview's signature are refused
+        // before anything runs.
+        let two_booleans: &[&str] = if name == "sms" {
+            &["V0101", "V0101"]
+        } else {
+            &["V0301", "V0101", "V0101"]
+        };
+        for (invalid, codes) in [
+            ("", &["V0301"][..]),
+            ("1", &["V0301", "V0101"]),
+            ("false, false", two_booleans),
+            ("a: 1", &["V0301", "V0302"]),
+        ] {
+            let mut engine = common::static_engine();
+            engine
+                .declare_capability(&support::notification(name).unwrap())
+                .unwrap();
+            let source = format!("{name}.send({invalid})");
+            let error = engine.compile(&source).err().unwrap();
+            assert_eq!(common::codes(&error), codes, "{source}");
         }
     }
 }
