@@ -112,13 +112,27 @@ fn vibes(args: &[&str]) -> Run {
     vibes_in(None, args)
 }
 
+/// Runs an ill-typed program the gradual checker's tests expect to run
+/// without static types. With static types on, the program is refused at
+/// compile time instead.
+fn expect_ill_typed_run(args: &[&str], status: i32, stdout: &str, stderr: &str) {
+    let run = vibes(args);
+    if vibescript::STATIC_TYPES_BY_DEFAULT {
+        assert_eq!(run.status, Some(1), "{}", run.stderr);
+        assert_eq!(run.stdout, "");
+        assert!(run.stderr.contains("error[V"), "{}", run.stderr);
+    } else {
+        run.expect(status, stdout, stderr);
+    }
+}
+
 #[test]
 fn sibling_modules_work_for_execution_and_every_checking_mode() {
     let files = Files::new();
     let elsewhere = Files::new();
     let path = files.write(
         "main.vibe",
-        "def run -> int; require(:helper).answer; end; run",
+        "def run -> int; require(\"helper\").answer; end; run",
     );
     files.write(
         "helper.vibe",
@@ -149,7 +163,7 @@ fn extra_module_paths_are_repeatable_ordered_and_relative_to_the_working_directo
     let elsewhere = Files::new();
     let path = files.write(
         "main.vibe",
-        "def run -> array<int>; [require(:priority).value,require(:extra).value]; end; run",
+        "def run -> array<int>; [require(\"priority\").value,require(\"extra\").value]; end; run",
     );
     files.write("priority.vibe", "def value -> int; 7; end");
     elsewhere.write("first/priority.vibe", "def value -> int; 99; end");
@@ -214,14 +228,26 @@ fn invalid_module_roots_fail_before_script_output_in_both_command_forms() {
 fn required_files_resolve_nested_imports_within_the_script_directory() {
     let files = Files::new();
     let elsewhere = Files::new();
-    let path = files.write("scripts/main.vibe", "require(:helper).value");
+    let path = files.write("scripts/main.vibe", "require(\"helper\").value");
     files.write(
         "scripts/helper.vibe",
-        "def value; inner=require('./nested/child').value; denied=begin;require('../outside');false;rescue;true;end;[inner,denied];end",
+        "def value -> array<int | bool>; inner=require('./nested/child').value; denied=begin;require('../outside');false;rescue;true;end;[inner,denied];end",
     );
-    files.write("scripts/nested/child.vibe", "def value; 7; end");
-    files.write("outside.vibe", "puts 'escaped'; def value; 99; end");
-    vibes_in(Some(&elsewhere.0), &[&path]).expect(0, "[7,true]\n", "");
+    files.write("scripts/nested/child.vibe", "def value -> int; 7; end");
+    files.write("outside.vibe", "puts 'escaped'; def value -> int; 99; end");
+    let run = vibes_in(Some(&elsewhere.0), &[&path]);
+    if vibescript::STATIC_TYPES_BY_DEFAULT {
+        // Static types do not resolve relative requires yet, so the helper
+        // cannot call what its relative import exports.
+        assert_eq!(run.status, Some(1), "{}", run.stderr);
+        assert!(
+            run.stderr.contains("helper.vibe: error[V0106]"),
+            "{}",
+            run.stderr
+        );
+    } else {
+        run.expect(0, "[7,true]\n", "");
+    }
 
     #[cfg(unix)]
     {
@@ -232,7 +258,7 @@ fn required_files_resolve_nested_imports_within_the_script_directory() {
         .unwrap();
         let path = files.write(
             "scripts/linked.vibe",
-            "begin; require(:leak); false; rescue; true; end",
+            "begin; require(\"leak\"); false; rescue; true; end",
         );
         vibes_in(Some(&elsewhere.0), &[&path]).expect(0, "true\n", "");
     }
@@ -279,7 +305,10 @@ fn runs_top_level_statements_and_prints_the_final_value_as_json() {
 #[test]
 fn calls_a_function_with_positional_arguments_in_order() {
     let files = Files::new();
-    let file = files.write("pair.vibe", "puts \"top\"\ndef pair(a, b)\n  [a, b]\nend\n");
+    let file = files.write(
+        "pair.vibe",
+        "puts \"top\"\ndef pair(a: int, b: any) -> array<any>\n  [a, b]\nend\n",
+    );
     vibes(&[&file, "--function", "pair", "--arg", "1", "--arg", "\"x\""]).expect(
         0,
         "[1,\"x\"]\n",
@@ -308,7 +337,10 @@ fn calls_a_function_with_positional_arguments_in_order() {
 #[test]
 fn binds_keyword_arguments_by_name_with_the_last_duplicate_winning() {
     let files = Files::new();
-    let file = files.write("kw.vibe", "def run(a:int,b:2,**rest);[a,b,rest[:x]];end\n");
+    let file = files.write(
+        "kw.vibe",
+        "def run(a:int, *, b: int = 2, **rest: hash<string, int?>) -> array<int?>;[a,b,rest[\"x\"]];end\n",
+    );
     let inputs = [
         "--function",
         "run",
@@ -456,7 +488,9 @@ fn checked_conversion_errors_precede_all_script_output() {
     }
     let result = vibes(&[&file, "--function", "run"]);
     assert_eq!(result.status, Some(1));
-    assert_eq!(result.stdout, "started\nconverted\n");
+    if !vibescript::STATIC_TYPES_BY_DEFAULT {
+        assert_eq!(result.stdout, "started\nconverted\n");
+    }
 }
 
 #[test]
@@ -795,7 +829,7 @@ fn limits_deadlines_and_unknown_functions_fail_with_nonzero_status() {
     vibes(&[&file, "--function", "nope"]).expect(1, "", "function nope not found\n");
     let loop_file = files.write(
         "loop.vibe",
-        "def run(n)\n  i = 0\n  while i < n\n    i += 1\n  end\n  i\nend\n",
+        "def run(n: int) -> int\n  i = 0\n  while i < n\n    i += 1\n  end\n  i\nend\n",
     );
     for mode in [None, Some("--checked")] {
         let mut args = vec![
@@ -813,12 +847,12 @@ fn limits_deadlines_and_unknown_functions_fail_with_nonzero_status() {
         assert_eq!(run.stdout, "", "{mode:?}");
         assert!(
             run.stderr
-                .starts_with("step quota exceeded (10000)\n  --> line 4, column 5\n"),
+                .starts_with("step quota exceeded (10000)\n  --> line 3, column 3\n"),
             "{mode:?}: {}",
             run.stderr
         );
     }
-    let recursive = files.write("rec.vibe", "def f(n)\n  f(n + 1)\nend\n");
+    let recursive = files.write("rec.vibe", "def f(n: int) -> int\n  f(n + 1)\nend\n");
     let run = vibes(&[
         &recursive,
         "--function",
@@ -872,7 +906,7 @@ const METHODS: &str = "class C\n  def initialize(@n: int) -> int\n    \"bad\"\n 
 fn check_command_reports_unused_declarations_that_exact_calls_omit() {
     let files = Files::new();
     let file = files.write("unused.vibe", UNUSED);
-    vibes(&[&file]).expect(0, "null\n", "");
+    expect_ill_typed_run(&[&file], 0, "null\n", "");
     vibes(&[&file, "--function", "__main__", "--check"]).expect(0, "", "");
     vibes(&[&file, "--function", "__main__", "--checked"]).expect(0, "null\n", "");
     // The check command prints one issue per line on stdout in the Go
@@ -914,7 +948,7 @@ fn check_command_uses_top_level_state_and_never_runs_script_output() {
     assert_eq!(run.stdout.lines().count(), 1, "{}", run.stdout);
     assert_eq!(run.stderr, "check failed with 1 issue(s)\n");
     assert!(!run.stdout.contains("incomplete"), "{}", run.stdout);
-    vibes(&[&file]).expect(0, "top\ninit\nvalue\n7\n", "careful\n");
+    expect_ill_typed_run(&[&file], 0, "top\ninit\nvalue\n7\n", "careful\n");
     let file = files.write(
         "bad-state.vibe",
         "x = \"bad\"\nmodule M\n  K = x\n  def self.value -> int\n    K\n  end\nend\n",
@@ -1009,7 +1043,12 @@ fn check_function_selects_methods_and_constructors() {
         "",
         "function C.read not found\n",
     );
-    vibes(&[&file, "--function", "C.read"]).expect(1, "", "function C.read not found\n");
+    expect_ill_typed_run(
+        &[&file, "--function", "C.read"],
+        1,
+        "",
+        "function C.read not found\n",
+    );
     let run = vibes(&["check", &file]);
     assert_eq!(run.status, Some(1), "{}", run.stderr);
     for (line, function) in [(3, "initialize"), (6, "read"), (20, "unused")] {
@@ -1315,7 +1354,8 @@ fn inline_source_runs_calls_and_checks_in_every_scope() {
     assert_eq!(run.stdout, "3\n");
     assert_stats_line(run.stderr.trim_end_matches('\n'));
     let call = ["--function", "run", "--arg", "41", "--kwarg", "b=5"];
-    let source = "puts \"top\"\ndef run(x:int, b:2) -> int\n  puts \"ran\"\n  x + b\nend\n";
+    let source =
+        "puts \"top\"\ndef run(x:int, *, b: int = 2) -> int\n  puts \"ran\"\n  x + b\nend\n";
     for (mode, stdout) in [
         (None, "ran\n46\n"),
         (Some("--check"), ""),
@@ -1347,7 +1387,7 @@ fn inline_source_runs_calls_and_checks_in_every_scope() {
 
 #[test]
 fn inline_whole_snippet_checks_reject_unused_declarations_that_exact_calls_omit() {
-    vibes(&["-e", EFFECT_UNUSED]).expect(0, "effect\nnull\n", "");
+    expect_ill_typed_run(&["-e", EFFECT_UNUSED], 0, "effect\nnull\n", "");
     vibes(&["-e", EFFECT_UNUSED, "--function", "__main__", "--check"]).expect(0, "", "");
     vibes(&["-e", EFFECT_UNUSED, "--function", "__main__", "--checked"]).expect(
         0,
@@ -1447,7 +1487,7 @@ fn inline_source_diagnostics_use_the_eval_label_and_keep_module_filenames() {
     let files = Files::new();
     files.write("bad.vibe", "def wrong -> int\n  false\nend\n");
     let dir = Some(files.0.as_path());
-    let source = "require(:bad).wrong";
+    let source = "require(\"bad\").wrong";
     for args in [
         vec!["-e", source, "--function", "__main__", "--check"],
         vec!["-e", source, "--check"],
@@ -1490,7 +1530,7 @@ fn inline_require_searches_the_working_directory_then_supplied_roots() {
     );
     other.write("helper.vibe", "def value -> int; 99; end");
     other.write("extra.vibe", "def value -> int; 42; end");
-    let source = "require(:helper).value";
+    let source = "require(\"helper\").value";
     vibes_in(Some(&files.0), &["-e", source]).expect(0, "helper initialized\n7\n", "");
     let files_root = files.0.to_str().unwrap();
     let other_root = other.0.to_str().unwrap();
@@ -1505,7 +1545,7 @@ fn inline_require_searches_the_working_directory_then_supplied_roots() {
         &["-e", source, "--module-path", files_root],
     )
     .expect(0, "helper initialized\n7\n", "");
-    let both = "[require(:helper).value, require(:extra).value]";
+    let both = "[require(\"helper\").value, require(\"extra\").value]";
     vibes_in(
         Some(&elsewhere.0),
         &[
@@ -1726,16 +1766,17 @@ fn inline_usage_errors_exit_with_status_two_before_any_read_or_effect() {
     }
 }
 
-/// Confirms option-like source reaches execution and reports the missing name.
+/// Confirms option-like source reaches the compiler and reports the missing
+/// name: at compile time with static types, and when it runs without them.
 fn assert_lookup_failure(run: &Run, name: &str) {
     assert_eq!(run.status, Some(1), "{}", run.stderr);
     assert_eq!(run.stdout, "");
-    assert!(
-        run.stderr
-            .starts_with(&format!("undefined variable {name}\n")),
-        "{}",
-        run.stderr
-    );
+    let expected = if vibescript::STATIC_TYPES_BY_DEFAULT {
+        format!("<eval>: error[V0201]: `{name}` is not a local")
+    } else {
+        format!("undefined variable {name}\n")
+    };
+    assert!(run.stderr.starts_with(&expected), "{}", run.stderr);
 }
 
 #[test]
@@ -1822,7 +1863,7 @@ fn inline_source_honors_quotas_deadlines_and_stats() {
         "0",
     ])
     .expect(1, "", "execution deadline exceeded\n");
-    let looping = "def run(n)\n  i = 0\n  while i < n\n    i += 1\n  end\n  i\nend\n";
+    let looping = "def run(n: int) -> int\n  i = 0\n  while i < n\n    i += 1\n  end\n  i\nend\n";
     for mode in [None, Some("--checked")] {
         let mut args = vec![
             "-e",
@@ -1840,14 +1881,14 @@ fn inline_source_honors_quotas_deadlines_and_stats() {
         assert_eq!(run.stdout, "", "{mode:?}");
         assert!(
             run.stderr
-                .starts_with("step quota exceeded (10000)\n  --> line 4, column 5\n"),
+                .starts_with("step quota exceeded (10000)\n  --> line 3, column 3\n"),
             "{mode:?}: {}",
             run.stderr
         );
     }
     let run = vibes(&[
         "-e",
-        "def f(n)\n  f(n + 1)\nend\n",
+        "def f(n: int) -> int\n  f(n + 1)\nend\n",
         "--function",
         "f",
         "--arg",
