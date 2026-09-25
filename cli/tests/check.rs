@@ -7,7 +7,7 @@
 #![cfg(not(target_os = "wasi"))]
 
 mod support;
-use support::{Files, vibes};
+use support::{Files, vibes, vibes_in};
 
 #[test]
 fn reports_issues_one_per_line_and_fails() {
@@ -131,4 +131,64 @@ fn static_mode_reports_every_type_error_with_its_code() {
         run.stdout
     );
     assert_eq!(run.stderr, "check failed with 2 error(s)\n");
+}
+
+const OLD: &str = "names = %w[ada grace]\nn = names.size\nputs n unless n == 0\n";
+
+#[test]
+fn check_json_prints_one_object_per_diagnostic() {
+    let files = Files::new();
+    files.write("names.vibe", OLD);
+    let run = vibes_in(Some(&files.0), &["check", "--json", "names.vibe"]);
+    assert_eq!(run.status, Some(1), "{run:?}");
+    assert_eq!(run.stderr, "check failed with 3 error(s)\n");
+    let lines: Vec<serde_json::Value> = run
+        .stdout
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    let codes: Vec<&str> = lines
+        .iter()
+        .map(|line| line["code"].as_str().unwrap())
+        .collect();
+    assert_eq!(codes, ["V0410", "V0401", "V0407"]);
+    let size = &lines[1];
+    assert_eq!(size["name"], "removed-name");
+    assert_eq!(size["severity"], "error");
+    assert_eq!(size["message"], "`size` was removed; use `length`");
+    assert_eq!(size["span"]["line"], 2);
+    assert_eq!(size["span"]["column"], 11);
+    assert_eq!(size["fixes"][0]["applicability"], "always");
+    assert_eq!(size["fixes"][0]["edits"][0]["replacement"], "names.length");
+}
+
+#[test]
+fn check_json_is_silent_for_a_clean_script_and_codes_syntax_errors() {
+    let files = Files::new();
+    files.write(
+        "clean.vibe",
+        "names = [\"ada\", \"grace\"]\nn = names.length\nputs n if n != 0\n",
+    );
+    vibes_in(Some(&files.0), &["check", "--json", "clean.vibe"]).expect(0, "", "");
+    files.write("broken.vibe", "x = (1\n");
+    let run = vibes_in(Some(&files.0), &["check", "--json", "broken.vibe"]);
+    assert_eq!(run.status, Some(1), "{run:?}");
+    let line: serde_json::Value = serde_json::from_str(run.stdout.trim_end()).unwrap();
+    assert_eq!(line["code"], "V0001");
+    assert_eq!(line["name"], "syntax");
+}
+
+#[test]
+fn static_check_renders_removed_spellings_for_people() {
+    let files = Files::new();
+    files.write("names.vibe", "n = [1].size\n");
+    let run = vibes_in(Some(&files.0), &["check", "--static", "names.vibe"]);
+    assert_eq!(run.status, Some(1), "{run:?}");
+    assert!(
+        run.stdout.contains(
+            "names.vibe:1:9: error[V0401]: `size` was removed; use `length`\n   |\n  1| n = [1].size\n   |         ^^^^\n   = fix: use `length`\n"
+        ),
+        "{}",
+        run.stdout
+    );
 }

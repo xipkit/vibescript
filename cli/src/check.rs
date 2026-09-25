@@ -19,7 +19,7 @@ use std::{
 };
 use vibescript::{CallOptions, CheckDiagnostic, CheckReport, Script, Stats, Value};
 
-const FLAGS: [Flag; 9] = [
+const FLAGS: [Flag; 10] = [
     Flag::new(
         &["module-path"],
         Kind::Strings,
@@ -60,6 +60,11 @@ const FLAGS: [Flag; 9] = [
         &["static"],
         Kind::Bool,
         "type check statically (ADR-007) instead of running the gradual checker",
+    ),
+    Flag::new(
+        &["json"],
+        Kind::Bool,
+        "print each static diagnostic as one JSON object per line; implies --static",
     ),
 ];
 
@@ -147,6 +152,10 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
             false,
         ),
     };
+    if flags.bool("json") {
+        engine.set_static_types(true);
+        return json_check(&engine, &text, &module_dirs);
+    }
     if flags.bool("static") {
         engine.set_static_types(true);
         return static_check(&engine, &text, &label, snippet);
@@ -225,6 +234,56 @@ fn static_check(
         0 => Ok(()),
         errors => Err(format!("check failed with {errors} error(s)")),
     }
+}
+
+/// `vibes check --json`: compiles with the static checker and prints each
+/// diagnostic as one JSON object per line, positioned in the text of the
+/// file it is in. A syntax error is a `V0001` diagnostic.
+fn json_check(
+    engine: &vibescript::Engine,
+    text: &str,
+    module_dirs: &[PathBuf],
+) -> Result<(), String> {
+    use vibescript::diagnostic::{Code, Diagnostic, Span};
+    let error = match engine.compile(text) {
+        Ok(_) => return Ok(()),
+        Err(error) => error,
+    };
+    let syntax;
+    let diagnostics = if error.diagnostics().is_empty() {
+        if error.kind != vibescript::ErrorKind::Syntax {
+            return Err(format!("compile failed: {}", render::error(&error, None)));
+        }
+        let at = Span::at(error.offset.unwrap_or(0));
+        syntax = [Diagnostic::error(Code::SYNTAX, at, error.message.clone())];
+        &syntax[..]
+    } else {
+        error.diagnostics()
+    };
+    let mut out = io::stdout().lock();
+    for diagnostic in diagnostics {
+        let module = diagnostic
+            .file
+            .as_deref()
+            .map(|file| module_text(file, module_dirs));
+        let line = diagnostic.to_json(module.as_deref().unwrap_or(text));
+        writeln!(out, "{line}")
+            .map_err(|error| format!("write check output: {}", compat::reason(&error)))?;
+    }
+    out.flush()
+        .map_err(|error| format!("write check output: {}", compat::reason(&error)))?;
+    let errors = diagnostics.iter().filter(|d| d.is_error()).count();
+    Err(format!("check failed with {errors} error(s)"))
+}
+
+/// The text of a required file, by its root-relative name, or nothing when
+/// no module directory holds it.
+fn module_text(file: &[u8], module_dirs: &[PathBuf]) -> String {
+    let name = String::from_utf8_lossy(file);
+    module_dirs
+        .iter()
+        .find_map(|directory| std::fs::read_to_string(directory.join(name.as_ref())).ok())
+        .unwrap_or_default()
 }
 
 /// `line:column: message (function)`, without the function when it is empty.
