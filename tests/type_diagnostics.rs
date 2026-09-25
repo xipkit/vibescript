@@ -1,3 +1,9 @@
+//! Type errors name the boundary that failed. Inside a program the static
+//! checker reports them before it runs; values that arrive at runtime, from
+//! a host call, `JSON.parse_as` or a cast, are checked when they arrive.
+
+mod common;
+
 use std::sync::{Arc, Mutex};
 use vibescript::{CallOptions, Engine, Error, ErrorKind, Limits, Value, stringify_json};
 
@@ -17,54 +23,119 @@ fn actual(value: Value) -> Error {
         .unwrap_err()
 }
 
+/// The code, the source text under the span, and the message of each
+/// diagnostic that refuses `source`.
+fn refused(source: &str) -> Vec<(String, &str, String)> {
+    let error = common::static_engine()
+        .compile(source)
+        .err()
+        .unwrap_or_else(|| panic!("{source} compiled"));
+    error
+        .diagnostics()
+        .iter()
+        .map(|d| {
+            (
+                d.code.to_string(),
+                &source[d.span.start..d.span.end],
+                d.message.clone(),
+            )
+        })
+        .collect()
+}
+
 #[test]
 fn parameter_defaults_captures_and_returns_name_the_failed_boundary() {
-    for (source, expected) in [
+    // Host arguments are checked, and named, when the call starts.
+    let script = Engine::new()
+        .compile(
+            "def one(payload:int)\ntrue\nend\n\
+             def keyword(*, payload:int)\ntrue\nend\n\
+             def rest(*payload:array<int>)\ntrue\nend\n\
+             def options(**payload:hash<string,int>)\ntrue\nend",
+        )
+        .unwrap();
+    let text = || Value::bytes("x");
+    for (function, args, keywords, expected) in [
         (
-            "def typed(payload:int)\ntrue\nend\ntyped(\"x\")",
+            "one",
+            vec![text()],
+            vec![],
             "argument payload expected int, got string",
         ),
         (
-            "def typed(payload:int=\"x\")\ntrue\nend\ntyped()",
+            "keyword",
+            vec![],
+            vec![("payload".to_owned(), text())],
             "argument payload expected int, got string",
         ),
         (
-            "def typed(payload:int:)\ntrue\nend\ntyped(payload:\"x\")",
-            "argument payload expected int, got string",
-        ),
-        (
-            "def typed(*payload:array<int>)\ntrue\nend\ntyped(1,\"x\")",
+            "rest",
+            vec![Value::int(1), text()],
+            vec![],
             "argument payload expected array<int>, got array<int | string>",
         ),
         (
-            "def typed(**payload:hash<string,int>)\ntrue\nend\ntyped(b:\"x\",a:1)",
+            "options",
+            vec![],
+            vec![("b".to_owned(), text()), ("a".to_owned(), Value::int(1))],
             "argument payload expected hash<string, int>, got { a: int, b: string }",
         ),
+    ] {
+        let error = script
+            .call_with_keywords(function, &args, &keywords, CallOptions::default())
+            .unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Type, "{function}");
+        assert_eq!(error.message, expected, "{function}");
+    }
+    // A default is checked when it is used.
+    let error = fail("def typed(payload:int=\"x\")\ntrue\nend\ntyped()");
+    assert_eq!(error.kind, ErrorKind::Type);
+    assert_eq!(error.message, "argument payload expected int, got string");
+    // Results are checked before the program runs.
+    for (source, text, message) in [
         (
-            "def typed->int\n\"x\"\nend\ntyped()",
-            "return value for typed expected int, got string",
+            "def typed->int\n\"x\"\nend\ntyped",
+            "\"x\"",
+            "`typed` returns int, found string",
         ),
         (
-            "def typed->int\nreturn \"x\"\nend\ntyped()",
-            "return value for typed expected int, got string",
+            "def typed->int\nreturn \"x\"\nend\ntyped",
+            "\"x\"",
+            "`typed` returns int, found string",
         ),
         (
-            "def typed->int\n[1].each{return \"x\"}\nend\ntyped()",
-            "return value for typed expected int, got string",
+            "class C\ndef typed->int\n\"x\"\nend\nend\nC.new.typed",
+            "\"x\"",
+            "`C#typed` returns int, found string",
         ),
         (
-            "class C\ndef typed->int\n\"x\"\nend\nend\nC.new.typed()",
-            "return value for typed expected int, got string",
-        ),
-        (
-            "module M\ndef self.typed->int\n\"x\"\nend\nend\nM.typed()",
-            "return value for typed expected int, got string",
+            "module M\ndef self.typed->int\n\"x\"\nend\nend\nM.typed",
+            "\"x\"",
+            "`M.typed` returns int, found string",
         ),
     ] {
-        let error = fail(source);
-        assert_eq!(error.kind, ErrorKind::Type, "{source}");
-        assert_eq!(error.message, expected, "{source}");
+        assert_eq!(
+            refused(source),
+            [("V0101".to_owned(), text, message.to_owned())],
+            "{source}"
+        );
     }
+    let source = "def typed->int\n[1].each{return \"x\"}\nend\ntyped";
+    assert_eq!(
+        refused(source),
+        [
+            (
+                "V0101".to_owned(),
+                "[1].each{return \"x\"}",
+                "`typed` returns int, found array<int>".to_owned()
+            ),
+            (
+                "V0101".to_owned(),
+                "\"x\"",
+                "`typed` returns int, found string".to_owned()
+            ),
+        ]
+    );
 }
 
 #[test]
@@ -72,75 +143,130 @@ fn block_patterns_json_and_property_writes_keep_their_subjects() {
     for (source, expected) in [
         (
             "[\"x\"].map{|payload:int|payload}",
-            "argument payload expected int, got string",
+            vec![("payload", "the annotation says int, found string")],
         ),
         (
             "[[1,\"x\"]].map{|(a:int,payload:int)|payload}",
-            "argument payload expected int, got string",
+            vec![
+                ("a", "the annotation says int, found int | string | nil"),
+                (
+                    "payload",
+                    "the annotation says int, found int | string | nil",
+                ),
+            ],
         ),
         (
             "[[1,\"x\"]].map{|(*payload:array<int>)|payload}",
-            "argument payload expected array<int>, got array<int | string>",
+            vec![(
+                "payload",
+                "the annotation says array<int>, found array<int | string>",
+            )],
         ),
         (
             "[[[1,\"x\"]]].map{|((a,b): array<int>)|a}",
-            "argument (a, b) expected array<int>, got array<int | string>",
-        ),
-        (
-            "JSON.parse_as(\"[1,\\\"x\\\"]\",array<int>)",
-            "JSON.parse_as value expected array<int>, got array<int | string>",
+            vec![(
+                "",
+                "the annotation says array<int>, found array<int | string>?",
+            )],
         ),
         (
             "class C\nproperty payload:int\nend\nC.new.payload=\"x\"",
-            "argument value expected int, got string",
+            vec![(
+                "\"x\"",
+                "argument 1 (`value`) of `C#payload=` is int, found string",
+            )],
         ),
         (
-            "class C\nproperty payload:int\ndef typed\n@payload=\"x\"\nend\nend\nC.new.typed()",
-            "instance variable @payload expected int, got string",
+            "class C\nproperty payload:int\ndef typed\n@payload=\"x\"\nend\nend\nC.new.typed",
+            vec![("\"x\"", "`@payload` is int, found string")],
         ),
         (
-            "class C\nproperty payload:int\ndef typed(@payload)\nend\nend\nC.new.typed(\"x\")",
-            "instance variable @payload expected int, got string",
+            "class C\nproperty payload:int\ndef typed(@payload: int)\nend\nend\nC.new.typed(\"x\")",
+            vec![(
+                "\"x\"",
+                "argument 1 (`payload`) of `C#typed` is int, found string",
+            )],
         ),
         (
-            "class C\nproperty payload:array<int>\ndef initialize\n@payload=[]\nend\ndef typed\n@payload.push(\"x\")\nend\nend\nC.new.typed()",
-            "instance variable @payload expected array<int>, got array<string>",
+            "class C\nproperty payload:array<int>\ndef initialize\n@payload=[]\nend\ndef typed\n@payload.push(\"x\")\nend\nend\nC.new.typed",
+            vec![(
+                "\"x\"",
+                "argument 1 (`values`) of `push` is int, found string",
+            )],
         ),
     ] {
-        assert_eq!(fail(source).message, expected, "{source}");
+        let expected: Vec<(String, &str, String)> = expected
+            .into_iter()
+            .map(|(text, message)| ("V0101".to_owned(), text, message.to_owned()))
+            .collect();
+        assert_eq!(refused(source), expected, "{source}");
     }
+    assert_eq!(
+        fail("JSON.parse_as(\"[1,\\\"x\\\"]\",array<int>)").message,
+        "JSON.parse_as value expected array<int>, got array<int | string>"
+    );
 }
 
 #[test]
 fn expected_types_keep_shape_spelling_nullability_and_nominal_names() {
-    for (source, expected) in [
+    // Removed type spellings such as `Int` and `object` are reported by the
+    // surface tests; the canonical ones render as written.
+    let script = Engine::new()
+        .compile(
+            "enum Status\nDraft\nend\nenum Review\nDraft\nend\n\
+             def nested(x:array<array<int | string?>>)\ntrue\nend\n\
+             def dictionary(x:hash<string,array<number>>)\ntrue\nend\n\
+             def record(x:{z:int,a?:string,\"valid?\":bool,...})\ntrue\nend\n\
+             def status(x:Status)\ntrue\nend\ndef count(x:int)\ntrue\nend\n\
+             def review -> Review\nReview::Draft\nend\ndef kind -> any\nStatus\nend",
+        )
+        .unwrap();
+    let value = |function: &str| {
+        script
+            .call(function, &[], CallOptions::default())
+            .unwrap()
+            .value
+    };
+    for (function, argument, expected) in [
         (
-            "def typed(x:array<array<Int | STRING?>>)\ntrue\nend\ntyped(1)",
+            "nested",
+            Value::int(1),
             "argument x expected array<array<int | string?>>, got int",
         ),
         (
-            "def typed(x:object<symbol,array<number>>)\ntrue\nend\ntyped(1)",
-            "argument x expected object<symbol, array<number>>, got int",
+            "dictionary",
+            Value::int(1),
+            "argument x expected hash<string, array<number>>, got int",
         ),
         (
-            "def typed(x:{z:int,a?:string,\"valid?\":bool,...})\ntrue\nend\ntyped(1)",
+            "record",
+            Value::int(1),
             "argument x expected { a?: string, \"valid?\": bool, z: int, ... }, got int",
         ),
         (
-            "def typed->{}\n1\nend\ntyped()",
-            "return value for typed expected {}, got int",
-        ),
-        (
-            "enum Status\nDraft\nend\nenum Review\nDraft\nend\ndef typed(x:Status)\ntrue\nend\ntyped(Review::Draft)",
+            "status",
+            value("review"),
             "argument x expected Status, got Review",
         ),
         (
-            "enum Status\nDraft\nend\ndef typed(x:int)\ntrue\nend\ntyped(Status)",
+            "count",
+            value("kind"),
             "argument x expected int, got enum Status",
         ),
     ] {
-        assert_eq!(fail(source).message, expected, "{source}");
+        let error = script
+            .call(function, &[argument], CallOptions::default())
+            .unwrap_err();
+        assert_eq!(error.message, expected, "{function}");
     }
+    assert_eq!(
+        refused("def typed->{}\n1\nend\ntyped"),
+        [(
+            "V0101".to_owned(),
+            "1",
+            "`typed` returns {}, found int".to_owned()
+        )]
+    );
 }
 
 #[test]
@@ -244,7 +370,11 @@ fn invalid_utf8_in_field_names_remains_available_in_raw_error_messages() {
         error.message,
         "argument payload expected int, got { \u{fffd}: int }"
     );
-    let error = fail("def typed(x:{\"\\xff?\":int})\ntrue\nend\ntyped(1)");
+    let error = Engine::new()
+        .compile("def typed(x:{\"\\xff?\":int})\ntrue\nend")
+        .unwrap()
+        .call("typed", &[Value::int(1)], CallOptions::default())
+        .unwrap_err();
     assert_eq!(
         error.message,
         "argument x expected { \"\\xff?\": int }, got int"
@@ -260,7 +390,8 @@ fn failures_preserve_partial_output_and_skip_the_rejected_function_body() {
         captured.lock().unwrap().extend_from_slice(value);
         Ok(())
     });
-    let source = "class C\ndef to_s->string\n7\nend\nend\ndef typed(value:int)\nprint(\"body\")\nend\nbegin\nprint(\"before\");typed(C.new)\nrescue RuntimeError=>e\nprint(\"rescued\");e.message\nend";
+    // A cast of a dynamic value fails before the call it feeds.
+    let source = "def typed(value:int)\nprint(\"body\")\nend\nbegin\nprint(\"before\");v: any = \"x\";typed(v.as(int))\nrescue RuntimeError=>e\nprint(\"rescued\");e.message\nend";
     let result = engine
         .compile(source)
         .unwrap()
@@ -268,14 +399,14 @@ fn failures_preserve_partial_output_and_skip_the_rejected_function_body() {
         .unwrap();
     assert_eq!(
         result.value.as_bytes(),
-        Some(b"argument value expected int, got instance".as_slice())
+        Some(b"cast value expected int, got string".as_slice())
     );
     assert_eq!(*bytes.lock().unwrap(), b"beforerescued");
     bytes.lock().unwrap().clear();
-    let result = engine.compile("class C\ndef to_s->string\n7\nend\nend\nbegin\nputs(\"first\",C.new,\"never\")\nrescue RuntimeError=>e\ne.message\nend").unwrap().run(CallOptions::default()).unwrap();
+    let result = engine.compile("class C\ndef to_s->string\nv: any = 7\nv.as(string)\nend\nend\nbegin\nputs(\"first\",C.new,\"never\")\nrescue RuntimeError=>e\ne.message\nend").unwrap().run(CallOptions::default()).unwrap();
     assert_eq!(
         result.value.as_bytes(),
-        Some(b"return value for to_s expected string, got int".as_slice())
+        Some(b"cast value expected string, got int".as_slice())
     );
     assert_eq!(*bytes.lock().unwrap(), b"first\n");
 }
@@ -283,7 +414,7 @@ fn failures_preserve_partial_output_and_skip_the_rejected_function_body() {
 #[test]
 fn rescued_diagnostics_release_scratch_and_leave_later_calls_independent() {
     let engine = Engine::new();
-    let script = engine.compile("def typed(payload:int)\ntrue\nend\ndef run(n)\ni=0;while i<n\nbegin\ntyped({a:[1,\"x\"],b:2})\nrescue RuntimeError=>e\ne.message\nend;i+=1\nend;7\nend").unwrap();
+    let script = engine.compile("def typed(payload:int)\ntrue\nend\ndef run(n: int) -> int\ni=0;while i<n\nbegin\nv: any = {a:[1,\"x\"],b:2}\ntyped(v.as(int))\nrescue RuntimeError=>e\ne.message\nend;i+=1\nend;7\nend").unwrap();
     let options = CallOptions {
         limits: Limits {
             steps: Some(5_000_000),
