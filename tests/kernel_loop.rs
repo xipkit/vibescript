@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{Arc, Mutex};
 use vibescript::{CallOptions, Engine, ErrorKind, Limits, Stats, Value, stringify_json};
 
@@ -19,40 +21,33 @@ fn loop_results_binding_and_nested_control_follow_the_language_contract() {
     for (source, expected) in [
         ("loop {break}", serde_json::json!(null)),
         ("loop {break false}", serde_json::json!(false)),
-        ("loop do break :done end", serde_json::json!("done")),
-        ("loop {|a,b|break [a,b]}", serde_json::json!([null, null])),
-        (
-            "loop {|(a,*rest)|break [a,rest]}",
-            serde_json::json!([null, []]),
-        ),
-        ("loop {|v:int?|break v}", serde_json::json!(null)),
+        ("loop { break(:done) }", serde_json::json!("done")),
         (
             "loop {break [it,_1,_2]}",
             serde_json::json!([null, null, null]),
         ),
-        ("(missing rescue loop)(){break 9}", serde_json::json!(9)),
         (
-            "n=0;out=[];loop do\nn+=1\nbreak out if n>5\nnext [99] if n%2==0\nout.push(n)\nend",
+            "n=0;out: array<int> =[];loop {\nn+=1\nbreak out if n>5\nnext [99] if n%2==0\nout.push(n)\n}",
             serde_json::json!([1, 3, 5]),
         ),
         (
-            "n=0;out=[];loop do\nn+=1\nout.push(loop{break [n]})\nbreak out if n==3\nend",
+            "n=0;out: array<any> =[];loop {\nn+=1\nout.push(loop{break [n]})\nbreak out if n==3\n}",
             serde_json::json!([[1], [2], [3]]),
         ),
         (
-            "out=[];value=loop do\nbegin\nbreak 7\nensure\nout.push(9)\nend\nend\n[value,out]",
+            "out: array<int> =[];value=loop {\nbegin\nbreak 7\nensure\nout.push(9)\nend\n}\n[value,out]",
             serde_json::json!([7, [9]]),
         ),
         (
-            "n=0;loop do\nbegin\nn+=1\nraise \"retry\" if n<3\nbreak n\nrescue RuntimeError\nretry\nend\nend",
+            "n=0;loop {\nbegin\nn+=1\nraise \"retry\" if n<3\nbreak n\nrescue RuntimeError\nretry\nend\n}",
             serde_json::json!(3),
         ),
         (
-            "def escape\nloop{return 7}\n99\nend\nescape()",
+            "def escape -> int\nloop{return 7}\n99\nend\nescape",
             serde_json::json!(7),
         ),
         (
-            "def with_block\nloop{break yield(4)}\nend\nwith_block{|v|v+1}",
+            "def with_block(&block: int -> int) -> int\nloop{break yield(4)}.as(int)\nend\nwith_block{|v|v+1}",
             serde_json::json!(5),
         ),
     ] {
@@ -63,48 +58,52 @@ fn loop_results_binding_and_nested_control_follow_the_language_contract() {
             .unwrap();
         assert_eq!(json(&output.value), expected, "{source}");
     }
+    // A loop passes its block no values, so declared block parameters are
+    // refused, and so is a rescue fallback that names a missing callee.
+    for (source, codes, at) in [
+        ("loop {|a,b|break [a,b]}", &["V0306", "V0306"][..], "a"),
+        ("loop {|(a,*rest)|break [a,rest]}", &["V0306"], "a"),
+        ("loop {|v:int?|break v}", &["V0306"], "v"),
+        (
+            "(missing rescue loop)(){break 9}",
+            &["V0201", "V0304"],
+            "missing",
+        ),
+    ] {
+        let error = common::static_engine().compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), codes, "{source}");
+        assert_eq!(error.diagnostics()[0].span.start, source.find(at).unwrap());
+    }
 }
 
 #[test]
-fn loop_validation_keeps_argument_order_and_stops_before_block_effects() {
-    let events = Arc::new(Mutex::new(Vec::new()));
-    let seen = events.clone();
-    let mut engine = Engine::new();
-    engine.register("mark", move |_, args| {
-        seen.lock().unwrap().push(args[0].as_int().unwrap());
-        Ok(args[0].clone())
-    });
-    for (source, expected, message) in [
-        ("loop()", vec![], "loop requires a block"),
+fn invalid_loop_calls_are_refused_before_their_arguments_run() {
+    let mut engine = common::static_engine();
+    engine.register("mark", |_, _| panic!("mark ran"));
+    for (source, expected) in [
+        ("loop()", &[("V0304", 0)][..]),
         (
             "loop(mark(1),flag:mark(2)){mark(3);break}",
-            vec![1, 2],
-            "loop does not take arguments",
+            &[("V0301", 0), ("V0302", 13)],
         ),
-        (
-            "loop(flag:mark(1)){mark(2);break}",
-            vec![1],
-            "loop does not take keyword arguments",
-        ),
-        (
-            "loop{|v:int|mark(1);break v}",
-            vec![],
-            "argument v expected int, got nil",
-        ),
+        ("loop(flag:mark(1)){mark(2);break}", &[("V0302", 5)]),
+        ("loop{|v:int|mark(1);break v}", &[("V0306", 6)]),
         (
             "loop.call(mark(1)){mark(2);break}",
-            vec![],
-            "loop is a method and cannot be used as a value",
+            &[("V0304", 0), ("V0106", 5)],
         ),
     ] {
-        events.lock().unwrap().clear();
-        let error = engine
-            .compile(source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap_err();
-        assert!(error.message.starts_with(message), "{source}: {error}");
-        assert_eq!(*events.lock().unwrap(), expected, "{source}");
+        let error = engine.compile(source).err().unwrap();
+        let found: Vec<(String, usize)> = error
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| (diagnostic.code.to_string(), diagnostic.span.start))
+            .collect();
+        let expected: Vec<(String, usize)> = expected
+            .iter()
+            .map(|(code, at)| (code.to_string(), *at))
+            .collect();
+        assert_eq!(found, expected, "{source}");
     }
 }
 
@@ -113,23 +112,23 @@ fn loop_discards_normal_and_next_results_without_retaining_storage() {
     let script = Engine::new()
         .compile(
             r#"
-def discard(n,skip)
+def discard(n: int,skip: bool)
  i=0
- loop do
+ loop {
   i+=1
   break nil if i>n
   next ["x"*4096] if skip
   ["x"*4096]
- end
+ }
 end
-def hold(n)
+def hold(n: int) -> any
  i=0
- out=[]
- loop do
+ out: array<array<string>> =[]
+ loop {
   i+=1
   out.push(["x"*512])
   break out if i==n
- end
+ }
 end
 "#,
         )
@@ -193,15 +192,15 @@ fn nested_loop_frames_obey_work_memory_and_recursion_limits() {
     let script = Engine::new()
         .compile(
             r#"
-def run
+def run -> any
  n=0
- loop do
+ loop {
   n+=1
   result=[1,2].map{|v|[n,v]}
   break result if n==3
- end
+ }
 end
-def deep(n)
+def deep(n: int) -> any
  return n if n==0
  loop{break deep(n-1)}
 end
@@ -281,7 +280,7 @@ fn loop_cancellation_and_exhaustion_cannot_run_rescue_or_ensure_effects() {
             ErrorKind::Steps,
         ),
         (
-            "out=[];loop{out.push(\"value\"*512)}",
+            "out: array<string> =[];loop{out.push(\"value\"*512)}",
             Limits {
                 memory_bytes: Some(64 << 10),
                 ..Limits::default()
@@ -290,11 +289,6 @@ fn loop_cancellation_and_exhaustion_cannot_run_rescue_or_ensure_effects() {
         ),
         (
             "loop{cancel();mark(1)}",
-            Limits::default(),
-            ErrorKind::Cancelled,
-        ),
-        (
-            "loop(cancel(),mark(1)){mark(2);break}",
             Limits::default(),
             ErrorKind::Cancelled,
         ),
@@ -314,6 +308,15 @@ fn loop_cancellation_and_exhaustion_cannot_run_rescue_or_ensure_effects() {
         assert_eq!(error.kind, expected, "{source}");
         assert!(events.lock().unwrap().is_empty(), "{source}");
     }
+    // Arguments to loop are refused before anything runs.
+    let mut checked = common::static_engine();
+    checked.register("cancel", |_, _| panic!("cancel ran"));
+    checked.register("mark", |_, _| panic!("mark ran"));
+    let error = checked
+        .compile("loop(cancel(),mark(1)){mark(2);break}")
+        .err()
+        .unwrap();
+    assert_eq!(common::codes(&error), ["V0301"]);
     let fresh = engine
         .compile("loop{break 7}")
         .unwrap()
@@ -338,7 +341,7 @@ fn loop_calls_preserve_host_overrides_and_method_control_boundaries() {
     for control in ["break 7", "next 7"] {
         let script = Engine::new()
             .compile(&format!(
-                "def invalid\n{control}\nend\ndef run\nloop{{invalid()}}\nend\ndef good\nloop{{break 9}}\nend"
+                "def invalid -> any\n{control}\nend\ndef run -> any\nloop{{invalid}}\nend\ndef good -> int\nloop{{break 9}}.as(int)\nend"
             ))
             .unwrap();
         let baseline = script.call("good", &[], CallOptions::default()).unwrap();
