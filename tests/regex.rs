@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -65,7 +67,7 @@ fn unicode_flags_raw_bytes_and_offsets_use_re2_rules() {
   "éa".match?("a", 1),
   "éa".match?("a", 2),
   "éa".match?("$", 3),
-  Regex.match(".", "\xff").bytes,
+  Regex.match(".", "\xff").as(string).bytes,
   Regex.replace_all("a\xffb", ".", "$0").bytes,
   "a".match?("\\x{d800}")
 ]
@@ -124,7 +126,7 @@ fn short_matches_release_the_large_input_and_compiled_scratch() {
     input[0] = b'A';
     let input = Value::bytes(input);
     let script = Engine::new()
-        .compile("def run(text)\nRegex.match(\"A\",text)\nend")
+        .compile("def run(text: string) -> string?\nRegex.match(\"A\",text)\nend")
         .unwrap();
     let output = script
         .call("run", std::slice::from_ref(&input), CallOptions::default())
@@ -136,7 +138,7 @@ fn short_matches_release_the_large_input_and_compiled_scratch() {
         input.as_bytes().unwrap().as_ptr()
     );
     let script = Engine::new()
-        .compile("def run(text)\nRegex.match(\"^Z\",text)\nend")
+        .compile("def run(text: string) -> string?\nRegex.match(\"^Z\",text)\nend")
         .unwrap();
     let output = script
         .call(
@@ -159,13 +161,10 @@ fn argument_pattern_and_expansion_failures_prevent_host_effects() {
         Ok(Value::nil())
     });
     for source in [
-        "Regex.match(\"a\",\"a\"){effect()}",
-        "Regex.replace(\"a\",\"a\",\"b\",extra:1);effect()",
-        "Regex.match(:a,\"a\");effect()",
         "Regex.match(\"(\",\"\");effect()",
         "Regex.match(\"(?=a)\",\"a\");effect()",
-        "\"\".match?(\"[\",999){effect()}",
-        "\"a\".match?(\"a\",-1){effect()}",
+        "\"\".match?(\"[\",999);effect()",
+        "\"a\".match?(\"a\",-1);effect()",
         "Regex.replace_all(\"x\"*65536,\"(.*)\",\"$1\"*17);effect()",
     ] {
         let script = engine.compile(source).unwrap();
@@ -178,12 +177,22 @@ fn argument_pattern_and_expansion_failures_prevent_host_effects() {
         };
         assert!(script.run(options).is_err(), "{source}");
     }
-    engine
-        .compile("\"a\".match?(\"a\"){effect()}")
-        .unwrap()
-        .run(CallOptions::default())
-        .unwrap();
     assert_eq!(calls.load(Ordering::SeqCst), 0);
+    // A block, an unknown keyword or a pattern of the wrong type is
+    // refused before anything runs.
+    for (source, code) in [
+        ("Regex.match(\"a\",\"a\"){effect()}", "V0305"),
+        ("Regex.replace(\"a\",\"a\",\"b\",extra:1);effect()", "V0302"),
+        ("Regex.match(:a,\"a\");effect()", "V0101"),
+        ("\"\".match?(\"[\",999){effect()}", "V0305"),
+        ("\"a\".match?(\"a\",-1){effect()}", "V0305"),
+        ("\"a\".match?(\"a\"){effect()}", "V0305"),
+    ] {
+        let mut checked = common::static_engine();
+        checked.register("effect", |_, _| panic!("effect ran"));
+        let error = checked.compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), [code], "{source}");
+    }
 }
 
 #[test]
@@ -228,7 +237,7 @@ fn execution_limits_stop_state_work_and_compilation() {
     // No literal prefix, so the matcher does real work at every position
     // instead of scanning ahead, and the deadline lands mid-match.
     let script = Engine::new()
-        .compile("def run(text)\nRegex.match(\"(?:x?){200}y\",text)\nend")
+        .compile("def run(text: string) -> string?\nRegex.match(\"(?:x?){200}y\",text)\nend")
         .unwrap();
     let error = script
         .call(
@@ -256,7 +265,7 @@ alias=Regex
 args=["a", "ba"]
 first=alias.match(*args)
 Regex={match:7}
-[first,Regex.match,alias.replace_all("aba","a","X")]
+[first,Regex["match"],alias.replace_all("aba","a","X")]
 "#,
         )
         .unwrap();
@@ -271,11 +280,11 @@ fn maximal_literal_patterns_match_within_the_default_step_quota() {
     let pattern = "a".repeat(16 << 10);
     let script = Engine::new()
         .compile(&format!(
-            "def match_op(t)\n  t =~ /{pattern}/i\nend\n\
-             def string_match_q(t)\n  t.match?(/{pattern}/i)\nend\n\
-             def string_sub(t)\n  t.sub(/{pattern}/i, \"X\")\nend\n\
-             def regex_match_q(t)\n  /{pattern}/i.match?(t)\nend\n\
-             def near_misses(t)\n  (\"a\" * 16383 + \"c\") * 2 =~ /{near}b/\nend",
+            "def match_op(t: string) -> int?\n  t =~ /{pattern}/i\nend\n\
+             def string_match_q(t: string) -> bool\n  t.match?(/{pattern}/i)\nend\n\
+             def string_sub(t: string) -> string\n  t.sub(/{pattern}/i, \"X\")\nend\n\
+             def regex_match_q(t: string) -> bool\n  /{pattern}/i.match?(t)\nend\n\
+             def near_misses(t: string) -> int?\n  (\"a\" * 16383 + \"c\") * 2 =~ /{near}b/\nend",
             near = &pattern[1..]
         ))
         .unwrap();
@@ -311,8 +320,7 @@ fn regex_serves_the_regexp_constructors_under_their_canonical_names() {
   Regex.escape("a.b*"),
   Regex.union("a", "b.").source,
   Regex.union.source,
-  Regex.union().source,
-  Regex.new("x") == Regexp.new("x"),
+  Regex.new("x") == Regex.new("x"),
   Regex.union("a").match?("a")
 ]
 "#,
@@ -321,45 +329,17 @@ fn regex_serves_the_regexp_constructors_under_their_canonical_names() {
     let output = script.run(CallOptions::default()).unwrap();
     assert_eq!(
         json(&output.value),
-        serde_json::json!([
-            "a+",
-            "a\\.b\\*",
-            "a|b\\.",
-            "[^\\s\\S]",
-            "[^\\s\\S]",
-            true,
-            true
-        ])
+        serde_json::json!(["a+", "a\\.b\\*", "a|b\\.", "[^\\s\\S]", true, true])
     );
-    // They are the same builtins, so a rewritten call keeps its errors.
-    for (source, kind, message) in [
-        (
-            "Regex.new",
-            ErrorKind::Type,
-            "new is a method and cannot be used as a value; call it with new(...)",
-        ),
-        (
-            "Regex.escape(1)",
-            ErrorKind::Type,
-            "Regexp.escape expects a string",
-        ),
-        (
-            "Regex.union { }",
-            ErrorKind::Argument,
-            "Regexp.union does not accept blocks",
-        ),
-        (
-            "Regex.union(a: 1)",
-            ErrorKind::Argument,
-            "Regexp.union does not accept keyword arguments",
-        ),
+    // A constructor read as a value, or called with an argument of the
+    // wrong type, a block or a keyword, is refused before anything runs.
+    for (source, code) in [
+        ("Regex.new", "V0301"),
+        ("Regex.escape(1)", "V0101"),
+        ("Regex.union { }", "V0305"),
+        ("Regex.union(a: 1)", "V0302"),
     ] {
-        let error = Engine::new()
-            .compile(source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap_err();
-        assert_eq!(error.message, message, "{source}");
-        assert_eq!(error.kind, kind, "{source}");
+        let error = common::static_engine().compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), [code], "{source}");
     }
 }
