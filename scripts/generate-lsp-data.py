@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
-"""Vendor the Go reference's hover documentation and member contracts for `vibes lsp`."""
+"""Vendor the Go reference's member contracts for `vibes lsp`.
+
+The hover and completion documentation in tools/src/lsp/reference/ began as
+copies of the reference's guides and is now maintained here, so this script no
+longer copies it.
+"""
 import json
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -17,15 +21,9 @@ subprocess.run([str(go), 'vet', str(source)], cwd=module, check=True)
 binary = CACHE / 'generate'
 subprocess.run([str(go), 'build', '-o', str(binary), str(source)], cwd=module, check=True)
 contracts = json.loads(subprocess.check_output([str(binary)]))
-reference = Path(subprocess.check_output(
-    [str(go), 'list', '-m', '-f', '{{.Dir}}', 'github.com/mgomes/vibescript'], cwd=module, text=True).strip())
 version = subprocess.check_output(
     [str(go), 'list', '-m', '-f', '{{.Version}}', 'github.com/mgomes/vibescript'], cwd=module, text=True).strip()
 assert version == 'v0.70.0', version
-
-# The reference embeds these files for hover and completion documentation.
-for name in ['builtins', 'stdlib_core_utilities', 'strings', 'arrays', 'hashes', 'time', 'durations']:
-    shutil.copyfile(reference / 'docs' / f'{name}.md', OUT / 'reference' / f'{name}.md')
 
 
 def text(value):

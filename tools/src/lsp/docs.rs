@@ -1,7 +1,9 @@
-//! Hover and completion documentation parsed from the reference's markdown.
+//! Hover and completion documentation parsed from the builtin reference's
+//! markdown in `reference/`.
 //!
-//! The markdown is vendored from the Go reference by
-//! `scripts/generate-lsp-data.py`, so hovers show the same text.
+//! The guides began as copies of the Go reference's and now document the
+//! canonical names with the signature table's signatures; `tests/docs.rs`
+//! compiles their examples.
 
 use super::catalog::Catalog;
 use super::contracts::{CONTRACTS, Contract};
