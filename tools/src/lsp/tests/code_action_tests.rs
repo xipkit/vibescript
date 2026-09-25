@@ -141,3 +141,12 @@ fn documents_answer_code_actions_without_the_protocol() {
     assert!(fix.preferred);
     assert_eq!(fix.edits[0].1, "[\"ada\", \"grace\"]");
 }
+
+#[test]
+fn a_static_document_that_compiles_publishes_its_warnings() {
+    let mut server = static_server();
+    let published = open(&mut server, URI, "x = 1\nif x == nil\n  puts 1\nend\n");
+    let diagnostics = &published[0]["params"]["diagnostics"];
+    assert_eq!(diagnostics[0]["code"], "V0121");
+    assert_eq!(diagnostics[0]["severity"], 2);
+}

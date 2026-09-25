@@ -108,7 +108,7 @@ vibes check [options] <script>
 | `-recursion N` | The call-depth setting, 256 by default. |
 | `-timeout-ms N` | An analysis deadline. |
 | `-stats` | Print `steps=N peak_bytes=N retained_bytes=N` on stderr. |
-| `-json` | Check in the static language and print each diagnostic as one JSON object per line (`Diagnostic::to_json`): its code, name, severity, spans with byte offsets and one-based lines and columns, message, expected and found types, labels and fixes. A syntax error is a `V0001` diagnostic, and a clean script prints nothing. |
+| `-json` | Check in the static language and print each diagnostic as one JSON object per line (`Diagnostic::to_json`): its code, name, severity, spans with byte offsets and one-based lines and columns, message, expected and found types, labels and fixes. A syntax error is a `V0001` diagnostic. A script that compiles prints its warnings, if any, and succeeds. |
 
 ## `vibes fmt`
 

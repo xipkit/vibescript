@@ -51,7 +51,7 @@ The checker is deliberately stricter than Go's; see [static checker strictness](
 
 ### Static diagnostics
 
-A server started with `vibes lsp --static`, or created with `Options::static_types`, checks documents in the static language of ADR-007 and ADR-008 instead of running the gradual checker. Every diagnostic then comes from compilation and carries its stable code, such as `V0401`, as the protocol's `code`; its range covers the diagnostic's span. The server advertises `codeActionProvider` with the `quickfix` kind and answers `textDocument/codeAction` with one action per fix: its title is the fix's message, its edit a workspace edit of the document, and `isPreferred` is true for a machine-applicable fix and false for a suggestion. Without static types none of this changes: diagnostics have no code, the capability is not advertised and code action requests fail with `-32601`.
+A server started with `vibes lsp --static`, or created with `Options::static_types`, checks documents in the static language of ADR-007 and ADR-008 instead of running the gradual checker. Every diagnostic then comes from the static check, errors when the document does not compile and warnings when it does, and carries its stable code, such as `V0401`, as the protocol's `code`; its range covers the diagnostic's span. The server advertises `codeActionProvider` with the `quickfix` kind and answers `textDocument/codeAction` with one action per fix: its title is the fix's message, its edit a workspace edit of the document, and `isPreferred` is true for a machine-applicable fix and false for a suggestion. Without static types none of this changes: diagnostics have no code, the capability is not advertised and code action requests fail with `-32601`.
 
 ### Hover
 

@@ -168,11 +168,18 @@ pub(crate) fn analyze(uri: &str, source: &str, options: &Options) -> Analysis {
         Ok(outline) => Program::Parsed(outline),
         Err(_) => Program::Kept,
     };
-    // The static checker's findings are compile errors, so a source that
-    // compiled has none.
+    // A source that compiled has no static errors, but may have warnings.
     if options.static_types {
+        let warnings = engine
+            .type_check(source)
+            .map(|checked| checked.diagnostics)
+            .unwrap_or_default();
         return Analysis {
-            diagnostics: Vec::new(),
+            diagnostics: warnings
+                .iter()
+                .filter(|found| found.file.is_none())
+                .map(|found| coded(source, found))
+                .collect(),
             compiled: true,
             program,
             cancelled: false,
