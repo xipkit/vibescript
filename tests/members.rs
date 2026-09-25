@@ -26,17 +26,17 @@ fn shrinking_collections_release_removed_storage_and_excess_capacity() {
             1024,
         ),
         (
-            "a=[]\nfor i in 1..128\na.push(\"a\"*4096)\nend\na.clear\na",
+            "a: array<string> = []\nfor i in 1..128\na.push(\"a\"*4096)\nend\na.clear\na",
             "[]",
             1024,
         ),
         (
-            "h={}\nfor i in 0...128\nh[i.to_s]=\"a\"*4096\nend\nfor i in 0...127\nh.delete(i.to_s)\nend\nh[\"127\"]=7\nh",
+            "h: hash<string, int | string> = {}\nfor i in 0...128\nh[i.to_s]=\"a\"*4096\nend\nfor i in 0...127\nh.delete(i.to_s)\nend\nh[\"127\"]=7\nh",
             "{\"127\":7}",
             1024,
         ),
         (
-            "h={}\nfor i in 0...128\nh[i.to_s]=\"a\"*4096\nend\nfor i in 0...128\nh.delete(i.to_s)\nend\nh",
+            "h: hash<string, string> = {}\nfor i in 0...128\nh[i.to_s]=\"a\"*4096\nend\nfor i in 0...128\nh.delete(i.to_s)\nend\nh",
             "{}",
             1024,
         ),
@@ -89,7 +89,7 @@ fn mutators_check_expansion_and_scan_limits() {
         assert_eq!(error.kind, expected, "{source}");
     }
     // Deleting compares the shared graph once per distinct pair, not per path.
-    let source = "a=[1]\nfor i in 1..20\na=[a,a]\nend\nb=[a]\nb.delete(a)\nb.size";
+    let source = "a: array<any> = [1]\nfor i in 1..20\na=[a,a]\nend\nb=[a]\nb.delete(a)\nb.length";
     let outcome = Engine::new()
         .compile(source)
         .unwrap()
@@ -107,13 +107,13 @@ fn mutators_check_expansion_and_scan_limits() {
 #[test]
 fn pending_member_calls_release_their_receivers_on_control_transfers() {
     for body in [
-        "input.items.push((while true\nreturn 7\nend))",
-        "input.items[0].prepend((while true\nreturn 7\nend))",
-        "input.items.pop.push((while true\nreturn 7\nend))",
-        "input.items[0].pop\ninput.items.clear\n7",
+        "input[\"items\"].push((while true\nreturn 7\nend))",
+        "input[\"items\"].fetch(0).prepend((while true\nreturn 7\nend))",
+        "input[\"items\"].pop.as(array<string>).push((while true\nreturn 7\nend))",
+        "input[\"items\"].fetch(0).pop\ninput[\"items\"].clear\n7",
     ] {
         let source = format!(
-            "def f(input)\n{body}\nend\ndef run(input)\nfor i in 1..100\nf(input)\nend\n7\nend"
+            "def f(input: {{ items: array<array<string>> }}) -> any\n{body}\nend\ndef run(input: {{ items: array<array<string>> }}) -> int\nfor i in 1..100\nf(input)\nend\n7\nend"
         );
         let input = Value::hash(vec![(
             b"items".to_vec(),
@@ -145,7 +145,7 @@ fn pending_member_calls_release_their_receivers_on_control_transfers() {
 #[test]
 fn string_insertion_preserves_invalid_bytes() {
     let script = Engine::new()
-        .compile("def run(input)\n[input.insert(2,\"X\"),input]\nend")
+        .compile("def run(input: string) -> array<string>\n[input.insert(2,\"X\"),input]\nend")
         .unwrap();
     let input = Value::bytes(vec![b'a', 0xff, 0xc3, 0xa9]);
     let output = script
