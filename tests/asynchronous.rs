@@ -78,7 +78,7 @@ async fn dropped_future_keeps_permit_until_host_returns() {
 #[tokio::test]
 async fn async_success_and_cancelled_queue() {
     let runner = Runner::new(1).unwrap();
-    let script = Engine::new().compile("def run(a)\n a+1\nend").unwrap();
+    let script = Engine::new().compile("def run(a: int) -> int\n a+1\nend").unwrap();
     assert_eq!(
         runner
             .call(
@@ -109,7 +109,7 @@ async fn async_success_and_cancelled_queue() {
 async fn async_keyword_calls_use_defaults_and_release_the_worker() {
     let runner = Runner::new(1).unwrap();
     let script = Engine::new()
-        .compile("def run(a:,b:a+1)\na+b\nend")
+        .compile("def run(*, a: int, b: int = a+1) -> int\na+b\nend")
         .unwrap();
     let result = runner
         .call_with_keywords(
