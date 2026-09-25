@@ -119,7 +119,10 @@ fn elsif_chains_and_deep_aliases_do_not_nest() {
                 }
             })
             .collect::<String>();
-        let source = format!("def run(x)\n{}\nend", form.replace("{elsif}", &elsif));
+        let source = format!(
+            "def run(x: int) -> int?\n{}\nend",
+            form.replace("{elsif}", &elsif)
+        );
         let script = Engine::new().compile(&source).unwrap();
         let result = script
             .call(
