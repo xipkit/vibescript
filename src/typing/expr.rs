@@ -713,6 +713,7 @@ impl<'a> Checker<'a> {
             ));
             return Ty::ERROR;
         };
+        self.visibility(op, span, id, ns, true);
         let sig = self.program.fns[id].sig.clone();
         if let Some(param) = sig.params.first() {
             // A rest parameter collects the operand into its array.

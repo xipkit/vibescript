@@ -18,7 +18,7 @@ A program that compiles has no type errors except at the edges where dynamic dat
 - `case` over an enum or `bool` handles every value;
 - every `require` names a literal module that resolves, and calls into it match its declarations.
 
-At runtime the remaining checks are those at the edges: arguments a host passes to `Script::call` and its declared globals and capabilities, `JSON.parse_as`, checked casts with `as`, and the results of host capabilities with contracts. Builtins still raise on invalid values, such as a missing key passed to `fetch`, and every call still runs under its step, memory, recursion and time limits. The checker does not check method visibility yet: calling a private method through an explicit receiver compiles and fails when it runs.
+At runtime the remaining checks are those at the edges: arguments a host passes to `Script::call` and its declared globals and capabilities, `JSON.parse_as`, checked casts with `as`, and the results of host capabilities with contracts. Builtins still raise on invalid values, such as a missing key passed to `fetch`, and every call still runs under its step, memory, recursion and time limits. Method visibility is checked statically too: calling a private method through a receiver, or a protected one from outside its class, is a compile error (V0208).
 
 ## How it works
 

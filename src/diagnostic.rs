@@ -103,6 +103,7 @@ registry! {
     UNINITIALIZED_IVAR = 205, "uninitialized-ivar", "An instance variable without a default is not assigned on every path through `initialize`.";
     UNKNOWN_ENUM_MEMBER = 206, "unknown-enum-member", "A symbol or constant does not name a member of the enum.";
     BLOCK_NOT_VALUE = 207, "block-not-value", "A block parameter is used as a value.";
+    VISIBILITY = 208, "visibility", "A private method is called with a receiver, or a protected one from outside its class's own methods.";
 
     NO_OVERLOAD = 301, "no-overload", "No signature accepts the call's positional arguments, keywords and block.";
     UNKNOWN_KEYWORD = 302, "unknown-keyword", "A call passes a keyword the signature does not declare.";

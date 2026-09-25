@@ -484,9 +484,10 @@ A program that compiles has no type errors except where dynamic data enters it. 
 - locals are assigned before they are read and keep one type;
 - shapes are read only at keys they declare;
 - `case` over an enum or `bool` is exhaustive;
+- a private method is called only without a receiver, and a protected one only from its own class's methods (V0208);
 - every `require` resolves, and calls into required files match their declarations.
 
-What remains at runtime: `fetch`, `as` and `JSON.parse_as` raise when the value is not there or not of the type; arithmetic raises on division by zero and invalid operands such as an out-of-range float conversion; builtins raise on invalid arguments such as a negative count; values a host passes in are checked against the declared parameter, global and capability types when a call starts; and every call runs under its step, memory, recursion and time limits. The checker does not yet check method visibility: calling a private method through an explicit receiver compiles and fails when it runs.
+What remains at runtime: `fetch`, `as` and `JSON.parse_as` raise when the value is not there or not of the type; arithmetic raises on division by zero and invalid operands such as an out-of-range float conversion; builtins raise on invalid arguments such as a negative count; values a host passes in are checked against the declared parameter, global and capability types when a call starts; and every call runs under its step, memory, recursion and time limits.
 
 ## Diagnostics and fixes
 

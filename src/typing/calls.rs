@@ -5,13 +5,13 @@
 use super::{
     Checker, ReceiverType,
     check::{Context, Purpose, Want},
-    program::NsId,
+    program::{FnId, NsId},
     sigs::{self, BlockSig, ParamKind, Sig},
     ty::{Kind, Ty},
 };
 use crate::{
     diagnostic::{Code, Diagnostic, Fix, Span},
-    syntax::{Argument, ArgumentKind, Block, Expr, Node, Target},
+    syntax::{Argument, ArgumentKind, Block, Expr, Node, Target, modules::Visibility},
 };
 use std::rc::Rc;
 
@@ -454,6 +454,7 @@ impl<'a> Checker<'a> {
                     .copied();
                 match method {
                     Some(id) if call.name != "initialize" => {
+                        self.visibility(call.name, call.name_span, id, ns, true);
                         let sig = self.program.fns[id].sig.clone();
                         self.call_sigs(call, &[(sig, Vec::new())])
                     }
@@ -531,6 +532,7 @@ impl<'a> Checker<'a> {
             return instance;
         }
         if let Some(&id) = namespace.statics.get(call.name) {
+            self.visibility(call.name, call.name_span, id, ns, false);
             let sig = self.program.fns[id].sig.clone();
             return self.call_sigs(call, &[(sig, Vec::new())]);
         }
@@ -778,6 +780,8 @@ impl<'a> Checker<'a> {
             // A compound assignment checks the computed value against the setter.
             if let Kind::Instance(ns) = self.types.kind(ty).clone() {
                 if let Some(&id) = self.program.namespaces[ns as usize].methods.get(setter) {
+                    let span = name_span.unwrap_or_else(|| self.spans.expr(expr));
+                    self.visibility(setter, span, id, ns, true);
                     let sig = self.program.fns[id].sig.clone();
                     if let Some(param) = sig.params.first() {
                         if !self.types.assignable(value_ty, param.ty) {
@@ -803,6 +807,63 @@ impl<'a> Checker<'a> {
             .unwrap_or(Ty::ERROR);
         self.restore_memo(outer);
         assigned
+    }
+
+    /// Reports a call through a receiver that the method's visibility
+    /// forbids, as the runtime does: a private method is called only
+    /// without a receiver, and a protected one only from its own class's
+    /// methods, instance methods on an instance and class methods on the
+    /// class. `instance` is whether the method is an instance method.
+    pub(super) fn visibility(
+        &mut self,
+        name: &str,
+        span: Span,
+        id: FnId,
+        ns: NsId,
+        instance: bool,
+    ) {
+        let visibility = self.program.fns[id].visibility;
+        let allowed = match visibility {
+            Visibility::Public => true,
+            Visibility::Private => false,
+            Visibility::Protected => {
+                self.frame.owner == Some(ns) && self.frame.instance == instance
+            }
+        };
+        if allowed {
+            return;
+        }
+        let namespace = &self.program.namespaces[ns as usize];
+        let class = namespace.name.clone();
+        let (word, rule) = match visibility {
+            Visibility::Private => (
+                "private",
+                format!("only `{class}`'s own methods can call it, without a receiver"),
+            ),
+            _ if instance => (
+                "protected",
+                format!(
+                    "only `{class}`'s instance methods can call it, on an instance of `{class}`"
+                ),
+            ),
+            _ if namespace.is_class => (
+                "protected",
+                format!("only `{class}`'s class methods can call it"),
+            ),
+            _ => (
+                "protected",
+                format!("only `{class}`'s own methods can call it"),
+            ),
+        };
+        let declared = self.spans.token(self.program.fns[id].def.offset as usize);
+        self.report(
+            Diagnostic::error(
+                Code::VISIBILITY,
+                span,
+                format!("`{name}` is {word} in `{class}`: {rule}"),
+            )
+            .with_label(declared, format!("declared {word} here")),
+        );
     }
 
     /// Restores an enclosing memo, keeping what the inner one recorded when

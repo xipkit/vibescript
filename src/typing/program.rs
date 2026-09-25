@@ -10,7 +10,10 @@ use super::{
 use crate::{
     compilation::{self, TypeKind},
     diagnostic::{Code, Diagnostic, Fix},
-    syntax::{BlockParam, Declarations, Definition, modules::Module},
+    syntax::{
+        BlockParam, Declarations, Definition,
+        modules::{Module, Visibility},
+    },
     types::Scalar,
 };
 use std::{collections::HashMap, rc::Rc};
@@ -29,6 +32,8 @@ pub(crate) struct FnDecl<'a> {
     pub sig: Rc<Sig>,
     /// Whether it is the top-level statements.
     pub main: bool,
+    /// Who may call it with a receiver; a function outside a class is public.
+    pub visibility: Visibility,
 }
 
 /// An instance variable a class declares, directly or with a property.
@@ -145,23 +150,23 @@ impl<'a> Checker<'a> {
         for (index, def) in parsed.functions.iter().enumerate() {
             let main = index == 0;
             let block = (!main).then(|| block_param(parsed, def.offset)).flatten();
-            let id = self.function(def, None, false, block, main);
+            let id = self.function(def, None, false, block, main, Visibility::Public);
             if !main {
                 self.program.functions.insert(def.name.as_str(), id);
             }
         }
         for ns in 0..self.program.namespaces.len() {
             let module = self.program.namespaces[ns].module;
-            for (def, _) in &module.instance_methods {
+            for (def, visibility) in &module.instance_methods {
                 let block = block_param(parsed, def.offset);
-                let id = self.function(def, Some(ns as NsId), true, block, false);
+                let id = self.function(def, Some(ns as NsId), true, block, false, *visibility);
                 self.program.namespaces[ns]
                     .methods
                     .insert(def.name.as_str(), id);
             }
-            for (def, _) in &module.methods {
+            for (def, visibility) in &module.methods {
                 let block = block_param(parsed, def.offset);
-                let id = self.function(def, Some(ns as NsId), false, block, false);
+                let id = self.function(def, Some(ns as NsId), false, block, false, *visibility);
                 self.program.namespaces[ns]
                     .statics
                     .insert(def.name.as_str(), id);
@@ -273,6 +278,7 @@ impl<'a> Checker<'a> {
         instance: bool,
         block: Option<&'a BlockParam>,
         main: bool,
+        visibility: Visibility,
     ) -> FnId {
         let mut params = Vec::with_capacity(def.params.len());
         for param in &def.params {
@@ -366,6 +372,7 @@ impl<'a> Checker<'a> {
             instance,
             sig,
             main,
+            visibility,
         });
         self.program.fns.len() - 1
     }
