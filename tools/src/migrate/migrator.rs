@@ -198,6 +198,8 @@ pub(crate) struct Migrator<'a> {
     pub conditions: HashMap<usize, Vec<(usize, &'a Types)>>,
     /// The compiled source, for the checker's inferences.
     pub script: Option<&'a vibescript::Script>,
+    /// Whether the source names something only a host provides, or requires a file.
+    pub hosted: bool,
     /// Expressions a rename rewrote as an operator, such as `x.nil?` as `x == nil`.
     pub operator_rewrites: HashSet<Span>,
     /// The offsets of every `&&` and `||`, where they test their left operand.
@@ -238,6 +240,7 @@ impl<'a> Migrator<'a> {
             scopes: Vec::new(),
             conditions,
             script: None,
+            hosted: false,
             operator_rewrites: HashSet::new(),
             first_assignments: HashSet::new(),
             def_ranges: Vec::new(),
@@ -251,6 +254,7 @@ impl<'a> Migrator<'a> {
             }
         }
         migrator.declare(&tree.body, "");
+        migrator.hosted = migrator.names_host(tree);
         migrator
     }
 
@@ -345,6 +349,58 @@ impl<'a> Migrator<'a> {
                 Member::Stmt(_) => (),
             }
         }
+    }
+
+    /// Whether any identifier in the source is neither bound by it nor a
+    /// builtin, so a host provides it, or the source requires a file.
+    fn names_host(&self, tree: &Tree) -> bool {
+        let builtins = vibescript::builtins();
+        let mut bound: HashSet<&str> = HashSet::new();
+        for (index, token) in tree.tokens.iter().enumerate() {
+            let next = tree.tokens.get(index + 1).map(|t| &t.kind);
+            // Assignments, parameters (`n:` or `n,`), block parameters and
+            // loop variables bind names.
+            let bind = matches!(
+                next,
+                Some(
+                    TokenKind::Operator("=" | "||=" | "&&=" | "+=" | "-=" | "*=" | "/=")
+                        | TokenKind::Punct(',' | '|' | ')' | ':')
+                )
+            ) || tree.tokens.get(index + 1).is_some_and(|next| {
+                next.kind == TokenKind::Word && &self.source[next.start..next.end] == "in"
+            });
+            if token.kind == TokenKind::Word && bind {
+                bound.insert(&self.source[token.start..token.end]);
+            }
+        }
+        tree.tokens.iter().enumerate().any(|(index, token)| {
+            if token.kind != TokenKind::Word {
+                return false;
+            }
+            let word = &self.source[token.start..token.end];
+            if word == "require" {
+                return true;
+            }
+            let member = index > 0
+                && matches!(
+                    tree.tokens[index - 1].kind,
+                    TokenKind::Punct('.') | TokenKind::Operator("&." | "::")
+                );
+            let label = tree
+                .tokens
+                .get(index + 1)
+                .is_some_and(|t| t.kind == TokenKind::Punct(':') && t.start == token.end);
+            !member
+                && !label
+                && !word.starts_with('@')
+                && !parse::keyword(word)
+                && !bound.contains(word)
+                && !self.declared.methods.contains(word)
+                && !self.known_type(word)
+                && !builtins.contains_key(word)
+                && !matches!(word, "it" | "_1" | "_2" | "_3" | "block_given?" | "then")
+                && !word.chars().next().is_some_and(char::is_uppercase)
+        })
     }
 
     /// Whether a class or enum of that dotted name is declared here.

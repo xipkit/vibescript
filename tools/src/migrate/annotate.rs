@@ -288,12 +288,26 @@ impl<'a> Migrator<'a> {
                     return;
                 }
                 // Unobserved: what the checker infers, then a result every
-                // exit spells as a literal, then `any`.
-                let inferred = self.checker_result(def);
+                // exit spells as a literal, then `any`. A function that ran
+                // but never returned, such as one a block broke out of, gets
+                // `any`.
+                let entered = self
+                    .facts
+                    .is_some_and(|facts| facts.starts.contains_key(&offset));
+                let inferred = if entered {
+                    None
+                } else {
+                    self.checker_result(def)
+                };
                 if inferred.as_deref() == Some("nil") {
                     return;
                 }
-                let ty = match inferred.or_else(|| static_result(&def.body)) {
+                let fallback = if entered {
+                    None
+                } else {
+                    static_result(&def.body)
+                };
+                let ty = match inferred.or(fallback) {
                     Some(ty) => ty,
                     None => {
                         self.annotation(None, None, end, &format!("the result of {}", def.name))
@@ -317,6 +331,12 @@ impl<'a> Migrator<'a> {
     /// The result type the gradual checker infers for a function, rewritten
     /// in annotation syntax, when it names only types an annotation can.
     fn checker_result(&self, def: &'a Def) -> Option<String> {
+        // The checker runs without the host, so a source that reaches host
+        // functions or required files would get results from paths where
+        // they fail.
+        if self.hosted {
+            return None;
+        }
         let script = self.script?;
         let class = self.scope().class;
         let name = match class {
@@ -775,6 +795,7 @@ fn annotation_from_checker(text: &str, known: &dyn Fn(&str) -> bool) -> Option<S
         "enum ",
         "...",
         "type<",
+        "[]",
     ]
     .iter()
     .any(|word| text.contains(word))
@@ -856,6 +877,8 @@ fn annotation_from_checker(text: &str, known: &dyn Fn(&str) -> bool) -> Option<S
     arms.push(out[start..].trim().to_owned());
     let nil = arms.iter().any(|arm| arm == "nil");
     arms.retain(|arm| arm != "nil");
+    let mut seen = std::collections::HashSet::new();
+    arms.retain(|arm| seen.insert(arm.clone()));
     Some(match (arms.len(), nil) {
         (0, _) => "nil".to_owned(),
         (1, true) => format!("{}?", arms[0]),
