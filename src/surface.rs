@@ -93,8 +93,7 @@ pub enum Rule {
 }
 
 impl Rule {
-    /// The diagnostic code the compiler reports the rule's spellings with,
-    /// or none for a rule another pass reports.
+    /// The diagnostic code the compiler reports the rule's spellings with.
     pub fn code(self) -> Option<Code> {
         Some(match self {
             Self::Name => Code::REMOVED_NAME,
