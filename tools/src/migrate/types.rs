@@ -23,6 +23,7 @@ pub(crate) enum Scalar {
     Duration,
     Time,
     Range,
+    Regex,
 }
 
 impl Scalar {
@@ -37,6 +38,7 @@ impl Scalar {
             Self::Duration => "duration",
             Self::Time => "time",
             Self::Range => "range",
+            Self::Regex => "regex",
         }
     }
 }
@@ -155,6 +157,7 @@ impl Types {
             "duration" => Scalar::Duration,
             "time" => Scalar::Time,
             "range" => Scalar::Range,
+            "regex" => Scalar::Regex,
             "array" => {
                 let element = self.array.get_or_insert_with(Default::default);
                 for item in value.as_array().unwrap_or_default() {
@@ -276,6 +279,8 @@ impl Types {
             match scalar {
                 Scalar::Int if number => arms.push("number".to_owned()),
                 Scalar::Float if number => (),
+                // Only the ADR-007 compiler names regexes.
+                Scalar::Regex if !super::compat::regex_type() => any = true,
                 _ => arms.push(scalar.name().to_owned()),
             }
         }

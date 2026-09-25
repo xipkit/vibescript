@@ -205,9 +205,15 @@ fn annotates_keyword_parameters() {
         &[Invocation::from_json(call, ".".as_ref()).unwrap()],
     );
     let migration = migrate(source, &observations, &Options::default());
+    // Typed optional keywords are written only for a compiler that takes them.
+    let limit = if super::compat::typed_keyword_defaults() {
+        "limit: int: = 3"
+    } else {
+        "limit: 3"
+    };
     assert_eq!(
         migration.source,
-        "def tagged(tag: string:, limit: int: = 3) -> string\n  tag * limit\nend\n"
+        format!("def tagged(tag: string:, {limit}) -> string\n  tag * limit\nend\n")
     );
     let migration = migrate(source, &observations, &Options { new_syntax: false });
     assert!(

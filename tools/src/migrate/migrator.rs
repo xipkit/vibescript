@@ -194,6 +194,9 @@ pub(crate) struct Migrator<'a> {
     pub operator_rewrites: HashSet<Span>,
     /// The offsets of every `&&` and `||`, where they test their left operand.
     pub short_circuits: HashSet<usize>,
+    /// How many computed callees enclose the walk: `(x.m rescue y)()` calls
+    /// what `x.m` evaluates to, so its call forms stay exactly as written.
+    pub frozen: usize,
     /// Locals whose first assignment has been seen, by function.
     pub first_assignments: HashSet<(Tok, String)>,
     /// The source range of every function.
@@ -230,6 +233,7 @@ impl<'a> Migrator<'a> {
             first_assignments: HashSet::new(),
             def_ranges: Vec::new(),
             short_circuits: HashSet::new(),
+            frozen: 0,
         };
         for (index, token) in tree.tokens.iter().enumerate() {
             if matches!(token.kind, TokenKind::Operator("&&" | "||")) {
@@ -310,6 +314,7 @@ impl<'a> Migrator<'a> {
                     }
                 }
                 Member::Class(inner) => self.declare_class(inner, &name),
+                Member::Ivar(..) => (),
                 Member::Other(span) => {
                     let text = self.text(*span).trim();
                     if text == "private" {
@@ -421,7 +426,9 @@ impl<'a> Migrator<'a> {
             Target::Splat(_, Some(inner)) => self.target(inner),
             Target::Typed(inner, ty) => {
                 self.target(inner);
-                self.type_names(ty);
+                // A block parameter's check is not observed, so a failure
+                // quoting the old spelling cannot be ruled out.
+                self.type_names_checked(ty, false);
             }
             Target::Group(_, parts) => {
                 for part in parts {
@@ -486,6 +493,9 @@ impl<'a> Migrator<'a> {
         };
         for param in &def.params {
             scope.locals.insert(param.name.clone());
+            if let Some(default) = &param.default {
+                collect_expr(default, &mut scope);
+            }
         }
         collect_locals(&def.body, &mut scope);
         if let Some(rescued) = &def.rescue {
@@ -540,16 +550,26 @@ impl<'a> Migrator<'a> {
                     for (tok, ty) in &property.names {
                         if let Some(ty) = ty {
                             let offset = self.tokens[*tok].start;
+                            let field = self.token_text(*tok);
+                            let accepts = |types: Option<&Types>| {
+                                types.is_none_or(|types| self.accepts(ty, types))
+                            };
                             let passed = self.bindings_passed(offset)
-                                && self
-                                    .facts
-                                    .and_then(|facts| facts.returns.get(&offset))
-                                    .is_none_or(|types| self.accepts(ty, types));
+                                && accepts(self.facts.and_then(|facts| facts.returns.get(&offset)))
+                                && accepts(
+                                    self.facts
+                                        .and_then(|facts| facts.instance.get(&name, field)),
+                                );
                             self.type_names_checked(ty, passed);
                         }
                     }
                 }
                 Member::Class(inner) => self.class(inner, &name),
+                Member::Ivar(_, _, default) => {
+                    if let Some(default) = default {
+                        self.expr(default, Place::Loose);
+                    }
+                }
                 Member::Stmt(stmt) => {
                     let mut scope = Scope {
                         class: Some(class),
@@ -612,7 +632,9 @@ impl<'a> Migrator<'a> {
             }
             ExprKind::Call(call) => self.call(expr, call, place),
             ExprKind::Computed(callee, args) => {
+                self.frozen += 1;
                 self.expr(callee, Place::Tight);
+                self.frozen -= 1;
                 self.args(args);
             }
             ExprKind::BlockCall(callee, block) => {
@@ -691,6 +713,9 @@ impl<'a> Migrator<'a> {
                 .and_then(|args| args.items.last().map(|arg| arg.span.end))
                 .unwrap_or(self.token_span(call.name_tok).end);
             self.block(block, Some(call), end);
+        }
+        if self.frozen > 0 {
+            return;
         }
         if self.rename(expr, call, place) {
             return;
@@ -802,7 +827,7 @@ impl<'a> Migrator<'a> {
 
     fn bare_name(&mut self, expr: &'a Expr, name: &str, place: Place) {
         // A global function renamed without parentheses, such as `now`.
-        if self.local(name) || self.declared.methods.contains(name) {
+        if self.local(name) || self.declared.methods.contains(name) || self.known_type(name) {
             return;
         }
         let Some(pattern) = patterns()
@@ -845,13 +870,11 @@ impl<'a> Migrator<'a> {
             };
             items.push(item);
         }
-        // An array after a command name that is also a local would index it.
-        let text = if place == Place::Tight {
-            format!("([{}])", items.join(", "))
-        } else {
-            format!("[{}]", items.join(", "))
-        };
-        self.edits.text(expr.span, text);
+        // A percent literal after a command name is an argument, which an
+        // array literal after a space is as well.
+        let _ = place;
+        self.edits
+            .text(expr.span, format!("[{}]", items.join(", ")));
     }
 
     /// Rewrites `h[:name]` as `h["name"]` when the receiver is a hash.
@@ -881,7 +904,9 @@ impl<'a> Migrator<'a> {
         {
             return;
         }
-        if observed.is_none() && self.declared.methods.contains("[]") {
+        if observed.is_none()
+            && (self.declared.methods.contains("[]") || self.declared.methods.contains("[]="))
+        {
             return;
         }
         let TokenKind::Symbol { name, .. } = &self.tokens[self.token_at(selector.span.start)].kind
@@ -909,6 +934,47 @@ impl<'a> Migrator<'a> {
         self.receiver_types(expr, call).is_some_and(|types| {
             !types.is_empty() && !types.any && types.hash.is_none() && !types.nil
         })
+    }
+
+    /// Whether a replacement written without parentheses calls, where the
+    /// call had no arguments: `x.after()` must not become a bare `x.from_now`
+    /// that reads a method, and a namespace member read bare must stay a
+    /// read of one on both sides.
+    fn bare_replacement_works(&self, pattern: &Pattern, call: Option<&'a Call>) -> bool {
+        let Some(call) = call else {
+            return true;
+        };
+        if call.argument_count() > 0 || call.block.is_some() {
+            return true;
+        }
+        let Rewrite::Template(pieces) = &pattern.rewrite else {
+            return true;
+        };
+        let text: String = pieces
+            .iter()
+            .map(|piece| match piece {
+                TemplatePiece::Text(text) => text.as_str(),
+                _ => "",
+            })
+            .collect();
+        if text.contains('(') || text.contains(' ') {
+            return true;
+        }
+        match &pattern.callee {
+            Callee::Member => pattern.target_member().is_none_or(|member| {
+                super::compat::member_without_parens(&pattern.receiver, member)
+            }),
+            Callee::Namespace(namespace) => {
+                let Some((target_namespace, member)) = text.split_once('.') else {
+                    return true;
+                };
+                let parenthesized = call.args.is_some();
+                parenthesized
+                    || (super::compat::namespace_without_parens(namespace, &pattern.name)
+                        && super::compat::namespace_without_parens(target_namespace, member))
+            }
+            Callee::Global => true,
+        }
     }
 
     /// Whether today's runtime calls a member written without parentheses
@@ -951,7 +1017,8 @@ impl<'a> Migrator<'a> {
         }
         if call.receiver.is_none() {
             let name = call.name.as_str();
-            if self.local(name) {
+            // A bare capitalized name reads a constant.
+            if self.local(name) || name.chars().next().is_some_and(char::is_uppercase) {
                 return;
             }
             // A bare name calls a function only when it takes no parameters.
@@ -1216,13 +1283,13 @@ impl<'a> Migrator<'a> {
             TypeKind::Named(tok, args) => {
                 let written = self.token_text(*tok).trim_end_matches('?');
                 let lower = written.to_ascii_lowercase();
-                (parse::builtin_type(&lower) && (lower != written || lower == "object"))
+                (parse::respelled_type(&lower) && (lower != written || lower == "object"))
                     || args.iter().any(|arg| self.spelled_differently(arg))
             }
             TypeKind::Shape(fields, _) => fields
                 .iter()
                 .any(|(_, field)| self.spelled_differently(field)),
-            TypeKind::Union(options) => options
+            TypeKind::Union(options) | TypeKind::Tuple(options) => options
                 .iter()
                 .any(|option| self.spelled_differently(option)),
             TypeKind::Qualified(_) => false,
@@ -1249,7 +1316,7 @@ impl<'a> Migrator<'a> {
                     None => (written, ""),
                 };
                 let lower = name.to_ascii_lowercase();
-                if parse::builtin_type(&lower) {
+                if parse::respelled_type(&lower) {
                     let canonical = if lower == "object" { "hash" } else { &lower };
                     if canonical != name {
                         self.edits
@@ -1265,7 +1332,7 @@ impl<'a> Migrator<'a> {
                     self.type_names(field);
                 }
             }
-            TypeKind::Union(options) => {
+            TypeKind::Union(options) | TypeKind::Tuple(options) => {
                 for option in options {
                     self.type_names(option);
                 }
@@ -1415,6 +1482,9 @@ impl<'a> Migrator<'a> {
             return false;
         }
         let offset = self.token_span(call.name_tok).start;
+        if call.scoped(self.tokens) {
+            return false;
+        }
         if call.receiver.is_none() {
             if self.local(&call.name) || self.declared.methods.contains(&call.name) {
                 return false;
@@ -1464,6 +1534,22 @@ impl<'a> Migrator<'a> {
                 .filter(|p| p.receiver == kind || p.receiver == "T")
                 .find_map(|p| migrator.match_args(call, p).map(|c| (p, c)))
         };
+        // A hash field of the member's name answers the call instead.
+        if self
+            .receiver_types(expr, call)
+            .and_then(|types| types.hash.as_deref())
+            .is_some_and(|shape| shape.fields.contains_key(call.name.as_bytes()))
+        {
+            self.report(
+                Code::Receiver,
+                offset,
+                format!(
+                    "{} reads a hash field of that name here; rewrite it by hand",
+                    call.name
+                ),
+            );
+            return false;
+        }
         let kinds = self.receiver_kinds(expr, call);
         let decision = match &kinds {
             Some(kinds) if !kinds.is_empty() => {
@@ -1715,6 +1801,24 @@ impl<'a> Migrator<'a> {
             Rewrite::Template(pieces) => pieces,
         };
         let receiver = call.and_then(|call| call.receiver.as_ref());
+        let exact = !(pattern.receiver == "time" && pattern.name == "hash");
+        let assignable = pattern.name != "store"
+            || receiver.is_some_and(|r| match &r.kind {
+                ExprKind::Name(name) => self.local(name),
+                ExprKind::Ivar(_) => true,
+                _ => false,
+            });
+        if !exact || !assignable {
+            self.report(
+                Code::Rename,
+                offset,
+                format!(
+                    "{} is removed, and its replacement differs here; rewrite it by hand",
+                    pattern.name
+                ),
+            );
+            return false;
+        }
         if pattern.receiver_uses() > 1 && !receiver.is_some_and(simple) {
             self.report(
                 Code::Rename,
@@ -1727,6 +1831,9 @@ impl<'a> Migrator<'a> {
             return false;
         }
         if !self.options.new_syntax && !self.old_runtime_accepts(pattern, call) {
+            return false;
+        }
+        if !self.bare_replacement_works(pattern, call) {
             return false;
         }
         // An index takes no block, and dropping `itself` or `freeze` from a

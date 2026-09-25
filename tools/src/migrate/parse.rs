@@ -109,7 +109,7 @@ pub(crate) fn binding_power(op: &str) -> Option<(u8, u8)> {
         "&" => (9, 10),
         "<<" => (10, 11),
         "+" | "-" => (11, 12),
-        "*" | "/" | "%" => (12, 13),
+        "*" | "/" | "//" | "%" => (12, 13),
         "**" => (14, 14),
         _ => return None,
     })
@@ -154,6 +154,8 @@ struct Parser<'s> {
     inside_class: bool,
     nesting: usize,
     call_end: usize,
+    /// The typed block parameter the latest parameter list ended with.
+    block_param: Option<Span>,
 }
 
 /// Parser state that a speculative parse restores.
@@ -189,6 +191,7 @@ impl<'s> Parser<'s> {
             inside_class: false,
             nesting: 0,
             call_end: 0,
+            block_param: None,
         }
     }
 
@@ -615,6 +618,7 @@ impl<'s> Parser<'s> {
                 *op,
                 "&." | "::"
                     | "/"
+                    | "//"
                     | "**"
                     | "%"
                     | ".."
@@ -666,7 +670,7 @@ impl<'s> Parser<'s> {
                     return None;
                 }
                 if self.line_exprs == 0 {
-                    if *op == "/" {
+                    if matches!(*op, "/" | "//") {
                         return None;
                     }
                     return (self.groups > 0).then_some(next);
@@ -685,7 +689,7 @@ impl<'s> Parser<'s> {
                             })
                     }
                     "*" => !self.splat_assignment_ahead(next),
-                    "/" => false,
+                    "/" | "//" => false,
                     _ => true,
                 }
             }
@@ -792,14 +796,15 @@ impl<'s> Parser<'s> {
                 (!local || implicit) && previous_end != next_start
             }
             TokenKind::Regex => !local && previous_end != next_start,
-            TokenKind::Operator("/") => {
+            TokenKind::Operator(op @ ("/" | "//")) => {
                 !local
                     && previous_end != next_start
-                    && self
+                    && (self
                         .source
                         .as_bytes()
                         .get(next.end)
                         .is_some_and(|byte| !matches!(byte, b' ' | b'\t' | b'\r' | b'\n'))
+                        || (*op == "//" && (self.end_line(self.pos + 1) || self.eof(self.pos + 1))))
             }
             TokenKind::Operator(op @ ("*" | "**" | "&")) => {
                 let start = next_start + usize::from(*op == "**");
@@ -847,6 +852,13 @@ impl<'s> Parser<'s> {
         let word = match self.word_at(self.pos) {
             Some(w) if matches!(w, "def" | "class" | "enum" | "export" | "private") => Some(w),
             Some("alias") if self.alias_ahead() => Some("alias"),
+            Some("type")
+                if self.ident(self.pos + 1)
+                    && self.is_op(self.pos + 2, "=")
+                    && self.tokens[self.pos + 1].line == self.tokens[self.pos].line =>
+            {
+                Some("type")
+            }
             Some(_) if self.module_ahead() => Some("module"),
             _ => None,
         };
@@ -860,6 +872,12 @@ impl<'s> Parser<'s> {
             "enum" => StmtKind::Enum(self.enumeration()?),
             "alias" => {
                 self.alias_names()?;
+                StmtKind::Other
+            }
+            "type" => {
+                self.pos += 3;
+                self.line_breaks();
+                self.type_expr(1, false)?;
                 StmtKind::Other
             }
             _ => {
@@ -1071,6 +1089,7 @@ impl<'s> Parser<'s> {
                     kind: StmtKind::Flow(keyword, value),
                 })
             }
+            None if self.typed_local_ahead() => self.typed_local(),
             None if self.assertion() => {
                 let expr = self.assertion_call()?;
                 Ok(Stmt {
@@ -1099,6 +1118,68 @@ impl<'s> Parser<'s> {
                 })
             }
         }
+    }
+
+    /// Whether the name at `index` is followed by a colon written as an
+    /// annotation's: attached to the name and followed by a space.
+    fn annotation_colon(&self, index: usize) -> bool {
+        index + 1 < self.tokens.len()
+            && self.is_p(index + 1, ':')
+            && self.tokens[index + 1].start == self.tokens[index].end
+            && matches!(
+                self.source.as_bytes().get(self.tokens[index + 1].end),
+                Some(b' ' | b'\t')
+            )
+    }
+
+    /// Whether a statement declares a typed local, `name: T = value`.
+    fn typed_local_ahead(&mut self) -> bool {
+        let Some(word) = self.word_at(self.pos) else {
+            return false;
+        };
+        if !self.ident(self.pos)
+            || word.chars().next().is_some_and(char::is_uppercase)
+            || !self.annotation_colon(self.pos)
+        {
+            return false;
+        }
+        let saved = self.save();
+        self.pos += 2;
+        let typed = self.type_expr(1, false).is_ok() && self.is_op(self.significant(self.pos), "=");
+        self.restore(saved);
+        typed
+    }
+
+    fn typed_local(&mut self) -> Result<Stmt> {
+        let start = self.start();
+        let name = self.bump();
+        let token = &self.tokens[name];
+        let target = Target::Expr(Expr {
+            span: Span {
+                start: token.start,
+                end: token.end,
+            },
+            kind: ExprKind::Name(self.text(name).to_owned()),
+        });
+        self.bump();
+        let ty = self.type_expr(1, false)?;
+        self.pos = self.significant(self.pos);
+        let op = self.bump();
+        self.line_breaks();
+        let value = self.block_line_expr()?;
+        let target = Target::Typed(Box::new(target), ty);
+        self.declare_target(&target);
+        Ok(Stmt {
+            span: Span {
+                start,
+                end: self.last_end(),
+            },
+            kind: StmtKind::Assign(Assign {
+                targets: vec![target],
+                op,
+                values: vec![value],
+            }),
+        })
     }
 
     fn assertion_call(&mut self) -> Result<Expr> {
@@ -1518,8 +1599,10 @@ impl<'s> Parser<'s> {
                 TokenKind::Operator("*" | "**" | "&") => true,
                 _ => false,
             };
+
         let mut signature = def_line;
         let mut parens = None;
+        self.block_param = None;
         let params = if parenthesized {
             let open = self.bump();
             self.line_breaks();
@@ -1546,6 +1629,7 @@ impl<'s> Parser<'s> {
         } else {
             Vec::new()
         };
+        let block = self.block_param.take();
         let arrow = self.significant(self.pos);
         let result = if self.is_op(arrow, "->") && self.tokens[arrow].line == signature {
             self.pos = arrow + 1;
@@ -1573,6 +1657,7 @@ impl<'s> Parser<'s> {
             },
             class_method,
             params,
+            block,
             parens,
             result,
             body,
@@ -1644,6 +1729,36 @@ impl<'s> Parser<'s> {
     fn parameters(&mut self, parenthesized: bool) -> Result<Vec<Param>> {
         let mut params = Vec::new();
         loop {
+            if self.at_op("&")
+                && self.word_at(self.pos + 1).is_some()
+                && self.annotation_colon(self.pos + 1)
+            {
+                let start = self.start();
+                self.pos += 3;
+                self.line_breaks();
+                if self.take_p('(').is_some() {
+                    self.line_breaks();
+                    while self.take_p(')').is_none() {
+                        self.type_expr(1, false)?;
+                        self.line_breaks();
+                        self.take_p(',');
+                        self.line_breaks();
+                    }
+                } else {
+                    self.type_expr(1, false)?;
+                }
+                let arrow = self.significant(self.pos);
+                if self.is_op(arrow, "->") {
+                    self.pos = arrow + 1;
+                    self.line_breaks();
+                    self.type_expr(1, false)?;
+                }
+                self.block_param = Some(Span {
+                    start,
+                    end: self.last_end(),
+                });
+                break;
+            }
             let param = self.parameter(parenthesized)?;
             self.locals.insert(param.name.clone());
             self.declared_it |= param.name == "it";
@@ -1926,6 +2041,23 @@ impl<'s> Parser<'s> {
             }
             let start = self.start();
             let word = self.word_at(self.pos).unwrap_or("");
+            if word.starts_with('@') && !word.starts_with("@@") && self.annotation_colon(self.pos) {
+                let name = word.trim_start_matches('@').to_owned();
+                self.pos += 2;
+                let ty = self.type_expr(1, false)?;
+                let equals = self.significant(self.pos);
+                let default = if self.is_op(equals, "=")
+                    && self.tokens[equals].line == self.tokens[start_token(self, start)].line
+                {
+                    self.pos = equals + 1;
+                    self.line_breaks();
+                    Some(self.line_expr(0)?)
+                } else {
+                    None
+                };
+                members.push(Member::Ivar(name, ty, default));
+                continue;
+            }
             match word {
                 "def" => members.push(Member::Def(self.function(true, None)?)),
                 "alias" if self.alias_ahead() => {
@@ -2984,7 +3116,9 @@ impl<'s> Parser<'s> {
             }
             TypeKind::Qualified(_) => false,
             TypeKind::Shape(fields, _) => fields.iter().all(|(_, ty)| self.builtin_leaves(ty)),
-            TypeKind::Union(options) => options.iter().all(|ty| self.builtin_leaves(ty)),
+            TypeKind::Union(options) | TypeKind::Tuple(options) => {
+                options.iter().all(|ty| self.builtin_leaves(ty))
+            }
         }
     }
 
@@ -3337,6 +3471,31 @@ impl<'s> Parser<'s> {
         let start = self.start();
         let mut ty = if self.take_p('{').is_some() {
             self.type_shape(depth, start)?
+        } else if self.at_p('[')
+            && self.word_at(self.pos + 1).is_some_and(|w| {
+                builtin_type(w.trim_end_matches('?'))
+                    || w.chars().next().is_some_and(char::is_uppercase)
+            })
+        {
+            self.bump();
+            let mut elements = Vec::new();
+            loop {
+                self.line_breaks();
+                elements.push(self.type_expr(depth + 1, false)?);
+                self.line_breaks();
+                if self.take_p(']').is_some() {
+                    break;
+                }
+                self.expect_p(',')?;
+            }
+            TypeExpr {
+                span: Span {
+                    start,
+                    end: self.last_end(),
+                },
+                kind: TypeKind::Tuple(elements),
+                nullable: false,
+            }
         } else {
             self.named_type(depth)?
         };
@@ -3387,7 +3546,7 @@ impl<'s> Parser<'s> {
                 nullable,
             });
         }
-        if !matches!(written, "array" | "hash" | "object") {
+        if !matches!(written, "array" | "hash" | "object" | "type") {
             return self.fail("type does not accept type arguments");
         }
         self.pos = open + 1;
@@ -3459,6 +3618,34 @@ impl<'s> Parser<'s> {
     }
 }
 
+/// Whether a lowercase type name is one ADR-004 spelled in any case, and
+/// ADR-008 spells in lowercase only.
+pub(crate) fn respelled_type(name: &str) -> bool {
+    matches!(
+        name,
+        "any"
+            | "int"
+            | "float"
+            | "number"
+            | "string"
+            | "symbol"
+            | "bool"
+            | "nil"
+            | "duration"
+            | "time"
+            | "money"
+            | "range"
+            | "array"
+            | "hash"
+            | "object"
+    )
+}
+
+/// The token that starts at `offset`.
+fn start_token(parser: &Parser<'_>, offset: usize) -> Tok {
+    parser.token_at(offset)
+}
+
 /// Whether a lowercase type name is one of the builtin types.
 pub(crate) fn builtin_type(name: &str) -> bool {
     matches!(
@@ -3478,5 +3665,10 @@ pub(crate) fn builtin_type(name: &str) -> bool {
             | "array"
             | "hash"
             | "object"
+            | "regex"
+            | "match_data"
+            | "error"
+            | "type"
+            | "comparable"
     )
 }

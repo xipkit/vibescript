@@ -176,6 +176,8 @@ pub(crate) struct Def {
     pub name_span: Span,
     pub class_method: bool,
     pub params: Vec<Param>,
+    /// A typed block parameter, `&block: A -> R`, already declared.
+    pub block: Option<Span>,
     /// The parameter list's parentheses.
     pub parens: Option<(Tok, Tok)>,
     /// The `->` and the declared result type.
@@ -242,6 +244,8 @@ pub(crate) struct Class {
 pub(crate) enum Member {
     Def(Def),
     Property(Property),
+    /// An instance-variable declaration, `@name: T` or `@name: T = value`.
+    Ivar(String, TypeExpr, Option<Expr>),
     Class(Class),
     Stmt(Stmt),
     /// A visibility directive, alias or other declaration.
@@ -279,6 +283,8 @@ pub(crate) enum TypeKind {
     Qualified(Vec<Tok>),
     Shape(Vec<(Tok, TypeExpr)>, bool),
     Union(Vec<TypeExpr>),
+    /// `[A, B]`: an array of exactly these elements.
+    Tuple(Vec<TypeExpr>),
 }
 
 #[derive(Debug)]

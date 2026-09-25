@@ -206,13 +206,25 @@ impl<'a> Migrator<'a> {
                         let ty = self.annotation(observed, None, name_end, &what);
                         self.edits.insert(colon_end, format!(" {ty}:"));
                     } else if self.options.new_syntax {
-                        let ty = self.annotation(observed, param.default.as_ref(), name_end, &what);
-                        self.edits.insert(colon_end, format!(" {ty}: ="));
+                        if super::compat::typed_keyword_defaults() {
+                            let ty =
+                                self.annotation(observed, param.default.as_ref(), name_end, &what);
+                            self.edits.insert(colon_end, format!(" {ty}: ="));
+                        } else {
+                            self.report(
+                                Code::Syntax,
+                                name_end,
+                                format!(
+                                    "keyword {} needs a type, written `{}: T: = default`, which this compiler does not accept yet",
+                                    param.name, param.name
+                                ),
+                            );
+                        }
                     }
                 }
             }
         }
-        if self.options.new_syntax {
+        if self.options.new_syntax && def.block.is_none() {
             self.annotate_block(def);
         }
         self.annotate_result(def);
@@ -487,6 +499,10 @@ impl<'a> Migrator<'a> {
             let Member::Def(def) = member else {
                 continue;
             };
+            // A class method's instance variables belong to the class.
+            if def.class_method {
+                continue;
+            }
             for param in &def.params {
                 if param.instance {
                     ivars.entry(param.name.clone()).or_insert(false);
@@ -496,7 +512,13 @@ impl<'a> Migrator<'a> {
                 ivars.entry(ivar.to_owned()).or_insert(false);
             });
         }
-        ivars.retain(|ivar, _| !properties.contains(ivar));
+        ivars.retain(|ivar, _| {
+            !properties.contains(ivar)
+                && !class
+                    .members
+                    .iter()
+                    .any(|member| matches!(member, Member::Ivar(declared, ..) if declared == ivar))
+        });
         if ivars.is_empty() {
             return;
         }
