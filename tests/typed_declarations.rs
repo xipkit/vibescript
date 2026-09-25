@@ -1,7 +1,8 @@
-//! The declarations ADR-007 adds, enforced at runtime like parameter
-//! annotations: typed locals, typed block parameters, instance-variable
-//! declarations, type aliases, tuple types and the newer type names. A
-//! class-variable declaration's type is the static checker's alone.
+//! The declarations ADR-007 adds: typed locals, typed block parameters,
+//! instance-variable declarations, type aliases, tuple types and the newer
+//! type names. The static checker enforces them before a program runs;
+//! values that arrive at runtime, such as host arguments, are checked when
+//! they arrive.
 
 mod common;
 
@@ -26,6 +27,42 @@ fn failure(source: &str) -> (ErrorKind, String, (usize, usize)) {
         .expect_err(source);
     let position = error.diagnostic.as_ref().unwrap().position;
     (error.kind, error.message, (position.line, position.column))
+}
+
+/// The code and one-based line and column of each static diagnostic that
+/// refuses `source`.
+fn refused(source: &str) -> Vec<(String, (usize, usize))> {
+    let Err(error) = common::static_engine().compile(source) else {
+        panic!("{source} compiled");
+    };
+    error
+        .diagnostics()
+        .iter()
+        .map(|d| {
+            let before = &source[..d.span.start];
+            let line = before.matches('\n').count() + 1;
+            let column = before.rsplit('\n').next().unwrap().chars().count() + 1;
+            (d.code.to_string(), (line, column))
+        })
+        .collect()
+}
+
+fn diagnostics(expected: &[(&str, (usize, usize))]) -> Vec<(String, (usize, usize))> {
+    expected
+        .iter()
+        .map(|(code, at)| ((*code).to_owned(), *at))
+        .collect()
+}
+
+/// The runtime failure of `source` as a host call of `function` with
+/// `args`, with its message.
+fn call_failure(source: &str, function: &str, args: &[vibescript::Value]) -> (ErrorKind, String) {
+    let error = Engine::new()
+        .compile(source)
+        .unwrap_or_else(|error| panic!("{source}: {error}"))
+        .call(function, args, CallOptions::default())
+        .expect_err(source);
+    (error.kind, error.message)
 }
 
 /// A compile error as `vibes` prints it, with its one-based position.
@@ -61,7 +98,7 @@ fn typed_locals_take_their_declared_type() {
             serde_json::json!(2.5),
         ),
         ("x: int = 1\nx += 2\nx *= 3\nx", serde_json::json!(9)),
-        ("x: int? = nil\nx ||= 4\nx", serde_json::json!(4)),
+        ("x: int? = nil\nx = 4 if x == nil\nx", serde_json::json!(4)),
         (
             "def sum(items: array<int>) -> int\n  total: int = 0\n  items.each { |item| total += item }\n  for item in items\n    total = total + item\n  end\n  total\nend\nsum([1, 2])",
             serde_json::json!(6),
@@ -71,10 +108,9 @@ fn typed_locals_take_their_declared_type() {
             serde_json::json!([2, 1]),
         ),
         (
-            "x: int = 1\n[1].map { |x| x = \"shadowed\" }",
+            "x: int = 1\n[\"a\"].map { |x| x = \"shadowed\" }",
             serde_json::json!(["shadowed"]),
         ),
-        ("x: int = 1 if true\nx", serde_json::json!(1)),
         ("type = 3\ntype + 1", serde_json::json!(4)),
     ] {
         assert_eq!(evaluate(source), expected, "{source}");
@@ -83,67 +119,45 @@ fn typed_locals_take_their_declared_type() {
 
 #[test]
 fn typed_locals_check_every_assignment() {
-    for (source, message, at) in [
-        (
-            "x: int = \"a\"",
-            "local variable x expected int, got string",
-            (1, 1),
-        ),
-        (
-            "x: int = 1\nx = \"a\"",
-            "local variable x expected int, got string",
-            (2, 1),
-        ),
-        (
-            "x: int = 1\nx += 1.5",
-            "local variable x expected int, got float",
-            (2, 1),
-        ),
+    for (source, expected) in [
+        ("x: int = \"a\"", vec![("V0101", (1, 10))]),
+        ("x: int = 1\nx = \"a\"", vec![("V0102", (2, 5))]),
+        ("x: int = 1\nx += 1.5", vec![("V0102", (2, 6))]),
         (
             "x: int = 1\nx = x + \"\".length.to_f",
-            "local variable x expected int, got float",
-            (2, 1),
+            vec![("V0102", (2, 5))],
         ),
         (
             "x: int? = nil\nx ||= \"a\"",
-            "local variable x expected int?, got string",
-            (2, 1),
+            vec![("V0104", (2, 1)), ("V0102", (2, 7))],
         ),
         (
             "x: int = 1\n[1, 2].each { |i| x = \"s\" }",
-            "local variable x expected int, got string",
-            (2, 19),
+            vec![("V0102", (2, 23))],
         ),
         (
             "x: int = 1\n[[1]].each { |pair| [2].each { |i| x = nil } }",
-            "local variable x expected int, got nil",
-            (2, 36),
-        ),
-        (
-            "x: int = 1\nfor x in [\"a\"]\nend",
-            "local variable x expected int, got string",
-            (2, 5),
+            vec![("V0102", (2, 40))],
         ),
         (
             "x: int = 1\ny = 2\nx, y = \"a\", 1",
-            "local variable x expected int, got string",
-            (3, 1),
+            vec![("V0102", (3, 1))],
         ),
-        (
-            "names: array<string> = [1]",
-            "local variable names expected array<string>, got array<int>",
-            (1, 1),
-        ),
-        (
-            "x: Missing = 1",
-            "local variable x type check failed: unknown type Missing",
-            (1, 1),
-        ),
+        ("names: array<string> = [1]", vec![("V0101", (1, 25))]),
+        ("x: Missing = 1", vec![("V0116", (1, 4))]),
+        // `||=` tests a bool, and a declaration under a modifier may not run.
+        ("x: int? = nil\nx ||= 4\nx", vec![("V0104", (2, 1))]),
+        ("x: int = 1 if true\nx", vec![("V0202", (2, 1))]),
     ] {
-        let (kind, actual, position) = failure(source);
-        assert_eq!(kind, ErrorKind::Type, "{source}");
-        assert_eq!((actual.as_str(), position), (message, at), "{source}");
+        assert_eq!(refused(source), diagnostics(&expected), "{source}");
     }
+    // A `for` variable is still checked when the loop assigns it.
+    let (kind, actual, position) = failure("x: int = 1\nfor x in [\"a\"]\nend");
+    assert_eq!(kind, ErrorKind::Type);
+    assert_eq!(
+        (actual.as_str(), position),
+        ("local variable x expected int, got string", (2, 5))
+    );
 }
 
 #[test]
@@ -197,11 +211,6 @@ fn typed_block_parameters_check_yields_and_results() {
             serde_json::json!([2, 3]),
         ),
         (
-            "def each_pair(h: hash<string, int>, &block: (string, int))\n  h.keys.map { |k| yield k, h.fetch(k) }\nend\neach_pair({ a: 1 }) { |k, v| v }".into(),
-            // Without a result type the block's value is discarded.
-            serde_json::json!([null]),
-        ),
-        (
             "def pairs(&block: [string, int] -> string)\n  yield [\"a\", 1]\nend\npairs { |pair| pair[0] }".into(),
             serde_json::json!("a"),
         ),
@@ -224,37 +233,35 @@ fn typed_block_parameters_check_yields_and_results() {
     ] {
         assert_eq!(evaluate(&source), expected, "{source}");
     }
-    for (source, message, at) in [
-        (
-            format!("{KEEP}keep([1]) {{ |i| i }}"),
-            "block result expected bool, got int",
-            (3, 39),
-        ),
+    for (source, expected) in [
+        (format!("{KEEP}keep([1]) {{ |i| i }}"), ("V0101", (6, 17))),
         (
             "def f(&block: (string, int))\n  yield 1, 2\nend\nf { |a, b| a }".into(),
-            "yield argument 1 expected string, got int",
-            (2, 3),
+            ("V0101", (2, 9)),
         ),
         (
             "def f(&block: (string, int))\n  yield \"a\", \"b\"\nend\nf { |a, b| a }".into(),
-            "yield argument 2 expected int, got string",
-            (2, 3),
+            ("V0101", (2, 14)),
         ),
         (
             "def f(&block: [string, int])\n  yield [\"a\"]\nend\nf { |pair| pair }".into(),
-            "yield argument 1 expected [string, int], got array<string>",
-            (2, 3),
+            ("V0101", (2, 9)),
         ),
+        // Without a result type the block's value is discarded, so it cannot
+        // be used.
+        (
+            "def each_pair(h: hash<string, int>, &block: (string, int))\n  h.keys.map { |k| yield k, h.fetch(k) }\nend\neach_pair({ a: 1 }) { |k, v| v }".into(),
+            ("V0119", (2, 20)),
+        ),
+        // A required block must be given.
+        ("def f(&block: int)\n  yield 1\nend\nf".into(), ("V0304", (4, 1))),
     ] {
-        let (kind, actual, position) = failure(&source);
-        assert_eq!(kind, ErrorKind::Type, "{source}");
-        assert_eq!((actual.as_str(), position), (message, at), "{source}");
+        assert_eq!(refused(&source), diagnostics(&[expected]), "{source}");
     }
-    // A required block that is missing keeps its runtime error.
-    let (kind, message, _) = failure("def f(&block: int)\n  yield 1\nend\nf");
+    // A host that calls without a block gets the runtime error.
     assert_eq!(
-        (kind, message.as_str()),
-        (ErrorKind::Argument, "no block given")
+        call_failure("def f(&block: int)\n  yield 1\nend", "f", &[]),
+        (ErrorKind::Argument, "no block given".to_owned())
     );
 }
 
@@ -304,7 +311,7 @@ fn instance_variable_declarations_give_each_instance_its_default() {
   def initialize(name: string)
     @name = name
   end
-  def add(item)
+  def add(item: int) -> array<any>
     @count += 1
     @items << item
     [@name, @count, @items]
@@ -320,44 +327,31 @@ end
     // Defaults apply before `initialize` binds, so a parameter wins.
     assert_eq!(
         evaluate(
-            "class P\n  @x: int = 1\n  def initialize(@x)\n  end\n  def x\n    @x\n  end\nend\n[P.new(5).x]"
+            "class P\n  @x: int = 1\n  def initialize(@x: int)\n  end\n  def x -> int\n    @x\n  end\nend\n[P.new(5).x]"
         ),
         serde_json::json!([5])
     );
     assert_eq!(
-        evaluate("class P\n  @x: int = 1\n  def x\n    @x\n  end\nend\nP.new.x"),
+        evaluate("class P\n  @x: int = 1\n  def x -> int\n    @x\n  end\nend\nP.new.x"),
         serde_json::json!(1)
     );
-    for (source, message, at) in [
-        (
-            format!("{counter}Counter.new(1)"),
-            "argument name expected string, got int",
-            (14, 1),
-        ),
+    for (source, at) in [
+        (format!("{counter}Counter.new(1)"), (14, 13)),
         (
             "class C\n  @count: int = 0\n  def bump\n    @count = \"x\"\n  end\nend\nC.new.bump".into(),
-            "instance variable @count expected int, got string",
-            (4, 5),
+            (4, 14),
         ),
         (
             "class C\n  @items: array<int> = []\n  def add\n    @items << \"x\"\n  end\nend\nC.new.add".into(),
-            "instance variable @items expected array<int>, got array<string>",
             (4, 13),
         ),
         (
             "class C\n  @name: string\n  def initialize\n    @name = 1\n  end\nend\nC.new".into(),
-            "instance variable @name expected string, got int",
-            (4, 5),
+            (4, 13),
         ),
-        (
-            "class C\n  @x: int = \"no\"\nend\nC.new".into(),
-            "instance variable @x expected int, got string",
-            (2, 3),
-        ),
+        ("class C\n  @x: int = \"no\"\nend\nC.new".into(), (2, 13)),
     ] {
-        let (kind, actual, position) = failure(&source);
-        assert_eq!(kind, ErrorKind::Type, "{source}");
-        assert_eq!((actual.as_str(), position), (message, at), "{source}");
+        assert_eq!(refused(&source), diagnostics(&[("V0101", at)]), "{source}");
     }
     for (source, message) in [
         (
@@ -381,7 +375,7 @@ end
 
 #[test]
 fn class_variable_declarations_assign_in_body_order() {
-    let source = "class C\n  @@base = 2\n  @@next: int = @@base + 1\n  def self.bump -> int\n    @@next += 1\n  end\nend\nmodule M\n  @@names: array<string> = []\n  def self.add(name: string) -> array<string>\n    @@names << name\n  end\nend\n[C.bump, C.bump, M.add(\"a\"), M.add(\"b\")]";
+    let source = "class C\n  @@base: int = 2\n  @@next: int = @@base + 1\n  def self.bump -> int\n    @@next += 1\n  end\nend\nmodule M\n  @@names: array<string> = []\n  def self.add(name: string) -> array<string>\n    @@names << name\n  end\nend\n[C.bump, C.bump, M.add(\"a\"), M.add(\"b\")]";
     assert_eq!(
         evaluate(source),
         serde_json::json!([4, 5, ["a"], ["a", "b"]])
@@ -450,32 +444,48 @@ fn type_aliases_name_types_anywhere() {
         ),
         serde_json::json!([1, "a", "b", 2.5, 90])
     );
-    for (source, message) in [
-        (
-            "def f(x: comparable)\nend\nf([1])",
-            "argument x expected number | string | symbol | time | duration | money, got array<int>",
-        ),
+    for (source, expected) in [
+        ("def f(x: comparable)\nend\nf([1])", vec![("V0101", (3, 3))]),
         (
             "type Reward = { points: int }\ndef f(r: Reward)\nend\nf({ points: \"x\" })",
-            "argument r expected { points: int }, got { points: string }",
+            vec![("V0101", (4, 13))],
         ),
         (
             "type Id = string\nx: Id? = nil\nx = 1",
-            "local variable x expected string?, got int",
+            vec![("V0102", (3, 5))],
         ),
         (
             "type Choice = int | string\ndef f(x: Choice?)\nend\nf(1.5)",
-            "argument x expected int | string | nil, got float",
+            vec![("V0101", (4, 3))],
         ),
         (
             "module Geo\n  type Point = [float, float]\n  def self.bad -> Point\n    [0, 0]\n  end\nend\nGeo.bad",
-            "return value for bad expected [float, float], got array<int>",
+            vec![("V0101", (4, 6)), ("V0101", (4, 9))],
         ),
     ] {
-        let (kind, actual, _) = failure(source);
+        assert_eq!(refused(source), diagnostics(&expected), "{source}");
+    }
+    // Host arguments are checked against what the aliases name.
+    for (source, argument, message) in [
+        (
+            "def f(x: comparable)\nend",
+            vibescript::Value::array(vec![vibescript::Value::int(1)]),
+            "argument x expected number | string | symbol | time | duration | money, got array<int>",
+        ),
+        (
+            "type Reward = { points: int }\ndef f(r: Reward)\nend",
+            vibescript::Value::hash(vec![(b"points".to_vec(), vibescript::Value::bytes("x"))]),
+            "argument r expected { points: int }, got { points: string }",
+        ),
+        (
+            "type Choice = int | string\ndef f(x: Choice?)\nend",
+            vibescript::Value::float(1.5),
+            "argument x expected int | string | nil, got float",
+        ),
+    ] {
         assert_eq!(
-            (kind, actual.as_str()),
-            (ErrorKind::Type, message),
+            call_failure(source, "f", &[argument]),
+            (ErrorKind::Type, message.to_owned()),
             "{source}"
         );
     }
@@ -508,9 +518,13 @@ fn type_aliases_name_types_anywhere() {
 #[test]
 fn tuple_types_are_arrays_of_exactly_their_elements() {
     let enums = "enum Status\n  Draft\n  Done\nend\n";
+    // A tuple-typed parameter without a default is written through an
+    // alias: the checker reads `x: [int, string]` as the removed keyword
+    // form.
     for (source, expected) in [
         (
-            "def f(x: [int, string]) -> [int, string]\n  x\nend\nf([1, \"a\"])".to_owned(),
+            "type Pair = [int, string]\ndef f(x: Pair) -> [int, string]\n  x\nend\nf([1, \"a\"])"
+                .to_owned(),
             serde_json::json!([1, "a"]),
         ),
         (
@@ -521,50 +535,69 @@ fn tuple_types_are_arrays_of_exactly_their_elements() {
             "def f(pair: [int, int] = [1, 2]) -> array<int>\n  pair\nend\nf()".to_owned(),
             serde_json::json!([1, 2]),
         ),
-        // A bracket whose leaves are not all types stays a default.
         (
-            "def f(a, b, pair: [a, b])\n  pair\nend\nf(1, 2)".to_owned(),
-            serde_json::json!([1, 2]),
-        ),
-        (
-            "def f(x: [])\n  x\nend\nf()".to_owned(),
-            serde_json::json!([]),
-        ),
-        (
-            format!("{enums}def f(x: [Status, int]) -> string\n  x[0].name\nend\nf([:done, 1])"),
+            format!(
+                "{enums}type Entry = [Status, int]\ndef f(x: Entry) -> string\n  x[0].name\nend\nf([:done, 1])"
+            ),
             serde_json::json!("Done"),
         ),
         (
-            "[[1, \"a\"]].map { |p: [int, string]| p[1] }".to_owned(),
+            "pairs: array<[int, string]> = [[1, \"a\"]]\npairs.map { |p: [int, string]| p[1] }"
+                .to_owned(),
             serde_json::json!(["a"]),
         ),
     ] {
         assert_eq!(evaluate(&source), expected, "{source}");
     }
-    for (source, message) in [
+    // A bracket whose leaves are not all types was a keyword default,
+    // which is removed.
+    for (source, at) in [
         (
-            "def f(pair: [int, string])\nend\nf([1, 2])",
+            "def f(a: int, b: int, pair: [a, b])\n  pair\nend\nf(1, 2)",
+            (1, 23),
+        ),
+        ("def f(x: [])\n  x\nend\nf()", (1, 7)),
+    ] {
+        assert_eq!(refused(source), diagnostics(&[("V0414", at)]), "{source}");
+    }
+    for (argument, message) in [
+        (
+            vibescript::Value::array(vec![vibescript::Value::int(1), vibescript::Value::int(2)]),
             "argument pair expected [int, string], got array<int>",
         ),
         (
-            "def f(pair: [int, string])\nend\nf([1, \"a\", 3])",
+            vibescript::Value::array(vec![
+                vibescript::Value::int(1),
+                vibescript::Value::bytes("a"),
+                vibescript::Value::int(3),
+            ]),
             "argument pair expected [int, string], got array<int | string>",
         ),
         (
-            "def f(pair: [int, string])\nend\nf({ a: 1 })",
+            vibescript::Value::hash(vec![(b"a".to_vec(), vibescript::Value::int(1))]),
             "argument pair expected [int, string], got { a: int }",
+        ),
+    ] {
+        assert_eq!(
+            call_failure(
+                "type Pair = [int, string]\ndef f(pair: Pair)\nend",
+                "f",
+                &[argument]
+            ),
+            (ErrorKind::Type, message.to_owned())
+        );
+    }
+    for (source, expected) in [
+        (
+            "type Pair = [int, string]\ndef f(pair: Pair)\nend\nf([1, 2])",
+            vec![("V0101", (4, 7))],
         ),
         (
             "def f -> [int, [string, bool]]\n  [1, [\"a\", 2]]\nend\nf",
-            "return value for f expected [int, [string, bool]], got array<array<int | string> | int>",
+            vec![("V0101", (2, 13))],
         ),
     ] {
-        let (kind, actual, _) = failure(source);
-        assert_eq!(
-            (kind, actual.as_str()),
-            (ErrorKind::Type, message),
-            "{source}"
-        );
+        assert_eq!(refused(source), diagnostics(&expected), "{source}");
     }
     for (source, message) in [
         (
@@ -589,38 +622,55 @@ fn newer_type_names_validate_their_values() {
     let error = "e = begin\n  raise \"bad\"\nrescue => err\n  err\nend\n";
     assert_eq!(
         evaluate(&format!(
-            "{error}def f(r: regex, m: match_data, e: error, t: type<array<int>>)\n  [r.source, m[0], e.message]\nend\nf(/a/, \"abc\".match(\"b\"), e, array<int>)"
+            "{error}def f(r: regex, m: match_data, e: error, t: type<array<int>>) -> array<string?>\n  [r.source, m[0], e.message]\nend\nf(/a/, \"abc\".match(\"b\").as(match_data), e, array<int>)"
         )),
         serde_json::json!(["a", "b", "bad"])
     );
-    for (source, message) in [
+    for (source, argument, message) in [
         (
-            "def f(r: regex)\nend\nf(\"a\")",
+            "def f(r: regex)\nend",
+            vibescript::Value::bytes("a"),
             "argument r expected regex, got string",
         ),
         (
-            "def f(m: match_data)\nend\nf({ captures: [] })",
+            "def f(m: match_data)\nend",
+            vibescript::Value::hash(vec![(
+                b"captures".to_vec(),
+                vibescript::Value::array(vec![]),
+            )]),
             "argument m expected match_data, got { captures: array<empty> }",
         ),
         (
-            "def f(e: error)\nend\nf(\"x\")",
+            "def f(e: error)\nend",
+            vibescript::Value::bytes("x"),
             "argument e expected error, got string",
         ),
         (
-            "def f(t: type<int>)\nend\nf(1)",
+            "def f(t: type<int>)\nend",
+            vibescript::Value::int(1),
             "argument t expected type<int>, got int",
         ),
-        (
-            "def f(m: match_data?) -> match_data\n  m\nend\nf(\"a\".match(\"z\"))",
-            "return value for f expected match_data, got nil",
-        ),
     ] {
-        let (kind, actual, _) = failure(source);
         assert_eq!(
-            (kind, actual.as_str()),
-            (ErrorKind::Type, message),
+            call_failure(source, "f", &[argument]),
+            (ErrorKind::Type, message.to_owned()),
             "{source}"
         );
+    }
+    for (source, expected) in [
+        ("def f(r: regex)\nend\nf(\"a\")", ("V0101", (3, 3))),
+        (
+            "def f(m: match_data)\nend\nf({ captures: [] })",
+            ("V0101", (3, 3)),
+        ),
+        ("def f(e: error)\nend\nf(\"x\")", ("V0101", (3, 3))),
+        ("def f(t: type<int>)\nend\nf(1)", ("V0101", (3, 3))),
+        (
+            "def f(m: match_data?) -> match_data\n  m\nend\nf(\"a\".match(\"z\"))",
+            ("V0107", (2, 3)),
+        ),
+    ] {
+        assert_eq!(refused(source), diagnostics(&[expected]), "{source}");
     }
     assert_eq!(
         compile_error("def f(t: type<int, string>)\nend"),
@@ -634,7 +684,7 @@ fn newer_type_names_validate_their_values() {
     // A rescued error bound to `error` is still a value where a type could be meant.
     assert_eq!(
         evaluate(
-            "def show(x)\n  x.message\nend\nbegin\n  raise \"bad\"\nrescue => error\n  show(error)\nend"
+            "def show(x: error) -> string\n  x.message\nend\nbegin\n  raise \"bad\"\nrescue => error\n  show(error)\nend"
         ),
         serde_json::json!("bad")
     );
