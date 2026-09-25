@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -32,7 +34,9 @@ fn utc_host_values_remain_inline_and_preserve_nanoseconds() {
     for nanos in [1000000000, u32::MAX] {
         assert_eq!(Value::time(0, nanos).unwrap_err().kind, ErrorKind::Argument);
     }
-    let script = Engine::new().compile("def run(input)\ninput\nend").unwrap();
+    let script = Engine::new()
+        .compile("def run(input: int | time) -> int | time\ninput\nend")
+        .unwrap();
     let time = script
         .call(
             "run",
@@ -60,12 +64,12 @@ fn utc_host_values_remain_inline_and_preserve_nanoseconds() {
 fn fractional_offsets_match_independent_rational_expectations() {
     let script = Engine::new()
         .compile(
-            "def microseconds(f)\nTime.at(0,f,:usec,in:\"UTC\")\nend\n\
-         def milliseconds(f)\nTime.at(0,f,:millisecond,in:\"UTC\")\nend\n\
-         def nanoseconds(f)\nTime.at(0,f,:nsec,in:\"UTC\")\nend\n\
-         def calendar(f)\nTime.utc(2024,1,1,0,0,0,f)\nend\n\
-         def addition(f)\nTime.at(0,in:\"UTC\")+f\nend\n\
-         def subtraction(f)\nTime.at(0,in:\"UTC\")-f\nend",
+            "def microseconds(f: float) -> time\nTime.at(0, f, :microsecond, in:\"UTC\")\nend\n\
+         def milliseconds(f: float) -> time\nTime.at(0,f,:millisecond,in:\"UTC\")\nend\n\
+         def nanoseconds(f: float) -> time\nTime.at(0, f, :nanosecond, in:\"UTC\")\nend\n\
+         def calendar(f: float) -> time\nTime.utc(2024,1,1,0,0,0,f)\nend\n\
+         def addition(f: float) -> time\nTime.at(0,in:\"UTC\")+f\nend\n\
+         def subtraction(f: float) -> time\nTime.at(0,in:\"UTC\")-f\nend",
         )
         .unwrap();
     let cases: serde_json::Value =
@@ -129,7 +133,7 @@ fn zoned_imports_charge_each_call_and_release_shared_views() {
             original.stats.retained_memory_bytes
         );
         let utc = engine
-            .compile("inspect().getutc")
+            .compile("inspect().as(time).utc")
             .unwrap()
             .run(CallOptions::default())
             .unwrap();
@@ -140,9 +144,9 @@ fn zoned_imports_charge_each_call_and_release_shared_views() {
 
 #[test]
 fn timezone_arithmetic_shares_rules_without_retaining_abandoned_timestamps() {
-    let original = run("Time.new(2024,3,9,12,0,0,\"America/New_York\")").value;
+    let original = run("Time.local(2024, 3, 9, 12, 0, 0, in: \"America/New_York\")").value;
     let script = Engine::new()
-        .compile("def run(t,n)\nn.times {|i|t+=86400};t\nend")
+        .compile("def run(t: time,n: int) -> time\nn.times {|i|t+=86400};t\nend")
         .unwrap();
     let short = script
         .call(
@@ -171,7 +175,7 @@ fn timezone_arithmetic_shares_rules_without_retaining_abandoned_timestamps() {
         long.stats
     );
     let converted = Engine::new()
-        .compile("def run(t)\nt.getlocal(\"+05:30\")\nend")
+        .compile("def run(t: time) -> time\nt.localtime(\"+05:30\")\nend")
         .unwrap()
         .call(
             "run",
@@ -204,7 +208,7 @@ fn timezone_loads_and_retained_arrays_obey_memory_and_step_limits() {
         assert_eq!(error.kind, ErrorKind::Memory, "{source}");
     }
     let script = Engine::new()
-        .compile("def run(zone)\nTime.at(0,in:zone)\nend")
+        .compile("def run(zone: string) -> time\nTime.at(0,in:zone)\nend")
         .unwrap();
     let input = Value::bytes("a".repeat(1048576));
     let error = script
@@ -244,8 +248,6 @@ fn invalid_time_operations_and_cancellation_prevent_later_host_effects() {
         Ok(Value::int(1))
     });
     for source in [
-        "Time.at(0,nil)",
-        "Time.utc(nil)",
         "Time.at(2**63)",
         "Time.at(2**63-1,1000000,in:\"UTC\")",
         "Time.utc(2024,1,1,0,0,0,1000000)",
@@ -253,8 +255,6 @@ fn invalid_time_operations_and_cancellation_prevent_later_host_effects() {
         "Time.at(0,in:\"UTC\")+1e100",
         "Time.at(0,in:\"UTC\").iso8601(101)",
         "Time.utc(2024).round(-1)",
-        "Time.utc(2024).year()",
-        "Time.utc(2024).to_s {effect()}",
         "JSON.stringify(Time.utc(2024))",
     ] {
         assert!(
@@ -267,9 +267,11 @@ fn invalid_time_operations_and_cancellation_prevent_later_host_effects() {
         );
     }
     for (source, kind) in [
-        ("Time.at(0,in:cancel());effect()", ErrorKind::Cancelled),
-        ("Time.utc(exhaust());effect()", ErrorKind::Steps),
-        ("Time.now(ignored:exhaust());effect()", ErrorKind::Steps),
+        (
+            "Time.at(0,in:cancel().as(string));effect()",
+            ErrorKind::Cancelled,
+        ),
+        ("Time.utc(exhaust().as(int));effect()", ErrorKind::Steps),
     ] {
         assert_eq!(
             engine
@@ -282,31 +284,55 @@ fn invalid_time_operations_and_cancellation_prevent_later_host_effects() {
         );
     }
     assert_eq!(effects.load(Ordering::SeqCst), 0);
+    // Arguments of the wrong type, parentheses on an attribute, a block
+    // and an unknown keyword are refused before anything runs.
+    let mut checked = common::static_engine();
+    checked.register("effect", |_, _| panic!("effect ran"));
+    checked.register("exhaust", |_, _| panic!("exhaust ran"));
+    for (source, code) in [
+        ("Time.at(0,nil)", "V0101"),
+        ("Time.utc(nil)", "V0101"),
+        ("Time.utc(2024).year()", "V0412"),
+        ("Time.utc(2024).to_s {effect()}", "V0305"),
+        ("Time.now(ignored:exhaust())", "V0302"),
+    ] {
+        let error = checked
+            .compile(&format!("{source};effect()"))
+            .err()
+            .unwrap();
+        assert_eq!(common::codes(&error), [code], "{source}");
+    }
 }
 
 #[test]
-fn ignored_blocks_and_clock_aliases_follow_reference_call_contracts() {
+fn blocks_and_clock_aliases_follow_the_call_contracts() {
     let mut engine = Engine::new();
     engine.register("unexpected", |_, _| panic!("ignored block executed"));
-    for source in [
-        "Time.utc(2024) {unexpected()}",
-        "f=Time::gm;f(2024) {unexpected()}",
-        "Time.at(0,in:\"UTC\").round {unexpected()}",
-        "Time.utc(2024).iso8601 {unexpected()}",
-        "Time.utc(2024).eql?(Time.utc(2024)) {unexpected()}",
+    // A block on a time builtin, a removed alias and a local called as a
+    // function are refused before anything runs.
+    let mut checked = common::static_engine();
+    checked.register("unexpected", |_, _| panic!("ignored block executed"));
+    for (source, code) in [
+        ("Time.utc(2024) {unexpected()}", "V0305"),
+        ("f=Time::gm;f(2024) {unexpected()}", "V0310"),
+        ("Time.at(0,in:\"UTC\").round {unexpected()}", "V0305"),
+        ("Time.utc(2024).iso8601 {unexpected()}", "V0305"),
+        (
+            "Time.utc(2024).eql?(Time.utc(2024)) {unexpected()}",
+            "V0403",
+        ),
+        ("Time.now()", "V0412"),
+        ("f=Time::now;f()", "V0201"),
+        ("now", "V0401"),
+        ("now()", "V0401"),
     ] {
-        engine
-            .compile(source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap();
+        let error = checked.compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), [code], "{source}");
     }
     for source in [
         "Time.now",
-        "Time.now()",
-        "f=Time::now;f()",
         "f=Time::now;f",
-        "def call(f)\nf\nend\ncall(Time::now)",
+        "def call(f: any) -> any\nf\nend\ncall(Time::now)",
     ] {
         let before = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -324,25 +350,20 @@ fn ignored_blocks_and_clock_aliases_follow_reference_call_contracts() {
         assert!(before <= timestamp && timestamp <= after);
         assert_eq!(result.stats.retained_memory_bytes, 0);
     }
-    for source in ["now", "now()", "now(ignored:1) {unexpected()}"] {
-        let result = engine
-            .compile(source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap();
-        let text = result.value.as_bytes().unwrap();
-        assert_eq!(text.len(), 20);
-        assert_eq!(text[19], b'Z');
-    }
-    assert_eq!(
-        run("now.replace(\"x\")").value.as_bytes(),
-        Some(b"x".as_slice())
-    );
-    assert_eq!(run("now.replace(\"x\");now.size").value.as_int(), Some(20));
+    // The static checker does not report the removed `now` when it is
+    // called with a keyword or a block yet, so that call still runs.
+    let result = engine
+        .compile("now(ignored:1) {unexpected()}")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap();
+    let text = result.value.as_bytes().unwrap();
+    assert_eq!(text.len(), 20);
+    assert_eq!(text[19], b'Z');
     for source in [
         "f=Time::now;f.utc?",
         "now=Time::now;now.utc?",
-        "def call(f)\nf.utc?\nend\ncall(Time::now)",
+        "def call(f: any) -> any\nf.as(time).utc?\nend\ncall(Time::now)",
     ] {
         assert!(
             engine
