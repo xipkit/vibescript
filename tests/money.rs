@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -45,7 +47,7 @@ fn host_imports_and_arithmetic_do_not_retain_money_storage_or_mutate_inputs() {
     let mut engine = Engine::new();
     engine.register("fee", |_, _| Value::money(25, "USD"));
     let script = engine
-        .compile("def run(input)\ncopy=input;input+=fee();input\nend")
+        .compile("def run(input: money) -> money\ncopy=input;input+=fee().as(money);input\nend")
         .unwrap();
     let result = script
         .call("run", std::slice::from_ref(&input), CallOptions::default())
@@ -53,7 +55,9 @@ fn host_imports_and_arithmetic_do_not_retain_money_storage_or_mutate_inputs() {
     assert_eq!(input.as_money(), Some((100, "USD")));
     assert_eq!(result.value.as_money(), Some((125, "USD")));
     assert_eq!(result.stats.retained_memory_bytes, 0);
-    let identity = engine.compile("def run(input)\ninput\nend").unwrap();
+    let identity = engine
+        .compile("def run(input: int | money) -> int | money\ninput\nend")
+        .unwrap();
     let options = CallOptions::default();
     let money = identity.call("run", &[input], options.clone()).unwrap();
     let integer = identity.call("run", &[Value::int(100)], options).unwrap();
@@ -86,15 +90,18 @@ fn money_arrays_and_formatted_strings_keep_their_storage_charged() {
     assert_eq!(error.kind, ErrorKind::Memory);
     for (member, expected) in [
         ("currency", "USD"),
-        ("amount", "12.34 USD"),
-        ("format", "12.34 USD"),
         ("to_s", "12.34 USD"),
-        ("string", "12.34 USD"),
         ("inspect", "12.34 USD"),
     ] {
         let result = run(&format!("money_cents(1234,\"USD\").{member}"));
         assert_eq!(result.value.as_bytes(), Some(expected.as_bytes()));
         assert!(result.stats.retained_memory_bytes >= expected.len());
+    }
+    // amount, format and string are to_s now.
+    for member in ["amount", "format", "string"] {
+        let source = format!("money_cents(1234,\"USD\").{member}");
+        let error = common::static_engine().compile(&source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0401"], "{member}");
     }
     assert_eq!(
         stringify_json(&Value::money(100, "USD").unwrap(), CallOptions::default())
@@ -107,7 +114,7 @@ fn money_arrays_and_formatted_strings_keep_their_storage_charged() {
 #[test]
 fn long_money_literals_bound_work_and_release_imported_text() {
     let script = Engine::new()
-        .compile("def run(input)\nmoney(input)\nend")
+        .compile("def run(input: string) -> money\nmoney(input)\nend")
         .unwrap();
     for text in [
         format!("{}1.23 USD", "0".repeat(131072)),
@@ -160,8 +167,6 @@ fn invalid_money_operations_stop_before_later_host_effects() {
         "money(\"92233720368547758.08 USD\")",
         "money(\"-92233720368547758.09 USD\")",
         "money(\"1.234 USD\")",
-        "money_cents(1e309,\"USD\")",
-        "money_cents(0.0/0.0,\"USD\")",
         "money_cents(2**63,\"USD\")",
         "money_cents(2**63-1,\"USD\")+money_cents(1,\"USD\")",
         "money_cents(-2**63,\"USD\")-money_cents(1,\"USD\")",
@@ -169,12 +174,10 @@ fn invalid_money_operations_stop_before_later_host_effects() {
         "money_cents(-2**63,\"USD\")/-1",
         "money_cents(1,\"USD\")/0",
         "money_cents(0,\"USD\")*(2**100)",
-        "money_cents(1,\"USD\")*2.0",
         "money(\"1 USD\")+money(\"1 EUR\")",
         "money(\"1 USD\")<money(\"1 EUR\")",
-        "money(\"1 USD\").cents()",
-        "money(\"1 USD\").to_s {effect()}",
-        "money(\"1 USD\").inspect(x:1)",
+        // The checker does not report the removed nil? when it has a block
+        // yet, so the runtime refuses the block.
         "money(\"1 USD\").nil? {effect()}",
         "JSON.stringify(money(\"1 USD\"))",
     ] {
@@ -182,38 +185,52 @@ fn invalid_money_operations_stop_before_later_host_effects() {
         assert!(script.run(CallOptions::default()).is_err(), "{expression}");
         assert_eq!(effects.load(Ordering::SeqCst), 0, "{expression}");
     }
+    // Float cents, float factors, attribute parentheses, blocks and unknown
+    // keywords are refused before anything runs.
+    let mut checked = common::static_engine();
+    checked.register("effect", |_, _| panic!("effect ran"));
+    for (expression, code) in [
+        ("money_cents(1e309,\"USD\")", "V0101"),
+        ("money_cents(0.0/0.0,\"USD\")", "V0101"),
+        ("money_cents(1,\"USD\")*2.0", "V0108"),
+        ("money(\"1 USD\").cents()", "V0412"),
+        ("money(\"1 USD\").to_s {effect()}", "V0305"),
+        ("money(\"1 USD\").inspect(x:1)", "V0302"),
+    ] {
+        let error = checked
+            .compile(&format!("{expression};effect()"))
+            .err()
+            .unwrap();
+        assert_eq!(common::codes(&error), [code], "{expression}");
+    }
 }
 
 #[test]
-fn constructors_and_format_evaluate_arguments_without_invoking_ignored_blocks() {
-    let arguments = Arc::new(AtomicUsize::new(0));
-    let blocks = Arc::new(AtomicUsize::new(0));
-    let mut engine = Engine::new();
-    let observed = arguments.clone();
-    engine.register("argument", move |_, _| {
-        observed.fetch_add(1, Ordering::SeqCst);
-        Ok(Value::int(7))
-    });
-    let observed = blocks.clone();
-    engine.register("effect", move |_, _| {
-        observed.fetch_add(1, Ordering::SeqCst);
-        Ok(Value::nil())
-    });
-    for source in [
-        "money(\"1 USD\",x:argument()) {effect()}",
-        "money_cents(100,\"USD\",x:argument()) {effect()}",
-        "money(\"1 USD\").format(argument()) {effect()}",
-        "money(\"1 USD\").format(x:argument()) {effect()}",
+fn constructors_and_formatting_refuse_extra_arguments_and_blocks() {
+    let mut engine = common::static_engine();
+    engine.register("argument", |_, _| panic!("argument ran"));
+    engine.register("effect", |_, _| panic!("effect ran"));
+    for (source, expected) in [
+        (
+            "money(\"1 USD\",x:argument()) {effect()}",
+            &["V0302", "V0305"],
+        ),
+        (
+            "money_cents(100,\"USD\",x:argument()) {effect()}",
+            &["V0302", "V0305"],
+        ),
+        (
+            "money(\"1 USD\").to_s(argument()) {effect()}",
+            &["V0301", "V0305"],
+        ),
+        (
+            "money(\"1 USD\").to_s(x:argument()) {effect()}",
+            &["V0302", "V0305"],
+        ),
     ] {
-        let result = engine
-            .compile(source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap();
-        assert_eq!(result.value.to_string(), "1.00 USD");
+        let error = engine.compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), expected, "{source}");
     }
-    assert_eq!(arguments.load(Ordering::SeqCst), 4);
-    assert_eq!(blocks.load(Ordering::SeqCst), 0);
 }
 
 #[test]
@@ -228,11 +245,8 @@ fn cancellation_and_ignored_quota_errors_prevent_money_results() {
         Ok(Value::int(1))
     });
     for (source, expected) in [
-        ("money(cancel())", ErrorKind::Cancelled),
-        ("money(\"1 USD\").format(cancel())", ErrorKind::Cancelled),
-        ("money_cents(ignore(),\"USD\")", ErrorKind::Steps),
-        ("money(\"1 USD\").format(ignore())", ErrorKind::Steps),
-        ("money(\"1 USD\",x:ignore())", ErrorKind::Steps),
+        ("money(cancel().as(string))", ErrorKind::Cancelled),
+        ("money_cents(ignore().as(int),\"USD\")", ErrorKind::Steps),
     ] {
         let error = engine
             .compile(source)
