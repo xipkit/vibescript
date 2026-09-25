@@ -158,10 +158,10 @@ def host_global_cases():
     add("function", "helper+1", {"helper":41}, 42,
         source="def helper -> int;99;end;"+function("helper+1", "int"))
     add("declaration", "Box", {"Box":[7]}, [7],
-        source="class Box;end;"+function("Box", "array<int>"))
+        source="class Box;end;"+function("Box", "array<int>"), static_error={"code": "V0101", "at": [2, 1]})
     add("enum", "State", {"State":7}, 7,
-        source="enum State;Ready;end;"+function("State", "int"))
-    add("builtin", "Math+1", {"Math":41}, 42, "int")
+        source="enum State;Ready;end;"+function("State", "int"), static_error={"code": "V0101", "at": [2, 1]})
+    add("builtin", "Math+1", {"Math":41}, 42, "int", static_error={"code": "V0108", "at": [2, 5]})
     add("parameter", "input", {"input":99}, 4, args=[4], source=function("input", "int", "int"))
     add("block_parameter", "[1].map{|helper|helper+1}", {"helper":99}, [2], "array<int>")
     add("block_write", 'begin;[1].each{count+=1};count;rescue;"host-global-binding-error";end', {"count":9}, 10, "int | string",

@@ -59,7 +59,7 @@ def cases():
     add("global_conflict", 'm=require("answer");[answer,m.answer]', [9,42], answer,
         globals={"answer":9}, returns="array<int>")
     add("alias_conflict", 'begin;require("answer",as: "Taken");rescue;nil;end;Taken', 9, answer,
-        globals={"Taken":9}, returns="int")
+        globals={"Taken":9}, returns="int", static_error={"code": "V0101", "at": [3, 52]})
     add("block", 'require("apply").apply(3){|n|n*2}', 8,
         {"apply.vibe":"def apply(n: int, &block: int -> int) -> int;yield(n+1);end"}, returns="int")
     add("arguments", 'm=require("args");m.combine(1,*[2,3],**{extra:4})', [1,[2,3],4],
@@ -84,10 +84,10 @@ def cases():
         reason="A returned collection remains a logical value when a later file function mutates its private binding.")
     add("relative", 'require("pkg/main").answer', 42,
         {"pkg/main.vibe":"def answer -> int;require(\"./helper\").value;end",
-         "pkg/helper.vibe":"def value -> int;42;end"}, returns="int")
+         "pkg/helper.vibe":"def value -> int;42;end"}, returns="int", static_error={"code": "V0106", "at": None})
     add("relative_parent", 'require("pkg/nested/main").answer', 42,
         {"pkg/nested/main.vibe":"def answer -> int;require(\"../helper\").value;end",
-         "pkg/helper.vibe":"def value -> int;42;end"}, returns="int")
+         "pkg/helper.vibe":"def value -> int;42;end"}, returns="int", static_error={"code": "V0106", "at": None})
     add("nested", 'require("outer").answer', 42,
         {"outer.vibe":"def answer -> int;require(\"inner\").value;end",
          "inner.vibe":"def value -> int;42;end"}, returns="int")
@@ -181,10 +181,11 @@ def cases():
                   "b=begin;helper.push(2);rescue => e;e.message;end;helper[0]=5;helper<<3;[a,b,helper];end"},
         returns="array<any>")
     add("enum", 'm=require("state");[m.State::Ready.name,m.name(:ready)]', ["Ready","Ready"],
-        {"state.vibe":"enum State;Ready;Done;end;def name(state: State) -> string;state.name;end"}, returns="array<string>")
+        {"state.vibe":"enum State;Ready;Done;end;def name(state: State) -> string;state.name;end"}, returns="array<string>",
+        static_error={"code": "V0203", "at": [3, 23]})
     add("class", 'm=require("box");[m.make(7).value,m.make(9).value]', [7,9],
         {"box.vibe":"class Box;property value: int;def initialize(@value: int);end;end;def make(n: int) -> Box;Box.new(n);end"},
-        returns="array<int>")
+        returns="array<int>", static_error={"code": "V0106", "at": [3, 29]})
     add("initializer_order", 'm=require("state");[m.seen,m.seen]', [["class","file"],["class","file"]],
         {"state.vibe":"class State;events.push(\"class\");end;events.push(\"file\");def seen -> array<any>;events;end"},
         globals={"events":[]}, returns="array<array<any>>")

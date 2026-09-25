@@ -22,8 +22,8 @@ def cases():
         ("direct", "blocks.once(3)", None), ("scoped", "blocks::once(3)", None),
         ("indexed", 'blocks["once"](3)', {"code": "V0112", "at": [3, 1]}),
         ("computed", '(blocks["once"])(3)', {"code": "V0112", "at": [3, 2]}),
-        ("symbolic", "blocks.send(:once,3)", {"code": "V0405", "at": [3, 8]}),
-        ("public", "blocks.public_send(:once,3)", {"code": "V0405", "at": [3, 8]}),
+        ("symbolic", "blocks.send(:once,3)", None),
+        ("public", "blocks.public_send(:once,3)", None),
         ("copy", "blocks.dup.once(3)", None), ("safe", "blocks&.once(3)", None),
         ("nested", "[blocks].fetch(0).once(3)", None),
     ]:

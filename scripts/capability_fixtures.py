@@ -17,20 +17,21 @@ def cases():
                     result[-1]["static_error"] = static_error
 
     # The probe's methods have no signatures, so they take and return `any`. Indexing a
-    # capability by name, `send`, `respond_to?` and `clone` are removed (ADR-008) and
-    # stay as static rejections.
+    # capability by name is a static rejection. `send`, `public_send`, `respond_to?` and
+    # `clone` on a capability compile, as capability methods of those names would, and
+    # dispatch at runtime.
     for name, body, static_error in [
         ("direct", "host.echo(1, 2)", None),
         ("bare", "host.echo 1, 2", None),
         ("scoped", "host::echo(1, 2)", None),
         ("indexed", 'host["echo"](1, 2)', {"code": "V0112", "at": [3, 1]}),
         ("computed", '(host["echo"])(1, 2)', {"code": "V0112", "at": [3, 2]}),
-        ("symbolic", "host.send(:echo, 1, 2)", {"code": "V0405", "at": [3, 6]}),
-        ("public", "host.public_send(:echo, 1, 2)", {"code": "V0405", "at": [3, 6]}),
+        ("symbolic", "host.send(:echo, 1, 2)", None),
+        ("public", "host.public_send(:echo, 1, 2)", None),
         ("alias", "other=host;other.echo(1, 2)", None),
         ("array", "[host].fetch(0).echo(1, 2)", None),
         ("copy", "host.dup.echo(1, 2)", None),
-        ("clone", "host.clone.echo(1, 2)", {"code": "V0401", "at": [3, 6]}),
+        ("clone", "host.clone.echo(1, 2)", None),
         ("iterator_name", "host.map(1, 2)", None),
         ("safe", "host&.echo(1, 2)", None),
     ]:
@@ -39,14 +40,13 @@ def cases():
         ("keywords", "host.echo(1, tag: 2)", None),
         ("splats", "host.echo(*[1], **{tag: 2})", None),
         ("keyword_override", "host.echo(1, tag: 8, **{tag: 2})", None),
-        ("keyword_symbolic", "host.public_send(:echo, 1, tag: 2)", {"code": "V0405", "at": [3, 6]}),
+        ("keyword_symbolic", "host.public_send(:echo, 1, tag: 2)", None),
     ]:
         add(name, body, [[1], {"tag": 2}], static_error=static_error)
     add("counter", "[host.next(), host.next()]", [1, 2], returns="array<any>")
     add("argument_order", "host.echo(host.next(), host.next(), tag: host.next())", [[1, 2], {"tag": 3}])
     add("checked", "[host.checked(7), host.next()]", [7, 2], returns="array<any>")
-    add("checked_symbolic", "[host.send(:checked, 7), host.next()]", [7, 2], returns="array<any>",
-        static_error={"code": "V0405", "at": [3, 7]})
+    add("checked_symbolic", "[host.send(:checked, 7), host.next()]", [7, 2], returns="array<any>")
     # A factory's result is `any`, and calling a member on `any` is a type error.
     add("factory", "[host.factory().checked(7), host.next()]", [7, 2], returns="array<any>",
         static_error={"code": "V0106", "at": [3, 17]})
@@ -67,7 +67,7 @@ def cases():
     add("missing_skips_args", "begin;fetch;rescue;host.next();end", 1,
         prefix="def fetch -> any;host.missing(host.next());end", static_error={"code": "V0203", "at": [1, 23]})
     add("responds", "[host.respond_to?(:echo),host.respond_to?(:missing),host.respond_to?(:items)]", [True, False, False],
-        returns="array<bool>", static_error={"code": "V0405", "at": [3, 7]})
+        returns="array<bool>")
     add("file", 'require("send").deliver', [[7], {}], allow_require=True,
         files={"send.vibe": "def deliver -> any;host.echo(7);end"})
     for name, read, static_error in [("indexed", 'host["checked"]', {"code": "V0112", "at": [3, 14]}),
