@@ -92,7 +92,7 @@ impl<'a> Spans<'a> {
 
     /// The span of an expression, from its first token to its last.
     pub fn expr(&self, expr: &Expr) -> Span {
-        let start = expr.offset as usize;
+        let start = first_offset(expr);
         let last = self.last(expr);
         Span::new(start, self.close(start, last))
     }
@@ -205,6 +205,31 @@ impl<'a> Spans<'a> {
     pub fn operator(&self, offset: usize) -> Span {
         self.token(offset)
     }
+}
+
+/// The start of an expression's first token. Binary operators, ranges,
+/// indexes and ternaries record their operator's position, so their span
+/// starts at their leftmost operand.
+pub(crate) fn first_offset(expr: &Expr) -> usize {
+    let mut first = expr.offset as usize;
+    let mut current = expr;
+    loop {
+        current = match &current.node {
+            Node::Binary(_, left, _) | Node::Range(Some(left), _, _) => left,
+            Node::Index(receiver, _)
+            | Node::Member(receiver, _)
+            | Node::SafeMember(receiver, _)
+            | Node::Method(receiver, _, _, _)
+            | Node::SafeMethod(receiver, _, _, _)
+            | Node::Scope(receiver, _, _)
+            | Node::BlockCall(receiver, _)
+            | Node::ComputedCall(receiver, _) => receiver,
+            Node::Conditional(branches, _) if !branches.is_empty() => &branches[0].0,
+            _ => break,
+        };
+        first = first.min(current.offset as usize);
+    }
+    first
 }
 
 /// The start of the last token-bearing child of an expression.

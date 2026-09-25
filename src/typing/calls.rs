@@ -244,7 +244,7 @@ impl<'a> Checker<'a> {
             return Ty::ERROR;
         }
         if ty == Ty::ANY {
-            self.operand(receiver, ty);
+            self.usable(receiver, ty, "calling it");
             return Ty::ERROR;
         }
         let found = self.types.display(ty);

@@ -196,28 +196,35 @@ fn static_check(
     label: &str,
     snippet: bool,
 ) -> Result<(), String> {
-    let error = match engine.compile(text) {
-        Ok(_) => {
-            println!("No issues found");
-            return Ok(());
+    let diagnostics = match engine.compile(text) {
+        // A program that compiles may still have warnings.
+        Ok(_) => engine
+            .type_check(text)
+            .map(|checked| checked.diagnostics)
+            .unwrap_or_default(),
+        Err(error) if error.diagnostics().is_empty() => {
+            return Err(format!(
+                "compile failed: {}",
+                render::error(&error, snippet.then_some(text))
+            ));
         }
-        Err(error) => error,
+        Err(error) => error.diagnostics().to_vec(),
     };
-    if error.diagnostics().is_empty() {
-        return Err(format!(
-            "compile failed: {}",
-            render::error(&error, snippet.then_some(text))
-        ));
+    if diagnostics.is_empty() {
+        println!("No issues found");
+        return Ok(());
     }
     let mut out = io::stdout().lock();
-    for diagnostic in error.diagnostics() {
+    for diagnostic in &diagnostics {
         write!(out, "{}", render::diagnostic(diagnostic, text, label))
             .map_err(|error| format!("write check output: {}", compat::reason(&error)))?;
     }
     out.flush()
         .map_err(|error| format!("write check output: {}", compat::reason(&error)))?;
-    let errors = error.diagnostics().iter().filter(|d| d.is_error()).count();
-    Err(format!("check failed with {errors} error(s)"))
+    match diagnostics.iter().filter(|d| d.is_error()).count() {
+        0 => Ok(()),
+        errors => Err(format!("check failed with {errors} error(s)")),
+    }
 }
 
 /// `line:column: message (function)`, without the function when it is empty.

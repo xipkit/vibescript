@@ -559,6 +559,12 @@ impl<'a> Checker<'a> {
 
     /// Checks that an operand is neither `any` nor possibly `nil`.
     pub(super) fn operand(&mut self, expr: &'a Expr, ty: Ty) -> bool {
+        self.usable(expr, ty, "using an operator on it")
+    }
+
+    /// Checks that a value is neither `any` nor possibly `nil` before
+    /// `doing` something with it, such as "indexing it".
+    pub(super) fn usable(&mut self, expr: &'a Expr, ty: Ty, doing: &str) -> bool {
         if ty == Ty::ERROR || ty == Ty::NEVER {
             return false;
         }
@@ -567,7 +573,9 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::ANY_USE,
                 span,
-                "this value has type any; narrow it with `is_type?`, `.as(T)` or `JSON.parse_as` before using an operator on it",
+                format!(
+                    "this value has type any; narrow it with `is_type?`, `.as(T)` or `JSON.parse_as` before {doing}"
+                ),
             ));
             return false;
         }
@@ -578,9 +586,7 @@ impl<'a> Checker<'a> {
             let mut diagnostic = Diagnostic::error(
                 Code::OPTIONAL_USE,
                 span,
-                format!(
-                    "this value may be nil ({found}); test it with `!= nil` before using an operator on it"
-                ),
+                format!("this value may be nil ({found}); test it with `!= nil` before {doing}"),
             );
             if let Some(fix) = self.fetch_fix(expr, ty, without) {
                 diagnostic = diagnostic.with_fix(fix);
@@ -907,7 +913,7 @@ impl<'a> Checker<'a> {
             }
             return ty;
         }
-        if !self.operand(receiver, ty) {
+        if !self.usable(receiver, ty, "indexing it") {
             for selector in selectors {
                 self.expr(selector, None);
             }
@@ -1126,7 +1132,7 @@ impl<'a> Checker<'a> {
                 value_ty
             };
         }
-        if !self.operand(receiver, ty) {
+        if !self.usable(receiver, ty, "indexing it") {
             return if evaluate {
                 self.expr(value, None)
             } else {
