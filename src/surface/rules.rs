@@ -510,7 +510,11 @@ pub trait Rules<'a>: Hooks<'a> {
                 && let Some(literal) = string_literal(name)
             {
                 let removed = self.text(arg.value.span);
-                let advice = format!("name the module with the string `{literal}`");
+                let what = match &arg.kind {
+                    ArgKind::Keyword(name) if name == "as" => "alias",
+                    _ => "module",
+                };
+                let advice = format!("name the {what} with the string `{literal}`");
                 let previous = self.enter(Rule::Require, arg.value.span, removed, advice);
                 self.edits.text(arg.value.span, literal);
                 self.leave(previous);

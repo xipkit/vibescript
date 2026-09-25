@@ -115,7 +115,13 @@ fn diagnostics(source: &str, tree: &syntax::Tree, calls: &CallTypes) -> Vec<Diag
             })
             .filter(|edit| edit.span.start < edit.span.end || !edit.replacement.is_empty())
             .collect();
-        let message = format!("`{}` was removed; {}", rewrite.removed, rewrite.advice);
+        let message = match rewrite.rule {
+            Rule::Require => format!(
+                "`require` names modules and aliases with string literals, not `{}`; {}",
+                rewrite.removed, rewrite.advice
+            ),
+            _ => format!("`{}` was removed; {}", rewrite.removed, rewrite.advice),
+        };
         let mut diagnostic = Diagnostic::error(code, span(rewrite.span), message);
         let fix = Fix::edits(rewrite.advice.clone(), edits);
         if !fix.edits.is_empty() && fix.apply(source).is_some() {

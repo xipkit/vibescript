@@ -83,7 +83,7 @@ pub enum Rule {
     EmptyParentheses,
     /// A type name in another case than lowercase, or `object`.
     TypeName,
-    /// A symbol naming a required module, which the static checker reports.
+    /// A symbol naming a required module or its alias.
     Require,
     /// A keyword parameter declared as `name:`, `name: default` or
     /// `name: T:`, rather than after a bare `*`.
@@ -110,9 +110,9 @@ impl Rule {
             Self::HashNew => Code::HASH_NEW,
             Self::EmptyParentheses => Code::EMPTY_PARENTHESES,
             Self::TypeName => Code::TYPE_NAME,
+            Self::Require => Code::DYNAMIC_REQUIRE,
             Self::KeywordParameter => Code::KEYWORD_PARAMETER,
             Self::FieldAccess => Code::FIELD_ACCESS,
-            Self::Require => return None,
         })
     }
 }

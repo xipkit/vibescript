@@ -541,6 +541,40 @@ fn hash_fields_are_indexed_not_dotted() {
 }
 
 #[test]
+fn required_symbols_become_strings() {
+    round_trip(
+        "helpers = require(:helpers)\n",
+        Code::DYNAMIC_REQUIRE,
+        ":helpers",
+        "helpers = require(\"helpers\")\n",
+    );
+    round_trip(
+        "helpers = require(\"reports/format\", as: :fmt)\n",
+        Code::DYNAMIC_REQUIRE,
+        ":fmt",
+        "helpers = require(\"reports/format\", as: \"fmt\")\n",
+    );
+    let found = with_code("helpers = require(:helpers)\n", Code::DYNAMIC_REQUIRE);
+    assert_eq!(
+        found[0].message,
+        "`require` names modules and aliases with string literals, not `:helpers`; name the module with the string `\"helpers\"`"
+    );
+    let checked = Engine::new()
+        .type_check("helpers = require(:helpers)\n")
+        .unwrap();
+    let required: Vec<_> = checked
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == Code::DYNAMIC_REQUIRE)
+        .collect();
+    assert_eq!(required.len(), 1, "{:?}", checked.diagnostics);
+    assert!(required[0].applicable_fix().is_some());
+    // A name known only at runtime has no rewrite; the checker reports it.
+    assert!(with_code("name = \"a\"\nrequire(name)\n", Code::DYNAMIC_REQUIRE).is_empty());
+    assert!(with_code("require(\"helpers\")\n", Code::DYNAMIC_REQUIRE).is_empty());
+}
+
+#[test]
 fn every_surface_code_is_registered_with_a_test() {
     let surface: Vec<Code> = crate::diagnostic::codes()
         .iter()
