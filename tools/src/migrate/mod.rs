@@ -163,7 +163,8 @@ pub fn migrate(source: &str, observations: &Observations, options: &Options) -> 
 /// use vibescript_tools::migrate::{Observations, Options, migrate, report_json};
 /// let migration = migrate("x = [1].size()\n", &Observations::default(), &Options::default());
 /// let report = report_json(&[("x.vibe", &migration)]);
-/// assert!(report.starts_with("[\n  {\n    \"file\": \"x.vibe\""));
+/// assert!(report.contains("\"file\": \"x.vibe\""));
+/// assert!(report.contains("\"changed\": true"));
 /// ```
 pub fn report_json(files: &[(&str, &Migration)]) -> String {
     let reports: Vec<serde_json::Value> = files
