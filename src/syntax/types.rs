@@ -98,8 +98,17 @@ impl Parsing<'_> {
 }
 
 impl Parser<'_> {
-    pub(super) fn argument_type_literal(&mut self) -> Result<Option<Expr>> {
+    /// Parses an argument that is a type literal, such as `int` or
+    /// `array<string>`, and where the call takes `types`, a tuple type.
+    pub(super) fn argument_type_literal(&mut self, types: bool) -> Result<Option<Expr>> {
         self.work.charge(1)?;
+        if self.token() == &Token::P('[') {
+            return if types {
+                self.argument_tuple_literal()
+            } else {
+                Ok(None)
+            };
+        }
         if !matches!(self.token(), Token::Word(_)) {
             return Ok(None);
         }
@@ -124,7 +133,27 @@ impl Parser<'_> {
             return Ok(None);
         }
         let mut names = Buffer::new();
-        let fallback = if end == start + 1 {
+        // A local named like an ADR-007 type, such as a rescued `error`, is
+        // the value; the runtime's guard does not see every such binding. In
+        // a call that takes types, a builtin function named like a builtin
+        // type, such as `money`, is the type, since a function is not a value.
+        let (local, function) = match &self.tokens[start].token {
+            Token::Word(name) if end == start + 1 => {
+                let newer = matches!(name.as_str(), "regex" | "match_data" | "error")
+                    || crate::signatures::alias_type(name).is_some();
+                (
+                    newer && self.locals.contains(self.work, name.as_str())?,
+                    types
+                        && name.bytes().all(|byte| !byte.is_ascii_uppercase())
+                        && crate::builtin::Global::parse(name).is_some(),
+                )
+            }
+            _ => (false, false),
+        };
+        if local {
+            return Ok(None);
+        }
+        let fallback = if end == start + 1 && !function {
             if let Token::Word(name) = &self.tokens[start].token {
                 let name = Name::new(self.work, name)?;
                 names.push(self.work, name.clone())?;
@@ -141,6 +170,74 @@ impl Parser<'_> {
         self.pos = end;
         Ok(Some(self.make_at(
             Node::Shape(Boxed::new(self.work, ty)?, fallback, names),
+            1,
+            offset,
+        )?))
+    }
+
+    /// Reads the one `nil` argument of a cast, `value.as(nil)`, as the nil
+    /// type, which every other argument position reads as the value.
+    pub(super) fn nil_type_argument(&mut self, args: &mut Buffer<super::Argument>) -> Result<()> {
+        let [arg] = &mut args[..] else {
+            return Ok(());
+        };
+        let nil = matches!(arg.kind, super::ArgumentKind::Positional)
+            && matches!(&arg.value.node, Node::Literal(value) if matches!(value.0, crate::value::Kind::Nil));
+        if !nil {
+            return Ok(());
+        }
+        let ty = Type {
+            name: Name::new(self.work, "nil")?,
+            kind: TypeKind::Scalar(Scalar::Nil),
+            nullable: false,
+        };
+        let offset = arg.value.offset;
+        arg.value = self.make_at(
+            Node::Shape(Boxed::new(self.work, ty)?, None, Buffer::new()),
+            1,
+            offset,
+        )?;
+        Ok(())
+    }
+
+    /// A tuple type as an argument of a call that takes types, `[int,
+    /// string]`, where every element is a builtin type or an alias and none
+    /// names a local; an array of values otherwise, since a class or enum
+    /// name is also a value.
+    fn argument_tuple_literal(&mut self) -> Result<Option<Expr>> {
+        if !self.tuple_start(self.significant(self.pos + 1)) {
+            return Ok(None);
+        }
+        let start = self.pos;
+        let offset = self.tokens[start].offset as u32;
+        let structural = self.type_structural_error;
+        let candidate = self.type_expr(1, false);
+        self.work.checkpoint()?;
+        let end = self.pos;
+        self.line_breaks()?;
+        let boundary = matches!(self.token(), Token::P(',' | ')'));
+        self.pos = start;
+        self.type_structural_error = structural;
+        let Ok(ty) = candidate else {
+            return Ok(None);
+        };
+        self.work.ty(&ty)?;
+        let TypeKind::Tuple(elements) = &ty.kind else {
+            return Ok(None);
+        };
+        if !boundary || !elements.iter().all(|element| self.literal_leaves(element)) {
+            return Ok(None);
+        }
+        let mut names = Buffer::new();
+        literal_names(&ty, &mut names, self.work)?;
+        for name in &names {
+            if self.locals.contains(self.work, name.as_str())? {
+                return Ok(None);
+            }
+        }
+        self.pos = end;
+        Ok(Some(self.make_at(
+            Node::Shape(Boxed::new(self.work, ty)?, None, Buffer::new()),
             1,
             offset,
         )?))
@@ -604,15 +701,16 @@ impl Parser<'_> {
 
 impl Parser<'_> {
     /// Whether every leaf of a type an expression could also spell reads as
-    /// a type literal: a builtin type name before ADR-007, or a type alias.
-    /// The newer builtin names stay expressions there, since they commonly
-    /// name locals such as a rescued `error`.
+    /// a type literal: a builtin type name, or a type alias. A single name
+    /// that a local shadows, such as a rescued `error`, reads as the local
+    /// through the literal's fallback.
     fn literal_leaves(&self, ty: &Type) -> bool {
         match &ty.kind {
-            TypeKind::Named => self.is_alias(&ty.name),
-            TypeKind::Scalar(Scalar::Regex | Scalar::MatchData | Scalar::Error)
-            | TypeKind::Literal(_)
-            | TypeKind::Tuple(_) => false,
+            TypeKind::Named => {
+                self.is_alias(&ty.name) || crate::signatures::alias_type(&ty.name).is_some()
+            }
+            TypeKind::Tuple(_) => false,
+            TypeKind::Literal(Some(described)) => self.literal_leaves(described),
             TypeKind::Array(Some(element)) => self.literal_leaves(element),
             TypeKind::Hash(Some(pair)) => {
                 self.literal_leaves(&pair.0) && self.literal_leaves(&pair.1)
@@ -635,7 +733,7 @@ fn literal_names(
                 literal_names(&field.ty, names, work)?;
             }
         }
-        TypeKind::Union(options) => {
+        TypeKind::Union(options) | TypeKind::Tuple(options) => {
             for option in options {
                 literal_names(option, names, work)?;
             }
@@ -644,7 +742,9 @@ fn literal_names(
         _ => {
             names.push(work, ty.name.clone())?;
             match &ty.kind {
-                TypeKind::Array(Some(element)) => literal_names(element, names, work)?,
+                TypeKind::Array(Some(element)) | TypeKind::Literal(Some(element)) => {
+                    literal_names(element, names, work)?
+                }
                 TypeKind::Hash(Some(pair)) => {
                     literal_names(&pair.0, names, work)?;
                     literal_names(&pair.1, names, work)?;

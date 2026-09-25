@@ -664,7 +664,15 @@ impl<'a> Checker<'a> {
                 Some(left_expr) => self.operand(left_expr, left),
                 None => left != Ty::ANY,
             };
-            let right_ok = if op == "%" && left == Ty::STRING {
+            // `<<` stores its operand, which an `any` or optional element
+            // type accepts as it is.
+            let stored = op == "<<"
+                && matches!(self.types.kind(left), Kind::Array(_))
+                && self
+                    .types
+                    .element(left)
+                    .is_some_and(|element| self.types.assignable(right, element));
+            let right_ok = if (op == "%" && left == Ty::STRING) || stored {
                 true
             } else {
                 self.operand(right_expr, right)

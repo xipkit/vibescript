@@ -43,3 +43,65 @@ fn a_checked_cast_gives_its_type() {
         "can never be string",
     );
 }
+
+/// Every type an annotation can name, as the argument of `as` and of
+/// `JSON.parse_as`, with the type a declaration of it has.
+const TYPES: [(&str, &str); 26] = [
+    ("any", "any"),
+    ("int", "int"),
+    ("float", "float"),
+    ("number", "number"),
+    ("string", "string"),
+    ("symbol", "symbol"),
+    ("bool", "bool"),
+    ("nil", "nil"),
+    ("duration", "duration"),
+    ("time", "time"),
+    ("money", "money"),
+    ("range", "range"),
+    ("regex", "regex"),
+    ("match_data", "match_data"),
+    ("error", "error"),
+    ("type<int>", "type<int>"),
+    ("array<int>", "array<int>"),
+    ("hash<string, int>", "hash<string, int>"),
+    ("comparable", "comparable"),
+    ("int?", "int?"),
+    ("int | string", "int | string"),
+    ("{ a: int }", "{ a: int }"),
+    ("[int, string]", "[int, string]"),
+    ("Status", "Status"),
+    ("Box", "Box"),
+    ("Pair", "Pair"),
+];
+
+const DECLARATIONS: &str = "enum Status\n  Draft\nend\nclass Box\nend\ntype Pair = [int, string]\n";
+
+#[test]
+fn every_annotation_type_casts_and_parses_as_itself() {
+    for (written, declared) in TYPES {
+        clean(&format!(
+            "{DECLARATIONS}def cast(v: any) -> {declared}\n  v.as({written})\nend\n"
+        ));
+        clean(&format!(
+            "{DECLARATIONS}def parsed(raw: string) -> {declared}\n  JSON.parse_as(raw, {written})\nend\n"
+        ));
+    }
+    // A match stays one after a cast, and indexes as one.
+    clean("def first(v: any) -> string?\n  v.as(match_data)[0]\nend\n");
+    // A local named like a type is the local.
+    clean(
+        "def f(error: string) -> string\n  identity(error)\nend\ndef identity(s: string) -> string\n  s\nend\n",
+    );
+}
+
+#[test]
+fn an_array_accepts_values_its_element_type_accepts() {
+    clean(
+        "def f(v: any, n: int?) -> array<any>\n  a: array<any> = []\n  a << v\n  a << nil\n  a << n\n  a\nend\n",
+    );
+    codes(
+        "def f(xs: array<int>) -> array<int>\n  xs << xs[0]\nend\n",
+        &["V0107"],
+    );
+}

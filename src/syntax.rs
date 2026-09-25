@@ -408,6 +408,7 @@ fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result
         then_stop: None,
         locals: Table::new(),
         declared_it: false,
+        type_call: false,
         type_structural_error: false,
         interpolations: Buffer::new(),
         record: None,
@@ -458,6 +459,9 @@ struct Parser<'a> {
     then_stop: Option<usize>,
     locals: Table<()>,
     declared_it: bool,
+    /// Whether the call whose arguments come next takes types, as `as` and
+    /// `JSON.parse_as` do, where `[int, string]` is a tuple type.
+    type_call: bool,
     type_structural_error: bool,
     interpolations: Buffer<(u32, u32)>,
     /// Tooling facts, collected only by [`record::parse`].
@@ -1878,7 +1882,13 @@ impl<'a> Parsing<'a> {
             (name, p.take_p('('))
         };
         if parenthesized {
-            let args = self.call_arguments().await?;
+            self.p().type_call = name == "as"
+                || (name == "parse_as"
+                    && matches!(&lhs.node, Node::Var(receiver) if receiver == "JSON"));
+            let mut args = self.call_arguments().await?;
+            if name == "as" {
+                self.p().nil_type_argument(&mut args)?;
+            }
             // Go nests the member access below the call.
             let depth =
                 1 + (1 + lhs.depth).max(args.iter().map(|a| a.value.depth).max().unwrap_or(0));
@@ -2097,7 +2107,7 @@ impl<'a> Parsing<'a> {
                     "positional arguments cannot follow bare keyword arguments in parenless calls",
                 )?;
             }
-            let argument = self.call_argument(false).await?;
+            let argument = self.call_argument(false, false).await?;
             let mut p = self.p();
             keywords |= matches!(
                 argument.kind,
@@ -2157,6 +2167,7 @@ impl<'a> Parsing<'a> {
         work.charge(1)?;
         let mut args = Buffer::new();
         let mut keywords = false;
+        let types = std::mem::take(&mut self.p().type_call);
         {
             let mut p = self.p();
             p.groups += 1;
@@ -2171,7 +2182,7 @@ impl<'a> Parsing<'a> {
                 self.p()
                     .keyword_order("positional arguments cannot follow keyword arguments")?;
             }
-            let argument = self.call_argument(true).await?;
+            let argument = self.call_argument(true, types).await?;
             let mut p = self.p();
             keywords |= matches!(
                 argument.kind,
@@ -2197,7 +2208,9 @@ impl<'a> Parsing<'a> {
         Ok(args)
     }
 
-    async fn call_argument(&self, parenthesized: bool) -> Result<Argument> {
+    /// Parses one argument; one of a call that takes `types` may be a tuple
+    /// type.
+    async fn call_argument(&self, parenthesized: bool, types: bool) -> Result<Argument> {
         let ampersand = {
             let mut p = self.p();
             let offset = p.tokens[p.pos].offset;
@@ -2223,7 +2236,7 @@ impl<'a> Parsing<'a> {
             if parenthesized || matches!(kind, ArgumentKind::Splat | ArgumentKind::KeywordSplat) {
                 p.line_breaks()?;
             }
-            let literal = p.literal_argument(&kind, parenthesized)?;
+            let literal = p.literal_argument(&kind, parenthesized, types)?;
             (kind, literal)
         };
         let value = match literal {
@@ -2865,6 +2878,7 @@ impl<'a> Parser<'a> {
             then_stop: None,
             locals: std::mem::take(&mut self.locals),
             declared_it: self.declared_it,
+            type_call: false,
             type_structural_error: false,
             interpolations: Buffer::new(),
             // Go parses interpolations without the member probe.
@@ -3446,6 +3460,7 @@ impl<'a> Parser<'a> {
         &mut self,
         kind: &ArgumentKind,
         parenthesized: bool,
+        types: bool,
     ) -> Result<Option<Expr>> {
         self.work.charge(1)?;
         if let ArgumentKind::Keyword(name) = kind {
@@ -3460,7 +3475,7 @@ impl<'a> Parser<'a> {
                 return Ok(Some(self.make(Node::Var(name.clone()), 1)?));
             }
         } else if parenthesized && matches!(kind, ArgumentKind::Positional) {
-            return self.argument_type_literal();
+            return self.argument_type_literal(types);
         }
         Ok(None)
     }
