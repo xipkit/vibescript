@@ -1,6 +1,8 @@
 //! Every type an annotation can name is a type literal where a call takes a
 //! type: the argument of `value.as(T)` and of `JSON.parse_as(text, T)`.
 
+mod common;
+
 use vibescript::{CallOptions, Engine, ErrorKind, Value};
 
 const DECLARATIONS: &str = "enum Status\n  Draft\nend\nclass Box\nend\ntype Pair = [int, string]\ndef identity(value: any) -> any\n  value\nend\n";
@@ -40,7 +42,12 @@ fn every_annotation_type_casts_a_value_of_that_type() {
         ("Box.new", "Box"),
         ("[1, \"a\"]", "Pair"),
     ] {
-        let body = format!("value = {value}\n  value.as({ty}) == value");
+        // A nil needs its type declared.
+        let body = if value == "nil" {
+            format!("value: {ty} = nil\n  value.as({ty}) == value")
+        } else {
+            format!("value = {value}\n  value.as({ty}) == value")
+        };
         let result = run(&body).unwrap_or_else(|error| panic!("{ty}: {error}"));
         assert_eq!(result.to_string(), "true", "{ty}");
     }
@@ -83,7 +90,7 @@ fn json_parse_as_takes_every_annotation_type() {
 #[test]
 fn locals_named_like_types_stay_values() {
     let rescued =
-        run("begin\n    raise \"boom\"\n  rescue => error\n    identity(error).message\n  end")
+        run("begin\n    raise \"boom\"\n  rescue => error\n    identity(error) == error ? error.message : \"\"\n  end")
             .unwrap();
     assert_eq!(rescued.as_bytes(), Some(b"boom".as_slice()));
     let local = run("money = 4\n  identity(money)").unwrap();
@@ -116,10 +123,14 @@ fn nested_namespaces_are_named_through_their_scope() {
         .unwrap_err();
     assert_eq!(error.kind, ErrorKind::Type);
     let missing = "module A\nend\ndef keep(x: A::Missing?)\n  x\nend\n";
-    let error = Engine::new()
-        .compile(missing)
-        .unwrap()
-        .call("keep", &[Value::nil()], CallOptions::default())
-        .unwrap_err();
-    assert!(error.message.contains("unknown type A::Missing"), "{error}");
+    let error = common::static_engine().compile(missing).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0116"]);
+    assert!(
+        error.message.contains("unknown type `A::Missing`"),
+        "{error}"
+    );
+    assert_eq!(
+        error.diagnostics()[0].span.start,
+        missing.find("def keep").unwrap()
+    );
 }
