@@ -1,3 +1,5 @@
+mod common;
+
 use vibescript::{CallOptions, Engine, Value, stringify_json};
 
 fn json(value: &Value) -> serde_json::Value {
@@ -17,11 +19,11 @@ fn global_mutations_preserve_local_bindings_and_pending_writes() {
             serde_json::json!([[1, 2, 2], [1]]),
         ),
         ("Math[0]=9", serde_json::json!([[9], [1]])),
-        ("Math[0]+=4", serde_json::json!([[5], [1]])),
-        ("Math.send(:push,2)", serde_json::json!([[1, 2], [1]])),
-        ("Math.fill {|i| i+4}", serde_json::json!([[4], [1]])),
+        ("Math[0]=Math.fetch(0)+4", serde_json::json!([[5], [1]])),
+        ("Math.push(2)", serde_json::json!([[1, 2], [1]])),
+        ("Math.fill(4)", serde_json::json!([[4], [1]])),
         (
-            "begin;Math.insert();rescue;nil;end",
+            "begin;Math.insert(-9,2);rescue;nil;end",
             serde_json::json!([[1], [1]]),
         ),
         (
@@ -29,11 +31,13 @@ fn global_mutations_preserve_local_bindings_and_pending_writes() {
             serde_json::json!([[1], [1]]),
         ),
         (
-            "begin;Math.fill {|i| raise \"stop\"};rescue;nil;end",
+            "begin;Math.delete_if {|i| raise \"stop\"};rescue;nil;end",
             serde_json::json!([[1], [1]]),
         ),
     ] {
-        let source = format!("def run(input)\nMath=input\n{body}\n[Math,input]\nend");
+        let source = format!(
+            "def run(input: array<int>) -> array<array<int>>\nMath=input\n{body}\n[Math,input]\nend"
+        );
         let script = Engine::new().compile(&source).unwrap();
         let input = Value::array(vec![Value::int(1)]);
         let output = script
@@ -50,11 +54,6 @@ fn replacing_a_global_detaches_an_earlier_mutation_target() {
         ("Math.push(begin;Math=[9];2;end)", serde_json::json!([9])),
         // Plain indexed assignment selects its target after the right-hand side.
         ("Math[0]=begin;Math=[9];2;end", serde_json::json!([2])),
-        ("Math[0]+=begin;Math=[9];2;end", serde_json::json!([9])),
-        (
-            "Math.push(begin;Math &&= [9];2;end)",
-            serde_json::json!([9]),
-        ),
         (
             "Math.push(begin;Math,other=[9],2;other;end)",
             serde_json::json!([9]),
@@ -65,13 +64,9 @@ fn replacing_a_global_detaches_an_earlier_mutation_target() {
             "Math.push(begin;Math=Math;2;end)",
             serde_json::json!([1, 2]),
         ),
-        (
-            "Math.push(begin;Math ||= [9];2;end)",
-            serde_json::json!([1, 2]),
-        ),
     ] {
         let source = format!(
-            "def replace\nMath=[9]\n2\nend\ndef run(input)\nMath=input\n{body}\n[Math,input]\nend"
+            "def replace -> int\nMath=[9]\n2\nend\ndef run(input: array<int>) -> array<array<int>>\nMath=input\n{body}\n[Math,input]\nend"
         );
         let script = Engine::new().compile(&source).unwrap();
         let output = script
@@ -87,15 +82,43 @@ fn replacing_a_global_detaches_an_earlier_mutation_target() {
             "{body}"
         );
     }
-}
-
-#[test]
-fn namespace_global_writes_survive_unwind_and_reset_between_calls() {
+    // Compound assignment selects its target before the right-hand side. An
+    // array element may be missing, so a record's field shows it.
     let script = Engine::new()
         .compile(
-            r#"
+            "def run(input: { a: int }) -> array<{ a: int }>\nMath=input\n\
+             Math[\"a\"]+=begin;Math={a: 9};2;end\n[Math,input]\nend",
+        )
+        .unwrap();
+    let input = Value::hash(vec![(b"a".to_vec(), Value::int(1))]);
+    let output = script
+        .call("run", &[input], CallOptions::default())
+        .unwrap();
+    assert_eq!(json(&output.value), serde_json::json!([{"a": 9}, {"a": 1}]));
+    // `&&=` and `||=` test their target, which must be a bool.
+    for operator in ["&&=", "||="] {
+        let source = format!(
+            "def run(input: array<int>) -> array<array<int>>\nMath=input\n\
+             Math.push(begin;Math {operator} [9];2;end)\n[Math,input]\nend"
+        );
+        let error = common::static_engine().compile(&source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0104"], "{operator}");
+        assert_eq!(
+            error.diagnostics()[0].span.start,
+            source.find(&format!("Math {operator}")).unwrap(),
+            "{operator}"
+        );
+    }
+}
+
+/// A capitalized name assigned in one function is a runtime global, but the
+/// static checker reads it in another function as the builtin namespace of
+/// that name, so such a program does not compile.
+#[test]
+fn namespace_global_writes_are_builtin_namespace_reads_to_the_checker() {
+    let source = r#"
 module Reader
- def self.change
+ def self.change -> array<int>
   Math[0].push(2)
   Math[0].fill {|i| i+7}
  end
@@ -104,56 +127,37 @@ def failing
  Reader.change
  raise "stop"
 end
-def run(input)
+def run(input: array<array<int>>) -> array<array<array<int>>>
  Math=input
  begin
   failing
  rescue
   saved=Math
  ensure
-  Math[0].push(9)
+  Math.fetch(0).push(9)
  end
  [input,saved,Math]
 end
-def discard(input)
+def discard(input: array<array<int>>)
  run(input)
  nil
 end
-def read
+def read -> float
  Math.PI
 end
-"#,
-        )
-        .unwrap();
-    let input = Value::array(vec![Value::array(vec![Value::int(1)])]);
-    for _ in 0..3 {
-        let output = script
-            .call("run", std::slice::from_ref(&input), CallOptions::default())
-            .unwrap();
-        assert_eq!(
-            json(&output.value),
-            serde_json::json!([[[1]], [[7, 8]], [[7, 8, 9]]])
-        );
-        let output = script
-            .call(
-                "discard",
-                std::slice::from_ref(&input),
-                CallOptions::default(),
-            )
-            .unwrap();
-        assert_eq!(output.stats.retained_memory_bytes, 0);
-        let output = script.call("read", &[], CallOptions::default()).unwrap();
-        assert_eq!(output.value.as_float(), Some(std::f64::consts::PI));
-        assert_eq!(output.stats.retained_memory_bytes, 0);
-    }
-    assert_eq!(json(&input), serde_json::json!([[1]]));
+"#;
+    let error = common::static_engine().compile(source).err().unwrap();
+    assert_eq!(common::codes(&error)[..2], ["V0112", "V0112"]);
+    assert_eq!(
+        error.diagnostics()[0].span.start,
+        source.find("Math[0].push(2)").unwrap()
+    );
 }
 
+/// Annotations name types, never a runtime global's current binding.
 #[test]
-fn type_annotations_resolve_the_current_global_binding() {
-    let script = Engine::new()
-        .compile(
-            r#"
+fn type_annotations_do_not_name_the_current_global_binding() {
+    let source = r#"
 class A
 end
 class B
@@ -161,7 +165,7 @@ end
 def typed(value:Math)->Math
  value
 end
-def run(first)
+def run(first: bool) -> array<bool>
  if first
   Math=A
  else
@@ -177,13 +181,11 @@ def run(first)
  end
  [accepted,rejected]
 end
-"#,
-        )
-        .unwrap();
-    for first in [true, false, true] {
-        let output = script
-            .call("run", &[Value::boolean(first)], CallOptions::default())
-            .unwrap();
-        assert_eq!(json(&output.value), serde_json::json!([true, true]));
-    }
+"#;
+    let error = common::static_engine().compile(source).err().unwrap();
+    assert_eq!(common::codes(&error)[0], "V0116");
+    assert_eq!(
+        error.diagnostics()[0].span.start,
+        source.find("Math)->").unwrap()
+    );
 }
