@@ -1,3 +1,8 @@
+//! `dup` copies a value. The removed `clone`, `freeze` and `frozen?` are
+//! reported with their rewrites by the surface tests.
+
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -15,32 +20,21 @@ fn result(source: &str) -> serde_json::Value {
 }
 
 #[test]
-fn lifecycle_helpers_preserve_independent_collection_values() {
-    for method in ["clone", "freeze"] {
-        let source = format!(
-            "a={{x:[\"a\"]}};b=a.{method};b.x[0]=b.x[0].replace(\"b\");b.x.push(2);[a,b,a.frozen?,b.frozen?]"
-        );
-        assert_eq!(
-            result(&source),
-            serde_json::json!([{"x":["a"]},{"x":["b",2]},true,true])
-        );
-        let source = format!("a=[1];a.freeze;a.push(2);b=a.{method};b.clear;[a,b]");
-        assert_eq!(result(&source), serde_json::json!([[1, 2], []]));
-    }
+fn copies_preserve_independent_collection_values() {
+    let source = "a: { x: array<string | int> } = {x:[\"a\"]};b=a.dup;b[\"x\"][0]=\"b\";b[\"x\"].push(2);[a,b]";
+    assert_eq!(
+        result(source),
+        serde_json::json!([{"x":["a"]},{"x":["b",2]}])
+    );
+    let source = "a=[1];a.push(2);b=a.dup;b.clear;[a,b]";
+    assert_eq!(result(source), serde_json::json!([[1, 2], []]));
 }
 
 #[test]
-fn cloned_and_frozen_match_data_keep_protection_and_rendering() {
-    for expression in [
-        "m.clone.clear",
-        "m.freeze.captures.push(\"x\")",
-        "m.clone.captures[0]=\"x\"",
-        "m.freeze.captures[0].clear",
-        "m.clone[:captures].map! {\"x\"}",
-        "m.clone.clone[:captures][0].replace(\"x\")",
-    ] {
+fn copied_match_data_keeps_protection_and_rendering() {
+    for expression in ["m.captures.push(\"x\")", "m.dup.captures[0]=\"x\""] {
         let source = format!(
-            "m=\"a\".match(\"(a)\");begin\n{expression}\nrescue=>e\n[e.type,m.clone.to_s,m.freeze.captures]\nend"
+            "m=\"a\".match(\"(a)\").as(match_data);begin\n{expression}\nrescue=>e\n[e.class,m.dup.to_s,m.captures]\nend"
         );
         assert_eq!(
             result(&source),
@@ -50,7 +44,7 @@ fn cloned_and_frozen_match_data_keep_protection_and_rendering() {
     }
     assert_eq!(
         result(
-            "m=\"a\".match(\"(a)\");c=m.clone.captures;c.push(\"x\");[m.clone.to_s,m.captures,c]"
+            "m=\"a\".match(\"(a)\").as(match_data);c=m.dup.captures;c.push(\"x\");[m.dup.to_s,m.captures,c]"
         ),
         serde_json::json!(["a", ["a"], ["a", "x"]])
     );
@@ -58,11 +52,19 @@ fn cloned_and_frozen_match_data_keep_protection_and_rendering() {
 
 #[test]
 fn protected_copies_survive_host_transfer() {
-    for (producer, mutation, rendering) in [
-        ("\"a\".match(\"(a)\").clone", "x.freeze.captures.clear", "a"),
+    for (producer, ty, mutation, render, rendering) in [
         (
-            "begin\nraise \"bad\"\nrescue=>e\ne.clone\nend",
-            "x.clone.message.clear",
+            "\"a\".match(\"(a)\").as(match_data).dup",
+            "match_data",
+            "x.captures.clear",
+            "to_s",
+            "a",
+        ),
+        (
+            "begin\nraise \"bad\"\nrescue=>e\ne.dup\nend",
+            "error",
+            "x.dup.backtrace.push(\"x\")",
+            "message",
             "bad",
         ),
     ] {
@@ -73,7 +75,7 @@ fn protected_copies_survive_host_transfer() {
             .unwrap()
             .value;
         let engine = Engine::new();
-        let source = format!("def run(x)\n{mutation}\nend");
+        let source = format!("def run(x: {ty})\n{mutation}\nend");
         let error = engine
             .compile(&source)
             .unwrap()
@@ -81,7 +83,7 @@ fn protected_copies_survive_host_transfer() {
             .unwrap_err();
         assert!(error.message.contains("cannot modify"), "{error}");
         let output = engine
-            .compile("def run(x)\nx.clone.freeze.to_s\nend")
+            .compile(&format!("def run(x: {ty}) -> string\nx.dup.{render}\nend"))
             .unwrap()
             .call("run", &[value], CallOptions::default())
             .unwrap();
@@ -90,85 +92,64 @@ fn protected_copies_survive_host_transfer() {
 }
 
 #[test]
-fn builtin_copies_remain_callable_and_wrapped_helpers_use_call_time_receivers() {
-    for method in ["clone", "freeze"] {
-        assert_eq!(
-            result(&format!("cb=JSON::parse.{method};cb(\"[8]\")")),
-            serde_json::json!([8])
-        );
-        assert_eq!(
-            result(&format!(
-                "m=\"ab\".match(\"(b)\");cb=m[:begin].{method};cb(1)"
-            )),
-            serde_json::json!(1)
-        );
-        assert_eq!(
-            result(&format!("(JSON::parse.{method} rescue missing)()")),
-            serde_json::Value::Null
-        );
-    }
+fn builtins_are_not_values_to_copy() {
+    // A builtin names a call; it is not a value that could be copied and
+    // called later.
+    let source = "cb=JSON::parse.dup;cb(\"[8]\")";
+    let error = common::static_engine().compile(source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0301", "V0106", "V0310"]);
     assert_eq!(
-        result("[JSON::parse.frozen?,(JSON::parse.frozen? rescue missing)()]"),
-        serde_json::json!([true, true])
+        error.diagnostics()[0].span.start,
+        source.find("parse").unwrap()
+    );
+    assert_eq!(
+        error.diagnostics()[2].span.start,
+        source.find("cb(").unwrap()
     );
 }
 
 #[test]
-fn lifecycle_helpers_reuse_accounted_storage_and_preserve_exact_limits() {
+fn copies_reuse_accounted_storage_and_preserve_exact_limits() {
     let input = Value::array(vec![Value::bytes(vec![b'x'; 8192])]);
     let engine = Engine::new();
-    let baseline = engine
-        .compile("def run(x)\nx.dup\nend")
-        .unwrap()
+    let script = engine
+        .compile("def run(x: array<string>) -> array<string>\nx.dup\nend")
+        .unwrap();
+    let output = script
         .call("run", std::slice::from_ref(&input), CallOptions::default())
         .unwrap();
-    assert!(baseline.stats.retained_memory_bytes >= 8192);
-    for method in ["clone", "freeze"] {
-        let script = engine
-            .compile(&format!("def run(x)\nx.{method}\nend"))
-            .unwrap();
-        let output = script
-            .call("run", std::slice::from_ref(&input), CallOptions::default())
-            .unwrap();
-        assert_eq!(output.stats.steps, baseline.stats.steps);
-        assert_eq!(
-            output.stats.peak_memory_bytes,
-            baseline.stats.peak_memory_bytes
-        );
-        assert_eq!(
-            output.stats.retained_memory_bytes,
-            baseline.stats.retained_memory_bytes
-        );
-        for memory in [false, true] {
-            let mut options = CallOptions::default();
-            if memory {
-                options.limits.memory_bytes = Some(output.stats.peak_memory_bytes);
-            } else {
-                options.limits.steps = Some(output.stats.steps);
-            }
-            script
-                .call("run", std::slice::from_ref(&input), options.clone())
-                .unwrap();
-            if memory {
-                options.limits.memory_bytes = Some(output.stats.peak_memory_bytes - 1);
-            } else {
-                options.limits.steps = Some(output.stats.steps - 1);
-            }
-            let error = script
-                .call("run", std::slice::from_ref(&input), options)
-                .unwrap_err();
-            assert_eq!(
-                error.kind,
-                if memory {
-                    ErrorKind::Memory
-                } else {
-                    ErrorKind::Steps
-                }
-            );
+    assert!(output.stats.retained_memory_bytes >= 8192);
+    for memory in [false, true] {
+        let mut options = CallOptions::default();
+        if memory {
+            options.limits.memory_bytes = Some(output.stats.peak_memory_bytes);
+        } else {
+            options.limits.steps = Some(output.stats.steps);
         }
+        script
+            .call("run", std::slice::from_ref(&input), options.clone())
+            .unwrap();
+        if memory {
+            options.limits.memory_bytes = Some(output.stats.peak_memory_bytes - 1);
+        } else {
+            options.limits.steps = Some(output.stats.steps - 1);
+        }
+        let error = script
+            .call("run", std::slice::from_ref(&input), options)
+            .unwrap_err();
+        assert_eq!(
+            error.kind,
+            if memory {
+                ErrorKind::Memory
+            } else {
+                ErrorKind::Steps
+            }
+        );
     }
     let script = engine
-        .compile("def run(x,n)\ni=0;while i<n\na=x.clone.freeze;i+=1\nend;42\nend")
+        .compile(
+            "def run(x: array<string>,n: int) -> int\ni=0;while i<n\na=x.dup;i+=1\nend;42\nend",
+        )
         .unwrap();
     let first = script
         .call(
@@ -188,32 +169,27 @@ fn lifecycle_helpers_reuse_accounted_storage_and_preserve_exact_limits() {
 }
 
 #[test]
-fn cancellation_during_arguments_prevents_fallback_and_following_effects() {
-    for method in ["clone", "freeze", "frozen?"] {
-        let token = CancellationToken::new();
-        let cancellation = token.clone();
-        let calls = Arc::new(AtomicUsize::new(0));
-        let captured = calls.clone();
-        let mut engine = Engine::new();
-        engine.register("stop", move |_, _| {
-            cancellation.cancel();
-            Ok(Value::nil())
-        });
-        engine.register("after", move |_, _| {
-            captured.fetch_add(1, Ordering::SeqCst);
-            Ok(Value::nil())
-        });
-        let source =
-            format!("begin\n[1].{method}(stop());after()\nrescue\nafter()\nensure\nafter()\nend");
-        let error = engine
-            .compile(&source)
-            .unwrap()
-            .run(CallOptions {
-                cancellation: token,
-                ..CallOptions::default()
-            })
-            .unwrap_err();
-        assert_eq!(error.kind, ErrorKind::Cancelled);
-        assert_eq!(calls.load(Ordering::SeqCst), 0);
-    }
+fn arguments_to_dup_are_refused_before_running() {
+    let token = CancellationToken::new();
+    let cancellation = token.clone();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let captured = calls.clone();
+    let mut engine = common::static_engine();
+    engine.register("stop", move |_, _| {
+        cancellation.cancel();
+        Ok(Value::nil())
+    });
+    engine.register("after", move |_, _| {
+        captured.fetch_add(1, Ordering::SeqCst);
+        Ok(Value::nil())
+    });
+    let source = "begin\n[1].dup(stop());after()\nrescue\nafter()\nensure\nafter()\nend";
+    let error = engine.compile(source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0301"]);
+    assert_eq!(
+        error.diagnostics()[0].span.start,
+        source.find("dup").unwrap()
+    );
+    assert!(!token.is_cancelled());
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
 }
