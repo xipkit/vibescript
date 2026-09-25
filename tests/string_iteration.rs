@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -11,7 +13,7 @@ fn json(value: &Value) -> serde_json::Value {
 
 #[test]
 fn string_iterators_distinguish_raw_bytes_runes_and_lines() {
-    let script = Engine::new().compile("def run(text)\nchars=[];bytes=[];points=[];lines=[]\ntext.each_char{|c:string|chars.push(c.bytes)}\ntext.each_byte{|b:int|bytes.push(b)}\ntext.each_codepoint{|c:int|points.push(c)}\ntext.each_line{|line:string|lines.push(line.bytes)}\n[chars,bytes,points,lines,text.lines.map{|line|line.bytes}]\nend").unwrap();
+    let script = Engine::new().compile("def run(text: string) -> array<array<int | array<int>>>\nchars: array<array<int>> =[];bytes: array<int> =[];points: array<int> =[];lines: array<array<int>> =[]\ntext.each_char{|c:string|chars.push(c.bytes)}\ntext.each_byte{|b:int|bytes.push(b)}\ntext.each_codepoint{|c:int|points.push(c)}\ntext.each_line{|line:string|lines.push(line.bytes)}\n[chars,bytes,points,lines,text.lines.map{|line|line.bytes}]\nend").unwrap();
     let output = script
         .call(
             "run",
@@ -34,7 +36,7 @@ fn string_iterators_distinguish_raw_bytes_runes_and_lines() {
 #[test]
 fn iteration_returns_the_original_receiver_and_preserves_bindings() {
     for method in ["each_char", "each_byte", "each_codepoint", "each_line"] {
-        let script = Engine::new().compile(&format!("text=\"a\\nb\";alias=text;count=0;result=text.{method}{{|value,missing|text=\"changed\";count+=1;next missing}};[text,alias,result,count]")).unwrap();
+        let script = Engine::new().compile(&format!("text=\"a\\nb\";alias=text;count=0;result=text.{method}{{|value|text=\"changed\";count+=1;next}};[text,alias,result,count]")).unwrap();
         let output = script.run(CallOptions::default()).unwrap();
         assert_eq!(
             json(&output.value),
@@ -49,30 +51,17 @@ fn iteration_returns_the_original_receiver_and_preserves_bindings() {
 }
 
 #[test]
-fn missing_blocks_and_argument_errors_prevent_callback_effects() {
-    let calls = Arc::new(AtomicUsize::new(0));
-    let count = calls.clone();
-    let mut engine = Engine::new();
-    engine.register("effect", move |_, _| {
-        count.fetch_add(1, Ordering::SeqCst);
-        Ok(Value::int(7))
-    });
+fn missing_blocks_and_argument_errors_are_refused_before_callback_effects() {
+    let mut engine = common::static_engine();
+    engine.register("effect", |_, _| panic!("effect ran"));
+    let refused = |source: &str, code: &str| {
+        let error = engine.compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), [code], "{source}");
+    };
     for method in ["each_char", "each_byte", "each_codepoint", "each_line"] {
-        for source in [
-            format!("\"\".{method}"),
-            format!("\"a\".{method}(1){{effect()}}"),
-            format!("\"a\".{method}(chomp:true){{effect()}}"),
-        ] {
-            assert_eq!(
-                engine
-                    .compile(&source)
-                    .unwrap()
-                    .run(CallOptions::default())
-                    .unwrap_err()
-                    .kind,
-                ErrorKind::Argument
-            );
-        }
+        refused(&format!("\"\".{method}"), "V0304");
+        refused(&format!("\"a\".{method}(1){{effect()}}"), "V0301");
+        refused(&format!("\"a\".{method}(chomp:true){{effect()}}"), "V0302");
     }
     for source in [
         "\"a\".each_char{|x:int|effect()}",
@@ -80,32 +69,12 @@ fn missing_blocks_and_argument_errors_prevent_callback_effects() {
         "\"a\".each_codepoint{|x:string|effect()}",
         "\"a\".each_line{|x:int|effect()}",
     ] {
-        assert_eq!(
-            engine
-                .compile(source)
-                .unwrap()
-                .run(CallOptions::default())
-                .unwrap_err()
-                .kind,
-            ErrorKind::Type
-        );
+        refused(source, "V0101");
     }
     for method in ["lines", "bytes", "chars", "codepoints"] {
-        engine
-            .compile(&format!("\"a\\nb\".{method}{{effect()}}"))
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap();
+        refused(&format!("\"a\\nb\".{method}{{effect()}}"), "V0305");
     }
-    assert_eq!(calls.load(Ordering::SeqCst), 0);
-    assert!(
-        engine
-            .compile("\"x\".each_char(effect()){effect()}")
-            .unwrap()
-            .run(CallOptions::default())
-            .is_err()
-    );
-    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    refused("\"x\".each_char(effect()){effect()}", "V0301");
 }
 
 #[test]
@@ -120,7 +89,7 @@ fn early_exits_skip_the_remaining_input_and_retire_pending_calls() {
         ("each_char", serde_json::json!("A")),
         ("each_line", serde_json::json!("A\n")),
     ] {
-        let script = Engine::new().compile(&format!("def sink(a,b)\n9\nend\ndef run(text)\nsink(text, text.{method}{{|value|return value}})\nend")).unwrap();
+        let script = Engine::new().compile(&format!("def sink(a: string,b: string) -> int\n9\nend\ndef run(text: string) -> int | string\nsink(text, text.{method}{{|value|return value}})\nend")).unwrap();
         let output = script
             .call(
                 "run",
@@ -138,7 +107,7 @@ fn early_exits_skip_the_remaining_input_and_retire_pending_calls() {
         assert!(output.stats.retained_memory_bytes < 1024);
     }
     let script = Engine::new()
-        .compile("def run(text)\ntext.each_line{|line|break line}\nend")
+        .compile("def run(text: string) -> string\ntext.each_line{|line|break line}\nend")
         .unwrap();
     let output = script
         .call("run", &[input], CallOptions::default())
@@ -152,9 +121,9 @@ fn detached_lines_do_not_retain_a_large_subject() {
     let mut input = vec![b'x'; 1 << 20];
     input[1] = b'\n';
     let input = Value::bytes(input);
-    for body in ["text.lines[0]", "text.each_line{|line|return line}"] {
+    for body in ["text.lines.fetch(0)", "text.each_line{|line|return line}"] {
         let script = Engine::new()
-            .compile(&format!("def run(text)\n{body}\nend"))
+            .compile(&format!("def run(text: string) -> string\n{body}\nend"))
             .unwrap();
         let output = script
             .call("run", std::slice::from_ref(&input), CallOptions::default())
@@ -183,7 +152,7 @@ fn streaming_keeps_one_unretained_line_and_accounts_for_retained_lines() {
         ..CallOptions::default()
     };
     let script = Engine::new()
-        .compile("def run(text)\ntext.each_line{|line|line};nil\nend")
+        .compile("def run(text: string)\ntext.each_line{|line|line};nil\nend")
         .unwrap();
     let output = script
         .call("run", std::slice::from_ref(&input), options.clone())
@@ -199,7 +168,7 @@ fn streaming_keeps_one_unretained_line_and_accounts_for_retained_lines() {
         Ok(Value::nil())
     });
     let script = engine
-        .compile("def run(text)\nkept=[];text.each_line{|line|seen();kept.push(line)};kept\nend")
+        .compile("def run(text: string) -> array<string>\nkept: array<string> =[];text.each_line{|line|seen();kept.push(line)};kept\nend")
         .unwrap();
     assert_eq!(
         script.call("run", &[input], options).unwrap_err().kind,
@@ -232,7 +201,8 @@ fn callback_cancellation_and_recursion_stop_before_later_effects() {
                 .kind,
             ErrorKind::Cancelled
         );
-        let source = format!("def recurse\n\"x\".{method}{{recurse()}}\nend\nrecurse();effect()");
+        let source =
+            format!("def recurse -> string\n\"x\".{method}{{recurse}}\nend\nrecurse;effect()");
         let options = CallOptions {
             limits: Limits {
                 recursion: 16,
@@ -256,7 +226,7 @@ fn callback_cancellation_and_recursion_stop_before_later_effects() {
 #[test]
 fn long_scans_and_empty_inputs_observe_work_and_deadline_limits() {
     let script = Engine::new()
-        .compile("def run(text)\ntext.each_line{}\nend")
+        .compile("def run(text: string) -> string\ntext.each_line{}\nend")
         .unwrap();
     let error = script
         .call(
