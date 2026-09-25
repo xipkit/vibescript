@@ -8,6 +8,7 @@
 //! CROSSCHECK_DIR=DIR CROSSCHECK_REPORT=report.txt \
 //!     ./scripts/cargo test --release -p vibescript-tools --test crosscheck -- --ignored
 //! ```
+#![cfg(feature = "migrate")]
 
 use std::{
     collections::BTreeMap,
@@ -17,6 +18,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
     },
 };
+use vibescript::diagnostic::Area;
 use vibescript_tools::{
     fix::fix,
     migrate::{Observations, Options, migrate},
@@ -38,7 +40,18 @@ enum Outcome {
 
 fn compare(source: &str) -> Outcome {
     let engine = vibescript::Engine::new();
-    let check = |text: &str| engine.type_check(text).map(|checked| checked.diagnostics);
+    // Only the canonical surface's fixes: the static checker's own, such
+    // as `//` for integer division, have no counterpart in a surface-only
+    // migration.
+    let check = |text: &str| {
+        engine.type_check(text).map(|checked| {
+            checked
+                .diagnostics
+                .into_iter()
+                .filter(|d| d.code.area() == Some(Area::Surface))
+                .collect::<Vec<_>>()
+        })
+    };
     let Ok(fixed) = fix(source, check) else {
         return Outcome::Skipped;
     };
