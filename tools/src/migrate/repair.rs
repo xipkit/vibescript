@@ -503,6 +503,8 @@ impl Repairer<'_> {
             let code = match error.code {
                 vibescript::diagnostic::Code::DISPATCH_BY_NAME => Code::Dispatch,
                 vibescript::diagnostic::Code::HASH_NEW => Code::HashNew,
+                vibescript::diagnostic::Code::FIELD_ACCESS => Code::Receiver,
+                vibescript::diagnostic::Code::KEYWORD_PARAMETER => Code::Syntax,
                 _ => Code::Rename,
             };
             let note = super::migrator::diagnostic(

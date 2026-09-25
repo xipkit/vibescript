@@ -471,6 +471,16 @@ fn repaired(source: &str, calls: &[(&str, serde_json::Value)]) -> (String, Vec<S
 }
 
 #[test]
+fn repairs_a_dot_field_read_no_run_reached_with_the_checkers_index() {
+    // No recorded run reads `user.name`, so the migration leaves it; the
+    // checker knows `user` is a shape, and its fix keeps what the run did.
+    let source = "def run(flag)\n  user = { name: \"a\" }\n  if flag\n    user.name\n  else\n    \"b\"\n  end\nend\n";
+    let (out, errors) = repaired(source, &[("run", json!([false]))]);
+    assert!(out.contains("    user[\"name\"]\n"), "{out}");
+    assert!(errors.is_empty(), "{errors:?}\n{out}");
+}
+
+#[test]
 fn widens_a_result_to_what_an_unrun_branch_returns() {
     let source = "def run(n)\n  begin\n    raise \"no\" if n > 0\n    [n, \"ok\"]\n  rescue => e\n    [e.message]\n  end\nend\n";
     let (out, errors) = repaired(source, &[("run", json!([1]))]);
