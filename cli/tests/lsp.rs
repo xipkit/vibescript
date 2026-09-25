@@ -19,8 +19,13 @@ struct Session {
 
 impl Session {
     fn start() -> Self {
+        Self::with_args(&[])
+    }
+
+    fn with_args(args: &[&str]) -> Self {
         let mut child = Command::new(VIBES)
             .arg("lsp")
+            .args(args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -351,6 +356,53 @@ fn lsp_takes_no_arguments() {
         String::from_utf8_lossy(&output.stdout),
         "NAME:\n   vibes lsp - start the language server over stdio\n\n\
          USAGE:\n   vibes lsp [options]\n\n\
-         OPTIONS:\n   --help, -h  show help\n"
+         OPTIONS:\n   --static    check documents in the static language (ADR-007), offering quick fixes\n   \
+         --help, -h  show help\n"
     );
+}
+
+#[test]
+fn the_static_server_publishes_codes_and_offers_quick_fixes() {
+    let mut session = Session::with_args(&["--static"]);
+    let initialized = session.request(1, "initialize", json!({}));
+    assert_eq!(
+        initialized["result"]["capabilities"]["codeActionProvider"],
+        json!({"codeActionKinds": ["quickfix"]})
+    );
+    let uri = "file:///tmp/static-session.vibe";
+    session.notify(
+        "textDocument/didOpen",
+        json!({"textDocument": {"uri": uri, "text": "x = nil\nputs 1 unless x.nil?\n"}}),
+    );
+    let published = session.next();
+    let codes: Vec<&str> = published["params"]["diagnostics"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| d["code"].as_str().unwrap())
+        .collect();
+    assert_eq!(codes, ["V0407", "V0402"]);
+    let actions = session.request(
+        2,
+        "textDocument/codeAction",
+        json!({
+            "textDocument": {"uri": uri},
+            "range": {"start": {"line": 1, "character": 0}, "end": {"line": 1, "character": 20}},
+            "context": {"diagnostics": []},
+        }),
+    );
+    let titles: Vec<&str> = actions["result"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|action| action["title"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        titles,
+        ["write `if` with the negated condition", "use `x == nil`"]
+    );
+    session.request(3, "shutdown", Value::Null);
+    session.notify("exit", Value::Null);
+    let (status, stderr) = session.finish();
+    assert_eq!(status, Some(0), "{stderr}");
 }

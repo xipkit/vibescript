@@ -48,8 +48,8 @@ mod transport;
 mod tests;
 
 pub use document::{
-    CompletionItem, CompletionKind, Diagnostic, Document, Options, Position, Range, Severity,
-    SignatureHelp, Symbol, SymbolKind,
+    CompletionItem, CompletionKind, Diagnostic, Document, Options, Position, QuickFix, Range,
+    Severity, SignatureHelp, Symbol, SymbolKind,
 };
 pub use serve::serve;
 pub use server::Server;

@@ -28,6 +28,42 @@ pub(crate) fn split_lines(text: &str) -> Vec<String> {
     lines
 }
 
+/// The protocol position of a byte offset in `text`: its line, counting
+/// `\r\n`, `\n` and `\r` as line ends as [`split_lines`] does, and its
+/// UTF-16 offset in that line.
+pub(crate) fn position_at(text: &str, offset: usize) -> super::Position {
+    let mut offset = offset.min(text.len());
+    while !text.is_char_boundary(offset) {
+        offset -= 1;
+    }
+    let before = &text.as_bytes()[..offset];
+    let mut line = 0u32;
+    let mut start = 0;
+    let mut index = 0;
+    while index < before.len() {
+        match before[index] {
+            b'\n' => {
+                line += 1;
+                start = index + 1;
+            }
+            b'\r' => {
+                if text.as_bytes().get(index + 1) == Some(&b'\n') {
+                    index += 1;
+                }
+                line += 1;
+                start = (index + 1).min(offset);
+            }
+            _ => (),
+        }
+        index += 1;
+    }
+    let character = text[start..offset].encode_utf16().count();
+    super::Position {
+        line,
+        character: u32::try_from(character).unwrap_or(u32::MAX),
+    }
+}
+
 /// The line at `index`, or an empty line past either end.
 pub(crate) fn line_at<S: AsRef<str>>(lines: &[S], index: i64) -> &str {
     usize::try_from(index)
@@ -172,6 +208,16 @@ mod tests {
         ] {
             assert_eq!(split_lines(text), want, "{text:?}");
         }
+    }
+
+    #[test]
+    fn positions_byte_offsets_in_utf16() {
+        let text = "a\r\n😀b\rc";
+        assert_eq!(position_at(text, 0), super::super::Position::new(0, 0));
+        assert_eq!(position_at(text, 3), super::super::Position::new(1, 0));
+        assert_eq!(position_at(text, 7), super::super::Position::new(1, 2));
+        assert_eq!(position_at(text, 9), super::super::Position::new(2, 0));
+        assert_eq!(position_at(text, 99), super::super::Position::new(2, 1));
     }
 
     #[test]

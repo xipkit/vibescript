@@ -21,6 +21,8 @@ pub(crate) enum Json {
     Raw(Box<str>),
     Array(Vec<Json>),
     Object(Vec<(&'static str, Json)>),
+    /// An object whose keys are data, such as a workspace edit's URIs.
+    Map(Vec<(String, Json)>),
 }
 
 impl Json {
@@ -54,6 +56,17 @@ impl Json {
                         }
                     }
                     Self::Object(fields) => {
+                        out.push('{');
+                        pending.push(Step::Text("}"));
+                        for (index, (key, item)) in fields.iter().enumerate().rev() {
+                            pending.push(Step::Value(item));
+                            pending.push(Step::Key(key));
+                            if index > 0 {
+                                pending.push(Step::Text(","));
+                            }
+                        }
+                    }
+                    Self::Map(fields) => {
                         out.push('{');
                         pending.push(Step::Text("}"));
                         for (index, (key, item)) in fields.iter().enumerate().rev() {

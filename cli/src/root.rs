@@ -31,13 +31,19 @@ const HELP_SPEC: Spec = Spec {
     flags: &[],
 };
 
+const LSP_FLAGS: [flags::Flag; 1] = [flags::Flag::new(
+    &["static"],
+    flags::Kind::Bool,
+    "check documents in the static language (ADR-007), offering quick fixes",
+)];
+
 const LSP_SPEC: Spec = Spec {
     name: "lsp",
     aliases: &[],
     usage: "start the language server over stdio",
     arguments: "",
     usage_lines: &[],
-    flags: &[],
+    flags: &LSP_FLAGS,
 };
 
 /// Every command, in the order the root help lists them.
@@ -264,7 +270,10 @@ fn lsp(args: &[OsString]) -> Result<(), String> {
         return Err("vibes lsp: does not accept positional arguments".to_owned());
     }
     let output = io::BufWriter::new(io::stdout().lock());
-    let mut server = vibescript_tools::lsp::Server::new();
+    let mut server = vibescript_tools::lsp::Server::with_options(vibescript_tools::lsp::Options {
+        static_types: flags.bool("static"),
+        ..vibescript_tools::lsp::Options::default()
+    });
     vibescript_tools::lsp::serve(&mut server, io::stdin(), output, &signal::token())
         .map_err(|error| error.to_string())
 }

@@ -1,7 +1,7 @@
 //! The transport-free protocol state machine.
 
 use super::document::{
-    CompletionItem, Diagnostic, Document, Options, Position, Range, SignatureHelp, Symbol,
+    CompletionItem, Diagnostic, Document, Options, Position, QuickFix, Range, SignatureHelp, Symbol,
 };
 use super::json::{self, Invalid, Json};
 use super::{hover, navigation, text};
@@ -115,7 +115,7 @@ impl Server {
             // The reference answers even an initialize without an id.
             "initialize" => vec![Outbound::Result {
                 id: id.clone(),
-                result: capabilities(),
+                result: capabilities(self.options.static_types),
             }],
             "initialized" => Vec::new(),
             "exit" => {
@@ -154,6 +154,26 @@ impl Server {
                     Some(document) => respond(formatting_edits(&document.text, &document.lines)),
                     None => respond(Json::Null),
                 }
+            }
+            "textDocument/codeAction" if self.options.static_types => {
+                let Some(id) = &id else {
+                    return Vec::new();
+                };
+                let Ok((uri, range)) = range_params(message) else {
+                    return invalid("invalid codeAction params");
+                };
+                let actions = match self.documents.get(&uri) {
+                    Some(document) => document
+                        .code_actions(range)
+                        .into_iter()
+                        .map(|(diagnostic, fix)| code_action_json(&uri, diagnostic, fix))
+                        .collect(),
+                    None => Vec::new(),
+                };
+                vec![Outbound::Result {
+                    id: Some(id.clone()),
+                    result: Json::Array(actions),
+                }]
             }
             "textDocument/definition" => {
                 let Ok((uri, line, character)) = position_params(message) else {
@@ -388,31 +408,41 @@ impl Outbound {
     }
 }
 
-fn capabilities() -> Json {
-    Json::Object(vec![(
-        "capabilities",
-        Json::Object(vec![
-            (
-                "completionProvider",
-                Json::Object(vec![
-                    ("resolveProvider", Json::Bool(false)),
-                    ("triggerCharacters", Json::Array(vec![Json::str(".")])),
-                ]),
-            ),
-            ("definitionProvider", Json::Bool(true)),
-            ("documentFormattingProvider", Json::Bool(true)),
-            ("documentSymbolProvider", Json::Bool(true)),
-            ("hoverProvider", Json::Bool(true)),
-            (
-                "signatureHelpProvider",
-                Json::Object(vec![(
-                    "triggerCharacters",
-                    Json::Array(vec![Json::str("("), Json::str(",")]),
-                )]),
-            ),
-            ("textDocumentSync", Json::Int(1)),
-        ]),
-    )])
+/// The server's capabilities; a static-language server also offers quick
+/// fixes as code actions.
+fn capabilities(static_types: bool) -> Json {
+    let mut capabilities = Vec::new();
+    if static_types {
+        capabilities.push((
+            "codeActionProvider",
+            Json::Object(vec![(
+                "codeActionKinds",
+                Json::Array(vec![Json::str("quickfix")]),
+            )]),
+        ));
+    }
+    capabilities.extend([
+        (
+            "completionProvider",
+            Json::Object(vec![
+                ("resolveProvider", Json::Bool(false)),
+                ("triggerCharacters", Json::Array(vec![Json::str(".")])),
+            ]),
+        ),
+        ("definitionProvider", Json::Bool(true)),
+        ("documentFormattingProvider", Json::Bool(true)),
+        ("documentSymbolProvider", Json::Bool(true)),
+        ("hoverProvider", Json::Bool(true)),
+        (
+            "signatureHelpProvider",
+            Json::Object(vec![(
+                "triggerCharacters",
+                Json::Array(vec![Json::str("("), Json::str(",")]),
+            )]),
+        ),
+        ("textDocumentSync", Json::Int(1)),
+    ]);
+    Json::Object(vec![("capabilities", Json::Object(capabilities))])
 }
 
 pub(crate) fn diagnostics_notification(uri: &str, diagnostics: &[Diagnostic]) -> Outbound {
@@ -451,11 +481,43 @@ fn sorted_position(position: Position) -> Json {
 }
 
 fn diagnostic_json(diagnostic: &Diagnostic) -> Json {
-    Json::Object(vec![
+    let mut fields = vec![
         ("range", range_json(diagnostic.range)),
         ("severity", Json::Int(i64::from(diagnostic.severity.code()))),
-        ("source", Json::str("vibes-lsp")),
-        ("message", Json::str(diagnostic.message.clone())),
+    ];
+    if let Some(code) = &diagnostic.code {
+        fields.push(("code", Json::str(code.clone())));
+    }
+    fields.push(("source", Json::str("vibes-lsp")));
+    fields.push(("message", Json::str(diagnostic.message.clone())));
+    Json::Object(fields)
+}
+
+/// A quick fix as a `CodeAction` whose workspace edit changes `uri`.
+fn code_action_json(uri: &str, diagnostic: &Diagnostic, fix: &QuickFix) -> Json {
+    let edits = fix
+        .edits
+        .iter()
+        .map(|(range, text)| {
+            Json::Object(vec![
+                ("range", range_json(*range)),
+                ("newText", Json::str(text.clone())),
+            ])
+        })
+        .collect();
+    let changes = Json::Object(vec![(
+        "changes",
+        Json::Map(vec![(uri.to_owned(), Json::Array(edits))]),
+    )]);
+    Json::Object(vec![
+        ("title", Json::str(fix.title.clone())),
+        ("kind", Json::str("quickfix")),
+        (
+            "diagnostics",
+            Json::Array(vec![diagnostic_json(diagnostic)]),
+        ),
+        ("isPreferred", Json::Bool(fix.preferred)),
+        ("edit", changes),
     ])
 }
 
@@ -573,6 +635,28 @@ pub(crate) fn change_params(message: &Inbound) -> Result<(String, Option<String>
 fn document_params(message: &Inbound) -> Result<String, Invalid> {
     let params = json::params(message.params.as_deref())?;
     json::text(json::nested(json::root(&params), "textDocument")?, "uri")
+}
+
+/// The document and range a code action request names.
+fn range_params(message: &Inbound) -> Result<(String, Range), Invalid> {
+    let params = json::params(message.params.as_deref())?;
+    let root = json::root(&params);
+    let uri = json::text(json::nested(root, "textDocument")?, "uri")?;
+    let range = json::nested(root, "range")?;
+    let position = |name| -> Result<Position, Invalid> {
+        let position = json::nested(range, name)?;
+        let number = |field| {
+            json::int(position, field).map(|value| u32::try_from(value.max(0)).unwrap_or(u32::MAX))
+        };
+        Ok(Position::new(number("line")?, number("character")?))
+    };
+    Ok((
+        uri,
+        Range {
+            start: position("start")?,
+            end: position("end")?,
+        },
+    ))
 }
 
 fn position_params(message: &Inbound) -> Result<(String, i64, i64), Invalid> {

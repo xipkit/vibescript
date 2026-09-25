@@ -7,6 +7,7 @@ use super::*;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
+mod code_action_tests;
 mod completion_tests;
 mod diagnostics_tests;
 mod docs_tests;

@@ -61,6 +61,24 @@ pub struct Diagnostic {
     pub range: Range,
     pub severity: Severity,
     pub message: String,
+    /// The stable code of a static diagnostic, such as `V0401`, published
+    /// as the diagnostic's `code`.
+    pub code: Option<String>,
+    /// The repairs a static diagnostic offers, as quick fixes.
+    pub fixes: Vec<QuickFix>,
+}
+
+/// One repair of a [`Diagnostic`]: edits to the document, as a code action
+/// offers them.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct QuickFix {
+    /// What the fix does, such as "use `length`".
+    pub title: String,
+    /// Whether the repair is unambiguous, so an editor may apply it without
+    /// asking; a suggestion is not.
+    pub preferred: bool,
+    /// The replacement text for each range, which do not overlap.
+    pub edits: Vec<(Range, String)>,
 }
 
 /// What a [`CompletionItem`] offers.
@@ -174,6 +192,10 @@ pub struct Options {
     /// The largest text analyzed, in bytes; larger texts get one diagnostic.
     /// The default is the reference's 1 MiB.
     pub max_source_bytes: usize,
+    /// Whether documents are checked in the static language of ADR-007 and
+    /// ADR-008, whose diagnostics carry codes and fixes that the server
+    /// offers as code actions. Off by default.
+    pub static_types: bool,
 }
 
 impl Default for Options {
@@ -188,6 +210,7 @@ impl Default for Options {
             cancellation: CancellationToken::new(),
             module_paths: None,
             max_source_bytes: 1 << 20,
+            static_types: false,
         }
     }
 }
@@ -376,6 +399,18 @@ impl Document {
     pub(crate) fn symbol_tree(&self) -> &Arc<Vec<Symbol>> {
         self.symbols
             .get_or_init(|| Arc::new(navigation::symbols(self.program.as_deref(), &self.lines)))
+    }
+
+    /// The quick fixes of the diagnostics whose ranges meet `range`, each
+    /// with the diagnostic it repairs, in diagnostic order.
+    pub fn code_actions(&self, range: Range) -> Vec<(&Diagnostic, &QuickFix)> {
+        self.diagnostics
+            .iter()
+            .filter(|diagnostic| {
+                diagnostic.range.start <= range.end && range.start <= diagnostic.range.end
+            })
+            .flat_map(|diagnostic| diagnostic.fixes.iter().map(move |fix| (diagnostic, fix)))
+            .collect()
     }
 
     /// Parameter hints for the call around a position on its line.

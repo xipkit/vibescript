@@ -112,7 +112,8 @@ fn every_command_has_help() {
             "lsp",
             "NAME:\n   vibes lsp - start the language server over stdio\n\n\
              USAGE:\n   vibes lsp [options]\n\n\
-             OPTIONS:\n   --help, -h  show help\n",
+             OPTIONS:\n   --static    check documents in the static language (ADR-007), offering quick fixes\n   \
+             --help, -h  show help\n",
         ),
     ] {
         vibes(&["help", name]).expect(0, text, "");

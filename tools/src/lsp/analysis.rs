@@ -1,8 +1,8 @@
 //! Compiles and checks a document, producing diagnostics in the reference's
 //! form and the declaration outline navigation uses.
 
-use super::document::{Diagnostic, Options, Position, Range, Severity};
-use super::text::{line_at, utf16_character};
+use super::document::{Diagnostic, Options, Position, QuickFix, Range, Severity};
+use super::text::{line_at, position_at, utf16_character};
 use std::path::PathBuf;
 use std::time::Instant;
 use vibescript::tooling::{self, Item, Outline};
@@ -28,7 +28,39 @@ pub(crate) fn diagnostic(
         range,
         severity,
         message: message.into(),
+        code: None,
+        fixes: Vec::new(),
     }
+}
+
+/// A static diagnostic with its code, and its fixes as quick fixes. The
+/// range covers the span; an empty span covers one character.
+fn coded(source: &str, found: &vibescript::diagnostic::Diagnostic) -> Diagnostic {
+    let range = |span: vibescript::diagnostic::Span| Range {
+        start: position_at(source, span.start),
+        end: position_at(source, span.end),
+    };
+    let severity = if found.is_error() {
+        Severity::Error
+    } else {
+        Severity::Warning
+    };
+    let mut coded = diagnostic(range(found.span), severity, found.message.clone());
+    coded.code = Some(found.code.to_string());
+    coded.fixes = found
+        .fixes
+        .iter()
+        .map(|fix| QuickFix {
+            title: fix.message.clone(),
+            preferred: fix.applicability == vibescript::diagnostic::Applicability::Always,
+            edits: fix
+                .edits
+                .iter()
+                .map(|edit| (range(edit.span), edit.replacement.clone()))
+                .collect(),
+        })
+        .collect();
+    coded
 }
 
 /// What a fresh parse means for the cached navigation program.
@@ -99,6 +131,25 @@ pub(crate) fn analyze(uri: &str, source: &str, options: &Options) -> Analysis {
                 cancelled: false,
             };
         }
+        // A static check that found errors parsed the source, so its
+        // declarations stand.
+        Err(error) if options.static_types && !error.diagnostics().is_empty() => {
+            let program = match tooling::outline(source) {
+                Ok(outline) => Program::Parsed(outline),
+                Err(_) => Program::Kept,
+            };
+            return Analysis {
+                diagnostics: error
+                    .diagnostics()
+                    .iter()
+                    .filter(|found| found.file.is_none())
+                    .map(|found| coded(source, found))
+                    .collect(),
+                compiled: true,
+                program,
+                cancelled: false,
+            };
+        }
         Err(error) => {
             let program = match tooling::outline(source) {
                 Ok(outline) => Program::Parsed(outline),
@@ -117,6 +168,16 @@ pub(crate) fn analyze(uri: &str, source: &str, options: &Options) -> Analysis {
         Ok(outline) => Program::Parsed(outline),
         Err(_) => Program::Kept,
     };
+    // The static checker's findings are compile errors, so a source that
+    // compiled has none.
+    if options.static_types {
+        return Analysis {
+            diagnostics: Vec::new(),
+            compiled: true,
+            program,
+            cancelled: false,
+        };
+    }
     let call = CallOptions {
         limits: options.limits.clone(),
         cancellation,
@@ -263,6 +324,9 @@ fn engine(uri: &str, options: &Options) -> Engine {
     // Checking never runs output helpers, but scripts may still name them.
     engine.set_output_writer(|_, _| Ok(()));
     engine.set_error_writer(|_, _| Ok(()));
+    if options.static_types {
+        engine.set_static_types(true);
+    }
     engine
 }
 

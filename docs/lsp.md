@@ -33,6 +33,7 @@ vim.lsp.start({
 | `textDocument/definition` | The declaring line of a top-level function, class, module, method, module constant, enum or enum member in the same document. |
 | `textDocument/documentSymbol` | Functions, classes and modules with their methods, constants and nested modules, and enums with their members. |
 | `textDocument/formatting` | One full-document edit from `vibescript_tools::format`, the formatter `vibes fmt` uses, which matches the reference's: it trims trailing spaces and tabs, drops trailing blank lines and ends the text with one newline. |
+| `textDocument/codeAction` | With static types on only: a `quickfix` action for each fix of each diagnostic whose range meets the requested range; see [static diagnostics](#static-diagnostics). |
 
 Unknown requests fail with `-32601 method not found`, and requests whose parameters have the wrong shape with `-32602`. Unknown notifications, such as `$/setTrace`, are ignored.
 
@@ -47,6 +48,10 @@ When the document compiles, the server also runs the static checker over the who
 - A check that stops at a limit publishes one warning (severity 2) at the start of the document, such as `static check stopped: step quota exceeded (20000000)`.
 
 The checker is deliberately stricter than Go's; see [static checker strictness](compatibility.md#static-checker-strictness). Of the 241 compared documents, 73 get checker findings the reference does not report. Only findings in the document itself are published. Required files resolve from the document's directory for `file:` URIs, as `vibes check FILE` resolves them from the script's directory; this is the only file system access the server makes, and it reads the files as saved. Without a directory, as for `untitled:` documents, `require` is reported as `module paths not configured`.
+
+### Static diagnostics
+
+A server started with `vibes lsp --static`, or created with `Options::static_types`, checks documents in the static language of ADR-007 and ADR-008 instead of running the gradual checker. Every diagnostic then comes from compilation and carries its stable code, such as `V0401`, as the protocol's `code`; its range covers the diagnostic's span. The server advertises `codeActionProvider` with the `quickfix` kind and answers `textDocument/codeAction` with one action per fix: its title is the fix's message, its edit a workspace edit of the document, and `isPreferred` is true for a machine-applicable fix and false for a suggestion. Without static types none of this changes: diagnostics have no code, the capability is not advertised and code action requests fail with `-32601`.
 
 ### Hover
 
