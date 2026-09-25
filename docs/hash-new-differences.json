@@ -4,7 +4,7 @@
   "diagnostics": [
     {
       "name": "hash_new_read_27",
-      "source": "\ndef run(input)\nbegin\nvalue=(Hash.new.type_name);[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<any>\nbegin\nvalue=(Hash.new.type_name);[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "go": [
         "RuntimeError",
         "unknown hash method type_name"
@@ -12,11 +12,18 @@
       "rust": [
         "RuntimeError",
         "unknown member type_name"
-      ]
+      ],
+      "static_error": {
+        "code": "V0411",
+        "at": [
+          4,
+          8
+        ]
+      }
     },
     {
       "name": "hash_new_read_29",
-      "source": "\ndef run(input)\nbegin\nvalue=(Hash.new.to_s);[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<any>\nbegin\nvalue=(Hash.new.to_s);[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "go": [
         "RuntimeError",
         "unknown hash method to_s (did you mean \"to_a\"?)"
@@ -24,11 +31,18 @@
       "rust": [
         "RuntimeError",
         "unknown member to_s"
-      ]
+      ],
+      "static_error": {
+        "code": "V0411",
+        "at": [
+          4,
+          8
+        ]
+      }
     },
     {
       "name": "hash_new_read_31",
-      "source": "\ndef run(input)\nbegin\nvalue=(Hash.new.call);[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<any>\nbegin\nvalue=(Hash.new.call);[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "go": [
         "RuntimeError",
         "a method has no member call; call Hash.new(...) directly"
@@ -36,11 +50,18 @@
       "rust": [
         "RuntimeError",
         "unknown member call"
-      ]
+      ],
+      "static_error": {
+        "code": "V0411",
+        "at": [
+          4,
+          8
+        ]
+      }
     },
     {
       "name": "hash_new_read_32",
-      "source": "\ndef run(input)\nbegin\nvalue=(Hash.new.method(:default));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<any>\nbegin\nvalue=(Hash.new.method(:default));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "go": [
         "RuntimeError",
         "unknown hash method method"
@@ -48,11 +69,18 @@
       "rust": [
         "RuntimeError",
         "unknown member method"
-      ]
+      ],
+      "static_error": {
+        "code": "V0411",
+        "at": [
+          4,
+          8
+        ]
+      }
     },
     {
       "name": "hash_new_read_37",
-      "source": "\ndef run(input)\nbegin\nvalue=(Hash.new.default);[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<any>\nbegin\nvalue=(Hash.new.default);[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "go": [
         "RuntimeError",
         "unknown hash method default"
@@ -60,11 +88,18 @@
       "rust": [
         "RuntimeError",
         "unknown member default"
-      ]
+      ],
+      "static_error": {
+        "code": "V0411",
+        "at": [
+          4,
+          8
+        ]
+      }
     },
     {
       "name": "hash_new_read_38",
-      "source": "\ndef run(input)\nbegin\nvalue=(Hash.new.default_proc);[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<any>\nbegin\nvalue=(Hash.new.default_proc);[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "go": [
         "RuntimeError",
         "unknown hash method default_proc"
@@ -72,11 +107,18 @@
       "rust": [
         "RuntimeError",
         "unknown member default_proc"
-      ]
+      ],
+      "static_error": {
+        "code": "V0411",
+        "at": [
+          4,
+          8
+        ]
+      }
     },
     {
       "name": "hash_new_read_39",
-      "source": "\ndef run(input)\nbegin\nvalue=(Hash.new.default(7));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<any>\nbegin\nvalue=(Hash.new.default(7));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "go": [
         "RuntimeError",
         "unknown hash method default"
@@ -84,11 +126,18 @@
       "rust": [
         "RuntimeError",
         "unknown member default"
-      ]
+      ],
+      "static_error": {
+        "code": "V0411",
+        "at": [
+          4,
+          8
+        ]
+      }
     },
     {
       "name": "hash_new_read_44",
-      "source": "\ndef run(input)\nbegin\nvalue=(Hash.new.call(print(\"argument\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<any>\nbegin\nvalue=(Hash.new.call(print(\"argument\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "go": [
         "RuntimeError",
         "a method has no member call; call Hash.new(...) directly"
@@ -96,11 +145,18 @@
       "rust": [
         "RuntimeError",
         "unknown member call"
-      ]
+      ],
+      "static_error": {
+        "code": "V0411",
+        "at": [
+          4,
+          8
+        ]
+      }
     },
     {
       "name": "hash_new_read_45",
-      "source": "\ndef run(input)\nbegin\nvalue=((Hash.new).call(print(\"argument\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<any>\nbegin\nvalue=((Hash.new).call(print(\"argument\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "go": [
         "RuntimeError",
         "a method has no member call; call Hash.new(...) directly"
@@ -108,11 +164,18 @@
       "rust": [
         "RuntimeError",
         "unknown member call"
-      ]
+      ],
+      "static_error": {
+        "code": "V0411",
+        "at": [
+          4,
+          9
+        ]
+      }
     },
     {
       "name": "hash_new_read_46",
-      "source": "\ndef run(input)\nbegin\nvalue=(Hash.send(:new).call(print(\"argument\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<any>\nbegin\nvalue=(Hash.send(:new).call(print(\"argument\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "go": [
         "RuntimeError",
         "unknown hash method call"
@@ -120,11 +183,18 @@
       "rust": [
         "RuntimeError",
         "unknown member call"
-      ]
+      ],
+      "static_error": {
+        "code": "V0106",
+        "at": [
+          4,
+          13
+        ]
+      }
     },
     {
       "name": "hash_new_read_47",
-      "source": "\ndef run(input)\nbegin\nvalue=(Hash[\"new\"].call(print(\"argument\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<any>\nbegin\nvalue=(Hash[\"new\"].call(print(\"argument\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "go": [
         "RuntimeError",
         "a method has no member call; call Hash.new(...) directly"
@@ -132,11 +202,18 @@
       "rust": [
         "RuntimeError",
         "Hash.new is a method and cannot be used as a value; call it directly"
-      ]
+      ],
+      "static_error": {
+        "code": "V0106",
+        "at": [
+          4,
+          8
+        ]
+      }
     },
     {
       "name": "hash_new_read_48",
-      "source": "\ndef run(input)\nbegin\nvalue=(Hash.fetch(\"new\").call(print(\"argument\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<any>\nbegin\nvalue=(Hash.fetch(\"new\").call(print(\"argument\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "go": [
         "RuntimeError",
         "a method has no member call; call Hash.new(...) directly"
@@ -144,11 +221,18 @@
       "rust": [
         "RuntimeError",
         "Hash.new is a method and cannot be used as a value; call it directly"
-      ]
+      ],
+      "static_error": {
+        "code": "V0106",
+        "at": [
+          4,
+          13
+        ]
+      }
     },
     {
       "name": "hash_new_read_49",
-      "source": "\ndef run(input)\nbegin\nvalue=(Hash.new.send(:call,print(\"argument\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<any>\nbegin\nvalue=(Hash.new.send(:call,print(\"argument\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "go": [
         "RuntimeError",
         "a method has no member call; call Hash.new(...) directly"
@@ -156,11 +240,18 @@
       "rust": [
         "RuntimeError",
         "Hash.new is a method and cannot be used as a value; call it directly"
-      ]
+      ],
+      "static_error": {
+        "code": "V0411",
+        "at": [
+          4,
+          8
+        ]
+      }
     },
     {
       "name": "hash_new_read_50",
-      "source": "\ndef run(input)\nbegin\nvalue=(Hash.new.call{print(\"block\")});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<any>\nbegin\nvalue=(Hash.new.call{print(\"block\")});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "go": [
         "RuntimeError",
         "a method has no member call; call Hash.new(...) directly"
@@ -168,11 +259,18 @@
       "rust": [
         "RuntimeError",
         "unknown member call"
-      ]
+      ],
+      "static_error": {
+        "code": "V0411",
+        "at": [
+          4,
+          8
+        ]
+      }
     },
     {
       "name": "hash_new_read_51",
-      "source": "\ndef run(input)\nbegin\nvalue=(Hash.new.send(:call){print(\"block\")});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<any>\nbegin\nvalue=(Hash.new.send(:call){print(\"block\")});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "go": [
         "RuntimeError",
         "a method has no member call; call Hash.new(...) directly"
@@ -180,11 +278,18 @@
       "rust": [
         "RuntimeError",
         "Hash.new is a method and cannot be used as a value; call it directly"
-      ]
+      ],
+      "static_error": {
+        "code": "V0411",
+        "at": [
+          4,
+          8
+        ]
+      }
     },
     {
       "name": "hash_new_mutation_4",
-      "source": "\ndef run(input)\nbegin\nHash.new[:x]=1;Hash.new\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<any>\nbegin\nHash.new[:x]=1;Hash.new\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "go": [
         "RuntimeError",
         "cannot index builtin"
@@ -192,11 +297,18 @@
       "rust": [
         "RuntimeError",
         "unsupported operand types"
-      ]
+      ],
+      "static_error": {
+        "code": "V0411",
+        "at": [
+          4,
+          1
+        ]
+      }
     },
     {
       "name": "hash_new_mutation_11",
-      "source": "\ndef run(input)\nbegin\na=Hash.new;b=a;a.merge!({x:1});[a,b]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<any>\nbegin\na=Hash.new;b=a;a.merge!({x:1});[a,b]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "go": [
         "RuntimeError",
         "unknown hash method merge! (did you mean \"merge\"?)"
@@ -204,13 +316,20 @@
       "rust": [
         "RuntimeError",
         "unknown member merge!"
-      ]
+      ],
+      "static_error": {
+        "code": "V0411",
+        "at": [
+          4,
+          3
+        ]
+      }
     }
   ],
   "intentional": [
     {
       "name": "hash_new_read_41",
-      "source": "\ndef run(input)\nbegin\nvalue=(Hash.new.tap{|h|h[:x]=1});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<any>\nbegin\nvalue=(Hash.new.tap{|h|h[:x]=1});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "go": [
         "ok",
         {
@@ -222,7 +341,14 @@
         {}
       ],
       "policy": "selected_collection_values",
-      "reason": "tap retains the original logical receiver when its block mutates its own parameter."
+      "reason": "tap retains the original logical receiver when its block mutates its own parameter.",
+      "static_error": {
+        "code": "V0411",
+        "at": [
+          4,
+          8
+        ]
+      }
     }
   ]
 }

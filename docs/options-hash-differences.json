@@ -4,241 +4,465 @@
   "cases": [
     {
       "name": "options_probe_C.new_take_scope",
-      "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nbegin\nC.new::take(retries:3)\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(options: hash<string, int>) -> hash<string, int>\noptions\nend\nclass C\nproperty options: hash<string, int>\ndef initialize(options: hash<string, int> = {})\n@options=options\nend\ndef take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef call(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.call(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\nmodule M\ndef self.take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.call(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\nclass D\ndef send(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef public_send(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\n\ndef run(input: any) -> any\nbegin\nC.new::take(retries:3)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "RuntimeError",
       "go": "scoped member access is only supported on enums and namespaces",
-      "rust": "scoped member access requires a namespace"
+      "rust": "scoped member access requires a namespace",
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          41,
+          8
+        ]
+      }
     },
     {
       "name": "options_probe_C.new_call_scope",
-      "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nbegin\nC.new::call(retries:3)\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(options: hash<string, int>) -> hash<string, int>\noptions\nend\nclass C\nproperty options: hash<string, int>\ndef initialize(options: hash<string, int> = {})\n@options=options\nend\ndef take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef call(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.call(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\nmodule M\ndef self.take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.call(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\nclass D\ndef send(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef public_send(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\n\ndef run(input: any) -> any\nbegin\nC.new::call(retries:3)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "RuntimeError",
       "go": "scoped member access is only supported on enums and namespaces",
-      "rust": "scoped member access requires a namespace"
+      "rust": "scoped member access requires a namespace",
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          41,
+          8
+        ]
+      }
     },
     {
       "name": "options_probe_C_take_scope",
-      "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nbegin\nC::take(retries:3)\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(options: hash<string, int>) -> hash<string, int>\noptions\nend\nclass C\nproperty options: hash<string, int>\ndef initialize(options: hash<string, int> = {})\n@options=options\nend\ndef take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef call(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.call(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\nmodule M\ndef self.take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.call(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\nclass D\ndef send(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef public_send(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\n\ndef run(input: any) -> any\nbegin\nC::take(retries:3)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "RuntimeError",
       "go": "unknown constant C::take",
-      "rust": "unknown class constant"
+      "rust": "unknown class constant",
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          41,
+          4
+        ]
+      }
     },
     {
       "name": "options_probe_C_call_scope",
-      "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nbegin\nC::call(retries:3)\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(options: hash<string, int>) -> hash<string, int>\noptions\nend\nclass C\nproperty options: hash<string, int>\ndef initialize(options: hash<string, int> = {})\n@options=options\nend\ndef take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef call(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.call(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\nmodule M\ndef self.take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.call(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\nclass D\ndef send(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef public_send(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\n\ndef run(input: any) -> any\nbegin\nC::call(retries:3)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "RuntimeError",
       "go": "unknown constant C::call",
-      "rust": "unknown class constant"
+      "rust": "unknown class constant",
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          41,
+          4
+        ]
+      }
     },
     {
       "name": "options_probe_M_take_scope",
-      "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nbegin\nM::take(retries:3)\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(options: hash<string, int>) -> hash<string, int>\noptions\nend\nclass C\nproperty options: hash<string, int>\ndef initialize(options: hash<string, int> = {})\n@options=options\nend\ndef take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef call(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.call(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\nmodule M\ndef self.take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.call(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\nclass D\ndef send(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef public_send(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\n\ndef run(input: any) -> any\nbegin\nM::take(retries:3)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "RuntimeError",
       "go": "unknown constant M::take",
-      "rust": "unknown class constant"
+      "rust": "unknown class constant",
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          41,
+          4
+        ]
+      }
     },
     {
       "name": "options_probe_M_call_scope",
-      "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nbegin\nM::call(retries:3)\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(options: hash<string, int>) -> hash<string, int>\noptions\nend\nclass C\nproperty options: hash<string, int>\ndef initialize(options: hash<string, int> = {})\n@options=options\nend\ndef take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef call(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.call(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\nmodule M\ndef self.take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.call(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\nclass D\ndef send(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef public_send(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\n\ndef run(input: any) -> any\nbegin\nM::call(retries:3)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "RuntimeError",
       "go": "unknown constant M::call",
-      "rust": "unknown class constant"
+      "rust": "unknown class constant",
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          41,
+          4
+        ]
+      }
     },
     {
       "name": "options_probe_D.new_send_scope",
-      "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nbegin\nD.new::send(retries:3)\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(options: hash<string, int>) -> hash<string, int>\noptions\nend\nclass C\nproperty options: hash<string, int>\ndef initialize(options: hash<string, int> = {})\n@options=options\nend\ndef take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef call(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.call(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\nmodule M\ndef self.take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.call(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\nclass D\ndef send(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef public_send(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\n\ndef run(input: any) -> any\nbegin\nD.new::send(retries:3)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "RuntimeError",
       "go": "scoped member access is only supported on enums and namespaces",
-      "rust": "scoped member access requires a namespace"
+      "rust": "scoped member access requires a namespace",
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          41,
+          8
+        ]
+      }
     },
     {
       "name": "options_probe_D.new_public_send_scope",
-      "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nbegin\nD.new::public_send(retries:3)\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(options: hash<string, int>) -> hash<string, int>\noptions\nend\nclass C\nproperty options: hash<string, int>\ndef initialize(options: hash<string, int> = {})\n@options=options\nend\ndef take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef call(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.call(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\nmodule M\ndef self.take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef self.call(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\nclass D\ndef send(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef public_send(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\n\ndef run(input: any) -> any\nbegin\nD.new::public_send(retries:3)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "RuntimeError",
       "go": "scoped member access is only supported on enums and namespaces",
-      "rust": "scoped member access requires a namespace"
+      "rust": "scoped member access requires a namespace",
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          41,
+          8
+        ]
+      }
     },
     {
       "name": "options_matrix_required_empty_method",
-      "source": "def plain(options)\noptions\nend\nclass C\ndef take(options)\noptions\nend\ndef check\ntake(**{})\nend\nend\ndef run(input)\nbegin\nC.new.take(**{})\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(options: hash<string, int>) -> hash<string, int>\noptions\nend\nclass C\ndef take(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\ndef run(input: any) -> any\nbegin\nC.new.take(**{})\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "ArgumentError",
       "go": "missing argument options",
-      "rust": "C#take expects 1 arguments, got 0"
+      "rust": "C#take expects 1 arguments, got 0",
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          11,
+          7
+        ]
+      }
     },
     {
       "name": "options_matrix_required_empty_bare",
-      "source": "def plain(options)\noptions\nend\nclass C\ndef take(options)\noptions\nend\ndef check\ntake(**{})\nend\nend\ndef run(input)\nbegin\nC.new.take **{}\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(options: hash<string, int>) -> hash<string, int>\noptions\nend\nclass C\ndef take(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\ndef run(input: any) -> any\nbegin\nC.new.take **{}\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "ArgumentError",
       "go": "missing argument options",
-      "rust": "C#take expects 1 arguments, got 0"
+      "rust": "C#take expects 1 arguments, got 0",
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          11,
+          7
+        ]
+      }
     },
     {
       "name": "options_matrix_required_empty_forwarded",
-      "source": "def plain(options)\noptions\nend\nclass C\ndef take(options)\noptions\nend\ndef check\ntake(**{})\nend\nend\ndef run(input)\nbegin\nC.new.send(:take,**{})\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(options: hash<string, int>) -> hash<string, int>\noptions\nend\nclass C\ndef take(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\ndef run(input: any) -> any\nbegin\nC.new.send(:take,**{})\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "ArgumentError",
       "go": "missing argument options",
-      "rust": "C#take expects 1 arguments, got 0"
+      "rust": "C#take expects 1 arguments, got 0",
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          11,
+          7
+        ]
+      }
     },
     {
       "name": "options_matrix_required_empty_selected",
-      "source": "def plain(options)\noptions\nend\nclass C\ndef take(options)\noptions\nend\ndef check\ntake(**{})\nend\nend\ndef run(input)\nbegin\n(missing rescue C.new.take)(**{})\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(options: hash<string, int>) -> hash<string, int>\noptions\nend\nclass C\ndef take(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\ndef run(input: any) -> any\nbegin\n(missing rescue C.new.take)(**{})\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "ArgumentError",
       "go": "missing argument options",
-      "rust": "C#take expects 1 arguments, got 0"
+      "rust": "C#take expects 1 arguments, got 0",
+      "static_error": {
+        "code": "V0201",
+        "at": [
+          11,
+          2
+        ]
+      }
     },
     {
       "name": "options_matrix_required_empty_implicit",
-      "source": "def plain(options)\noptions\nend\nclass C\ndef take(options)\noptions\nend\ndef check\ntake(**{})\nend\nend\ndef run(input)\nbegin\nC.new.check\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(options: hash<string, int>) -> hash<string, int>\noptions\nend\nclass C\ndef take(options: hash<string, int>) -> hash<string, int>\noptions\nend\ndef check -> any\ntake(**{})\nend\nend\ndef run(input: any) -> any\nbegin\nC.new.check\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "ArgumentError",
       "go": "missing argument options",
-      "rust": "C#take expects 1 arguments, got 0"
+      "rust": "C#take expects 1 arguments, got 0",
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          9,
+          1
+        ]
+      }
     },
     {
       "name": "options_matrix_required_empty_function",
-      "source": "def plain(options)\noptions\nend\nclass C\ndef take(options)\noptions\nend\ndef check\ntake(**{})\nend\nend\ndef run(input)\nbegin\nplain(**{})\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(options: hash<string, int>) -> hash<string, int>\noptions\nend\nclass C\ndef take(options: hash<string, int>) -> hash<string, int>\noptions\nend\nend\ndef run(input: any) -> any\nbegin\nplain(**{})\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "ArgumentError",
       "go": "missing argument options",
-      "rust": "plain expects 1 arguments, got 0"
+      "rust": "plain expects 1 arguments, got 0",
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          11,
+          1
+        ]
+      }
     },
     {
       "name": "options_matrix_prefix_explicit_method",
-      "source": "def plain(prefix,options)\n[prefix,options]\nend\nclass C\ndef take(prefix,options)\n[prefix,options]\nend\ndef check\ntake({retries:3})\nend\nend\ndef run(input)\nbegin\nC.new.take({retries:3})\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\nclass C\ndef take(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\nend\ndef run(input: any) -> any\nbegin\nC.new.take({retries:3})\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "ArgumentError",
       "go": "missing argument options",
-      "rust": "C#take expects 2 arguments, got 1"
+      "rust": "C#take expects 2 arguments, got 1",
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          11,
+          7
+        ]
+      }
     },
     {
       "name": "options_matrix_prefix_explicit_bare",
-      "source": "def plain(prefix,options)\n[prefix,options]\nend\nclass C\ndef take(prefix,options)\n[prefix,options]\nend\ndef check\ntake({retries:3})\nend\nend\ndef run(input)\nbegin\noptions_arg={retries:3};C.new.take options_arg\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\nclass C\ndef take(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\nend\ndef run(input: any) -> any\nbegin\noptions_arg={retries:3};C.new.take options_arg\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "ArgumentError",
       "go": "missing argument options",
-      "rust": "C#take expects 2 arguments, got 1"
+      "rust": "C#take expects 2 arguments, got 1",
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          11,
+          31
+        ]
+      }
     },
     {
       "name": "options_matrix_prefix_explicit_forwarded",
-      "source": "def plain(prefix,options)\n[prefix,options]\nend\nclass C\ndef take(prefix,options)\n[prefix,options]\nend\ndef check\ntake({retries:3})\nend\nend\ndef run(input)\nbegin\nC.new.send(:take,{retries:3})\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\nclass C\ndef take(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\nend\ndef run(input: any) -> any\nbegin\nC.new.send(:take,{retries:3})\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "ArgumentError",
       "go": "missing argument options",
-      "rust": "C#take expects 2 arguments, got 1"
+      "rust": "C#take expects 2 arguments, got 1",
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          11,
+          7
+        ]
+      }
     },
     {
       "name": "options_matrix_prefix_explicit_selected",
-      "source": "def plain(prefix,options)\n[prefix,options]\nend\nclass C\ndef take(prefix,options)\n[prefix,options]\nend\ndef check\ntake({retries:3})\nend\nend\ndef run(input)\nbegin\n(missing rescue C.new.take)({retries:3})\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\nclass C\ndef take(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\nend\ndef run(input: any) -> any\nbegin\n(missing rescue C.new.take)({retries:3})\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "ArgumentError",
       "go": "missing argument options",
-      "rust": "C#take expects 2 arguments, got 1"
+      "rust": "C#take expects 2 arguments, got 1",
+      "static_error": {
+        "code": "V0201",
+        "at": [
+          11,
+          2
+        ]
+      }
     },
     {
       "name": "options_matrix_prefix_explicit_implicit",
-      "source": "def plain(prefix,options)\n[prefix,options]\nend\nclass C\ndef take(prefix,options)\n[prefix,options]\nend\ndef check\ntake({retries:3})\nend\nend\ndef run(input)\nbegin\nC.new.check\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\nclass C\ndef take(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\ndef check -> any\ntake({retries:3})\nend\nend\ndef run(input: any) -> any\nbegin\nC.new.check\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "ArgumentError",
       "go": "missing argument options",
-      "rust": "C#take expects 2 arguments, got 1"
+      "rust": "C#take expects 2 arguments, got 1",
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          9,
+          1
+        ]
+      }
     },
     {
       "name": "options_matrix_prefix_explicit_function",
-      "source": "def plain(prefix,options)\n[prefix,options]\nend\nclass C\ndef take(prefix,options)\n[prefix,options]\nend\ndef check\ntake({retries:3})\nend\nend\ndef run(input)\nbegin\nplain({retries:3})\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\nclass C\ndef take(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\nend\ndef run(input: any) -> any\nbegin\nplain({retries:3})\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "ArgumentError",
       "go": "missing argument options",
-      "rust": "plain expects 2 arguments, got 1"
+      "rust": "plain expects 2 arguments, got 1",
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          11,
+          1
+        ]
+      }
     },
     {
       "name": "options_matrix_prefix_empty_method",
-      "source": "def plain(prefix,options)\n[prefix,options]\nend\nclass C\ndef take(prefix,options)\n[prefix,options]\nend\ndef check\ntake(**{})\nend\nend\ndef run(input)\nbegin\nC.new.take(**{})\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\nclass C\ndef take(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\nend\ndef run(input: any) -> any\nbegin\nC.new.take(**{})\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "ArgumentError",
       "go": "missing argument prefix",
-      "rust": "C#take expects 2 arguments, got 0"
+      "rust": "C#take expects 2 arguments, got 0",
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          11,
+          7
+        ]
+      }
     },
     {
       "name": "options_matrix_prefix_empty_bare",
-      "source": "def plain(prefix,options)\n[prefix,options]\nend\nclass C\ndef take(prefix,options)\n[prefix,options]\nend\ndef check\ntake(**{})\nend\nend\ndef run(input)\nbegin\nC.new.take **{}\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\nclass C\ndef take(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\nend\ndef run(input: any) -> any\nbegin\nC.new.take **{}\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "ArgumentError",
       "go": "missing argument prefix",
-      "rust": "C#take expects 2 arguments, got 0"
+      "rust": "C#take expects 2 arguments, got 0",
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          11,
+          7
+        ]
+      }
     },
     {
       "name": "options_matrix_prefix_empty_forwarded",
-      "source": "def plain(prefix,options)\n[prefix,options]\nend\nclass C\ndef take(prefix,options)\n[prefix,options]\nend\ndef check\ntake(**{})\nend\nend\ndef run(input)\nbegin\nC.new.send(:take,**{})\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\nclass C\ndef take(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\nend\ndef run(input: any) -> any\nbegin\nC.new.send(:take,**{})\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "ArgumentError",
       "go": "missing argument prefix",
-      "rust": "C#take expects 2 arguments, got 0"
+      "rust": "C#take expects 2 arguments, got 0",
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          11,
+          7
+        ]
+      }
     },
     {
       "name": "options_matrix_prefix_empty_selected",
-      "source": "def plain(prefix,options)\n[prefix,options]\nend\nclass C\ndef take(prefix,options)\n[prefix,options]\nend\ndef check\ntake(**{})\nend\nend\ndef run(input)\nbegin\n(missing rescue C.new.take)(**{})\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\nclass C\ndef take(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\nend\ndef run(input: any) -> any\nbegin\n(missing rescue C.new.take)(**{})\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "ArgumentError",
       "go": "missing argument prefix",
-      "rust": "C#take expects 2 arguments, got 0"
+      "rust": "C#take expects 2 arguments, got 0",
+      "static_error": {
+        "code": "V0201",
+        "at": [
+          11,
+          2
+        ]
+      }
     },
     {
       "name": "options_matrix_prefix_empty_implicit",
-      "source": "def plain(prefix,options)\n[prefix,options]\nend\nclass C\ndef take(prefix,options)\n[prefix,options]\nend\ndef check\ntake(**{})\nend\nend\ndef run(input)\nbegin\nC.new.check\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\nclass C\ndef take(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\ndef check -> any\ntake(**{})\nend\nend\ndef run(input: any) -> any\nbegin\nC.new.check\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "ArgumentError",
       "go": "missing argument prefix",
-      "rust": "C#take expects 2 arguments, got 0"
+      "rust": "C#take expects 2 arguments, got 0",
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          9,
+          1
+        ]
+      }
     },
     {
       "name": "options_matrix_prefix_empty_function",
-      "source": "def plain(prefix,options)\n[prefix,options]\nend\nclass C\ndef take(prefix,options)\n[prefix,options]\nend\ndef check\ntake(**{})\nend\nend\ndef run(input)\nbegin\nplain(**{})\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\nclass C\ndef take(prefix: hash<string, int>,options: hash<string, int>) -> array<hash<string, int>>\n[prefix,options]\nend\nend\ndef run(input: any) -> any\nbegin\nplain(**{})\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "ArgumentError",
       "go": "missing argument prefix",
-      "rust": "plain expects 2 arguments, got 0"
+      "rust": "plain expects 2 arguments, got 0",
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          11,
+          1
+        ]
+      }
     }
   ],
   "resolved_type_diagnostics": [
     {
       "name": "options_matrix_typed_bad_type_bare",
-      "source": "def plain(options:{retries:int})\noptions\nend\nclass C\ndef take(options:{retries:int})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nbegin\nC.new.take retries:\"bad\"\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(options: {retries: int}) -> {retries: int}\noptions\nend\nclass C\ndef take(options: {retries: int}) -> {retries: int}\noptions\nend\nend\ndef run(input: any) -> any\nbegin\nC.new.take retries:\"bad\"\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "RuntimeError",
       "go": "argument options expected { retries: int }, got { retries: string }",
       "rust": "argument options expected { retries: int }, got { retries: string }",
       "previous_rust": "value does not match its type annotation",
-      "shared_fixture": "type_diagnostics_resolved_options_matrix_typed_bad_type_bare"
+      "shared_fixture": "type_diagnostics_resolved_options_matrix_typed_bad_type_bare",
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          11,
+          7
+        ]
+      }
     },
     {
       "name": "options_matrix_typed_bad_type_forwarded",
-      "source": "def plain(options:{retries:int})\noptions\nend\nclass C\ndef take(options:{retries:int})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nbegin\nC.new.send(:take,retries:\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(options: {retries: int}) -> {retries: int}\noptions\nend\nclass C\ndef take(options: {retries: int}) -> {retries: int}\noptions\nend\nend\ndef run(input: any) -> any\nbegin\nC.new.send(:take,retries:\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "RuntimeError",
       "go": "argument options expected { retries: int }, got { retries: string }",
       "rust": "argument options expected { retries: int }, got { retries: string }",
       "previous_rust": "value does not match its type annotation",
-      "shared_fixture": "type_diagnostics_resolved_options_matrix_typed_bad_type_forwarded"
+      "shared_fixture": "type_diagnostics_resolved_options_matrix_typed_bad_type_forwarded",
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          11,
+          7
+        ]
+      }
     },
     {
       "name": "options_matrix_typed_bad_type_function",
-      "source": "def plain(options:{retries:int})\noptions\nend\nclass C\ndef take(options:{retries:int})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nbegin\nplain(retries:\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(options: {retries: int}) -> {retries: int}\noptions\nend\nclass C\ndef take(options: {retries: int}) -> {retries: int}\noptions\nend\nend\ndef run(input: any) -> any\nbegin\nplain(retries:\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "RuntimeError",
       "go": "argument options expected { retries: int }, got { retries: string }",
       "rust": "argument options expected { retries: int }, got { retries: string }",
       "previous_rust": "value does not match its type annotation",
-      "shared_fixture": "type_diagnostics_resolved_options_matrix_typed_bad_type_function"
+      "shared_fixture": "type_diagnostics_resolved_options_matrix_typed_bad_type_function",
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          11,
+          1
+        ]
+      }
     },
     {
       "name": "options_matrix_typed_default_bad_type_bare",
-      "source": "def plain(options:{retries:int}={retries:9})\noptions\nend\nclass C\ndef take(options:{retries:int}={retries:9})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nbegin\nC.new.take retries:\"bad\"\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(options: {retries: int} = {retries:9}) -> {retries: int}\noptions\nend\nclass C\ndef take(options: {retries: int} = {retries:9}) -> {retries: int}\noptions\nend\nend\ndef run(input: any) -> any\nbegin\nC.new.take retries:\"bad\"\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "RuntimeError",
       "go": "argument options expected { retries: int }, got { retries: string }",
       "rust": "argument options expected { retries: int }, got { retries: string }",
       "previous_rust": "value does not match its type annotation",
-      "shared_fixture": "type_diagnostics_resolved_options_matrix_typed_default_bad_type_bare"
+      "shared_fixture": "type_diagnostics_resolved_options_matrix_typed_default_bad_type_bare",
+      "static_error": {
+        "code": "V0302",
+        "at": [
+          11,
+          12
+        ]
+      }
     },
     {
       "name": "options_matrix_typed_default_bad_type_forwarded",
-      "source": "def plain(options:{retries:int}={retries:9})\noptions\nend\nclass C\ndef take(options:{retries:int}={retries:9})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nbegin\nC.new.send(:take,retries:\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(options: {retries: int} = {retries:9}) -> {retries: int}\noptions\nend\nclass C\ndef take(options: {retries: int} = {retries:9}) -> {retries: int}\noptions\nend\nend\ndef run(input: any) -> any\nbegin\nC.new.send(:take,retries:\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "RuntimeError",
       "go": "argument options expected { retries: int }, got { retries: string }",
       "rust": "argument options expected { retries: int }, got { retries: string }",
       "previous_rust": "value does not match its type annotation",
-      "shared_fixture": "type_diagnostics_resolved_options_matrix_typed_default_bad_type_forwarded"
+      "shared_fixture": "type_diagnostics_resolved_options_matrix_typed_default_bad_type_forwarded",
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          11,
+          7
+        ]
+      }
     },
     {
       "name": "options_matrix_typed_default_bad_type_function",
-      "source": "def plain(options:{retries:int}={retries:9})\noptions\nend\nclass C\ndef take(options:{retries:int}={retries:9})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nbegin\nplain(retries:\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def plain(options: {retries: int} = {retries:9}) -> {retries: int}\noptions\nend\nclass C\ndef take(options: {retries: int} = {retries:9}) -> {retries: int}\noptions\nend\nend\ndef run(input: any) -> any\nbegin\nplain(retries:\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "error_class": "RuntimeError",
       "go": "argument options expected { retries: int }, got { retries: string }",
       "rust": "argument options expected { retries: int }, got { retries: string }",
       "previous_rust": "value does not match its type annotation",
-      "shared_fixture": "type_diagnostics_resolved_options_matrix_typed_default_bad_type_function"
+      "shared_fixture": "type_diagnostics_resolved_options_matrix_typed_default_bad_type_function",
+      "static_error": {
+        "code": "V0302",
+        "at": [
+          11,
+          7
+        ]
+      }
     }
   ]
 }

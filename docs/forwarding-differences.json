@@ -14,7 +14,7 @@
     {
       "name": "forwarding_probe_path_send_write_protected",
       "status": "selected_match_protection",
-      "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\nbegin\nm=\"ab\".match(/(a)(b)/);m.captures.send(:push,\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "enum E\nA\nend\nclass C\nproperty p: int\ndef initialize(x: int = 1)\n@p=x\nend\ndef take(options: any) -> any\noptions\nend\ndef keywords(*, x: any, **rest: hash<string, any>) -> array<any>\n[x,rest]\nend\ndef typed(x: int) -> int\nx\nend\ndef add(x: int) -> int\n@p+=x;@p\nend\nprivate def hidden(x: int = 3) -> array<int>\n[@p,x]\nend\nprotected def guarded(x: int = 4) -> array<int>\n[@p,x]\nend\nprivate def self.hidden(x: int = 3) -> int\nx\nend\nprotected def self.guarded(x: int = 4) -> int\nx\nend\ndef self.take(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\nend\n\ndef run(input: any) -> any\nbegin\nm=\"ab\".match(/(a)(b)/);m&.captures&.send(:push,\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "function": "run",
       "args": [
         null
@@ -27,12 +27,19 @@
       "rust": [
         "RuntimeError",
         "cannot modify match data"
-      ]
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          45,
+          37
+        ]
+      }
     },
     {
       "name": "forwarding_probe_path_send_dup_protected",
       "status": "selected_match_protection",
-      "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\nbegin\nm=\"ab\".match(/(a)(b)/).dup;m.send(:clear)\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "enum E\nA\nend\nclass C\nproperty p: int\ndef initialize(x: int = 1)\n@p=x\nend\ndef take(options: any) -> any\noptions\nend\ndef keywords(*, x: any, **rest: hash<string, any>) -> array<any>\n[x,rest]\nend\ndef typed(x: int) -> int\nx\nend\ndef add(x: int) -> int\n@p+=x;@p\nend\nprivate def hidden(x: int = 3) -> array<int>\n[@p,x]\nend\nprotected def guarded(x: int = 4) -> array<int>\n[@p,x]\nend\nprivate def self.hidden(x: int = 3) -> int\nx\nend\nprotected def self.guarded(x: int = 4) -> int\nx\nend\ndef self.take(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\nend\n\ndef run(input: any) -> any\nbegin\nm=\"ab\".match(/(a)(b)/).dup;m.send(:clear)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "function": "run",
       "args": [
         null
@@ -41,12 +48,19 @@
       "rust": [
         "RuntimeError",
         "cannot modify match data"
-      ]
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          45,
+          30
+        ]
+      }
     },
     {
       "name": "forwarding_probe_path_public_send_write_protected",
       "status": "selected_match_protection",
-      "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\nbegin\nm=\"ab\".match(/(a)(b)/);m.captures.public_send(:push,\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "enum E\nA\nend\nclass C\nproperty p: int\ndef initialize(x: int = 1)\n@p=x\nend\ndef take(options: any) -> any\noptions\nend\ndef keywords(*, x: any, **rest: hash<string, any>) -> array<any>\n[x,rest]\nend\ndef typed(x: int) -> int\nx\nend\ndef add(x: int) -> int\n@p+=x;@p\nend\nprivate def hidden(x: int = 3) -> array<int>\n[@p,x]\nend\nprotected def guarded(x: int = 4) -> array<int>\n[@p,x]\nend\nprivate def self.hidden(x: int = 3) -> int\nx\nend\nprotected def self.guarded(x: int = 4) -> int\nx\nend\ndef self.take(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\nend\n\ndef run(input: any) -> any\nbegin\nm=\"ab\".match(/(a)(b)/);m&.captures&.public_send(:push,\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "function": "run",
       "args": [
         null
@@ -59,12 +73,19 @@
       "rust": [
         "RuntimeError",
         "cannot modify match data"
-      ]
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          45,
+          37
+        ]
+      }
     },
     {
       "name": "forwarding_probe_path_public_send_dup_protected",
       "status": "selected_match_protection",
-      "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\nbegin\nm=\"ab\".match(/(a)(b)/).dup;m.public_send(:clear)\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "enum E\nA\nend\nclass C\nproperty p: int\ndef initialize(x: int = 1)\n@p=x\nend\ndef take(options: any) -> any\noptions\nend\ndef keywords(*, x: any, **rest: hash<string, any>) -> array<any>\n[x,rest]\nend\ndef typed(x: int) -> int\nx\nend\ndef add(x: int) -> int\n@p+=x;@p\nend\nprivate def hidden(x: int = 3) -> array<int>\n[@p,x]\nend\nprotected def guarded(x: int = 4) -> array<int>\n[@p,x]\nend\nprivate def self.hidden(x: int = 3) -> int\nx\nend\nprotected def self.guarded(x: int = 4) -> int\nx\nend\ndef self.take(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\nend\n\ndef run(input: any) -> any\nbegin\nm=\"ab\".match(/(a)(b)/).dup;m.public_send(:clear)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "function": "run",
       "args": [
         null
@@ -73,12 +94,19 @@
       "rust": [
         "RuntimeError",
         "cannot modify match data"
-      ]
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          45,
+          30
+        ]
+      }
     },
     {
       "name": "forwarding_edge_address_send_typed_ivar_path",
       "status": "existing_typed_mutation_guard",
-      "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef receiver(c)\nc.add(1);[1]\nend\nclass D\n@@items=[1]\ndef initialize\n@items=[1]\nend\ndef check\nbefore=@items;@items.send(:push,2);[@items,before]\nend\ndef self.check\nbefore=@@items;@@items.send(:push,2);[@@items,before]\nend\nend\nmodule N\n@@items=[1]\ndef self.check\nbefore=@@items;@@items.send(:push,2);[@@items,before]\nend\nend\nclass T\nproperty items: array<int>\ndef initialize\n@items=[1]\nend\ndef check\nbefore=@items\nbegin\n@items.send(:push,\"bad\")\nrescue RuntimeError\nnil\nend\n[@items,before]\nend\nend\nclass I\ndef [](index)\nindex+3\nend\ndef []=(index,value)\n[index,value]\nend\nend\nclass U\ndef push(value)\nvalue+1\nend\nend\nclass V\ndef send(value)\n[value,8]\nend\nend\nclass W\ndef send(x:)\nx\nend\nend\n\ndef run(input)\nbegin\nT.new.check\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "enum E\nA\nend\nclass C\nproperty p: int\ndef initialize(x: int = 1)\n@p=x\nend\ndef take(options: any) -> any\noptions\nend\ndef keywords(*, x: any, **rest: hash<string, any>) -> array<any>\n[x,rest]\nend\ndef typed(x: int) -> int\nx\nend\ndef add(x: int) -> int\n@p+=x;@p\nend\nprivate def hidden(x: int = 3) -> array<int>\n[@p,x]\nend\nprotected def guarded(x: int = 4) -> array<int>\n[@p,x]\nend\nprivate def self.hidden(x: int = 3) -> int\nx\nend\nprotected def self.guarded(x: int = 4) -> int\nx\nend\ndef self.take(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\nend\n\ndef receiver(c: C) -> array<int>\nc.add(1);[1]\nend\nclass D\n@@items: array<int> = [1]\n@items: array<int> = [1]\ndef initialize\n@items=[1]\nend\ndef check -> array<array<int>>\nbefore=@items;@items.push(2);[@items,before]\nend\ndef self.check -> array<array<int>>\nbefore=@@items;@@items.push(2);[@@items,before]\nend\nend\nmodule N\n@@items: array<int> = [1]\ndef self.check -> array<array<int>>\nbefore=@@items;@@items.push(2);[@@items,before]\nend\nend\nclass T\nproperty items: array<int>\ndef initialize\n@items=[1]\nend\ndef check -> array<array<int>>\nbefore=@items\nbegin\n@items.send(:push,\"bad\")\nrescue RuntimeError\nnil\nend\n[@items,before]\nend\nend\nclass I\ndef [](index: int) -> int\nindex+3\nend\ndef []=(index: int,value: any) -> array<any>\n[index,value]\nend\nend\nclass U\ndef push(value: int) -> int\nvalue+1\nend\nend\nclass V\ndef send(value: int) -> array<int>\n[value,8]\nend\nend\nclass W\ndef send(*, x: any) -> any\nx\nend\nend\n\ndef run(input: any) -> any\nbegin\nT.new.check\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "function": "run",
       "args": [
         null
@@ -99,12 +127,19 @@
         [
           1
         ]
-      ]
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          73,
+          8
+        ]
+      }
     },
     {
       "name": "forwarding_edge_address_send_protected_write_after_dup",
       "status": "selected_match_protection",
-      "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef receiver(c)\nc.add(1);[1]\nend\nclass D\n@@items=[1]\ndef initialize\n@items=[1]\nend\ndef check\nbefore=@items;@items.send(:push,2);[@items,before]\nend\ndef self.check\nbefore=@@items;@@items.send(:push,2);[@@items,before]\nend\nend\nmodule N\n@@items=[1]\ndef self.check\nbefore=@@items;@@items.send(:push,2);[@@items,before]\nend\nend\nclass T\nproperty items: array<int>\ndef initialize\n@items=[1]\nend\ndef check\nbefore=@items\nbegin\n@items.send(:push,\"bad\")\nrescue RuntimeError\nnil\nend\n[@items,before]\nend\nend\nclass I\ndef [](index)\nindex+3\nend\ndef []=(index,value)\n[index,value]\nend\nend\nclass U\ndef push(value)\nvalue+1\nend\nend\nclass V\ndef send(value)\n[value,8]\nend\nend\nclass W\ndef send(x:)\nx\nend\nend\n\ndef run(input)\nbegin\nm=\"ab\".match(/(a)(b)/);m.send(:dup).captures.send(:push,\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "enum E\nA\nend\nclass C\nproperty p: int\ndef initialize(x: int = 1)\n@p=x\nend\ndef take(options: any) -> any\noptions\nend\ndef keywords(*, x: any, **rest: hash<string, any>) -> array<any>\n[x,rest]\nend\ndef typed(x: int) -> int\nx\nend\ndef add(x: int) -> int\n@p+=x;@p\nend\nprivate def hidden(x: int = 3) -> array<int>\n[@p,x]\nend\nprotected def guarded(x: int = 4) -> array<int>\n[@p,x]\nend\nprivate def self.hidden(x: int = 3) -> int\nx\nend\nprotected def self.guarded(x: int = 4) -> int\nx\nend\ndef self.take(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\nend\n\ndef receiver(c: C) -> array<int>\nc.add(1);[1]\nend\nclass D\n@@items: array<int> = [1]\n@items: array<int> = [1]\ndef initialize\n@items=[1]\nend\ndef check -> array<array<int>>\nbefore=@items;@items.push(2);[@items,before]\nend\ndef self.check -> array<array<int>>\nbefore=@@items;@@items.push(2);[@@items,before]\nend\nend\nmodule N\n@@items: array<int> = [1]\ndef self.check -> array<array<int>>\nbefore=@@items;@@items.push(2);[@@items,before]\nend\nend\nclass I\ndef [](index: int) -> int\nindex+3\nend\ndef []=(index: int,value: any) -> array<any>\n[index,value]\nend\nend\nclass U\ndef push(value: int) -> int\nvalue+1\nend\nend\nclass V\ndef send(value: int) -> array<int>\n[value,8]\nend\nend\nclass W\ndef send(*, x: any) -> any\nx\nend\nend\n\ndef run(input: any) -> any\nbegin\nm=\"ab\".match(/(a)(b)/);m.send(:dup).captures.send(:push,\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "function": "run",
       "args": [
         null
@@ -117,12 +152,19 @@
       "rust": [
         "RuntimeError",
         "cannot modify match data"
-      ]
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          91,
+          26
+        ]
+      }
     },
     {
       "name": "forwarding_edge_address_public_send_typed_ivar_path",
       "status": "existing_typed_mutation_guard",
-      "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef receiver(c)\nc.add(1);[1]\nend\nclass D\n@@items=[1]\ndef initialize\n@items=[1]\nend\ndef check\nbefore=@items;@items.public_send(:push,2);[@items,before]\nend\ndef self.check\nbefore=@@items;@@items.public_send(:push,2);[@@items,before]\nend\nend\nmodule N\n@@items=[1]\ndef self.check\nbefore=@@items;@@items.public_send(:push,2);[@@items,before]\nend\nend\nclass T\nproperty items: array<int>\ndef initialize\n@items=[1]\nend\ndef check\nbefore=@items\nbegin\n@items.public_send(:push,\"bad\")\nrescue RuntimeError\nnil\nend\n[@items,before]\nend\nend\nclass I\ndef [](index)\nindex+3\nend\ndef []=(index,value)\n[index,value]\nend\nend\nclass U\ndef push(value)\nvalue+1\nend\nend\nclass V\ndef send(value)\n[value,8]\nend\nend\nclass W\ndef send(x:)\nx\nend\nend\n\ndef run(input)\nbegin\nT.new.check\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "enum E\nA\nend\nclass C\nproperty p: int\ndef initialize(x: int = 1)\n@p=x\nend\ndef take(options: any) -> any\noptions\nend\ndef keywords(*, x: any, **rest: hash<string, any>) -> array<any>\n[x,rest]\nend\ndef typed(x: int) -> int\nx\nend\ndef add(x: int) -> int\n@p+=x;@p\nend\nprivate def hidden(x: int = 3) -> array<int>\n[@p,x]\nend\nprotected def guarded(x: int = 4) -> array<int>\n[@p,x]\nend\nprivate def self.hidden(x: int = 3) -> int\nx\nend\nprotected def self.guarded(x: int = 4) -> int\nx\nend\ndef self.take(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\nend\n\ndef receiver(c: C) -> array<int>\nc.add(1);[1]\nend\nclass D\n@@items: array<int> = [1]\n@items: array<int> = [1]\ndef initialize\n@items=[1]\nend\ndef check -> array<array<int>>\nbefore=@items;@items.push(2);[@items,before]\nend\ndef self.check -> array<array<int>>\nbefore=@@items;@@items.push(2);[@@items,before]\nend\nend\nmodule N\n@@items: array<int> = [1]\ndef self.check -> array<array<int>>\nbefore=@@items;@@items.push(2);[@@items,before]\nend\nend\nclass T\nproperty items: array<int>\ndef initialize\n@items=[1]\nend\ndef check -> array<array<int>>\nbefore=@items\nbegin\n@items.public_send(:push,\"bad\")\nrescue RuntimeError\nnil\nend\n[@items,before]\nend\nend\nclass I\ndef [](index: int) -> int\nindex+3\nend\ndef []=(index: int,value: any) -> array<any>\n[index,value]\nend\nend\nclass U\ndef push(value: int) -> int\nvalue+1\nend\nend\nclass V\ndef send(value: int) -> array<int>\n[value,8]\nend\nend\nclass W\ndef send(*, x: any) -> any\nx\nend\nend\n\ndef run(input: any) -> any\nbegin\nT.new.check\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "function": "run",
       "args": [
         null
@@ -143,12 +185,19 @@
         [
           1
         ]
-      ]
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          73,
+          8
+        ]
+      }
     },
     {
       "name": "forwarding_edge_address_public_send_protected_write_after_dup",
       "status": "selected_match_protection",
-      "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef receiver(c)\nc.add(1);[1]\nend\nclass D\n@@items=[1]\ndef initialize\n@items=[1]\nend\ndef check\nbefore=@items;@items.public_send(:push,2);[@items,before]\nend\ndef self.check\nbefore=@@items;@@items.public_send(:push,2);[@@items,before]\nend\nend\nmodule N\n@@items=[1]\ndef self.check\nbefore=@@items;@@items.public_send(:push,2);[@@items,before]\nend\nend\nclass T\nproperty items: array<int>\ndef initialize\n@items=[1]\nend\ndef check\nbefore=@items\nbegin\n@items.public_send(:push,\"bad\")\nrescue RuntimeError\nnil\nend\n[@items,before]\nend\nend\nclass I\ndef [](index)\nindex+3\nend\ndef []=(index,value)\n[index,value]\nend\nend\nclass U\ndef push(value)\nvalue+1\nend\nend\nclass V\ndef send(value)\n[value,8]\nend\nend\nclass W\ndef send(x:)\nx\nend\nend\n\ndef run(input)\nbegin\nm=\"ab\".match(/(a)(b)/);m.public_send(:dup).captures.public_send(:push,\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "enum E\nA\nend\nclass C\nproperty p: int\ndef initialize(x: int = 1)\n@p=x\nend\ndef take(options: any) -> any\noptions\nend\ndef keywords(*, x: any, **rest: hash<string, any>) -> array<any>\n[x,rest]\nend\ndef typed(x: int) -> int\nx\nend\ndef add(x: int) -> int\n@p+=x;@p\nend\nprivate def hidden(x: int = 3) -> array<int>\n[@p,x]\nend\nprotected def guarded(x: int = 4) -> array<int>\n[@p,x]\nend\nprivate def self.hidden(x: int = 3) -> int\nx\nend\nprotected def self.guarded(x: int = 4) -> int\nx\nend\ndef self.take(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\nend\n\ndef receiver(c: C) -> array<int>\nc.add(1);[1]\nend\nclass D\n@@items: array<int> = [1]\n@items: array<int> = [1]\ndef initialize\n@items=[1]\nend\ndef check -> array<array<int>>\nbefore=@items;@items.push(2);[@items,before]\nend\ndef self.check -> array<array<int>>\nbefore=@@items;@@items.push(2);[@@items,before]\nend\nend\nmodule N\n@@items: array<int> = [1]\ndef self.check -> array<array<int>>\nbefore=@@items;@@items.push(2);[@@items,before]\nend\nend\nclass I\ndef [](index: int) -> int\nindex+3\nend\ndef []=(index: int,value: any) -> array<any>\n[index,value]\nend\nend\nclass U\ndef push(value: int) -> int\nvalue+1\nend\nend\nclass V\ndef send(value: int) -> array<int>\n[value,8]\nend\nend\nclass W\ndef send(*, x: any) -> any\nx\nend\nend\n\ndef run(input: any) -> any\nbegin\nm=\"ab\".match(/(a)(b)/);m.public_send(:dup).captures.public_send(:push,\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend",
       "function": "run",
       "args": [
         null
@@ -161,12 +210,19 @@
       "rust": [
         "RuntimeError",
         "cannot modify match data"
-      ]
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          91,
+          26
+        ]
+      }
     },
     {
       "name": "forwarding_snapshot_send_export",
       "status": "selected_collection_snapshots",
-      "source": "def run(input)\nbegin\nh={go:JSON::parse};out=h.send(:go,h.clear.empty? ? \"[3]\" : \"[4]\");[h,out]\nrescue RuntimeError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def run(input: any) -> any\nbegin\nh={go:JSON::parse};out=h.send(:go,h.clear.empty? ? \"[3]\" : \"[4]\");[h,out]\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
       "function": "run",
       "args": [
         null
@@ -180,12 +236,19 @@
         [
           3
         ]
-      ]
+      ],
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          3,
+          13
+        ]
+      }
     },
     {
       "name": "forwarding_snapshot_public_send_export",
       "status": "selected_collection_snapshots",
-      "source": "def run(input)\nbegin\nh={go:JSON::parse};out=h.public_send(:go,h.clear.empty? ? \"[3]\" : \"[4]\");[h,out]\nrescue RuntimeError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def run(input: any) -> any\nbegin\nh={go:JSON::parse};out=h.public_send(:go,h.clear.empty? ? \"[3]\" : \"[4]\");[h,out]\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
       "function": "run",
       "args": [
         null
@@ -199,12 +262,19 @@
         [
           3
         ]
-      ]
+      ],
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          3,
+          13
+        ]
+      }
     },
     {
       "name": "forwarding_snapshot_send_iterator",
       "status": "selected_collection_snapshots",
-      "source": "def run(input)\nbegin\na=[1,2];out=a.send(a.clear.empty? ? :map : :map) {|n| n+3};[a,out]\nrescue RuntimeError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def run(input: any) -> any\nbegin\na=[1,2];out=a.send(a.clear.empty? ? :map : :map) {|n| n+3};[a,out]\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
       "function": "run",
       "args": [
         null
@@ -219,12 +289,19 @@
           4,
           5
         ]
-      ]
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          3,
+          15
+        ]
+      }
     },
     {
       "name": "forwarding_snapshot_send_tap",
       "status": "selected_collection_snapshots",
-      "source": "def run(input)\nbegin\na=[1,2];out=a.send(a.clear.empty? ? :tap : :tap) {|n| n.push(3)};[a,out]\nrescue RuntimeError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def run(input: any) -> any\nbegin\na=[1,2];out=a.send(a.clear.empty? ? :tap : :tap) {|n| n.push(3)};[a,out]\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
       "function": "run",
       "args": [
         null
@@ -239,12 +316,19 @@
           1,
           2
         ]
-      ]
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          3,
+          15
+        ]
+      }
     },
     {
       "name": "forwarding_snapshot_send_nested_name",
       "status": "selected_collection_snapshots",
-      "source": "def run(input)\nbegin\na=[1,2];out=a.send(:send,a.clear.empty? ? :size : :size);[a,out]\nrescue RuntimeError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def run(input: any) -> any\nbegin\na=[1,2];out=a.send(:send,a.clear.empty? ? :size : :size);[a,out]\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
       "function": "run",
       "args": [
         null
@@ -256,12 +340,19 @@
       "rust": [
         [],
         2
-      ]
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          3,
+          15
+        ]
+      }
     },
     {
       "name": "forwarding_snapshot_send_replace_export",
       "status": "selected_collection_snapshots",
-      "source": "def run(input)\nbegin\nh={go:JSON::parse};h.send(:go,h.replace({go:JSON::stringify}).size==1 ? \"[3]\" : \"[]\")\nrescue RuntimeError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def run(input: any) -> any\nbegin\nh={go:JSON::parse};h.send(:go,h.replace({go:JSON::stringify}).length==1 ? \"[3]\" : \"[]\")\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
       "function": "run",
       "args": [
         null
@@ -269,12 +360,19 @@
       "go": "\"[3]\"",
       "rust": [
         3
-      ]
+      ],
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          3,
+          13
+        ]
+      }
     },
     {
       "name": "forwarding_snapshot_send_namespace_export",
       "status": "selected_collection_snapshots",
-      "source": "def run(input)\nbegin\nJSON[:work]=JSON::parse;JSON.send(:work,JSON.delete(:work)==nil ? \"[]\" : \"[3]\")\nrescue RuntimeError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def run(input: any) -> any\nbegin\nJSON[:work]=JSON::parse;JSON.send(:work,JSON.delete(:work)==nil ? \"[]\" : \"[3]\")\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
       "function": "run",
       "args": [
         null
@@ -285,12 +383,19 @@
       ],
       "rust": [
         3
-      ]
+      ],
+      "static_error": {
+        "code": "V0112",
+        "at": [
+          3,
+          1
+        ]
+      }
     },
     {
       "name": "forwarding_snapshot_public_send_iterator",
       "status": "selected_collection_snapshots",
-      "source": "def run(input)\nbegin\na=[1,2];out=a.public_send(a.clear.empty? ? :map : :map) {|n| n+3};[a,out]\nrescue RuntimeError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def run(input: any) -> any\nbegin\na=[1,2];out=a.public_send(a.clear.empty? ? :map : :map) {|n| n+3};[a,out]\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
       "function": "run",
       "args": [
         null
@@ -305,12 +410,19 @@
           4,
           5
         ]
-      ]
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          3,
+          15
+        ]
+      }
     },
     {
       "name": "forwarding_snapshot_public_send_tap",
       "status": "selected_collection_snapshots",
-      "source": "def run(input)\nbegin\na=[1,2];out=a.public_send(a.clear.empty? ? :tap : :tap) {|n| n.push(3)};[a,out]\nrescue RuntimeError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def run(input: any) -> any\nbegin\na=[1,2];out=a.public_send(a.clear.empty? ? :tap : :tap) {|n| n.push(3)};[a,out]\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
       "function": "run",
       "args": [
         null
@@ -325,12 +437,19 @@
           1,
           2
         ]
-      ]
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          3,
+          15
+        ]
+      }
     },
     {
       "name": "forwarding_snapshot_public_send_nested_name",
       "status": "selected_collection_snapshots",
-      "source": "def run(input)\nbegin\na=[1,2];out=a.public_send(:send,a.clear.empty? ? :size : :size);[a,out]\nrescue RuntimeError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def run(input: any) -> any\nbegin\na=[1,2];out=a.public_send(:send,a.clear.empty? ? :size : :size);[a,out]\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
       "function": "run",
       "args": [
         null
@@ -342,12 +461,19 @@
       "rust": [
         [],
         2
-      ]
+      ],
+      "static_error": {
+        "code": "V0405",
+        "at": [
+          3,
+          15
+        ]
+      }
     },
     {
       "name": "forwarding_snapshot_public_send_replace_export",
       "status": "selected_collection_snapshots",
-      "source": "def run(input)\nbegin\nh={go:JSON::parse};h.public_send(:go,h.replace({go:JSON::stringify}).size==1 ? \"[3]\" : \"[]\")\nrescue RuntimeError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def run(input: any) -> any\nbegin\nh={go:JSON::parse};h.public_send(:go,h.replace({go:JSON::stringify}).length==1 ? \"[3]\" : \"[]\")\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
       "function": "run",
       "args": [
         null
@@ -355,12 +481,19 @@
       "go": "\"[3]\"",
       "rust": [
         3
-      ]
+      ],
+      "static_error": {
+        "code": "V0301",
+        "at": [
+          3,
+          13
+        ]
+      }
     },
     {
       "name": "forwarding_snapshot_public_send_namespace_export",
       "status": "selected_collection_snapshots",
-      "source": "def run(input)\nbegin\nJSON[:work]=JSON::parse;JSON.public_send(:work,JSON.delete(:work)==nil ? \"[]\" : \"[3]\")\nrescue RuntimeError=>e\n[e.type,e.message]\nend\nend",
+      "source": "def run(input: any) -> any\nbegin\nJSON[:work]=JSON::parse;JSON.public_send(:work,JSON.delete(:work)==nil ? \"[]\" : \"[3]\")\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend",
       "function": "run",
       "args": [
         null
@@ -371,7 +504,14 @@
       ],
       "rust": [
         3
-      ]
+      ],
+      "static_error": {
+        "code": "V0112",
+        "at": [
+          3,
+          1
+        ]
+      }
     }
   ],
   "diagnostic_wording": [

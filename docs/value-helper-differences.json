@@ -3,40 +3,68 @@
     "name": "match_nested_clone",
     "status": "intentional",
     "reason": "Selected consistent protection for match data and rescued errors.",
-    "source": "\ndef run(input)\nm=\"a\".match(\"a\");begin\nm.clone.captures.push(\"x\")\nrescue=>e\ne.type\nend\nend",
+    "source": "\ndef run(input: any) -> array<string?> | string\nm=\"a\".match(\"a\");begin\nm.clone.captures.push(\"x\")\nrescue=>e\ne.class\nend\nend",
     "go_result": [
       "x"
     ],
     "go_error": "",
-    "rust_result": "RuntimeError"
+    "rust_result": "RuntimeError",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        3
+      ]
+    }
   },
   {
     "name": "error_protected_clone",
     "status": "intentional",
     "reason": "Selected consistent protection for match data and rescued errors.",
-    "source": "\ndef run(input)\nbegin\nraise \"bad\"\nrescue=>e\nbegin\ne.clone.clear\nrescue=>inner\ninner.type\nend\nend\nend",
+    "source": "\ndef run(input: any) -> array<string?> | string\nbegin\nraise \"bad\"\nrescue=>e\nbegin\ne.clone.clear\nrescue=>inner\ninner.class\nend\nend\nend",
     "go_result": {},
     "go_error": "",
-    "rust_result": "RuntimeError"
+    "rust_result": "RuntimeError",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        7,
+        3
+      ]
+    }
   },
   {
     "name": "match_nested_freeze",
     "status": "intentional",
     "reason": "Selected consistent protection for match data and rescued errors.",
-    "source": "\ndef run(input)\nm=\"a\".match(\"a\");begin\nm.freeze.captures.push(\"x\")\nrescue=>e\ne.type\nend\nend",
+    "source": "\ndef run(input: any) -> array<string?> | string\nm=\"a\".match(\"a\");begin\nm.freeze.captures.push(\"x\")\nrescue=>e\ne.class\nend\nend",
     "go_result": [
       "x"
     ],
     "go_error": "",
-    "rust_result": "RuntimeError"
+    "rust_result": "RuntimeError",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        3
+      ]
+    }
   },
   {
     "name": "error_protected_freeze",
     "status": "intentional",
     "reason": "Selected consistent protection for match data and rescued errors.",
-    "source": "\ndef run(input)\nbegin\nraise \"bad\"\nrescue=>e\nbegin\ne.freeze.clear\nrescue=>inner\ninner.type\nend\nend\nend",
+    "source": "\ndef run(input: any) -> array<string?> | string\nbegin\nraise \"bad\"\nrescue=>e\nbegin\ne.freeze.clear\nrescue=>inner\ninner.class\nend\nend\nend",
     "go_result": null,
     "go_error": "error_protected_freeze: clear cannot modify a rescued error\n  --> line 2, column 1\n 2 | def run(input)\n   | ^\n  at run (2:1)\n  at run (2:1)\n",
-    "rust_result": "RuntimeError"
+    "rust_result": "RuntimeError",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        7,
+        3
+      ]
+    }
   }
 ]

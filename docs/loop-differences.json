@@ -4,7 +4,7 @@
   "intentional": [
     {
       "name": "loop_break_4",
-      "source": "\ndef run(input)\nbegin\nloop { break :done }\nrescue RuntimeError => e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> symbol | array<string>\nbegin\nloop { break :done }\nrescue RuntimeError => e\n[e.class,e.message]\nend\nend",
       "go_phase": "syntax",
       "go_error": "loop_break_4: compile error: parse error at 4:14: unexpected token \":\"\n  --> line 4, column 14\n 4 | loop { break :done }\n   |              ^\n",
       "expected": "done",
