@@ -47,30 +47,39 @@ fn nester(name: &str) -> HostMethod {
     })
 }
 
-/// Grants `cap`, whose `inner` object shares the very same `read` descriptor value.
+/// The capability's value, whose `inner` object shares the very same `read`
+/// descriptor value.
+fn value() -> Value {
+    let read = reader("cap.read").value();
+    let nest = nester("cap.nest").value();
+    let inner = Value::object(vec![
+        (b"tag".to_vec(), Value::int(2)),
+        (b"read".to_vec(), read.clone()),
+        (b"nest".to_vec(), nest.clone()),
+    ]);
+    Value::object(vec![
+        (b"tag".to_vec(), Value::int(1)),
+        (b"read".to_vec(), read),
+        (b"nest".to_vec(), nest),
+        (b"inner".to_vec(), inner),
+    ])
+}
+
+/// Grants `cap`.
 fn options() -> CallOptions {
     CallOptions {
-        capabilities: vec![Capability::new("cap", |_| {
-            let read = reader("cap.read").value();
-            let nest = nester("cap.nest").value();
-            let inner = Value::object(vec![
-                (b"tag".to_vec(), Value::int(2)),
-                (b"read".to_vec(), read.clone()),
-                (b"nest".to_vec(), nest.clone()),
-            ]);
-            Ok(Value::object(vec![
-                (b"tag".to_vec(), Value::int(1)),
-                (b"read".to_vec(), read),
-                (b"nest".to_vec(), nest),
-                (b"inner".to_vec(), inner),
-            ]))
-        })],
+        capabilities: vec![Capability::new("cap", |_| Ok(value()))],
         ..CallOptions::default()
     }
 }
 
+/// Runs `body`, which may write the capability's fields by index, compute
+/// its callee or call a nested object's method. Static types never index a
+/// namespace and type a nested object as a record, so these programs run
+/// without static types; `member_calls_keep_their_receiver_on_static_routes`
+/// covers the routes a static program has.
 fn run(body: &str, options: CallOptions) -> vibescript::Result<vibescript::Outcome> {
-    Engine::new()
+    common::gradual_engine()
         .compile(&format!("def run\n{body}\nend"))
         .unwrap()
         .call("run", &[], options)
@@ -101,6 +110,45 @@ fn member_calls_expose_their_receiver_on_every_call_route() {
         ("cap.send(:read)", "1"),
         ("cap.public_send(:read, 1)", "1"),
     ]);
+}
+
+#[test]
+fn member_calls_keep_their_receiver_on_static_routes() {
+    let mut engine = Engine::new();
+    engine
+        .declare_capability(&Capability::from_value("cap", value()))
+        .unwrap();
+    for (body, expected) in [
+        ("cap.read()", "1"),
+        ("cap.read(1, 2)", "1"),
+        ("cap.read(*[1])", "1"),
+        ("cap.read(limit: 1)", "1"),
+        ("cap.read() { 0 }", "1"),
+        ("cap.read(*[1]) { 0 }", "1"),
+        ("cap::read()", "1"),
+        ("cap::read(*[1])", "1"),
+        ("cap::read() { 0 }", "1"),
+        ("a = cap; a.read()", "1"),
+        ("cap.dup.read()", "1"),
+        ("[cap].fetch(0).read()", "1"),
+    ] {
+        let script = engine
+            .compile(&format!("def run -> any\n{body}\nend"))
+            .unwrap_or_else(|error| panic!("{body}: {error}"));
+        let result = script
+            .call("run", &[], options())
+            .unwrap_or_else(|error| panic!("{body}: {error}"));
+        assert_eq!(result.value.to_string(), expected, "{body}");
+    }
+    // A namespace is not indexed, so the callee is never computed.
+    engine.set_static_types(true);
+    let source = "def run -> any\ncap[\"read\"]()\nend";
+    let error = engine.compile(source).err().unwrap();
+    assert_eq!(common::codes(&error)[0], "V0112");
+    assert_eq!(
+        error.diagnostics()[0].span.start,
+        source.find("cap[").unwrap()
+    );
 }
 
 #[test]
@@ -244,7 +292,7 @@ fn top_level_scripts_select_receivers_like_called_functions() {
         ("[cap.read(0.tap { cap[:tag] = 9 }), cap[:tag]]", "[1, 9]"),
         ("[cap[:read](0.tap { cap[:tag] = 9 }), cap[:tag]]", "[1, 9]"),
     ] {
-        let result = Engine::new()
+        let result = common::gradual_engine()
             .compile(source)
             .unwrap()
             .run(options())
@@ -281,7 +329,7 @@ fn nested_host_and_block_reentry_restores_the_outer_receiver() {
 fn bare_registered_and_globally_granted_methods_have_no_receiver() {
     let mut engine = Engine::new();
     engine.register_method("bare", reader("bare"));
-    let script = engine.compile("def run; bare(); end").unwrap();
+    let script = engine.compile("def run -> any; bare(); end").unwrap();
     assert_eq!(
         script
             .call("run", &[], CallOptions::default())
@@ -294,7 +342,11 @@ fn bare_registered_and_globally_granted_methods_have_no_receiver() {
         capabilities: vec![Capability::new("solo", |_| Ok(reader("solo").value()))],
         ..CallOptions::default()
     };
-    let script = Engine::new().compile("def run; solo(); end").unwrap();
+    let mut engine = Engine::new();
+    engine
+        .declare_capability(&Capability::from_value("solo", reader("solo").value()))
+        .unwrap();
+    let script = engine.compile("def run -> any; solo(); end").unwrap();
     assert_eq!(
         script.call("run", &[], solo).unwrap().value.to_string(),
         "none"
@@ -317,7 +369,7 @@ fn required_scripts_see_the_receiver_of_the_receiving_calls_grant() {
         "def read_tags; [cap.read(), cap.inner.read(), cap[:read]()]; end",
     )
     .unwrap();
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine
         .set_module_config(ModuleConfig {
             paths: vec![dir.clone()],
