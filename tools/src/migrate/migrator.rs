@@ -54,7 +54,7 @@ fn unchanged(source: &str, diagnostics: Vec<Diagnostic>) -> Migration {
 }
 
 fn migrate_on_stack(source: &str, facts: Option<&Facts>, options: &Options) -> Migration {
-    if let Err(error) = vibescript::Engine::new().compile(source) {
+    if let Err(error) = super::compat::engine().compile(source) {
         let offset = error.offset.unwrap_or(0);
         let message = format!(
             "does not compile, so it was left unchanged: {}",
@@ -109,7 +109,7 @@ fn migrate_on_stack(source: &str, facts: Option<&Facts>, options: &Options) -> M
         output = inferred;
     }
     if !options.new_syntax
-        && let Err(error) = vibescript::Engine::new().compile(&output)
+        && let Err(error) = super::compat::engine().compile(&output)
     {
         diagnostics.push(diagnostic(
             source,

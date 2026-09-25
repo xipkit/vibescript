@@ -13,7 +13,7 @@ use std::{
     time::{Duration, Instant},
 };
 use vibescript::{
-    CallOptions, Engine, Limits, ModuleConfig, Value,
+    CallOptions, Limits, ModuleConfig, Value,
     observe::{Event, Observer, Site},
 };
 
@@ -466,7 +466,7 @@ fn execute(
     semantics: Semantics,
 ) -> Result<Outcome, String> {
     let golden = semantics == Semantics::Golden;
-    let mut engine = Engine::new();
+    let mut engine = super::compat::engine();
     engine.set_strict_effects(invocation.flag("strict_effects"));
     let paths = invocation.strings("module_paths");
     if !paths.is_empty() {

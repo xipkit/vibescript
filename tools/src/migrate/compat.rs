@@ -19,7 +19,7 @@ pub(crate) fn compiles(source: &str) -> bool {
     if let Some(&known) = cache().lock().unwrap().get(&key) {
         return known;
     }
-    let known = Engine::new().compile(source).is_ok();
+    let known = engine().compile(source).is_ok();
     cache().lock().unwrap().insert(key, known);
     known
 }
@@ -27,4 +27,13 @@ pub(crate) fn compiles(source: &str) -> bool {
 /// Whether the linked compiler names regexes in annotations.
 pub(crate) fn regex_type() -> bool {
     compiles("def f(a: regex)\nend\n")
+}
+
+/// An engine that compiles without static types, since a migration
+/// compiles and runs sources written for the ADR-004 language and partial
+/// migrations of them, which need not type check.
+pub(crate) fn engine() -> Engine {
+    let mut engine = Engine::new();
+    engine.set_static_types(false);
+    engine
 }

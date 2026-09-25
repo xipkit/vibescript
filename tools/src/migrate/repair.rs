@@ -60,7 +60,7 @@ pub fn repair(
     invocations: &[Invocation],
     observations: &Observations,
 ) -> Migration {
-    let mut engine = Engine::new();
+    let mut engine = super::compat::engine();
     if let Some(paths) = invocations
         .iter()
         .map(Invocation::module_paths)
@@ -105,7 +105,7 @@ pub(crate) fn infer(
     notes: &mut Vec<Note>,
 ) -> Option<String> {
     let mut repairer = Repairer {
-        engine: Engine::new(),
+        engine: super::compat::engine(),
         invocations: &[],
         repair: false,
         baseline: Vec::new(),
@@ -528,7 +528,7 @@ impl Repairer<'_> {
     /// recorded invocation has the same outcome, or, where none can run,
     /// every proposal that made it is safe.
     fn keeps_behaviour(&mut self, candidate: &str, proposals: &[Proposal]) -> bool {
-        if vibescript::Engine::new().compile(candidate).is_err() {
+        if super::compat::engine().compile(candidate).is_err() {
             return false;
         }
         if !self.verifying() {
