@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use vibescript::{
-    CallContext, CallOptions, Capability, Engine, Error, ErrorKind, HostMethod, Result, Value,
+    CallContext, CallOptions, Capability, Engine, Error, ErrorKind, HostMethod, Result, Signature,
+    SignatureParam, Value,
 };
 
 struct SmsPreview {
@@ -23,7 +24,18 @@ fn text(value: &Value) -> Result<&str> {
         .map_err(|_| Error::new(ErrorKind::Argument, "SMS arguments must be valid UTF-8"))
 }
 
-fn capability(client: Arc<SmsPreview>) -> Capability {
+/// A text parameter of the published signature.
+fn text_param(name: &str) -> SignatureParam {
+    SignatureParam {
+        name: name.into(),
+        ty: "string".into(),
+        optional: false,
+    }
+}
+
+/// The `sms` capability: a template whose `send` method publishes its
+/// signature, so the static checker types calls to it.
+fn capability(client: Arc<SmsPreview>) -> Result<Capability> {
     let send = HostMethod::new("sms.send", move |ctx, args, _| {
         for value in args {
             ctx.charge(value.as_bytes().unwrap().len() as u64)?;
@@ -52,20 +64,28 @@ fn capability(client: Arc<SmsPreview>) -> Capability {
             }
             Ok(())
         },
-    );
-    Capability::new("sms", move |_| {
-        Ok(Value::object(vec![(b"send".to_vec(), send.value())]))
-    })
+    )
+    .with_signature(Signature {
+        params: vec![text_param("phone"), text_param("body")],
+        result: "string".into(),
+        accepts_block: false,
+    })?;
+    Ok(Capability::from_value(
+        "sms",
+        Value::object(vec![(b"send".to_vec(), send.value())]),
+    ))
 }
 
 fn main() -> Result<()> {
     let sms = capability(Arc::new(SmsPreview {
         sender: "Demo".into(),
-    }));
+    }))?;
     let mut engine = Engine::new();
     engine.set_strict_effects(true);
+    engine.set_static_types(true);
+    engine.declare_capability(&sms)?;
     let script = engine.compile(
-        "def delivery_update(phone, order_id)\n sms.send(phone, \"Order \" + order_id + \" is on its way.\")\nend",
+        "def delivery_update(phone: string, order_id: string) -> string\n  sms.send(phone, \"Order #{order_id} is on its way.\")\nend",
     )?;
     let output = script.call(
         "delivery_update",
@@ -91,7 +111,8 @@ mod tests {
     fn sms_preview_checks_arguments_and_respects_cancellation() {
         let sms = capability(Arc::new(SmsPreview {
             sender: "Demo".into(),
-        }));
+        }))
+        .unwrap();
         let mut engine = Engine::new();
         engine.set_strict_effects(true);
         let options = CallOptions {

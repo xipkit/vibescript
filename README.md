@@ -74,7 +74,7 @@ Enable the `tokio` feature to use `asynchronous::Runner` and `HostMethod::new_as
 
 Use `Engine::register_with_keywords` to expose a callback with named arguments, and `Script::call_with_keywords` or `Runner::call_with_keywords` to pass them from Rust. Keyword keys received by callbacks are byte-string values. Plain registered callbacks validate their own arguments; legacy callbacks reject nonempty keywords. `HostMethod::with_signature` adds a declared positional type contract, and `Engine::register_method` registers that descriptor with its validators and optional block driver.
 
-The [SMS preview example](examples/sms.rs) exposes a Rust client as `sms.send` through a per-call `Capability`, with argument and return contracts. It checks cancellation and builds its preview through `CallContext`; run it with `./scripts/cargo run --release --example sms`. Capability results are imported into the call's memory budget. Client-owned buffers and network operations remain the host's responsibility.
+The [SMS preview example](examples/sms.rs) exposes a Rust client as `sms.send` through a `Capability` template whose method publishes its signature and keeps its argument and return contracts; the engine declares the capability and compiles a typed script against it. It checks cancellation and builds its preview through `CallContext`; run it with `./scripts/cargo run --release --example sms`. Capability results are imported into the call's memory budget. Client-owned buffers and network operations remain the host's responsibility.
 
 ## The language
 
