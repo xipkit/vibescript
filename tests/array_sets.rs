@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -21,7 +23,8 @@ fn set_operations_preserve_first_occurrences_and_difference_duplicates() {
             r#"a=[3,1,3,2];
             [a & [2,3,3], a - [3], a.union([2,4],[4,5]),
              a.difference([3],[2]), a.difference, a.union,
-             [[1,2,3],[2,3],[3]].reduce(:&), [[1,2,3],[2],[3]].reduce(:-)]"#,
+             [[1,2,3],[2,3],[3]].reduce { |acc, x| acc & x },
+             [[1,2,3],[2],[3]].reduce { |acc, x| acc - x }]"#,
         ),
         serde_json::json!([
             [3, 2],
@@ -77,7 +80,7 @@ fn operators_and_methods_preserve_evaluated_values_and_nested_aliases() {
             serde_json::json!([[1, 2, 3], [1, 2], [1, 2, 4]]),
         ),
         (
-            "a=[[1],[2]];r=a.union([[1.0],[3]]);r[0].push(9);[a,r]",
+            "a: array<array<number>> = [[1],[2]];r=a.union([[1.0],[3]]);r[0]&.push(9);[a,r]",
             serde_json::json!([[[1], [2]], [[1, 9], [2], [3]]]),
         ),
         (
@@ -102,7 +105,7 @@ fn intersection_obeys_precedence_line_continuation_and_command_spacing() {
         serde_json::json!([[1], [1], true, [2], [2]])
     );
     assert_eq!(
-        evaluate("def values\n[1,2]\nend\n[values&[2],values & [2],values &\n[2]]"),
+        evaluate("def values -> array<int>\n[1,2]\nend\n[values&[2],values & [2],values &\n[2]]"),
         serde_json::json!([[2], [2], [2]])
     );
     for source in [
@@ -120,32 +123,22 @@ fn intersection_obeys_precedence_line_continuation_and_command_spacing() {
 }
 
 #[test]
-fn ignored_blocks_and_argument_failures_preserve_host_effect_order() {
-    let calls = Arc::new(AtomicUsize::new(0));
-    let counter = calls.clone();
-    let mut engine = Engine::new();
-    engine.register("mark", move |_, _| {
-        counter.fetch_add(1, Ordering::Relaxed);
-        Ok(Value::nil())
-    });
+fn blocks_and_invalid_arguments_are_refused_before_host_effects() {
+    // `union` and `difference` take no block, no keywords and only arrays,
+    // so these calls are refused before anything runs.
     for method in ["union", "difference"] {
-        engine
-            .compile(&format!("[1].{method}([2]){{mark()}}"))
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap();
-        assert_eq!(calls.load(Ordering::Relaxed), 0);
-    }
-    for method in ["union", "difference"] {
-        for args in ["[],bad:mark()", "[],mark()"] {
-            calls.store(0, Ordering::Relaxed);
-            let error = engine
-                .compile(&format!("[].{method}({args});mark()"))
-                .unwrap()
-                .run(CallOptions::default())
-                .unwrap_err();
-            assert!(matches!(error.kind, ErrorKind::Argument | ErrorKind::Type));
-            assert_eq!(calls.load(Ordering::Relaxed), 1);
+        for (args, code, text) in [
+            ("[2]){mark()}", "V0305", "{"),
+            ("[],bad:mark())", "V0302", "bad:"),
+            ("[],1)", "V0101", "1"),
+        ] {
+            let source = format!("[1].{method}({args};mark()");
+            let mut engine = common::static_engine();
+            engine.register("mark", |_, _| panic!("mark ran"));
+            let error = engine.compile(&source).err().unwrap();
+            assert_eq!(common::codes(&error), [code], "{source}");
+            let span = error.diagnostics()[0].span;
+            assert_eq!(&source[span.start..span.end], text, "{source}");
         }
     }
 }
@@ -155,7 +148,7 @@ fn repeated_results_release_storage_and_exhausted_work_stops_before_host_effects
     for operation in ["a.union([128])", "a.difference([0])", "a & a", "a - [-1]"] {
         let script = Engine::new()
             .compile(&format!(
-                "a=(0..127).to_a;i=0;while i<64;r={operation};i+=1;end;r.length"
+                "a=(0..127).to_a;i=0;r: array<int> = [];while i<64;r={operation};i+=1;end;r.length"
             ))
             .unwrap();
         let result = script
@@ -217,14 +210,14 @@ fn steps(source: &str, limits: Limits) -> Result<u64, ErrorKind> {
 #[test]
 fn set_operations_scale_linearly_and_fit_default_quotas() {
     let operations = [
-        "a.uniq.size",
-        "a.uniq { |x| x }.size",
-        "(a - a.reverse).size",
-        "(a & a).size",
-        "a.union(a).size",
-        "a.difference(a.reverse).size",
-        "a.map { |x| x.to_s }.uniq.size",
-        "a.map { |x| [x % 97, x.to_s] }.uniq.size",
+        "a.uniq.length",
+        "a.uniq { |x| x }.length",
+        "(a - a.reverse).length",
+        "(a & a).length",
+        "a.union(a).length",
+        "a.difference(a.reverse).length",
+        "a.map { |x| x.to_s }.uniq.length",
+        "a.map { |x| [x % 97, x.to_s] }.uniq.length",
     ];
     for operation in operations {
         let unlimited = Limits {
@@ -232,7 +225,7 @@ fn set_operations_scale_linearly_and_fit_default_quotas() {
             ..Limits::default()
         };
         let cost = |n: u64| {
-            let base = steps(&format!("a = (1..{n}).to_a\na.size"), unlimited.clone()).unwrap();
+            let base = steps(&format!("a = (1..{n}).to_a\na.length"), unlimited.clone()).unwrap();
             steps(
                 &format!("a = (1..{n}).to_a\n{operation}"),
                 unlimited.clone(),
@@ -249,7 +242,7 @@ fn set_operations_scale_linearly_and_fit_default_quotas() {
             "{operation} exceeds the default quota"
         );
     }
-    assert!(steps("(1..1500).to_a.uniq.size", Limits::default()).is_ok());
+    assert!(steps("(1..1500).to_a.uniq.length", Limits::default()).is_ok());
 }
 
 #[test]
@@ -261,7 +254,7 @@ fn set_operation_quotas_are_exact() {
         "a.union(b)",
         "a.uniq { |x| x % 7 }",
     ] {
-        let source = format!("a = (1..300).to_a\nb = (150..450).to_a\n({operation}).size");
+        let source = format!("a = (1..300).to_a\nb = (150..450).to_a\n({operation}).length");
         let exact = steps(
             &source,
             Limits {
