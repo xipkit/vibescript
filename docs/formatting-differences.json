@@ -3,7 +3,7 @@
   "cases": [
     {
       "name": "format_probe_field_7_115_.2",
-      "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nbegin\nvalue=(format(\"%.2s\", 10**30));[\"ok\",value.bytes]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "enum E\nA\nend\nclass C\ndef to_s -> string\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input: any) -> array<string | array<int>>\nbegin\nvalue=(format(\"%.2s\", 10**30));[\"ok\",value.bytes]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
       "expected": [
         "ok",
         [
@@ -20,7 +20,7 @@
     },
     {
       "name": "format_probe_field_7_115_8.3",
-      "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nbegin\nvalue=(format(\"%8.3s\", 10**30));[\"ok\",value.bytes]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "enum E\nA\nend\nclass C\ndef to_s -> string\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input: any) -> array<string | array<int>>\nbegin\nvalue=(format(\"%8.3s\", 10**30));[\"ok\",value.bytes]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
       "expected": [
         "ok",
         [
@@ -52,7 +52,7 @@
     },
     {
       "name": "format_probe_field_7_113_.2",
-      "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nbegin\nvalue=(format(\"%.2q\", 10**30));[\"ok\",value.bytes]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "enum E\nA\nend\nclass C\ndef to_s -> string\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input: any) -> array<string | array<int>>\nbegin\nvalue=(format(\"%.2q\", 10**30));[\"ok\",value.bytes]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
       "expected": [
         "ok",
         [
@@ -74,7 +74,7 @@
     },
     {
       "name": "format_probe_field_7_113_8.3",
-      "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nbegin\nvalue=(format(\"%8.3q\", 10**30));[\"ok\",value.bytes]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "enum E\nA\nend\nclass C\ndef to_s -> string\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input: any) -> array<string | array<int>>\nbegin\nvalue=(format(\"%8.3q\", 10**30));[\"ok\",value.bytes]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
       "expected": [
         "ok",
         [
@@ -106,7 +106,7 @@
     },
     {
       "name": "format_probe_field_8_115_.2",
-      "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nbegin\nvalue=(format(\"%.2s\", -(10**30)));[\"ok\",value.bytes]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "enum E\nA\nend\nclass C\ndef to_s -> string\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input: any) -> array<string | array<int>>\nbegin\nvalue=(format(\"%.2s\", -(10**30)));[\"ok\",value.bytes]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
       "expected": [
         "ok",
         [
@@ -123,7 +123,7 @@
     },
     {
       "name": "format_probe_field_8_115_8.3",
-      "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nbegin\nvalue=(format(\"%8.3s\", -(10**30)));[\"ok\",value.bytes]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "enum E\nA\nend\nclass C\ndef to_s -> string\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input: any) -> array<string | array<int>>\nbegin\nvalue=(format(\"%8.3s\", -(10**30)));[\"ok\",value.bytes]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
       "expected": [
         "ok",
         [
@@ -155,7 +155,7 @@
     },
     {
       "name": "format_probe_field_8_113_.2",
-      "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nbegin\nvalue=(format(\"%.2q\", -(10**30)));[\"ok\",value.bytes]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "enum E\nA\nend\nclass C\ndef to_s -> string\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input: any) -> array<string | array<int>>\nbegin\nvalue=(format(\"%.2q\", -(10**30)));[\"ok\",value.bytes]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
       "expected": [
         "ok",
         [
@@ -177,7 +177,7 @@
     },
     {
       "name": "format_probe_field_8_113_8.3",
-      "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nbegin\nvalue=(format(\"%8.3q\", -(10**30)));[\"ok\",value.bytes]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "enum E\nA\nend\nclass C\ndef to_s -> string\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input: any) -> array<string | array<int>>\nbegin\nvalue=(format(\"%8.3q\", -(10**30)));[\"ok\",value.bytes]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
       "expected": [
         "ok",
         [
@@ -209,7 +209,7 @@
     },
     {
       "name": "format_probe_syntax_21_4",
-      "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nbegin\nvalue=(format(\"%.2[1]s\", 10**30));[\"ok\",value.bytes]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "enum E\nA\nend\nclass C\ndef to_s -> string\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input: any) -> array<string | array<int>>\nbegin\nvalue=(format(\"%.2[1]s\", 10**30));[\"ok\",value.bytes]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
       "expected": [
         "ok",
         [
@@ -226,7 +226,7 @@
     },
     {
       "name": "format_boundary_special_1",
-      "source": "class C\ndef to_s\nprint(\"convert\");\"text\"\nend\nend\n\ndef run(input)\nbegin\nvalue=(begin;m=\"b\".match(/(a)?(b)/);format(\"%s|%s|%s\",m,[m],m.dup);end);[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "class C\ndef to_s -> string\nprint(\"convert\");\"text\"\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nvalue=(begin;m=\"b\".match(/(a)?(b)/);format(\"%s|%s|%s\",m,[m],m.dup);end);[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
       "expected": [
         "ok",
         "b|[b]|b"
@@ -242,7 +242,7 @@
     },
     {
       "name": "format_boundary_special_2",
-      "source": "class C\ndef to_s\nprint(\"convert\");\"text\"\nend\nend\n\ndef run(input)\nbegin\nvalue=(begin;raise \"message\";rescue RuntimeError=>e;format(\"%s|%s\",e,[e]);end);[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "class C\ndef to_s -> string\nprint(\"convert\");\"text\"\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nvalue=(begin;raise \"message\";rescue RuntimeError=>e;format(\"%s|%s\",e,[e]);end);[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
       "expected": [
         "ok",
         "message|[message]"
