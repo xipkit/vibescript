@@ -15,7 +15,7 @@ async fn abandoned_async_invocations_release_unreachable_cycles() {
         let heap = Arc::new(Mutex::new(Weak::new()));
         let entered = Arc::new(Notify::new());
         let (saved_memory, saved_heap, ready) = (memory.clone(), heap.clone(), entered.clone());
-        let mut engine = Engine::new();
+        let mut engine = crate::test_engine();
         engine.register_method(
             "pause",
             HostMethod::new_async("pause", move |call, _, _| {
@@ -37,9 +37,9 @@ async fn abandoned_async_invocations_release_unreachable_cycles() {
             }),
         );
         let source = if nested {
-            "class Box;property link;end;def run;outer(){b=Box.new;b.link=b;pause(b)};end"
+            "class Box;property link: Box?;end;def run;outer(){b=Box.new;b.link=b;pause(b)};end"
         } else {
-            "class Box;property link;end;def run;b=Box.new;b.link=b;pause(b);end"
+            "class Box;property link: Box?;end;def run;b=Box.new;b.link=b;pause(b);end"
         };
         let script = engine.compile(source).unwrap();
         let runner = Runner::new(1).unwrap();
@@ -66,14 +66,14 @@ async fn abandoned_async_invocations_release_unreachable_cycles() {
 #[tokio::test]
 async fn async_panic_paths_release_cycles_and_accounting() {
     for source in [
-        "class Box;property link;end;def run;b=Box.new;b.link=b;fail(b);end",
-        "class Box;property link;end;def run;outer(){b=Box.new;b.link=b;fail(b)};end",
-        "class Box;property link;end;def run;sync(){b=Box.new;b.link=b;fail(b)};end",
+        "class Box;property link: Box?;end;def run;b=Box.new;b.link=b;fail(b);end",
+        "class Box;property link: Box?;end;def run;outer(){b=Box.new;b.link=b;fail(b)};end",
+        "class Box;property link: Box?;end;def run;sync(){b=Box.new;b.link=b;fail(b)};end",
     ] {
         for construction in [false, true] {
             let memory: Memory = Arc::new(Mutex::new(Weak::new()));
             let observed = memory.clone();
-            let mut engine = Engine::new();
+            let mut engine = crate::test_engine();
             engine.register_method(
                 "fail",
                 HostMethod::new_async("fail", move |call, _, _| {
@@ -120,7 +120,7 @@ async fn objects_retained_by_async_hosts_outlive_cancelled_invocations() {
     let retained = Arc::new(Mutex::new(None));
     let entered = Arc::new(Notify::new());
     let (observed, saved, ready) = (memory.clone(), retained.clone(), entered.clone());
-    let mut engine = Engine::new();
+    let mut engine = crate::test_engine();
     engine.register_method(
         "hold",
         HostMethod::new_async("hold", move |call, args, _| {
@@ -133,7 +133,7 @@ async fn objects_retained_by_async_hosts_outlive_cancelled_invocations() {
             })
         }),
     );
-    let script=engine.compile("class Box;property n;property link;end;def run;b=Box.new;b.n=3;b.link=b;hold(b);b.n=4;end").unwrap();
+    let script=engine.compile("class Box;property n: int?;property link: Box?;end;def run;b=Box.new;b.n=3;b.link=b;hold(b);b.n=4;end").unwrap();
     let runner = Runner::new(1).unwrap();
     let task = tokio::spawn(async move {
         runner
@@ -147,9 +147,11 @@ async fn objects_retained_by_async_hosts_outlive_cancelled_invocations() {
     assert!(task.await.unwrap_err().is_cancelled());
     assert!(memory.lock().unwrap().upgrade().is_some());
     let value = retained.lock().unwrap().take().unwrap();
-    let reader = Engine::new()
-        .compile("def read(b);[b.n,b.link==b];end")
-        .unwrap();
+    // The reader cannot name the instance's class, which another script
+    // declares, so it reads the instance without static types.
+    let mut reader = Engine::new();
+    reader.set_static_types(false);
+    let reader = reader.compile("def read(b);[b.n,b.link==b];end").unwrap();
     let result = reader
         .call("read", std::slice::from_ref(&value), CallOptions::default())
         .unwrap();

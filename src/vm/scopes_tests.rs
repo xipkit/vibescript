@@ -47,6 +47,15 @@ fn captured(script: &Script, name: &str) -> Value {
     Value(Kind::Namespace(namespace))
 }
 
+/// An engine for these tests' programs, which pass captured modules between
+/// scripts as values and reassign module constants. A script cannot name
+/// another script's module type, so they compile without static types.
+fn untyped() -> Engine {
+    let mut engine = Engine::new();
+    engine.set_static_types(false);
+    engine
+}
+
 fn json(value: &Value) -> serde_json::Value {
     let output = crate::stringify_json(value, CallOptions::default()).unwrap();
     serde_json::from_slice(output.value.as_bytes().unwrap()).unwrap()
@@ -54,10 +63,10 @@ fn json(value: &Value) -> serde_json::Value {
 
 #[test]
 fn distinct_environments_of_one_code_preserve_aliases_and_independent_state() {
-    let source = Engine::new().compile(COUNTER).unwrap();
+    let source = untyped().compile(COUNTER).unwrap();
     let a = captured(&source, "Counter");
     let b = captured(&source, "Counter");
-    let caller = Engine::new()
+    let caller = untyped()
         .compile(
             "def run(a,b,again); [a==b,a==again,a.identity==a,a.bump,b.current,again.bump,b.bump,a.current,b.current]; end",
         )
@@ -75,7 +84,7 @@ fn distinct_environments_of_one_code_preserve_aliases_and_independent_state() {
             serde_json::json!([false, true, true, 1, 0, 2, 1, 2, 1])
         );
     }
-    let caller = Engine::new()
+    let caller = untyped()
         .compile("def run(a:,b:); [a.bump,b.current,a.identity==a,b.identity==b]; end")
         .unwrap();
     let result = caller
@@ -93,7 +102,7 @@ fn distinct_environments_of_one_code_preserve_aliases_and_independent_state() {
 fn retained_state_is_copied_without_repeating_completed_initializers() {
     let initialized = Arc::new(AtomicUsize::new(0));
     let observed = initialized.clone();
-    let mut engine = Engine::new();
+    let mut engine = untyped();
     engine.register("initialize", move |_, _| {
         observed.fetch_add(1, Ordering::SeqCst);
         Ok(Value::int(0))
@@ -102,7 +111,7 @@ fn retained_state_is_copied_without_repeating_completed_initializers() {
         .compile(&COUNTER.replace("COUNT = 0", "COUNT = initialize()"))
         .unwrap();
     let incoming = captured(&source, "Counter");
-    let caller = Engine::new()
+    let caller = untyped()
         .compile(
             r#"
 def warm(m); m.link=m; m.bump; m.append(2); m; end
@@ -148,14 +157,14 @@ def discard(m); m.bump; nil; end
 
 #[test]
 fn successful_host_results_admit_every_environment_of_already_known_code() {
-    let source = Engine::new().compile(COUNTER).unwrap();
+    let source = untyped().compile(COUNTER).unwrap();
     let a = captured(&source, "Counter");
     let b = captured(&source, "Counter");
     let both = Value::array(vec![
         a.clone(),
         Value::hash(vec![(b"second".to_vec(), b.clone())]),
     ]);
-    let mut engine = Engine::new();
+    let mut engine = untyped();
     engine.register("first", move |_, _| Ok(a.clone()));
     engine.register("second", move |_, _| Ok(b.clone()));
     engine.register("both", move |_, _| Ok(both.clone()));
@@ -199,8 +208,8 @@ end
 
 #[test]
 fn captured_fields_keep_pending_addresses_snapshots_and_recoverable_writes() {
-    let source = Engine::new().compile(COUNTER).unwrap();
-    let caller = Engine::new()
+    let source = untyped().compile(COUNTER).unwrap();
+    let caller = untyped()
         .compile(
             r#"
 def run(m)
@@ -252,7 +261,7 @@ end
 
 #[test]
 fn protected_dispatch_and_nominal_types_distinguish_captured_classes() {
-    let source = Engine::new()
+    let source = untyped()
         .compile(
             r#"
 class C
@@ -275,7 +284,7 @@ end
         ("add_peer", 11, ErrorKind::Name),
         ("typed_peer", 13, ErrorKind::Type),
     ] {
-        let caller = Engine::new()
+        let caller = untyped()
             .compile(&format!(
                 "def run(a,b); x=a.new; y=b.new; x.{method}(y); end"
             ))
@@ -295,7 +304,7 @@ end
 fn invalid_later_arguments_stop_before_captured_initializers() {
     let initialized = Arc::new(AtomicUsize::new(0));
     let observed = initialized.clone();
-    let mut engine = Engine::new();
+    let mut engine = untyped();
     engine.register("initialize", move |_, _| {
         observed.fetch_add(1, Ordering::SeqCst);
         Ok(Value::int(0))
@@ -304,7 +313,7 @@ fn invalid_later_arguments_stop_before_captured_initializers() {
         .compile(&COUNTER.replace("COUNT = 0", "COUNT = initialize()"))
         .unwrap();
     let incoming = captured(&source, "Counter");
-    let caller = Engine::new().compile("def run(a,b); nil; end").unwrap();
+    let caller = untyped().compile("def run(a,b); nil; end").unwrap();
     let mut deep = Value::nil();
     for _ in 0..crate::budget::MAX_VALUE_DEPTH + 1 {
         deep = Value::array(vec![deep]);
@@ -338,8 +347,8 @@ fn invalid_later_arguments_stop_before_captured_initializers() {
 
 #[test]
 fn captured_methods_keep_caller_blocks_and_ensure_on_the_receiving_stack() {
-    let source = Engine::new().compile(COUNTER).unwrap();
-    let caller = Engine::new()
+    let source = untyped().compile(COUNTER).unwrap();
+    let caller = untyped()
         .compile("def run(m); n=10; a=m.invoke{|x| x+n}; b=m.invoke{break 7}; [a,b,m.current]; end")
         .unwrap();
     let result = caller
@@ -356,7 +365,7 @@ fn captured_methods_keep_caller_blocks_and_ensure_on_the_receiving_stack() {
 fn rejected_and_unreturned_scopes_are_only_initialized_when_later_accepted() {
     let initialized = Arc::new(AtomicUsize::new(0));
     let observed = initialized.clone();
-    let mut producer = Engine::new();
+    let mut producer = untyped();
     producer.register("initialize", move |_, _| {
         Ok(Value::int(
             observed.fetch_add(1, Ordering::SeqCst) as i64 + 1,
@@ -373,7 +382,7 @@ fn rejected_and_unreturned_scopes_are_only_initialized_when_later_accepted() {
     let rejected = Value::array(vec![a.clone(), deep]);
     let unreturned = b.clone();
     let count = initialized.clone();
-    let mut consumer = Engine::new();
+    let mut consumer = untyped();
     consumer.register("rejected", move |_, _| Ok(rejected.clone()));
     consumer.register("retain", move |ctx, _| {
         ctx.import(&unreturned)?;
@@ -409,7 +418,7 @@ end
 fn same_code_scopes_initialize_in_argument_and_graph_discovery_order() {
     let initialized = Arc::new(AtomicUsize::new(0));
     let observed = initialized.clone();
-    let mut producer = Engine::new();
+    let mut producer = untyped();
     producer.register("initialize", move |_, _| {
         Ok(Value::int(
             observed.fetch_add(1, Ordering::SeqCst) as i64 + 1,
@@ -425,7 +434,7 @@ fn same_code_scopes_initialize_in_argument_and_graph_discovery_order() {
         Value::hash(vec![(b"a".to_vec(), a.clone())]),
         b.clone(),
     ]);
-    let mut consumer = Engine::new();
+    let mut consumer = untyped();
     consumer.register("graph", move |_, _| Ok(graph.clone()));
     let caller = consumer
         .compile(
@@ -465,7 +474,7 @@ fn captured_initializers_obey_receiving_budgets_cancellation_and_cleanup() {
     let flag = active.clone();
     let cancellation = CancellationToken::new();
     let token = cancellation.clone();
-    let mut producer = Engine::new();
+    let mut producer = untyped();
     producer.register("initialize", move |_, _| {
         if flag.load(Ordering::SeqCst) {
             token.cancel();
@@ -476,9 +485,7 @@ fn captured_initializers_obey_receiving_budgets_cancellation_and_cleanup() {
         .compile("module M\n initialize()\n VALUES=(1..1024).map{|n| n}\nend")
         .unwrap();
     let value = captured(&source, "M");
-    let caller = Engine::new()
-        .compile("def run(m); m.VALUES.size; end")
-        .unwrap();
+    let caller = untyped().compile("def run(m); m.VALUES.size; end").unwrap();
     let baseline = caller
         .call("run", std::slice::from_ref(&value), CallOptions::default())
         .unwrap();
@@ -546,7 +553,7 @@ fn captured_initializers_obey_receiving_budgets_cancellation_and_cleanup() {
 fn failed_initializers_do_not_poison_fresh_host_result_snapshots() {
     let calls = Arc::new(AtomicUsize::new(0));
     let observed = calls.clone();
-    let mut producer = Engine::new();
+    let mut producer = untyped();
     producer.register("initialize", move |_, _| {
         if observed.fetch_add(1, Ordering::SeqCst) == 0 {
             return Err(Error::new(ErrorKind::Runtime, "scope failed"));
@@ -558,7 +565,7 @@ fn failed_initializers_do_not_poison_fresh_host_result_snapshots() {
         .unwrap();
     let a = captured(&source, "Counter");
     let b = captured(&source, "Counter");
-    let mut consumer = Engine::new();
+    let mut consumer = untyped();
     consumer.register("first", move |_, _| Ok(a.clone()));
     consumer.register("second", move |_, _| Ok(b.clone()));
     let caller = consumer

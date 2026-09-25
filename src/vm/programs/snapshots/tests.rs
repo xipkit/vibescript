@@ -62,7 +62,11 @@ fn probe(limit: Limit) -> (crate::Result<crate::Outcome>, Observation) {
         // surface a latched error after the temporary snapshot state is cleared.
         Ok(Value::nil())
     });
-    let result = Engine::new()
+    // The program stores a module in the capability object it is granted,
+    // which static types refuse, so it compiles without them.
+    let mut engine = Engine::new();
+    engine.set_static_types(false);
+    let result = engine
         .compile(
             "module Data
                ITEMS=(1..256).to_a

@@ -10,8 +10,19 @@ use std::{
 };
 
 fn script(source: &str, calls: &Arc<AtomicUsize>) -> Script {
-    let calls = calls.clone();
+    script_in(crate::test_engine(), source, calls)
+}
+
+/// A script that compiles without static types: compound assignment to an
+/// array element reads the element as optional, which they refuse.
+fn untyped_script(source: &str, calls: &Arc<AtomicUsize>) -> Script {
     let mut engine = Engine::new();
+    engine.set_static_types(false);
+    script_in(engine, source, calls)
+}
+
+fn script_in(mut engine: Engine, source: &str, calls: &Arc<AtomicUsize>) -> Script {
+    let calls = calls.clone();
     engine.register_method(
         "pause",
         HostMethod::new_with_block("pause", move |call, args, _| {
@@ -67,28 +78,47 @@ fn migrated(script: &Script, options: CallOptions) -> (Result<Outcome>, usize) {
 
 #[test]
 fn suspended_execution_moves_between_workers_without_changing_values_or_accounting() {
-    for (source, expected, pauses) in [
+    type Build = fn(&str, &Arc<AtomicUsize>) -> Script;
+    for (build, source, expected, pauses) in [
         (
-            "class Box;property n;end;def run;box=Box.new;box.n=1;box.n+=pause(3);[1,2].each{|n|box.n+=pause(n)};box.n;end",
+            script as Build,
+            "class Box;property n: int;end;def run -> int;box=Box.new;box.n=1;box.n+=pause(3).as(int);[1,2].each{|n|box.n+=pause(n).as(int)};box.n;end",
             "7",
             3,
         ),
         (
+            untyped_script,
             "def run;a=[1];a[-1]+=pause(){a.push(2);3};a;end",
             "[4, 2]",
             1,
         ),
         (
-            "def run;n=1;begin;pause(){raise 'stop'};rescue;n+=2;ensure;n+=pause(4);end;n;end",
+            script,
+            "def run -> int;n=1;begin;pause(){raise 'stop'};rescue;n+=2;ensure;n+=pause(4).as(int);end;n;end",
             "7",
             2,
         ),
-        ("module M;N=pause(7);end;def run;M::N;end", "7", 1),
-        ("def run;pause(){return 7};false;end", "7", 1),
-        ("def run;pause(){break 7};end", "7", 1),
+        (
+            script,
+            "module M;N=pause(7);end;def run -> any;M::N;end",
+            "7",
+            1,
+        ),
+        (
+            script,
+            "def run -> bool | int;pause(){return 7};false;end",
+            "7",
+            1,
+        ),
+        (
+            script,
+            "def run -> int;pause(){break 7}.as(int);end",
+            "7",
+            1,
+        ),
     ] {
         let calls = Arc::new(AtomicUsize::new(0));
-        let script = script(source, &calls);
+        let script = build(source, &calls);
         let direct = script.call("run", &[], CallOptions::default()).unwrap();
         assert_eq!(direct.value.to_string(), expected, "{source}");
         calls.store(0, Ordering::Relaxed);
@@ -131,12 +161,22 @@ fn cancellation_at_a_host_boundary_stops_before_the_callback() {
 
 #[test]
 fn suspended_execution_preserves_limits_and_error_locations() {
-    for source in [
-        "def run;a=[1];a[-1]+=pause(){a.push(2);3};a;end",
-        "def run;begin;pause(){raise 'stop'};rescue;pause(7);end;end",
-        "def run;pause(){break [1,2,3]};end",
+    type Build = fn(&str, &Arc<AtomicUsize>) -> Script;
+    for (build, source) in [
+        (
+            untyped_script as Build,
+            "def run;a=[1];a[-1]+=pause(){a.push(2);3};a;end",
+        ),
+        (
+            script,
+            "def run -> int;begin;pause(){raise 'stop'}.as(int);rescue;pause(7).as(int);end;end",
+        ),
+        (
+            script,
+            "def run -> array<int>;pause(){break [1,2,3]}.as(array<int>);end",
+        ),
     ] {
-        let script = script(source, &Arc::new(AtomicUsize::new(0)));
+        let script = build(source, &Arc::new(AtomicUsize::new(0)));
         let baseline = script.call("run", &[], CallOptions::default()).unwrap();
         let mut exact = CallOptions::default();
         exact.limits.steps = Some(baseline.stats.steps);
@@ -162,7 +202,7 @@ fn suspended_execution_preserves_limits_and_error_locations() {
         }
     }
     let script = script(
-        "def fail\n pause(){raise 'failure'}\nend\ndef run\n fail\nend",
+        "def fail -> any\n pause(){raise 'failure'}\nend\ndef run -> any\n fail\nend",
         &Arc::new(AtomicUsize::new(0)),
     );
     let direct = script.call("run", &[], CallOptions::default()).unwrap_err();
@@ -178,7 +218,7 @@ fn abandoned_execution_releases_cycles_without_running_ensure() {
     for expired in [false, true] {
         let calls = Arc::new(AtomicUsize::new(0));
         let script = script(
-            "class Box;property link;end;def run;b=Box.new;b.link=b;begin;pause();ensure;pause();end;end",
+            "class Box;property link: Box?;end;def run -> any;b=Box.new;b.link=b;begin;pause();ensure;pause();end;end",
             &calls,
         );
         let mut execution =
@@ -216,7 +256,7 @@ fn abandoned_execution_releases_cycles_without_running_ensure() {
 fn abandoned_execution_keeps_objects_retained_by_the_host() {
     let retained = Arc::new(Mutex::new(None));
     let held = retained.clone();
-    let mut engine = Engine::new();
+    let mut engine = crate::test_engine();
     engine.register("hold", move |_, args| {
         *held.lock().unwrap() = Some(args[0].clone());
         Ok(Value::nil())
@@ -225,7 +265,7 @@ fn abandoned_execution_keeps_objects_retained_by_the_host() {
         "pause",
         HostMethod::new_with_block("pause", |_, _, _| unreachable!()),
     );
-    let script = engine.compile("class Box;property n;property link;end;def run;b=Box.new;b.n=3;b.link=b;hold(b);pause();b.n=4;end").unwrap();
+    let script = engine.compile("class Box;property n: int?;property link: Box?;end;def run;b=Box.new;b.n=3;b.link=b;hold(b);pause();b.n=4;end").unwrap();
     let mut execution = Execution::new(&script, "run", &[], &[], CallOptions::default()).unwrap();
     assert!(matches!(
         execution
@@ -240,9 +280,11 @@ fn abandoned_execution_keeps_objects_retained_by_the_host() {
     drop(execution);
     let value = retained.lock().unwrap().take().unwrap();
     assert!(memory.upgrade().is_some());
-    let reader = Engine::new()
-        .compile("def read(b);[b.n,b.link==b];end")
-        .unwrap();
+    // The reader cannot name the instance's class, which another script
+    // declares, so it reads the instance without static types.
+    let mut reader = Engine::new();
+    reader.set_static_types(false);
+    let reader = reader.compile("def read(b);[b.n,b.link==b];end").unwrap();
     let result = reader
         .call("read", std::slice::from_ref(&value), CallOptions::default())
         .unwrap();
@@ -254,7 +296,7 @@ fn abandoned_execution_keeps_objects_retained_by_the_host() {
 #[test]
 fn completed_host_results_can_outlive_an_abandoned_execution() {
     let script = script(
-        "class Box;property link;end;def run;pause(){b=Box.new;b.link=b;b};end",
+        "class Box;property link: Box?;end;def run -> any;pause(){b=Box.new;b.link=b;b};end",
         &Arc::new(AtomicUsize::new(0)),
     );
     for result_first in [false, true] {
@@ -299,7 +341,7 @@ fn host_panics_release_the_invocation_heap_and_accounting() {
             assert!(ctx.objects.is_some());
             panic!("host callback panic");
         };
-        let mut engine = Engine::new();
+        let mut engine = crate::test_engine();
         if framed {
             engine.register_method(
                 "fail",
@@ -309,7 +351,9 @@ fn host_panics_release_the_invocation_heap_and_accounting() {
             engine.register("fail", move |ctx, _| callback(ctx));
         }
         let script = engine
-            .compile("class Box;property link;end;def run;b=Box.new;b.link=b;fail();end")
+            .compile(
+                "class Box;property link: Box?;end;def run -> any;b=Box.new;b.link=b;fail();end",
+            )
             .unwrap();
         assert!(
             catch_unwind(AssertUnwindSafe(|| script.call(
@@ -327,8 +371,8 @@ fn host_panics_release_the_invocation_heap_and_accounting() {
 #[cfg_attr(not(panic = "unwind"), ignore = "catching a panic requires unwinding")]
 fn failed_or_panicked_preparation_releases_imported_cycles() {
     for panicked in [false, true] {
-        let foreign = Engine::new()
-            .compile("class Box;property link;end;b=Box.new;b.link=b;b")
+        let foreign = crate::test_engine()
+            .compile("class Box;property link: Box?;end;b=Box.new;b.link=b;b")
             .unwrap()
             .run(CallOptions::default())
             .unwrap()
@@ -346,7 +390,7 @@ fn failed_or_panicked_preparation_releases_imported_cycles() {
             })],
             ..CallOptions::default()
         };
-        let script = Engine::new().compile("def run;nil;end").unwrap();
+        let script = crate::test_engine().compile("def run;nil;end").unwrap();
         let result = catch_unwind(AssertUnwindSafe(|| script.call("run", &[], options)));
         if panicked {
             assert!(result.is_err());

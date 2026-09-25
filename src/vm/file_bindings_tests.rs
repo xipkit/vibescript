@@ -22,8 +22,13 @@ fn json(value: &Value) -> serde_json::Value {
     serde_json::from_slice(encoded.value.as_bytes().unwrap()).unwrap()
 }
 
+/// Calls `run` of `source` with `values`, typically a file's module. A
+/// script cannot name the module type of a file compiled apart from it, so
+/// these receivers compile without static types.
 fn invoke(source: &str, values: &[Value]) -> Result<crate::Outcome> {
-    Engine::new()
+    let mut engine = Engine::new();
+    engine.set_static_types(false);
+    engine
         .compile(source)
         .unwrap()
         .call("run", values, CallOptions::default())
@@ -364,7 +369,10 @@ Bridge
 "#,
     );
     let value = script.run(CallOptions::default()).unwrap().value;
-    let caller = Engine::new()
+    // The caller receives the file's module, whose type it cannot name.
+    let mut caller = Engine::new();
+    caller.set_static_types(false);
+    let caller = caller
         .compile("def run(m);m.change;end\ndef stop(m);begin;m.stop;rescue;7;end;end")
         .unwrap();
     let args = std::slice::from_ref(&value);
