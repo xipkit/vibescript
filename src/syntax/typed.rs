@@ -10,7 +10,8 @@ use crate::{
     compilation::{Boxed, Buffer, Name, Type, TypeKind},
 };
 
-/// An instance variable a class body declares, such as `@count: int = 0`.
+/// An instance or class variable a class body declares, such as
+/// `@count: int = 0` or `@@total: int = 0`.
 #[derive(Debug)]
 pub(crate) struct Ivar {
     pub name: Name,
@@ -30,6 +31,10 @@ pub(crate) struct Additions {
     pub aliases: Buffer<(Option<u32>, TypeAlias)>,
     /// Instance-variable declarations, by the declaring class's offset.
     pub ivars: Buffer<(u32, Ivar)>,
+    /// Class-variable declarations, `@@name: T = value`, by the declaring
+    /// class or module's offset. The name keeps its `@@`; the value's
+    /// assignment stays in the body, where it runs in order.
+    pub class_vars: Buffer<(u32, Ivar)>,
     /// The assignments of their defaults, by the declaring class's offset.
     pub defaults: Buffer<(u32, super::Stmt)>,
 }
@@ -126,6 +131,13 @@ impl Parser<'_> {
     /// Whether a class body member declares an instance variable, `@name: T`.
     pub(super) fn ivar_ahead(&self) -> bool {
         matches!(self.token(), Token::Word(w) if w.starts_with('@') && !w.starts_with("@@"))
+            && self.annotation_colon(self.pos)
+    }
+
+    /// Whether a class or module body member declares a class variable,
+    /// `@@name: T = value`.
+    pub(super) fn class_var_ahead(&self) -> bool {
+        matches!(self.token(), Token::Word(w) if w.starts_with("@@"))
             && self.annotation_colon(self.pos)
     }
 
@@ -383,6 +395,58 @@ impl Parsing<'_> {
         let offset = ivar.offset;
         let assignment = Statement::Assign(Target::Value(variable), "=", value).at(offset);
         Ok((ivar, Some(assignment)))
+    }
+}
+
+impl Parsing<'_> {
+    /// Parses a class-variable declaration in a class or module body,
+    /// `@@name: T = value`, returning it and its value's assignment.
+    pub(super) async fn class_var(&self) -> Result<(Ivar, super::Stmt)> {
+        let work = self.p().work;
+        let (declared, variable) = {
+            let mut p = self.p();
+            work.charge(1)?;
+            let offset = p.tokens[p.pos].offset;
+            let Token::Word(word) = p.bump()? else {
+                unreachable!()
+            };
+            if word.len() == 2 {
+                return Err(Error::syntax(
+                    work,
+                    offset,
+                    "expected class variable name, got class variable",
+                ));
+            }
+            let name = Name::new(work, &word)?;
+            let variable = p.make_at(Node::Var(name.clone()), 1, offset as u32)?;
+            p.bump()?;
+            p.line_breaks()?;
+            let ty = p.type_expr(1, false)?;
+            if p.token() != &Token::Op("=") {
+                let at = p.tokens[p.pos - 1].end;
+                return Err(Error::syntax(
+                    work,
+                    at,
+                    format_args!(
+                        "class variable {} needs a value; write {}: T = value",
+                        source_text(&name),
+                        source_text(&name)
+                    ),
+                ));
+            }
+            p.bump()?;
+            p.line_breaks()?;
+            let declared = Ivar {
+                name,
+                ty,
+                offset: offset as u32,
+            };
+            (declared, variable)
+        };
+        let value = self.block_line_expr().await?;
+        let offset = declared.offset;
+        let assignment = Statement::Assign(Target::Value(variable), "=", value).at(offset);
+        Ok((declared, assignment))
     }
 }
 

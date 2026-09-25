@@ -48,6 +48,7 @@ enum Member {
     Module,
     Method,
     Ivar,
+    ClassVar,
 }
 
 /// What removed class features name as their replacement.
@@ -500,6 +501,7 @@ impl Parsing<'_> {
                     // A module has no instances, so `@name:` stays the syntax
                     // error it always was there.
                     _ if !module && p.ivar_ahead() => Member::Ivar,
+                    _ if p.class_var_ahead() => Member::ClassVar,
                     "include" | "extend" if p.mixin_directive()? => {
                         return p.err(format_args!(
                             "{word} is not supported; modules are namespaces: {NAMESPACES}"
@@ -569,6 +571,28 @@ impl Parsing<'_> {
                         class.depth = class.depth.max(1 + default.depth);
                         p.additions.defaults.push(work, (class.offset, default))?;
                     }
+                }
+                Member::ClassVar => {
+                    let (declared, assignment) = self.class_var().await?;
+                    let mut p = self.p();
+                    let class_vars = &mut p.additions.class_vars;
+                    work.charge(class_vars.len())?;
+                    let duplicate = class_vars.iter().any(|(owner, prior)| {
+                        *owner == class.offset && prior.name == declared.name
+                    });
+                    if duplicate {
+                        return Err(crate::Error::syntax(
+                            work,
+                            declared.offset as usize,
+                            format_args!(
+                                "duplicate class variable declaration {}",
+                                source_text(&declared.name)
+                            ),
+                        ));
+                    }
+                    class_vars.push(work, (class.offset, declared))?;
+                    class.depth = class.depth.max(1 + assignment.depth);
+                    class.body.push(work, assignment)?;
                 }
                 Member::Method => {
                     let Function {

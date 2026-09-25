@@ -1,6 +1,7 @@
 //! The declarations ADR-007 adds, enforced at runtime like parameter
 //! annotations: typed locals, typed block parameters, instance-variable
-//! declarations, type aliases, tuple types and the newer type names.
+//! declarations, type aliases, tuple types and the newer type names. A
+//! class-variable declaration's type is the static checker's alone.
 
 use vibescript::{CallOptions, Engine, ErrorKind, stringify_json};
 
@@ -371,6 +372,34 @@ end
             "module M\n  @x: int = 1\nend",
             "parse error at 2:5: unexpected token \":\"",
         ),
+    ] {
+        assert_eq!(compile_error(source), message, "{source}");
+    }
+}
+
+#[test]
+fn class_variable_declarations_assign_in_body_order() {
+    let source = "class C\n  @@base = 2\n  @@next: int = @@base + 1\n  def self.bump -> int\n    @@next += 1\n  end\nend\nmodule M\n  @@names: array<string> = []\n  def self.add(name: string) -> array<string>\n    @@names << name\n  end\nend\n[C.bump, C.bump, M.add(\"a\"), M.add(\"b\")]";
+    assert_eq!(
+        evaluate(source),
+        serde_json::json!([4, 5, ["a"], ["a", "b"]])
+    );
+    for (source, message) in [
+        (
+            "class C\n  @@x: int\nend",
+            "parse error at 2:11: class variable @@x needs a value; write @@x: T = value",
+        ),
+        // The value starts on the declaration's line.
+        (
+            "class C\n  @@x: int\n  = 1\nend",
+            "parse error at 2:11: class variable @@x needs a value; write @@x: T = value",
+        ),
+        (
+            "module M\n  @@x: int = 1\n  @@x: int = 2\nend",
+            "parse error at 3:3: duplicate class variable declaration @@x",
+        ),
+        // Only a class or module body declares one.
+        ("@@x: int = 1", "parse error at 1:4: unexpected token \":\""),
     ] {
         assert_eq!(compile_error(source), message, "{source}");
     }

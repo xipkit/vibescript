@@ -252,6 +252,9 @@ pub enum Member {
     Property(Property),
     /// An instance-variable declaration, `@name: T` or `@name: T = value`.
     Ivar(String, TypeExpr, Option<Expr>),
+    /// A class-variable declaration, `@@name: T = value`, named without its
+    /// `@@`.
+    ClassVar(String, TypeExpr, Expr),
     Class(Class),
     Stmt(Stmt),
     /// A visibility directive, alias or other declaration.

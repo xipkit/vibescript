@@ -2144,6 +2144,20 @@ impl<'s> Parser<'s> {
                 members.push(Member::Ivar(name, ty, default));
                 continue;
             }
+            if word.starts_with("@@") && self.annotation_colon(self.pos) {
+                let name = word.trim_start_matches('@').to_owned();
+                self.pos += 2;
+                let ty = self.type_expr(1, false)?;
+                let equals = self.significant(self.pos);
+                if !self.is_op(equals, "=") {
+                    return self.fail("class variable declaration needs a value");
+                }
+                self.pos = equals + 1;
+                self.line_breaks();
+                let value = self.line_expr(0)?;
+                members.push(Member::ClassVar(name, ty, value));
+                continue;
+            }
             match word {
                 "def" => members.push(Member::Def(self.function(true, None)?)),
                 "alias" if self.alias_ahead() => {

@@ -1,6 +1,6 @@
 //! Classes, instance variables, properties, enums and exhaustive `case`.
 
-use super::support::{clean, codes, error, spanned};
+use super::support::{clean, codes, error, fixed, spanned};
 
 const POINT: &str = "class Point\n  property x: int\n  @label: string = \"p\"\n  @y: int\n  def initialize(x: int, y: int)\n    @x = x\n    @y = y\n  end\n  def sum -> int\n    @x + @y\n  end\n  def label -> string\n    @label\n  end\nend\n";
 
@@ -93,18 +93,62 @@ fn case_over_an_enum_or_bool_is_exhaustive() {
 }
 
 #[test]
-fn class_variables_keep_the_type_the_class_body_gives() {
+fn class_variables_are_declared_in_the_body() {
     clean(
-        "class C\n  @@calls = 0\n  def self.bump -> int\n    @@calls += 1\n    @@calls\n  end\nend\n",
+        "class C\n  @@calls: int = 0\n  def self.bump -> int\n    @@calls += 1\n    @@calls\n  end\nend\n",
     );
+    // A declaration types the value, so an empty literal needs no context.
+    clean(
+        "module Registry\n  @@names: array<string> = []\n  def self.add(name: string) -> array<string>\n    @@names << name\n  end\nend\n",
+    );
+    // A method may read a declaration that comes after it in the body.
+    clean("class C\n  def self.read -> int\n    @@calls\n  end\n  @@calls: int = 0\nend\n");
     codes(
-        "class C\n  @@calls = 0\n  def self.bump\n    @@calls = \"x\"\n  end\nend\n",
+        "class C\n  @@calls: int = 0\n  def self.bump\n    @@calls = \"x\"\n  end\nend\n",
         &["V0101"],
     );
-    codes(
-        "class C\n  def self.bump -> int\n    @@calls\n  end\nend\n",
-        &["V0204"],
+    error(
+        "class C\n  @@calls: int = \"x\"\nend\n",
+        "V0101",
+        "`@@calls` is int, found string",
     );
+    error(
+        "class C\n  def self.bump -> int\n    @@calls\n  end\nend\n",
+        "V0204",
+        "declare it in the class body",
+    );
+}
+
+#[test]
+fn an_undeclared_class_variable_is_declared_by_its_fix() {
+    let source = "class C\n  @@calls = 0\n  def self.bump -> int\n    @@calls += 1\n    @@calls\n  end\nend\n";
+    let diagnostic = error(
+        source,
+        "V0204",
+        "class variable `@@calls` is not declared in `C`",
+    );
+    assert_eq!(spanned(source, &diagnostic), "@@calls");
+    let repaired = fixed(source, &diagnostic);
+    assert!(
+        repaired.starts_with("class C\n  @@calls: int = 0\n"),
+        "{repaired}"
+    );
+    clean(&repaired);
+    // A later assignment is checked against the first value's type.
+    codes(
+        "class C\n  @@calls = 0\n  def self.bump\n    @@calls = \"x\"\n  end\nend\n",
+        &["V0204", "V0101"],
+    );
+    // An empty literal or nil does not say which type to declare, and an
+    // assignment nested in the body cannot become a declaration.
+    for source in [
+        "class C\n  @@names = []\nend\n",
+        "class C\n  @@label = nil\nend\n",
+        "class C\n  if true\n    @@calls = 0\n  end\nend\n",
+    ] {
+        let diagnostic = error(source, "V0204", "is not declared");
+        assert!(diagnostic.fixes.is_empty(), "{source}: {diagnostic:?}");
+    }
 }
 
 #[test]

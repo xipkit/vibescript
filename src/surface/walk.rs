@@ -252,6 +252,7 @@ pub trait Walk<'a>: Rules<'a> {
                         self.expr(default, Place::Loose);
                     }
                 }
+                Member::ClassVar(_, _, value) => self.expr(value, Place::Loose),
                 Member::Stmt(stmt) => {
                     let mut scope = Scope {
                         class: Some(class),

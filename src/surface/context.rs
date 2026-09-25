@@ -241,7 +241,7 @@ impl<'a> Surface<'a> {
                     }
                 }
                 Member::Class(inner) => self.declare_class(inner, &name),
-                Member::Ivar(..) => (),
+                Member::Ivar(..) | Member::ClassVar(..) => (),
                 Member::Other(span) => {
                     // `send` reaches private and protected methods, which a
                     // direct call from outside the class does not.

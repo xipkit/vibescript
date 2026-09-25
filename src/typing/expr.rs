@@ -240,7 +240,7 @@ impl<'a> Checker<'a> {
                 Code::UNDECLARED_IVAR,
                 span,
                 format!(
-                    "class variable `{name}` is not assigned in the class body, which declares it"
+                    "class variable `{name}` is not declared; declare it in the class body, as in `{name}: T = value`"
                 ),
             ));
             return Ty::ERROR;

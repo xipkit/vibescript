@@ -982,9 +982,17 @@ impl<'a> Checker<'a> {
             }
             Target::Value(expr) => match &expr.node {
                 Node::Var(name) if name.starts_with("@@") => {
-                    let ty = self.expr(value, None);
-                    self.write_class_variable(name, ty, expr, value);
-                    ty
+                    let key = (self.frame.owner, name.to_string());
+                    match self.constants.get(&key).copied() {
+                        Some(declared) if self.frame.owner.is_some() => {
+                            self.expr_against(value, declared, &Purpose::Ivar(name[1..].to_owned()))
+                        }
+                        _ => {
+                            let ty = self.expr(value, None);
+                            self.write_class_variable(name, ty, expr, value);
+                            ty
+                        }
+                    }
                 }
                 Node::Var(name) if name.starts_with('@') => {
                     let span = self.spans.expr(expr);
@@ -1279,40 +1287,59 @@ impl<'a> Checker<'a> {
         None
     }
 
-    /// Assigns a class variable: its first assignment in the class body
-    /// declares its type, and later ones must keep it.
+    /// Assigns a class variable, which its class or module body declares
+    /// as `@@name: T = value`; every assignment must keep that type.
     fn write_class_variable(&mut self, name: &str, ty: Ty, target: &Expr, value: &Expr) {
         let Some(ns) = self.frame.owner else {
             return;
         };
         let key = (Some(ns), name.to_owned());
-        match self.constants.get(&key).copied() {
-            Some(declared) => {
-                if !self.types.assignable(ty, declared) {
-                    let span = self.spans.expr(value);
-                    self.mismatch(span, declared, ty, &Purpose::Ivar(name[1..].to_owned()));
-                }
+        if let Some(declared) = self.constants.get(&key).copied() {
+            if !self.types.assignable(ty, declared) {
+                let span = self.spans.expr(value);
+                self.mismatch(span, declared, ty, &Purpose::Ivar(name[1..].to_owned()));
             }
-            None if self.frame.namespace_body => {
-                // No syntax declares a class variable's type, so one first
-                // assigned an empty literal stays unchecked.
-                let ty = if self.needs_context(ty) {
-                    Ty::ERROR
-                } else {
-                    ty
-                };
-                self.constants.insert(key, ty);
-            }
-            None => {
-                let span = self.spans.expr(target);
-                let class = self.program.namespaces[ns as usize].name.clone();
-                self.report(Diagnostic::error(
-                    Code::UNDECLARED_IVAR,
-                    span,
-                    format!("class variable `{name}` is not assigned in the body of `{class}`, which declares it"),
-                ));
-            }
+            return;
         }
+        let span = self.spans.expr(target);
+        let class = self.program.namespaces[ns as usize].name.clone();
+        let mut diagnostic = Diagnostic::error(
+            Code::UNDECLARED_IVAR,
+            span,
+            format!(
+                "class variable `{name}` is not declared in `{class}`; declare it in the body, as in `{name}: T = value`"
+            ),
+        );
+        let nameable = !self.needs_context(ty)
+            && !matches!(self.types.kind(ty), Kind::Error | Kind::Never | Kind::Any);
+        if nameable && self.frame.namespace_body && self.class_body_assignment(ns, target) {
+            let written = self.types.display(ty);
+            diagnostic = diagnostic.with_fix(Fix::insert(
+                format!("declare `{name}: {written}`"),
+                span.end,
+                format!(": {written}"),
+            ));
+        }
+        self.report(diagnostic);
+        // Later reads and writes check against the first value's type.
+        let ty = if nameable { ty } else { Ty::ERROR };
+        self.constants.insert(key, ty);
+    }
+
+    /// Whether `target` is the target of a plain assignment that stands
+    /// directly in the body of namespace `ns`, where a declaration can
+    /// replace it.
+    fn class_body_assignment(&self, ns: NsId, target: &Expr) -> bool {
+        self.program.namespaces[ns as usize]
+            .module
+            .body
+            .iter()
+            .any(|stmt| match &stmt.node {
+                Statement::Assign(Target::Value(assigned), "=", _) => {
+                    assigned.offset == target.offset && stmt.offset == target.offset
+                }
+                _ => false,
+            })
     }
 
     pub(super) fn mark_ivar_assigned(&mut self, name: &str) {

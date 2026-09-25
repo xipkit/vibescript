@@ -36,6 +36,9 @@ impl Typing {
             aliases,
             ivars,
             defaults,
+            // The checker types class variables; their assignments stay in
+            // the class body.
+            class_vars: _,
         } = additions;
         let mut blocks: Vec<_> = blocks.into_iter().collect();
         work.charge(blocks.len())?;

@@ -145,6 +145,15 @@ impl<'a> Checker<'a> {
                 .ivars
                 .insert(ivar.name.to_string(), Ivar { ty, default });
         }
+        // Declared class variables have their types before any body reads them.
+        for (namespace, declared) in &parsed.additions.class_vars {
+            let Some(&ns) = self.program.by_offset.get(namespace) else {
+                continue;
+            };
+            let ty = self.annotation(&declared.ty, Some(ns), declared.offset as usize);
+            self.constants
+                .insert((Some(ns), declared.name.to_string()), ty);
+        }
         // Properties declare their instance variables and their types.
         for ns in 0..self.program.namespaces.len() {
             let module = self.program.namespaces[ns].module;

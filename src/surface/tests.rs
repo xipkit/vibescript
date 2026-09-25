@@ -89,6 +89,16 @@ fn removed_names_are_renamed() {
 }
 
 #[test]
+fn class_variable_declarations_are_walked() {
+    round_trip(
+        "class C\n  @@n: int = [1].size\nend\n",
+        Code::REMOVED_NAME,
+        "size",
+        "class C\n  @@n: int = [1].length\nend\n",
+    );
+}
+
+#[test]
 fn the_static_checkers_receiver_types_decide_typed_renames() {
     let source = "h = { a: 1 }\nok = h.include?(\"a\")\nt = Time.now\nd = t.day\ne = 5.day\n";
     let checked = Engine::new().type_check(source).unwrap();
