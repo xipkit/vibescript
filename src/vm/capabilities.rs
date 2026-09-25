@@ -56,13 +56,16 @@ pub(super) fn bind(
             }
             programs::imported(ctx, storage, &value)?;
             if !globals::input_contains(ctx, &capability.name)? {
-                // A later grant of the name replaces this one.
-                ctx.charge((capabilities.len() - index) as u64)?;
-                let replaced = capabilities[index + 1..]
-                    .iter()
-                    .any(|later| later.name == capability.name);
-                if !replaced {
-                    crate::declared::check_capability(ctx, declared, &capability.name, &value)?;
+                // A later grant of the name replaces this one. A host that
+                // declares nothing pays for no check.
+                if !declared.is_empty() {
+                    ctx.charge((capabilities.len() - index) as u64)?;
+                    let replaced = capabilities[index + 1..]
+                        .iter()
+                        .any(|later| later.name == capability.name);
+                    if !replaced {
+                        crate::declared::check_capability(ctx, declared, &capability.name, &value)?;
+                    }
                 }
                 requires::set(ctx, storage, &capability.name, &value)?;
             }
