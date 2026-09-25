@@ -841,7 +841,7 @@ impl<'a> Checker<'a> {
 
     fn assignment(&mut self, stmt: &'a Stmt, target: &'a Target, op: &str, value: &'a Expr) -> Ty {
         match op {
-            "=" => self.assign(target, value, stmt),
+            "=" => self.assign(target, value),
             "||=" | "&&=" => {
                 let outer = self.memo.replace(super::Memo::default());
                 let current = self.target_read(target);
@@ -939,7 +939,7 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn assign(&mut self, target: &'a Target, value: &'a Expr, stmt: &'a Stmt) -> Ty {
+    fn assign(&mut self, target: &'a Target, value: &'a Expr) -> Ty {
         match target {
             Target::Typed(inner, annotation) => {
                 let Target::Value(Expr {
@@ -1053,7 +1053,6 @@ impl<'a> Checker<'a> {
                     }
                     _ => self.expr(value, None),
                 };
-                let _ = stmt;
                 self.bind_target(target, ty, true);
                 ty
             }
@@ -1073,7 +1072,6 @@ impl<'a> Checker<'a> {
                 Kind::EmptyHash => "`{}`",
                 _ => "an empty array",
             };
-            let _ = value;
             self.report(Diagnostic::error(
                 Code::NEEDS_TYPE,
                 span,
@@ -1271,13 +1269,6 @@ impl<'a> Checker<'a> {
             return Some(ivar.ty);
         }
         let class = namespace.name.clone();
-        let fix = {
-            let _: () = {
-                // Declaring it needs its type, which only the author knows.
-            };
-            namespace.is_class.then_some(())
-        };
-        let _ = fix;
         self.report(Diagnostic::error(
             Code::UNDECLARED_IVAR,
             span,

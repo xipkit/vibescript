@@ -66,7 +66,6 @@ impl<'a> Checker<'a> {
         name: &str,
         args: &'a [Argument],
         block: Option<&'a Block>,
-        hint: Option<Ty>,
     ) -> Ty {
         let call = Call {
             name,
@@ -76,7 +75,6 @@ impl<'a> Checker<'a> {
             extra: None,
             selectors: &[],
         };
-        let _ = hint;
         let bare = args.is_empty() && block.is_none();
         if !bare && self.local(name).is_some() {
             let span = call.name_span;
@@ -218,7 +216,7 @@ impl<'a> Checker<'a> {
             self.expr(extra, None);
         }
         if let Some(block) = call.block {
-            self.block(block, None, &[], Want::Discard);
+            self.block(block, &[], Want::Discard);
         }
     }
 
@@ -257,27 +255,21 @@ impl<'a> Checker<'a> {
     }
 
     /// A call with an attached block.
-    pub(super) fn block_call(
-        &mut self,
-        expr: &'a Expr,
-        call: &'a Expr,
-        block: &'a Block,
-        hint: Option<Ty>,
-    ) -> Ty {
+    pub(super) fn block_call(&mut self, expr: &'a Expr, call: &'a Expr, block: &'a Block) -> Ty {
         match &call.node {
-            Node::Call(name, args, _) => self.call_name(expr, name, args, Some(block), hint),
-            Node::Var(name) => self.call_name(expr, name, &[], Some(block), hint),
+            Node::Call(name, args, _) => self.call_name(expr, name, args, Some(block)),
+            Node::Var(name) => self.call_name(expr, name, &[], Some(block)),
             Node::Method(receiver, name, args, _) => {
-                self.method_call(expr, receiver, name, args, Some(block), false, hint)
+                self.method_call(expr, receiver, name, args, Some(block), false)
             }
             Node::SafeMethod(receiver, name, args, _) => {
-                self.method_call(expr, receiver, name, args, Some(block), true, hint)
+                self.method_call(expr, receiver, name, args, Some(block), true)
             }
             Node::Member(receiver, name) => {
-                self.method_call(expr, receiver, name, &[], Some(block), false, hint)
+                self.method_call(expr, receiver, name, &[], Some(block), false)
             }
             Node::SafeMember(receiver, name) => {
-                self.method_call(expr, receiver, name, &[], Some(block), true, hint)
+                self.method_call(expr, receiver, name, &[], Some(block), true)
             }
             Node::Scope(receiver, name, args) => {
                 self.scope(expr, receiver, name, args.as_deref(), Some(block))
@@ -287,7 +279,7 @@ impl<'a> Checker<'a> {
             }
             _ => {
                 self.expr(call, None);
-                self.block(block, None, &[], Want::Discard);
+                self.block(block, &[], Want::Discard);
                 Ty::ERROR
             }
         }
@@ -303,9 +295,7 @@ impl<'a> Checker<'a> {
         args: &'a [Argument],
         block: Option<&'a Block>,
         safe: bool,
-        hint: Option<Ty>,
     ) -> Ty {
-        let _ = hint;
         let ty = self.expr(receiver, None);
         let name_span = self.spans.member(receiver, name);
         if let Some(span) = name_span {
@@ -349,7 +339,7 @@ impl<'a> Checker<'a> {
         }
         let alternatives = self.types.members(ty);
         if alternatives.len() == 1 {
-            return self.member(call, receiver, ty);
+            return self.member(call, ty);
         }
         // `nil` must answer the member too, or the value needs a nil test.
         let mut others: Vec<Ty> = Vec::new();
@@ -387,14 +377,14 @@ impl<'a> Checker<'a> {
             return Ty::ERROR;
         };
         let outer = self.memo.replace(super::Memo::default());
-        results.push(self.member(call, receiver, first));
+        results.push(self.member(call, first));
         // The other alternatives reuse the arguments' types, without
         // checking them or reporting their errors again.
         self.memo.as_mut().unwrap().replay = true;
         self.mute += 1;
         for &alternative in rest {
             let mark = self.frame.flow.mark();
-            results.push(self.member(call, receiver, alternative));
+            results.push(self.member(call, alternative));
             self.frame.flow.rollback(mark);
         }
         self.mute -= 1;
@@ -408,7 +398,7 @@ impl<'a> Checker<'a> {
     }
 
     /// Checks a member call on a receiver of a single type.
-    fn member(&mut self, call: &Call<'a, '_>, receiver: &'a Expr, ty: Ty) -> Ty {
+    fn member(&mut self, call: &Call<'a, '_>, ty: Ty) -> Ty {
         let kind = self.types.kind(ty).clone();
         match kind {
             Kind::Error | Kind::Never => {
@@ -455,10 +445,7 @@ impl<'a> Checker<'a> {
                 }
             },
             Kind::Builtin(index) => self.builtin_member(call, index, ty),
-            _ => {
-                let _ = receiver;
-                self.table_member(call, ty)
-            }
+            _ => self.table_member(call, ty),
         }
     }
 
@@ -654,7 +641,7 @@ impl<'a> Checker<'a> {
             }
         }
         if let Some(block) = call.block {
-            self.block(block, None, &[], Want::Discard);
+            self.block(block, &[], Want::Discard);
         }
         target
     }
@@ -759,7 +746,6 @@ impl<'a> Checker<'a> {
             })
             .unwrap_or(Ty::ERROR);
         self.restore_memo(outer);
-        let _ = value_ty;
         assigned
     }
 
@@ -779,13 +765,11 @@ impl<'a> Checker<'a> {
     pub(super) fn method_on(
         &mut self,
         expr: &'a Expr,
-        receiver: &'a Expr,
         ty: Ty,
         name: &'static str,
         block: Option<&'a Block>,
         selectors: &'a [Expr],
         extra: Option<&'a Expr>,
-        _hint: Option<Ty>,
     ) -> Ty {
         let call = Call {
             name,
@@ -795,7 +779,7 @@ impl<'a> Checker<'a> {
             extra,
             selectors,
         };
-        self.member(&call, receiver, ty)
+        self.member(&call, ty)
     }
 
     // Signatures -------------------------------------------------------
@@ -1064,7 +1048,7 @@ impl<'a> Checker<'a> {
                     span,
                     format!("`{function}` takes no block"),
                 ));
-                self.block(block, None, &[], Want::Discard);
+                self.block(block, &[], Want::Discard);
             }
             (None, None) => (),
         }
@@ -1305,13 +1289,7 @@ impl<'a> Checker<'a> {
     }
 
     /// Checks a block whose parameters have the given types.
-    pub(super) fn block(
-        &mut self,
-        block: &'a Block,
-        _hint: Option<Ty>,
-        params: &[Ty],
-        want: Want,
-    ) -> Ty {
+    pub(super) fn block(&mut self, block: &'a Block, params: &[Ty], want: Want) -> Ty {
         let params: Vec<Ty> = if params.is_empty() && !block.params.is_empty() {
             vec![Ty::ERROR; block.params.len()]
         } else {

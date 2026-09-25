@@ -145,13 +145,29 @@ impl<'a> Checker<'a> {
                 .ivars
                 .insert(ivar.name.to_string(), Ivar { ty, default });
         }
-        // Properties declare their instance variables.
+        // Properties declare their instance variables and their types.
         for ns in 0..self.program.namespaces.len() {
             let module = self.program.namespaces[ns].module;
             for (def, _) in &module.instance_methods {
                 let Some((name, setter)) = &def.accessor else {
                     continue;
                 };
+                let typed = match setter {
+                    true => def.params.first().is_some_and(|param| param.ty.is_some()),
+                    false => def.return_type.is_some(),
+                };
+                if !typed
+                    && !self.program.namespaces[ns]
+                        .ivars
+                        .contains_key(name.as_str())
+                {
+                    let span = self.spans.word_after(def.offset as usize, name);
+                    self.report(Diagnostic::error(
+                        Code::MISSING_PARAMETER_TYPE,
+                        span,
+                        format!("property `{name}` has no type; declare it as `{name}: T`"),
+                    ));
+                }
                 let id = self.program.namespaces[ns].methods[def.name.as_str()];
                 let sig = self.program.fns[id].sig.clone();
                 let ty = if *setter {

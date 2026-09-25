@@ -119,7 +119,7 @@ impl<'a> Checker<'a> {
             }
             Node::Regex(..) => Ty::REGEX,
             Node::Var(name) => self.variable(expr, name),
-            Node::Array(items) => self.array_literal(expr, items, hint),
+            Node::Array(items) => self.array_literal(items, hint),
             Node::Hash(entries) => self.hash_literal(expr, entries, hint),
             Node::Shape(ty, fallback, names) => {
                 self.shape_literal(expr, ty, fallback.as_deref(), names, hint)
@@ -143,21 +143,21 @@ impl<'a> Checker<'a> {
             }
             Node::Compound(stmt) => self.stmt(stmt, want),
             Node::Try(attempt) => self.attempt(attempt, want),
-            Node::Call(name, args, _) => self.call_name(expr, name, args, None, hint),
+            Node::Call(name, args, _) => self.call_name(expr, name, args, None),
             Node::ComputedCall(receiver, args) => self.computed_call(expr, receiver, args, None),
-            Node::BlockCall(call, block) => self.block_call(expr, call, block, hint),
+            Node::BlockCall(call, block) => self.block_call(expr, call, block),
             Node::Yield(args) => self.yield_expr(expr, args, want),
             Node::Member(receiver, name) => {
-                self.method_call(expr, receiver, name, &[], None, false, hint)
+                self.method_call(expr, receiver, name, &[], None, false)
             }
             Node::SafeMember(receiver, name) => {
-                self.method_call(expr, receiver, name, &[], None, true, hint)
+                self.method_call(expr, receiver, name, &[], None, true)
             }
             Node::Method(receiver, name, args, _) => {
-                self.method_call(expr, receiver, name, args, None, false, hint)
+                self.method_call(expr, receiver, name, args, None, false)
             }
             Node::SafeMethod(receiver, name, args, _) => {
-                self.method_call(expr, receiver, name, args, None, true, hint)
+                self.method_call(expr, receiver, name, args, None, true)
             }
             Node::Scope(receiver, name, args) => {
                 self.scope(expr, receiver, name, args.as_deref(), None)
@@ -291,7 +291,7 @@ impl<'a> Checker<'a> {
                 return ty;
             }
         }
-        self.call_name(expr, name, &[], None, None)
+        self.call_name(expr, name, &[], None)
     }
 
     /// A top-level class, module or enum by name, in any case.
@@ -348,18 +348,16 @@ impl<'a> Checker<'a> {
             .find(|&alternative| fits(self.types.kind(alternative)))
     }
 
-    fn array_literal(&mut self, expr: &'a Expr, items: &'a [Expr], hint: Option<Ty>) -> Ty {
+    fn array_literal(&mut self, items: &'a [Expr], hint: Option<Ty>) -> Ty {
         let hint = self.literal_hint(hint, |kind| {
             matches!(kind, Kind::Array(_) | Kind::Tuple(_) | Kind::Any)
         });
         match hint.map(|hint| (hint, self.types.kind(hint).clone())) {
             Some((hint, Kind::Tuple(elements))) if elements.len() == items.len() => {
-                let mut types = Vec::with_capacity(items.len());
                 for (item, &element) in items.iter().zip(elements.iter()) {
-                    types.push(self.expr_against(item, element, &Purpose::Element));
+                    self.expr_against(item, element, &Purpose::Element);
                 }
-                let _ = hint;
-                self.types.tuple(elements.to_vec())
+                hint
             }
             Some((hint, Kind::Array(element))) => {
                 for item in items {
@@ -368,7 +366,6 @@ impl<'a> Checker<'a> {
                 hint
             }
             _ => {
-                let _ = expr;
                 let types: Vec<Ty> = items.iter().map(|item| self.expr(item, None)).collect();
                 let element = self.types.union(&types);
                 self.types.array(element)
@@ -599,10 +596,7 @@ impl<'a> Checker<'a> {
 
     fn binary(&mut self, expr: &'a Expr, op: &'static str, left: &'a Expr, right: &'a Expr) -> Ty {
         match op {
-            "&&" | "||" => {
-                let (ty, _) = self.condition_value(expr);
-                ty
-            }
+            "&&" | "||" => self.condition_value(expr),
             "==" | "!=" | "===" => {
                 let lt = self.expr(left, None);
                 let rt = self.expr(right, None);
@@ -634,17 +628,16 @@ impl<'a> Checker<'a> {
     }
 
     /// Checks `&&` and `||` outside a condition.
-    fn condition_value(&mut self, expr: &'a Expr) -> (Ty, ()) {
+    fn condition_value(&mut self, expr: &'a Expr) -> Ty {
         let mark = self.frame.flow.mark();
-        let narrow = self.condition(expr);
-        let _ = narrow;
+        self.condition(expr);
         let branch = self.frame.flow.rollback(mark);
         let skipped = super::flow::Branch {
             live: true,
             changes: Vec::new(),
         };
         self.join(vec![branch, skipped]);
-        (Ty::BOOL, ())
+        Ty::BOOL
     }
 
     /// The result of a binary operator on operands of types `left` and
@@ -726,13 +719,12 @@ impl<'a> Checker<'a> {
         let number = |types: &mut super::ty::Types, ty: Ty| types.assignable(ty, Ty::NUMBER);
         let ln = number(&mut self.types, left);
         let rn = number(&mut self.types, right);
-        let numeric = |types: &mut super::ty::Types| {
+        let numeric = || {
             if left == Ty::INT && right == Ty::INT {
                 Ty::INT
             } else if left == Ty::FLOAT || right == Ty::FLOAT {
                 Ty::FLOAT
             } else {
-                let _ = types;
                 Ty::NUMBER
             }
         };
@@ -742,7 +734,7 @@ impl<'a> Checker<'a> {
         Some(match op {
             "+" => {
                 if ln && rn {
-                    numeric(&mut self.types)
+                    numeric()
                 } else if left == Ty::STRING && right == Ty::STRING {
                     Ty::STRING
                 } else if is_array(&lk) && is_array(&rk) {
@@ -766,7 +758,7 @@ impl<'a> Checker<'a> {
             }
             "-" => {
                 if ln && rn {
-                    numeric(&mut self.types)
+                    numeric()
                 } else if left == Ty::TIME && right == Ty::TIME {
                     Ty::FLOAT
                 } else if left == Ty::TIME && (right == Ty::DURATION || rn) {
@@ -784,7 +776,7 @@ impl<'a> Checker<'a> {
             }
             "*" => {
                 if ln && rn {
-                    numeric(&mut self.types)
+                    numeric()
                 } else if left == Ty::STRING && rn {
                     Ty::STRING
                 } else if (left == Ty::DURATION && rn) || (ln && right == Ty::DURATION) {
@@ -809,7 +801,7 @@ impl<'a> Checker<'a> {
                     );
                     Ty::INT
                 } else if ln && rn {
-                    numeric(&mut self.types)
+                    numeric()
                 } else if left == Ty::DURATION && right == Ty::DURATION {
                     Ty::FLOAT
                 } else if left == Ty::DURATION && rn {
@@ -822,7 +814,7 @@ impl<'a> Checker<'a> {
             }
             "//" => {
                 if ln && rn {
-                    numeric(&mut self.types)
+                    numeric()
                 } else {
                     return None;
                 }
@@ -831,7 +823,7 @@ impl<'a> Checker<'a> {
                 if left == Ty::STRING {
                     Ty::STRING
                 } else if ln && rn {
-                    numeric(&mut self.types)
+                    numeric()
                 } else if left == Ty::DURATION && right == Ty::DURATION {
                     Ty::DURATION
                 } else {
@@ -840,7 +832,7 @@ impl<'a> Checker<'a> {
             }
             "**" => {
                 if ln && rn {
-                    numeric(&mut self.types)
+                    numeric()
                 } else {
                     return None;
                 }
@@ -1034,7 +1026,7 @@ impl<'a> Checker<'a> {
             }
             (Kind::Instance(_), _) => {
                 let name = "[]";
-                self.method_on(expr, receiver, ty, name, None, selectors, None, None)
+                self.method_on(expr, ty, name, None, selectors, None)
             }
             (Kind::Union(_), _) => {
                 let alternatives = self.types.members(ty);
@@ -1198,20 +1190,8 @@ impl<'a> Checker<'a> {
                 }
             },
             (Kind::Instance(_), _) => {
-                let arguments = selectors;
-                let _ = arguments;
                 if evaluate {
-                    let result = self.method_on(
-                        expr,
-                        receiver,
-                        ty,
-                        "[]=",
-                        None,
-                        selectors,
-                        Some(value),
-                        None,
-                    );
-                    return result;
+                    return self.method_on(expr, ty, "[]=", None, selectors, Some(value));
                 }
                 None
             }

@@ -137,3 +137,11 @@ fn symbols_are_never_equal_to_enum_members() {
         &["V0206"],
     );
 }
+
+#[test]
+fn properties_declare_their_types() {
+    let source = "class C\n  property name\nend\n";
+    let diagnostic = error(source, "V0118", "property `name` has no type");
+    assert_eq!(spanned(source, &diagnostic), "name");
+    clean("class C\n  property name: string\n  def initialize\n    @name = \"a\"\n  end\nend\n");
+}
