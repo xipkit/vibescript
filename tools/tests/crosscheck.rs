@@ -32,7 +32,7 @@ enum Outcome {
     /// The migration's single pass stopped at a spelling one of its own
     /// rewrites produced, such as `x.send(:clone)` becoming `x.clone`, and
     /// fixing its output reaches the fixed text.
-    Completes,
+    Completes(String, String),
     Different(String, String),
     /// The compiler does not parse it, or the migration left it unparsed.
     Skipped,
@@ -74,7 +74,7 @@ fn compare(source: &str) -> Outcome {
             Outcome::Same
         }
     } else if fix(&migrated.source, check).is_ok_and(|again| again.source == fixed.source) {
-        Outcome::Completes
+        Outcome::Completes(fixed.source, migrated.source)
     } else {
         Outcome::Different(fixed.source, migrated.source)
     }
@@ -122,20 +122,23 @@ fn fix_matches_the_migrations_surface_rewrites() {
                         let kind = match &outcome {
                             Outcome::Same => "same",
                             Outcome::Untouched => "untouched",
-                            Outcome::Completes => "completes",
+                            Outcome::Completes(..) => "completes",
                             Outcome::Different(..) => "different",
                             Outcome::Skipped => "skipped",
                         };
                         *counts.lock().unwrap().entry(kind).or_default() += 1;
-                        if let Outcome::Different(fixed, migrated) = outcome {
-                            let name = path.strip_prefix(&directory).unwrap_or(path);
-                            differences.lock().unwrap().push((
-                                name.display().to_string(),
-                                source,
-                                fixed,
-                                migrated,
-                            ));
-                        }
+                        let (Outcome::Different(fixed, migrated)
+                        | Outcome::Completes(fixed, migrated)) = outcome
+                        else {
+                            continue;
+                        };
+                        let name = path.strip_prefix(&directory).unwrap_or(path);
+                        differences.lock().unwrap().push((
+                            format!("{kind} {}", name.display()),
+                            source,
+                            fixed,
+                            migrated,
+                        ));
                     }
                 })
                 .unwrap();
