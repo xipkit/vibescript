@@ -3,17 +3,17 @@
 //! The grammar follows the compiler's parser decision for decision: which
 //! line a suffix may continue on, when an identifier takes command
 //! arguments, and which call a `do` or brace block attaches to. The tokens
-//! come from [`vibescript::tooling::tokens`], after the compiler's own regex
+//! come from [`crate::tooling::tokens`], after the compiler's own regex
 //! and percent-literal re-reads, so only structure is decided here. Error
 //! reporting is not mirrored: a source this parser refuses is left alone.
 
 use super::syntax::*;
+use crate::tooling::{self, TokenKind};
 use std::collections::HashSet;
-use vibescript::tooling::{self, TokenKind};
 
 /// Why a source could not be parsed.
 #[derive(Debug)]
-pub(crate) struct Fail {
+pub struct Fail {
     pub offset: usize,
     pub message: String,
 }
@@ -21,7 +21,7 @@ pub(crate) struct Fail {
 type Result<T> = std::result::Result<T, Fail>;
 
 /// Parses `source`, which must already compile.
-pub(crate) fn parse(source: &str) -> Result<Tree> {
+pub fn parse(source: &str) -> Result<Tree> {
     let tokens = lex(source, 0).map_err(|error| Fail {
         offset: 0,
         message: error.to_string(),
@@ -34,19 +34,43 @@ pub(crate) fn parse(source: &str) -> Result<Tree> {
     })
 }
 
-fn lex(source: &str, base: usize) -> vibescript::Result<Vec<Token>> {
-    let mut out = Vec::new();
-    for token in tooling::tokens(source)? {
-        let end_line = token.line + source[token.span.clone()].matches('\n').count();
-        out.push(Token {
-            kind: token.kind,
+/// Parses `source` from the tokens the compiler read, refusing nesting
+/// deeper than `limit` statements and expressions. The parser recurses once
+/// per level, so the limit bounds the stack it needs.
+pub fn parse_tokens(source: &str, tokens: &[tooling::Token], limit: usize) -> Result<Tree> {
+    let mut parser = Parser::new(source, convert(source, tokens, 0));
+    parser.limit = limit;
+    let body = parser.program();
+    // A speculative parse that failed at the limit may have been retried
+    // another way, so any refusal refuses the source.
+    if let Some(offset) = parser.too_deep {
+        return Err(Fail {
+            offset,
+            message: "nesting too deep".to_owned(),
+        });
+    }
+    let body = body?;
+    Ok(Tree {
+        tokens: parser.tokens,
+        body,
+    })
+}
+
+fn lex(source: &str, base: usize) -> crate::Result<Vec<Token>> {
+    Ok(convert(source, &tooling::tokens(source)?, base))
+}
+
+fn convert(source: &str, tokens: &[tooling::Token], base: usize) -> Vec<Token> {
+    tokens
+        .iter()
+        .map(|token| Token {
+            kind: token.kind.clone(),
             start: token.span.start + base,
             end: token.span.end + base,
             line: token.line,
-            end_line,
-        });
-    }
-    Ok(out)
+            end_line: token.line + source[token.span.clone()].matches('\n').count(),
+        })
+        .collect()
 }
 
 const KEYWORDS: [&str; 34] = [
@@ -56,7 +80,7 @@ const KEYWORDS: [&str; 34] = [
     "while", "yield",
 ];
 
-pub(crate) fn keyword(w: &str) -> bool {
+pub fn keyword(w: &str) -> bool {
     KEYWORDS.binary_search(&w).is_ok()
 }
 
@@ -99,7 +123,7 @@ fn assignment(op: &str) -> bool {
     )
 }
 
-pub(crate) fn binding_power(op: &str) -> Option<(u8, u8)> {
+pub fn binding_power(op: &str) -> Option<(u8, u8)> {
     Some(match op {
         "||" => (3, 4),
         "&&" => (4, 5),
@@ -159,6 +183,12 @@ struct Parser<'s> {
     /// Where this parser's tokens start: an interpolation's come after the
     /// source's own.
     floor: usize,
+    /// How many statements and expressions enclose the one being parsed.
+    depth: usize,
+    /// The deepest nesting the parser accepts.
+    limit: usize,
+    /// Where the nesting limit was first exceeded.
+    too_deep: Option<usize>,
 }
 
 /// Parser state that a speculative parse restores.
@@ -196,6 +226,9 @@ impl<'s> Parser<'s> {
             call_end: 0,
             block_param: None,
             floor: 0,
+            depth: 0,
+            limit: usize::MAX,
+            too_deep: None,
         }
     }
 
@@ -852,6 +885,22 @@ impl<'s> Parser<'s> {
     }
 
     fn declaration(&mut self) -> Result<Stmt> {
+        self.nested(Self::unnested_declaration)
+    }
+
+    /// Runs `parse` one level deeper, failing past the nesting limit.
+    fn nested<T>(&mut self, parse: impl FnOnce(&mut Self) -> Result<T>) -> Result<T> {
+        if self.depth >= self.limit {
+            self.too_deep.get_or_insert(self.start());
+            return self.fail("nesting too deep");
+        }
+        self.depth += 1;
+        let result = parse(self);
+        self.depth -= 1;
+        result
+    }
+
+    fn unnested_declaration(&mut self) -> Result<Stmt> {
         let start = self.start();
         let word = match self.word_at(self.pos) {
             Some(w) if matches!(w, "def" | "class" | "enum" | "export" | "private") => Some(w),
@@ -2351,6 +2400,10 @@ impl<'s> Parser<'s> {
     }
 
     fn prefix_expr(&mut self) -> Result<Expr> {
+        self.nested(Self::unnested_prefix_expr)
+    }
+
+    fn unnested_prefix_expr(&mut self) -> Result<Expr> {
         let start = self.start();
         let open = self.pos;
         let tok = self.bump();
@@ -2465,12 +2518,15 @@ impl<'s> Parser<'s> {
         let mut parser = Parser::new(self.source, std::mem::take(&mut self.tokens));
         parser.pos = base;
         parser.floor = base;
+        parser.depth = self.depth;
+        parser.limit = self.limit;
         parser.locals = self.locals.clone();
         parser.declared_it = self.declared_it;
         parser.lines();
         let expr = parser.line_expr(0).ok();
         parser.lines();
         let complete = parser.eof(parser.pos);
+        self.too_deep = self.too_deep.or(parser.too_deep);
         self.tokens = parser.tokens;
         expr.filter(|_| complete)
     }
@@ -3630,7 +3686,7 @@ impl<'s> Parser<'s> {
 
 /// Whether a lowercase type name is one ADR-004 spelled in any case, and
 /// ADR-008 spells in lowercase only.
-pub(crate) fn respelled_type(name: &str) -> bool {
+pub fn respelled_type(name: &str) -> bool {
     matches!(
         name,
         "any"
@@ -3658,7 +3714,7 @@ fn start_token(parser: &Parser<'_>, offset: usize) -> Tok {
 
 /// The token that starts at `offset`. The source's tokens are sorted, and
 /// each interpolation's follow them.
-pub(crate) fn token_at(tokens: &[Token], offset: usize) -> Tok {
+pub fn token_at(tokens: &[Token], offset: usize) -> Tok {
     let end = tokens
         .iter()
         .position(|token| token.kind == TokenKind::Eof)
@@ -3674,7 +3730,7 @@ pub(crate) fn token_at(tokens: &[Token], offset: usize) -> Tok {
 }
 
 /// Whether a lowercase type name is one of the builtin types.
-pub(crate) fn builtin_type(name: &str) -> bool {
+pub fn builtin_type(name: &str) -> bool {
     matches!(
         name.to_ascii_lowercase().as_str(),
         "any"

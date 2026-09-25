@@ -1,8 +1,9 @@
 //! Type annotations: parameters, results, yielded blocks, locals whose first
 //! value does not fix their type, instance variables and properties.
 
-use super::{Code, migrator::Migrator, syntax::*, types::Types};
+use super::{Code, migrator::Migrator, types::Types};
 use std::collections::BTreeMap;
+use vibescript::surface::syntax::*;
 
 impl<'a> Migrator<'a> {
     /// Whether an existing annotation certainly accepts every observed type.
@@ -112,7 +113,7 @@ impl<'a> Migrator<'a> {
             Some(types) if !types.is_empty() => {
                 let text = self.render(types);
                 if types.has_any() || text.contains("any") {
-                    self.report(
+                    self.note(
                         Code::Any,
                         offset,
                         format!("{what} is annotated with any where its values had no nameable type; narrow it"),
@@ -125,7 +126,7 @@ impl<'a> Migrator<'a> {
         match rendered {
             Some(text) => text,
             None => {
-                self.report(
+                self.note(
                     Code::Any,
                     offset,
                     format!(
@@ -217,7 +218,7 @@ impl<'a> Migrator<'a> {
                                 self.annotation(observed, param.default.as_ref(), name_end, &what);
                             self.edits.insert(colon_end, format!(" {ty}: ="));
                         } else {
-                            self.report(
+                            self.note(
                                 Code::Syntax,
                                 name_end,
                                 format!(
@@ -317,7 +318,7 @@ impl<'a> Migrator<'a> {
                     }
                 };
                 if ty.contains("any") {
-                    self.report(
+                    self.note(
                         Code::Any,
                         end,
                         format!(
@@ -427,10 +428,14 @@ impl<'a> Migrator<'a> {
         let optional = if given { "?" } else { "" };
         let param = format!("&block{optional}: {ty}");
         match (&def.parens, def.params.is_empty()) {
-            (Some((_, close)), true) => self.edits.insert(self.tokens[*close].start, param),
-            (Some((_, close)), false) => self
-                .edits
-                .insert(self.tokens[*close].start, format!(", {param}")),
+            (Some((_, close)), true) => {
+                let offset = self.tokens[*close].start;
+                self.edits.insert(offset, param);
+            }
+            (Some((_, close)), false) => {
+                let offset = self.tokens[*close].start;
+                self.edits.insert(offset, format!(", {param}"));
+            }
             (None, false) => {
                 let end = def.params.last().unwrap().span.end;
                 self.edits.insert(end, format!(", {param}"));
@@ -579,7 +584,8 @@ impl<'a> Migrator<'a> {
                         start,
                         &format!("property {field}"),
                     );
-                    self.edits.insert(self.tokens[*tok].end, format!(": {ty}"));
+                    let offset = self.tokens[*tok].end;
+                    self.edits.insert(offset, format!(": {ty}"));
                 }
             }
         }
@@ -655,7 +661,7 @@ impl<'a> Migrator<'a> {
                         .is_empty()
             });
         let Some(header_end) = header_end else {
-            self.report(
+            self.note(
                 Code::Syntax,
                 self.tokens[class.keyword].start,
                 format!(
@@ -700,7 +706,7 @@ impl<'a> Migrator<'a> {
             // it, which code that asks for the field could tell apart.
             lines.push_str(&format!("\n{indent}@{ivar}: {ty}"));
             if !set {
-                self.report(
+                self.note(
                     Code::Initialize,
                     at,
                     format!(

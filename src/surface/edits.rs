@@ -7,7 +7,8 @@ use super::syntax::Span;
 
 /// Part of an edit's replacement.
 #[derive(Clone, Debug)]
-pub(crate) enum Piece {
+pub enum Piece {
+    /// Text written as is.
     Text(String),
     /// A span of the original source, rendered with the edits inside it.
     Source(Span),
@@ -18,6 +19,8 @@ struct Edit {
     span: Span,
     pieces: Vec<Piece>,
     order: usize,
+    /// The rewrite the edit belongs to, if any.
+    group: Option<usize>,
 }
 
 /// What rendering tracks across nested spans.
@@ -29,15 +32,38 @@ struct State {
 
 /// The edits made to one source.
 #[derive(Debug, Default)]
-pub(crate) struct Edits {
+pub struct Edits {
     edits: Vec<Edit>,
     /// Spans where two edits overlapped without one containing the other.
     pub conflicts: Vec<Span>,
+    /// The rewrite that edits made now belong to.
+    group: Option<usize>,
 }
 
 impl Edits {
+    /// Whether no edit was made.
     pub fn is_empty(&self) -> bool {
         self.edits.is_empty()
+    }
+
+    /// Makes later edits belong to `group`, returning the group they
+    /// belonged to before.
+    pub fn enter(&mut self, group: Option<usize>) -> Option<usize> {
+        std::mem::replace(&mut self.group, group)
+    }
+
+    /// The span and replacement of each edit in `group`, in the order they
+    /// were made.
+    pub fn group(&self, group: usize) -> impl Iterator<Item = (Span, &[Piece])> {
+        let mut edits: Vec<&Edit> = self
+            .edits
+            .iter()
+            .filter(|edit| edit.group == Some(group))
+            .collect();
+        edits.sort_by_key(|edit| edit.order);
+        edits
+            .into_iter()
+            .map(|edit| (edit.span, edit.pieces.as_slice()))
     }
 
     /// Replaces `span`. Edits of the same span stack: a later one sees the
@@ -48,6 +74,7 @@ impl Edits {
             span,
             pieces,
             order,
+            group: self.group,
         });
     }
 
@@ -177,6 +204,18 @@ impl Edits {
         }
         out.push_str(&source[position..span.end]);
     }
+}
+
+/// A replacement as text, with each [`Piece::Source`] read from `source`
+/// as written, for an edit applied on its own.
+pub fn render(source: &str, pieces: &[Piece]) -> String {
+    pieces
+        .iter()
+        .map(|piece| match piece {
+            Piece::Text(text) => text.as_str(),
+            Piece::Source(span) => &source[span.start..span.end],
+        })
+        .collect()
 }
 
 #[cfg(test)]

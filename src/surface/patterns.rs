@@ -1,11 +1,11 @@
 //! The rename table as call patterns and replacement templates.
 
+use crate::signatures::{Replacement, renames};
 use std::sync::OnceLock;
-use vibescript::signatures::{Replacement, renames};
 
 /// What a pattern calls a member on.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum Callee {
+pub enum Callee {
     /// A member of the receiver, `$x.name`.
     Member,
     /// A namespace member, such as `Time.gm`.
@@ -15,7 +15,7 @@ pub(crate) enum Callee {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum ArgPattern {
+pub enum ArgPattern {
     /// `$name`: one positional argument.
     Capture(String),
     /// `...`: every other argument and the block.
@@ -27,13 +27,13 @@ pub(crate) enum ArgPattern {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum KeywordValue {
+pub enum KeywordValue {
     Capture(String),
     Literal(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum TemplatePiece {
+pub enum TemplatePiece {
     Text(String),
     /// `$x`, the receiver.
     Receiver,
@@ -43,15 +43,18 @@ pub(crate) enum TemplatePiece {
     Rest,
 }
 
+/// What a matched call becomes.
 #[derive(Clone, Debug)]
-pub(crate) enum Rewrite {
+pub enum Change {
+    /// A replacement built from the template's pieces.
     Template(Vec<TemplatePiece>),
+    /// No mechanical replacement; the hint says what to write instead.
     Manual(String),
 }
 
 /// One rename entry, ready to match calls.
 #[derive(Clone, Debug)]
-pub(crate) struct Pattern {
+pub struct Pattern {
     /// The table's receiver: a type such as `array`, `T` for every type,
     /// `error`, `global` or a namespace.
     pub receiver: String,
@@ -59,13 +62,16 @@ pub(crate) struct Pattern {
     pub callee: Callee,
     /// The argument patterns; `None` matches a call without arguments or a block.
     pub args: Option<Vec<ArgPattern>>,
-    pub rewrite: Rewrite,
+    pub rewrite: Change,
+    /// The canonical name of a plain rename, such as `length` for `size`
+    /// or `Time.utc` for `Time.gm`.
+    pub canonical: Option<String>,
 }
 
 impl Pattern {
     /// The member a plain rename calls instead, such as `length` for `size`.
     pub fn target_member(&self) -> Option<&str> {
-        let Rewrite::Template(pieces) = &self.rewrite else {
+        let Change::Template(pieces) = &self.rewrite else {
             return None;
         };
         match pieces.as_slice() {
@@ -83,7 +89,7 @@ impl Pattern {
     /// Whether the replacement is an operator expression, which may need
     /// parentheses where the call stood.
     pub fn operator(&self) -> bool {
-        let Rewrite::Template(pieces) = &self.rewrite else {
+        let Change::Template(pieces) = &self.rewrite else {
             return false;
         };
         pieces.iter().any(|piece| {
@@ -92,21 +98,43 @@ impl Pattern {
         })
     }
 
+    /// What to write instead, for a diagnostic: the replacement with its
+    /// placeholders named, such as "use `x == nil`", or the manual hint.
+    pub fn advice(&self) -> String {
+        let pieces = match &self.rewrite {
+            Change::Manual(hint) => return hint.clone(),
+            Change::Template(pieces) => pieces,
+        };
+        if let Some(canonical) = &self.canonical {
+            return format!("use `{canonical}`");
+        }
+        let text: String = pieces
+            .iter()
+            .map(|piece| match piece {
+                TemplatePiece::Text(text) => text.as_str(),
+                TemplatePiece::Receiver => "x",
+                TemplatePiece::Capture(name) => name.as_str(),
+                TemplatePiece::Rest => "...",
+            })
+            .collect();
+        format!("use `{text}`")
+    }
+
     /// How often the template repeats the receiver.
     pub fn receiver_uses(&self) -> usize {
         match &self.rewrite {
-            Rewrite::Template(pieces) => pieces
+            Change::Template(pieces) => pieces
                 .iter()
                 .filter(|piece| **piece == TemplatePiece::Receiver)
                 .count(),
-            Rewrite::Manual(_) => 0,
+            Change::Manual(_) => 0,
         }
     }
 }
 
 /// Every rename entry except the `*` rules for empty parentheses and type
-/// names, which the migration applies on its own.
-pub(crate) fn patterns() -> &'static [Pattern] {
+/// names, which have rules of their own.
+pub fn patterns() -> &'static [Pattern] {
     static PATTERNS: OnceLock<Vec<Pattern>> = OnceLock::new();
     PATTERNS.get_or_init(|| {
         renames()
@@ -114,9 +142,8 @@ pub(crate) fn patterns() -> &'static [Pattern] {
             .filter(|rename| !matches!(rename.receiver.as_str(), "*" | "type"))
             .map(|rename| {
                 let rewrite = match &rename.replacement {
-                    Replacement::Rewrite(template) => Rewrite::Template(template_pieces(template)),
-                    Replacement::Manual(hint) => Rewrite::Manual(hint.clone()),
-                    _ => Rewrite::Manual(String::new()),
+                    Replacement::Rewrite(template) => Change::Template(template_pieces(template)),
+                    Replacement::Manual(hint) => Change::Manual(hint.clone()),
                 };
                 let (callee, rest) = if let Some(rest) = rename.pattern.strip_prefix("$x.") {
                     (Callee::Member, rest)
@@ -129,12 +156,17 @@ pub(crate) fn patterns() -> &'static [Pattern] {
                 let args = rest
                     .find('(')
                     .map(|open| arg_patterns(&rest[open + 1..rest.len() - 1]));
+                let canonical = rename.canonical().map(|(namespace, name)| match namespace {
+                    Some(namespace) => format!("{namespace}.{name}"),
+                    None => name.to_owned(),
+                });
                 Pattern {
                     receiver: rename.receiver.clone(),
                     name: rename.name.clone(),
                     callee,
                     args,
                     rewrite,
+                    canonical,
                 }
             })
             .collect()
@@ -236,7 +268,7 @@ mod tests {
         assert!(nil.operator());
         assert!(matches!(
             patterns.iter().find(|p| p.name == "tap").unwrap().rewrite,
-            Rewrite::Manual(_)
+            Change::Manual(_)
         ));
     }
 }

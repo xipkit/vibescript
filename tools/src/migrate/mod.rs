@@ -37,11 +37,7 @@ mod compat;
 mod diff;
 mod migrator;
 mod observe;
-mod parse;
-mod renames;
-mod rewrite;
 mod semantics;
-mod syntax;
 #[cfg(test)]
 mod tests;
 mod types;

@@ -5,15 +5,15 @@
 //! yet, so new rules need no parser changes.
 #![allow(dead_code)]
 
+use crate::tooling::TokenKind;
 use std::ops::Range;
-use vibescript::tooling::TokenKind;
 
 /// A token index into [`Tree::tokens`].
-pub(crate) type Tok = usize;
+pub type Tok = usize;
 
 /// A token with the line its last byte is on.
 #[derive(Clone, Debug)]
-pub(crate) struct Token {
+pub struct Token {
     pub kind: TokenKind,
     pub start: usize,
     pub end: usize,
@@ -23,13 +23,13 @@ pub(crate) struct Token {
 
 /// A parsed source.
 #[derive(Debug)]
-pub(crate) struct Tree {
+pub struct Tree {
     pub tokens: Vec<Token>,
     pub body: Vec<Stmt>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub(crate) struct Span {
+pub struct Span {
     pub start: usize,
     pub end: usize,
 }
@@ -41,13 +41,13 @@ impl Span {
 }
 
 #[derive(Debug)]
-pub(crate) struct Stmt {
+pub struct Stmt {
     pub span: Span,
     pub kind: StmtKind,
 }
 
 #[derive(Debug)]
-pub(crate) enum StmtKind {
+pub enum StmtKind {
     Expr(Expr),
     Assign(Assign),
     If(If),
@@ -67,7 +67,7 @@ pub(crate) enum StmtKind {
 }
 
 #[derive(Debug)]
-pub(crate) struct Assign {
+pub struct Assign {
     pub targets: Vec<Target>,
     /// The assignment operator, such as `=` or `+=`.
     pub op: Tok,
@@ -75,7 +75,7 @@ pub(crate) struct Assign {
 }
 
 #[derive(Debug)]
-pub(crate) enum Target {
+pub enum Target {
     Expr(Expr),
     /// `*name`, or a bare `*`.
     Splat(Tok, Option<Box<Target>>),
@@ -125,7 +125,7 @@ impl Target {
 }
 
 #[derive(Debug)]
-pub(crate) struct If {
+pub struct If {
     /// The `if` or `unless` keyword.
     pub keyword: Tok,
     pub unless: bool,
@@ -136,7 +136,7 @@ pub(crate) struct If {
 }
 
 #[derive(Debug)]
-pub(crate) struct While {
+pub struct While {
     pub keyword: Tok,
     pub until: bool,
     pub condition: Expr,
@@ -145,14 +145,14 @@ pub(crate) struct While {
 }
 
 #[derive(Debug)]
-pub(crate) struct For {
+pub struct For {
     pub target: Target,
     pub iterable: Expr,
     pub body: Vec<Stmt>,
 }
 
 #[derive(Debug)]
-pub(crate) struct Modifier {
+pub struct Modifier {
     pub body: Box<Stmt>,
     pub keyword: Tok,
     pub kind: ModifierKind,
@@ -160,7 +160,7 @@ pub(crate) struct Modifier {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ModifierKind {
+pub enum ModifierKind {
     If,
     Unless,
     While,
@@ -168,7 +168,7 @@ pub(crate) enum ModifierKind {
 }
 
 #[derive(Debug)]
-pub(crate) struct Def {
+pub struct Def {
     pub keyword: Tok,
     /// `private` or `export` before `def`.
     pub modifier: Option<Tok>,
@@ -195,7 +195,7 @@ impl Def {
 }
 
 #[derive(Debug)]
-pub(crate) struct Param {
+pub struct Param {
     pub kind: ParamKind,
     pub name: String,
     pub name_tok: Tok,
@@ -207,7 +207,7 @@ pub(crate) struct Param {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ParamKind {
+pub enum ParamKind {
     Positional,
     /// A keyword parameter; `required` when it has no default.
     Keyword,
@@ -217,21 +217,21 @@ pub(crate) enum ParamKind {
 
 /// The rescue, else and ensure clauses of a function or `begin`.
 #[derive(Debug)]
-pub(crate) struct Rescued {
+pub struct Rescued {
     pub rescues: Vec<RescueClause>,
     pub alternate: Option<Vec<Stmt>>,
     pub ensure: Option<Vec<Stmt>>,
 }
 
 #[derive(Debug)]
-pub(crate) struct RescueClause {
+pub struct RescueClause {
     pub keyword: Tok,
     pub binding: Option<String>,
     pub body: Vec<Stmt>,
 }
 
 #[derive(Debug)]
-pub(crate) struct Class {
+pub struct Class {
     pub keyword: Tok,
     pub module: bool,
     pub name: String,
@@ -241,7 +241,7 @@ pub(crate) struct Class {
 }
 
 #[derive(Debug)]
-pub(crate) enum Member {
+pub enum Member {
     Def(Def),
     Property(Property),
     /// An instance-variable declaration, `@name: T` or `@name: T = value`.
@@ -254,7 +254,7 @@ pub(crate) enum Member {
 
 /// A `property`, `getter` or `setter` declaration.
 #[derive(Debug)]
-pub(crate) struct Property {
+pub struct Property {
     pub keyword: Tok,
     /// Each declared name and its type, if any.
     pub names: Vec<(Tok, Option<TypeExpr>)>,
@@ -262,21 +262,21 @@ pub(crate) struct Property {
 }
 
 #[derive(Debug)]
-pub(crate) struct Enum {
+pub struct Enum {
     pub name: String,
     pub members: Vec<String>,
 }
 
 /// A type annotation's span and structure.
 #[derive(Clone, Debug)]
-pub(crate) struct TypeExpr {
+pub struct TypeExpr {
     pub span: Span,
     pub kind: TypeKind,
     pub nullable: bool,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) enum TypeKind {
+pub enum TypeKind {
     /// A named type and its name token, with type arguments if any.
     Named(Tok, Vec<TypeExpr>),
     /// A dotted name, such as `Outer.Inner`.
@@ -288,13 +288,13 @@ pub(crate) enum TypeKind {
 }
 
 #[derive(Debug)]
-pub(crate) struct Expr {
+pub struct Expr {
     pub span: Span,
     pub kind: ExprKind,
 }
 
 #[derive(Debug)]
-pub(crate) enum ExprKind {
+pub enum ExprKind {
     Nil,
     True,
     False,
@@ -338,7 +338,7 @@ pub(crate) enum ExprKind {
 }
 
 #[derive(Debug)]
-pub(crate) struct Entry {
+pub struct Entry {
     pub key: Tok,
     pub name: Vec<u8>,
     /// Written as `name` alone, taking the local of that name.
@@ -348,7 +348,7 @@ pub(crate) struct Entry {
 
 /// A named call: a function, member or scoped call, with its arguments and block.
 #[derive(Debug)]
-pub(crate) struct Call {
+pub struct Call {
     pub receiver: Option<Expr>,
     /// `.`, `&.` or `::` before the name.
     pub operator: Option<Tok>,
@@ -375,13 +375,13 @@ impl Call {
 }
 
 #[derive(Debug)]
-pub(crate) struct Args {
+pub struct Args {
     pub parens: Option<(Tok, Tok)>,
     pub items: Vec<Arg>,
 }
 
 #[derive(Debug)]
-pub(crate) struct Arg {
+pub struct Arg {
     pub kind: ArgKind,
     /// The span of the whole argument, including a label or sigil.
     pub span: Span,
@@ -389,7 +389,7 @@ pub(crate) struct Arg {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum ArgKind {
+pub enum ArgKind {
     Positional,
     Splat,
     Keyword(String),
@@ -397,7 +397,7 @@ pub(crate) enum ArgKind {
 }
 
 #[derive(Debug)]
-pub(crate) struct Block {
+pub struct Block {
     /// The `do` or `{`.
     pub open: Tok,
     pub brace: bool,
@@ -410,7 +410,7 @@ pub(crate) struct Block {
 }
 
 #[derive(Debug)]
-pub(crate) struct Case {
+pub struct Case {
     pub keyword: Tok,
     pub subject: Option<Expr>,
     pub whens: Vec<When>,
@@ -419,7 +419,7 @@ pub(crate) struct Case {
 }
 
 #[derive(Debug)]
-pub(crate) struct When {
+pub struct When {
     pub keyword: Tok,
     /// Each matcher, and whether it is splatted.
     pub values: Vec<(Expr, bool)>,
@@ -427,7 +427,7 @@ pub(crate) struct When {
 }
 
 #[derive(Debug)]
-pub(crate) struct Begin {
+pub struct Begin {
     pub keyword: Tok,
     pub body: Vec<Stmt>,
     pub rescued: Rescued,

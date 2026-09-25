@@ -362,7 +362,7 @@ fn label(key: &[u8]) -> bool {
         .next()
         .is_some_and(|c| c == '_' || c.is_ascii_alphabetic())
         && chars.all(|c| c == '_' || c.is_ascii_alphanumeric())
-        && !super::parse::keyword(key)
+        && !vibescript::surface::parse::keyword(key)
 }
 
 #[cfg(test)]

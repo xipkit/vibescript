@@ -1,25 +1,8 @@
 //! Rewrites whose meaning depends on observed types: conditions on values
 //! that are not `bool`, integer division, and `case` over enums.
 
-use super::{
-    Code,
-    migrator::{Migrator, Place, simple},
-    rewrite::Piece,
-    syntax::*,
-    types::Types,
-};
-
-/// What a condition needs so it tests a `bool`.
-enum Test {
-    /// It is a `bool` already, or nothing observed it and its syntax is boolean.
-    Bool,
-    /// It is `nil` or a value that is never `false`: test `!= nil`.
-    Present,
-    /// It is `nil`, `true` or `false`: test `== true`.
-    True,
-    /// Something else, or unknown.
-    Unknown(String),
-}
+use super::{Code, migrator::Migrator, types::Types};
+use vibescript::surface::{Place, Probe, Test, edits::Piece, simple, syntax::*};
 
 impl<'a> Migrator<'a> {
     /// The types a condition's value had where `report` tested it. `&&` and
@@ -98,65 +81,14 @@ impl<'a> Migrator<'a> {
         Test::Unknown("it is sometimes a bool and sometimes another value".to_owned())
     }
 
-    /// Makes a condition test a `bool`.
-    pub fn condition(&mut self, expr: &'a Expr, report: usize) {
-        self.condition_with(expr, report, false);
-    }
-
-    /// Negates a condition for `unless` and `until`, making it test a `bool`.
-    pub fn negated_condition(&mut self, expr: &'a Expr, report: usize) {
-        self.condition_with(expr, report, true);
-    }
-
-    fn condition_with(&mut self, expr: &'a Expr, report: usize, negate: bool) {
-        match &expr.kind {
-            ExprKind::Group(_, inner, _) if !negate => {
-                self.condition_with(inner, report, false);
-                return;
-            }
-            ExprKind::Binary(op, left, right) if matches!(self.token_text(*op), "&&" | "||") => {
-                let inner = self.operator_offset(*op);
-                self.condition_with(left, inner, false);
-                if negate {
-                    // The compiler negates the whole test, so the negation
-                    // saw the right operand's values, or the left's.
-                    let types = self.unary_types(inner);
-                    self.condition_typed(right, types);
-                    self.edits.wrap(expr.span, "!(", ")");
-                } else {
-                    self.condition_with(right, report, false);
-                }
-                return;
-            }
-            ExprKind::Unary(op, operand) if self.token_text(*op) == "!" => {
-                let types = self.unary_types(self.tokens[*op].start);
-                if negate {
-                    // `unless !x` tests `x`.
-                    self.edits.text(
-                        Span {
-                            start: self.tokens[*op].start,
-                            end: operand.span.start,
-                        },
-                        "",
-                    );
-                    self.condition_typed(operand, types);
-                } else {
-                    self.expr(operand, Place::Tight);
-                    self.negation(expr, operand, types);
-                }
-                return;
-            }
-            _ => (),
-        }
-        // For `unless` and `until`, the compiler tests the negation, and the
-        // negated value is what `!` saw.
-        let types = if negate {
-            self.unary_types(self.compiler_offset(expr))
-        } else {
-            self.tested(expr, report)
+    /// Whether a condition's value is a `bool`, from the types observed
+    /// where it was tested.
+    pub fn observed_test(&self, expr: &Expr, probe: Probe) -> Test {
+        let types = match probe {
+            Probe::Condition(report) => self.tested(expr, report),
+            Probe::Negation(offset) => self.unary_types(offset),
         };
-        self.expr(expr, Place::Loose);
-        self.apply_test(expr, types, negate);
+        self.classify(expr, types)
     }
 
     fn unary_types(&self, offset: usize) -> Option<Types> {
@@ -164,149 +96,8 @@ impl<'a> Migrator<'a> {
             .and_then(|facts| facts.unaries.get(&offset).cloned())
     }
 
-    fn condition_typed(&mut self, expr: &'a Expr, types: Option<Types>) {
-        self.expr(expr, Place::Loose);
-        self.apply_test(expr, types, false);
-    }
-
-    fn apply_test(&mut self, expr: &'a Expr, types: Option<Types>, negate: bool) {
-        let test = self.classify(expr, types);
-        let tight = !self.primary(expr);
-        match (test, negate) {
-            (Test::Bool, false) => (),
-            (Test::Bool, true) => self.negate_bool(expr),
-            (Test::Present, false) => self.compare(expr, tight, " != nil"),
-            (Test::Present, true) => self.compare(expr, tight, " == nil"),
-            (Test::True, false) => self.compare(expr, tight, " == true"),
-            (Test::True, true) => self.compare(expr, tight, " != true"),
-            (Test::Unknown(why), _) => {
-                self.report(
-                    Code::Condition,
-                    expr.span.start,
-                    format!("this condition must be a bool, and {why}; compare it explicitly"),
-                );
-                if negate {
-                    self.negate_bool(expr);
-                }
-            }
-        }
-    }
-
-    /// Whether an expression binds tighter than any binary operator after
-    /// the rewrites made to it.
-    fn primary(&self, expr: &Expr) -> bool {
-        super::migrator::primary(expr) && !self.operator_rewrites.contains(&expr.span)
-    }
-
-    /// `!x` on a value that is not a bool.
-    fn negation(&mut self, expr: &'a Expr, operand: &'a Expr, types: Option<Types>) {
-        let test = self.classify(operand, types);
-        let tight = !self.primary(operand);
-        let replace = |migrator: &mut Self, suffix: &str| {
-            let mut pieces = Vec::new();
-            if tight {
-                pieces.push(Piece::Text("(".into()));
-            }
-            pieces.push(Piece::Source(operand.span));
-            if tight {
-                pieces.push(Piece::Text(")".into()));
-            }
-            pieces.push(Piece::Text(suffix.into()));
-            migrator.edits.replace(expr.span, pieces);
-        };
-        match test {
-            Test::Bool => (),
-            Test::Present => replace(self, " == nil"),
-            Test::True => replace(self, " != true"),
-            Test::Unknown(why) => self.report(
-                Code::Condition,
-                expr.span.start,
-                format!("! takes a bool, and {why}; compare the value explicitly"),
-            ),
-        }
-    }
-
-    fn compare(&mut self, expr: &'a Expr, tight: bool, suffix: &str) {
-        // `x != nil? 1 : 2` would lex `nil?` as a name.
-        let glued = self.source[expr.span.end..]
-            .chars()
-            .next()
-            .is_some_and(|c| c.is_alphanumeric() || matches!(c, '_' | '?' | '!'));
-        let suffix = if glued {
-            format!("{suffix} ")
-        } else {
-            suffix.to_owned()
-        };
-        if tight {
-            self.edits.wrap(expr.span, "(", &format!("){suffix}"));
-        } else {
-            self.edits.wrap(expr.span, "", &suffix);
-        }
-    }
-
-    /// Negates a boolean condition: flips a comparison, drops a `!`, or adds one.
-    fn negate_bool(&mut self, expr: &'a Expr) {
-        if let ExprKind::Call(call) = &expr.kind
-            && call.name == "nil?"
-            && self.operator_rewrites.contains(&expr.span)
-            && let Some(receiver) = &call.receiver
-        {
-            self.edits.replace(
-                expr.span,
-                vec![Piece::Source(receiver.span), Piece::Text(" != nil".into())],
-            );
-            return;
-        }
-        match &expr.kind {
-            ExprKind::Binary(op, ..) if matches!(self.token_text(*op), "==" | "!=") => {
-                let flipped = if self.token_text(*op) == "==" {
-                    "!="
-                } else {
-                    "=="
-                };
-                // `i==3` flipped as `i!=3` would lex `i!` as a name.
-                let start = self.tokens[*op].start;
-                let glued = self.source[..start]
-                    .chars()
-                    .next_back()
-                    .is_some_and(|c| c.is_alphanumeric() || matches!(c, '_' | '?' | '!'));
-                let text = if glued {
-                    format!(" {flipped}")
-                } else {
-                    flipped.to_owned()
-                };
-                self.edits.text(self.token_span(*op), text);
-            }
-            ExprKind::Unary(op, operand)
-                if self.token_text(*op) == "!" && self.primary(operand) =>
-            {
-                self.edits.text(
-                    Span {
-                        start: self.tokens[*op].start,
-                        end: operand.span.start,
-                    },
-                    "",
-                );
-            }
-            _ if self.primary(expr) => self.edits.insert(expr.span.start, "!"),
-            _ => self.edits.wrap(expr.span, "!(", ")"),
-        }
-    }
-
-    /// `!x` outside a condition.
-    pub fn unary(&mut self, expr: &'a Expr, op: Tok, operand: &'a Expr) {
-        self.expr(operand, Place::Tight);
-        if self.token_text(op) != "!" {
-            return;
-        }
-        let types = self
-            .facts
-            .and_then(|facts| facts.unaries.get(&self.tokens[op].start).cloned());
-        self.negation(expr, operand, types);
-    }
-
-    /// A binary operator outside a condition: division, and `&&` or `||` on
-    /// values.
+    /// A binary operator outside a condition, after its operands: division,
+    /// and `&&` or `||` on values.
     pub fn binary(
         &mut self,
         expr: &'a Expr,
@@ -315,22 +106,10 @@ impl<'a> Migrator<'a> {
         right: &'a Expr,
         place: Place,
     ) {
-        let text = self.token_text(op);
-        match text {
-            "&&" | "||" => {
-                self.expr(left, Place::Tight);
-                self.expr(right, Place::Tight);
-                self.logical_value(expr, op, left, right, place);
-            }
-            "/" => {
-                self.expr(left, Place::Tight);
-                self.expr(right, Place::Tight);
-                self.division(op, left, right);
-            }
-            _ => {
-                self.expr(left, Place::Tight);
-                self.expr(right, Place::Tight);
-            }
+        match self.token_text(op) {
+            "&&" | "||" => self.logical_value(expr, op, left, right, place),
+            "/" => self.division(op, left, right),
+            _ => (),
         }
     }
 
@@ -366,7 +145,7 @@ impl<'a> Migrator<'a> {
             }
             Test::Present | Test::True | Test::Unknown(_) => {
                 let _ = right;
-                self.report(
+                self.note(
                     Code::Condition,
                     expr.span.start,
                     format!(
@@ -417,7 +196,7 @@ impl<'a> Migrator<'a> {
                         .insert(stmt.span.end, format!("\n{indent}{target_text}"));
                 }
             }
-            _ => self.report(
+            _ => self.note(
                 Code::Condition,
                 stmt.span.start,
                 format!("{op} tests a value that is not a bool; assign under an explicit nil test"),
@@ -482,14 +261,6 @@ impl<'a> Migrator<'a> {
             || next.starts_with("when")
     }
 
-    pub fn indentation(&self, offset: usize) -> String {
-        let line_start = self.source[..offset].rfind('\n').map_or(0, |i| i + 1);
-        self.source[line_start..]
-            .chars()
-            .take_while(|c| *c == ' ' || *c == '\t')
-            .collect()
-    }
-
     /// Integer `/` becomes `//`; mixed or unknown operands are reported.
     fn division(&mut self, op: Tok, left: &'a Expr, right: &'a Expr) {
         let offset = self.tokens[op].start;
@@ -498,7 +269,7 @@ impl<'a> Migrator<'a> {
             Some(binary) if binary.integers > 0 && binary.others == 0 => true,
             Some(binary) if binary.integers == 0 => false,
             Some(_) => {
-                self.report(
+                self.note(
                     Code::Division,
                     offset,
                     "/ divided integers in some runs and other numbers in others; use // where both are integers",
@@ -513,7 +284,7 @@ impl<'a> Migrator<'a> {
                 } else if float(left) || float(right) {
                     false
                 } else {
-                    self.report(
+                    self.note(
                         Code::Division,
                         offset,
                         "/ now divides integers exactly; no recorded run reached this one, so use // if both operands are integers",
@@ -526,9 +297,10 @@ impl<'a> Migrator<'a> {
             return;
         }
         if self.options.new_syntax {
-            self.edits.text(self.token_span(op), "//");
+            let span = self.token_span(op);
+            self.edits.text(span, "//");
         } else {
-            self.report(
+            self.note(
                 Code::Syntax,
                 offset,
                 "integer / becomes //, which needs the new syntax",
@@ -562,7 +334,7 @@ impl<'a> Migrator<'a> {
                     }
                 }
                 if named.len() < 2 {
-                    self.report(
+                    self.note(
                         Code::Case,
                         offset,
                         "a case over a bool must name true and false or have an else",
@@ -587,7 +359,7 @@ impl<'a> Migrator<'a> {
         }
         if !missing.is_empty() {
             let missing: Vec<&str> = missing.iter().map(|m| m.as_str()).collect();
-            self.report(
+            self.note(
                 Code::Case,
                 offset,
                 format!(

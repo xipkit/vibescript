@@ -114,6 +114,20 @@ registry! {
     UNDECLARED_BLOCK = 308, "undeclared-block", "A function yields but does not declare its block as a typed `&` parameter.";
     DYNAMIC_REQUIRE = 309, "dynamic-require", "A `require` names its module or alias with something other than a string literal.";
     NOT_CALLABLE = 310, "not-callable", "A value is called but is not a function.";
+
+    REMOVED_NAME = 401, "removed-name", "A builtin member, function or namespace member is called by a removed name, such as `size` for `length`.";
+    NIL_PREDICATE = 402, "nil-predicate", "`nil?` is removed; `x == nil` tests for nil.";
+    IDENTITY_EQUALITY = 403, "identity-equality", "`eql?` and `equal?` are removed; `==` compares values.";
+    IDENTITY_CALL = 404, "identity-call", "`itself`, `tap` and `yield_self` are removed; the expression itself replaces them.";
+    DISPATCH_BY_NAME = 405, "dispatch-by-name", "`send`, `public_send` and `respond_to?` are removed; call the member directly.";
+    DO_BLOCK = 406, "do-block", "A block is written `do ... end`; blocks are written with braces.";
+    UNLESS = 407, "unless", "`unless` is removed; `if` takes the negated condition.";
+    UNTIL = 408, "until", "`until` is removed; `while` takes the negated condition.";
+    SYMBOL_KEY = 409, "symbol-key", "A hash is indexed with a symbol; hash keys are strings.";
+    PERCENT_LITERAL = 410, "percent-literal", "A percent literal such as `%w[a b]`; arrays are written as array literals.";
+    HASH_NEW = 411, "hash-new", "`Hash.new` is removed; `{}` with a declared type makes a hash.";
+    EMPTY_PARENTHESES = 412, "empty-parentheses", "A call without arguments is written with `()`; it takes no parentheses.";
+    TYPE_NAME = 413, "type-name", "A builtin type name is spelled other than in lowercase, or as `object` for `hash`.";
 }
 
 impl Code {
