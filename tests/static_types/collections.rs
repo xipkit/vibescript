@@ -30,6 +30,43 @@ fn indexing_an_array_or_hash_may_give_nil_and_fetch_does_not() {
 }
 
 #[test]
+fn compound_assignment_to_a_missing_element_reads_it_with_fetch() {
+    for (source, expected) in [
+        (
+            "def f(xs: array<int>, i: int)\n  xs[i] += 1\nend\n",
+            "def f(xs: array<int>, i: int)\n  xs[i] = xs.fetch(i) + 1\nend\n",
+        ),
+        (
+            "def f(counts: hash<string, int>, key: string)\n  counts[key] += 1\nend\n",
+            "def f(counts: hash<string, int>, key: string)\n  counts[key] = counts.fetch(key) + 1\nend\n",
+        ),
+        // The value keeps its grouping under the new operator.
+        (
+            "def f(totals: hash<string, float>)\n  totals[\"a\"] -= 2.0 - 1.5\nend\n",
+            "def f(totals: hash<string, float>)\n  totals[\"a\"] = totals.fetch(\"a\") - (2.0 - 1.5)\nend\n",
+        ),
+    ] {
+        let diagnostic = error(source, "V0107", "read it with `fetch`");
+        assert!(spanned(source, &diagnostic).ends_with(']'), "{source}");
+        let repaired = fixed(source, &diagnostic);
+        assert_eq!(repaired, expected);
+        clean(&repaired);
+    }
+    // A shape's declared field is present, so it needs no fix.
+    clean("def f(point: { x: int })\n  point[\"x\"] += 1\nend\n");
+    // Without a fix: an element type that includes nil, where `fetch` gives
+    // nil too, and a receiver or index that evaluating twice could change.
+    for source in [
+        "def f(xs: array<int?>, i: int)\n  xs[i] += 1\nend\n",
+        "def g -> array<int>\n  [1]\nend\ndef f\n  g[0] += 1\nend\n",
+        "def g -> int\n  0\nend\ndef f(xs: array<int>)\n  xs[g] += 1\nend\n",
+    ] {
+        let diagnostic = error(source, "V0107", "may be nil");
+        assert!(diagnostic.fixes.is_empty(), "{source}: {diagnostic:?}");
+    }
+}
+
+#[test]
 fn hash_literals_are_exact_shapes() {
     clean("def f -> { name: string, age: int }\n  { name: \"Ada\", age: 3 }\nend\n");
     clean("user = { name: \"Ada\", age: 3 }\nname: string = user[\"name\"]\n");

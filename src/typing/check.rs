@@ -8,7 +8,7 @@ use super::{
     ty::{Kind, Ty},
 };
 use crate::{
-    diagnostic::{Code, Diagnostic, Fix, Span},
+    diagnostic::{Code, Diagnostic, Edit, Fix, Span},
     syntax::{Expr, Node, Statement, Stmt, Target},
 };
 use std::collections::HashMap;
@@ -873,19 +873,134 @@ impl<'a> Checker<'a> {
                 let current = self.target_read(target);
                 let right = self.expr(value, None);
                 let span = self.spans.stmt(stmt);
-                let result = self.binary_types(
-                    operator,
-                    current,
-                    right,
-                    span,
-                    Some((target_expr(target), value)),
-                );
                 self.memo.as_mut().unwrap().replay = true;
+                let result = match self.optional_element(target, op, value, current) {
+                    Some(present) => {
+                        self.binary_types(operator, present, right, span, Some((None, value)))
+                    }
+                    None => self.binary_types(
+                        operator,
+                        current,
+                        right,
+                        span,
+                        Some((target_expr(target), value)),
+                    ),
+                };
                 self.target_write(target, result, value);
                 self.restore_memo(outer);
                 result
             }
         }
+    }
+
+    /// Reports a compound assignment to an array element or hash entry
+    /// that may be missing, `x[i] += v`, offering `x[i] = x.fetch(i) + v`,
+    /// and returns the element's type without nil. The receiver's types
+    /// replay from the target's read.
+    fn optional_element(
+        &mut self,
+        target: &'a Target,
+        op: &str,
+        value: &'a Expr,
+        current: Ty,
+    ) -> Option<Ty> {
+        let Target::Value(expr) = target else {
+            return None;
+        };
+        let Node::Index(receiver, selectors) = &expr.node else {
+            return None;
+        };
+        if selectors.len() != 1 || !self.types.has_nil(current) {
+            return None;
+        }
+        let present = self.types.without_nil(current);
+        if present == Ty::NEVER {
+            return None;
+        }
+        let span = self.spans.expr(expr);
+        let found = self.types.display(current);
+        let mut diagnostic = Diagnostic::error(
+            Code::OPTIONAL_USE,
+            span,
+            format!(
+                "this element may be nil ({found}), as it is when missing; read it with `fetch`, which raises when it is missing, or test it with `!= nil` first"
+            ),
+        );
+        let receiver_ty = self.expr(receiver, None);
+        let stored = match self.types.kind(receiver_ty).clone() {
+            Kind::Array(element) => Some(element),
+            Kind::Hash(value) => Some(value),
+            _ => None,
+        };
+        let stable = |checker: &Self, expr: &Expr| match &expr.node {
+            Node::Var(name) => name.starts_with('@') || checker.local(name).is_some(),
+            Node::Integer(_) | Node::Literal(_) => true,
+            _ => false,
+        };
+        if stored.is_some_and(|stored| stored == present)
+            && stable(self, receiver)
+            && stable(self, &selectors[0])
+        {
+            if let Some(fix) = self.fetch_assignment(expr, receiver, &selectors[0], op, value) {
+                diagnostic = diagnostic.with_fix(fix);
+            }
+        }
+        self.report(diagnostic);
+        Some(present)
+    }
+
+    /// `x[i] = x.fetch(i) + v` in place of `x[i] += v`.
+    fn fetch_assignment(
+        &self,
+        target: &Expr,
+        receiver: &Expr,
+        selector: &Expr,
+        op: &str,
+        value: &Expr,
+    ) -> Option<Fix> {
+        let target_end = self.spans.expr(target).end;
+        let value_span = self.spans.expr(value);
+        let between = self.source.get(target_end..value_span.start)?;
+        let at = target_end + between.find(op)?;
+        let receiver_span = self.spans.expr(receiver);
+        let selector_span = self.spans.expr(selector);
+        let receiver_text = self.source.get(receiver_span.start..receiver_span.end)?;
+        let selector_text = self.source.get(selector_span.start..selector_span.end)?;
+        let operator = &op[..op.len() - 1];
+        let grouped = matches!(
+            value.node,
+            Node::Integer(_)
+                | Node::BigInteger(..)
+                | Node::Literal(_)
+                | Node::Template(..)
+                | Node::Var(_)
+                | Node::Array(_)
+                | Node::Call(..)
+                | Node::Method(..)
+                | Node::Member(..)
+                | Node::Index(..)
+        );
+        let (open, close) = if grouped { ("", "") } else { ("(", ")") };
+        let mut edits = vec![
+            Edit {
+                span: Span::new(at, at + op.len()),
+                replacement: "=".to_owned(),
+            },
+            Edit {
+                span: Span::at(value_span.start),
+                replacement: format!("{receiver_text}.fetch({selector_text}) {operator} {open}"),
+            },
+        ];
+        if !close.is_empty() {
+            edits.push(Edit {
+                span: Span::at(value_span.end),
+                replacement: close.to_owned(),
+            });
+        }
+        Some(Fix::edits(
+            format!("read it with `{receiver_text}.fetch({selector_text})`"),
+            edits,
+        ))
     }
 
     fn target_span(&self, target: &Target) -> Span {
