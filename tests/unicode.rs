@@ -22,7 +22,7 @@ fn replaced_bytes(mut bytes: &[u8]) -> String {
 #[test]
 fn unicode_and_invalid_bytes_cross_scan_and_copy_boundaries() {
     let script = Engine::new()
-        .compile("def run(s)\n [s.length, JSON.parse(JSON.stringify(s))]\nend")
+        .compile("def run(s: string) -> array<int | string>\n [s.length, JSON.parse(JSON.stringify(s)).as(string)]\nend")
         .unwrap();
     for padding in [0, 1, 15, 16, 17, 4093, 4094, 4095, 4096, 4097] {
         for sample in [
@@ -58,7 +58,7 @@ fn unicode_bulk_operations_observe_step_limits() {
     let engine = Engine::new();
     for body in ["input.length", "JSON.stringify(input)", "JSON.parse(input)"] {
         let script = engine
-            .compile(&format!("def run(input)\n {body}\nend"))
+            .compile(&format!("def run(input: string) -> any\n {body}\nend"))
             .unwrap();
         let input = if body == "JSON.parse(input)" {
             format!("\"{}\"", "é界🙂".repeat(10000))
