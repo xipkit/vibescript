@@ -8,15 +8,15 @@ mod support;
 fn typed_results_preserve_exact_data_and_type_distinctions() {
     let cases: Vec<Json> = serde_json::from_str(include_str!("encoding-cases.json")).unwrap();
     for case in cases {
-        let body = case["body"].as_str().unwrap();
+        let source = case["source"].as_str().unwrap();
         let result = Engine::new()
-            .compile(body)
-            .unwrap_or_else(|error| panic!("{body}: {error}"))
-            .run(CallOptions::default())
-            .unwrap_or_else(|error| panic!("{body}: {error}"));
+            .compile(source)
+            .unwrap_or_else(|error| panic!("{source}: {error}"))
+            .call("run", &[Value::nil()], CallOptions::default())
+            .unwrap_or_else(|error| panic!("{source}: {error}"));
         let encoded = support::encode(&result.value, "typed", CallOptions::default()).unwrap();
         let actual: Json = serde_json::from_slice(&encoded).unwrap();
-        assert_eq!(actual, case["expected"], "{body}");
+        assert_eq!(actual, case["expected"], "{source}");
     }
     let nan = Value::float(f64::from_bits(0x7ff8000000000001));
     let encoded = support::encode(&nan, "typed", CallOptions::default()).unwrap();
