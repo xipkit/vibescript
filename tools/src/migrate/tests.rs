@@ -31,7 +31,14 @@ fn full(source: &str, calls: &[(&str, serde_json::Value)]) -> (String, Vec<Code>
 }
 
 fn compatible(source: &str, calls: &[(&str, serde_json::Value)]) -> (String, Vec<Code>) {
-    run(source, calls, &Options { new_syntax: false })
+    run(
+        source,
+        calls,
+        &Options {
+            new_syntax: false,
+            ..Options::default()
+        },
+    )
 }
 
 #[test]
@@ -215,7 +222,14 @@ fn annotates_keyword_parameters() {
         migration.source,
         format!("def tagged(tag: string:, {limit}) -> string\n  tag * limit\nend\n")
     );
-    let migration = migrate(source, &observations, &Options { new_syntax: false });
+    let migration = migrate(
+        source,
+        &observations,
+        &Options {
+            new_syntax: false,
+            ..Options::default()
+        },
+    );
     assert!(
         migration
             .source
@@ -360,7 +374,14 @@ fn distrusts_runs_it_cannot_reproduce() {
     let plain =
         Invocation::from_json(json!({"function": "run", "args": [1]}), ".".as_ref()).unwrap();
     let observations = observe(source, &[plain, probe]);
-    let migration = migrate(source, &observations, &Options { new_syntax: false });
+    let migration = migrate(
+        source,
+        &observations,
+        &Options {
+            new_syntax: false,
+            ..Options::default()
+        },
+    );
     assert!(
         migration.source.starts_with("def run(x: any) -> any"),
         "{}",

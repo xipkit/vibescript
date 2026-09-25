@@ -54,11 +54,19 @@ pub struct Options {
     /// Without it, a migration makes only the changes today's runtime
     /// accepts, which checks every annotation it adds at runtime.
     pub new_syntax: bool,
+    /// Whether to make only the canonical surface's rewrites of ADR-008,
+    /// the ones `vibes fix` applies, leaving the source unformatted: no
+    /// annotations, no rewrite that depends on observed types, and every
+    /// condition treated as a `bool`.
+    pub surface_only: bool,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Self { new_syntax: true }
+        Self {
+            new_syntax: true,
+            surface_only: false,
+        }
     }
 }
 

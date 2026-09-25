@@ -91,7 +91,7 @@ fn migrate_on_stack(source: &str, facts: Option<&Facts>, options: &Options) -> M
     // Formatting normalizes line ends and trailing spaces, which would change
     // a string literal that spans lines with them. Rewrites never add such
     // literals, so the original source decides.
-    let output = if literals_survive_formatting(source) {
+    let output = if !options.surface_only && literals_survive_formatting(source) {
         crate::format::format(&output)
     } else {
         output
@@ -509,17 +509,24 @@ impl<'a> Hooks<'a> for Migrator<'a> {
                             .and_then(|facts| facts.instance.get(&class.to_owned(), field)),
                     )
             }
-            Annotation::BlockParameter => false,
+            // A block parameter's check is not observed, so a failure
+            // quoting the old spelling cannot be ruled out.
+            Annotation::BlockParameter => self.options.surface_only,
         }
     }
 
     fn test(&self, expr: &'a Expr, probe: Probe) -> Test {
+        if self.options.surface_only {
+            return Test::Bool;
+        }
         self.observed_test(expr, probe)
     }
 
     fn after_assign(&mut self, stmt: &'a Stmt, assign: &'a Assign) {
-        self.logical_assignment(stmt, assign);
-        self.declare_local(stmt, assign);
+        if !self.options.surface_only {
+            self.logical_assignment(stmt, assign);
+            self.declare_local(stmt, assign);
+        }
     }
 
     fn after_binary(
@@ -530,18 +537,26 @@ impl<'a> Hooks<'a> for Migrator<'a> {
         right: &'a Expr,
         place: Place,
     ) {
-        self.binary(expr, op, left, right, place);
+        if !self.options.surface_only {
+            self.binary(expr, op, left, right, place);
+        }
     }
 
     fn before_body(&mut self, def: &'a Def, class: Option<&'a Class>) {
-        self.annotate_def(def, class);
+        if !self.options.surface_only {
+            self.annotate_def(def, class);
+        }
     }
 
     fn before_class(&mut self, class: &'a Class, name: &str) {
-        self.annotate_class(class, name);
+        if !self.options.surface_only {
+            self.annotate_class(class, name);
+        }
     }
 
     fn after_case(&mut self, node: &'a Case) {
-        self.enum_case(node);
+        if !self.options.surface_only {
+            self.enum_case(node);
+        }
     }
 }

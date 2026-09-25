@@ -74,6 +74,7 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
     };
     let options = Options {
         new_syntax: !flags.bool("compatible"),
+        ..Options::default()
     };
     let mut files = Vec::new();
     for positional in &flags.positionals {
