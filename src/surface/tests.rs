@@ -417,6 +417,8 @@ fn static_compilation_reports_removed_spellings() {
     assert_eq!(checked.diagnostics, error.diagnostics());
 }
 
+// WASI preview 1 has no temporary directory to hold the required file.
+#[cfg(not(target_os = "wasi"))]
 #[test]
 fn removed_spellings_in_required_files_are_reported_at_compile_time() {
     let directory = std::env::temp_dir().join(format!("surface-modules-{}", std::process::id()));
@@ -451,6 +453,9 @@ fn removed_spellings_in_required_files_are_reported_at_compile_time() {
     let _ = std::fs::remove_dir_all(&directory);
 }
 
+// WASI preview 1 cannot start the larger-stack thread, so it skips such
+// sources.
+#[cfg(not(target_os = "wasi"))]
 #[test]
 fn nesting_deeper_than_the_limit_is_still_checked() {
     let depth = 400;
