@@ -13,25 +13,24 @@ fn constructors_methods_aliases_and_shared_identity() {
         .compile(
             r#"
 class Counter
-  @@instances = 0
-  property count
-  def initialize(@count)
+  @@instances: int = 0
+  property count: int
+  def initialize(@count: int)
     @@instances += 1
-    return "ignored"
   end
-  def increment(n: int = 1)
+  def increment(n: int = 1) -> int
     @count += n
   end
   alias bump increment
-  def self.instances
+  def self.instances -> int
     @@instances
   end
 end
-def run
+def run -> array<bool | int>
   a = Counter.new(10)
   b = a.dup
   b.bump(3)
-  [a.count, b.count, a == b, a.class == Counter, Counter.instances]
+  [a.count, b.count, a == b, a.is_type?(:Counter), Counter.instances]
 end
 "#,
         )
@@ -52,17 +51,18 @@ fn fields_keep_array_snapshots_and_object_identity() {
         .compile(
             r#"
 class Holder
-  def initialize(value)
+  @values: array<int>
+  def initialize(value: int)
     @values = [value]
   end
-  def append(value)
+  def append(value: int) -> array<int>
     @values.push(value)
   end
-  def values
+  def values -> array<int>
     @values
   end
 end
-def run
+def run -> array<array<int>>
   object = Holder.new(1)
   alias = object
   before = object.values
@@ -86,9 +86,9 @@ fn unreachable_cycles_are_reclaimed_during_execution() {
         .compile(
             r#"
 class Node
-  property link
+  property link: array<Node> | { back: Node }
 end
-def run
+def run -> int
   for i in 1..5000
     a = Node.new
     b = Node.new
@@ -102,6 +102,9 @@ end
         .unwrap();
     let mut options = CallOptions::default();
     options.limits.memory_bytes = Some(192 * 1024);
+    // The typed property's writes are checked at runtime, which takes more
+    // than the default step quota.
+    options.limits.steps = Some(5_000_000);
     let result = script.call("run", &[], options).unwrap();
     assert_eq!(json(&result.value), serde_json::json!(7));
     assert_eq!(result.stats.retained_memory_bytes, 0);
@@ -113,9 +116,9 @@ fn imported_graphs_preserve_cycles_and_isolate_mutation() {
         .compile(
             r#"
 class Node
-  property link, value
+  property link: Node, value: int
 end
-def make
+def make -> array<Node>
   a = Node.new
   b = Node.new
   a.value = 1
@@ -124,12 +127,12 @@ def make
   b.link = a
   [a, a, b]
 end
-def read(nodes)
-  [nodes[0] == nodes[1], nodes[0].link == nodes[2], nodes[2].link == nodes[0], nodes[0].value]
+def read(nodes: array<Node>) -> array<bool | int>
+  [nodes[0] == nodes[1], nodes.fetch(0).link == nodes[2], nodes.fetch(2).link == nodes[0], nodes.fetch(0).value]
 end
-def change(nodes)
-  nodes[0].value = 9
-  [nodes[1].value, nodes[2].link.value]
+def change(nodes: array<Node>) -> array<int>
+  nodes.fetch(0).value = 9
+  [nodes.fetch(1).value, nodes.fetch(2).link.value]
 end
 "#,
         )
@@ -162,10 +165,10 @@ fn long_object_chains_import_without_recursive_rust_calls() {
         .compile(
             r#"
 class Node
-  property link
+  property link: Node?
 end
-def make
-  node = nil
+def make -> Node?
+  node: Node? = nil
   for i in 1..4096
     current = Node.new
     current.link = node
@@ -173,18 +176,23 @@ def make
   end
   node
 end
-def count(node)
+def count(node: Node?) -> int
   count = 0
-  while node
+  current = node
+  while current != nil
     count += 1
-    node = node.link
+    current = current.link
   end
   count
 end
 "#,
         )
         .unwrap();
-    let output = script.call("make", &[], CallOptions::default()).unwrap();
+    // The typed property's writes are checked at runtime, which takes more
+    // than the default step quota.
+    let mut options = CallOptions::default();
+    options.limits.steps = Some(5_000_000);
+    let output = script.call("make", &[], options).unwrap();
     let mut options = CallOptions::default();
     options.limits.steps = Some(20_000_000);
     let counted = script.call("count", &[output.value], options).unwrap();
@@ -198,17 +206,11 @@ fn constructor_boundaries_remain_guarded() {
         .compile(
             r#"
 class C
-  def initialize -> int
-    "ignored"
-  end
 end
 class Empty
 end
-def construct
-  [C.new.class == C, Empty.new(1, 2, x: 3).class == Empty]
-end
-def hidden
-  C.new.initialize
+def construct -> array<bool>
+  [C.new.is_type?(:C), Empty.new.is_type?(:Empty)]
 end
 "#,
         )
@@ -217,13 +219,38 @@ end
         .call("construct", &[], CallOptions::default())
         .unwrap();
     assert_eq!(json(&result.value), serde_json::json!([true, true]));
-    assert_eq!(
-        script
-            .call("hidden", &[], CallOptions::default())
-            .unwrap_err()
-            .kind,
-        ErrorKind::Name
-    );
+    // A constructor's result, arguments a class does not take, and calling
+    // `initialize` directly are refused before running.
+    for (source, expected) in [
+        (
+            "class C\n  def initialize -> int\n    \"ignored\"\n  end\nend\nC.new",
+            vec![("V0101", "\"ignored\"")],
+        ),
+        (
+            "class C\n  def initialize\n    return \"ignored\"\n  end\nend\nC.new",
+            vec![("V0117", "return")],
+        ),
+        (
+            "class Empty\nend\nEmpty.new(1, 2, x: 3)",
+            vec![("V0301", "new"), ("V0302", "x:")],
+        ),
+        (
+            "class C\nend\nC.new.initialize",
+            vec![("V0203", "initialize")],
+        ),
+    ] {
+        let error = common::static_engine().compile(source).err().unwrap();
+        let found: Vec<(String, usize)> = error
+            .diagnostics()
+            .iter()
+            .map(|d| (d.code.to_string(), d.span.start))
+            .collect();
+        let expected: Vec<(String, usize)> = expected
+            .into_iter()
+            .map(|(code, text)| (code.to_owned(), source.find(text).unwrap()))
+            .collect();
+        assert_eq!(found, expected, "{source}");
+    }
 }
 
 #[test]
@@ -248,15 +275,15 @@ end
 class Record
   property status: Status
   getter count: int
-  def initialize(@status)
+  def initialize(@status: Status)
     @count = 1
   end
-  def bad(value)
-    @count = value
+  def bad(value: any)
+    @count = value.as(int)
     effect()
   end
 end
-def good
+def good -> array<int | symbol>
   record = Record.new(:ready)
   [record.status.symbol, record.count]
 end
@@ -269,6 +296,7 @@ end
         .unwrap();
     let good = script.call("good", &[], CallOptions::default()).unwrap();
     assert_eq!(json(&good.value), serde_json::json!(["ready", 1]));
+    // A dynamic value is checked where it is narrowed, before later effects.
     assert_eq!(
         script
             .call("bad", &[], CallOptions::default())
@@ -277,6 +305,14 @@ end
         ErrorKind::Type
     );
     assert_eq!(effects.load(Ordering::Relaxed), 0);
+    // A value of the wrong type is refused before running.
+    let source = "class Record\n  getter count: int\n  def initialize\n    @count = 1\n  end\n  def bad(value: string)\n    @count = value\n  end\nend";
+    let error = common::static_engine().compile(source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0101"]);
+    assert_eq!(
+        error.diagnostics()[0].span.start,
+        source.rfind("value").unwrap()
+    );
 }
 
 #[test]
@@ -286,7 +322,7 @@ fn nominal_class_types_validate_arguments_returns_and_fields() {
             r#"
 class Node
   property link: Node?
-  def initialize(@link = nil)
+  def initialize(@link: Node? = nil)
   end
 end
 class Other
@@ -294,69 +330,76 @@ end
 def identity(value: Node) -> Node
   value
 end
-def good
+def good -> bool
   a = Node.new
   b = Node.new(a)
   identity(b).link == a
 end
-def wrong_field
-  Node.new(Other.new)
-end
-def wrong_argument
-  identity(Other.new)
+def other -> Other
+  Other.new
 end
 "#,
         )
         .unwrap();
     let result = script.call("good", &[], CallOptions::default()).unwrap();
     assert_eq!(json(&result.value), serde_json::json!(true));
-    for function in ["wrong_field", "wrong_argument"] {
+    // A host argument of another class is refused when the call starts.
+    let other = script
+        .call("other", &[], CallOptions::default())
+        .unwrap()
+        .value;
+    assert_eq!(
+        script
+            .call("identity", &[other], CallOptions::default())
+            .unwrap_err()
+            .kind,
+        ErrorKind::Type
+    );
+    // Inside the program, classes are checked before it runs.
+    for (call, text) in [
+        ("Node.new(Other.new)", "Other.new"),
+        ("identity(Other.new)", "Other.new"),
+    ] {
+        let source = format!(
+            "class Node\n  property link: Node?\n  def initialize(@link: Node? = nil)\n  end\nend\nclass Other\nend\ndef identity(value: Node) -> Node\n  value\nend\n{call}"
+        );
+        let error = common::static_engine().compile(&source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0101"], "{call}");
         assert_eq!(
-            script
-                .call(function, &[], CallOptions::default())
-                .unwrap_err()
-                .kind,
-            ErrorKind::Type
+            error.diagnostics()[0].span.start,
+            source.rfind(text).unwrap(),
+            "{call}"
         );
     }
 }
 
 #[test]
 fn negative_property_paths_preserve_parent_growth_and_enforce_nested_types() {
-    for (value, expected) in [
-        ("2", serde_json::json!(["accepted", [[1, 2], [9]], [[1]]])),
-        (
-            "\"bad\"",
-            serde_json::json!(["rejected", [[1], [9]], [[1]]]),
-        ),
-    ] {
-        let source = format!(
+    let source = |value: &str| {
+        format!(
             "class C;getter rows:array<array<int>>;def initialize;@rows=[[1]];end;\
-             def run;before=@rows;status=begin;\
-             @rows[-1].push((while true;@rows.push([9]);break {value};end));\
+             def run -> array<any>;before=@rows;status=begin;\
+             @rows[-1]&.push((while true;@rows.push([9]);break {value};end));\
              :accepted;rescue;:rejected;end;[status,@rows,before];end;end;C.new.run"
-        );
-        let result = Engine::new()
-            .compile(&source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap();
-        assert_eq!(json(&result.value), expected, "{source}");
-        if value == "\"bad\"" {
-            let unhandled = source.replace("rescue;:rejected", "rescue;raise");
-            let error = Engine::new()
-                .compile(&unhandled)
-                .unwrap()
-                .run(CallOptions::default())
-                .unwrap_err();
-            assert_eq!(error.kind, ErrorKind::Type);
-            assert!(
-                error
-                    .message
-                    .starts_with("instance variable @rows expected")
-            );
-        }
-    }
+        )
+    };
+    let result = Engine::new()
+        .compile(&source("2"))
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap();
+    assert_eq!(
+        json(&result.value),
+        serde_json::json!(["accepted", [[1, 2], [9]], [[1]]])
+    );
+    // An element of the wrong type is refused before running.
+    let bad = source("\"bad\"");
+    let error = common::static_engine().compile(&bad).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0101"]);
+    assert_eq!(
+        error.diagnostics()[0].span.start,
+        bad.find("while true").unwrap()
+    );
 }
 
 #[test]
@@ -369,6 +412,7 @@ fn rejected_nested_property_mutations_preserve_the_previous_field() {
         *saved.lock().unwrap() = Some(args[0].clone());
         Ok(Value::nil())
     });
+    // A dynamic value is checked where it is narrowed, before the push.
     let script = engine
         .compile(
             r#"
@@ -377,16 +421,16 @@ class Holder
   def initialize
     @values = [1]
   end
-  def bad
-    @values.push("wrong")
+  def bad(value: any) -> array<int>
+    @values.push(value.as(int))
   end
 end
-def run
+def run -> array<int>
   object = Holder.new
   capture(object)
-  object.bad
+  object.bad("wrong")
 end
-def read(object)
+def read(object: Holder) -> array<int>
   object.values
 end
 "#,
@@ -399,6 +443,14 @@ end
         .call("read", &[object], CallOptions::default())
         .unwrap();
     assert_eq!(json(&result.value), serde_json::json!([1]));
+    // A value of the wrong type is refused before running.
+    let source = "class Holder\n  getter values: array<int>\n  def initialize\n    @values = [1]\n  end\n  def bad\n    @values.push(\"wrong\")\n  end\nend";
+    let error = common::static_engine().compile(source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0101"]);
+    assert_eq!(
+        error.diagnostics()[0].span.start,
+        source.find("\"wrong\"").unwrap()
+    );
 }
 
 #[test]
@@ -410,17 +462,17 @@ class Counter
   TOTAL = 2
   protected = 5
   protected
-  def local
-    TOTAL ||= 9
+  def local -> int
+    TOTAL = 9
     TOTAL += 1
     TOTAL
   end
-  def self.shared
+  def self.shared -> int
     TOTAL += 1
   end
   private
 end
-def run
+def run -> array<int>
   [Counter.new.local, Counter.TOTAL, Counter.shared, Counter.TOTAL]
 end
 "#,
@@ -466,8 +518,8 @@ fn cancelled_and_exhausted_constructors_stop_effects_and_preserve_captured_objec
             .compile(
                 r#"
 class Node
-  property link, value
-  def initialize(n)
+  property link: Node, value: int
+  def initialize(n: int)
     @value = n
     @link = self
     if n == 1
@@ -479,13 +531,13 @@ class Node
     end
   end
 end
-def run
+def run -> any
   for n in 1..1000
     Node.new(n)
   end
   effect()
 end
-def read(node)
+def read(node: Node) -> array<bool | int>
   [node.value, node.link == node]
 end
 "#,
@@ -520,21 +572,21 @@ fn concurrent_calls_import_independent_objects_and_class_state() {
         .compile(
             r#"
 class Counter
-  @@calls = 0
-  property value, link
-  def initialize(@value = 0)
+  @@calls: int = 0
+  property value: int, link: Counter
+  def initialize(@value: int = 0)
     @link = self
   end
-  def increment(n)
+  def increment(n: int) -> array<bool | int>
     @@calls += 1
     @value += n
     [@value, @@calls, @link == self]
   end
 end
-def make
+def make -> Counter
   Counter.new(10)
 end
-def change(counter, n)
+def change(counter: Counter, n: int) -> array<bool | int>
   counter.increment(n)
 end
 "#,
@@ -570,83 +622,82 @@ end
 
 #[test]
 fn incoming_instance_containers_preserve_cycles_aliases_and_call_isolation() {
-    let producer = Engine::new()
-        .compile(
-            r#"
+    use std::sync::{Arc, Mutex};
+    // A class is named only in its own script, so the instances come back
+    // to the script that made them.
+    let source = r#"
 class Node
-  property links, value
-  def initialize(@value)
+  property links: array<{ next: Node, again?: Node }>, value: int
+  def initialize(@value: int)
     @links = []
   end
 end
-def make
+def make -> Node
   a = Node.new(1)
   b = Node.new(2)
   a.links = [{next: b, again: b}]
   b.links = [{next: a}]
   a
 end
-"#,
-        )
-        .unwrap();
-    let original = producer
-        .call("make", &[], CallOptions::default())
+def visit(a: Node) -> array<any>
+  b = a.links.fetch(0)["next"]
+  b.links.fetch(0)["next"].value = 4
+  [a.value, b.value, b == a.links.fetch(0)["again"], b.links.fetch(0)["next"] == a]
+end
+def positional(a: Node) -> array<any>; visit(a); end
+def keyword(*, a: Node) -> array<any>; visit(a); end
+def global -> array<any>; visit(incoming.as(Node)); end
+def host -> array<any>; visit(fetch().as(Node)); end
+def read(a: Node) -> array<int>; [a.value, a.links.fetch(0)["next"].value]; end
+"#;
+    let supplied: Arc<Mutex<Value>> = Arc::new(Mutex::new(Value::nil()));
+    let held = supplied.clone();
+    let mut engine = Engine::new();
+    engine.register("fetch", move |_, _| Ok(held.lock().unwrap().clone()));
+    engine.declare_global("incoming", "").unwrap();
+    let script = engine.compile(source).unwrap();
+    let with = |value: &Value, options: CallOptions| CallOptions {
+        globals: [("incoming".into(), value.clone())].into(),
+        ..options
+    };
+    let original = script
+        .call("make", &[], with(&Value::nil(), CallOptions::default()))
         .unwrap()
         .value;
-    let source = r#"
-def visit(a)
-  b = a.links[0][:next]
-  b.links[0][:next].value = 4
-  [a.value, b.value, b == a.links[0][:again], b.links[0][:next] == a]
-end
-def positional(a); visit(a); end
-def keyword(a:); visit(a); end
-def global; visit(incoming); end
-def host; visit(fetch()); end
-"#;
-    let supplied = original.clone();
-    let mut engine = Engine::new();
-    engine.register("fetch", move |_, _| Ok(supplied.clone()));
-    let receiver = engine.compile(source).unwrap();
+    *supplied.lock().unwrap() = original.clone();
     for unlimited in [false, true] {
-        let mut options = CallOptions::default();
+        let mut options = with(&original, CallOptions::default());
         if unlimited {
             options.limits.memory_bytes = None;
         }
         let outputs = [
-            receiver.call(
+            script.call(
                 "positional",
                 std::slice::from_ref(&original),
                 options.clone(),
             ),
-            receiver.call_with_keywords(
+            script.call_with_keywords(
                 "keyword",
                 &[],
                 &[("a".into(), original.clone())],
                 options.clone(),
             ),
-            receiver.call(
-                "global",
-                &[],
-                CallOptions {
-                    globals: [("incoming".into(), original.clone())].into(),
-                    ..options.clone()
-                },
-            ),
-            receiver.call("host", &[], options),
+            script.call("global", &[], options.clone()),
+            script.call("host", &[], options),
         ];
         for output in outputs {
             let output = output.unwrap();
             assert_eq!(json(&output.value), serde_json::json!([4, 2, true, true]));
         }
     }
-    let read = Engine::new()
-        .compile("def read(a);[a.value,a.links[0][:next].value];end")
-        .unwrap();
     assert_eq!(
         json(
-            &read
-                .call("read", &[original], CallOptions::default())
+            &script
+                .call(
+                    "read",
+                    std::slice::from_ref(&original),
+                    with(&original, CallOptions::default())
+                )
                 .unwrap()
                 .value
         ),
