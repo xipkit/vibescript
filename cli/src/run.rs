@@ -176,6 +176,21 @@ pub fn execute(invocation: &Invocation, out: &Sink, err: &Sink) -> Result<(), St
         None if has_top_level_statements(&script)? => "__main__",
         None => "run",
     };
+    if invocation.static_types && function != "__main__" {
+        let found = engine
+            .check_entry_arguments(&source, function, invocation.arguments.len())
+            .map_err(|error| format!("compile failed: {}", render::error(&error, None)))?;
+        if !found.is_empty() {
+            let label = invocation.script.display().to_string();
+            let mut text = format!("compile failed with {} diagnostic(s)", found.len());
+            for diagnostic in &found {
+                text.push('\n');
+                text.push_str(&render::diagnostic(diagnostic, &source, &label));
+            }
+            text.truncate(text.trim_end().len());
+            return Err(text);
+        }
+    }
     let options = options(invocation.limits.clone());
     if invocation.check {
         return check::call(&script, function, &invocation.arguments, &options);

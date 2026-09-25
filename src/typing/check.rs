@@ -167,7 +167,7 @@ impl<'a> Checker<'a> {
         let name = self.program.namespaces[ns as usize].name.clone();
         let mut frame = Frame::new(Some(ns), false, None, name);
         frame.namespace_body = true;
-        let previous = std::mem::replace(&mut self.frame, frame);
+        let previous = self.enter_frame(frame);
         self.stmts(&module.body, Want::Discard);
         // Instance-variable defaults run for each instance.
         let defaults: Vec<&'a Stmt> = self
@@ -178,11 +178,13 @@ impl<'a> Checker<'a> {
             .filter(|(owner, _)| *owner == module.offset)
             .map(|(_, stmt)| stmt)
             .collect();
-        self.frame = Frame::new(Some(ns), true, None, self.frame.name.clone());
+        let name = self.frame.name.clone();
+        let body = self.enter_frame(Frame::new(Some(ns), true, None, name));
         for stmt in defaults {
             self.stmt(stmt, Want::Discard);
         }
-        self.frame = previous;
+        self.leave_frame(body);
+        self.leave_frame(previous);
     }
 
     fn check_function(&mut self, id: FnId) {
@@ -196,7 +198,7 @@ impl<'a> Checker<'a> {
         let mut frame = Frame::new(owner, instance, sig.result, sig.name.clone());
         frame.main = main;
         frame.block = sig.block.clone();
-        let previous = std::mem::replace(&mut self.frame, frame);
+        let previous = self.enter_frame(frame);
         if instance && def.name == "initialize" {
             self.track_initialize(owner);
         }
@@ -213,7 +215,7 @@ impl<'a> Checker<'a> {
         }
         if accessor {
             // Properties read and write their declared instance variable.
-            self.frame = previous;
+            self.leave_frame(previous);
             return;
         }
         let want = match (main, sig.result) {
@@ -243,7 +245,7 @@ impl<'a> Checker<'a> {
             }
             self.finish_initialize(Span::at(def.offset as usize));
         }
-        self.frame = previous;
+        self.leave_frame(previous);
     }
 
     /// Declares the instance variables `initialize` must assign.
@@ -427,6 +429,7 @@ impl<'a> Checker<'a> {
     pub(super) fn widen_for_loop(&mut self, body: &[Stmt]) {
         let mut names = Vec::new();
         assigned_names(body, &mut names);
+        self.steps += names.len() as u64 + body.len() as u64;
         for name in names {
             if let Some(id) = self.local(&name) {
                 let state = self.frame.flow.get(id);
@@ -455,7 +458,23 @@ impl<'a> Checker<'a> {
         self.stmt(last, want)
     }
 
+    /// Makes `frame` current, keeping the work the replaced frame did.
+    pub(super) fn enter_frame(&mut self, frame: Frame) -> Frame {
+        let previous = std::mem::replace(&mut self.frame, frame);
+        self.steps += previous.flow.steps;
+        previous
+    }
+
+    /// Restores a frame [`Self::enter_frame`] replaced.
+    pub(super) fn leave_frame(&mut self, previous: Frame) {
+        let finished = std::mem::replace(&mut self.frame, previous);
+        self.steps += finished.flow.steps;
+        // The restored frame's work was counted when it was replaced.
+        self.frame.flow.steps = 0;
+    }
+
     pub(super) fn stmt(&mut self, stmt: &'a Stmt, want: Want) -> Ty {
+        self.steps += 1;
         if !self.frame.flow.live {
             // Unreachable code is still checked, from a live state.
             self.frame.flow.live = true;
@@ -476,7 +495,9 @@ impl<'a> Checker<'a> {
                 let ty = self.assignment(stmt, target, op, value);
                 self.statement_value(stmt, ty, want)
             }
-            Statement::If(branches, alternate, _) => self.if_statement(branches, alternate, want),
+            Statement::If(branches, alternate, _) => {
+                self.if_statement(stmt.offset as usize, branches, alternate, want)
+            }
             Statement::While(condition, body, _) => {
                 let ty = self.while_loop(condition, body);
                 self.statement_value(stmt, ty, want)
@@ -498,12 +519,7 @@ impl<'a> Checker<'a> {
                 Ty::NEVER
             }
             Statement::Raise(value, message) => {
-                if let Some(value) = value {
-                    self.expr(value, None);
-                }
-                if let Some(message) = message {
-                    self.expr(message, None);
-                }
+                self.raise(value.as_deref(), message.as_deref());
                 self.frame.flow.live = false;
                 Ty::NEVER
             }
@@ -531,6 +547,7 @@ impl<'a> Checker<'a> {
 
     fn if_statement(
         &mut self,
+        if_offset: usize,
         branches: &'a [(Expr, crate::compilation::Buffer<Stmt>)],
         alternate: &'a [Stmt],
         want: Want,
@@ -550,6 +567,22 @@ impl<'a> Checker<'a> {
             self.apply(&narrow.otherwise);
         }
         let ty = if alternate.is_empty() {
+            if let (Want::Check(expected), true) = (want, self.frame.flow.live) {
+                if !self.types.assignable(Ty::NIL, expected) {
+                    let span = self.spans.token(if_offset);
+                    let expected_text = self.types.display(expected);
+                    let purpose = self.purposes.last().cloned().unwrap_or(Purpose::Result);
+                    let what = self.purpose_text(&purpose, &expected_text);
+                    self.report(
+                        Diagnostic::error(
+                            Code::TYPE_MISMATCH,
+                            span,
+                            format!("{what}, but this `if` has no `else`, so it gives nil when no branch runs"),
+                        )
+                        .with_types(expected_text, "nil"),
+                    );
+                }
+            }
             Ty::NIL
         } else {
             self.stmts(alternate, want)
@@ -687,6 +720,55 @@ impl<'a> Checker<'a> {
             self.finish_initialize(span);
         }
         self.frame.flow.live = false;
+    }
+
+    /// `raise message`, `raise error`, `raise Class` or `raise Class, message`.
+    fn raise(&mut self, value: Option<&'a Expr>, message: Option<&'a Expr>) {
+        let class = |checker: &Self, expr: &Expr| match &expr.node {
+            Node::Var(name) => {
+                checker.local(name).is_none() && crate::ErrorClass::from_name(name).is_some()
+            }
+            _ => false,
+        };
+        if let Some(message) = message {
+            self.expr_against(message, Ty::STRING, &Purpose::Operand);
+            if let Some(value) = value {
+                if !class(self, value) {
+                    let ty = self.expr(value, None);
+                    if ty != Ty::ERROR {
+                        let span = self.spans.expr(value);
+                        self.report(Diagnostic::error(
+                            Code::TYPE_MISMATCH,
+                            span,
+                            "`raise` with a message takes an error class first, such as `raise ArgumentError, \"...\"`",
+                        ));
+                    }
+                }
+            }
+            return;
+        }
+        let Some(value) = value else {
+            return;
+        };
+        if class(self, value) {
+            return;
+        }
+        let ty = self.expr(value, None);
+        if ty == Ty::ERROR || ty == Ty::STRING || ty == Ty::ERROR_VALUE || ty == Ty::NEVER {
+            return;
+        }
+        let span = self.spans.expr(value);
+        let found = self.types.display(ty);
+        self.report(
+            Diagnostic::error(
+                Code::TYPE_MISMATCH,
+                span,
+                format!(
+                    "`raise` takes a message, an error class or a rescued error, found {found}"
+                ),
+            )
+            .with_types("string | error", found),
+        );
     }
 
     fn break_statement(&mut self, value: Option<&'a Expr>) {
@@ -1682,14 +1764,9 @@ pub(crate) enum Purpose {
 }
 
 impl<'a> Checker<'a> {
-    /// Reports that a value of type `found` is not assignable to `expected`.
-    pub(super) fn mismatch(&mut self, span: Span, expected: Ty, found: Ty, purpose: &Purpose) {
-        if expected == Ty::ERROR || found == Ty::ERROR {
-            return;
-        }
-        let expected_text = self.types.display(expected);
-        let found_text = self.types.display(found);
-        let what = match purpose {
+    /// What a position expects, for messages: "`f` returns int".
+    pub(super) fn purpose_text(&self, purpose: &Purpose, expected_text: &str) -> String {
+        match purpose {
             Purpose::Result => format!("`{}` returns {expected_text}", self.current_function()),
             Purpose::BlockResult => format!("the block returns {expected_text}"),
             Purpose::Local(name) => format!("`{name}` is {expected_text}"),
@@ -1712,7 +1789,17 @@ impl<'a> Checker<'a> {
             Purpose::Annotation => format!("the annotation says {expected_text}"),
             Purpose::Yield(index) => format!("block argument {} is {expected_text}", index + 1),
             Purpose::Operand => format!("the operand must be {expected_text}"),
-        };
+        }
+    }
+
+    /// Reports that a value of type `found` is not assignable to `expected`.
+    pub(super) fn mismatch(&mut self, span: Span, expected: Ty, found: Ty, purpose: &Purpose) {
+        if expected == Ty::ERROR || found == Ty::ERROR {
+            return;
+        }
+        let expected_text = self.types.display(expected);
+        let found_text = self.types.display(found);
+        let what = self.purpose_text(purpose, &expected_text);
         let mut diagnostic = Diagnostic::error(
             Code::TYPE_MISMATCH,
             span,

@@ -38,6 +38,8 @@ pub(crate) struct Flow {
     trail: Vec<(LocalId, VarState)>,
     /// Whether control can reach the current point.
     pub live: bool,
+    /// Work done, for [`super::Checked::steps`].
+    pub steps: u64,
 }
 
 impl Flow {
@@ -46,6 +48,7 @@ impl Flow {
             vars: Vec::new(),
             trail: Vec::new(),
             live: true,
+            steps: 0,
         }
     }
 
@@ -83,6 +86,7 @@ impl Flow {
         let mut changes: Vec<(LocalId, VarState)> = Vec::new();
         let mut seen: HashMap<LocalId, ()> = HashMap::new();
         while self.trail.len() > mark.trail {
+            self.steps += 1;
             let (id, old) = self.trail.pop().unwrap();
             if seen.insert(id, ()).is_none() {
                 changes.push((id, self.vars[id as usize]));
@@ -95,13 +99,15 @@ impl Flow {
 
     /// The changes since `mark`, without undoing them: the state at an early
     /// exit such as `break`, which the enclosing loop joins.
-    pub fn peek(&self, mark: Mark) -> Branch {
+    pub fn peek(&mut self, mark: Mark) -> Branch {
         let mut changes: Vec<(LocalId, VarState)> = Vec::new();
+        let steps = (self.trail.len() - mark.trail) as u64;
         for &(id, _) in &self.trail[mark.trail..] {
             if !changes.iter().any(|(seen, _)| *seen == id) {
                 changes.push((id, self.vars[id as usize]));
             }
         }
+        self.steps += steps;
         Branch {
             live: true,
             changes,
@@ -129,6 +135,7 @@ impl Flow {
         ids.sort_unstable();
         ids.dedup();
         for id in ids {
+            self.steps += live.len() as u64;
             let base = self.vars[id as usize];
             let states: Vec<VarState> = live
                 .iter()

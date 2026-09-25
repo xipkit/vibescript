@@ -99,6 +99,14 @@ impl<'a> Checker<'a> {
             _ => (),
         }
         if let Some(ns) = self.frame.owner {
+            if name == "new"
+                && !self.frame.instance
+                && self.program.namespaces[ns as usize].is_class
+            {
+                // `new` inside a class method constructs the class.
+                let ty = self.types.intern(Kind::Namespace(ns));
+                return self.namespace_member(&call, ns, ty);
+            }
             let namespace = &self.program.namespaces[ns as usize];
             let found = if self.frame.instance {
                 namespace.methods.get(name).copied()
@@ -286,7 +294,10 @@ impl<'a> Checker<'a> {
         let name_span = self.spans.member(receiver, name);
         if let Some(span) = name_span {
             if ty != Ty::ERROR {
-                let receiver_type = ReceiverType::new(self.types.display(ty), self.types.bases(ty));
+                // A safe call runs the member on the value without nil.
+                let called = if safe { self.types.without_nil(ty) } else { ty };
+                let receiver_type =
+                    ReceiverType::new(self.types.display(called), self.types.bases(called));
                 self.calls.push((span.start, receiver_type));
             }
         }
@@ -316,6 +327,10 @@ impl<'a> Checker<'a> {
 
     /// Checks `receiver.name` for a receiver type, one alternative at a time.
     fn dispatch(&mut self, call: &Call<'a, '_>, receiver: &'a Expr, ty: Ty) -> Ty {
+        if call.name == "as" && !matches!(self.types.kind(ty), Kind::Instance(_)) {
+            // A cast narrows the whole value, whichever alternative it holds.
+            return self.cast(call, ty);
+        }
         let alternatives = self.types.members(ty);
         if alternatives.len() == 1 {
             return self.member(call, receiver, ty);
@@ -565,6 +580,18 @@ impl<'a> Checker<'a> {
             return Ty::ERROR;
         };
         let literal = self.expr(&arg.value, None);
+        // A class or enum names its own type.
+        let literal = match self.types.kind(literal).clone() {
+            Kind::EnumType(id) => {
+                let member = self.types.intern(Kind::EnumValue(id));
+                self.types.type_lit(member)
+            }
+            Kind::Namespace(ns) if self.program.namespaces[ns as usize].is_class => {
+                let instance = self.types.intern(Kind::Instance(ns));
+                self.types.type_lit(instance)
+            }
+            _ => literal,
+        };
         let Kind::TypeLit(target) = self.types.kind(literal).clone() else {
             if literal != Ty::ERROR {
                 let span = self.spans.expr(&arg.value);
@@ -582,10 +609,11 @@ impl<'a> Checker<'a> {
         };
         if ty != Ty::ANY && ty != Ty::ERROR {
             let possible = self.types.members(target).into_iter().any(|t| {
-                self.types
-                    .members(ty)
-                    .into_iter()
-                    .any(|m| self.types.assignable(m, t) || self.types.assignable(t, m))
+                self.types.members(ty).into_iter().any(|m| {
+                    self.types.assignable(m, t)
+                        || self.types.assignable(t, m)
+                        || (m == Ty::SYMBOL && matches!(self.types.kind(t), Kind::EnumValue(_)))
+                })
             });
             if !possible {
                 let found = self.types.display(ty);

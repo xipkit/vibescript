@@ -10,11 +10,24 @@ use crate::{
 pub(crate) struct Spans<'a> {
     source: &'a str,
     tokens: &'a [Token],
+    /// Tokens and nodes visited, for [`super::Checked::steps`].
+    pub steps: std::cell::Cell<u64>,
+    /// [`last_offset`] by node, so shared subtrees are walked once.
+    lasts: std::cell::RefCell<std::collections::HashMap<usize, usize>>,
 }
 
 impl<'a> Spans<'a> {
     pub fn new(source: &'a str, tokens: &'a [Token]) -> Self {
-        Self { source, tokens }
+        Self {
+            source,
+            tokens,
+            steps: std::cell::Cell::new(0),
+            lasts: std::cell::RefCell::default(),
+        }
+    }
+
+    fn step(&self, count: usize) {
+        self.steps.set(self.steps.get() + count as u64);
     }
 
     /// The index of the token that starts at `offset`.
@@ -68,6 +81,7 @@ impl<'a> Spans<'a> {
     pub fn word_after(&self, offset: usize, name: &str) -> Span {
         let start = self.token_from(offset);
         for index in start..self.tokens.len().min(start + 256) {
+            self.step(1);
             if self.tokens[index].kind == TokenKind::Word && self.text(index) == name {
                 let span = &self.tokens[index].span;
                 return Span::new(span.start, span.end);
@@ -79,7 +93,7 @@ impl<'a> Spans<'a> {
     /// The span of an expression, from its first token to its last.
     pub fn expr(&self, expr: &Expr) -> Span {
         let start = expr.offset as usize;
-        let last = last_offset(expr);
+        let last = self.last(expr);
         Span::new(start, self.close(start, last))
     }
 
@@ -99,6 +113,7 @@ impl<'a> Spans<'a> {
         };
         let first = self.token_from(start);
         let mut depth: i64 = 0;
+        self.step(last_index.saturating_sub(first) + 1);
         for index in first..=last_index {
             match &self.tokens[index].kind {
                 TokenKind::Punct('(' | '[' | '{') => depth += 1,
@@ -109,6 +124,7 @@ impl<'a> Spans<'a> {
         let mut end = self.tokens[last_index].span.end;
         let mut index = last_index + 1;
         while depth > 0 && index < self.tokens.len() {
+            self.step(1);
             match &self.tokens[index].kind {
                 TokenKind::Punct(')' | ']' | '}') => {
                     depth -= 1;
@@ -129,7 +145,7 @@ impl<'a> Spans<'a> {
     /// `include?` in `items.include?(x)`: the first `.` or `&.` after the
     /// receiver that is followed by `name`.
     pub fn member(&self, receiver: &Expr, name: &str) -> Option<Span> {
-        let last = last_offset(receiver);
+        let last = self.last(receiver);
         let from = match self.token_at(last) {
             Some(index) => index,
             None => self.token_from(last),
@@ -137,6 +153,7 @@ impl<'a> Spans<'a> {
         let mut index = from;
         let limit = self.tokens.len().min(from + 512);
         while index + 1 < limit {
+            self.step(1);
             let dot = matches!(
                 self.tokens[index].kind,
                 TokenKind::Punct('.') | TokenKind::Operator("&." | "::")
@@ -160,7 +177,7 @@ impl<'a> Spans<'a> {
     /// `[` to the `]`.
     pub fn index_brackets(&self, receiver: &Expr, whole: &Expr) -> Option<Span> {
         let end = self.expr(whole).end;
-        let last = last_offset(receiver);
+        let last = self.last(receiver);
         let from = self.token_at(last).unwrap_or_else(|| self.token_from(last));
         for index in from + 1..self.tokens.len().min(from + 64) {
             if self.tokens[index].kind == TokenKind::Punct('[') {
@@ -168,6 +185,19 @@ impl<'a> Spans<'a> {
             }
         }
         None
+    }
+
+    /// The start of an expression's last token-bearing child, remembered
+    /// per node so a chain of calls costs linear work.
+    fn last(&self, expr: &Expr) -> usize {
+        let key = std::ptr::from_ref(expr) as usize;
+        if let Some(&last) = self.lasts.borrow().get(&key) {
+            return last;
+        }
+        let (last, visited) = last_offset_counted(expr, &self.lasts);
+        self.step(visited);
+        self.lasts.borrow_mut().insert(key, last);
+        last
     }
 
     /// The offset of the operator token of a binary expression starting at
@@ -179,11 +209,28 @@ impl<'a> Spans<'a> {
 
 /// The start of the last token-bearing child of an expression.
 pub(crate) fn last_offset(expr: &Expr) -> usize {
-    let mut last = expr.offset as usize;
-    let mut pending = vec![expr];
+    last_offset_counted(expr, &std::cell::RefCell::default()).0
+}
+
+/// [`last_offset`], reusing the results `memo` holds for subtrees, and the
+/// number of nodes it visited.
+fn last_offset_counted(
+    root: &Expr,
+    memo: &std::cell::RefCell<std::collections::HashMap<usize, usize>>,
+) -> (usize, usize) {
+    let mut last = root.offset as usize;
+    let mut visited = 0;
+    let mut pending = vec![root];
     let mut visit_stmts: Vec<&Stmt> = Vec::new();
     while let Some(expr) = pending.pop() {
+        visited += 1;
         last = last.max(expr.offset as usize);
+        if !std::ptr::eq(expr, root) {
+            if let Some(&known) = memo.borrow().get(&(std::ptr::from_ref(expr) as usize)) {
+                last = last.max(known);
+                continue;
+            }
+        }
         match &expr.node {
             Node::Try(attempt) => {
                 visit_stmts.extend(attempt.body.iter());
@@ -251,10 +298,11 @@ pub(crate) fn last_offset(expr: &Expr) -> usize {
             _ => (),
         }
         while let Some(stmt) = visit_stmts.pop() {
+            visited += 1;
             last = last.max(stmt_last(stmt));
         }
     }
-    last
+    (last, visited)
 }
 
 fn arguments(args: &[Argument]) -> impl Iterator<Item = &Expr> {

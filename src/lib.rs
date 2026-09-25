@@ -167,6 +167,40 @@ impl Engine {
             file: false,
         }))
     }
+    /// Checks that a command line can call `function` in `source` with
+    /// `count` arguments, which it passes as strings (ADR-007): each
+    /// positional parameter they bind must accept `string`, and a rest
+    /// parameter `array<string>`. Returns the diagnostics; only a syntax
+    /// error fails.
+    ///
+    /// ```
+    /// let engine = vibescript::Engine::new();
+    /// let source = "def run(name: string, times: int) -> string\n  name * times\nend\n";
+    /// let found = engine.check_entry_arguments(source, "run", 2)?;
+    /// assert_eq!(found.len(), 1);
+    /// assert!(found[0].message.contains("`times` of `run` is int"));
+    /// # Ok::<(), vibescript::Error>(())
+    /// ```
+    pub fn check_entry_arguments(
+        &self,
+        source: &str,
+        function: &str,
+        count: usize,
+    ) -> Result<Vec<diagnostic::Diagnostic>> {
+        let (parsed, tokens) = syntax::parse_with_tokens(source, &())
+            .map_err(|error| source::parse_error(source, None, error, &()))?;
+        Ok(typing::entry_arguments(
+            &typing::Input {
+                source,
+                parsed: &parsed,
+                tokens: &tokens,
+                hosts: self.hosts.iter().collect(),
+                file: false,
+            },
+            function,
+            count,
+        ))
+    }
     /// Configures required files for subsequently compiled scripts.
     ///
     /// Configured roots are opened immediately. Earlier scripts retain their previous

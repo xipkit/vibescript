@@ -114,6 +114,7 @@ impl Code {
                 hosts: registered.clone().collect(),
                 file,
             });
+            work.charge(usize::try_from(checked.steps).unwrap_or(usize::MAX))?;
             work.checkpoint()?;
             if checked.diagnostics.iter().any(|d| d.is_error()) {
                 let mut text = crate::source::Source::compile(source, work)?;

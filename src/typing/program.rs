@@ -221,9 +221,12 @@ impl<'a> Checker<'a> {
                 crate::syntax::ParamKind::Keyword => ParamKind::Keyword,
                 crate::syntax::ParamKind::KeywordRest => ParamKind::KeywordRest,
             };
-            let ty = match &param.ty {
-                Some(ty) => self.annotation(ty, owner, def.offset as usize),
-                None => {
+            let ty = match (&param.ty, &param.default) {
+                (Some(ty), _) => self.annotation(ty, owner, def.offset as usize),
+                // `name: T: = value` does not parse yet, so an optional
+                // keyword takes the type of its literal default.
+                (None, Some(default)) if kind == ParamKind::Keyword => literal_type(default),
+                (None, _) => {
                     if !main && def.accessor.is_none() {
                         let span = self.spans.word_after(def.offset as usize, &param.name);
                         self.report(Diagnostic::error(
@@ -294,6 +297,49 @@ impl<'a> Checker<'a> {
             main,
         });
         self.program.fns.len() - 1
+    }
+
+    /// Reports the parameters of top-level `function` that `count` string
+    /// arguments cannot bind.
+    pub(super) fn entry_arguments(&mut self, function: &str, count: usize) {
+        let Some(&id) = self.program.functions.get(function) else {
+            return;
+        };
+        let def = self.program.fns[id].def;
+        let sig = self.program.fns[id].sig.clone();
+        let strings = self.types.array(Ty::STRING);
+        let mut index = 0;
+        for param in &sig.params {
+            if index >= count {
+                break;
+            }
+            let (accepts, wanted) = match param.kind {
+                ParamKind::Positional => {
+                    index += 1;
+                    (self.types.assignable(Ty::STRING, param.ty), "string")
+                }
+                ParamKind::Rest => {
+                    index = count;
+                    (self.types.assignable(strings, param.ty), "array<string>")
+                }
+                _ => continue,
+            };
+            if !accepts {
+                let span = self.spans.word_after(def.offset as usize, &param.name);
+                let declared = self.types.display(param.ty);
+                self.report(
+                    Diagnostic::error(
+                        Code::TYPE_MISMATCH,
+                        span,
+                        format!(
+                            "the command line passes strings, but `{}` of `{function}` is {declared}",
+                            param.name
+                        ),
+                    )
+                    .with_types(wanted, declared),
+                );
+            }
+        }
     }
 
     /// Resolves an annotation in the scope of namespace `scope`, reporting
@@ -487,6 +533,24 @@ impl<'a> Checker<'a> {
             return Ty::ERROR;
         }
         self.annotation(ty, scope, 0)
+    }
+}
+
+/// The type of a literal default value, or unknown for any other default.
+fn literal_type(expr: &crate::syntax::Expr) -> Ty {
+    use crate::{syntax::Node, value::Kind as Value};
+    match &expr.node {
+        Node::Integer(_) | Node::BigInteger(..) => Ty::INT,
+        Node::Template(_, false) => Ty::STRING,
+        Node::Literal(value) => match &value.0 {
+            Value::Int(_) | Value::Big(_) => Ty::INT,
+            Value::Float(_) => Ty::FLOAT,
+            Value::Bool(_) => Ty::BOOL,
+            Value::Bytes(_) => Ty::STRING,
+            Value::Symbol(_) => Ty::SYMBOL,
+            _ => Ty::ERROR,
+        },
+        _ => Ty::ERROR,
     }
 }
 

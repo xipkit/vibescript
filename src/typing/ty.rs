@@ -109,6 +109,8 @@ pub(crate) struct Types {
     ids: HashMap<Kind, Ty>,
     assignable: HashMap<(Ty, Ty), bool>,
     pub names: Names,
+    /// Work done, for [`super::Checked::steps`].
+    pub steps: u64,
 }
 
 impl Types {
@@ -118,6 +120,7 @@ impl Types {
             ids: HashMap::new(),
             assignable: HashMap::new(),
             names: Names::default(),
+            steps: 0,
         };
         for kind in [
             Kind::Error,
@@ -193,6 +196,7 @@ impl Types {
     /// The union of `types`: nested unions flatten, `never` drops out, and
     /// `any` or an unknown type absorbs the rest.
     pub fn union(&mut self, types: &[Ty]) -> Ty {
+        self.steps += types.len() as u64;
         let mut members = Vec::with_capacity(types.len());
         for &ty in types {
             match self.kind(ty) {
@@ -265,6 +269,7 @@ impl Types {
     }
 
     fn assignable_uncached(&mut self, from: Ty, to: Ty) -> bool {
+        self.steps += 1;
         let from_kind = self.kind(from).clone();
         let to_kind = self.kind(to).clone();
         if let Kind::Union(members) = &from_kind {

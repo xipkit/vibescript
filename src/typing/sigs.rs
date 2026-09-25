@@ -485,6 +485,12 @@ pub(crate) fn declares(types: &Types, receiver: Ty, name: &str) -> bool {
 fn bind_receiver(types: &mut Types, pattern: Ty, actual: Ty, bindings: &mut [Option<Ty>]) -> bool {
     match (types.kind(pattern).clone(), types.kind(actual).clone()) {
         (Kind::Var(index), _) => {
+            // An empty literal's elements are unknown, not impossible.
+            let actual = if actual == Ty::NEVER {
+                Ty::ERROR
+            } else {
+                actual
+            };
             let slot = &mut bindings[index as usize];
             match slot {
                 Some(bound) => *bound == actual,

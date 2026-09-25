@@ -88,6 +88,7 @@ impl<'a> Checker<'a> {
     }
 
     pub(super) fn expr_want(&mut self, expr: &'a Expr, want: Want) -> Ty {
+        self.steps += 1;
         let hint = want.hint();
         match &expr.node {
             Node::Integer(_) | Node::BigInteger(..) => Ty::INT,
@@ -1124,16 +1125,11 @@ impl<'a> Checker<'a> {
         let element = match (self.types.kind(ty).clone(), selectors) {
             (Kind::Array(element), [selector]) => {
                 if evaluate {
+                    // Only a single index is assignable, not a range.
                     let key = self.expr(selector, Some(Ty::INT));
-                    if key == Ty::RANGE {
-                        Some(ty)
-                    } else {
-                        self.selector(selector, key, Ty::INT);
-                        Some(element)
-                    }
-                } else {
-                    Some(element)
+                    self.selector(selector, key, Ty::INT);
                 }
+                Some(element)
             }
             (Kind::Tuple(items), [selector]) => match int_literal(selector) {
                 Some(index) => items.get(index.max(0) as usize).copied(),

@@ -38,6 +38,9 @@ pub struct Checked {
     pub diagnostics: Vec<Diagnostic>,
     /// The receiver type at each member call.
     pub calls: CallTypes,
+    /// A deterministic count of the checker's work, which grows linearly
+    /// with the program; compilation charges it to the step quota.
+    pub steps: u64,
 }
 
 /// The static type of the receiver at each member call, keyed by the byte
@@ -142,6 +145,7 @@ pub(crate) fn check(input: &Input<'_>) -> Checked {
         frame: check::Frame::new(None, false, None, String::new()),
         purposes: Vec::new(),
         mute: 0,
+        steps: 0,
     };
     let _ = input.file;
     for (name, host) in &input.hosts {
@@ -159,10 +163,38 @@ pub(crate) fn check(input: &Input<'_>) -> Checked {
     let mut diagnostics = checker.diagnostics;
     diagnostics.sort_by_key(|d| (d.span.start, d.span.end));
     diagnostics.dedup_by(|a, b| a.code == b.code && a.span == b.span && a.message == b.message);
+    let steps =
+        checker.steps + checker.frame.flow.steps + checker.types.steps + checker.spans.steps.get();
     Checked {
         diagnostics,
         calls: CallTypes::from_entries(checker.calls),
+        steps,
     }
+}
+
+/// Checks that the command line can call `function` with `count` arguments,
+/// which it passes as strings: each positional parameter they bind must
+/// accept `string`, and a rest parameter `array<string>`.
+pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -> Vec<Diagnostic> {
+    let mut checker = Checker {
+        source: input.source,
+        parsed: input.parsed,
+        spans: spans::Spans::new(input.source, input.tokens),
+        types: ty::Types::new(),
+        program: program::Program::default(),
+        converter: sigs::Converter::default(),
+        diagnostics: Vec::new(),
+        calls: Vec::new(),
+        constants: HashMap::new(),
+        frame: check::Frame::new(None, false, None, String::new()),
+        purposes: Vec::new(),
+        mute: 0,
+        steps: 0,
+    };
+    checker.declare_program(input.parsed);
+    checker.diagnostics.clear();
+    checker.entry_arguments(function, count);
+    checker.diagnostics
 }
 
 /// The state of one check.
@@ -183,6 +215,8 @@ pub(crate) struct Checker<'a> {
     /// While positive, diagnostics are dropped: a second look at code that
     /// was already checked.
     mute: u32,
+    /// Work done outside the types, spans and flow of the current function.
+    steps: u64,
 }
 
 /// The name of a symbol literal's value.
