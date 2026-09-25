@@ -96,16 +96,23 @@ fn range_errors_and_expansion_limits() {
         "(..2).first",
         "(1..).last",
         "(..2).last(0)",
-        "(1..).size",
+        "(1..).length",
         "(1..3).first(-1)",
-        "(1..3).last(1.5)",
-        "(nil..3).to_a",
         "((0.0/0.0)..3).to_a",
-        "[1].slice(\"1\")",
-        "[1].slice(0,nil)",
     ] {
         let script = Engine::new().compile(source).unwrap();
         assert!(script.run(CallOptions::default()).is_err(), "{source}");
+    }
+    // Operands of the wrong type are refused before anything runs.
+    for (source, code, at) in [
+        ("(1..3).last(1.5)", "V0101", 12),
+        ("(nil..3).to_a", "V0107", 1),
+        ("[1][\"1\"]", "V0101", 4),
+        ("[1][0,nil]", "V0107", 6),
+    ] {
+        let error = common::static_engine().compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), [code], "{source}");
+        assert_eq!(error.diagnostics()[0].span.start, at, "{source}");
     }
     for source in ["(1..1000000000).to_a", "(1..).first(1000000000)"] {
         let script = Engine::new().compile(source).unwrap();
@@ -151,7 +158,7 @@ fn range_errors_and_expansion_limits() {
 #[test]
 fn byte_slices_preserve_partial_and_invalid_utf8() {
     let script = Engine::new()
-        .compile("def run(input)\ninput.byteslice(1,2)\nend")
+        .compile("def run(input: string) -> string?\ninput.byteslice(1,2)\nend")
         .unwrap();
     let result = script
         .call(
@@ -278,8 +285,8 @@ fn collection_expansion_and_temporary_storage_are_accounted() {
         "a=(1..100).to_a\na.zip(a,a,a,a,a,a,a,a,a)",
         "s=\"a\"*4096\ns.reverse",
         "s=\"a\"*4096\ns.chars",
-        "a=[1]\ni=0\nwhile i<20\na=[a,a]\ni+=1\nend\na.flatten",
-        "a=[1]\ni=0\nwhile i<20\na=[a,a]\ni+=1\nend\na.to_s",
+        "a: array<any> = [1]\ni=0\nwhile i<20\na=[a,a]\ni+=1\nend\na.flatten",
+        "a: array<any> = [1]\ni=0\nwhile i<20\na=[a,a]\ni+=1\nend\na.to_s",
     ] {
         let script = Engine::new().compile(source).unwrap();
         let options = CallOptions {
