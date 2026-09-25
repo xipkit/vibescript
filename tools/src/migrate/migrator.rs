@@ -45,20 +45,17 @@ fn unchanged(source: &str, diagnostics: Vec<Diagnostic>) -> Migration {
 }
 
 fn migrate_on_stack(source: &str, facts: Option<&Facts>, options: &Options) -> Migration {
-    let script = match vibescript::Engine::new().compile(source) {
-        Ok(script) => script,
-        Err(error) => {
-            let offset = error.offset.unwrap_or(0);
-            let message = format!(
-                "does not compile, so it was left unchanged: {}",
-                error.message
-            );
-            return unchanged(
-                source,
-                vec![diagnostic(source, Code::Unparsed, offset, message)],
-            );
-        }
-    };
+    if let Err(error) = vibescript::Engine::new().compile(source) {
+        let offset = error.offset.unwrap_or(0);
+        let message = format!(
+            "does not compile, so it was left unchanged: {}",
+            error.message
+        );
+        return unchanged(
+            source,
+            vec![diagnostic(source, Code::Unparsed, offset, message)],
+        );
+    }
     let tree = match surface::parse::parse(source) {
         Ok(tree) => tree,
         Err(fail) => {
@@ -70,7 +67,6 @@ fn migrate_on_stack(source: &str, facts: Option<&Facts>, options: &Options) -> M
         }
     };
     let mut migrator = Migrator::new(source, &tree, facts, options);
-    migrator.script = Some(&script);
     migrator.program(&tree.body);
     let mut diagnostics = std::mem::take(&mut migrator.diagnostics);
     diagnostics.sort_by_key(|d| (d.offset, d.code));
@@ -91,11 +87,18 @@ fn migrate_on_stack(source: &str, facts: Option<&Facts>, options: &Options) -> M
     // Formatting normalizes line ends and trailing spaces, which would change
     // a string literal that spans lines with them. Rewrites never add such
     // literals, so the original source decides.
-    let output = if !options.surface_only && literals_survive_formatting(source) {
+    let mut output = if !options.surface_only && literals_survive_formatting(source) {
         crate::format::format(&output)
     } else {
         output
     };
+    // Results and parameters no run reached take the types the static
+    // checker finds for them.
+    if !options.surface_only
+        && let Some(inferred) = super::repair::infer(source, &output, facts, &mut diagnostics)
+    {
+        output = inferred;
+    }
     if !options.new_syntax
         && let Err(error) = vibescript::Engine::new().compile(&output)
     {
@@ -161,10 +164,6 @@ pub(crate) struct Migrator<'a> {
     pub diagnostics: Vec<Diagnostic>,
     /// Conditions by the offset of their branch.
     pub conditions: HashMap<usize, Vec<(usize, &'a Types)>>,
-    /// The compiled source, for the checker's inferences.
-    pub script: Option<&'a vibescript::Script>,
-    /// Whether the source names something only a host provides, or requires a file.
-    pub hosted: bool,
     /// Locals whose first assignment has been seen, by function.
     pub first_assignments: HashSet<(Tok, String)>,
 }
@@ -199,76 +198,20 @@ impl<'a> Migrator<'a> {
                     .push((*origin, types));
             }
         }
-        let mut migrator = Self {
+        Self {
             surface: Surface::new(source, tree),
             facts,
             options,
             diagnostics: Vec::new(),
             conditions,
-            script: None,
-            hosted: false,
             first_assignments: HashSet::new(),
-        };
-        migrator.hosted = migrator.names_host(tree);
-        migrator
+        }
     }
 
     /// Reports something the migration leaves for a person.
     pub fn note(&mut self, code: Code, offset: usize, message: impl Into<String>) {
         let diagnostic = diagnostic(self.source, code, offset, message.into());
         self.diagnostics.push(diagnostic);
-    }
-
-    /// Whether any identifier in the source is neither bound by it nor a
-    /// builtin, so a host provides it, or the source requires a file.
-    fn names_host(&self, tree: &Tree) -> bool {
-        let builtins = vibescript::builtins();
-        let mut bound: HashSet<&str> = HashSet::new();
-        for (index, token) in tree.tokens.iter().enumerate() {
-            let next = tree.tokens.get(index + 1).map(|t| &t.kind);
-            // Assignments, parameters (`n:` or `n,`), block parameters and
-            // loop variables bind names.
-            let bind = matches!(
-                next,
-                Some(
-                    TokenKind::Operator("=" | "||=" | "&&=" | "+=" | "-=" | "*=" | "/=")
-                        | TokenKind::Punct(',' | '|' | ')' | ':')
-                )
-            ) || tree.tokens.get(index + 1).is_some_and(|next| {
-                next.kind == TokenKind::Word && &self.source[next.start..next.end] == "in"
-            });
-            if token.kind == TokenKind::Word && bind {
-                bound.insert(&self.source[token.start..token.end]);
-            }
-        }
-        tree.tokens.iter().enumerate().any(|(index, token)| {
-            if token.kind != TokenKind::Word {
-                return false;
-            }
-            let word = &self.source[token.start..token.end];
-            if word == "require" {
-                return true;
-            }
-            let member = index > 0
-                && matches!(
-                    tree.tokens[index - 1].kind,
-                    TokenKind::Punct('.') | TokenKind::Operator("&." | "::")
-                );
-            let label = tree
-                .tokens
-                .get(index + 1)
-                .is_some_and(|t| t.kind == TokenKind::Punct(':') && t.start == token.end);
-            !member
-                && !label
-                && !word.starts_with('@')
-                && !surface::parse::keyword(word)
-                && !bound.contains(word)
-                && !self.declared.methods.contains(word)
-                && !self.known_type(word)
-                && !builtins.contains_key(word)
-                && !matches!(word, "it" | "_1" | "_2" | "_3" | "block_given?" | "then")
-                && !word.chars().next().is_some_and(char::is_uppercase)
-        })
     }
 
     /// Whether every recorded start of the function at `offset` bound its

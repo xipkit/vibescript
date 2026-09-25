@@ -12,7 +12,9 @@
 //! - **Type annotations** for parameters, results, yielded blocks, locals
 //!   whose first value does not fix their type, and instance variables.
 //!   Types come from existing annotations, then from values observed while
-//!   running the program's recorded invocations ([`observe`]), and
+//!   running the program's recorded invocations ([`observe`]); where no
+//!   run reached a function, its result and parameters take the types the
+//!   static checker finds for its exits and for what its callers pass, and
 //!   otherwise are `any`, which the report flags.
 //! - **Semantic rewrites** where observed types decide the meaning: integer
 //!   `/` becomes `//`, and a condition on an optional value becomes

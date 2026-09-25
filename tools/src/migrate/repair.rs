@@ -93,6 +93,31 @@ pub fn repair(
     repaired
 }
 
+/// Types the results and parameters a migration of `original` had to
+/// annotate `any` where no recorded run returned or passed a value, from
+/// what the static checker finds for them, dropping the notes about those
+/// it typed. Returns the new text, or none when nothing changed.
+pub(crate) fn infer(
+    original: &str,
+    text: &str,
+    facts: Option<&Facts>,
+    notes: &mut Vec<Note>,
+) -> Option<String> {
+    let mut repairer = Repairer {
+        engine: Engine::new(),
+        invocations: &[],
+        repair: false,
+        baseline: Vec::new(),
+        facts: None,
+        original: Origin::new(original, facts),
+        checks: 0,
+        runs: 0,
+    };
+    let inferred = repairer.run(text)?;
+    repairer.original.settle_notes(&inferred, notes);
+    Some(inferred)
+}
+
 /// What the original source says about each function, to tell the
 /// migration's annotations from the author's.
 struct Origin {
