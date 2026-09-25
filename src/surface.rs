@@ -41,9 +41,9 @@ mod walk;
 pub(crate) use checker::add_to;
 pub use checker::{check, check_tokens};
 pub use context::{
-    Declared, Place, Scope, Surface, collect_expr, collect_locals, collect_rescued, method_name,
-    namespace_member_takes_no_arguments, namespace_name, primary, simple, string_literal,
-    symbol_literal,
+    Declared, Place, Scope, Surface, collect_expr, collect_locals, collect_rescued, literal_type,
+    method_name, namespace_member_takes_no_arguments, namespace_name, primary, simple,
+    string_literal, symbol_literal,
 };
 pub use hooks::{Annotation, Hooks, Probe, Test};
 pub use probe::{member_without_parens, namespace_without_parens};
@@ -85,6 +85,9 @@ pub enum Rule {
     TypeName,
     /// A symbol naming a required module, which the static checker reports.
     Require,
+    /// A keyword parameter declared as `name:`, `name: default` or
+    /// `name: T:`, rather than after a bare `*`.
+    KeywordParameter,
 }
 
 impl Rule {
@@ -105,6 +108,7 @@ impl Rule {
             Self::HashNew => Code::HASH_NEW,
             Self::EmptyParentheses => Code::EMPTY_PARENTHESES,
             Self::TypeName => Code::TYPE_NAME,
+            Self::KeywordParameter => Code::KEYWORD_PARAMETER,
             Self::Require => return None,
         })
     }

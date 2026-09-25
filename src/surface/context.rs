@@ -18,6 +18,23 @@ pub enum Place {
     Tight,
 }
 
+/// The type of a literal, such as `int` for `3` or `-3`, or none for any
+/// other expression, `nil` included.
+pub fn literal_type(surface: &Surface<'_>, expr: &Expr) -> Option<&'static str> {
+    Some(match &expr.kind {
+        ExprKind::Integer => "int",
+        ExprKind::Float => "float",
+        ExprKind::Str | ExprKind::Template(_) => "string",
+        ExprKind::True | ExprKind::False => "bool",
+        ExprKind::Symbol => "symbol",
+        ExprKind::Unary(op, operand) if matches!(surface.token_text(*op), "-" | "+") => {
+            return literal_type(surface, operand).filter(|ty| matches!(*ty, "int" | "float"));
+        }
+        ExprKind::Group(_, inner, _) => return literal_type(surface, inner),
+        _ => return None,
+    })
+}
+
 /// Declarations in the source, gathered before the walk.
 #[derive(Default)]
 pub struct Declared<'a> {

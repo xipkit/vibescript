@@ -150,7 +150,10 @@ impl<'a> Migrator<'a> {
             let name_end = self.tokens[param.name_tok].end;
             let what = format!("parameter {}", param.name);
             match param.kind {
-                ParamKind::Positional => {
+                // The canonical surface's keyword rule declares a keyword
+                // in a removed form as it moves it after a bare `*`.
+                ParamKind::Keyword if param.keyword_colon.is_some() => (),
+                ParamKind::Positional | ParamKind::Keyword => {
                     let mut ty = self.annotation(observed, param.default.as_ref(), name_end, &what);
                     // `x: array<int>={}` would lex `>=`.
                     let separator = if self.source[name_end..].starts_with('=') {
@@ -199,42 +202,35 @@ impl<'a> Migrator<'a> {
                     self.edits
                         .insert(name_end, format!(": hash<string, {value}>"));
                 }
-                ParamKind::Keyword => {
-                    // `name:` or `name: default`; the colon follows the name.
-                    let colon = self.tokens[param.name_tok + 1..]
-                        .iter()
-                        .position(|token| token.kind == vibescript::tooling::TokenKind::Punct(':'))
-                        .map(|index| param.name_tok + 1 + index);
-                    let Some(colon) = colon else {
-                        continue;
-                    };
-                    let colon_end = self.tokens[colon].end;
-                    if param.default.is_none() {
-                        let ty = self.annotation(observed, None, name_end, &what);
-                        self.edits.insert(colon_end, format!(" {ty}:"));
-                    } else if self.options.new_syntax {
-                        if super::compat::typed_keyword_defaults() {
-                            let ty =
-                                self.annotation(observed, param.default.as_ref(), name_end, &what);
-                            self.edits.insert(colon_end, format!(" {ty}: ="));
-                        } else {
-                            self.note(
-                                Code::Syntax,
-                                name_end,
-                                format!(
-                                    "keyword {} needs a type, written `{}: T: = default`, which this compiler does not accept yet",
-                                    param.name, param.name
-                                ),
-                            );
-                        }
-                    }
-                }
             }
         }
         if self.options.new_syntax && def.block.is_none() {
             self.annotate_block(def);
         }
         self.annotate_result(def);
+    }
+
+    /// The type a keyword parameter written without one is declared with
+    /// as the keyword rule moves it after a bare `*`: its observed types,
+    /// or its literal default's, or `any`, which is reported.
+    pub(crate) fn keyword_annotation(&mut self, def: &'a Def, param: &'a Param) -> String {
+        let offset = def.offset(self.tokens);
+        let observed = self
+            .facts
+            .and_then(|facts| facts.params.get(&offset, &param.name));
+        let name_end = self.tokens[param.name_tok].end;
+        let what = format!("parameter {}", param.name);
+        let ty = self.annotation(observed, param.default.as_ref(), name_end, &what);
+        if ty != "nil" {
+            return ty;
+        }
+        // A parameter that only ever held nil and is never read takes any
+        // value; one that is read keeps its nil type.
+        if self.mentions(def, &param.name) {
+            "nil?".to_owned()
+        } else {
+            "any".to_owned()
+        }
     }
 
     /// Whether a function's body names `name` anywhere.

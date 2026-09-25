@@ -467,6 +467,14 @@ impl<'a> Hooks<'a> for Migrator<'a> {
         }
     }
 
+    fn keyword_type(&mut self, def: &'a Def, param: &'a Param) -> Option<String> {
+        if self.options.surface_only {
+            let default = param.default.as_ref()?;
+            return surface::literal_type(self, default).map(str::to_owned);
+        }
+        Some(self.keyword_annotation(def, param))
+    }
+
     fn test(&self, expr: &'a Expr, probe: Probe) -> Test {
         if self.options.surface_only {
             return Test::Bool;

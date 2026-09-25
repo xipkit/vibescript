@@ -157,3 +157,28 @@ fn outlines_report_keywords_after_the_star() {
         ]
     );
 }
+
+#[test]
+fn static_types_check_the_new_form_and_reject_the_removed_ones() {
+    let mut engine = Engine::new();
+    engine.set_static_types(true);
+    let script = engine.compile(SEND).unwrap();
+    let result = script
+        .call("send_email", &[Value::bytes("a")], CallOptions::default())
+        .unwrap();
+    assert_eq!(result.value.as_bytes(), Some(b"a||3".as_slice()));
+    let error = engine
+        .compile("def f(a: int, retries: 3) -> int\n  a + retries\nend\n")
+        .err()
+        .unwrap();
+    let diagnostic = &error.diagnostics()[0];
+    assert_eq!(diagnostic.code.to_string(), "V0414");
+    let fixed = diagnostic.fixes[0]
+        .apply("def f(a: int, retries: 3) -> int\n  a + retries\nend\n")
+        .unwrap();
+    assert_eq!(
+        fixed,
+        "def f(a: int, *, retries: int = 3) -> int\n  a + retries\nend\n"
+    );
+    assert!(engine.compile(&fixed).is_ok());
+}

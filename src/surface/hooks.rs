@@ -133,6 +133,16 @@ pub trait Hooks<'a>: DerefMut<Target = Surface<'a>> {
         true
     }
 
+    /// The type to declare a keyword parameter written without one, such
+    /// as `retries` in `retries: 3`, as it moves after a bare `*`: by
+    /// default the type of its literal default, or none to leave it
+    /// undeclared.
+    fn keyword_type(&mut self, def: &'a Def, param: &'a Param) -> Option<String> {
+        let _ = def;
+        let default = param.default.as_ref()?;
+        super::context::literal_type(self, default).map(str::to_owned)
+    }
+
     /// Whether a condition's value is a `bool`.
     fn test(&self, expr: &'a Expr, probe: Probe) -> Test {
         let _ = (expr, probe);

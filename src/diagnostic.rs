@@ -128,6 +128,7 @@ registry! {
     HASH_NEW = 411, "hash-new", "`Hash.new` is removed; `{}` with a declared type makes a hash.";
     EMPTY_PARENTHESES = 412, "empty-parentheses", "A call without arguments is written with `()`; it takes no parentheses.";
     TYPE_NAME = 413, "type-name", "A builtin type name is spelled other than in lowercase, or as `object` for `hash`.";
+    KEYWORD_PARAMETER = 414, "keyword-parameter", "A keyword parameter is declared as `name:`, `name: default` or `name: T:`; keyword parameters follow a bare `*`.";
 }
 
 impl Code {

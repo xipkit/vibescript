@@ -212,16 +212,12 @@ fn annotates_keyword_parameters() {
         &[Invocation::from_json(call, ".".as_ref()).unwrap()],
     );
     let migration = migrate(source, &observations, &Options::default());
-    // Typed optional keywords are written only for a compiler that takes them.
-    let limit = if super::compat::typed_keyword_defaults() {
-        "limit: int: = 3"
-    } else {
-        "limit: 3"
-    };
+    // Keyword parameters move after a bare `*`, declared with their types.
     assert_eq!(
         migration.source,
-        format!("def tagged(tag: string:, {limit}) -> string\n  tag * limit\nend\n")
+        "def tagged(*, tag: string, limit: int = 3) -> string\n  tag * limit\nend\n"
     );
+    // Without the new syntax they are left in their removed form, untyped.
     let migration = migrate(
         source,
         &observations,
@@ -233,9 +229,22 @@ fn annotates_keyword_parameters() {
     assert!(
         migration
             .source
-            .starts_with("def tagged(tag: string:, limit: 3) -> string"),
+            .starts_with("def tagged(tag:, limit: 3) -> string"),
         "{}",
         migration.source
+    );
+    // After a rest parameter the keywords need no `*`, and a typed one
+    // loses the colon after its type.
+    let source = "def joined(*items, sep: \",\", width: int:)\n  items.join(sep) * width\nend\n";
+    let call = json!({"function": "joined", "args": ["a", "b"], "typed_kwargs": [["width", ["int", "2"]]]});
+    let observations = observe(
+        source,
+        &[Invocation::from_json(call, ".".as_ref()).unwrap()],
+    );
+    let migration = migrate(source, &observations, &Options::default());
+    assert_eq!(
+        migration.source,
+        "def joined(*items: array<string>, sep: string = \",\", width: int) -> string\n  items.join(sep) * width\nend\n"
     );
 }
 

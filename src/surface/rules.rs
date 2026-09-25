@@ -532,6 +532,100 @@ pub trait Rules<'a>: Hooks<'a> {
         }
     }
 
+    /// Moves keyword parameters declared in a removed form after a bare
+    /// `*`: `retries: 3` becomes `*, retries: int = 3`, `name:` becomes
+    /// `*, name: T` and `name: T:` becomes `*, name: T`, with the type the
+    /// hooks give for an untyped one.
+    fn keyword_params(&mut self, def: &'a Def) {
+        if !self.new_syntax() {
+            return;
+        }
+        let old: Vec<&'a Param> = def
+            .params
+            .iter()
+            .filter(|param| param.keyword_colon.is_some())
+            .collect();
+        let (Some(first), Some(last)) = (old.first(), old.last()) else {
+            return;
+        };
+        let span = Span {
+            start: first.span.start,
+            end: last.span.end,
+        };
+        let types: Vec<Option<String>> = old
+            .iter()
+            .map(|param| match param.ty {
+                Some(_) => None,
+                None => self.keyword_type(def, param),
+            })
+            .collect();
+        let index = def
+            .params
+            .iter()
+            .position(|param| param.kind == ParamKind::Keyword)
+            .unwrap_or(0);
+        let star = def.star.is_none()
+            && !def.params[..index]
+                .iter()
+                .any(|param| param.kind == ParamKind::Rest);
+        let mut canonical = Vec::new();
+        for (param, ty) in old.iter().zip(&types) {
+            let ty = match &param.ty {
+                Some(ty) => Some(self.text(ty.span)),
+                None => ty.as_deref(),
+            };
+            let mut text = param.name.clone();
+            if let Some(ty) = ty {
+                text.push_str(": ");
+                text.push_str(ty);
+            }
+            if let Some(default) = &param.default {
+                text.push_str(" = ");
+                text.push_str(self.text(default.span));
+            }
+            canonical.push(text);
+        }
+        let canonical = format!("{}{}", if star { "*, " } else { "" }, canonical.join(", "));
+        let removed = excerpt(self.text(span));
+        let advice = format!(
+            "keyword parameters follow a bare `*`: `{}`",
+            excerpt(&canonical)
+        );
+        let previous = self.enter(Rule::KeywordParameter, span, removed, advice);
+        if star {
+            self.edits.insert(def.params[index].span.start, "*, ");
+        }
+        for (param, ty) in old.iter().zip(types) {
+            let colon = self.token_span(param.keyword_colon.expect("a removed keyword form"));
+            let name_end = self.tokens[param.name_tok].end;
+            let declared = ty.map(|ty| format!(": {ty}")).unwrap_or_default();
+            match (&param.ty, &param.default) {
+                (Some(ty), _) => self.edits.text(
+                    Span {
+                        start: ty.span.end,
+                        end: colon.end,
+                    },
+                    "",
+                ),
+                (None, Some(default)) => self.edits.text(
+                    Span {
+                        start: name_end,
+                        end: default.span.start,
+                    },
+                    format!("{declared} = "),
+                ),
+                (None, None) => self.edits.text(
+                    Span {
+                        start: name_end,
+                        end: colon.end,
+                    },
+                    declared,
+                ),
+            }
+        }
+        self.leave(previous);
+    }
+
     /// Lowercases builtin type names and spells `object` as `hash`, unless
     /// a check of the annotation failed in a recorded run, whose error
     /// message quotes its spelling.

@@ -24,12 +24,6 @@ pub(crate) fn compiles(source: &str) -> bool {
     known
 }
 
-/// Whether the linked compiler accepts a typed optional keyword parameter,
-/// `name: T: = value`.
-pub(crate) fn typed_keyword_defaults() -> bool {
-    compiles("def f(a: int: = 1)\nend\n")
-}
-
 /// Whether the linked compiler names regexes in annotations.
 pub(crate) fn regex_type() -> bool {
     compiles("def f(a: regex)\nend\n")

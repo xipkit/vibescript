@@ -1,7 +1,7 @@
 //! Calls to script functions and builtins: arity, keywords, overloads,
 //! generics, blocks and `yield`.
 
-use super::support::{clean, codes, error, spanned};
+use super::support::{clean, codes, error, fixed, spanned};
 
 #[test]
 fn script_function_arguments_are_checked() {
@@ -19,21 +19,42 @@ fn script_function_arguments_are_checked() {
 
 #[test]
 fn keyword_arguments_are_checked_by_name() {
-    clean("def f(a: int, loud: false) -> int\n  a\nend\nf(1, loud: true)\n");
+    clean("def f(a: int, *, loud: bool = false) -> int\n  a\nend\nf(1, loud: true)\nf(1)\n");
+    clean(
+        "def f(*items: array<int>, sep: string = \",\") -> string\n  sep\nend\nf(1, 2, sep: \"-\")\n",
+    );
     codes(
-        "def f(a: int, loud: bool:) -> int\n  a\nend\nf(1)\n",
+        "def f(a: int, *, loud: bool) -> int\n  a\nend\nf(1)\n",
         &["V0303"],
     );
     codes(
         "def f(a: int) -> int\n  a\nend\nf(1, loud: true)\n",
         &["V0302"],
     );
-    // An untyped optional keyword takes the type of its literal default,
-    // since `name: T: = value` does not parse yet.
     codes(
-        "def f(a: int, loud: false) -> int\n  a\nend\nf(1, loud: 3)\n",
+        "def f(a: int, *, loud: bool = false) -> int\n  a\nend\nf(1, loud: 3)\n",
         &["V0101"],
     );
+    // A keyword parameter is not passed by position.
+    codes(
+        "def f(a: int, *, loud: bool = false) -> int\n  a\nend\nf(1, true)\n",
+        &["V0301"],
+    );
+    // A removed keyword form is reported with its rewrite, and its literal
+    // default still types the calls.
+    codes(
+        "def f(a: int, loud: false) -> int\n  a\nend\nf(1, loud: 3)\n",
+        &["V0414", "V0101"],
+    );
+    // A keyword after `*` declares its type like any other parameter; a
+    // literal default gives the fix.
+    let source = "def f(a: int, *, loud = false) -> int\n  a\nend\n";
+    let diagnostic = error(source, "V0118", "`loud`");
+    assert_eq!(
+        fixed(source, &diagnostic),
+        "def f(a: int, *, loud: bool = false) -> int\n  a\nend\n"
+    );
+    codes("def f(a: int, *, loud)\nend\n", &["V0118"]);
     clean("def f(**opts: hash<string, int>) -> int\n  opts.length\nend\nf(a: 1, b: 2)\n");
 }
 

@@ -388,15 +388,71 @@ fn type_names_are_lowercase() {
 }
 
 #[test]
+fn keyword_parameters_move_after_a_bare_star() {
+    round_trip(
+        "def send(to: string, retries: 3) -> string\n  to\nend\n",
+        Code::KEYWORD_PARAMETER,
+        "retries: 3",
+        "def send(to: string, *, retries: int = 3) -> string\n  to\nend\n",
+    );
+    round_trip(
+        "def send(to: string, name: string:, cc:\"x\") -> string\n  to\nend\n",
+        Code::KEYWORD_PARAMETER,
+        "name: string:, cc:\"x\"",
+        "def send(to: string, *, name: string, cc: string = \"x\") -> string\n  to\nend\n",
+    );
+    round_trip(
+        "def join(*items: array<int>, sep: \",\", width: -1) -> string\n  sep\nend\n",
+        Code::KEYWORD_PARAMETER,
+        "sep: \",\", width: -1",
+        "def join(*items: array<int>, sep: string = \",\", width: int = -1) -> string\n  sep\nend\n",
+    );
+    let message = &with_code("def f(a: int, n: 2)\nend\n", Code::KEYWORD_PARAMETER)[0].message;
+    assert_eq!(
+        message,
+        "`n: 2` was removed; keyword parameters follow a bare `*`: `*, n: int = 2`"
+    );
+    // Without a literal default the type is left for a person to declare.
+    let fixed = fixed(
+        "def f(a: int, name:, label: nil)\nend\n",
+        Code::KEYWORD_PARAMETER,
+    );
+    assert_eq!(fixed, "def f(a: int, *, name, label = nil)\nend\n");
+    let mut engine = Engine::new();
+    engine.set_static_types(true);
+    let codes: Vec<Code> = engine
+        .compile(&fixed)
+        .err()
+        .expect("untyped parameters")
+        .diagnostics()
+        .iter()
+        .map(|d| d.code)
+        .collect();
+    assert_eq!(codes, [Code::MISSING_PARAMETER_TYPE; 2]);
+    // The canonical forms are left alone.
+    for source in [
+        "def f(a: int, *, b: int, c: string? = nil)\nend\n",
+        "def f(*items: array<int>, sep: string = \",\")\nend\n",
+        "def f(a: int = 1, b: string = \"x\")\nend\n",
+    ] {
+        assert!(
+            with_code(source, Code::KEYWORD_PARAMETER).is_empty(),
+            "{source}"
+        );
+        assert_clean(source, Code::KEYWORD_PARAMETER);
+    }
+}
+
+#[test]
 fn every_surface_code_is_registered_with_a_test() {
     let surface: Vec<Code> = crate::diagnostic::codes()
         .iter()
         .map(|info| info.code)
         .filter(|code| code.area() == Some(crate::diagnostic::Area::Surface))
         .collect();
-    assert_eq!(surface.len(), 13);
+    assert_eq!(surface.len(), 14);
     assert_eq!(surface.first(), Some(&Code::REMOVED_NAME));
-    assert_eq!(surface.last(), Some(&Code::TYPE_NAME));
+    assert_eq!(surface.last(), Some(&Code::KEYWORD_PARAMETER));
 }
 
 #[test]

@@ -190,6 +190,7 @@ pub trait Walk<'a>: Rules<'a> {
             collect_rescued(rescued, &mut scope);
         }
         self.scopes.push(scope);
+        self.keyword_params(def);
         let bound = self.annotation_passed(Annotation::Parameter(def));
         for param in &def.params {
             if let Some(ty) = &param.ty {

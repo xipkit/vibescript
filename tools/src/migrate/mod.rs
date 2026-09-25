@@ -63,7 +63,8 @@ pub use repair::repair;
 pub struct Options {
     /// Whether to write syntax that only the ADR-007 compiler accepts:
     /// typed locals, instance-variable declarations, block parameter types,
-    /// typed optional keywords, `//` and bare zero-argument output calls.
+    /// keyword parameters after a bare `*`, `//` and bare zero-argument
+    /// output calls.
     /// Without it, a migration makes only the changes today's runtime
     /// accepts, which checks every annotation it adds at runtime.
     pub new_syntax: bool,

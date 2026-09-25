@@ -9,7 +9,7 @@ use super::{
 };
 use crate::{
     compilation::{self, TypeKind},
-    diagnostic::{Code, Diagnostic},
+    diagnostic::{Code, Diagnostic, Fix},
     syntax::{BlockParam, Declarations, Definition, modules::Module},
     types::Scalar,
 };
@@ -239,22 +239,33 @@ impl<'a> Checker<'a> {
             };
             let ty = match (&param.ty, &param.default) {
                 (Some(ty), _) => self.annotation(ty, owner, def.offset as usize),
-                // `name: T: = value` does not parse yet, so an optional
-                // keyword takes the type of its literal default.
-                (None, Some(default)) if kind == ParamKind::Keyword => literal_type(default),
-                (None, _) => {
+                (None, default) => {
+                    // A literal default types the body's uses and the fix.
+                    let literal = default.as_ref().map_or(Ty::ERROR, literal_type);
                     if !main && def.accessor.is_none() {
                         let span = self.spans.word_after(def.offset as usize, &param.name);
-                        self.report(Diagnostic::error(
+                        let mut diagnostic = Diagnostic::error(
                             Code::MISSING_PARAMETER_TYPE,
                             span,
                             format!(
                                 "parameter `{}` of `{}` has no type; declare it as `{}: T`",
                                 param.name, def.name, param.name
                             ),
-                        ));
+                        );
+                        // A removed keyword form has a colon after the name,
+                        // which its own diagnostic rewrites.
+                        let colon = self.source[span.end..].trim_start().starts_with(':');
+                        if literal != Ty::ERROR && !colon {
+                            let ty = self.types.display(literal);
+                            diagnostic = diagnostic.with_fix(Fix::insert(
+                                format!("declare `{}: {ty}`", param.name),
+                                span.end,
+                                format!(": {ty}"),
+                            ));
+                        }
+                        self.report(diagnostic);
                     }
-                    Ty::ERROR
+                    literal
                 }
             };
             let ty = match kind {

@@ -10,7 +10,13 @@ fn typed_parameters_and_results_check_clean() {
         "def greet(name: string, times: int = 1, **opts: hash<string, any>) -> string\n  name * times\nend\n",
     );
     clean("def total(*values: array<int>) -> int\n  values.length\nend\n");
-    clean("def label(name: string, loud: bool:) -> string\n  loud ? name.upcase : name\nend\n");
+    clean("def label(name: string, *, loud: bool) -> string\n  loud ? name.upcase : name\nend\n");
+    clean(
+        "def label(name: string, *, loud: bool = false, suffix: string? = nil) -> string\n  loud ? name.upcase : name\nend\n",
+    );
+    clean(
+        "def join(*parts: array<string>, sep: string = \",\") -> string\n  parts.join(sep)\nend\n",
+    );
 }
 
 #[test]
