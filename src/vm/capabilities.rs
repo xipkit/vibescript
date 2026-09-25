@@ -37,10 +37,14 @@ impl Call {
     }
 }
 
-pub(super) fn bind(ctx: &mut CallContext, storage: &mut Storage) -> Result<()> {
+pub(super) fn bind(
+    ctx: &mut CallContext,
+    storage: &mut Storage,
+    declared: &crate::declared::Declarations,
+) -> Result<()> {
     let capabilities = std::mem::take(&mut ctx.options.capabilities);
     let result = (|| {
-        for capability in &capabilities {
+        for (index, capability) in capabilities.iter().enumerate() {
             let name = ctx.bytes(capability.name.as_bytes())?;
             let mut names = std::mem::replace(&mut ctx.capability_names, Buffer::empty());
             let inserted = names.push(ctx, name);
@@ -52,6 +56,14 @@ pub(super) fn bind(ctx: &mut CallContext, storage: &mut Storage) -> Result<()> {
             }
             programs::imported(ctx, storage, &value)?;
             if !globals::input_contains(ctx, &capability.name)? {
+                // A later grant of the name replaces this one.
+                ctx.charge((capabilities.len() - index) as u64)?;
+                let replaced = capabilities[index + 1..]
+                    .iter()
+                    .any(|later| later.name == capability.name);
+                if !replaced {
+                    crate::declared::check_capability(ctx, declared, &capability.name, &value)?;
+                }
                 requires::set(ctx, storage, &capability.name, &value)?;
             }
         }

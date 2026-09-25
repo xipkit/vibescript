@@ -4,6 +4,9 @@ use std::{collections::BTreeMap, fmt, sync::Arc};
 pub(crate) struct Code {
     pub program: Program,
     pub hosts: Vec<Registered>,
+    /// The globals and capabilities the host declares, which every call
+    /// must supply as declared.
+    pub declared: Arc<crate::declared::Declarations>,
     pub origin: Option<crate::loading::Origin>,
     pub exports: Vec<(String, Export)>,
     /// Whether the code and the files it requires are type checked statically.
@@ -41,7 +44,15 @@ impl Code {
         static_types: bool,
     ) -> Result<Arc<Self>> {
         let typing = static_types.then_some(Typing { loader: None });
-        Self::compile_typed(source, registered.iter(), false, None, &(), typing)
+        Self::compile_typed(
+            source,
+            registered.iter(),
+            &Arc::default(),
+            false,
+            None,
+            &(),
+            typing,
+        )
     }
 
     /// Compiles host source, charging the work to `work`. In static mode,
@@ -49,13 +60,22 @@ impl Code {
     pub fn compile_metered(
         source: &str,
         registered: &BTreeMap<String, Registered>,
+        declared: &Arc<crate::declared::Declarations>,
         work: &dyn crate::compilation::Work,
         static_types: Option<&crate::loading::Loader>,
     ) -> Result<Arc<Self>> {
         let typing = static_types.map(|loader| Typing {
             loader: Some(loader),
         });
-        Self::compile_typed(source, registered.iter(), false, None, work, typing)
+        Self::compile_typed(
+            source,
+            registered.iter(),
+            declared,
+            false,
+            None,
+            work,
+            typing,
+        )
     }
 
     #[cfg(test)]
@@ -79,6 +99,7 @@ impl Code {
         Self::compile_typed(
             source,
             receiving.program.hosts.iter().zip(&receiving.hosts),
+            &receiving.declared,
             true,
             Some(origin),
             &crate::compilation::Meter(std::cell::RefCell::new(ctx)),
@@ -94,12 +115,21 @@ impl Code {
         origin: Option<crate::loading::Origin>,
         work: &dyn crate::compilation::Work,
     ) -> Result<Arc<Self>> {
-        Self::compile_typed(source, registered, file, origin, work, None)
+        Self::compile_typed(
+            source,
+            registered,
+            &Arc::default(),
+            file,
+            origin,
+            work,
+            None,
+        )
     }
 
     fn compile_typed<'a>(
         source: &str,
         registered: impl Iterator<Item = (&'a String, &'a Registered)> + Clone,
+        declared: &Arc<crate::declared::Declarations>,
         file: bool,
         origin: Option<crate::loading::Origin>,
         work: &dyn crate::compilation::Work,
@@ -124,6 +154,7 @@ impl Code {
                 parsed: &parsed,
                 tokens: &tokens,
                 hosts: registered.clone().collect(),
+                declared,
                 file,
                 modules: typing.loader.is_some().then_some(&resolve),
             });
@@ -190,6 +221,7 @@ impl Code {
             Self {
                 program,
                 hosts,
+                declared: declared.clone(),
                 origin,
                 exports,
                 static_types,

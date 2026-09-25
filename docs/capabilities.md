@@ -39,6 +39,8 @@ let result = script.run(CallOptions {
 
 `Capability::from_value` grants an immutable binding template instead of a factory. Every invocation imports that same value, so its methods still receive the receiving call's fresh grant, while its data and published signatures can be read by the static checker without executing host code. Factories stay opaque to checking because inspecting their binding would require running them; keep `Capability::new` for callbacks that need fresh per-call state.
 
+`Engine::declare_capability(&capability)` declares a capability that every call grants, typed by its template: host methods by their published signatures, or `any` arguments and result without one, and data by the types its values show. A factory declares its name as `any`. The static checker types the name as a namespace of those members, `Engine::prelude` lists it, and each call must grant a capability, or supply a global, of the name whose value has the declared members, with the same signatures and data types, before any script code runs.
+
 ```rust
 use vibescript::{CallOptions, Capability, Engine, HostMethod, Signature, SignatureParam, Value};
 

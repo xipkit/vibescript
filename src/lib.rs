@@ -28,6 +28,7 @@ mod collections;
 mod combinatorics;
 mod compilation;
 mod conversion;
+mod declared;
 pub mod diagnostic;
 mod duration;
 mod enums;
@@ -107,6 +108,8 @@ pub struct Engine {
     hosts: BTreeMap<String, capability::Registered>,
     /// Hosts registered with [`Self::register`], which refuse keywords.
     keywordless: BTreeSet<String>,
+    /// Globals and capabilities every call supplies, with their types.
+    declared: Arc<declared::Declarations>,
     loader: Arc<loading::Loader>,
     strict_effects: bool,
     static_types: bool,
@@ -166,6 +169,7 @@ impl Engine {
             parsed: &parsed,
             tokens: &tokens,
             hosts: self.hosts.iter().collect(),
+            declared: &self.declared,
             file: false,
             modules: Some(&resolve),
         }))
@@ -198,6 +202,7 @@ impl Engine {
                 parsed: &parsed,
                 tokens: &tokens,
                 hosts: self.hosts.iter().collect(),
+                declared: &self.declared,
                 file: false,
                 modules: None,
             },
@@ -310,16 +315,100 @@ impl Engine {
         self.loader = Arc::new(self.loader.fresh());
     }
 
+    /// Declares a global that every call supplies in
+    /// [`CallOptions::globals`], with the type its value has, written as an
+    /// annotation such as `{ id: string, plan: string }`. An empty `ty`
+    /// declares a value of type `any`, which a script narrows before use.
+    ///
+    /// The static checker types the name by its declaration, where an
+    /// undeclared name is an error, and [`Self::prelude`] lists it. Every
+    /// call of a subsequently compiled script must supply a global or a
+    /// capability of the name, and a global's value must have the declared
+    /// type, or the call fails before any script code runs, as an argument
+    /// of the wrong type would. A later declaration of the name replaces an
+    /// earlier one. Host values cannot be script classes or enums, so the
+    /// type uses builtin types only.
+    ///
+    /// ```
+    /// use vibescript::{CallOptions, Engine, ErrorKind, Value};
+    /// let mut engine = Engine::new();
+    /// engine.set_static_types(true);
+    /// engine.declare_global("limit", "int")?;
+    /// let script = engine.compile("def doubled -> int\n  limit * 2\nend\n")?;
+    /// let options = |value| CallOptions {
+    ///     globals: [("limit".to_owned(), value)].into(),
+    ///     ..CallOptions::default()
+    /// };
+    /// let outcome = script.call("doubled", &[], options(Value::int(21)))?;
+    /// assert_eq!(outcome.value.as_int(), Some(42));
+    /// let error = script.call("doubled", &[], options(Value::bytes("21"))).unwrap_err();
+    /// assert_eq!(error.kind, ErrorKind::Type);
+    /// assert_eq!(error.message, "global limit expected int, got string");
+    /// # Ok::<(), vibescript::Error>(())
+    /// ```
+    pub fn declare_global(&mut self, name: impl Into<String>, ty: &str) -> Result<()> {
+        let name = name.into();
+        let declaration = declared::Declaration::global(&name, ty)?;
+        Arc::make_mut(&mut self.declared).insert(name, declaration);
+        self.loader = Arc::new(self.loader.fresh());
+        Ok(())
+    }
+
+    /// Declares a capability that every call grants, typed by its binding:
+    /// the template of a capability made with [`Capability::from_value`]. A
+    /// host method in it is typed by its published [`Signature`], or takes
+    /// and returns `any` without one; an object holding host methods is a
+    /// namespace of those methods and its data, each datum typed as its
+    /// template value shows; and other data has the type its value shows. A
+    /// capability made with [`Capability::new`] builds its value when a call
+    /// starts, so it declares the name as `any`.
+    ///
+    /// The static checker and [`Self::prelude`] read the declaration. Every
+    /// call of a subsequently compiled script must grant a capability, or
+    /// supply a global, of the name whose value has the declared members:
+    /// host methods with the declared signatures, and data of the declared
+    /// types. Otherwise the call fails before any script code runs. A later
+    /// declaration of the name replaces an earlier one.
+    ///
+    /// ```
+    /// use vibescript::{CallOptions, Capability, Engine, HostMethod, Signature, SignatureParam, Value};
+    /// let send = HostMethod::new("SMS.send", |ctx, _, _| ctx.bytes(b"queued"))
+    ///     .with_signature(Signature {
+    ///         params: vec![SignatureParam { name: "message".into(), ty: "string".into(), optional: false }],
+    ///         result: "string".into(),
+    ///         accepts_block: false,
+    ///     })?;
+    /// let sms = Capability::from_value("SMS", Value::object(vec![(b"send".to_vec(), send.value())]));
+    /// let mut engine = Engine::new();
+    /// engine.set_static_types(true);
+    /// engine.declare_capability(&sms)?;
+    /// let script = engine.compile("def notify -> string\n  SMS.send(\"hello\")\nend\n")?;
+    /// assert!(engine.compile("def notify -> string\n  SMS.send(1)\nend\n").is_err());
+    /// let options = CallOptions { capabilities: vec![sms], ..CallOptions::default() };
+    /// assert_eq!(script.call("notify", &[], options)?.value.as_bytes(), Some(b"queued".as_slice()));
+    /// assert!(script.call("notify", &[], CallOptions::default()).is_err());
+    /// # Ok::<(), vibescript::Error>(())
+    /// ```
+    pub fn declare_capability(&mut self, capability: &Capability) -> Result<()> {
+        let declaration = declared::Declaration::capability(capability)?;
+        Arc::make_mut(&mut self.declared).insert(capability.name.clone(), declaration);
+        self.loader = Arc::new(self.loader.fresh());
+        Ok(())
+    }
+
     /// Returns the builtin prelude extended with this host's declarations.
     ///
     /// The text is [`signatures::prelude`] followed by the functions
-    /// registered on this engine, then the capabilities and globals that
-    /// `options` grants a call, each as a Vibescript declaration a model can
-    /// read as context. Host methods render their published [`Signature`];
-    /// unsigned functions take and return `any`. A capability built from a
-    /// template renders its methods and data, while a factory capability and
-    /// every data global are `any`, since their values are known only when a
-    /// call starts. The text parses as a [`signatures::Table`].
+    /// registered on this engine, the globals and capabilities it declares
+    /// ([`Self::declare_global`], [`Self::declare_capability`]), then the
+    /// capabilities and globals that `options` grants a call under other
+    /// names, each as a Vibescript declaration a model can read as context.
+    /// Host methods render their published [`Signature`]; unsigned functions
+    /// take and return `any`. An undeclared capability built from a template
+    /// renders its methods and data, while an undeclared factory capability
+    /// and every undeclared data global are `any`, since their values are
+    /// known only when a call starts. The text parses as a
+    /// [`signatures::Table`].
     ///
     /// ```
     /// use vibescript::{CallOptions, Engine, HostMethod, Signature, SignatureParam};
@@ -337,13 +426,14 @@ impl Engine {
     /// # Ok::<(), vibescript::Error>(())
     /// ```
     pub fn prelude(&self, options: &CallOptions) -> String {
-        signatures::host::table(&self.hosts, &self.keywordless, options).to_string()
+        signatures::host::table(&self.hosts, &self.keywordless, &self.declared, options).to_string()
     }
     /// Compiles UTF-8 source, enforcing source-size and syntax-depth guards.
     pub fn compile(&self, source: &str) -> Result<Script> {
         let code = code::Code::compile_metered(
             source,
             &self.hosts,
+            &self.declared,
             &(),
             self.static_types.then_some(&*self.loader),
         )?;
@@ -382,6 +472,7 @@ impl Engine {
         let code = code::Code::compile_metered(
             source,
             &self.hosts,
+            &self.declared,
             &compilation::Meter(std::cell::RefCell::new(&mut ctx)),
             self.static_types.then_some(&*self.loader),
         )?;

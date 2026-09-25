@@ -196,8 +196,13 @@ impl<'a> Hooks<'a> for Checker<'a> {
 
     fn receiver_kinds(&self, _: &'a syntax::Expr, call: &'a syntax::Call) -> Option<Vec<String>> {
         let receiver = self.receiver(call)?;
-        // An `any` receiver is as unknown as an untyped one.
-        if receiver.bases().iter().any(|base| base == "any") {
+        // An `any` receiver is as unknown as an untyped one, and a declared
+        // capability's methods are the host's, whatever their names.
+        if receiver
+            .bases()
+            .iter()
+            .any(|base| matches!(base.as_str(), "any" | "host"))
+        {
             return None;
         }
         // An optional receiver must be narrowed before a call, which the
@@ -225,13 +230,18 @@ impl<'a> Hooks<'a> for Checker<'a> {
                 && !receiver
                     .bases()
                     .iter()
-                    .any(|base| matches!(base.as_str(), "hash" | "nil" | "any"))
+                    .any(|base| matches!(base.as_str(), "hash" | "nil" | "any" | "host"))
         })
     }
 
     fn receiver_dynamic(&self, _: &'a syntax::Expr, call: &'a syntax::Call) -> Option<bool> {
         if let Some(receiver) = self.receiver(call) {
-            return Some(receiver.bases().iter().any(|base| base == "any"));
+            return Some(
+                receiver
+                    .bases()
+                    .iter()
+                    .any(|base| matches!(base.as_str(), "any" | "host")),
+            );
         }
         let receiver = call.receiver.as_ref()?;
         self.host_rooted(receiver).then_some(true)

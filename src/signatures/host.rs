@@ -13,11 +13,13 @@ use crate::{
 use std::collections::{BTreeMap, BTreeSet};
 
 /// The builtin table followed by the host's declarations: functions
-/// registered on the engine, then the capabilities and globals `options`
-/// grants a call.
+/// registered on the engine, the globals and capabilities it declares, then
+/// the capabilities and globals `options` grants a call that no declaration
+/// names.
 pub(crate) fn table(
     hosts: &BTreeMap<String, Registered>,
     keywordless: &BTreeSet<String>,
+    declared: &crate::declared::Declarations,
     options: &CallOptions,
 ) -> Table {
     let mut table = super::table().clone();
@@ -33,6 +35,14 @@ pub(crate) fn table(
             .items
             .push(documented(Item::Function(function), "A host function."));
     }
+    for declaration in declared.values() {
+        let doc = if declaration.capability {
+            "A capability the host declares."
+        } else {
+            "A global the host declares."
+        };
+        table.items.push(documented(declaration.item.clone(), doc));
+    }
     // A later grant replaces an earlier one of the same name, and an
     // explicit global shadows a capability.
     let mut capabilities = BTreeMap::new();
@@ -40,7 +50,7 @@ pub(crate) fn table(
         capabilities.insert(capability.name.as_str(), capability);
     }
     for (name, capability) in capabilities {
-        if options.globals.contains_key(name) {
+        if options.globals.contains_key(name) || declared.contains_key(name) {
             continue;
         }
         let item = match capability.template() {
@@ -57,6 +67,9 @@ pub(crate) fn table(
         table.items.push(item);
     }
     for (name, value) in &options.globals {
+        if declared.contains_key(name) {
+            continue;
+        }
         let item = match binding(name, value) {
             Item::Constant(constant) => Item::Constant(Constant {
                 ty: Type::name("any"),
@@ -93,7 +106,7 @@ fn documented(item: Item, doc: &str) -> Item {
 
 /// A bound value as a declaration: a host method becomes a function, an
 /// object holding host methods a namespace, and any other value a constant.
-fn binding(name: &str, value: &Value) -> Item {
+pub(crate) fn binding(name: &str, value: &Value) -> Item {
     match &value.0 {
         Kind::Host(bound) => Item::Function(method_function(name, bound)),
         Kind::Hash(hash)
@@ -212,7 +225,7 @@ fn any_block() -> Block {
 }
 
 /// A runtime annotation in the signature table's canonical spelling.
-fn annotation(ty: &crate::types::Type) -> Type {
+pub(crate) fn annotation(ty: &crate::types::Type) -> Type {
     let base = match &ty.kind {
         TypeKind::Scalar(scalar) => Type::name(match scalar {
             Scalar::Any => "any",
@@ -273,7 +286,7 @@ fn annotation(ty: &crate::types::Type) -> Type {
 }
 
 /// The type of a host data value, as far as its contents show it.
-fn value_type(value: &Value, depth: usize) -> Type {
+pub(crate) fn value_type(value: &Value, depth: usize) -> Type {
     if depth > 16 {
         return Type::name("any");
     }

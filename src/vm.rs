@@ -278,6 +278,7 @@ impl Run {
             (!code.program.file && !definitions.is_empty()).then(|| definitions.clone());
         ctx.enum_rebind.active = true;
         globals::validate(ctx)?;
+        crate::declared::check_globals(ctx, &code.declared)?;
         let environment = code
             .program
             .file
@@ -285,7 +286,7 @@ impl Run {
             .transpose()?;
         let (root, _) = programs::load(ctx, &mut storage, code, environment.as_ref())?;
         let program = &*root;
-        capabilities::bind(ctx, &mut storage)?;
+        capabilities::bind(ctx, &mut storage, &code.declared)?;
         let input = bind_entry(ctx, &mut storage, args, keywords).map_err(entry_binding)?;
         let initializer = if function == 0 && !program.file {
             program.namespaces.len()

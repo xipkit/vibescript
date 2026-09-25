@@ -76,9 +76,45 @@ pub(crate) struct Program<'a> {
     pub by_offset: HashMap<u32, NsId>,
     /// Host functions registered on the engine.
     pub hosts: HashMap<String, Rc<Sig>>,
+    /// Globals and capabilities the host declares, as values, by name.
+    pub declared: HashMap<String, Ty>,
+    /// Capabilities the host declares with members, by `Kind::Host` index.
+    pub host_modules: Vec<&'a crate::signatures::Module>,
 }
 
 impl<'a> Checker<'a> {
+    /// Types the globals and capabilities the host declares: a global or a
+    /// capability's data by its type, a capability with members as a
+    /// namespace of them, and a callable capability as a host function.
+    pub(super) fn declare_hosts(&mut self, declared: &'a crate::declared::Declarations) {
+        for (name, declaration) in declared {
+            self.steps += 1;
+            match &declaration.item {
+                crate::signatures::Item::Constant(constant) => {
+                    let ty = sigs::table_type(&mut self.types, &constant.ty, &[]);
+                    self.program.declared.insert(name.clone(), ty);
+                }
+                crate::signatures::Item::Module(module) => {
+                    let id = self.program.host_modules.len() as u32;
+                    self.program.host_modules.push(module);
+                    self.types.names.hosts.push(name.clone());
+                    let ty = self.types.intern(Kind::Host(id));
+                    self.program.declared.insert(name.clone(), ty);
+                }
+                crate::signatures::Item::Function(function) => {
+                    let sig = self
+                        .converter
+                        .convert_owned(&mut self.types, function, None);
+                    self.program
+                        .hosts
+                        .entry(name.clone())
+                        .or_insert_with(|| Rc::new(sig));
+                }
+                _ => (),
+            }
+        }
+    }
+
     /// Collects the declarations and resolves every signature.
     pub(super) fn declare_program(&mut self, parsed: &'a Declarations) {
         for (index, (name, members)) in parsed.enums.iter().enumerate() {

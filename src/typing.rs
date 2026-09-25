@@ -40,6 +40,8 @@ pub(crate) struct Input<'a> {
     /// The tokens the parser read, for exact spans.
     pub tokens: &'a [crate::tooling::Token],
     pub hosts: Vec<(&'a String, &'a Registered)>,
+    /// The globals and capabilities the host declares for every call.
+    pub declared: &'a crate::declared::Declarations,
     /// Whether the source is a required file rather than a host script.
     pub file: bool,
     /// Finds the source and filename of a module `require` names, when the
@@ -141,7 +143,8 @@ impl ReceiverType {
     /// `time`, `duration`, `money`, `range`, `regex`, `match_data`, `error`),
     /// `any`, `type` for a type literal, or the name of a class or enum for
     /// its instances and members. A namespace used as a receiver, such as an
-    /// enum, class or module name, is `namespace`.
+    /// enum, class or module name, is `namespace`, and a capability the host
+    /// declares with members is `host`.
     pub fn bases(&self) -> &[String] {
         &self.bases
     }
@@ -208,6 +211,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
             .hosts
             .insert((*name).clone(), std::rc::Rc::new(sig));
     }
+    checker.declare_hosts(input.declared);
     checker.declare_program(input.parsed);
     checker.require_modules(input.parsed);
     checker.check_all();
@@ -253,6 +257,7 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
         modules: modules::Required::new(input, 0),
         memo: None,
     };
+    checker.declare_hosts(input.declared);
     checker.declare_program(input.parsed);
     checker.diagnostics.clear();
     checker.entry_arguments(function, count);

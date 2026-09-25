@@ -87,6 +87,9 @@ pub(crate) enum Kind {
     SymbolLit(Box<str>),
     /// The object `require` returns, by the index of the required module.
     Exports(u32),
+    /// A capability the host declares with members, by its index among
+    /// them, used as a value such as `SMS` in `SMS.send`.
+    Host(u32),
 }
 
 /// A field of a shape.
@@ -103,6 +106,8 @@ pub(crate) struct Names {
     pub namespaces: Vec<String>,
     pub enums: Vec<String>,
     pub builtins: Vec<String>,
+    /// Declared host capabilities, by the index a `Kind::Host` holds.
+    pub hosts: Vec<String>,
 }
 
 /// The type interner of one check.
@@ -563,6 +568,12 @@ impl Types {
                 out.push_str(name);
             }
             Kind::Exports(_) => out.push_str("module"),
+            Kind::Host(id) => out.push_str(
+                self.names
+                    .hosts
+                    .get(*id as usize)
+                    .map_or("?", String::as_str),
+            ),
         }
     }
 
@@ -581,6 +592,7 @@ impl Types {
                 | Kind::AnyEnumType
                 | Kind::Exports(_) => "namespace".to_owned(),
                 Kind::Instance(_) | Kind::EnumValue(_) => self.display(member),
+                Kind::Host(_) => "host".to_owned(),
                 Kind::AnyEnum => "enum_value".to_owned(),
                 Kind::Error => "unknown".to_owned(),
                 _ => self.display(member),

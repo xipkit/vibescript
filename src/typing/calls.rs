@@ -137,6 +137,19 @@ impl<'a> Checker<'a> {
         if let Some(sig) = self.program.hosts.get(name).cloned() {
             return self.call_sigs(&call, &[(sig, Vec::new())]);
         }
+        if let Some(&ty) = self.program.declared.get(name) {
+            if bare {
+                return ty;
+            }
+            let found = self.types.display(ty);
+            self.report(Diagnostic::error(
+                Code::NOT_CALLABLE,
+                call.name_span,
+                format!("`{name}` is a {found} the host declares, not a function"),
+            ));
+            self.loose_args(&call);
+            return Ty::ERROR;
+        }
         if let Some(sig) = self.modules.published.get(name).cloned() {
             return self.call_sigs(&call, &[(sig, Vec::new())]);
         }
@@ -445,8 +458,37 @@ impl<'a> Checker<'a> {
                 }
             },
             Kind::Builtin(index) => self.builtin_member(call, index, ty),
+            Kind::Host(index) => self.host_member(call, index, ty),
             _ => self.table_member(call, ty),
         }
+    }
+
+    /// A member of a capability the host declares, such as `SMS.send`.
+    fn host_member(&mut self, call: &Call<'a, '_>, index: u32, ty: Ty) -> Ty {
+        let module = self.program.host_modules[index as usize];
+        let mut candidates = Vec::new();
+        for member in module
+            .members
+            .iter()
+            .filter(|member| member.name() == call.name)
+        {
+            match member {
+                crate::signatures::Member::Function(function) => {
+                    let sig = self
+                        .converter
+                        .convert_owned(&mut self.types, function, None);
+                    candidates.push((Rc::new(sig), Vec::new()));
+                }
+                crate::signatures::Member::Constant(constant) => {
+                    self.loose_args(call);
+                    return sigs::table_type(&mut self.types, &constant.ty, &[]);
+                }
+            }
+        }
+        if candidates.is_empty() {
+            return self.table_member(call, ty);
+        }
+        self.call_sigs(call, &candidates)
     }
 
     /// `Class.new`, `Class.method` and `Module.function`.

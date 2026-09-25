@@ -99,6 +99,7 @@ fn named(source: &str, filename: Option<&[u8]>) -> Arc<crate::code::Code> {
         crate::code::Code {
             program,
             hosts: Vec::new(),
+            declared: Arc::default(),
             origin: None,
             exports: Vec::new(),
             static_types: false,

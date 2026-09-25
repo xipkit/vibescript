@@ -5,7 +5,7 @@ use super::support::errors_with;
 use vibescript::{Engine, ModuleConfig, diagnostic::Code};
 
 /// An engine whose module path holds `files`, and the directory to remove.
-fn engine(files: &[(&str, &str)]) -> (Engine, std::path::PathBuf) {
+pub(super) fn engine(files: &[(&str, &str)]) -> (Engine, std::path::PathBuf) {
     // WASI has no temporary directory, so fixtures live under the repository.
     let directory = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join(".cache/tmp")

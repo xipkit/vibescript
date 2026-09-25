@@ -27,6 +27,7 @@ pub(crate) struct Exports {
 pub(crate) struct Required<'a> {
     resolve: Option<&'a Modules<'a>>,
     hosts: Vec<(&'a String, &'a Registered)>,
+    declared: &'a crate::declared::Declarations,
     depth: usize,
     pub loaded: Vec<Exports>,
     by_path: HashMap<String, Option<u32>>,
@@ -41,6 +42,7 @@ impl<'a> Required<'a> {
         Self {
             resolve: input.modules,
             hosts: input.hosts.clone(),
+            declared: input.declared,
             depth,
             loaded: Vec::new(),
             by_path: HashMap::new(),
@@ -98,6 +100,7 @@ impl<'a> Checker<'a> {
             parsed: &parsed,
             tokens: &tokens,
             hosts: self.modules.hosts.clone(),
+            declared: self.modules.declared,
             file: true,
             modules: self.modules.resolve,
         };
