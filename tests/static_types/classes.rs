@@ -75,13 +75,14 @@ fn enum_members_and_symbols_naming_them() {
 fn case_over_an_enum_or_bool_is_exhaustive() {
     let status = "enum Status\n  Draft\n  Live\nend\n";
     clean(&format!(
-        "{status}def f(s: Status) -> int\n  case s\n  when Status::Draft then 1\n  when :live then 2\n  end\nend\n"
+        "{status}def f(s: Status) -> int\n  case s\n  when Status::Draft then 1\n  when Status::Live then 2\n  end\nend\n"
     ));
     clean(&format!(
-        "{status}def f(s: Status) -> int\n  case s\n  when :draft then 1\n  else 2\n  end\nend\n"
+        "{status}def f(s: Status) -> int\n  case s\n  when Status::Draft then 1\n  else 2\n  end\nend\n"
     ));
-    let source =
-        format!("{status}def f(s: Status) -> int?\n  case s\n  when :draft then 1\n  end\nend\n");
+    let source = format!(
+        "{status}def f(s: Status) -> int?\n  case s\n  when Status::Draft then 1\n  end\nend\n"
+    );
     error(&source, "V0114", "does not handle `:live`");
     clean("def f(b: bool) -> int\n  case b\n  when true then 1\n  when false then 0\n  end\nend\n");
     codes(
@@ -114,5 +115,25 @@ fn modules_are_namespaces_of_functions_and_constants() {
     codes(
         "module Scoring\n  def self.f(score: int) -> int\n    score\n  end\nend\nScoring.f(\"x\")\n",
         &["V0101"],
+    );
+}
+
+#[test]
+fn symbols_are_never_equal_to_enum_members() {
+    // Typed parameters turn a symbol naming a member into the member, but
+    // `case` and `==` compare values as they are.
+    let status = "enum Status\n  Draft\n  Live\nend\n";
+    let source = format!(
+        "{status}def f(s: Status) -> int\n  case s\n  when :draft then 1\n  when Status::Live then 2\n  end\nend\n"
+    );
+    let diagnostic = error(&source, "V0101", "a `when` over it never matches a symbol");
+    assert_eq!(spanned(&source, &diagnostic), ":draft");
+    assert!(super::support::fixed(&source, &diagnostic).contains("when Status::Draft then 1"));
+    let source = format!("{status}def f(s: Status) -> bool\n  s == :live\nend\n");
+    let diagnostic = error(&source, "V0101", "they never compare equal");
+    assert!(super::support::fixed(&source, &diagnostic).contains("s == Status::Live"));
+    codes(
+        &format!("{status}def f(s: Status) -> bool\n  s == :gone\nend\n"),
+        &["V0206"],
     );
 }

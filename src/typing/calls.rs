@@ -1078,6 +1078,18 @@ impl<'a> Checker<'a> {
     /// The type of a member call's result. Iterating members return their
     /// receiver unchanged, so a shape or tuple keeps its exact type.
     fn member_result(&mut self, call: &Call<'a, '_>, receiver: Ty, result: Ty) -> Ty {
+        // `fetch` of a field a shape declares gives that field's type.
+        if let (Kind::Shape(fields, _), "fetch", Some(first)) = (
+            self.types.kind(receiver).clone(),
+            call.name,
+            call.args.first(),
+        ) {
+            if let Some(key) = super::expr::string_literal(&first.value) {
+                if let Some(field) = fields.iter().find(|field| *field.name == *key) {
+                    return field.ty;
+                }
+            }
+        }
         let exact = matches!(self.types.kind(receiver), Kind::Shape(..) | Kind::Tuple(_));
         let iterating = matches!(
             call.name,

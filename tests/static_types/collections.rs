@@ -105,3 +105,9 @@ fn builtins_use_tuples_for_pairs() {
         "def f(h: hash<string, int>) -> array<string>\n  out: array<string> = []\n  h.each { |pair| out << pair[0] }\n  out\nend\n",
     );
 }
+
+#[test]
+fn fetching_a_declared_field_gives_its_type() {
+    clean("def f(u: { name: string, age?: int }) -> string\n  u.fetch(\"name\")\nend\n");
+    clean("def f(u: { name: string, age?: int }) -> int\n  u.fetch(\"age\")\nend\n");
+}

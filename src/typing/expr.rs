@@ -605,9 +605,19 @@ impl<'a> Checker<'a> {
             }
             "==" | "!=" | "===" => {
                 let lt = self.expr(left, None);
-                // A symbol compared with an enum member names a member.
-                let hint = matches!(self.types.kind(lt), Kind::EnumValue(_)).then_some(lt);
-                self.expr(right, hint);
+                let rt = self.expr(right, None);
+                // The runtime never finds an enum member equal to a symbol.
+                for (member, other, value) in [(lt, rt, right), (rt, lt, left)] {
+                    if let (Kind::EnumValue(id), true, Node::Literal(v)) = (
+                        self.types.kind(member).clone(),
+                        other == Ty::SYMBOL,
+                        &value.node,
+                    ) {
+                        if let Some(symbol) = super::symbol_text(v) {
+                            self.enum_symbol(value, id, &symbol, "they never compare equal");
+                        }
+                    }
+                }
                 Ty::BOOL
             }
             _ => {
@@ -1298,7 +1308,11 @@ impl<'a> Checker<'a> {
             for (value, _splat) in when.values.iter() {
                 match subject_ty {
                     Some(subject) => {
-                        let ty = self.expr(value, Some(subject));
+                        // `case` compares values as `===` does, without turning a
+                        // symbol into an enum member.
+                        let hint = (!matches!(self.types.kind(subject), Kind::EnumValue(_)))
+                            .then_some(subject);
+                        let ty = self.expr(value, hint);
                         if let Some(name) = self.covered_value(value, ty, subject) {
                             covered.push(name);
                         }
@@ -1354,6 +1368,17 @@ impl<'a> Checker<'a> {
     fn covered_value(&mut self, value: &Expr, ty: Ty, subject: Ty) -> Option<String> {
         match self.types.kind(subject).clone() {
             Kind::EnumValue(id) => {
+                if let (Node::Literal(v), true) = (&value.node, ty == Ty::SYMBOL) {
+                    let symbol = super::symbol_text(v)?;
+                    self.enum_symbol(
+                        value,
+                        id,
+                        &symbol,
+                        "a `when` over it never matches a symbol",
+                    );
+                    // The fix makes it the member, so it counts as covered.
+                    return Some(symbol);
+                }
                 if self.types.kind(ty) != &Kind::EnumValue(id) {
                     if ty != Ty::ERROR && !self.types.assignable(ty, subject) {
                         let span = self.spans.expr(value);
@@ -1377,6 +1402,37 @@ impl<'a> Checker<'a> {
             },
             _ => None,
         }
+    }
+
+    /// Reports a symbol compared with a member of enum `id`, which the
+    /// runtime never finds equal, offering the member it names.
+    fn enum_symbol(&mut self, value: &Expr, id: u32, symbol: &str, why: &str) {
+        let decl = &self.program.enums[id as usize];
+        let enum_name = decl.name.clone();
+        let member = decl
+            .symbols
+            .iter()
+            .position(|s| s == symbol)
+            .map(|index| decl.members[index].clone());
+        let span = self.spans.expr(value);
+        let mut diagnostic = Diagnostic::error(
+            Code::TYPE_MISMATCH,
+            span,
+            format!("`:{symbol}` is a symbol, not a member of `{enum_name}`, and {why}"),
+        )
+        .with_types(enum_name.clone(), "symbol");
+        match member {
+            Some(member) => {
+                let replacement = format!("{enum_name}::{member}");
+                diagnostic = diagnostic.with_fix(Fix::replace(
+                    format!("name the member: `{replacement}`"),
+                    span,
+                    replacement,
+                ));
+            }
+            None => diagnostic.code = Code::UNKNOWN_ENUM_MEMBER,
+        }
+        self.report(diagnostic);
     }
 
     /// Reports a `case` over an enum or bool that misses a value; returns
