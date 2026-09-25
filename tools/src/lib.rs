@@ -8,5 +8,7 @@ pub mod analyze;
 pub mod format;
 #[cfg(feature = "lsp")]
 pub mod lsp;
+#[cfg(feature = "migrate")]
+pub mod migrate;
 pub mod repl;
 pub mod test_runner;

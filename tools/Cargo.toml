@@ -3,13 +3,14 @@ name = "vibescript-tools"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
-description = "Formatter, analyzer, test runner, REPL session and language server for Vibescript"
+description = "Formatter, analyzer, migrator, test runner, REPL session and language server for Vibescript"
 license = "MIT AND BSD-3-Clause"
 publish = false
 
 [features]
-default = ["lsp"]
+default = ["lsp", "migrate"]
 lsp = ["dep:serde_json"]
+migrate = ["dep:serde_json", "vibescript/observe"]
 
 [dependencies]
 serde_json = { version = "1", features = ["raw_value"], optional = true }
