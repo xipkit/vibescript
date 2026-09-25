@@ -43,6 +43,10 @@ assert_eq!((found[0].position.line, found[0].position.column), (4, 5));
 
 `member_receiver(source, name)` classifies the receiver of the first member access called `name`. An editor that wants completions after `value.` can splice a name no script uses at the cursor, so an incomplete line still parses as a member access, and ask for the receiver kind. Literals decide their kind, and so does a parameter of the enclosing function annotated with one non-nullable builtin type. Locals, calls, nullable and union annotations, named types and accesses inside string interpolation report `None`. A syntax error after the access does not matter; one before it does.
 
+## Tokens
+
+`tokens(source)` lists the tokens the parser read, with their byte spans, after its own re-reading of a `/` or `%` as a regex or percent literal. Whitespace and comments fall between tokens, so a tool that edits token spans keeps them; `vibes migrate` rewrites source this way. A string with interpolation reports the span of each interpolation, whose content tokenizes as source of its own.
+
 ## Builtin catalogs
 
 `keywords()` lists the reserved words, and `identifier_char` and `uppercase` classify characters by the same Unicode tables as the lexer. `member_names()` lists the builtin member names per receiver kind in the reference order used for suggestions, followed by the universal helpers each kind answers; the lists match the Go reference's completion tables. The global builtins come from [`vibescript::builtins()`](sessions.md#builtin-names).

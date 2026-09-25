@@ -13,10 +13,11 @@
 | `vibes repl [options]` | Start the interactive REPL. |
 | `vibes lsp` | Serve the language server over stdin and stdout for editors. |
 | `vibes prelude` | Print every builtin signature as Vibescript declarations. |
+| `vibes migrate [options] <file or directory>...` | Rewrite scripts into the statically typed, canonical language. |
 
 It also keeps the flat form that predates these commands, `vibes [OPTIONS] FILE` and `vibes [OPTIONS] -e SOURCE`, which prints results as JSON and checks exact calls (see [the flat form](#the-flat-form)), and it prints its version with `vibes --version`.
 
-The formatter, analyzer, test runner, REPL session and language server are also libraries in the `vibescript-tools` crate (`vibescript_tools::format`, `::analyze`, `::test_runner`, `::repl` and `::lsp`), so other programs can embed them; the CLI is a front end that parses arguments, finds and writes files, and renders results.
+The formatter, analyzer, migrator, test runner, REPL session and language server are also libraries in the `vibescript-tools` crate (`vibescript_tools::format`, `::analyze`, `::migrate`, `::test_runner`, `::repl` and `::lsp`), so other programs can embed them; the CLI is a front end that parses arguments, finds and writes files, and renders results.
 
 ```sh
 ./scripts/cargo run --release -p vibes -- run examples/total.vibe
@@ -28,7 +29,7 @@ The formatter, analyzer, test runner, REPL session and language server are also 
 The first argument alone decides what runs, in this order:
 
 1. `-h` or `--help` prints the root help. A first argument the reference rejects outright, `--`, one with leading or trailing whitespace, `-help`, `--h` or a help flag with a value such as `--help=false`, prints the root help and `unknown command "..."` on stderr.
-2. A command name (`run`, `check`, `fmt`, `analyze`, `test`, `lsp`, `repl`, `prelude`, `help` or `h`) runs that command. A file named after a command therefore needs `vibes run check`, or a flat-form option before it.
+2. A command name (`run`, `check`, `fmt`, `analyze`, `test`, `lsp`, `repl`, `prelude`, `migrate`, `help` or `h`) runs that command. A file named after a command therefore needs `vibes run check`, or a flat-form option before it.
 3. `--version` prints `vibescript.rs VERSION`.
 4. A flat-form option (`-e`, `--eval`, `--function`, `--module-path`, `--arg`, `--kwarg`, `--check`, `--checked`, `--steps`, `--memory`, `--recursion`, `--timeout-ms` or `--stats`), or a script path, runs the flat form. A script path is an existing file, or a spelling that contains a path separator or ends in `.vibe`.
 5. Anything else fails as in the reference: `vibes` alone reports `command required` after the root help, a flag such as `-x` or `--bogus` reports `flag provided but not defined: -x`, and any other word reports `unknown command "word"` after the root help.
@@ -152,6 +153,18 @@ vibes prelude
 ```
 
 `vibes prelude` prints the builtin signature table: every builtin function, namespace and member of every value type, under its one canonical name, as Vibescript declarations with typed and generic signatures (ADR-007 and ADR-008). The text is `vibescript::signatures::prelude()`, printed from the same table the compiler checks against, in a stable order; its header explains the notation. A host that registers functions or grants capabilities gets the same text extended with its own declarations from `Engine::prelude`. It takes no positional arguments; an argument fails with `vibes prelude: does not accept positional arguments` and status 1.
+
+## `vibes migrate`
+
+```sh
+vibes migrate [--write] [--inputs FILE] [--report json] [--compatible] <file or directory>...
+```
+
+`vibes migrate` rewrites scripts written for the ADR-004 language into the language of ADR-007 and ADR-008. It renames removed spellings from the rename table, turns `do ... end` blocks into braces, `unless` and `until` into `if !` and `while !`, symbol hash keys into strings, percent literals into arrays and `Hash.new` into `{}`, replaces `nil?`, empty argument parentheses and dispatch by a literal name, and annotates parameters, results, the blocks functions yield to, locals whose first value does not fix their type, instance variables and properties. Integer `/` becomes `//`, and a condition on an optional value becomes `!= nil`.
+
+Types come from existing annotations, then from values observed while running the invocations in `--inputs`, a JSON Lines file of calls with the golden corpora's fields (`function`, `args`, `typed_args`, `globals`, `module_paths` and so on) and an optional `file` relative to the directory being migrated; without an observation a type is `any`, which the report flags. A file with a recorded call that needs host capabilities is annotated without observations, since its other calls may not cover what that one does.
+
+Without `--write` it prints a unified diff; with it, it rewrites the files. Everything it cannot do safely, such as a condition on a value that is sometimes `false`, a rename whose receiver type is unknown, or dispatch by a name known only at runtime, is reported on stderr as `file:line:column: code: message`, or as a JSON array on stdout with `--report json`. `--compatible` makes only the changes the linked runtime accepts without the new declarations. `scripts/migrate-corpora.py` migrates the golden corpora this way and checks the results against their goldens.
 
 ## `vibes repl`
 

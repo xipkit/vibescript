@@ -19,6 +19,8 @@ The CLI searches the input file's directory for required modules. Add other root
 
 `vibes repl` starts the interactive REPL, ported from the Go CLI. Variables, functions and classes persist across inputs, unfinished input continues on the next line, and piped input runs one line at a time; see [the REPL section](docs/cli.md#vibes-repl).
 
+`vibes migrate` rewrites scripts into the statically typed, canonical language of ADR-007 and ADR-008, annotating them with the types observed while running recorded calls and reporting what needs a person; see [`vibes migrate`](docs/cli.md#vibes-migrate).
+
 `vibes prelude` prints every builtin function, namespace and member with its typed signature, under its one canonical name, as Vibescript declarations. Hosts get the same text extended with their registered functions, capabilities and globals from `Engine::prelude`, to give a model the exact API; see [`vibes prelude`](docs/cli.md#vibes-prelude).
 
 ## Embed it
