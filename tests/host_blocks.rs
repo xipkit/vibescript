@@ -10,7 +10,7 @@ type Trace = Arc<Mutex<Vec<String>>>;
 fn options(trace: &Trace) -> CallOptions {
     let trace = trace.clone();
     CallOptions {
-        capabilities: vec![Capability::new("host", move |_| {
+        capabilities: vec![Capability::from_value("host", {
             let observed = trace.clone();
             let once = HostMethod::new_with_block("host.once", move |call, args, _| {
                 observed.lock().unwrap().push("start".into());
@@ -51,47 +51,65 @@ fn options(trace: &Trace) -> CallOptions {
                 observed.lock().unwrap().push(args[0].to_string());
                 Ok(Value::nil())
             });
-            Ok(Value::object(vec![
+            Value::object(vec![
                 (b"once".to_vec(), once.value()),
                 (b"each".to_vec(), each.value()),
                 (b"optional".to_vec(), optional.value()),
                 (b"ignore".to_vec(), ignore.value()),
                 (b"recover".to_vec(), recover.value()),
                 (b"note".to_vec(), note.value()),
-            ]))
+            ])
         })],
         ..CallOptions::default()
     }
 }
 
-fn run(body: &str, options: CallOptions) -> vibescript::Result<vibescript::Outcome> {
+/// A capability whose value is `method` itself.
+fn callable(name: &str, method: &HostMethod) -> Capability {
+    Capability::from_value(name, method.value())
+}
+
+/// An engine that declares the capabilities `options` grants, and its
+/// globals with the types their values have.
+fn declared(options: &CallOptions) -> Engine {
     let mut engine = Engine::new();
+    for capability in &options.capabilities {
+        engine.declare_capability(capability).unwrap();
+    }
+    for (name, value) in &options.globals {
+        engine
+            .declare_global(name.clone(), value.type_name())
+            .unwrap();
+    }
+    engine
+}
+
+fn run(body: &str, options: CallOptions) -> vibescript::Result<vibescript::Outcome> {
+    let mut engine = declared(&options);
     engine.set_strict_effects(true);
     engine
-        .compile(&format!("def run\n{body}\nend"))
+        .compile(&format!("def run -> any\n{body}\nend"))
         .unwrap()
         .call("run", &[], options)
 }
 
 #[test]
 fn host_blocks_support_dispatch_binding_captures_and_repeated_calls() {
+    // What the host passes a block is any, so the blocks narrow it.
     for (body, expected) in [
-        ("host.once(3) { |n| n+1 }", "4"),
-        ("host::once(3) { |n| n+1 }", "4"),
-        ("host[:once](3) { |n| n+1 }", "4"),
-        ("(host[:once])(3) { |n| n+1 }", "4"),
-        ("host.send(:once, 3) { |n| n+1 }", "4"),
-        ("host.public_send(:once, 3) { |n| n+1 }", "4"),
-        ("copy=host.dup; copy.once(3) { |n| n+1 }", "4"),
+        ("host.once(3) { |n| n.as(int)+1 }", "4"),
+        ("host::once(3) { |n| n.as(int)+1 }", "4"),
+        // The checker does not refuse dispatch by name on a capability.
+        ("host.send(:once, 3) { |n| n.as(int)+1 }", "4"),
+        ("host.public_send(:once, 3) { |n| n.as(int)+1 }", "4"),
+        ("copy=host.dup; copy.once(3) { |n| n.as(int)+1 }", "4"),
         ("host.once(1,2) { |a,b,c| [a,b,c] }", "[1, 2, nil]"),
-        ("host.once([2,3]) { |a,b| a+b }", "5"),
-        ("host.once([[2,3],4]) { |(a,b),c| a+b+c }", "9"),
-        ("host.once(3) { _1+1 }", "4"),
-        ("host.once(3) { |n: int| n+1 }", "4"),
+        ("host.once([2,3]) { |a,b| a.as(int)+b.as(int) }", "5"),
         (
-            "begin; host.once(\"bad\") { |n: int| n }; rescue RuntimeError; 7; end",
-            "7",
+            "host.once([[2,3],4]) { |(a,b),c| a.as(int)+b.as(int)+c.as(int) }",
+            "9",
         ),
+        ("host.once(3) { _1.as(int)+1 }", "4"),
         ("host.once(3) { next 4 }", "4"),
         ("host.once(3) { break 4 }", "4"),
         ("host.once(3) { return 4 }; 99", "4"),
@@ -102,21 +120,54 @@ fn host_blocks_support_dispatch_binding_captures_and_repeated_calls() {
             "begin; host.once(); rescue => e; [e.class.to_s,e.message]; end",
             "[RuntimeError, block required]",
         ),
-        ("host.each([1,2,3]) { |n| n*2 }", "[2, 4, 6]"),
+        ("host.each([1,2,3]) { |n| n.as(int)*2 }", "[2, 4, 6]"),
         ("host.each([1,2,3]) { |n| break 7 if n==2; n }", "7"),
         (
-            "host.each([1,2]) { |i| host.each([3,4]) { |j| i+j } }",
+            "host.each([1,2]) { |i| host.each([3,4]) { |j| i.as(int)+j.as(int) } }",
             "[[4, 5], [5, 6]]",
         ),
-        ("a=[]; host.each([1,2,3]) { |n| a.push(n) }; a", "[1, 2, 3]"),
         (
-            "a=[]; for i in [1,2]; a.push(host.once(i) { break 7 }); end; a",
+            "a: array<any> = []; host.each([1,2,3]) { |n| a.push(n) }; a",
+            "[1, 2, 3]",
+        ),
+        (
+            "a: array<any> = []; for i in [1,2]; a.push(host.once(i) { break 7 }); end; a",
             "[7, 7]",
         ),
     ] {
         let trace = Trace::default();
         let result = run(body, options(&trace)).unwrap_or_else(|error| panic!("{body}: {error}"));
         assert_eq!(result.value.to_string(), expected, "{body}");
+    }
+    // What the host passes is any, so a block cannot declare a narrower
+    // parameter type.
+    let mut engine = common::static_engine();
+    engine
+        .declare_capability(&options(&Trace::default()).capabilities[0])
+        .unwrap();
+    for body in [
+        "host.once(3) { |n: int| n+1 }",
+        "begin; host.once(\"bad\") { |n: int| n }; rescue RuntimeError; 7; end",
+    ] {
+        let error = engine.compile(body).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0106"], "{body}");
+        assert_eq!(error.diagnostics()[0].span.start, body.find("n:").unwrap());
+    }
+    // A capability is not indexed by name.
+    for body in [
+        "host[:once](3) { |n| n.as(int)+1 }",
+        "(host[:once])(3) { |n| n.as(int)+1 }",
+    ] {
+        let mut engine = common::static_engine();
+        engine
+            .declare_capability(&options(&Trace::default()).capabilities[0])
+            .unwrap();
+        let error = engine.compile(body).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0112", "V0409"], "{body}");
+        assert_eq!(
+            error.diagnostics()[0].span.start,
+            body.find("host").unwrap()
+        );
     }
 }
 
@@ -197,7 +248,7 @@ fn block_presence_and_absorbed_breaks_obey_host_contracts() {
         },
     );
     let opts = CallOptions {
-        capabilities: vec![Capability::new("checked", move |_| Ok(method.value()))],
+        capabilities: vec![callable("checked", &method)],
         ..CallOptions::default()
     };
     for (body, expected, events_want) in [
@@ -223,13 +274,13 @@ fn block_presence_and_absorbed_breaks_obey_host_contracts() {
         );
         assert_eq!(*events.lock().unwrap(), events_want, "{body}");
     }
-    let script = Engine::new()
-        .compile("def run() -> int; checked { return \"wrong\" }; end")
-        .unwrap();
-    assert_eq!(
-        script.call("run", &[], opts).unwrap_err().kind,
-        ErrorKind::Type
-    );
+    // A return of the wrong type is refused before it runs.
+    let mut engine = common::static_engine();
+    engine.declare_capability(&opts.capabilities[0]).unwrap();
+    let source = "def run() -> int; checked { return \"wrong\" }; end";
+    let error = engine.compile(source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0106", "V0101"]);
+    assert_eq!(error.diagnostics()[1].span.start, source.find('"').unwrap());
 }
 
 #[test]
@@ -244,11 +295,11 @@ fn host_block_arguments_and_retained_results_keep_value_semantics() {
         call.call_block(std::slice::from_ref(&supplied))
     });
     let opts = CallOptions {
-        capabilities: vec![Capability::new("visit", move |_| Ok(method.value()))],
+        capabilities: vec![callable("visit", &method)],
         ..CallOptions::default()
     };
     let output = run(
-        "a=[]; visit { |input| input.push(2); a.push(input); a }; a[0].push(3); a",
+        "a: array<array<int>> = []; visit { |input| list=input.as(array<int>); list.push(2); a.push(list); a }; a[0]&.push(3); a",
         opts,
     )
     .unwrap();
@@ -271,7 +322,7 @@ fn ignored_quota_errors_keep_their_original_block_diagnostics() {
         Ok(Value::int(99))
     });
     let opts = CallOptions {
-        capabilities: vec![Capability::new("visit", move |_| Ok(method.value()))],
+        capabilities: vec![callable("visit", &method)],
         limits: Limits {
             steps: Some(2_000),
             ..Limits::default()
@@ -297,7 +348,7 @@ fn arguments_retained_by_the_host_remain_charged_during_block_execution() {
     });
     let opts = CallOptions {
         globals: [("payload".into(), Value::bytes(vec![b'a'; 524_288]))].into(),
-        capabilities: vec![Capability::new("visit", move |_| Ok(method.value()))],
+        capabilities: vec![callable("visit", &method)],
         limits: Limits {
             memory_bytes: Some(900_000),
             ..Limits::default()
@@ -334,7 +385,7 @@ fn retained_block_errors_keep_and_release_their_diagnostic_reservations() {
         Ok(Value::nil())
     });
     let opts = CallOptions {
-        capabilities: vec![Capability::new("visit", move |_| Ok(method.value()))],
+        capabilities: vec![callable("visit", &method)],
         ..CallOptions::default()
     };
     run("visit { raise(\"x\"*4096) }", opts).unwrap();
@@ -343,12 +394,11 @@ fn retained_block_errors_keep_and_release_their_diagnostic_reservations() {
 
 #[test]
 fn recursive_host_blocks_reach_the_configured_limit_on_the_default_stack() {
-    let script = Engine::new()
-        .compile("def recurse; host.once { recurse() }; end; def run; recurse(); end")
+    let options = options(&Trace::default());
+    let script = declared(&options)
+        .compile("def recurse -> any; host.once { recurse }; end; def run -> any; recurse; end")
         .unwrap();
-    let error = script
-        .call("run", &[], options(&Trace::default()))
-        .unwrap_err();
+    let error = script.call("run", &[], options).unwrap_err();
     assert_eq!(error.kind, ErrorKind::Recursion);
 }
 
@@ -360,9 +410,9 @@ fn nested_yield_and_local_recovery_preserve_their_control_boundaries() {
         ("[1].each { yield }; 99", 99),
         ("yield; 99", 7),
     ] {
-        let script = Engine::new()
+        let script = declared(&options(&Trace::default()))
             .compile(&format!(
-                "def relay; {driver}; end; def run; relay {{ break 7 }}; end"
+                "def relay(&block: () -> any) -> int; {driver}; end; def run -> int; relay {{ break 7 }}; end"
             ))
             .unwrap();
         assert_eq!(
@@ -397,8 +447,8 @@ fn nested_yield_and_local_recovery_preserve_their_control_boundaries() {
             Some(expected)
         );
     }
-    let script = Engine::new().compile(
-        "def relay; host.once { [block_given?,yield] }; end; def run; relay { return 7 }; 99; end"
+    let script = declared(&options(&Trace::default())).compile(
+        "def relay(&block: () -> any) -> any; host.once { [block_given?,yield] }; end; def run -> int; relay { return 7 }; 99; end"
     ).unwrap();
     assert_eq!(
         script
@@ -420,10 +470,9 @@ fn ordinary_block_errors_allow_later_calls_without_replaying_handlers() {
         Err(error)
     });
     let mut opts = options(&Trace::default());
-    opts.capabilities
-        .push(Capability::new("visit", move |_| Ok(method.value())));
+    opts.capabilities.push(callable("visit", &method));
     let result = run(
-        "a=[]; begin; visit { |n| begin; a.push(n); raise \"first\" if n==1; n; ensure; a.push(n+10); end }; rescue => e; a.push(e.message); end; a",
+        "a: array<any> = []; begin; visit { |n| begin; a.push(n); raise \"first\" if n==1; n; ensure; a.push(n.as(int)+10); end }; rescue => e; a.push(e.message); end; a",
         opts,
     ).unwrap();
     assert_eq!(result.value.to_string(), "[1, 11, 2, 12, first]");
@@ -432,7 +481,7 @@ fn ordinary_block_errors_allow_later_calls_without_replaying_handlers() {
 #[test]
 fn host_block_dispatch_preserves_exact_step_and_memory_thresholds() {
     for body in [
-        "host.once(4) { |n| host.each([1,2,3]) { |m| n+m } }",
+        "host.once(4) { |n| host.each([1,2,3]) { |m| n.as(int)+m.as(int) } }",
         "begin; host.once { raise \"bad\" }; rescue => e; e.message; end",
         "host.once { break [1,2,3] }",
     ] {
@@ -474,7 +523,7 @@ fn retained_block_values_remain_charged_and_discarded_values_release_storage() {
     let result = run(
         "visit { \"x\"*8192 }",
         CallOptions {
-            capabilities: vec![Capability::new("visit", move |_| Ok(method.value()))],
+            capabilities: vec![callable("visit", &method)],
             ..CallOptions::default()
         },
     )
@@ -506,6 +555,9 @@ fn ignored_cancellation_prevents_reentry_rescue_ensure_and_later_effects() {
         seen.lock().unwrap().push("effect".into());
         Ok(Value::nil())
     });
+    engine
+        .declare_capability(&callable("visit", &method))
+        .unwrap();
     let script = engine.compile("def run; begin; visit { begin; stop(); effect(); rescue; effect(); ensure; effect(); end }; effect(); rescue; effect(); ensure; effect(); end; end").unwrap();
     let error = script
         .call(
@@ -513,7 +565,7 @@ fn ignored_cancellation_prevents_reentry_rescue_ensure_and_later_effects() {
             &[],
             CallOptions {
                 cancellation,
-                capabilities: vec![Capability::new("visit", move |_| Ok(method.value()))],
+                capabilities: vec![callable("visit", &method)],
                 ..CallOptions::default()
             },
         )
@@ -525,13 +577,14 @@ fn ignored_cancellation_prevents_reentry_rescue_ensure_and_later_effects() {
 #[test]
 fn precancelled_or_expired_calls_never_invoke_host_blocks() {
     let method = HostMethod::new_with_block("visit", |_, _, _| panic!("expired host callback ran"));
-    let script = Engine::new().compile("visit { 1 }").unwrap();
+    let mut engine = Engine::new();
+    engine
+        .declare_capability(&callable("visit", &method))
+        .unwrap();
+    let script = engine.compile("visit { 1 }").unwrap();
     for deadline in [false, true] {
         let mut opts = CallOptions {
-            capabilities: vec![Capability::new("visit", {
-                let method = method.clone();
-                move |_| Ok(method.value())
-            })],
+            capabilities: vec![callable("visit", &method)],
             ..CallOptions::default()
         };
         if deadline {
@@ -552,7 +605,7 @@ fn precancelled_or_expired_calls_never_invoke_host_blocks() {
 
 #[test]
 fn foreign_block_arguments_keep_their_program_types_and_isolated_state() {
-    let producer = Engine::new().compile("class Box; property items: array<int>; def initialize; @items=[1]; end; def add; @items.push(2); end; end; def make; [Box.new, /a/.match(\"a\")]; end").unwrap();
+    let producer = Engine::new().compile("class Box; property items: array<int>; def initialize; @items=[1]; end; def add; @items.push(2); end; end; def make -> array<any>; [Box.new, /a/.match(\"a\")]; end").unwrap();
     let input = producer
         .call("make", &[], CallOptions::default())
         .unwrap()
@@ -562,10 +615,12 @@ fn foreign_block_arguments_keep_their_program_types_and_isolated_state() {
         call.call_block(std::slice::from_ref(&supplied))
     });
     let opts = CallOptions {
-        capabilities: vec![Capability::new("visit", move |_| Ok(method.value()))],
+        capabilities: vec![callable("visit", &method)],
         ..CallOptions::default()
     };
-    let script = Engine::new().compile("def run; visit { |pair| box=pair[0]; m=pair[1]; box.add; begin; box.items.push(\"bad\"); rescue; nil; end; begin; m.captures.push(\"bad\"); rescue; nil; end; [box.items,m.captures] }; end").unwrap();
+    // The receiving programs cannot name a class another program declares,
+    // so they read its instances in the ADR-004 language.
+    let script = common::gradual_engine().compile("def run; visit { |pair| box=pair[0]; m=pair[1]; box.add; begin; box.items.push(\"bad\"); rescue; nil; end; begin; m.captures.push(\"bad\"); rescue; nil; end; [box.items,m.captures] }; end").unwrap();
     common::scope(|scope| {
         let jobs: Vec<_> = (0..4)
             .map(|_| scope.spawn(|| script.call("run", &[], opts.clone()).unwrap()))
@@ -574,7 +629,7 @@ fn foreign_block_arguments_keep_their_program_types_and_isolated_state() {
             assert_eq!(job.join().unwrap().value.to_string(), "[[1, 2], []]");
         }
     });
-    let check = Engine::new()
+    let check = common::gradual_engine()
         .compile("def run(pair); pair[0].items; end")
         .unwrap();
     assert_eq!(
@@ -589,30 +644,34 @@ fn foreign_block_arguments_keep_their_program_types_and_isolated_state() {
 
 #[test]
 fn block_capability_methods_cannot_be_detached_or_regranted() {
-    for body in [
-        "host[:once]",
-        "host::once",
-        "a=[host[:once]]; 1",
-        "host.once(host::once) { 1 }",
-    ] {
+    // A bare method reads as a call without arguments, but the runtime
+    // refuses it as a value.
+    for body in ["host::once", "host.once(host::once) { 1 }"] {
         assert_eq!(
             run(body, options(&Trace::default())).unwrap_err().kind,
             ErrorKind::Type,
             "{body}"
         );
     }
-    let saved = run("host", options(&Trace::default())).unwrap().value;
-    let script = Engine::new()
-        .compile("def run(old); old.once { 1 }; end")
+    // A capability is not indexed by name, and a saved capability has no
+    // static type, so its methods cannot be called.
+    let mut engine = common::static_engine();
+    engine
+        .declare_capability(&options(&Trace::default()).capabilities[0])
         .unwrap();
-    let error = script
-        .call("run", &[saved], CallOptions::default())
-        .unwrap_err();
-    assert_eq!(error.kind, ErrorKind::Runtime);
-    assert!(
-        error.message.contains("not granted to this call"),
-        "{error}"
-    );
+    for (source, codes, at) in [
+        ("host[:once]", &["V0112", "V0409"][..], "host"),
+        ("a=[host[:once]]; 1", &["V0112", "V0409"], "host"),
+        (
+            "def run(old: any) -> any; old.once { 1 }; end",
+            &["V0106"],
+            "once",
+        ),
+    ] {
+        let error = engine.compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), codes, "{source}");
+        assert_eq!(error.diagnostics()[0].span.start, source.find(at).unwrap());
+    }
 }
 
 #[test]
@@ -626,22 +685,34 @@ fn host_frames_return_to_pending_reads_writes_reductions_and_initializers() {
     });
     let last = HostMethod::new_with_block("host.pick", |_, args, _| Ok(args[0].clone()));
     let opts = CallOptions {
-        capabilities: vec![Capability::new("host", move |_| {
-            Ok(Value::object(vec![
+        capabilities: vec![Capability::from_value(
+            "host",
+            Value::object(vec![
                 (b"values".to_vec(), values.value()),
                 (b"pick".to_vec(), last.value()),
-            ]))
-        })],
+            ]),
+        )],
         ..CallOptions::default()
     };
     for (source, expected) in [
-        ("host.values([1])[0].push(2)", "[1, 2]"),
-        ("host.values([1]) { |a| a }.push(2)", "[1, 2]"),
-        ("[host,7].reduce(:pick)", "7"),
-        ("module M; C=host.values(3) { |n| n+1 }; end; M.C", "4"),
-        ("def run(n=host.values(3) { |x| x+1 }); n; end; run()", "4"),
+        (
+            "host.values([1]).as(array<array<int>>)[0]&.push(2)",
+            "[1, 2]",
+        ),
+        (
+            "host.values([1]) { |a| a }.as(array<int>).push(2)",
+            "[1, 2]",
+        ),
+        (
+            "module M; C=host.values(3) { |n| n.as(int)+1 }; end; M.C",
+            "4",
+        ),
+        (
+            "def run(n: any = host.values(3) { |x| x.as(int)+1 }) -> any; n; end; run()",
+            "4",
+        ),
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = declared(&opts).compile(source).unwrap();
         assert_eq!(
             script
                 .run(opts.clone())
@@ -652,6 +723,16 @@ fn host_frames_return_to_pending_reads_writes_reductions_and_initializers() {
             "{source}"
         );
     }
+    // Reducing by a method name is removed.
+    let mut engine = common::static_engine();
+    engine.declare_capability(&opts.capabilities[0]).unwrap();
+    let source = "[host,7].reduce(:pick)";
+    let error = engine.compile(source).err().unwrap();
+    assert!(!common::codes(&error).is_empty());
+    assert_eq!(
+        error.diagnostics()[0].span.start,
+        source.find("reduce").unwrap()
+    );
 }
 
 #[test]
@@ -676,7 +757,7 @@ fn retained_non_utf8_block_errors_preserve_bytes_and_release_storage() {
     });
     let opts = CallOptions {
         globals: [("payload".into(), Value::bytes(payload))].into(),
-        capabilities: vec![Capability::new("visit", move |_| Ok(method.value()))],
+        capabilities: vec![callable("visit", &method)],
         ..CallOptions::default()
     };
     let result = run("visit { raise payload }", opts).unwrap();
