@@ -184,6 +184,16 @@ impl<'a> Checker<'a> {
             self.loose_args(&call);
             return Ty::ERROR;
         }
+        if bare
+            && sigs::index()
+                .renames
+                .keys()
+                .any(|(scope, _)| *scope == name)
+        {
+            // A removed namespace, such as `Regexp`: the surface
+            // diagnostics report its spellings.
+            return Ty::ANY;
+        }
         let message = if bare {
             format!(
                 "`{name}` is not a local, function or builtin in scope, and the host declares no global or capability of that name"
