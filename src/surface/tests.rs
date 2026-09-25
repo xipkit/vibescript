@@ -404,3 +404,61 @@ fn nesting_deeper_than_the_limit_is_still_checked() {
     let found = with_code(&source, Code::REMOVED_NAME);
     assert_eq!(found.len(), 1, "{found:?}");
 }
+
+/// A call matching a rename entry's pattern, with `1` for each argument it
+/// captures.
+fn call_for(pattern: &str) -> String {
+    let mut out = String::new();
+    let mut rest = pattern;
+    while let Some(start) = rest.find('$') {
+        out.push_str(&rest[..start]);
+        let tail = &rest[start + 1..];
+        let end = tail
+            .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .unwrap_or(tail.len());
+        out.push_str(if &tail[..end] == "x" { "x" } else { "1" });
+        rest = &tail[end..];
+    }
+    out.push_str(rest);
+    out.replace(", ..., ", ", ")
+        .replace("(..., ", "(")
+        .replace(", ...)", ")")
+        .replace("(...)", "(1)")
+}
+
+#[test]
+fn every_rename_table_entry_is_reported() {
+    use crate::signatures::renames;
+    let mut missing = Vec::new();
+    for rename in renames() {
+        let call = call_for(&rename.pattern);
+        let source = match rename.receiver.as_str() {
+            "*" if rename.pattern.starts_with("$x.") => "y = [1].length()\n".to_owned(),
+            "*" => "y = uuid()\n".to_owned(),
+            "global" => format!("y = {call}\n"),
+            "type" => format!("def f(x: {}) -> int\n  1\nend\n", rename.name),
+            "error" => format!("begin\n  raise \"no\"\nrescue => x\n  y = {call}\nend\n"),
+            "T" => format!("def f(x: int) -> int\n  y = {call}\n  1\nend\n"),
+            receiver if receiver.starts_with(|c: char| c.is_ascii_uppercase()) => {
+                format!("y = {call}\n")
+            }
+            receiver => format!("def f(x: {receiver}) -> int\n  y = {call}\n  1\nend\n"),
+        };
+        let Ok(found) = check(&source) else {
+            missing.push(format!("{source:?} does not parse"));
+            continue;
+        };
+        let name = if rename.receiver == "*" {
+            "()"
+        } else {
+            rename.name.as_str()
+        };
+        let reported = found
+            .iter()
+            .any(|d| source[d.span.start..d.span.end].contains(name));
+        if !reported {
+            missing.push(format!("{source:?}: {found:?}"));
+        }
+    }
+    assert!(missing.is_empty(), "{}", missing.join("\n"));
+}

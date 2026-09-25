@@ -318,7 +318,12 @@ pub trait Rules<'a>: Hooks<'a> {
             self.report(finding);
             return;
         }
+        // A method the source defines under the name is its own.
+        let removed = !self.declared.methods.contains(&call.name);
         let Some(args) = &call.args else {
+            if removed {
+                self.report(Finding::removed(Rule::Dispatch, span, &call.name, direct));
+            }
             return;
         };
         let first = args.items.first();
@@ -350,6 +355,8 @@ pub trait Rules<'a>: Hooks<'a> {
                 )
                 .spelling(Rule::Dispatch, &call.name, direct);
                 self.report(finding);
+            } else if removed {
+                self.report(Finding::removed(Rule::Dispatch, span, &call.name, direct));
             }
             return;
         };
