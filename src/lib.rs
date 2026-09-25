@@ -28,6 +28,7 @@ mod collections;
 mod combinatorics;
 mod compilation;
 mod conversion;
+pub mod diagnostic;
 mod duration;
 mod enums;
 mod error;

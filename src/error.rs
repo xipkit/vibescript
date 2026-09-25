@@ -131,8 +131,18 @@ pub struct Error {
     class: ErrorClass,
     required_syntax: bool,
     // A thin pointer leaves room for the reservation without enlarging Error.
-    raw_message: Option<Arc<Box<[u8]>>>,
+    extra: Option<Arc<Extra>>,
     pub(crate) retained_charge: Option<Arc<crate::budget::Charge>>,
+}
+
+/// What an error carries beyond its message, rarely enough to share one
+/// pointer.
+#[derive(Debug, PartialEq, Eq)]
+enum Extra {
+    /// The original message bytes when they are not UTF-8.
+    Raw(Box<[u8]>),
+    /// The diagnostics behind a failed compilation.
+    Diagnostics(Box<[crate::diagnostic::Diagnostic]>),
 }
 
 impl PartialEq for Error {
@@ -143,7 +153,7 @@ impl PartialEq for Error {
             && self.diagnostic == other.diagnostic
             && self.class == other.class
             && self.required_syntax == other.required_syntax
-            && self.raw_message == other.raw_message
+            && self.extra == other.extra
     }
 }
 
@@ -158,7 +168,7 @@ impl fmt::Debug for Error {
             .field("diagnostic", &self.diagnostic)
             .field("class", &self.class)
             .field("required_syntax", &self.required_syntax)
-            .field("raw_message", &self.raw_message)
+            .field("extra", &self.extra)
             .finish()
     }
 }
@@ -172,7 +182,7 @@ impl Error {
             offset: None,
             diagnostic: None,
             required_syntax: false,
-            raw_message: None,
+            extra: None,
             retained_charge: None,
             class: if matches!(
                 kind,
@@ -208,7 +218,9 @@ impl Error {
     /// Replaces the message, keeping the kind, class and location.
     pub(crate) fn with_message(mut self, message: String) -> Self {
         self.message = message;
-        self.raw_message = None;
+        if matches!(self.extra.as_deref(), Some(Extra::Raw(_))) {
+            self.extra = None;
+        }
         self
     }
 
@@ -221,17 +233,66 @@ impl Error {
     /// Returns the original message bytes, including non-UTF-8 script strings.
     /// The public `message` field and Display use replacement characters for invalid UTF-8.
     pub fn message_bytes(&self) -> &[u8] {
-        self.raw_message
-            .as_deref()
-            .map(Box::as_ref)
-            .unwrap_or(self.message.as_bytes())
+        match self.extra.as_deref() {
+            Some(Extra::Raw(bytes)) => bytes,
+            _ => self.message.as_bytes(),
+        }
+    }
+
+    /// The compile diagnostics behind a failed compilation, such as every type
+    /// error the static checker found, in source order. Empty for other errors.
+    ///
+    /// The error's own message, offset and code frame describe the first error.
+    pub fn diagnostics(&self) -> &[crate::diagnostic::Diagnostic] {
+        match self.extra.as_deref() {
+            Some(Extra::Diagnostics(diagnostics)) => diagnostics,
+            _ => &[],
+        }
+    }
+
+    /// Builds a compile error from diagnostics, of which at least one should be
+    /// an error. The first error sets the message, offset and code frame.
+    #[allow(dead_code)]
+    pub(crate) fn from_diagnostics(
+        kind: ErrorKind,
+        diagnostics: Vec<crate::diagnostic::Diagnostic>,
+        source: &crate::source::Source,
+    ) -> Self {
+        let first = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.is_error())
+            .or(diagnostics.first());
+        let (message, offset) = match first {
+            Some(first) => (format!("{first}"), Some(first.span.start)),
+            None => (String::from("compilation failed"), None),
+        };
+        let diagnostic = offset.map(|offset| {
+            let offset = u32::try_from(offset).unwrap_or(u32::MAX);
+            Arc::new(Diagnostic {
+                filename: source.filename.clone(),
+                position: source.position(offset),
+                code_frame: source.frame(offset),
+                frames: Vec::new(),
+            })
+        });
+        Self {
+            offset,
+            diagnostic,
+            extra: Some(Arc::new(Extra::Diagnostics(diagnostics.into()))),
+            ..Self::new(kind, message).with_class(ErrorClass::Type)
+        }
     }
 
     pub(crate) fn allocation_bytes(&self) -> usize {
         self.message.capacity()
-            + self.raw_message.as_ref().map_or(0, |bytes| {
-                bytes.len() + std::mem::size_of::<Box<[u8]>>() + 2 * std::mem::size_of::<usize>()
-            })
+            + match self.extra.as_deref() {
+                Some(Extra::Raw(bytes)) => {
+                    bytes.len()
+                        + std::mem::size_of::<Box<[u8]>>()
+                        + 2 * std::mem::size_of::<usize>()
+                }
+                _ => 0,
+            }
     }
 
     pub(crate) fn from_bytes(ctx: &mut crate::CallContext, bytes: &[u8]) -> Result<Self> {
@@ -261,12 +322,12 @@ impl Error {
             let _charge = ctx.reserve(
                 bytes.len() + std::mem::size_of::<Box<[u8]>>() + 2 * std::mem::size_of::<usize>(),
             )?;
-            Some(Arc::new(bytes.into()))
+            Some(Arc::new(Extra::Raw(bytes.into())))
         } else {
             None
         };
         Ok(Self {
-            raw_message,
+            extra: raw_message,
             ..Self::new(ErrorKind::Runtime, message)
         })
     }
