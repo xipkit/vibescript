@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -48,7 +50,7 @@ fn invalid_bytes_stay_distinct_from_valid_replacement_characters() {
     let input = Value::bytes(b"\xff\xff\xef\xbf\xbd\xef\xbf\xbd\xfe\xfe");
     let result = Engine::new()
         .compile(
-            r#"def run(input)
+            r#"def run(input: string) -> array<int | string>
       [input.count("\xff"),input.count("�"),input.delete("\xff"),
        input.squeeze,input.squeeze("�"),input.tr("\xff","é"),input.tr("�","\xff"),input]
       end"#,
@@ -70,7 +72,7 @@ fn invalid_bytes_stay_distinct_from_valid_replacement_characters() {
         assert_eq!(value.as_bytes(), Some(expected));
     }
     let script = Engine::new()
-        .compile("def run(s,a,b)\ns.tr!(a,b)\nend")
+        .compile("def run(s: string,a: string,b: string) -> string?\ns.tr!(a,b)\nend")
         .unwrap();
     let result = script
         .call(
@@ -108,7 +110,12 @@ fn transforms_preserve_aliases_and_argument_side_effects() {
         ("squeeze", "", "banana"),
         ("squeeze!", "", "nil"),
     ] {
-        let script = Engine::new().compile(&format!("def run(input)\ns=input;h={{a:[s]}};r=h.a[0].{method}({args});[input,s,h.a[0],r]\nend")).unwrap();
+        let call = if args.is_empty() {
+            method.to_owned()
+        } else {
+            format!("{method}({args})")
+        };
+        let script = Engine::new().compile(&format!("def run(input: string) -> array<string?>\ns=input;h={{a:[s]}};r=h[\"a\"].fetch(0).{call};[input,s,h[\"a\"].fetch(0),r]\nend")).unwrap();
         let input = Value::bytes("banana");
         let result = script
             .call("run", std::slice::from_ref(&input), CallOptions::default())
@@ -123,9 +130,13 @@ fn transforms_preserve_aliases_and_argument_side_effects() {
             assert_eq!(values[3].as_bytes(), Some(expected.as_bytes()));
         }
     }
-    for call in ["delete(a.shift)", "delete!(a.shift)", "tr(a.shift,\"\")"] {
+    for call in [
+        "delete(a.shift.as(string))",
+        "delete!(a.shift.as(string))",
+        "tr(a.shift.as(string),\"\")",
+    ] {
         let result = Engine::new()
-            .compile(&format!("a=[\"aba\"];r=a[0].{call};[a,r]"))
+            .compile(&format!("a=[\"aba\"];r=a.fetch(0).{call};[a,r]"))
             .unwrap()
             .run(CallOptions::default())
             .unwrap();
@@ -152,7 +163,7 @@ fn returned_storage_outlives_inputs_and_repeated_transforms_reclaim_old_values()
     ] {
         let script = Engine::new()
             .compile(&format!(
-                "def run(input)\noutput=input.{call};input=nil;output\nend"
+                "def run(input: string) -> string\noutput=input.{call};input=\"\";output\nend"
             ))
             .unwrap();
         let result = script
@@ -162,7 +173,7 @@ fn returned_storage_outlives_inputs_and_repeated_transforms_reclaim_old_values()
         assert!(result.stats.retained_memory_bytes >= expected.len());
         assert!(result.stats.retained_memory_bytes < expected.len() + 256);
         let imported = Engine::new()
-            .compile("def run(input)\ninput\nend")
+            .compile("def run(input: string) -> string\ninput\nend")
             .unwrap()
             .call(
                 "run",
@@ -175,7 +186,7 @@ fn returned_storage_outlives_inputs_and_repeated_transforms_reclaim_old_values()
         assert_eq!(imported.value.as_bytes(), Some(expected.as_bytes()));
     }
     let script = Engine::new()
-        .compile("def run(input)\nfor i in 1..32\ninput=input.tr(\"aA\",\"Aa\")\nend\ninput\nend")
+        .compile("def run(input: string) -> string\nfor i in 1..32\ninput=input.tr(\"aA\",\"Aa\")\nend\ninput\nend")
         .unwrap();
     let result = script
         .call(
@@ -203,6 +214,9 @@ fn large_sets_consume_work_and_bad_calls_stop_before_host_effects() {
         count.fetch_add(1, Ordering::Relaxed);
         Ok(Value::int(1))
     });
+    // Blocks and unknown keywords are refused before anything runs.
+    let mut checked = common::static_engine();
+    checked.register("touch", |_, _| panic!("touch ran"));
     for (method, args) in [
         ("count", "\"a\""),
         ("delete", "\"a\""),
@@ -212,30 +226,28 @@ fn large_sets_consume_work_and_bad_calls_stop_before_host_effects() {
         ("squeeze", ""),
         ("squeeze!", ""),
     ] {
-        for block in [false, true] {
-            effects.store(0, Ordering::Relaxed);
-            let call = if block {
-                format!("\"aa\".{method}({args}){{touch()}}")
-            } else {
-                format!(
-                    "\"aa\".{method}({args}{}ignored:touch())",
-                    if args.is_empty() { "" } else { "," }
-                )
-            };
-            let script = engine.compile(&format!("{call};touch()")).unwrap();
-            assert_eq!(
-                script.run(CallOptions::default()).unwrap_err().kind,
-                ErrorKind::Argument
-            );
-            assert_eq!(effects.load(Ordering::Relaxed), usize::from(!block));
+        let call = |suffix: &str| match args {
+            "" => format!("\"aa\".{method}{suffix}"),
+            _ => format!("\"aa\".{method}({args}){suffix}"),
+        };
+        let keyword = match args {
+            "" => format!("\"aa\".{method}(ignored:touch())"),
+            _ => format!("\"aa\".{method}({args},ignored:touch())"),
+        };
+        for (source, code) in [(call("{touch()}"), "V0305"), (keyword, "V0302")] {
+            let source = format!("{source};touch()");
+            let error = checked.compile(&source).err().unwrap();
+            assert_eq!(common::codes(&error), [code], "{source}");
         }
     }
-    for call in [
-        "count(\"z-a\")",
-        "delete(nil)",
-        "tr(\"a\",\"z-a\")",
-        "squeeze(:a)",
-    ] {
+    for call in ["delete(nil)", "squeeze(:a)"] {
+        let error = checked
+            .compile(&format!("\"\".{call};touch()"))
+            .err()
+            .unwrap();
+        assert_eq!(common::codes(&error), ["V0101"], "{call}");
+    }
+    for call in ["count(\"z-a\")", "tr(\"a\",\"z-a\")"] {
         effects.store(0, Ordering::Relaxed);
         let script = engine.compile(&format!("\"\".{call};touch()")).unwrap();
         assert_eq!(
@@ -249,7 +261,9 @@ fn large_sets_consume_work_and_bad_calls_stop_before_host_effects() {
         .collect();
     for call in ["count(set)", "delete(set)", "tr(set,\"x\")", "squeeze(set)"] {
         let script = engine
-            .compile(&format!("def run(input,set)\ninput.{call};touch()\nend"))
+            .compile(&format!(
+                "def run(input: string,set: string)\ninput.{call};touch()\nend"
+            ))
             .unwrap();
         effects.store(0, Ordering::Relaxed);
         let options = CallOptions {
