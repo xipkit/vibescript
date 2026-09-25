@@ -26,7 +26,9 @@ fn step_memory_recursion_and_deadline_limits() {
         ..CallOptions::default()
     };
     assert_eq!(forever.run(options).unwrap_err().kind, ErrorKind::Deadline);
-    let recursive = engine.compile("def f(n)\n f(n+1)\nend\nf(0)").unwrap();
+    let recursive = engine
+        .compile("def f(n: int) -> any\n f(n+1)\nend\nf(0)")
+        .unwrap();
     let options = CallOptions {
         limits: Limits {
             recursion: 32,
@@ -65,7 +67,9 @@ fn cancelled_before_import_never_invokes_host() {
         flag.store(true, Ordering::SeqCst);
         Ok(Value::nil())
     });
-    let script = engine.compile("def run(x)\n host()\nend").unwrap();
+    let script = engine
+        .compile("def run(x: any) -> any\n host()\nend")
+        .unwrap();
     let token = CancellationToken::new();
     token.cancel();
     let options = CallOptions {
@@ -93,7 +97,7 @@ fn shared_inputs_charge_spare_capacity_and_release_it_for_small_results() {
     let capacity = bytes.capacity();
     let input = Value::bytes(bytes);
     let script = Engine::new()
-        .compile("def identity(s)\n s\nend\ndef first(s)\n s[0]\nend")
+        .compile("def identity(s: string) -> string\n s\nend\ndef first(s: string) -> string?\n s[0]\nend")
         .unwrap();
     let result = script
         .call(
@@ -161,7 +165,7 @@ fn running_script_observes_cancellation() {
 
 #[test]
 fn temporary_buffers_and_returned_frames_are_reclaimed() {
-    let script=Engine::new().compile("def temporary(s)\n s.upcase(:ascii)\nend\ndef run(s)\n i=0\n while i<200\n  temporary(s)\n  i+=1\n end\n 7\nend").unwrap();
+    let script=Engine::new().compile("def temporary(s: string) -> string\n s.upcase(:ascii)\nend\ndef run(s: string) -> int\n i=0\n while i<200\n  temporary(s)\n  i+=1\n end\n 7\nend").unwrap();
     let result = script
         .call(
             "run",
@@ -184,7 +188,9 @@ fn temporary_buffers_and_returned_frames_are_reclaimed() {
 fn tiny_json_result_does_not_retain_large_source_or_siblings() {
     let raw = format!("{{\"large\":\"{}\",\"tiny\":\"x\"}}", "a".repeat(200_000));
     let script = Engine::new()
-        .compile("def run(s)\n JSON.parse(s)[\"tiny\"]\nend")
+        .compile(
+            "def run(s: string) -> string?\n JSON.parse(s).as(hash<string, string>)[\"tiny\"]\nend",
+        )
         .unwrap();
     let result = script
         .call(
@@ -232,7 +238,9 @@ fn unescaped_json_strings_fit_without_repeated_buffer_growth() {
 
 #[test]
 fn imported_host_arrays_and_deep_constructed_values_are_bounded() {
-    let script = Engine::new().compile("def run(x)\n x\nend").unwrap();
+    let script = Engine::new()
+        .compile("def run(x: any) -> any\n x\nend")
+        .unwrap();
     let input = Value::array((0..1000).map(Value::int).collect());
     let options = CallOptions {
         limits: Limits {
@@ -246,7 +254,7 @@ fn imported_host_arrays_and_deep_constructed_values_are_bounded() {
         ErrorKind::Memory
     );
     let script = Engine::new()
-        .compile("x = []\ni = 0\nwhile i < 10001\n x = [x]\n i += 1\nend")
+        .compile("x: array<any> = []\ni = 0\nwhile i < 10001\n x = [x]\n i += 1\nend")
         .unwrap();
     assert_eq!(
         script.run(CallOptions::default()).unwrap_err().kind,
@@ -264,7 +272,7 @@ fn imported_host_arrays_and_deep_constructed_values_are_bounded() {
 #[test]
 fn unaliased_array_growth_has_bounded_work_and_memory() {
     let script = Engine::new()
-        .compile("a=[]\ni=0\nwhile i<2000\n a.push(i)\n i+=1\nend\na.sum")
+        .compile("a: array<int> =[]\ni=0\nwhile i<2000\n a.push(i)\n i+=1\nend\na.sum")
         .unwrap();
     let result = script
         .run(CallOptions {
@@ -284,7 +292,7 @@ fn unaliased_array_growth_has_bounded_work_and_memory() {
 fn array_mutation_keeps_depth_limits_accurate() {
     let engine = Engine::new();
     let result = engine
-        .compile("x=[]\ni=0\nwhile i<80\n x=[x]\n i+=1\nend\na=[x]\na[0]=0\ni=0\nwhile i<100\n a=[a]\n i+=1\nend\na.length")
+        .compile("x: array<any> =[]\ni=0\nwhile i<80\n x=[x]\n i+=1\nend\na: array<any> =[x]\na[0]=0\ni=0\nwhile i<100\n a=[a]\n i+=1\nend\na.length")
         .unwrap()
         .run(CallOptions::default())
         .unwrap();
@@ -294,7 +302,7 @@ fn array_mutation_keeps_depth_limits_accurate() {
         value = Value::array(vec![value]);
     }
     let script = engine
-        .compile("def once(a); a << a; end; def twice(a); a << a; a << a; end")
+        .compile("def once(a: array<any>) -> array<any>; a << a; end; def twice(a: array<any>) -> array<any>; a << a; a << a; end")
         .unwrap();
     let accepted = script
         .call("once", std::slice::from_ref(&value), CallOptions::default())
