@@ -4,63 +4,75 @@
 def cases():
     result = []
 
-    def add(name, body, expected, prefix="", **options):
+    def add(name, body, expected, prefix="", returns="any", static_error=None, **options):
         for strict in [False, True]:
             for accounting in [False, True]:
                 result.append({
                     "name": f"capabilities/{name}/{'strict' if strict else 'ordinary'}/{'metered' if accounting else 'unlimited'}",
-                    "source": prefix + "\ndef run(input)\n" + body + "\nend",
+                    "source": prefix + "\ndef run(input: any)" + (f" -> {returns}" if returns else "") + "\n" + body + "\nend",
                     "args": [None], "expected": expected, "accounting": accounting,
                     "strict_effects": strict, "capability_probe": True, **options,
                 })
+                if static_error:
+                    result[-1]["static_error"] = static_error
 
-    for name, body in [
-        ("direct", "host.echo(1, 2)"),
-        ("bare", "host.echo 1, 2"),
-        ("scoped", "host::echo(1, 2)"),
-        ("indexed", "host[:echo](1, 2)"),
-        ("computed", "(host[:echo])(1, 2)"),
-        ("symbolic", "host.send(:echo, 1, 2)"),
-        ("public", "host.public_send(:echo, 1, 2)"),
-        ("alias", "other=host;other.echo(1, 2)"),
-        ("array", "[host][0].echo(1, 2)"),
-        ("copy", "host.dup.echo(1, 2)"),
-        ("clone", "host.clone.echo(1, 2)"),
-        ("iterator_name", "host.map(1, 2)"),
-        ("safe", "host&.echo(1, 2)"),
+    # The probe's methods have no signatures, so they take and return `any`. Indexing a
+    # capability by name, `send`, `respond_to?` and `clone` are removed (ADR-008) and
+    # stay as static rejections.
+    for name, body, static_error in [
+        ("direct", "host.echo(1, 2)", None),
+        ("bare", "host.echo 1, 2", None),
+        ("scoped", "host::echo(1, 2)", None),
+        ("indexed", 'host["echo"](1, 2)', {"code": "V0112", "at": [3, 1]}),
+        ("computed", '(host["echo"])(1, 2)', {"code": "V0112", "at": [3, 2]}),
+        ("symbolic", "host.send(:echo, 1, 2)", {"code": "V0405", "at": [3, 6]}),
+        ("public", "host.public_send(:echo, 1, 2)", {"code": "V0405", "at": [3, 6]}),
+        ("alias", "other=host;other.echo(1, 2)", None),
+        ("array", "[host].fetch(0).echo(1, 2)", None),
+        ("copy", "host.dup.echo(1, 2)", None),
+        ("clone", "host.clone.echo(1, 2)", {"code": "V0401", "at": [3, 6]}),
+        ("iterator_name", "host.map(1, 2)", None),
+        ("safe", "host&.echo(1, 2)", None),
     ]:
-        add(name, body, [[1, 2], {}])
-    for name, body in [
-        ("keywords", "host.echo(1, tag: 2)"),
-        ("splats", "host.echo(*[1], **{tag: 2})"),
-        ("keyword_override", "host.echo(1, tag: 8, **{tag: 2})"),
-        ("keyword_symbolic", "host.public_send(:echo, 1, tag: 2)"),
+        add(name, body, [[1, 2], {}], static_error=static_error)
+    for name, body, static_error in [
+        ("keywords", "host.echo(1, tag: 2)", None),
+        ("splats", "host.echo(*[1], **{tag: 2})", None),
+        ("keyword_override", "host.echo(1, tag: 8, **{tag: 2})", None),
+        ("keyword_symbolic", "host.public_send(:echo, 1, tag: 2)", {"code": "V0405", "at": [3, 6]}),
     ]:
-        add(name, body, [[1], {"tag": 2}])
-    add("counter", "[host.next(), host.next()]", [1, 2])
+        add(name, body, [[1], {"tag": 2}], static_error=static_error)
+    add("counter", "[host.next(), host.next()]", [1, 2], returns="array<any>")
     add("argument_order", "host.echo(host.next(), host.next(), tag: host.next())", [[1, 2], {"tag": 3}])
-    add("checked", "[host.checked(7), host.next()]", [7, 2])
-    add("checked_symbolic", "[host.send(:checked, 7), host.next()]", [7, 2])
-    add("factory", "[host.factory().checked(7), host.next()]", [7, 2])
+    add("checked", "[host.checked(7), host.next()]", [7, 2], returns="array<any>")
+    add("checked_symbolic", "[host.send(:checked, 7), host.next()]", [7, 2], returns="array<any>",
+        static_error={"code": "V0405", "at": [3, 7]})
+    # A factory's result is `any`, and calling a member on `any` is a type error.
+    add("factory", "[host.factory().checked(7), host.next()]", [7, 2], returns="array<any>",
+        static_error={"code": "V0106", "at": [3, 17]})
     add("invalid_argument", 'begin;host.checked("bad");rescue;nil;end;host.next()', 1)
     add("invalid_keywords", "begin;host.checked(1, bad: 2);rescue;nil;end;host.next()", 1)
     add("invalid_arity", "begin;host.checked();rescue;nil;end;host.next()", 1)
     add("invalid_result", "begin;host.checked(0);rescue;nil;end;host.next()", 2)
-    add("factory_contract", 'begin;host.factory().checked("bad");rescue;nil;end;host.next()', 1)
+    add("factory_contract", 'begin;host.factory().checked("bad");rescue;nil;end;host.next()', 1,
+        static_error={"code": "V0106", "at": [3, 22]})
     add("host_error", "begin;host.fail();rescue;7;end", 7)
-    add("ensure", "a=[];begin;host.fail();rescue;a.push(1);ensure;a.push(2);end;a", [1, 2])
-    add("initializer", "[M.C, host.next()]", [1, 2], prefix="module M; C=host.next(); end")
-    add("default", "fetch()", [[1], {}], prefix="def fetch(n=host.next());host.echo(n);end")
-    add("shadow_parameter", "fetch({items: [9]})", [9], prefix="def fetch(host);host.items;end")
+    add("ensure", "a: array<int> = [];begin;host.fail();rescue;a.push(1);ensure;a.push(2);end;a", [1, 2], returns="array<int>")
+    add("initializer", "[M.C, host.next()]", [1, 2], prefix="module M; C=host.next(); end", returns="array<any>")
+    add("default", "fetch()", [[1], {}], prefix="def fetch(n: any = host.next()) -> any;host.echo(n);end")
+    add("shadow_parameter", "fetch({items: [9]})", [9], prefix='def fetch(host: { items: array<int> }) -> array<int>;host["items"];end',
+        returns="array<int>")
     add("override_global", "host", None, globals={"host": None})
-    add("nested_script", "[fetch(), host.next()]", [1, 2], prefix="def fetch;host.next();end")
-    add("missing_skips_args", "begin;fetch();rescue;host.next();end", 1,
-        prefix="def fetch;host.missing(host.next());end")
-    add("responds", "[host.respond_to?(:echo),host.respond_to?(:missing),host.respond_to?(:items)]", [True, False, False])
-    add("file", "require(:send).deliver", [[7], {}], allow_require=True,
-        files={"send.vibe": "def deliver;host.echo(7);end"})
-    for name, read in [("indexed", "host[:checked]"), ("scoped", "host::checked")]:
+    add("nested_script", "[fetch, host.next()]", [1, 2], prefix="def fetch -> any;host.next();end", returns="array<any>")
+    add("missing_skips_args", "begin;fetch;rescue;host.next();end", 1,
+        prefix="def fetch -> any;host.missing(host.next());end", static_error={"code": "V0203", "at": [1, 23]})
+    add("responds", "[host.respond_to?(:echo),host.respond_to?(:missing),host.respond_to?(:items)]", [True, False, False],
+        returns="array<bool>", static_error={"code": "V0405", "at": [3, 7]})
+    add("file", 'require("send").deliver', [[7], {}], allow_require=True,
+        files={"send.vibe": "def deliver -> any;host.echo(7);end"})
+    for name, read, static_error in [("indexed", 'host["checked"]', {"code": "V0112", "at": [3, 14]}),
+                                     ("scoped", "host::checked", {"code": "V0310", "at": [3, 28]})]:
         add(f"detached_{name}", f'begin;method={read};method(7);rescue;"attached-method-required";end',
-            "attached-method-required", go=7, policy="attached_capability_methods",
+            "attached-method-required", static_error=static_error, go=7, policy="attached_capability_methods",
             reason="Capability methods stay attached under ADR-006; immediate calls remain supported.")
     return result
