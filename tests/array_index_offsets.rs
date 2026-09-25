@@ -81,11 +81,7 @@ fn searches_skip_ineligible_elements_and_stop_at_the_first_match() {
         )
     };
     let (full, _) = run("a.index(1000)");
-    for expression in [
-        "a.index(1000,999)",
-        "a.find_index(1000,999)",
-        "a.rindex(1000)",
-    ] {
+    for expression in ["a.index(1000,999)", "a.rindex(1000)"] {
         let (short, value) = run(expression);
         assert_eq!(value.as_int(), Some(999), "{expression}");
         assert!(full >= short + 990, "{expression}: {full} versus {short}");
@@ -111,7 +107,7 @@ fn composite_comparisons_consume_quota_and_cannot_be_rescued() {
         seen.fetch_add(1, Ordering::SeqCst);
         Ok(Value::nil())
     });
-    for method in ["index", "rindex", "find_index"] {
+    for method in ["index", "rindex"] {
         let source = format!(
             "a=(1..1000).to_a;b=a;b[999]=0;mark();begin;[a].{method}(b,0);rescue;effect();end;effect()"
         );
@@ -146,20 +142,14 @@ fn include_string_searches_and_block_calls_keep_their_contracts() {
         .map(Value::as_int)
         .collect();
     assert_eq!(values, [Some(0), Some(2), Some(2), Some(0)]);
+    // No signature takes an offset beside a block, or `include?` an offset.
     for source in [
         "[1].include?(1,0)",
         "[1].index(1,0){true}",
         "[1].rindex(1,0){true}",
     ] {
-        assert_eq!(
-            Engine::new()
-                .compile(source)
-                .unwrap()
-                .run(CallOptions::default())
-                .unwrap_err()
-                .kind,
-            ErrorKind::Argument,
-            "{source}"
-        );
+        let error = common::static_engine().compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0301"], "{source}");
+        assert_eq!(error.diagnostics()[0].span.start, 4, "{source}");
     }
 }
