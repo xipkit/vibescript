@@ -20,16 +20,16 @@ fn outline(source: &str) -> Vec<(DeclarationKind, String, String)> {
 fn declarations_cover_each_top_level_definition_in_source_order() {
     let source = "\
 x = 1
-def double(n)
+def double(n: int) -> int
   n * 2
 end
-private def helper; 1; end; y = 2
-export def shared
+private def helper -> int; 1; end; y = 2
+export def shared -> int
   helper
 end
 alias twice double
 class Invoice
-  def total
+  def total -> int
     7
   end
 end # trailing comment
@@ -46,14 +46,22 @@ end
 ";
     use DeclarationKind::*;
     let expected = [
-        (Function, "double", "def double(n)\n  n * 2\nend"),
-        (Function, "helper", "private def helper; 1; end"),
-        (Function, "shared", "export def shared\n  helper\nend"),
+        (
+            Function,
+            "double",
+            "def double(n: int) -> int\n  n * 2\nend",
+        ),
+        (Function, "helper", "private def helper -> int; 1; end"),
+        (
+            Function,
+            "shared",
+            "export def shared -> int\n  helper\nend",
+        ),
         (Function, "twice", "alias twice double"),
         (
             Class,
             "Invoice",
-            "class Invoice\n  def total\n    7\n  end\nend",
+            "class Invoice\n  def total -> int\n    7\n  end\nend",
         ),
         (Module, "Rates", "module Rates\n  BONUS = 10\nend"),
         (Enum, "Status", "enum Status\n  Open\n  Closed\nend"),
@@ -68,13 +76,13 @@ end
 #[test]
 fn sources_without_declarations_have_an_empty_outline() {
     assert!(outline("").is_empty());
-    assert!(outline("1 + 2\n[1].each do |n|\n  n\nend").is_empty());
+    assert!(outline("1 + 2\n[1].each { |n|\n  n\n}").is_empty());
 }
 
 #[test]
 fn declaration_spans_carry_definitions_into_later_scripts() {
     let engine = Engine::new();
-    let first = "count = 3\ndef scale(n)\n  n * Tuning::FACTOR\nend\nmodule Tuning\n  FACTOR = 2\nend\n\
+    let first = "count = 3\ndef scale(n: int) -> int\n  n * Tuning::FACTOR\nend\nmodule Tuning\n  FACTOR = 2\nend\n\
                  enum Level\n  Low\n  High\nend";
     let script = engine.compile(first).unwrap();
     let prelude: String = script
