@@ -10,10 +10,10 @@ use vibescript::{
 #[test]
 fn a_program_with_type_errors_does_not_compile_in_static_mode() {
     let source = "def run -> int\n  count = 1\n  count = \"one\"\n  count\nend\n";
-    let mut engine = Engine::new();
+    let mut engine = crate::common::gradual_engine();
     assert!(
         engine.compile(source).is_ok(),
-        "the default mode still compiles it"
+        "the mode without static types still compiles it"
     );
     engine.set_static_types(true);
     let error = engine.compile(source).err().expect("a type error");
