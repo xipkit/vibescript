@@ -246,6 +246,18 @@ fn language_runtime_rejections() {
             .as_str()
             .map(str::to_owned)
             .unwrap_or_else(|| format!("def run(input)\n{}\nend", case["body"].as_str().unwrap()));
+        // A case the static checker rejects fails to compile with static types.
+        if let Some(expected) = case.get("static_error") {
+            let mut engine = engine(case).0;
+            engine.set_static_types(true);
+            let error = engine
+                .compile(&source)
+                .err()
+                .unwrap_or_else(|| panic!("{name}: compiled with static types"));
+            let first = error.diagnostics().iter().find(|d| d.is_error()).unwrap();
+            assert_eq!(first.code.to_string(), expected["code"], "{name}");
+            continue;
+        }
         let script = engine(case)
             .0
             .compile(&source)
