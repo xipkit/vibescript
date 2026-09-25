@@ -398,6 +398,40 @@ fn static_compilation_reports_removed_spellings() {
 }
 
 #[test]
+fn removed_spellings_in_required_files_are_reported_at_compile_time() {
+    let directory = std::env::temp_dir().join(format!("surface-modules-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).unwrap();
+    let helpers = "def count_of(items: array<int>) -> int\n  items.size\nend\n";
+    std::fs::write(directory.join("helpers.vibe"), helpers).unwrap();
+    let mut engine = Engine::new();
+    engine
+        .set_module_config(crate::ModuleConfig {
+            paths: vec![directory.clone()],
+            ..crate::ModuleConfig::default()
+        })
+        .unwrap();
+    engine.set_static_types(true);
+    let source = "def run -> int\n  h = require(\"helpers\")\n  h.count_of([1])\nend\n";
+    let error = engine.compile(source).err().expect("a compile error");
+    let found: Vec<(String, Option<String>)> = error
+        .diagnostics()
+        .iter()
+        .map(|d| {
+            let file = d
+                .file
+                .as_deref()
+                .map(|f| String::from_utf8_lossy(f).into_owned());
+            (d.code.to_string(), file)
+        })
+        .collect();
+    assert_eq!(
+        found,
+        [("V0401".to_owned(), Some("helpers.vibe".to_owned()))]
+    );
+    let _ = std::fs::remove_dir_all(&directory);
+}
+
+#[test]
 fn nesting_deeper_than_the_limit_is_still_checked() {
     let depth = 400;
     let source = format!("x = {}[1].size{}\n", "[".repeat(depth), "]".repeat(depth));

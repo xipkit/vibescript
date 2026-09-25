@@ -219,12 +219,15 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     diagnostics.dedup_by(|a, b| a.code == b.code && a.span == b.span && a.message == b.message);
     let steps =
         checker.steps + checker.frame.flow.steps + checker.types.steps + checker.spans.steps.get();
-    Checked {
+    let mut checked = Checked {
         diagnostics,
         calls: CallTypes::from_entries(checker.calls),
         steps,
         exports,
-    }
+    };
+    // Removed spellings of the canonical surface are compile errors too.
+    crate::surface::add_to(&mut checked, input.source, input.tokens);
+    checked
 }
 
 /// Checks that the command line can call `function` with `count` arguments,

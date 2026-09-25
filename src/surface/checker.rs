@@ -53,6 +53,7 @@ pub(crate) fn add_to(
     source: &str,
     tokens: &[tooling::Token],
 ) {
+    checked.steps += u64::try_from(tokens.len()).unwrap_or(u64::MAX);
     let surface = check_tokens(source, tokens, &checked.calls);
     if surface.is_empty() {
         return;

@@ -161,16 +161,14 @@ impl Engine {
         let (parsed, tokens) = syntax::parse_with_tokens(source, &())
             .map_err(|error| source::parse_error(source, None, error, &()))?;
         let resolve = |path: &str| self.loader.source(path);
-        let mut checked = typing::check(&typing::Input {
+        Ok(typing::check(&typing::Input {
             source,
             parsed: &parsed,
             tokens: &tokens,
             hosts: self.hosts.iter().collect(),
             file: false,
             modules: Some(&resolve),
-        });
-        surface::add_to(&mut checked, source, &tokens);
-        Ok(checked)
+        }))
     }
     /// Checks that a command line can call `function` in `source` with
     /// `count` arguments, which it passes as strings (ADR-007): each
