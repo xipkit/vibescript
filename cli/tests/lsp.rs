@@ -213,7 +213,7 @@ fn serves_editor_features_over_stdio() {
     let signature = session.request(7, "textDocument/signatureHelp", position(&uri, 4, 19));
     assert_eq!(
         signature["result"]["signatures"][0]["label"],
-        "require(module_name, as: nil) -> object"
+        "require(path: string, *, as: string? = nil) -> any"
     );
     assert_eq!(signature["result"]["activeParameter"], 0);
 

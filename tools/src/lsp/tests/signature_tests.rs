@@ -108,7 +108,10 @@ fn param_labels_follow_declaration_syntax() {
 fn signature_help_for_builtins() {
     let result = help("def run()\n  money_cents(\nend\n", 1, 14);
     let label = result["signatures"][0]["label"].as_str().unwrap();
-    assert!(label.contains("money_cents(cents, currency)"), "{label}");
+    assert!(
+        label.contains("money_cents(cents: int, currency: string) -> money"),
+        "{label}"
+    );
     assert_eq!(result["activeParameter"], 0);
 }
 

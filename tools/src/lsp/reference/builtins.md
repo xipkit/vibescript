@@ -1,464 +1,445 @@
-# Built-in Functions
+# Builtin functions
 
-Vibescript provides several built-in functions available globally in all scripts.
+Every script can call these global functions and namespaces. Signatures are
+written as in `vibes prelude`: `name?: T` is an optional argument, `*name` takes
+any number of arguments, parameters after a bare `*` are keywords, and a call
+without arguments takes no parentheses.
 
 ## Assertions
 
-### `assert(condition, message = nil, message: nil) -> nil`
+### `assert(condition: bool, message?: string)`
 
-Raises an error if `condition` is falsy. Use for validating preconditions.
+Raises an `AssertionError` when `condition` is false, with `message` or
+`assertion failed`. Use it to check preconditions.
 
 ```vibe
-def validate_amount(amount)
+def validate_amount(amount: int) -> int
   assert amount > 0, "amount must be positive"
   amount
 end
+
+validate_amount(5)  # 5
 ```
 
 ## Output
 
-### `puts(*values) -> nil`
+### `puts(*values: array<any>)`
 
-Writes each value to the configured output, one per line, and a single blank
-line when called with no arguments. Returns `nil`.
+Writes each value to the configured output, one per line, rendered as string
+interpolation renders it; with no values it writes one blank line.
 
 ```vibe
 puts "processing", 42
 ```
 
-### `print(*values) -> nil`
+### `print(*values: array<any>)`
 
-Writes each value to the configured output without a trailing newline. Returns
-`nil`.
-
-```vibe
-print "loading", "..."  # loading...
-```
-
-### `p(*values) -> value`
-
-Writes each value in inspect form (strings keep their quotes), one per line,
-then returns its argument: the single value for one argument, an array of the
-values for several, and `nil` for none. Useful for debug-printing a value
-inside a larger expression.
+Writes each value to the configured output without a line break.
 
 ```vibe
-count = p(42)  # prints 42, returns 42
-p("id", 7)     # prints "id" and 7, returns ["id", 7]
+print "loading", "...\n"  # loading...
 ```
 
-### `warn(*values) -> nil`
+### `p<T>(value: T) -> T` / `p` / `p(first: any, second: any, *rest: array<any>) -> array<any>`
 
-Writes each value to the configured error output, one per line. Returns `nil`.
+Writes each value in inspect form, where strings keep their quotes, one per
+line, and returns what it was given: the value for one argument, an array of
+the values for several, and `nil` for none. Use it to print a value inside a
+larger expression.
+
+```vibe
+count = p(42) + 1  # prints 42; count is 43
+pair = p("id", 7)  # prints "id" and 7; pair is ["id", 7]
+```
+
+### `warn(*values: array<any>)`
+
+Writes each value to the configured error output, one per line.
 
 ```vibe
 warn "rate limit nearly reached"
 ```
 
+## Formatting
+
+### `format(pattern: string, *values: array<any>) -> string`
+
+Formats values with a percent pattern: `%s`, `%d`, `%f`, `%x`, `%o`, `%b`,
+`%e`, `%q` and `%%`, with flags, width and precision such as `%05d` or `%.2f`,
+and indexed operands such as `%2$s`. `string % values` formats the same way.
+Output is capped at 1 MiB before padding is built.
+
+```vibe
+format("%.2f", 1.234)          # "1.23"
+format("%x", 255)              # "ff"
+format("%2$s %1$s", "a", "b")  # "b a"
+"%s:%03d" % ["id", 7]          # "id:007"
+```
+
 ## Money
 
-### `money(literal) -> money`
+### `money(amount: string) -> money`
 
-Parses a money value from a string in the format `"amount CURRENCY"`:
+Parses an amount and a three-letter currency code, such as `"12.50 USD"`.
 
 ```vibe
 total = money("100.50 USD")
 fee = money("2.50 USD")
-net = total - fee  # money("98.00 USD")
+net = total - fee  # 98.00 USD
 ```
 
-### `money_cents(cents, currency) -> money`
+### `money_cents(cents: int, currency: string) -> money`
 
-Creates a money value from an integer cent amount:
+Builds money from a whole number of cents.
 
 ```vibe
-price = money_cents(2550, "USD")  # $25.50 USD
+price = money_cents(2550, "USD")  # 25.50 USD
+price.cents                       # 2550
 ```
 
-## Time
-
-Time values come from the `now` builtin and the `Time` namespace's
-constructors and parser; all of them respect the configured clock and
-time zone.
-
-### `now -> string`
-
-Returns the current UTC timestamp as an ISO 8601 / RFC 3339 formatted string:
-
-```vibe
-def log_event(name)
-  {
-    event: name,
-    timestamp: now
-  }
-end
-
-# Returns: { event: "user_signup", timestamp: "2025-01-15T10:30:45Z" }
-```
-
-**Note:** The `now` function returns a string, not a time object. This is suitable for logging and timestamping.
-
-For time manipulation in Vibescript, use the `Time` object (`Time.now`, `Time.parse`, `Time.utc`, etc.). See `docs/time.md`.
-
-### Time constructors
-
-The `Time` namespace builds first-class time values. Zone keywords accept IANA
-names (`"America/New_York"`), `"UTC"`/`"GMT"`, `"LOCAL"`, or numeric offsets
-like `"+05:30"`. See [Time](time.md) for the full instance-method surface.
-
-- `Time.now(in: zone)` – the current time as a time value, optionally in a
-  zone.
-- `Time.new(year, month = 1, day = 1, hour = 0, min = 0, sec = 0, zone = nil, in: zone)`
-  – builds a calendar time; omitted fields default to January 1 at midnight.
-- `Time.local(year, month = 1, day = 1, hour = 0, min = 0, sec = 0, usec = 0)` /
-  `Time.mktime(...)` – calendar time in the host's local zone.
-- `Time.utc(year, month = 1, day = 1, hour = 0, min = 0, sec = 0, usec = 0)` /
-  `Time.gm(...)` – calendar time in UTC.
-- `Time.at(seconds, subsec = nil, unit = nil, in: zone)` – time from epoch
-  seconds, with Ruby-style subsecond arguments.
-- `Time.parse(string, layout = nil, in: zone)` – parses common formats
-  (RFC3339/RFC1123, `YYYY-MM-DD`, ...) or an explicit Go layout.
-
-```vibe
-Time.utc(2024).iso8601  # "2024-01-01T00:00:00Z"
-```
-
-## Control Flow
-
-### `loop { ... } -> value`
-
-Runs the block until it exits with `break`. A `break value` becomes the return
-value, and `next` skips to the next iteration.
-
-```vibe
-x = 0
-value = loop do
-  x = x + 1
-  if x == 3
-    break :done
-  end
-end
-```
-
-## Removed Callable Constructors
-
-### `proc { |args| ... }` / `Proc` / `lambda { |args| ... }`
-
-Removed, including `Proc.new`. Executable code is not a value: each of these
-names now fails with an error naming the replacement. Define a named function and call it, or attach a
-block to the call that runs it, as in `people.map { |person| person.name }`.
-See [Blocks](blocks.md) for the supported block forms.
-
-## Formatting
-
-### `format(pattern, *values) -> string` / `sprintf(pattern, *values) -> string`
-
-Formats values with Ruby-style percent format strings for common numeric and
-string cases. `String#%` uses the same formatter. Output is capped at 1 MiB
-before width or precision padding is materialized.
-
-```vibe
-"%s:%03d" % ["id", 7]  # "id:007"
-format("%.2f", 1.234)  # "1.23"
-sprintf("%x", 255)     # "ff"
-```
-
-## Random IDs
+## Random values
 
 ### `uuid -> string`
 
-Returns an RFC 9562 version 7 UUID string:
+A new RFC 9562 version 7 UUID.
 
 ```vibe
 event_id = uuid
 ```
 
-### `random_id(length = 16) -> string`
+### `random_id(length: int = 16) -> string`
 
-Returns an alphanumeric random identifier string:
+A random alphanumeric token of `length` characters, from 1 to 1,024.
 
 ```vibe
 short = random_id(8)
-token = random_id()
+token = random_id
 ```
 
-### `rand(max = nil) -> number`
+### `rand(max: int | range) -> int` / `rand -> float`
 
-Returns a random float in `[0.0, 1.0)` with no argument, an integer in
-`0...max` for a positive integer bound, or an integer inside an integer range.
+A random float in `[0, 1)` without an argument, an int from `0` up to but not
+including `max`, or an int inside an integer range.
 
 ```vibe
-rand < 1.0
-rand(10)
-rand(1..3)
+chance = rand       # a float below 1.0
+die = rand(1..6)    # an int from 1 to 6
+index = rand(10)    # an int from 0 to 9
 ```
 
-### `srand(seed = nil) -> int | nil`
+### `srand(seed: int? = nil) -> int?`
 
-Seeds the current script call's `rand` sequence. Reusing the same integer seed
-inside a call gives the same sequence without leaking seeded state into later
+Seeds this call's `rand` sequence and returns the previous seed, or `nil`
+when there was none. Without a seed it picks a fresh random one. The same seed
+gives the same sequence within a call, and a seed never carries into later
 calls.
 
 ```vibe
 srand(1234)
-[rand, rand(10), rand(1..3)]
+first = [rand(10), rand(10)]
+srand(1234)
+again = [rand(10), rand(10)]
+first == again  # true
 ```
 
-## Numeric Conversion
+## Numeric conversion
 
-### `to_int(value) -> int`
+### `to_int(value: number | string) -> int`
 
-Converts `int`, integral `float`, or base-10 numeric `string` values into `int`.
+Converts an int, a float with no fractional part, or a base-10 integer
+string. Anything else raises.
 
-### `to_float(value) -> float`
+### `to_float(value: number | string) -> float`
 
-Converts `int`, `float`, or numeric `string` values into `float`.
+Converts an int, a float, or a finite decimal or hexadecimal float string.
+Anything else raises.
 
 ```vibe
-count = to_int("42")
-ratio = to_float("1.25")
+count = to_int("42")      # 42
+whole = to_int(3.0)       # 3
+ratio = to_float("1.25")  # 1.25
 ```
 
-## Math
+## Control flow
 
-The `Math` namespace mirrors Ruby's `Math` module: transcendental constants and
-pure numeric helpers backed by the host's math library. Constants read with
-either accessor (`Math::PI` or `Math.PI`) and helpers are called like
-`Math.sqrt(9)`. Integer arguments are promoted to floats and every helper
-returns a `float`, just like Ruby where `Math` always yields a `Float`.
+### `loop(&block: ()) -> any`
 
-### Constants
-
-- `Math::PI` – the ratio of a circle's circumference to its diameter.
-- `Math::E` – the base of the natural logarithm.
-
-### Functions
-
-- `Math.sqrt(x)` / `Math.cbrt(x)` – square and cube roots.
-- `Math.sin(x)`, `Math.cos(x)`, `Math.tan(x)` – trigonometric functions
-  (radians).
-- `Math.asin(x)`, `Math.acos(x)`, `Math.atan(x)` – inverse trigonometric
-  functions; `asin`/`acos` require `-1 <= x <= 1`.
-- `Math.atan2(y, x)` – angle of the point `(x, y)` from the positive x-axis.
-- `Math.exp(x)` – `E` raised to `x`.
-- `Math.log(x)` / `Math.log(x, base)` – natural logarithm, or the logarithm in
-  the given base.
-- `Math.log2(x)` / `Math.log10(x)` – base-2 and base-10 logarithms.
-- `Math.hypot(x, y)` – `sqrt(x**2 + y**2)` without intermediate overflow.
+Runs the block until it breaks. `break value` makes `value` the result, and
+`next` starts the next pass.
 
 ```vibe
-Math.sqrt(9)        # 3.0
-Math::PI            # 3.141592653589793
-Math.hypot(3, 4)    # 5.0
-Math.log(8, 2)      # 3.0
+x = 0
+result = loop {
+  x += 1
+  if x == 3
+    break "done"
+  end
+}
 ```
 
-Arguments outside a function's mathematical domain raise a domain error (for
-example `Math.sqrt(-1)`, `Math.asin(2)`, or `Math.asin(Float::INFINITY)`),
-matching Ruby's `Math::DomainError`. In-domain special values follow Ruby and
-IEEE 754: `Math.log(0)` returns `-Infinity`, `Math.sin`/`cos`/`tan` of
-`Infinity` return `NaN`, and a `NaN` argument propagates through unchanged.
+## Module loading
+
+### `require(path: string, *, as: string? = nil) -> any`
+
+Loads a module from the configured module paths and returns a namespace of its
+public functions, which are also bound by name in the requiring script when
+the name is free. `def` and `export def` are public; `private def` stays in the
+module. The module name and the `as:` alias are string literals, so the
+compiler resolves the module and checks every call into it with its declared
+types before the script runs. A module's top-level statements run once per
+call, before its functions are returned.
+
+```vibe module=fees.vibe
+export def calculate_fee(amount: int) -> int
+  amount // 20
+end
+```
+
+```vibe
+def calculate_total(amount: int) -> int
+  require("fees", as: "helpers")
+  amount + helpers.calculate_fee(amount)
+end
+
+calculate_total(100)  # 105
+```
+
+## Time
+
+`Time` builds, reads and parses time values. Zones are IANA names such as
+`"America/New_York"`, `"UTC"`, `"LOCAL"` for the host's zone, or offsets such
+as `"+05:30"`. See [Time](time.md) for the members of a time.
+
+### `Time.now(*, in: string? = nil) -> time`
+
+The current time, in UTC unless `in:` names a zone.
+
+### `Time.utc(year: int, month: int = 1, day: int = 1, hour: int = 0, min: int = 0, sec: int = 0, usec: number = 0) -> time`
+
+A calendar time in UTC. Omitted fields default to January 1 at midnight.
+
+### `Time.local(year: int, month: int = 1, day: int = 1, hour: int = 0, min: int = 0, sec: int = 0, usec: number = 0, *, in: string? = nil) -> time`
+
+A calendar time in the zone `in:` names, or in the host's zone.
+
+### `Time.at(seconds: number, subsec?: number, unit?: :microsecond | :millisecond | :nanosecond, *, in: string? = nil) -> time`
+
+A time from Unix epoch seconds, with an optional subsecond offset in
+microseconds or the given unit.
+
+### `Time.parse(text: string, layout: string? = nil, *, in: string? = nil) -> time`
+
+Parses RFC 3339, RFC 1123, `YYYY-MM-DD` and similar common formats, or `text`
+in a Go layout such as `"2006-01-02"`. A timestamp without a zone is read in
+UTC, or in the zone `in:` names.
+
+```vibe
+Time.utc(2024).iso8601                            # "2024-01-01T00:00:00Z"
+Time.local(2024, 1, 2, in: "Asia/Tokyo").iso8601  # "2024-01-02T00:00:00+09:00"
+Time.parse("2024-01-02").iso8601                  # "2024-01-02T00:00:00Z"
+Time.at(0).utc.iso8601                            # "1970-01-01T00:00:00Z"
+```
+
+### Removed spellings
+
+- `Time.gm` – removed; use `Time.utc`.
+- `Time.mktime` – removed; use `Time.local`.
+- `Time.new` – removed; use `Time.local`, passing a zone as `in:`.
 
 ## Duration
 
-Duration values usually come from duration literals (`5.minutes`, `2.days`);
-the `Duration` namespace builds them from numbers and strings. See
-[Durations](durations.md) for the full instance-method surface.
+`Duration` builds duration values from parts and parses them from text.
+Durations usually come from integer units such as `5.minutes`; see
+[Durations](durations.md) for their members.
 
-### `Duration.build(seconds)` / `Duration.build(weeks:, days:, hours:, minutes:, seconds:)`
+### `Duration.build(*, weeks: number = 0, days: number = 0, hours: number = 0, minutes: number = 0, seconds: number = 0) -> duration`
 
-Builds a duration from total seconds or from named parts. At least one part is
-required (a bare `Duration.build()` errors), and positional seconds and named
-parts are mutually exclusive.
+Adds the named parts. At least one part is required.
 
-### `Duration.parse(string)`
+### `Duration.parse(text: string) -> duration`
 
-Parses Go duration strings (`"1h30m"`, whole seconds only) or ISO 8601
-durations (`"PT90S"`, `"P2W"`).
+Parses a Go duration such as `"1h30m"`, in whole seconds, or an ISO 8601
+duration such as `"PT90S"` or `"P2W"`.
 
 ```vibe
-Duration.build(hours: 1, minutes: 30).minutes # 90
-Duration.parse("1h30m").seconds               # 5400
+Duration.build(hours: 1, minutes: 30).minutes  # 90
+Duration.parse("1h30m").to_i                   # 5400
+Duration.parse("P2W").days                     # 14
 ```
 
 ## JSON
 
-`JSON` converts between JSON text and Vibescript values: parsing preserves
-member order and reads oversized integers exactly, and stringifying emits
-members in insertion order.
+`JSON` converts between JSON text and values. Parsing keeps member order and
+reads integers of any size exactly; stringifying writes members in insertion
+order. Both directions cap the text at 1 MiB and nesting at 10,000 arrays and
+objects.
 
-### `JSON.parse(string)`
+### `JSON.parse(text: string) -> any`
 
-Parses a JSON string into Vibescript values (`hash`, `array`, `string`, `int`,
-`float`, `bool`, `nil`):
+Parses JSON into hashes, arrays, strings, ints, floats, bools and `nil`, and
+rejects trailing data. The result is `any`: narrow it with `is_type?` or a
+cast, or parse with `JSON.parse_as` instead. A duplicate key keeps its last
+value.
 
 ```vibe
 payload = JSON.parse("{\"id\":\"p-1\",\"score\":10}")
-payload["score"] # 10
-```
-
-**A round trip preserves lookup.** Hash keys live in one string keyspace, so a
-parsed object is equal to the literal it came from and both key spellings read
-the same entry:
-
-```vibe
-obj  = { name: "Ada" }
-back = JSON.parse(JSON.stringify(obj))
-back["name"]  # "Ada"
-back[:name]   # "Ada"
-back == obj   # true
-```
-
-`JSON.parse` enforces a 1 MiB input limit and rejects more than 10,000 nested
-arrays/objects.
-
-### `JSON.parse_as(string, shape)`
-
-Parses a JSON string and validates the result against a shape in one step,
-with the same semantics as typed parameter boundaries. The static checker
-treats the result as that shape, so downstream reads are inferred and checked
-without further annotations. Validation failures raise the standard
-typed-boundary error. See [Typing](typing.md#jsonparse_as).
-
-```vibe
-body = JSON.parse_as(raw, { name: string, email: string })
-body["name"]  # a known string
-```
-
-### `JSON.stringify(value)`
-
-Serializes supported values (`hash`/`object`, `array`, scalar primitives) into
-a JSON string:
-
-```vibe
-raw = JSON.stringify({ id: "p-1", score: 10, tags: ["a", "b"] })
-```
-
-`JSON.stringify` enforces a 1 MiB output limit and rejects more than 10,000
-nested arrays/objects.
-
-## Regex
-
-Regex patterns are quoted strings or Ruby-style `/pattern/flags` regex
-literals. A literal produces a first-class regex value with `source`, `flags`,
-`match`, and `match?` members, works with the `=~` and `!~` match operators and
-`case`/`when` matching, and is accepted by the string pattern helpers
-(`match`, `match?`, `scan`, `sub`, `gsub`). Supported flags are `i`
-(case-insensitive) and `m` (`.` matches newlines); patterns use Go's RE2
-syntax, exactly like quoted string patterns.
-
-```vibe
-"ID-12" =~ /id-([0-9]+)/i     # 0 (character index of the match, nil when none)
-"ID-12" !~ /x/                # true
-/id-([0-9]+)/i.match("ID-12") # match data: m[0] "ID-12", m[1] "12"
-"ID-12 ID-34".gsub(/ID-/, "") # "12 34"
-"ID-12".match /id-([0-9]+)/i  # parenless command argument, same as match(...)
-```
-
-A regex literal also works as a parenless command argument, matching Ruby:
-after a callee that is not a local variable, a space before the slash with
-none after it opens the literal, so `text.scan /a+/` is `text.scan(/a+/)`. A
-slash after a local variable always divides (`total /2`), as does a slash
-spaced on both sides or flush (`f / 2`, `f/2`). See the
-[language reference](language_reference.md#method-calls) for the full spacing
-rule.
-
-### `Regex.match(pattern, text)`
-
-Returns the first match string or `nil` when no match exists.
-
-### `Regex.replace(text, pattern, replacement)`
-
-Replaces the first regex match in `text`.
-
-### `Regex.replace_all(text, pattern, replacement)`
-
-Replaces all regex matches in `text`.
-
-```vibe
-Regex.match("ID-[0-9]+", "ID-12 ID-34")                  # "ID-12"
-Regex.replace("ID-12 ID-34", "ID-[0-9]+", "X")           # "X ID-34"
-Regex.replace_all("ID-12 ID-34", "ID-[0-9]+", "X")       # "X X"
-Regex.replace("ID-12", "ID-([0-9]+)", "X-$1")            # "X-12"
-```
-
-Regex helpers enforce input guards (max pattern size 16 KiB, max text size 1 MiB).
-
-### `Regexp.new(pattern)`
-
-Compiles a pattern string into a first-class regex value, equivalent to a
-`/pattern/` literal without flags.
-
-### `Regexp.escape(text)` / `Regexp.quote(text)`
-
-Returns `text` with every regex metacharacter escaped, so the result matches
-the text literally when used as a pattern.
-
-### `Regexp.union(*patterns)`
-
-Builds a regex value that matches any of the given pattern strings.
-
-### `Regexp.last_match`
-
-Returns `nil`: Vibescript does not track Ruby's global per-call match state.
-The member exists for Ruby compatibility; use `regex.match(text)` to obtain
-match data directly.
-
-```vibe
-Regexp.new("ID-[0-9]+").match?("ID-12")   # true
-Regexp.escape("a.b*c")                    # "a\\.b\\*c"
-Regexp.union("cat", "dog").match?("dog")  # true
-```
-
-### `Regex.new(pattern)`
-
-The canonical spelling of `Regexp.new`.
-
-### `Regex.escape(text)`
-
-The canonical spelling of `Regexp.escape`.
-
-### `Regex.union(*patterns)`
-
-The canonical spelling of `Regexp.union`. Without patterns, as `Regex.union`,
-it matches nothing.
-
-## Hash
-
-`Hash` constructs an empty hash.
-
-### `Hash.new`
-
-Builds an empty hash, identical to a `{}` literal. Hashes carry no per-hash
-default, so `Hash.new` takes no argument and no block; a missing key reads as
-`nil` and `fetch` supplies a fallback per lookup. See
-[Missing keys](hashes.md#missing-keys).
-
-```vibe
-Hash.new                     # {}
-Hash.new[:missing]           # nil
-Hash.new.fetch(:missing, 0)  # 0
-```
-
-## Module Loading
-
-### `require(module_name, as: nil) -> object`
-
-Loads a module from configured module search paths and returns a namespace
-object containing its exported function names and enums. Exported functions are
-called directly through that namespace; they are not detachable function
-values. Module functions are exported by default, and top-level enums are
-exported as well. Executable top-level statements run as the module initializer
-before exports are returned, so module-local values can be prepared for later
-calls. `private def ...` keeps helper functions module-local. Exported names are
-injected into globals only when the name is still free (existing globals keep
-precedence), and `as:` can bind the namespace explicitly:
-
-```vibe
-def calculate_total(amount)
-  require("fee_calculator", as: "helpers")
-  amount + helpers.calculate_fee(amount)
+if payload.is_type?(:hash)
+  record = payload.as(hash<string, any>)
+  record["score"]  # 10
 end
 ```
 
-See `examples/module_require.md` for detailed usage patterns.
+### `JSON.parse_as<T>(text: string, schema: type<T>) -> T`
+
+Parses JSON and checks the result against a type, in one step, as a typed
+parameter checks its argument; a mismatch raises the same boundary error. The
+type is written as in an annotation: a shape such as `{ name: string, age?: int }`,
+`array<int>`, `int?` or a type alias. The result has that type, so later reads
+are checked without narrowing. A shape rejects extra fields unless it ends
+with `...`.
+
+```vibe
+raw = "{\"name\":\"Ada\",\"email\":\"ada@example.com\"}"
+user = JSON.parse_as(raw, { name: string, email: string })
+user["name"].upcase                      # "ADA"
+JSON.parse_as("[1, 2]", array<int>).sum  # 3
+```
+
+### `JSON.stringify(value: any) -> string`
+
+Serializes hashes, arrays, strings, numbers, bools and `nil`; symbols and enum
+members become strings. Money, durations and times raise, so convert them
+first, for example with `to_s` or `iso8601`.
+
+```vibe
+JSON.stringify({ id: "p-1", score: 10, tags: ["a", "b"] })
+# "{\"id\":\"p-1\",\"score\":10,\"tags\":[\"a\",\"b\"]}"
+```
+
+## Math
+
+`Math` holds numeric constants and float functions. Integer arguments are
+converted to floats, and every function returns a `float`. Arguments outside
+a function's domain raise, such as `Math.sqrt(-1)`; `Math.log(0)` is
+`-Infinity`, and a NaN argument gives NaN.
+
+### Constants
+
+- `Math::PI` – the ratio of a circle's circumference to its diameter, a `float`.
+- `Math::E` – the base of the natural logarithm, a `float`.
+
+### Functions
+
+- `Math.sqrt(x: number) -> float` – the square root.
+- `Math.cbrt(x: number) -> float` – the cube root, also of negative numbers.
+- `Math.sin(x: number) -> float` – the sine of an angle in radians.
+- `Math.cos(x: number) -> float` – the cosine of an angle in radians.
+- `Math.tan(x: number) -> float` – the tangent of an angle in radians.
+- `Math.asin(x: number) -> float` – the inverse sine, for `-1 <= x <= 1`.
+- `Math.acos(x: number) -> float` – the inverse cosine, for `-1 <= x <= 1`.
+- `Math.atan(x: number) -> float` – the inverse tangent.
+- `Math.atan2(y: number, x: number) -> float` – the angle of the point
+  `(x, y)` from the positive x axis.
+- `Math.exp(x: number) -> float` – `Math::E` raised to `x`.
+- `Math.log(x: number, base?: number) -> float` – the natural logarithm, or
+  the logarithm in `base`.
+- `Math.log2(x: number) -> float` – the base-2 logarithm.
+- `Math.log10(x: number) -> float` – the base-10 logarithm.
+- `Math.hypot(x: number, y: number) -> float` – `sqrt(x ** 2 + y ** 2)`
+  without intermediate overflow.
+
+```vibe
+Math.sqrt(9)      # 3.0
+Math::PI          # 3.141592653589793
+Math.hypot(3, 4)  # 5.0
+Math.log(8, 2)    # 3.0
+```
+
+## Regex
+
+`Regex` builds regex values and runs one-off matches and replacements.
+Patterns use RE2 syntax, are at most 16 KiB, and match text of at most 1 MiB.
+A regex literal such as `/id-([0-9]+)/i` is a regex value too; its flags are
+`i` (ignore case) and `m` (`.` matches line breaks). A regex works with the
+`=~` and `!~` operators, `case`/`when` and the string members `match`,
+`match?`, `scan`, `sub` and `gsub`.
+
+```vibe
+"ID-12" =~ /id-([0-9]+)/i      # 0, the character index of the match
+"ID-12" !~ /x/                 # true
+"ID-12 ID-34".gsub(/ID-/, "")  # "12 34"
+```
+
+### `Regex.new(pattern: string) -> regex`
+
+Compiles `pattern` into a regex value, as a literal without flags would be. An
+invalid pattern raises.
+
+### `Regex.escape(text: string) -> string`
+
+`text` with every regex metacharacter escaped, so it matches literally.
+
+### `Regex.union(*patterns: array<string>) -> regex`
+
+A regex matching any of the strings, each literally. Without strings it
+matches nothing.
+
+### `Regex.match(pattern: string, text: string) -> string?`
+
+The first match of `pattern` in `text`, or `nil`.
+
+### `Regex.replace(text: string, pattern: string, replacement: string) -> string`
+
+Replaces the first match in `text`; `$1` in `replacement` expands to the first
+group.
+
+### `Regex.replace_all(text: string, pattern: string, replacement: string) -> string`
+
+Replaces every match in `text`, expanding `$1` like `Regex.replace`.
+
+```vibe
+Regex.match("ID-[0-9]+", "ID-12 ID-34")             # "ID-12"
+Regex.replace("ID-12 ID-34", "ID-[0-9]+", "X")      # "X ID-34"
+Regex.replace_all("ID-12 ID-34", "ID-[0-9]+", "X")  # "X X"
+Regex.replace("ID-12", "ID-([0-9]+)", "X-$1")       # "X-12"
+Regex.new("ID-[0-9]+").match?("ID-12")              # true
+Regex.escape("a.b*c")                               # "a\\.b\\*c"
+Regex.union("cat", "dog").match?("dog")             # true
+```
+
+## Regexp
+
+The `Regexp` namespace is removed; `Regex` is the one regex namespace. These
+names still run until the static language is the default, but do not compile
+with static types.
+
+- `Regexp.new` – removed; use `Regex.new`.
+- `Regexp.escape`, `Regexp.quote` – removed; use `Regex.escape`.
+- `Regexp.union` – removed; use `Regex.union`.
+- `Regexp.last_match` – removed; it was always `nil`. Keep the match data
+  that `match` returns instead.
+
+## Hash
+
+The `Hash` namespace is removed; an empty hash is `{}` with a declared type.
+
+- `Hash.new` – removed; write `{}` with a declared type, such as
+  `counts: hash<string, int> = {}`.
+
+## Removed spellings
+
+These global names still run until the static language is the default, but do
+not compile with static types. Each has one replacement.
+
+### `sprintf`
+
+Removed; use `format`.
+
+### `now`
+
+Removed; use `Time.now`, with `Time.now.iso8601` for the timestamp string.
+
+### `proc` / `Proc` / `lambda`
+
+Removed: code is not a value. Define a named function and call it, or attach
+a block to the call that runs it, as in `people.map { |person| person["name"] }`.

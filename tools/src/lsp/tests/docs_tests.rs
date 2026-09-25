@@ -204,3 +204,22 @@ fn member_docs_match_the_runtime_members() {
     );
     assert_eq!(UNIVERSAL, "universal");
 }
+
+/// Signatures written as in the builtin table name their entries through
+/// their type parameters, as in `map<U>(...)`.
+#[test]
+fn doc_signatures_may_declare_type_parameters() {
+    let entries = parse_builtin_docs(
+        "## JSON\n\n### `JSON.parse_as<T>(text: string, schema: type<T>) -> T`\n\nParses and checks a shape.\n",
+    );
+    assert_eq!(
+        entries["JSON.parse_as"].signature,
+        "`JSON.parse_as<T>(text: string, schema: type<T>) -> T`"
+    );
+    let map = &member_docs().entries["map"];
+    assert!(
+        map.iter()
+            .any(|entry| entry.receiver == "array" && entry.signature.starts_with("`map<U>(")),
+        "{map:?}"
+    );
+}

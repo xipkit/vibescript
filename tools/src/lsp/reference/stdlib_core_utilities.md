@@ -1,1386 +1,1246 @@
 # Stdlib Method Reference
 
-This page is the canonical reference for every built-in method and global
-function the interpreter ships. Each entry is derived from the runtime member
-dispatch tables, so the listing is complete: a method appears here if and only
-if the interpreter implements it.
+This page lists every builtin member of every value type, and every global
+function and namespace, under its one canonical name. Each signature is written
+as `vibes prelude` prints it from `src/signatures/builtins.vibe`, the table the
+static checker checks every call against.
 
 The narrative guides ([strings.md](strings.md), [arrays.md](arrays.md),
 [hashes.md](hashes.md), [durations.md](durations.md), [time.md](time.md),
-[builtins.md](builtins.md)) explain idioms and patterns in depth; this page
-favors compact signatures and one-line descriptions.
+[builtins.md](builtins.md)) explain idioms in depth; this page favors compact
+signatures and one-line descriptions.
+
+Each section ends with the removed spellings its type still answers at runtime.
+They do not compile with static types: the checker reports each one with the
+rewrite shown here, and `vibes fix` applies it.
 
 ## How to Read Signatures
 
-- `method(arg, optional = default, keyword: default) -> return_type` describes
-  positional arguments, defaults, and keyword arguments.
-- `{ |item| }` marks a method that takes a block, written
-  `do |item| ... end` in Vibescript.
-- `a | b` in a return type means the method returns either type.
-- Collection methods with Ruby mutator names update their receiver: the array
-  splicers (`push`/`append`, `prepend`/`unshift`, `<<`, `insert`, `fill`,
-  `clear`), the removers (`pop`, `shift`, `delete`, `delete_if`/`keep_if`), and
-  the hash mutators (`store`, `delete`, `clear`, `delete_if`/`keep_if`,
-  `replace`). What they update is the local, instance variable, or nested path
-  the call names, exactly as index assignment does (`arr[0] = x`,
-  `hash[:k] = v`). Arrays and hashes are values, so no other binding sees the
-  update, and a receiver that names no such path is a temporary whose update is
-  returned and reaches nothing else. Non-mutator names (`map`, `select`, `sort`,
-  `merge`, `+`, ...) return a new value and leave the receiver untouched.
-- Strings are immutable values: string bang variants (`strip!`, `gsub!`, ...)
-  return the transformed string — or `nil` when nothing changed — rather than
-  rewriting the receiver in place.
+- `name(params) -> R` is a member or function returning `R`; without `-> R` it
+  returns `nil`. A member without parameters is written, and called, without
+  parentheses: `items.length`, `uuid`, `Time.now`.
+- `name: T` is a required parameter, `name: T = value` an optional one with
+  its default, and `name?: T` an optional one whose absence changes the
+  behaviour.
+- `*name: array<T>` takes any number of further arguments of type `T`.
+  Parameters after a bare `*` or a `*name` are keywords, passed as
+  `name: value`.
+- `&block: (A, B) -> R` takes a block with parameters `A` and `B` whose value
+  is `R`; `&block: A` takes a block whose value is discarded; `&block?:` makes
+  the block optional.
+- `T?` is `T` or `nil`; `A | B` is either; `{ name: T, other?: U }` is a shape,
+  a hash with those string keys where `other` may be absent; `[A, B]` is a
+  tuple, an array of exactly an `A` and then a `B`; `:ascii` is exactly that
+  symbol; `number` is `int | float`; `any` is a value whose type is not known
+  statically and must be narrowed; `type<T>` is a type literal such as
+  `array<int>`.
+- In `array<T>` members, `T` is the receiver's element type, and in
+  `hash<string, V>` members `V` is its value type. `map<U>` introduces a type
+  `U` inferred from the arguments and the block. A bound such as
+  `T: comparable` means the member exists only when the element type is one
+  type assignable to the bound, so `array<int | string>` has no `sort`.
+  `comparable` is `number | string | symbol | time | duration | money`.
+- A name may have several signatures, separated by ` / `. A call selects one
+  by its number of positional arguments, its keyword names, and whether it
+  passes a block and how many parameters the block declares, never by the
+  types of its arguments.
+
+Arrays and hashes are values. The collection mutators (array `push`, `<<`,
+`prepend`, `pop`, `shift`, `insert`, `fill`, `delete`, `delete_if`, `keep_if`
+and `clear`; hash `delete`, `delete_if`, `keep_if`, `clear` and `replace`)
+update the local, instance variable or nested path the call names, exactly as
+index assignment (`items[0] = x`, `counts["a"] = 1`) does. No other binding
+sees the update, and a receiver that names no such path is a temporary whose
+update is only returned. Every other member returns a new value and leaves the
+receiver as it was. Strings are immutable: a bang form such as `strip!`
+returns the transformed string, or `nil` when nothing changed.
 
 ```vibe
-"hello".strip!    # nil (nothing to strip)
-"  hello ".strip! # "hello"
+items = [3, 1, 2]
+copy = items
+items.push(4)
+items              # [3, 1, 2, 4]
+copy               # [3, 1, 2]
+"  hello ".strip!  # "hello"
+"hello".strip!     # nil (nothing to strip)
 ```
 
 ## Universal Members
 
-These members are available on every value, regardless of kind.
+Every value answers these members.
 
-- `itself -> self` – returns the receiver unchanged. Useful in pipelines and
-  block-based callbacks where an identity step keeps the call shape uniform. It
-  takes no arguments; passing any positional or keyword argument is an error.
-  A class that defines its own `itself` method overrides this builtin, matching
-  Ruby's method-resolution order.
+- `dup -> T` – a logical copy of the receiver. Arrays and hashes already copy
+  on every binding, so it is rarely needed; a class instance keeps its
+  identity, and its `dup` is the same instance.
+- `inspect -> string` – the debug rendering. Unlike `to_s`, which string
+  interpolation and `puts` use, it keeps quotes and escapes, so strings, arrays
+  and hashes render as Vibescript literals. Hash keys render as labels
+  (`name:`, or `"with space":`), entries follow insertion order, and cycles
+  render as `<cycle>`. The rendered length is charged to the memory quota
+  before the string is built.
+- `is_type?(type: symbol) -> bool` – tests the value's type without converting
+  it. The symbol names a builtin type (`:int`, `:float`, `:number`, `:string`,
+  `:bool`, `:symbol`, `:nil`, `:duration`, `:time`, `:money`, `:array`,
+  `:hash`, `:range`), a class or an enum by its exact name, and a trailing `?`
+  also accepts `nil` (`:int?`). In a condition it narrows a local of type `any`
+  or of a union, like a nil test.
 
-```vibe
-"x".itself     # "x"
-3.itself       # 3
-[1, 2].itself  # [1, 2]
-nil.itself     # nil
-```
-
-## Universal Predicates
-
-Every value answers two equality predicates in addition to the `==` operator.
-They report `false` rather than raising when the kinds differ, and a class may
-override them with its own methods of the same name.
-
-- `eql?(other) -> bool` – hash-key equality. True only when both operands share
-  a kind and compare equal, so `1.eql?(1.0)` is `false` even though both are
-  numerically one. Composites (arrays, hashes) compare by content.
-- `equal?(other) -> bool` – identity for values that have it, content equality
-  for collections. Immutable scalars (`nil`, `bool`, `int`, `float`, `string`,
-  `symbol`, money, duration, time, range) are identical when they share a kind
-  and value, so `1.equal?(1)` is `true`. Arrays and hashes are values: `equal?`
-  asks about contents, the same question as `==`, because collections carry no
-  identity. Script instances, enums, and enum values are identical only when
-  they refer to the same backing object. Two enum values that compare `==` (and
-  `eql?`) because they share an owner and member name are still not `equal?`
-  when they hold distinct storage — for example, a value cloned out to the host
-  and handed back by a capability.
-
-```vibe
-1 == 1        # true
-1.eql?(1)     # true
-1.eql?(1.0)   # false (Int never eql-matches a Float)
-1.equal?(1)   # true
-
-a = [1, 2, 3]
-b = a
-c = [1, 2, 3]
-a.eql?(c)     # true  (same contents)
-a.equal?(b)   # true  (same contents; collections have no identity)
-a.equal?(c)   # true  (same contents)
-[].equal?([]) # true
-{}.equal?({}) # true
-a[0] = 9
-a.equal?(b)   # false (b is still [1, 2, 3])
-```
-
-Binding one collection to two names still produces two values. They compare
-`equal?` when their contents match, and an update through one binding is never
-visible through the other.
-
-A NaN float is `equal?` to itself even though `==` never holds for NaN. Because
-floats carry no distinct identity, any two NaN floats are also `equal?`, keeping
-the predicate reflexive (`x = 0.0 / 0.0; x.equal?(x)` is `true`).
-
-## Debug Representation
-
-Every core value kind responds to `inspect`, returning a `string` debug
-rendering. Unlike the output rendering used by string interpolation (which is
-the `to_s` form), `inspect` keeps quotes and escaping so the result is
-unambiguous; for strings, arrays, and hashes the rendering also parses back as a
-Vibescript literal.
-
-- `inspect -> string` – available on `nil`, booleans, integers, floats,
-  strings, symbols, arrays, and hashes (`inspect` takes no arguments and no
-  block). Namespace and host objects share the hash member methods, so `inspect`
-  renders their fields with the same hash form.
-
-| Kind | `to_s` (interpolated) | `inspect` |
+| Value | `to_s` (interpolation, `puts`) | `inspect` |
 | --- | --- | --- |
 | `nil` | (empty) | `nil` |
 | `true` | `true` | `true` |
 | `42` | `42` | `42` |
 | `:ok` | `ok` | `:ok` |
-| `"a\nb"` | `a` then `b` on the next line | `"a\nb"` |
+| `"a\nb"` | `a`, then `b` on the next line | `"a\nb"` |
 | `[1, "x", nil]` | `[1, x, ]` | `[1, "x", nil]` |
-| `{ a: 1, b: "x" }` | `{a: 1, b: x}` | `{a: 1, b: "x"}` |
+| `{ a: 1, b: "x" }` | (no `to_s`) | `{a: 1, b: "x"}` |
 
 ```vibe
-"a\nb".inspect       # "\"a\\nb\""  (the six characters: " a \ n b ")
-[1, "x", nil].inspect # "[1, \"x\", nil]"
-{ a: 1, b: "x" }.inspect # "{a: 1, b: \"x\"}"
-:ok.inspect          # ":ok"
-nil.inspect          # "nil"
+"a\nb".inspect            # "\"a\\nb\""
+[1, "x", nil].inspect     # "[1, \"x\", nil]"
+{ a: 1, b: "x" }.inspect  # "{a: 1, b: \"x\"}"
+:ok.inspect               # ":ok"
+1.is_type?(:number)       # true
+"5".is_type?(:int)        # false: the test never converts
+
+count: int? = nil
+count.is_type?(:int?)     # true
 ```
 
-Strings are double-quoted and escape `\\`, `\"`, `\n`, `\t`, and the
-interpolation marker `\#{`; any other byte is written verbatim, since
-Vibescript's double-quoted literals have no `\r`/`\xNN`/`\uNNNN` escapes (so the
-rendering stays a parseable literal rather than emitting an escape the language
-cannot decode). Hash keys render in Vibescript's colon-label form (`name:`, or
-`"with space":` when the key is not a bare identifier) rather than Ruby's
-unsupported hash-rocket syntax, so an inspected hash parses back as a Vibescript
-literal. Inspected entries follow the hash's insertion order, so the rendering
-is stable across calls and matches iteration. Symbols render as `:name`, or as
-`:"name"` (Ruby's shape) when the name is not a bare identifier — the quoted form
-is a debug rendering for symbols (such as those created from a quoted hash key)
-that have no bare-symbol literal syntax, not a re-parseable literal. Cycles
-render as `<cycle>`. The rendered length is charged against the sandbox memory
-quota before the string is built, so inspecting a huge composite fails with a
-quota error instead of allocating an oversized result.
+### Checked casts
 
-## Universal Methods
-
-Every value responds to `nil?`, including script class instances, classes,
-and enum values:
-
-- `nil? -> bool` – `true` only for `nil`, `false` for every other value
-  (Ruby's `Object#nil?`). Takes no arguments. It resolves through the same
-  central fallback as the [object helpers](#object-helpers) below, so a
-  user-defined method named `nil?` keeps precedence.
-
-The scalar kinds whose display form is bounded by their own footprint (`nil`,
-booleans, integers, floats, strings, symbols, money, durations, and times) also
-respond to `to_s` and `string`:
-
-- `to_s -> string` – the value's display rendering (the `to_s` form used by
-  string interpolation). For strings it returns the receiver; for symbols,
-  durations, and times it matches the kind-specific `to_s` documented below.
-- `string -> string` – alias for `to_s`; the documented Vibescript conversion
-  idiom used in [typing.md](typing.md) (for example `id.string`).
-
-Both take no arguments. Arrays, hashes, and ranges deliberately do **not**
-respond to `to_s`/`string`: their rendering can be arbitrarily large, so they
-expose only `inspect`, which projects the rendered length against the sandbox
-memory quota before allocating. Strings additionally parse numeric text with
-`to_i`/`to_f` (see [Conversion](#conversion)), and integers and floats convert
-between numeric kinds with `to_i`/`to_f` (see [Integers](#integers) and
-[Floats](#floats)).
+`value.as(T)` checks a value against any type an annotation can name, at
+runtime and exactly as a typed parameter does, and gives the expression that
+type. It narrows a value of type `any`, such as a `JSON.parse` result, and a
+declared union. A mismatch raises the same boundary error as a typed
+parameter. `JSON.parse_as(text, T)` parses and casts in one step.
 
 ```vibe
-42.nil?     # false
-nil.nil?    # true
-[1, 2].nil? # false
-42.string   # "42"
-:ok.to_s    # "ok"
+raw = JSON.parse("{\"id\": 7, \"tags\": [\"a\"]}")
+record = raw.as(hash<string, any>)
+id = record.fetch("id").as(int)
+tags = record.fetch("tags").as(array<string>)
+id + tags.length  # 8
+
+label: int | string = "draft"
+label.as(string).upcase  # "DRAFT"
 ```
 
-## Object Helpers
+### Removed spellings
 
-Every core value kind responds to the block-yielding helpers `tap` and
-`yield_self`. Both require a block, take no positional or keyword arguments, and
-pass the receiver as the block's single argument. They differ only in what they
-return:
-
-- `tap { |value| } -> receiver` – yields the receiver, ignores the block's
-  result, and returns the receiver. Use it to thread a side effect (such as
-  logging) through a pipeline without changing the value.
-- `yield_self { |value| } -> block result` – yields the receiver and returns the
-  block's result, so it rewrites a value inline.
-
-```vibe
-"ada".tap { |name| name.upcase }        # "ada" (block result discarded)
-"ada".yield_self { |name| name.upcase } # "ADA"
-3.yield_self { |n| n * 100 }            # 300
-```
-
-These helpers resolve only when the receiver does not already define a member of
-the same name, so a hash key, instance variable, or user-defined method named
-`tap` or `yield_self` keeps precedence.
-
-## Object Introspection
-
-Every value kind responds to the Ruby-style introspection predicates. They are
-resolved the way `Object`'s methods are in Ruby: available on any receiver, but a
-script class may define its own method of the same name and that definition wins.
-Unlike the data-eligible block helpers `tap`/`yield_self`, a data slot keyed with
-a predicate name (a hash key, instance variable, or class variable named
-`respond_to?`, `is_a?`, and so on) is data, not a method, so it never shadows the
-predicate — `{ "respond_to?": 1 }.respond_to?(:keys)` still calls the predicate.
-
-- `respond_to?(name) -> bool` (optionally `respond_to?(name, include_all)`) –
-  reports whether the receiver has a callable member named `name` (a symbol or a
-  string). Data — hash keys, namespace constants, and instance variables — is not
-  a method and reports `false`; namespace functions such as `Math.sqrt` report
-  `true`. Private methods report `false` unless the predicate is reached through
-  implicit receiver dispatch or `include_all` is `true`, matching
-  `respond_to?`'s privacy rules.
-- `is_a?(class) -> bool` and `kind_of?(class) -> bool` – report whether the
-  receiver is an instance of the given script class. There is no inheritance
-  and no module membership, so these test direct class identity and agree with
-  `instance_of?` on every value; a module argument always reports `false`. A
-  non-instance receiver (a core value, a class value, an enum value) reports
-  `false`. The argument must be a class.
-- `instance_of?(class) -> bool` – reports whether the receiver is an instance of
-  exactly the given script class.
-- `is_type?(atom) -> bool` – tests the receiver against a type atom without
-  coercion. The atom is a symbol or string naming a primitive (`:int`,
-  `:float`, `:number`, `:string`, `:bool`, `:symbol`, `:nil`, `:duration`,
-  `:time`, `:money`), a bare container (`:array`, `:hash`/`:object`, `:range`),
-  or a class or enum name matched by exact name. A module alias
-  qualifies a name the way
-  annotations do: `v.is_type?("lv.Level")` tests against the enum the
-  required module exports, and an unknown qualified name is an error. A trailing `?` tests the nullable form:
-  `'int?'` is int or nil. Parameterized spellings such as `array<int>` and
-  unknown lowercase names are errors. `"5".is_type?(:int)` is `false` — the
-  test never converts.
-
-```vibe
-"Ada".respond_to?(:length)   # true
-"Ada".respond_to?(:nope)     # false
-{ name: "x" }.respond_to?(:name) # false  (a data key, not a method)
-{ name: "x" }.respond_to?(:keys) # true
-
-class User
-end
-
-user = User.new
-user.is_a?(User)        # true
-user.kind_of?(User)     # true
-user.instance_of?(User) # true
-42.is_a?(User)          # false
-
-1.is_type?(:int)        # true
-1.is_type?(:number)     # true
-"5".is_type?(:int)      # false (no coercion)
-nil.is_type?('int?')    # true
-user.is_type?(:User)    # true (exact name)
-```
+- `itself` – returns the receiver unchanged; removed, write the receiver
+  itself.
+- `tap` – removed; run the block's statements, then use the receiver.
+- `yield_self` – removed; bind the receiver to a local and write the block's
+  expression.
+- `eql?` / `equal?` – removed; use `==`, which compares values.
+- `nil?` – removed; write `value == nil`, which also narrows `value`.
+- `clone` – removed; use `dup`.
+- `freeze` – removed; every value is already immutable or a value, so write
+  the receiver itself.
+- `frozen?` – removed; it answered `true` for every value.
+- `string` – removed; use `to_s`.
+- `is_a?` / `kind_of?` / `instance_of?` – removed; use `is_type?(:Name)`.
+- `send` / `public_send` – removed; call the member directly, or use `case`
+  over the name.
+- `respond_to?` – removed; use `case` over the name, or `is_type?`.
 
 ## Strings
 
 See [strings.md](strings.md) for worked examples. Indexes and lengths count
-Unicode characters, not bytes, unless noted.
+characters, not bytes, unless noted. `+` concatenates two strings, `*`
+repeats one (`"ab" * 2` is `"abab"`), and `%` formats an array of values as
+`format` does (`"%s:%03d" % ["id", 7]` is `"id:007"`). `text[i]`,
+`text[start, length]` and `text[range]` read characters as `string?`.
 
-### Inspection
+### Inspecting
 
-- `size -> int` – number of characters.
-- `length -> int` – alias for `size`.
-- `bytesize -> int` – number of UTF-8 bytes.
-- `empty? -> bool` – true when the string has no characters.
-- `ord -> int` – codepoint of the first character; errors on an empty string.
-- `chr -> string` – first character, or an empty string for an empty receiver.
-- `getbyte(index) -> int | nil` – byte at a byte offset (`0..255`); negative
-  offsets count from the end, and an out-of-range offset returns `nil`.
-- `byteslice(index) | byteslice(start, length) | byteslice(range) -> string |
-  nil` – substring by byte offset; negative offsets count from the end, an
-  out-of-range start or negative length returns `nil`, and bytes are returned
-  verbatim without UTF-8 normalization.
-- `clamp(min, max) -> string` – receiver bounded by lexicographic string
-  comparison; `nil` leaves one side open.
-- `hex -> int` – leading characters parsed as a hexadecimal integer (optional
-  whitespace, sign, `0x` prefix, and underscore separators); `0` when no hex
-  digit leads, and an `integer out of range` error past the `int64` bounds.
-- `oct -> int` – leading characters parsed using a base inferred from a
-  `0x`/`0b`/`0o`/`0d` prefix (octal by default); same lenient parsing,
-  zero-on-failure, and `int64` overflow behavior as `hex`.
-- `inspect -> string` – double-quoted, escaped debug rendering (see
-  [Debug Representation](#debug-representation)).
+- `length -> int` – the number of characters.
+- `bytesize -> int` – the number of bytes.
+- `empty? -> bool` – whether the string has no characters.
+- `ord -> int` – the code point of the first character; raises on an empty
+  string.
+- `chr -> string` – the first character, or `""` for an empty string.
+- `getbyte(index: int) -> int?` – the byte (`0..255`) at a byte offset;
+  negative offsets count from the end, and an offset out of range gives `nil`.
+- `byteslice(start: int | range, length?: int) -> string?` – bytes by byte
+  offset, returned verbatim; `nil` when the start is out of range or the length
+  is negative.
+- `bytes -> array<int>` – the bytes, one entry per byte of a multibyte
+  character.
+- `codepoints -> array<int>` – the code points, one per character.
+- `chars -> array<string>` – the characters.
+- `lines -> array<string>` – the lines, each keeping its `"\n"`; a `"\r\n"`
+  ending stays attached.
+- `hex -> int` – the leading hexadecimal digits (optional whitespace, sign and
+  `0x` prefix, `_` separators); `0` when none lead.
+- `oct -> int` – the leading digits in the base a `0x`, `0b`, `0o` or `0d`
+  prefix selects, octal by default; `0` when none lead.
+- `between?(min: string, max: string) -> bool` – whether the string sorts
+  between the bounds, inclusive, by code point.
+- `clamp(min: string?, max: string?) -> string` – the string bounded by code
+  point order; `nil` leaves a side open.
+- `casecmp(other: string) -> int` – `-1`, `0` or `1`, comparing ASCII letters
+  without case.
+- `casecmp?(other: string) -> bool` – equality under Unicode simple case
+  folding.
+- `to_s -> string` – the string itself.
 
-### Conversion
+### Converting
 
-- `to_sym -> symbol` – the symbol named by the string. Any contents are
-  accepted verbatim, including whitespace, punctuation, and the empty string.
-- `intern -> symbol` – alias for `to_sym`.
-- `to_s -> string` – the receiver itself (Ruby's `String#to_s`).
-- `string -> string` – alias for `to_s`; the documented Vibescript conversion
-  idiom (see [typing.md](typing.md)).
-- `to_i -> int` – parse a base-10 integer. Unlike Ruby's lenient `String#to_i`
-  (which ignores trailing characters and returns `0` on failure), this is strict
-  like the global `to_int`: surrounding whitespace is trimmed, but an empty or
-  non-integer string raises rather than silently yielding `0`.
-- `to_f -> float` – parse a finite float with the same strict semantics as the
-  global `to_float`; an empty, non-numeric, or non-finite string raises.
-
-```vibe
-"42".to_i  # 42
-"3.5".to_f # 3.5
-"id".string # "id"
-```
-
-### Search and Matching
-
-- `start_with?(*prefixes) -> bool` – true when the string begins with any of
-  the given prefixes. Candidates are checked left to right and matching
-  short-circuits, so a non-string is only rejected if reached before a match.
-- `end_with?(*suffixes) -> bool` – true when the string ends with any of the
-  given suffixes, with the same left-to-right short-circuit behavior.
-- `include?(substring) -> bool` – true when `substring` occurs anywhere.
-- `index(substring, offset = 0) -> int | nil` – first character index at or
-  after `offset`; `nil` when not found. A negative `offset` counts back from the
-  end (`size + offset`) and yields `nil` when it falls before the start.
-- `rindex(substring, offset = size) -> int | nil` – last character index at or
-  before `offset`; `nil` when not found. A negative `offset` counts back from the
-  end (`size + offset`) and yields `nil` when it falls before the start.
-- `match(pattern) -> array | nil` – regex match returning
-  `[full, capture1, ...]` (unmatched groups are `nil`); `nil` when no match.
-  Given a block, yields the match data and returns the block's result, or `nil`
-  without invoking the block when there is no match.
-- `match?(pattern, offset = 0) -> bool` – allocation-light predicate returning
-  `true` when `pattern` matches at or after the character `offset`, else
-  `false`. Anchors keep the full-string context across the offset; an offset
-  past the end yields `false`, and negative offsets are rejected.
-- `scan(pattern) -> array` – every non-overlapping regex match. With no capture
-  groups the result is an array of full match strings; with one or more groups
-  each match contributes a nested array of its captured substrings (`nil` for an
-  optional group that did not participate), mirroring Ruby. Given a block, yields
-  each match (using the same per-match shape) and returns the receiver string.
-
-`match`, `match?`, and `scan` treat `pattern` as a regex and enforce the
-[regex guard limits](#guard-limits).
+- `to_i -> int` – the base-10 integer the string spells, ignoring surrounding
+  whitespace; raises unless the whole string is an integer.
+- `to_f -> float` – the finite float the string spells; raises otherwise.
+- `to_sym -> symbol` – the symbol with this name; any contents are accepted.
 
 ```vibe
-"2024-03-05".match("([0-9]+)-([0-9]+)") # ["2024-03", "2024", "03"]
+"42".to_i   # 42
+"3.5".to_f  # 3.5
+"ff".hex    # 255
+"héllo".length    # 5
+"héllo".bytesize  # 6
 ```
 
-### Slicing and Concatenation
+### Searching and matching
 
-- `slice(index) -> string | nil` – single character at `index`; `nil` when out
-  of bounds.
-- `slice(index, length) -> string | nil` – substring of up to `length`
-  characters starting at `index`.
-- `concat(*strings) -> string` – receiver with all arguments appended.
-- `prepend(*strings) -> string` – receiver with all arguments prepended, in
-  order.
-- `insert(index, string) -> string` – receiver with `string` inserted at a
-  character index. A non-negative index inserts before the character at that
-  position (the length appends); a negative index inserts after the character it
-  selects (`-1` appends). An out-of-range index raises an error.
-- `replace(replacement) -> string` – returns `replacement` (compatibility
-  shim for Ruby's mutating `replace`).
-- `clear -> string` – returns `""`.
+- `start_with?(prefix: string, *prefixes: array<string>) -> bool` – whether
+  the string begins with any of the prefixes.
+- `end_with?(suffix: string, *suffixes: array<string>) -> bool` – whether the
+  string ends with any of the suffixes.
+- `include?(text: string) -> bool` – whether `text` occurs anywhere.
+- `index(text: string, offset: int = 0) -> int?` – the first character index
+  of `text` at or after `offset`; a negative offset counts from the end.
+- `rindex(text: string, offset?: int) -> int?` – the last character index of
+  `text` at or before `offset`, the end by default.
+- `count(set: string, *sets: array<string>) -> int` – the number of characters
+  in every set, where a set lists characters, ranges such as `a-z` and a
+  leading `^` for the complement.
+- `match(pattern: string | regex, offset: int = 0) -> match_data?` – the first
+  match at or after the character `offset`, or `nil`; a string pattern is a
+  regular expression.
+- `match?(pattern: string | regex, offset: int = 0) -> bool` – whether the
+  pattern matches, without building match data.
+- `scan(pattern: string | regex) -> array<string | array<string?>>` – every
+  non-overlapping match; each is the matched string, or the array of its
+  groups when the pattern has groups.
 
-### Case and Ordering Transforms
+`match`, `match?` and `scan` compile a string pattern as a regular expression
+in RE2 syntax and enforce the [guard limits](#guard-limits).
 
-- `upcase(mode = nil) -> string` – uppercase all characters using full Unicode
-  case mapping (locale-insensitive), so `"Straße".upcase` is `"STRASSE"`. Pass
-  `:ascii` to map only ASCII letters.
-- `downcase(mode = nil) -> string` – lowercase all characters using full Unicode
-  case mapping. Pass `:ascii` for ASCII-only mapping or `:fold` for Unicode case
-  folding (so `"Straße".downcase(:fold)` is `"strasse"`).
-- `capitalize(mode = nil) -> string` – titlecase the first character and
-  lowercase the rest. Pass `:ascii` to map only ASCII letters.
-- `swapcase(mode = nil) -> string` – flip the case of each cased character,
-  including cased non-letters such as circled letters and Roman numerals. Pass
-  `:ascii` to map only ASCII letters.
-- `reverse -> string` – characters in reverse order.
+```vibe
+"2024-03-05".match?("[0-9]+")          # true
+"a1b22".scan("[0-9]+")                 # ["1", "22"]
+"a1b22".scan("([a-z])([0-9]+)")        # [["a", "1"], ["b", "22"]]
+found = "2024-03-05".match("([0-9]+)-([0-9]+)")
+if found != nil
+  found.captures                       # ["2024", "03"]
+end
+```
 
-### Whitespace and Affix Trimming
+### Slicing and building
 
-- `strip -> string` – trim leading and trailing whitespace. Like Ruby, only the
-  ASCII whitespace bytes `\0 \t \n \v \f \r " "` are removed, with `\0` trimmed
-  from both ends; Unicode spaces such as NBSP (`U+00A0`), the Ogham space mark
-  (`U+1680`), em space (`U+2003`), and the BOM (`U+FEFF`) are preserved.
-- `lstrip -> string` – trim leading whitespace (same ASCII set as `strip`,
-  including a leading `\0`).
-- `rstrip -> string` – trim trailing whitespace (same ASCII set as `strip`,
-  including a trailing `\0`).
-- `squish -> string` – trim both ends and collapse internal whitespace runs to
-  a single space. Unlike `strip`, `squish` also collapses Unicode whitespace.
-- `chomp(separator = nil) -> string` – remove one trailing `"\r\n"`, `"\n"`,
-  or `"\r"`; with a `separator` remove that suffix once; with `""` remove all
-  trailing newlines.
-- `chop -> string` – remove the last character; a trailing `"\r\n"` is removed
-  as a single unit, otherwise one full Unicode character is removed; an empty
-  string is returned unchanged.
-- `delete_prefix(prefix) -> string` – remove `prefix` when present.
-- `delete_suffix(suffix) -> string` – remove `suffix` when present.
+- `slice(start: int | range | string, length?: int) -> string?` – the
+  characters at an index, from an index for a length, in a range, or the text
+  itself when it occurs; `nil` when out of range or absent.
+- `concat(*texts: array<string>) -> string` – the string with the texts
+  appended.
+- `prepend(*texts: array<string>) -> string` – the string with the texts
+  prepended, in order.
+- `insert(index: int, text: string) -> string` – the string with `text`
+  inserted before the character at `index`; a negative index inserts after
+  the character it selects, so `-1` appends. An index out of range raises.
+- `center(width: int, pad: string = " ") -> string` – padded on both sides to
+  `width` characters, the extra character on the right.
+- `ljust(width: int, pad: string = " ") -> string` – padded on the right.
+- `rjust(width: int, pad: string = " ") -> string` – padded on the left.
 
-### Padding
+A width at or below the length returns the string unchanged; the pad must not
+be empty and is repeated, then cut at a character boundary.
 
-`width` counts Unicode characters (like `length`/`slice`); a `Float` width is
-truncated toward zero. A width at or below the receiver's length returns it
-unchanged. The pad string defaults to `" "`, must be non-empty, and is repeated
-then truncated at a character boundary to fill the span.
+### Case and order
 
-- `center(width, pad = " ") -> string` – pad both sides, with the extra
-  character on the right when the padding cannot be split evenly.
-- `ljust(width, pad = " ") -> string` – left-justify, padding on the right.
-- `rjust(width, pad = " ") -> string` – right-justify, padding on the left.
+- `upcase(mode?: :ascii) -> string` – uppercased with full Unicode case
+  mapping, so `"Straße".upcase` is `"STRASSE"`; `:ascii` maps only ASCII
+  letters.
+- `downcase(mode?: :ascii | :fold) -> string` – lowercased with full Unicode
+  mapping; `:fold` applies Unicode case folding, so `"Straße".downcase(:fold)`
+  is `"strasse"`.
+- `capitalize(mode?: :ascii) -> string` – the first character titlecased and
+  the rest lowercased.
+- `swapcase(mode?: :ascii) -> string` – every cased character flipped.
+- `reverse -> string` – the characters in reverse order.
 
-### Replacement, Splitting, and Templating
+### Trimming and character sets
 
-- `sub(pattern, replacement, regex: false) -> string` – replace the first
-  occurrence of `pattern`. Given a block instead of `replacement`, the block
-  receives the matched substring and its result replaces the match.
-- `gsub(pattern, replacement, regex: false) -> string` – replace every
-  occurrence of `pattern`. Given a block instead of `replacement`, the block
-  receives each matched substring and its result replaces that match.
-- `split(separator = nil) -> array` – split on runs of ASCII whitespace
-  (space, tab, newline, vertical tab, form feed, carriage return; dropping empty
-  fields) without arguments, or on `separator` when given. Like Ruby, the
-  no-argument form keeps wider Unicode whitespace such as the non-breaking space
-  inside the field rather than splitting on it.
-- `chars -> array` – array of the string's Unicode characters, one per code
-  point (rune-aware, like `length` and `slice`).
-- `lines -> array` – array of lines split on `"\n"`, retaining the trailing
-  newline on each line; an empty string yields no lines and carriage returns
-  stay attached so `"\r\n"` endings round-trip.
-- `bytes -> array` – array of the string's bytes as integers in `0..255`
-  (byte-level, so a multibyte character expands to one entry per UTF-8 byte).
-- `codepoints -> array` – array of the string's Unicode code points as integers
-  (rune-aware, so a multibyte character is one entry; the integer counterpart to
-  `chars`).
-- `template(context, strict: false) -> string` – interpolate `{{key.path}}`
-  placeholders from a hash; `strict: true` errors on missing placeholders.
+- `strip -> string` – leading and trailing ASCII whitespace and NUL removed;
+  Unicode spaces such as NBSP stay.
+- `lstrip -> string` – leading whitespace removed.
+- `rstrip -> string` – trailing whitespace removed.
+- `squish -> string` – both ends trimmed and every inner run of whitespace,
+  Unicode included, collapsed to one space.
+- `chomp(separator?: string?) -> string` – one trailing `"\r\n"`, `"\n"` or
+  `"\r"` removed; with a separator, that suffix once; with `""`, every trailing
+  newline.
+- `chop -> string` – the last character removed, or a trailing `"\r\n"`.
+- `delete_prefix(prefix: string) -> string` – `prefix` removed when present.
+- `delete_suffix(suffix: string) -> string` – `suffix` removed when present.
+- `delete(set: string, *sets: array<string>) -> string` – the characters in
+  every set removed.
+- `squeeze(*sets: array<string>) -> string` – runs of the same character
+  collapsed, only for characters in the sets when given.
+- `tr(from: string, to: string) -> string` – each character of `from`
+  replaced by the one at its position in `to`; both take ranges, and a leading
+  `^` in `from` complements it.
 
-With `regex: true`, `sub`/`gsub` compile `pattern` as a regex and expand
-Ruby-style backreferences in `replacement`: `\1`–`\9` insert capture groups,
-`\&` (or `\0`) the whole match, `` \` `` and `\'` the pre/post-match, `\+` the
-last participating group, `\k<name>` a named group, and `\\` a literal
-backslash. `$1` and `$&` are literal text, matching Ruby. See
-[String#sub replacement backreferences](strings.md#replacement-backreferences)
-for the full table. The regex [guard limits](#guard-limits) still apply.
+### Replacing, splitting and templating
 
-The block forms of `sub`/`gsub` honor the same `regex` keyword (defaulting to
-literal matching) and reject being given both a `replacement` argument and a
-block. `scan(pattern)` and `match(pattern)` also accept blocks: `scan` yields
-each match and returns the receiver, while `match` yields the match data and
-returns the block's result (or `nil`, without invoking the block, when there is
-no match). See [Strings](strings.md) for examples.
+- `sub(pattern: string | regex, replacement: string) -> string` /
+  `sub(pattern: string | regex, &block: string -> string) -> string` – the
+  first match replaced by `replacement` or by the block's result for the
+  matched text. A string pattern matches literally.
+- `gsub(pattern: string | regex, replacement: string) -> string` /
+  `gsub(pattern: string | regex, &block: string -> string) -> string` – every
+  match replaced.
+- `split(separator: string? = nil, limit: int = 0) -> array<string>` – fields
+  split on runs of ASCII whitespace, or on `separator`; `""` splits into
+  characters. A positive `limit` caps the number of fields, `0` drops trailing
+  empty fields and a negative limit keeps them.
+- `partition(separator: string) -> [string, string, string]` – the text
+  before the first `separator`, the separator and the text after.
+- `rpartition(separator: string) -> [string, string, string]` – the same
+  around the last `separator`.
+- `template(context: hash<string, any>, *, strict: bool = false) -> string` –
+  `{{name}}` and `{{user.name}}` placeholders filled from `context`; a missing
+  value stays as written, or raises with `strict: true`.
 
-### Bang Variants
+With a regex pattern, `sub` and `gsub` expand `\1` to `\9`, `\0` or `\&` (the
+whole match), `` \` `` and `\'` (the text before and after), `\+` (the last
+group that matched), `\k<name>` and `\\` in `replacement`; `$1` is literal
+text. The regex [guard limits](#guard-limits) apply.
 
-Each of the following returns the transformed string, or `nil` when the
-transform changed nothing: `strip!`, `lstrip!`, `rstrip!`, `squish!`,
-`chomp!`, `chop!`, `delete!`, `delete_prefix!`, `delete_suffix!`, `tr!`,
-`squeeze!`, `upcase!`, `downcase!`, `capitalize!`, `swapcase!`, `reverse!`.
-`sub!` and `gsub!` key their result off the match instead: they return the
-rewritten string whenever the pattern matched (even when the replacement
-reproduces the original text) and `nil` only when it never matched.
+```vibe
+"a-b-a".sub("a", "x")                    # "x-b-a"
+"a1b2".gsub(Regex.new("[0-9]"), "#")     # "a#b#"
+"a1b2".gsub(Regex.new("[0-9]")) { |digit| (digit.to_i * 2).to_s }  # "a2b4"
+"a,b,,c".split(",")                      # ["a", "b", "", "c"]
+"a=b=c".rpartition("=")                  # ["a=b", "=", "c"]
+"Hi {{user.name}}".template({ user: { name: "Ada" } })  # "Hi Ada"
+```
+
+### Iterating
+
+- `each_char(&block: string) -> string` – yields each character; returns the
+  string.
+- `each_byte(&block: int) -> string` – yields each byte.
+- `each_codepoint(&block: int) -> string` – yields each code point.
+- `each_line(&block: string) -> string` – yields each line with its newline.
+
+### Bang variants
+
+Each of these returns the transformed string, or `nil` when nothing changed:
+
+- `strip!`, `lstrip!`, `rstrip!`, `squish!`, `chomp!`, `chop!`
+- `delete!`, `delete_prefix!`, `delete_suffix!`, `tr!`, `squeeze!`
+- `upcase!`, `downcase!`, `capitalize!`, `swapcase!`, `reverse!`
+
+`sub!` and `gsub!` return the rewritten string whenever the pattern matched,
+even when the replacement reproduces the text, and `nil` only when it never
+matched.
+
+### Removed spellings
+
+- `size` – removed; use `length`, the number of characters.
+- `intern` – removed; use `to_sym`.
+- `clear` – removed; write `""`.
+- `replace` – removed; write the replacement string itself.
+
+The `regex:` keyword of `sub`, `gsub`, `sub!` and `gsub!` is removed as well:
+pass `Regex.new(pattern)` for a regular expression and a string for literal
+text.
+
+## Symbols
+
+Symbols name enum members, and a symbol literal naming a member is accepted
+wherever that enum is expected. Hash keys are strings, not symbols.
+
+- `to_s -> string` – the symbol's name.
+- `to_sym -> symbol` – the symbol itself.
+
+```vibe
+:draft.to_s      # "draft"
+"draft".to_sym   # :draft
+:draft == "draft"  # false
+```
+
+### Removed spellings
+
+- `id2name` – removed; use `to_s`.
 
 ## Arrays
 
-See [arrays.md](arrays.md) for worked examples. Arrays also support `+`
-(concatenation) and `-` (value subtraction) operators.
+See [arrays.md](arrays.md) for worked examples. An array literal has the
+union of its elements' types, so `[1, 2]` is `array<int>`; an empty literal
+needs a declared type (`names: array<string> = []`). `items[i]` is `T?`, with
+negative indexes counting from the end, and `items[start, length]` and
+`items[range]` are `array<T>`; `fetch` returns `T` or raises. `items[i] = v`
+writes an existing index and raises past the end. `+` concatenates, `-`
+removes every element equal to one in the right operand, and `items << value`
+appends one element to the named array.
 
-### Inspection
+### Reading
 
-- `size -> int` – element count.
-- `length -> int` – alias for `size`.
-- `empty? -> bool` – true when the array has no elements.
-- `inspect -> string` – debug rendering with each element inspected
-  recursively (see [Debug Representation](#debug-representation)).
+- `length -> int` – the number of elements.
+- `empty? -> bool` – whether the array has no elements.
+- `first -> T?` / `first(count: int) -> array<T>` – the first element, or the
+  first `count` elements.
+- `last -> T?` / `last(count: int) -> array<T>` – the last element, or the last
+  `count` elements.
+- `fetch(index: int, default?: T, &block?: int -> T) -> T` – the element at
+  `index`, counting back from the end when negative; out of bounds, the block's
+  value for the index, else `default`, else an error.
+- `dig(index: int, *path: array<int | string>) -> any` – the value down a path
+  of array indexes and hash keys, or `nil` when a step is missing.
+- `values_at(*indexes: array<int | range>) -> array<T?>` – the elements at the
+  indexes and ranges, `nil` where out of bounds.
+- `sample -> T?` / `sample(count: int) -> array<T>` – a random element, or up to
+  `count` distinct ones.
+- `include?(value: T) -> bool` – whether an element equals `value`.
+- `index(value: T, offset: int = 0) -> int?` / `index(&block: T -> bool) -> int?`
+  – the first index of `value` at or after `offset`, or the first index the
+  block accepts.
+- `rindex(value: T, offset?: int) -> int?` / `rindex(&block: T -> bool) -> int?`
+  – the last index of `value` at or before `offset`, or the last index the
+  block accepts.
+- `count(value: T) -> int` / `count(&block: T -> bool) -> int` – the number of
+  elements equal to `value`, or accepted by the block. Without an argument or
+  block, write `length`.
+- `all?(pattern?: T | range, &block?: T -> bool) -> bool` – whether every
+  element matches the pattern (a range tests membership) or the block.
+- `any?(pattern?: T | range, &block?: T -> bool) -> bool` – whether some
+  element matches.
+- `none?(pattern?: T | range, &block?: T -> bool) -> bool` – whether no element
+  matches.
+- `one?(&block?: T -> bool) -> bool` – whether exactly one element is accepted.
+- `to_s -> string` – the display rendering, as `puts` prints it.
 
-### Iteration
+### Iterating
 
-- `each { |item| } -> array` – yield each element; returns the receiver.
-- `each_with_index { |item, index| } -> array` – yield each element with its
-  0-based index; returns the receiver. Takes no arguments.
-- `each_slice(n) { |slice| } -> nil` – yield non-overlapping slices of length
-  `n` (the trailing slice may be shorter); `n` must be a positive integer.
-- `each_cons(n) { |window| } -> nil` – yield each sliding window of length `n`;
-  arrays shorter than `n` yield nothing and `n` must be a positive integer.
-- `reverse_each { |item| } -> array` – yield elements from last to first;
-  returns the receiver.
-- `cycle(n = nil) { |item| } -> nil` – yield the whole array `n` times; a
-  non-positive `n` yields nothing. Omitting `n` or passing `nil` cycles forever,
-  bounded by the step quota and context cancellation.
-- `map { |item| } -> array` – new array of block results.
-- `map_with_index { |item, index| } -> array` – new array of block results,
-  passing each element's 0-based index to the block. Takes no arguments.
-- `filter_map { |item| } -> array` – block results that are truthy; fuses `map`
-  with a truthiness filter, dropping falsy returns.
-- `select { |item| } -> array` – elements for which the block is truthy.
-- `reject { |item| } -> array` – elements for which the block is falsy (the
-  inverse of `select`).
-- `take_while { |item| } -> array` – leading elements until the block first
-  returns a falsy value; stops at the first miss.
-- `drop_while { |item| } -> array` – elements remaining after skipping the
-  leading run for which the block is truthy.
-- `grep(pattern) { |item| } -> array` – elements that match `pattern` using the
-  case-equality direction (`pattern === item`); a `Range` matches by membership
-  and other values by equality. The optional block transforms each match.
-- `grep_v(pattern) { |item| } -> array` – elements that do not match `pattern`,
-  with the same matching rules and optional transform block as `grep`.
-- `find { |item| } -> value | nil` – first element matching the block, or
-  `nil` when none does; write the miss handling after the call.
-- `find_index(value) -> int | nil` / `find_index { |item| } -> int | nil` –
-  index of the first element equal to `value`, or the first index whose block is
-  truthy. Alias for `index`; pass a value or a block, never both.
-- `reduce(initial = nil) { |acc, item| } -> value` – fold left; without
-  `initial` the first element seeds the accumulator. An empty array folds to
-  `nil` when no `initial` is given, or to `initial` when one is.
-- `reduce(operation) -> value` and `reduce(initial, operation) -> value` –
-  fold by sending `operation` to the accumulator with each element, like Ruby's
-  `["a", "b"].reduce(:concat)`. `operation` is a symbol naming a method on the
-  accumulator (`["a", "b"].reduce(:concat)`) or a string naming either a method
-  or a binary operator (`[1, 2, 3].reduce(:+)`, also `-`, `*`, `/`, `%`, `**`).
-  With a block and a single argument, the block takes precedence and the lone
-  argument is treated as `initial`. With two arguments (`reduce(initial,
-  operation)`) the operation is always used and any block is ignored, matching
-  Ruby (`[1, 2, 3].reduce(10, :+) { |a, b| a * b }` folds with `+`).
+- `each(&block: T) -> array<T>` – yields each element; returns the array.
+- `each_with_index(&block: (T, int)) -> array<T>` – yields each element and
+  its index.
+- `each_slice(size: int, &block: array<T>)` – yields consecutive slices of
+  `size` elements, the last possibly shorter.
+- `each_cons(size: int, &block: array<T>)` – yields each run of `size`
+  consecutive elements.
+- `reverse_each(&block: T) -> array<T>` – yields from last to first.
+- `cycle(count: int? = nil, &block: T)` – yields every element `count` times,
+  or until the block breaks when `count` is `nil`.
 
-### Membership and Counting
+### Transforming
 
-- `include?(value) -> bool` – membership test using value equality.
-- `index(value, offset = 0) -> int | nil` / `index { |item| } -> int | nil` –
-  first index of `value` at or after `offset`, or the first index whose block is
-  truthy. Pass a value or a block, never both.
-- `rindex(value, offset = last_index) -> int | nil` /
-  `rindex { |item| } -> int | nil` – last index of `value` at or before
-  `offset`, or the last index whose block is truthy. Pass a value or a block,
-  never both.
-- `fetch(index, default) -> value` / `fetch(index) { |index| } -> value` –
-  element at `index` (negative counts from the end). When `index` is out of
-  bounds, evaluates the block with the requested index if a block is given,
-  otherwise returns the `default` argument if given, otherwise raises `index
-  ... outside of array bounds`. When both a `default` and a block are supplied,
-  the block supersedes the default and is evaluated on a miss, matching Ruby.
-- `dig(*path) -> value | nil` – nested lookup following `path`. Each component
-  descends one level: an integer index into an array or a symbol/string key
-  into a hash, so a single `dig` can traverse mixed array/hash data. `nil` when
-  any step is missing or out of range; a non-integer array index raises.
-- `count -> int` – element count.
-- `count(value) -> int` – occurrences of `value`.
-- `count { |item| } -> int` – elements for which the block is truthy.
-- `any? { |item| } -> bool` – true when any element (or block result) is
-  truthy.
-- `all? { |item| } -> bool` – true when every element (or block result) is
-  truthy.
-- `none? { |item| } -> bool` – true when no element (or block result) is
-  truthy.
-- `any?(pattern)`, `all?(pattern)`, `none?(pattern) -> bool` – test each element
-  against `pattern` with case equality (`===`), so range patterns test
-  membership (`[2].any?(1..3)` is true). A `pattern` argument takes precedence
-  over an attached block.
-- `one? { |item| } -> bool` – true when exactly one element (or block result)
-  is truthy.
+- `map<U>(&block: T -> U) -> array<U>` – the block's value for each element.
+- `map_with_index<U>(&block: (T, int) -> U) -> array<U>` – the block's value
+  for each element and its index.
+- `flat_map<U>(&block: T -> array<U>) -> array<U>` – the block's arrays
+  concatenated.
+- `filter_map<U>(&block: T -> U?) -> array<U>` – the block's values, without
+  the `nil` and `false` ones.
+- `select(&block: T -> bool) -> array<T>` – the elements the block accepts.
+- `reject(&block: T -> bool) -> array<T>` – the elements the block rejects.
+- `find(&block: T -> bool) -> T?` – the first element the block accepts.
+- `partition(&block: T -> bool) -> [array<T>, array<T>]` – the accepted
+  elements, then the others.
+- `take_while(&block: T -> bool) -> array<T>` – the leading elements the block
+  accepts.
+- `drop_while(&block: T -> bool) -> array<T>` – the elements after that
+  leading run.
+- `drop(count: int) -> array<T>` – the elements after the first `count`.
+- `grep(pattern: T | range) -> array<T>` – the elements equal to `pattern`, or
+  in the range.
+- `grep_v(pattern: T | range) -> array<T>` – the other elements.
+- `uniq(&block?: T -> any) -> array<T>` – the first of each group of equal
+  elements, or of elements with equal block values.
+- `compact -> array<T>` – on `array<T?>`, the elements that are not `nil`.
+- `flatten(depth: int? = nil) -> array<any>` – nested arrays collapsed
+  completely, or `depth` levels.
+- `reverse -> array<T>` – the elements in reverse order.
+- `rotate(count: int = 1) -> array<T>` – the elements rotated left by
+  `count`, right when negative.
+- `shuffle -> array<T>` – the elements in random order.
+- `chunk(size: int) -> array<array<T>>` – consecutive slices of `size`
+  elements.
+- `window(size: int) -> array<array<T>>` – every run of `size` consecutive
+  elements.
+- `chunk_while(&block: (T, T) -> bool) -> array<array<T>>` – runs whose
+  adjacent pairs the block accepts.
+- `slice_when(&block: (T, T) -> bool) -> array<array<T>>` – runs split where
+  the block accepts an adjacent pair.
+- `zip<U>(other: array<U>) -> array<[T, U?]>` /
+  `zip<U>(first: array<U>, second: array<U>, *others: array<array<U>>) -> array<array<T | U | nil>>`
+  – each element paired with the other arrays' elements at its index, `nil`
+  where they are shorter.
+- `product<U>(other: array<U>) -> array<[T, U]>` /
+  `product<U>(first: array<U>, second: array<U>, *others: array<array<U>>) -> array<array<T | U>>`
+  – every combination of one element from each array.
+- `combination(size: int) -> array<array<T>>` – every choice of `size`
+  elements, in order.
+- `permutation(size?: int) -> array<array<T>>` – every ordering of `size`
+  elements, all of them by default.
+- `repeated_combination(size: int) -> array<array<T>>` – combinations that may
+  repeat an element.
+- `repeated_permutation(size: int) -> array<array<T>>` – permutations that may
+  repeat an element.
+- `transpose -> array<array<T>>` – on `array<array<T>>`, rows and columns
+  swapped; raises when the rows differ in length.
+- `union(*others: array<array<T>>) -> array<T>` – the distinct elements of all
+  the arrays.
+- `difference(*others: array<array<T>>) -> array<T>` – the elements in none of
+  the others.
+- `join(separator: string = "") -> string` – the elements' `to_s` renderings
+  joined, nested arrays included.
+- `to_h<V>(&block: T -> [string, V]) -> hash<string, V>` / `to_h -> hash<string, V>`
+  – a hash from the `[key, value]` pair the block returns for each element, or,
+  on `array<[string, V]>`, from the pairs themselves; a later duplicate key wins.
 
-### Building and Slicing
+```vibe
+[1, 2, 3, 4].filter_map { |n| n.odd? ? n * 10 : nil }  # [10, 30]
+[1, 2, 3, 4].partition { |n| n > 2 }                   # [[3, 4], [1, 2]]
+[1, 2].zip([3])                                        # [[1, 3], [2, nil]]
+["a", "bb"].to_h { |s| [s, s.length] }                 # {a: 1, bb: 2}
+pairs: array<[string, int]> = [["a", 1], ["b", 2]]
+pairs.to_h                                             # {a: 1, b: 2}
+```
 
-- `push(*values) -> array` – appends `values` to the receiver in place and
-  returns the receiver. Accepts zero values: bare `push` and `push()` are
-  no-ops returning the receiver, matching Ruby.
-- `append(*values) -> array` – Ruby-style alias for `push`.
-- `prepend(*values) -> array` – inserts `values` at the front of the receiver
-  in place and returns it, so `[3].prepend(1, 2)` is `[1, 2, 3]`.
-- `unshift(*values) -> array` – Ruby-style alias for `prepend`.
-- `pop -> value | nil` / `pop(n) -> array` – removes element(s) from the end of
-  the receiver in place; bare `pop` returns the removed element (`nil` on an
-  empty array), `pop(n)` removes up to `n` and returns them as an array.
-- `shift -> value | nil` / `shift(n) -> array` – removes element(s) from the
-  front of the receiver in place, mirroring `pop`. `n` must be a non-negative
-  integer.
-- `delete(value) -> value | nil` / `delete(value) { default } -> value` –
-  removes every element equal to `value` from the receiver in place, returning
-  the last removed element, or `nil` on a miss (the block result instead when a
-  block is given).
-- `insert(index, *values) -> array` – splices `values` into the receiver before
-  the element at `index` and returns the receiver. A negative index inserts
-  after that element (`insert(-1, x)` appends); an index past the end pads with
-  `nil`; a negative index past the start raises. Inserting no values returns
-  the receiver unchanged.
-- `clear -> array` – removes every element from the receiver and returns it.
-- `delete_if { |item| } -> array` / `keep_if { |item| } -> array` – prune the
-  receiver against the block (drop accepted / keep accepted) and return it.
-- `first -> value | nil` / `first(n) -> array` – leading element(s).
-- `last -> value | nil` / `last(n) -> array` – trailing element(s).
-- `uniq -> array` – distinct values, keeping first occurrences.
-- `compact -> array` – elements with `nil` entries removed.
-- `flatten(depth = nil) -> array` – collapse nested arrays. No argument, `nil`,
-  or a negative depth flattens fully; `0` returns a shallow copy; a positive
-  depth flattens that many levels and a `Float` depth is truncated to an integer.
-  A nonnumeric depth raises.
-- `chunk(size) -> array` – consecutive slices of `size` elements (last chunk
-  may be shorter).
-- `window(size) -> array` – overlapping windows of `size` elements; empty when
-  `size` exceeds the array length.
-- `join(separator = "") -> string` – stringified elements joined by
-  `separator`.
-- `reverse -> array` – elements in reverse order.
-- `to_h -> hash` / `to_h { |element| [key, value] } -> hash` – build a hash from
-  two-element `[key, value]` pairs (the inverse of `Hash#to_a`). Keys use the
-  same Ruby-style hash-key identity as hash literals and duplicate keys keep the
-  last pair; the block form maps each element to its pair. A non-array element,
-  a pair that is not exactly two elements, or an unsupported key raises.
+### Folding, ordering and grouping
 
-The removal helpers mutate the receiver and hand back what they removed,
-exactly as in Ruby:
+- `reduce(&block: (T, T) -> T) -> T?` /
+  `reduce<A>(initial: A, &block: (A, T) -> A) -> A` – the elements folded from
+  the first, `nil` for an empty array, or from `initial`.
+- `sum -> T` / `sum(initial: T) -> T` / `sum(&block: T -> int) -> int` /
+  `sum<U: number | money | duration>(initial: U, &block: T -> U) -> U` – the
+  total: of an `array<int>` from `0`, of numbers, money or durations from
+  `initial`, or of the block's values.
+- `sort(&block?: (T, T) -> int) -> array<T>` – when `T` is comparable, the
+  elements in ascending order, or by a comparator block returning a negative,
+  zero or positive int; the sort is stable.
+- `sort_by<K: comparable>(&block: T -> K) -> array<T>` – the elements ordered
+  by the block's key, stably.
+- `min -> T?` / `max -> T?` – when `T` is comparable, the smallest or largest
+  element.
+- `minmax -> [T?, T?]` – both in one pass.
+- `min_by<K: comparable>(&block: T -> K) -> T?` /
+  `max_by<K: comparable>(&block: T -> K) -> T?` – the element with the smallest
+  or largest key; ties go to the first.
+- `group_by<K: string | symbol>(&block: T -> K) -> hash<string, array<T>>` –
+  the elements grouped under the block's key.
+- `group_by_stable<K: string | symbol>(&block: T -> K) -> array<[K, array<T>]>`
+  – the groups as `[key, elements]` pairs, in the order each key first appears.
+- `tally(&block?: T -> string | symbol) -> hash<string, int>` – on arrays of
+  strings or symbols, how often each element, or each block key, occurs.
+
+Strings and symbols order by code point, without locale collation.
+
+```vibe
+[5, 1, 4].sort { |a, b| b <=> a }          # [5, 4, 1]
+["bb", "a"].sort_by { |s| s.length }        # ["a", "bb"]
+[1, 2, 3].reduce(10) { |acc, n| acc + n }  # 16
+[1.5, 2.25].sum(0.0)                        # 3.75
+["a", "b", "a"].tally                       # {a: 2, b: 1}
+```
+
+### Updating the array
+
+- `push(*values: array<T>) -> array<T>` – appends the values; returns the
+  array.
+- `prepend(*values: array<T>) -> array<T>` – inserts the values at the front,
+  in order.
+- `pop -> T?` / `pop(count: int) -> array<T>` – removes and returns the last
+  element, or the last `count` elements in order.
+- `shift -> T?` / `shift(count: int) -> array<T>` – removes and returns the
+  first element, or the first `count`.
+- `insert(index: int, *values: array<T>) -> array<T>` – inserts the values
+  before `index`; a negative index inserts after the element it selects, so
+  `-1` appends. An index past the end raises.
+- `fill(value: T, start?: int | range, length?: int) -> array<T>` – overwrites
+  every element, those from `start` for `length`, or those in the range, with
+  `value`; it never grows the array and raises past the end.
+- `delete(value: T, &block?: T -> T) -> T?` – removes every element equal to
+  `value` and returns the last removed, or `nil` (the block's value) on a miss.
+- `delete_if(&block: T -> bool) -> array<T>` – removes the elements the block
+  accepts.
+- `keep_if(&block: T -> bool) -> array<T>` – keeps only the elements the block
+  accepts.
+- `clear -> array<T>` – removes every element.
 
 ```vibe
 items = [1, 2, 3, 4, 5]
-items.pop       # 5    (items is now [1, 2, 3, 4])
-items.pop(2)    # [3, 4]
-items.shift     # 1
-items.shift(2)  # [2] (clamped to the remaining length)
-[1, 2, 2].delete(2) # 2
+items.pop       # 5
+items.shift(2)  # [1, 2]
+items           # [3, 4]
+items.prepend(1, 2)
+items.delete(4) # 4
+items           # [1, 2, 3]
 ```
 
-### Aggregation, Ordering, and Grouping
+### Removed spellings
 
-- `sum -> int | float` – total of numeric elements (`0` for an empty array).
-- `sort -> array` – stable sort using natural ordering.
-- `sort { |a, b| } -> array` – stable sort using a comparator block returning
-  a negative, zero, or positive number.
-- `sort_by { |item| } -> array` – stable sort by the block's key for each
-  element.
-- `partition { |item| } -> array` – `[matching, non_matching]` pair of arrays.
-- `group_by { |item| } -> hash` – group elements by block result.
-- `group_by_stable { |item| } -> array` – `[key, items]` pairs preserving
-  first-seen group order.
-- `tally -> hash` / `tally { |item| } -> hash` – occurrence counts keyed by
-  element (or block result).
-- `min -> value | nil` / `max -> value | nil` – smallest/largest element using
-  natural ordering; `nil` for an empty array.
-- `minmax -> array` – `[min, max]` in one pass; `[nil, nil]` for an empty array.
-- `min_by { |item| } -> value | nil` / `max_by { |item| } -> value | nil` –
-  element with the smallest/largest block key; `nil` for an empty array. Ties
-  resolve to the first matching element.
+- `size` – removed; use `length`, the number of elements.
+- `find_index` – removed; use `index`.
+- `append` – removed; use `push`.
+- `unshift` – removed; use `prepend`.
+- `collect_concat` – removed; use `flat_map`.
+- `take` – removed; use `first(count)`.
+- `at` – removed; index the array, as in `items[index]`.
+- `slice` – removed; index the array, as in `items[start, length]` or
+  `items[range]`.
 
-String and symbol ordering uses deterministic codepoint comparison (no locale
-collation).
-
-```vibe
-[5, 1, 4].sort do |a, b|
-  b - a
-end
-# [5, 4, 1]
-```
+`reduce(:+)` and other operation shorthands are removed as well: pass a block,
+as in `reduce { |acc, n| acc + n }`.
 
 ## Hashes
 
-See [hashes.md](hashes.md) for worked examples. Hash keys live in one string
-keyspace: symbols and strings address the same entry, and integer or array
-keys are rejected. `keys`, `values`, and all block-based iteration visit
-entries in Ruby-style insertion order for determinism.
+See [hashes.md](hashes.md) for worked examples. Hash keys are strings, and a
+`name:` label in a literal is the string key `"name"`. A literal is a shape,
+a record with those fields: `{ name: "Ada", age: 36 }` is
+`{ name: string, age: int }`, and `record["name"]` is a `string`. A
+dictionary is declared as `hash<string, V>` (`counts: hash<string, int> = {}`),
+and `counts[key]` is `V?`; a shape whose fields all have type `V` is assignable
+to it. The members below are those of `hash<string, V>`. Entries keep
+insertion order in `keys`, `values` and every iteration.
 
-Property access (`record.name`) resolves the hash methods below before stored
-keys, so method names stay stable even when data contains the same key:
+### Reading
+
+- `length -> int` – the number of entries.
+- `empty? -> bool` – whether the hash has no entries.
+- `key?(key: string) -> bool` – whether `key` is present.
+- `value?(value: V) -> bool` – whether some value equals `value`.
+- `keys -> array<string>` – the keys in insertion order.
+- `values -> array<V>` – the values in insertion order.
+- `fetch(key: string, default?: V, &block?: string -> V) -> V` – the value for
+  `key`; when missing, the block's value for the key, else `default`, else an
+  error.
+- `fetch_values(*keys: array<string>, &block?: string -> V) -> array<V>` – the
+  values for the keys, in order; a missing key takes the block's value or
+  raises.
+- `values_at(*keys: array<string>) -> array<V?>` – the values for the keys,
+  `nil` where missing.
+- `dig(key: string, *path: array<string | int>) -> any` – the value down a path
+  of hash keys and array indexes, or `nil` when a step is missing.
+
+### Iterating
+
+- `each(&block: (string, V)) -> hash<string, V>` /
+  `each(&block: [string, V]) -> hash<string, V>` – yields each key and value,
+  or each `[key, value]` pair to a one-parameter block; returns the hash.
+- `each_key(&block: string) -> hash<string, V>` – yields each key.
+- `each_value(&block: V) -> hash<string, V>` – yields each value.
+- `each_with_index(&block: ([string, V], int)) -> hash<string, V>` – yields
+  each pair and its index.
+- `map<U>(&block: (string, V) -> U) -> array<U>` /
+  `map<U>(&block: [string, V] -> U) -> array<U>` – the block's value for each
+  entry.
+- `map_with_index<U>(&block: ([string, V], int) -> U) -> array<U>` – the
+  block's value for each pair and its index.
+- `to_a -> array<[string, V]>` – the `[key, value]` pairs.
+- `flatten(depth: int = 1) -> array<any>` – the pairs flattened into
+  `[key, value, ...]`, or deeper.
+
+### Transforming and filtering
+
+- `select(&block: (string, V) -> bool) -> hash<string, V>` – the entries the
+  block accepts.
+- `reject(&block: (string, V) -> bool) -> hash<string, V>` – the entries the
+  block rejects.
+- `slice(*keys: array<string>) -> hash<string, V>` – only the listed keys that
+  are present.
+- `except(*keys: array<string>) -> hash<string, V>` – every entry but the
+  listed keys.
+- `merge(*others: array<hash<string, V>>, &block?: (string, V, V) -> V) -> hash<string, V>`
+  – the entries of every hash, later ones winning, or the block's value for a
+  key present in both.
+- `transform_keys(&block: string -> string | symbol) -> hash<string, V>` –
+  each key replaced by the block's value.
+- `deep_transform_keys(&block: string -> string | symbol) -> hash<string, V>`
+  – the same, through nested hashes and arrays.
+- `remap_keys(mapping: hash<string, string | symbol>) -> hash<string, V>` –
+  keys renamed by `mapping`; unmapped keys stay.
+- `transform_values<U>(&block: V -> U) -> hash<string, U>` – each value
+  replaced by the block's value.
+- `compact -> hash<string, V>` – on `hash<string, V?>`, the entries whose value
+  is not `nil`.
+
+### Updating the hash
+
+- `delete(key: string, &block?: string -> V) -> V?` – removes the entry and
+  returns its value, or `nil` (the block's value) when missing.
+- `delete_if(&block: (string, V) -> bool) -> hash<string, V>` – removes the
+  entries the block accepts.
+- `keep_if(&block: (string, V) -> bool) -> hash<string, V>` – keeps only the
+  entries the block accepts.
+- `clear -> hash<string, V>` – removes every entry.
+- `replace(other: hash<string, V>) -> hash<string, V>` – replaces every entry
+  with those of `other`.
 
 ```vibe
-sizes = { size: "XL" }
-sizes.size            # 1
-sizes[:size]          # "XL"
-{ color: "red" }.size # 1
+scores: hash<string, int> = { ada: 3, bo: 5 }
+scores.fetch("ada")                        # 3
+scores.fetch("cy", 0)                      # 0
+scores["cy"]                               # nil
+scores.select { |name, score| score > 3 }  # {bo: 5}
+scores.merge({ ada: 10 }) { |key, old, new| old + new }  # {ada: 13, bo: 5}
+scores["cy"] = 1
+scores.keys                                # ["ada", "bo", "cy"]
 ```
 
-Use index access (`hash[:size]`) to read entries whose names collide with hash
-methods.
+### Removed spellings
 
-### Inspection
-
-- `size -> int` – entry count.
-- `length -> int` – alias for `size`.
-- `empty? -> bool` – true when the hash has no entries.
-- `key?(key) -> bool` – true when `key` is present.
-- `has_key?(key) -> bool` – alias for `key?`.
-- `member?(key) -> bool` – alias for `key?`.
-- `include?(key) -> bool` – alias for `key?`.
-- `value?(value) -> bool` – true when any stored value equals `value` using `==`.
-- `has_value?(value) -> bool` – alias for `value?`.
-- `inspect -> string` – debug rendering using colon-label keys with each value
-  inspected recursively (see [Debug Representation](#debug-representation)).
-
-### Access
-
-- `fetch(key, default) -> value` / `fetch(key) { |key| } -> value` – value for
-  `key`. When `key` is missing, evaluates the block with the requested key if a
-  block is given, otherwise returns the `default` argument if given, otherwise
-  raises `key not found`. When both a `default` and a block are supplied, the
-  block supersedes the default and is evaluated on a miss, matching Ruby. Use
-  `[]` or `dig` when a missing key should yield `nil`.
-- `fetch_values(*keys) { |key| } -> array` – values for `keys` in requested
-  order. Raises `key not found` for any missing key; when a block is given it is
-  called with each missing key and its result is used instead.
-- `dig(*path) -> value | nil` – nested lookup following `path`. Each component
-  descends one level: a symbol/string key into a hash or an integer index into
-  an array, so a single `dig` can traverse mixed hash/array data. `nil` when any
-  step is missing or out of range; a non-integer array index raises.
-- `keys -> array` – keys in insertion order.
-- `values -> array` – values in insertion order.
-
-### Iteration
-
-- `each { |key, value| } -> hash` – yield each pair; returns the receiver.
-- `each_with_index { |pair, index| } -> hash` – yield each `[key, value]` pair
-  with its 0-based index in insertion order, matching Ruby's
-  `Hash#each_with_index`; returns the receiver. Takes no arguments.
-- `each_key { |key| } -> hash` – yield each key.
-- `each_value { |value| } -> hash` – yield each value.
-- `to_a -> array` – nested `[key, value]` pairs in insertion order, with keys
-  exposed as strings. The inverse of `Array#to_h`, equivalent to `flatten(0)`.
-- `map_with_index { |pair, index| } -> array` – new array of block results,
-  yielding each `[key, value]` pair with its 0-based index in insertion order.
-  Takes no arguments.
-
-### Transform and Filter
-
-- `merge(*others) -> hash` – combined entries from the receiver and every
-  argument hash. Arguments are applied left to right, so later hashes win on key
-  conflicts. With no arguments (including the bare, parenless `hash.merge`) it
-  returns a copy of the receiver.
-- `merge(*others) { |key, old_value, new_value| } -> hash` – combined entries; for
-  keys present in both hashes the block resolves the conflict and its result is
-  stored, folding through each argument in turn. Keys present on only one side are
-  copied without invoking the block, and the conflict key is the stored string.
-- `replace(other) -> hash` – discards the receiver's entries and adopts
-  `other`'s, updating the receiver the call names and returning it. Hashes
-  have no per-hash default metadata.
-- `flatten(depth = 1) -> array` – flat array built from the `[key, value]` pairs,
-  flattened to `depth`. The default depth produces `[key, value, ...]`; array
-  values stay nested unless a deeper `depth` is given. A `depth` of `0` keeps the
-  pairs nested, a negative `depth` flattens completely, and a `Float` depth is
-  truncated. Entries are emitted in insertion order.
-- `store(key, value) -> value` – Ruby's method spelling of index assignment:
-  writes the entry into the receiver in place and returns the stored value. An
-  existing key keeps its position in the insertion order.
-- `delete(key) -> value | nil` / `delete(key) { |key| default } -> value` –
-  removes the entry from the receiver in place and returns the removed value.
-  On a miss it returns `nil` — or the block result for the requested key — and
-  leaves the receiver untouched.
-- `clear -> hash` – empties the receiver in place and returns it.
-- `delete_if { |key, value| } -> hash` / `keep_if { |key, value| } -> hash` –
-  prune the receiver in place against the block (drop accepted / keep accepted
-  entries) and return it; survivors keep their insertion order.
-- `slice(*keys) -> hash` – only the listed keys; missing keys are skipped.
-  A candidate that is not a string or symbol raises.
-- `except(*keys) -> hash` – all entries except the listed keys. A candidate
-  that is not a string or symbol raises.
-- `select { |key, value| } -> hash` – entries for which the block is truthy.
-- `reject { |key, value| } -> hash` – entries for which the block is falsy.
-- `compact -> hash` – entries with `nil` values removed.
-- `transform_keys { |key| } -> hash` – rename keys via the block (must return
-  a symbol or string).
-- `deep_transform_keys { |key| } -> hash` – `transform_keys` applied
-  recursively through nested hashes and arrays; rejects cyclic structures.
-- `remap_keys(mapping) -> hash` – rename keys using a `{ old: :new }` hash;
-  unmapped keys pass through.
-- `transform_values { |value| } -> hash` – replace each value with the block
-  result.
+- `size` – removed; use `length`, the number of entries.
+- `has_key?` / `member?` / `include?` – removed; use `key?`.
+- `has_value?` – removed; use `value?`.
+- `store` – removed; assign by index, as in `counts[key] = value`.
 
 ## Integers
 
-Integers are arbitrary precision: arithmetic, literals, comparisons,
-string conversion, and JSON promote transparently past the signed
-64-bit range, and results that fit again return to the compact 64-bit
-representation. Integers are not hash keys — convert with `to_s` first.
-Two values of the same integer are always `==` and `eql?`;
-`equal?` follows Ruby's object model, where small (64-bit) integers are
-value-identical but two separately produced big integers are distinct
-objects. The deliberate 64-bit boundaries — each raising a clear error for a
-larger value — are range endpoints, the iteration members (`times`, `upto`,
-`downto`, `step`), `Money`/`Duration`/`Time` arithmetic, and argument
-positions denoting indexes, counts, sizes, or precisions. Integer literals
-parse up to 100,000 digits (a parser cost guard; larger values remain
-constructible through arithmetic).
+Integers have arbitrary precision: arithmetic, comparison, conversion and JSON
+continue past the 64-bit range, and results that fit return to compact
+storage. Indexes, counts, range endpoints, the iteration members and money,
+duration and time arithmetic stay within 64 bits and raise beyond them. `//`
+is floor division and `%` the floored remainder, so `-7 // 2` is `-4` and
+`-7 % 3` is `2`. `/` on two integers is true division, returning a float; until
+the switchover the checker rejects it (V0109) and asks for `//`. Integer
+division or remainder by zero raises.
 
-### Duration Constructors
+- `abs -> int` – the absolute value.
+- `between?(min: number, max: number) -> bool` – whether the integer lies
+  between the bounds, inclusive.
+- `clamp(bounds: range) -> int` / `clamp(min: int?, max: int?) -> int` – the
+  integer bounded by a range or by two bounds; `nil` leaves a side open.
+- `even? -> bool` / `odd? -> bool` – parity.
+- `zero? -> bool` / `positive? -> bool` / `negative? -> bool` – sign tests.
+- `nonzero? -> int?` – the integer, or `nil` when it is `0`.
+- `succ -> int` / `pred -> int` – the next or previous integer.
+- `round(digits: int = 0) -> int` – unchanged for non-negative `digits`; a
+  negative `digits` rounds half away from zero to that power of ten, so
+  `1234.round(-2)` is `1200`.
+- `floor(digits: int = 0) -> int` – like `round`, toward negative infinity.
+- `ceil(digits: int = 0) -> int` – like `round`, toward positive infinity.
+- `div(divisor: number) -> int` – the floored quotient; `-5.div(2)` is `-3`.
+- `divmod(divisor: int) -> [int, int]` – the floored quotient and remainder.
+- `fdiv(divisor: number) -> float` – float division; a zero divisor gives an
+  infinity or NaN.
+- `remainder(divisor: int) -> int` – the remainder with the receiver's sign
+  (truncated division).
+- `times(&block: int) -> int` – yields `0` to `n - 1`; returns the integer.
+- `upto(limit: int, &block: int) -> int` – yields each integer up to `limit`.
+- `downto(limit: int, &block: int) -> int` – yields each integer down to
+  `limit`.
+- `step(limit: int, by: int = 1, &block: int) -> int` – yields every `by`-th
+  integer until it passes `limit`; `by` must not be `0`.
+- `seconds -> duration` / `minutes -> duration` / `hours -> duration` /
+  `days -> duration` / `weeks -> duration` – a duration of that many units.
+- `to_i -> int` – the integer itself.
+- `to_f -> float` – the integer as a float.
+- `to_s -> string` – the decimal digits.
 
-Each returns a `duration` spanning that many units. Singular forms are
-aliases, so `1.second` reads naturally.
+```vibe
+7.divmod(2)     # [3, 1]
+7 // 2          # 3
+7.fdiv(2)       # 3.5
+5.clamp(1, 3)   # 3
+1234.round(-2)  # 1200
+90.minutes.to_i # 5400
+```
 
-- `seconds` / `second` -> duration
-- `minutes` / `minute` -> duration
-- `hours` / `hour` -> duration
-- `days` / `day` -> duration
-- `weeks` / `week` -> duration
+### Removed spellings
 
-### Numeric Helpers
-
-- `abs -> int` – absolute value; the minimum 64-bit integer promotes to
-  `9223372036854775808` rather than erroring.
-- `clamp(min, max) -> int | float` / `clamp(range) -> int` – receiver bounded
-  to the given bounds; integer and float bounds may be mixed, `nil` leaves one
-  side open, and range form accepts inclusive integer ranges.
-- `even? -> bool` – true for even integers.
-- `odd? -> bool` – true for odd integers.
-- `times { |i| } -> int` – run the block with `0..n-1`; returns the receiver.
-- `upto(limit) { |i| } -> int` – run the block with each integer from the
-  receiver up to `limit` inclusive (nothing when the receiver already exceeds
-  `limit`); returns the receiver.
-- `downto(limit) { |i| } -> int` – run the block with each integer from the
-  receiver down to `limit` inclusive (nothing when the receiver is already below
-  `limit`); returns the receiver.
-- `step(limit, by = 1) { |i| } -> int` – run the block with the receiver and
-  each subsequent value `by` apart, while it has not passed `limit` (`<= limit`
-  for a positive step, `>= limit` for a negative step); `by` must be a nonzero
-  integer. Returns the receiver.
-- `zero? -> bool` – true when the integer is `0`.
-- `positive? -> bool` – true when greater than `0`.
-- `negative? -> bool` – true when less than `0`.
-- `nonzero? -> int?` – the receiver when nonzero, otherwise `nil`, matching
-  Ruby (the result is truthy exactly when the number is nonzero).
-- `next -> int` / `succ -> int` – the next integer (`self + 1`), promoting
-  past the 64-bit boundary.
-- `pred -> int` – the previous integer (`self - 1`), promoting past the
-  64-bit boundary.
-- `round(ndigits = 0) -> int` – non-negative `ndigits` return the receiver
-  unchanged; negative `ndigits` round to the matching power of ten (e.g.
-  `1234.round(-2)` is `1200`) half away from zero.
-- `floor(ndigits = 0) -> int` – like `round`, but negative `ndigits` truncate
-  toward negative infinity (`1234.floor(-2)` is `1200`, `(-1234).floor(-2)` is
-  `-1300`).
-- `ceil(ndigits = 0) -> int` – like `round`, but negative `ndigits` round
-  toward positive infinity (`1234.ceil(-2)` is `1300`).
-- `div(n) -> int` – floored division; the quotient rounds toward negative
-  infinity, so mixed-sign operands round down (`(-5).div(2)` is `-3`). A zero
-  divisor errors; quotients outside the 64-bit range promote.
-- `divmod(n) -> [quotient, modulo]` – the floored quotient and the modulo whose
-  sign follows the divisor. With integer arguments both elements are integers;
-  a float argument makes the modulo a float.
-- `fdiv(n) -> float` – floating division. As in Ruby, a zero divisor follows
-  IEEE 754: a finite nonzero receiver yields `Infinity`/`-Infinity` and a zero
-  receiver yields `NaN`, matching the `/` operator (integer `/` still errors).
-- `remainder(n) -> int|float` – remainder whose sign follows the receiver
-  (truncated division), which differs from `%` for operands of opposite sign;
-  a zero divisor errors.
-- `modulo(n) -> int|float` – the `%` operator as a method: the result's sign
-  follows the divisor (floored division). Integer operands yield an integer;
-  any float operand yields a float; a zero divisor errors.
-- `to_s -> string` – the integer's display digits (Ruby's `Integer#to_s`).
-- `string -> string` – alias for `to_s`.
-- `to_i -> int` – the receiver itself.
-- `to_f -> float` – the value as a float.
-- `nil? -> bool` – always `false`.
-- `inspect -> string` – the integer's debug rendering (same digits as `to_s`;
-  see [Debug Representation](#debug-representation)).
-
-`round`, `floor`, and `ceil` accept an optional Integer precision. As in Ruby,
-the precision must fit a 32-bit signed integer (Ruby reads it through `NUM2INT`),
-so a magnitude beyond that range raises rather than acting as a no-op. Results
-that leave the 64-bit integer range widen to arbitrary precision exactly like
-Ruby's; a bucket sized by an astronomical precision (for example
-`1.ceil(-1000000000)`, whose result is `10 ** 1000000000`) is preflighted
-against the sandbox's memory quota rather than materialized blindly.
+- `second` / `minute` / `hour` / `day` / `week` – removed; use the plural
+  unit, such as `1.seconds`.
+- `next` – removed; use `succ`.
+- `modulo` – removed; use the `%` operator.
 
 ## Floats
 
-- `abs -> float` – absolute value.
-- `clamp(min, max) -> int | float` / `clamp(range) -> float` – receiver
-  bounded to the given bounds; integer and float bounds may be mixed, `nil`
-  leaves one side open, and range form accepts inclusive integer ranges.
-- `round(ndigits = 0) -> int | float` – round half away from zero. With no
-  argument or `0` it returns an `int`; positive `ndigits` keep the value a
-  `float` rounded to that many fractional digits (`1.234.round(2)` is `1.23`);
-  negative `ndigits` return an `int` bucketed to a power of ten.
-- `floor(ndigits = 0) -> int | float` – round toward negative infinity, with
-  the same `int`/`float` return rules as `round`.
-- `ceil(ndigits = 0) -> int | float` – round toward positive infinity, with the
-  same `int`/`float` return rules as `round`.
-- `zero? -> bool` – true when the value is `0.0`.
-- `positive? -> bool` – true when greater than `0.0`.
-- `negative? -> bool` – true when less than `0.0`.
-- `nonzero? -> float?` – the receiver when nonzero, otherwise `nil`, matching
-  Ruby (the result is truthy exactly when the number is nonzero).
-- `nan? -> bool` – true when the value is the IEEE `NaN` (for example
-  `(0.0 / 0.0).nan?`).
-- `infinite? -> int?` – `1` for `Infinity`, `-1` for `-Infinity`, and `nil` for
-  every finite value and `NaN`, matching Ruby. The result is truthy exactly when
-  the value is infinite.
-- `finite? -> bool` – true when the value is neither infinite nor `NaN`.
-- `div(n) -> int` – floored division returning an integer; a zero divisor
-  errors; quotients outside the 64-bit range promote.
-- `divmod(n) -> [int, float]` – the floored quotient (an integer) and the
-  float modulo whose sign follows the divisor. A zero divisor errors.
-- `fdiv(n) -> float` – floating division. As in Ruby, a zero divisor follows
-  IEEE 754: a finite nonzero receiver yields `Infinity`/`-Infinity` and a zero
-  receiver yields `NaN`, matching the `/` operator.
-- `remainder(n) -> float` – remainder whose sign follows the receiver
-  (truncated division); a zero divisor errors.
-- `modulo(n) -> float` – the `%` operator as a method: the result's sign
-  follows the divisor (floored division); a zero divisor errors.
-- `to_s -> string` – the float's display text (Ruby's `Float#to_s`).
-- `string -> string` – alias for `to_s`.
-- `to_i -> int` – truncate toward zero (Ruby's `Float#to_i`); finite values
-  beyond 64 bits promote to exact integers, and a non-finite value raises
-  rather than producing garbage.
-- `to_f -> float` – the receiver itself.
-- `nil? -> bool` – always `false`.
-- `inspect -> string` – the float's debug rendering (same text as `to_s`,
-  including `Infinity`/`-Infinity`/`NaN`; see
-  [Debug Representation](#debug-representation)).
+Floats are IEEE 754 doubles. `1.0 / 0` is `Infinity` and `0.0 / 0.0` is
+`NaN`; comparisons involving `NaN` are false, and `NaN == NaN` is false.
+`to_s` and `inspect` print the shortest decimal form, in exponent notation
+for very large or small magnitudes, and drop a trailing `.0`, so `4.0.to_s` is
+`"4"`. `JSON.stringify`
+rejects non-finite floats, and converting one to an integer raises.
 
-Float division by zero with the `/` operator follows IEEE 754 like Ruby:
-`1.0 / 0` is `Infinity`, `-1.0 / 0` is `-Infinity`, and `0.0 / 0.0` is `NaN`.
-Integer division by zero (`1 / 0`) still raises. Special values print as
-`Infinity`, `-Infinity`, and `NaN`, and `div`, `divmod`, `modulo`, and
-`remainder` keep raising on a zero divisor (they return floored or
-integer-valued results, for which Ruby also raises). `JSON.stringify` rejects
-non-finite floats because JSON has no representation for them.
+- `abs -> float` – the absolute value.
+- `between?(min: number, max: number) -> bool` – whether the float lies
+  between the bounds, inclusive.
+- `clamp(bounds: range) -> number` / `clamp(min: float?, max: float?) -> float`
+  – the float bounded by a range or by two bounds; `nil` leaves a side open.
+- `round -> int` / `round(digits: int) -> number` – rounded half away from
+  zero to an int, or to `digits` fractional digits as a float when `digits` is
+  positive (`1.234.round(2)` is `1.23`).
+- `floor -> int` / `floor(digits: int) -> number` – like `round`, toward
+  negative infinity.
+- `ceil -> int` / `ceil(digits: int) -> number` – like `round`, toward positive
+  infinity.
+- `zero? -> bool` / `positive? -> bool` / `negative? -> bool` – sign tests.
+- `nonzero? -> float?` – the float, or `nil` when it is zero.
+- `nan? -> bool` – whether the float is NaN.
+- `infinite? -> int?` – `1` or `-1` for an infinity, otherwise `nil`.
+- `finite? -> bool` – whether the float is neither infinite nor NaN.
+- `div(divisor: number) -> int` – the floored quotient as an int.
+- `divmod(divisor: number) -> [int, float]` – the floored quotient and the
+  remainder with the divisor's sign.
+- `fdiv(divisor: number) -> float` – float division.
+- `remainder(divisor: number) -> float` – the remainder with the receiver's
+  sign.
+- `to_i -> int` – truncated toward zero; exact beyond 64 bits.
+- `to_f -> float` – the float itself.
+- `to_s -> string` – the display text.
 
-Comparisons follow IEEE 754 and Ruby. Infinities order as the extreme values
-(`Infinity > 1000000.0`). Any comparison involving `NaN` is unordered: `<`,
-`<=`, `>`, and `>=` all return `false`, equality is `false` (so `NaN == NaN` is
-`false`), and the spaceship operator `<=>` returns `nil`. Coercing a non-finite
-float to an integer raises rather than silently producing a garbage value, so
-a `NaN` or `Infinity` endpoint in a range, a non-finite `money_cents` amount, or
-non-finite duration arithmetic reports a clear error.
+```vibe
+1.234.round(2)   # 1.23
+2.5.round        # 3
+3.7.floor        # 3
+7.5.divmod(2)    # [3, 1.5]
+nan = 0.0 / 0.0
+nan.nan?         # true
+(1.0 / 0).infinite?  # 1
+```
 
-`round`, `floor`, and `ceil` accept an optional Integer precision that defaults
-to `0`. As in Ruby, the precision must fit a 32-bit signed integer, so a
-magnitude beyond that range raises rather than acting as a no-op. Whenever the
-result is converted back to an `int` (zero or negative precision), finite
-values outside the 64-bit integer range promote to exact integers, matching
-Ruby; only `NaN` and the infinities raise.
+### Removed spellings
 
-Vibescript has no rational number type, so Ruby's `quo` (which returns a
-`Rational` for integer operands) is intentionally not provided; use `fdiv` for
-floating division.
+- `modulo` – removed; use the `%` operator.
 
 ## Money
 
-Money values are created with the `money` and `money_cents` builtins and
-support arithmetic and comparison operators.
+Money values come from `money("12.50 USD")` and `money_cents(1250, "USD")`.
+They add and subtract in the same currency, multiply and divide by integers
+(division truncates), and compare with `<`, `>` and `==`.
 
-- `currency -> string` – ISO currency code, e.g. `"USD"`.
-- `cents -> int` – total amount in minor units.
-- `amount -> string` – formatted amount with currency, e.g. `"100.50 USD"`.
-- `format -> string` – same as `amount`.
-- `to_s` / `string` -> string – same as `amount`.
+- `cents -> int` – the amount in minor units.
+- `currency -> string` – the three-letter currency code.
+- `between?(min: money, max: money) -> bool` – whether the amount lies between
+  the bounds, inclusive.
+- `to_s -> string` – the amount and currency, as `"100.50 USD"`.
 
 ```vibe
-m = money("100.50 USD")
-m.cents    # 10050
-m.currency # "USD"
-m.amount   # "100.50 USD"
+price = money("100.50 USD")
+price.cents                    # 10050
+price.currency                 # "USD"
+(price + money("1.00 USD")).to_s  # "101.50 USD"
 ```
+
+### Removed spellings
+
+- `amount` – removed; use `to_s`.
+- `format` – removed; use `to_s`.
 
 ## Durations
 
 See [durations.md](durations.md) for arithmetic and worked examples.
+Durations are whole seconds; they come from integer units such as `90.minutes`
+and from `Duration.build` and `Duration.parse`.
 
-### Whole-Unit Conversions
-
-Each returns an `int` truncated toward zero. Singular forms are aliases.
-
-- `seconds` / `second` -> int – total seconds.
-- `minutes` / `minute` -> int – total whole minutes.
-- `hours` / `hour` -> int – total whole hours.
-- `days` / `day` -> int – total whole days.
-- `weeks` / `week` -> int – total whole weeks.
-
-### Fractional Conversions
-
-Each returns a `float`. Months use 30-day and years 365-day approximations.
-
-- `in_seconds -> float`
-- `in_minutes -> float`
-- `in_hours -> float`
-- `in_days -> float`
-- `in_weeks -> float`
-- `in_months -> float` – approximate (30-day months).
-- `in_years -> float` – approximate (365-day years).
-
-```vibe
-90.seconds.minutes    # 1 (truncated)
-90.seconds.in_minutes # 1.5
-```
-
-### Formatting and Conversion
-
-- `iso8601 -> string` – ISO 8601 duration, e.g. `"PT1H30M"`.
-- `parts -> hash` – `{ days:, hours:, minutes:, seconds: }` breakdown.
-- `to_i -> int` – total seconds.
-- `to_s -> string` – seconds string, e.g. `"5400s"`.
-- `string -> string` – alias for `to_s`.
-- `format -> string` – same as `to_s`.
-- `eql?(other) -> bool` – true when both durations span the same seconds.
+- `weeks -> int` / `days -> int` / `hours -> int` / `minutes -> int` – the
+  whole number of units, truncated toward zero.
+- `to_i -> int` – the total seconds.
+- `in_seconds -> float` / `in_minutes -> float` / `in_hours -> float` /
+  `in_days -> float` / `in_weeks -> float` – the length in that unit, with
+  its fraction.
+- `in_months -> float` / `in_years -> float` – approximations using 30-day
+  months and 365-day years.
+- `parts -> { days: int, hours: int, minutes: int, seconds: int }` – the
+  length broken into parts.
+- `iso8601 -> string` – the ISO 8601 form, such as `"PT1H30M"`.
+- `to_s -> string` – the seconds, such as `"5400s"`.
+- `between?(min: duration, max: duration) -> bool` – whether the length lies
+  between the bounds, inclusive.
+- `ago -> time` / `from_now -> time` – the time this long before or after now.
+- `before(start: time) -> time` / `after(start: time) -> time` – the time this
+  long before or after `start`.
 
 ```vibe
 shift = 90.minutes
-shift.parts   # {days: 0, hours: 1, minutes: 30, seconds: 0}
-shift.iso8601 # "PT1H30M"
+shift.minutes     # 90
+shift.hours       # 1
+shift.in_hours    # 1.5
+shift.parts       # {days: 0, hours: 1, minutes: 30, seconds: 0}
+shift.iso8601     # "PT1H30M"
+5.minutes.before(Time.utc(2024, 1, 1)).iso8601  # "2023-12-31T23:55:00Z"
 ```
 
-### Anchoring to Times
+### Removed spellings
 
-Each accepts an optional `Time` (or RFC3339 string) and defaults to the
-current time; the result is a UTC `Time`.
+- `second` / `seconds` – removed; use `to_i`.
+- `minute` / `hour` / `day` / `week` – removed; use the plural unit, such as
+  `minutes`.
+- `format` – removed; use `to_s`.
+- `since` – removed; use `from_now`, or `after(start)`.
+- `until` – removed; use `ago`, or `before(start)`.
 
-- `after(start = Time.now) -> time` – `start` plus the duration.
-- `since(start = Time.now) -> time` – alias for `after`.
-- `from_now(start = Time.now) -> time` – alias for `after`.
-- `ago(start = Time.now) -> time` – `start` minus the duration.
-- `before(start = Time.now) -> time` – alias for `ago`.
-- `until(start = Time.now) -> time` – alias for `ago`.
-
-```vibe
-5.minutes.ago(Time.utc(2024, 1, 1)).iso8601 # "2023-12-31T23:55:00Z"
-```
+`ago` and `from_now` count from now and take no argument, while `before` and
+`after` take the time to count from: `ago(start)` is now `before(start)`, and
+`after` without a time is now `from_now`.
 
 ## Times
 
-See [time.md](time.md) for construction, zone handling, and layout-based
-formatting. Times also support `time + duration`, `time - duration`,
-`time + number` / `time - number` (the number is seconds, matching Ruby), and
-`time - time -> float` (seconds) arithmetic.
+See [time.md](time.md) for construction, zones and layouts. `time + duration`
+and `time - duration` shift a time, `time + n` and `time - n` shift it by
+seconds, and `time - time` is the float number of seconds between them. Times
+compare with `<`, `>`, `==` and `<=>`.
 
-### Components
+- `year -> int` / `month -> int` / `day -> int` – the calendar date.
+- `hour -> int` / `min -> int` / `sec -> int` – the time of day.
+- `usec -> int` / `nsec -> int` – the fraction of the second in micro- or
+  nanoseconds.
+- `subsec -> float` – the fraction of the second.
+- `wday -> int` – the day of the week, `0` for Sunday.
+- `yday -> int` – the day of the year, from `1`.
+- `zone -> string` – the zone abbreviation, such as `"UTC"`.
+- `utc_offset -> int` – the offset from UTC in seconds.
+- `utc? -> bool` – whether the time is in UTC.
+- `dst? -> bool` – whether daylight saving time is in effect.
+- `sunday? -> bool` / `monday? -> bool` / `tuesday? -> bool` /
+  `wednesday? -> bool` / `thursday? -> bool` / `friday? -> bool` /
+  `saturday? -> bool` – day-of-week tests.
+- `between?(min: time, max: time) -> bool` – whether the time lies between the
+  bounds, inclusive.
+- `to_i -> int` – seconds since the Unix epoch.
+- `to_f -> float` – seconds since the epoch, with the fraction.
+- `to_a -> [int, int, int, int, int, int, int, int, bool, string]` – `[sec,
+  min, hour, day, month, year, wday, yday, dst?, zone]`.
+- `to_s -> string` – the RFC 3339 form with nanoseconds when present.
+- `iso8601(digits: int = 0) -> string` – the RFC 3339 form with `digits`
+  fractional digits, truncated; at most 100.
+- `httpdate -> string` – the HTTP date in GMT, such as
+  `"Tue, 02 Jan 2024 03:04:05 GMT"`.
+- `rfc2822 -> string` – the mail date with the time's offset; a UTC time uses
+  `-0000`.
+- `format(layout: string) -> string` – formatted with a Go layout such as
+  `"2006-01-02"`.
+- `strftime(format: string) -> string` – formatted with a percent pattern such
+  as `"%Y-%m-%d"`; output is capped at 1 MiB.
+- `utc -> time` – the same instant in UTC.
+- `localtime(zone: string? = nil) -> time` – the same instant in a zone, such
+  as `"America/New_York"` or `"+05:30"`, or in the host's zone.
+- `round(digits: int = 0) -> time` – rounded half away from zero to `digits`
+  fractional digits.
+- `floor -> time` / `ceil -> time` – truncated or rounded up to the second.
 
-- `year -> int` – calendar year.
-- `month` / `mon` -> int – month of year (1-12).
-- `day` / `mday` -> int – day of month.
-- `hour -> int` – hour of day (0-23).
-- `min -> int` – minute of hour.
-- `sec -> int` – second of minute.
-- `usec` / `tv_usec` -> int – microsecond component.
-- `nsec` / `tv_nsec` -> int – nanosecond component.
-- `subsec -> float` – fractional second as a float.
-- `wday -> int` – day of week (0 = Sunday).
-- `yday -> int` – day of year (1-366).
+```vibe
+t = Time.utc(2024, 1, 2, 3, 4, 5)
+t.iso8601                # "2024-01-02T03:04:05Z"
+t.iso8601(3)             # "2024-01-02T03:04:05.000Z"
+t.format("2006-01-02")   # "2024-01-02"
+t.strftime("%H:%M")      # "03:04"
+t.tuesday?               # true
+t.localtime("+05:30").hour  # 8
+(t + 1.days).day         # 3
+```
 
-### Zone and Offset
+### Removed spellings
 
-- `zone -> string` – zone abbreviation, e.g. `"UTC"`.
-- `utc_offset` / `gmt_offset` / `gmtoff` -> int – offset from UTC in seconds.
+- `mon` – removed; use `month`.
+- `mday` – removed; use `day`.
+- `tv_sec` – removed; use `to_i`.
+- `tv_usec` – removed; use `usec`.
+- `tv_nsec` – removed; use `nsec`.
+- `to_r` – removed; use `to_f`.
+- `hash` – removed; use `to_i * 1000000000 + nsec`.
+- `gmt_offset` / `gmtoff` – removed; use `utc_offset`.
+- `gmtime` / `getutc` / `getgm` – removed; use `utc`.
+- `gmt?` – removed; use `utc?`.
+- `isdst` – removed; use `dst?`.
+- `xmlschema` / `rfc3339` – removed; use `iso8601`.
+- `rfc822` – removed; use `rfc2822`.
+- `getlocal` – removed; use `localtime`.
 
-### Predicates
-
-- `utc?` / `gmt?` -> bool – true for UTC times.
-- `dst?` / `isdst` -> bool – true when daylight saving time is in effect.
-- `sunday?`, `monday?`, `tuesday?`, `wednesday?`, `thursday?`, `friday?`,
-  `saturday?` -> bool – day-of-week checks.
-
-### Conversions
-
-- `to_i` / `tv_sec` -> int – seconds since the Unix epoch.
-- `to_f -> float` – epoch seconds with fractional part.
-- `to_r -> float` – same as `to_f` (rationals are not supported).
-- `to_s -> string` – RFC3339Nano representation.
-- `string -> string` – alias for `to_s`.
-- `to_a -> array` – positional tuple `[sec, min, hour, mday, month, year, wday,
-  yday, isdst, zone]`, matching Ruby's field order and the receiver's zone.
-- `iso8601(ndigits = 0)` / `xmlschema(ndigits = 0)` / `rfc3339(ndigits = 0)` -> string – RFC3339 representation. With no argument it emits whole seconds; a non-negative `ndigits` appends that many fractional-second digits, truncated toward zero (matching Ruby's `Time#iso8601`). `xmlschema` is an alias for `iso8601`. Negative, non-integer, or out-of-range (above 100 digits) precision raises a runtime error.
-- `httpdate -> string` – HTTP-date / IMF-fixdate form (RFC 7231), always rendered in GMT, e.g. `"Tue, 02 Jan 2024 03:04:05 GMT"`. Takes no arguments.
-- `rfc2822 -> string` / `rfc822 -> string` – RFC 2822 mail date preserving the receiver's zone offset, e.g. `"Tue, 02 Jan 2024 03:04:05 -0000"`. A genuine UTC receiver uses the `-0000` zone Ruby reserves for timestamps without real zone information; an explicit zero offset uses `+0000`. Both drop sub-second precision and take no arguments.
-- `hash -> int` – nanoseconds since the Unix epoch (identity value).
-
-### Zone Conversion
-
-- `utc` / `gmtime` -> time – the same instant in UTC.
-- `getutc` / `getgm` -> time – aliases for `utc`.
-- `localtime(offset = nil) -> time` – the same instant in the supplied zone,
-  or the host's local zone when the argument is omitted or `nil`. The offset
-  follows the usual zone rules: a fixed offset such as `"+05:30"` or `"-04:00"`,
-  a named zone such as `"America/New_York"`, or `"UTC"`. Returns a new `Time`;
-  the receiver is never mutated.
-- `getlocal(offset = nil) -> time` – alias for `localtime`.
-
-### Formatting
-
-- `format(layout) -> string` – format with a Go layout string (reference time
-  `Mon Jan 2 15:04:05 MST 2006`).
-- `strftime(format) -> string` – format with a Ruby-style percent format string
-  (e.g. `"%Y-%m-%d %H:%M:%S"`). Supports the common directive subset; unknown
-  directives pass through verbatim, while a trailing `%` with no directive raises
-  a runtime error. See [time.md](time.md) for the directive table.
-
-### Comparison and Rounding
-
-- `<=>(other) -> int | nil` – `-1`, `0`, or `1` ordering against another time,
-  or `nil` when `other` is not a time (matching Ruby's spaceship contract).
-- `eql?(other) -> bool` – true when both times are the same instant.
-- `round(ndigits = 0) -> time` – round to the given number of fractional-second
-  digits, half away from zero. No argument or `0` rounds to whole seconds;
-  positive `ndigits` rounds to that many digits (e.g. `3` for milliseconds, `6`
-  for microseconds), capped at nanosecond resolution. `ndigits` must be a
-  non-negative `Integer`; other values raise an error.
-- `floor -> time` – truncate to the whole second.
-- `ceil -> time` – round up to the next whole second.
-
-## Symbols
-
-Symbols (`:name`) expose the Ruby string/symbol conversion helpers:
-
-- `id2name -> string` – the symbol's name as a string.
-- `to_s -> string` – alias for `id2name`.
-- `string -> string` – alias for `to_s`.
-- `to_sym -> symbol` – returns the receiver unchanged.
-
-`"name".to_sym` and `:name.to_s` round-trip between the two representations.
-`:name == "name"` is still `false`; hash lookup is the exception, where both
-address the same entry.
-
-## Enum Values
-
-Enum members obtained via `EnumName::member` expose three properties (see
-[enums.md](enums.md)):
-
-- `name -> string` – member name, e.g. `"active"`.
-- `symbol -> symbol` – member symbol, e.g. `:active`.
-- `enum -> enum` – the defining enum.
+`time.<=>(other)` is removed too; write `time <=> other`.
 
 ## Ranges
 
-Ranges (`1..5`, `1...5`) are consumed by `for ... in` loops, and `case`/`when`
-uses range candidates as numeric membership tests (see
-[control-flow.md](control-flow.md)). They also expose query and conversion
-helpers.
+Ranges are integer ranges, inclusive (`1..5`) or exclusive (`1...5`). A
+descending range such as `5..1` iterates downward. `for` loops and `case`
+branches accept ranges, and each iteration step is charged to the step quota,
+so a wide range fails on the quota rather than running unbounded.
 
-Vibescript iterates descending ranges such as `5..1` (yielding `5, 4, 3, 2, 1`),
-so `size`, `to_a`, `first(n)`, and `last(n)` report that descending sequence
-rather than the empty result Ruby produces. The other helpers match Ruby's
-`Range` semantics.
+- `include?(value: number) -> bool` – whether `value` lies within the range,
+  honouring an exclusive end.
+- `first -> int` / `first(count: int) -> array<int>` – the start, or the first
+  `count` integers.
+- `last -> int` / `last(count: int) -> array<int>` – the end, even when the
+  range excludes it, or the last `count` integers.
+- `length -> int` – the number of integers the range iterates over.
+- `exclude_end? -> bool` – whether the range is written with `...`.
+- `min -> int?` / `max -> int?` – the smallest or largest integer, or `nil` for
+  an empty range.
+- `each(&block: int) -> range` – yields each integer; returns the range.
+- `step(by: int, &block: int) -> range` – yields every `by`-th integer from
+  the start; `by` must be positive.
+- `map<U>(&block: int -> U) -> array<U>` – the block's value for each integer.
+- `select(&block: int -> bool) -> array<int>` /
+  `reject(&block: int -> bool) -> array<int>` – the integers the block accepts,
+  or rejects.
+- `find(&block: int -> bool) -> int?` – the first integer the block accepts.
+- `count(&block: int -> bool) -> int` – how many integers the block accepts.
+- `reduce(&block: (int, int) -> int) -> int?` /
+  `reduce<A>(initial: A, &block: (A, int) -> A) -> A` – the integers folded.
+- `sum(initial: int = 0) -> int` – the total plus `initial`.
+- `to_a -> array<int>` – every integer, in iteration order.
+- `to_s -> string` – the range as written, such as `"1..5"`.
 
-### Membership
+```vibe
+range = 1..5
+range.include?(3)                  # true
+range.length                       # 5
+range.select { |n| n.odd? }        # [1, 3, 5]
+range.reduce(10) { |acc, n| acc + n }  # 25
+(5..1).to_a                        # [5, 4, 3, 2, 1]
+```
 
-- `cover?(value)` / `include?(value)` / `member?(value)` -> bool – true when
-  `value` falls within the range, honoring exclusive ends and range direction.
-  Integer and float arguments are tested numerically; any other type is never a
-  member and returns `false` rather than raising.
+### Removed spellings
 
-### Metadata
+- `size` – removed; use `length`, the number of integers in the range.
+- `member?` / `cover?` – removed; use `include?`.
 
-- `first -> int` – the start endpoint.
-- `last -> int` – the end endpoint, ignoring exclusivity (matching Ruby).
-- `size -> int` – the number of integers the range iterates over.
-- `exclude_end? -> bool` – true for `...` ranges, false for `..` ranges.
+`count` without a block is removed as well; use `length`.
 
-### Conversion
+## Nil and Booleans
 
-- `first(n) -> array` – the first `n` iterated elements, clamped to the range.
-- `last(n) -> array` – the last `n` iterated elements, clamped to the range.
-  A negative `n` raises; a non-integer `n` raises.
-- `to_a -> array` – every element the range iterates over, bounded by the
-  sandbox step and memory quotas so large ranges fail safely instead of
-  exhausting memory.
+- `nil.to_s -> string` – the empty string.
+- `bool.to_s -> string` – `"true"` or `"false"`.
 
-### Iteration
+A condition takes a `bool` and nothing else: test an optional value with
+`value == nil` or `value != nil`, which narrows it in the branch.
 
-Each helper yields the range's integers in iteration order (ascending for
-`1..5`, descending for `5..1`), charging one sandbox step per element so a wide
-range fails on the step quota rather than running unbounded. Helpers that build
-an array (`map`, `select`, `reject`) also honor the memory quota as the result
-grows.
+## Regexes
 
-- `each { |i| } -> range` – run the block with each integer; returns the range.
-- `step(n) { |i| } -> range` – run the block with every `n`-th integer starting
-  at the range's start; `n` must be a positive integer. Iteration advances by the
-  stride directly, so a sparse step over a wide span only charges the step quota
-  for the values it yields. Returns the range.
-- `map { |i| } -> array` – collect the block's result for each integer.
-- `select { |i| } -> array` / `reject { |i| } -> array` – keep the integers for
-  which the block is truthy (`select`) or falsy (`reject`).
-- `find { |i| } -> int?` – the first integer for which the block is truthy, or
-  `nil` when none match; short-circuits on the first match.
-- `reduce(initial = first) { |acc, i| } -> value` – fold the integers with the
-  block. With no argument the first integer seeds the accumulator; an empty
-  range returns the seed, or `nil` when no seed is given.
-- `count -> int` / `count { |i| } -> int` – the number of integers in the
-  range, or, with a block, how many the block keeps.
-- `sum(initial = 0) -> int` – the sum of the range's integers plus `initial`;
-  totals past the 64-bit boundary promote to arbitrary precision.
-- `min -> int?` / `max -> int?` – the smallest or largest integer the range
-  iterates over, or `nil` for an empty range.
+A regex literal `/pattern/flags` or `Regex.new(pattern)` makes a regex value.
+Patterns use RE2 syntax; the flags are `i` (ignore case) and `m` (`.` matches
+newlines). `text =~ regex` is the character index of the first match or `nil`,
+`text !~ regex` whether it does not match, and a regex in a `when` clause
+matches strings.
+
+- `regex.match(text: string) -> match_data?` – the first match, or `nil`.
+- `regex.match?(text: string) -> bool` – whether the regex matches.
+- `regex.source -> string` – the pattern text.
+- `regex.flags -> string` – the flags, such as `"i"`.
+
+```vibe
+pattern = /id-([0-9]+)/i
+pattern.match?("ID-12")  # true
+pattern.source           # "id-([0-9]+)"
+"ID-12" =~ pattern       # 0
+```
+
+## Match Data
+
+A successful match (type `match_data`) comes from `match` on a string or a
+regex. It is read through these members and by index, `found[0]` for the whole
+match and `found[1]` for the first group, and it cannot be modified.
+
+- `to_s -> string` – the whole match.
+- `captures -> array<string?>` – the groups, `nil` for one that did not take
+  part.
+- `named_captures -> hash<string, string?>` – the named groups.
+- `pre_match -> string` / `post_match -> string` – the text before and after
+  the match.
+- `begin(group: int) -> int?` / `end(group: int) -> int?` – the character
+  offsets of a group.
+
+## Enum Values
+
+`enum Status` declares a type whose members are read as `Status::Draft`. A
+symbol literal naming a member, such as `:draft`, is accepted wherever a
+`Status` is expected.
+
+- `name -> string` – on a member, its name, such as `"Draft"`; on the enum,
+  the enum's name.
+- `symbol -> symbol` – the member's symbol, such as `:draft`.
+- `enum -> enum_type` – the member's enum.
+- `to_s -> string` – the name.
+
+## Rescued Errors
+
+`rescue => error` binds a value of type `error`.
+
+- `message -> string` – the error's message.
+- `class -> string` – the error class, such as `"RuntimeError"`.
+- `backtrace -> array<string>` – the script call trace.
+- `code_frame -> string` – the source snippet at the failure.
+
+`error.type` is removed in favour of `class`, and `error.to_s` in favour of
+`message`.
 
 ## Builtin Functions
 
 Global functions and namespaces available in every script. See
 [builtins.md](builtins.md) for narrative examples.
 
-### Global Functions
+### Global functions
 
-- `assert(condition, message = nil, message: nil) -> nil` – raise an assertion
-  failure when `condition` is falsy; the message comes from the second
-  positional argument or the `message:` keyword.
-- `money(literal) -> money` – parse a `"amount CURRENCY"` string, e.g.
-  `money("25.00 USD")`.
-- `money_cents(cents, currency) -> money` – build money from integer minor
-  units, e.g. `money_cents(2550, "USD")`.
-- `now -> string` – current UTC instant as an RFC3339 string (use `Time.now`
-  for a `time` value).
-- `loop { ... } -> value` – repeat the block until `break`; a `break value`
-  becomes the result and `next` starts the next iteration.
-- `format(pattern, *values) -> string` / `sprintf(pattern, *values) -> string`
-  – format common numeric and string values with percent format strings. Output
-  is capped at 1 MiB before width or precision padding is materialized.
-- `rand(max = nil) -> number` – random float in `[0.0, 1.0)`, integer below a
-  positive integer bound, or integer inside an integer range.
-- `srand(seed = nil) -> int | nil` – seed this script call's `rand` sequence;
-  returns the previous explicit seed when one exists.
-- `uuid -> string` – RFC 9562 version 7 UUID.
-- `random_id(length = 16) -> string` – unbiased alphanumeric token; `length`
-  must be between 1 and 1024.
-- `to_int(value) -> int` – convert an int, integral float, or base-10 numeric
-  string; errors otherwise.
-- `to_float(value) -> float` – convert an int, float, or finite numeric
-  string; errors otherwise.
-- `require(module_name, as: nil) -> object` – load a module and return its
-  namespace; `as:` binds that namespace to a name. Exported functions are
-  direct call targets, not detachable values. See
+- `assert(condition: bool, message?: string)` – raises an assertion error with
+  `message` when `condition` is false.
+- `format(pattern: string, *values: array<any>) -> string` – the values
+  formatted by percent directives, as in `format("%.2f", 1.234)`; `text % values`
+  does the same.
+- `puts(*values: array<any>)` – writes each value's `to_s` on its own line.
+- `print(*values: array<any>)` – writes the values without newlines.
+- `p` / `p<T>(value: T) -> T` /
+  `p(first: any, second: any, *rest: array<any>) -> array<any>` – writes each
+  value inspected and returns `nil`, the value, or the values.
+- `warn(*values: array<any>)` – writes each value on its own line to the
+  error output.
+- `loop(&block: ()) -> any` – runs the block until it breaks; the value of
+  `break value` is the result.
+- `money(amount: string) -> money` – parses an amount and currency, such as
+  `"12.50 USD"`.
+- `money_cents(cents: int, currency: string) -> money` – money from minor
+  units.
+- `rand -> float` / `rand(max: int | range) -> int` – a float in `[0, 1)`, or an
+  int below `max` or in the range.
+- `srand(seed: int? = nil) -> int?` – seeds this call's `rand` sequence and
+  returns the previous seed.
+- `random_id(length: int = 16) -> string` – an alphanumeric token of `length`
+  characters, at most 1024.
+- `uuid -> string` – a version 7 UUID.
+- `to_int(value: number | string) -> int` – an int, an integral float or a
+  base-10 integer string as an int; raises otherwise.
+- `to_float(value: number | string) -> float` – a number or a finite numeric
+  string as a float; raises otherwise.
+- `require(path: string, *, as: string? = nil) -> any` – loads a module and
+  returns its exports; both arguments are string literals. See
   [builtins.md](builtins.md#module-loading).
-
-`now` and `uuid` auto-invoke, so they can be called without parentheses.
 
 ### JSON
 
-- `JSON.parse(string) -> value` – parse JSON into hashes, arrays, strings,
-  ints, floats, bools, and nils; rejects trailing data. Integer tokens beyond
-  64 bits parse as exact integers (they previously degraded to floats);
-  float-looking tokens stay floats.
-- `JSON.stringify(value) -> string` – serialize hashes/objects, arrays, and
-  scalars; symbols and enum values become strings; rejects cyclic structures.
-  Integers of any size emit their full decimal form (no float collapse, no
-  quotes), matching Ruby's JSON.
+- `JSON.parse(text: string) -> any` – the value the JSON text describes:
+  hashes, arrays, strings, ints, floats, bools and `nil`. Integers of any size
+  parse exactly. The result is `any` and must be narrowed.
+- `JSON.parse_as<T>(text: string, schema: type<T>) -> T` – parses and checks
+  the result against a type literal, such as `{ name: string, age?: int }`;
+  a mismatch raises the boundary error.
+- `JSON.stringify(value: any) -> string` – the JSON text; symbols and enum
+  members become strings, and cycles and non-finite floats raise.
 
 Both directions enforce a 1 MiB payload limit and reject more than 10,000
-nested arrays/objects.
+nested arrays and objects.
 
 ### Math
 
-The `Math` namespace mirrors Ruby's `Math` module. Constants read with either
-accessor (`Math::PI` or `Math.PI`); helpers are called like `Math.sqrt(9)`.
-Integer arguments are promoted to floats and every helper returns a `float`.
+- `Math::PI -> float` / `Math::E -> float` – the constants.
+- `Math.sqrt(x: number) -> float` / `Math.cbrt(x: number) -> float` – square
+  and cube roots.
+- `Math.sin(x: number) -> float` / `Math.cos(x: number) -> float` /
+  `Math.tan(x: number) -> float` – trigonometry in radians.
+- `Math.asin(x: number) -> float` / `Math.acos(x: number) -> float` /
+  `Math.atan(x: number) -> float` / `Math.atan2(y: number, x: number) -> float`
+  – inverse trigonometry.
+- `Math.exp(x: number) -> float` – `E` to the power `x`.
+- `Math.log(x: number, base?: number) -> float` /
+  `Math.log2(x: number) -> float` / `Math.log10(x: number) -> float` –
+  logarithms.
+- `Math.hypot(x: number, y: number) -> float` – the hypotenuse, without
+  intermediate overflow.
 
-Constants:
-
-- `Math::PI -> float` – circle constant.
-- `Math::E -> float` – natural-logarithm base.
-
-Functions:
-
-- `Math.sqrt(x) -> float` – square root; errors when `x < 0`.
-- `Math.cbrt(x) -> float` – cube root (defined for negative `x`).
-- `Math.sin(x) -> float` / `Math.cos(x) -> float` / `Math.tan(x) -> float` –
-  trigonometric functions in radians.
-- `Math.asin(x) -> float` / `Math.acos(x) -> float` – inverse sine/cosine;
-  error unless `-1 <= x <= 1`.
-- `Math.atan(x) -> float` – inverse tangent.
-- `Math.atan2(y, x) -> float` – angle of `(x, y)` from the positive x-axis.
-- `Math.exp(x) -> float` – `E ** x`.
-- `Math.log(x) -> float` / `Math.log(x, base) -> float` – natural logarithm, or
-  the logarithm in `base`; a negative operand errors and `log(0)` is
-  `-Infinity`.
-- `Math.log2(x) -> float` / `Math.log10(x) -> float` – base-2 and base-10
-  logarithms; a negative argument errors.
-- `Math.hypot(x, y) -> float` – `sqrt(x**2 + y**2)` without overflow.
-
-Arguments outside a function's domain raise a domain error, matching Ruby's
-`Math::DomainError`. Following Ruby and IEEE 754, `log(0)`/`log10(0)` return
-`-Infinity` and a `NaN` or `Infinity` argument propagates through unchanged.
+An argument outside a function's domain, such as `Math.sqrt(-1)`, raises a
+domain error. `Math.log(0)` is `-Infinity`, and NaN propagates.
 
 ```vibe
-Math.sqrt(9)     # 3.0
-Math::PI         # 3.141592653589793
-Math.hypot(3, 4) # 5.0
+Math.sqrt(2)      # 1.4142135623730951
+Math.hypot(3, 4)  # 5.0, printed as 5
+Math.log(8, 2)    # 3.0, printed as 3
+Math::PI          # 3.141592653589793
 ```
 
 ### Regex
 
-Note the argument order: `match` takes the pattern first, while the replace
-helpers take the text first.
+- `Regex.new(pattern: string) -> regex` – compiles a pattern.
+- `Regex.escape(text: string) -> string` – `text` with every metacharacter
+  escaped.
+- `Regex.union(*patterns: array<string>) -> regex` – a regex matching any of
+  the patterns.
+- `Regex.match(pattern: string, text: string) -> string?` – the first match in
+  `text`.
+- `Regex.replace(text: string, pattern: string, replacement: string) -> string`
+  – the first match replaced; `replacement` expands `$1`.
+- `Regex.replace_all(text: string, pattern: string, replacement: string) -> string`
+  – every match replaced.
 
-Regex patterns are quoted strings or Ruby-style `/pattern/flags` regex
-literals. A literal produces a regex value usable with the `=~` and `!~` match
-operators (`"abc" =~ /b/` is the character index `1`, or `nil` when there is
-no match), `case`/`when` matching, and the string pattern helpers. Supported
-flags are `i` (case-insensitive) and `m` (`.` matches newlines).
-
-- `regex.source -> string` / `regex.flags -> string` – the literal's parts.
-- `regex.match(text) -> match data | nil` – match data with `captures`,
-  `pre_match`, `post_match`, `begin`, and `end`, indexable with `m[0]`/`m[1]`.
-- `regex.match?(text) -> bool` – whether the pattern matches.
-- `Regexp.new(pattern) -> regex` / `Regexp.union(parts...) -> regex` – build
-  regex values from strings.
-- `Regex.match(pattern, text) -> string | nil` – first match, or `nil`.
-- `Regex.replace(text, pattern, replacement) -> string` – replace the first
-  match; `replacement` supports `$1` style group expansion.
-- `Regex.replace_all(text, pattern, replacement) -> string` – replace every
-  match.
+`Regex.match` takes the pattern first, while the replace helpers take the text
+first.
 
 ```vibe
-Regex.match("ID-[0-9]+", "ID-12 ID-34")       # "ID-12"
-Regex.replace("ID-12", "ID-([0-9]+)", "X-$1") # "X-12"
+Regex.match("ID-[0-9]+", "ID-12 ID-34")        # "ID-12"
+Regex.replace("ID-12", "ID-([0-9]+)", "X-$1")  # "X-12"
+Regex.escape("a.b")                            # "a\\.b"
 ```
-
-Patterns use Go's RE2 syntax and enforce the
-[regex guard limits](#guard-limits).
 
 ### Duration
 
-- `Duration.build(seconds) -> duration` – build from total seconds.
-- `Duration.build(weeks:, days:, hours:, minutes:, seconds:) -> duration` –
-  build from named parts; at least one part is required (a bare
-  `Duration.build()` errors), and positional seconds and named parts are
-  mutually exclusive.
-- `Duration.parse(string) -> duration` – parse Go duration strings (`"1h30m"`,
-  whole seconds only) or ISO 8601 durations (`"PT90S"`, `"P2W"`).
+- `Duration.build(*, weeks: number = 0, days: number = 0, hours: number = 0, minutes: number = 0, seconds: number = 0) -> duration`
+  – a duration from named parts; at least one is required.
+- `Duration.parse(text: string) -> duration` – parses Go (`"1h30m"`) or
+  ISO 8601 (`"PT1H30M"`, `"P2W"`) durations.
 
 ```vibe
-Duration.parse("1h30m").seconds # 5400
-Duration.parse("P2W").days      # 14
+Duration.build(hours: 1, minutes: 30).to_i  # 5400
+Duration.parse("P2W").days                  # 14
 ```
 
 ### Time
 
-Zone keywords accept IANA names (`"America/New_York"`), `"UTC"`/`"GMT"`,
-`"LOCAL"`, or numeric offsets like `"+05:30"`.
+Zones are IANA names (`"America/New_York"`), `"UTC"`, `"LOCAL"` or offsets
+such as `"+05:30"`.
 
-- `Time.new(year, month = 1, day = 1, hour = 0, min = 0, sec = 0, zone = nil,
-  in: nil) -> time` – build from calendar parts (local zone by default). Only the
-  year is required; an omitted month or day defaults to `1` and omitted time
-  fields default to midnight (`Time.new(2024)` is January 1, 2024). The seventh
-  positional argument is a zone/offset that overrides `in:`
-  (`Time.new(2024, 1, 1, 0, 0, 0, "+05:30")` is `+05:30`, not local).
-- `Time.local(year, month = 1, day = 1, hour = 0, min = 0, sec = 0, usec = 0) -> time` /
-  `Time.mktime(...)` -> time – build calendar parts anchored to the local zone.
-  Only the year is required, with the same January 1 / midnight defaults as
-  `Time.new`. The seventh positional argument is microseconds-with-fraction, not
-  a zone.
-- `Time.utc(year, month = 1, day = 1, hour = 0, min = 0, sec = 0, usec = 0) -> time` /
-  `Time.gm(...)` -> time – build calendar parts anchored to UTC. Only the year is
-  required, with the same January 1 / midnight defaults (`Time.utc(2024)` is
-  `2024-01-01T00:00:00Z`). The seventh positional argument is
-  microseconds-with-fraction, not a zone
-  (`Time.utc(2024, 1, 1, 0, 0, 0, 123456).usec` is `123456`). Integer
-  microseconds are exact and floats carry sub-microsecond precision down to the
-  nanosecond; a non-numeric microsecond argument raises a runtime error.
-- `Time.at(epoch_seconds, subsec = nil, unit = nil, in: nil) -> time` – build
-  from Unix epoch seconds (int or float). An optional subsecond value defaults to
-  microseconds; an optional unit symbol (`:microsecond`/`:usec`,
-  `:millisecond`, or `:nanosecond`/`:nsec`) selects the unit. A unit without a
-  subsecond value, an unknown unit symbol, or a non-numeric subsecond value
-  raises a runtime error; unlike `Time.utc`/`Time.local`, an explicit `nil`
-  subsecond is rejected rather than treated as omitted. A fractional subsecond
-  is floored toward negative infinity at nanosecond resolution, the way Ruby
-  exposes it (`Time.at(0, -1.9, :nsec).nsec` is `999999998`), and subsecond
-  values carry into the seconds when they exceed one second; a magnitude too
-  large for the nanosecond range raises `Time.at subsecond value out of range`.
-- `Time.now(in: nil) -> time` – current time (local zone by default).
-- `Time.parse(string, layout = nil, in: nil) -> time` – parse a time string;
-  without a layout it tries RFC3339/RFC3339Nano, RFC1123/RFC1123Z,
-  `YYYY-MM-DD[THH:MM:SS]`, `YYYY-MM-DD HH:MM:SS`, `YYYY/MM/DD[ HH:MM:SS]`,
-  and `MM/DD/YYYY[ HH:MM:SS]`.
+- `Time.now(*, in: string? = nil) -> time` – the current time.
+- `Time.utc(year: int, month: int = 1, day: int = 1, hour: int = 0, min: int = 0, sec: int = 0, usec: number = 0) -> time`
+  – a calendar time in UTC.
+- `Time.local(year: int, month: int = 1, day: int = 1, hour: int = 0, min: int = 0, sec: int = 0, usec: number = 0, *, in: string? = nil) -> time`
+  – a calendar time in the host's zone, or in `in:`.
+- `Time.at(seconds: number, subsec?: number, unit?: :microsecond | :millisecond | :nanosecond, *, in: string? = nil) -> time`
+  – the time a number of epoch seconds after 1970; `subsec` is in
+  microseconds unless `unit` says otherwise.
+- `Time.parse(text: string, layout: string? = nil, *, in: string? = nil) -> time`
+  – parses RFC 3339, RFC 1123, `YYYY-MM-DD[ HH:MM:SS]`, `YYYY/MM/DD` and
+  `MM/DD/YYYY` forms, or `text` in a Go layout.
+
+```vibe
+Time.utc(2024).iso8601                           # "2024-01-01T00:00:00Z"
+Time.parse("2024-01-02", "2006-01-02").day       # 2
+Time.at(1, 500, :millisecond).nsec               # 500000000
+Time.local(2024, 3, 1, in: "UTC").month          # 3
+```
+
+### Removed spellings
+
+- `sprintf` – removed; use `format`.
+- `now` – removed; use `Time.now`, and `Time.now.iso8601` for the string.
+- `Hash.new` – removed; write `{}` with a declared type, such as
+  `counts: hash<string, int> = {}`.
+- `Regexp.new` / `Regexp.union` / `Regexp.escape` – removed; use `Regex.new`,
+  `Regex.union` and `Regex.escape`.
+- `Regexp.quote` – removed; use `Regex.escape`.
+- `Regexp.last_match` – removed; it always answered `nil`. Keep the result of
+  `match` instead.
+- `Time.gm` – removed; use `Time.utc`.
+- `Time.mktime` / `Time.new` – removed; use `Time.local`, which takes the zone
+  as `in:`.
+- `Duration.build(seconds)` – the positional form is removed; write
+  `Duration.build(seconds: n)`.
+- `assert(condition, message: text)` – the keyword form is removed; pass the
+  message as the second argument.
 
 ## Guard Limits
 
-JSON, regex, format, and ID helpers enforce fixed input-guard limits so hostile
-data cannot exhaust host memory or CPU. The limits are not configurable
-and apply to the `JSON`/`Regex`/format builtins, `String#%`, and the
-regex-enabled string members (`match`, `match?`, `scan`, `sub`, `gsub`, and
-their `!` variants):
+JSON, regex, formatting and ID helpers enforce fixed limits so hostile data
+cannot exhaust host memory or CPU. They are not configurable, and exceeding one
+raises a `LimitError` naming the guard.
 
 | Guard | Limit |
 | --- | --- |
-| `JSON.parse` input / `JSON.stringify` output | 1 MiB |
-| `JSON.parse` / `JSON.stringify` nesting depth | 10,000 arrays/objects |
-| `format` / `sprintf` / `String#%` / `Time#strftime` output size | 1 MiB |
-| Regex pattern size (`Regex.*`, `match`, `match?`, `scan`, `sub`/`gsub` with `regex: true`) | 16 KiB |
-| Regex text, replacement, and output size | 1 MiB |
-| `scan` match-index table (worst case) | 256 MiB |
+| `JSON.parse` input and `JSON.stringify` output | 1 MiB |
+| `JSON.parse` and `JSON.stringify` nesting | 10,000 arrays and objects |
+| `format`, `text % values` and `time.strftime` output | 1 MiB |
+| Regex pattern (`Regex.*`, regex literals, and string `match`, `match?`, `scan`, `sub`, `gsub`) | 16 KiB |
+| Regex text, replacement and output | 1 MiB |
+| `scan` match-index table, worst case | 256 MiB |
 | `random_id` length | 1024 characters |
-
-Exceeding a limit raises a runtime error naming the offending guard.
-The canonical values live in the documented const block in
-`internal/runtime/limits.go`; the README's "Runtime Sandbox & Limits"
-section summarizes them alongside the configurable engine quotas.
-
-For a runnable end-to-end sample, see `examples/stdlib/core_utilities.vibe`.
+| Each value written by `puts`, `print`, `warn` and `p` | 1 MiB |

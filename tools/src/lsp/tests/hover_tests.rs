@@ -10,7 +10,7 @@ fn hover_serves_builtin_docs() {
         "{value}"
     );
     assert!(
-        value.contains("Raises an error if `condition` is falsy"),
+        value.contains("Raises an `AssertionError` when `condition` is false"),
         "{value}"
     );
     assert!(!value.contains("Vibescript builtin"), "{value}");
@@ -63,7 +63,10 @@ fn unknown_words_fall_back_to_the_classifier() {
 #[test]
 fn hover_serves_member_docs() {
     let value = hover_value("def run(name)\n  name.upcase\nend\n", 1, 9);
-    assert!(value.contains("`upcase(mode = nil) -> string`"), "{value}");
+    assert!(
+        value.contains("`upcase(mode?: :ascii) -> string`"),
+        "{value}"
+    );
     assert!(value.contains("Unicode"), "{value}");
     assert!(!value.contains("---"), "{value}");
 }
