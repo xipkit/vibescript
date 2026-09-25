@@ -4,12 +4,35 @@ use std::sync::{
 };
 use vibescript::{CallOptions, Diagnostic, Engine, Error, ErrorKind, Position, StackFrame, Value};
 
+mod common;
+
 fn failure(source: &str) -> Error {
     Engine::new()
         .compile(source)
         .unwrap()
         .call("run", &[Value::nil()], CallOptions::default())
         .unwrap_err()
+}
+
+/// The code and offset of each static diagnostic that refuses `source`.
+fn refused(source: &str) -> Vec<(String, usize)> {
+    let error = common::static_engine()
+        .compile(source)
+        .err()
+        .unwrap_or_else(|| panic!("{source} compiled"));
+    error
+        .diagnostics()
+        .iter()
+        .map(|d| (d.code.to_string(), d.span.start))
+        .collect()
+}
+
+/// Each code with the offset of the first `text` in `source`.
+fn at(source: &str, expected: &[(&str, &str)]) -> Vec<(String, usize)> {
+    expected
+        .iter()
+        .map(|(code, text)| ((*code).to_owned(), source.find(text).unwrap()))
+        .collect()
 }
 
 fn check_position(error: &Error, source: &str, offset: usize) {
@@ -28,22 +51,37 @@ fn check_position(error: &Error, source: &str, offset: usize) {
 
 #[test]
 fn failures_point_at_operators_members_indices_and_nested_calls() {
+    // Two-character operators are stamped at their second character.
     for (body, needle) in [
-        ("1 / 0", "/"),
-        ("[1][\"bad\"]", "[\"bad\"]"),
-        ("\"x\".missing", "\"x\""),
-        ("a = 1 + nil", "+"),
+        ("1 // 0", "/ 0"),
+        ("[1].fetch(5)", "[1]"),
+        ("Math.sqrt(-1)", "Math"),
+        ("\"x\" * -1", "* -1"),
         (
-            "row = {values:[1]}; row.values.push().missing",
-            "row.values",
+            "row = {values:[1]}; row[\"values\"].fetch(3)",
+            "[\"values\"]",
         ),
     ] {
-        let source = format!("def run(input)\n  {body}\nend");
+        let source = format!("def run(input: any)\n  {body}\nend");
         let error = failure(&source);
         check_position(&error, &source, source.find(needle).unwrap());
         assert_eq!(error.diagnostic.as_ref().unwrap().frames.len(), 2);
     }
-    let source = "def divide(a,b)\n a / b\nend\ndef run(input)\n divide(1,0)\nend";
+    // Indexing an array with a string, an unknown member, arithmetic with
+    // nil and empty parentheses are refused before running.
+    for (body, expected) in [
+        ("[1][\"bad\"]", vec![("V0101", "\"bad\"")]),
+        ("\"x\".missing", vec![("V0203", "missing")]),
+        ("a = 1 + nil", vec![("V0107", "nil")]),
+        (
+            "row = {values:[1]}; row.values.push().missing",
+            vec![("V0412", "()"), ("V0203", "missing")],
+        ),
+    ] {
+        let source = format!("def run(input: any)\n  {body}\nend");
+        assert_eq!(refused(&source), at(&source, &expected), "{body}");
+    }
+    let source = "def divide(a: int, b: int) -> int\n a // b\nend\ndef run(input: any) -> int\n divide(1,0)\nend";
     let error = failure(source);
     let frames = &error.diagnostic.as_ref().unwrap().frames;
     assert_eq!(
@@ -51,86 +89,76 @@ fn failures_point_at_operators_members_indices_and_nested_calls() {
             .iter()
             .map(|frame| (&*frame.function, frame.position.line, frame.position.column))
             .collect::<Vec<_>>(),
-        [("divide", 2, 4), ("divide", 5, 2), ("run", 4, 1)]
+        [("divide", 2, 5), ("divide", 5, 2), ("run", 4, 1)]
     );
     assert_eq!(
         error.to_string(),
-        "division by zero\n  --> line 2, column 4\n 2 |  a / b\n   |    ^\n  at divide (2:4)\n  at divide (5:2)\n  at run (4:1)"
+        "division by zero\n  --> line 2, column 5\n 2 |  a // b\n   |     ^\n  at divide (2:5)\n  at divide (5:2)\n  at run (4:1)"
     );
 }
 
 #[test]
 fn writes_and_their_compound_operators_point_at_the_target() {
-    for (body, needle, message) in [
+    // Each is refused before running, at its target.
+    for (body, expected) in [
         (
             "arr = [1, [2]]\n  arr[1].first = 3",
-            "[1].first",
-            "cannot assign to array",
+            vec![("V0107", "first ="), ("V0203", "first =")],
         ),
-        (
-            "arr = [1]\n  arr[5] += 2",
-            "[5] +=",
-            "unsupported addition operands",
-        ),
-        (
-            "h = {a: [1]}\n  h.a.first -= 1",
-            "h.a.first",
-            "cannot assign to array",
-        ),
+        ("arr = [1]\n  arr[5] += 2", vec![("V0107", "arr[5]")]),
+        ("h = {a: [1]}\n  h.a.first -= 1", vec![("V0415", ".a")]),
         (
             "h = {a: nil}\n  h[:a] **= 2",
-            "[:a]",
-            "unsupported exponentiation operands",
+            vec![("V0107", "h[:a]"), ("V0409", ":a]")],
         ),
     ] {
-        let source = format!("def run(input)\n  {body}\nend");
-        let error = failure(&source);
-        assert_eq!(error.message, message, "{body}");
-        check_position(&error, &source, source.find(needle).unwrap());
+        let source = format!("def run(input: any)\n  {body}\nend");
+        assert_eq!(refused(&source), at(&source, &expected), "{body}");
     }
 }
 
 #[test]
 fn class_variable_reads_outside_a_class_have_no_class_context() {
-    for (body, message) in [
-        ("@@x += 3", "no class context"),
-        ("@@x ||= 3", "no class context"),
-        ("@@x", "no class context"),
-        ("@@x = 3", "no class context for class var"),
-    ] {
-        let source = format!("def run(input)\n  {body}\nend");
-        assert_eq!(failure(&source).message, message, "{body}");
+    for body in ["@@x += 3", "@@x ||= 3", "@@x"] {
+        let source = format!("def run(input: any)\n  {body}\nend");
+        assert_eq!(refused(&source), at(&source, &[("V0204", "@@x")]), "{body}");
     }
+    // The checker does not report a write, which fails when it runs.
+    let source = "def run(input: any)\n  @@x = 3\nend";
+    assert_eq!(failure(source).message, "no class context for class var");
 }
 
 #[test]
-fn blocks_suggest_the_locals_of_their_enclosing_frames() {
+fn blocks_report_names_outside_their_enclosing_frames() {
     let source =
-        "def run(input)\n  total = 1\n  [1].each { |item| [2].each { |inner| totl } }\nend";
-    assert_eq!(
-        failure(source).message,
-        "undefined variable totl (did you mean \"total\"?)"
-    );
+        "def run(input: any)\n  total = 1\n  [1].each { |item| [2].each { |inner| totl } }\nend";
+    assert_eq!(refused(source), at(source, &[("V0201", "totl")]));
 }
 
 #[test]
 fn binary_operators_are_located_where_the_reference_lexer_stamps_them() {
-    for (body, needle, message) in [
-        (
-            "x = 2 ** nil",
-            "* nil",
-            "unsupported exponentiation operands",
-        ),
-        ("x = 1 << nil", "< nil", "unsupported shovel operands"),
-        ("x = 1 >= nil", "= nil", "unsupported comparison operands"),
-        ("x = (1..2).foo", ".2)", "unknown range method foo"),
-        ("x = (1...2).foo", ".2)", "unknown range method foo"),
-        ("x = (1 === 2).foo", "=== 2", "unknown bool method foo"),
-    ] {
-        let source = format!("def run(input)\n  {body}\nend");
+    for (body, needle, message) in [(
+        "x = 0 ** -1",
+        "* -1",
+        "float exponentiation result is not finite",
+    )] {
+        let source = format!("def run(input: any)\n  {body}\nend");
         let error = failure(&source);
         assert_eq!(error.message, message, "{body}");
         check_position(&error, &source, source.find(needle).unwrap());
+    }
+    // Operands the operator does not take and unknown members are refused
+    // before running.
+    for (body, expected) in [
+        ("x = 2 ** nil", vec![("V0107", "nil")]),
+        ("x = 1 << -1", vec![("V0108", "< -1")]),
+        ("x = 1 >= nil", vec![("V0107", "nil")]),
+        ("x = (1..2).foo", vec![("V0203", "foo")]),
+        ("x = (1...2).foo", vec![("V0203", "foo")]),
+        ("x = (1 === 2).foo", vec![("V0203", "foo")]),
+    ] {
+        let source = format!("def run(input: any)\n  {body}\nend");
+        assert_eq!(refused(&source), at(&source, &expected), "{body}");
     }
     for (source, message) in [
         ("x = ** 1", "parse error at 1:6: unexpected token \"**\""),
@@ -153,13 +181,13 @@ fn binary_operators_are_located_where_the_reference_lexer_stamps_them() {
 #[test]
 fn interpolation_and_unicode_use_the_original_source() {
     for source in [
-        "def run(input)\n  \"hello #{1/0}!\"\nend",
-        "def run(input)\n  α=1; α/0\nend",
-        "def run(input)\n  [1].map { |n| n/0 }\nend",
-        "def run(input)\n  %W(hello #{1/0})\nend",
+        "def run(input: any)\n  \"hello #{1//0}!\"\nend",
+        "def run(input: any)\n  α=1; α//0\nend",
+        "def run(input: any)\n  [1].map { |n| n//0 }\nend",
+        "def run(input: any)\n  [\"hello\", \"#{1//0}\"]\nend",
     ] {
         let error = failure(source);
-        check_position(&error, source, source.find('/').unwrap());
+        check_position(&error, source, source.rfind('/').unwrap());
         assert_eq!(
             &*error.diagnostic.as_ref().unwrap().frames[0].function,
             "run"
@@ -169,23 +197,19 @@ fn interpolation_and_unicode_use_the_original_source() {
 
 #[test]
 fn argument_and_return_checks_point_to_the_calling_expression() {
-    for declaration in [
-        "def target(a:int)\n a\nend",
-        "def target(a:int=\"x\")\n a\nend",
-        "def target -> int\n \"x\"\nend",
-        "def target -> int\n return \"x\"\nend",
-        "def target -> int\n [1].each { return \"x\" }\nend",
-        "def target -> int\n yield\nend",
-        "def target(a=[1].each { return \"x\" }) -> int\n a\nend",
+    // What the checker cannot see is checked when it runs, at the call.
+    for (declaration, call) in [
+        ("def target(a: int = \"x\")\n a\nend", "target()"),
+        (
+            "def target(&block: () -> int) -> int\n yield\nend",
+            "target { break \"x\" }",
+        ),
+        (
+            "def target(a: int = [1].each { return \"x\" }) -> int\n a\nend",
+            "target()",
+        ),
     ] {
-        let call = if declaration.starts_with("def target(a:int)") {
-            "target(\"x\")"
-        } else if declaration.contains("yield") {
-            "target { break \"x\" }"
-        } else {
-            "target()"
-        };
-        let source = format!("{declaration}\ndef run(input)\n  {call}\nend");
+        let source = format!("{declaration}\ndef run(input: any)\n  {call}\nend");
         let error = failure(&source);
         assert_eq!(error.kind, ErrorKind::Type, "{source}: {error}");
         check_position(&error, &source, source.rfind(call).unwrap());
@@ -202,18 +226,34 @@ fn argument_and_return_checks_point_to_the_calling_expression() {
             "{source}: {error}"
         );
     }
-    let source = "class C\n property value:int\nend\ndef run(input)\n C.new.value=\"x\"\nend";
-    let error = failure(source);
-    check_position(&error, source, source.find("C.new").unwrap());
-    assert_eq!(error.diagnostic.as_ref().unwrap().frames.len(), 2);
+    // The rest are refused before running, at the value.
+    for (declaration, call, text) in [
+        ("def target(a:int)\n a\nend", "target(\"x\")", "\"x\")"),
+        ("def target -> int\n \"x\"\nend", "target", "\"x\""),
+        ("def target -> int\n return \"x\"\nend", "target", "\"x\""),
+        (
+            "class C\n property value:int\nend",
+            "C.new.value=\"x\"",
+            "\"x\"",
+        ),
+    ] {
+        let source = format!("{declaration}\ndef run(input: any)\n  {call}\nend");
+        assert_eq!(
+            refused(&source),
+            at(&source, &[("V0101", text)]),
+            "{source}"
+        );
+    }
 }
 
 #[test]
 fn default_expressions_keep_their_locations_without_inventing_callee_frames() {
-    for default in ["1/0", "[1].map { |n| n/0 }"] {
-        let source = format!("def target(a={default})\n a\nend\ndef run(input)\n target()\nend");
+    for (ty, default) in [("int", "1//0"), ("array<int>", "[1].map { |n| n//0 }")] {
+        let source = format!(
+            "def target(a: {ty} = {default})\n a\nend\ndef run(input: any)\n target()\nend"
+        );
         let error = failure(&source);
-        check_position(&error, &source, source.find('/').unwrap());
+        check_position(&error, &source, source.rfind('/').unwrap());
         assert_eq!(
             error
                 .diagnostic
@@ -226,7 +266,7 @@ fn default_expressions_keep_their_locations_without_inventing_callee_frames() {
             ["run", "run"]
         );
     }
-    let source = "def bad\n 1/0\nend\ndef target(a=bad)\n a\nend\ndef run(input)\n target()\nend";
+    let source = "def bad -> int\n 1//0\nend\ndef target(a: int = bad)\n a\nend\ndef run(input: any)\n target()\nend";
     let error = failure(source);
     let frames = &error.diagnostic.as_ref().unwrap().frames;
     assert_eq!(
@@ -237,7 +277,7 @@ fn default_expressions_keep_their_locations_without_inventing_callee_frames() {
         frames[1].position,
         Position {
             line: 4,
-            column: 14
+            column: 21
         }
     );
 }
@@ -246,9 +286,8 @@ fn default_expressions_keep_their_locations_without_inventing_callee_frames() {
 fn entry_checks_and_initializers_have_script_context() {
     for source in [
         "def run(input:int)\n input\nend",
-        "def run(input) -> int\n \"x\"\nend",
-        "class C\n X=1/0\nend\ndef run(input)\n C\nend",
-        "module C\n X=1/0\nend\ndef run(input)\n C\nend",
+        "class C\n X=1//0\nend\ndef run(input: any)\n C\nend",
+        "module C\n X=1//0\nend\ndef run(input: any)\n C\nend",
     ] {
         let error = failure(source);
         let frames = &error.diagnostic.as_ref().unwrap().frames;
@@ -259,10 +298,9 @@ fn entry_checks_and_initializers_have_script_context() {
 
 #[test]
 fn nested_blocks_use_the_active_call_stack_and_to_s_uses_its_source_expression() {
-    let source =
-        "def target\n [1].each { yield }\nend\ndef run(input)\n target { [1].map { 1/0 } }\nend";
+    let source = "def target(&block: ())\n [1].each { yield }\nend\ndef run(input: any)\n target { [1].map { 1//0 } }\nend";
     let error = failure(source);
-    check_position(&error, source, source.find('/').unwrap());
+    check_position(&error, source, source.rfind('/').unwrap());
     assert_eq!(
         error
             .diagnostic
@@ -274,9 +312,9 @@ fn nested_blocks_use_the_active_call_stack_and_to_s_uses_its_source_expression()
             .collect::<Vec<_>>(),
         ["target", "target", "run"]
     );
-    let source = "class C\n def to_s\n  1/0\n end\nend\ndef run(input)\n \"hello #{C.new}!\"\nend";
+    let source = "class C\n def to_s -> string\n  (1//0).to_s\n end\nend\ndef run(input: any)\n \"hello #{C.new}!\"\nend";
     let error = failure(source);
-    check_position(&error, source, source.find('/').unwrap());
+    check_position(&error, source, source.rfind('/').unwrap());
     let call = &error.diagnostic.as_ref().unwrap().frames[1];
     assert_eq!(&*call.function, "to_s");
     assert_eq!(
@@ -316,7 +354,7 @@ fn invalid_tokens_are_highlighted_before_the_parser_advances() {
 
 #[test]
 fn host_forwarded_script_errors_preserve_the_original_diagnostic() {
-    let source = "def run(input)\n 1/0\nend";
+    let source = "def run(input: any)\n 1//0\nend";
     let original = failure(source);
     let forwarded = original.clone();
     let mut engine = Engine::new();
@@ -414,16 +452,16 @@ fn forwarded_filenames_are_charged_once_per_shared_allocation() {
 #[test]
 fn long_lines_and_many_lines_keep_snippets_bounded() {
     for prefix in ["\n".repeat(9000), format!("\"{}\";", "α".repeat(10000))] {
-        let source = format!("def run(input)\n{prefix} 1/0\nend");
+        let source = format!("def run(input: any)\n{prefix} 1//0\nend");
         let error = failure(&source);
-        check_position(&error, &source, source.find('/').unwrap());
+        check_position(&error, &source, source.rfind('/').unwrap());
         let diagnostic = error.diagnostic.as_ref().unwrap();
         assert!(
             diagnostic.code_frame.len() < 1024,
             "{}",
             diagnostic.code_frame.len()
         );
-        assert!(diagnostic.code_frame.contains("1/0"));
+        assert!(diagnostic.code_frame.contains("1//0"));
         assert!(Arc::ptr_eq(
             error.clone().diagnostic.as_ref().unwrap(),
             diagnostic
@@ -455,7 +493,7 @@ fn errors_do_not_retain_compiled_scripts_or_their_host_state() {
         held.fetch_add(1, Ordering::Relaxed);
         Err(Error::new(ErrorKind::Host, "host failed"))
     });
-    let source = "def run(input)\n  fail()\nend";
+    let source = "def run(input: any)\n  fail()\nend";
     let script = engine.compile(source).unwrap();
     let error = script
         .call("run", &[Value::nil()], CallOptions::default())
@@ -483,7 +521,8 @@ fn cancellation_and_ignored_exhaustion_keep_the_host_call_position() {
             }
             Ok(Value::nil())
         });
-        let source = "def run(input)\n  stop()\n  missing()\nend";
+        engine.register("later", |_, _| panic!("later ran"));
+        let source = "def run(input: any)\n  stop()\n  later()\nend";
         let script = engine.compile(source).unwrap();
         let error = script
             .call(
@@ -509,7 +548,7 @@ fn cancellation_and_ignored_exhaustion_keep_the_host_call_position() {
 
 #[test]
 fn recursion_keeps_structured_frames_and_shortens_only_the_rendering() {
-    let source = "def recurse\n  recurse\nend\ndef run(input)\n  recurse\nend";
+    let source = "def recurse\n  recurse\nend\ndef run(input: any)\n  recurse\nend";
     let script = Engine::new().compile(source).unwrap();
     let mut options = CallOptions::default();
     options.limits.recursion = 32;
