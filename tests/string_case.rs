@@ -56,7 +56,7 @@ fn invalid_bytes_select_ascii_mapping_for_the_entire_receiver() {
 
 #[test]
 fn bang_methods_leave_receivers_and_aliases_unchanged() {
-    let script = Engine::new().compile("def run(input: string) -> array<string?>\na=[input];h={key:input};v=input.upcase!;[input,a[0],h[\"key\"],v,v.as(string).upcase!]\nend").unwrap();
+    let script = Engine::new().compile("def run(input: string) -> array<string?>\na=[input];h={key:input};v=input.upcase!;[input,a[0],h[\"key\"],v,v&.upcase!]\nend").unwrap();
     let input = Value::bytes("Straße");
     let result = script
         .call("run", std::slice::from_ref(&input), CallOptions::default())

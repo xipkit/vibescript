@@ -115,7 +115,7 @@ fn transforms_preserve_aliases_and_argument_side_effects() {
         } else {
             format!("{method}({args})")
         };
-        let script = Engine::new().compile(&format!("def run(input: string) -> array<string?>\ns=input;h={{a:[s]}};r=h[\"a\"].fetch(0).{call};[input,s,h[\"a\"].fetch(0),r]\nend")).unwrap();
+        let script = Engine::new().compile(&format!("def run(input: string) -> array<string?>\ns=input;h={{a:[s]}};r=h[\"a\"][0]&.{call};[input,s,h[\"a\"][0],r]\nend")).unwrap();
         let input = Value::bytes("banana");
         let result = script
             .call("run", std::slice::from_ref(&input), CallOptions::default())
@@ -136,7 +136,7 @@ fn transforms_preserve_aliases_and_argument_side_effects() {
         "tr(a.shift.as(string),\"\")",
     ] {
         let result = Engine::new()
-            .compile(&format!("a=[\"aba\"];r=a.fetch(0).{call};[a,r]"))
+            .compile(&format!("a=[\"aba\"];r=a[0]&.{call};[a,r]"))
             .unwrap()
             .run(CallOptions::default())
             .unwrap();
