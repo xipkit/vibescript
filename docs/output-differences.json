@@ -3,7 +3,7 @@
   "cases": [
     {
       "name": "output_matrix_puts_match",
-      "source": "\ndef run(input)\nbegin\nputs(\"b\".match(/(a)?(b)/),[\"b\".match(/(a)?(b)/)])\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<string> | bool\nbegin\nputs(\"b\".match(/(a)?(b)/),[\"b\".match(/(a)?(b)/)])\ntrue\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
       "expected": true,
       "policy": "protected_match_data",
       "reason": "Keep protected value string rendering inside collections and duplicates, consistent with the existing Rust value and replacement renderers.",
@@ -18,7 +18,7 @@
     },
     {
       "name": "output_matrix_puts_match_copy",
-      "source": "\ndef run(input)\nbegin\nputs(\"b\".match(/(a)?(b)/).dup)\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<string> | bool\nbegin\nputs(\"b\".match(/(a)?(b)/).dup)\ntrue\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
       "expected": true,
       "policy": "protected_match_data",
       "reason": "Keep protected value string rendering inside collections and duplicates, consistent with the existing Rust value and replacement renderers.",
@@ -33,7 +33,7 @@
     },
     {
       "name": "output_matrix_print_match",
-      "source": "\ndef run(input)\nbegin\nprint(\"b\".match(/(a)?(b)/),[\"b\".match(/(a)?(b)/)])\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<string> | bool\nbegin\nprint(\"b\".match(/(a)?(b)/),[\"b\".match(/(a)?(b)/)])\ntrue\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
       "expected": true,
       "policy": "protected_match_data",
       "reason": "Keep protected value string rendering inside collections and duplicates, consistent with the existing Rust value and replacement renderers.",
@@ -48,7 +48,7 @@
     },
     {
       "name": "output_matrix_print_match_copy",
-      "source": "\ndef run(input)\nbegin\nprint(\"b\".match(/(a)?(b)/).dup)\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<string> | bool\nbegin\nprint(\"b\".match(/(a)?(b)/).dup)\ntrue\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
       "expected": true,
       "policy": "protected_match_data",
       "reason": "Keep protected value string rendering inside collections and duplicates, consistent with the existing Rust value and replacement renderers.",
@@ -63,7 +63,7 @@
     },
     {
       "name": "output_matrix_warn_match",
-      "source": "\ndef run(input)\nbegin\nwarn(\"b\".match(/(a)?(b)/),[\"b\".match(/(a)?(b)/)])\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<string> | bool\nbegin\nwarn(\"b\".match(/(a)?(b)/),[\"b\".match(/(a)?(b)/)])\ntrue\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
       "expected": true,
       "policy": "protected_match_data",
       "reason": "Keep protected value string rendering inside collections and duplicates, consistent with the existing Rust value and replacement renderers.",
@@ -78,7 +78,7 @@
     },
     {
       "name": "output_matrix_warn_match_copy",
-      "source": "\ndef run(input)\nbegin\nwarn(\"b\".match(/(a)?(b)/).dup)\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<string> | bool\nbegin\nwarn(\"b\".match(/(a)?(b)/).dup)\ntrue\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
       "expected": true,
       "policy": "protected_match_data",
       "reason": "Keep protected value string rendering inside collections and duplicates, consistent with the existing Rust value and replacement renderers.",
@@ -93,7 +93,7 @@
     },
     {
       "name": "output_matrix_error_nested",
-      "source": "\ndef run(input)\nbegin\nbegin\nraise \"message\"\nrescue RuntimeError=>e\nputs([e]);p([e]);true\nend\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "source": "\ndef run(input: any) -> array<string> | bool\nbegin\nbegin\nraise \"message\"\nrescue RuntimeError=>e\nputs([e]);p([e]);true\nend\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
       "expected": true,
       "policy": "protected_error_rendering",
       "reason": "Keep protected value string rendering inside collections and duplicates, consistent with the existing Rust value and replacement renderers.",
