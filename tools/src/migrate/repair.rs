@@ -90,6 +90,7 @@ pub fn repair(
             .original
             .settle_notes(&repaired.source, &mut repaired.diagnostics);
     }
+    repairer.note_leftovers(original, &mut repaired);
     repaired
 }
 
@@ -477,6 +478,48 @@ impl Repairer<'_> {
             return None;
         }
         Some((candidate, next))
+    }
+
+    /// Reports each removed spelling the migration left in place without
+    /// saying so, as the surface rules do for one whose receiver is a class,
+    /// so a source that still needs a person is not counted as migrated.
+    fn note_leftovers(&mut self, original: &str, migration: &mut Migration) {
+        let Some(errors) = self.errors(&migration.source) else {
+            return;
+        };
+        for error in errors {
+            if error.code.area() != Some(vibescript::diagnostic::Area::Surface) {
+                continue;
+            }
+            let spelled = &migration.source[error.span.start..error.span.end];
+            // The same occurrence of the spelling in the original.
+            let nth = migration.source[..error.span.start]
+                .matches(spelled)
+                .count();
+            let offset = original
+                .match_indices(spelled)
+                .nth(nth)
+                .map_or(0, |(offset, _)| offset);
+            let code = match error.code {
+                vibescript::diagnostic::Code::DISPATCH_BY_NAME => Code::Dispatch,
+                vibescript::diagnostic::Code::HASH_NEW => Code::HashNew,
+                _ => Code::Rename,
+            };
+            let note = super::migrator::diagnostic(
+                original,
+                code,
+                offset,
+                format!("{}; the migration could not rewrite it", error.message),
+            );
+            if !migration
+                .diagnostics
+                .iter()
+                .any(|other| other.line == note.line)
+            {
+                migration.diagnostics.push(note);
+            }
+        }
+        migration.diagnostics.sort_by_key(|d| (d.offset, d.code));
     }
 
     /// Whether `candidate` compiles and does what the source did: every

@@ -511,3 +511,19 @@ fn widens_a_local_an_unrun_branch_assigns() {
     assert!(out.contains("x: int | string = 1"), "{out}");
     assert!(errors.is_empty(), "{errors:?}");
 }
+
+#[test]
+fn reports_a_removed_spelling_the_rules_leave_in_place() {
+    let source = "class C\nend\ndef run(input)\n  C.respond_to?(:x)\nend\n";
+    let call = json!({"function": "run", "args": [null]});
+    let invocations = [Invocation::from_json(call, ".".as_ref()).unwrap()];
+    let observations = observe(source, &invocations);
+    let migration = migrate(source, &observations, &Options::default());
+    let repaired = repair(source, &migration, &invocations, &observations);
+    let notes: Vec<(Code, usize)> = repaired
+        .diagnostics
+        .iter()
+        .map(|d| (d.code, d.line))
+        .collect();
+    assert_eq!(notes, [(Code::Dispatch, 4)], "{:?}", repaired.diagnostics);
+}
