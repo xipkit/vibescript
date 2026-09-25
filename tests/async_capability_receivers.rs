@@ -52,29 +52,52 @@ fn reader(name: &str) -> HostMethod {
     })
 }
 
+/// The capability's value: data, methods and an inner object of both.
+fn capability() -> Value {
+    let hold = holder("cap.hold").value();
+    let read = reader("cap.read").value();
+    let inner = Value::object(vec![
+        (b"tag".to_vec(), Value::int(2)),
+        (b"hold".to_vec(), hold.clone()),
+        (b"read".to_vec(), read.clone()),
+    ]);
+    Value::object(vec![
+        (b"tag".to_vec(), Value::int(1)),
+        (b"hold".to_vec(), hold),
+        (b"read".to_vec(), read),
+        (b"inner".to_vec(), inner),
+    ])
+}
+
 fn options() -> CallOptions {
     CallOptions {
-        capabilities: vec![Capability::new("cap", |_| {
-            let hold = holder("cap.hold").value();
-            let read = reader("cap.read").value();
-            let inner = Value::object(vec![
-                (b"tag".to_vec(), Value::int(2)),
-                (b"hold".to_vec(), hold.clone()),
-                (b"read".to_vec(), read.clone()),
-            ]);
-            Ok(Value::object(vec![
-                (b"tag".to_vec(), Value::int(1)),
-                (b"hold".to_vec(), hold),
-                (b"read".to_vec(), read),
-                (b"inner".to_vec(), inner),
-            ]))
-        })],
+        capabilities: vec![Capability::new("cap", |_| Ok(capability()))],
         ..CallOptions::default()
     }
 }
 
+/// An engine that declares the capability each call's factory builds.
+fn declaring() -> Engine {
+    let mut engine = Engine::new();
+    engine
+        .declare_capability(&Capability::from_value("cap", capability()))
+        .unwrap();
+    engine
+}
+
+/// An engine without static types, for call forms they refuse or cannot
+/// type: indexing the capability or writing its data, `send`, and methods
+/// of an inner object, which the declaration types as plain data.
+fn untyped() -> Engine {
+    let mut engine = Engine::new();
+    engine.set_static_types(false);
+    engine
+}
+
 async fn run(runner: &Runner, engine: &Engine, body: &str, options: CallOptions) -> String {
-    let script = engine.compile(&format!("def run\n{body}\nend")).unwrap();
+    let script = engine
+        .compile(&format!("def run -> any\n{body}\nend"))
+        .unwrap();
     runner
         .call(script, "run".into(), vec![], options)
         .await
@@ -86,16 +109,25 @@ async fn run(runner: &Runner, engine: &Engine, body: &str, options: CallOptions)
 #[tokio::test]
 async fn async_and_bridged_sync_methods_hold_their_receiver_across_waits_and_blocks() {
     let runner = Runner::new(1).unwrap();
-    let engine = Engine::new();
+    let engine = declaring();
     for (body, expected) in [
         ("cap.hold()", "[1, nil, 1]"),
+        ("cap.hold { 5 }", "[1, 5, 1]"),
+        ("cap.read()", "[1, nil, 1]"),
+    ] {
+        assert_eq!(
+            run(&runner, &engine, body, options()).await,
+            expected,
+            "{body}"
+        );
+    }
+    let engine = untyped();
+    for (body, expected) in [
         ("cap[:hold]()", "[1, nil, 1]"),
         ("cap::hold()", "[1, nil, 1]"),
         ("cap.send(:hold)", "[1, nil, 1]"),
         ("cap.inner.hold()", "[2, nil, 2]"),
-        ("cap.hold { 5 }", "[1, 5, 1]"),
         ("cap.hold { cap.inner.hold { 0 } }", "[1, [2, 0, 2], 1]"),
-        ("cap.read()", "[1, nil, 1]"),
         ("cap.inner.read { cap.hold { 0 } }", "[2, [1, 0, 1], 2]"),
         (
             "cap.hold { cap.inner.read { cap.hold { 0 } } }",
@@ -149,6 +181,13 @@ async fn receiver_reads_fail_once_an_abandoned_block_retires_the_call() {
             Ok(Value::int(999))
         })
     });
+    let template = Capability::from_value(
+        "cap",
+        Value::object(vec![
+            (b"tag".to_vec(), Value::int(1)),
+            (b"abandon".to_vec(), method.value()),
+        ]),
+    );
     let options = CallOptions {
         capabilities: vec![Capability::new("cap", move |_| {
             Ok(Value::object(vec![
@@ -161,7 +200,9 @@ async fn receiver_reads_fail_once_an_abandoned_block_retires_the_call() {
     let mut options = options;
     options.limits.steps = None;
     let runner = Runner::new(1).unwrap();
-    let script = Engine::new()
+    let mut engine = Engine::new();
+    engine.declare_capability(&template).unwrap();
+    let script = engine
         .compile("def run; cap.abandon { while true; 1; end }; end")
         .unwrap();
     let result = tokio::time::timeout(
@@ -204,7 +245,9 @@ async fn async_and_bridged_sync_methods_publish_across_waits_and_blocks() {
         ..CallOptions::default()
     };
     let runner = Runner::new(1).unwrap();
-    let engine = Engine::new();
+    // The script reads fields the methods publish, which the capability
+    // does not declare, so it compiles without static types.
+    let engine = untyped();
     for (body, expected) in [
         ("cap.publish()\n[cap[:a], cap[:c]]", "[1, 3]"),
         ("cap.publish { cap[:a] }", "1"),
