@@ -19,7 +19,7 @@ use vibescript::{
 };
 
 const PRELUDE: &str = "enum Status\n  Draft\n  Published\nend\n\
-    def failure\n  begin\n    raise \"bad\"\n  rescue => error\n    error\n  end\nend\n";
+    def failure -> error\n  begin\n    raise \"bad\"\n  rescue => error\n    error\n  end\nend\n";
 
 type Bindings = BTreeMap<String, Type>;
 
@@ -121,9 +121,14 @@ fn samples(ty: &Type) -> Vec<String> {
                 let second = element.get(1).unwrap_or(&element[0]);
                 vec![format!("[{}, {second}]", element[0]), "[]".into()]
             }
+            // Casts give hash and tuple literals their declared type
+            // wherever it would otherwise be inferred from the literal.
             ("hash", [_, value]) => {
                 let value = samples(value);
-                vec![format!("{{ a: {} }}", value[0]), "{}".into()]
+                vec![
+                    format!("({{ a: {} }}).as({ty})", value[0]),
+                    format!("({{}}).as({ty})"),
+                ]
             }
             _ => panic!("no samples for {ty}"),
         },
@@ -146,7 +151,7 @@ fn samples(ty: &Type) -> Vec<String> {
                 .iter()
                 .map(|element| samples(element).remove(0))
                 .collect();
-            vec![format!("[{}]", elements.join(", "))]
+            vec![format!("([{}]).as({ty})", elements.join(", "))]
         }
         _ => panic!("no samples for {ty}"),
     }
@@ -170,10 +175,10 @@ fn receivers(ty: &Type) -> Vec<String> {
         "money" => vec!["money(\"12.50 USD\")"],
         "regex" => vec!["/l+/", "/(?<x>o)/i"],
         "match_data" => vec![
-            "\"hello\".match(\"l+\")",
-            "\"hello\".match(\"(?<x>e)(z)?\")",
+            "\"hello\".match(\"l+\").as(match_data)",
+            "\"hello\".match(\"(?<x>e)(z)?\").as(match_data)",
         ],
-        "error" => vec!["failure()"],
+        "error" => vec!["failure"],
         "enum_type" => vec!["Status"],
         "enum_value" => vec!["Status::Draft"],
         "array" => {
@@ -558,7 +563,7 @@ impl Harness {
     }
 
     fn run(&self, call: &str) -> Result<Outcome, String> {
-        let source = format!("{PRELUDE}def run\n  {call}\nend\n");
+        let source = format!("{PRELUDE}def run -> any\n  {call}\nend\n");
         let script = self
             .engine
             .compile(&source)
