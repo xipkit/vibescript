@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{Arc, Mutex};
 use vibescript::{CallOptions, Engine, ErrorKind, Limits, Value, stringify_json};
 
@@ -35,23 +37,22 @@ fn json(value: &Value) -> serde_json::Value {
 fn format_calls_and_percent_assignments_share_the_renderer() {
     let source = r#"
 class C
-def %(other)
+def %(other: int) -> string
 "class:"+other.to_s
 end
 end
-def wrapped(*args)
-sprintf(*args)
+def wrapped(*args: array<int | string>) -> string
+format(*args)
 end
-def run
+def run -> array<int | string>
 local="%s:%03d"
 local%=["id",7]
-a=["%q"]
+a: [string] = ["%q"]
 a[0]%="é\xff"
 h={x:"%#O"}
-h.x%=8
+h["x"]%=8
 [
-local,a[0],h.x,wrapped("%2$s %1$d",7,"id"),
-(missing rescue format)("%s",:ok),
+local,a[0],h["x"],wrapped("%2$s %1$d",7,"id"),
 format("%[2]s%[1]s","a","b"),
 "%s"%nil,5%2,C.new%7,
 format("%#08x|%+08.2f|%#U",31,1.5,233)
@@ -70,7 +71,6 @@ end
             "\"é\\xff\"",
             "0o010",
             "id 7",
-            "ok",
             "ba",
             "",
             1,
@@ -78,6 +78,12 @@ end
             "0x0000001f|+0001.50|U+00E9 'é'"
         ])
     );
+    // Functions are not values, so a rescued callee cannot be called.
+    let error = common::static_engine()
+        .compile("(missing rescue format)(\"%s\",:ok)")
+        .err()
+        .unwrap();
+    assert_eq!(common::codes(&error), ["V0201", "V0301"]);
 }
 
 #[test]
@@ -87,15 +93,16 @@ fn direct_instances_convert_once_in_order_before_pattern_validation() {
         .compile(
             r#"
 class C
-def initialize(label)
+  @label: string
+def initialize(label: string)
 @label=label
 end
-def to_s
+def to_s -> string
 print(@label)
 format("<%s>",@label)
 end
 end
-def run(pattern)
+def run(pattern: string) -> string
 begin
 format(pattern,C.new("a"),C.new("b"))
 rescue RuntimeError=>e
@@ -110,7 +117,6 @@ end
         (text("%[2]s"), "<b>", "ab"),
         (text(""), "format has 2 unused operand(s)", "ab"),
         (text("%d"), "format %d expects integer operand", "ab"),
-        (Value::int(7), "format expects a string format", ""),
     ] {
         writes.lock().unwrap().clear();
         let result = script
@@ -119,18 +125,24 @@ end
         assert_eq!(result.value.as_bytes(), Some(expected.as_bytes()));
         assert_eq!(writes.lock().unwrap().concat(), effects.as_bytes());
     }
+    // A pattern that is not a string is refused before anything runs.
+    let error = common::static_engine()
+        .compile("class C\nend\nformat(7,C.new,C.new)")
+        .err()
+        .unwrap();
+    assert_eq!(common::codes(&error), ["V0101"]);
 }
 
 #[test]
 fn nested_instances_percent_and_ineligible_conversions_keep_default_rendering() {
     for definition in [
-        "def to_s\nprint(\"called\");7\nend",
-        "def to_s\nprint(\"called\");:symbol\nend",
-        "def to_s(required)\nraise \"called\"\nend",
-        "def to_s(required:)\nraise \"called\"\nend",
+        "def to_s -> int\nprint(\"called\");7\nend",
+        "def to_s -> symbol\nprint(\"called\");:symbol\nend",
+        "def to_s(required: any)\nraise \"called\"\nend",
+        "def to_s(*, required: any)\nraise \"called\"\nend",
     ] {
         let (engine, writes) = engine();
-        let script = engine.compile(&format!("class C\n{definition}\nend\ndef run\n[format(\"%s\",C.new),sprintf(\"%s\",[C.new]),\"%s\"%C.new,\"%s\"%[C.new]]\nend")).unwrap();
+        let script = engine.compile(&format!("class C\n{definition}\nend\ndef run -> array<string>\n[format(\"%s\",C.new),format(\"%s\", [C.new]),\"%s\"%C.new,\"%s\"%[C.new]]\nend")).unwrap();
         let output = script.call("run", &[], CallOptions::default()).unwrap();
         assert_eq!(
             json(&output.value),
@@ -150,65 +162,41 @@ fn nested_instances_percent_and_ineligible_conversions_keep_default_rendering() 
 
 #[test]
 fn helper_validation_precedes_conversions_and_hosts_can_override_helpers() {
-    for helper in ["format", "sprintf"] {
-        for (arguments, expected) in [
-            ("()", "expects a format string"),
-            ("(7,C.new)", "expects a string format"),
-            ("(\"%s\",C.new,a:1)", "does not take keyword arguments"),
-            ("(\"%s\",C.new) {raise \"block\"}", "does not accept blocks"),
-            (
-                "(\"%s\",C.new,a:1) {raise \"block\"}",
-                "does not take keyword arguments",
-            ),
-        ] {
-            let source =
-                format!("class C\ndef to_s\nraise \"converted\"\nend\nend\n{helper}{arguments}");
-            let error = Engine::new()
-                .compile(&source)
-                .unwrap()
-                .run(CallOptions::default())
-                .unwrap_err();
-            assert_eq!(error.message, format!("{helper} {expected}"));
-        }
-        let mut engine = Engine::new();
-        engine.register(helper, |_, args| Ok(args[0].clone()));
-        let output = engine
-            .compile(&format!("{helper}(7)"))
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap();
-        assert_eq!(output.value.as_int(), Some(7));
+    for (arguments, expected) in [
+        ("()", &["V0301"][..]),
+        ("(7,C.new)", &["V0101"]),
+        ("(\"%s\",C.new,a:1)", &["V0302"]),
+        ("(\"%s\",C.new) {raise \"block\"}", &["V0305"]),
+        ("(\"%s\",C.new,a:1) {raise \"block\"}", &["V0302", "V0305"]),
+    ] {
+        let source = format!(
+            "class C\ndef to_s -> string\nraise \"converted\"\nend\nend\nformat{arguments}"
+        );
+        let error = common::static_engine().compile(&source).err().unwrap();
+        assert_eq!(common::codes(&error), expected, "{arguments}");
     }
+    let mut engine = Engine::new();
+    engine.register("format", |_, args| Ok(args[0].clone()));
+    let output = engine
+        .compile("format(7)")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap();
+    assert_eq!(output.value.as_int(), Some(7));
 }
 
 #[test]
 fn formatting_helpers_cannot_escape_through_member_calls() {
-    for helper in ["format", "sprintf"] {
-        for tail in [
-            ".call(effect())",
-            ".itself(effect())",
-            ".send(:itself,effect())",
-            "&.public_send(:dup,effect())",
-        ] {
-            let (mut engine, effects) = engine();
-            let captured = effects.clone();
-            engine.register("effect", move |_, _| {
-                captured.lock().unwrap().push(b"effect".to_vec());
-                Ok(Value::nil())
-            });
-            let error = engine
-                .compile(&format!("{helper}{tail}"))
-                .unwrap()
-                .run(CallOptions::default())
-                .unwrap_err();
-            assert_eq!(
-                error.message,
-                format!(
-                    "{helper} is a method and cannot be used as a value; call it with {helper}(...)"
-                )
-            );
-            assert!(effects.lock().unwrap().is_empty());
-        }
+    let mut engine = common::static_engine();
+    engine.register("effect", |_, _| panic!("effect ran"));
+    for (tail, expected) in [
+        (".call(effect())", &["V0301", "V0203"][..]),
+        (".itself(effect())", &["V0301"]),
+        (".send(:itself,effect())", &["V0301", "V0405"]),
+        ("&.public_send(:dup,effect())", &["V0301", "V0405"]),
+    ] {
+        let error = engine.compile(&format!("format{tail}")).err().unwrap();
+        assert_eq!(common::codes(&error), expected, "{tail}");
     }
 }
 
@@ -216,7 +204,7 @@ fn formatting_helpers_cannot_escape_through_member_calls() {
 fn conversion_failures_unwind_before_later_operands_and_allow_reentry() {
     let (mut engine, writes) = engine();
     let inner = Engine::new()
-        .compile("def inner\nsprintf(\"%d\",7)\nend")
+        .compile("def inner -> string\nformat(\"%d\", 7)\nend")
         .unwrap();
     engine.register("nested", move |_, _| {
         Ok(inner.call("inner", &[], CallOptions::default())?.value)
@@ -225,13 +213,14 @@ fn conversion_failures_unwind_before_later_operands_and_allow_reentry() {
         .compile(
             r#"
 class C
-def initialize(label)
+  @label: string
+def initialize(label: string)
 @label=label
 end
-def to_s
+def to_s -> string
 print(@label)
 raise "conversion" if @label=="b"
-nested()
+nested().as(string)
 end
 end
 def run
@@ -271,8 +260,8 @@ fn converted_values_remain_accounted_during_later_conversions_and_failure() {
         .compile(
             r#"
 class C
-def to_s
-payload()
+def to_s -> string
+payload().as(string)
 end
 end
 def run
@@ -318,7 +307,7 @@ fn fixed_output_limits_are_recoverable_and_padding_obeys_memory_limits() {
     let script = Engine::new()
         .compile(
             r#"
-def run(pattern)
+def run(pattern: string) -> string
 begin
 format(pattern,"")
 rescue LimitError=>e
@@ -369,7 +358,7 @@ fn cancellation_in_conversion_cannot_be_rescued_or_run_later_effects() {
         .compile(
             r#"
 class C
-def to_s
+def to_s -> string
 cancel()
 "text"
 end
@@ -396,7 +385,7 @@ fn all_step_and_memory_boundaries_release_conversions_and_preserve_effect_order(
         .compile(
             r#"
 class C
-def to_s
+def to_s -> string
 print("convert")
 "é"
 end
