@@ -19,7 +19,7 @@ fn promotion_normalizes_results_without_expanding_the_value_representation() {
         ("(9223372036854775807 + 1) - 1", i64::MAX),
         ("-9223372036854775809 + 1", i64::MIN),
         ("n=2**200;n-n", 0),
-        ("n=2**200;n/n", 1),
+        ("n=2**200;n//n", 1),
         ("n=2**200;n*0", 0),
         ("-9223372036854775808 % -1", 0),
         ("n=2**200;n**0", 1),
@@ -60,7 +60,7 @@ fn source_and_host_integers_preserve_every_digit_through_json() {
 #[test]
 fn finite_float_conversion_preserves_binary_values_and_special_values() {
     let script = Engine::new()
-        .compile("def run(input)\ninput.to_i\nend")
+        .compile("def run(input: float) -> int\ninput.to_i\nend")
         .unwrap();
     for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         assert_eq!(
@@ -89,12 +89,12 @@ fn large_arithmetic_conversion_and_comparison_obey_step_limits() {
     let input = Value::parse_integer(&"f".repeat(8192), 16).unwrap();
     for body in [
         "input * input",
-        "input / (input-1)",
+        "input // (input-1)",
         "input.to_s",
         "input == input",
     ] {
         let script = Engine::new()
-            .compile(&format!("def run(input)\n{body}\nend"))
+            .compile(&format!("def run(input: int) -> any\n{body}\nend"))
             .unwrap();
         let result = script.call(
             "run",
@@ -193,8 +193,8 @@ fn cancelled_numeric_work_prevents_later_host_effects() {
         Ok(Value::nil())
     });
     for source in [
-        "x=2**1000; y=(cancel()+x)*x;effect()",
-        "x=2**1000; y=x/(cancel()+1);effect()",
+        "x=2**1000; y=(cancel().as(int)+x)*x;effect()",
+        "x=2**1000; y=x//(cancel().as(int)+1);effect()",
         "x=cancel(); y=JSON.parse(\"123456789012345678901234567890\");effect()",
     ] {
         let error = engine
@@ -211,7 +211,9 @@ fn cancelled_numeric_work_prevents_later_host_effects() {
 fn small_quotients_release_the_large_division_buffers() {
     let a = Value::parse_integer(&format!("1{}", "0".repeat(2500)), 16).unwrap();
     let b = Value::parse_integer(&format!("1{}", "0".repeat(2475)), 16).unwrap();
-    let script = Engine::new().compile("def run(a,b)\na/b\nend").unwrap();
+    let script = Engine::new()
+        .compile("def run(a: int,b: int) -> int\na//b\nend")
+        .unwrap();
     let result = script
         .call("run", &[a.clone(), b], CallOptions::default())
         .unwrap();
@@ -330,7 +332,7 @@ fn reference_sized_integers_fit_the_default_quota() {
         assert_eq!(outcome.value.as_int(), Some(expected), "{}", &source[..40]);
     }
     // Rendering 100,000 bits still converts within the quota.
-    let outcome = run("(2 ** 100000).to_s.size");
+    let outcome = run("(2 ** 100000).to_s.length");
     assert_eq!(outcome.value.as_int(), Some(30_103));
 }
 
@@ -366,9 +368,9 @@ fn long_decimal_conversions_match_python() {
             80000,
             0x2b16_5e4d_6b58_e5a5,
         ),
-        ("3 ** 150000 / 7 ** 40000", 37765, 0xf3c4_1d76_2af0_eb43),
+        ("3 ** 150000 // 7 ** 40000", 37765, 0xf3c4_1d76_2af0_eb43),
         ("3 ** 150000 % 7 ** 40000", 33804, 0x6a1c_95d1_7615_a6ae),
-        ("-(3 ** 150000) / 7 ** 40000", 37766, 0x3b2e_7436_340c_7345),
+        ("-(3 ** 150000) // 7 ** 40000", 37766, 0x3b2e_7436_340c_7345),
         ("-(3 ** 150000) % 7 ** 40000", 33803, 0xe6a7_6a7d_7290_77e4),
         ("2 ** 1056 - 1", 318, 0xf310_fa44_524c_6284),
         ("2 ** 1024 + 1", 309, 0xa5cb_b29d_f993_6abf),
@@ -382,10 +384,10 @@ fn long_decimal_conversions_match_python() {
             76367,
             0xdb07_c307_2c21_b030,
         ),
-        ("3 ** 503000 / 7 ** 142000", 119989, 0x5821_fb06_e4a2_944f),
+        ("3 ** 503000 // 7 ** 142000", 119989, 0x5821_fb06_e4a2_944f),
         ("3 ** 503000 % 7 ** 142000", 120004, 0x9e91_1546_497c_510e),
         (
-            "-(10 ** 200000) / (10 ** 70000 - 1)",
+            "-(10 ** 200000) // (10 ** 70000 - 1)",
             130002,
             0x9dfd_4bbe_13bd_1c6b,
         ),
@@ -395,7 +397,7 @@ fn long_decimal_conversions_match_python() {
             0xecb8_842e_9bfa_103b,
         ),
         (
-            "(2 ** 400000 - 1) / (2 ** 99999 + 1)",
+            "(2 ** 400000 - 1) // (2 ** 99999 + 1)",
             90310,
             0xeec9_4e74_88de_3f99,
         ),
