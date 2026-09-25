@@ -1,11 +1,23 @@
 //! The static type checker of ADR-007.
 //!
-//! [`check`] reads a parsed program and reports every type error as a
-//! [`Diagnostic`]. It checks each function once, from its own signature and
+//! The checker reads a parsed program and reports every type error as a
+//! [`Diagnostic`], through [`crate::Engine::set_static_types`] and
+//! [`crate::Engine::type_check`]. It checks each function once, from its own signature and
 //! the signatures of what it calls, never from a callee's body, so its work
 //! is linear in the program. Besides diagnostics it records the static type of
 //! every member call's receiver in [`CallTypes`], which rules that depend on
 //! the receiver's type, such as typed renames of removed spellings, consult.
+//!
+//! The pass has four parts. `ty` interns types, so comparing two is comparing
+//! ids, and decides assignability. `program` collects the declarations and
+//! resolves every signature, alias and instance variable before any body is
+//! checked; `sigs` reads the builtin signature table and host signatures into
+//! the same form, with type variables and bounds. `check`, `expr` and `calls`
+//! walk each body once: `flow` keeps each local's narrowed type and
+//! definite assignment on one state with a trail of changes, so branches and
+//! loops join in time proportional to what they changed. `modules` resolves
+//! and checks the files a program requires, and `spans` turns the syntax
+//! tree's start offsets into exact spans from the parser's tokens.
 
 use crate::{capability::Registered, diagnostic::Diagnostic, syntax::Declarations};
 use std::{collections::HashMap, fmt};
