@@ -1,9 +1,3 @@
-def total(items)
-  i = 0
-  sum = 0
-  while i < items.length
-    sum += items[i]
-    i += 1
-  end
-  {total: sum, count: items.length}
+def total(items: array<int>) -> { total: int, count: int }
+  { total: items.sum, count: items.length }
 end
