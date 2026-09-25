@@ -168,3 +168,36 @@ fn require_takes_literal_names() {
     let diagnostic = error(source, "V0309", "string literal");
     assert_eq!(spanned(source, &diagnostic), "name");
 }
+
+#[test]
+fn blocks_declare_at_most_the_parameters_they_are_given() {
+    clean("def f(xs: array<int>) -> array<int>\n  xs.map { |x| x }\nend\n");
+    error(
+        "def f(n: int) -> int\n  n.times { |i, j| i }\nend\n",
+        "V0306",
+        "declares 2 parameter(s), but it is given 1",
+    );
+    clean(
+        "def f(pairs: array<[string, int]>) -> array<string>\n  pairs.map { |key, value| key }\nend\n",
+    );
+}
+
+#[test]
+fn only_functions_are_called() {
+    error(
+        "def f(x: int) -> int\n  x(1)\nend\n",
+        "V0310",
+        "is a local, not a function",
+    );
+    codes("def f(x: int) -> int\n  (x)(1)\nend\n", &["V0310"]);
+}
+
+#[test]
+fn only_collections_strings_and_classes_with_brackets_are_indexed() {
+    error(
+        "def f(x: int) -> any\n  x[0]\nend\n",
+        "V0112",
+        "int cannot be indexed",
+    );
+    clean("class Grid\n  def [](i: int) -> int\n    i\n  end\nend\ng: int = Grid.new[3]\n");
+}

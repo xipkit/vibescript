@@ -1449,11 +1449,21 @@ impl<'a> Checker<'a> {
                 if let Some(id) = subject.and_then(|subject| self.narrowable(subject)) {
                     let current = self.frame.flow.get(id).ty;
                     let without = self.types.without_nil(current);
-                    let nil = if self.types.has_nil(current) || current == Ty::ANY {
-                        Ty::NIL
-                    } else {
-                        current
-                    };
+                    let optional = self.types.has_nil(current) || current == Ty::ANY;
+                    if !optional && current != Ty::ERROR && current != Ty::NEVER {
+                        let span = self.spans.expr(expr);
+                        let name = self.frame.locals[id as usize].name.clone();
+                        let found = self.types.display(current);
+                        let always = if *op == "==" { "false" } else { "true" };
+                        self.report(Diagnostic::warning(
+                            Code::UNREACHABLE_NARROWING,
+                            span,
+                            format!(
+                                "`{name}` is {found}, never nil, so this test is always {always}"
+                            ),
+                        ));
+                    }
+                    let nil = if optional { Ty::NIL } else { current };
                     if *op == "==" {
                         narrow.then.push((id, nil));
                         narrow.otherwise.push((id, without));
@@ -1474,6 +1484,16 @@ impl<'a> Checker<'a> {
                 {
                     let current = self.frame.flow.get(id).ty;
                     let then = self.intersect(current, tested);
+                    if then == Ty::NEVER && current != Ty::NEVER {
+                        let span = self.spans.expr(expr);
+                        let found = self.types.display(current);
+                        let wanted = self.types.display(tested);
+                        self.report(Diagnostic::warning(
+                            Code::CAST,
+                            span,
+                            format!("a value of type {found} is never {wanted}, so this test is always false"),
+                        ));
+                    }
                     let otherwise = if current == Ty::ANY {
                         Ty::ANY
                     } else {

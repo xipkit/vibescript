@@ -77,3 +77,23 @@ fn an_optional_block_must_be_guarded() {
         "guarded by `block_given?`",
     );
 }
+
+#[test]
+fn tests_the_type_already_decides_are_warnings() {
+    let source = "def f(n: int) -> int\n  if n == nil\n    0\n  else\n    n\n  end\nend\n";
+    let found = vibescript::Engine::new()
+        .type_check(source)
+        .unwrap()
+        .diagnostics;
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].code.to_string(), "V0121");
+    assert!(!found[0].is_error());
+    let source =
+        "def f(n: int) -> int\n  if n.is_type?(:string)\n    1\n  else\n    n\n  end\nend\n";
+    let found = vibescript::Engine::new()
+        .type_check(source)
+        .unwrap()
+        .diagnostics;
+    assert_eq!(found[0].code.to_string(), "V0120");
+    assert!(!found[0].is_error());
+}

@@ -101,3 +101,34 @@ fn resolves_and_attributes_required_modules() {
         "compute module paths: access module path \"{missing}\": stat {missing}: no such file or directory"
     ));
 }
+
+#[test]
+fn static_mode_reports_every_type_error_with_its_code() {
+    let files = Files::new();
+    let path = files.write(
+        "clean.vibe",
+        "def add(a: int, b: int) -> int\n  a + b\nend\n",
+    );
+    vibes(&["check", "--static", &path]).expect(0, "No issues found\n", "");
+    let source = "count = 1\ncount = \"one\"\nhalf = 7 / 2\n";
+    let path = files.write("broken.vibe", source);
+    let run = vibes(&["check", "--static", &path]);
+    assert_eq!(run.status, Some(1), "{}", run.stderr);
+    assert!(
+        run.stdout
+            .starts_with(&format!("{path}:2:9: error[V0102]: `count` is int")),
+        "{}",
+        run.stdout
+    );
+    assert!(
+        run.stdout.contains(&format!("{path}:3:10: error[V0109]: ")),
+        "{}",
+        run.stdout
+    );
+    assert!(
+        run.stdout.contains("   = fix: use floor division `//`\n"),
+        "{}",
+        run.stdout
+    );
+    assert_eq!(run.stderr, "check failed with 2 error(s)\n");
+}

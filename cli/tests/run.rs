@@ -365,3 +365,50 @@ fn interrupt_cancels_a_running_script() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.starts_with("execution failed: "), "{stderr}");
 }
+
+#[test]
+fn static_mode_refuses_type_errors_and_entry_arguments_that_are_not_strings() {
+    let files = Files::new();
+    let path = files.write(
+        "greet.vibe",
+        "def run(name: string, times: int) -> string\n  name * times\nend\n",
+    );
+    // Without the checker the call fails when it starts.
+    let run = vibes(&["run", &path, "ada", "2"]);
+    assert!(
+        run.stderr
+            .starts_with("execution failed: argument times expected int, got string"),
+        "{}",
+        run.stderr
+    );
+    let run = vibes(&["run", "--static", &path, "ada", "2"]);
+    assert_eq!(run.status, Some(1), "{}", run.stdout);
+    assert!(
+        run.stderr.contains(&format!(
+            "{path}:1:23: error[V0101]: the command line passes strings, but `times` of `run` is int"
+        )),
+        "{}",
+        run.stderr
+    );
+    let path = files.write(
+        "shout.vibe",
+        "def run(name: string) -> string\n  name.upcase\nend\n",
+    );
+    vibes(&["run", "--static", &path, "ada"]).expect(0, "ADA\n", "");
+    let path = files.write("broken.vibe", "def run -> int\n  \"one\"\nend\n");
+    let run = vibes(&["run", "--static", &path]);
+    assert_eq!(run.status, Some(1));
+    assert!(
+        run.stderr
+            .starts_with("vibes: compile failed with 1 diagnostic(s)\n")
+            || run.stderr.contains("compile failed with 1 diagnostic(s)"),
+        "{}",
+        run.stderr
+    );
+    assert!(
+        run.stderr
+            .contains("error[V0101]: `run` returns int, found string"),
+        "{}",
+        run.stderr
+    );
+}

@@ -1342,7 +1342,11 @@ impl<'a> Checker<'a> {
                 let id = self.declare(&name, ty, block.offset as usize, false);
                 self.assign_local(id, ty);
             }
-        } else if targets.len() > 1 && params.len() == 1 && rest.is_none() {
+        } else if targets.len() > 1
+            && params.len() == 1
+            && rest.is_none()
+            && self.types.element(params[0]).is_some()
+        {
             // Several parameters destructure a single argument.
             let whole = params[0];
             for (index, target) in targets.iter().enumerate() {
