@@ -1,3 +1,5 @@
+mod common;
+
 use vibescript::{CallOptions, Engine, ErrorKind, stringify_json};
 
 #[test]
@@ -25,9 +27,9 @@ fn begin_values_preserve_expression_modifiers() {
     ] {
         for (modifier, expected) in [
             ("if true", 6),
-            ("unless false", 6),
+            ("if !false", 6),
             ("while i<3", 5),
-            ("until i>3", 5),
+            ("while !(i>3)", 5),
         ] {
             let source = format!("i=5;{expression} {modifier};i");
             let result = Engine::new()
@@ -40,7 +42,7 @@ fn begin_values_preserve_expression_modifiers() {
     }
     for (source, expected) in [
         ("(begin;raise 'x';rescue;3;end) if true", 3),
-        ("(begin;1;ensure;2;end) unless false", 1),
+        ("(begin;1;ensure;2;end) if !false", 1),
     ] {
         let result = Engine::new()
             .compile(source)
@@ -65,7 +67,7 @@ fn instance_variable_names_require_quoted_symbols() {
             assert_eq!(error.kind, ErrorKind::Syntax, "{source}: {error}");
         }
     }
-    let source = r#"[:"@x", :'@@x', %i[@x @@x][0], %i[@x @@x][1], :name?, :if, :+ ]"#;
+    let source = r#"[:"@x", :'@@x', [:"@x", :"@@x"][0], [:"@x", :"@@x"][1], :name?, :if, :+ ]"#;
     let result = Engine::new()
         .compile(source)
         .unwrap()
@@ -94,7 +96,7 @@ fn result(source: &str) -> serde_json::Value {
 
 #[test]
 fn ternary_separators_may_start_a_later_line() {
-    let source = "def run
+    let source = "def run -> array<string | int | array<int>>
   a = true ? \"multi\"\n    : \"other\"\n  b = false ?\n    1\n\n  :\n    2\n  [a, b, [true ? 3\n    : 4]]\nend";
     assert_eq!(result(source), serde_json::json!(["multi", 2, [3]]));
     for source in [
@@ -108,9 +110,9 @@ fn ternary_separators_may_start_a_later_line() {
 
 #[test]
 fn then_names_a_local_except_where_it_ends_a_condition() {
-    let source = "def id(v)\n  v\nend\ndef run\n  then = 1\n  then += 1\n  x = unless then then 0 else then end\n  y = case then when 2 then then + 5 end\n  [then, x, y, id(then), (if then then 7 end), (if [then].first then then end)]\nend";
+    let source = "def id(v: int) -> int\n  v\nend\ndef run -> array<int?>\n  then = 1\n  then += 1\n  x = if then == nil then 0 else then end\n  y = case then when 2 then then + 5 end\n  [then, x, y, id(then), (if then != nil then 7 end), (if [then].first != nil then then end)]\nend";
     assert_eq!(result(source), serde_json::json!([2, 2, 7, 2, 7, 2]));
-    let batch = "def contextual_then()\n  then = 1\n  then\nend\ndef unless_expr(flag)\n  value = unless flag then \"open\" else \"closed\" end\n  [value, unless flag then \"body\" end]\nend\ndef run\n  [contextual_then(), unless_expr(false)]\nend";
+    let batch = "def contextual_then -> int\n  then = 1\n  then\nend\ndef negated_expr(flag: bool) -> array<string?>\n  value = if !flag then \"open\" else \"closed\" end\n  [value, if !flag then \"body\" end]\nend\ndef run -> array<int | array<string?>>\n  [contextual_then, negated_expr(false)]\nend";
     assert_eq!(result(batch), serde_json::json!([1, ["open", "body"]]));
     let error = Engine::new()
         .compile("def run\n  then = 2\n  if (1..then) === 2 then 1 end\nend")
@@ -121,18 +123,22 @@ fn then_names_a_local_except_where_it_ends_a_condition() {
 
 #[test]
 fn compound_statements_continue_as_expressions_after_end() {
-    let source = "def run\n  a = []\n  a << if true then 5 end\n  if true\n    [5]\n  end.map { |v| v + 1 }\nend";
+    let source = "def run -> array<int>\n  a: array<int?> = []\n  a << if true then 5 end\n  if true\n    [5]\n  else\n    [0]\n  end.map { |v| v + 1 }\nend";
     assert_eq!(result(source), serde_json::json!([6]));
     // These once parsed as two statements and silently discarded the first.
-    for (statement, expected) in [
-        ("if true then 5 end + 1", serde_json::json!(6)),
-        ("if true then [5] end [0]", serde_json::json!(5)),
-        ("while false; end.to_s", serde_json::json!("")),
-        ("until true; end.nil?", serde_json::json!(true)),
-        ("for i in [1, 2] do end.size", serde_json::json!(2)),
+    for (statement, ty, expected) in [
+        ("if true then 5 else 0 end + 1", "int", serde_json::json!(6)),
+        (
+            "if true then [5] else [0] end [0]",
+            "int?",
+            serde_json::json!(5),
+        ),
+        ("while false; end.to_s", "string", serde_json::json!("")),
+        ("while !true; end == nil", "bool", serde_json::json!(true)),
+        ("for i in [1, 2] do end.length", "int", serde_json::json!(2)),
     ] {
         assert_eq!(
-            result(&format!("def run\n  {statement}\nend")),
+            result(&format!("def run -> {ty}\n  {statement}\nend")),
             expected,
             "{statement}"
         );
@@ -146,7 +152,7 @@ fn compound_statements_continue_as_expressions_after_end() {
 
 #[test]
 fn reserved_words_label_parenless_keyword_arguments() {
-    let source = "def accept(opts)\n  opts\nend\ndef boom\n  raise \"x\"\nend\ndef run\n  [accept(rescue: 1), (accept rescue: \"retry\"), (accept begin: 1, ensure: 3), (boom rescue 5)]\nend";
+    let source = "def accept(**opts: hash<string, int | string>) -> hash<string, int | string>\n  opts\nend\ndef boom\n  raise \"x\"\nend\ndef run -> array<hash<string, int | string> | int | nil>\n  [accept(rescue: 1), (accept rescue: \"retry\"), (accept begin: 1, ensure: 3), (boom rescue 5)]\nend";
     assert_eq!(
         result(source),
         serde_json::json!([{"rescue": 1}, {"rescue": "retry"}, {"begin": 1, "ensure": 3}, 5])
@@ -158,32 +164,55 @@ fn reserved_words_label_parenless_keyword_arguments() {
 
 #[test]
 fn an_implicit_it_still_calls_a_function_with_a_percent_array() {
-    let source = "def it(values)\n  values.join(\"-\")\nend\ndef run\n  [[1].map { it %w[a b] }, [5].map { it % 2 }]\nend";
-    assert_eq!(result(source), serde_json::json!([["a-b"], [1]]));
-    for source in [
-        "def run\n  it = 7\n  it %w[a b]\nend",
-        "def run\n  [5].map { _1 %w[a] }\nend",
+    // Percent literals are removed, but the parser still reads one after
+    // an implicit `it` as the argument of a call, and after a local or
+    // numbered parameter as a modulo.
+    for (source, expected) in [
+        (
+            "def it(values: array<string>) -> string\n  values.join(\"-\")\nend\n\
+             def run -> array<array<string>>\n  [[1].map { it %w[a b] }]\nend",
+            &[("V0310", "it %w"), ("V0410", "%w")][..],
+        ),
+        (
+            "def run -> any\n  it = 7\n  it %w[a b]\nend",
+            &[("V0201", "w["), ("V0201", "a "), ("V0201", "b]")],
+        ),
+        (
+            "def run -> any\n  [5].map { _1 %w[a] }\nend",
+            &[("V0201", "w["), ("V0201", "a]")],
+        ),
     ] {
-        let script = Engine::new().compile(source).unwrap();
-        assert!(script.call("run", &[], CallOptions::default()).is_err());
+        let error = common::static_engine().compile(source).err().unwrap();
+        let found: Vec<(String, usize)> = error
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| (diagnostic.code.to_string(), diagnostic.span.start))
+            .collect();
+        let expected: Vec<(String, usize)> = expected
+            .iter()
+            .map(|(code, at)| (code.to_string(), source.find(at).unwrap()))
+            .collect();
+        assert_eq!(found, expected, "{source}");
     }
+    let source = "def run -> array<int>\n  [5].map { it % 2 }\nend";
+    assert_eq!(result(source), serde_json::json!([1]));
 }
 
 #[test]
 fn instance_and_class_variable_names_may_end_like_predicates() {
-    let source = "class Record\n  def initialize\n    @respond_to? = 1\n    @done! = 2\n  end\n  def state\n    [@respond_to?, @done!]\n  end\nend\nclass Widget\n  @@respond_to? = 3\n  def self.build\n    @@respond_to?\n  end\nend\ndef run\n  [Record.new.respond_to?(:state), Record.new.state, Widget.respond_to?(:build), Widget.build]\nend";
-    assert_eq!(result(source), serde_json::json!([true, [1, 2], true, 3]));
+    let source = "class Record\n  @done!: int\n  @respond_to?: int\n  def initialize\n    @respond_to? = 1\n    @done! = 2\n  end\n  def state -> array<int>\n    [@respond_to?, @done!]\n  end\nend\nclass Widget\n  @@respond_to?: int = 3\n  def self.build -> int\n    @@respond_to?\n  end\nend\ndef run -> array<int | array<int>>\n  [Record.new.state, Widget.build]\nend";
+    assert_eq!(result(source), serde_json::json!([[1, 2], 3]));
 }
 
 #[test]
 fn one_line_definitions_start_their_body_after_a_bare_name() {
-    let source = "def at [1, 2, 3].fetch(1) end\ndef literal 42 end\ndef sum a, b = 2 a + b end\ndef run\n  [at, literal, sum(1)]\nend";
+    let source = "def at -> int [1, 2, 3].fetch(1) end\ndef literal -> int 42 end\ndef sum a: int, b: int = 2 -> int a + b end\ndef run -> array<int>\n  [at, literal, sum(1)]\nend";
     assert_eq!(result(source), serde_json::json!([2, 42, 3]));
 }
 
 #[test]
 fn aliases_declare_top_level_functions_and_nowhere_but_classes() {
-    let source = "def name()\n  \"Ada\"\nend\nalias full_name name\nclass User\n  def name()\n    \"Grace\"\n  end\n  alias_method :full_name, :name\nend\ndef run()\n  [full_name(), User.new.full_name]\nend";
+    let source = "def name() -> string\n  \"Ada\"\nend\nalias full_name name\nclass User\n  def name() -> string\n    \"Grace\"\n  end\n  alias_method :full_name, :name\nend\ndef run() -> array<string>\n  [full_name(), User.new.full_name]\nend";
     assert_eq!(result(source), serde_json::json!(["Ada", "Grace"]));
     for source in [
         "def foo\n  1\nend\ndef run\n  alias bar foo\nend",
