@@ -3,9 +3,9 @@
 //!
 //! One set of rules serves two callers. The compiler reports each removed
 //! spelling as a `V04xx` [`Diagnostic`](crate::diagnostic::Diagnostic) when
-//! static types are on, and `vibes migrate` applies the same rewrites to
-//! old-language sources, deciding with the types it observed when the
-//! static ones are unknown. Both walk a [`syntax::Tree`] that keeps
+//! static types are on ([`check`]), and `vibes migrate` applies the same
+//! rewrites to old-language sources, deciding with the types it observed
+//! when the static ones are unknown. Both walk a [`syntax::Tree`] that keeps
 //! every construct's span, through the [`Walk`] trait: its provided methods
 //! traverse the tree and apply each rule, and the [`Hooks`] an implementor
 //! supplies say what it knows about the program's types and add rules of
@@ -15,7 +15,17 @@
 //! can offer it as a fix on its own while the migration renders every
 //! group at once, nested edits inside one another. A removed spelling the
 //! rules cannot rewrite safely where it stands is a [`Finding`] instead.
+//!
+//! ```
+//! let diagnostics = vibescript::surface::check("items = [1]\nn = items.size\n")?;
+//! assert_eq!(diagnostics[0].code.to_string(), "V0401");
+//! assert_eq!(diagnostics[0].message, "`size` was removed; use `length`");
+//! let fixed = diagnostics[0].fixes[0].apply("items = [1]\nn = items.size\n");
+//! assert_eq!(fixed.as_deref(), Some("items = [1]\nn = items.length\n"));
+//! # Ok::<(), vibescript::Error>(())
+//! ```
 
+mod checker;
 mod context;
 pub mod edits;
 mod hooks;
@@ -24,8 +34,12 @@ pub mod patterns;
 mod probe;
 mod rules;
 pub mod syntax;
+#[cfg(test)]
+mod tests;
 mod walk;
 
+pub(crate) use checker::add_to;
+pub use checker::{check, check_tokens};
 pub use context::{
     Declared, Place, Scope, Surface, collect_expr, collect_locals, collect_rescued, method_name,
     namespace_member_takes_no_arguments, namespace_name, primary, simple, string_literal,

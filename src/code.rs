@@ -119,7 +119,7 @@ impl Code {
             let (parsed, tokens) =
                 crate::syntax::parse_with_tokens(source, work).map_err(parse_error)?;
             let resolve = |path: &str| typing.loader.and_then(|loader| loader.source(path));
-            let checked = crate::typing::check(&crate::typing::Input {
+            let mut checked = crate::typing::check(&crate::typing::Input {
                 source,
                 parsed: &parsed,
                 tokens: &tokens,
@@ -128,6 +128,8 @@ impl Code {
                 modules: typing.loader.is_some().then_some(&resolve),
             });
             work.charge(usize::try_from(checked.steps).unwrap_or(usize::MAX))?;
+            work.charge(tokens.len())?;
+            crate::surface::add_to(&mut checked, source, &tokens);
             work.checkpoint()?;
             if checked.diagnostics.iter().any(|d| d.is_error()) {
                 let mut text = crate::source::Source::compile(source, work)?;
