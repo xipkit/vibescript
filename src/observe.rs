@@ -335,6 +335,22 @@ pub(crate) fn before(
             }
             pend(ctx, frame.ip + 1, Pending::Result(call.name));
         }
+        // A member read on the way to a mutation, such as `h.items` in
+        // `h.items.push(1)`, reads through an address.
+        Op::AddressMember(call) | Op::AddressMemberTarget(call, _) => {
+            if let Some(address) = addresses.last() {
+                let site = Site::Receiver {
+                    member: &program.members[call.name],
+                };
+                emit(
+                    ctx,
+                    source,
+                    offset,
+                    site,
+                    std::slice::from_ref(&address.value),
+                );
+            }
+        }
         Op::Invoke(Invocation::Member(call, false)) => {
             let site = Site::Receiver {
                 member: &program.members[call.name],
