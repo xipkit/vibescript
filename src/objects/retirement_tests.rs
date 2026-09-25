@@ -1,5 +1,5 @@
 use super::*;
-use crate::{CallOptions, CancellationToken, Engine, HostMethod};
+use crate::{CallOptions, CancellationToken, HostMethod};
 
 struct RetiredCode {
     heap: Arc<Mutex<Weak<Heap>>>,
@@ -40,7 +40,7 @@ fn imported_host_callbacks_retire_after_object_collection_unlocks() {
     for captured in [false, true] {
         for ending in [
             "keep",
-            "hold(keep); 1/0",
+            "hold(keep); 1//0",
             "hold(keep); stop()",
             "hold(keep); keep",
         ] {
@@ -54,13 +54,13 @@ fn imported_host_callbacks_retire_after_object_collection_unlocks() {
                 cancellation: cancel_on_drop.then(|| cancellation.clone()),
             };
             let namespace = {
-                let mut producer = Engine::new();
+                let mut producer = crate::test_engine();
                 producer.register("host", move |_, _| {
                     let _ = &retired;
                     Ok(Value::nil())
                 });
                 producer
-                    .compile("module Foreign\n def self.value; host(); end\nend\nForeign")
+                    .compile("module Foreign\n def self.value -> any; host(); end\nend\nForeign")
                     .unwrap()
                     .run(CallOptions::default())
                     .unwrap()
@@ -69,7 +69,7 @@ fn imported_host_callbacks_retire_after_object_collection_unlocks() {
             let incoming = Mutex::new(Some(namespace));
             let retained = Arc::new(Mutex::new(None));
             let held = retained.clone();
-            let mut receiver = Engine::new();
+            let mut receiver = crate::test_engine();
             receiver.register("take_foreign", move |ctx, _| {
                 *heap.lock().unwrap() = Arc::downgrade(ctx.objects.as_ref().unwrap());
                 let value = incoming.lock().unwrap().take().unwrap();
@@ -95,7 +95,7 @@ fn imported_host_callbacks_retire_after_object_collection_unlocks() {
                 Ok(Value::nil())
             });
             let source = format!(
-                "class Box\n property value\nend\ndef run\n keep=Box.new\n discarded=Box.new\n discarded.value=take_foreign()\n discarded=nil\n {ending}\nend"
+                "class Box\n property value: any\nend\ndef run -> any\n keep=Box.new\n discarded: Box? =Box.new\n discarded.value=take_foreign()\n discarded=nil\n {ending}\nend"
             );
             let result = receiver.compile(&source).unwrap().call(
                 "run",
@@ -130,7 +130,7 @@ fn imported_host_callbacks_retire_after_object_collection_unlocks() {
 fn imported_capability_callbacks_retire_after_object_collection_unlocks() {
     for ending in [
         "keep",
-        "hold(keep); 1/0",
+        "hold(keep); 1//0",
         "hold(keep); stop()",
         "hold(keep); keep",
     ] {
@@ -142,7 +142,7 @@ fn imported_capability_callbacks_retire_after_object_collection_unlocks() {
         let observation = observed.clone();
         let retained = Arc::new(Mutex::new(None));
         let held = retained.clone();
-        let mut receiver = Engine::new();
+        let mut receiver = crate::test_engine();
         receiver.register("take_capability", move |ctx, _| {
             *heap.lock().unwrap() = Arc::downgrade(ctx.objects.as_ref().unwrap());
             let retired = RetiredCode {
@@ -165,7 +165,7 @@ fn imported_capability_callbacks_retire_after_object_collection_unlocks() {
             Ok(Value::nil())
         });
         let source = format!(
-            "class Box\n property value\nend\ndef run\n keep=Box.new\n discarded=Box.new\n discarded.value=take_capability()\n discarded=nil\n {ending}\nend"
+            "class Box\n property value: any\nend\ndef run -> any\n keep=Box.new\n discarded: Box? =Box.new\n discarded.value=take_capability()\n discarded=nil\n {ending}\nend"
         );
         let result = receiver.compile(&source).unwrap().call(
             "run",

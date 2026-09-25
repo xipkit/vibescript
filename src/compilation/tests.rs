@@ -810,32 +810,8 @@ fn generation_storage_and_work_limits_cover_the_phase_after_parsing() {
 
 #[test]
 fn compiler_bindings_preserve_shadowing_calls_and_internal_slot_names() {
-    for (source, expected) in [
-        (
-            "def f(x);y=10;[1].map{|x|[2].map{|n|x+y+n}}.first.first;end;f(99)",
-            "13",
-        ),
-        ("v=5;[1].map{[2].map{it+v}}", "[[7]]"),
-        (
-            "def f(e);begin;raise 'failure';rescue=>e;s=e.message;end;[e,s];end;f(11)",
-            "[11,\"failure\"]",
-        ),
-        (
-            "def a;3;end;def b;5;end;a,b=[a()+b(),b()+a()];[a,b]",
-            "[8,8]",
-        ),
-        ("a=0;for n in [1,2];a+=n;next;end;a", "3"),
-        (
-            "module A;N=1;module B;N=2;end;end;module AB;N=4;end;[A.N,A::B.N,AB.N]",
-            "[1,2,4]",
-        ),
-        (
-            "[9223372036854775808,18446744073709551615]",
-            "[9223372036854775808,18446744073709551615]",
-        ),
-        ("[[1,2]].map{|(a:int,b:int)|a+b}", "[3]"),
-    ] {
-        let result = crate::Engine::new()
+    let run = |engine: crate::Engine, source: &str, expected: &str| {
+        let result = engine
             .compile(source)
             .unwrap()
             .run(CallOptions::default())
@@ -846,6 +822,45 @@ fn compiler_bindings_preserve_shadowing_calls_and_internal_slot_names() {
             expected.as_bytes(),
             "{source}"
         );
+    };
+    for (source, expected) in [
+        (
+            "def f(x: int) -> int;y=10;[1].map{|x|[2].map{|n|x+y+n}}.fetch(0).fetch(0);end;f(99)",
+            "13",
+        ),
+        ("v=5;[1].map{[2].map{it+v}}", "[[7]]"),
+        ("a=0;for n in [1,2];a+=n;next;end;a", "3"),
+        (
+            "module A;N=1;module B;N=2;end;end;module AB;N=4;end;[A.N,A::B.N,AB.N]",
+            "[1,2,4]",
+        ),
+        (
+            "[9223372036854775808,18446744073709551615]",
+            "[9223372036854775808,18446744073709551615]",
+        ),
+        (
+            "pairs: array<[int, int]> = [[1,2]];pairs.map{|(a:int,b:int)|a+b}",
+            "[3]",
+        ),
+    ] {
+        run(crate::test_engine(), source, expected);
+    }
+    // A rescue binding that shadows a parameter, and locals named like the
+    // functions they call, have no static types: the checker types the
+    // rescued `e` as the parameter, and a local hides a function's name.
+    for (source, expected) in [
+        (
+            "def f(e);begin;raise 'failure';rescue=>e;s=e.message;end;[e,s];end;f(11)",
+            "[11,\"failure\"]",
+        ),
+        (
+            "def a;3;end;def b;5;end;a,b=[a()+b(),b()+a()];[a,b]",
+            "[8,8]",
+        ),
+    ] {
+        let mut engine = crate::Engine::new();
+        engine.set_static_types(false);
+        run(engine, source, expected);
     }
 }
 

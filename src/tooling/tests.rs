@@ -333,13 +333,13 @@ fn last_statement_descends_into_control_flow_only() {
 #[test]
 fn outline_errors_match_compilation() {
     for source in ["def run(\n  1\nend\n", "def 123()\nend\n", "x = [1,\n"] {
-        let compiled = Engine::new().compile(source).err().unwrap();
+        let compiled = crate::test_engine().compile(source).err().unwrap();
         assert_eq!(outline(source).unwrap_err(), compiled, "{source}");
     }
     let oversized = " ".repeat(crate::syntax::MAX_SOURCE + 1);
     assert_eq!(
         outline(&oversized).unwrap_err(),
-        Engine::new().compile(&oversized).err().unwrap()
+        crate::test_engine().compile(&oversized).err().unwrap()
     );
 }
 
@@ -442,7 +442,11 @@ fn member_names_resolve_on_their_receivers() {
         for member in members {
             assert!(seen.insert(member), "{kind}.{member} repeats");
             let source = format!("({receiver}).respond_to?(:{member}, true)");
-            let value = Engine::new()
+            // The names include dynamic members static types removed, which
+            // `respond_to?`, itself removed, finds only without them.
+            let mut engine = Engine::new();
+            engine.set_static_types(false);
+            let value = engine
                 .compile(&source)
                 .unwrap()
                 .run(Default::default())
@@ -554,6 +558,6 @@ fn unreachable_statements_follow_the_reference_linter() {
         found("def f\n  return 1\n  x = 2 if true\n  z while false\nend"),
         ["3:9 f", "4:5 f"]
     );
-    let compiled = Engine::new().compile("def f(\n").err().unwrap();
+    let compiled = crate::test_engine().compile("def f(\n").err().unwrap();
     assert_eq!(unreachable("def f(\n").unwrap_err(), compiled);
 }

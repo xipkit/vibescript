@@ -10,22 +10,22 @@ use std::sync::{
 const SOURCE: &str = r#"
 module Outer
   module Inner
-    def self.value; host(); end
+    def self.value -> any; host(); end
   end
 end
 class Node
-  property link
-  def value; host(); end
+  property link: Node?
+  def value -> any; host(); end
 end
-def namespace; Outer; end
-def nested; Outer.Inner; end
-def class_value; Node; end
-def cycle
+def namespace -> any; Outer; end
+def nested -> any; Outer::Inner; end
+def class_value -> any; Node; end
+def cycle -> Node
   node = Node.new
   node.link = node
   node
 end
-def host_value; host(); end
+def host_value -> int; host().as(int); end
 "#;
 
 #[test]
@@ -195,7 +195,7 @@ impl Drop for Retired {
 
 fn engine(retired: &Arc<AtomicUsize>) -> Engine {
     let guard = Retired(retired.clone());
-    let mut engine = Engine::new();
+    let mut engine = crate::test_engine();
     engine.register("host", move |_, _| {
         let _ = &guard;
         Ok(Value::int(11))
@@ -382,10 +382,12 @@ fn failed_namespace_imports_release_partial_accounting_and_code_references() {
 
 #[test]
 fn metered_compilation_stops_at_limits_and_matches_unmetered_results() {
-    let engine = Engine::new();
+    let engine = crate::test_engine();
     let mut source = String::new();
     for index in 0..300 {
-        source.push_str(&format!("def f{index}(x)\n  x + {index}\nend\n"));
+        source.push_str(&format!(
+            "def f{index}(x: int) -> int\n  x + {index}\nend\n"
+        ));
     }
     source.push_str("f299(1)\n");
     let limits = |steps| CallOptions {

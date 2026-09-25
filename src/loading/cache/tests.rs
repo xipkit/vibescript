@@ -1,6 +1,6 @@
 use super::super::{resolver::Resolver, test_support::Directory};
 use super::*;
-use crate::{CallOptions, CancellationToken, Engine, Limits, Script, Value};
+use crate::{CallOptions, CancellationToken, Limits, Script, Value};
 use std::{
     fs,
     sync::{
@@ -26,7 +26,7 @@ fn load(
         let Some(source) = resolver.read(ctx, &candidate)? else {
             continue;
         };
-        let code = Engine::new()
+        let code = crate::test_engine()
             .compile(std::str::from_utf8(source.contents.as_bytes().unwrap()).unwrap())?;
         return cache.insert(ctx, &epoch, candidate.origin(), source.stamp, code);
     }
@@ -163,7 +163,7 @@ fn a_compilation_started_before_clear_does_not_repopulate_the_cleared_cache() {
         .unwrap();
     assert!(absent.is_none());
     let source = resolver.read(&mut ctx, &candidate).unwrap().unwrap();
-    let original = Engine::new()
+    let original = crate::test_engine()
         .compile(std::str::from_utf8(source.contents.as_bytes().unwrap()).unwrap())
         .unwrap();
     cache.clear();
@@ -210,7 +210,7 @@ fn concurrent_compilations_publish_one_shared_entry() {
                         .unwrap();
                     assert!(absent.is_none());
                     let source = resolver.read(&mut ctx, &candidate).unwrap().unwrap();
-                    let code = Engine::new()
+                    let code = crate::test_engine()
                         .compile(std::str::from_utf8(source.contents.as_bytes().unwrap()).unwrap())
                         .unwrap();
                     ready.wait();
@@ -253,7 +253,7 @@ fn retained_host(cache: &Arc<Cache<Script>>, observed: &Arc<AtomicUsize>) -> Scr
         cache: Arc::downgrade(cache),
         observed: observed.clone(),
     };
-    let mut engine = Engine::new();
+    let mut engine = crate::test_engine();
     engine.register("host", move |_, _| {
         let _ = &retired;
         Ok(Value::int(3))

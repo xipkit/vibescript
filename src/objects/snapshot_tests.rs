@@ -1,5 +1,5 @@
 use super::*;
-use crate::{CallOptions, CancellationToken, Engine, Limits};
+use crate::{CallOptions, CancellationToken, Limits};
 
 fn graph(ctx: &mut CallContext, count: usize) -> Value {
     let mut nodes = Vec::new();
@@ -81,7 +81,7 @@ fn snapshots_copy_same_call_cycles_and_keep_their_memo_temporary() {
 fn snapshots_preserve_shared_class_namespace_and_function_environments() {
     let mut ctx = CallContext::new(CallOptions::default());
     let environment = environment(&mut ctx).unwrap();
-    let script = Engine::new().compile("class Box; end; nil").unwrap();
+    let script = crate::test_engine().compile("class Box; end; nil").unwrap();
     let unbound = Namespace::import(
         &mut ctx,
         &Namespace::untracked(script.inner.code.program.namespaces[0].clone()),

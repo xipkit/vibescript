@@ -394,7 +394,7 @@ pub(crate) fn before(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CallOptions, Engine};
+    use crate::CallOptions;
     use std::sync::Mutex;
 
     #[derive(Default)]
@@ -423,9 +423,9 @@ mod tests {
     #[test]
     fn reports_values_at_their_compiler_offsets() {
         let log = Arc::new(Log::default());
-        let mut engine = Engine::new();
+        let mut engine = crate::test_engine();
         engine.set_observer(log.clone());
-        let source = "def half(n)\n  x = n / 2\n  x if n\nend\n";
+        let source = "def half(n: int) -> int?\n  x = n // 2\n  x if n > 0\nend\n";
         let script = engine.compile(source).unwrap();
         let outcome = script
             .call("half", &[Value::int(7)], CallOptions::default())
@@ -435,9 +435,10 @@ mod tests {
             *log.0.lock().unwrap(),
             [
                 "0 param n int",
-                "20 binary / int int",
-                "14 store x int",
-                "26 condition from 31 int",
+                "34 binary // int int",
+                "27 store x int",
+                "47 binary > int int",
+                "40 condition from 47 bool",
                 "0 return half int",
             ]
         );
@@ -445,19 +446,19 @@ mod tests {
 
     #[test]
     fn leaves_results_and_accounting_unchanged() {
-        let source = "def run(items)\n  items.map { |x| x * 2 }.sum\nend\n";
+        let source = "def run(items: array<int>) -> int\n  items.map { |x| x * 2 }.sum\nend\n";
         let args = [Value::array(vec![Value::int(1), Value::int(2)])];
-        let plain = Engine::new().compile(source).unwrap();
+        let plain = crate::test_engine().compile(source).unwrap();
         let expected = plain.call("run", &args, CallOptions::default()).unwrap();
         let log = Arc::new(Log::default());
-        let mut engine = Engine::new();
+        let mut engine = crate::test_engine();
         engine.set_observer(log.clone());
         let observed = engine.compile(source).unwrap();
         let outcome = observed.call("run", &args, CallOptions::default()).unwrap();
         assert_eq!(outcome.value.as_int(), expected.value.as_int());
         assert_eq!(outcome.stats.steps, expected.stats.steps);
         let log = log.0.lock().unwrap();
-        assert!(log.contains(&"17 receiver map array".to_owned()), "{log:?}");
-        assert!(log.contains(&"17 result sum int".to_owned()), "{log:?}");
+        assert!(log.contains(&"36 receiver map array".to_owned()), "{log:?}");
+        assert!(log.contains(&"36 result sum int".to_owned()), "{log:?}");
     }
 }

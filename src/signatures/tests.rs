@@ -259,7 +259,10 @@ fn runtime_members() -> BTreeMap<&'static str, BTreeSet<String>> {
             "begin\n  raise \"bad\"\nrescue => error\n  error.keys\nend",
         ),
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        // The fields are runtime members the static table does not declare.
+        let mut engine = Engine::new();
+        engine.set_static_types(false);
+        let script = engine.compile(source).unwrap();
         let keys = script.run(CallOptions::default()).unwrap().value;
         let keys = keys.as_array().unwrap().iter().map(text);
         members.insert(receiver, keys.collect());
