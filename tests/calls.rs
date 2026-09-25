@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -18,7 +20,7 @@ fn host_and_script_keywords_preserve_input_isolation() {
         ctx.array(&[args[0].clone(), packet.1.clone()])
     });
     let script = engine
-        .compile("def run(n=7,packet:)\npacket.push(n)\necho(n,packet:)\nend")
+        .compile("def run(n: int = 7, *, packet: array<int>) -> any\npacket.push(n)\necho(n,packet:)\nend")
         .unwrap();
     let packet = Value::array(vec![Value::int(1)]);
     for n in [3, 4] {
@@ -40,7 +42,9 @@ fn host_and_script_keywords_preserve_input_isolation() {
         );
     }
     assert_eq!(packet.as_array().unwrap().len(), 1);
-    let script = engine.compile("def run(options)\noptions\nend").unwrap();
+    let script = engine
+        .compile("def run(options: any) -> any\noptions\nend")
+        .unwrap();
     assert_eq!(
         script
             .call_with_keywords(
@@ -64,25 +68,62 @@ fn invalid_calls_do_not_evaluate_defaults_or_enter_host_callbacks() {
         ctx.charge(1)?;
         Ok(Value::int(seen.fetch_add(1, Ordering::SeqCst) as i64 + 1))
     });
-    for source in [
-        "def f(a:tick(),needed:)\na\nend\nf()",
-        "def f(a:tick())\na\nend\nf(1)",
-        "def f(a:tick())\na\nend\nf(unknown:1)",
-        "tick(unknown:1)",
+    // A host still calls with arguments only known at run time.
+    let script = engine
+        .compile(
+            "def f(*, a: int = tick().as(int), needed: int) -> int\na\nend\n\
+             def g(*, a: int = tick().as(int)) -> int\na\nend",
+        )
+        .unwrap();
+    for (name, args, keywords) in [
+        ("f", vec![], vec![]),
+        ("g", vec![Value::int(1)], vec![]),
+        ("g", vec![], vec![("unknown".to_owned(), Value::int(1))]),
     ] {
-        assert_eq!(
-            engine
-                .compile(source)
-                .unwrap()
-                .run(CallOptions::default())
-                .unwrap_err()
-                .kind,
-            ErrorKind::Argument
-        );
+        let error = script
+            .call_with_keywords(name, &args, &keywords, CallOptions::default())
+            .unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Argument, "{name}");
         assert_eq!(calls.load(Ordering::SeqCst), 0);
     }
+    assert_eq!(
+        engine
+            .compile("tick(unknown:1)")
+            .unwrap()
+            .run(CallOptions::default())
+            .unwrap_err()
+            .kind,
+        ErrorKind::Argument
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    // A script's own invalid calls are refused before anything runs.
+    for (source, code, at) in [
+        (
+            "def f(*, a: int = tick().as(int), needed: int) -> int\na\nend\nf",
+            "V0303",
+            "f",
+        ),
+        (
+            "def f(*, a: int = tick().as(int)) -> int\na\nend\nf(1)",
+            "V0301",
+            "f(",
+        ),
+        (
+            "def f(*, a: int = tick().as(int)) -> int\na\nend\nf(unknown:1)",
+            "V0302",
+            "unknown",
+        ),
+    ] {
+        let mut engine = common::static_engine();
+        engine.register("tick", |_, _| panic!("tick ran"));
+        let error = engine.compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), [code], "{source}");
+        assert_eq!(error.diagnostics()[0].span.start, source.rfind(at).unwrap());
+    }
     let script = engine
-        .compile("def f(a=tick(),b:tick())\n[a,b]\nend\nf()")
+        .compile(
+            "def f(a: int = tick().as(int), *, b: int = tick().as(int)) -> array<int>\n[a,b]\nend\nf()",
+        )
         .unwrap();
     let result = script.run(CallOptions::default()).unwrap();
     let values = result.value.as_array().unwrap();
@@ -99,8 +140,15 @@ fn callable_names_in_value_positions_do_not_execute_optional_defaults() {
         seen.fetch_add(1, Ordering::SeqCst);
         Ok(Value::int(9))
     });
-    for params in ["a", "a=tick()", "a:tick()", "*a", "**a"] {
-        let source = format!("def f({params})\ntick()\nend\nf");
+    // The checker takes a bare name of a function whose parameters are all
+    // optional for a call, but the runtime refuses it as a value.
+    for params in [
+        "a: any = tick()",
+        "*, a: any = tick()",
+        "*a: array<any>",
+        "**a: hash<string, any>",
+    ] {
+        let source = format!("def f({params}) -> any\ntick()\nend\nf");
         let error = engine
             .compile(&source)
             .unwrap()
@@ -120,8 +168,14 @@ fn callable_names_in_value_positions_do_not_execute_optional_defaults() {
         ErrorKind::Type
     );
     assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let mut checked = common::static_engine();
+    checked.register("tick", |_, _| panic!("tick ran"));
+    let source = "def f(a: any) -> any\ntick()\nend\nf";
+    let error = checked.compile(source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0301"]);
+    assert_eq!(error.diagnostics()[0].span.start, source.len() - 1);
     let result = engine
-        .compile("def f()\ntick()\nend\nf")
+        .compile("def f -> any\ntick()\nend\nf")
         .unwrap()
         .run(CallOptions::default())
         .unwrap();
@@ -143,8 +197,8 @@ fn conditional_default_locals_resolve_hosts_before_evaluating_arguments() {
     });
     let script = engine
         .compile(
-            "def f(a=(while true\nprobe=7\nbreak 0\nend),\n\
-             b=probe(*[(while true\nprobe=42\nbreak 3\nend)],flag:true))\n\
+            "def f(a: int =(while true\nprobe=7\nbreak 0\nend),\n\
+             b: int =probe(*[(while true\nprobe=42\nbreak 3\nend)],flag:true)) -> array<any>\n\
              [b,probe]\nend\nf(1)",
         )
         .unwrap();
@@ -153,8 +207,8 @@ fn conditional_default_locals_resolve_hosts_before_evaluating_arguments() {
     assert_eq!(result.value.as_array().unwrap()[1].as_int(), Some(42));
     assert_eq!(calls.load(Ordering::SeqCst), 1);
     for source in [
-        "def f(a=(while true\nprobe=7\nbreak 0\nend),b=probe)\nb\nend\nf(1)",
-        "def f(a=(while true\nprobe=nil\nbreak 0\nend),b=probe(flag:true))\nb\nend\nf()",
+        "def f(a: any =(while true\nprobe=7\nbreak 0\nend),b: any =probe) -> any\nb\nend\nf(1)",
+        "def f(a: any =(while true\nprobe: nil =nil\nbreak 0\nend),b: any =probe(flag:true)) -> any\nb\nend\nf()",
     ] {
         assert_eq!(
             engine
@@ -178,34 +232,34 @@ fn unbound_callees_and_receivers_fail_before_argument_evaluation() {
         seen.fetch_add(1, Ordering::SeqCst);
         Ok(Value::int(1))
     });
-    for source in [
-        "missing(tick())\nmissing=1",
-        "missing.push(tick())\nmissing=[]",
-        "missing[0]+=tick()\nmissing=[]",
-        "def f(a=(while false\nmissing=[]\nend),b=missing.push(tick()))\nb\nend\nf()",
-    ] {
-        assert_eq!(
-            engine
-                .compile(source)
-                .unwrap()
-                .run(CallOptions::default())
-                .unwrap_err()
-                .kind,
-            ErrorKind::Name,
-            "{source}"
-        );
-        assert_eq!(calls.load(Ordering::SeqCst), 0);
-    }
+    // A default can still read a local that an earlier default never
+    // assigned.
+    let source = "def f(a: any = (while false\nmissing = [1]\nend), \
+                  b: any = missing.push(tick())) -> any\nb\nend\nf()";
     assert_eq!(
         engine
-            .compile("missing[0]=tick()\nmissing=[]")
+            .compile(source)
             .unwrap()
             .run(CallOptions::default())
             .unwrap_err()
             .kind,
         ErrorKind::Name
     );
-    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    // Elsewhere, a name read before its assignment is refused before
+    // anything runs.
+    for source in [
+        "missing(tick())\nmissing = 1",
+        "missing.push(tick().as(int))\nmissing: array<int> = []",
+        "missing[0] += tick().as(int)\nmissing: array<int> = []",
+        "missing[0] = tick().as(int)\nmissing: array<int> = []",
+    ] {
+        let mut engine = common::static_engine();
+        engine.register("tick", |_, _| panic!("tick ran"));
+        let error = engine.compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0201"], "{source}");
+        assert_eq!(error.diagnostics()[0].span.start, 0, "{source}");
+    }
 }
 
 #[test]
@@ -222,7 +276,7 @@ fn cancellation_in_a_default_stops_later_binding() {
         Ok(Value::int(9))
     });
     let script = engine
-        .compile("def f(a=stop(),b:tick())\nb\nend\nf()")
+        .compile("def f(a: any =stop(),*, b: any = tick()) -> any\nb\nend\nf()")
         .unwrap();
     assert_eq!(
         script.run(CallOptions::default()).unwrap_err().kind,
@@ -233,7 +287,9 @@ fn cancellation_in_a_default_stops_later_binding() {
 
 #[test]
 fn defaults_use_vm_recursion_memory_and_cancellation_limits() {
-    let recursive = Engine::new().compile("def f(a=f())\na\nend").unwrap();
+    let recursive = Engine::new()
+        .compile("def f(a: any =f()) -> any\na\nend")
+        .unwrap();
     assert_eq!(
         recursive
             .call(
@@ -252,7 +308,7 @@ fn defaults_use_vm_recursion_memory_and_cancellation_limits() {
         ErrorKind::Recursion
     );
     let expanding = Engine::new()
-        .compile("def f(a:\"x\"*1000000)\na\nend")
+        .compile("def f(*, a: string = \"x\"*1000000) -> string\na\nend")
         .unwrap();
     assert_eq!(
         expanding
@@ -300,15 +356,15 @@ fn argument_expansion_and_rest_storage_are_accounted() {
     for (input, source) in [
         (
             array,
-            "def sink(*args)\nargs.length\nend\ndef run(input)\nsink(*input)\nend",
+            "def sink(*args: array<int>) -> int\nargs.length\nend\ndef run(input: array<int>) -> int\nsink(*input)\nend",
         ),
         (
             hash,
-            "def sink(**args)\nargs.length\nend\ndef run(input)\nsink(**input)\nend",
+            "def sink(**args: hash<string, int>) -> int\nargs.length\nend\ndef run(input: hash<string, int>) -> int\nsink(**input)\nend",
         ),
     ] {
         let baseline = Engine::new()
-            .compile("def run(input)\ninput.length\nend")
+            .compile("def run(input: array<int> | hash<string, int>) -> int\ninput.length\nend")
             .unwrap()
             .call("run", std::slice::from_ref(&input), CallOptions::default())
             .unwrap();
@@ -355,12 +411,13 @@ fn argument_expansion_and_rest_storage_are_accounted() {
 #[test]
 fn pending_arguments_and_default_bindings_are_reclaimed_on_return() {
     for definitions in [
-        "def sink(*args)\n7\nend\ndef f(input)\nsink(*input,(while true\nreturn 7\nend))\nend",
-        "def sink(**args)\n7\nend\ndef f(input)\nsink(payload:input,other:(while true\nreturn 7\nend))\nend",
-        "def early(value=(while true\nreturn 7\nend),payload:)\nvalue\nend\ndef f(input)\nearly(payload:input)\nend",
+        "def sink(*args: array<any>) -> int\n7\nend\ndef f(input: array<int>) -> int\nsink(*input,(while true\nreturn 7\nend))\nend",
+        "def sink(**args: hash<string, any>) -> int\n7\nend\ndef f(input: array<int>) -> int\nsink(payload:input,other:(while true\nreturn 7\nend))\nend",
+        "def early(value: any =(while true\nreturn 7\nend),*, payload: any) -> int\nvalue.as(int)\nend\ndef f(input: array<int>) -> int\nearly(payload:input)\nend",
     ] {
-        let source =
-            format!("{definitions}\ndef run(input)\nfor i in 1..100\nf(input)\nend\n7\nend");
+        let source = format!(
+            "{definitions}\ndef run(input: array<int>) -> int\nfor i in 1..100\nf(input)\nend\n7\nend"
+        );
         let input = Value::array((0..400).map(Value::int).collect());
         let result = Engine::new()
             .compile(&source)
@@ -386,7 +443,9 @@ fn pending_arguments_and_default_bindings_are_reclaimed_on_return() {
 fn keyword_imports_and_returned_host_values_use_the_call_budget() {
     let mut engine = Engine::new();
     engine.register_with_keywords("foreign", |_, _, _| Ok(Value::bytes(vec![b'x'; 65536])));
-    let script = engine.compile("def run(packet:)\npacket\nend").unwrap();
+    let script = engine
+        .compile("def run(*, packet: string) -> string\npacket\nend")
+        .unwrap();
     let options = CallOptions {
         limits: Limits {
             memory_bytes: Some(4096),
@@ -420,7 +479,7 @@ fn keyword_imports_and_returned_host_values_use_the_call_budget() {
         (b"a".to_vec(), Value::int(2)),
     ]);
     let script = engine
-        .compile("def take(**kw)\nkw\nend\ndef run(input)\ntake(**input)\nend")
+        .compile("def take(**kw: hash<string, int>) -> hash<string, int>\nkw\nend\ndef run(input: hash<string, int>) -> hash<string, int>\ntake(**input)\nend")
         .unwrap();
     let result = script
         .call("run", &[input], CallOptions::default())
@@ -449,7 +508,11 @@ fn invalid_parameter_and_argument_order_is_rejected() {
         );
     }
     // A parameter after a rest parameter is a keyword parameter.
-    assert!(Engine::new().compile("def f(*a,b)\nend").is_ok());
+    assert!(
+        Engine::new()
+            .compile("def f(*a: array<any>,b: any)\nend")
+            .is_ok()
+    );
     let source = format!(
         "def f(a={}1{})\na\nend",
         "f(".repeat(1100),
