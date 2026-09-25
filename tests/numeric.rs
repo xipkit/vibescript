@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -55,9 +57,8 @@ fn rounding_preserves_types_decimal_boundaries_and_signed_zero() {
 
 #[test]
 fn division_helpers_preserve_ieee_values_and_their_distinct_sign_rules() {
-    let result = run(
-        "[(-7).divmod(3),7.divmod(-3),(-7).remainder(3),7.remainder(-3),(-7).modulo(3),7.modulo(-3)]",
-    );
+    let result =
+        run("[(-7).divmod(3),7.divmod(-3),(-7).remainder(3),7.remainder(-3),(-7) % 3,7 % -3]");
     assert_eq!(
         result.value.to_string(),
         "[[-3, 2], [-3, -2], -1, 1, 2, -2]"
@@ -83,7 +84,7 @@ fn division_helpers_preserve_ieee_values_and_their_distinct_sign_rules() {
         assert_eq!(values[1].type_name(), "float");
         assert_eq!(values[1].as_float(), Some(modulo));
     }
-    for source in ["0.fdiv(0)", "(-1.0).remainder(1e309)", "1e309.modulo(2)"] {
+    for source in ["0.fdiv(0)", "(-1.0).remainder(1e309)"] {
         assert!(run(source).value.as_float().unwrap().is_nan(), "{source}");
     }
     assert_eq!(
@@ -102,14 +103,18 @@ fn division_helpers_preserve_ieee_values_and_their_distinct_sign_rules() {
 
 #[test]
 fn clamp_compares_bounds_exactly_and_preserves_the_selected_value_type() {
-    let value = run("9007199254740993.clamp(nil,9007199254740992.0)").value;
-    assert_eq!(value.type_name(), "float");
-    assert_eq!(value.as_float(), Some(9007199254740992.0));
-    let value = run("9007199254740992.0.clamp(9007199254740993,nil)").value;
-    assert_eq!(value.as_int(), Some(9007199254740993));
     let value = run("(0.0/0.0).clamp(nil,nil)").value;
     assert!(value.as_float().unwrap().is_nan());
-    assert_eq!(run("1.between?(2,\"unused\")").value.to_string(), "false");
+    // Bounds of the receiver's type only, so an int and a float never meet
+    // in a clamp, and between? compares numbers.
+    for (source, code) in [
+        ("9007199254740993.clamp(nil,9007199254740992.0)", "V0101"),
+        ("9007199254740992.0.clamp(9007199254740993,nil)", "V0101"),
+        ("1.between?(2,\"unused\")", "V0101"),
+    ] {
+        let error = common::static_engine().compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), [code], "{source}");
+    }
 }
 
 #[test]
@@ -163,7 +168,7 @@ fn numeric_work_consumes_steps_and_reclaims_temporary_storage() {
         "input.clamp(input,input)",
     ] {
         let script = Engine::new()
-            .compile(&format!("def run(input)\n{body}\nend"))
+            .compile(&format!("def run(input: int) -> any\n{body}\nend"))
             .unwrap();
         let error = script
             .call(
@@ -184,7 +189,7 @@ fn numeric_work_consumes_steps_and_reclaims_temporary_storage() {
     let a = Value::parse_integer(&format!("1{}", "0".repeat(2500)), 16).unwrap();
     let b = Value::parse_integer(&format!("1{}", "0".repeat(2475)), 16).unwrap();
     let script = Engine::new()
-        .compile("def run(a,b)\na.divmod(b)\nend")
+        .compile("def run(a: int,b: int) -> [int, int]\na.divmod(b)\nend")
         .unwrap();
     let result = script
         .call("run", &[a.clone(), b], CallOptions::default())
@@ -212,17 +217,13 @@ fn numeric_validation_fails_during_execution_before_later_host_effects() {
         Ok(Value::nil())
     });
     for expression in [
-        "1.round(1.5)",
         "1.ceil(2147483648)",
         "1.floor(-2147483649)",
         "1.clamp(2,0)",
         "1.clamp(0...2)",
-        "1.clamp(0,0.0/0.0)",
-        "1.clamp(0,2) {effect()}",
-        "1.between?(0,2) {effect()}",
         "1.div(0)",
         "1.divmod(0)",
-        "1.modulo(0)",
+        "1 % 0",
         "1.remainder(0)",
         "1e309.div(1)",
         "1e309.divmod(1)",
@@ -238,6 +239,22 @@ fn numeric_validation_fails_during_execution_before_later_host_effects() {
             "{expression}"
         );
         assert_eq!(effects.load(Ordering::SeqCst), 0, "{expression}");
+    }
+    // Arguments of the wrong type and blocks are refused before anything
+    // runs.
+    let mut checked = common::static_engine();
+    checked.register("effect", |_, _| panic!("effect ran"));
+    for (expression, code) in [
+        ("1.round(1.5)", "V0101"),
+        ("1.clamp(0,0.0/0.0)", "V0101"),
+        ("1.clamp(0,2) {effect()}", "V0301"),
+        ("1.between?(0,2) {effect()}", "V0305"),
+    ] {
+        let error = checked
+            .compile(&format!("{expression};effect()"))
+            .err()
+            .unwrap();
+        assert_eq!(common::codes(&error), [code], "{expression}");
     }
 }
 
@@ -255,9 +272,9 @@ fn cancellation_prevents_numeric_results_and_later_effects() {
         Ok(Value::nil())
     });
     for source in [
-        "(2**1000).divmod(cancel());effect()",
-        "1.5.round(cancel());effect()",
-        "(2**1000).clamp(cancel(),nil);effect()",
+        "(2**1000).divmod(cancel().as(int));effect()",
+        "1.5.round(cancel().as(int));effect()",
+        "(2**1000).clamp(cancel().as(int),nil);effect()",
     ] {
         let error = engine
             .compile(source)
