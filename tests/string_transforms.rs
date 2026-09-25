@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -28,7 +30,9 @@ fn trimming_chomping_and_chopping_preserve_their_distinct_byte_rules() {
         ("reverse!", b"a\xffb", b"b\xef\xbf\xbda"),
     ] {
         let script = Engine::new()
-            .compile(&format!("def run(input)\ninput.{method}\nend"))
+            .compile(&format!(
+                "def run(input: string) -> string?\ninput.{method}\nend"
+            ))
             .unwrap();
         let result = script
             .call("run", &[Value::bytes(raw)], CallOptions::default())
@@ -52,7 +56,7 @@ fn bang_results_preserve_aliases_and_unchanged_calls_return_nil() {
     ] {
         let script = Engine::new()
             .compile(&format!(
-                "def run(input)\na=[input];h={{k:input}};r=input.{call};[input,a[0],h.k,r]\nend"
+                "def run(input: string) -> array<string?>\na=[input];h={{k:input}};r=input.{call};[input,a[0],h[\"k\"],r]\nend"
             ))
             .unwrap();
         let input = Value::bytes(source);
@@ -76,18 +80,26 @@ fn bang_results_preserve_aliases_and_unchanged_calls_return_nil() {
 fn padding_counts_characters_and_partition_searches_raw_bytes() {
     for (call, source, expected) in [
         ("center(8,\"ab界\")", "é", "ab界éab界a"),
-        ("ljust(5.9,\"🙂界\")", "é", "é🙂界🙂界"),
+        ("ljust(5,\"🙂界\")", "é", "é🙂界🙂界"),
         ("rjust(4,\"ab\")", "é", "abaé"),
         ("center(-2)", "é", "é"),
     ] {
         let result = Engine::new()
-            .compile(&format!("def run(input)\ninput.{call}\nend"))
+            .compile(&format!(
+                "def run(input: string) -> string\ninput.{call}\nend"
+            ))
             .unwrap()
             .call("run", &[Value::bytes(source)], CallOptions::default())
             .unwrap();
         assert_eq!(result.value.as_bytes(), Some(expected.as_bytes()), "{call}");
     }
-    let script = Engine::new().compile("def run(input)\n[input.center(6,\"\\xffé\"),input.partition(\"\\xa9\"),input.rpartition(\"\\xa9\")]\nend").unwrap();
+    // A float width is refused before anything runs.
+    let error = common::static_engine()
+        .compile("def run(input: string) -> string\ninput.ljust(5.9,\"🙂界\")\nend")
+        .err()
+        .unwrap();
+    assert_eq!(common::codes(&error), ["V0101"]);
+    let script = Engine::new().compile("def run(input: string) -> array<string | array<string>>\n[input.center(6,\"\\xffé\"),input.partition(\"\\xa9\"),input.rpartition(\"\\xa9\")]\nend").unwrap();
     let result = script
         .call("run", &[Value::bytes("éé")], CallOptions::default())
         .unwrap();
@@ -150,7 +162,7 @@ fn small_results_do_not_retain_large_inputs_or_search_scratch() {
     ] {
         let script = Engine::new()
             .compile(&format!(
-                "def run(input)\noutput=input.{call};input=nil;output\nend"
+                "def run(input: string) -> string\noutput=input.{call};input=\"\";output\nend"
             ))
             .unwrap();
         let result = script
@@ -163,7 +175,7 @@ fn small_results_do_not_retain_large_inputs_or_search_scratch() {
             result.stats
         );
         let imported = Engine::new()
-            .compile("def run(input)\ninput\nend")
+            .compile("def run(input: string) -> string\ninput\nend")
             .unwrap()
             .call(
                 "run",
@@ -176,7 +188,9 @@ fn small_results_do_not_retain_large_inputs_or_search_scratch() {
         assert_eq!(imported.value.as_bytes(), Some(expected.as_bytes()));
     }
     let script = Engine::new()
-        .compile("def run(input)\nfor i in 1..512\ninput=input.chop\nend\ninput\nend")
+        .compile(
+            "def run(input: string) -> string\nfor i in 1..512\ninput=input.chop\nend\ninput\nend",
+        )
         .unwrap();
     let result = script
         .call(
@@ -196,7 +210,7 @@ fn small_results_do_not_retain_large_inputs_or_search_scratch() {
 }
 
 #[test]
-fn call_contracts_evaluate_keywords_ignore_blocks_and_stop_later_effects() {
+fn call_contracts_stop_later_effects() {
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();
     let mut engine = Engine::new();
@@ -212,6 +226,32 @@ fn call_contracts_evaluate_keywords_ignore_blocks_and_stop_later_effects() {
         let _ = ctx.charge(u64::MAX);
         Ok(Value::nil())
     });
+    for (call, kind) in [
+        ("cancel().as(string?)", ErrorKind::Cancelled),
+        ("exhaust().as(string?)", ErrorKind::Steps),
+    ] {
+        effects.store(0, Ordering::Relaxed);
+        let script = engine
+            .compile(&format!("\"x\".chomp({call});touch()"))
+            .unwrap();
+        assert_eq!(script.run(CallOptions::default()).unwrap_err().kind, kind);
+        assert_eq!(effects.load(Ordering::Relaxed), 0);
+    }
+    effects.store(0, Ordering::Relaxed);
+    let script = engine.compile("\"x\".center(0,\"\");touch()").unwrap();
+    assert_eq!(
+        script.run(CallOptions::default()).unwrap_err().kind,
+        ErrorKind::Argument
+    );
+    assert_eq!(effects.load(Ordering::Relaxed), 0);
+    // Unknown keywords, blocks and arguments of the wrong type or count
+    // are refused before anything runs.
+    let mut checked = common::static_engine();
+    checked.register("touch", |_, _| panic!("touch ran"));
+    let refused = |source: &str, expected: &[&str]| {
+        let error = checked.compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), expected, "{source}");
+    };
     for (method, args) in [
         ("strip", ""),
         ("lstrip!", ""),
@@ -223,15 +263,10 @@ fn call_contracts_evaluate_keywords_ignore_blocks_and_stop_later_effects() {
         ("delete_suffix", "\"x\","),
         ("reverse!", ""),
     ] {
-        effects.store(0, Ordering::Relaxed);
-        engine
-            .compile(&format!(
-                "\" x x \".{method}({args}unused:touch()){{touch()}}"
-            ))
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap();
-        assert_eq!(effects.load(Ordering::Relaxed), 1, "{method}");
+        refused(
+            &format!("\" x x \".{method}({args}unused:touch()){{touch()}}"),
+            &["V0302", "V0305"],
+        );
     }
     for (method, args) in [
         ("center", "9"),
@@ -240,46 +275,18 @@ fn call_contracts_evaluate_keywords_ignore_blocks_and_stop_later_effects() {
         ("partition", "\"x\""),
         ("rpartition", "\"x\""),
     ] {
-        effects.store(0, Ordering::Relaxed);
-        let script = engine
-            .compile(&format!(
-                "\"x\".{method}({args},unused:touch()){{touch()}};touch()"
-            ))
-            .unwrap();
-        assert_eq!(
-            script.run(CallOptions::default()).unwrap_err().kind,
-            ErrorKind::Argument
+        refused(
+            &format!("\"x\".{method}({args},unused:touch()){{touch()}};touch()"),
+            &["V0302", "V0305"],
         );
-        assert_eq!(effects.load(Ordering::Relaxed), 1);
-        effects.store(0, Ordering::Relaxed);
-        engine
-            .compile(&format!("\"x\".{method}({args}){{touch()}}"))
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap();
-        assert_eq!(effects.load(Ordering::Relaxed), 0);
+        refused(&format!("\"x\".{method}({args}){{touch()}}"), &["V0305"]);
     }
-    for (call, kind) in [
-        ("cancel()", ErrorKind::Cancelled),
-        ("exhaust()", ErrorKind::Steps),
+    for (call, code) in [
+        ("strip(1)", "V0301"),
+        ("partition(:x)", "V0101"),
+        ("ljust(0,nil)", "V0101"),
+        ("rjust(1e30)", "V0101"),
     ] {
-        effects.store(0, Ordering::Relaxed);
-        let script = engine
-            .compile(&format!("\"x\".chomp({call});touch()"))
-            .unwrap();
-        assert_eq!(script.run(CallOptions::default()).unwrap_err().kind, kind);
-        assert_eq!(effects.load(Ordering::Relaxed), 0);
-    }
-    for (call, kind) in [
-        ("strip(1)", ErrorKind::Argument),
-        ("partition(:x)", ErrorKind::Type),
-        ("center(0,\"\")", ErrorKind::Argument),
-        ("ljust(0,nil)", ErrorKind::Type),
-        ("rjust(1e30)", ErrorKind::Argument),
-    ] {
-        effects.store(0, Ordering::Relaxed);
-        let script = engine.compile(&format!("\"x\".{call};touch()")).unwrap();
-        assert_eq!(script.run(CallOptions::default()).unwrap_err().kind, kind);
-        assert_eq!(effects.load(Ordering::Relaxed), 0);
+        refused(&format!("\"x\".{call};touch()"), &[code]);
     }
 }
