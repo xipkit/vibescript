@@ -1,12 +1,22 @@
+mod common;
+
 use std::collections::BTreeMap;
 use vibescript::{CallOptions, Engine, ErrorKind, Value};
 
 fn run(source: &str, globals: BTreeMap<String, Value>) -> BTreeMap<String, Value> {
+    run_with(&Engine::new(), source, globals)
+}
+
+fn run_with(
+    engine: &Engine,
+    source: &str,
+    globals: BTreeMap<String, Value>,
+) -> BTreeMap<String, Value> {
     let options = CallOptions {
         globals,
         ..CallOptions::default()
     };
-    Engine::new()
+    engine
         .compile(source)
         .unwrap()
         .run_bindings(options)
@@ -28,8 +38,9 @@ fn top_level_locals_survive_the_run() {
          total = 0\n\
          for n in rest\n  total += n\nend\n\
          i = 0\nwhile i < 3\n  i += 1\nend\n\
-         unused = nil if false\n\
-         [1].each do |inner|\n  seen = inner\nend\n\
+         unused: int? = nil if false\n\
+         [1].each { |inner|\n  seen = inner\n}\n\
+         kind: symbol? = nil\n\
          if total == 5\n  kind = :five\nend\n\
          kind",
         BTreeMap::new(),
@@ -76,7 +87,17 @@ fn globals_come_back_with_the_values_the_run_left() {
         ("untouched".to_owned(), Value::int(9)),
         ("read".to_owned(), Value::int(4)),
     ]);
-    let bindings = run(
+    let mut engine = Engine::new();
+    for (name, ty) in [
+        ("count", "int"),
+        ("items", "array<int>"),
+        ("untouched", "int"),
+        ("read", "int"),
+    ] {
+        engine.declare_global(name, ty).unwrap();
+    }
+    let bindings = run_with(
+        &engine,
         "count += 1\nitems.push(2)\nlocal = read * 2\n[1].each { |x| count += x }",
         globals,
     );
@@ -103,7 +124,10 @@ fn globals_come_back_with_the_values_the_run_left() {
 
 #[test]
 fn bindings_continue_a_session_across_scripts() {
-    let engine = Engine::new();
+    // A session carries script classes, instances and enums into later
+    // scripts as globals, which static types cannot declare yet, so it
+    // keeps the ADR-004 language, as the REPL does.
+    let engine = common::gradual_engine();
     let mut session = BTreeMap::new();
     for source in [
         "class Counter\n  def initialize\n    @n = 0\n  end\n  def bump\n    @n += 1\n  end\nend\n\
@@ -129,7 +153,10 @@ fn bindings_continue_a_session_across_scripts() {
 
 #[test]
 fn declared_types_keep_their_identity_in_later_scripts() {
-    let engine = Engine::new();
+    // A session carries script classes, instances and enums into later
+    // scripts as globals, which static types cannot declare yet, so it
+    // keeps the ADR-004 language, as the REPL does.
+    let engine = common::gradual_engine();
     let first = "class Point
   def initialize(x)
     @x = x
@@ -202,11 +229,11 @@ kind = Point",
 #[test]
 fn failures_report_no_bindings() {
     let error = Engine::new()
-        .compile("x = 1\nmissing_name")
+        .compile("x = 1\n1 // 0")
         .unwrap()
         .run_bindings(CallOptions::default())
         .unwrap_err();
-    assert_eq!(error.kind, ErrorKind::Name);
+    assert_eq!(error.kind, ErrorKind::Arithmetic);
     let frame = &error.diagnostic.as_ref().unwrap().frames[0];
     assert_eq!(frame.position.line, 2);
 }
