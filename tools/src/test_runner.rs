@@ -162,7 +162,7 @@ impl Filter {
     /// ```
     pub fn new(pattern: &str) -> Result<Self, String> {
         let script = Engine::new()
-            .compile("def matches(pattern, name)\n  Regex.match(pattern, name) != nil\nend\n")
+            .compile("def matches(pattern: string, name: string) -> bool\n  Regex.match(pattern, name) != nil\nend\n")
             .map_err(|error| error.to_string())?;
         let filter = Self {
             pattern: Value::bytes(pattern),
