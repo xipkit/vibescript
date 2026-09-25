@@ -123,9 +123,10 @@ impl<'a> Checker<'a> {
                 _ => None,
             });
             for function in functions_in {
-                let sig = self
+                let mut sig = self
                     .converter
                     .convert_owned(&mut self.types, function, None);
+                sig.checks_break = true;
                 let sig = Rc::new(sig);
                 self.modules
                     .published

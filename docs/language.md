@@ -144,7 +144,7 @@ prices.each { |p|
 first_big = prices.find { |p| p > 5 }          # 8, an int?
 ```
 
-Block parameters take their types from the called function's signature; annotations such as `|p: int|` are optional and must match. `next value` ends one call of the block, and `break value` ends the whole call with that value.
+Block parameters take their types from the called function's signature; annotations such as `|p: int|` are optional and must match. `next value` ends one call of the block, and `break value` ends the whole call with that value, so the call's type includes the break value's: `[1, 2].each { |n| break "s" }` is `array<int> | string`, and a `break` without a value adds `nil`. A `break` out of the block of a function that declares `-> T` returns from it as a `T`, and `loop { ... }` has the type of its break values.
 
 A function that yields declares its block as its last parameter. The block's name is a declaration only; `yield` and `block_given?` are the only ways to use it.
 

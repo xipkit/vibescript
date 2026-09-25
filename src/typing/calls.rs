@@ -163,6 +163,11 @@ impl<'a> Checker<'a> {
                     )
                 })
                 .collect();
+            if name == "loop" && block.is_some() {
+                // `loop` ends only by `break`, whose values are its value.
+                let (_, breaks) = self.call_sigs_parts(&call, &candidates);
+                return self.types.union(&breaks);
+            }
             return self.call_sigs(&call, &candidates);
         }
         if let Some(rename) = sigs::index().renames.get(&("global", name)) {
@@ -511,25 +516,27 @@ impl<'a> Checker<'a> {
         if call.name == "new" && namespace.is_class {
             let initialize = namespace.methods.get("initialize").copied();
             let instance = self.types.intern(Kind::Instance(ns));
-            match initialize {
+            let sig = match initialize {
                 Some(id) => {
                     let sig = self.program.fns[id].sig.clone();
                     let mut sig = (*sig).clone();
                     sig.name = format!("{}.new", self.program.namespaces[ns as usize].name);
-                    self.call_sigs(call, &[(Rc::new(sig), Vec::new())]);
+                    // A break out of the block is the value of `new`,
+                    // unchecked by the initializer's result.
+                    sig.checks_break = false;
+                    sig
                 }
-                None => {
-                    let sig = Sig {
-                        name: format!("{}.new", self.program.namespaces[ns as usize].name),
-                        params: Vec::new(),
-                        result: None,
-                        block: None,
-                        vars: Vec::new(),
-                    };
-                    self.call_sigs(call, &[(Rc::new(sig), Vec::new())]);
-                }
-            }
-            return instance;
+                None => Sig {
+                    name: format!("{}.new", self.program.namespaces[ns as usize].name),
+                    params: Vec::new(),
+                    result: None,
+                    block: None,
+                    vars: Vec::new(),
+                    checks_break: false,
+                },
+            };
+            let (_, breaks) = self.call_sigs_parts(call, &[(Rc::new(sig), Vec::new())]);
+            return self.with_breaks(instance, &breaks);
         }
         if let Some(&id) = namespace.statics.get(call.name) {
             self.visibility(call.name, call.name_span, id, ns, false);
@@ -603,8 +610,9 @@ impl<'a> Checker<'a> {
                     )
                 })
                 .collect();
-            let result = self.call_sigs(call, &candidates);
-            return self.member_result(call, ty, result);
+            let (result, breaks) = self.call_sigs_parts(call, &candidates);
+            let result = self.member_result(call, ty, result);
+            return self.with_breaks(result, &breaks);
         }
         if call.name == "as" {
             return self.cast(call, ty);
@@ -902,8 +910,26 @@ impl<'a> Checker<'a> {
     // Signatures -------------------------------------------------------
 
     /// Checks a call against its candidate signatures, selecting one by
-    /// the call's shape, and returns the call's type.
+    /// the call's shape, and returns the call's type: the signature's
+    /// result or a value a `break` out of its block gives.
     pub(super) fn call_sigs(&mut self, call: &Call<'a, '_>, candidates: &[Candidate]) -> Ty {
+        let (result, breaks) = self.call_sigs_parts(call, candidates);
+        self.with_breaks(result, &breaks)
+    }
+
+    /// A call's type, `result`, widened by the values `break` gives.
+    fn with_breaks(&mut self, result: Ty, breaks: &[Ty]) -> Ty {
+        if breaks.is_empty() {
+            return result;
+        }
+        let mut all = breaks.to_vec();
+        all.push(result);
+        self.types.union(&all)
+    }
+
+    /// [`Self::call_sigs`], with the signature's result and the types of
+    /// the values a `break` out of the call's block gives kept apart.
+    fn call_sigs_parts(&mut self, call: &Call<'a, '_>, candidates: &[Candidate]) -> (Ty, Vec<Ty>) {
         let chosen = if candidates.len() == 1 {
             Some(0)
         } else {
@@ -930,7 +956,7 @@ impl<'a> Checker<'a> {
                 ),
             ));
             self.loose_args(call);
-            return Ty::ERROR;
+            return (Ty::ERROR, Vec::new());
         };
         let (sig, bindings) = &candidates[chosen];
         self.check_call(call, sig, bindings.clone())
@@ -992,8 +1018,14 @@ impl<'a> Checker<'a> {
         None
     }
 
-    /// Checks one call against one signature.
-    fn check_call(&mut self, call: &Call<'a, '_>, sig: &Sig, mut bindings: Vec<Option<Ty>>) -> Ty {
+    /// Checks one call against one signature, returning its result and the
+    /// types of the values a `break` out of its block gives.
+    fn check_call(
+        &mut self,
+        call: &Call<'a, '_>,
+        sig: &Sig,
+        mut bindings: Vec<Option<Ty>>,
+    ) -> (Ty, Vec<Ty>) {
         bindings.resize(sig.vars.len(), None);
         let function = sig.name.clone();
         let positional_params: Vec<&sigs::Param> = sig
@@ -1144,10 +1176,23 @@ impl<'a> Checker<'a> {
                 }
             }
         }
+        let mut breaks = Vec::new();
         match (&sig.block, call.block) {
             (Some(block_sig), Some(block)) => {
                 let block_sig = block_sig.clone();
-                self.call_block(block, &block_sig, &mut bindings);
+                // A script function returns a break value through its
+                // declared result, which the runtime checks.
+                let break_to = match (sig.checks_break, sig.result) {
+                    (true, Some(result)) => {
+                        Some((self.types.close(result, &bindings), function.clone()))
+                    }
+                    _ => None,
+                };
+                let checked = break_to.is_some();
+                breaks = self.call_block(block, &block_sig, &mut bindings, break_to);
+                if checked {
+                    breaks.clear();
+                }
             }
             (Some(block_sig), None) => {
                 if !block_sig.optional {
@@ -1170,10 +1215,11 @@ impl<'a> Checker<'a> {
             (None, None) => (),
         }
         self.bounds(call, sig, &bindings);
-        match sig.result {
+        let result = match sig.result {
             Some(result) => self.types.close(result, &bindings),
             None => Ty::NIL,
-        }
+        };
+        (result, breaks)
     }
 
     /// The type of a member call's result. Iterating members return their
@@ -1402,8 +1448,16 @@ impl<'a> Checker<'a> {
     // Blocks -----------------------------------------------------------
 
     /// Checks a block passed to a function with block signature `block_sig`,
-    /// binding type variables from the block's result.
-    fn call_block(&mut self, block: &'a Block, block_sig: &BlockSig, bindings: &mut [Option<Ty>]) {
+    /// binding type variables from the block's result, and returns the
+    /// types of the values `break` gives. `break_to` is the declared result
+    /// break values must fit, and the function that declares it.
+    fn call_block(
+        &mut self,
+        block: &'a Block,
+        block_sig: &BlockSig,
+        bindings: &mut [Option<Ty>],
+        break_to: Option<(Ty, String)>,
+    ) -> Vec<Ty> {
         let params: Vec<Ty> = block_sig
             .params
             .iter()
@@ -1425,10 +1479,11 @@ impl<'a> Checker<'a> {
         if let Some(rest) = rest {
             all.push(rest);
         }
-        let result = self.block_with_rest(block, &params, rest, want);
+        let (result, breaks) = self.block_with_rest(block, &params, rest, want, break_to);
         if let Some(pattern) = infer {
             self.unify(pattern, result, bindings);
         }
+        breaks
     }
 
     /// Checks a block whose parameters have the given types.
@@ -1438,16 +1493,19 @@ impl<'a> Checker<'a> {
         } else {
             params.to_vec()
         };
-        self.block_with_rest(block, &params, None, want)
+        self.block_with_rest(block, &params, None, want, None).0
     }
 
+    /// Checks a block and returns the type of its value and the types of
+    /// the values `break` gives.
     fn block_with_rest(
         &mut self,
         block: &'a Block,
         params: &[Ty],
         rest: Option<Ty>,
         want: Want,
-    ) -> Ty {
+        break_to: Option<(Ty, String)>,
+    ) -> (Ty, Vec<Ty>) {
         self.open_scope();
         let before = self.frame.flow.mark();
         let (result, used) = match want {
@@ -1459,6 +1517,7 @@ impl<'a> Checker<'a> {
             mark: before,
             exits: super::check::Exits::default(),
             result,
+            break_to,
             used,
             results: Vec::new(),
         });
@@ -1530,9 +1589,9 @@ impl<'a> Checker<'a> {
         if live {
             results.push(tail);
         }
-        self.finish_loop(before, context, true);
+        let breaks = self.finish_loop(before, context, true);
         self.close_scope();
-        self.types.union(&results)
+        (self.types.union(&results), breaks)
     }
 
     /// Binds a block parameter, which is always a new local of the block.

@@ -52,6 +52,11 @@ pub(crate) struct Sig {
     pub block: Option<BlockSig>,
     /// Type variables, class variables first; `Kind::Var(i)` is `vars[i]`.
     pub vars: Vec<Var>,
+    /// Whether a `break` out of the call's block returns from the function
+    /// through its declared result, which the runtime checks, as it does
+    /// for a script function. Otherwise the break value is the call's
+    /// value as it is.
+    pub checks_break: bool,
 }
 
 impl Sig {
@@ -301,6 +306,7 @@ impl Converter {
                 .map(|ty| table_type(types, ty, &names)),
             block,
             vars,
+            checks_break: false,
         }
     }
 }

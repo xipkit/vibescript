@@ -48,6 +48,9 @@ pub(crate) enum Context {
         exits: Exits,
         /// The type the block must return, when known.
         result: Option<Ty>,
+        /// The declared result a `break` returns through, and the function
+        /// that declares it, when the runtime checks break values against it.
+        break_to: Option<(Ty, String)>,
         /// Whether the block's value is used at all.
         used: bool,
         /// The values `next` and the tail gave, for inference.
@@ -511,7 +514,7 @@ impl<'a> Checker<'a> {
                 Ty::NEVER
             }
             Statement::Break(value) => {
-                self.break_statement(value.as_ref());
+                self.break_statement(stmt, value.as_ref());
                 Ty::NEVER
             }
             Statement::Next(value) => {
@@ -771,10 +774,24 @@ impl<'a> Checker<'a> {
         );
     }
 
-    fn break_statement(&mut self, value: Option<&'a Expr>) {
-        let ty = match value {
-            Some(value) => self.expr(value, None),
-            None => Ty::NIL,
+    fn break_statement(&mut self, stmt: &'a Stmt, value: Option<&'a Expr>) {
+        let break_to = match self.frame.contexts.last() {
+            Some(Context::Block { break_to, .. }) => break_to.clone(),
+            _ => None,
+        };
+        let ty = match (value, break_to) {
+            (Some(value), Some((result, function))) => {
+                self.expr_against(value, result, &Purpose::Break(function))
+            }
+            (Some(value), None) => self.expr(value, None),
+            (None, Some((result, function))) => {
+                if self.frame.flow.live && !self.types.assignable(Ty::NIL, result) {
+                    let span = self.spans.stmt(stmt);
+                    self.mismatch(span, result, Ty::NIL, &Purpose::Break(function));
+                }
+                Ty::NIL
+            }
+            (None, None) => Ty::NIL,
         };
         if self.frame.flow.live {
             if let Some(context) = self.frame.contexts.last_mut() {
@@ -1929,6 +1946,8 @@ pub(crate) enum Purpose {
     Annotation,
     Yield(usize),
     Operand,
+    /// A `break` out of a block, which returns from this function.
+    Break(String),
 }
 
 impl<'a> Checker<'a> {
@@ -1957,6 +1976,9 @@ impl<'a> Checker<'a> {
             Purpose::Annotation => format!("the annotation says {expected_text}"),
             Purpose::Yield(index) => format!("block argument {} is {expected_text}", index + 1),
             Purpose::Operand => format!("the operand must be {expected_text}"),
+            Purpose::Break(function) => format!(
+                "a `break` out of the block returns from `{function}`, which returns {expected_text}"
+            ),
         }
     }
 

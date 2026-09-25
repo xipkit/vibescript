@@ -365,6 +365,7 @@ impl<'a> Checker<'a> {
             result,
             block: block_sig,
             vars: Vec::new(),
+            checks_break: true,
         });
         self.program.fns.push(FnDecl {
             def,

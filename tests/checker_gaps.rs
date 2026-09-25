@@ -247,3 +247,120 @@ end
         assert!(found[1].message.starts_with("`cents=` is private"));
     }
 }
+
+mod break_values {
+    use super::*;
+
+    /// The type the checker reports for `value` when it is assigned where
+    /// `array<bool>` is expected, which no tested value is.
+    #[track_caller]
+    fn type_of(prelude: &str, value: &str) -> String {
+        let source = format!("{prelude}probe: array<bool> = {value}\n");
+        let found = codes(&source, &[Code::TYPE_MISMATCH]);
+        found[0].found.clone().unwrap()
+    }
+
+    #[test]
+    fn a_builtin_iterators_type_includes_its_break_values() {
+        assert_eq!(
+            type_of("", "[1, 2].each { |n| break \"s\" }"),
+            "array<int> | string"
+        );
+        assert_eq!(
+            type_of("", "[1, 2].map { |n|\n  break if n > 1\n  n\n}"),
+            "array<int>?"
+        );
+        assert_eq!(
+            type_of(
+                "",
+                "{ a: 1 }.each { |key, value| break value if value > 0 }"
+            ),
+            "int | { a: int }"
+        );
+        // A break inside a loop in the block leaves only the loop.
+        assert_eq!(
+            type_of("", "[1].each { |n| while true\n  break \"s\"\nend }"),
+            "array<int>"
+        );
+    }
+
+    #[test]
+    fn a_constructors_type_includes_its_break_values() {
+        let class = "class C\n  def initialize(&block: int)\n    yield 1\n  end\nend\n";
+        assert_eq!(type_of(class, "C.new { |n| break 7 }"), "C | int");
+        assert_eq!(type_of(class, "C.new { |n| n }"), "C");
+        let source = format!("{class}def run -> C | int\n  C.new {{ |n| break 7 }}\nend\n");
+        clean(&source);
+        assert_eq!(run(&source).unwrap().to_string(), "7");
+    }
+
+    #[test]
+    fn loop_has_the_type_of_its_break_values() {
+        assert_eq!(type_of("", "loop { break }"), "nil");
+        assert_eq!(
+            type_of("i = 0\n", "loop {\n  i += 1\n  break i if i > 3\n}"),
+            "int"
+        );
+        assert_eq!(
+            type_of(
+                "i = 0\n",
+                "loop {\n  i += 1\n  break \"s\" if i > 3\n  break if i > 9\n}"
+            ),
+            "string?"
+        );
+        // A loop that only returns has no value.
+        let source = "def run -> int\n  loop { return 5 }\nend\n";
+        clean(source);
+        assert_eq!(run(source).unwrap().to_string(), "5");
+    }
+
+    #[test]
+    fn a_yielding_functions_break_values_join_its_result() {
+        // Without a declared result, a break value is the call's value.
+        let each = "def each_one(&block: int)\n  yield 1\nend\n";
+        assert_eq!(type_of(each, "each_one { |n| break \"x\" }"), "string?");
+        let source = format!("{each}def run -> string?\n  each_one {{ |n| break \"x\" }}\nend\n");
+        clean(&source);
+        assert_eq!(run(&source).unwrap().to_string(), "x");
+    }
+
+    #[test]
+    fn a_break_out_of_a_function_with_a_result_must_fit_it() {
+        // The runtime checks a break value against the function's result.
+        let twice = "def twice(&block: int -> int) -> int\n  yield(1) + yield(2)\nend\n";
+        let found = codes(
+            &format!("{twice}z = twice {{ |n| break \"early\" }}\n"),
+            &[Code::TYPE_MISMATCH],
+        );
+        assert_eq!(
+            found[0].message,
+            "a `break` out of the block returns from `twice`, which returns int, found string"
+        );
+        codes(
+            &format!("{twice}z = twice {{ |n| break }}\n"),
+            &[Code::TYPE_MISMATCH],
+        );
+        let error = Engine::new()
+            .compile(&format!(
+                "{twice}def run -> int\n  twice {{ |n| break \"early\" }}\nend\n"
+            ))
+            .unwrap()
+            .call("run", &[], CallOptions::default())
+            .unwrap_err();
+        assert_eq!(
+            error.message,
+            "return value for twice expected int, got string"
+        );
+        let source = format!("{twice}def run -> int\n  twice {{ |n| break 9 }}\nend\n");
+        clean(&source);
+        assert_eq!(run(&source).unwrap().to_string(), "9");
+        assert_eq!(type_of(twice, "twice { |n| break 9 }"), "int");
+    }
+
+    #[test]
+    fn a_builtin_iterators_break_value_is_what_runs() {
+        let source = "def run -> array<int> | string\n  [1, 2].each { |n| break \"s\" }\nend\n";
+        clean(source);
+        assert_eq!(run(source).unwrap().to_string(), "s");
+    }
+}
