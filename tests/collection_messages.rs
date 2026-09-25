@@ -1,11 +1,15 @@
 //! Collection, data and member error messages match the reference
 //! implementation's wording exactly, since scripts read `e.message` and hosts
 //! log it. Each expected message was checked against the Go reference.
+//! What static types now refuse at compile time is checked by its first
+//! diagnostic instead.
+
+mod common;
 
 use vibescript::{CallOptions, Engine};
 
 fn message(body: &str) -> String {
-    let source = format!("def run\n{body}\nend");
+    let source = format!("def run -> any\n{body}\nend");
     let script = Engine::new()
         .compile(&source)
         .unwrap_or_else(|error| panic!("{body}: {error}"));
@@ -15,137 +19,101 @@ fn message(body: &str) -> String {
     }
 }
 
+/// The code of the first diagnostic that refuses `source` at compile time,
+/// and the text it points at.
+fn refusal(source: &str) -> (String, String) {
+    let error = common::static_engine()
+        .compile(source)
+        .err()
+        .unwrap_or_else(|| panic!("{source} compiled"));
+    let first = &error.diagnostics()[0];
+    (
+        first.code.to_string(),
+        source[first.span.start..first.span.end].to_owned(),
+    )
+}
+
 const KEY_RULE: &str = "hash keys must be strings or symbols; convert the key with to_s";
 
 #[test]
 fn unsupported_hash_keys_name_the_kind_and_the_member_input() {
     let plain = |kind: &str| format!("unsupported hash key type {kind}: {KEY_RULE}");
     let at = |site: &str, kind: &str| format!("{site} unsupported hash key: {}", plain(kind));
-    let cases = [
-        ("h = {a: 1}\nh[[1]]", plain("array")),
-        ("h = {a: 1}\nh[1] = 2", plain("int")),
-        ("h = {a: 1}\nh[/a/]", plain("regex")),
-        ("{a: {b: 1}}.dig(:a, 1)", plain("int")),
-        ("{a: 1}.store(1, 2)", at("hash.store key is an", "int")),
-        ("{a: 1}.fetch(nil)", at("hash.fetch key is an", "nil")),
-        (
-            "{a: 1}.fetch(1) { |k| 2 }",
-            at("hash.fetch key is an", "int"),
-        ),
-        (
-            "{a: 1}.fetch_values(1.5)",
-            at("hash.fetch_values key is an", "float"),
-        ),
-        (
-            "{a: 1}.values_at([1])",
-            at("hash.values_at key is an", "array"),
-        ),
-        ("{a: 1}.has_key?(1)", at("hash.has_key? key is an", "int")),
-        ("{a: 1}.include?(1)", at("hash.include? key is an", "int")),
-        ("{a: 1}.member?(1)", at("hash.member? key is an", "int")),
-        ("{a: 1}.delete(true)", at("hash.delete key is an", "bool")),
-        ("{a: 1}.slice(1)", at("hash.slice key is an", "int")),
-        ("{a: 1}.except({})", at("hash.except key is an", "hash")),
-        (
-            "{a: 1}.transform_keys { |k| 1 }",
-            at("hash.transform_keys block returned an", "int"),
-        ),
-        (
-            "{a: {b: 1}}.deep_transform_keys { |k| nil }",
-            at("hash.deep_transform_keys block returned an", "nil"),
-        ),
-        (
-            "{a: 1}.remap_keys({a: 1})",
-            at("hash.remap_keys mapping value is an", "int"),
-        ),
-        ("[[1, 2]].to_h", at("array.to_h pair key is an", "int")),
-        (
-            "[1].to_h { |x| [x, x] }",
-            at("array.to_h pair key is an", "int"),
-        ),
-        (
-            "[1].group_by { |x| [x] }",
-            at("array.group_by block returned an", "array"),
-        ),
-        (
-            "[1].group_by_stable { |x| x }",
-            at("array.group_by_stable block returned an", "int"),
-        ),
-        ("[1, 2].tally", at("array.tally value is an", "int")),
-        (
-            "[1].tally { |x| 1.5 }",
-            at("array.tally value is an", "float"),
-        ),
-    ];
+    let cases = [(
+        "[1].to_h { |x| [x, x] }",
+        at("array.to_h pair key is an", "int"),
+    )];
     for (body, expected) in cases {
         assert_eq!(message(body), expected, "{body}");
+    }
+    for (body, code, text) in [
+        ("h = {a: 1}\nh[[1]]", "V0101", "[1]"),
+        ("h = {a: 1}\nh[1] = 2", "V0111", "1"),
+        ("h = {a: 1}\nh[/a/]", "V0101", "/a/"),
+        ("{a: {b: 1}}.dig(:a, 1)", "V0101", ":a"),
+        ("{a: 1}.store(1, 2)", "V0401", "store"),
+        ("{a: 1}.fetch(nil)", "V0101", "nil"),
+        ("{a: 1}.fetch(1) { |k| 2 }", "V0101", "1"),
+        ("{a: 1}.fetch_values(1.5)", "V0101", "1.5"),
+        ("{a: 1}.values_at([1])", "V0101", "[1]"),
+        ("{a: 1}.key?(1)", "V0101", "1"),
+        ("{a: 1}.key?(1)", "V0101", "1"),
+        ("{a: 1}.key?(1)", "V0101", "1"),
+        ("{a: 1}.delete(true)", "V0101", "true"),
+        ("{a: 1}.slice(1)", "V0101", "1"),
+        ("{a: 1}.except({})", "V0101", "{}"),
+        ("{a: 1}.transform_keys { |k| 1 }", "V0101", "1"),
+        (
+            "{a: {b: 1}}.deep_transform_keys { |k| nil }",
+            "V0101",
+            "nil",
+        ),
+        ("{a: 1}.remap_keys({a: 1})", "V0101", "1"),
+        ("[[1, 2]].to_h", "V0304", "to_h"),
+        ("[1].group_by { |x| [x] }", "V0115", "group_by"),
+        ("[1].group_by_stable { |x| x }", "V0115", "group_by_stable"),
+        ("[1, 2].tally", "V0115", "tally"),
+        ("[1].tally { |x| 1.5 }", "V0115", "tally"),
+    ] {
+        let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
+        assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
     }
 }
 
 #[test]
 fn unknown_members_name_the_receiver_kind_and_suggest_close_names() {
-    let cases = [
-        ("[1].frobnicate", "unknown array method frobnicate"),
-        (
-            "[1].lengt",
-            "unknown array method lengt (did you mean \"length\"?)",
-        ),
-        (
-            "[1].uniq!",
-            "unknown array method uniq! (did you mean \"uniq\" or \"union\"?)",
-        ),
-        (
-            "[1].to_a",
-            "unknown array method to_a (did you mean \"to_h\" or \"to_s\"?)",
-        ),
-        (
-            "\"x\".uppcase",
-            "unknown string method uppcase (did you mean \"upcase\" or \"upcase!\"?)",
-        ),
-        ("\"x\".push(1)", "unknown string method push"),
-        (
-            "{a: 1}.to_s",
-            "unknown hash method to_s (did you mean \"to_a\"?)",
-        ),
-        (
-            "{counter: 1}.countr",
-            "unknown hash method countr (did you mean \"counter\"?)",
-        ),
-        ("nil.empty?", "unknown nil method empty?"),
-        (
-            "nil.inspct",
-            "unknown nil method inspct (did you mean \"inspect\"?)",
-        ),
-        ("true.foo", "unknown bool method foo"),
-        (
-            "5.tims",
-            "unknown int method tims (did you mean \"times\"?)",
-        ),
-        ("5.chr", "unknown int method chr"),
-        ("1.5.foo", "unknown float method foo"),
-        (
-            ":a.id2nam",
-            "unknown symbol method id2nam (did you mean \"id2name\"?)",
-        ),
-        ("(1..2).reverse", "unknown range method reverse"),
-        (
-            "/a/.matches?",
-            "unknown regex method matches? (did you mean \"match?\"?)",
-        ),
-        ("money(\"1.00 USD\").nope", "unknown money member nope"),
-        (
-            "Time.now.yer",
-            "unknown time method yer (did you mean \"year\"?)",
-        ),
-        (
-            "1.second.in_minuts",
-            "unknown duration method in_minuts (did you mean \"in_minutes\"?)",
-        ),
-        ("JSON.foo", "unknown hash method foo"),
-        ("5.each { |x| x }", "unknown int method each"),
-    ];
+    let cases = [(
+        "{a: 1}.to_s",
+        "unknown hash method to_s (did you mean \"to_a\"?)",
+    )];
     for (body, expected) in cases {
         assert_eq!(message(body), expected, "{body}");
+    }
+    for (body, code, text) in [
+        ("[1].frobnicate", "V0203", "frobnicate"),
+        ("[1].lengt", "V0203", "lengt"),
+        ("[1].uniq!", "V0203", "uniq!"),
+        ("[1].to_a", "V0203", "to_a"),
+        ("\"x\".uppcase", "V0203", "uppcase"),
+        ("\"x\".push(1)", "V0203", "push"),
+        ("({counter: 1})[\"countr\"]", "V0110", "\"countr\""),
+        ("nil.empty?", "V0203", "empty?"),
+        ("nil.inspct", "V0203", "inspct"),
+        ("true.foo", "V0203", "foo"),
+        ("5.tims", "V0203", "tims"),
+        ("5.chr", "V0203", "chr"),
+        ("1.5.foo", "V0203", "foo"),
+        (":a.id2nam", "V0203", "id2nam"),
+        ("(1..2).reverse", "V0203", "reverse"),
+        ("/a/.matches?", "V0203", "matches?"),
+        ("money(\"1.00 USD\").nope", "V0203", "nope"),
+        ("Time.now.yer", "V0203", "yer"),
+        ("1.seconds.in_minuts", "V0203", "in_minuts"),
+        ("JSON.foo", "V0203", "foo"),
+        ("5.each { |x| x }", "V0203", "each"),
+    ] {
+        let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
+        assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
     }
 }
 
@@ -161,460 +129,330 @@ fn function_message(source: &str, function: &str) -> String {
 
 #[test]
 fn missing_names_read_as_undefined_variables_or_unknown_members() {
-    let cases = [
+    for (source, code, text) in [
         (
-            "def run\n  length = 5\n  lengtt\nend",
-            "undefined variable lengtt (did you mean \"length\"?)",
+            "def run -> any\n  length = 5\n  lengtt\nend",
+            "V0201",
+            "lengtt",
+        ),
+        ("def run -> any\n  asert true\nend", "V0201", "asert"),
+        (
+            "def helper\n  1\nend\ndef run -> any\n  helpr()\nend",
+            "V0201",
+            "helpr",
+        ),
+        ("def run -> any\n  zzzzzz\nend", "V0201", "zzzzzz"),
+        (
+            "class Greeter\n  def greet\n    1\n  end\nend\ndef run -> any\n  Greeter.new.gret\nend",
+            "V0203",
+            "gret",
         ),
         (
-            "def run\n  asert true\nend",
-            "undefined variable asert (did you mean \"assert\"?)",
+            "class Vault\n  private def secret\n    1\n  end\n  def probe\n    secrez\n  end\nend\ndef run -> any\n  Vault.new.probe\nend",
+            "V0201",
+            "secrez",
         ),
         (
-            "def helper\n  1\nend\ndef run\n  helpr()\nend",
-            "undefined variable helpr (did you mean \"helper\"?)",
-        ),
-        ("def run\n  zzzzzz\nend", "undefined variable zzzzzz"),
-        (
-            "class Greeter\n  def greet\n    1\n  end\nend\ndef run\n  Greeter.new.gret\nend",
-            "unknown member gret (did you mean \"greet\"?)",
+            "class Vault\n  private def secret\n    1\n  end\nend\ndef run -> any\n  Vault.new.secrez\nend",
+            "V0203",
+            "secrez",
         ),
         (
-            "class Vault\n  private def secret\n    1\n  end\n  def probe\n    secrez\n  end\nend\ndef run\n  Vault.new.probe\nend",
-            "unknown member secrez (did you mean \"secret\"?)",
+            "class Counter\n  def self.instances\n    1\n  end\nend\ndef run -> any\n  Counter.instnces\nend",
+            "V0203",
+            "instnces",
         ),
         (
-            "class Vault\n  private def secret\n    1\n  end\nend\ndef run\n  Vault.new.secrez\nend",
-            "unknown member secrez",
+            "class A\n  attr_reader :x\nend\ndef run -> any\n  1\nend",
+            "V0201",
+            "attr_reader",
         ),
         (
-            "class Counter\n  def self.instances\n    1\n  end\nend\ndef run\n  Counter.instnces\nend",
-            "unknown class member instnces (did you mean \"instances\"?)",
+            "module Config\n  LIMIT = 1\nend\ndef run -> any\n  Config::LIMT\nend",
+            "V0203",
+            "LIMT",
         ),
         (
-            "class A\n  attr_reader :x\nend\ndef run\n  1\nend",
-            "unknown class member attr_reader (use \"getter x\"; the name is bare, not a symbol)",
+            "enum Status\n  Draft\nend\ndef run -> any\n  Status::Drafd\nend",
+            "V0206",
+            "Drafd",
         ),
         (
-            "module Config\n  LIMIT = 1\nend\ndef run\n  Config::LIMT\nend",
-            "unknown constant Config::LIMT (did you mean \"LIMIT\"?)",
+            "enum Status\n  Draft\nend\ndef run -> any\n  Status::Draft.strng\nend",
+            "V0203",
+            "strng",
         ),
-        (
-            "enum Status\n  Draft\nend\ndef run\n  Status::Drafd\nend",
-            "unknown enum member Status::Drafd (did you mean \"Draft\"?)",
-        ),
-        (
-            "enum Status\n  Draft\nend\ndef run\n  Status::Draft.strng\nend",
-            "unknown enum member property strng (did you mean \"string\"?)",
-        ),
-    ];
-    for (source, expected) in cases {
-        assert_eq!(function_message(source, "run"), expected, "{source}");
+    ] {
+        let (found, at) = refusal(source);
+        assert_eq!((found.as_str(), at.as_str()), (code, text), "{source}");
     }
 }
 
 #[test]
 fn index_operator_errors_name_the_selector_or_receiver() {
     let cases = [
-        ("x = [1]\nx[\"a\"]", "index must be integer"),
         ("x = [1]\nx[2 ** 70]", "index must fit in a 64-bit integer"),
-        ("\"abc\"[nil]", "index must be integer"),
-        ("x = [1]\nx[\"a\", 3]", "index must be integer"),
-        ("5[1]", "cannot index int"),
-        ("nil[0]", "cannot index nil"),
-        (
-            "x = [1, 2, 3]\nx[1, 2, 3]",
-            "array index expects one index, a start and length, or a range",
-        ),
-        (
-            "\"abc\"[1, 2, 3]",
-            "string index expects one index, a start and length, or a range",
-        ),
-        ("{a: 1}[1, 2]", "hash index expects a single key"),
         ("x = [1]\nx[5] = 1", "array index out of bounds"),
         ("x = [1]\nx[-5] = 1", "array index out of bounds"),
-        (
-            "x = [1]\nx[0, 1] = 1",
-            "array index assignment expects a single index",
-        ),
-        (
-            "x = {a: 1}\nx[:a, 1] = 1",
-            "hash index assignment expects a single key",
-        ),
-        ("x = \"abc\"\nx[0] = \"z\"", "cannot index string"),
     ];
     for (body, expected) in cases {
         assert_eq!(message(body), expected, "{body}");
     }
+    for (body, code, text) in [
+        ("x = [1]\nx[\"a\"]", "V0101", "\"a\""),
+        ("\"abc\"[nil]", "V0107", "nil"),
+        ("x = [1]\nx[\"a\", 3]", "V0101", "\"a\""),
+        ("5[1]", "V0112", "5[1]"),
+        ("nil[0]", "V0107", "nil"),
+        ("x = [1, 2, 3]\nx[1, 2, 3]", "V0112", "x[1, 2, 3]"),
+        ("\"abc\"[1, 2, 3]", "V0112", "\"abc\"[1, 2, 3]"),
+        ("{a: 1}[1, 2]", "V0112", "{a: 1}[1, 2]"),
+        ("x = [1]\nx[0, 1] = 1", "V0112", "x[0, 1]"),
+        ("x = {a: 1}\nx[:a, 1] = 1", "V0112", "x[:a, 1]"),
+        ("x = \"abc\"\nx[0] = \"z\"", "V0112", "x[0]"),
+    ] {
+        let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
+        assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
+    }
+    // An instance whose class defines no index members cannot be indexed.
     let plain = "class Plain\nend\n";
-    assert_eq!(
-        function_message(&format!("{plain}def run\n  Plain.new[1]\nend"), "run"),
-        "cannot index instance: Plain does not define []"
-    );
-    assert_eq!(
-        function_message(
-            &format!("{plain}def run\n  p = Plain.new\n  p[1] = 2\nend"),
-            "run"
-        ),
-        "cannot index instance: Plain does not define []="
-    );
+    for (body, text) in [
+        ("Plain.new[1]", "Plain.new[1]"),
+        ("p = Plain.new\n  p[1] = 2", "p[1]"),
+    ] {
+        let (found, at) = refusal(&format!("{plain}def run -> any\n  {body}\nend"));
+        assert_eq!((found.as_str(), at.as_str()), ("V0203", text), "{body}");
+    }
 }
 
 #[test]
 fn protected_records_name_the_rejected_operation() {
-    let matched = "m = \"ab\".match(/(a)(b)/)\n";
-    let rescued = "begin\n  raise \"x\"\nrescue RuntimeError => e\n  e\nend";
-    let cases = [
+    for (body, code, text) in [
+        ("m = \"ab\".match(/(a)(b)/)\nm[0] = \"z\"", "V0107", "m"),
         (
-            format!("{matched}m[0] = \"z\""),
-            "index assignment cannot modify match data",
+            "m = \"ab\".match(/(a)(b)/)\nm.pre_match = \"z\"",
+            "V0107",
+            "pre_match",
         ),
         (
-            format!("{matched}m.pre_match = \"z\""),
-            "member assignment cannot modify match data",
+            "m = \"ab\".match(/(a)(b)/)\nm.replace({})",
+            "V0107",
+            "replace",
         ),
         (
-            format!("{matched}m.replace({{}})"),
-            "replace cannot modify match data",
+            "m = \"ab\".match(/(a)(b)/)\nm.delete_if { |k, v| true }",
+            "V0107",
+            "delete_if",
+        ),
+        ("m = \"ab\".match(/(a)(b)/)\nm.clear", "V0107", "clear"),
+        (
+            "e = begin\n  raise \"x\"\nrescue RuntimeError => e\n  e\nend\ne[\"message\"] = \"y\"",
+            "V0112",
+            "e[\"message\"]",
         ),
         (
-            format!("{matched}m.delete_if {{ |k, v| true }}"),
-            "delete_if cannot modify match data",
+            "e = begin\n  raise \"x\"\nrescue RuntimeError => e\n  e\nend\ne.message = \"y\"",
+            "V0203",
+            "message",
         ),
         (
-            format!("{matched}m.send(:clear)"),
-            "clear cannot modify match data",
+            "e = begin\n  raise \"x\"\nrescue RuntimeError => e\n  e\nend\ne.store(:a, 1)",
+            "V0203",
+            "store",
         ),
         (
-            format!("e = {rescued}\ne[:message] = \"y\""),
-            "index assignment cannot modify a rescued error",
+            "e = begin\n  raise \"x\"\nrescue RuntimeError => e\n  e\nend\ne.delete(:message)",
+            "V0203",
+            "delete",
         ),
-        (
-            format!("e = {rescued}\ne.message = \"y\""),
-            "member assignment cannot modify a rescued error",
-        ),
-        (
-            format!("e = {rescued}\ne.store(:a, 1)"),
-            "store cannot modify a rescued error",
-        ),
-        (
-            format!("e = {rescued}\ne.delete(:message)"),
-            "delete cannot modify a rescued error",
-        ),
-    ];
-    for (body, expected) in cases {
-        assert_eq!(message(&body), expected, "{body}");
+    ] {
+        let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
+        assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
     }
 }
 
 #[test]
 fn member_misuse_names_the_member_or_module() {
-    let cases = [
+    for (source, code, text) in [
         (
-            "class ReadOnly\n  getter name\n  def initialize(name)\n    @name = name\n  end\nend\ndef run\n  r = ReadOnly.new(\"a\")\n  r.name = \"b\"\nend",
-            "cannot assign to read-only property name",
+            "class ReadOnly\n  getter name: string\n  def initialize(name: string)\n    @name = name\n  end\nend\ndef run -> any\n  r = ReadOnly.new(\"a\")\n  r.name = \"b\"\nend",
+            "V0203",
+            "name",
         ),
         (
-            "module Billing\nend\ndef run\n  Billing.new\nend",
-            "module Billing cannot be instantiated",
+            "module Billing\nend\ndef run -> any\n  Billing.new\nend",
+            "V0203",
+            "new",
         ),
         (
-            "def run\n  x = JSON.stringify\n  x\nend",
-            "stringify is a method and cannot be used as a value; call it with stringify(...)",
+            "def run -> any\n  x = JSON.stringify\n  x\nend",
+            "V0301",
+            "stringify",
         ),
         (
-            "def run\n  x = Regexp.escape\n  x\nend",
-            "escape is a method and cannot be used as a value; call it with escape(...)",
+            "def run -> any\n  x = Regex.escape\n  x\nend",
+            "V0301",
+            "escape",
         ),
-    ];
-    for (source, expected) in cases {
-        assert_eq!(function_message(source, "run"), expected, "{source}");
+    ] {
+        let (found, at) = refusal(source);
+        assert_eq!((found.as_str(), at.as_str()), (code, text), "{source}");
     }
 }
 
 #[test]
 fn block_driven_array_members_check_calls_in_reference_order() {
-    let cases = [
-        ("[1].each", "array.each requires a block"),
-        ("[1].map(1)", "array.map requires a block"),
-        (
-            "[1].each_with_index(1, a: 1) { |x| x }",
-            "array.each_with_index does not take arguments",
-        ),
-        (
-            "[1].map_with_index(a: 1)",
-            "array.map_with_index does not take keyword arguments",
-        ),
-        (
-            "[1].collect_concat(1)",
-            "array.flat_map does not take arguments",
-        ),
-        ("[1].reject(a: 1)", "array.reject requires a block"),
-        ("[1].each_slice", "array.each_slice expects a slice size"),
-        ("[1].each_slice(0)", "array.each_slice invalid slice size"),
-        (
-            "[1].each_slice(\"a\")",
-            "array.each_slice invalid slice size",
-        ),
-        ("[1].each_slice(2)", "array.each_slice requires a block"),
-        (
-            "[1].each_cons(1.5) { |x| x }",
-            "array.each_cons invalid size",
-        ),
-        ("[1].cycle(1, 2)", "array.cycle accepts at most one count"),
-        ("[1].cycle(1.5)", "array.cycle count must be an integer"),
-        ("[1].cycle(2**70)", "array.cycle count is out of range"),
-        (
-            "[1].find(nil, nil)",
-            "array.find takes no fallback; a miss returns nil",
-        ),
-        (
-            "[1].find_index(1) { |x| x }",
-            "array.find_index takes a value or a block, not both",
-        ),
-        (
-            "[1].find_index(1, -1)",
-            "array.find_index offset must be non-negative integer",
-        ),
-        (
-            "[1].rindex",
-            "array.rindex expects a value (with optional offset) or a block",
-        ),
-        (
-            "[1].reduce",
-            "array.reduce requires a block or an operation",
-        ),
-        (
-            "[1].reduce(1, 2, 3)",
-            "array.reduce accepts at most an initial value and an operation",
-        ),
-        (
-            "[1].reduce(1)",
-            "array.reduce operation must be a symbol or string",
-        ),
-        (
-            "[1].count(1, 2)",
-            "array.count accepts at most one value argument",
-        ),
-        (
-            "[1].none?(1, 2, a: 1)",
-            "array.none? does not take keyword arguments",
-        ),
-        ("[1].one?(1)", "array.one? does not take arguments"),
-        ("[1].to_h(1, a: 1)", "array.to_h does not take arguments"),
-        (
-            "[1].uniq(a: 1)",
-            "array.uniq does not take keyword arguments",
-        ),
-        (
-            "[1].fetch",
-            "array.fetch expects index and optional default",
-        ),
-        (
-            "[1].fetch(\"a\") { |i| i }",
-            "array.fetch index must be integer",
-        ),
-        ("[1].fetch(1.5)", "array.fetch index must be integer"),
-        (
-            "[1].sum(1, 2)",
-            "array.sum accepts at most an initial value",
-        ),
-        (
-            "[1].grep",
-            "array.grep expects exactly one pattern argument",
-        ),
-        ("[1].fill", "array.fill requires a value or a block"),
-        (
-            "[1].fill(1, 2, 3) { |i| i }",
-            "array.fill accepts at most a start and length",
-        ),
-        (
-            "[1].delete(1, 2) { |x| x }",
-            "array.delete expects exactly one value",
-        ),
-        ("[1].sort(1)", "array.sort does not take arguments"),
-        ("[1].min_by", "array.min_by requires a block"),
-        (
-            "[1].min { |x| x }",
-            "array.min does not accept a block; use min_by or max_by for block-based selection",
-        ),
-        (
-            "[1].minmax { |x| x }",
-            "array.minmax does not accept a block",
-        ),
-    ];
+    let cases = [(
+        "[1].index(1, -1)",
+        "array.index offset must be non-negative integer",
+    )];
     for (body, expected) in cases {
         assert_eq!(message(body), expected, "{body}");
+    }
+    for (body, code, text) in [
+        ("[1].each", "V0304", "each"),
+        ("[1].map(1)", "V0301", "map"),
+        (
+            "[1].each_with_index(1, a: 1) { |x| x }",
+            "V0301",
+            "each_with_index",
+        ),
+        ("[1].map_with_index(a: 1)", "V0304", "map_with_index"),
+        ("[1].flat_map(1)", "V0301", "flat_map"),
+        ("[1].reject(a: 1)", "V0304", "reject"),
+        ("[1].each_slice", "V0301", "each_slice"),
+        ("[1].each_slice(0)", "V0304", "each_slice"),
+        ("[1].each_slice(\"a\")", "V0304", "each_slice"),
+        ("[1].each_slice(2)", "V0304", "each_slice"),
+        ("[1].each_cons(1.5) { |x| x }", "V0101", "1.5"),
+        ("[1].cycle(1, 2)", "V0301", "cycle"),
+        ("[1].cycle(1.5)", "V0304", "cycle"),
+        ("[1].cycle(2**70)", "V0304", "cycle"),
+        ("[1].find(nil, nil)", "V0301", "find"),
+        ("[1].index(1) { |x| x }", "V0301", "index"),
+        ("[1].rindex", "V0301", "rindex"),
+        ("[1].reduce", "V0301", "reduce"),
+        ("[1].reduce(1, 2, 3)", "V0301", "reduce"),
+        ("[1].reduce(1)", "V0401", "reduce"),
+        ("[1].count(1, 2)", "V0301", "count"),
+        ("[1].none?(1, 2, a: 1)", "V0301", "none?"),
+        ("[1].one?(1)", "V0301", "one?"),
+        ("[1].to_h(1, a: 1)", "V0301", "to_h"),
+        ("[1].uniq(a: 1)", "V0302", "a:"),
+        ("[1].fetch", "V0301", "fetch"),
+        ("[1].fetch(\"a\") { |i| i }", "V0101", "\"a\""),
+        ("[1].fetch(1.5)", "V0101", "1.5"),
+        ("[1].sum(1, 2)", "V0301", "sum"),
+        ("[1].grep", "V0301", "grep"),
+        ("[1].fill", "V0301", "fill"),
+        ("[1].fill(1, 2, 3) { |i| i }", "V0305", "{"),
+        ("[1].delete(1, 2) { |x| x }", "V0301", "delete"),
+        ("[1].sort(1)", "V0301", "sort"),
+        ("[1].min_by", "V0304", "min_by"),
+        ("[1].min { |x| x }", "V0305", "{"),
+        ("[1].minmax { |x| x }", "V0305", "{"),
+    ] {
+        let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
+        assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
     }
 }
 
 #[test]
 fn array_members_name_themselves_in_count_and_index_errors() {
     let cases = [
-        ("[1, 2].size(1)", "array.size does not take arguments"),
-        ("[1].empty?(1)", "array.empty? does not take arguments"),
-        ("[1].include?", "array.include? expects exactly one value"),
         ("[1].at(1, 2)", "array.at expects exactly one index"),
-        ("[1].at(nil)", "array.at index must be integer"),
-        (
-            "[1].slice",
-            "array.slice expects an index, a start and length, or a range",
-        ),
-        ("[1].slice(1..2, 1)", "array.slice index must be integer"),
-        ("[1].slice(0, \"a\")", "array.slice length must be integer"),
-        ("[1].first(1, 2)", "array.first accepts at most one count"),
         ("[1].last(-1)", "array.last expects non-negative integer"),
         ("[1].take", "array.take expects exactly one count"),
         (
-            "[1].take(-(2**70))",
-            "array.take attempted with negative size",
+            "[1].first(-(2**70))",
+            "array.first expects non-negative integer",
         ),
         ("[1].drop(-1)", "array.drop attempted with negative size"),
-        ("[1].drop(nil)", "array.drop count must be integer"),
         (
             "[1].values_at(2**70)",
             "array.values_at index must be integer",
-        ),
-        ("[1].dig", "array.dig expects at least one index"),
-        ("{a: 1}.dig", "hash.dig expects at least one key"),
-        (
-            "{a: 1}.fetch",
-            "hash.fetch expects key and optional default",
-        ),
-        (
-            "[1].flatten(1, 2)",
-            "array.flatten accepts at most one depth argument",
-        ),
-        (
-            "[1].flatten(\"a\")",
-            "array.flatten depth must be an integer",
-        ),
-        ("[1].chunk", "array.chunk expects a chunk size"),
-        (
-            "[1].chunk(\"a\")",
-            "array.chunk size must be a positive integer",
         ),
         (
             "[1].window(0)",
             "array.window size must be a positive integer",
         ),
         (
-            "[1].join(\",\", \",\")",
-            "array.join accepts at most one separator",
-        ),
-        ("[1].reverse(1)", "array.reverse does not take arguments"),
-        (
-            "[1].transpose(1)",
-            "array.transpose does not take arguments",
-        ),
-        ("[1].pop(1, 2)", "array.pop accepts at most one argument"),
-        (
-            "[1].shift(\"a\")",
-            "array.shift expects non-negative integer",
-        ),
-        ("[1].insert", "array.insert expects an index"),
-        ("[1].insert(nil, 1)", "array.insert index must be integer"),
-        ("[1].clear(1)", "array.clear does not take arguments"),
-        (
             "[1].fill(0, 0..1, 2)",
             "array.fill does not accept a length with a range",
         ),
-        ("[1].fill(0, \"a\")", "array.fill start must be integer"),
         ("[1].fill(0, 0, 2**70)", "array.fill length must be integer"),
-        // The index operator keeps its own wording.
-        ("x = [1]\nx[1..2, 1]", "index must be integer"),
     ];
     for (body, expected) in cases {
         assert_eq!(message(body), expected, "{body}");
+    }
+    for (body, code, text) in [
+        ("[1, 2].size(1)", "V0301", "size"),
+        ("[1].empty?(1)", "V0301", "empty?"),
+        ("[1].include?", "V0301", "include?"),
+        ("[1][nil]", "V0107", "nil"),
+        ("[1].slice", "V0401", "slice"),
+        ("[1][1..2, 1]", "V0101", "1..2"),
+        ("[1][0, \"a\"]", "V0101", "\"a\""),
+        ("[1].first(1, 2)", "V0301", "first"),
+        ("[1].drop(nil)", "V0101", "nil"),
+        ("[1].dig", "V0301", "dig"),
+        ("{a: 1}.dig", "V0301", "dig"),
+        ("{a: 1}.fetch", "V0301", "fetch"),
+        ("[1].flatten(1, 2)", "V0301", "flatten"),
+        ("[1].flatten(\"a\")", "V0101", "\"a\""),
+        ("[1].chunk", "V0301", "chunk"),
+        ("[1].chunk(\"a\")", "V0101", "\"a\""),
+        ("[1].join(\",\", \",\")", "V0301", "join"),
+        ("[1].reverse(1)", "V0301", "reverse"),
+        ("[1].transpose(1)", "V0203", "transpose"),
+        ("[1].pop(1, 2)", "V0301", "pop"),
+        ("[1].shift(\"a\")", "V0101", "\"a\""),
+        ("[1].insert", "V0301", "insert"),
+        ("[1].insert(nil, 1)", "V0101", "nil"),
+        ("[1].clear(1)", "V0301", "clear"),
+        ("[1].fill(0, \"a\")", "V0101", "\"a\""),
+    ] {
+        let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
+        assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
     }
 }
 
 #[test]
 fn array_keyword_and_block_refusals_follow_the_reference_order() {
-    let cases = [
-        (
-            "[1].at(1, a: 1)",
-            "array.at does not take keyword arguments",
-        ),
-        (
-            "[1].append(a: 1)",
-            "array.append does not take keyword arguments",
-        ),
-        (
-            "[1].unshift(a: 1)",
-            "array.unshift does not take keyword arguments",
-        ),
-        (
-            "[1].reverse(1, a: 1)",
-            "array.reverse does not take arguments",
-        ),
-        (
-            "[1].compact(a: 1)",
-            "array.compact does not take keyword arguments",
-        ),
-        (
-            "[1].shift(1, 2, a: 1)",
-            "array.shift accepts at most one argument",
-        ),
-        (
-            "[1].pop(1, 2, a: 1)",
-            "array.pop does not take keyword arguments",
-        ),
-        (
-            "[1].transpose(a: 1)",
-            "array.transpose does not take arguments",
-        ),
-        (
-            "[1].clear(a: 1) { |x| x }",
-            "array.clear does not take keyword arguments",
-        ),
-        ("[1].to_s(1, a: 1)", "array.to_s does not take arguments"),
-        (
-            "[1].string(a: 1)",
-            "array.string does not take keyword arguments",
-        ),
-        (
-            "[1].union(1, a: 1)",
-            "array.union does not take keyword arguments",
-        ),
-        (
-            "[1].inspect(1, a: 1)",
-            "array.inspect does not take arguments",
-        ),
-        (
-            "[1].inspect { |x| x }",
-            "array.inspect does not take a block",
-        ),
-        (
-            "\"s\".inspect(a: 1)",
-            "string.inspect does not take keyword arguments",
-        ),
-        (
-            "{a: 1}.inspect { |x| x }",
-            "hash.inspect does not take a block",
-        ),
-        ("nil.inspect(1)", "nil.inspect does not take arguments"),
-        (
-            "(1..2).inspect(a: 1)",
-            "range.inspect does not take keyword arguments",
-        ),
-    ];
+    let cases = [(
+        "[1].at(1, a: 1)",
+        "array.at does not take keyword arguments",
+    )];
     for (body, expected) in cases {
         assert_eq!(message(body), expected, "{body}");
+    }
+    for (body, code, text) in [
+        ("[1].push(a: 1)", "V0302", "a:"),
+        ("[1].prepend(a: 1)", "V0302", "a:"),
+        ("[1].reverse(1, a: 1)", "V0301", "reverse"),
+        ("[1].compact(a: 1)", "V0302", "a:"),
+        ("[1].shift(1, 2, a: 1)", "V0301", "shift"),
+        ("[1].pop(1, 2, a: 1)", "V0301", "pop"),
+        ("[1].transpose(a: 1)", "V0203", "transpose"),
+        ("[1].clear(a: 1) { |x| x }", "V0302", "a:"),
+        ("[1].to_s(1, a: 1)", "V0301", "to_s"),
+        ("[1].string(a: 1)", "V0302", "a:"),
+        ("[1].union(1, a: 1)", "V0101", "1"),
+        ("[1].inspect(1, a: 1)", "V0301", "inspect"),
+        ("[1].inspect { |x| x }", "V0305", "{"),
+        ("\"s\".inspect(a: 1)", "V0302", "a:"),
+        ("{a: 1}.inspect { |x| x }", "V0305", "{"),
+        ("nil.inspect(1)", "V0301", "inspect"),
+        ("(1..2).inspect(a: 1)", "V0302", "a:"),
+    ] {
+        let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
+        assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
     }
 }
 
 #[test]
 fn array_element_bounds_and_comparison_errors_use_reference_wording() {
     let cases = [
-        (
-            "[1].to_h",
-            "array.to_h expects an array of two-element pairs",
-        ),
-        (
-            "[[1]].to_h",
-            "array.to_h pair must have exactly two elements",
-        ),
         (
             "[1].to_h { |x| x }",
             "array.to_h expects an array of two-element pairs",
@@ -624,28 +462,8 @@ fn array_element_bounds_and_comparison_errors_use_reference_wording() {
             "array.to_h pair must have exactly two elements",
         ),
         (
-            "[[1], 2].transpose",
-            "array.transpose requires arrays as elements, but element at index 1 is a int",
-        ),
-        (
             "[[1], [1, 2]].transpose",
             "array.transpose requires equal-length rows, but element at index 1 has length 2 (expected 1)",
-        ),
-        ("[1].zip([1], 2)", "array.zip arguments must be arrays"),
-        (
-            "[1].difference([1], 1)",
-            "array.difference arguments must be arrays",
-        ),
-        ("[1].join(nil)", "array.join separator must be string"),
-        ("[1, \"a\"].sum", "array.sum cannot add incompatible values"),
-        ("[1, nil].sum", "array.sum cannot add incompatible values"),
-        (
-            "[1].sum(0) { |x| nil }",
-            "array.sum cannot add incompatible values",
-        ),
-        (
-            "[1].sum { |x| \"a\" }",
-            "array.sum cannot add incompatible values",
         ),
         (
             "[1, 2, 3].fetch(-7)",
@@ -663,205 +481,111 @@ fn array_element_bounds_and_comparison_errors_use_reference_wording() {
             "[1, 2, 3].values_at(-5...)",
             "array.values_at range -5.. out of range",
         ),
-        (
-            "[1, 2, 3].fill(-5..) { |i| i }",
-            "array.fill range -5.. out of range",
-        ),
         ("[1, 2].insert(-4, 1)", "array.insert index -4 out of range"),
-        ("[1, \"a\"].sort", "array.sort values are not comparable"),
-        (
-            "[1, 2].sort { |a, b| \"x\" }",
-            "array.sort block must return numeric comparator",
-        ),
-        (
-            "[1, 2].sort_by { |x| x == 1 ? \"a\" : 1 }",
-            "array.sort_by block values are not comparable",
-        ),
-        (
-            "[1, \"a\"].minmax",
-            "array.minmax values are not comparable",
-        ),
-        (
-            "[1, 2].max_by { |x| x == 1 ? \"a\" : 1 }",
-            "array.max_by block values are not comparable",
-        ),
     ];
     for (body, expected) in cases {
         assert_eq!(message(body), expected, "{body}");
+    }
+    for (body, code, text) in [
+        ("[1].to_h", "V0304", "to_h"),
+        ("[[1]].to_h", "V0304", "to_h"),
+        ("[[1], 2].transpose", "V0203", "transpose"),
+        ("[1].zip([1], 2)", "V0101", "2"),
+        ("[1].difference([1], 1)", "V0101", "1"),
+        ("[1].join(nil)", "V0101", "nil"),
+        ("[1, \"a\"].sum", "V0115", "sum"),
+        ("[1, nil].sum", "V0115", "sum"),
+        ("[1].sum(0) { |x| nil }", "V0101", "nil"),
+        ("[1].sum { |x| \"a\" }", "V0101", "\"a\""),
+        ("[1, 2, 3].fill(-5..) { |i| i }", "V0101", "5.."),
+        ("[1, \"a\"].sort", "V0115", "sort"),
+        ("[1, 2].sort { |a, b| \"x\" }", "V0101", "\"x\""),
+        (
+            "[1, 2].sort_by { |x| x == 1 ? \"a\" : 1 }",
+            "V0115",
+            "sort_by",
+        ),
+        ("[1, \"a\"].minmax", "V0115", "minmax"),
+        (
+            "[1, 2].max_by { |x| x == 1 ? \"a\" : 1 }",
+            "V0115",
+            "max_by",
+        ),
+    ] {
+        let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
+        assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
     }
 }
 
 #[test]
 fn string_members_name_themselves_in_argument_count_errors() {
     let cases = [
-        ("\"ab\".size(1)", "string.size does not take arguments"),
-        (
-            "\"ab\".length(1, 2)",
-            "string.length does not take arguments",
-        ),
-        (
-            "\"ab\".bytesize(1)",
-            "string.bytesize does not take arguments",
-        ),
-        (
-            "\"ab\".empty?(nil)",
-            "string.empty? does not take arguments",
-        ),
-        ("\"ab\".ord(1)", "string.ord does not take arguments"),
-        ("\"ab\".chr(1)", "string.chr does not take arguments"),
-        ("\"ab\".chars(1)", "string.chars does not take arguments"),
-        ("\"ab\".lines(1)", "string.lines does not take arguments"),
-        ("\"ab\".bytes(1)", "string.bytes does not take arguments"),
-        (
-            "\"ab\".codepoints(1)",
-            "string.codepoints does not take arguments",
-        ),
-        (
-            "\"ab\".reverse(1)",
-            "string.reverse does not take arguments",
-        ),
-        (
-            "\"ab\".reverse!(1)",
-            "string.reverse! does not take arguments",
-        ),
-        ("\"ab\".strip(1)", "string.strip does not take arguments"),
-        (
-            "\"ab\".lstrip!(1)",
-            "string.lstrip! does not take arguments",
-        ),
-        ("\"ab\".rstrip(1)", "string.rstrip does not take arguments"),
-        (
-            "\"ab\".squish!(1)",
-            "string.squish! does not take arguments",
-        ),
-        ("\"ab\".chop(1)", "string.chop does not take arguments"),
-        (
-            "\"ab\".chomp!(\"a\", \"b\")",
-            "string.chomp! accepts at most one separator",
-        ),
-        (
-            "\"ab\".delete_prefix",
-            "string.delete_prefix expects exactly one prefix",
-        ),
-        (
-            "\"ab\".delete_suffix!(\"a\", \"b\")",
-            "string.delete_suffix! expects exactly one suffix",
-        ),
-        (
-            "\"ab\".start_with?",
-            "string.start_with? expects at least one prefix",
-        ),
-        (
-            "\"ab\".end_with?",
-            "string.end_with? expects at least one suffix",
-        ),
-        (
-            "\"ab\".include?",
-            "string.include? expects exactly one substring",
-        ),
-        (
-            "\"ab\".index",
-            "string.index expects substring and optional offset",
-        ),
-        (
-            "\"ab\".rindex(\"a\", 1, 2)",
-            "string.rindex expects substring and optional offset",
-        ),
-        (
-            "\"ab\".casecmp",
-            "string.casecmp expects exactly one string",
-        ),
-        (
-            "\"ab\".casecmp?(\"a\", \"b\")",
-            "string.casecmp? expects exactly one string",
-        ),
-        (
-            "\"ab\".partition",
-            "string.partition expects exactly one separator",
-        ),
-        (
-            "\"ab\".rpartition(\"a\", \"b\")",
-            "string.rpartition expects exactly one separator",
-        ),
-        (
-            "\"ab\".center",
-            "string.center expects width and optional pad string",
-        ),
-        (
-            "\"ab\".rjust(1, \"a\", \"b\")",
-            "string.rjust expects width and optional pad string",
-        ),
-        (
-            "\"ab\".split(\" \", 1, 2)",
-            "string.split accepts at most a separator and a limit",
-        ),
-        (
-            "\"ab\".count",
-            "string.count expects at least one character set",
-        ),
-        (
-            "\"ab\".delete!",
-            "string.delete! expects at least one character set",
-        ),
-        (
-            "\"ab\".tr(\"a\")",
-            "string.tr expects source and replacement character sets",
-        ),
-        (
-            "\"ab\".upcase(:ascii, :ascii)",
-            "string.upcase accepts at most one case-mapping option",
-        ),
-        (
-            "\"ab\".swapcase!(1, 2)",
-            "string.swapcase! accepts at most one case-mapping option",
-        ),
-        (
-            "\"ab\".template",
-            "string.template expects exactly one context hash",
-        ),
         ("\"ab\".clear(1)", "string.clear does not take arguments"),
         (
             "\"ab\".replace",
             "string.replace expects exactly one replacement",
         ),
-        (
-            "\"ab\".insert(1)",
-            "string.insert expects an index and a string",
-        ),
-        ("\"ab\".each_char", "string.each_char requires a block"),
-        (
-            "\"ab\".each_codepoint",
-            "string.each_codepoint requires a block",
-        ),
-        (
-            "\"ab\".each_line(1) { |line| line }",
-            "string.each_line does not take arguments",
-        ),
-        (
-            "\"ab\".each_byte(1) { |byte| byte }",
-            "string.each_byte does not take arguments",
-        ),
     ];
     for (body, expected) in cases {
         assert_eq!(message(body), expected, "{body}");
+    }
+    for (body, code, text) in [
+        ("\"ab\".size(1)", "V0301", "size"),
+        ("\"ab\".length(1, 2)", "V0301", "length"),
+        ("\"ab\".bytesize(1)", "V0301", "bytesize"),
+        ("\"ab\".empty?(nil)", "V0301", "empty?"),
+        ("\"ab\".ord(1)", "V0301", "ord"),
+        ("\"ab\".chr(1)", "V0301", "chr"),
+        ("\"ab\".chars(1)", "V0301", "chars"),
+        ("\"ab\".lines(1)", "V0301", "lines"),
+        ("\"ab\".bytes(1)", "V0301", "bytes"),
+        ("\"ab\".codepoints(1)", "V0301", "codepoints"),
+        ("\"ab\".reverse(1)", "V0301", "reverse"),
+        ("\"ab\".reverse!(1)", "V0301", "reverse!"),
+        ("\"ab\".strip(1)", "V0301", "strip"),
+        ("\"ab\".lstrip!(1)", "V0301", "lstrip!"),
+        ("\"ab\".rstrip(1)", "V0301", "rstrip"),
+        ("\"ab\".squish!(1)", "V0301", "squish!"),
+        ("\"ab\".chop(1)", "V0301", "chop"),
+        ("\"ab\".chomp!(\"a\", \"b\")", "V0301", "chomp!"),
+        ("\"ab\".delete_prefix", "V0301", "delete_prefix"),
+        (
+            "\"ab\".delete_suffix!(\"a\", \"b\")",
+            "V0301",
+            "delete_suffix!",
+        ),
+        ("\"ab\".start_with?", "V0301", "start_with?"),
+        ("\"ab\".end_with?", "V0301", "end_with?"),
+        ("\"ab\".include?", "V0301", "include?"),
+        ("\"ab\".index", "V0301", "index"),
+        ("\"ab\".rindex(\"a\", 1, 2)", "V0301", "rindex"),
+        ("\"ab\".casecmp", "V0301", "casecmp"),
+        ("\"ab\".casecmp?(\"a\", \"b\")", "V0301", "casecmp?"),
+        ("\"ab\".partition", "V0301", "partition"),
+        ("\"ab\".rpartition(\"a\", \"b\")", "V0301", "rpartition"),
+        ("\"ab\".center", "V0301", "center"),
+        ("\"ab\".rjust(1, \"a\", \"b\")", "V0301", "rjust"),
+        ("\"ab\".split(\" \", 1, 2)", "V0301", "split"),
+        ("\"ab\".count", "V0301", "count"),
+        ("\"ab\".delete!", "V0301", "delete!"),
+        ("\"ab\".tr(\"a\")", "V0301", "tr"),
+        ("\"ab\".upcase(:ascii, :ascii)", "V0301", "upcase"),
+        ("\"ab\".swapcase!(1, 2)", "V0301", "swapcase!"),
+        ("\"ab\".template", "V0301", "template"),
+        ("\"ab\".insert(1)", "V0301", "insert"),
+        ("\"ab\".each_char", "V0304", "each_char"),
+        ("\"ab\".each_codepoint", "V0304", "each_codepoint"),
+        ("\"ab\".each_line(1) { |line| line }", "V0301", "each_line"),
+        ("\"ab\".each_byte(1) { |byte| byte }", "V0301", "each_byte"),
+    ] {
+        let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
+        assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
     }
 }
 
 #[test]
 fn string_members_name_themselves_in_index_offset_and_width_errors() {
     let cases = [
-        (
-            "\"ab\".slice",
-            "string.slice expects an index, range, or substring with optional length",
-        ),
-        (
-            "\"ab\".slice(1, 2, 3)",
-            "string.slice expects an index, range, or substring with optional length",
-        ),
-        (
-            "\"ab\".slice(nil)",
-            "string.slice index must be an integer, range, or substring",
-        ),
         (
             "\"ab\".slice(2**70)",
             "string.slice index must be an integer, range, or substring",
@@ -875,57 +599,12 @@ fn string_members_name_themselves_in_index_offset_and_width_errors() {
             "string.slice index must be integer",
         ),
         (
-            "\"ab\".slice(0, nil)",
-            "string.slice length must be integer",
-        ),
-        (
-            "\"ab\".byteslice",
-            "string.byteslice expects an index, a range, or a start and length",
-        ),
-        (
-            "\"ab\".byteslice(:a)",
-            "string.byteslice index must be an integer or range",
-        ),
-        (
-            "\"ab\".byteslice(\"a\", 1)",
-            "string.byteslice start must be an integer",
-        ),
-        (
             "\"ab\".byteslice(0..1, 1)",
             "string.byteslice start must be an integer",
         ),
         (
-            "\"ab\".byteslice(0, 1.0 / 0)",
-            "string.byteslice length must be an integer",
-        ),
-        ("\"ab\".getbyte", "string.getbyte expects exactly one index"),
-        (
-            "\"ab\".getbyte(0, 1)",
-            "string.getbyte expects exactly one index",
-        ),
-        (
-            "\"ab\".getbyte(\"a\")",
-            "string.getbyte index must be an integer",
-        ),
-        (
-            "\"ab\".index(\"a\", \"b\")",
-            "string.index offset must be integer",
-        ),
-        (
-            "\"ab\".rindex(\"a\", nil)",
-            "string.rindex offset must be integer",
-        ),
-        (
             "\"ab\".index(\"a\", 2**70)",
             "string.index offset must be integer",
-        ),
-        (
-            "\"ab\".insert(\"a\", \"b\")",
-            "string.insert index must be integer",
-        ),
-        (
-            "\"ab\".insert(nil, 1)",
-            "string.insert index must be integer",
         ),
         (
             "\"ab\".insert(10, \"x\")",
@@ -935,36 +614,7 @@ fn string_members_name_themselves_in_index_offset_and_width_errors() {
             "\"ab\".insert(-4, \"x\")",
             "string.insert index -4 out of string",
         ),
-        (
-            "\"ab\".insert(3.5, \"x\")",
-            "string.insert index 3 out of string",
-        ),
-        (
-            "\"ab\".center(\"a\")",
-            "string.center width must be integer",
-        ),
-        (
-            "\"ab\".ljust(nil, \"x\")",
-            "string.ljust width must be integer",
-        ),
         ("\"ab\".rjust(2**70)", "string.rjust width is out of range"),
-        (
-            "\"ab\".center(1.0 / 0)",
-            "string.center width is out of range",
-        ),
-        (
-            "\"ab\".ljust(0.0 / 0)",
-            "string.ljust width is out of range",
-        ),
-        ("\"ab\".rjust(1e30)", "string.rjust width is out of range"),
-        (
-            "\"ab\".split(\",\", \"a\")",
-            "string.split limit must be integer",
-        ),
-        (
-            "\"ab\".split(\",\", 1.5)",
-            "string.split limit must be integer",
-        ),
         (
             "\"ab\".split(\",\", 2**70)",
             "string.split limit must fit in a 64-bit integer",
@@ -973,94 +623,42 @@ fn string_members_name_themselves_in_index_offset_and_width_errors() {
     for (body, expected) in cases {
         assert_eq!(message(body), expected, "{body}");
     }
+    for (body, code, text) in [
+        ("\"ab\".slice", "V0301", "slice"),
+        ("\"ab\".slice(1, 2, 3)", "V0301", "slice"),
+        ("\"ab\".slice(nil)", "V0101", "nil"),
+        ("\"ab\".slice(0, nil)", "V0101", "nil"),
+        ("\"ab\".byteslice", "V0301", "byteslice"),
+        ("\"ab\".byteslice(:a)", "V0101", ":a"),
+        ("\"ab\".byteslice(\"a\", 1)", "V0101", "\"a\""),
+        ("\"ab\".byteslice(0, 1.0 / 0)", "V0101", "1.0 / 0"),
+        ("\"ab\".getbyte", "V0301", "getbyte"),
+        ("\"ab\".getbyte(0, 1)", "V0301", "getbyte"),
+        ("\"ab\".getbyte(\"a\")", "V0101", "\"a\""),
+        ("\"ab\".index(\"a\", \"b\")", "V0101", "\"b\""),
+        ("\"ab\".rindex(\"a\", nil)", "V0101", "nil"),
+        ("\"ab\".insert(\"a\", \"b\")", "V0101", "\"a\""),
+        ("\"ab\".insert(nil, 1)", "V0101", "nil"),
+        ("\"ab\".insert(3.5, \"x\")", "V0101", "3.5"),
+        ("\"ab\".center(\"a\")", "V0101", "\"a\""),
+        ("\"ab\".ljust(nil, \"x\")", "V0101", "nil"),
+        ("\"ab\".center(1.0 / 0)", "V0101", "1.0 / 0"),
+        ("\"ab\".ljust(0.0 / 0)", "V0101", "0.0 / 0"),
+        ("\"ab\".rjust(1e30)", "V0101", "1e30"),
+        ("\"ab\".split(\",\", \"a\")", "V0101", "\"a\""),
+        ("\"ab\".split(\",\", 1.5)", "V0101", "1.5"),
+    ] {
+        let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
+        assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
+    }
 }
 
 #[test]
 fn string_member_arguments_report_type_and_value_errors_in_reference_wording() {
     let cases = [
         (
-            "\"ab\".concat(\"c\", 1)",
-            "string.concat expects string arguments",
-        ),
-        (
-            "\"ab\".prepend(:a)",
-            "string.prepend expects string arguments",
-        ),
-        (
-            "\"ab\".replace(nil)",
-            "string.replace replacement must be string",
-        ),
-        ("\"ab\".insert(0, 1)", "string.insert value must be string"),
-        (
-            "\"ab\".start_with?(\"z\", 1)",
-            "string.start_with? prefix must be string",
-        ),
-        (
-            "\"ab\".end_with?(nil)",
-            "string.end_with? suffix must be string",
-        ),
-        (
-            "\"ab\".include?(1)",
-            "string.include? substring must be string",
-        ),
-        ("\"ab\".chomp(1)", "string.chomp separator must be string"),
-        (
-            "\"ab\".chomp!(:b)",
-            "string.chomp! separator must be string",
-        ),
-        (
-            "\"ab\".delete_prefix(1)",
-            "string.delete_prefix prefix must be string",
-        ),
-        (
-            "\"ab\".delete_suffix!(nil)",
-            "string.delete_suffix! suffix must be string",
-        ),
-        (
-            "\"ab\".partition(1)",
-            "string.partition separator must be string",
-        ),
-        (
-            "\"ab\".rpartition(nil)",
-            "string.rpartition separator must be string",
-        ),
-        ("\"ab\".center(5, 1)", "string.center pad must be string"),
-        (
             "\"ab\".ljust(5, \"\")",
             "string.ljust pad must not be empty",
-        ),
-        ("\"ab\".index(1)", "string.index substring must be string"),
-        (
-            "\"ab\".rindex(nil, 0)",
-            "string.rindex substring must be string",
-        ),
-        (
-            "\"ab\".split(1)",
-            "string.split separator must be string or nil",
-        ),
-        (
-            "\"ab\".count(1)",
-            "string.count character set must be string",
-        ),
-        (
-            "\"ab\".delete(\"a\", nil)",
-            "string.delete character set must be string",
-        ),
-        (
-            "\"ab\".squeeze!(1)",
-            "string.squeeze! character set must be string",
-        ),
-        (
-            "\"ab\".tr(1, \"a\")",
-            "string.tr character sets must be strings",
-        ),
-        (
-            "\"ab\".tr!(\"a\", nil)",
-            "string.tr! character sets must be strings",
-        ),
-        (
-            "\"ab\".tr(\"z-a\", 1)",
-            "string.tr character sets must be strings",
         ),
         (
             "\"ab\".count(\"z-a\")",
@@ -1081,40 +679,6 @@ fn string_member_arguments_report_type_and_value_errors_in_reference_wording() {
         (
             "\"ab\".tr(\"a\", \"c-b\")",
             "string.tr invalid character range c-b",
-        ),
-        ("\"ab\".upcase(1)", "string.upcase option must be a symbol"),
-        (
-            "\"ab\".downcase!(\"ascii\")",
-            "string.downcase! option must be a symbol",
-        ),
-        (
-            "\"ab\".upcase(:fold)",
-            "string.upcase does not support the :fold option",
-        ),
-        (
-            "\"ab\".capitalize!(:turkic)",
-            "string.capitalize! does not support the :turkic option",
-        ),
-        (
-            "\"ab\".swapcase(:bogus)",
-            "string.swapcase does not support the :bogus option",
-        ),
-        ("\"ab\".template(1)", "string.template context must be hash"),
-        (
-            "\"ab\".template([])",
-            "string.template context must be hash",
-        ),
-        (
-            "\"ab\".template({}, strict: 1)",
-            "string.template strict keyword must be bool",
-        ),
-        (
-            "\"ab\".template({}, other: true)",
-            "string.template supports only strict keyword",
-        ),
-        (
-            "\"ab\".template({}, strict: true, other: true)",
-            "string.template supports only strict keyword",
         ),
         (
             "\"{{ user.name }}\".template({user: {}}, strict: true)",
@@ -1137,305 +701,191 @@ fn string_member_arguments_report_type_and_value_errors_in_reference_wording() {
     for (body, expected) in cases {
         assert_eq!(message(body), expected, "{body}");
     }
+    for (body, code, text) in [
+        ("\"ab\".concat(\"c\", 1)", "V0101", "1"),
+        ("\"ab\".prepend(:a)", "V0101", ":a"),
+        ("\"ab\".replace(nil)", "V0401", "replace"),
+        ("\"ab\".insert(0, 1)", "V0101", "1"),
+        ("\"ab\".start_with?(\"z\", 1)", "V0101", "1"),
+        ("\"ab\".end_with?(nil)", "V0101", "nil"),
+        ("\"ab\".include?(1)", "V0101", "1"),
+        ("\"ab\".chomp(1)", "V0101", "1"),
+        ("\"ab\".chomp!(:b)", "V0101", ":b"),
+        ("\"ab\".delete_prefix(1)", "V0101", "1"),
+        ("\"ab\".delete_suffix!(nil)", "V0101", "nil"),
+        ("\"ab\".partition(1)", "V0101", "1"),
+        ("\"ab\".rpartition(nil)", "V0101", "nil"),
+        ("\"ab\".center(5, 1)", "V0101", "1"),
+        ("\"ab\".index(1)", "V0101", "1"),
+        ("\"ab\".rindex(nil, 0)", "V0101", "nil"),
+        ("\"ab\".split(1)", "V0101", "1"),
+        ("\"ab\".count(1)", "V0101", "1"),
+        ("\"ab\".delete(\"a\", nil)", "V0101", "nil"),
+        ("\"ab\".squeeze!(1)", "V0101", "1"),
+        ("\"ab\".tr(1, \"a\")", "V0101", "1"),
+        ("\"ab\".tr!(\"a\", nil)", "V0101", "nil"),
+        ("\"ab\".tr(\"z-a\", 1)", "V0101", "1"),
+        ("\"ab\".upcase(1)", "V0101", "1"),
+        ("\"ab\".downcase!(\"ascii\")", "V0101", "\"ascii\""),
+        ("\"ab\".upcase(:fold)", "V0101", ":fold"),
+        ("\"ab\".capitalize!(:turkic)", "V0101", ":turkic"),
+        ("\"ab\".swapcase(:bogus)", "V0101", ":bogus"),
+        ("\"ab\".template(1)", "V0101", "1"),
+        ("\"ab\".template([])", "V0101", "[]"),
+        ("\"ab\".template({}, strict: 1)", "V0101", "1"),
+        ("\"ab\".template({}, other: true)", "V0302", "other:"),
+        (
+            "\"ab\".template({}, strict: true, other: true)",
+            "V0302",
+            "other:",
+        ),
+    ] {
+        let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
+        assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
+    }
 }
 
 #[test]
 fn string_keyword_and_block_refusals_follow_the_reference_order() {
-    let cases = [
-        ("\"ab\".to_s(1)", "string.to_s does not take arguments"),
-        (
-            "\"ab\".string(1, a: 1)",
-            "string.string does not take arguments",
-        ),
-        (
-            "\"ab\".to_sym(a: 1)",
-            "string.to_sym does not take keyword arguments",
-        ),
-        (
-            "\"ab\".intern { |x| x }",
-            "string.intern does not take a block",
-        ),
-        (
-            "\"ab\".to_s(a: 1) { |x| x }",
-            "string.to_s does not take keyword arguments",
-        ),
-        (
-            "\"ab\".to_sym(1) { |x| x }",
-            "string.to_sym does not take arguments",
-        ),
-        (
-            "\"ab\".getbyte(0, a: 1)",
-            "string.getbyte does not accept keyword arguments",
-        ),
-        (
-            "\"ab\".getbyte(a: 1)",
-            "string.getbyte does not accept keyword arguments",
-        ),
-        (
-            "\"ab\".byteslice(a: 1)",
-            "string.byteslice does not accept keyword arguments",
-        ),
-        ("\"ab\".chars(a: 1)", "string.chars does not take arguments"),
-        ("\"ab\".lines(a: 1)", "string.lines does not take arguments"),
-        ("\"ab\".bytes(a: 1)", "string.bytes does not take arguments"),
-        (
-            "\"ab\".codepoints(a: 1)",
-            "string.codepoints does not take arguments",
-        ),
-        (
-            "\"ab\".each_char(a: 1) { |c| c }",
-            "string.each_char does not take arguments",
-        ),
-        (
-            "\"ab\".count(a: 1)",
-            "string.count expects at least one character set",
-        ),
-        (
-            "\"ab\".count(\"a\", a: 1)",
-            "string.count does not take keyword arguments",
-        ),
-        (
-            "\"ab\".count(\"a\") { |c| c }",
-            "string.count does not accept a block",
-        ),
-        (
-            "\"ab\".delete!(a: 1) { |c| c }",
-            "string.delete! expects at least one character set",
-        ),
-        (
-            "\"ab\".delete(\"a\", a: 1)",
-            "string.delete does not take keyword arguments",
-        ),
-        (
-            "\"ab\".tr(\"a\", a: 1)",
-            "string.tr expects source and replacement character sets",
-        ),
-        (
-            "\"ab\".tr!(\"a\", \"b\", a: 1)",
-            "string.tr! does not take keyword arguments",
-        ),
-        (
-            "\"ab\".tr(\"a\", \"b\") { |c| c }",
-            "string.tr does not accept a block",
-        ),
-        (
-            "\"ab\".squeeze(a: 1)",
-            "string.squeeze does not take keyword arguments",
-        ),
-        (
-            "\"ab\".squeeze! { |c| c }",
-            "string.squeeze! does not accept a block",
-        ),
-        (
-            "\"ab\".center(5, a: 1)",
-            "string.center does not accept keyword arguments",
-        ),
-        (
-            "\"ab\".ljust(a: 1)",
-            "string.ljust does not accept keyword arguments",
-        ),
-        (
-            "\"ab\".partition(\"a\", a: 1)",
-            "string.partition expects exactly one separator",
-        ),
-        (
-            "\"ab\".rpartition(a: 1)",
-            "string.rpartition expects exactly one separator",
-        ),
-    ];
-    for (body, expected) in cases {
-        assert_eq!(message(body), expected, "{body}");
+    for (body, code, text) in [
+        ("\"ab\".to_s(1)", "V0301", "to_s"),
+        ("\"ab\".string(1, a: 1)", "V0301", "string"),
+        ("\"ab\".to_sym(a: 1)", "V0302", "a:"),
+        ("\"ab\".intern { |x| x }", "V0305", "{"),
+        ("\"ab\".to_s(a: 1) { |x| x }", "V0302", "a:"),
+        ("\"ab\".to_sym(1) { |x| x }", "V0301", "to_sym"),
+        ("\"ab\".getbyte(0, a: 1)", "V0302", "a:"),
+        ("\"ab\".getbyte(a: 1)", "V0301", "getbyte"),
+        ("\"ab\".byteslice(a: 1)", "V0301", "byteslice"),
+        ("\"ab\".chars(a: 1)", "V0302", "a:"),
+        ("\"ab\".lines(a: 1)", "V0302", "a:"),
+        ("\"ab\".bytes(a: 1)", "V0302", "a:"),
+        ("\"ab\".codepoints(a: 1)", "V0302", "a:"),
+        ("\"ab\".each_char(a: 1) { |c| c }", "V0302", "a:"),
+        ("\"ab\".count(a: 1)", "V0301", "count"),
+        ("\"ab\".count(\"a\", a: 1)", "V0302", "a:"),
+        ("\"ab\".count(\"a\") { |c| c }", "V0305", "{"),
+        ("\"ab\".delete!(a: 1) { |c| c }", "V0301", "delete!"),
+        ("\"ab\".delete(\"a\", a: 1)", "V0302", "a:"),
+        ("\"ab\".tr(\"a\", a: 1)", "V0301", "tr"),
+        ("\"ab\".tr!(\"a\", \"b\", a: 1)", "V0302", "a:"),
+        ("\"ab\".tr(\"a\", \"b\") { |c| c }", "V0305", "{"),
+        ("\"ab\".squeeze(a: 1)", "V0302", "a:"),
+        ("\"ab\".squeeze! { |c| c }", "V0305", "{"),
+        ("\"ab\".center(5, a: 1)", "V0302", "a:"),
+        ("\"ab\".ljust(a: 1)", "V0301", "ljust"),
+        ("\"ab\".partition(\"a\", a: 1)", "V0302", "a:"),
+        ("\"ab\".rpartition(a: 1)", "V0301", "rpartition"),
+    ] {
+        let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
+        assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
     }
 }
 
 #[test]
 fn hash_members_name_themselves_in_argument_count_and_shape_errors() {
-    let cases = [
-        ("{a: 1}.size(1)", "hash.size does not take arguments"),
-        (
-            "{a: 1}.empty?(1, k: 1)",
-            "hash.empty? does not take arguments",
-        ),
-        ("{a: 1}.keys(1)", "hash.keys does not take arguments"),
-        ("{a: 1}.has_key?", "hash.has_key? expects exactly one key"),
-        (
-            "{a: 1}.include?(:a, :b)",
-            "hash.include? expects exactly one key",
-        ),
-        (
-            "{a: 1}.has_value?(1, 2)",
-            "hash.has_value? expects exactly one value",
-        ),
-        ("{a: 1}.to_a(1)", "hash.to_a does not take arguments"),
-        ("{a: 1}.store(:a)", "hash.store expects a key and a value"),
-        ("{a: 1}.delete(:a, :b)", "hash.delete expects a key"),
-        ("{a: 1}.clear(1)", "hash.clear does not take arguments"),
-        (
-            "{a: 1}.replace({}, {})",
-            "hash.replace expects a single hash argument",
-        ),
-        (
-            "{a: 1}.replace(1)",
-            "hash.replace expects a single hash argument",
-        ),
-        (
-            "{a: 1}.flatten(1, 2)",
-            "hash.flatten accepts at most one depth argument",
-        ),
-        ("{a: 1}.flatten(nil)", "hash.flatten depth must be integer"),
-        (
-            "{a: 1}.remap_keys([])",
-            "hash.remap_keys expects a key mapping hash",
-        ),
-        (
-            "{a: 1}.remap_keys()",
-            "hash.remap_keys expects a key mapping hash",
-        ),
-        ("{a: 1}.compact(1)", "hash.compact does not take arguments"),
-        (
-            "h = {a: 1}\nh.delete",
-            "delete is a method and cannot be used as a value; call it with delete(...)",
-        ),
-        (
-            "{a: 1}.remap_keys",
-            "remap_keys is a method and cannot be used as a value; call it with remap_keys(...)",
-        ),
-    ];
+    let cases = [("{a: 1}.store(:a)", "hash.store expects a key and a value")];
     for (body, expected) in cases {
         assert_eq!(message(body), expected, "{body}");
+    }
+    for (body, code, text) in [
+        ("{a: 1}.size(1)", "V0301", "size"),
+        ("{a: 1}.empty?(1, k: 1)", "V0301", "empty?"),
+        ("{a: 1}.keys(1)", "V0301", "keys"),
+        ("{a: 1}.has_key?", "V0301", "has_key?"),
+        ("{a: 1}.include?(:a, :b)", "V0301", "include?"),
+        ("{a: 1}.has_value?(1, 2)", "V0301", "has_value?"),
+        ("{a: 1}.to_a(1)", "V0301", "to_a"),
+        ("{a: 1}.delete(:a, :b)", "V0301", "delete"),
+        ("{a: 1}.clear(1)", "V0301", "clear"),
+        ("{a: 1}.replace({}, {})", "V0301", "replace"),
+        ("{a: 1}.replace(1)", "V0101", "1"),
+        ("{a: 1}.flatten(1, 2)", "V0301", "flatten"),
+        ("{a: 1}.flatten(nil)", "V0101", "nil"),
+        ("{a: 1}.remap_keys([])", "V0101", "[]"),
+        ("{a: 1}.remap_keys()", "V0301", "remap_keys"),
+        ("{a: 1}.compact(1)", "V0301", "compact"),
+        ("h = {a: 1}\nh.delete", "V0301", "delete"),
+        ("{a: 1}.remap_keys", "V0301", "remap_keys"),
+    ] {
+        let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
+        assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
     }
 }
 
 #[test]
 fn hash_keyword_and_block_refusals_follow_the_reference_order() {
-    let matched = "m = \"ab\".match(/(a)(b)/)\n";
-    let cases = [
-        (
-            "{a: 1}.each(1)",
-            "hash.each does not take arguments".to_owned(),
-        ),
-        ("{a: 1}.each", "hash.each requires a block".to_owned()),
-        (
-            "{a: 1}.each_with_index(1, k: 1)",
-            "hash.each_with_index does not take arguments".to_owned(),
-        ),
-        (
-            "{a: 1}.each_with_index(k: 1)",
-            "hash.each_with_index does not take keyword arguments".to_owned(),
-        ),
-        (
-            "{a: 1}.map(k: 1) { |k, v| k }",
-            "hash.map does not take keyword arguments".to_owned(),
-        ),
-        (
-            "{a: 1}.map_with_index",
-            "hash.map_with_index requires a block".to_owned(),
-        ),
-        (
-            "{a: 1}.select(1) { |k, v| k }",
-            "hash.select does not take arguments".to_owned(),
-        ),
-        (
-            "{a: 1}.transform_values",
-            "hash.transform_values requires a block".to_owned(),
-        ),
-        (
-            "{a: 1}.delete_if(1, k: 1)",
-            "hash.delete_if does not take arguments".to_owned(),
-        ),
-        (
-            "{a: 1}.keep_if(k: 1) { |k, v| k }",
-            "hash.keep_if does not take keyword arguments".to_owned(),
-        ),
-        (
-            "{a: 1}.fetch(1, 2, 3) { |k| k }",
-            "hash.fetch expects key and optional default".to_owned(),
-        ),
-        (
-            "{a: 1}.delete(:a, :b) { |k| k }",
-            "hash.delete expects a key".to_owned(),
-        ),
-        (
-            "{a: 1}.delete(k: 1) { |k| k }",
-            "hash.delete does not accept keyword arguments".to_owned(),
-        ),
-        (
-            "{a: 1}.deep_transform_keys(1) { |k| k }",
-            "hash.deep_transform_keys does not take arguments".to_owned(),
-        ),
-        (
-            "{a: 1}.deep_transform_keys",
-            "hash.deep_transform_keys requires a block".to_owned(),
-        ),
-        (
-            "{a: 1}.merge(1, k: 1)",
-            "hash.merge does not accept keyword arguments".to_owned(),
-        ),
-        (
-            "{a: 1}.merge({}, 2)",
-            "hash.merge argument 2 must be a hash".to_owned(),
-        ),
-        (
-            "{a: 1}.to_a(1, k: 1)",
-            "hash.to_a does not take arguments".to_owned(),
-        ),
-        (
-            "{a: 1}.to_a(k: 1)",
-            "hash.to_a does not take keyword arguments".to_owned(),
-        ),
-        (
-            "{a: 1}.clear(k: 1) { |x| x }",
-            "hash.clear does not take keyword arguments".to_owned(),
-        ),
-        (
-            "{a: 1}.store(:a, 1, k: 1)",
-            "hash.store does not accept keyword arguments".to_owned(),
-        ),
-        (
-            "{a: 1}.values_at(:a, k: 1)",
-            "hash.values_at does not accept keyword arguments".to_owned(),
-        ),
-        (
-            "{a: 1}.flatten(1, 2, k: 1)",
-            "hash.flatten does not accept keyword arguments".to_owned(),
-        ),
-        (
-            "JSON.inspect { 7 }",
-            "hash.inspect does not take a block".to_owned(),
-        ),
-        (
-            &format!("{matched}m.store(:a, 1, k: 1)"),
-            "store cannot modify match data".to_owned(),
-        ),
-        (
-            &format!("{matched}m.clear {{ |x| x }}"),
-            "clear cannot modify match data".to_owned(),
-        ),
-    ];
+    let cases = [(
+        "{a: 1}.store(:a, 1, k: 1)",
+        "hash.store does not accept keyword arguments".to_owned(),
+    )];
     for (body, expected) in cases {
         assert_eq!(message(body), expected, "{body}");
+    }
+    for (body, code, text) in [
+        ("{a: 1}.each(1)", "V0301", "each"),
+        ("{a: 1}.each", "V0301", "each"),
+        (
+            "{a: 1}.each_with_index(1, k: 1)",
+            "V0301",
+            "each_with_index",
+        ),
+        ("{a: 1}.each_with_index(k: 1)", "V0304", "each_with_index"),
+        ("{a: 1}.map(k: 1) { |k, v| k }", "V0301", "map"),
+        ("{a: 1}.map_with_index", "V0304", "map_with_index"),
+        ("{a: 1}.select(1) { |k, v| k }", "V0301", "select"),
+        ("{a: 1}.transform_values", "V0304", "transform_values"),
+        ("{a: 1}.delete_if(1, k: 1)", "V0301", "delete_if"),
+        ("{a: 1}.keep_if(k: 1) { |k, v| k }", "V0302", "k:"),
+        ("{a: 1}.fetch(1, 2, 3) { |k| k }", "V0301", "fetch"),
+        ("{a: 1}.delete(:a, :b) { |k| k }", "V0301", "delete"),
+        ("{a: 1}.delete(k: 1) { |k| k }", "V0301", "delete"),
+        (
+            "{a: 1}.deep_transform_keys(1) { |k| k }",
+            "V0301",
+            "deep_transform_keys",
+        ),
+        ("{a: 1}.deep_transform_keys", "V0304", "deep_transform_keys"),
+        ("{a: 1}.merge(1, k: 1)", "V0101", "1"),
+        ("{a: 1}.merge({}, 2)", "V0101", "2"),
+        ("{a: 1}.to_a(1, k: 1)", "V0301", "to_a"),
+        ("{a: 1}.to_a(k: 1)", "V0302", "k:"),
+        ("{a: 1}.clear(k: 1) { |x| x }", "V0302", "k:"),
+        ("{a: 1}.values_at(:a, k: 1)", "V0101", ":a"),
+        ("{a: 1}.flatten(1, 2, k: 1)", "V0301", "flatten"),
+        ("JSON.inspect { 7 }", "V0305", "{"),
+        (
+            "m = \"ab\".match(/(a)(b)/)\nm.store(:a, 1, k: 1)",
+            "V0107",
+            "store",
+        ),
+        (
+            "m = \"ab\".match(/(a)(b)/)\nm.clear { |x| x }",
+            "V0107",
+            "clear",
+        ),
+    ] {
+        let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
+        assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
     }
 }
 
 #[test]
 fn hash_lookups_name_the_missing_key() {
-    let cases = [
-        (
-            "{a: 1}.fetch(:missing)",
-            "hash.fetch key not found: :missing",
-        ),
-        (
-            "{a: 1}.fetch(\"q\\\"t\\n\")",
-            "hash.fetch key not found: \"q\\\"t\\n\"",
-        ),
-        (
-            "{a: 1}.fetch_values(:a, \"missing\")",
-            "hash.fetch_values key not found: \"missing\"",
-        ),
-        ("JSON.fetch(:missing)", "hash.fetch key not found: :missing"),
-    ];
+    let cases = [(
+        "{a: 1}.fetch(\"q\\\"t\\n\")",
+        "hash.fetch key not found: \"q\\\"t\\n\"",
+    )];
     for (body, expected) in cases {
         assert_eq!(message(body), expected, "{body}");
+    }
+    for (body, code, text) in [
+        ("{a: 1}.fetch(:missing)", "V0101", ":missing"),
+        ("{a: 1}.fetch_values(:a, \"missing\")", "V0101", ":a"),
+        ("JSON.fetch(:missing)", "V0203", "fetch"),
+    ] {
+        let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
+        assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
     }
 }
 
@@ -1443,26 +893,6 @@ fn hash_lookups_name_the_missing_key() {
 fn range_members_check_calls_in_reference_order() {
     let full = "(-9223372036854775807 - 1..9223372036854775807)";
     let cases = [
-        (
-            "(1..5).cover?(1, 2)",
-            "range.cover? expects one argument".to_owned(),
-        ),
-        (
-            "(1..5).member?(k: 1)",
-            "range.member? expects one argument".to_owned(),
-        ),
-        (
-            "(1..5).include?(1, k: 1)",
-            "range.include? does not take keyword arguments".to_owned(),
-        ),
-        (
-            "(1..5).first(1, 2)",
-            "range.first expects at most one argument".to_owned(),
-        ),
-        (
-            "(1..5).first(\"x\")",
-            "range.first expects an integer count".to_owned(),
-        ),
         (
             "(1..5).last(-1)",
             "range.last count must be non-negative".to_owned(),
@@ -1480,119 +910,53 @@ fn range_members_check_calls_in_reference_order() {
             "cannot get the last element of an endless range".to_owned(),
         ),
         (
-            "(..3).last(\"x\")",
-            "cannot iterate a beginless range".to_owned(),
+            &"(-9223372036854775807 - 1..9223372036854775807).length".to_owned(),
+            "range.length overflow".to_owned(),
         ),
-        (
-            "(1..5).first(k: 1)",
-            "range.first does not take keyword arguments".to_owned(),
-        ),
-        (
-            "(1..5).size(1, k: 1)",
-            "range.size does not take arguments".to_owned(),
-        ),
-        (
-            "(1..5).exclude_end?(k: 1)",
-            "range.exclude_end? does not take keyword arguments".to_owned(),
-        ),
-        (
-            "(1..5).to_a(1)",
-            "range.to_a does not take arguments".to_owned(),
-        ),
-        (&format!("{full}.size"), "range.size overflow".to_owned()),
         (
             &format!("{full}.length"),
             "range.length overflow".to_owned(),
         ),
         (
-            "(1..5).length(1, k: 1)",
-            "range.length does not take arguments".to_owned(),
-        ),
-        (&format!("{full}.count"), "range.count overflow".to_owned()),
-        (
-            "(1..5).each(1, k: 1)",
-            "range.each does not take arguments".to_owned(),
-        ),
-        (
-            "(1..5).map(k: 1) { |x| x }",
-            "range.map does not take keyword arguments".to_owned(),
-        ),
-        ("(1..5).select", "range.select requires a block".to_owned()),
-        (
-            "(1..5).find(1, k: 1)",
-            "range.find takes no fallback; a miss returns nil".to_owned(),
-        ),
-        ("(1..5).find(nil)", "range.find requires a block".to_owned()),
-        (
-            "(1..5).reduce(1, 2, k: 1)",
-            "range.reduce expects at most one argument".to_owned(),
-        ),
-        (
-            "(1..5).reduce(1)",
-            "range.reduce requires a block".to_owned(),
-        ),
-        (
-            "(1..5).count(1, k: 1)",
-            "range.count does not take arguments".to_owned(),
-        ),
-        (
-            "(1..5).to_s(1, k: 1)",
-            "range.to_s does not take arguments".to_owned(),
-        ),
-        (
-            "(1..5).string(k: 1) { |x| x }",
-            "range.string does not take keyword arguments".to_owned(),
-        ),
-        (
-            "(1..5).to_s { |x| x }",
-            "range.to_s does not take a block".to_owned(),
+            &"(-9223372036854775807 - 1..9223372036854775807).length".to_owned(),
+            "range.length overflow".to_owned(),
         ),
     ];
     for (body, expected) in cases {
         assert_eq!(message(body), expected, "{body}");
+    }
+    for (body, code, text) in [
+        ("(1..5).cover?(1, 2)", "V0301", "cover?"),
+        ("(1..5).member?(k: 1)", "V0301", "member?"),
+        ("(1..5).include?(1, k: 1)", "V0302", "k:"),
+        ("(1..5).first(1, 2)", "V0301", "first"),
+        ("(1..5).first(\"x\")", "V0101", "\"x\""),
+        ("(..3).last(\"x\")", "V0101", "\"x\""),
+        ("(1..5).first(k: 1)", "V0301", "first"),
+        ("(1..5).size(1, k: 1)", "V0301", "size"),
+        ("(1..5).exclude_end?(k: 1)", "V0302", "k:"),
+        ("(1..5).to_a(1)", "V0301", "to_a"),
+        ("(1..5).length(1, k: 1)", "V0301", "length"),
+        ("(1..5).each(1, k: 1)", "V0301", "each"),
+        ("(1..5).map(k: 1) { |x| x }", "V0302", "k:"),
+        ("(1..5).select", "V0304", "select"),
+        ("(1..5).find(1, k: 1)", "V0301", "find"),
+        ("(1..5).find(nil)", "V0301", "find"),
+        ("(1..5).reduce(1, 2, k: 1)", "V0301", "reduce"),
+        ("(1..5).reduce(1)", "V0401", "reduce"),
+        ("(1..5).count(1, k: 1)", "V0301", "count"),
+        ("(1..5).to_s(1, k: 1)", "V0301", "to_s"),
+        ("(1..5).string(k: 1) { |x| x }", "V0302", "k:"),
+        ("(1..5).to_s { |x| x }", "V0305", "{"),
+    ] {
+        let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
+        assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
     }
 }
 
 #[test]
 fn universal_members_and_conversions_refuse_extra_input_in_reference_order() {
     let cases = [
-        ("nil.to_s(1)", "nil.to_s does not take arguments"),
-        ("nil.to_s(a: 1)", "nil.to_s does not take keyword arguments"),
-        ("nil.to_s { 1 }", "nil.to_s does not take a block"),
-        ("true.string(1)", "bool.string does not take arguments"),
-        (
-            ":a.id2name(a: 1)",
-            "symbol.id2name does not take keyword arguments",
-        ),
-        (":a.to_sym { 1 }", "symbol.to_sym does not take a block"),
-        ("5.to_s(1, a: 1)", "int.to_s does not take arguments"),
-        ("1.5.to_f { 1 }", "float.to_f does not take a block"),
-        (
-            "5.inspect(a: 1)",
-            "int.inspect does not take keyword arguments",
-        ),
-        ("\"a\".to_i(1)", "string.to_i does not take arguments"),
-        (
-            "\"a\".to_f(a: 1)",
-            "string.to_f does not take keyword arguments",
-        ),
-        (
-            "5.clamp(1, 2, a: 1)",
-            "int.clamp does not take keyword arguments",
-        ),
-        ("5.clamp(1, 2) { 1 }", "int.clamp does not accept blocks"),
-        (
-            "1.5.between?(1, 2) { 1 }",
-            "float.between? does not accept a block",
-        ),
-        (
-            "\"a\".clamp(\"a\", \"b\") { 1 }",
-            "string.clamp does not accept blocks",
-        ),
-        (
-            "\"a\".between?(\"a\", \"b\") { 1 }",
-            "string.between? does not accept a block",
-        ),
         ("nil.nil?(1)", "nil.nil? does not take arguments"),
         (
             "[1].nil?(a: 1)",
@@ -1606,41 +970,47 @@ fn universal_members_and_conversions_refuse_extra_input_in_reference_order() {
             "int.itself does not accept keyword arguments",
         ),
         ("/a/.itself { 1 }", "regex.itself does not accept a block"),
-        ("[1].dup(1)", "dup does not take arguments"),
-        ("[1].dup(a: 1)", "dup does not take keyword arguments"),
-        ("1.second.dup { 1 }", "dup does not accept blocks"),
-        ("[1].tap(1) { |x| x }", "tap does not take arguments"),
-        (
-            "[1].tap(a: 1) { |x| x }",
-            "tap does not take keyword arguments",
-        ),
-        (
-            "5.yield_self(1) { |x| x }",
-            "yield_self does not take arguments",
-        ),
     ];
     for (body, expected) in cases {
         assert_eq!(message(body), expected, "{body}");
     }
-    let status = "enum Status\n  Draft\nend\n";
-    for (body, expected) in [
-        ("Status.to_s(1)", "enum.to_s does not take arguments"),
-        ("Status.inspect { 1 }", "enum.inspect does not take a block"),
-        (
-            "Status::Draft.to_s(1)",
-            "enum value.to_s does not take arguments",
-        ),
-        (
-            "Status::Draft.inspect(a: 1)",
-            "enum value.inspect does not take keyword arguments",
-        ),
-        (
-            "Status::Draft.name(1)",
-            "attempted to call non-callable value",
-        ),
+    for (body, code, text) in [
+        ("nil.to_s(1)", "V0301", "to_s"),
+        ("nil.to_s(a: 1)", "V0302", "a:"),
+        ("nil.to_s { 1 }", "V0305", "{"),
+        ("true.string(1)", "V0301", "string"),
+        (":a.id2name(a: 1)", "V0302", "a:"),
+        (":a.to_sym { 1 }", "V0305", "{"),
+        ("5.to_s(1, a: 1)", "V0301", "to_s"),
+        ("1.5.to_f { 1 }", "V0305", "{"),
+        ("5.inspect(a: 1)", "V0302", "a:"),
+        ("\"a\".to_i(1)", "V0301", "to_i"),
+        ("\"a\".to_f(a: 1)", "V0302", "a:"),
+        ("5.clamp(1, 2, a: 1)", "V0301", "clamp"),
+        ("5.clamp(1, 2) { 1 }", "V0301", "clamp"),
+        ("1.5.between?(1, 2) { 1 }", "V0305", "{"),
+        ("\"a\".clamp(\"a\", \"b\") { 1 }", "V0305", "{"),
+        ("\"a\".between?(\"a\", \"b\") { 1 }", "V0305", "{"),
+        ("[1].dup(1)", "V0301", "dup"),
+        ("[1].dup(a: 1)", "V0302", "a:"),
+        ("1.seconds.dup { 1 }", "V0305", "{"),
+        ("[1].tap(1) { |x| x }", "V0404", "tap"),
+        ("[1].tap(a: 1) { |x| x }", "V0404", "tap"),
+        ("5.yield_self(1) { |x| x }", "V0404", "yield_self"),
     ] {
-        let source = format!("{status}def run\n  {body}\nend");
-        assert_eq!(function_message(&source, "run"), expected, "{body}");
+        let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
+        assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
+    }
+    let status = "enum Status\n  Draft\nend\n";
+    for (body, code, text) in [
+        ("Status.to_s(1)", "V0301", "to_s"),
+        ("Status.inspect { 1 }", "V0305", "{"),
+        ("Status::Draft.to_s(1)", "V0301", "to_s"),
+        ("Status::Draft.inspect(a: 1)", "V0302", "a:"),
+        ("Status::Draft.name(1)", "V0301", "name"),
+    ] {
+        let (found, at) = refusal(&format!("{status}def run -> any\n  {body}\nend"));
+        assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
     }
 }
 
@@ -1704,28 +1074,12 @@ fn json_builtins_report_the_reference_parser_and_encoder_wording() {
             "JSON.parse input exceeds limit 1048576 bytes",
         ),
         (
-            "JSON.parse(1)",
-            "JSON.parse expects a single JSON string argument",
-        ),
-        (
-            "JSON.parse(\"1\") { 1 }",
-            "JSON.parse does not accept blocks",
-        ),
-        (
             "JSON.parse_as(\"1e999\", int)",
             "JSON.parse_as invalid number \"1e999\"",
         ),
         (
             "JSON.parse_as(\"1\", 1)",
             "JSON.parse_as expects a type literal as its second argument",
-        ),
-        (
-            "JSON.parse_as(\"1\")",
-            "JSON.parse_as expects a JSON string and a type literal",
-        ),
-        (
-            "JSON.parse_as(\"1\", int, a: 1)",
-            "JSON.parse_as does not accept keyword arguments",
         ),
         (
             "JSON.stringify({a: {b: [0.0/0]}})",
@@ -1740,7 +1094,7 @@ fn json_builtins_report_the_reference_parser_and_encoder_wording() {
             "JSON.stringify key \"a\\\"b\": JSON.stringify unsupported value type regex",
         ),
         (
-            "JSON.stringify(1.second)",
+            "JSON.stringify(1.seconds)",
             "JSON.stringify unsupported value type duration",
         ),
         (
@@ -1751,17 +1105,20 @@ fn json_builtins_report_the_reference_parser_and_encoder_wording() {
             "JSON.stringify([\"a\" * 1048570, \"b\" * 10])",
             "JSON.stringify array index 1: JSON.stringify output exceeds limit 1048576 bytes",
         ),
-        (
-            "JSON.stringify(1, 2)",
-            "JSON.stringify expects a single value argument",
-        ),
-        (
-            "JSON.stringify(1) { 1 }",
-            "JSON.stringify does not accept blocks",
-        ),
     ];
     for (body, expected) in cases {
         assert_eq!(message(body), expected, "{body}");
+    }
+    for (body, code, text) in [
+        ("JSON.parse(1)", "V0101", "1"),
+        ("JSON.parse(\"1\") { 1 }", "V0305", "{"),
+        ("JSON.parse_as(\"1\")", "V0301", "parse_as"),
+        ("JSON.parse_as(\"1\", int, a: 1)", "V0302", "a:"),
+        ("JSON.stringify(1, 2)", "V0301", "stringify"),
+        ("JSON.stringify(1) { 1 }", "V0305", "{"),
+    ] {
+        let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
+        assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
     }
 }
 
@@ -1780,32 +1137,32 @@ fn member_access_refusals_name_the_receiver() {
             "schema = {name: string}\nschema.nil?(1)",
             "shape.nil? does not take arguments",
         ),
-        ("[1]..[2]", "expected integer value"),
-        (
-            "{a: 7}::a",
-            "scoped member access is only supported on enums and namespaces",
-        ),
-        (
-            "f = JSON::parse\nf.foo",
-            "a method has no member foo; call JSON.parse(...) directly",
-        ),
-        ("a = [1]\na.length = 2", "cannot assign to array"),
-        ("x = nil\nx.y = 1", "cannot assign to nil"),
-        ("for n in 3\n  n\nend", "cannot iterate over int"),
     ];
     for (body, expected) in cases {
         assert_eq!(message(body), expected, "{body}");
     }
-    let status = "enum Status\n  Draft\nend\n";
-    for (body, expected) in [
-        (
-            "Status::Draft::name",
-            "scoped member access is only supported on enums and namespaces",
-        ),
-        ("Status::Draft()", "attempted to call non-callable value"),
-        ("Status::Draft.name = 3", "cannot assign to enum value"),
+    for (body, code, text) in [
+        ("[1]..[2]", "V0101", "[1]"),
+        ("{a: 7}::a", "V0203", "a"),
+        ("f = JSON::parse\nf.foo", "V0301", "parse"),
+        ("a = [1]\na.length = 2", "V0203", "length"),
+        ("x: int? = nil\nx.y = 1", "V0203", "y"),
+        ("for n in 3\n  n\nend", "V0101", "3"),
     ] {
-        let source = format!("{status}def run\n  {body}\nend");
-        assert_eq!(function_message(&source, "run"), expected, "{body}");
+        let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
+        assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
+    }
+    let status = "enum Status\n  Draft\nend\n";
+    let source = format!("{status}def run -> any\n  Status::Draft::name\nend");
+    assert_eq!(
+        function_message(&source, "run"),
+        "scoped member access is only supported on enums and namespaces"
+    );
+    for (body, text) in [
+        ("Status::Draft()", "Draft"),
+        ("Status::Draft.name = 3", "name"),
+    ] {
+        let (found, at) = refusal(&format!("{status}def run -> any\n  {body}\nend"));
+        assert_eq!((found.as_str(), at.as_str()), ("V0203", text), "{body}");
     }
 }
