@@ -1,5 +1,5 @@
 //! `//` floor division (ADR-008): integers floor at any size, a float operand
-//! gives a floored float, and `/` keeps its meaning until the switchover.
+//! gives a floored float, and `/` on two ints is refused until it divides.
 
 mod common;
 
@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use vibescript::{CallOptions, Engine, ErrorClass, ErrorKind, Value};
 
 fn run(body: &str) -> Value {
-    let source = format!("def run\n  {body}\nend\n");
+    let source = format!("def run -> any\n  {body}\nend\n");
     Engine::new()
         .compile(&source)
         .unwrap_or_else(|error| panic!("{source}: {error}"))
@@ -66,8 +66,21 @@ fn a_float_operand_gives_the_floored_float() {
 }
 
 #[test]
-fn division_keeps_its_meaning() {
-    assert_eq!(run("[7 / 2, -7 / 2, 7.0 / 2]").to_string(), "[3, -4, 3.5]");
+fn integer_slash_division_is_refused_until_it_divides() {
+    // Until the switchover `/` still floors two ints, so the compiler asks
+    // for `//` where both operands are ints; a float operand divides.
+    let source = "def run -> array<number>\n  [7 / 2, -7 / 2, 7.0 / 2]\nend\n";
+    let error = common::static_engine().compile(source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0109", "V0109"]);
+    let spans: Vec<usize> = error.diagnostics().iter().map(|d| d.span.start).collect();
+    assert_eq!(
+        spans,
+        [
+            source.find("7 / 2").unwrap() + 2,
+            source.find("-7 / 2").unwrap() + 3
+        ]
+    );
+    assert_eq!(run("[7.0 / 2, 7 / 2.0]").to_string(), "[3.5, 3.5]");
 }
 
 #[test]
@@ -90,24 +103,28 @@ fn an_integer_zero_divisor_raises_as_division_does() {
 }
 
 #[test]
-fn other_operands_are_refused_by_name() {
-    for expression in [
-        "money(\"1.00 USD\") // 2",
-        "30.minutes // 2",
-        "30.minutes // 10.minutes",
-        "Time.at(0) // 2",
-        "\"a\" // 2",
-        "2 // \"a\"",
-        "nil // 2",
-        "[4] // 2",
-        "{ a: 1 } // 2",
+fn other_operands_are_refused_at_compile_time() {
+    for (expression, code) in [
+        ("money(\"1.00 USD\") // 2", "V0108"),
+        ("30.minutes // 2", "V0108"),
+        ("30.minutes // 10.minutes", "V0108"),
+        ("Time.at(0) // 2", "V0108"),
+        ("\"a\" // 2", "V0108"),
+        ("2 // \"a\"", "V0108"),
+        ("nil // 2", "V0107"),
+        ("[4] // 2", "V0108"),
+        ("{ a: 1 } // 2", "V0108"),
     ] {
-        let error = failure(expression);
-        assert_eq!(
-            error.message, "unsupported floor division operands",
-            "{expression}"
-        );
-        assert_eq!(error.kind, ErrorKind::Type, "{expression}");
+        let source = format!("def run\n  {expression}\nend\n");
+        let error = common::static_engine().compile(&source).err().unwrap();
+        assert_eq!(common::codes(&error), [code], "{expression}");
+        // An operand that cannot divide is reported at the operator, and a
+        // nil operand where it is read.
+        let at = match code {
+            "V0108" => source.find(" // ").unwrap() + 2,
+            _ => source.find("nil").unwrap(),
+        };
+        assert_eq!(error.diagnostics()[0].span.start, at, "{expression}");
     }
 }
 
