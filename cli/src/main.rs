@@ -8,6 +8,7 @@ mod compat;
 mod flags;
 mod flat;
 mod format;
+mod migrate;
 mod output;
 mod prelude;
 mod profiles;

@@ -13,7 +13,7 @@
 use crate::{
     analyze, check, compat,
     flags::{self, Outcome, Spec},
-    flat, format, prelude, repl, run, signal, testing,
+    flat, format, migrate, prelude, repl, run, signal, testing,
 };
 use std::{
     ffi::{OsStr, OsString},
@@ -41,7 +41,7 @@ const LSP_SPEC: Spec = Spec {
 };
 
 /// Every command, in the order the root help lists them.
-const COMMANDS: [&Spec; 9] = [
+const COMMANDS: [&Spec; 10] = [
     &run::SPEC,
     &check::SPEC,
     &format::SPEC,
@@ -50,6 +50,7 @@ const COMMANDS: [&Spec; 9] = [
     &LSP_SPEC,
     &repl::SPEC,
     &prelude::SPEC,
+    &migrate::SPEC,
     &HELP_SPEC,
 ];
 
@@ -119,6 +120,7 @@ fn run_command(name: &str, args: &[OsString]) -> Result<(), String> {
         "test" => testing::command(args),
         "lsp" => lsp(args),
         "prelude" => prelude::command(args),
+        "migrate" => migrate::command(args),
         _ => help(args),
     }
 }
