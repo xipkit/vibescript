@@ -321,17 +321,15 @@ fn unchanged_duration_example_returns_typed_host_values() {
 
 #[test]
 fn bare_duration_builders_and_clock_anchors_run_like_empty_calls() {
-    for source in ["Duration.build"] {
-        let error = Engine::new()
-            .compile(source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap_err();
-        assert_eq!(
-            error.message, "Duration.build expects seconds or named parts",
-            "{source}"
-        );
-    }
+    let error = Engine::new()
+        .compile("Duration.build")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap_err();
+    assert_eq!(
+        error.message,
+        "Duration.build expects seconds or named parts"
+    );
     let result = run("[5.minutes.from_now > 4.minutes.from_now, 5.minutes.ago < 4.minutes.ago]");
     assert_eq!(
         stringify_json(&result.value, CallOptions::default())
