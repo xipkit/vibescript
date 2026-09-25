@@ -1,305 +1,144 @@
-use std::sync::{
-    Arc, Mutex,
-    atomic::{AtomicUsize, Ordering},
-};
-use vibescript::{CallOptions, CancellationToken, Engine, ErrorKind, Value, stringify_json};
+//! A computed call calls the value of an expression, such as a callee a
+//! rescue chooses. Static types call only functions (ADR-007), so each form
+//! these tests once ran is refused at compile time, where the diagnostic
+//! names the expression that was called.
 
-fn result(source: &str) -> serde_json::Value {
-    let output = Engine::new()
-        .compile(source)
-        .unwrap()
-        .run(CallOptions::default())
-        .unwrap();
-    let encoded = stringify_json(&output.value, CallOptions::default()).unwrap();
-    serde_json::from_slice(encoded.value.as_bytes().unwrap()).unwrap()
+mod common;
+
+use vibescript::{Engine, ErrorKind};
+
+/// Asserts that `source` is refused with `codes`, the first at `at`.
+#[track_caller]
+fn refused(source: &str, codes: &[&str], at: &str) {
+    let mut engine = common::static_engine();
+    for host in ["record", "observe", "stop", "fallback"] {
+        engine.register(host, |_, _| panic!("a host ran"));
+    }
+    engine.register_with_keywords("sms", |_, _, _| panic!("a host ran"));
+    let error = engine.compile(source).err().unwrap();
+    assert_eq!(common::codes(&error), codes, "{source}");
+    assert_eq!(
+        error.diagnostics()[0].span.start,
+        source.find(at).unwrap(),
+        "{source}"
+    );
 }
 
 #[test]
 fn computed_targets_support_nested_calls_keywords_splats_and_blocks() {
-    for (source, expected) in [
-        (
-            "def f(x=42)\nx\nend\n(missing rescue f)((unknown rescue f)(8))",
-            serde_json::json!(8),
-        ),
-        (
-            "def f(*rest,b:)\n[rest,b]\nend\n(missing rescue f)(*[1,2],**{b:3})",
-            serde_json::json!([[1, 2], 3]),
-        ),
-        (
-            "def f(a,b:,**rest)\n[a,b,rest]\nend\n(missing rescue f)(2,b:3,c:4)",
-            serde_json::json!([2,3,{"c":4}]),
-        ),
-        (
-            "def f(x=2)\nyield(x)\nend\n(missing rescue f)(3) {|x| (unknown rescue f)(x+1) {|y| y+1}}",
-            serde_json::json!(5),
-        ),
-        (
-            "def f(x=2)\nyield(x)\nend\n(missing rescue f) {|x| break x+1}",
-            serde_json::json!(3),
-        ),
-        (
-            "def factory\nJSON::parse\nend\nfactory()(\"[8]\")",
-            serde_json::json!([8]),
-        ),
-        (
-            "[JSON::parse].map {(missing rescue _1)(\"[8]\")}",
-            serde_json::json!([[8]]),
-        ),
-        (
-            "class C\nCB=JSON::parse\ndef self.go\n(missing rescue CB)(\"[8]\")\nend\nend\nC.go()",
-            serde_json::json!([8]),
-        ),
-        (
-            "class C\ndef go\n(missing rescue hidden)(8)\nend\nprivate\ndef hidden(x)\nx+1\nend\nend\nC.new.go()",
-            serde_json::json!(9),
-        ),
-        (
-            "enum Status\nDraft\nend\ndef f\n42\nend\n[(Status::itself rescue f)(),(Status::to_s rescue f)(),(Status::nil? rescue f)(),(Status::Draft.itself rescue f)().name,(Status.itself rescue f)().name]",
-            serde_json::json!([42, 42, 42, "Draft", "Status"]),
-        ),
-    ] {
-        assert_eq!(result(source), expected, "{source}");
-    }
+    refused(
+        "def f(x: int = 42) -> int\nx\nend\n(f rescue f)(8)",
+        &["V0310"],
+        "rescue",
+    );
+    refused(
+        "def f(x: int = 42) -> int\nx\nend\n(missing rescue f)((unknown rescue f)(8))",
+        &["V0201", "V0201"],
+        "missing",
+    );
+    refused(
+        "def f(x: int = 2, &block: int -> int) -> int\nyield(x)\nend\n(f rescue f)(3) {|x| x+1}",
+        &["V0304", "V0310", "V0304"],
+        "f rescue",
+    );
 }
 
 #[test]
 fn begin_expressions_are_called_after_selection_and_cleanup() {
-    for (source, expected) in [
-        (
-            "events=[];x=(begin\nevents.push(1);JSON::parse\nend)(begin\nevents.push(2);\"[8]\"\nend);[x,events]",
-            serde_json::json!([[8], [1, 2]]),
-        ),
-        (
-            "n=0;x=(begin\nn+=1;raise \"again\" if n<3;JSON::parse\nrescue\nretry\nend)(\"[8]\");[x,n]",
-            serde_json::json!([[8], 3]),
-        ),
-        (
-            "events=[];x=(begin\nJSON::parse\nensure\nevents.push(1)\nend)(begin\nevents.push(2);\"[8]\"\nend);[x,events]",
-            serde_json::json!([[8], [1, 2]]),
-        ),
-    ] {
-        assert_eq!(result(source), expected, "{source}");
-    }
+    refused(
+        "events: array<int> = [];x=(begin\nevents.push(1);JSON::parse\nend)(begin\nevents.push(2);\"[8]\"\nend);[x,events]",
+        &["V0106", "V0301"],
+        "begin",
+    );
 }
 
 #[test]
 fn missing_namespace_members_are_catchable_at_lookup() {
-    for (source, expected) in [
-        ("JSON.nope rescue 7", serde_json::json!(7)),
-        ("JSON::nope rescue 7", serde_json::json!(7)),
-        (
-            "def good(x=42)\nx\nend\nbegin\n(JSON.nope rescue good)(8)\nrescue RuntimeError\n99\nend",
-            serde_json::json!(8),
-        ),
-        (
-            "events=[];begin\nbegin\nJSON.nope\nrescue RuntimeError\nevents.push(1)\nensure\nevents.push(2)\nend\nrescue RuntimeError\nevents.push(3)\nend\nevents",
-            serde_json::json!([1, 2]),
-        ),
-    ] {
-        assert_eq!(result(source), expected, "{source}");
-    }
+    refused("JSON.nope rescue 7", &["V0203"], "nope");
+    refused("JSON::nope rescue 7", &["V0203"], "nope");
+    refused(
+        "def good(x: int = 42) -> int\nx\nend\nbegin\n(JSON.nope rescue good)(8)\nrescue RuntimeError\n99\nend",
+        &["V0203"],
+        "nope",
+    );
 }
 
 #[test]
 fn selection_rescue_finishes_before_arguments_and_callee_body() {
-    for (argument, callee, expected) in [
-        ("7", "x", vec![1, 2, 3]),
-        ("raise \"argument\"", "x", vec![1, 2, 4]),
-        ("7", "raise \"callee\"", vec![1, 2, 3, 4]),
-    ] {
-        let events = Arc::new(Mutex::new(Vec::new()));
-        let captured = events.clone();
-        let mut engine = Engine::new();
-        engine.register("record", move |_, args| {
-            captured.lock().unwrap().push(args[0].as_int().unwrap());
-            Ok(Value::nil())
-        });
-        let source = format!(
-            "def select\nrecord(1);raise \"lookup\"\nend\ndef argument\nrecord(2);{argument}\nend\ndef callee(x)\nrecord(3);{callee}\nend\nbegin\n(select() rescue callee)(argument())\nrescue\nrecord(4)\nend"
-        );
-        engine
-            .compile(&source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap();
-        assert_eq!(*events.lock().unwrap(), expected);
-    }
+    refused(
+        "def select -> int\nrecord(1);raise \"lookup\"\nend\ndef argument -> int\nrecord(2);7\nend\n\
+         def callee(x: int) -> int\nrecord(3);x\nend\nbegin\n(select rescue callee)(argument)\nrescue\nrecord(4)\nend",
+        &["V0310", "V0301"],
+        "rescue callee",
+    );
 }
 
 #[test]
 fn ordinary_expressions_still_reject_function_values() {
-    for expression in [
-        "[f][0]()",
-        "(true ? f : f)()",
-        "(false || f)()",
-        "(begin\nf\nend)()",
-        "{cb:f}.cb()",
+    for (expression, codes, at) in [
+        ("[f][0]()", &["V0310", "V0301"][..], "[f]"),
+        ("(true ? f : f)()", &["V0310", "V0301", "V0301"], "true"),
+        ("(false || f)()", &["V0310", "V0301", "V0105"], "false"),
+        ("(begin\nf\nend)()", &["V0310", "V0301"], "begin"),
+        ("{cb:f}.cb()", &["V0301", "V0203"], "f}"),
     ] {
-        let source = format!("def f(x)\nx\nend\n{expression}");
-        let error = Engine::new()
-            .compile(&source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap_err();
-        assert!(
-            error.message.contains("cannot be used as a value"),
-            "{expression}: {error}"
+        refused(
+            &format!("def f(x: int) -> int\nx\nend\n{expression}"),
+            codes,
+            at,
         );
     }
 }
 
 #[test]
 fn selected_receivers_and_builtins_survive_argument_side_effects() {
-    let source = "class C\ngetter value\ndef initialize(x)\n@value=x\nend\ndef add(x)\n@value+x\nend\nend\nc=C.new(4);x=(c.add rescue missing)(begin\nc=C.new(7);8\nend);[x,c.value]";
-    assert_eq!(result(source), serde_json::json!([12, 7]));
-    let source =
-        "cb=JSON::parse;x=(cb rescue missing)(begin\ncb=JSON::stringify;\"[8]\"\nend);[x,cb([9])]";
-    assert_eq!(result(source), serde_json::json!([[8], "[9]"]));
-    assert_eq!(
-        result("(\"kept\".itself rescue missing)()"),
-        serde_json::json!("kept")
-    );
-    assert_eq!(
-        result("(Time.at(0).getutc.iso8601 rescue missing)()"),
-        serde_json::json!("1970-01-01T00:00:00Z")
+    refused(
+        "class C\ngetter value: int\ndef initialize(x: int)\n@value=x\nend\ndef add(x: int) -> int\n@value+x\nend\nend\n\
+         c=C.new(4);x=(c.add rescue c.add)(begin\nc=C.new(7);8\nend);[x,c.value]",
+        &["V0301", "V0310", "V0301"],
+        "add rescue",
     );
 }
 
 #[test]
 fn failed_computed_calls_release_argument_and_receiver_storage() {
-    let observed = Arc::new(Mutex::new(Vec::new()));
-    let captured = observed.clone();
-    let mut engine = Engine::new();
-    engine.register("observe", move |ctx, _| {
-        captured
-            .lock()
-            .unwrap()
-            .push(ctx.stats().retained_memory_bytes);
-        Ok(Value::int(0))
-    });
-    let source = "def factory\n\"x\"*8192\nend\ndef fail\nobserve();raise \"argument\"\nend\ndef run(n)\ni=0;while i<n\nbegin\n(factory().itself rescue missing)(fail())\nrescue\n0\nend;i+=1\nend;42\nend";
-    let script = engine.compile(source).unwrap();
-    let first = script
-        .call("run", &[Value::int(1)], CallOptions::default())
-        .unwrap();
-    let repeated = script
-        .call("run", &[Value::int(32)], CallOptions::default())
-        .unwrap();
-    assert_eq!(repeated.value.as_int(), Some(42));
-    assert_eq!(repeated.stats.retained_memory_bytes, 0);
-    assert!(
-        repeated.stats.peak_memory_bytes <= first.stats.peak_memory_bytes + 1024,
-        "first={:?}, repeated={:?}, observed={:?}",
-        first.stats,
-        repeated.stats,
-        observed.lock().unwrap()
-    );
-    let samples = observed.lock().unwrap();
-    assert_eq!(samples.len(), 33);
-    assert!(*samples.iter().min().unwrap() >= 8192);
-    assert!(samples.iter().max().unwrap() - samples.iter().min().unwrap() <= 1024);
-    drop(samples);
-    let mut options = CallOptions::default();
-    options.limits.memory_bytes = Some(repeated.stats.peak_memory_bytes);
-    script
-        .call("run", &[Value::int(32)], options.clone())
-        .unwrap();
-    options.limits.memory_bytes = Some(repeated.stats.peak_memory_bytes - 1);
-    assert_eq!(
-        script
-            .call("run", &[Value::int(32)], options)
-            .unwrap_err()
-            .kind,
-        ErrorKind::Memory
+    refused(
+        "def factory -> string\n\"x\"*8192\nend\ndef fail -> int\nobserve();raise \"argument\"\nend\n\
+         def run(n: int) -> int\ni=0;while i<n\nbegin\n(factory rescue factory)(fail)\nrescue\n0\nend;i+=1\nend;42\nend",
+        &["V0310"],
+        "rescue factory",
     );
 }
 
 #[test]
 fn exhaustion_and_cancellation_in_selection_or_arguments_cannot_be_rescued() {
-    for cancel in [false, true] {
-        for in_target in [false, true] {
-            let calls = Arc::new(AtomicUsize::new(0));
-            let captured = calls.clone();
-            let token = CancellationToken::new();
-            let cancellation = token.clone();
-            let mut engine = Engine::new();
-            engine.register("stop", move |ctx, _| {
-                if cancel {
-                    cancellation.cancel();
-                    ctx.checkpoint()?;
-                } else {
-                    ctx.charge(u64::MAX)?;
-                }
-                Ok(Value::nil())
-            });
-            engine.register("fallback", move |_, _| {
-                captured.fetch_add(1, Ordering::SeqCst);
-                Ok(Value::nil())
-            });
-            let expression = if in_target {
-                "(stop() rescue fallback)()"
-            } else {
-                "(fallback rescue missing)(stop())"
-            };
-            let source =
-                format!("begin\n{expression}\nrescue\nfallback()\nensure\nfallback()\nend");
-            let options = CallOptions {
-                cancellation: token,
-                ..CallOptions::default()
-            };
-            let error = engine.compile(&source).unwrap().run(options).unwrap_err();
-            assert_eq!(
-                error.kind,
-                if cancel {
-                    ErrorKind::Cancelled
-                } else {
-                    ErrorKind::Steps
-                }
-            );
-            assert_eq!(calls.load(Ordering::SeqCst), 0);
-        }
+    for (expression, at) in [
+        ("(stop() rescue fallback)()", "rescue"),
+        ("(fallback() rescue fallback())(stop())", "rescue"),
+    ] {
+        refused(
+            &format!("begin\n{expression}\nrescue\nfallback()\nensure\nfallback()\nend"),
+            &["V0106"],
+            at,
+        );
     }
 }
 
 #[test]
 fn protected_match_data_and_errors_reject_wrapped_mutators() {
-    for expression in ["m.clear", "m.dup.clear"] {
-        let source =
-            format!("def fallback\n42\nend\nm=\"a\".match(\"a\");({expression} rescue fallback)()");
-        assert_eq!(result(&source), serde_json::json!(42), "{expression}");
-    }
-    let source = "m=\"a\".match(\"a\");begin\n(m.dup.clear rescue nil)()\nrescue\nnil\nend;[m.dup.to_s,m.captures]";
-    assert_eq!(result(source), serde_json::json!(["a", []]));
-    let source = "def fallback\n42\nend\nbegin\nraise \"x\"\nrescue=>e\n(e.dup.clear rescue fallback)()\nend";
-    assert_eq!(result(source), serde_json::json!(42));
+    refused(
+        "def fallback -> int\n42\nend\nm=\"a\".match(\"a\");(m.clear rescue fallback)()",
+        &["V0107", "V0203"],
+        "clear",
+    );
 }
 
 #[test]
 fn selected_host_capabilities_keep_keyword_contracts_and_step_limits() {
-    let calls = Arc::new(AtomicUsize::new(0));
-    let captured = calls.clone();
-    let mut engine = Engine::new();
-    engine.register_with_keywords("sms", move |ctx, args, keywords| {
-        captured.fetch_add(1, Ordering::SeqCst);
-        assert_eq!(args[0].as_bytes(), Some(b"destination".as_slice()));
-        assert_eq!(keywords.len(), 1);
-        assert_eq!(keywords[0].0.as_bytes(), Some(b"body".as_slice()));
-        ctx.array(&[args[0].clone(), keywords[0].1.clone()])
-    });
-    let script = engine
-        .compile("(missing rescue sms)(\"destination\", body:\"hello\")")
-        .unwrap();
-    let first = script.run(CallOptions::default()).unwrap();
-    assert_eq!(calls.load(Ordering::SeqCst), 1);
-    let mut options = CallOptions::default();
-    options.limits.steps = Some(first.stats.steps);
-    let exact = script.run(options.clone()).unwrap();
-    assert_eq!(exact.stats.steps, first.stats.steps);
-    options.limits.steps = Some(first.stats.steps - 1);
-    assert_eq!(script.run(options).unwrap_err().kind, ErrorKind::Steps);
-    assert_eq!(
-        first.value.as_array().unwrap()[1].as_bytes(),
-        Some(b"hello".as_slice())
+    refused(
+        "(sms rescue sms)(\"destination\", body:\"hello\")",
+        &["V0106"],
+        "rescue",
     );
 }
 
