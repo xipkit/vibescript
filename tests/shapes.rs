@@ -6,7 +6,7 @@ use std::sync::{
 };
 use vibescript::{CallOptions, Engine, ErrorKind, Limits, Value, stringify_json};
 
-const IDENTITY: &str = "def identity(x)\nx\nend\n";
+const IDENTITY: &str = "def identity(x: any) -> any\nx\nend\n";
 
 fn evaluate(source: &str) -> serde_json::Value {
     let result = Engine::new()
@@ -24,8 +24,8 @@ fn reusable_literals_validate_json_and_preserve_collection_values() {
         evaluate(
             r#"schema={id:int,tags?:array<string>,...}
                original=JSON.parse_as("{\"id\":7,\"extra\":[1]}",schema)
-               changed=original;changed.extra.push(2)
-               [original,changed,schema==schema.dup,schema.nil?,
+               changed=original.as({id:int,extra:array<int>});changed["extra"].push(2)
+               [original,changed,schema==schema.dup,schema == nil,
                 JSON.parse_as("[1,2]",array<int>),JSON.parse_as("null",int?),
                 JSON.parse_as("{\"a\":3}",hash<string,int>)]"#
         ),
@@ -42,7 +42,6 @@ fn reusable_literals_validate_json_and_preserve_collection_values() {
         "JSON.parse_as(\"{\\\"id\\\":null}\",{id?:int})",
         "JSON.parse_as(\"{}\",hash<int,any>)",
         "JSON.parse_as(\"invalid\",{})",
-        "JSON.parse_as(:invalid,int)",
     ] {
         let error = Engine::new()
             .compile(expression)
@@ -60,6 +59,13 @@ fn reusable_literals_validate_json_and_preserve_collection_values() {
             .kind,
         ErrorKind::Json
     );
+    // The text must be a string, which is checked before running now.
+    let error = common::static_engine()
+        .compile("JSON.parse_as(:invalid,int)")
+        .err()
+        .unwrap();
+    assert_eq!(common::codes(&error), ["V0101"]);
+    assert_eq!(error.diagnostics()[0].span.start, 14);
 }
 
 #[test]
@@ -91,7 +97,7 @@ fn canonical_types_are_structural_but_preserve_union_order_and_literal_keys() {
 #[test]
 fn literal_fallback_uses_bound_names_and_current_lexical_scopes() {
     assert_eq!(
-        evaluate("int=7;[identity(int),{x:int},identity(array<int>).nil?]"),
+        evaluate("int=7;[identity(int),{x:int},identity(array<int>) == nil]"),
         serde_json::json!([7,{"x":7},false])
     );
     assert_eq!(evaluate("int=7;{x:int,}"), serde_json::json!({"x":7}));
@@ -104,9 +110,14 @@ fn literal_fallback_uses_bound_names_and_current_lexical_scopes() {
             .kind,
         ErrorKind::Name
     );
+    // A local assigned on one path only cannot be read, so it no longer
+    // falls back to the type.
+    let source = format!("{IDENTITY}if false;int=7;end;\"#{{identity(int)}}\"");
+    let error = common::static_engine().compile(&source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0202"]);
     assert_eq!(
-        evaluate("if false;int=7;end;\"#{identity(int)}\""),
-        serde_json::json!("")
+        error.diagnostics()[0].span.start,
+        source.find("int)").unwrap()
     );
     assert_eq!(
         evaluate("\"#{identity(int)}\""),
@@ -251,33 +262,27 @@ fn hosts_can_retain_import_and_reuse_types_after_the_script_is_dropped() {
 fn identity_method_blocks_are_rejected_before_host_effects() {
     let calls = Arc::new(AtomicUsize::new(0));
     let counter = calls.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::static_engine();
     engine.register("mark", move |_, _| {
         counter.fetch_add(1, Ordering::Relaxed);
         Ok(Value::nil())
     });
+    // `dup` takes no block, which is refused before anything runs; the
+    // removed `nil?`, `itself`, `tap` and `yield_self` are covered by the
+    // surface tests.
     for receiver in [
         "nil", "true", "1", "1.0", "\"x\"", ":x", "[]", "{}", "1..3", "{x:int}",
     ] {
-        for method in ["nil?", "itself", "dup"] {
-            let source = format!("({receiver}).{method}{{mark()}};mark()");
-            assert_eq!(
-                engine
-                    .compile(&source)
-                    .unwrap()
-                    .run(CallOptions::default())
-                    .unwrap_err()
-                    .kind,
-                ErrorKind::Argument,
-                "{source}"
-            );
-        }
+        let source = format!("({receiver}).dup{{mark()}};mark()");
+        let error = engine.compile(&source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0305"], "{source}");
+        assert_eq!(
+            error.diagnostics()[0].span.start,
+            source.find("{mark").unwrap(),
+            "{source}"
+        );
     }
     assert_eq!(calls.load(Ordering::Relaxed), 0);
-    assert_eq!(
-        evaluate("schema={x:int};schema.tap{|x|x.nil?}.yield_self{|x|x==schema}"),
-        serde_json::json!(true)
-    );
 }
 
 #[test]
