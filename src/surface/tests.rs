@@ -443,6 +443,93 @@ fn keyword_parameters_move_after_a_bare_star() {
     }
 }
 
+/// The static check's diagnostics of `code` in `source`, which uses the
+/// checker's receiver types.
+fn checked(source: &str, code: Code) -> Vec<Diagnostic> {
+    Engine::new()
+        .type_check(source)
+        .unwrap()
+        .diagnostics
+        .into_iter()
+        .filter(|diagnostic| diagnostic.code == code)
+        .collect()
+}
+
+/// Applies `code`'s fixes until none applies.
+fn fixed_statically(source: &str, code: Code) -> String {
+    let mut source = source.to_owned();
+    while let Some(fix) = checked(&source, code)
+        .first()
+        .and_then(|diagnostic| diagnostic.applicable_fix().cloned())
+    {
+        source = fix.apply(&source).expect("the fix applies");
+    }
+    source
+}
+
+#[test]
+fn hash_fields_are_indexed_not_dotted() {
+    let source = "def label(user: { name: string }) -> string\n  user.name\nend\n";
+    let found = checked(source, Code::FIELD_ACCESS);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(&source[found[0].span.start..found[0].span.end], ".name");
+    assert_eq!(
+        found[0].message,
+        "`.name` was removed; hash fields are indexed: `user[\"name\"]`"
+    );
+    // The unknown member the checker found inside it is left to it.
+    let all = Engine::new().type_check(source).unwrap().diagnostics;
+    assert_eq!(all.len(), 1, "{all:?}");
+    let expected = "def label(user: { name: string }) -> string\n  user[\"name\"]\nend\n";
+    assert_eq!(fixed_statically(source, Code::FIELD_ACCESS), expected);
+    assert_clean(expected, Code::FIELD_ACCESS);
+    assert!(
+        Engine::new()
+            .type_check(expected)
+            .unwrap()
+            .diagnostics
+            .is_empty()
+    );
+    // Dictionaries, nested shapes and writes, fixed one level at a time.
+    let source = "def f(doc: { meta: { id: string } }, counts: hash<string, int>) -> string\n  counts.seen = 1\n  doc.meta.id\nend\n";
+    assert_eq!(
+        fixed_statically(source, Code::FIELD_ACCESS),
+        "def f(doc: { meta: { id: string } }, counts: hash<string, int>) -> string\n  counts[\"seen\"] = 1\n  doc[\"meta\"][\"id\"]\nend\n"
+    );
+    // A hash literal is a hash without the checker's types.
+    round_trip(
+        "n = { \"a\" => 1 }.a\n"
+            .replace("{ \"a\" => 1 }", "{ a: 1 }")
+            .as_str(),
+        Code::FIELD_ACCESS,
+        ".a",
+        "n = { a: 1 }[\"a\"]\n",
+    );
+    // Safe navigation is reported without a fix.
+    let source = "def f(user: { name: string }?) -> string?\n  user&.name\nend\n";
+    let found = checked(source, Code::FIELD_ACCESS);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert!(found[0].fixes.is_empty());
+    // Methods, casts, other receivers and untyped values are left alone.
+    for source in [
+        "def f(h: hash<string, int>) -> int\n  h.length + h.keys.length\nend\n",
+        "def f(value: any) -> hash<string, int>\n  value.as(hash<string, int>)\nend\n",
+        "def f(h: { as: int }) -> { as: int }\n  h.as({ as: int })\nend\n",
+        "def f(value: any) -> any\n  value.name\nend\n",
+        "def f(t: time) -> int\n  t.year\nend\n",
+    ] {
+        assert!(checked(source, Code::FIELD_ACCESS).is_empty(), "{source}");
+    }
+    // Without static types, dot reads still run.
+    let script = Engine::new()
+        .compile("def run -> int\n  h = { a: 1 }\n  h.a\nend\n")
+        .unwrap();
+    let result = script
+        .call("run", &[], crate::CallOptions::default())
+        .unwrap();
+    assert_eq!(result.value.as_int(), Some(1));
+}
+
 #[test]
 fn every_surface_code_is_registered_with_a_test() {
     let surface: Vec<Code> = crate::diagnostic::codes()
@@ -450,9 +537,9 @@ fn every_surface_code_is_registered_with_a_test() {
         .map(|info| info.code)
         .filter(|code| code.area() == Some(crate::diagnostic::Area::Surface))
         .collect();
-    assert_eq!(surface.len(), 14);
+    assert_eq!(surface.len(), 15);
     assert_eq!(surface.first(), Some(&Code::REMOVED_NAME));
-    assert_eq!(surface.last(), Some(&Code::KEYWORD_PARAMETER));
+    assert_eq!(surface.last(), Some(&Code::FIELD_ACCESS));
 }
 
 #[test]

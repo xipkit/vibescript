@@ -122,6 +122,28 @@ fn spells_symbol_hash_keys_as_strings() {
 }
 
 #[test]
+fn indexes_hash_fields_read_with_a_dot() {
+    let source = "def run(user)\n  user.count = user.count + 1\n  [user.name, user.length, user.count]\nend\n";
+    let (out, _) = compatible(source, &[("run", json!([{"name": "a", "count": 1}]))]);
+    assert!(
+        out.contains(
+            "user[\"count\"] = user[\"count\"] + 1\n  [user[\"name\"], user.length, user[\"count\"]]"
+        ),
+        "{out}"
+    );
+    // A read that raised in a recorded run, or on a receiver that was not
+    // always a hash, is left alone.
+    let source = "def run(user)\n  user.name\nend\n";
+    let (out, _) = compatible(source, &[("run", json!([{"id": 1}]))]);
+    assert!(out.contains("user.name"), "{out}");
+    let (out, _) = compatible(
+        source,
+        &[("run", json!([{"name": "a"}])), ("run", json!(["x"]))],
+    );
+    assert!(out.contains("user.name"), "{out}");
+}
+
+#[test]
 fn keeps_symbol_indexes_on_other_receivers() {
     let source = "def run(x)\n  x[:a]\nend\n";
     let (out, _) = compatible(source, &[("run", json!([[1]]))]);

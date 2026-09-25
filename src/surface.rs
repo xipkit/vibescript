@@ -88,6 +88,8 @@ pub enum Rule {
     /// A keyword parameter declared as `name:`, `name: default` or
     /// `name: T:`, rather than after a bare `*`.
     KeywordParameter,
+    /// A hash field read or written with a dot, `h.name`.
+    FieldAccess,
 }
 
 impl Rule {
@@ -109,6 +111,7 @@ impl Rule {
             Self::EmptyParentheses => Code::EMPTY_PARENTHESES,
             Self::TypeName => Code::TYPE_NAME,
             Self::KeywordParameter => Code::KEYWORD_PARAMETER,
+            Self::FieldAccess => Code::FIELD_ACCESS,
             Self::Require => return None,
         })
     }

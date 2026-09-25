@@ -532,6 +532,56 @@ pub trait Rules<'a>: Hooks<'a> {
         }
     }
 
+    /// Rewrites a hash field read or written with a dot, `h.name`, as the
+    /// index `h["name"]`: dot calls methods only. A read applies where the
+    /// receiver is a hash and the name is not a hash method, and a write,
+    /// which always sets a field, wherever the receiver is a hash. Returns
+    /// whether it reported the access.
+    fn field_access(&mut self, expr: &'a Expr, call: &'a Call, write: bool) -> bool {
+        let (Some(receiver), Some(operator)) = (&call.receiver, call.operator) else {
+            return false;
+        };
+        if call.args.is_some()
+            || call.block.is_some()
+            || call.scoped(self.tokens)
+            || (!write && super::context::hash_method(&call.name))
+        {
+            return false;
+        }
+        let hash = match self.static_kind(receiver) {
+            Some(kind) => kind == "hash",
+            None => self
+                .receiver_kinds(expr, call)
+                .is_some_and(|kinds| !kinds.is_empty() && kinds.iter().all(|kind| kind == "hash")),
+        };
+        // A write sets the field either way; a read that raised in a
+        // recorded run, at a missing field, would read nil instead.
+        if !hash || (!write && !self.call_returned(expr, call)) {
+            return false;
+        }
+        let Some(key) = string_literal(call.name.as_bytes()) else {
+            return false;
+        };
+        let span = Span {
+            start: self.tokens[operator].start,
+            end: self.tokens[call.name_tok].end,
+        };
+        let removed = self.text(span).to_owned();
+        let receiver_text = excerpt(self.text(receiver.span));
+        if call.safe(self.tokens) {
+            let advice = format!(
+                "hash fields are indexed; test `{receiver_text}` for nil, then index `{receiver_text}[{key}]`"
+            );
+            self.report(Finding::removed(Rule::FieldAccess, span, removed, advice));
+            return true;
+        }
+        let advice = format!("hash fields are indexed: `{receiver_text}[{key}]`");
+        let previous = self.enter(Rule::FieldAccess, span, removed, advice);
+        self.edits.text(span, format!("[{key}]"));
+        self.leave(previous);
+        true
+    }
+
     /// Moves keyword parameters declared in a removed form after a bare
     /// `*`: `retries: 3` becomes `*, retries: int = 3`, `name:` becomes
     /// `*, name: T` and `name: T:` becomes `*, name: T`, with the type the

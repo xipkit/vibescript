@@ -707,12 +707,14 @@ impl<'a> Checker<'a> {
         let setter = format!("{name}=");
         let setter = setter.as_str();
         let ty = self.expr(receiver, None);
+        let name_span = self.spans.member(receiver, name);
+        if let (Some(span), false) = (name_span, ty == Ty::ERROR) {
+            let receiver_type = ReceiverType::new(self.types.display(ty), self.types.bases(ty));
+            self.calls.push((span.start, receiver_type));
+        }
         let call = Call {
             name: setter,
-            name_span: self
-                .spans
-                .member(receiver, name)
-                .unwrap_or_else(|| self.spans.expr(expr)),
+            name_span: name_span.unwrap_or_else(|| self.spans.expr(expr)),
             args: &[],
             block: None,
             extra: evaluate.then_some(value),

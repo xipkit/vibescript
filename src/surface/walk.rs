@@ -83,6 +83,9 @@ pub trait Walk<'a>: Rules<'a> {
                     if let Some(receiver) = &call.receiver {
                         self.expr(receiver, Place::Tight);
                     }
+                    if self.frozen == 0 {
+                        self.field_access(expr, call, true);
+                    }
                 }
                 _ => (),
             },
@@ -427,7 +430,7 @@ pub trait Walk<'a>: Rules<'a> {
         if self.frozen > 0 {
             return;
         }
-        if self.rename(expr, call, place) {
+        if self.field_access(expr, call, false) || self.rename(expr, call, place) {
             return;
         }
         self.empty_parens(expr, call);
