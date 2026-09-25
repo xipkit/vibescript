@@ -331,9 +331,8 @@ fn engine(uri: &str, options: &Options) -> Engine {
     // Checking never runs output helpers, but scripts may still name them.
     engine.set_output_writer(|_, _| Ok(()));
     engine.set_error_writer(|_, _| Ok(()));
-    if options.static_types {
-        engine.set_static_types(true);
-    }
+    // Without static types, the gradual checker reads the ADR-004 language.
+    engine.set_static_types(options.static_types);
     engine
 }
 

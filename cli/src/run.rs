@@ -89,7 +89,8 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
     let limits = profiles::resolve(&flags).map_err(|error| format!("vibes run: {error}"))?;
     let module_paths = flags.strings("module-path");
     let check = flags.bool("check");
-    let static_types = flags.bool("static");
+    // The gradual checker of `--check` reads the ADR-004 language.
+    let static_types = flags.bool("static") || (vibescript::STATIC_TYPES_BY_DEFAULT && !check);
     if let Some(snippet) = flags.value("e") {
         if flags.bool("watch") {
             return Err("vibes run: -e cannot be combined with -watch".to_owned());

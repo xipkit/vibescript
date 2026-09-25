@@ -160,6 +160,8 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
         engine.set_static_types(true);
         return static_check(&engine, &text, &label, snippet);
     }
+    // The gradual checker reads the ADR-004 language.
+    engine.set_static_types(false);
     let script = engine.compile(&text).map_err(|error| {
         format!(
             "compile failed: {}",

@@ -404,7 +404,7 @@ pub fn run(invocation: Invocation) -> Result<(), Failure> {
         cancellation: crate::signal::token(),
         ..options
     };
-    let script = load(&input, &module_paths)?;
+    let script = load(&input, &module_paths, mode)?;
     let label = input.label();
     let Some(name) = function else {
         return match mode {
@@ -440,7 +440,7 @@ pub fn run(invocation: Invocation) -> Result<(), Failure> {
 /// Reads a file or takes the inline source, and compiles it with the process
 /// streams attached. Inline source never touches the file system except
 /// through the configured module roots.
-fn load(input: &Input, extra_paths: &[PathBuf]) -> Result<Script, Failure> {
+fn load(input: &Input, extra_paths: &[PathBuf], mode: Mode) -> Result<Script, Failure> {
     let source = match input {
         Input::File(file) => Cow::Owned(fs::read_to_string(file).map_err(|error| {
             Failure::Failed(format!("cannot read {}: {error}", file.display()))
@@ -448,6 +448,10 @@ fn load(input: &Input, extra_paths: &[PathBuf]) -> Result<Script, Failure> {
         Input::Inline(source) => Cow::Borrowed(source.as_str()),
     };
     let mut engine = Engine::new();
+    // The gradual checker reads the ADR-004 language.
+    if mode != Mode::Execute {
+        engine.set_static_types(false);
+    }
     engine.set_module_config(ModuleConfig {
         paths: module_paths(implicit_root(input), extra_paths)?,
         ..ModuleConfig::default()
