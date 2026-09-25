@@ -135,9 +135,13 @@ impl Display for Function {
         }
         if !self.params.is_empty() || self.block.is_some() {
             f.write_char('(')?;
+            let star = keyword_star(&self.params);
             for (index, param) in self.params.iter().enumerate() {
                 if index > 0 {
                     f.write_str(", ")?;
+                }
+                if star == Some(index) {
+                    f.write_str("*, ")?;
                 }
                 write!(f, "{param}")?;
             }
@@ -166,7 +170,7 @@ impl Display for Param {
         match self.kind {
             ParamKind::Positional => write!(f, "{}{marker}: {}", self.name, self.ty)?,
             ParamKind::Rest => write!(f, "*{}: {}", self.name, self.ty)?,
-            ParamKind::Keyword => write!(f, "{}{marker}: {}:", self.name, self.ty)?,
+            ParamKind::Keyword => write!(f, "{}{marker}: {}", self.name, self.ty)?,
             ParamKind::KeywordRest => write!(f, "**{}: {}", self.name, self.ty)?,
         }
         if let Some(default) = &self.default {
@@ -174,6 +178,18 @@ impl Display for Param {
         }
         Ok(())
     }
+}
+
+/// The index of the first keyword parameter, before which a bare `*`
+/// marks the keyword parameters, unless a rest parameter precedes it.
+pub(crate) fn keyword_star(params: &[Param]) -> Option<usize> {
+    let first = params
+        .iter()
+        .position(|param| param.kind == ParamKind::Keyword)?;
+    let rest = params[..first]
+        .iter()
+        .any(|param| param.kind == ParamKind::Rest);
+    (!rest).then_some(first)
 }
 
 impl Display for Block {

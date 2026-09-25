@@ -8,9 +8,9 @@ const SAMPLE: &str = "# A sample table.
 type ordered = int | string
 
 # Prints.
-def show(*values: array<any>)
+def show(*values: array<any>, sep: string = \" \")
 
-def pick(from: int = 1, to?: int, strict: bool: = false, name: string:) -> int?
+def pick(from: int = 1, to?: int, *, strict: bool = false, name: string) -> int?
 
 # An overload, selected by its required block.
 def pick(&block: [int, string] -> int) -> [int, int?]
@@ -60,6 +60,8 @@ fn signature_files_round_trip() {
         ]
     );
     assert_eq!(pick.params[0].default.as_deref(), Some("1"));
+    let show = table.functions("show").next().unwrap();
+    assert_eq!(show.params[1].kind, ParamKind::Keyword);
     let Some(Member::Function(run)) = table.module("Ns").unwrap().named("run").next() else {
         panic!("run is a function");
     };
@@ -85,7 +87,7 @@ fn signature_files_round_trip() {
 
 #[test]
 fn overloads_differ_in_arity_keywords_or_blocks() {
-    let source = "def f(a: int:)\n\ndef f(b: int:)\n\n\
+    let source = "def f(*, a: int)\n\ndef f(*, b: int)\n\n\
         class hash<string, V>\n  def each(&block: (string, V))\n  def each(&block: [string, V])\n  \
         def first -> V?\n  def first(count: int) -> array<V>\n  def sub(p: string, r: string)\n  \
         def sub(p: string, &block: string -> string)\nend\n";
@@ -102,7 +104,27 @@ fn signature_files_report_malformed_declarations() {
             1,
             "required parameter b follows an optional one",
         ),
-        ("def f(k: int:, a: int)", 1, "parameter a is out of order"),
+        (
+            "def f(*, k: int, **a: hash<string, int>, b: int)",
+            1,
+            "parameter b is out of order",
+        ),
+        (
+            "def f(a: int, *, k: int, *, j: int)",
+            1,
+            "a bare `*` must follow the positional parameters",
+        ),
+        (
+            "def f(*a: array<int>, *, k: int)",
+            1,
+            "a bare `*` must follow the positional parameters",
+        ),
+        (
+            "def f(a: int, *, &block: int)",
+            1,
+            "a bare `*` must be followed by keyword parameters",
+        ),
+        ("def f(k: int:)", 1, "expected `,`"),
         (
             "def f(*a: array<int>, *b: array<int>)",
             1,
@@ -152,7 +174,7 @@ fn signature_files_report_malformed_declarations() {
             "overloads of f could accept the same call",
         ),
         (
-            "def f(**k: hash<string, any>)\ndef f(a: int:)",
+            "def f(**k: hash<string, any>)\ndef f(*, a: int)",
             2,
             "overloads of f could accept the same call",
         ),

@@ -93,12 +93,29 @@ impl Sig {
         self.params.iter().find(|p| p.kind == ParamKind::Rest)
     }
 
+    /// The index of the first keyword parameter, which a declaration marks
+    /// with a bare `*` unless a rest parameter precedes it.
+    pub fn keyword_star(&self) -> Option<usize> {
+        let first = self
+            .params
+            .iter()
+            .position(|p| p.kind == ParamKind::Keyword)?;
+        let rest = self.params[..first]
+            .iter()
+            .any(|p| p.kind == ParamKind::Rest);
+        (!rest).then_some(first)
+    }
+
     /// Renders the parameter list for messages.
     pub fn describe(&self, types: &Types) -> String {
         let mut out = format!("{}(", self.name);
+        let star = self.keyword_star();
         for (index, param) in self.params.iter().enumerate() {
             if index > 0 {
                 out.push_str(", ");
+            }
+            if star == Some(index) {
+                out.push_str("*, ");
             }
             match param.kind {
                 ParamKind::Rest => out.push('*'),
@@ -111,9 +128,6 @@ impl Sig {
             }
             out.push_str(": ");
             out.push_str(&types.display(param.ty));
-            if param.kind == ParamKind::Keyword {
-                out.push(':');
-            }
         }
         if let Some(block) = &self.block {
             if !self.params.is_empty() {

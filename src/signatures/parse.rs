@@ -508,13 +508,35 @@ impl Parser {
             ..Function::default()
         };
         if self.eat("(") && !self.eat(")") {
+            // Parameters after a bare `*` or a rest parameter are keywords.
+            let mut keywords = false;
             loop {
                 if self.at("&") {
                     function.block = Some(self.block()?);
                     self.expect(")")?;
                     break;
                 }
-                let param = self.param()?;
+                if self.at("*") && matches!(&self.tokens[self.pos + 1].token, Token::Punct(",")) {
+                    if keywords
+                        || function
+                            .params
+                            .iter()
+                            .any(|p| p.kind != ParamKind::Positional)
+                    {
+                        return self.fail("a bare `*` must follow the positional parameters");
+                    }
+                    self.pos += 2;
+                    if !matches!(self.peek(), Token::Word(_)) {
+                        return self.fail("a bare `*` must be followed by keyword parameters");
+                    }
+                    keywords = true;
+                    continue;
+                }
+                let mut param = self.param()?;
+                if keywords && param.kind == ParamKind::Positional {
+                    param.kind = ParamKind::Keyword;
+                }
+                keywords |= param.kind == ParamKind::Rest;
                 self.check_order(&function.params, &param)?;
                 function.params.push(param);
                 if self.eat(")") {
@@ -580,11 +602,6 @@ impl Parser {
         }
         self.expect(":")?;
         let ty = self.ty()?;
-        let kind = if kind == ParamKind::Positional && self.eat(":") {
-            ParamKind::Keyword
-        } else {
-            kind
-        };
         let default = if self.eat("=") {
             if matches!(kind, ParamKind::Rest | ParamKind::KeywordRest) {
                 return self.fail("rest parameters have no default");

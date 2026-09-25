@@ -21,8 +21,9 @@
 #   name: T = value              optional; the builtin uses `value` when it is omitted
 #   name?: T                     optional; the builtin behaves differently when it is omitted
 #   *name: array<T>              any number of further arguments of type T
-#   name: T:                     a required keyword argument, passed as `name: value`
-#   name: T: = value             an optional keyword argument
+#   *, name: T                   a required keyword argument, passed as `name: value`;
+#                                every parameter after a bare `*` or `*name` is a keyword
+#   *, name: T = value           an optional keyword argument
 #   &block: (A, B) -> R          a required block taking A and B and returning R
 #   &block?: A                   an optional block whose value is discarded
 #
@@ -79,7 +80,7 @@ def rand(max: int | range) -> int
 def random_id(length: int = 16) -> string
 
 # Loads a module and returns its exports.
-def require(path: string, as: string?: = nil) -> any
+def require(path: string, *, as: string? = nil) -> any
 
 # Seeds rand for this call and returns the previous seed.
 def srand(seed: int? = nil) -> int?
@@ -94,7 +95,7 @@ def warn(*values: array<any>)
 
 module Duration
   # At least one part is required.
-  def build(weeks: number: = 0, days: number: = 0, hours: number: = 0, minutes: number: = 0, seconds: number: = 0) -> duration
+  def build(*, weeks: number = 0, days: number = 0, hours: number = 0, minutes: number = 0, seconds: number = 0) -> duration
   # Parses Go ("1h30m") or ISO 8601 ("PT1H30M") durations.
   def parse(text: string) -> duration
 end
@@ -137,11 +138,11 @@ module Regex
 end
 
 module Time
-  def at(seconds: number, subsec?: number, unit?: :microsecond | :millisecond | :nanosecond, in: string?: = nil) -> time
-  def local(year: int, month: int = 1, day: int = 1, hour: int = 0, min: int = 0, sec: int = 0, usec: number = 0, in: string?: = nil) -> time
-  def now(in: string?: = nil) -> time
+  def at(seconds: number, subsec?: number, unit?: :microsecond | :millisecond | :nanosecond, *, in: string? = nil) -> time
+  def local(year: int, month: int = 1, day: int = 1, hour: int = 0, min: int = 0, sec: int = 0, usec: number = 0, *, in: string? = nil) -> time
+  def now(*, in: string? = nil) -> time
   # Parses common formats, or `text` in a Go layout such as "2006-01-02".
-  def parse(text: string, layout: string? = nil, in: string?: = nil) -> time
+  def parse(text: string, layout: string? = nil, *, in: string? = nil) -> time
   def utc(year: int, month: int = 1, day: int = 1, hour: int = 0, min: int = 0, sec: int = 0, usec: number = 0) -> time
 end
 
@@ -314,7 +315,7 @@ class string
   def swapcase(mode?: :ascii) -> string
   def swapcase!(mode?: :ascii) -> string?
   # Fills `{{name}}` placeholders from `context`.
-  def template(context: hash<string, any>, strict: bool: = false) -> string
+  def template(context: hash<string, any>, *, strict: bool = false) -> string
   def to_f -> float
   def to_i -> int
   def to_s -> string

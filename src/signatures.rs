@@ -148,7 +148,8 @@ pub enum ParamKind {
     Positional,
     /// `*name`, collecting remaining positional arguments.
     Rest,
-    /// `name: T:`, passed as `name: value`.
+    /// A parameter after a bare `*` or a rest parameter, passed as
+    /// `name: value`.
     Keyword,
     /// `**name`, collecting remaining keyword arguments.
     KeywordRest,

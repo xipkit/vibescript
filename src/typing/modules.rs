@@ -190,15 +190,19 @@ fn declaration(types: &Types, name: &str, sig: &Sig) -> String {
         }
     };
     let mut params = Vec::new();
-    for param in &sig.params {
+    let star = sig.keyword_star();
+    for (index, param) in sig.params.iter().enumerate() {
+        if star == Some(index) {
+            params.push("*".to_owned());
+        }
         params.push(match param.kind {
-            ParamKind::Positional if param.optional => format!("{}?: {}", param.name, ty(param.ty)),
-            ParamKind::Positional => format!("{}: {}", param.name, ty(param.ty)),
-            ParamKind::Rest => format!("*{}: {}", param.name, ty(param.ty)),
-            ParamKind::Keyword if param.optional => {
-                format!("{}: {}: = nil", param.name, ty(param.ty))
+            ParamKind::Positional | ParamKind::Keyword if param.optional => {
+                format!("{}?: {}", param.name, ty(param.ty))
             }
-            ParamKind::Keyword => format!("{}: {}:", param.name, ty(param.ty)),
+            ParamKind::Positional | ParamKind::Keyword => {
+                format!("{}: {}", param.name, ty(param.ty))
+            }
+            ParamKind::Rest => format!("*{}: {}", param.name, ty(param.ty)),
             ParamKind::KeywordRest => format!("**{}: {}", param.name, ty(param.ty)),
         });
     }
