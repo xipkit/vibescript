@@ -910,15 +910,7 @@ fn range_members_check_calls_in_reference_order() {
             "cannot get the last element of an endless range".to_owned(),
         ),
         (
-            &"(-9223372036854775807 - 1..9223372036854775807).length".to_owned(),
-            "range.length overflow".to_owned(),
-        ),
-        (
             &format!("{full}.length"),
-            "range.length overflow".to_owned(),
-        ),
-        (
-            &"(-9223372036854775807 - 1..9223372036854775807).length".to_owned(),
             "range.length overflow".to_owned(),
         ),
     ];
