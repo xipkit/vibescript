@@ -327,6 +327,9 @@ impl<'a> Checker<'a> {
         block: Option<&'a Block>,
         safe: bool,
     ) -> Ty {
+        if !safe && crate::bytecode::mutating_member(name) {
+            self.mark_write_chain(receiver);
+        }
         let ty = self.expr(receiver, None);
         let name_span = self.spans.member(receiver, name);
         if let Some(span) = name_span {

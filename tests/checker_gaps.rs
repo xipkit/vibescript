@@ -364,3 +364,146 @@ mod break_values {
         assert_eq!(run(source).unwrap().to_string(), "s");
     }
 }
+
+mod nested_writes {
+    use super::*;
+    use vibescript::{ErrorClass, ErrorKind};
+
+    #[test]
+    fn a_write_through_an_element_reads_it_as_present() {
+        clean(
+            "grid = [[1, 2], [3, 4]]
+grid[0][1] = 9
+grid[1] << 5
+grid[1].push(6)
+last = grid[0].pop
+deep = [[[1]]]
+deep[0][0][0] = 7
+h: hash<string, hash<string, int>> = { a: { x: 1 } }
+h[\"a\"][\"y\"] = 2
+h[\"a\"].delete(\"x\")
+lists: hash<string, array<int>> = { a: [1] }
+lists[\"a\"] << 2
+lists[\"b\"]&.push(3)
+",
+        );
+    }
+
+    #[test]
+    fn a_read_stays_optional_and_keeps_its_fetch_fix() {
+        let source = "grid = [[1, 2]]\nn = grid[0][1]\n";
+        let found = codes(source, &[Code::OPTIONAL_USE]);
+        assert_eq!(
+            fixed(source, &found[0]),
+            "grid = [[1, 2]]\nn = grid.fetch(0)[1]\n"
+        );
+        // The element a compound assignment reads may still be missing.
+        let source = "grid = [[1, 2]]\ngrid[0][1] += 1\n";
+        let found = codes(source, &[Code::OPTIONAL_USE]);
+        assert_eq!(
+            fixed(source, &found[0]),
+            "grid = [[1, 2]]\ngrid[0][1] = grid[0].fetch(1) + 1\n"
+        );
+    }
+
+    #[test]
+    fn no_fix_rewrites_a_read_a_write_goes_through() {
+        for source in [
+            // An element that may hold nil must be tested first.
+            "rows: array<array<int>?> = [[1]]\nrows[0][0] = 2\n",
+            // A range reads a copy, which the write would change.
+            "grid = [[1, 2]]\ngrid[0..1][0] = [3]\n",
+        ] {
+            let found = codes(source, &[Code::OPTIONAL_USE]);
+            assert!(found[0].fixes.is_empty(), "{source}: {:?}", found[0].fixes);
+        }
+        let source = "def rows -> array<array<int>>?\n  nil\nend\nrows[0] << 1\n";
+        let found = codes(source, &[Code::OPTIONAL_USE]);
+        assert!(found[0].fixes.is_empty());
+    }
+
+    #[test]
+    fn a_write_through_a_present_element_updates_it_in_place() {
+        let source = "def run -> array<array<int>>
+  grid = [[1, 2], [3]]
+  grid[0][1] = 9
+  grid[1] << 5
+  grid[1].push(6)
+  grid
+end
+";
+        clean(source);
+        assert_eq!(run(source).unwrap().to_string(), "[[1, 9], [3, 5, 6]]");
+    }
+
+    /// The error of running `body` in a function with static types.
+    fn failure(body: &str) -> vibescript::Error {
+        run(&format!("def run -> any\n{body}\n  nil\nend\n")).unwrap_err()
+    }
+
+    #[test]
+    fn a_write_through_a_missing_element_raises() {
+        for (body, message, column) in [
+            (
+                "  grid = [[1, 2]]\n  grid[5][1] = 9",
+                "cannot write through a missing element: array index 5 outside of array bounds: -1...1",
+                10,
+            ),
+            (
+                "  grid = [[1, 2]]\n  i = -2\n  grid[i][0] = 1",
+                "cannot write through a missing element: array index -2 outside of array bounds: -1...1",
+                10,
+            ),
+            (
+                "  h: hash<string, hash<string, int>> = { a: { x: 1 } }\n  h[\"b\"][\"x\"] = 9",
+                "cannot write through a missing element: hash key not found: \"b\"",
+                9,
+            ),
+            (
+                "  grid = [[1, 2]]\n  grid[3] << 9",
+                "cannot write through a missing element: array index 3 outside of array bounds: -1...1",
+                12,
+            ),
+            (
+                "  lists: hash<string, array<int>> = { a: [1] }\n  lists[\"b\"].push(9)",
+                "cannot write through a missing element: hash key not found: \"b\"",
+                8,
+            ),
+            (
+                "  deep = [[[1]]]\n  deep[0][4][0] = 7",
+                "cannot write through a missing element: array index 4 outside of array bounds: -1...1",
+                13,
+            ),
+        ] {
+            let error = failure(body);
+            assert_eq!(error.message, message, "{body}");
+            assert_eq!(error.kind, ErrorKind::Argument, "{body}");
+            // The class and kind `fetch` raises with.
+            assert_eq!(error.class(), Some(ErrorClass::Runtime), "{body}");
+            // Where the write fails: at its target's index, its receiver's
+            // or its operator.
+            let position = &error.diagnostic.as_ref().unwrap().position;
+            let line = body.lines().count() + 1;
+            assert_eq!((position.line, position.column), (line, column), "{body}");
+        }
+    }
+
+    #[test]
+    fn a_missing_element_is_rescued_like_fetch() {
+        let source = "def run -> string
+  grid = [[1]]
+  begin
+    grid[2][0] = 1
+    \"written\"
+  rescue RuntimeError => error
+    error.message
+  end
+end
+";
+        clean(source);
+        assert_eq!(
+            run(source).unwrap().to_string(),
+            "cannot write through a missing element: array index 2 outside of array bounds: -1...1"
+        );
+    }
+}

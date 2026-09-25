@@ -20,7 +20,10 @@
 //! tree's start offsets into exact spans from the parser's tokens.
 
 use crate::{capability::Registered, diagnostic::Diagnostic, syntax::Declarations};
-use std::{collections::HashMap, fmt};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+};
 
 mod calls;
 mod check;
@@ -200,6 +203,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         steps: 0,
         modules: modules::Required::new(input, depth),
         memo: None,
+        write_chain: HashSet::new(),
     };
     for (name, host) in &input.hosts {
         let function = crate::signatures::host::function(name, host);
@@ -256,6 +260,7 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
         steps: 0,
         modules: modules::Required::new(input, 0),
         memo: None,
+        write_chain: HashSet::new(),
     };
     checker.declare_hosts(input.declared);
     checker.declare_program(input.parsed);
@@ -289,6 +294,12 @@ pub(crate) struct Checker<'a> {
     /// Expression types recorded while checking a call on one alternative
     /// of a union receiver, which the other alternatives replay.
     memo: Option<Memo>,
+    /// The reads a write goes through, by node: the receivers of an index
+    /// or member assignment's target and of a mutating call, down to their
+    /// root. An index among them reads its element as present, since the
+    /// runtime raises when it is missing, and no fix rewrites one, since a
+    /// write through a rewritten read would reach a copy.
+    write_chain: HashSet<usize>,
 }
 
 /// Expression types by node, recorded or replayed.

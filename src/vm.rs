@@ -905,6 +905,9 @@ impl Run {
                     }
                 }
                 Op::PrepareMember(site, mutating) => {
+                    if mutating {
+                        storage.addresses.data.last().unwrap().check_present(ctx)?;
+                    }
                     let receiver = if mutating {
                         &storage.addresses.data.last().unwrap().value
                     } else {
@@ -1652,6 +1655,7 @@ impl Run {
                 Op::Shovel(site) => {
                     let value = stack.data.pop().unwrap();
                     let address = storage.addresses.data.pop().unwrap();
+                    address.check_present(ctx)?;
                     if matches!(address.value.0, Kind::Instance(_)) {
                         let resolved = operators::resolve(
                             program,
@@ -2016,6 +2020,7 @@ impl Run {
                 }
                 Op::AddressMemberTarget(site, read) => {
                     let address = storage.addresses.data.last_mut().unwrap();
+                    address.check_present(ctx)?;
                     let name = &program.members[site.name];
                     let key = ctx.bytes(name.as_bytes())?;
                     address.member_target = true;
@@ -2079,6 +2084,7 @@ impl Run {
                 Op::AddressTarget(n, read) => {
                     let base = stack.data.len() - n;
                     let address = storage.addresses.data.last_mut().unwrap();
+                    address.check_present(ctx)?;
                     address.selectors.ensure(ctx, n)?;
                     for value in stack.data.drain(base..) {
                         ctx.charge(1)?;

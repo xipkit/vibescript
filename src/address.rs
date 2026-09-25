@@ -5,6 +5,25 @@ struct Hop {
     key: Value,
 }
 
+impl Hop {
+    /// The error for a write through the element this hop found missing.
+    fn missing(&self, ctx: &mut CallContext) -> Result<Error> {
+        const WHAT: &str = "cannot write through a missing element";
+        let Kind::Array(array) = &self.container.0 else {
+            return crate::collections::missing_key(ctx, &format!("{WHAT}: hash"), &self.key);
+        };
+        let index = crate::sequence::integer(&self.key)?;
+        let length = array.buffer.data.len();
+        Ok(Error::new(
+            ErrorKind::Argument,
+            format!(
+                "{WHAT}: array index {index} outside of array bounds: {}...{length}",
+                -(length as i128)
+            ),
+        ))
+    }
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) enum Root {
     Local(usize),
@@ -53,6 +72,10 @@ pub(crate) struct Address {
     pub member_target: bool,
     pub exported: Option<std::sync::Arc<crate::exports::Function>>,
     pub capability: Option<crate::capability::SelectedMethod>,
+    /// Whether an index on the way here found its element missing, so that
+    /// the value is nil and a write cannot reach its place. The address is
+    /// then unrooted, and its path holds only that index.
+    missing: bool,
 }
 
 impl Address {
@@ -76,6 +99,7 @@ impl Address {
             member_target: false,
             exported: None,
             capability: None,
+            missing: false,
         }
     }
 
@@ -110,6 +134,7 @@ impl Address {
     }
 
     pub fn index(&mut self, ctx: &mut CallContext, args: &[Value]) -> Result<()> {
+        self.check_present(ctx)?;
         let value = if args.len() == 1 {
             ops::index(ctx, &self.value, &args[0])?
         } else {
@@ -120,9 +145,14 @@ impl Address {
                 self.protected = hash.tag;
             }
         }
-        let addressed = self.root.is_some()
-            && args.len() == 1
-            && stored_child(ctx, &self.value, &args[0])?.is_some();
+        let single = args.len() == 1 && !matches!(args[0].0, Kind::Range(_));
+        let nil = matches!(value.0, Kind::Nil);
+        let child = if args.len() == 1 && (self.root.is_some() || (nil && single)) {
+            stored_child(ctx, &self.value, &args[0])?
+        } else {
+            None
+        };
+        let addressed = self.root.is_some() && args.len() == 1 && child.is_some();
         if addressed {
             let key = captured_key(&self.value, &args[0])?;
             self.path.push(
@@ -136,8 +166,32 @@ impl Address {
             self.root = None;
             self.path.data.clear();
         }
+        let missing = nil
+            && single
+            && child.is_none()
+            && matches!(self.value.0, Kind::Array(_) | Kind::Hash(_));
+        if missing {
+            let container = std::mem::take(&mut self.value);
+            self.path.push(
+                ctx,
+                Hop {
+                    container,
+                    key: args[0].clone(),
+                },
+            )?;
+            self.missing = true;
+        }
         self.value = value;
         Ok(())
+    }
+
+    /// Fails when an index on the way to this address found its element
+    /// missing, which a write through the address cannot create.
+    pub fn check_present(&self, ctx: &mut CallContext) -> Result<()> {
+        match self.path.data.last() {
+            Some(hop) if self.missing => Err(hop.missing(ctx)?),
+            _ => Ok(()),
+        }
     }
 
     pub fn read_target(&mut self, ctx: &mut CallContext) -> Result<Value> {
@@ -214,6 +268,7 @@ impl Address {
             member_target: _,
             exported: _,
             capability: _,
+            missing: _,
         } = self;
         let Some(root) = root else {
             return action(ctx, value).map(|(_, result)| result);

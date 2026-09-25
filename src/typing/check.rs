@@ -495,6 +495,7 @@ impl<'a> Checker<'a> {
                 }
             },
             Statement::Assign(target, op, value) => {
+                self.mark_target(target);
                 let ty = self.assignment(stmt, target, op, value);
                 self.statement_value(stmt, ty, want)
             }
@@ -856,6 +857,43 @@ impl<'a> Checker<'a> {
 
     // Assignment -------------------------------------------------------
 
+    /// Marks the reads an assignment to `target` writes through.
+    fn mark_target(&mut self, target: &Target) {
+        match target {
+            Target::Value(Expr {
+                node: Node::Index(receiver, _) | Node::Member(receiver, _),
+                ..
+            }) => self.mark_write_chain(receiver),
+            Target::Typed(inner, _) => self.mark_target(inner),
+            Target::Tuple(parts) => {
+                for part in parts.iter().filter_map(|(part, _)| part.as_ref()) {
+                    self.mark_target(part);
+                }
+            }
+            Target::Value(_) => (),
+        }
+    }
+
+    /// Marks `receiver` and the reads it goes through as reads a write
+    /// goes through.
+    pub(super) fn mark_write_chain(&mut self, receiver: &Expr) {
+        let mut current = receiver;
+        loop {
+            self.write_chain
+                .insert(std::ptr::from_ref(current) as usize);
+            current = match &current.node {
+                Node::Index(inner, _) | Node::Member(inner, _) | Node::Method(inner, ..) => inner,
+                _ => return,
+            };
+        }
+    }
+
+    /// Whether a write goes through the read `expr`.
+    pub(super) fn in_write_chain(&self, expr: &Expr) -> bool {
+        self.write_chain
+            .contains(&(std::ptr::from_ref(expr) as usize))
+    }
+
     fn assignment(&mut self, stmt: &'a Stmt, target: &'a Target, op: &str, value: &'a Expr) -> Ty {
         match op {
             "=" => self.assign(target, value),
@@ -949,14 +987,9 @@ impl<'a> Checker<'a> {
             Kind::Hash(value) => Some(value),
             _ => None,
         };
-        let stable = |checker: &Self, expr: &Expr| match &expr.node {
-            Node::Var(name) => name.starts_with('@') || checker.local(name).is_some(),
-            Node::Integer(_) | Node::Literal(_) => true,
-            _ => false,
-        };
         if stored.is_some_and(|stored| stored == present)
-            && stable(self, receiver)
-            && stable(self, &selectors[0])
+            && self.stable(receiver)
+            && self.stable(&selectors[0])
         {
             if let Some(fix) = self.fetch_assignment(expr, receiver, &selectors[0], op, value) {
                 diagnostic = diagnostic.with_fix(fix);
@@ -964,6 +997,20 @@ impl<'a> Checker<'a> {
         }
         self.report(diagnostic);
         Some(present)
+    }
+
+    /// Whether an expression reads the same value each time, so a fix may
+    /// repeat it: a local, an instance variable, a literal, or an element
+    /// of one at a key that is one, as in `grid[0]`.
+    fn stable(&self, expr: &Expr) -> bool {
+        match &expr.node {
+            Node::Var(name) => name.starts_with('@') || self.local(name).is_some(),
+            Node::Integer(_) | Node::Literal(_) => true,
+            Node::Index(receiver, selectors) => {
+                selectors.len() == 1 && self.stable(receiver) && self.stable(&selectors[0])
+            }
+            _ => false,
+        }
     }
 
     /// `x[i] = x.fetch(i) + v` in place of `x[i] += v`.

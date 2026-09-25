@@ -277,7 +277,7 @@ pairs: array<[string, int]> = [["a", 1], ["b", 2]]
 lookup = pairs.to_h                 # hash<string, int>
 ```
 
-Arrays and hashes are values: assigning one to another local, passing it or storing it makes an independent copy, so an update through one name is never visible through another. Updating members such as `push`, `pop` and `<<`, and index assignment such as `items[0] = x`, change the local, field or nested path they name. A write through two indexes, such as `grid[0][1] = 9`, does not compile, because `grid[0]` is optional: read the row with `fetch`, update it, and store it back with `grid[0] = row`. `sort` on `array<int | string>` is an error (V0115): members with bounds, such as `sort`, `sum` and `max`, need one element type. `fill` and `insert` raise past the end of an array.
+Arrays and hashes are values: assigning one to another local, passing it or storing it makes an independent copy, so an update through one name is never visible through another. Updating members such as `push`, `pop` and `<<`, and index assignment such as `items[0] = x`, change the local, field or nested path they name. A write through an element, such as `grid[0][1] = 9`, `grid[0] << 9` or `lists["a"].push(1)`, updates the element in place, and the element it goes through is typed as present, not optional: the write raises when `grid[0]` is missing. `vibes fix` never rewrites such a read as `fetch`, which would return a copy. `sort` on `array<int | string>` is an error (V0115): members with bounds, such as `sort`, `sum` and `max`, need one element type. `fill` and `insert` raise past the end of an array.
 
 ## Shapes and dictionaries
 

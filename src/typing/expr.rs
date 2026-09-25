@@ -68,6 +68,10 @@ impl<'a> Checker<'a> {
         let Node::Index(receiver, selectors) = &expr.node else {
             return None;
         };
+        // `fetch` reads a copy, which a write through it would change.
+        if self.in_write_chain(expr) {
+            return None;
+        }
         if selectors.len() != 1 || !self.types.has_nil(found) {
             return None;
         }
@@ -615,6 +619,9 @@ impl<'a> Checker<'a> {
                 Ty::BOOL
             }
             _ => {
+                if op == "<<" {
+                    self.mark_write_chain(left);
+                }
                 let lt = self.expr(left, None);
                 let hint = match op {
                     "<<" => self.types.element(lt),
@@ -914,7 +921,21 @@ impl<'a> Checker<'a> {
 
     fn index(&mut self, expr: &'a Expr, receiver: &'a Expr, selectors: &'a [Expr]) -> Ty {
         let ty = self.expr(receiver, None);
-        self.index_type(expr, receiver, ty, selectors)
+        let read = self.index_type(expr, receiver, ty, selectors);
+        if !self.in_write_chain(expr) {
+            return read;
+        }
+        // A write through an array element or hash entry reads it as
+        // present: the runtime raises when it is missing.
+        let element = match self.types.kind(ty) {
+            Kind::Array(element) | Kind::Hash(element) => *element,
+            _ => return read,
+        };
+        if read == self.types.optional(element) {
+            element
+        } else {
+            read
+        }
     }
 
     /// The result of `receiver[selectors]` for a receiver of type `ty`.
