@@ -25,7 +25,7 @@ fn duplicates_and_growth_preserve_order_and_lookup() {
         let encoded = stringify_json(&parsed.value, CallOptions::default()).unwrap();
         assert_eq!(encoded.value.as_bytes(), Some(expected.as_bytes()));
         let script = Engine::new()
-            .compile("def run(h)\n keys=h.keys\n i=0\n total=0\n while i<keys.length\n total+=h[keys[i]]\n i+=1\n end\n [total,h[\"missing\"]]\nend")
+            .compile("def run(h: hash<string, int>) -> array<int?>\n keys=h.keys\n i=0\n total=0\n while i<keys.length\n total+=h.fetch(keys.fetch(i))\n i+=1\n end\n [total,h[\"missing\"]]\nend")
             .unwrap();
         let output = script
             .call("run", &[parsed.value], CallOptions::default())
@@ -42,7 +42,7 @@ fn duplicates_and_growth_preserve_order_and_lookup() {
 #[test]
 fn updates_preserve_snapshots_including_self_references() {
     let script = Engine::new().compile(
-        "def run(h)\n old=h\n h[:k00000]=9\n h[\"self\"]=h\n h[\"new\"]=7\n old[\"other\"]=8\n [h[:k00000],old[:k00000],h[\"self\"].length,h.length,old.length,h[\"other\"],old[\"new\"]]\nend"
+        "def run(h: hash<string, any>) -> array<any>\n old=h\n h[\"k00000\"]=9\n h[\"self\"]=h\n h[\"new\"]=7\n old[\"other\"]=8\n [h[\"k00000\"],old[\"k00000\"],h.fetch(\"self\").as(hash<string, any>).length,h.length,old.length,h[\"other\"],old[\"new\"]]\nend"
     ).unwrap();
     for size in [15, 16, 24, 25, 512] {
         let input = object(size);
@@ -60,7 +60,7 @@ fn updates_preserve_snapshots_including_self_references() {
 #[test]
 fn growth_has_bounded_work_and_memory() {
     let script = Engine::new()
-        .compile("h={}\ni=0\nwhile i<2000\n h[i.to_s]=i\n i+=1\nend\nh[\"1999\"]")
+        .compile("h: hash<string, int> = {}\ni=0\nwhile i<2000\n h[i.to_s]=i\n i+=1\nend\nh[\"1999\"]")
         .unwrap();
     let output = script
         .run(CallOptions {
@@ -83,7 +83,7 @@ fn replacing_deepest_value_updates_depth() {
         deep = Value::array(vec![deep]);
     }
     let input = Value::hash(vec![(b"deep".to_vec(), deep)]);
-    let source = "def run(h,n)\n h[:deep]=1\n i=0\n while i<n\n h={child:h}\n i+=1\n end\n h\nend";
+    let source = "def run(h: hash<string, any>,n: int) -> hash<string, any>\n h[\"deep\"]=1\n i=0\n while i<n\n h={child:h}\n i+=1\n end\n h\nend";
     let script = Engine::new().compile(source).unwrap();
     script
         .call(
@@ -114,7 +114,7 @@ fn ordered_hash_equality_uses_values_and_ignores_order() {
             .collect(),
     );
     let script = Engine::new()
-        .compile("def run(a,b)\n same=a==b\n b[:k00000]=-1\n [same,a==b]\nend")
+        .compile("def run(a: hash<string, int>,b: hash<string, int>) -> array<bool>\n same=a==b\n b[\"k00000\"]=-1\n [same,a==b]\nend")
         .unwrap();
     let output = script
         .call("run", &[first, reversed], CallOptions::default())
@@ -125,7 +125,7 @@ fn ordered_hash_equality_uses_values_and_ignores_order() {
 
 #[test]
 fn removals_and_reinsertion_preserve_lookup_order_and_snapshots() {
-    let source = "def run(h)\nold=h\nkeys=h.keys\nremoved=[]\ni=0\nwhile i<keys.length\nremoved.push(h.delete(keys[i]))\ni+=2\nend\nh.store(:k00000,-1)\n[h.keys,h.values,removed,old]\nend";
+    let source = "def run(h: hash<string, int>) -> [array<string>, array<int>, array<int?>, hash<string, int>]\nold=h\nkeys=h.keys\nremoved: array<int?> = []\ni=0\nwhile i<keys.length\nremoved.push(h.delete(keys.fetch(i)))\ni+=2\nend\nh[\"k00000\"]=-1\n[h.keys,h.values,removed,old]\nend";
     let script = Engine::new().compile(source).unwrap();
     for size in [0, 1, 15, 16, 17, 24, 25, 128, 512] {
         let input = object(size);
@@ -178,17 +178,18 @@ fn removing_deepest_values_releases_nesting_depth() {
     for _ in 0..100 {
         deep = Value::array(vec![deep]);
     }
-    for (input, removal) in [
+    for (input, ty, removal) in [
         (
             Value::hash(vec![(b"deep".to_vec(), deep.clone())]),
-            "h.delete(:deep)",
+            "hash<string, any>",
+            "h.delete(\"deep\")",
         ),
-        (Value::array(vec![deep.clone()]), "h.pop"),
-        (Value::array(vec![deep]), "h.shift"),
+        (Value::array(vec![deep.clone()]), "array<any>", "h.pop"),
+        (Value::array(vec![deep]), "array<any>", "h.shift"),
     ] {
         let script = Engine::new()
             .compile(&format!(
-                "def run(h)\n{removal}\nfor i in 1..9999\nh=[h]\nend\nh\nend"
+                "def run(h: {ty}) -> any\n{removal}\nout: any = h\nfor i in 1..9999\nout=[out]\nend\nout\nend"
             ))
             .unwrap();
         script
