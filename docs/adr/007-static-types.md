@@ -174,7 +174,8 @@ checker with predictable results.
 - Narrowing happens through `is_type?` in a condition, through
   `JSON.parse_as(raw, T)`, and through the checked cast `value.as(T)`. Both of
   the latter validate at runtime like a typed parameter, raise the same boundary
-  error on a mismatch, and have type `T`. A cast also narrows a declared union.
+  error on a mismatch, and have type `T`, which may be any type an annotation
+  can name. A cast also narrows a declared union.
 
 ### Blocks
 
@@ -247,7 +248,8 @@ checker with predictable results.
   declared the same way, with a value: `@@count: int = 0`.
 - Methods follow the function rules. `initialize` declares its parameter types.
 - Classes are nominal and have no inheritance (ADR-006), so there is no subtype
-  relation beyond unions, `nil` and `any`.
+  relation beyond unions, `nil` and `any`. A nested class is named through its
+  scope, `Outer::Inner`, in types as in values.
 - Each enum is a type. A symbol literal naming a member is accepted where the
   enum is expected; any other symbol is an error.
 
