@@ -103,7 +103,6 @@ type HostCallback =
     Arc<dyn Fn(&mut CallContext, &[Value], &[(Value, Value)]) -> Result<Value> + Send + Sync>;
 
 /// A compiler configured with explicitly registered host capabilities.
-#[derive(Default)]
 pub struct Engine {
     hosts: BTreeMap<String, capability::Registered>,
     /// Hosts registered with [`Self::register`], which refuse keywords.
@@ -119,6 +118,43 @@ pub struct Engine {
     #[cfg(feature = "observe")]
     observer: Option<Arc<dyn observe::Observer>>,
 }
+
+/// Whether engines type check statically unless told otherwise. Building
+/// with the `VIBESCRIPT_STATIC_TYPES` environment variable set turns it on,
+/// so the test suite can run as it will once static types are the only
+/// mode. This crate's own unit tests opt in through `test_engine`, since
+/// the gradual checker's tests keep running the ADR-004 language until
+/// that checker is removed.
+#[doc(hidden)]
+pub const STATIC_TYPES_BY_DEFAULT: bool = option_env!("VIBESCRIPT_STATIC_TYPES").is_some();
+
+/// An engine for this crate's unit tests that follows
+/// [`STATIC_TYPES_BY_DEFAULT`].
+#[cfg(test)]
+pub(crate) fn test_engine() -> Engine {
+    let mut engine = Engine::new();
+    engine.set_static_types(STATIC_TYPES_BY_DEFAULT);
+    engine
+}
+
+impl Default for Engine {
+    fn default() -> Self {
+        Self {
+            hosts: BTreeMap::new(),
+            keywordless: BTreeSet::new(),
+            declared: Arc::default(),
+            loader: Arc::default(),
+            strict_effects: false,
+            static_types: STATIC_TYPES_BY_DEFAULT && !cfg!(test),
+            random_source: None,
+            output_writer: None,
+            error_writer: None,
+            #[cfg(feature = "observe")]
+            observer: None,
+        }
+    }
+}
+
 impl Engine {
     /// Creates an engine with core builtins and no external capabilities.
     pub fn new() -> Self {
