@@ -507,7 +507,11 @@ mod tests {
             ("abc", 1),
             (&format!("{}zzz", "a".repeat(300)), 1),
         ] {
-            let error = Engine::new()
+            // The session compiles without static types, so it matches
+            // the library's frames for runtime errors.
+            let mut engine = Engine::new();
+            engine.set_static_types(false);
+            let error = engine
                 .compile(source)
                 .unwrap()
                 .run(CallOptions::default())

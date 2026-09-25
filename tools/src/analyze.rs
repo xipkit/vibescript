@@ -81,42 +81,51 @@ mod tests {
     #[test]
     fn reports_the_reference_cases() {
         assert!(scopes("def run()\n  value = 1\n  value\nend").is_empty());
-        assert!(scopes("def double(x)\n  x * 2\nend\n\ndouble(3)").is_empty());
-        assert_eq!(scopes("def run()\n  return 1\n  2\nend"), ["3:3 run"]);
+        assert!(scopes("def double(x: int) -> int\n  x * 2\nend\n\ndouble(3)").is_empty());
+        assert_eq!(
+            scopes("def run() -> int\n  return 1\n  2\nend"),
+            ["3:3 run"]
+        );
         assert_eq!(
             scopes(
-                "def run()\n  if false\n    return 1\n  elsif true\n    return 2\n  else\n    return 3\n  end\n  4\nend"
+                "def run() -> int\n  if false\n    return 1\n  elsif true\n    return 2\n  else\n    return 3\n  end\n  4\nend"
             ),
             ["9:3 run"]
         );
         assert_eq!(
-            scopes("def run()\n  begin\n    return 1\n  ensure\n    value = 2\n  end\n  3\nend"),
+            scopes(
+                "def run() -> int\n  begin\n    return 1\n  ensure\n    value = 2\n  end\n  3\nend"
+            ),
             ["7:3 run"]
         );
         assert_eq!(
             scopes(
-                "def run()\n  begin\n    1\n  rescue\n    2\n  else\n    return 3\n    4\n  end\nend"
+                "def run() -> int\n  begin\n    1\n  rescue\n    2\n  else\n    return 3\n    4\n  end\nend"
             ),
             ["8:5 run"]
         );
         assert_eq!(
             scopes(
-                "def run()\n  begin\n    1\n  rescue\n    return 2\n  else\n    return 3\n  end\n  4\nend"
+                "def run() -> int\n  begin\n    1\n  rescue\n    return 2\n  else\n    return 3\n  end\n  4\nend"
             ),
             ["9:3 run"]
         );
         assert_eq!(
             scopes(
-                "class Reporter\n  def instance_path()\n    return 1\n    2\n  end\n\n  def self.class_path()\n    return 3\n    4\n  end\nend\n\ndef run()\n  Reporter.new.instance_path\nend"
+                "class Reporter\n  def instance_path() -> int\n    return 1\n    2\n  end\n\n  def self.class_path() -> int\n    return 3\n    4\n  end\nend\n\ndef run() -> int\n  Reporter.new.instance_path\nend"
             ),
             ["4:5 Reporter#instance_path", "9:5 Reporter.class_path"]
         );
         assert_eq!(
-            scopes("def run()\n  [1].each do |x|\n    raise \"boom\"\n    x\n  end\nend"),
+            scopes(
+                "def run() -> array<int>\n  [1].each { |x|\n    raise \"boom\"\n    x\n  }\nend"
+            ),
             ["4:5 run block at 2:12"]
         );
         assert_eq!(
-            scopes("def run()\n  %I[#{capture { raise \"boom\"; 1 }}]\nend"),
+            scopes(
+                "def capture(&block: () -> int) -> int\n  yield\nend\n\ndef run() -> string\n  \"#{capture { raise \"boom\"; 1 }}\"\nend"
+            ),
             ["1:25 run block at 1:9"]
         );
         assert_eq!(
@@ -131,13 +140,22 @@ mod tests {
     fn follows_the_reference_positions_and_scopes() {
         assert_eq!(
             scopes(
-                "def f\n  return 1\n  x = 2 if true\n  y = 3 unless false\n  z while false\nend"
+                "def f(z: int)\n  return\n  x = 2 if true\n  y = 3 if !false\n  z while false\nend"
             ),
             ["3:9 f", "4:9 f", "5:5 f"]
         );
-        assert_eq!(scopes("def f\n  return\n  a == b\nend"), ["3:6 f"]);
-        assert_eq!(scopes("def f\n  return\n  a <=> b\nend"), ["3:5 f"]);
-        assert_eq!(scopes("def f\n  return\n  x rescue y\nend"), ["3:5 f"]);
+        assert_eq!(
+            scopes("def f(a: int, b: int)\n  return\n  a == b\nend"),
+            ["3:6 f"]
+        );
+        assert_eq!(
+            scopes("def f(a: int, b: int)\n  return\n  a <=> b\nend"),
+            ["3:5 f"]
+        );
+        assert_eq!(
+            scopes("def f(x: int, y: int)\n  return\n  x rescue y\nend"),
+            ["3:5 f"]
+        );
         assert_eq!(scopes("def f\n  return\n  -1\nend"), ["3:4 f"]);
         assert_eq!(
             scopes("raise \"x\"\nclass A\n  1\nend\nclass B\n  def m\n  end\nend"),

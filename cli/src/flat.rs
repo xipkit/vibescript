@@ -869,9 +869,9 @@ mod tests {
 
     #[test]
     fn reports_render_errors_and_incomplete_paths_with_the_input_filename() {
-        let script = Engine::new()
-            .compile("def run() -> int\n  \"é\"\nend")
-            .unwrap();
+        let mut engine = Engine::new();
+        engine.set_static_types(false);
+        let script = engine.compile("def run() -> int\n  \"é\"\nend").unwrap();
         let report = script
             .check_call("run", &[], &CallOptions::default())
             .unwrap();

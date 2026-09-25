@@ -369,8 +369,8 @@ mod tests {
     fn rejects_required_parameters_but_allows_defaults() {
         assert_eq!(
             outcomes(
-                "def test_needs_arg(value)\n  assert value\nend\n\
-                 def test_default_ok(value = 1)\n  assert value == 1\nend\n"
+                "def test_needs_arg(value: bool)\n  assert value\nend\n\
+                 def test_default_ok(value: int = 1)\n  assert value == 1\nend\n"
             )
             .unwrap(),
             [
@@ -388,7 +388,6 @@ mod tests {
         for (source, kind) in [
             ("puts 1\ndef test_a\nend\n", StatementKind::Expression),
             ("x = 1\n", StatementKind::Assignment),
-            ("until true\nend\n", StatementKind::Until),
             ("return if true\n", StatementKind::If),
             ("begin\n1\nend\n", StatementKind::Begin),
         ] {
