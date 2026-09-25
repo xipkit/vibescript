@@ -133,7 +133,7 @@ fn invalid_calls_fail_before_iteration_or_block_effects() {
 fn scans_account_each_element_without_materializing_a_range() {
     for method in ["sum", "min", "max"] {
         let script = Engine::new()
-            .compile(&format!("def run(n); (1..n).{method}; end"))
+            .compile(&format!("def run(n: int) -> int?; (1..n).{method}; end"))
             .unwrap();
         let short = script
             .call("run", &[Value::int(100)], CallOptions::default())
