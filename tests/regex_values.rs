@@ -303,9 +303,9 @@ fn selected_regex_policies_preserve_anchors_and_match_data_identity() {
             continue;
         }
         let script = Engine::new()
-            .compile(case["body"].as_str().unwrap())
+            .compile(case["source"].as_str().unwrap())
             .unwrap();
-        let result = script.run(CallOptions::default());
+        let result = script.call("run", &[Value::nil()], CallOptions::default());
         if case.get("expected_error").is_some() {
             assert_eq!(
                 result.unwrap_err().kind,

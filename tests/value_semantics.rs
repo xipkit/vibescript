@@ -18,32 +18,37 @@ fn documented_values_remain_stable_with_and_without_an_unused_alias() {
         if case["policy"] != "documented_value_semantics" {
             continue;
         }
-        if let Some(source) = case["source"].as_str() {
-            for source in [source, case["source_with_alias"].as_str().unwrap()] {
-                let result = Engine::new()
-                    .compile(source)
-                    .unwrap()
-                    .call("run", &[vibescript::Value::nil()], CallOptions::default())
-                    .unwrap();
-                let encoded = stringify_json(&result.value, CallOptions::default()).unwrap();
-                let actual: serde_json::Value =
-                    serde_json::from_slice(encoded.value.as_bytes().unwrap()).unwrap();
-                assert_eq!(actual, case["expected"], "{}", case["name"]);
-            }
-            continue;
+        let source = case["source"].as_str().unwrap();
+        let with_alias = match case["source_with_alias"].as_str() {
+            Some(alias) => alias.to_owned(),
+            None => with_unused_alias(source),
+        };
+        for source in [source, &with_alias] {
+            let result = Engine::new()
+                .compile(source)
+                .unwrap()
+                .call("run", &[vibescript::Value::nil()], CallOptions::default())
+                .unwrap();
+            let encoded = stringify_json(&result.value, CallOptions::default()).unwrap();
+            let actual: serde_json::Value =
+                serde_json::from_slice(encoded.value.as_bytes().unwrap()).unwrap();
+            assert_eq!(actual, case["expected"], "{}", case["name"]);
         }
-        let body = case["body"].as_str().unwrap();
-        let name = case["name"].as_str().unwrap();
-        assert_eq!(evaluate(body), case["expected"], "{name}");
-        let first_end = body.find([';', '\n']).unwrap();
-        let root = body.split_once('=').unwrap().0;
-        let with_alias = format!(
-            "{};unused_snapshot={root};{}",
-            &body[..first_end],
-            &body[first_end + 1..]
-        );
-        assert_eq!(evaluate(&with_alias), case["expected"], "{name} with alias");
     }
+}
+
+/// Aliases the local that the first statement of `run`'s body assigns, right
+/// after that statement, leaving the alias unused.
+fn with_unused_alias(source: &str) -> String {
+    let (header, body) = source.split_once('\n').unwrap();
+    let first_end = body.find([';', '\n']).unwrap();
+    let target = body.split_once('=').unwrap().0;
+    let root = target.split(':').next().unwrap().trim();
+    format!(
+        "{header}\n{};unused_snapshot={root};{}",
+        &body[..first_end],
+        &body[first_end + 1..]
+    )
 }
 
 #[test]

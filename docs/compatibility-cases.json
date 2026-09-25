@@ -1,7 +1,7 @@
 [
   {
     "name": "negative_receiver_growth",
-    "body": "a=[[1]]\nx=a[-1].push((while true\na.push([9])\nbreak 2\nend))\n[x,a]",
+    "source": "def run(input: any) -> [array<int>?, array<array<int>>]\na=[[1]]\nx=a[-1]&.push((while true\na.push([9])\nbreak 2\nend))\n[x,a]\nend",
     "go": [
       [
         1,
@@ -51,7 +51,7 @@
   },
   {
     "name": "compound_collection_side_effect",
-    "body": "a=[[1]]\na[0]+=a[0].push(2)\na",
+    "source": "def run(input: any) -> [array<int>]\na: [array<int>] = [[1]]\na[0]+=a[0].push(2)\na\nend",
     "go": [
       [
         1,
@@ -79,7 +79,7 @@
   },
   {
     "name": "binary_collection_side_effect",
-    "body": "a=[1]\nx=a+a.push(2)\n[x,a]",
+    "source": "def run(input: any) -> array<array<int>>\na=[1]\nx=a+a.push(2)\n[x,a]\nend",
     "go": [
       [
         1,
@@ -119,7 +119,7 @@
   },
   {
     "name": "inclusive_integer_endpoint",
-    "body": "max=9223372036854775807\na=[]\nfor n in max..max\na.push(n)\nbreak if n<0\nend\na",
+    "source": "def run(input: any) -> array<int>\nmax=9223372036854775807\na: array<int> = []\nfor n in max..max\na.push(n)\nbreak if n<0\nend\na\nend",
     "go": [
       9223372036854775807,
       -9223372036854775808
@@ -135,7 +135,7 @@
   },
   {
     "name": "hash_break_value",
-    "body": "x=for k,v in {a:1}\nbreak 7\nend\nx",
+    "source": "def run(input: any) -> int | { a: int }\nx=for k,v in {a:1}\nbreak 7\nend\nx\nend",
     "go": {
       "a": 1
     },
@@ -146,7 +146,7 @@
   },
   {
     "name": "hash_break_nil",
-    "body": "x=for k,v in {a:1}\nbreak\nend\nx",
+    "source": "def run(input: any) -> { a: int }?\nx=for k,v in {a:1}\nbreak\nend\nx\nend",
     "go": {
       "a": 1
     },
@@ -157,7 +157,7 @@
   },
   {
     "name": "for_expression_mutation",
-    "body": "a=[1,2]\nx=for n in a\na.push(3)\nend\n[x,a]",
+    "source": "def run(input: any) -> array<array<int>>\na=[1,2]\nx=for n in a\na.push(3)\nend\n[x,a]\nend",
     "go": [
       [
         1,
@@ -201,7 +201,7 @@
   },
   {
     "name": "iteration_array_mutation_each",
-    "body": "a=[1,2,3];seen=[];r=a.each {|v|seen.push(v);a[1]=9;v};[seen,a,r]",
+    "source": "def run(input: any) -> array<array<int>>\na=[1,2,3];seen: array<int> = [];r=a.each {|v|seen.push(v);a[1]=9;v};[seen,a,r]\nend",
     "go": [
       [
         1,
@@ -258,7 +258,7 @@
   },
   {
     "name": "iteration_array_mutation_map",
-    "body": "a=[1,2,3];seen=[];r=a.map {|v|seen.push(v);a[1]=9;v};[seen,a,r]",
+    "source": "def run(input: any) -> array<array<int>>\na=[1,2,3];seen: array<int> = [];r=a.map {|v|seen.push(v);a[1]=9;v};[seen,a,r]\nend",
     "go": [
       [
         1,
@@ -315,7 +315,7 @@
   },
   {
     "name": "iteration_array_mutation_select",
-    "body": "a=[1,2,3];seen=[];r=a.select {|v|seen.push(v);a[1]=9;v};[seen,a,r]",
+    "source": "def run(input: any) -> array<array<int>>\na=[1,2,3];seen: array<int> = [];r=a.select {|v|seen.push(v);a[1]=9;true};[seen,a,r]\nend",
     "go": [
       [
         1,
@@ -372,7 +372,7 @@
   },
   {
     "name": "iteration_array_mutation_each_with_index",
-    "body": "a=[1,2,3];seen=[];r=a.each_with_index {|v|seen.push(v);a[1]=9;v};[seen,a,r]",
+    "source": "def run(input: any) -> array<array<int>>\na=[1,2,3];seen: array<int> = [];r=a.each_with_index {|v|seen.push(v);a[1]=9;v};[seen,a,r]\nend",
     "go": [
       [
         1,
@@ -429,7 +429,7 @@
   },
   {
     "name": "iteration_hash_mutation_each",
-    "body": "h={a:1,b:2};seen=[];r=h.each {|k,v|seen.push([k,v]);h.b=9;v};[seen,h,r]",
+    "source": "def run(input: any) -> [array<[string, int]>, { a: int, b: int }, { a: int, b: int }]\nh={a:1,b:2};seen: array<[string, int]> = [];r=h.each {|k,v|seen.push([k,v]);h[\"b\"]=9;v};[seen,h,r]\nend",
     "go": [
       [
         [
@@ -495,7 +495,7 @@
   },
   {
     "name": "mutable_block_fill_changes_tail",
-    "body": "a=[1,2,3];r=a.fill(0,1){a[2]=9;7};[a,r]",
+    "source": "def run(input: any) -> array<array<int>>\na=[1,2,3];r=a.fill(0,1){a[2]=9;7};[a,r]\nend",
     "go": [
       [
         7,
@@ -533,11 +533,18 @@
         3
       ]
     ],
-    "reason": "The mutator processes its captured logical receiver; backing-store sharing cannot change its result."
+    "reason": "The mutator processes its captured logical receiver; backing-store sharing cannot change its result.",
+    "static_error": {
+      "code": "V0305",
+      "at": [
+        2,
+        24
+      ]
+    }
   },
   {
     "name": "mutable_block_filter_changes_tail",
-    "body": "a=[1,2,3];r=a.keep_if {|v|a[2]=9;true};[a,r]",
+    "source": "def run(input: any) -> array<array<int>>\na=[1,2,3];r=a.keep_if {|v|a[2]=9;true};[a,r]\nend",
     "go": [
       [
         1,
@@ -579,7 +586,7 @@
   },
   {
     "name": "mutable_block_filter_changes_tail_removes",
-    "body": "a=[1,2,3];r=a.delete_if {|v|a[2]=9;v==2};[a,r]",
+    "source": "def run(input: any) -> array<array<int>>\na=[1,2,3];r=a.delete_if {|v|a[2]=9;v==2};[a,r]\nend",
     "go": [
       [
         1,
@@ -615,7 +622,7 @@
   },
   {
     "name": "mutable_block_hash_filter_changes_noop",
-    "body": "a={a:1,b:2};r=a.keep_if {|k,v|a.b=9;true};[a,r]",
+    "source": "def run(input: any) -> [{ a: int, b: int }, hash<string, int>]\na={a:1,b:2};r=a.keep_if {|k,v|a[\"b\"]=9;true};[a,r]\nend",
     "go": [
       {
         "a": 1,
@@ -651,7 +658,7 @@
   },
   {
     "name": "mutable_block_fill_negative_parent_growth",
-    "body": "a=[[1,2]];r=a[-1].fill {a.push([9]);7};[a,r]",
+    "source": "def run(input: any) -> [array<array<int>>, array<int>?]\na=[[1,2]];r=a[-1]&.fill {a.push([9]);7};[a,r]\nend",
     "go": [
       [
         [
@@ -707,11 +714,18 @@
         7,
         7
       ]
-    ]
+    ],
+    "static_error": {
+      "code": "V0301",
+      "at": [
+        2,
+        20
+      ]
+    }
   },
   {
     "name": "ordering_sort_by_callback_mutation",
-    "body": "a=[3,1,2];r=a.sort_by {|v,w|a[2]=9;v};[a,r]",
+    "source": "def run(input: any) -> array<array<int>>\na=[3,1,2];r=a.sort_by {|v|a[2]=9;v};[a,r]\nend",
     "go": [
       [
         3,
@@ -753,7 +767,7 @@
   },
   {
     "name": "ordering_max_by_callback_mutation",
-    "body": "a=[3,1,2];r=a.max_by {|v,w|a[2]=9;v};[a,r]",
+    "source": "def run(input: any) -> [array<int>, int?]\na=[3,1,2];r=a.max_by {|v|a[2]=9;v};[a,r]\nend",
     "go": [
       [
         3,
@@ -783,7 +797,7 @@
   },
   {
     "name": "collection_blocks_slice_when_mutation_0_False",
-    "body": "a=[1,2,3];seen=[];r=a.slice_when {|x,y|seen.push([x,y]);a[1]=9;x+1!=y};[a,r,seen]",
+    "source": "def run(input: any) -> [array<int>, array<array<int>>, array<array<int>>]\na=[1,2,3];seen: array<array<int>> = [];r=a.slice_when {|x,y|seen.push([x,y]);a[1]=9;x+1!=y};[a,r,seen]\nend",
     "go": [
       [
         1,
@@ -863,7 +877,7 @@
   },
   {
     "name": "collection_blocks_chunk_while_mutation_0_False",
-    "body": "a=[1,2,3];seen=[];r=a.chunk_while {|x,y|seen.push([x,y]);a[1]=9;x+1!=y};[a,r,seen]",
+    "source": "def run(input: any) -> [array<int>, array<array<int>>, array<array<int>>]\na=[1,2,3];seen: array<array<int>> = [];r=a.chunk_while {|x,y|seen.push([x,y]);a[1]=9;x+1!=y};[a,r,seen]\nend",
     "go": [
       [
         1,
@@ -951,7 +965,7 @@
   },
   {
     "name": "collection_blocks_merge_mutates_later_argument",
-    "body": "h={a:1};later={a:3,b:4};r=h.merge({a:2},later){|k,o,n|later.a=9;o+n};[later,r]",
+    "source": "def run(input: any) -> array<hash<string, int>>\nh: hash<string, int> = {a:1};later: hash<string, int> = {a:3,b:4};r=h.merge({a:2},later){|k,o,n|later[\"a\"]=9;o+n};[later,r]\nend",
     "go": [
       {
         "a": 9,
@@ -987,7 +1001,7 @@
   },
   {
     "name": "collection_blocks_deep_mutation_1_False",
-    "body": "h={a:[1,2],b:2};r=h.deep_transform_keys {|k|h.a[0]=9;k};[h,r]",
+    "source": "def run(input: any) -> [{ a: array<int>, b: int }, hash<string, array<int> | int>]\nh={a:[1,2],b:2};r=h.deep_transform_keys {|k|h[\"a\"][0]=9;k};[h,r]\nend",
     "go": [
       {
         "a": [
@@ -1041,7 +1055,7 @@
   },
   {
     "name": "collection_blocks_deep_mutation_3_False",
-    "body": "h={a:{b:1},b:2};r=h.deep_transform_keys {|k|h.a.b=9;k};[h,r]",
+    "source": "def run(input: any) -> [{ a: { b: int }, b: int }, hash<string, int | { b: int }>]\nh={a:{b:1},b:2};r=h.deep_transform_keys {|k|h[\"a\"][\"b\"]=9;k};[h,r]\nend",
     "go": [
       {
         "a": {
@@ -1089,7 +1103,7 @@
   },
   {
     "name": "regex_namespace_anchors",
-    "body": "pattern=\"(?:^a$)\";[Regex.match(pattern,\"ab\"),Regex.replace(\"ab\",pattern,\"X\"),Regex.replace_all(\"aba\",pattern,\"X\"),\"ab\".match?(pattern)]",
+    "source": "def run(input: any) -> [string?, string, string, bool]\npattern=\"(?:^a$)\";[Regex.match(pattern,\"ab\"),Regex.replace(\"ab\",pattern,\"X\"),Regex.replace_all(\"aba\",pattern,\"X\"),\"ab\".match?(pattern)]\nend",
     "go": [
       "a",
       "Xb",
@@ -1113,7 +1127,7 @@
   },
   {
     "name": "match_data_nested_mutation",
-    "body": "m=\"a\".match(/(a)/);m.captures.push(\"x\");m.captures",
+    "source": "def run(input: any) -> array<string?>?\nm=\"a\".match(/(a)/);m&.captures&.push(\"x\");m&.captures\nend",
     "go": [
       "a",
       "x"
@@ -1125,16 +1139,23 @@
   },
   {
     "name": "match_data_duplicate_mutation",
-    "body": "m=\"a\".match(/a/);m.dup.clear",
+    "source": "def run(input: any) -> match_data?\nm=\"a\".match(/a/);m&.dup&.clear\nend",
     "go": {},
     "rust_error": "Argument",
     "expected_error": "Argument",
     "policy": "protected_match_data",
-    "reason": "Duplicating match data preserves its protection. Go deep cloning drops the tag and permits the resulting object to be cleared."
+    "reason": "Duplicating match data preserves its protection. Go deep cloning drops the tag and permits the resulting object to be cleared.",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        2,
+        26
+      ]
+    }
   },
   {
     "name": "match_data_duplicate_rendering",
-    "body": "m=\"a\".match(/a/);\"#{m.dup}\"",
+    "source": "def run(input: any) -> string\nm=\"a\".match(/a/);\"#{m.dup}\"\nend",
     "go": "<object>",
     "rust": "a",
     "expected": "a",
@@ -1143,26 +1164,47 @@
   },
   {
     "name": "substitution_word_boundaries",
-    "body": "[\"a b aa\".gsub(/\\b/,\"X\"),\"ababa\".gsub(/\\B/,\"X\"),\"a b aa\".gsub(/\\b/) {\"X\"}]",
-    "go": ["Xa Xb XaaX", "aXbaXba", "Xa Xb XaaX"],
-    "rust": ["XaX XbX XaaX", "aXbXaXbXa", "XaX XbX XaaX"],
-    "expected": ["XaX XbX XaaX", "aXbXaXbXa", "XaX XbX XaaX"],
+    "source": "def run(input: any) -> array<string>\n[\"a b aa\".gsub(/\\b/,\"X\"),\"ababa\".gsub(/\\B/,\"X\"),\"a b aa\".gsub(/\\b/) {\"X\"}]\nend",
+    "go": [
+      "Xa Xb XaaX",
+      "aXbaXba",
+      "Xa Xb XaaX"
+    ],
+    "rust": [
+      "XaX XbX XaaX",
+      "aXbXaXbXa",
+      "XaX XbX XaaX"
+    ],
+    "expected": [
+      "XaX XbX XaaX",
+      "aXbXaXbXa",
+      "XaX XbX XaaX"
+    ],
     "policy": "honor_regex_anchors",
     "reason": "Global substitution retains the original assertion context. Go's suffix-window repair can skip valid word-boundary and non-boundary matches; Rust evaluates every eligible character boundary."
   },
   {
     "name": "substitution_match_data_rendering",
-    "body": "m=\"a\".match(/a/);[\"aa\".sub(/a/) {m},\"aa\".gsub(/a/) {m}]",
-    "go": ["<object>a", "<object><object>"],
-    "rust": ["aa", "aa"],
-    "expected": ["aa", "aa"],
+    "source": "def run(input: any) -> array<string>\nm=\"a\".match(/a/);[\"aa\".sub(/a/) {\"#{m}\"},\"aa\".gsub(/a/) {\"#{m}\"}]\nend",
+    "go": [
+      "<object>a",
+      "<object><object>"
+    ],
+    "rust": [
+      "aa",
+      "aa"
+    ],
+    "expected": [
+      "aa",
+      "aa"
+    ],
     "policy": "protected_match_data",
     "reason": "Match data retains its published whole-match rendering when a replacement block returns it. Go's bounded conversion loses the specialized rendering and emits an object placeholder."
   },
   {
     "name": "module_returned_array_snapshot",
-    "source": "module M\n @@a=[]\n def self.f;@@a.push(1);@@a;end\nend\ndef run(input)\n[M.f,M.f]\nend",
-    "source_with_alias": "module M\n @@a=[]\n def self.f;@@a.push(1);@@a;end\nend\ndef run(input)\nx=M.f;unused_snapshot=x;[x,M.f]\nend",
+    "source": "module M\n @@a: array<int> = []\n def self.f -> array<int>;@@a.push(1);@@a;end\nend\ndef run(input: any) -> array<array<int>>\n[M.f,M.f]\nend",
+    "source_with_alias": "module M\n @@a: array<int> = []\n def self.f -> array<int>;@@a.push(1);@@a;end\nend\ndef run(input: any) -> array<array<int>>\nx=M.f;unused_snapshot=x;[x,M.f]\nend",
     "go": [
       [
         1,
@@ -1196,8 +1238,8 @@
   },
   {
     "name": "module_array_assignment_snapshot",
-    "source": "module M\n A=[]\nend\ndef run(input)\n x=[1];M.A=x;M::A[0]=3;[x,M.A]\nend",
-    "source_with_alias": "module M\n A=[]\nend\ndef run(input)\n x=[1];unused_snapshot=x;M.A=x;M::A[0]=3;[x,M.A]\nend",
+    "source": "module M\n A=[]\nend\ndef run(input: any) -> array<array<int>>\n x=[1]\n M.A=x;M::A[0]=3;[x,M.A]\nend",
+    "source_with_alias": "module M\n A=[]\nend\ndef run(input: any) -> array<array<int>>\n x=[1];unused_snapshot=x\n M.A=x;M::A[0]=3;[x,M.A]\nend",
     "go": [
       [
         3
@@ -1223,11 +1265,18 @@
       ]
     ],
     "policy": "documented_value_semantics",
-    "reason": "Assigning an array to a module field preserves the original local value; writes update only the selected module path."
+    "reason": "Assigning an array to a module field preserves the original local value; writes update only the selected module path.",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        6,
+        4
+      ]
+    }
   },
   {
     "name": "match_data_duplicate_nested_write",
-    "body": "m=\"a\".match(/(a)/);m.dup.captures.push(\"x\")",
+    "source": "def run(input: any) -> array<string?>?\nm=\"a\".match(/(a)/);m&.dup&.captures&.push(\"x\")\nend",
     "go": [
       "a",
       "x"
@@ -1238,7 +1287,7 @@
   },
   {
     "name": "match_data_temporary_nested_write",
-    "body": "\"a\".match(/(a)/).captures.push(\"x\")",
+    "source": "def run(input: any) -> array<string?>?\n\"a\".match(/(a)/)&.captures&.push(\"x\")\nend",
     "go": [
       "a",
       "x"
@@ -1249,8 +1298,8 @@
   },
   {
     "name": "class_index_getter_snapshot",
-    "source": "class Grid\ndef initialize;@slots={};end\ndef [](row,col);@slots.fetch(\"#{row}:#{col}\",nil);end\ndef []=(row,col,value);@slots[\"#{row}:#{col}\"]=value;\"ignored\";end\nend\ndef run(input)\ngrid=Grid.new;grid[0,0]=[1];saved=grid[0,0];grid[0,0][0]=8;[saved,grid[0,0]]\nend",
-    "source_with_alias": "class Grid\ndef initialize;@slots={};end\ndef [](row,col);@slots.fetch(\"#{row}:#{col}\",nil);end\ndef []=(row,col,value);@slots[\"#{row}:#{col}\"]=value;\"ignored\";end\nend\ndef run(input)\ngrid=Grid.new;grid[0,0]=[1];saved=grid[0,0];unused_snapshot=saved;grid[0,0][0]=8;[saved,grid[0,0]]\nend",
+    "source": "class Grid\n@slots: hash<string, array<int>> = {}\ndef initialize;@slots={};end\ndef [](row: int,col: int) -> array<int>;@slots.fetch(\"#{row}:#{col}\");end\ndef []=(row: int,col: int,value: array<int>) -> string;@slots[\"#{row}:#{col}\"]=value;\"ignored\";end\nend\ndef run(input: any) -> array<array<int>>\ngrid=Grid.new;grid[0,0]=[1];saved=grid[0,0];grid[0,0][0]=8;[saved,grid[0,0]]\nend",
+    "source_with_alias": "class Grid\n@slots: hash<string, array<int>> = {}\ndef initialize;@slots={};end\ndef [](row: int,col: int) -> array<int>;@slots.fetch(\"#{row}:#{col}\");end\ndef []=(row: int,col: int,value: array<int>) -> string;@slots[\"#{row}:#{col}\"]=value;\"ignored\";end\nend\ndef run(input: any) -> array<array<int>>\ngrid=Grid.new;grid[0,0]=[1];saved=grid[0,0];unused_snapshot=saved;grid[0,0][0]=8;[saved,grid[0,0]]\nend",
     "go": [
       [
         8
