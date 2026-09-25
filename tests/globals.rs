@@ -134,7 +134,7 @@ def run(input: array<array<int>>) -> array<array<array<int>>>
  rescue
   saved=Math
  ensure
-  Math.fetch(0).push(9)
+  Math[0].push(9)
  end
  [input,saved,Math]
 end
