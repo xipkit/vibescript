@@ -207,28 +207,15 @@ fn invalid_signatures_stop_before_entropy_or_followup_host_effects() {
     for source in [
         "rand(0)",
         "rand(-1)",
-        "rand(1.0)",
         "rand(9223372036854775808)",
         "rand(1...1)",
         "rand(..3)",
         "rand(1..)",
-        "rand(1,2)",
-        "rand(extra:1)",
-        "rand{effect()}",
-        "srand(1.0)",
         "srand(9223372036854775808)",
-        "srand(1,2)",
-        "srand(nil){effect()}",
-        "uuid(1)",
-        "uuid(extra:1)",
-        "uuid{effect()}",
-        "random_id(nil)",
         "random_id(0)",
         "random_id(-1)",
-        "random_id(8.9)",
         "random_id(1025)",
         "random_id(9223372036854775808)",
-        "random_id(8){effect()}",
     ] {
         assert!(
             engine
@@ -241,15 +228,41 @@ fn invalid_signatures_stop_before_entropy_or_followup_host_effects() {
     }
     assert_eq!(effects.load(Ordering::SeqCst), 0);
     assert_eq!(reads.load(Ordering::SeqCst), 0);
+    // An argument of the wrong type from the host fails when it is cast,
+    // after its call and before any entropy is read.
     assert!(
         engine
-            .compile("random_id(effect());effect()")
+            .compile("random_id(effect().as(int));effect()")
             .unwrap()
             .run(CallOptions::default())
             .is_err()
     );
     assert_eq!(effects.load(Ordering::SeqCst), 1);
     assert_eq!(reads.load(Ordering::SeqCst), 0);
+    // Other wrong signatures are refused before anything runs.
+    let mut checked = common::static_engine();
+    checked.register("effect", |_, _| panic!("effect ran"));
+    for (source, code) in [
+        ("rand(1.0)", "V0101"),
+        ("rand(1,2)", "V0301"),
+        ("rand(extra:1)", "V0301"),
+        ("rand{effect()}", "V0301"),
+        ("srand(1.0)", "V0101"),
+        ("srand(1,2)", "V0301"),
+        ("srand(nil){effect()}", "V0305"),
+        ("uuid(1)", "V0301"),
+        ("uuid(extra:1)", "V0302"),
+        ("uuid{effect()}", "V0305"),
+        ("random_id(nil)", "V0101"),
+        ("random_id(8.9)", "V0101"),
+        ("random_id(8){effect()}", "V0305"),
+    ] {
+        let error = checked
+            .compile(&format!("{source};effect()"))
+            .err()
+            .unwrap();
+        assert_eq!(common::codes(&error), [code], "{source}");
+    }
 }
 
 #[test]
@@ -263,7 +276,7 @@ fn entropy_errors_short_stalls_and_invalid_counts_propagate() {
                 Ok(outcome)
             }
         });
-        for source in ["rand", "srand()", "uuid", "random_id()"] {
+        for source in ["rand", "srand", "uuid", "random_id"] {
             assert_eq!(
                 engine
                     .compile(source)
@@ -291,7 +304,7 @@ fn entropy_errors_short_stalls_and_invalid_counts_propagate() {
 
 #[test]
 fn cancellation_and_deadlines_are_checked_before_and_after_entropy_callbacks() {
-    for source in ["rand", "srand()", "uuid", "random_id()"] {
+    for source in ["rand", "srand", "uuid", "random_id"] {
         let (engine, reads) = engine(0);
         let script = engine.compile(source).unwrap();
         let token = CancellationToken::new();
@@ -460,12 +473,12 @@ fn bare_random_helpers_run_like_empty_calls() {
     let script = engine
         .compile(
             r#"
-def run()
+def run() -> array<int?>
  first=srand
  srand(42)
  previous=srand
  id=random_id
- [first,previous,srand(),id.length,random_id().length]
+ [first,previous,srand,id.length,random_id.length]
 end
 "#,
         )
@@ -476,15 +489,8 @@ end
     assert_eq!(value[1], 42);
     assert_eq!(value[3], 16);
     assert_eq!(value[4], 16);
-    for (source, message) in [
-        ("srand { 1 }", "srand does not accept blocks"),
-        ("random_id { 1 }", "random_id does not accept blocks"),
-    ] {
-        let error = engine
-            .compile(source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap_err();
-        assert_eq!(error.message, message, "{source}");
+    for source in ["srand { 1 }", "random_id { 1 }"] {
+        let error = common::static_engine().compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0305"], "{source}");
     }
 }
