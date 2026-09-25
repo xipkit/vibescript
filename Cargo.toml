@@ -23,6 +23,8 @@ default = ["simd"]
 simd = []
 allocation-stats = []
 tokio = ["dep:tokio"]
+# Lets tools observe the values a script computes (`vibescript::observe`).
+observe = []
 
 [dependencies]
 getrandom = "0.4"

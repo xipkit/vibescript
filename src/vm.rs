@@ -530,6 +530,33 @@ impl Run {
             let function = &program.functions[frame.function.unwrap()];
             simple::run(ctx, program, function, frame, storage, stack)?;
             let op = function.code[frame.ip];
+            #[cfg(feature = "observe")]
+            if ctx.observation.is_some() {
+                let home = frame.home.and_then(|home| {
+                    let home = &frames.data[home];
+                    Some(&home.program.functions[home.function?])
+                });
+                let frame = &frames.data[current];
+                let observed = crate::observe::Frame {
+                    depth: current,
+                    ip: frame.ip,
+                    local_base: frame.local_base,
+                    block: frame.parent.is_some(),
+                    receiver: frame.receiver.as_ref(),
+                    home,
+                };
+                crate::observe::before(
+                    ctx,
+                    program,
+                    function,
+                    observed,
+                    &op,
+                    &stack.data,
+                    &storage.locals.data,
+                    &storage.addresses.data,
+                );
+            }
+            let frame = &mut frames.data[current];
             frame.ip += 1;
             // Returns, and calls without host bindings, need nothing from the
             // prologue below.
@@ -4000,6 +4027,8 @@ fn enter(
         let args = Arguments::from_values(ctx, args)?;
         return enter_arguments(program, ctx, frames, storage, function, args, base);
     }
+    #[cfg(feature = "observe")]
+    crate::observe::enter(ctx, program.source.text(), fun);
     ctx.charge(1)?;
     if frames.data.len() >= ctx.options.limits.recursion {
         return recursion_exceeded(ctx);
@@ -4017,6 +4046,14 @@ fn enter(
         ctx.charge(1)?;
         storage.locals.data[local_base + param.slot] = Some(arg.clone());
     }
+    #[cfg(feature = "observe")]
+    crate::observe::parameters(
+        ctx,
+        program.source.text(),
+        fun,
+        &storage.locals.data,
+        local_base,
+    );
     // Built within the push, which spares the frame an intermediate copy.
     frames.push(
         ctx,
@@ -4079,6 +4116,8 @@ fn enter_arguments(
         frame.constructor = call.constructor;
         return Ok(());
     }
+    #[cfg(feature = "observe")]
+    crate::observe::enter(ctx, program.source.text(), fun);
     ctx.charge(1)?;
     if frames.data.len() >= ctx.options.limits.recursion {
         return recursion_exceeded(ctx);
@@ -4097,6 +4136,14 @@ fn enter_arguments(
         for (i, param) in fun.params.iter().enumerate() {
             storage.locals.data[frame.local_base + param.slot] = binding.value(ctx, i)?;
         }
+        #[cfg(feature = "observe")]
+        crate::observe::parameters(
+            ctx,
+            program.source.text(),
+            fun,
+            &storage.locals.data,
+            frame.local_base,
+        );
     }
     frames.push(ctx, frame)
 }

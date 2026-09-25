@@ -50,6 +50,14 @@ impl Execution {
         context.random_source = script.inner.random_source.clone();
         context.output_writer = script.inner.output_writer.clone();
         context.error_writer = script.inner.error_writer.clone();
+        #[cfg(feature = "observe")]
+        {
+            context.observation = script
+                .inner
+                .observer
+                .clone()
+                .map(crate::observe::State::new);
+        }
         execution
     }
 

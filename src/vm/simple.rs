@@ -22,6 +22,10 @@ pub(super) fn run(
     if program.file || storage.bindings.is_some() || !ctx.options.globals.is_empty() {
         return Ok(());
     }
+    #[cfg(feature = "observe")]
+    if ctx.observation.is_some() {
+        return Ok(());
+    }
     loop {
         match function.code[frame.ip] {
             Op::Nil => {

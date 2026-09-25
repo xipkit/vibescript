@@ -10,6 +10,8 @@ fn file(engine: &Engine, source: &str) -> Script {
             random_source: engine.random_source.clone(),
             output_writer: engine.output_writer.clone(),
             error_writer: engine.error_writer.clone(),
+            #[cfg(feature = "observe")]
+            observer: None,
         }),
     }
 }

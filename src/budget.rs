@@ -182,6 +182,8 @@ pub struct CallContext {
     pub(crate) output_writer: Option<crate::output::Writer>,
     pub(crate) error_writer: Option<crate::output::Writer>,
     pub(crate) random: Option<crate::random::Seeded>,
+    #[cfg(feature = "observe")]
+    pub(crate) observation: Option<crate::observe::State>,
 }
 
 impl CallContext {
@@ -208,6 +210,8 @@ impl CallContext {
             output_writer: None,
             error_writer: None,
             random: None,
+            #[cfg(feature = "observe")]
+            observation: None,
         }
     }
 
