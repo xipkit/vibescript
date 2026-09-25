@@ -1,3 +1,5 @@
+mod common;
+
 use std::sync::{Arc, Mutex};
 use vibescript::{CallOptions, Engine, ErrorClass, ErrorKind, Limits, Value, stringify_json};
 
@@ -11,29 +13,24 @@ fn result(source: &str) -> serde_json::Value {
 #[test]
 fn rescue_values_classes_bindings_and_expression_forms() {
     for (source, expected) in [
-        ("begin\n1/0\nrescue\n42\nend", serde_json::json!(42)),
-        ("1/0 rescue 42", serde_json::json!(42)),
+        ("begin\n1//0\nrescue\n42\nend", serde_json::json!(42)),
+        ("1//0 rescue 42", serde_json::json!(42)),
         ("begin\n42\nend", serde_json::json!(42)),
         (
-            "a=begin\nraise \"bad\"\nrescue RuntimeError => e\n[e.type,e.class,e.message,e.to_s,e.dup.to_s]\nend\na",
+            "a=begin\nraise \"bad\"\nrescue RuntimeError => e\n[e.class,e.class,e.message,e.message,e.dup.message]\nend\na",
             serde_json::json!(["RuntimeError", "RuntimeError", "bad", "bad", "bad"]),
         ),
         (
-            "begin\nraise TypeError, \"wrong\"\nrescue ZeroDivisionError\n1\nrescue TypeError | ArgumentError => e\ne.type\nend",
+            "begin\nraise TypeError, \"wrong\"\nrescue ZeroDivisionError\n1\nrescue TypeError | ArgumentError => e\ne.class\nend",
             serde_json::json!("TypeError"),
         ),
-        (
-            "e=7; begin\nraise \"x\"\nrescue => e\nx=e.message\nend;[e,x]",
-            serde_json::json!([7, "x"]),
-        ),
         ("begin\n7\nrescue\nx=3\nelse\n9\nend", serde_json::json!(9)),
-        ("begin\n7\nrescue\nx=3\nend;x", serde_json::json!(null)),
         (
-            "def parse\nraise \"x\"\nrescue => e\ne.message\nend\nparse()",
+            "def parse -> string\nraise \"x\"\nrescue => e\ne.message\nend\nparse",
             serde_json::json!("x"),
         ),
         (
-            "begin\nrandom_id(1025)\nrescue LimitError => e\ne.type\nend",
+            "begin\nrandom_id(1025)\nrescue LimitError => e\ne.class\nend",
             serde_json::json!("LimitError"),
         ),
         (
@@ -43,6 +40,20 @@ fn rescue_values_classes_bindings_and_expression_forms() {
     ] {
         assert_eq!(result(source), expected, "{source}");
     }
+    // A rescue binding shadows a local only while its handler runs. The
+    // checker types the name as the outer local, so this keeps the ADR-004
+    // language until the checker scopes the binding.
+    let output = common::gradual_engine()
+        .compile("e=7; begin\nraise \"x\"\nrescue => e\nx=e.message\nend;[e,x]")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap();
+    assert_eq!(output.value.to_string(), "[7, x]");
+    // A local assigned only in a handler that did not run cannot be read.
+    let source = "begin\n7\nrescue\nx=3\nend;x";
+    let error = common::static_engine().compile(source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0201"]);
+    assert_eq!(error.diagnostics()[0].span.start, source.len() - 1);
 }
 
 #[test]
@@ -59,12 +70,12 @@ fn ensure_runs_once_for_normal_errors_returns_breaks_and_nexts() {
             vec![1, 3],
         ),
         (
-            "def f\nbegin\nreturn 7\nensure\nrecord(1)\nend\nend\nf()",
+            "def f -> int\nbegin\nreturn 7\nensure\nrecord(1)\nend\nend\nf",
             serde_json::json!(7),
             vec![1],
         ),
         (
-            "def f\nbegin\nreturn 7\nensure\nreturn 8\nend\nend\nf()",
+            "def f -> int\nbegin\nreturn 7\nensure\nreturn 8\nend\nend\nf",
             serde_json::json!(8),
             vec![],
         ),
@@ -79,7 +90,7 @@ fn ensure_runs_once_for_normal_errors_returns_breaks_and_nexts() {
             vec![1],
         ),
         (
-            "[1,2].map do |i|\nbegin\nnext i*2\nensure\nrecord(i)\nend\nend",
+            "[1,2].map { |i|\nbegin\nnext i*2\nensure\nrecord(i)\nend\n}",
             serde_json::json!([2, 4]),
             vec![1, 2],
         ),
@@ -116,7 +127,7 @@ fn retry_restarts_the_body_without_running_ensure_between_attempts() {
     );
     assert_eq!(
         result(
-            "begin\nbegin\nraise TypeError,\"original\"\nrescue\nraise\nend\nrescue => e\n[e.type,e.message]\nend"
+            "begin\nbegin\nraise TypeError,\"original\"\nrescue\nraise\nend\nrescue => e\n[e.class,e.message]\nend"
         ),
         serde_json::json!(["TypeError", "original"])
     );
@@ -167,12 +178,7 @@ fn real_exhaustion_and_cancellation_cannot_be_rescued_or_run_cleanup() {
 
 #[test]
 fn nested_rescued_values_remain_protected_and_errors_preserve_their_class() {
-    for write in [
-        "e.message=7",
-        "e.backtrace.push(\"x\")",
-        "e.dup.clear",
-        "e.dup.backtrace[0]=\"x\"",
-    ] {
+    for write in ["e.backtrace.push(\"x\")", "e.dup.backtrace[0]=\"x\""] {
         let source = format!("begin\nraise \"bad\"\nrescue => e\n{write}\nend");
         let error = Engine::new()
             .compile(&source)
@@ -181,6 +187,13 @@ fn nested_rescued_values_remain_protected_and_errors_preserve_their_class() {
             .unwrap_err();
         assert_eq!(error.class(), Some(ErrorClass::Runtime));
         assert!(error.message.contains("rescued error"), "{write}: {error}");
+    }
+    // Writing a field or clearing an error is refused before it runs.
+    for (write, at) in [("e.message=7", "message"), ("e.dup.clear", "clear")] {
+        let source = format!("begin\nraise \"bad\"\nrescue => e\n{write}\nend");
+        let error = common::static_engine().compile(&source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0203"], "{write}");
+        assert_eq!(error.diagnostics()[0].span.start, source.find(at).unwrap());
     }
 }
 
@@ -191,7 +204,7 @@ fn raised_messages_preserve_arbitrary_bytes_in_rescue_and_host_errors() {
         ("raise TypeError,input", ErrorClass::Type),
         ("assert(false,input)", ErrorClass::Assertion),
     ] {
-        let source = format!("def run(input)\n{prefix}\nend");
+        let source = format!("def run(input: string)\n{prefix}\nend");
         let script = Engine::new().compile(&source).unwrap();
         let input = Value::bytes([0, 0xff, 0xc3, b'x']);
         let error = script
@@ -201,7 +214,7 @@ fn raised_messages_preserve_arbitrary_bytes_in_rescue_and_host_errors() {
         assert_eq!(error.message_bytes(), input.as_bytes().unwrap());
         assert_eq!(error.message, "\0\u{fffd}\u{fffd}x");
         let source = format!(
-            "def run(input)\nbegin\n{prefix}\nrescue RuntimeError => e\ne.dup.message\nend\nend"
+            "def run(input: string) -> string?\nbegin\n{prefix}\nrescue RuntimeError => e\ne.dup.message\nend\nend"
         );
         let result = Engine::new()
             .compile(&source)
@@ -215,8 +228,8 @@ fn raised_messages_preserve_arbitrary_bytes_in_rescue_and_host_errors() {
 #[test]
 fn rescue_modifiers_bind_to_commands_and_nullable_filters_accept_errors() {
     for source in [
-        "def f(a)\nraise \"x\"\nend\nf 1 rescue 7",
-        "def f(a)\na+1\nend\nf begin\n6\nend",
+        "def f(a: int) -> int\nraise \"x\"\nend\nf 1 rescue 7",
+        "def f(a: int) -> int\na+1\nend\nf begin\n6\nend",
         "begin\nraise TypeError,\"x\"\nrescue TypeError?\n7\nend",
     ] {
         assert_eq!(result(source), serde_json::json!(7), "{source}");
@@ -225,9 +238,9 @@ fn rescue_modifiers_bind_to_commands_and_nullable_filters_accept_errors() {
 
 #[test]
 fn retry_crossing_a_block_runs_its_cleanup_before_becoming_a_local_jump() {
-    let source = "events=[];begin\nbegin\nraise \"original\"\nrescue\n[1].each do\nbegin\nretry\nrescue LocalJumpError\nevents=events+[1]\nensure\nevents=events+[2]\nend\nend\nend\nrescue LocalJumpError\nevents=events+[3]\nend;events";
+    let source = "events: array<int> =[];begin\nbegin\nraise \"original\"\nrescue\n[1].each {\nbegin\nretry\nrescue LocalJumpError\nevents=events+[1]\nensure\nevents=events+[2]\nend\n}\nend\nrescue LocalJumpError\nevents=events+[3]\nend;events";
     assert_eq!(result(source), serde_json::json!([2, 3]));
-    let source = "[1].map do\nn=0;begin\nn+=1;raise \"retry\" if n<3;n\nrescue\nretry\nend\nend";
+    let source = "[1].map {\nn=0;begin\nn+=1;raise \"retry\" if n<3;n\nrescue\nretry\nend\n}";
     assert_eq!(result(source), serde_json::json!([3]));
 }
 
@@ -246,7 +259,7 @@ fn deeply_nested_handlers_and_modifiers_reach_the_parser_guard() {
 
 #[test]
 fn repeated_rescue_releases_saved_errors_bindings_and_failed_call_frames() {
-    let source = "def explode\nraise \"x\"*8192\nend\ndef run(n)\ni=0;while i<n\nbegin\nexplode()\nrescue=>e\nobserve(e)\nend;i+=1\nend;42\nend";
+    let source = "def explode\nraise \"x\"*8192\nend\ndef run(n: int) -> int\ni=0;while i<n\nbegin\nexplode\nrescue=>e\nobserve(e)\nend;i+=1\nend;42\nend";
     let samples = Arc::new(Mutex::new(Vec::new()));
     let capture = samples.clone();
     let mut engine = Engine::new();
@@ -322,7 +335,7 @@ fn pending_returns_stay_accounted_during_ensure_and_exhaustion_wins() {
         Ok(Value::nil())
     });
     let script = engine
-        .compile("def f\nbegin\nreturn \"x\"*32768\nensure\nobserve()\nend\nend\nf()")
+        .compile("def f -> string\nbegin\nreturn \"x\"*32768\nensure\nobserve()\nend\nend\nf")
         .unwrap();
     let output = script.run(CallOptions::default()).unwrap();
     assert_eq!(output.value.as_bytes().unwrap().len(), 32768);
@@ -351,7 +364,7 @@ fn rescued_error_protection_and_rendering_survive_host_transfer() {
         .value;
     let mut engine = Engine::new();
     engine.register("retrieve", move |_, _| Ok(original.clone()));
-    let source = "e=retrieve();before=\"#{e.dup}\";begin\ne.dup.backtrace.push(\"bad\")\nrescue=>failure\n[before,failure.message]\nend";
+    let source = "e=retrieve().as(error);before=\"#{e.dup}\";begin\ne.dup.backtrace.push(\"bad\")\nrescue=>failure\n[before,failure.message]\nend";
     let output = engine
         .compile(source)
         .unwrap()
@@ -375,7 +388,7 @@ fn invalid_loop_transfers_become_rescuable_only_after_callee_cleanup() {
             Ok(Value::nil())
         });
         let source = format!(
-            "def f\nbegin\n{jump}\nrescue RuntimeError\nrecord(1)\nensure\nrecord(2)\nend\nend\nbegin\n[1].each {{f()}}\nrescue LocalJumpError\nrecord(3)\nend"
+            "def f\nbegin\n{jump}\nrescue RuntimeError\nrecord(1)\nensure\nrecord(2)\nend\nend\nbegin\n[1].each {{f}}\nrescue LocalJumpError\nrecord(3)\nend"
         );
         engine
             .compile(&source)
@@ -390,7 +403,7 @@ fn invalid_loop_transfers_become_rescuable_only_after_callee_cleanup() {
 fn invalid_loop_transfers_reject_before_evaluating_values() {
     for jump in ["break", "next"] {
         let source = format!(
-            "events=[];begin\n{jump} events.push(1)\nrescue RuntimeError\nevents.push(2)\nend;events"
+            "events: array<int> =[];begin\n{jump} events.push(1)\nrescue RuntimeError\nevents.push(2)\nend;events"
         );
         assert_eq!(result(&source), serde_json::json!([2]), "{jump}");
     }
@@ -405,7 +418,7 @@ fn invalid_block_returns_run_cleanup_before_the_caller_rescues() {
         recorded.lock().unwrap().push(args[0].as_int().unwrap());
         Ok(Value::nil())
     });
-    let source = "begin\n[1].each do\nbegin\nreturn 9\nrescue RuntimeError\nrecord(1)\nensure\nrecord(2)\nend\nend\nrescue LocalJumpError\nrecord(3)\nend";
+    let source = "begin\n[1].each {\nbegin\nreturn 9\nrescue RuntimeError\nrecord(1)\nensure\nrecord(2)\nend\n}\nrescue LocalJumpError\nrecord(3)\nend";
     engine
         .compile(source)
         .unwrap()
@@ -416,19 +429,45 @@ fn invalid_block_returns_run_cleanup_before_the_caller_rescues() {
 
 #[test]
 fn rescued_error_fields_iterate_in_sorted_order() {
-    let fields = serde_json::json!([
+    let fields = [
         "backtrace",
         "class",
         "code_frame",
         "message",
         "to_s",
-        "type"
-    ]);
+        "type",
+    ];
+    // A host sees a rescued error's fields in sorted order.
     for source in [
-        "begin\nraise \"boom\"\nrescue => e\ne.keys\nend",
-        "begin\n1/0\nrescue ZeroDivisionError => e\ne.map { |k, v| k }\nend",
-        "begin\n[].fetch(1)\nrescue => e\nkeys=[]\ne.dup.each { |k, v| keys.push(k) }\nkeys\nend",
+        "begin\nraise \"boom\"\nrescue => e\ne\nend",
+        "begin\n1//0\nrescue ZeroDivisionError => e\ne\nend",
+        "begin\n[].fetch(1)\nrescue => e\ne.dup\nend",
     ] {
-        assert_eq!(result(source), fields, "{source}");
+        let output = Engine::new()
+            .compile(source)
+            .unwrap()
+            .run(CallOptions::default())
+            .unwrap();
+        let keys: Vec<&[u8]> = output
+            .value
+            .as_hash()
+            .unwrap()
+            .iter()
+            .map(|(key, _)| key.as_bytes().unwrap())
+            .collect();
+        let fields: Vec<&[u8]> = fields.iter().map(|field| field.as_bytes()).collect();
+        assert_eq!(keys, fields, "{source}");
+    }
+    // A script reads an error through its members, not as a hash.
+    for (source, at) in [
+        ("begin\nraise \"boom\"\nrescue => e\ne.keys\nend", "keys"),
+        (
+            "begin\n1//0\nrescue ZeroDivisionError => e\ne.map { |k, v| k }\nend",
+            "map",
+        ),
+    ] {
+        let error = common::static_engine().compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0203"], "{source}");
+        assert_eq!(error.diagnostics()[0].span.start, source.find(at).unwrap());
     }
 }
