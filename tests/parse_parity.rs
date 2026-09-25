@@ -76,12 +76,8 @@ fn line_breaks_end_expressions_where_the_reference_ends_them() {
 
 #[test]
 fn accepted_forms_fail_where_the_reference_fails_at_run_time() {
-    for (source, expected) in [(
-        "def f -> int\n  def g -> int\n    1\n  end\n  2\nend\nf",
-        "unsupported statement",
-    )] {
-        assert_eq!(failure(source), expected, "{source}");
-    }
+    let source = "def f -> int\n  def g -> int\n    1\n  end\n  2\nend\nf";
+    assert_eq!(failure(source), "unsupported statement");
 }
 
 #[test]
