@@ -1,11 +1,11 @@
 # Command line
 
-`vibes` provides the Go reference's commands with the reference's syntax, output, error texts and exit codes:
+`vibes` provides these commands. Their syntax, output, error texts and exit codes began as those of the Go CLI's; the [differences](#differences-from-the-go-reference) are listed at the end.
 
 | Command | Purpose |
 | --- | --- |
 | `vibes run [options] <script> [args...]`, `vibes run [options] -e SNIPPET` | Execute a script file or inline snippet. |
-| `vibes check [options] <script>` | Statically check a whole script without executing it. |
+| `vibes check [options] <script>` | Type check a whole script without executing it. |
 | `vibes fmt [-w] [-check] <path>...` | Canonically format `.vibe` files. |
 | `vibes analyze <script>` | Report lint findings: statements that can never run. |
 | `vibes test [options] [path...]` | Discover `*_test.vibe` files and run their `test_` functions. |
@@ -21,7 +21,7 @@ It also keeps the flat form that predates these commands, `vibes [OPTIONS] FILE`
 The formatter, analyzer, migrator, fixer, test runner, REPL session and language server are also libraries in the `vibescript-tools` crate (`vibescript_tools::format`, `::analyze`, `::migrate`, `::fix`, `::test_runner`, `::repl` and `::lsp`), so other programs can embed them; the CLI is a front end that parses arguments, finds and writes files, and renders results.
 
 ```sh
-./scripts/cargo run --release -p vibes -- run examples/total.vibe
+./scripts/cargo run --release -p vibes -- check --static examples/total.vibe
 ./scripts/cargo run --release -p vibes -- test ./tests
 ```
 
@@ -61,13 +61,13 @@ vibes run [options] <script> [args...]
 vibes run [options] -e SNIPPET
 ```
 
-Without `-function`, `run` executes the script's top-level statements when it has any, and otherwise calls its `run` function. A top-level statement is anything other than a function, class, module or enum declaration or an alias. `-function NAME` calls another function, and `-function '<script>'` selects the top-level statements explicitly. Every argument after the script path is passed to the function as a string. The script's directory is the first module root, and repeatable `-module-path DIR` options add more; the paths are made absolute and deduplicated by spelling, and a missing path or a file fails with the reference's message.
+`-static` compiles the script with static types (ADR-007) and refuses it, with its diagnostics, when it has type errors; until the switchover this is opt-in. Without `-function`, `run` executes the script's top-level statements when it has any, and otherwise calls its `run` function. A top-level statement is anything other than a function, class, module or enum declaration or an alias. `-function NAME` calls another function, and `-function '<script>'` selects the top-level statements explicitly. Every argument after the script path is passed to the function as a string, so with static types the called function's parameters must accept `string`, or a rest parameter `array<string>`. The script's directory is the first module root, and repeatable `-module-path DIR` options add more; the paths are made absolute and deduplicated by spelling, and a missing path or a file fails with the reference's message.
 
 A non-nil result prints on stdout in the reference's string form: strings and symbols without quotes, `nil` as nothing, floats in Go's shortest form (`2`, `1e+20`, `Infinity`), arrays as `[a, b]` and hashes as `{key: value}`. A rendering over 1 MiB fails with `result rendering exceeds 1048576 bytes; reduce the returned value or stream it from the script`. `puts`, `print` and `p` write to stdout and `warn` to stderr.
 
 A script larger than 1 MiB is refused before it is read with `source exceeds maximum size (SIZE > 1048576 bytes)`, as are directories and other non-regular files. Invalid UTF-8 in a script is decoded with replacement characters, as the reference's lexer does. Failures are prefixed by their stage: `read script:`, `compile failed:` and `execution failed:`.
 
-`-check` checks the invocation `run` would make, with the same function and arguments, without executing anything. A clean check prints nothing; issues fail with `check failed: LINE:COLUMN: MESSAGE (FUNCTION)`, or `check failed with N issue(s):` followed by one indented line per issue. `-e SNIPPET` evaluates inline source with the working directory as its first module root; `-check -e` checks the whole snippet, including unused declarations, and sorts its issues by position. `-e` cannot be combined with `-watch`, `-function` or positional arguments, and an empty snippet is an error. Frames of the snippet's top-level code are named `<snippet>`, and a parse error at the end of the snippet reads `unexpected end of snippet`.
+`-check` checks the invocation `run` would make, with the same function and arguments, without executing anything, using the gradual checker described [below](#vibes-check). A clean check prints nothing; issues fail with `check failed: LINE:COLUMN: MESSAGE (FUNCTION)`, or `check failed with N issue(s):` followed by one indented line per issue. `-e SNIPPET` evaluates inline source with the working directory as its first module root; `-check -e` checks the whole snippet, including unused declarations, and sorts its issues by position. `-e` cannot be combined with `-watch`, `-function` or positional arguments, and an empty snippet is an error. Frames of the snippet's top-level code are named `<snippet>`, and a parse error at the end of the snippet reads `unexpected end of snippet`.
 
 An interrupt (ctrl-c) cancels the running script, which then fails; a second interrupt terminates the process.
 
@@ -96,19 +96,22 @@ Changes are found by the reference's polling method: every 300 ms the size and m
 vibes check [options] <script>
 ```
 
-`check` analyzes the whole script without executing anything: the top-level statements in source order, then every function and method declaration, including unused ones, for its declared parameter types and defaults. It prints one issue per line on stdout, `PATH:LINE:COLUMN: MESSAGE (FUNCTION)`, then fails with `check failed with N issue(s)`; a clean check prints `No issues found`. PATH is the absolute script path, or the resolved path of the required module that owns the issue. Analysis the checker cannot finish is an issue too, marked `incomplete:`, and is never reported as clean. The issues come from this library's checker, which is [stricter than the reference's](compatibility.md) and words its messages differently.
+With `-static`, `check` compiles the script with static types and prints every diagnostic with its code, source line and fixes, then fails with `check failed with N error(s)`; a script without errors prints its warnings, if any, or `No issues found`. `-json` prints each diagnostic as one JSON object per line instead. The [type checker](checker.md) lists the codes. Static types become the default at the switchover.
+
+Without `-static` or `-json`, `check` runs the gradual checker of ADR-004, which remains until it is deleted: it analyzes the top-level statements in source order, then every function and method declaration, including unused ones, for its declared parameter types and defaults. It prints one issue per line on stdout, `PATH:LINE:COLUMN: MESSAGE (FUNCTION)`, then fails with `check failed with N issue(s)`; a clean check prints `No issues found`. PATH is the absolute script path, or the resolved path of the required module that owns the issue. Analysis the checker cannot finish is an issue too, marked `incomplete:`, and is never reported as clean.
 
 `-module-path DIR` adds module search roots, as for `run`. These flags extend the reference's:
 
 | Flag | Meaning |
 | --- | --- |
-| `-function NAME` | Check one declaration instead of the whole file: a function, `Class#method`, `Namespace.method`, `Class.new` or `__main__`, for its declared parameter types and defaults. |
+| `-static` | Type check with static types (ADR-007) instead of running the gradual checker. |
+| `-function NAME` | With the gradual checker, check one declaration instead of the whole file: a function, `Class#method`, `Namespace.method`, `Class.new` or `__main__`, for its declared parameter types and defaults. |
 | `-e SOURCE`, `-eval SOURCE` | Check inline source instead of a file; issues name it `<eval>`, and the working directory is the first module root. |
 | `-steps N`, `-memory N` | Analysis step and memory quotas; 0 disables one. Like the reference, analysis has neither by default. |
 | `-recursion N` | The call-depth setting, 256 by default. |
 | `-timeout-ms N` | An analysis deadline. |
 | `-stats` | Print `steps=N peak_bytes=N retained_bytes=N` on stderr. |
-| `-json` | Check in the static language and print each diagnostic as one JSON object per line (`Diagnostic::to_json`): its code, name, severity, spans with byte offsets and one-based lines and columns, message, expected and found types, labels and fixes. A syntax error is a `V0001` diagnostic. A script that compiles prints its warnings, if any, and succeeds. |
+| `-json` | Check with static types and print each diagnostic as one JSON object per line (`Diagnostic::to_json`): its code, name, severity, spans with byte offsets and one-based lines and columns, message, expected and found types, labels and fixes. A syntax error is a `V0001` diagnostic. A script that compiles prints its warnings, if any, and succeeds. |
 
 ## `vibes fmt`
 
@@ -196,7 +199,7 @@ printf 'x = 20\nx * 2 + 2\n' | vibes repl
 
 ### The session
 
-Each complete input runs as a top-level snippet. Top-level variables it assigns, including destructuring and compound assignments and loop variables, stay available to later inputs, as do changes to existing variables such as `items.push(2)`. `_` holds the last result. Functions, classes, modules and enums declared at the top level stay available too, and a new declaration with the same name replaces the old one. Classes, modules and enums are kept as values, so instances and enum members made earlier still match them in `is_a?`, comparisons and type annotations; an instance made before a class was redefined keeps its original class. Class variables and module state start afresh for each input, while instances keep their fields. Functions are kept as source and compiled into each later input. An input that fails to compile or run leaves the variables and declarations as they were.
+Each complete input runs as a top-level snippet. Top-level variables it assigns, including destructuring and compound assignments and loop variables, stay available to later inputs, as do changes to existing variables such as `items.push(2)`. `_` holds the last result. Functions, classes, modules and enums declared at the top level stay available too, and a new declaration with the same name replaces the old one. Classes, modules and enums are kept as values, so instances and enum members made earlier still match them in `is_type?`, comparisons and type annotations; an instance made before a class was redefined keeps its original class. Class variables and module state start afresh for each input, while instances keep their fields. Functions are kept as source and compiled into each later input. An input that fails to compile or run leaves the variables and declarations as they were.
 
 An input that ends inside an unfinished construct continues on the next line under a `...>` prompt: a `def`, `class` or block without its `end`, an open bracket, a trailing operator or an unterminated string. Blank lines inside it are kept. Ctrl-C discards the unfinished input.
 
@@ -238,8 +241,8 @@ An input line holds at most 500 characters and scrolls horizontally when it is w
 When stdin or stdout is not a terminal, and always under WASI, the REPL reads one line per input, ending at `\n`, `\r\n` or `\r`, and prints each transcript entry as the full-screen transcript shows it, followed by a blank line. `:vars` and `:help` print their panel. It stops at `:quit`, a Ctrl-D byte or the end of input, and exits with status 0; an input still unfinished at the end is evaluated so its error is reported. Colors are used only when stdout is a terminal.
 
 ```sh
-$ printf 'def sq(n)\n  n * n\nend\nsq(7)\n' | vibes repl
-  › def sq(n)
+$ printf 'def sq(n: int) -> int\n  n * n\nend\nsq(7)\n' | vibes repl
+  › def sq(n: int) -> int
       n * n
     end
   → nil
@@ -342,7 +345,7 @@ The summary reads `check of the whole snippet` for a whole `-e` check and `check
 - `vibes --version` prints the version; the reference reports an undefined flag.
 - The flat form, `vibes help flat` and the `check` flags `-function`, `-e`/`-eval`, `-steps`, `-memory`, `-recursion`, `-timeout-ms` and `-stats` are extensions, and `vibes check --help` lists them. Each applies only where the reference reports an error.
 - `vibes lsp` adds this library's checker findings to its diagnostics and reports only the first parse error; its other differences are listed [with the language server](lsp.md#differences-from-the-reference). The REPL's own differences are listed [with the REPL](#differences-from-the-go-repl).
-- `check` and `run -check` report this library's checker findings, marking unfinished analysis `incomplete:`. Their wording, positions and scope names (`bad` rather than the reference's `helpers.bad`) differ from the reference's checker, which also accepts some scripts this checker rejects.
+- `check -static`, `run -static` and `fix` check the static language, which the reference does not have. Without `-static`, `check` and `run -check` report the gradual checker's findings, marking unfinished analysis `incomplete:`; their wording, positions and scope names (`bad` rather than the reference's `helpers.bad`) differ from the reference's checker, which also accepts some scripts this checker rejects.
 - Engine messages are the library's: the `require` not-found message, step accounting under small quotas, and stack traces, which omit the reference's final frame for the entry function of a script.
 - Watch mode always polls, as the reference does when file notifications are unavailable, so a new module file that nothing edits is noticed by the periodic scan within five seconds rather than immediately.
 - Under WASI, interrupts are not observed, and `fmt` opens files by path within the host's preopened directories instead of through root handles.
