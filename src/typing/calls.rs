@@ -10,7 +10,7 @@ use super::{
     ty::{Kind, Ty},
 };
 use crate::{
-    diagnostic::{Code, Diagnostic, Span},
+    diagnostic::{Code, Diagnostic, Fix, Span},
     syntax::{Argument, ArgumentKind, Block, Expr, Node, Target},
 };
 use std::rc::Rc;
@@ -469,7 +469,6 @@ impl<'a> Checker<'a> {
                         result: None,
                         block: None,
                         vars: Vec::new(),
-                        class_vars: 0,
                     };
                     self.call_sigs(call, &[(Rc::new(sig), Vec::new())]);
                 }
@@ -1032,7 +1031,7 @@ impl<'a> Checker<'a> {
         match (&sig.block, call.block) {
             (Some(block_sig), Some(block)) => {
                 let block_sig = block_sig.clone();
-                self.call_block(block, &block_sig, &mut bindings, sig);
+                self.call_block(block, &block_sig, &mut bindings);
             }
             (Some(block_sig), None) => {
                 if !block_sig.optional {
@@ -1229,40 +1228,66 @@ impl<'a> Checker<'a> {
                     call.name
                 )
             };
-            self.report(
-                Diagnostic::error(
-                    Code::BOUND,
-                    call.name_span,
-                    format!(
-                        "`{}` needs {} to be {bound_text}: {reason}",
-                        call.name, var.name
-                    ),
-                )
-                .with_types(bound_text, found),
-            );
+            let mut diagnostic = Diagnostic::error(
+                Code::BOUND,
+                call.name_span,
+                format!(
+                    "`{}` needs {} to be {bound_text}: {reason}",
+                    call.name, var.name
+                ),
+            )
+            .with_types(bound_text, found);
+            if call.name == "sum" && call.args.is_empty() && call.block.is_none() {
+                diagnostic = self.sum_start(diagnostic, call, ty);
+            }
+            self.report(diagnostic);
         }
+    }
+
+    /// Explains that `sum` without a starting value begins at the int 0,
+    /// and passes the element type's zero where one literal writes it.
+    fn sum_start(
+        &mut self,
+        mut diagnostic: Diagnostic,
+        call: &Call<'a, '_>,
+        element: Ty,
+    ) -> Diagnostic {
+        let zero = if element == Ty::FLOAT {
+            Some("0.0")
+        } else if element == Ty::DURATION {
+            Some("0.seconds")
+        } else if self.types.assignable(element, Ty::NUMBER) {
+            Some("0")
+        } else {
+            None
+        };
+        let example = match (zero, element == Ty::MONEY) {
+            (Some(zero), _) => format!("`sum({zero})`"),
+            (None, true) => "`sum(money_cents(0, \"USD\"))`".to_owned(),
+            (None, false) => {
+                return diagnostic;
+            }
+        };
+        diagnostic.message.push_str(&format!(
+            "; without a starting value `sum` begins at the int 0, so pass one, as in {example}"
+        ));
+        let end = call.name_span.end;
+        let parenthesized = self.source[end..].trim_start().starts_with('(');
+        if let (Some(zero), false) = (zero, parenthesized) {
+            diagnostic = diagnostic.with_fix(Fix::insert(
+                format!("start the sum at `{zero}`"),
+                end,
+                format!("({zero})"),
+            ));
+        }
+        diagnostic
     }
 
     // Blocks -----------------------------------------------------------
 
     /// Checks a block passed to a function with block signature `block_sig`,
     /// binding type variables from the block's result.
-    fn call_block(
-        &mut self,
-        block: &'a Block,
-        block_sig: &BlockSig,
-        bindings: &mut [Option<Ty>],
-        sig: &Sig,
-    ) {
-        // Without an initial value, `reduce` folds from the first element.
-        for &param in &block_sig.params {
-            if let Kind::Var(index) = *self.types.kind(param) {
-                if bindings.get(index as usize).is_some_and(Option::is_none) && sig.class_vars > 0 {
-                    let element = bindings[0];
-                    bindings[index as usize] = element;
-                }
-            }
-        }
+    fn call_block(&mut self, block: &'a Block, block_sig: &BlockSig, bindings: &mut [Option<Ty>]) {
         let params: Vec<Ty> = block_sig
             .params
             .iter()

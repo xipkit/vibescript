@@ -52,8 +52,6 @@ pub(crate) struct Sig {
     pub block: Option<BlockSig>,
     /// Type variables, class variables first; `Kind::Var(i)` is `vars[i]`.
     pub vars: Vec<Var>,
-    /// How many of `vars` the receiver pattern binds.
-    pub class_vars: usize,
 }
 
 impl Sig {
@@ -243,7 +241,6 @@ impl Converter {
                 });
             }
         }
-        let class_vars = vars.len();
         for param in &function.type_params {
             names.push(param.name.clone());
             vars.push(Var {
@@ -304,7 +301,6 @@ impl Converter {
                 .map(|ty| table_type(types, ty, &names)),
             block,
             vars,
-            class_vars,
         }
     }
 }

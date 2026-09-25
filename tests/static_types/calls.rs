@@ -82,8 +82,6 @@ fn builtin_overloads_are_selected_by_the_call_shape() {
 #[test]
 fn generic_builtins_bind_from_the_receiver_arguments_and_block() {
     clean("def f(xs: array<int>) -> array<string>\n  xs.map { |x| x.to_s }\nend\n");
-    // The table gives `reduce` one signature, `-> A?`, with or without `initial`.
-    clean("def f(xs: array<int>) -> int?\n  xs.reduce(0) { |sum, x| sum + x }\nend\n");
     clean("def f(xs: array<int>) -> int?\n  xs.reduce { |sum, x| sum + x }\nend\n");
     clean(
         "def f(xs: array<string>) -> hash<string, array<string>>\n  xs.group_by { |x| x }\nend\n",
@@ -97,11 +95,144 @@ fn generic_builtins_bind_from_the_receiver_arguments_and_block() {
 }
 
 #[test]
+fn reduce_is_optional_only_without_an_initial_value() {
+    clean("def f(xs: array<int>) -> int\n  xs.reduce(0) { |sum, x| sum + x }\nend\n");
+    clean("def f(xs: array<string>) -> int\n  xs.reduce(0) { |total, x| total + x.length }\nend\n");
+    clean("def f -> int\n  (1..3).reduce(0) { |sum, x| sum + x }\nend\n");
+    // Without one, the fold starts from the first element and an empty
+    // receiver gives nil.
+    error(
+        "def f(xs: array<int>) -> int\n  xs.reduce { |sum, x| sum + x }\nend\n",
+        "V0107",
+        "may be nil",
+    );
+    codes(
+        "def f -> int\n  (1..3).reduce { |sum, x| sum + x }\nend\n",
+        &["V0107"],
+    );
+    // The block keeps the element type, and with an initial value its type.
+    codes(
+        "def f(xs: array<int>) -> int?\n  xs.reduce { |sum, x| sum.to_s }\nend\n",
+        &["V0101"],
+    );
+    codes(
+        "def f(xs: array<int>) -> string\n  xs.reduce(\"\") { |text, x| x }\nend\n",
+        &["V0101"],
+    );
+}
+
+#[test]
+fn sum_starts_from_zero_or_from_its_initial_value() {
+    clean("def f(xs: array<int>) -> int\n  xs.sum\nend\n");
+    clean("def f(xs: array<float>) -> float\n  xs.sum(0.0)\nend\n");
+    clean("def f(xs: array<number>) -> number\n  xs.sum(0)\nend\n");
+    clean("def f(xs: array<money>) -> money\n  xs.sum(money_cents(0, \"USD\"))\nend\n");
+    clean("def f(xs: array<duration>) -> duration\n  xs.sum(0.seconds)\nend\n");
+    clean("def f -> int\n  (1..3).sum\nend\n");
+    // The block form adds the block's values: ints from 0, others from an
+    // initial value of their type.
+    clean("def f(xs: array<{ qty: int }>) -> int\n  xs.sum { |x| x[\"qty\"] }\nend\n");
+    clean(
+        "def f(xs: array<{ price: money }>) -> money\n  xs.sum(money_cents(0, \"USD\")) { |x| x[\"price\"] }\nend\n",
+    );
+    codes(
+        "def f(xs: array<{ price: float }>) -> int\n  xs.sum { |x| x[\"price\"] }\nend\n",
+        &["V0101"],
+    );
+    // The initial value has the element type, which must be addable.
+    codes(
+        "def f(xs: array<int>) -> int\n  xs.sum(\"\")\nend\n",
+        &["V0101"],
+    );
+    error(
+        "def f(xs: array<string>) -> string\n  xs.sum(\"\")\nend\n",
+        "V0115",
+        "string is not duration | money | number",
+    );
+    error(
+        "def f(xs: array<int | money>) -> int | money\n  xs.sum(0)\nend\n",
+        "V0115",
+        "union",
+    );
+}
+
+#[test]
+fn sum_without_a_starting_value_needs_int_elements() {
+    // `sum` begins at the int 0, which an empty array of floats, money or
+    // durations would return; the fix passes the element type's zero.
+    for (element, zero) in [("float", "0.0"), ("duration", "0.seconds"), ("number", "0")] {
+        let source = format!("def f(xs: array<{element}>) -> {element}\n  xs.sum\nend\n");
+        let diagnostic = error(&source, "V0115", "begins at the int 0");
+        assert_eq!(spanned(&source, &diagnostic), "sum");
+        let repaired = fixed(&source, &diagnostic);
+        assert_eq!(
+            repaired,
+            format!("def f(xs: array<{element}>) -> {element}\n  xs.sum({zero})\nend\n")
+        );
+        clean(&repaired);
+    }
+    // No literal writes a money zero without a currency.
+    let diagnostic = error(
+        "def f(xs: array<money>) -> money\n  xs.sum\nend\n",
+        "V0115",
+        "money_cents(0, \"USD\")",
+    );
+    assert!(diagnostic.fixes.is_empty());
+}
+
+#[test]
+fn block_results_meet_their_bounds() {
+    clean("def f(xs: array<string>) -> string?\n  xs.min_by { |x| x.length }\nend\n");
+    // A union of numeric types satisfies `number`, and so `comparable`.
+    clean("def f(xs: array<int>) -> int?\n  xs.max_by { |x| x > 2 ? x : 0.5 }\nend\n");
+    error(
+        "def f(xs: array<int>) -> int?\n  xs.min_by { |x| x > 1 ? x : \"a\" }\nend\n",
+        "V0115",
+        "`min_by` needs K to be",
+    );
+    error(
+        "def f(xs: array<int>) -> int?\n  xs.min_by { |x| [x] }\nend\n",
+        "V0115",
+        "array<int> is not",
+    );
+    error(
+        "def f(xs: array<int>) -> int?\n  xs.max_by { |x| x > 1 ? x : nil }\nend\n",
+        "V0115",
+        "union",
+    );
+    error(
+        "def f(xs: array<string>) -> array<string>\n  xs.sort_by { |x| x == \"\" ? 0 : x }\nend\n",
+        "V0115",
+        "union",
+    );
+}
+
+#[test]
+fn set_operations_keep_one_element_type() {
+    clean(
+        "def f(xs: array<int>, ys: array<int>) -> array<int>\n  xs.union(ys).difference(ys)\nend\n",
+    );
+    codes(
+        "def f(xs: array<int>, ys: array<string>) -> array<int>\n  xs.union(ys)\nend\n",
+        &["V0101"],
+    );
+    codes(
+        "def f(xs: array<int>, ys: array<int | string>) -> array<int>\n  xs.difference(ys)\nend\n",
+        &["V0101"],
+    );
+}
+
+#[test]
 fn bounds_reject_union_element_types() {
     clean("def f(xs: array<int>) -> array<int>\n  xs.sort\nend\n");
     clean("def f(xs: array<number>) -> array<number>\n  xs.sort\nend\n");
     error(
         "def f(xs: array<int | string>) -> array<int | string>\n  xs.sort\nend\n",
+        "V0115",
+        "union",
+    );
+    error(
+        "def f(xs: array<string?>) -> array<string?>\n  xs.sort\nend\n",
         "V0115",
         "union",
     );

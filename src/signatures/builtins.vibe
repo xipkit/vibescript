@@ -400,8 +400,10 @@ class array<T>
   def product<U>(other: array<U>) -> array<[T, U]>
   def product<U>(first: array<U>, second: array<U>, *others: array<array<U>>) -> array<array<T | U>>
   def push(*values: array<T>) -> array<T>
-  # Folds from `initial`, or from the first element; nil for an empty array without `initial`.
-  def reduce<A>(initial?: A, &block: (A, T) -> A) -> A?
+  # Folds from the first element; nil for an empty array.
+  def reduce(&block: (T, T) -> T) -> T?
+  # Folds from `initial`.
+  def reduce<A>(initial: A, &block: (A, T) -> A) -> A
   def reject(&block: T -> bool) -> array<T>
   def repeated_combination(size: int) -> array<array<T>>
   def repeated_permutation(size: int) -> array<array<T>>
@@ -422,6 +424,10 @@ class array<T>
   def shuffle -> array<T>
   def slice_when(&block: (T, T) -> bool) -> array<array<T>>
   def sort_by<K: comparable>(&block: T -> K) -> array<T>
+  # Adds the block's values, starting from 0.
+  def sum(&block: T -> int) -> int
+  # Adds the block's values to `initial`.
+  def sum<U: number | money | duration>(initial: U, &block: T -> U) -> U
   def take_while(&block: T -> bool) -> array<T>
   # Builds a hash from the [key, value] pair the block returns for each element.
   def to_h<V>(&block: T -> [string, V]) -> hash<string, V>
@@ -442,8 +448,14 @@ class array<T: comparable>
   def sort(&block?: (T, T) -> int) -> array<T>
 end
 
-class array<T: number>
-  def sum(initial: number = 0, &block?: T -> number) -> number
+class array<T: int>
+  # Adds the elements, starting from 0.
+  def sum -> T
+end
+
+class array<T: number | money | duration>
+  # Adds the elements to `initial`.
+  def sum(initial: T) -> T
 end
 
 class array<T: string | symbol>
@@ -522,7 +534,10 @@ class range
   def map<U>(&block: int -> U) -> array<U>
   def max -> int?
   def min -> int?
-  def reduce<A>(initial?: A, &block: (A, int) -> A) -> A?
+  # Folds from the first element; nil for an empty range.
+  def reduce(&block: (int, int) -> int) -> int?
+  # Folds from `initial`.
+  def reduce<A>(initial: A, &block: (A, int) -> A) -> A
   def reject(&block: int -> bool) -> array<int>
   def select(&block: int -> bool) -> array<int>
   def step(by: int, &block: int) -> range
