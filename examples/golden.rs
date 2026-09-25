@@ -258,9 +258,6 @@ fn declare(
     signature: Option<&vibescript::HostMethod>,
 ) -> vibescript::Result<()> {
     let mut declared = Vec::new();
-    for (name, value) in &options.globals {
-        declared.push(Capability::from_value(name.clone(), value.clone()));
-    }
     if flag(case, "capability_probe") {
         declared.push(Capability::from_value("host", probe::template()));
     }
@@ -279,6 +276,10 @@ fn declare(
             "typed",
             Value::object(vec![(b"echo".to_vec(), method.value())]),
         ));
+    }
+    // A global of a capability's name overrides it, as it does at runtime.
+    for (name, value) in &options.globals {
+        declared.push(Capability::from_value(name.clone(), value.clone()));
     }
     for capability in &declared {
         engine.declare_capability(capability)?;
