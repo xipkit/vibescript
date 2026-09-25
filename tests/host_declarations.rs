@@ -2,6 +2,8 @@
 //! declared, checked before any script code runs, and the prelude lists
 //! them.
 
+mod common;
+
 use vibescript::{
     CallOptions, Capability, Engine, ErrorKind, HostMethod, Signature, SignatureParam, Value,
     signatures::Table,
@@ -88,9 +90,11 @@ fn a_global_declared_without_a_type_takes_any_value_but_must_be_supplied() {
     );
 }
 
+/// Without static types, a global the host does not declare still resolves
+/// when the call supplies it.
 #[test]
 fn undeclared_globals_keep_working() {
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.declare_global("limit", "int").unwrap();
     let script = engine.compile("limit + extra").unwrap();
     let outcome = script
