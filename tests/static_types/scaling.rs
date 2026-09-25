@@ -144,6 +144,8 @@ fn doubling_a_program_at_most_doubles_the_checking_work() {
     }
 }
 
+// WASI preview 1 cannot start the small-stack thread.
+#[cfg(not(target_os = "wasi"))]
 #[test]
 fn syntax_as_deep_as_the_parser_allows_checks_on_a_small_stack() {
     let chain = format!(
