@@ -22,6 +22,8 @@ pub(crate) enum Context<'a> {
     /// A value named by its whole subject, such as `local variable count`.
     Subject(&'a [u8]),
     Json,
+    /// The value of a checked cast, `value.as(T)`.
+    Cast,
 }
 
 struct Writer<'a> {
@@ -82,6 +84,7 @@ pub(crate) fn host_resolution(
             writer.write(subject)?;
             writer.write(b" type check failed: ")?;
         }
+        Context::Cast => writer.write(b"cast type check failed: ")?,
         _ => unreachable!(),
     }
     if error.message == "unknown named type" {
@@ -137,6 +140,7 @@ pub(super) fn mismatch(
             writer.byte(b' ')?;
         }
         Context::Json => writer.write(b"JSON.parse_as value ")?,
+        Context::Cast => writer.write(b"cast value ")?,
     }
     writer.write(b"expected ")?;
     shapes::format(ty, &mut writer)?;

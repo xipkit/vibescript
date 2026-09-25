@@ -772,6 +772,7 @@ pub(crate) fn hash_builtin(name: &str) -> bool {
             | "kind_of?"
             | "instance_of?"
             | "is_type?"
+            | "as"
             | "send"
             | "public_send"
             | "dup"

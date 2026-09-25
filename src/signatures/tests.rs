@@ -226,6 +226,9 @@ fn runtime_members() -> BTreeMap<&'static str, BTreeSet<String>> {
         )
     })
     .collect();
+    // The VM serves the checked cast `as` for every value, as it serves
+    // `is_type?`, outside the member tables that suggestions draw from.
+    members.get_mut("T").unwrap().insert("as".to_owned());
     // Match data and rescued errors are records whose fields are their members.
     for (receiver, source) in [
         ("match_data", "\"abc\".match(\"b\").keys"),

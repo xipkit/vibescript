@@ -2438,6 +2438,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             || block.is_some()
             || crate::iteration::method(name)
             || name == "is_type?"
+            || name == "as"
             || forwarding
         {
             if forwarding {

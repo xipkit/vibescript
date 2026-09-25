@@ -134,6 +134,19 @@ pub(crate) fn applicable(
     Ok(true)
 }
 
+/// Whether an object has a callable field named `name`, which a call of
+/// that name reaches instead of a builtin member.
+pub(crate) fn field_named(ctx: &mut CallContext, name: &str, receiver: &Value) -> Result<bool> {
+    if let Kind::Hash(hash) = &receiver.0 {
+        if hash.object {
+            if let Some(index) = hash.find(ctx, name.as_bytes())? {
+                return Ok(super::lifecycle::callable(&hash.buffer.data[index].1));
+            }
+        }
+    }
+    Ok(false)
+}
+
 pub(super) fn call(
     ctx: &mut CallContext,
     site: CallSite,

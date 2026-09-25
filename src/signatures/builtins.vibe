@@ -147,6 +147,9 @@ end
 
 # Members of every type.
 class T
+  # Checks the value against a type at runtime, as a typed parameter does,
+  # and gives it that type, such as `JSON.parse(raw).as(int)`.
+  def as<U>(type: type<U>) -> U
   def dup -> T
   def inspect -> string
   # Tests the value's type without converting it, such as `x.is_type?(:int)`.

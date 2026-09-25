@@ -34,7 +34,8 @@ pub(super) fn member(
         let receiver = receiver.clone();
         let selected =
             namespaces::member(ctx, storage, &receiver, call.site, call.name, call.access)?;
-        if matches!(selected, namespaces::Member::Missing) {
+        // `as` casts any value, so a namespace without its own `as` still answers it.
+        if matches!(selected, namespaces::Member::Missing) && call.name != "as" {
             namespaces::fallback(storage, &receiver, call.name, call.access.implicit)?;
         }
         selected
@@ -60,6 +61,18 @@ fn invoke(
         mut args,
         access,
     } = call;
+    if name == "as"
+        && !site.scope
+        && !mutating
+        && args.target.is_none()
+        && matches!(selected, namespaces::Member::Missing)
+        && !members::introspection::field_named(ctx, name, stack.data.last().unwrap())?
+    {
+        let receiver = stack.data.pop().unwrap();
+        let value = cast(program, ctx, frames, storage, receiver, &args)?;
+        stack.push(ctx, value)?;
+        return Ok(());
+    }
     let captured = if matches!(args.target, Some(crate::arguments::Target::Receiver(_))) {
         let Some(crate::arguments::Target::Receiver(receiver)) = args.target.take() else {
             unreachable!()
@@ -318,6 +331,73 @@ pub(super) fn helper(
     } else {
         namespaces::call_helper(ctx, storage, receiver, helper, args, auto)
     }
+}
+
+/// `value.as(T)`: checks the value against a type literal as a typed
+/// parameter does, raising the same boundary error on a mismatch.
+fn cast(
+    program: &Program,
+    ctx: &mut CallContext,
+    frames: &Buffer<Frame>,
+    storage: &mut Storage,
+    receiver: Value,
+    args: &Arguments,
+) -> Result<Value> {
+    if !args.keywords.buffer.data.is_empty() || args.block.is_some() {
+        let shape = if args.block.is_some() {
+            "a block"
+        } else {
+            "keyword arguments"
+        };
+        return Err(Error::argument(format!("as does not take {shape}")));
+    }
+    let [literal] = args.positional.data.as_slice() else {
+        return Err(Error::argument("as expects exactly one type"));
+    };
+    // A class or enum names its own type.
+    let nominal = match &literal.0 {
+        Kind::Enum(enumeration) => Some(enumeration.definition.name.clone()),
+        Kind::Namespace(class) => Some(class.definition.name.clone()),
+        _ => None,
+    };
+    if let Some(name) = nominal {
+        let ty = crate::types::Type {
+            name: name.to_string(),
+            kind: crate::types::TypeKind::Named,
+            nullable: false,
+        };
+        let literal = literal.clone();
+        return crate::types::prepare(ctx, &ty, |_, _| Ok(literal.clone()))?.normalize_with(
+            ctx,
+            receiver,
+            crate::types::Context::Cast,
+        );
+    }
+    let Kind::Shape(shape) = &literal.0 else {
+        return Err(Error::new(
+            ErrorKind::Type,
+            "as expects a type, as in value.as(int)",
+        ));
+    };
+    let lexical = lexical_scope(ctx, frames)?;
+    let mut failed = None;
+    let prepared = crate::types::prepare(ctx, &shape.definition.ty, |ctx, name| {
+        resolve_type(program, ctx, frames, storage, lexical, name, false).inspect_err(|_| {
+            failed = Some(name.to_owned());
+        })
+    });
+    let prepared = match (prepared, failed) {
+        (Err(error), Some(name)) => {
+            return Err(crate::types::host_resolution(
+                ctx,
+                crate::types::Context::Cast,
+                &name,
+                error,
+            )?);
+        }
+        (prepared, _) => prepared?,
+    };
+    prepared.normalize_with(ctx, receiver, crate::types::Context::Cast)
 }
 
 fn type_predicate(

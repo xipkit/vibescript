@@ -223,6 +223,7 @@ fn chosen(path: &str, param: &str) -> Option<Vec<&'static str>> {
         ("time.strftime", "format") => vec!["\"%Y-%m-%d\""],
         ("time.localtime", "zone") => vec!["\"+05:30\"", "nil"],
         ("T.is_type?", "type") => vec![":int", ":string"],
+        ("T.as", "type") => vec!["any"],
         ("string.template", "context") => vec!["{ a: 1 }"],
         ("string.tr" | "string.tr!", "to") => vec!["\"01\""],
         ("hash.remap_keys", "mapping") => vec!["{ a: \"z\" }"],
@@ -284,6 +285,9 @@ fn bind_function(function: &Function, bindings: &mut Bindings) {
             bindings.get("T").cloned().unwrap_or_else(|| name("int"))
         } else if function.name == "parse_as" {
             generic("array", vec![name("int")])
+        } else if function.name == "as" {
+            // Every receiver is cast to `any`, which it always is.
+            name("any")
         } else {
             let choices = [name("int"), name("string")];
             match &param.bound {
