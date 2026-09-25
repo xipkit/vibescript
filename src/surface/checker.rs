@@ -1,9 +1,7 @@
 //! The compiler's use of the rules: every removed spelling in a source as
 //! a `V04xx` diagnostic, with the rewrite as its fix.
 
-use super::{
-    Finding, Rule, context::Surface, edits::render, hooks::Hooks, parse, syntax, walk::Walk,
-};
+use super::{Finding, Rule, context::Surface, hooks::Hooks, parse, syntax, walk::Walk};
 use crate::{
     diagnostic::{Diagnostic, Edit, Fix, Span},
     tooling,
@@ -114,10 +112,11 @@ fn diagnostics(source: &str, tree: &syntax::Tree, calls: &CallTypes) -> Vec<Diag
         let edits: Vec<Edit> = checker
             .surface
             .edits
-            .group(group)
-            .map(|(span, pieces)| Edit {
-                span: Span::new(span.start, span.end),
-                replacement: render(source, pieces),
+            .flatten(source, group)
+            .into_iter()
+            .map(|(at, replacement)| Edit {
+                span: span(at),
+                replacement,
             })
             .filter(|edit| edit.span.start < edit.span.end || !edit.replacement.is_empty())
             .collect();

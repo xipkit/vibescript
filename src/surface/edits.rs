@@ -52,18 +52,59 @@ impl Edits {
         std::mem::replace(&mut self.group, group)
     }
 
-    /// The span and replacement of each edit in `group`, in the order they
-    /// were made.
-    pub fn group(&self, group: usize) -> impl Iterator<Item = (Span, &[Piece])> {
+    /// The edits of `group` applied on their own, as non-overlapping
+    /// replacements of `source`: edits that nest, overlap or meet are
+    /// rendered together, the later seeing the earlier as when every edit
+    /// is applied.
+    pub fn flatten(&self, source: &str, group: usize) -> Vec<(Span, String)> {
         let mut edits: Vec<&Edit> = self
             .edits
             .iter()
             .filter(|edit| edit.group == Some(group))
             .collect();
-        edits.sort_by_key(|edit| edit.order);
-        edits
+        edits.sort_by_key(|edit| (edit.span.start, edit.span.end));
+        let mut clusters: Vec<(Span, Vec<&Edit>)> = Vec::new();
+        for edit in edits {
+            match clusters.last_mut() {
+                Some((extent, members)) if edit.span.start <= extent.end => {
+                    extent.end = extent.end.max(edit.span.end);
+                    members.push(edit);
+                }
+                _ => clusters.push((edit.span, vec![edit])),
+            }
+        }
+        clusters
             .into_iter()
-            .map(|edit| (edit.span, edit.pieces.as_slice()))
+            .map(|(extent, mut members)| {
+                members.sort_by_key(|edit| edit.order);
+                // Padding keeps every edit inside the rendered text, so none
+                // spans all of it and insertions at either end stay in.
+                let text = format!(" {} ", &source[extent.start..extent.end]);
+                let local = |span: Span| Span {
+                    start: span.start - extent.start + 1,
+                    end: span.end - extent.start + 1,
+                };
+                let mut edits = Edits::default();
+                for member in members {
+                    let pieces = member
+                        .pieces
+                        .iter()
+                        .map(|piece| match piece {
+                            Piece::Source(span)
+                                if span.start >= extent.start && span.end <= extent.end =>
+                            {
+                                Piece::Source(local(*span))
+                            }
+                            Piece::Source(span) => Piece::Text(source[span.range()].to_owned()),
+                            Piece::Text(text) => Piece::Text(text.clone()),
+                        })
+                        .collect();
+                    edits.replace(local(member.span), pieces);
+                }
+                let rendered = edits.apply(&text);
+                (extent, rendered[1..rendered.len() - 1].to_owned())
+            })
+            .collect()
     }
 
     /// Replaces `span`. Edits of the same span stack: a later one sees the
@@ -206,18 +247,6 @@ impl Edits {
     }
 }
 
-/// A replacement as text, with each [`Piece::Source`] read from `source`
-/// as written, for an edit applied on its own.
-pub fn render(source: &str, pieces: &[Piece]) -> String {
-    pieces
-        .iter()
-        .map(|piece| match piece {
-            Piece::Text(text) => text.as_str(),
-            Piece::Source(span) => &source[span.start..span.end],
-        })
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -251,6 +280,30 @@ mod tests {
         edits.insert(11, " -> int");
         edits.insert(11, "!");
         assert_eq!(edits.apply(source), "def f(a: int, b: string) -> int!\nend");
+    }
+
+    #[test]
+    fn a_group_flattens_into_separate_replacements() {
+        let source = "f %w[a b] + g";
+        let mut edits = Edits::default();
+        let outer = edits.enter(Some(0));
+        edits.text(span(2, 9), "[\"a\", \"b\"]");
+        edits.wrap(span(2, 9), "(", ")");
+        edits.text(span(12, 13), "h");
+        edits.insert(11, "!");
+        edits.insert(0, "(");
+        edits.text(span(0, 1), "f");
+        edits.enter(outer);
+        edits.text(span(1, 2), " ");
+        assert_eq!(
+            edits.flatten(source, 0),
+            [
+                (span(0, 1), "(f".to_owned()),
+                (span(2, 9), "([\"a\", \"b\"])".to_owned()),
+                (span(11, 11), "!".to_owned()),
+                (span(12, 13), "h".to_owned())
+            ]
+        );
     }
 
     #[test]

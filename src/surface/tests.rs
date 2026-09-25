@@ -197,6 +197,13 @@ fn do_blocks_become_braces() {
         "do",
         "puts([1].map) { |x| x }\n",
     );
+    // A `do` on the next line moves up to its call.
+    round_trip(
+        "def zero\n  yield\nend\nzero\ndo\n  7\nend\n",
+        Code::DO_BLOCK,
+        "do",
+        "def zero\n  yield\nend\nzero {\n  7\n}\n",
+    );
     assert!(with_code("[1, 2].each { |x| puts x }\n", Code::DO_BLOCK).is_empty());
 }
 
@@ -264,6 +271,14 @@ fn percent_literals_become_arrays() {
         Code::PERCENT_LITERAL,
         "%i[ada grace]",
         "names = [:ada, :grace]\n",
+    );
+    // After a local, a percent literal is a command argument, and so is
+    // the array in parentheses.
+    round_trip(
+        "[1].map { it %w[a b] }\n",
+        Code::PERCENT_LITERAL,
+        "%w[a b]",
+        "[1].map { it ([\"a\", \"b\"]) }\n",
     );
     assert!(with_code("names = [\"ada\"]\n", Code::PERCENT_LITERAL).is_empty());
 }
