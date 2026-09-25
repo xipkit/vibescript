@@ -1,3 +1,5 @@
+mod common;
+
 use vibescript::{CallOptions, Engine, ErrorKind, Limits, Value, parse_json, stringify_json};
 
 fn run(source: &str) -> Value {
@@ -22,7 +24,7 @@ fn json(value: &Value) -> String {
 
 #[test]
 fn functions_loops_and_control_flow() {
-    let source = "def fib(n)\n if n < 2\n return n\n end\n fib(n - 1) + fib(n - 2)\nend\ni = 0\ns = 0\nwhile i < 10\n i += 1\n if i == 3\n next\n end\n if i == 8\n break\n end\n s += i\nend\n[s, fib(10)]";
+    let source = "def fib(n: int) -> int\n if n < 2\n return n\n end\n fib(n - 1) + fib(n - 2)\nend\ni = 0\ns = 0\nwhile i < 10\n i += 1\n if i == 3\n next\n end\n if i == 8\n break\n end\n s += i\nend\n[s, fib(10)]";
     assert_eq!(json(&run(source)), "[25,55]");
 }
 
@@ -30,17 +32,22 @@ fn functions_loops_and_control_flow() {
 fn precedence_truthiness_and_floor_arithmetic() {
     assert_eq!(
         json(&run(
-            "[2 + 3 * 4, -2 ** 2, 2 ** 3 ** 2, -7 / 3, 7 / -3, -7 % 3, 7 % -3, nil || 9, 0 && 4, false && (1 / 0)]"
+            "[2 + 3 * 4, -2 ** 2, 2 ** 3 ** 2, -7 // 3, 7 // -3, -7 % 3, 7 % -3, false && (1 // 0 == 0)]"
         )),
-        "[14,-4,512,-3,-3,2,-2,9,4,false]"
+        "[14,-4,512,-3,-3,2,-2,false]"
     );
+    // Only a bool is a condition, so nil and 0 are not truthy operands.
+    for source in ["nil || 9", "0 && 4"] {
+        let error = common::static_engine().compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0105", "V0105"], "{source}");
+    }
 }
 
 #[test]
 fn collections_have_value_semantics() {
     assert_eq!(
         json(&run(
-            "a = [1, 2]\nb = a\na.push(3)\na[-1] = 9\na << 4\nh = {name: a, other: b}\nx = h\nh[:name] = 7\n[a,b,h,x]"
+            "a = [1, 2]\nb = a\na.push(3)\na[-1] = 9\na << 4\nh: { name: int | array<int>, other: array<int> } = {name: a, other: b}\nx = h\nh[\"name\"] = 7\n[a,b,h,x]"
         )),
         "[[1,2,9,4],[1,2],{\"name\":7,\"other\":[1,2]},{\"name\":[1,2,9,4],\"other\":[1,2]}]"
     );
@@ -56,15 +63,21 @@ fn collections_have_value_semantics() {
 #[test]
 fn array_updates_preserve_aliases_and_evaluate_arguments_before_writing() {
     for (source, expected) in [
-        ("a=[1]\nb=a\na.push(a)\na[0]=9\n[a,b]", "[[9,[1]],[1]]"),
-        ("a=[1]\na << a\na", "[1,[1]]"),
-        ("a=[1]\na[0]=a\na", "[[1]]"),
-        ("a=[1]\na.push(a.length,a[0])\na", "[1,1,1]"),
+        (
+            "a: array<any> =[1]\nb=a\na.push(a)\na[0]=9\n[a,b]",
+            "[[9,[1]],[1]]",
+        ),
+        ("a: array<any> =[1]\na << a\na", "[1,[1]]"),
+        ("a: array<any> =[1]\na[0]=a\na", "[[1]]"),
+        ("a=[1]\na.push(a.length,a.fetch(0))\na", "[1,1,1]"),
         ("a=[1]\nb=[a]\na.push(2)\n[b,a]", "[[[1]],[1,2]]"),
         ("a=[1]\nb=a.push(2)\na[0]=9\n[a,b]", "[[9,2],[1,2]]"),
         ("a=[1]\nb=a\na=a+[a.length]\na+=[3]\n[a,b]", "[[1,1,3],[1]]"),
         ("a=[1]\na=a+a\na", "[1,1]"),
-        ("a=[1]\nb=a\na=(false || a)+[a[0]]\n[a,b]", "[[1,1],[1]]"),
+        (
+            "a=[1]\nb=a\na=(false ? b : a)+[a.fetch(0)]\n[a,b]",
+            "[[1,1],[1]]",
+        ),
     ] {
         assert_eq!(json(&run(source)), expected, "{source}");
     }
@@ -129,7 +142,7 @@ fn host_calls_are_isolated_and_exhaustion_is_latched() {
         Ok(Value::int(args[0].as_int().unwrap() * 2))
     });
     let script = engine
-        .compile("def run(a)\n a.push(double(21))\n a\nend")
+        .compile("def run(a: array<int>) -> array<int>\n a.push(double(21).as(int))\n a\nend")
         .unwrap();
     let input = Value::array(vec![Value::int(1)]);
     assert_eq!(
@@ -206,7 +219,7 @@ fn syntax_guards_and_division_errors() {
     assert_eq!(format!("{:?}", run(&chain)), format!("{:?}", Value::nil()));
     let supported = format!("{}1{}", "(".repeat(64), ")".repeat(64));
     assert_eq!(run(&supported).as_int(), Some(1));
-    for source in ["1 / 0", "1 % 0"] {
+    for source in ["1 // 0", "1 % 0"] {
         assert_eq!(
             Engine::new()
                 .compile(source)
