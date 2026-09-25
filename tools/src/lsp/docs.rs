@@ -175,7 +175,7 @@ fn entry_refs(text: &str, qualified: bool) -> Vec<(String, String)> {
     let mut refs: Vec<(String, String)> = Vec::new();
     for (span, inner) in code_spans(text) {
         let name = inner
-            .find([' ', '(', '{'])
+            .find([' ', '(', '{', '<'])
             .map_or(inner, |cut| &inner[..cut])
             .replace("::", ".");
         if !name.split('.').all(member_name) {
@@ -549,14 +549,15 @@ fn cut_balanced_parens(text: &str) -> Option<&str> {
 }
 
 /// Resolves one code span to a member: a member name optionally followed by
-/// arguments, a block shape or a result type. "type.name" names its own
-/// receiver, which must be a runtime receiver kind.
+/// type parameters, arguments, a block shape or a result type, as in
+/// `map<U>(&block: T -> U) -> array<U>`. "type.name" names its own receiver,
+/// which must be a runtime receiver kind.
 fn member_ref(span: &str, receiver: &str) -> Option<(String, String)> {
-    let (name, rest) = match span.find([' ', '(', '{']) {
+    let (name, rest) = match span.find([' ', '(', '{', '<']) {
         Some(cut) => (&span[..cut], &span[cut..]),
         None => (span, ""),
     };
-    let rest = rest.trim_start_matches(' ');
+    let rest = skip_type_parameters(rest).trim_start_matches(' ');
     if !rest.is_empty()
         && !rest.starts_with('(')
         && !rest.starts_with('{')
@@ -574,6 +575,27 @@ fn member_ref(span: &str, receiver: &str) -> Option<(String, String)> {
         return None;
     }
     Some((receiver.to_owned(), name.to_owned()))
+}
+
+/// The text after a leading `<...>` type parameter list, or all of `text`.
+fn skip_type_parameters(text: &str) -> &str {
+    if !text.starts_with('<') {
+        return text;
+    }
+    let mut depth = 0;
+    for (index, c) in text.char_indices() {
+        match c {
+            '<' => depth += 1,
+            '>' => {
+                depth -= 1;
+                if depth == 0 {
+                    return &text[index + 1..];
+                }
+            }
+            _ => (),
+        }
+    }
+    text
 }
 
 /// Hover markdown for a value member: the universal helper, the single typed
