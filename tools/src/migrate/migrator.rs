@@ -14,8 +14,17 @@ use vibescript::surface::{
 use vibescript::tooling::TokenKind;
 
 /// Nesting deeper than the parser's default stack allows runs on a larger one.
+#[cfg(not(target_os = "wasi"))]
 const STACK: usize = 256 << 20;
 
+/// WASI preview 1 cannot start a thread, so the migration runs on the
+/// caller's stack there.
+#[cfg(target_os = "wasi")]
+pub(crate) fn migrate(source: &str, facts: Option<&Facts>, options: &Options) -> Migration {
+    migrate_on_stack(source, facts, options)
+}
+
+#[cfg(not(target_os = "wasi"))]
 pub(crate) fn migrate(source: &str, facts: Option<&Facts>, options: &Options) -> Migration {
     std::thread::scope(|scope| {
         std::thread::Builder::new()

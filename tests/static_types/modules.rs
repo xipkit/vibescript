@@ -6,15 +6,18 @@ use vibescript::{Engine, ModuleConfig, diagnostic::Code};
 
 /// An engine whose module path holds `files`, and the directory to remove.
 fn engine(files: &[(&str, &str)]) -> (Engine, std::path::PathBuf) {
-    let directory = std::env::temp_dir().join(format!(
-        "static-modules-{}-{}",
-        std::process::id(),
-        files
-            .iter()
-            .map(|(name, _)| *name)
-            .collect::<Vec<_>>()
-            .join("-")
-    ));
+    // WASI has no temporary directory, so fixtures live under the repository.
+    let directory = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join(".cache/tmp")
+        .join(format!(
+            "static-modules-{}-{}",
+            super::common::process_id(),
+            files
+                .iter()
+                .map(|(name, _)| *name)
+                .collect::<Vec<_>>()
+                .join("-")
+        ));
     std::fs::create_dir_all(&directory).unwrap();
     for (name, source) in files {
         std::fs::write(directory.join(name), source).unwrap();

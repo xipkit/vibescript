@@ -1,6 +1,8 @@
 //! The static type checker of ADR-007: each rule and diagnostic code, with
 //! programs it accepts and programs it rejects.
 
+mod common;
+
 #[path = "static_types/support.rs"]
 mod support;
 

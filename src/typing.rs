@@ -53,7 +53,9 @@ pub(crate) type Modules<'a> = dyn Fn(&str) -> Option<(String, std::sync::Arc<[u8
 /// Sources longer than this are checked on a thread with [`STACK`] bytes of
 /// stack: the checker recurses once per level of syntax, which the parser
 /// bounds, and a short source cannot nest deeply.
+#[cfg(not(target_os = "wasi"))]
 const SHALLOW: usize = 1024;
+#[cfg(not(target_os = "wasi"))]
 const STACK: usize = 64 << 20;
 
 /// The result of checking one source.
