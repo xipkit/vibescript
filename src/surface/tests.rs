@@ -89,6 +89,33 @@ fn removed_names_are_renamed() {
 }
 
 #[test]
+fn the_static_checkers_receiver_types_decide_typed_renames() {
+    let source = "h = { a: 1 }\nok = h.include?(\"a\")\nt = Time.now\nd = t.day\ne = 5.day\n";
+    let checked = Engine::new().type_check(source).unwrap();
+    let found: Vec<(&str, Option<String>)> = checked
+        .diagnostics
+        .iter()
+        .map(|d| {
+            let fix = d.applicable_fix().and_then(|fix| fix.apply(source));
+            (&source[d.span.start..d.span.end], fix)
+        })
+        .collect();
+    assert_eq!(found.len(), 2, "{:?}", checked.diagnostics);
+    assert_eq!(found[0].0, "include?");
+    assert!(
+        found[0]
+            .1
+            .as_deref()
+            .unwrap()
+            .contains("ok = h.key?(\"a\")\n")
+    );
+    assert_eq!(found[1].0, "day");
+    assert!(found[1].1.as_deref().unwrap().ends_with("e = 5.days\n"));
+    // Without them, `include?` could be an array's, and is left alone.
+    assert!(with_code(source, Code::REMOVED_NAME).len() == 1);
+}
+
+#[test]
 fn canonical_names_and_user_methods_are_not_removed_names() {
     assert!(with_code("n = [1, 2].length\n", Code::REMOVED_NAME).is_empty());
     let source = "class Box\n  def size\n    3\n  end\nend\nn = Box.new.size\n";
