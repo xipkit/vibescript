@@ -30,7 +30,7 @@ fn integer_loop_counts_keep_the_language_width_and_obey_quotas() {
     for count in [2_147_483_648_i64, 4_294_967_296, 4_294_967_297, i64::MAX] {
         let script = Engine::new()
             .compile(&format!(
-                "seen=[]; {count}.times{{|i|seen.push(i);break if seen.size==2}};seen"
+                "seen: array<int> = []; {count}.times{{|i|seen.push(i);break if seen.length==2}};seen"
             ))
             .unwrap();
         let result = script.run(CallOptions::default()).unwrap();
