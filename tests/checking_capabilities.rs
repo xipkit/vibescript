@@ -240,18 +240,20 @@ fn value_templates_never_construct_async_futures_during_checks() {
 
 #[test]
 fn value_templates_keep_call_forms_attachment_and_repeated_grants() {
+    let mut declared = Engine::new();
+    declared
+        .declare_capability(&deliverer().capabilities[0])
+        .unwrap();
+    declared.register("identity", |_, _| panic!("detached method reached host"));
     for source in [
         "sms.deliver(1, 2)",
         "sms.deliver 1, 2",
         "sms::deliver(1, 2)",
-        "sms[:deliver](1, 2)",
-        "sms.send(:deliver, 1, 2)",
-        "sms.public_send(:deliver, 1, 2)",
         "sms.deliver(*[1], last: 2)",
         "local = sms; local.deliver(1, 2)",
-        "[sms][0].deliver(1, 2)",
+        "[sms].fetch(0).deliver(1, 2)",
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = declared.compile(source).unwrap();
         let options = deliverer();
         for _ in 0..3 {
             let output = script
@@ -260,27 +262,40 @@ fn value_templates_keep_call_forms_attachment_and_repeated_grants() {
             assert_eq!(output.value.to_string(), "[1, 2]", "{source}");
         }
     }
-    for source in [
-        "sms.deliver",
-        "sms[:deliver]",
-        "a=sms::deliver; a(1)",
-        "[sms[:deliver]]",
-        "identity(sms[:deliver])",
+    let error = declared
+        .compile("sms.deliver")
+        .unwrap()
+        .run(deliverer())
+        .unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Type, "{error}");
+    assert!(
+        error.message.contains("cannot be used as a value"),
+        "{error}"
+    );
+    // A namespace is not indexed and a local is never called, so the other
+    // forms do not compile.
+    let mut refusing = Engine::new();
+    refusing.set_static_types(true);
+    refusing
+        .declare_capability(&deliverer().capabilities[0])
+        .unwrap();
+    refusing.register("identity", |_, _| panic!("detached method reached host"));
+    for (source, code, at) in [
+        ("sms[\"deliver\"](1, 2)", "V0112", "sms["),
+        ("sms[\"deliver\"]", "V0112", "sms["),
+        ("a=sms::deliver; a(1)", "V0310", "a(1)"),
+        ("[sms[\"deliver\"]]", "V0112", "sms["),
+        ("identity(sms[\"deliver\"])", "V0112", "sms["),
     ] {
-        let mut engine = Engine::new();
-        engine.register("identity", |_, _| panic!("detached method reached host"));
-        let error = engine
-            .compile(source)
-            .unwrap()
-            .run(deliverer())
-            .unwrap_err();
-        assert_eq!(error.kind, ErrorKind::Type, "{source}: {error}");
-        assert!(
-            error.message.contains("cannot be used as a value"),
-            "{source}: {error}"
+        let error = refusing.compile(source).err().unwrap();
+        assert_eq!(common::codes(&error)[0], code, "{source}");
+        assert_eq!(
+            error.diagnostics()[0].span.start,
+            source.find(at).unwrap(),
+            "{source}"
         );
     }
-    let script = Engine::new()
+    let script = declared
         .compile("[sms.deliver(1), sms.deliver(2)]")
         .unwrap();
     let options = deliverer();
