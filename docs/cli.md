@@ -14,10 +14,11 @@
 | `vibes lsp` | Serve the language server over stdin and stdout for editors. |
 | `vibes prelude` | Print every builtin signature as Vibescript declarations. |
 | `vibes migrate [options] <file or directory>...` | Rewrite scripts into the statically typed, canonical language. |
+| `vibes fix [--dry-run] <file or directory>...` | Apply the machine-applicable fixes of the static language's diagnostics. |
 
 It also keeps the flat form that predates these commands, `vibes [OPTIONS] FILE` and `vibes [OPTIONS] -e SOURCE`, which prints results as JSON and checks exact calls (see [the flat form](#the-flat-form)), and it prints its version with `vibes --version`.
 
-The formatter, analyzer, migrator, test runner, REPL session and language server are also libraries in the `vibescript-tools` crate (`vibescript_tools::format`, `::analyze`, `::migrate`, `::test_runner`, `::repl` and `::lsp`), so other programs can embed them; the CLI is a front end that parses arguments, finds and writes files, and renders results.
+The formatter, analyzer, migrator, fixer, test runner, REPL session and language server are also libraries in the `vibescript-tools` crate (`vibescript_tools::format`, `::analyze`, `::migrate`, `::fix`, `::test_runner`, `::repl` and `::lsp`), so other programs can embed them; the CLI is a front end that parses arguments, finds and writes files, and renders results.
 
 ```sh
 ./scripts/cargo run --release -p vibes -- run examples/total.vibe
@@ -29,7 +30,7 @@ The formatter, analyzer, migrator, test runner, REPL session and language server
 The first argument alone decides what runs, in this order:
 
 1. `-h` or `--help` prints the root help. A first argument the reference rejects outright, `--`, one with leading or trailing whitespace, `-help`, `--h` or a help flag with a value such as `--help=false`, prints the root help and `unknown command "..."` on stderr.
-2. A command name (`run`, `check`, `fmt`, `analyze`, `test`, `lsp`, `repl`, `prelude`, `migrate`, `help` or `h`) runs that command. A file named after a command therefore needs `vibes run check`, or a flat-form option before it.
+2. A command name (`run`, `check`, `fmt`, `analyze`, `test`, `lsp`, `repl`, `prelude`, `migrate`, `fix`, `help` or `h`) runs that command. A file named after a command therefore needs `vibes run check`, or a flat-form option before it.
 3. `--version` prints `vibescript.rs VERSION`.
 4. A flat-form option (`-e`, `--eval`, `--function`, `--module-path`, `--arg`, `--kwarg`, `--check`, `--checked`, `--steps`, `--memory`, `--recursion`, `--timeout-ms` or `--stats`), or a script path, runs the flat form. A script path is an existing file, or a spelling that contains a path separator or ends in `.vibe`.
 5. Anything else fails as in the reference: `vibes` alone reports `command required` after the root help, a flag such as `-x` or `--bogus` reports `flag provided but not defined: -x`, and any other word reports `unknown command "word"` after the root help.
@@ -107,6 +108,7 @@ vibes check [options] <script>
 | `-recursion N` | The call-depth setting, 256 by default. |
 | `-timeout-ms N` | An analysis deadline. |
 | `-stats` | Print `steps=N peak_bytes=N retained_bytes=N` on stderr. |
+| `-json` | Check in the static language and print each diagnostic as one JSON object per line (`Diagnostic::to_json`): its code, name, severity, spans with byte offsets and one-based lines and columns, message, expected and found types, labels and fixes. A syntax error is a `V0001` diagnostic, and a clean script prints nothing. |
 
 ## `vibes fmt`
 
@@ -139,12 +141,12 @@ The report goes to stdout, with the tests' own output interleaved: `--- FAIL: FI
 ## `vibes lsp`
 
 ```sh
-vibes lsp
+vibes lsp [--static]
 ```
 
 `vibes lsp` starts the language server that editors launch for `*.vibe` files, speaking the Language Server Protocol over stdin and stdout, as the reference's does. It takes no positional arguments; as with the other commands, `-h` prints its help and an argument fails with `vibes lsp: does not accept positional arguments` and status 1. It exits with status 0 after the client sends `exit` or closes its input, or after an interrupt, and with status 1 when the input's framing is corrupt.
 
-It publishes compile errors on every change and answers hover, completion, signature help, definition, document symbol and formatting requests as the reference does. Its diagnostics add this library's checker findings, with required files resolved from the document's directory as `vibes check` resolves them from the script's. See [the language server](lsp.md) for its features, limits and differences from the reference.
+It publishes compile errors on every change and answers hover, completion, signature help, definition, document symbol and formatting requests as the reference does. Its diagnostics add this library's checker findings, with required files resolved from the document's directory as `vibes check` resolves them from the script's. With `--static` it checks documents in the static language instead: diagnostics carry their codes, and their fixes are offered as quick fixes. See [the language server](lsp.md) for its features, limits and differences from the reference.
 
 ## `vibes prelude`
 
@@ -165,6 +167,16 @@ vibes migrate [--write] [--inputs FILE] [--report json] [--compatible] <file or 
 Types come from existing annotations, then from values observed while running the invocations in `--inputs`, a JSON Lines file of calls with the golden corpora's fields (`function`, `args`, `typed_args`, `globals`, `module_paths` and so on) and an optional `file` relative to the directory being migrated; without an observation a type is `any`, which the report flags. A file with a recorded call that needs host capabilities is annotated without observations, since its other calls may not cover what that one does.
 
 Without `--write` it prints a unified diff; with it, it rewrites the files. Everything it cannot do safely, such as a condition on a value that is sometimes `false`, a rename whose receiver type is unknown, or dispatch by a name known only at runtime, is reported on stderr as `file:line:column: code: message`, or as a JSON array on stdout with `--report json`. `--compatible` makes only the changes the linked runtime accepts without the new declarations. `scripts/migrate-corpora.py` migrates the golden corpora this way and checks the results against their goldens.
+
+## `vibes fix`
+
+```sh
+vibes fix [--dry-run] <file or directory>...
+```
+
+`vibes fix` checks each `.vibe` file in the static language of ADR-007 and ADR-008 and applies every fix whose applicability is machine-applicable, then checks again, until no such fix remains. Each round applies the innermost fixes first and only those whose edits neither overlap nor touch another's, so nested rewrites such as `unless x.nil?` land in turn; a suggestion, which a person should confirm, is never applied. Running it again changes nothing.
+
+Each applied fix prints on stdout as `path:line:column: fixed V0401: message`, at its position in the text of the round that fixed it, and each diagnostic left afterwards as `path:line:column: error[V0405]: message`. A summary goes to stderr, and the command fails with `vibes fix: N error(s) remain` when errors remain, including a file that does not parse. `--dry-run` writes nothing and prints the changes as a unified diff before the report.
 
 ## `vibes repl`
 
