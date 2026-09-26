@@ -319,11 +319,7 @@ end
 
 #[test]
 fn safe_calls_preserve_visibility_and_vm_recursion_limits() {
-    // The checker refuses every call to `hidden` or `guarded` from outside
-    // `C` (V0208); without static types, the runtime refuses those that run.
-    let script = common::gradual_engine()
-        .compile(
-            r##"
+    let class = r##"
 class C
   private def hidden -> int
     7
@@ -344,32 +340,25 @@ def run -> array<any>
   n: C? = nil
   [n&.hidden, C.new.probe(nil), C.new.probe(C.new)]
 end
-def hidden -> int?
-  c: C? = C.new
-  c&.hidden
-end
-def guarded -> int?
-  c: C? = C.new
-  c&.guarded
-end
 def recursive -> int?
   c: C? = C.new
   c&.recur
 end
-"##,
-        )
-        .unwrap();
-    let result = script.call("run", &[], CallOptions::default()).unwrap();
-    assert_eq!(json(&result.value), serde_json::json!([null, null, 8]));
-    for function in ["hidden", "guarded"] {
+"##;
+    // A safe call to `hidden` or `guarded` from outside `C` is refused.
+    for method in ["hidden", "guarded"] {
+        let source = format!("{class}def outside -> int?\n  c: C? = C.new\n  c&.{method}\nend\n");
+        let error = Engine::new().compile(&source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0208"], "{method}");
         assert_eq!(
-            script
-                .call(function, &[], CallOptions::default())
-                .unwrap_err()
-                .kind,
-            ErrorKind::Name
+            error.diagnostics()[0].span.start,
+            source.find(&format!("c&.{method}")).unwrap() + 3,
+            "{method}"
         );
     }
+    let script = Engine::new().compile(class).unwrap();
+    let result = script.call("run", &[], CallOptions::default()).unwrap();
+    assert_eq!(json(&result.value), serde_json::json!([null, null, 8]));
     let mut options = CallOptions::default();
     options.limits.recursion = 16;
     assert_eq!(
