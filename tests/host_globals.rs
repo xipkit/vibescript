@@ -4,7 +4,7 @@ use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
 };
-use vibescript::{CallOptions, Capability, Engine, ErrorKind, Value, stringify_json};
+use vibescript::{CallOptions, Capability, Engine, ErrorKind, HostMethod, Value, stringify_json};
 
 fn options(entries: &[(&str, Value)]) -> CallOptions {
     CallOptions {
@@ -25,13 +25,26 @@ fn declaring(globals: &[(&str, &str)]) -> Engine {
     engine
 }
 
-/// An engine for programs whose host globals are undeclared and override
-/// the script's own functions, classes, enums, hosts and builtins, or hold
-/// method values, classes or enums. Static types need every global declared
-/// with a builtin type and resolve a declared name to its declaration, so
-/// these programs run without them.
-fn overriding() -> Engine {
-    common::gradual_engine()
+/// A host method that parses its string argument as an integer, as
+/// `JSON.parse` would.
+fn parse() -> Value {
+    HostMethod::new("parse", |_, args, _| {
+        let text = std::str::from_utf8(args[0].as_bytes().unwrap()).unwrap();
+        Ok(Value::int(text.parse().unwrap()))
+    })
+    .value()
+}
+
+/// An engine that declares each of `names` as a host method like [`parse`],
+/// which each call supplies as a global.
+fn parsing(names: &[&str]) -> Engine {
+    let mut engine = Engine::new();
+    for name in names {
+        engine
+            .declare_capability(&Capability::from_value(*name, parse()))
+            .unwrap();
+    }
+    engine
 }
 
 fn json(value: &Value) -> serde_json::Value {
@@ -39,10 +52,9 @@ fn json(value: &Value) -> serde_json::Value {
     serde_json::from_slice(encoded.value.as_bytes().unwrap()).unwrap()
 }
 
-/// Runs `source` for its value, such as a method value, a class or a type,
-/// which static types never produce.
+/// Runs `source` for its value, such as a namespace, a class or a type.
 fn value(source: &str) -> Value {
-    common::gradual_engine()
+    Engine::new()
         .compile(source)
         .unwrap()
         .run(CallOptions::default())
@@ -80,20 +92,24 @@ fn globals_are_isolated_and_mutations_remain_visible_within_each_call() {
 
 #[test]
 fn host_globals_override_functions_declarations_hosts_and_builtins() {
-    let mut engine = overriding();
-    engine.register("host", |_, _| panic!("shadowed host ran"));
+    let names = ["helper", "Box", "Status", "Math", "host"];
     for composite in [false, true] {
-        let read = if composite {
-            "helper[0]+Box[0]+Status[0]+Math[0]+host[0]"
+        let (read, ty) = if composite {
+            (
+                "helper.fetch(0)+Box.fetch(0)+Status.fetch(0)+Math.fetch(0)+host.fetch(0)",
+                "array<int>",
+            )
         } else {
-            "helper+Box+Status+Math+host"
+            ("helper+Box+Status+Math+host", "int")
         };
+        let mut engine = declaring(&names.map(|name| (name, ty)));
+        engine.register("host", |_, _| panic!("shadowed host ran"));
         let script = engine
             .compile(&format!(
-                "def helper;99;end;class Box;end;enum Status;Ready;end;def run;{read};end"
+                "def helper -> int;99;end;class Box;end;enum Status;Ready;end;def run -> int;{read};end"
             ))
             .unwrap();
-        let entries: Vec<_> = ["helper", "Box", "Status", "Math", "host"]
+        let entries: Vec<_> = names
             .into_iter()
             .enumerate()
             .map(|(index, name)| {
@@ -121,8 +137,8 @@ fn host_globals_override_functions_declarations_hosts_and_builtins() {
 
 #[test]
 fn nil_overrides_and_parameter_shadowing_do_not_lose_bindings() {
-    let script = overriding()
-        .compile("def helper;99;end;def f(helper);helper+=1;helper;end;def run;[f(6),helper];end")
+    let script = declaring(&[("helper", "int?")])
+        .compile("def helper -> int;99;end;def f(helper: int) -> int;helper+=1;helper;end;def run -> array<int?>;[f(6),helper];end")
         .unwrap();
     assert_eq!(
         json(
@@ -133,18 +149,19 @@ fn nil_overrides_and_parameter_shadowing_do_not_lose_bindings() {
         ),
         serde_json::json!([7, null])
     );
+    // An assignment binds the name over the global with its own type.
     for body in [
-        "items=nil;items",
+        "items: int? = nil;items",
         "items=1;items+=2;items",
         "items=1;[2].each{|items|items+=1};items",
         "items=1;[2].each{items+=2};items",
     ] {
         let expected = match body {
-            "items=nil;items" => serde_json::Value::Null,
+            "items: int? = nil;items" => serde_json::Value::Null,
             "items=1;[2].each{|items|items+=1};items" => serde_json::json!(1),
             _ => serde_json::json!(3),
         };
-        let script = overriding().compile(body).unwrap();
+        let script = declaring(&[("items", "array<int>")]).compile(body).unwrap();
         assert_eq!(
             json(
                 &script
@@ -161,13 +178,14 @@ fn nil_overrides_and_parameter_shadowing_do_not_lose_bindings() {
 #[test]
 fn global_mutation_addresses_survive_parent_growth_and_rebindings() {
     for name in ["rows", "JSON", "Box", "helper"] {
+        let engine = declaring(&[(name, "array<array<int>>")]);
         let source = format!(
-            "class Box;end;def helper;99;end;before={name};x={name}[-1].push((while true;{name}.push([9]);break 2;end));[x,{name},before]"
+            "class Box;end;def helper -> int;99;end;before={name};x={name}[-1].push((while true;{name}.push([9]);break 2;end));[x,{name},before]"
         );
         let input = Value::array(vec![Value::array(vec![Value::int(1)])]);
         assert_eq!(
             json(
-                &overriding()
+                &engine
                     .compile(&source)
                     .unwrap()
                     .run(options(&[(name, input.clone())]))
@@ -177,10 +195,21 @@ fn global_mutation_addresses_survive_parent_growth_and_rebindings() {
             serde_json::json!([[1, 2], [[1, 2], [9]], [[1]]])
         );
         assert_eq!(json(&input), serde_json::json!([[1]]));
-        let source = format!("class Box;end;def helper;99;end;{name}=[7];{name}");
+        let source = format!("class Box;end;def helper -> int;99;end;{name}=[7];{name}");
+        // A namespace or class name cannot be rebound, even where a global
+        // shadows it.
+        if name.starts_with(char::is_uppercase) {
+            let error = engine.compile(&source).err().unwrap();
+            assert_eq!(common::codes(&error), ["V0102"], "{name}");
+            assert_eq!(
+                error.diagnostics()[0].span.start,
+                source.find(&format!("{name}=")).unwrap()
+            );
+            continue;
+        }
         assert_eq!(
             json(
-                &overriding()
+                &engine
                     .compile(&source)
                     .unwrap()
                     .run(options(&[(name, input)]))
@@ -194,25 +223,19 @@ fn global_mutation_addresses_survive_parent_growth_and_rebindings() {
 
 #[test]
 fn known_and_computed_calls_capture_global_targets_before_arguments() {
-    let parse = value("JSON[:parse]");
     for expression in [
         "helper((while true;helper=1;break \"3\";end))",
         "helper(*(while true;helper=1;break [\"3\"];end))",
         "(helper)((while true;helper=1;break \"3\";end))",
         "helper (while true;helper=1;break \"3\";end)",
     ] {
-        let script = overriding()
+        let script = parsing(&["helper"])
             .compile(&format!(
-                "def helper(*args);99;end;x={expression};[x,helper]"
+                "def helper(*args: array<any>) -> int;99;end;x={expression};[x,helper]"
             ))
             .unwrap();
         assert_eq!(
-            json(
-                &script
-                    .run(options(&[("helper", parse.clone())]))
-                    .unwrap()
-                    .value
-            ),
+            json(&script.run(options(&[("helper", parse())])).unwrap().value),
             serde_json::json!([3, 1]),
             "{expression}"
         );
@@ -221,17 +244,18 @@ fn known_and_computed_calls_capture_global_targets_before_arguments() {
 
 #[test]
 fn module_constants_take_precedence_over_host_bindings_in_call_targets() {
-    let mut engine = overriding();
-    engine.register("Host", |_, _| panic!("shadowed host ran"));
-    for name in ["Parser", "Box", "Math", "Host"] {
+    // A constant cannot hold a function, and a class, builtin namespace or
+    // host function cannot be rebound, so the constant is the receiver.
+    let engine = Engine::new();
+    for name in ["Parser"] {
         for expression in [
-            format!("{name}(\"3\")"),
-            format!("({name})(\"3\")"),
-            format!("{name}(*[\"3\"])"),
-            format!("{name} \"3\""),
+            format!("{name}.fetch(0)"),
+            format!("({name}).fetch(0)"),
+            format!("{name}.fetch(*[0])"),
+            format!("{name}.fetch 0"),
         ] {
             let source = format!(
-                "class Box;end;module M;{name}=JSON[:parse];def self.run;{expression};end;end;M.run"
+                "class Box;end;module M;{name}=[3];def self.run -> int;{expression};end;end;M.run"
             );
             let script = engine.compile(&source).unwrap();
             for (binding, opts) in [
@@ -261,14 +285,15 @@ fn module_constants_take_precedence_over_host_bindings_in_call_targets() {
 
 #[test]
 fn module_initializers_call_enclosing_bindings() {
+    // A local cannot hold a function, so the enclosing local is the receiver.
     for expression in [
-        "helper(\"3\")",
-        "(helper)(\"3\")",
-        "helper(*[\"3\"])",
-        "helper \"3\"",
+        "helper.fetch(0)",
+        "(helper).fetch(0)",
+        "helper.fetch(*[0])",
+        "helper.fetch 0",
     ] {
-        let source = format!("helper=JSON[:parse];module M;Result={expression};end;M.Result");
-        let script = overriding().compile(&source).unwrap();
+        let source = format!("helper=[3];module M;Result={expression};end;M.Result");
+        let script = Engine::new().compile(&source).unwrap();
         for opts in [CallOptions::default(), options(&[("helper", Value::nil())])] {
             assert_eq!(
                 script.run(opts).unwrap().value.as_int(),
@@ -366,15 +391,18 @@ fn strict_globals_are_validated_before_initializers_defaults_and_callbacks() {
     let script = engine
         .compile("class C;effect();end;def run(x: any = effect()) -> any;effect();end")
         .unwrap();
-    for source in [
-        "JSON",
-        "JSON[:parse]",
-        "{x:int}",
-        "class C;end;C",
-        "class C;end;C.new",
-        "class C;property link;end;c=C.new;c.link=c;c",
+    for (source, hidden) in [
+        ("JSON", value("JSON")),
+        ("a host method", parse()),
+        ("{x:int}", value("{x:int}")),
+        ("class C;end;C", value("class C;end;C")),
+        ("class C;end;C.new", value("class C;end;C.new")),
+        (
+            "class C;property link: C?;end;c=C.new;c.link=c;c",
+            value("class C;property link: C?;end;c=C.new;c.link=c;c"),
+        ),
     ] {
-        let poison = Value::array(vec![Value::hash(vec![(b"hidden".to_vec(), value(source))])]);
+        let poison = Value::array(vec![Value::hash(vec![(b"hidden".to_vec(), hidden)])]);
         let err = script
             .call("run", &[], options(&[("unused", poison)]))
             .unwrap_err();
@@ -460,22 +488,26 @@ fn globals_and_arguments_preserve_independent_collection_values() {
 
 #[test]
 fn incoming_enums_rebind_when_lazily_materialized_or_used_in_types() {
-    let producer = overriding().compile("enum Status;Ready;end;def pair;[Status,Status::Ready];end;def typed(x:Other);x;end;def run;[state==Status::Ready,typed(state)==state];end").unwrap();
+    // A global is `any` and never names a type, so the producer casts the
+    // incoming member to its enum.
+    let producer = declaring(&[("state", "")]).compile("enum Status;Ready;end;def pair -> array<any>;[Status,Status::Ready];end;def typed(x: Status) -> Status;x;end;def run -> array<bool>;[state==Status::Ready,typed(state.as(Status))==state];end").unwrap();
     let pair = producer
-        .call("pair", &[], CallOptions::default())
+        .call("pair", &[], options(&[("state", Value::nil())]))
         .unwrap()
         .value;
     let pair = pair.as_array().unwrap();
-    let opts = options(&[("Other", pair[0].clone()), ("state", pair[1].clone())]);
+    let opts = options(&[("state", pair[1].clone())]);
     assert_eq!(
         json(&producer.call("run", &[], opts.clone()).unwrap().value),
         serde_json::json!([true, true])
     );
-    let consumer = overriding()
-        .compile("def typed(x:other);x;end;def run;typed(state[0])==Other::Ready;end")
+    // The consumer cannot name the incoming enum, so it compares the member
+    // materialized from the array with the one it receives directly.
+    let consumer = declaring(&[("state", "array<any>"), ("ready", "")])
+        .compile("def run -> bool;state.fetch(0)==ready;end")
         .unwrap();
     let opts = options(&[
-        ("Other", pair[0].clone()),
+        ("ready", pair[1].clone()),
         ("state", Value::array(vec![pair[1].clone()])),
     ]);
     assert_eq!(
@@ -486,10 +518,11 @@ fn incoming_enums_rebind_when_lazily_materialized_or_used_in_types() {
 
 #[test]
 fn imported_global_objects_preserve_cycles_aliases_and_call_isolation() {
-    let original = value(
-        "class Node;property link, count;def initialize;@count=0;@link=self;end;end;Node.new",
-    );
-    let consumer = overriding().compile("def run(arg);arg.count+=1;[node.count,node==arg,node.link==node];end;def inspect(arg);arg.count;end").unwrap();
+    // Another program's instance is `any` here, and its class cannot be
+    // named, so the instance comes from the consumer's own class.
+    let consumer = declaring(&[("node", "")]).compile("class Node;property link: Node?;property count: int;def initialize;@count=0;@link=self;end;end;def make -> Node;Node.new;end;def run(arg: Node) -> array<int | bool>;arg.count+=1;node=node.as(Node);[node.count,node==arg,node.link==node];end;def inspect(arg: Node) -> int;arg.count;end").unwrap();
+    let unbound = options(&[("node", Value::nil())]);
+    let original = consumer.call("make", &[], unbound.clone()).unwrap().value;
     for _ in 0..3 {
         let output = consumer
             .call(
@@ -501,11 +534,7 @@ fn imported_global_objects_preserve_cycles_aliases_and_call_isolation() {
         assert_eq!(json(&output.value), serde_json::json!([1, true, true]));
         assert_eq!(
             consumer
-                .call(
-                    "inspect",
-                    std::slice::from_ref(&original),
-                    CallOptions::default()
-                )
+                .call("inspect", std::slice::from_ref(&original), unbound.clone())
                 .unwrap()
                 .value
                 .as_int(),
@@ -518,19 +547,19 @@ fn imported_global_objects_preserve_cycles_aliases_and_call_isolation() {
 fn unused_foreign_namespaces_do_not_initialize_and_used_ones_keep_host_ownership() {
     let effects = Arc::new(AtomicUsize::new(0));
     let captured = effects.clone();
-    let mut source = overriding();
+    let mut source = Engine::new();
     source.register("original", move |_, _| {
         captured.fetch_add(1, Ordering::SeqCst);
         Ok(Value::int(7))
     });
     let namespace = source
-        .compile("class Counter;@@n=original();def self.bump;@@n+=1;end;end;Counter")
+        .compile("class Counter;@@n: int = original().as(int);def self.bump -> int;@@n+=1;@@n;end;end;Counter")
         .unwrap()
         .run(CallOptions::default())
         .unwrap()
         .value;
     effects.store(0, Ordering::SeqCst);
-    let mut engine = overriding();
+    let mut engine = declaring(&[("Counter", "")]);
     engine.register("original", |_, _| panic!("wrong callback owner"));
     let opts = options(&[("Counter", namespace)]);
     assert_eq!(
@@ -544,11 +573,13 @@ fn unused_foreign_namespaces_do_not_initialize_and_used_ones_keep_host_ownership
         Some(1)
     );
     assert_eq!(effects.load(Ordering::SeqCst), 0);
-    let script = engine.compile("[Counter.bump,Counter.bump]").unwrap();
+    // The namespace is `any`, which the script compares but never calls;
+    // reading it imports and initializes it with its own callback.
+    let script = engine.compile("Counter != nil").unwrap();
     for count in 1..=2 {
         assert_eq!(
             json(&script.run(opts.clone()).unwrap().value),
-            serde_json::json!([8, 9])
+            serde_json::json!(true)
         );
         assert_eq!(effects.load(Ordering::SeqCst), count);
     }
@@ -556,17 +587,18 @@ fn unused_foreign_namespaces_do_not_initialize_and_used_ones_keep_host_ownership
 
 #[test]
 fn captured_overrides_cover_host_declaration_block_and_error_paths() {
-    let parse = value("JSON[:parse]");
-    let mut engine = overriding();
-    engine.register("host", |_, _| panic!("shadowed host ran"));
     for name in ["helper", "host", "Box", "JSON"] {
+        let mut engine = parsing(&[name]);
+        engine.register("host", |_, _| panic!("shadowed host ran"));
         for form in [format!("{name}(\"3\")"), format!("{name}(*[\"3\"])")] {
             let script = engine
-                .compile(&format!("def helper(*args);99;end;class Box;end;{form}"))
+                .compile(&format!(
+                    "def helper(*args: array<any>) -> int;99;end;class Box;end;{form}"
+                ))
                 .unwrap();
             assert_eq!(
                 script
-                    .run(options(&[(name, parse.clone())]))
+                    .run(options(&[(name, parse())]))
                     .unwrap()
                     .value
                     .as_int(),
@@ -574,38 +606,31 @@ fn captured_overrides_cover_host_declaration_block_and_error_paths() {
                 "{form}"
             );
         }
-        let script = engine
-            .compile(&format!(
-                "def helper(*args);99;end;class Box;end;begin;{name}(\"3\"){{42}};rescue;7;end"
-            ))
-            .unwrap();
+        // The host method takes no block, which the checker refuses.
+        let source = format!(
+            "def helper(*args: array<any>) -> int;99;end;class Box;end;begin;{name}(\"3\"){{42}};rescue;7;end"
+        );
+        let error = engine.compile(&source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0305"], "{name}");
         assert_eq!(
-            script
-                .run(options(&[(name, parse.clone())]))
-                .unwrap()
-                .value
-                .as_int(),
-            Some(7),
+            error.diagnostics()[0].span.start,
+            source.find("{42}").unwrap(),
             "{name}"
         );
     }
+    let engine = parsing(&["helper"]);
     for argument in [
         "(begin;raise \"argument\";end)",
         "(begin;raise \"argument\";rescue;\"3\";end)",
     ] {
         let script = engine
             .compile(&format!(
-                "def helper(*args);99;end;a=begin;helper({argument});rescue;7;end;[a,helper(\"4\")]"
+                "def helper(*args: array<any>) -> int;99;end;a=begin;helper({argument});rescue;7;end;[a,helper(\"4\")]"
             ))
             .unwrap();
         let expected = if argument.contains("rescue") { 3 } else { 7 };
         assert_eq!(
-            json(
-                &script
-                    .run(options(&[("helper", parse.clone())]))
-                    .unwrap()
-                    .value
-            ),
+            json(&script.run(options(&[("helper", parse())])).unwrap().value),
             serde_json::json!([expected, 4])
         );
     }
@@ -613,8 +638,8 @@ fn captured_overrides_cover_host_declaration_block_and_error_paths() {
 
 #[test]
 fn global_type_overrides_and_depth_guards_cannot_be_bypassed() {
-    let script = overriding()
-        .compile("enum Status;Ready;end;def typed(x:Status);x;end;def run;typed(:ready);end")
+    let script = declaring(&[("Status", "int")])
+        .compile("enum Status;Ready;end;def typed(x:Status) -> Status;x;end;def run -> Status;typed(:ready);end")
         .unwrap();
     assert_eq!(
         script
@@ -627,7 +652,7 @@ fn global_type_overrides_and_depth_guards_cannot_be_bypassed() {
     for _ in 0..10_001 {
         deep = Value::array(vec![deep]);
     }
-    let mut engine = overriding();
+    let mut engine = declaring(&[("unused", "")]);
     let opts = options(&[("unused", deep)]);
     assert_eq!(
         engine
