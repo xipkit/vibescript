@@ -130,6 +130,28 @@ fn supplied_globals_shadow_namespace_declarations() {
 }
 
 #[test]
+fn namespace_constants_take_precedence_over_declared_globals() {
+    let mut engine = Engine::new();
+    engine.declare_global("N", "string").unwrap();
+    let source = "module M; N = 7; def self.value -> int; N + 1; end; end; M.value";
+    codes_with(&engine, source, &[]);
+    codes_with(
+        &engine,
+        "module M; N = 7; def self.value -> string; N.upcase; end; end",
+        &["V0203"],
+    );
+    let result = engine
+        .compile(source)
+        .unwrap()
+        .run(vibescript::CallOptions {
+            globals: [("N".into(), Value::bytes("host"))].into(),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(result.value.as_int(), Some(8));
+}
+
+#[test]
 fn capability_data_is_readable_but_cannot_take_arguments() {
     let engine = engine();
     codes_with(&engine, "SMS.region\n", &[]);

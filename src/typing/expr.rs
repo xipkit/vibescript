@@ -291,6 +291,16 @@ impl<'a> Checker<'a> {
         if name == "block_given?" {
             return Ty::BOOL;
         }
+        if is_constant(name) {
+            if let Some(ns) = self.frame.owner {
+                if let Some(&ty) = self.constants.get(&(Some(ns), name.to_owned())) {
+                    return ty;
+                }
+                if let Some(&child) = self.program.namespaces[ns as usize].children.get(name) {
+                    return self.types.intern(Kind::Namespace(child));
+                }
+            }
+        }
         if let Some(&ty) = self.program.declared.get(name) {
             return ty;
         }
