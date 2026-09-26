@@ -904,10 +904,11 @@ fn source(path: &str) -> String {
 
 /// Pinned programs that call what static types refuse on purpose, so that
 /// their invocations reproduce the reference's runtime rejections.
-const RUNTIME_REJECTION_PROGRAMS: [&str; 8] = [
+const RUNTIME_REJECTION_PROGRAMS: [&str; 9] = [
     "tests/blocks/block_arity.vibe",
     "tests/blocks/block_error_propagation.vibe",
     "tests/blocks/error_cases.vibe",
+    "tests/classes/privacy.vibe",
     "tests/errors/arguments.vibe",
     "tests/errors/attributes.vibe",
     "tests/errors/classes.vibe",

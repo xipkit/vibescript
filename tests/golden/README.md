@@ -13,8 +13,8 @@ It builds `examples/golden.rs`, the engine harness, and the `vibes` binary in re
 | Corpus | Cases | Sources |
 | --- | ---: | --- |
 | `conformance` | 1,248 | generated cases in `scripts/fixtures.py` and the host-binding, required-file, capability, block and signature generators; the site and upstream programs; the benchmark cases |
-| `language` | 107,667 | `tests/language.json` |
-| `rejections` | 31,847 | runtime errors in `tests/language-errors.json` and compile errors in `tests/syntax-errors.json`; with static types, the cases that carry a `static_error` |
+| `language` | 107,559 | `tests/language.json` |
+| `rejections` | 31,955 | runtime errors in `tests/language-errors.json` and compile errors in `tests/syntax-errors.json`; with static types, the cases that carry a `static_error` |
 | `compatibility` | 219 | the selected differences from Go: `docs/compatibility-cases.json`, the generators' policy cases and the sources in `docs/*-differences.json` and `docs/computed-call-gaps.json` |
 | `replay` | 56,827 | the calls and compiles Go v0.70.0's test suite made, in `replay/` |
 | `parse` | 35,965 | the site and upstream programs with a token deleted, duplicated or inserted, or cut after a line, as `scripts/parse-sweep.py` makes them; compiled only |
@@ -62,12 +62,12 @@ The migration's non-mechanical decisions are in [migration-decisions.jsonl](migr
 
 | Corpus | converted | deleted | rewritten | sloppiness | at the flip | restored | checker issue |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `language` |  | 5,653 | 4,069 | 3,062 |  | 4 |  |
-| `language -> rejections` | 5,674 |  |  |  |  |  | 98 |
-| `rejections` | 12,191 | 1,020 | 216 | 149 | 44 |  | 18 |
+| `language` |  | 5,653 | 4,053 | 3,061 |  | 4 |  |
+| `language -> rejections` | 5,782 |  |  |  |  |  | 98 |
+| `rejections` | 12,622 | 1,020 | 59 | 149 | 44 |  | 18 |
 | `replay` | 3,301 | 906 | 3,246 | 42 |  |  | 28 |
 | `conformance` | 197 |  | 122 |  |  |  | 86 |
 | `compatibility` | 171 |  | 9 | 2 |  |  | 20 |
-| `tests/site`, `tests/upstream`, `tests/lsp` | 9 |  | 44 |  |  |  |  |
+| `tests/site`, `tests/upstream`, `tests/lsp` | 10 |  | 44 |  |  |  |  |
 
 The sources `vibes migrate` rewrote without any of these are not listed. The parse-error programs were migrated with their malformed lines set aside, so each keeps its message and position.
