@@ -120,3 +120,22 @@ fn type_aliases_are_transparent() {
     );
     clean("type Id = string\ntype Ids = array<Id>\ndef first(ids: Ids) -> Id?\n  ids.first\nend\n");
 }
+
+#[test]
+fn removed_members_report_their_removal_even_with_wrong_arity() {
+    for (source, code) in [
+        ("1.nil?(2)", "V0402"),
+        ("1.eql?", "V0403"),
+        ("1.equal?(2, 3)", "V0403"),
+        ("1.itself(2)", "V0404"),
+        ("[1].at(0, 1)", "V0401"),
+        ("[1].size(1)", "V0401"),
+        ("'s'.clear(1)", "V0401"),
+        ("now(1)", "V0401"),
+    ] {
+        let diagnostics = super::support::codes(source, &[code]);
+        assert!(diagnostics[0].fixes.is_empty(), "{source}: {diagnostics:?}");
+    }
+    super::support::clean("class C; def nil?(n: int) -> int; n; end; end; C.new.nil?(2)");
+    super::support::clean("[1].fetch(0)");
+}

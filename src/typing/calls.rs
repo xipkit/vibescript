@@ -208,6 +208,7 @@ impl<'a> Checker<'a> {
                     return self.call_sigs(&call, &candidates);
                 }
             }
+            self.removed_call(&call, rename);
             self.loose_args(&call);
             return Ty::ERROR;
         }
@@ -777,6 +778,7 @@ impl<'a> Checker<'a> {
                     self.removed_rename(call, canonical);
                     return result;
                 }
+                self.removed_call(call, rename);
                 self.loose_args(call);
                 return Ty::ERROR;
             }
@@ -845,13 +847,7 @@ impl<'a> Checker<'a> {
                         return result;
                     }
                 }
-                if *base == "string" && call.name == "replace" {
-                    self.report(Diagnostic::error(
-                        Code::REMOVED_NAME,
-                        call.name_span,
-                        "`string.replace` was removed; assign the replacement string directly",
-                    ));
-                }
+                self.removed_call(call, rename);
                 self.loose_args(call);
                 return Ty::ERROR;
             }
@@ -868,14 +864,35 @@ impl<'a> Checker<'a> {
 
     fn removed_rename(&mut self, call: &Call<'a, '_>, canonical: &str) {
         let advice = format!("use `{canonical}`");
-        self.report(
-            Diagnostic::error(
-                Code::REMOVED_NAME,
-                call.name_span,
-                format!("`{}` was removed; {advice}", call.name),
-            )
-            .with_fix(Fix::replace(advice, call.name_span, canonical)),
+        let mut diagnostic = Diagnostic::error(
+            Code::REMOVED_NAME,
+            call.name_span,
+            format!("`{}` was removed; {advice}", call.name),
         );
+        if call.empty() {
+            diagnostic = diagnostic.with_fix(Fix::replace(advice, call.name_span, canonical));
+        }
+        self.report(diagnostic);
+    }
+
+    fn removed_call(&mut self, call: &Call<'a, '_>, rename: &crate::signatures::Rename) {
+        let code = match call.name {
+            "nil?" => Code::NIL_PREDICATE,
+            "eql?" | "equal?" => Code::IDENTITY_EQUALITY,
+            "itself" | "tap" | "yield_self" => Code::IDENTITY_CALL,
+            "send" | "public_send" | "respond_to?" => Code::DISPATCH_BY_NAME,
+            "new" if rename.receiver == "Hash" => Code::HASH_NEW,
+            _ => Code::REMOVED_NAME,
+        };
+        let advice = match &rename.replacement {
+            crate::signatures::Replacement::Manual(hint) => hint.clone(),
+            crate::signatures::Replacement::Rewrite(template) => format!("use `{template}`"),
+        };
+        self.report(Diagnostic::error(
+            code,
+            call.name_span,
+            format!("`{}` was removed; {advice}", call.name),
+        ));
     }
 
     /// `value.as(T)`: a checked cast of `any` or a union to `T`.
