@@ -78,7 +78,9 @@ async fn dropped_future_keeps_permit_until_host_returns() {
 #[tokio::test]
 async fn async_success_and_cancelled_queue() {
     let runner = Runner::new(1).unwrap();
-    let script = Engine::new().compile("def run(a: int) -> int\n a+1\nend").unwrap();
+    let script = Engine::new()
+        .compile("def run(a: int) -> int\n a+1\nend")
+        .unwrap();
     assert_eq!(
         runner
             .call(

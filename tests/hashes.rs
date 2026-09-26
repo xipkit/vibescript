@@ -60,7 +60,9 @@ fn updates_preserve_snapshots_including_self_references() {
 #[test]
 fn growth_has_bounded_work_and_memory() {
     let script = Engine::new()
-        .compile("h: hash<string, int> = {}\ni=0\nwhile i<2000\n h[i.to_s]=i\n i+=1\nend\nh[\"1999\"]")
+        .compile(
+            "h: hash<string, int> = {}\ni=0\nwhile i<2000\n h[i.to_s]=i\n i+=1\nend\nh[\"1999\"]",
+        )
         .unwrap();
     let output = script
         .run(CallOptions {

@@ -46,11 +46,9 @@ fn hash_chain(height: usize, leaf: Value) -> Value {
 #[test]
 fn nested_equality_policies_are_preserved() {
     assert_eq!(
-        run(
-            "n=0.0/0.0;a=[[n]];[[[1]]==[[1.0]],{a:[1]}=={a:[1.0]},\
+        run("n=0.0/0.0;a=[[n]];[[[1]]==[[1.0]],{a:[1]}=={a:[1.0]},\
              [[n]]==[[n]],a==a,{a:{b:[1,:x]}}=={a:{b:[1,\"x\"]}},\
-             [[1,[2]]]==[[1,[2,3]]],[[1],[2]] != [[1],[3]],{a:{b:1}}=={b:{a:1}},[{}]==[{}],[[]]==[[]]]"
-        ),
+             [[1,[2]]]==[[1,[2,3]]],[[1],[2]] != [[1],[3]],{a:{b:1}}=={b:{a:1}},[{}]==[{}],[[]]==[[]]]"),
         "[true,true,false,false,false,false,true,false,true,true]"
     );
 }
