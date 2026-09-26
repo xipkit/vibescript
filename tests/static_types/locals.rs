@@ -80,3 +80,23 @@ fn destructuring_binds_tuple_elements() {
     clean("a, b = 1, \"x\"\nc: string = b\nd: int = a\n");
     codes("a, b = 1, \"x\"\nc: int = b\n", &["V0101"]);
 }
+
+#[test]
+fn rescue_bindings_shadow_locals_with_the_error_type() {
+    let source =
+        "e = 7\nmessage = begin\nraise 'failure'\nrescue => e\ne.message\nend\n[e, message]\n";
+    clean(source);
+    let value = vibescript::Engine::new()
+        .compile(source)
+        .unwrap()
+        .run(vibescript::CallOptions::default())
+        .unwrap();
+    let elements = value.value.as_array().unwrap();
+    assert_eq!(elements[0].as_int(), Some(7));
+    assert_eq!(elements[1].as_bytes(), Some(b"failure".as_slice()));
+    codes(
+        "e = 7\nbegin\nraise 'failure'\nrescue => e\ne + 1\nend\n",
+        &["V0108"],
+    );
+    clean("def f(e: any) -> string\nbegin\nraise 'failure'\nrescue => e\ne.message\nend\nend\n");
+}

@@ -1622,17 +1622,7 @@ impl<'a> Checker<'a> {
             // before it is known.
             self.open_scope();
             if let Some(binding) = &rescue.binding {
-                let id = match self.local(binding) {
-                    Some(id) => {
-                        let declared = self.frame.locals[id as usize].declared;
-                        if !self.types.assignable(Ty::ERROR_VALUE, declared) {
-                            let span = self.spans.word_after(rescue.offset as usize, binding);
-                            self.local_changed(id, span, Ty::ERROR_VALUE);
-                        }
-                        id
-                    }
-                    None => self.declare(binding, Ty::ERROR_VALUE, rescue.offset as usize, true),
-                };
+                let id = self.declare(binding, Ty::ERROR_VALUE, rescue.offset as usize, true);
                 self.assign_local(id, Ty::ERROR_VALUE);
             }
             let mark = self.frame.flow.mark();
