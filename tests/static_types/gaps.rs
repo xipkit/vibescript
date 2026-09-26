@@ -29,16 +29,16 @@ fn namespace_blocks_do_not_capture_assigned_ambient_locals() {
 }
 
 #[test]
-fn removed_names_keep_their_diagnostic_and_fix_with_invalid_arguments() {
+fn removed_names_offer_fixes_only_when_arguments_can_be_preserved() {
     clean("1.seconds.to_s\n[1].length\n");
     for source in [
         "1.seconds.string { 1 }\n",
         "1.seconds.string(k: 1)\n",
-        "[1].count(*[])\n",
     ] {
         let found = codes(source, &["V0401"]);
-        assert!(found[0].applicable_fix().is_some(), "{source}");
+        assert!(found[0].applicable_fix().is_none(), "{source}");
     }
+    assert!(codes("[1].count(*[])\n", &["V0401"])[0].applicable_fix().is_some());
     let source = "x: string = [1].size\n";
     let found = codes(source, &["V0101", "V0401"]);
     assert!(
