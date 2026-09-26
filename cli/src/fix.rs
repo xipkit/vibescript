@@ -12,9 +12,12 @@ use crate::{
     flags::{self, Flag, Kind, Outcome, Spec},
     output::Sink,
 };
-use std::{ffi::OsString, path::PathBuf};
+use std::{
+    ffi::OsString,
+    path::{Path, PathBuf},
+};
 use vibescript::{Engine, diagnostic::Diagnostic};
-use vibescript_tools::{fix, migrate::unified_diff};
+use vibescript_tools::{diff::unified_diff, fix};
 
 const FLAGS: [Flag; 1] = [Flag::new(
     &["dry-run"],
@@ -44,7 +47,7 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
     let mut files = Vec::new();
     for positional in &flags.positionals {
         let path = PathBuf::from(positional);
-        crate::migrate::collect(&path, &path, &mut files)
+        collect(&path, &path, &mut files)
             .map_err(|error| format!("collect {}: {error}", path.display()))?;
     }
     let engine = Engine::new();
@@ -114,6 +117,36 @@ fn remaining(label: &str, diagnostic: &Diagnostic, source: &str) -> String {
         }
     };
     format!("{place}: {diagnostic}\n")
+}
+
+/// Lists the `.vibe` files under `path` in order, with their names relative to `root`.
+fn collect(
+    root: &Path,
+    path: &Path,
+    out: &mut Vec<(PathBuf, String)>,
+) -> std::io::Result<()> {
+    if path.is_dir() {
+        let mut entries: Vec<PathBuf> = std::fs::read_dir(path)?
+            .map(|entry| entry.map(|entry| entry.path()))
+            .collect::<Result<_, _>>()?;
+        entries.sort();
+        for entry in entries {
+            if entry.is_dir() || entry.extension().is_some_and(|e| e == "vibe") {
+                collect(root, &entry, out)?;
+            }
+        }
+        return Ok(());
+    }
+    let label = if root.is_dir() {
+        path.strip_prefix(root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace('\\', "/")
+    } else {
+        path.to_string_lossy().into_owned()
+    };
+    out.push((path.to_owned(), label));
+    Ok(())
 }
 
 /// Moves flags ahead of the paths, so they may follow them as well.

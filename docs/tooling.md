@@ -45,7 +45,7 @@ assert_eq!((found[0].position.line, found[0].position.column), (4, 5));
 
 ## Tokens
 
-`tokens(source)` lists the tokens the parser read, with their byte spans, after its own re-reading of a `/` or `%` as a regex or percent literal. Whitespace and comments fall between tokens, so a tool that edits token spans keeps them; `vibes migrate` rewrites source this way. A string with interpolation reports the span of each interpolation, whose content tokenizes as source of its own.
+`tokens(source)` lists the tokens the parser read, with their byte spans, after its own re-reading of a `/` or `%` as a regex or percent literal. Whitespace and comments fall between tokens, so a tool that edits token spans keeps them. A string with interpolation reports the span of each interpolation, whose content tokenizes as source of its own.
 
 ## Builtin catalogs
 

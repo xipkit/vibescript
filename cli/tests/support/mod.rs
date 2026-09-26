@@ -12,7 +12,7 @@ pub const VIBES: &str = env!("CARGO_BIN_EXE_vibes");
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 /// The root help: the Go reference's, with `check` as the type check, plus
-/// `prelude`, `migrate` and `fix`.
+/// `prelude` and `fix`.
 pub const ROOT_HELP: &str = "NAME:
    vibes - run Vibescript programs and development tools
 
@@ -28,7 +28,6 @@ COMMANDS:
    lsp      start the language server over stdio
    repl     start the interactive Vibescript REPL
    prelude  print the builtin signatures as Vibescript declarations
-   migrate  rewrite scripts into the statically typed, canonical language
    fix      apply the fixes of removed spellings and other compile diagnostics
    help, h  Shows a list of commands or help for one command
 

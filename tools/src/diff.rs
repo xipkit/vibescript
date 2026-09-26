@@ -1,4 +1,4 @@
-//! Unified diffs of a migration, as `vibes migrate` prints them.
+//! Unified diffs of a rewrite, as `vibes fix --dry-run` prints them.
 
 /// Lines of context around each change.
 const CONTEXT: usize = 3;
@@ -7,7 +7,7 @@ const CONTEXT: usize = 3;
 /// or an empty string when they are equal.
 ///
 /// ```
-/// let diff = vibescript_tools::migrate::unified_diff("a.vibe", "x = 1\ny = 2\n", "x = 1\ny = 3\n");
+/// let diff = vibescript_tools::diff::unified_diff("a.vibe", "x = 1\ny = 2\n", "x = 1\ny = 3\n");
 /// assert_eq!(diff, "--- a/a.vibe\n+++ b/a.vibe\n@@ -1,2 +1,2 @@\n x = 1\n-y = 2\n+y = 3\n");
 /// ```
 pub fn unified_diff(path: &str, old: &str, new: &str) -> String {

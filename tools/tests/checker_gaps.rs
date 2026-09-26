@@ -1,6 +1,5 @@
-//! `vibes fix` and `vibes migrate` on the gaps the documentation migration
-//! found: fixes never break a write, and calls written with `::` are
-//! rewritten with a dot.
+//! `vibes fix` on the gaps the documentation migration found: fixes never
+//! break a write, and calls written with `::` are rewritten with a dot.
 
 use vibescript::{CallOptions, Engine};
 use vibescript_tools::fix::fix;
@@ -70,20 +69,4 @@ fn fixing_rewrites_calls_written_with_two_colons() {
         "def run -> int\n  JSON.parse(\"[1, 2]\").as(array<int>).length\nend\n"
     );
     assert_eq!(run(&result), "2");
-}
-
-#[cfg(feature = "migrate")]
-#[test]
-fn migrating_rewrites_calls_written_with_two_colons() {
-    use vibescript_tools::migrate::{Observations, Options, migrate};
-    let migration = migrate(
-        "def run(raw)\n  JSON::parse(raw)\nend\n",
-        &Observations::default(),
-        &Options::default(),
-    );
-    assert!(
-        migration.source.contains("  JSON.parse(raw)\n"),
-        "{}",
-        migration.source
-    );
 }

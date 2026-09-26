@@ -50,8 +50,6 @@ mod mutate;
 mod namespace;
 mod numeric;
 mod objects;
-#[cfg(feature = "observe")]
-pub mod observe;
 mod ops;
 mod ordering;
 mod output;
@@ -116,8 +114,6 @@ pub struct Engine {
     random_source: Option<random::Source>,
     output_writer: Option<output::Writer>,
     error_writer: Option<output::Writer>,
-    #[cfg(feature = "observe")]
-    observer: Option<Arc<dyn observe::Observer>>,
 }
 
 impl Engine {
@@ -261,14 +257,6 @@ impl Engine {
         writer: impl Fn(&mut CallContext, &[u8]) -> Result<()> + Send + Sync + 'static,
     ) {
         self.error_writer = Some(Arc::new(writer));
-    }
-    /// Reports the values that subsequently compiled scripts compute to `observer`.
-    ///
-    /// Calls then run every instruction through the general dispatch, so
-    /// they are slower; their results and accounting are unchanged.
-    #[cfg(feature = "observe")]
-    pub fn set_observer(&mut self, observer: Arc<dyn observe::Observer>) {
-        self.observer = Some(observer);
     }
     /// Sets the entropy reader used by subsequently compiled scripts.
     ///
@@ -506,8 +494,6 @@ impl Engine {
                 random_source: self.random_source.clone(),
                 output_writer: self.output_writer.clone(),
                 error_writer: self.error_writer.clone(),
-                #[cfg(feature = "observe")]
-                observer: self.observer.clone(),
             }),
         }
     }
@@ -520,8 +506,6 @@ struct ScriptInner {
     random_source: Option<random::Source>,
     output_writer: Option<output::Writer>,
     error_writer: Option<output::Writer>,
-    #[cfg(feature = "observe")]
-    observer: Option<Arc<dyn observe::Observer>>,
 }
 
 /// What a top-level [`Declaration`] declares.

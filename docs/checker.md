@@ -36,7 +36,7 @@ The same pass also records the static type of every member call's receiver. The 
 - `Engine::type_check(source)` checks without compiling and returns every diagnostic, warnings included, with the receiver types, and the types of the top-level locals and result, which a host continuing a session declares for its next script (see [sessions](sessions.md)).
 - `Engine::check_entry_arguments(source, function, count)` checks that a command line can call `function` with `count` string arguments.
 - `vibes check FILE` prints the diagnostics with their source lines; `--json` prints one JSON object per diagnostic. See [the command line](cli.md#vibes-check).
-- `vibes fix` applies every machine-applicable fix and checks again until none applies; `vibes migrate` annotates and repairs scripts written for the earlier language.
+- `vibes fix` applies every machine-applicable fix and checks again until none applies.
 - `vibes lsp` publishes the diagnostics as the document changes and offers the fixes as quick fixes.
 
 ## Diagnostics

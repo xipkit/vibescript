@@ -5,11 +5,10 @@
 //! front end over this crate.
 
 pub mod analyze;
+pub mod diff;
 pub mod fix;
 pub mod format;
 #[cfg(feature = "lsp")]
 pub mod lsp;
-#[cfg(feature = "migrate")]
-pub mod migrate;
 pub mod repl;
 pub mod test_runner;
