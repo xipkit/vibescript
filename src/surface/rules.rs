@@ -1260,6 +1260,28 @@ pub trait Rules<'a>: Hooks<'a> {
         Some(captures)
     }
 
+    /// Whether a call rewrites to an index its arguments can fill, as
+    /// `$x[...]` does `slice(i)`: an index takes one or more plain values,
+    /// and no block, splat or keyword.
+    fn index_rewrites(
+        &self,
+        pieces: &[TemplatePiece],
+        call: Option<&'a Call>,
+        captures: &Captures,
+    ) -> bool {
+        let indexes = pieces.windows(2).any(|pair| {
+            matches!(pair, [TemplatePiece::Text(text), TemplatePiece::Rest] if text.ends_with('['))
+        });
+        let Some(call) = call.filter(|_| indexes) else {
+            return true;
+        };
+        let plain = call
+            .args
+            .as_ref()
+            .is_none_or(|args| args.items.iter().all(|arg| arg.kind == ArgKind::Positional));
+        plain && call.block.is_none() && !captures.rest.is_empty()
+    }
+
     /// Replaces a call with a rename's template; returns whether it did.
     fn apply_pattern(
         &mut self,
@@ -1316,6 +1338,23 @@ pub trait Rules<'a>: Hooks<'a> {
                 rule,
                 &pattern.name,
                 format!("{advice}, where it behaves the same"),
+            );
+            self.report(finding);
+            return false;
+        }
+        if !self.index_rewrites(pieces, call, captures) {
+            let finding = Finding::new(
+                Reason::Rename,
+                span,
+                format!(
+                    "{} is removed, and an index cannot take these arguments; rewrite it by hand",
+                    pattern.name
+                ),
+            )
+            .spelling(
+                rule,
+                &pattern.name,
+                format!("{advice} with an index, a start and a length, or a range"),
             );
             self.report(finding);
             return false;

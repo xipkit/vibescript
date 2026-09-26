@@ -89,6 +89,41 @@ fn removed_names_are_renamed() {
 }
 
 #[test]
+fn slice_becomes_an_index_only_where_an_index_holds_its_arguments() {
+    // The receiver's type decides the rename, since strings keep `slice`.
+    for (call, index) in [
+        ("slice(1)", "[1]"),
+        ("slice(0, 1)", "[0, 1]"),
+        ("slice(0..1)", "[0..1]"),
+    ] {
+        let source = format!("a = [1, 2]\nb = a.{call}\n");
+        assert_eq!(
+            fixed_statically(&source, Code::REMOVED_NAME),
+            format!("a = [1, 2]\nb = a{index}\n")
+        );
+    }
+    // An index needs a value and takes no block or splat, so these are left
+    // to a person, with the forms to write.
+    for source in [
+        "a = [1, 2]\nb = a.slice\n",
+        "a = [1, 2]\nr = [0, 1]\nb = a.slice(*r)\n",
+        "a = [1, 2]\nb = a.slice(1) { 2 }\n",
+    ] {
+        let found = checked(source, Code::REMOVED_NAME);
+        assert_eq!(found.len(), 1, "{source:?}: {found:?}");
+        assert!(
+            found[0].fixes.is_empty(),
+            "{source:?}: {:?}",
+            found[0].fixes
+        );
+        assert_eq!(
+            found[0].message,
+            "`slice` was removed; use `x[...]` with an index, a start and a length, or a range"
+        );
+    }
+}
+
+#[test]
 fn class_variable_declarations_are_walked() {
     round_trip(
         "class C\n  @@n: int = [1].size\nend\n",
