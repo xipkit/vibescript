@@ -263,7 +263,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     checker.declare_hosts(input.declared);
     checker.program.file = input.file;
     checker.declare_program(input.parsed);
-    checker.check_retained_declarations(input.declared);
+    checker.check_retained_declarations(input.declared, input.parsed);
     checker.check_all();
     let steps =
         checker.steps + checker.frame.flow.steps + checker.types.steps + checker.spans.steps.get();
@@ -326,7 +326,7 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
     };
     checker.declare_hosts(input.declared);
     checker.declare_program(input.parsed);
-    checker.check_retained_declarations(input.declared);
+    checker.check_retained_declarations(input.declared, input.parsed);
     checker.diagnostics.clear();
     checker.entry_arguments(function, count);
     checker.diagnostics

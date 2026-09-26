@@ -333,3 +333,44 @@ fn retained_type_globals_require_matching_declarations_and_identity() {
         assert!(error.message.contains("identity"));
     }
 }
+
+#[test]
+fn retained_classes_keep_the_types_of_their_original_dependencies() {
+    for (before, after, class, expression) in [
+        (
+            "class D; def f -> int; 1; end; end;",
+            "class D; def g -> string; 'new'; end; end;",
+            "class C; def self.get -> D; D.new; end; end;",
+            "C.get.g",
+        ),
+        (
+            "type Item = int;",
+            "type Item = string;",
+            "class C; @x: Item; def initialize(@x: Item); end; def x -> Item; @x; end; end;",
+            "C.new('s').x.upcase",
+        ),
+    ] {
+        let source = format!("{before}{class}");
+        let (_, bindings) = Engine::new()
+            .compile(&source)
+            .unwrap()
+            .run_bindings(CallOptions::default())
+            .unwrap();
+        let retained = vibescript::Capability::from_value("C", bindings["C"].clone());
+        let mut engine = Engine::new();
+        engine.declare_capability(&retained).unwrap();
+        engine
+            .compile(&source)
+            .unwrap()
+            .run(CallOptions {
+                capabilities: vec![retained],
+                ..CallOptions::default()
+            })
+            .unwrap();
+        let error = engine
+            .compile(&format!("{after}{class}{expression}"))
+            .err()
+            .unwrap();
+        assert_eq!(error.diagnostics()[0].code.to_string(), "V0101");
+    }
+}

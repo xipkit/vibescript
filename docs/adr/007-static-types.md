@@ -504,5 +504,10 @@ only for a type that allows it.
 Interactive hosts must declare retained class, module and enum values too.
 `declare_capability` accepts these values as templates, pins their nominal
 identity at call entry, and requires the carried source to keep the namespace's
-original declaration or enum's members. This lets a REPL retain typed values
-without allowing undeclared globals to replace compiled declarations.
+original declaration environment or enum's members. For a namespace this
+conservatively includes the declarations and root type aliases its source
+references, transitively, since its methods still resolve that code's
+dependencies. Changing a dependency requires replacing the retained namespace
+too. This lets a REPL
+retain typed values without allowing undeclared globals to replace compiled
+declarations.

@@ -377,7 +377,7 @@ impl Engine {
     ///
     /// A template that is a retained script class, module or enum pins that
     /// declaration's identity. The source must carry the original namespace
-    /// declaration or enum members; each call supplies that retained value.
+    /// environment (declarations and type aliases) or enum members; each call supplies that retained value.
     pub fn declare_capability(&mut self, capability: &Capability) -> Result<()> {
         let declaration = declared::Declaration::capability(capability)?;
         Arc::make_mut(&mut self.declared).insert(capability.name.clone(), declaration);

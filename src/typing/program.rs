@@ -97,24 +97,56 @@ pub(crate) struct Program<'a> {
 
 impl<'a> Checker<'a> {
     /// Verifies the source contracts of explicitly retained script type values.
-    pub(super) fn check_retained_declarations(&mut self, declared: &crate::declared::Declarations) {
+    pub(super) fn check_retained_declarations(
+        &mut self,
+        declared: &crate::declared::Declarations,
+        parsed: &crate::syntax::Declarations,
+    ) {
+        if !declared
+            .values()
+            .any(|declaration| declaration.retained().is_some())
+        {
+            return;
+        }
+        let carried: std::collections::HashMap<_, _> = parsed
+            .outline
+            .iter()
+            .map(|declaration| {
+                (
+                    declaration.name.as_str(),
+                    &self.source[declaration.start..declaration.end],
+                )
+            })
+            .collect();
+        let mut aliases = std::collections::HashMap::new();
+        for (scope, alias) in &parsed.additions.aliases {
+            if scope.is_none() {
+                let mut text = Vec::new();
+                crate::shapes::format(&alias.ty, &mut text)
+                    .expect("formatting into a Vec cannot fail");
+                self.steps += text.len() as u64;
+                aliases.insert(alias.name.as_str(), text);
+            }
+        }
         for (name, declaration) in declared {
-            let Some((value, source)) = declaration.retained() else {
+            let Some((value, retained)) = declaration.retained() else {
                 continue;
             };
             let valid = match &value.0 {
-                crate::value::Kind::Namespace(namespace) => self
-                    .program
-                    .roots
-                    .get(name.as_str())
-                    .and_then(|&ns| self.program.namespaces[ns as usize].module)
-                    .is_some_and(|module| {
-                        namespace.definition.name == *name
-                            && source.is_some_and(|source| {
+                crate::value::Kind::Namespace(namespace) => {
+                    namespace.definition.name == *name
+                        && retained.is_some_and(|retained| {
+                            retained.aliases.iter().all(|(name, ty)| {
+                                self.steps += ty.len() as u64;
+                                aliases.get(name.as_str()) == Some(ty)
+                            }) && retained.declarations.iter().all(|(name, source)| {
                                 self.steps += source.len() as u64;
-                                self.source[module.offset as usize..].starts_with(source)
+                                carried
+                                    .get(name.as_str())
+                                    .is_some_and(|&found| found == source)
                             })
-                    }),
+                        })
+                }
                 crate::value::Kind::Enum(enumeration) => self
                     .program
                     .enum_names
@@ -133,7 +165,7 @@ impl<'a> Checker<'a> {
             };
             if !valid {
                 self.report(Diagnostic::error(Code::TYPE_MISMATCH, crate::diagnostic::Span::at(0),
-                    format!("retained declaration `{name}` must appear with its original source and members")));
+                    format!("retained declaration `{name}` must keep its original declarations and enum members")));
             }
         }
     }

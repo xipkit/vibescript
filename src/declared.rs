@@ -35,7 +35,14 @@ enum Shape {
     /// An object with these members.
     Object(Vec<(String, Shape)>),
     /// A retained script declaration, pinned to its nominal identity and source.
-    Retained(Value, Option<String>),
+    Retained(Value, Option<RetainedSource>),
+}
+
+/// The declarations a retained namespace's original code resolves.
+#[derive(Clone, Debug)]
+pub(crate) struct RetainedSource {
+    pub declarations: BTreeMap<String, String>,
+    pub aliases: BTreeMap<String, Vec<u8>>,
 }
 
 impl Declaration {
@@ -91,9 +98,9 @@ impl Declaration {
     }
 
     /// The retained script declaration, if the capability template names one.
-    pub fn retained(&self) -> Option<(&Value, Option<&str>)> {
+    pub fn retained(&self) -> Option<(&Value, Option<&RetainedSource>)> {
         match &self.shape {
-            Shape::Retained(value, source) => Some((value, source.as_deref())),
+            Shape::Retained(value, source) => Some((value, source.as_ref())),
             _ => None,
         }
     }
@@ -147,7 +154,7 @@ fn shape(value: &Value, top: bool) -> Result<Shape> {
                         "retained namespace has no source owner",
                     )
                 })?;
-            let declaration = owner
+            owner
                 .program
                 .outline
                 .iter()
@@ -158,9 +165,59 @@ fn shape(value: &Value, top: bool) -> Result<Shape> {
                         "only top-level script declarations can be retained",
                     )
                 })?;
+            let parsed = crate::syntax::parse(owner.program.source.text(), &())?;
+            let mut aliases = BTreeMap::new();
+            for (scope, alias) in &parsed.additions.aliases {
+                if scope.is_none() {
+                    let mut text = Vec::new();
+                    crate::shapes::format(&alias.ty, &mut text)?;
+                    aliases.insert(alias.name.to_string(), text);
+                }
+            }
+            let mut declarations: BTreeMap<_, _> = owner
+                .program
+                .outline
+                .iter()
+                .map(|declaration| {
+                    (
+                        declaration.name.clone(),
+                        owner.program.source.text()[declaration.span.clone()].to_owned(),
+                    )
+                })
+                .collect();
+            let mut referenced = vec![declarations[&namespace.definition.name].as_bytes()];
+            let mut used = std::collections::BTreeSet::from([namespace.definition.name.clone()]);
+            // Textual references conservatively retain dependencies even in annotations.
+            loop {
+                let before = used.len();
+                for (name, text) in declarations
+                    .iter()
+                    .map(|(name, text)| (name, text.as_bytes()))
+                    .chain(aliases.iter().map(|(name, text)| (name, text.as_slice())))
+                {
+                    if !used.contains(name)
+                        && referenced.iter().any(|source| {
+                            source
+                                .windows(name.len())
+                                .any(|word| word == name.as_bytes())
+                        })
+                    {
+                        used.insert(name.clone());
+                        referenced.push(text);
+                    }
+                }
+                if before == used.len() {
+                    break;
+                }
+            }
+            declarations.retain(|name, _| used.contains(name));
+            aliases.retain(|name, _| used.contains(name));
             Shape::Retained(
                 value.clone(),
-                Some(owner.program.source.text()[declaration.span.clone()].to_owned()),
+                Some(RetainedSource {
+                    declarations,
+                    aliases,
+                }),
             )
         }
         Kind::Enum(_) if top => Shape::Retained(value.clone(), None),
