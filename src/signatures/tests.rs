@@ -369,22 +369,20 @@ fn every_signature_names_a_runtime_member() {
 }
 
 #[test]
-fn every_builtin_global_has_one_signature_or_a_rename() {
+fn every_builtin_global_has_a_signature() {
     let (functions, namespaces) = runtime_globals();
     let table = table();
     let mut problems = Vec::new();
     for name in &functions {
-        if table.functions(name).next().is_none() && !renamed("global", name) {
-            problems.push(format!("{name} has no signature or rename"));
+        if table.functions(name).next().is_none() {
+            problems.push(format!("{name} has no signature"));
         }
     }
     for (namespace, members) in &namespaces {
         let module = table.module(namespace);
         for name in members {
-            if module.is_none_or(|module| module.named(name).next().is_none())
-                && !renamed(namespace, name)
-            {
-                problems.push(format!("{namespace}.{name} has no signature or rename"));
+            if module.is_none_or(|module| module.named(name).next().is_none()) {
+                problems.push(format!("{namespace}.{name} has no signature"));
             }
         }
     }
@@ -431,7 +429,8 @@ fn every_rename_leaves_a_runtime_spelling_for_a_canonical_one() {
             "T" => runtime.values().any(|names| names.contains(name)),
             _ => match runtime.get(receiver) {
                 Some(names) => names.contains(name) || runtime["T"].contains(name),
-                // Removed global functions and namespace members need not be served.
+                // Global functions and namespaces serve only their canonical
+                // names, as `every_builtin_global_has_a_signature` checks.
                 None => true,
             },
         };
