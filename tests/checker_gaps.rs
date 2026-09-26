@@ -507,3 +507,118 @@ end
         );
     }
 }
+
+mod parse_as_enums {
+    use super::*;
+
+    const STATUS: &str =
+        "enum Status\n  Draft\n  InReview\nend\n\ntype Review = { status: Status, score: int }\n";
+
+    /// The value of `body`, run after [`STATUS`] with static types.
+    fn parse(body: &str) -> Result<Value, vibescript::Error> {
+        run(&format!("{STATUS}def run -> any\n  {body}\nend\n"))
+    }
+
+    #[test]
+    fn a_json_string_names_a_member_by_its_symbol() {
+        assert_eq!(
+            parse("JSON.parse_as(\"\\\"in_review\\\"\", Status)")
+                .unwrap()
+                .to_string(),
+            "Status::InReview"
+        );
+        assert_eq!(
+            parse("JSON.parse_as(\"{\\\"status\\\":\\\"draft\\\",\\\"score\\\":3}\", Review)")
+                .unwrap()
+                .to_string(),
+            "{status: Status::Draft, score: 3}"
+        );
+        // What JSON.stringify writes reads back as the member.
+        assert_eq!(
+            parse("JSON.parse_as(JSON.stringify(Status::InReview), Status)")
+                .unwrap()
+                .to_string(),
+            "Status::InReview"
+        );
+    }
+
+    #[test]
+    fn anything_else_is_the_typed_boundary_error() {
+        for (body, message) in [
+            (
+                "JSON.parse_as(\"\\\"InReview\\\"\", Status)",
+                "JSON.parse_as value expected Status, got string",
+            ),
+            (
+                "JSON.parse_as(\"1\", Status)",
+                "JSON.parse_as value expected Status, got int",
+            ),
+            (
+                "JSON.parse_as(\"{\\\"status\\\":\\\"gone\\\",\\\"score\\\":3}\", Review)",
+                "JSON.parse_as value expected { score: int, status: Status }, got { score: int, status: string }",
+            ),
+        ] {
+            let error = parse(body).unwrap_err();
+            assert_eq!(error.message, message, "{body}");
+            assert_eq!(error.kind, vibescript::ErrorKind::Type, "{body}");
+        }
+    }
+
+    #[test]
+    fn the_result_has_the_enums_type() {
+        let source = format!(
+            "{STATUS}def label(raw: string) -> string\n  case JSON.parse_as(raw, Status)\n  when Status::Draft then \"draft\"\n  when Status::InReview then \"in review\"\n  end\nend\n\ndef score(raw: string) -> int\n  JSON.parse_as(raw, Review)[\"score\"]\nend\n"
+        );
+        clean(&source);
+        let found = codes(
+            &format!("{STATUS}n: int = JSON.parse_as(\"1\", Status)\n"),
+            &[Code::TYPE_MISMATCH],
+        );
+        assert_eq!(found[0].found.as_deref(), Some("Status"));
+    }
+
+    #[test]
+    fn a_value_where_a_type_is_expected_is_an_error() {
+        // Braces that name an enum are a hash, which the runtime refuses.
+        let source = format!("{STATUS}review = JSON.parse_as(\"{{}}\", {{ status: Status }})\n");
+        let found = codes(&source, &[Code::TYPE_MISMATCH]);
+        assert!(
+            found[0].message.starts_with(
+                "argument 2 (`schema`) of `parse_as` is a type, found { status: Status }; braces that name a class or enum make a hash"
+            ),
+            "{}",
+            found[0].message
+        );
+        let error = Engine::new()
+            .compile(&format!(
+                "{STATUS}def run -> any\n  JSON.parse_as(\"{{}}\", {{ status: Status }})\nend\n"
+            ))
+            .unwrap()
+            .call("run", &[], CallOptions::default())
+            .unwrap_err();
+        assert_eq!(
+            error.message,
+            "JSON.parse_as expects a type literal as its second argument"
+        );
+        codes(
+            &format!("{STATUS}n = JSON.parse_as(\"1\", 5)\n"),
+            &[Code::TYPE_MISMATCH],
+        );
+        // Empty braces are an empty hash, and name nothing.
+        let found = codes("h = JSON.parse_as(\"{}\", {})\n", &[Code::TYPE_MISMATCH]);
+        assert_eq!(
+            found[0].message,
+            "argument 2 (`schema`) of `parse_as` is a type, found {}"
+        );
+    }
+
+    #[test]
+    fn a_class_names_its_type_but_json_never_holds_one() {
+        let source = "class Box\nend\ndef run -> Box\n  JSON.parse_as(\"{}\", Box)\nend\n";
+        clean(source);
+        assert_eq!(
+            run(source).unwrap_err().message,
+            "JSON.parse_as value expected Box, got {}"
+        );
+    }
+}

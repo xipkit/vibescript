@@ -2962,6 +2962,18 @@ impl Run {
                         value.finish(program, ctx, frames, storage, stack, ReturnTo::Stack)?;
                         continue;
                     }
+                    if dispatch::is_parse_as(ctx, site, &program.members[site.name], &root)? {
+                        let value = dispatch::parse_as(
+                            program,
+                            ctx,
+                            frames,
+                            storage,
+                            &stack.data[base + 1..],
+                        )?;
+                        stack.data.truncate(base);
+                        stack.push(ctx, value)?;
+                        continue;
+                    }
                     if matches!(root.0, Kind::Hash(_)) {
                         if let Some(Value(Kind::Function(function))) =
                             members::field(ctx, site, &program.members[site.name], &root)?

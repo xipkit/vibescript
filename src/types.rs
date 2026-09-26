@@ -218,7 +218,8 @@ impl Prepared<'_> {
         value: Value,
         context: Context<'_>,
     ) -> Result<Value> {
-        if let Some((value, _)) = visit(ctx, self.ty, value.clone(), &self.names, 0)? {
+        let json = matches!(context, Context::Json);
+        if let Some((value, _)) = visit(ctx, self.ty, value.clone(), &self.names, 0, json)? {
             return Ok(value);
         }
         Err(diagnostics::mismatch(ctx, self.ty, &value, context)?)
@@ -275,12 +276,16 @@ fn resolve_names(
     Ok(())
 }
 
+/// Normalizes `value` against `ty`, returning the value and whether it
+/// changed, or none on a mismatch. In `json`, a string names an enum member
+/// as a symbol does, since JSON has no symbols.
 fn visit(
     ctx: &mut CallContext,
     ty: &Type,
     value: Value,
     names: &Buffer<(usize, Value)>,
     depth: usize,
+    json: bool,
 ) -> Result<Option<(Value, bool)>> {
     ctx.charge(1)?;
     if depth >= 64 {
@@ -328,7 +333,7 @@ fn visit(
             let mut output = None;
             for (index, (item, element)) in items.iter().zip(elements).enumerate() {
                 let Some((normalized, changed)) =
-                    visit(ctx, element, item.clone(), names, depth + 1)?
+                    visit(ctx, element, item.clone(), names, depth + 1, json)?
                 else {
                     return Ok(None);
                 };
@@ -376,8 +381,10 @@ fn visit(
                 {
                     Ok(Some((value, false)))
                 }
-                Kind::Symbol(symbol) => {
-                    if let Some(index) = enumeration.lookup_symbol(ctx, &symbol.data)? {
+                Kind::Symbol(name) | Kind::Bytes(name)
+                    if json || matches!(value.0, Kind::Symbol(_)) =>
+                {
+                    if let Some(index) = enumeration.lookup_symbol(ctx, &name.data)? {
                         let value = crate::enums::Member::new(ctx, enumeration.clone(), index)?;
                         Ok(Some((Value(Kind::EnumMember(value)), true)))
                     } else {
@@ -394,7 +401,8 @@ fn visit(
                     if matches!(option.kind, TypeKind::Scalar(Scalar::Any)) != any {
                         continue;
                     }
-                    if let Some(result) = visit(ctx, option, value.clone(), names, depth + 1)? {
+                    if let Some(result) = visit(ctx, option, value.clone(), names, depth + 1, json)?
+                    {
                         return Ok(Some(result));
                     }
                 }
@@ -411,7 +419,7 @@ fn visit(
             let mut output = None;
             for (index, item) in items.iter().enumerate() {
                 let Some((normalized, changed)) =
-                    visit(ctx, element, item.clone(), names, depth + 1)?
+                    visit(ctx, element, item.clone(), names, depth + 1, json)?
                 else {
                     return Ok(None);
                 };
@@ -441,7 +449,7 @@ fn visit(
                 Some(true) => (),
                 None => {
                     for (key, _) in &hash.buffer.data {
-                        if visit(ctx, &pair.0, key.clone(), names, depth + 1)?.is_none() {
+                        if visit(ctx, &pair.0, key.clone(), names, depth + 1, json)?.is_none() {
                             return Ok(None);
                         }
                     }
@@ -450,7 +458,7 @@ fn visit(
             let mut output = None;
             for (index, (key, item)) in hash.buffer.data.iter().enumerate() {
                 let Some((normalized, changed)) =
-                    visit(ctx, &pair.1, item.clone(), names, depth + 1)?
+                    visit(ctx, &pair.1, item.clone(), names, depth + 1, json)?
                 else {
                     return Ok(None);
                 };
@@ -477,7 +485,7 @@ fn visit(
                     continue;
                 };
                 let Some((normalized, changed)) =
-                    visit(ctx, &field.ty, item.clone(), names, depth + 1)?
+                    visit(ctx, &field.ty, item.clone(), names, depth + 1, json)?
                 else {
                     return Ok(None);
                 };

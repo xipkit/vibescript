@@ -395,25 +395,9 @@ impl Builtin {
             }
             Self::JsonParseAs => {
                 modifiers()?;
-                let [Value(Kind::Bytes(bytes)), literal] = args else {
-                    let kind = if args.len() == 2 {
-                        ErrorKind::Type
-                    } else {
-                        ErrorKind::Argument
-                    };
-                    return Err(refuse(kind, "expects a JSON string and a type literal"));
-                };
-                let Kind::Shape(shape) = &literal.0 else {
-                    return Err(refuse(
-                        ErrorKind::Type,
-                        "expects a type literal as its second argument",
-                    ));
-                };
-                let parsed = json::parse_builtin(ctx, &bytes.data, name)?;
-                crate::types::prepare(ctx, &shape.definition.ty, |_, _| {
+                parse_as(ctx, args, |_, _| {
                     Err(Error::new(ErrorKind::Type, "unknown named type"))
-                })?
-                .normalize_with(ctx, parsed, crate::types::Context::Json)
+                })
             }
             _ => {
                 let [value] = args else {
@@ -634,6 +618,57 @@ impl Builtin {
             | Self::HashNew => unreachable!(),
         }
     }
+}
+
+/// `JSON.parse_as(text, T)`: parses `text` and checks the value against
+/// `T`, a type literal, class or enum, as a typed boundary does. `resolve`
+/// finds the classes and enums a type literal names.
+pub(crate) fn parse_as(
+    ctx: &mut CallContext,
+    args: &[Value],
+    resolve: impl FnMut(&mut CallContext, &str) -> Result<Value>,
+) -> Result<Value> {
+    let name = Builtin::JsonParseAs.name();
+    let refuse = |kind, problem: &str| Error::new(kind, format!("{name} {problem}"));
+    let [Value(Kind::Bytes(bytes)), literal] = args else {
+        let kind = if args.len() == 2 {
+            ErrorKind::Type
+        } else {
+            ErrorKind::Argument
+        };
+        return Err(refuse(kind, "expects a JSON string and a type literal"));
+    };
+    // A class or enum names its own type, as in `as`.
+    let nominal = match &literal.0 {
+        Kind::Enum(enumeration) => Some(enumeration.definition.name.to_string()),
+        Kind::Namespace(class) => Some(class.definition.name.to_string()),
+        _ => None,
+    };
+    if let Some(nominal) = nominal {
+        let parsed = json::parse_builtin(ctx, &bytes.data, name)?;
+        let ty = crate::types::Type {
+            name: nominal,
+            kind: crate::types::TypeKind::Named,
+            nullable: false,
+        };
+        return crate::types::prepare(ctx, &ty, |_, _| Ok(literal.clone()))?.normalize_with(
+            ctx,
+            parsed,
+            crate::types::Context::Json,
+        );
+    }
+    let Kind::Shape(shape) = &literal.0 else {
+        return Err(refuse(
+            ErrorKind::Type,
+            "expects a type literal as its second argument",
+        ));
+    };
+    let parsed = json::parse_builtin(ctx, &bytes.data, name)?;
+    crate::types::prepare(ctx, &shape.definition.ty, resolve)?.normalize_with(
+        ctx,
+        parsed,
+        crate::types::Context::Json,
+    )
 }
 
 fn call_math(

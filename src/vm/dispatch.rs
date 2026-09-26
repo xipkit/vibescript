@@ -248,6 +248,16 @@ fn invoke(
         stack.push(ctx, value)?;
         return Ok(());
     }
+    if !mutating
+        && is_parse_as(ctx, site, name, stack.data.last().unwrap())?
+        && args.keywords.buffer.data.is_empty()
+        && args.block.is_none()
+    {
+        let value = parse_as(program, ctx, frames, storage, &args.positional.data)?;
+        stack.data.pop();
+        stack.push(ctx, value)?;
+        return Ok(());
+    }
     let receiver = if mutating {
         &storage.addresses.data.last().unwrap().value
     } else {
@@ -398,6 +408,49 @@ fn cast(
         (prepared, _) => prepared?,
     };
     prepared.normalize_with(ctx, receiver, crate::types::Context::Cast)
+}
+
+/// Whether `receiver.name(...)` calls `JSON.parse_as`.
+pub(super) fn is_parse_as(
+    ctx: &mut CallContext,
+    site: CallSite,
+    name: &str,
+    receiver: &Value,
+) -> Result<bool> {
+    if name != "parse_as" || site.auto || !matches!(receiver.0, Kind::Hash(_)) {
+        return Ok(false);
+    }
+    Ok(matches!(
+        members::field(ctx, site, name, receiver)?,
+        Some(Value(Kind::Builtin(crate::builtin::Builtin::JsonParseAs)))
+    ))
+}
+
+/// `JSON.parse_as(text, T)`, resolving the classes and enums a type literal
+/// names in the caller's scope, as `as` does.
+pub(super) fn parse_as(
+    program: &Program,
+    ctx: &mut CallContext,
+    frames: &Buffer<Frame>,
+    storage: &mut Storage,
+    args: &[Value],
+) -> Result<Value> {
+    let lexical = lexical_scope(ctx, frames)?;
+    let mut failed = None;
+    let result = crate::builtin::parse_as(ctx, args, |ctx, name| {
+        resolve_type(program, ctx, frames, storage, lexical, name, false).inspect_err(|_| {
+            failed = Some(name.to_owned());
+        })
+    });
+    match (result, failed) {
+        (Err(error), Some(name)) => Err(crate::types::host_resolution(
+            ctx,
+            crate::types::Context::Json,
+            &name,
+            error,
+        )?),
+        (result, _) => result,
+    }
 }
 
 fn type_predicate(

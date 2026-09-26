@@ -84,9 +84,12 @@ fn every_annotation_type_casts_and_parses_as_itself() {
         clean(&format!(
             "{DECLARATIONS}def cast(v: any) -> {declared}\n  v.as({written})\nend\n"
         ));
-        clean(&format!(
-            "{DECLARATIONS}def parsed(raw: string) -> {declared}\n  JSON.parse_as(raw, {written})\nend\n"
-        ));
+        // Only a cast reads `nil` as the type; elsewhere it is the value.
+        if written != "nil" {
+            clean(&format!(
+                "{DECLARATIONS}def parsed(raw: string) -> {declared}\n  JSON.parse_as(raw, {written})\nend\n"
+            ));
+        }
     }
     // A match stays one after a cast, and indexes as one.
     clean("def first(v: any) -> string?\n  v.as(match_data)[0]\nend\n");

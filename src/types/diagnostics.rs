@@ -85,6 +85,7 @@ pub(crate) fn host_resolution(
             writer.write(b" type check failed: ")?;
         }
         Context::Cast => writer.write(b"cast type check failed: ")?,
+        Context::Json => writer.write(b"JSON.parse_as type check failed: ")?,
         _ => unreachable!(),
     }
     if error.message == "unknown named type" {

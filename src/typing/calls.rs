@@ -662,18 +662,7 @@ impl<'a> Checker<'a> {
             return Ty::ERROR;
         };
         let literal = self.expr(&arg.value, None);
-        // A class or enum names its own type.
-        let literal = match self.types.kind(literal).clone() {
-            Kind::EnumType(id) => {
-                let member = self.types.intern(Kind::EnumValue(id));
-                self.types.type_lit(member)
-            }
-            Kind::Namespace(ns) if self.program.namespaces[ns as usize].is_class => {
-                let instance = self.types.intern(Kind::Instance(ns));
-                self.types.type_lit(instance)
-            }
-            _ => literal,
-        };
+        let literal = self.nominal_type(literal);
         let Kind::TypeLit(target) = self.types.kind(literal).clone() else {
             if literal != Ty::ERROR {
                 let span = self.spans.expr(&arg.value);
@@ -711,6 +700,22 @@ impl<'a> Checker<'a> {
             self.block(block, &[], Want::Discard);
         }
         target
+    }
+
+    /// The type literal a class or enum used as a value names, since each
+    /// names its own type; any other type as it is.
+    fn nominal_type(&mut self, ty: Ty) -> Ty {
+        match self.types.kind(ty).clone() {
+            Kind::EnumType(id) => {
+                let member = self.types.intern(Kind::EnumValue(id));
+                self.types.type_lit(member)
+            }
+            Kind::Namespace(ns) if self.program.namespaces[ns as usize].is_class => {
+                let instance = self.types.intern(Kind::Instance(ns));
+                self.types.type_lit(instance)
+            }
+            _ => ty,
+        }
     }
 
     /// `A::B`, `Enum::Member`, `Math::PI` and `Module::function(args)`.
@@ -1279,14 +1284,41 @@ impl<'a> Checker<'a> {
         if !self.types.has_var(expected) {
             return self.expr_against(value, expected, purpose);
         }
-        let ty = self.expr(value, None);
+        let mut ty = self.expr(value, None);
+        let takes_type = matches!(self.types.kind(param), Kind::TypeLit(_));
+        if takes_type {
+            ty = self.nominal_type(ty);
+        }
         self.unify(param, ty, bindings);
         let expected = self.types.subst(param, bindings);
         if !self.types.has_var(expected) && !self.types.assignable(ty, expected) {
             let span = self.spans.expr(value);
             self.mismatch(span, expected, ty, purpose);
+        } else if takes_type
+            && !matches!(
+                self.types.kind(ty),
+                Kind::TypeLit(_) | Kind::Error | Kind::Never | Kind::Any
+            )
+        {
+            self.not_a_type(value, ty, purpose);
         }
         ty
+    }
+
+    /// Reports a value passed where a type literal is expected.
+    fn not_a_type(&mut self, value: &Expr, ty: Ty, purpose: &Purpose) {
+        let span = self.spans.expr(value);
+        let found = self.types.display(ty);
+        let what = self.purpose_text(purpose, "a type");
+        let mut message = format!("{what}, found {found}");
+        if matches!(&value.node, Node::Hash(entries) if !entries.is_empty()) {
+            message.push_str(
+                "; braces that name a class or enum make a hash, since the name is a value, so name the shape with a type alias, as in `type Payload = { ... }`",
+            );
+        }
+        self.report(
+            Diagnostic::error(Code::TYPE_MISMATCH, span, message).with_types("type<T>", found),
+        );
     }
 
     /// Binds the type variables of `pattern` from a value of type `actual`.

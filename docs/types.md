@@ -105,6 +105,24 @@ packet["name"].upcase # "ADA"
 
 The second argument can be any type an annotation can name: `JSON.parse_as("[1,2]", array<int>)` has type `array<int>` and `JSON.parse_as("null", int?)` has type `int?`. A shape literal can be stored in a local and passed later, as `schema` is above.
 
+An enum names its own type, and a JSON string names a member by its symbol, as `JSON.stringify` writes it: `"in_review"` is `Status::InReview`. Any other value is the typed boundary error. Braces that name a class or enum are a hash, since the name is a value, so a shape with an enum field is named with a type alias:
+
+```vibe
+enum Status
+  Draft
+  InReview
+end
+
+type Review = { status: Status, score: int }
+
+status = JSON.parse_as("\"in_review\"", Status)         # Status::InReview
+review = JSON.parse_as("{\"status\":\"draft\",\"score\":3}", Review)
+label = case review["status"]
+        when Status::Draft then "draft"
+        when Status::InReview then "in review"
+        end
+```
+
 Type equality compares canonical annotations: field order does not matter, while union order and optional fields are preserved. Interpolation renders a value such as `<Shape { name: string }>`. Hosts inspect canonical bytes with `Value::as_type_literal()`; literal field names can contain invalid UTF-8. Type values cannot be JSON-encoded.
 
 Each imported type value charges its retained metadata and wrapper to the receiving call. Clones share that charge; a foreign import receives an independent charge while sharing immutable metadata. Rendering and equality charge bounded byte scans and observe cancellation. Unused compiled literals do not allocate execution storage.
