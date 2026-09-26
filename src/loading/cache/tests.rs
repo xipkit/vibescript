@@ -45,8 +45,8 @@ fn value(entry: &Entry<Script>) -> i64 {
 
 fn fixture() -> (Directory, Resolver) {
     let directory = Directory::new();
-    directory.write("one.vibe", b"def value; 1; end");
-    directory.write("two.vibe", b"def value; 2; end");
+    directory.write("one.vibe", b"def value -> int; 1; end");
+    directory.write("two.vibe", b"def value -> int; 2; end");
     let resolver = Resolver::new(std::slice::from_ref(&directory.0), &[], &[], 1000).unwrap();
     (directory, resolver)
 }
@@ -57,7 +57,7 @@ fn compiled_versions_survive_file_changes_and_cache_clear() {
     let cache = Cache::new(10);
     let mut ctx = CallContext::new(CallOptions::default());
     let first = load(&cache, &resolver, &mut ctx, b"one").unwrap();
-    directory.write("one.vibe", b"def value; 7; end");
+    directory.write("one.vibe", b"def value -> int; 7; end");
     let cached = load(&cache, &resolver, &mut ctx, b"one").unwrap();
     assert!(Arc::ptr_eq(&first, &cached));
     assert_eq!(value(&cached), 1);
@@ -69,7 +69,7 @@ fn compiled_versions_survive_file_changes_and_cache_clear() {
     cache.clear();
     assert_eq!(value(&first), 1);
     assert!(load(&cache, &resolver, &mut ctx, b"one").is_err());
-    directory.write("one.vibe", b"def value; 9; end");
+    directory.write("one.vibe", b"def value -> int; 9; end");
     let current = load(&cache, &resolver, &mut ctx, b"one").unwrap();
     assert_eq!(value(&current), 9);
     assert!(!Arc::ptr_eq(&first, &current));
@@ -80,14 +80,14 @@ fn compiled_versions_survive_file_changes_and_cache_clear() {
 #[test]
 fn cache_keys_distinguish_replacement_roots_at_the_same_path() {
     let directory = Directory::new();
-    directory.write("root/one.vibe", b"def value; 1; end");
+    directory.write("root/one.vibe", b"def value -> int; 1; end");
     let path = directory.0.join("root");
     let original = Resolver::new(std::slice::from_ref(&path), &[], &[], 1000).unwrap();
     let cache = Cache::new(10);
     let mut ctx = CallContext::new(CallOptions::default());
     let first = load(&cache, &original, &mut ctx, b"one").unwrap();
     fs::rename(&path, directory.0.join("moved")).unwrap();
-    directory.write("root/one.vibe", b"def value; 2; end");
+    directory.write("root/one.vibe", b"def value -> int; 2; end");
     let replacement = Resolver::new(&[path], &[], &[], 1000).unwrap();
     let second = load(&cache, &replacement, &mut ctx, b"one").unwrap();
     assert_eq!(value(&first), 1);
@@ -132,7 +132,7 @@ fn invalidating_an_old_observation_preserves_a_concurrent_replacement() {
     let mut ctx = CallContext::new(CallOptions::default());
     let first = load(&cache, &resolver, &mut ctx, b"one").unwrap();
     cache.invalidate(&mut ctx, &first).unwrap();
-    directory.write("one.vibe", b"def value; 8; end");
+    directory.write("one.vibe", b"def value -> int; 8; end");
     let replacement = load(&cache, &resolver, &mut ctx, b"one").unwrap();
     cache.invalidate(&mut ctx, &first).unwrap();
     let (_, present) = cache
@@ -167,7 +167,7 @@ fn a_compilation_started_before_clear_does_not_repopulate_the_cleared_cache() {
         .compile(std::str::from_utf8(source.contents.as_bytes().unwrap()).unwrap())
         .unwrap();
     cache.clear();
-    directory.write("one.vibe", b"def value; 4; end");
+    directory.write("one.vibe", b"def value -> int; 4; end");
     let current = load(&cache, &resolver, &mut ctx, b"one").unwrap();
     let in_flight = cache
         .insert(
