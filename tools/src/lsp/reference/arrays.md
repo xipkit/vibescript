@@ -274,9 +274,9 @@ A new array of the block's results.
 
 A new array of the block's results for each element and its index.
 
-### `flat_map<U>(&block: T -> array<U>) -> array<U>`
+### `flat_map<U>(&block: T -> U | array<U>) -> array<U>`
 
-The block's arrays joined into one, one level deep.
+The block's results in one array, flattening array results one level deep.
 
 ### `filter_map<U>(&block: T -> U?) -> array<U>`
 

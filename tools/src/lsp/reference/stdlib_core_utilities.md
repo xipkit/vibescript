@@ -441,8 +441,8 @@ appends one element to the named array.
 - `map<U>(&block: T -> U) -> array<U>` – the block's value for each element.
 - `map_with_index<U>(&block: (T, int) -> U) -> array<U>` – the block's value
   for each element and its index.
-- `flat_map<U>(&block: T -> array<U>) -> array<U>` – the block's arrays
-  concatenated.
+- `flat_map<U>(&block: T -> U | array<U>) -> array<U>` – the block's results,
+  flattening array results one level deep.
 - `filter_map<U>(&block: T -> U?) -> array<U>` – the block's values, without
   the `nil` and `false` ones.
 - `select(&block: T -> bool) -> array<T>` – the elements the block accepts.
