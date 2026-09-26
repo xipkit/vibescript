@@ -438,21 +438,21 @@ fn member_names_resolve_on_their_receivers() {
             members.contains(&"tap") && members.contains(&"respond_to?"),
             "{kind}"
         );
+        // The names include members static types removed, as `respond_to?`
+        // itself is, so the runtime's member lookup answers for each one.
+        let value = Engine::new()
+            .compile(&format!("({receiver})"))
+            .unwrap()
+            .run(Default::default())
+            .unwrap()
+            .value;
+        let mut ctx = crate::CallContext::new(Default::default());
         let mut seen = HashSet::new();
         for member in members {
             assert!(seen.insert(member), "{kind}.{member} repeats");
-            let source = format!("({receiver}).respond_to?(:{member}, true)");
-            // The names include dynamic members static types removed, which
-            // `respond_to?`, itself removed, finds only without them.
-            let mut engine = Engine::legacy_unchecked();
-
-            let value = engine
-                .compile(&source)
-                .unwrap()
-                .run(Default::default())
-                .unwrap()
-                .value;
-            assert!(value.truthy(), "{source}");
+            let found =
+                crate::members::introspection::responds(&mut ctx, &value, member.as_bytes());
+            assert!(found.unwrap(), "{kind}.{member}");
         }
     }
 }
