@@ -84,6 +84,12 @@ pub trait Hooks<'a>: DerefMut<Target = Surface<'a>> {
         None
     }
 
+    /// Whether every receiver alternative resolves this call to a user method.
+    fn receiver_owns_method(&self, expr: &'a Expr, call: &'a Call) -> bool {
+        let _ = (expr, call);
+        false
+    }
+
     /// Whether every hash the receiver held had data under the member's
     /// name: a dot read raises at a missing field and calls a function,
     /// where the index reads nil or the function.

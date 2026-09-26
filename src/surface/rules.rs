@@ -309,6 +309,9 @@ pub trait Rules<'a>: Hooks<'a> {
         let Some(receiver) = &call.receiver else {
             return;
         };
+        if self.receiver_owns_method(expr, call) {
+            return;
+        }
         let observed = self.receiver_dynamic(expr, call);
         if observed == Some(true) {
             // A host object's own `send`, such as a capability's.
@@ -330,12 +333,8 @@ pub trait Rules<'a>: Hooks<'a> {
             self.report(finding);
             return;
         }
-        // A method the source defines under the name is its own.
-        let removed = !self.declared.methods.contains(&call.name);
         let Some(args) = &call.args else {
-            if removed {
-                self.report(Finding::removed(Rule::Dispatch, span, &call.name, direct));
-            }
+            self.report(Finding::removed(Rule::Dispatch, span, &call.name, direct));
             return;
         };
         let first = args.items.first();
@@ -367,7 +366,7 @@ pub trait Rules<'a>: Hooks<'a> {
                 )
                 .spelling(Rule::Dispatch, &call.name, direct);
                 self.report(finding);
-            } else if removed {
+            } else {
                 self.report(Finding::removed(Rule::Dispatch, span, &call.name, direct));
             }
             return;

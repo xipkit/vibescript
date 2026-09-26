@@ -246,4 +246,9 @@ impl<'a> Hooks<'a> for Checker<'a> {
         let receiver = call.receiver.as_ref()?;
         self.host_rooted(receiver).then_some(true)
     }
+
+    fn receiver_owns_method(&self, _: &'a syntax::Expr, call: &'a syntax::Call) -> bool {
+        self.calls
+            .user_method_at(self.surface.tokens[call.name_tok].start)
+    }
 }

@@ -36,6 +36,40 @@ const HELPERS: &str =
     "def double(n: int) -> int\n  n * 2\nend\nprivate def hidden -> int\n  1\nend\n";
 
 #[test]
+fn required_user_methods_do_not_trigger_builtin_dispatch_rules() {
+    let (mut engine, directory) = engine(&[(
+        "dispatch.vibe",
+        "class C; def send(n: int) -> int; n; end; end; def value -> C; C.new; end; def send(n: int) -> int; n; end",
+    )]);
+    let source = "m=require(\"dispatch\"); m.value.send(1) + m.send(2)";
+    assert!(
+        errors_with(&engine, source).is_empty(),
+        "{:?}",
+        errors_with(&engine, source)
+    );
+    engine.set_static_types(true);
+    assert_eq!(
+        engine
+            .compile(source)
+            .unwrap()
+            .run(Default::default())
+            .unwrap()
+            .value
+            .as_int(),
+        Some(3)
+    );
+    let found = errors_with(
+        &engine,
+        "m=require(\"dispatch\"); m.value.respond_to?(:send)",
+    );
+    assert!(
+        found.iter().any(|d| d.code == Code::DISPATCH_BY_NAME),
+        "{found:?}"
+    );
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
 fn exports_are_typed_by_their_declarations() {
     let (engine, directory) = engine(&[("helpers.vibe", HELPERS)]);
     let clean = "def run -> int\n  h = require(\"helpers\")\n  h.double(2) + double(3)\nend\n";

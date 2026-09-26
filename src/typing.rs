@@ -102,6 +102,12 @@ impl CallTypes {
             .map(|index| &self.entries[index].1)
     }
 
+    /// Whether every receiver alternative declares the called member as a user method.
+    pub fn user_method_at(&self, offset: usize) -> bool {
+        self.receiver_at(offset)
+            .is_some_and(|receiver| receiver.user_method)
+    }
+
     /// Every recorded call, by member-name offset in source order.
     pub fn iter(&self) -> impl Iterator<Item = (usize, &ReceiverType)> {
         self.entries.iter().map(|(offset, ty)| (*offset, ty))
@@ -130,11 +136,16 @@ impl CallTypes {
 pub struct ReceiverType {
     name: String,
     bases: Vec<String>,
+    user_method: bool,
 }
 
 impl ReceiverType {
     pub(crate) fn new(name: String, bases: Vec<String>) -> Self {
-        Self { name, bases }
+        Self {
+            name,
+            bases,
+            user_method: false,
+        }
     }
 
     /// The type as an annotation writes it, such as `hash<string, int>`,

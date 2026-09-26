@@ -358,8 +358,26 @@ impl<'a> Checker<'a> {
             if ty != Ty::ERROR {
                 // A safe call runs the member on the value without nil.
                 let called = if safe { self.types.without_nil(ty) } else { ty };
-                let receiver_type =
+                let mut receiver_type =
                     ReceiverType::new(self.types.display(called), self.types.bases(called));
+                receiver_type.user_method = self.types.members(called).iter().all(|&ty| match self
+                    .types
+                    .kind(ty)
+                {
+                    Kind::Instance(ns) => {
+                        name != "initialize"
+                            && self.program.namespaces[*ns as usize]
+                                .methods
+                                .contains_key(name)
+                    }
+                    Kind::Namespace(ns) => self.program.namespaces[*ns as usize]
+                        .statics
+                        .contains_key(name),
+                    Kind::Exports(id) => self.modules.loaded[*id as usize]
+                        .functions
+                        .contains_key(name),
+                    _ => false,
+                });
                 self.calls.push((span.start, receiver_type));
             }
         }

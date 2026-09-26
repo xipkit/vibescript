@@ -276,6 +276,64 @@ fn dispatch_by_a_literal_name_becomes_a_direct_call() {
 }
 
 #[test]
+fn dispatch_by_name_preserves_resolved_user_methods() {
+    for name in ["send", "public_send", "respond_to?"] {
+        for source in [
+            format!("class C; def {name}(x: int) -> int; x; end; end; C.new.{name}(1)"),
+            format!("class C; def {name}(x: int) -> int; x; end; end; c=C.new; c.{name}(1)"),
+            format!(
+                "class C; def {name}(x: int) -> int; x; end; end; def run(c: C) -> int; c.{name}(1); end; run(C.new)"
+            ),
+            format!("class C; def self.{name}(x: int) -> int; x; end; end; c=C; c.{name}(1)"),
+            format!(
+                "class C; def {name}(x: int) -> int; x; end; end; class D; def {name}(x: int) -> int; x; end; end; def run(c: C | D) -> int; c.{name}(1); end; run(C.new)"
+            ),
+        ] {
+            let mut engine = Engine::new();
+            engine.set_static_types(true);
+            let checked = engine.type_check(&source).unwrap();
+            assert!(
+                checked.diagnostics.is_empty(),
+                "{source}: {:?}",
+                checked.diagnostics
+            );
+            assert_eq!(
+                engine
+                    .compile(&source)
+                    .unwrap()
+                    .run(Default::default())
+                    .unwrap()
+                    .value
+                    .as_int(),
+                Some(1)
+            );
+        }
+    }
+}
+
+#[test]
+fn unrelated_user_methods_do_not_hide_builtin_dispatch() {
+    for name in ["send", "public_send", "respond_to?"] {
+        for call in [
+            format!("[1].{name}(:first)"),
+            format!("[1].{name}"),
+            format!("C.{name}(:new)"),
+        ] {
+            let source = format!("class C; def {name}(x: int) -> int; x; end; end; {call}");
+            let checked = Engine::new().type_check(&source).unwrap();
+            assert!(
+                checked
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.code == Code::DISPATCH_BY_NAME),
+                "{source}: {:?}",
+                checked.diagnostics
+            );
+        }
+    }
+}
+
+#[test]
 fn do_blocks_become_braces() {
     round_trip(
         "total = 0\n[1, 2].each do |x|\n  total += x\nend\n",
