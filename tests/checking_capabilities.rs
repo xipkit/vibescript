@@ -248,13 +248,10 @@ fn value_templates_keep_call_forms_attachment_and_repeated_grants() {
     for source in [
         "sms.deliver(1, 2)",
         "sms.deliver 1, 2",
-        "sms::deliver(1, 2)",
         "sms.deliver(*[1], last: 2)",
         "local = sms; local.deliver(1, 2)",
         "[sms].fetch(0).deliver(1, 2)",
     ] {
-        // `::` is refused with static types (V0416) but still runs without.
-        declared.set_static_types(vibescript::STATIC_TYPES_BY_DEFAULT && !source.contains("::"));
         let script = declared.compile(source).unwrap();
         let options = deliverer();
         for _ in 0..3 {
@@ -270,8 +267,8 @@ fn value_templates_keep_call_forms_attachment_and_repeated_grants() {
         .run(deliverer())
         .unwrap();
     assert_eq!(result.value.to_string(), "[]");
-    // A namespace is not indexed and a local is never called, so the other
-    // forms do not compile.
+    // A namespace is not indexed, a method is called with a dot and a local
+    // is never called, so the other forms do not compile.
     let mut refusing = Engine::new();
     refusing
         .declare_capability(&deliverer().capabilities[0])
@@ -280,6 +277,7 @@ fn value_templates_keep_call_forms_attachment_and_repeated_grants() {
     for (source, code, at) in [
         ("sms[\"deliver\"](1, 2)", "V0112", "sms["),
         ("sms[\"deliver\"]", "V0112", "sms["),
+        ("sms::deliver(1, 2)", "V0416", "::"),
         ("a=sms::deliver; a(1)", "V0416", "::"),
         ("[sms[\"deliver\"]]", "V0112", "sms["),
         ("identity(sms[\"deliver\"])", "V0112", "sms["),
