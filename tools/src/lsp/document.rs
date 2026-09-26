@@ -192,10 +192,6 @@ pub struct Options {
     /// The largest text analyzed, in bytes; larger texts get one diagnostic.
     /// The default is the reference's 1 MiB.
     pub max_source_bytes: usize,
-    /// Whether documents are checked in the static language of ADR-007 and
-    /// ADR-008, whose diagnostics carry codes and fixes that the server
-    /// offers as code actions. Off by default.
-    pub static_types: bool,
 }
 
 impl Default for Options {
@@ -210,7 +206,6 @@ impl Default for Options {
             cancellation: CancellationToken::new(),
             module_paths: None,
             max_source_bytes: 1 << 20,
-            static_types: false,
         }
     }
 }
@@ -231,7 +226,8 @@ impl Default for Options {
 /// let document = Document::new("file:///tmp/add.vibe", source);
 /// let diagnostic = &document.diagnostics()[0];
 /// assert_eq!(diagnostic.severity, Severity::Error);
-/// assert_eq!(diagnostic.message, r#""add": argument "b": expected int, got string"#);
+/// assert_eq!(diagnostic.code.as_deref(), Some("V0101"));
+/// assert_eq!(diagnostic.message, "argument 2 (`b`) of `add` is int, found string");
 ///
 /// let hover = document.hover(Position::new(4, 1)).unwrap();
 /// assert_eq!(hover, "```vibe\ndef add(a: int, b: int) -> int\n```");

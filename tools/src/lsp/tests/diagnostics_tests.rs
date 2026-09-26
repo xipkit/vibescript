@@ -20,8 +20,8 @@ fn range(diagnostic: &Value) -> (i64, i64, i64, i64) {
 
 #[test]
 fn clean_sources_have_no_diagnostics() {
-    assert!(diagnostics("def run()\n  1\nend\n").is_empty());
-    assert!(diagnostics("def double(x)\n  x * 2\nend\n\ndouble(3)\n").is_empty());
+    assert!(diagnostics("def run -> int\n  1\nend\n").is_empty());
+    assert!(diagnostics("def double(x: int) -> int\n  x * 2\nend\n\ndouble(3)\n").is_empty());
 }
 
 #[test]
@@ -129,11 +129,12 @@ fn checker_errors_are_reported_where_the_checker_places_them() {
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0]["severity"], 1);
     assert_eq!(diagnostics[0]["source"], "vibes-lsp");
+    assert_eq!(diagnostics[0]["code"], "V0108");
     assert_eq!(
         diagnostics[0]["message"],
-        "Return value: expected int, got string"
+        "`+` is not defined for int and string"
     );
-    assert_eq!(range(&diagnostics[0]), (1, 2, 1, 3));
+    assert_eq!(range(&diagnostics[0]), (1, 4, 1, 5));
     // Unused declarations are checked too, as by `vibes check`.
     let diagnostics = self::diagnostics("7\ndef unused(n: string) -> int\n  n\nend\n");
     assert_eq!(diagnostics.len(), 1);
@@ -141,15 +142,11 @@ fn checker_errors_are_reported_where_the_checker_places_them() {
 }
 
 #[test]
-fn incomplete_analysis_is_information() {
-    let diagnostics =
-        diagnostics("def incomplete\n  x = 1\n  [1].each { |x| [2].each { x = x() } }\nend\n");
+fn warnings_of_a_compiled_source_are_warnings() {
+    let diagnostics = diagnostics("x = 1\nif x == nil\n  puts 1\nend\n");
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0]["severity"], 3);
-    assert_eq!(
-        diagnostics[0]["message"],
-        "Analysis of this expression is not implemented"
-    );
+    assert_eq!(diagnostics[0]["severity"], 2);
+    assert_eq!(diagnostics[0]["code"], "V0121");
 }
 
 #[test]
@@ -170,7 +167,7 @@ fn checks_stop_within_their_limits() {
         diagnostics[0]["message"]
             .as_str()
             .unwrap()
-            .starts_with("static check stopped: step quota exceeded"),
+            .starts_with("compilation stopped: step quota exceeded"),
         "{diagnostics:?}"
     );
     // A cancelled server stops publishing a check it cannot finish.
@@ -218,7 +215,7 @@ fn required_files_resolve_from_the_document_directory() {
     assert_eq!(missing.len(), 1);
     assert_eq!(
         missing[0]["message"],
-        "\"require\": require: module paths not configured"
+        "cannot statically resolve required module \"helpers\""
     );
     // Hosts can name the directories themselves.
     let mut server = Server::with_options(Options {
@@ -270,7 +267,7 @@ fn a_parse_that_fails_keeps_navigation_but_a_missing_source_drops_it() {
 fn republishing_identical_text_skips_analysis() {
     let mut server = server();
     let uri = "file:///tmp/unchanged.vibe";
-    let source = "def helper(n)\n  n\nend\n";
+    let source = "def helper(n: int) -> int\n  n\nend\n";
     assert!(open_diagnostics(&mut server, uri, source).is_empty());
     let program = document(&server, uri).program.clone().unwrap();
     let replies = change(&mut server, uri, source);

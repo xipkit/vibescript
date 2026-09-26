@@ -33,7 +33,7 @@ vim.lsp.start({
 | `textDocument/definition` | The declaring line of a top-level function, class, module, method, module constant, enum or enum member in the same document. |
 | `textDocument/documentSymbol` | Functions, classes and modules with their methods, constants and nested modules, and enums with their members. |
 | `textDocument/formatting` | One full-document edit from `vibescript_tools::format`, the formatter `vibes fmt` uses, which matches the reference's: it trims trailing spaces and tabs, drops trailing blank lines and ends the text with one newline. |
-| `textDocument/codeAction` | With static types on only: a `quickfix` action for each fix of each diagnostic whose range meets the requested range; see [static diagnostics](#static-diagnostics). |
+| `textDocument/codeAction` | A `quickfix` action for each fix of each diagnostic whose range meets the requested range; see [diagnostics](#diagnostics). |
 
 Unknown requests fail with `-32601 method not found`, and requests whose parameters have the wrong shape with `-32602`. Unknown notifications, such as `$/setTrace`, are ignored.
 
@@ -41,17 +41,11 @@ Unknown requests fail with `-32601 method not found`, and requests whose paramet
 
 Every open and change compiles the document. A compile error is published in the reference's form: severity 1 (error), source `vibes-lsp`, the parser's bare message, and a range in UTF-16 units. The port's parser stops at its first error, where the reference's parser reports every error it recovers from; that first error has the reference's message and position. The reference spans the offending token; a port error carries only a position, so its range covers the identifier, number or keyword starting there, or one character. Errors without a position, such as an oversized source, are reported at the start of the document.
 
-Without static types, when the document compiles, the server also runs the gradual checker over the whole document, as `vibes check FILE` does: top-level code and every function and method declaration, including unused ones. The reference's server reports compile errors only, so these findings are new:
+Every other diagnostic comes from the [type checker](checker.md) of ADR-007 and ADR-008, which checks the whole document as `vibes check FILE` does, unused declarations included: errors when the document does not compile, and warnings when it does. Each carries its stable code, such as `V0401`, as the protocol's `code`, and its range covers the diagnostic's span. The reference's server reports compile errors only, so these findings are new. A check that stops at a limit publishes one warning (severity 2) at the start of the document, such as `compilation stopped: step quota exceeded (20000000)`.
 
-- Known contradictions are errors (severity 1) at the position the checker reports, such as `Return value: expected int, got string`.
-- Code the checker cannot analyze yet is information (severity 3), with the checker's message, such as `Analysis of this expression is not implemented`.
-- A check that stops at a limit publishes one warning (severity 2) at the start of the document, such as `static check stopped: step quota exceeded (20000000)`.
+Only diagnostics in the document itself are published. Required files resolve from the document's directory for `file:` URIs, as `vibes check FILE` resolves them from the script's directory; this is the only file system access the server makes, and it reads the files as saved. Without a directory, as for `untitled:` documents, a `require` is reported as `cannot statically resolve required module`.
 
-Of the 241 documents compared with the reference, 73 get gradual-checker findings the reference does not report. Only findings in the document itself are published. Required files resolve from the document's directory for `file:` URIs, as `vibes check FILE` resolves them from the script's directory; this is the only file system access the server makes, and it reads the files as saved. Without a directory, as for `untitled:` documents, `require` is reported as `module paths not configured`.
-
-### Static diagnostics
-
-A server started with `vibes lsp --static`, or created with `Options::static_types`, checks documents with the [type checker](checker.md) of ADR-007 and ADR-008 instead of running the gradual checker; this becomes the default at the switchover. Every diagnostic then comes from the static check, errors when the document does not compile and warnings when it does, and carries its stable code, such as `V0401`, as the protocol's `code`; its range covers the diagnostic's span. The server advertises `codeActionProvider` with the `quickfix` kind and answers `textDocument/codeAction` with one action per fix: its title is the fix's message, its edit a workspace edit of the document, and `isPreferred` is true for a machine-applicable fix and false for a suggestion. Without static types none of this changes: diagnostics have no code, the capability is not advertised and code action requests fail with `-32601`.
+The server advertises `codeActionProvider` with the `quickfix` kind and answers `textDocument/codeAction` with one action per fix: its title is the fix's message, its edit a workspace edit of the document, and `isPreferred` is true for a machine-applicable fix and false for a suggestion.
 
 ### Hover
 
@@ -133,7 +127,7 @@ The comparison needs Go. The `lsp` [golden corpus](../tests/golden/README.md) re
 
 Intentional:
 
-- Diagnostics include the checker's findings, as described in [diagnostics](#diagnostics), and required files resolve from the document's directory for the check. With `--static` they carry codes and quick fixes.
+- Diagnostics include the type checker's findings with their codes and quick fixes, as described in [diagnostics](#diagnostics), and required files resolve from the document's directory for the check.
 - Hover, completion and signature help documentation comes from this repository's builtin reference, which documents the static language's canonical names and signatures, so its text differs from the reference's since the comparison above was recorded.
 - Parse errors follow the port's parser: one error per document, with the reference's message and position, and a range covering the word at the error position.
 - A body over 8 MiB is skipped and the server continues; the reference exits. The port also rejects header blocks over 64 KiB.

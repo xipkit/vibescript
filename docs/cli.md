@@ -138,12 +138,12 @@ The report goes to stdout, with the tests' own output interleaved: `--- FAIL: FI
 ## `vibes lsp`
 
 ```sh
-vibes lsp [--static]
+vibes lsp
 ```
 
 `vibes lsp` starts the language server that editors launch for `*.vibe` files, speaking the Language Server Protocol over stdin and stdout, as the reference's does. It takes no positional arguments; as with the other commands, `-h` prints its help and an argument fails with `vibes lsp: does not accept positional arguments` and status 1. It exits with status 0 after the client sends `exit` or closes its input, or after an interrupt, and with status 1 when the input's framing is corrupt.
 
-It publishes compile errors on every change and answers hover, completion, signature help, definition, document symbol and formatting requests as the reference does. Its diagnostics add this library's checker findings, with required files resolved from the document's directory as `vibes check` resolves them from the script's. With `--static` it checks documents in the static language instead: diagnostics carry their codes, and their fixes are offered as quick fixes. See [the language server](lsp.md) for its features, limits and differences from the reference.
+It checks every document with static types as it changes and answers hover, completion, signature help, definition, document symbol and formatting requests as the reference does. Its diagnostics carry their codes, their fixes are offered as quick fixes, and required files resolve from the document's directory as `vibes check` resolves them from the script's. See [the language server](lsp.md) for its features, limits and differences from the reference.
 
 ## `vibes prelude`
 

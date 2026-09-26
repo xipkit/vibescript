@@ -6,7 +6,7 @@ use super::text::{line_at, position_at, utf16_character};
 use std::path::PathBuf;
 use std::time::Instant;
 use vibescript::tooling::{self, Item, Outline};
-use vibescript::{CallOptions, Engine, Error, ErrorKind, Limits, ModuleConfig};
+use vibescript::{CallOptions, Engine, Error, ErrorKind, ModuleConfig};
 
 /// A diagnostic whose range always moves forward: an empty or inverted range
 /// covers one character from its start, as in the reference.
@@ -108,22 +108,22 @@ pub(crate) fn analyze(uri: &str, source: &str, options: &Options) -> Analysis {
     let deadline = Some(Instant::now() + options.timeout);
     let cancellation = options.cancellation.child_token();
     let engine = engine(uri, options);
-    // Compilation shares the check's deadline. Its work and memory grow with
-    // the source, which the size limit already bounds, so no quota applies.
+    // Compiling type checks the source, under the check's quotas and deadline.
     let compile = CallOptions {
-        limits: Limits {
-            steps: None,
-            memory_bytes: None,
-            ..options.limits.clone()
-        },
-        cancellation: cancellation.clone(),
+        limits: options.limits.clone(),
+        cancellation,
         deadline,
         ..CallOptions::default()
     };
-    let script = match engine.compile_with_options(source, &compile) {
-        Ok(script) => script,
+    match engine.compile_with_options(source, &compile) {
+        Ok(_) => (),
         Err(error) if error.kind == ErrorKind::Cancelled => return Analysis::cancelled(),
-        Err(error) if matches!(error.kind, ErrorKind::Deadline | ErrorKind::Memory) => {
+        Err(error)
+            if matches!(
+                error.kind,
+                ErrorKind::Deadline | ErrorKind::Memory | ErrorKind::Steps
+            ) =>
+        {
             return Analysis {
                 diagnostics: vec![stopped("compilation", &error)],
                 compiled: false,
@@ -133,11 +133,7 @@ pub(crate) fn analyze(uri: &str, source: &str, options: &Options) -> Analysis {
         }
         // A static check that found errors parsed the source, so its
         // declarations stand.
-        Err(error)
-            if options.static_types
-                && error.kind != ErrorKind::Syntax
-                && !error.diagnostics().is_empty() =>
-        {
+        Err(error) if error.kind != ErrorKind::Syntax && !error.diagnostics().is_empty() => {
             let program = match tooling::outline(source) {
                 Ok(outline) => Program::Parsed(outline),
                 Err(_) => Program::Kept,
@@ -181,52 +177,19 @@ pub(crate) fn analyze(uri: &str, source: &str, options: &Options) -> Analysis {
         Err(_) => Program::Kept,
     };
     // A source that compiled has no static errors, but may have warnings.
-    if options.static_types {
-        let warnings = engine
-            .type_check(source)
-            .map(|checked| checked.diagnostics)
-            .unwrap_or_default();
-        return Analysis {
-            diagnostics: warnings
-                .iter()
-                .filter(|found| found.file.is_none())
-                .map(|found| coded(source, found))
-                .collect(),
-            compiled: true,
-            program,
-            cancelled: false,
-        };
-    }
-    let call = CallOptions {
-        limits: options.limits.clone(),
-        cancellation,
-        deadline,
-        ..CallOptions::default()
-    };
-    let lines: Vec<&str> = source.split('\n').collect();
-    let mut diagnostics = Vec::new();
-    let mut cancelled = false;
-    match script.check(&call) {
-        Ok(report) => {
-            let entries = [
-                (&report.diagnostics, Severity::Error),
-                (&report.incomplete, Severity::Information),
-            ];
-            for (entries, severity) in entries {
-                for entry in entries.iter().filter(|entry| entry.filename.is_none()) {
-                    let range = issue_range(&lines, entry.position.line, entry.position.column);
-                    diagnostics.push(diagnostic(range, severity, entry.message.clone()));
-                }
-            }
-        }
-        Err(error) if error.kind == ErrorKind::Cancelled => cancelled = true,
-        Err(error) => diagnostics.push(stopped("static check", &error)),
-    }
+    let warnings = engine
+        .type_check(source)
+        .map(|checked| checked.diagnostics)
+        .unwrap_or_default();
     Analysis {
-        diagnostics,
+        diagnostics: warnings
+            .iter()
+            .filter(|found| found.file.is_none())
+            .map(|found| coded(source, found))
+            .collect(),
         compiled: true,
         program,
-        cancelled,
+        cancelled: false,
     }
 }
 
@@ -343,8 +306,6 @@ fn engine(uri: &str, options: &Options) -> Engine {
     // Checking never runs output helpers, but scripts may still name them.
     engine.set_output_writer(|_, _| Ok(()));
     engine.set_error_writer(|_, _| Ok(()));
-    // Without static types, the gradual checker reads the ADR-004 language.
-    engine.set_static_types(options.static_types);
     engine
 }
 

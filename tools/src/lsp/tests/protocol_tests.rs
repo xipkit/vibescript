@@ -151,12 +151,13 @@ fn reads_framed_payloads_larger_than_a_source() {
 }
 
 #[test]
-fn initialize_advertises_the_reference_capabilities() {
+fn initialize_advertises_the_reference_capabilities_and_quick_fixes() {
     let mut server = server();
     let response = request(&mut server, "initialize", json!({}));
     assert_eq!(
         response["result"],
         json!({"capabilities": {
+            "codeActionProvider": {"codeActionKinds": ["quickfix"]},
             "textDocumentSync": 1,
             "hoverProvider": true,
             "documentFormattingProvider": true,

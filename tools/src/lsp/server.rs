@@ -115,7 +115,7 @@ impl Server {
             // The reference answers even an initialize without an id.
             "initialize" => vec![Outbound::Result {
                 id: id.clone(),
-                result: capabilities(self.options.static_types),
+                result: capabilities(),
             }],
             "initialized" => Vec::new(),
             "exit" => {
@@ -155,7 +155,7 @@ impl Server {
                     None => respond(Json::Null),
                 }
             }
-            "textDocument/codeAction" if self.options.static_types => {
+            "textDocument/codeAction" => {
                 let Some(id) = &id else {
                     return Vec::new();
                 };
@@ -408,19 +408,16 @@ impl Outbound {
     }
 }
 
-/// The server's capabilities; a static-language server also offers quick
-/// fixes as code actions.
-fn capabilities(static_types: bool) -> Json {
-    let mut capabilities = Vec::new();
-    if static_types {
-        capabilities.push((
-            "codeActionProvider",
-            Json::Object(vec![(
-                "codeActionKinds",
-                Json::Array(vec![Json::str("quickfix")]),
-            )]),
-        ));
-    }
+/// The server's capabilities, including the quick fixes it offers as code
+/// actions.
+fn capabilities() -> Json {
+    let mut capabilities = vec![(
+        "codeActionProvider",
+        Json::Object(vec![(
+            "codeActionKinds",
+            Json::Array(vec![Json::str("quickfix")]),
+        )]),
+    )];
     capabilities.extend([
         (
             "completionProvider",

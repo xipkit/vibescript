@@ -2,13 +2,6 @@
 
 use super::*;
 
-fn static_server() -> Server {
-    Server::with_options(Options {
-        static_types: true,
-        ..Options::default()
-    })
-}
-
 fn code_actions(server: &mut Server, uri: &str, range: Value) -> Vec<Value> {
     let params = json!({
         "textDocument": {"uri": uri},
@@ -26,7 +19,7 @@ const SOURCE: &str = "names = %w[ada grace]\nn = names.size\nok = n.eql?(2)\n";
 
 #[test]
 fn static_diagnostics_carry_their_codes() {
-    let mut server = static_server();
+    let mut server = server();
     let published = open(&mut server, URI, SOURCE);
     let diagnostics = &published[0]["params"]["diagnostics"];
     let codes: Vec<&str> = diagnostics
@@ -50,7 +43,7 @@ fn static_diagnostics_carry_their_codes() {
 
 #[test]
 fn fixes_are_offered_as_quick_fixes_for_the_range() {
-    let mut server = static_server();
+    let mut server = server();
     open(&mut server, URI, SOURCE);
     let range = json!({"start": {"line": 1, "character": 11}, "end": {"line": 1, "character": 11}});
     let reply = code_actions(&mut server, URI, range);
@@ -83,7 +76,7 @@ fn fixes_are_offered_as_quick_fixes_for_the_range() {
 
 #[test]
 fn a_suggestion_is_not_preferred_and_ranges_select_actions() {
-    let mut server = static_server();
+    let mut server = server();
     open(&mut server, URI, SOURCE);
     let range = json!({"start": {"line": 2, "character": 0}, "end": {"line": 2, "character": 14}});
     let actions = code_actions(&mut server, URI, range)[0]["result"].clone();
@@ -98,38 +91,18 @@ fn a_suggestion_is_not_preferred_and_ranges_select_actions() {
 }
 
 #[test]
-fn the_capability_and_the_request_need_static_types() {
+fn the_server_advertises_quick_fixes() {
     let initialize = message("initialize", Some("1"), Some(json!({})));
-    let plain = handle(&mut server(), &initialize);
-    assert!(
-        plain[0]["result"]["capabilities"]
-            .get("codeActionProvider")
-            .is_none()
-    );
-    let typed = handle(&mut static_server(), &initialize);
+    let reply = handle(&mut server(), &initialize);
     assert_eq!(
-        typed[0]["result"]["capabilities"]["codeActionProvider"],
+        reply[0]["result"]["capabilities"]["codeActionProvider"],
         json!({"codeActionKinds": ["quickfix"]})
     );
-    let mut plain = server();
-    let published = open(&mut plain, URI, SOURCE);
-    assert!(
-        published[0]["params"]["diagnostics"][0]
-            .get("code")
-            .is_none()
-    );
-    let range = json!({"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 0}});
-    let reply = code_actions(&mut plain, URI, range);
-    assert_eq!(reply[0]["error"]["code"], -32601);
 }
 
 #[test]
 fn documents_answer_code_actions_without_the_protocol() {
-    let options = Options {
-        static_types: true,
-        ..Options::default()
-    };
-    let document = Document::analyze(URI, SOURCE, &options);
+    let document = Document::analyze(URI, SOURCE, &Options::default());
     let range = Range {
         start: Position::new(0, 8),
         end: Position::new(0, 8),
@@ -144,7 +117,7 @@ fn documents_answer_code_actions_without_the_protocol() {
 
 #[test]
 fn a_static_document_that_compiles_publishes_its_warnings() {
-    let mut server = static_server();
+    let mut server = server();
     let published = open(&mut server, URI, "x = 1\nif x == nil\n  puts 1\nend\n");
     let diagnostics = &published[0]["params"]["diagnostics"];
     assert_eq!(diagnostics[0]["code"], "V0121");
