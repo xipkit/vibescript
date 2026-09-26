@@ -58,6 +58,11 @@ pub(crate) enum Op {
     AddressGlobal(usize),
     Integer(usize, u32),
     Constant(usize),
+    /// Pushes a string or symbol literal, which every literal of the program
+    /// with the same text shares, by its slot in [`Program::shared`]: each
+    /// call imports it once, so the records and strings it builds from
+    /// literals share one copy.
+    Shared(usize),
     Nil,
     Load(usize),
     LoadOptional(usize, usize, Receiving),
@@ -442,6 +447,12 @@ pub(crate) struct Program {
     pub globals: Vec<(Global, Value)>,
     pub functions: Vec<Function>,
     pub constants: Vec<Value>,
+    /// The constant index of each distinct string and symbol literal, which
+    /// [`Op::Shared`] reads by slot.
+    pub shared: Vec<usize>,
+    /// The slot of each literal in [`Self::shared`] by whether it is a
+    /// symbol and its text, while compiling.
+    shared_slots: HashMap<(bool, Vec<u8>), usize>,
     pub names: HashMap<String, usize>,
     pub hosts: Vec<String>,
     pub members: Vec<String>,
@@ -561,6 +572,8 @@ pub(crate) fn compile_parsed(
         globals: Vec::new(),
         functions: Vec::new(),
         constants: Vec::new(),
+        shared: Vec::new(),
+        shared_slots: HashMap::new(),
         names,
         hosts,
         members: Vec::new(),
@@ -661,6 +674,7 @@ pub(crate) fn compile_parsed(
         };
         program.functions[index] = function;
     }
+    program.shared_slots = HashMap::new();
     work.checkpoint()?;
     Ok(program)
 }
@@ -1067,6 +1081,27 @@ impl Compiler<'_> {
         self.program.constants.push(v);
         self.emit(Op::Constant(n));
     }
+    /// Pushes a literal, sharing a string or symbol with every literal of
+    /// the program that has the same text.
+    fn literal(&mut self, value: Value) {
+        let (symbol, bytes) = match &value.0 {
+            crate::value::Kind::Bytes(bytes) => (false, bytes),
+            crate::value::Kind::Symbol(bytes) => (true, bytes),
+            _ => return self.constant(value),
+        };
+        let text = (symbol, bytes.data.to_vec());
+        let slot = match self.program.shared_slots.get(&text) {
+            Some(&slot) => slot,
+            None => {
+                let slot = self.program.shared.len();
+                self.program.shared.push(self.program.constants.len());
+                self.program.constants.push(value);
+                self.program.shared_slots.insert(text, slot);
+                slot
+            }
+        };
+        self.emit(Op::Shared(slot));
+    }
     fn integer_literal(&mut self, text: Value, radix: u32) {
         let n = self.program.constants.len();
         self.program.constants.push(text);
@@ -1205,7 +1240,7 @@ impl Compiler<'_> {
                 }
             }
             Node::BigInteger(text, radix) => self.integer_literal(text.compiler_constant(), *radix),
-            Node::Literal(v) => self.constant(v.compiler_constant()),
+            Node::Literal(v) => self.literal(v.compiler_constant()),
             Node::Var(name) if name.starts_with('@') => {
                 let name = self.call_site(name, false).name;
                 self.emit(Op::NamespaceVariable(name, true));
@@ -2200,7 +2235,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             }
             Node::Hash(values) => {
                 for (k, v) in values {
-                    self.c().constant(k.compiler_constant());
+                    self.c().literal(k.compiler_constant());
                     self.expr(v).await?;
                 }
                 self.c().emit(Op::Hash(values.len()));

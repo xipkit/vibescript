@@ -56,6 +56,9 @@ pub(super) struct Entry {
     pub program: Arc<Program>,
     failed: bool,
     release: bool,
+    /// Where the program's shared literals start in [`Storage::shared`],
+    /// once the call has imported one.
+    pub shared: Option<usize>,
 }
 
 pub(super) struct Activation {
@@ -148,6 +151,11 @@ pub(super) fn load(
         _charge: charge,
     });
     if let Some(index) = vacant {
+        // The slot's literals belonged to the program that left it.
+        let previous = &storage.programs.data[index];
+        if let Some(base) = previous.shared {
+            storage.shared.data[base..base + previous.program.shared.len()].fill(None);
+        }
         let previous = &storage.programs.data[index].program;
         ctx.charge(previous.global_len as u64)?;
         storage.globals.data[previous.global_base..previous.global_base + previous.global_len]
@@ -172,6 +180,7 @@ pub(super) fn load(
         program: program.clone(),
         failed: false,
         release,
+        shared: None,
     };
     if let Some(index) = vacant {
         storage.programs.data[index] = entry;

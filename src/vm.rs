@@ -122,6 +122,9 @@ struct Storage {
     /// The entry frame's assigned local slots and values, captured as it
     /// returns when the host asked for the run's root bindings.
     root_locals: Option<Buffer<(usize, Value)>>,
+    /// The shared literals ([`Op::Shared`]) this call imported, each
+    /// program's from the base its entry records.
+    shared: Buffer<Option<Value>>,
 }
 
 struct LoopState {
@@ -276,6 +279,7 @@ impl Run {
             addresses: Buffer::empty(),
             bypasses: Buffer::empty(),
             root_locals: None,
+            shared: Buffer::empty(),
         };
         // Without enum declarations, arguments have nothing to rebind to.
         let definitions = &code.program.enum_definitions;
@@ -1097,6 +1101,10 @@ impl Run {
                 }
                 Op::Constant(n) => {
                     let v = ctx.import(&program.constants[n])?;
+                    stack.push(ctx, v)?;
+                }
+                Op::Shared(slot) => {
+                    let v = shared(ctx, program, storage, slot)?;
                     stack.push(ctx, v)?;
                 }
                 Op::TypeShadowed(guard, next) => {
@@ -4439,6 +4447,37 @@ fn enter_block(
         ctx.work_bytes(std::mem::size_of_val(chunk))?;
     }
     frames.push(ctx, frame)
+}
+
+/// A program's shared literal by slot, imported on its first use in the
+/// call and shared after that. Each use charges the step an import charges.
+fn shared(
+    ctx: &mut CallContext,
+    program: &Program,
+    storage: &mut Storage,
+    slot: usize,
+) -> Result<Value> {
+    let base = storage.programs.data[program.index].shared;
+    if let Some(Some(value)) = base.map(|base| &storage.shared.data[base + slot]) {
+        ctx.charge(1)?;
+        return Ok(value.clone());
+    }
+    let value = ctx.import(&program.constants[program.shared[slot]])?;
+    let base = match base {
+        Some(base) => base,
+        None => {
+            let base = storage.shared.data.len();
+            storage.shared.ensure(ctx, base + program.shared.len())?;
+            storage
+                .shared
+                .data
+                .resize(base + program.shared.len(), None);
+            storage.programs.data[program.index].shared = Some(base);
+            base
+        }
+    };
+    storage.shared.data[base + slot] = Some(value.clone());
+    Ok(value)
 }
 
 /// The top of the operand stack below the arguments that block frames keep

@@ -43,6 +43,11 @@ pub(super) fn run(
                 let value = ctx.import(&program.constants[n])?;
                 push(ctx, stack, value)?;
             }
+            Op::Shared(slot) => {
+                step(ctx, frame)?;
+                let value = shared(ctx, program, storage, slot)?;
+                push(ctx, stack, value)?;
+            }
             Op::Load(n) => {
                 let Some(slot) = local(ctx, outer, function, frame, storage, n)? else {
                     return Ok(());

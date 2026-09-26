@@ -500,8 +500,10 @@ fn output_scratch_is_released_between_iterations_and_calls() {
         },
         ..CallOptions::default()
     };
+    // The second iteration is the first that runs with the literals the
+    // first imported, which the call shares until it returns.
     let short = script
-        .call("run", &[Value::int(1)], options.clone())
+        .call("run", &[Value::int(2)], options.clone())
         .unwrap();
     for _ in 0..3 {
         let long = script
