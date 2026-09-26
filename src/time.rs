@@ -308,11 +308,8 @@ fn required_year(year: &Value) -> Result<i64> {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Constructor {
-    New,
     Local,
-    Mktime,
     Utc,
-    Gm,
     At,
     Now,
     Parse,
@@ -321,18 +318,12 @@ pub(crate) enum Constructor {
 impl Constructor {
     pub fn name(self) -> &'static str {
         match self {
-            Self::New => "Time.new",
             Self::Local => "Time.local",
-            Self::Mktime => "Time.mktime",
             Self::Utc => "Time.utc",
-            Self::Gm => "Time.gm",
             Self::At => "Time.at",
             Self::Now => "Time.now",
             Self::Parse => "Time.parse",
         }
-    }
-    pub fn auto(self) -> bool {
-        matches!(self, Self::Mktime | Self::Gm | Self::Now)
     }
     pub fn call(
         self,
@@ -402,9 +393,9 @@ impl Constructor {
                         return Err(unexpected_unit(ctx, unit)?);
                     };
                     match name.data.as_slice() {
-                        b"microsecond" | b"usec" => 1000,
+                        b"microsecond" => 1000,
                         b"millisecond" => 1_000_000,
-                        b"nanosecond" | b"nsec" => 1,
+                        b"nanosecond" => 1,
                         _ => return Err(unexpected_unit(ctx, unit)?),
                     }
                 } else {
@@ -429,29 +420,18 @@ impl Constructor {
                 zone,
             );
         }
-        let mut selected = if self == Self::New {
-            // The keyword is validated even when a positional zone replaces it.
-            location(ctx, zone_input, false)?
-        } else {
-            None
-        };
-        let context = if self == Self::New {
-            "Time.new"
-        } else {
-            "Time constructor"
-        };
         if args.is_empty() {
-            return Err(argument(format!("{context} expects at least a year")));
+            return Err(argument("Time constructor expects at least a year"));
         }
         for arg in args {
             ctx.charge(1)?;
             if matches!(arg.0, Kind::Big(_)) {
-                return Err(argument(format!(
-                    "{context} parts must fit in a 64-bit integer"
-                )));
+                return Err(argument(
+                    "Time constructor parts must fit in a 64-bit integer",
+                ));
             }
         }
-        if self != Self::New && args.len() > 7 {
+        if args.len() > 7 {
             return Err(argument(
                 "Time constructor expects at most year, month, day, hour, minute, second, microsecond",
             ));
@@ -469,45 +449,36 @@ impl Constructor {
             }
         }
         let mut nanos = 0;
-        if self == Self::New {
-            let positional = args.get(6).filter(|v| !absent_zone(v));
-            if let Some(positional) = positional {
-                selected = zone::Zone::parse(ctx, positional)?;
-            } else if zone_input.is_none_or(absent_zone) {
-                selected = zone::Zone::local(ctx).map(Some)?;
-            }
-        } else {
-            if let Some(micros) = args.get(6) {
-                if !matches!(micros.0, Kind::Nil) {
-                    let out_of_range = || {
-                        argument(
-                            "Time constructor microsecond argument out of range (must be within one second)",
-                        )
-                    };
-                    if micros.as_float().is_some_and(|n| n < 0.0) {
-                        return Err(out_of_range());
+        if let Some(micros) = args.get(6) {
+            if !matches!(micros.0, Kind::Nil) {
+                let out_of_range = || {
+                    argument(
+                        "Time constructor microsecond argument out of range (must be within one second)",
+                    )
+                };
+                if micros.as_float().is_some_and(|n| n < 0.0) {
+                    return Err(out_of_range());
+                }
+                nanos = scaled(micros, 1000).map_err(|error| match error {
+                    Subsecond::NotNumeric => {
+                        argument("Time constructor microsecond argument must be numeric")
                     }
-                    nanos = scaled(micros, 1000).map_err(|error| match error {
-                        Subsecond::NotNumeric => {
-                            argument("Time constructor microsecond argument must be numeric")
-                        }
-                        Subsecond::NotFinite | Subsecond::OutOfRange => {
-                            let mut error = out_of_range();
-                            error.kind = ErrorKind::Arithmetic;
-                            error
-                        }
-                    })?;
-                    if !(0..NANOS).contains(&nanos) {
-                        return Err(out_of_range());
+                    Subsecond::NotFinite | Subsecond::OutOfRange => {
+                        let mut error = out_of_range();
+                        error.kind = ErrorKind::Arithmetic;
+                        error
                     }
+                })?;
+                if !(0..NANOS).contains(&nanos) {
+                    return Err(out_of_range());
                 }
             }
-            if self == Self::Local {
-                selected = location(ctx, zone_input, true)?;
-            } else if self == Self::Mktime {
-                selected = Some(zone::Zone::local(ctx)?);
-            }
         }
+        let selected = if self == Self::Local {
+            location(ctx, zone_input, true)?
+        } else {
+            None
+        };
         let seconds = if let Some(zone) = &selected {
             zone.calendar(ctx, parts)?
         } else {

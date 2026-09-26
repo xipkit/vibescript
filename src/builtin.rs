@@ -174,11 +174,8 @@ impl Global {
                 ),
             ],
             Self::Time => [
-                crate::time::Constructor::New,
                 crate::time::Constructor::Local,
-                crate::time::Constructor::Mktime,
                 crate::time::Constructor::Utc,
-                crate::time::Constructor::Gm,
                 crate::time::Constructor::At,
                 crate::time::Constructor::Now,
                 crate::time::Constructor::Parse,
@@ -253,9 +250,14 @@ impl Builtin {
     /// Reports whether a read of the builtin without arguments calls it: the
     /// language writes a call without arguments without parentheses.
     pub fn auto(self) -> bool {
-        matches!(self, Self::DurationBuild | Self::Output(_) | Self::Random(_))
-            || self == Self::Regexp(crate::regex::value::Constructor::Union)
-            || matches!(self, Self::Time(constructor) if constructor.auto())
+        matches!(
+            self,
+            Self::DurationBuild
+                | Self::Output(_)
+                | Self::Random(_)
+                | Self::Regexp(crate::regex::value::Constructor::Union)
+                | Self::Time(crate::time::Constructor::Now)
+        )
     }
 
     pub fn read(self, ctx: &mut CallContext) -> Result<Value> {

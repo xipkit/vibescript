@@ -240,12 +240,6 @@ Time.parse("2024-01-02").iso8601                  # "2024-01-02T00:00:00Z"
 Time.at(0).utc.iso8601                            # "1970-01-01T00:00:00Z"
 ```
 
-### Removed spellings
-
-- `Time.gm` – removed; use `Time.utc`.
-- `Time.mktime` – removed; use `Time.local`.
-- `Time.new` – removed; use `Time.local`, passing a zone as `in:`.
-
 ## Duration
 
 `Duration` builds duration values from parts and parses them from text.

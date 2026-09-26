@@ -426,10 +426,7 @@ fn compiled_builtin_namespaces_retain_sorted_unique_members_without_the_budget()
             "Regex",
             &["escape", "match", "new", "replace", "replace_all", "union"],
         ),
-        (
-            "Time",
-            &["at", "gm", "local", "mktime", "new", "now", "parse", "utc"],
-        ),
+        ("Time", &["at", "local", "now", "parse", "utc"]),
         ("Duration", &["build", "parse"]),
         ("JSON", &["parse", "parse_as", "stringify"]),
         (
