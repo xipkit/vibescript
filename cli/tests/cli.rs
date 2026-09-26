@@ -671,7 +671,7 @@ fn limits_deadlines_and_unknown_functions_fail_with_nonzero_status() {
     assert_eq!(run.stdout, "");
     assert!(
         run.stderr
-            .starts_with("step quota exceeded (10000)\n  --> line 3, column 3\n"),
+            .starts_with("step quota exceeded (10000)\n  --> line 4, column 10\n"),
         "{}",
         run.stderr
     );
@@ -1491,7 +1491,7 @@ fn inline_source_honors_quotas_deadlines_and_stats() {
     assert_eq!(run.stdout, "");
     assert!(
         run.stderr
-            .starts_with("step quota exceeded (10000)\n  --> line 3, column 3\n"),
+            .starts_with("step quota exceeded (10000)\n  --> line 4, column 10\n"),
         "{}",
         run.stderr
     );

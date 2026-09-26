@@ -63,9 +63,9 @@ enum ReturnTo {
 struct Frame {
     program: Arc<Program>,
     host: bool,
-    /// Whether the frame's arguments came from the host, which the
-    /// prologue checks against the parameter types; the checker proves
-    /// the arguments of every other call.
+    /// Whether the frame's arguments came from the host and are being
+    /// checked against the parameter types; the checker proves the
+    /// arguments of every other call.
     checked: bool,
     activation: bool,
     receiver: Option<Value>,
@@ -3180,7 +3180,9 @@ fn diagnostic_site<'a>(
         let op = owner.functions[function]
             .code
             .get(frame.ip.saturating_sub(1));
-        if frame.binding.data.is_empty()
+        // A frame binding its parameters, or checking the host's arguments
+        // to them, reports a mismatch where it was called.
+        if (frame.binding.data.is_empty() && !frame.checked)
             || !matches!(
                 op,
                 Some(Op::Bind(..) | Op::Normalize(..) | Op::BindIvar(..))
@@ -4172,8 +4174,7 @@ fn enter_checked(
         arguments = Arguments::empty();
     }
     let fun = receiving(program, &call)?;
-    if (fun.plain || fun.proven.is_some() && !checked) && arguments.keywords.buffer.data.is_empty()
-    {
+    if (fun.plain || fun.proven.is_some()) && arguments.keywords.buffer.data.is_empty() {
         enter(
             program,
             ctx,
@@ -4187,11 +4188,45 @@ fn enter_checked(
         frame.block = arguments.block;
         frame.receiver = call.receiver;
         frame.constructor = call.constructor;
+        if checked && !fun.plain {
+            check_entry(program, ctx, frames, storage)?;
+        }
         return Ok(());
     }
     bind(
         program, ctx, frames, storage, call, arguments, base, checked,
     )
+}
+
+/// Checks the host's arguments to the entered frame against its parameter
+/// types, as its prologue's `Bind` instructions would, pointing a mismatch
+/// at the parameter's instruction. The frame starts past the prologue, so
+/// the call builds no argument binding.
+fn check_entry(
+    program: &Program,
+    ctx: &mut CallContext,
+    frames: &mut Buffer<Frame>,
+    storage: &mut Storage,
+) -> Result<()> {
+    let current = frames.data.len() - 1;
+    let start = frames.data[current].ip;
+    frames.data[current].checked = true;
+    let function = &program.functions[frames.data[current].function.unwrap()];
+    for (index, param) in function.params.iter().enumerate() {
+        let Some(ty) = param.ty else {
+            continue;
+        };
+        // The parameter's `Bind` is instruction `index` of the prologue.
+        frames.data[current].ip = index + 1;
+        let slot = frames.data[current].local_base + param.slot;
+        let value = storage.locals.data[slot].take().unwrap();
+        let context = crate::types::Context::Argument(param.name.as_bytes());
+        let value = normalize_type(program, ctx, frames, storage, current, (ty, context), value)?;
+        storage.locals.data[slot] = Some(value);
+    }
+    frames.data[current].ip = start;
+    frames.data[current].checked = false;
+    Ok(())
 }
 
 /// Enters a call from script code with the positional `values` it reads
