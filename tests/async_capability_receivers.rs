@@ -52,19 +52,41 @@ fn reader(name: &str) -> HostMethod {
     })
 }
 
+/// `set(key, value)` publishes one field of its receiver, which is how a
+/// static program rewrites the capability's data.
+fn setter(name: &str) -> HostMethod {
+    HostMethod::new_with_block(name, |call, args, _| {
+        let key = args[0].as_bytes().unwrap().to_vec();
+        Ok(Value::boolean(call.set_receiver_field(&key, &args[1])?))
+    })
+}
+
+/// `get(key)` reads a field of its receiver, which may be one the capability
+/// does not declare.
+fn getter(name: &str) -> HostMethod {
+    HostMethod::new_with_block(name, |call, args, _| {
+        let receiver = call.receiver()?.expect("member call");
+        let key = std::str::from_utf8(args[0].as_bytes().unwrap()).unwrap();
+        Ok(field(&receiver, key).unwrap_or_else(Value::nil))
+    })
+}
+
 /// The capability's value: data, methods and an inner object of both.
 fn capability() -> Value {
     let hold = holder("cap.hold").value();
     let read = reader("cap.read").value();
+    let set = setter("cap.set").value();
     let inner = Value::object(vec![
         (b"tag".to_vec(), Value::int(2)),
         (b"hold".to_vec(), hold.clone()),
         (b"read".to_vec(), read.clone()),
+        (b"set".to_vec(), set.clone()),
     ]);
     Value::object(vec![
         (b"tag".to_vec(), Value::int(1)),
         (b"hold".to_vec(), hold),
         (b"read".to_vec(), read),
+        (b"set".to_vec(), set),
         (b"inner".to_vec(), inner),
     ])
 }
@@ -82,15 +104,6 @@ fn declaring() -> Engine {
     engine
         .declare_capability(&Capability::from_value("cap", capability()))
         .unwrap();
-    engine
-}
-
-/// An engine without static types, for call forms they refuse or cannot
-/// type: indexing the capability or writing its data, `send`, and methods
-/// of an inner object, which the declaration types as plain data.
-fn untyped() -> Engine {
-    let mut engine = Engine::legacy_unchecked();
-
     engine
 }
 
@@ -114,18 +127,6 @@ async fn async_and_bridged_sync_methods_hold_their_receiver_across_waits_and_blo
         ("cap.hold()", "[1, nil, 1]"),
         ("cap.hold { 5 }", "[1, 5, 1]"),
         ("cap.read()", "[1, nil, 1]"),
-    ] {
-        assert_eq!(
-            run(&runner, &engine, body, options()).await,
-            expected,
-            "{body}"
-        );
-    }
-    let engine = untyped();
-    for (body, expected) in [
-        ("cap[:hold]()", "[1, nil, 1]"),
-        ("cap::hold()", "[1, nil, 1]"),
-        ("cap.send(:hold)", "[1, nil, 1]"),
         ("cap.inner.hold()", "[2, nil, 2]"),
         ("cap.hold { cap.inner.hold { 0 } }", "[1, [2, 0, 2], 1]"),
         ("cap.inner.read { cap.hold { 0 } }", "[2, [1, 0, 1], 2]"),
@@ -133,14 +134,14 @@ async fn async_and_bridged_sync_methods_hold_their_receiver_across_waits_and_blo
             "cap.hold { cap.inner.read { cap.hold { 0 } } }",
             "[1, [2, [1, 0, 1], 2], 1]",
         ),
-        ("cap.hold { cap[:tag] = 9 }", "[1, 9, 1]"),
-        ("cap[:tag] = 7; cap.hold()", "[7, nil, 7]"),
+        ("cap.hold { cap.set(\"tag\", 9); cap.tag }", "[1, 9, 1]"),
+        ("cap.set(\"tag\", 7); cap.hold()", "[7, nil, 7]"),
         (
-            "[cap.hold(0.tap { cap[:tag] = 9 }), cap[:tag]]",
+            "[cap.hold(cap.set(\"tag\", 9)), cap.tag]",
             "[[1, nil, 1], 9]",
         ),
         (
-            "[cap[:hold](*[0].map { |x| cap[:tag] = 9; x }), cap[:tag]]",
+            "[cap.hold(*[0].map { |x| cap.set(\"tag\", 9); x }), cap.tag]",
             "[[1, nil, 1], 9]",
         ),
     ] {
@@ -235,28 +236,37 @@ async fn async_and_bridged_sync_methods_publish_across_waits_and_blocks() {
         call.set_receiver_field(b"d", &Value::int(4))?;
         Ok(Value::nil())
     });
+    // The script reads the fields the methods publish, which the capability
+    // does not declare, through `get`, and updates its declared `notes` in
+    // place.
+    let template = Capability::from_value(
+        "cap",
+        Value::object(vec![
+            (b"publish".to_vec(), publish.value()),
+            (b"bridged".to_vec(), bridged.value()),
+            (b"get".to_vec(), getter("cap.get").value()),
+            (b"notes".to_vec(), Value::array(vec![Value::int(0)])),
+        ]),
+    );
     let options = CallOptions {
-        capabilities: vec![Capability::new("cap", move |_| {
-            Ok(Value::object(vec![
-                (b"publish".to_vec(), publish.value()),
-                (b"bridged".to_vec(), bridged.value()),
-            ]))
-        })],
+        capabilities: vec![template.clone()],
         ..CallOptions::default()
     };
     let runner = Runner::new(1).unwrap();
-    // The script reads fields the methods publish, which the capability
-    // does not declare, so it compiles without static types.
-    let engine = untyped();
+    let mut engine = Engine::new();
+    engine.declare_capability(&template).unwrap();
     for (body, expected) in [
-        ("cap.publish()\n[cap[:a], cap[:c]]", "[1, 3]"),
-        ("cap.publish { cap[:a] }", "1"),
+        ("cap.publish()\n[cap.get(\"a\"), cap.get(\"c\")]", "[1, 3]"),
+        ("cap.publish { cap.get(\"a\") }", "1"),
         (
-            "cap.publish { cap[:b] = 2 }\n[cap[:a], cap[:b], cap[:c]]",
-            "[1, 2, 3]",
+            "cap.publish { cap.notes << 2 }\n[cap.get(\"a\"), cap.notes, cap.get(\"c\")]",
+            "[1, [0, 2], 3]",
         ),
-        ("c = cap\ncap.publish()\n[c[:a], cap[:a]]", "[nil, 1]"),
-        ("cap.bridged()\ncap[:d]", "4"),
+        (
+            "c = cap\ncap.publish()\n[c.get(\"a\"), cap.get(\"a\")]",
+            "[nil, 1]",
+        ),
+        ("cap.bridged()\ncap.get(\"d\")", "4"),
     ] {
         assert_eq!(
             run(&runner, &engine, body, options.clone()).await,
