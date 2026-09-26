@@ -389,12 +389,66 @@ callee bodies and declaration order, and makes a function's contract implicit.
 - Current type syntax and runtime contracts: [types](../types.md)
 - Current checker, to be replaced: [checker](../checker.md)
 
-## Implementation notes before the switchover
+## Implementation notes
 
-The opt-in static checker treats every function without `-> T` as returning
-`nil`, independently of its body. The current runtime still returns the last
-expression of such a function. The switchover must discard that value; until
-then it is a known runtime mismatch, never evidence for a checker result type.
+### The switchover
+
+On 2026-09-26 static types became the only mode. `Engine::new()`, `vibes run`,
+`vibes check`, the flat form, the REPL, the language server, the test runner
+and the embedding examples type check every compile; the opt-in switches
+(`Engine::set_static_types`, the `--static` flags and the
+`VIBESCRIPT_STATIC_TYPES` build) are gone, and so are the gradual checker's
+command-line entry points (`run -check`, `check` without `--static`, the flat
+form's `--check` and `--checked`). The deferred runtime rules took effect
+with it: `/` divides numbers to a float, a function without `-> T` returns
+`nil` after evaluating its last expression for effect, and `fill` and
+`insert` raise past the end of an array. V0109, which rejected `/` on two
+ints while it still floored them, is retired; its number stays registered
+and is not reused.
+
+One escape hatch remains, `Engine::legacy_unchecked()`, hidden from the
+documentation. It compiles the ADR-004 language without static types, with
+that language's runtime rules: `/` floors two integers (it compiles to a
+separate operator), every function returns its last expression, and `fill`
+and `insert` pad with `nil`. It exists so that `vibes migrate` can compile,
+run and observe scripts written before the switchover, and compare their
+behavior with their migrations. Until the gradual checker and the runtime
+support for removed spellings are deleted, the checker's own tests and the
+golden `parse` sweep, which records what the grammar accepts rather than what
+type checks, use it too; nothing else does.
+
+Decisions the ADRs left open:
+
+- Two ints divide to the float nearest their exact quotient, ties to even,
+  whatever their size. A quotient beyond the float range raises an
+  arithmetic error; one below it is a subnormal or zero, whose sign follows
+  the operands'. `int.div` and `divmod` keep flooring.
+- Only functions and methods return `nil` without `-> T`. The top-level
+  statements still produce the value of their last expression, which
+  `Script::run` returns and the REPL shows, and so do namespace bodies and
+  accessors.
+- A class's own `==` or `!=` has the type its method declares, `nil`
+  without `-> T`, and its right operand is checked against the method's
+  parameter; a `!=` that the runtime answers by negating `==` is a `bool`.
+  Typing either as `bool` whatever the method declares would let a `nil`
+  reach a typed position.
+- `fill` never grows an array: a window that ends past the end raises, and
+  so does `insert` at an index past the end; inserting at the length
+  appends.
+- The removed syntax of ADR-008 (`do ... end`, `unless`, `until`, percent
+  literals and the `name:` keyword parameters) no longer parses. A source
+  that uses it and is otherwise well formed still reaches the checker, which
+  reports the removed spelling with its fix, since the full grammar parses
+  first; a source that does not parse either way reports the error the
+  canonical grammar finds, where those words start nothing and `%` is only
+  an operator.
+- A REPL session declares each variable with the type the checker gave it:
+  every input begins by binding the earlier variables as typed locals, cast
+  from one declared global. A variable whose class an input declares again
+  is bound as `any`, since its value belongs to the replaced class.
+- The golden cases whose purpose is a static rejection keep the outcome
+  their goldens recorded in the ADR-004 language; they are checked against
+  their `static_error` only.
 
 Namespace initializers run where the top-level module declaration is executed,
 with nested modules initialized before their parent. Their bodies can read and
