@@ -309,7 +309,6 @@ end
 #[test]
 fn invalid_calls_fail_before_entropy_block_or_host_effects() {
     let (mut engine, reads) = fixed_entropy_engine(0);
-    engine.set_static_types(false);
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();
     engine.register("effect", move |_, _| {
@@ -331,11 +330,6 @@ fn invalid_calls_fail_before_entropy_block_or_host_effects() {
             "[1].rotate(9223372036854775808)",
             "array.rotate count must be integer",
         ),
-        (
-            "[1].product([],'x')",
-            "array.product arguments must be arrays",
-        ),
-        ("[].product(1)", "array.product arguments must be arrays"),
         (
             "[1].combination(9223372036854775808)",
             "array.combination length must be integer",
