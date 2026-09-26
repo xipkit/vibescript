@@ -197,6 +197,18 @@ fn capitalized_methods_use_dot_dispatch() {
     super::support::clean(
         "module M; F = 3; def self.F -> string; 'method'; end; end; x: int = M::F; y: string = M.F",
     );
+    let source = "module M; F = 3; def self.F(n: int) -> string; n.to_s; end; def self.run -> string; F(7); end; end; M.run";
+    super::support::clean(source);
+    assert_eq!(
+        Engine::new()
+            .compile(source)
+            .unwrap()
+            .run(Default::default())
+            .unwrap()
+            .value
+            .as_bytes(),
+        Some(b"7".as_slice())
+    );
 }
 
 #[test]

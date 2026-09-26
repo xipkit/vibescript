@@ -169,7 +169,8 @@ def host_global_cases():
     add("overwrite", "settings=7;settings", {"settings":{"items":[1]}}, 7, "int")
     add("nested_address", "rows[-1]&.push(2);rows", {"rows":[[1]]}, [[1,2]], "array<array<int>>")
     add("rescued_call", "begin;helper(1);rescue;7;end", {"helper":None}, 7,
-        source="def helper(x: int) -> int;99;end;"+function("begin;helper(1);rescue;7;end", "int"))
+        source="def helper(x: int) -> int;99;end;"+function("begin;helper(1);rescue;7;end", "int"),
+        static_error={"code": "V0310", "at": [2, 7]})
     for name in ["Parser", "Box", "Math"]:
         for index, expression in enumerate([
             f'{name}("3")', f'({name})("3")', f'{name}(*["3"])', f'{name} "3"',

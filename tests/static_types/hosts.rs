@@ -481,4 +481,12 @@ fn declared_call_targets_precede_script_and_registered_functions() {
         "module M; F = 1; def self.run; F(2); end; end",
         &["V0310"],
     );
+    codes_with(
+        &engine,
+        "module M; F = 1; def self.run; F(); end; end",
+        &["V0310"],
+    );
+    engine.declare_global("n", "int").unwrap();
+    assert!(errors_with(&engine, "n").is_empty());
+    codes_with(&engine, "n()", &["V0310"]);
 }

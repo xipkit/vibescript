@@ -133,25 +133,27 @@ impl<'a> Checker<'a> {
             _ => (),
         }
         if let Some(ns) = self.frame.owner {
-            if name.chars().next().is_some_and(char::is_uppercase) {
-                if let Some(&ty) = self.constants.get(&(Some(ns), name.to_owned())) {
-                    if bare {
-                        return ty;
-                    }
-                    self.report(Diagnostic::error(
-                        Code::NOT_CALLABLE,
-                        call.name_span,
-                        format!("`{name}` is a namespace constant, not a function"),
-                    ));
-                    self.loose_args(&call);
-                    return Ty::ERROR;
-                }
+            let namespace = &self.program.namespaces[ns as usize];
+            let methods = if self.frame.instance {
+                &namespace.methods
+            } else {
+                &namespace.statics
+            };
+            if name.chars().next().is_some_and(char::is_uppercase)
+                && !self.program.functions.contains_key(name)
+                && !methods.contains_key(name)
+                && self.constants.contains_key(&(Some(ns), name.to_owned()))
+            {
+                self.report(Diagnostic::error(
+                    Code::NOT_CALLABLE,
+                    call.name_span,
+                    format!("`{name}` is a namespace constant, not a function"),
+                ));
+                self.loose_args(&call);
+                return Ty::ERROR;
             }
         }
         if let Some(&ty) = self.program.declared.get(name) {
-            if bare {
-                return ty;
-            }
             let found = self.types.display(ty);
             self.report(Diagnostic::error(
                 Code::NOT_CALLABLE,
