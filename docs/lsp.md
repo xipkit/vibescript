@@ -104,24 +104,7 @@ assert!(hover.contains("Writes each value"));
 
 ## Comparison with the reference
 
-`scripts/lsp-transcripts.py` drives the Go reference's server and this one in lockstep over the 203 site programs, the 35 reference examples and three documents in `tests/lsp` that cover properties, setters, aliases, nested modules, Unicode names with CRLF line endings and a document broken on open. Each document is opened, then replaced by three unparsable versions: with a broken definition appended, with that and two comment lines inserted above, and cut off halfway. Every version gets an outline, hover and definition at every word, completion at every line start and after every dot, and signature help after every `(` and `,`; the original also gets formatting and hover at every word's end. A session of malformed, unusual and out-of-order messages comes first. The summary is recorded in [lsp-transcripts.json](lsp-transcripts.json):
-
-| Responses | Compared | Identical |
-| --- | ---: | ---: |
-| Hover | 111,783 | 111,783 |
-| Definition | 87,590 | 87,590 |
-| Completion | 48,716 | 48,716 |
-| Signature help | 18,442 | 18,442 |
-| Document symbols | 964 | 964 |
-| Formatting | 241 | 241 |
-| `didClose` diagnostics | 241 | 241 |
-| Protocol session | 34 | 33 |
-| `didOpen` diagnostics | 241 | 167 |
-| `didChange` diagnostics | 723 | 127 |
-
-Every difference is in diagnostics. On open, 73 documents get checker findings, and the document broken on open reports only the first of the reference's parse errors. After an unparsable edit, 594 documents differ only because the reference reports several parse errors where the port reports the first, which is identical to the reference's, and two halved documents that still parse get checker findings. The remaining protocol difference is the diagnostics for a document broken on open.
-
-The comparison needs Go. The `lsp` [golden corpus](../tests/golden/README.md) records this server's replies to the same sessions over the site programs, the upstream examples and the documents in `tests/lsp`, and `scripts/golden.py` checks them without Go.
+Until the Rust implementation became the reference, a transcript script drove the Go reference's server and this one in lockstep over the 203 site programs, the 35 reference examples and the documents in `tests/lsp`, in the sessions the `lsp` golden corpus still sends. Every hover, definition, completion, signature help, outline, formatting and `didClose` reply was identical; every difference was in diagnostics, from the port's checker findings and its parser reporting only the first of the reference's parse errors. The `lsp` [golden corpus](../tests/golden/README.md) records this server's replies to those sessions, which `scripts/lsp_sessions.py` generates, and `scripts/golden.py` checks them.
 
 ## Differences from the reference
 

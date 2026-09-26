@@ -113,13 +113,11 @@ The library, the `vibes` CLI and the test suite [support `wasm32-wasip1`](docs/p
 
 ```sh
 python3 scripts/golden.py
-python3 scripts/compare.py --with-go --rounds 8
+python3 scripts/compare.py --rounds 8
 ```
 
-This implementation is the reference. [The golden corpora](tests/golden/README.md) record its observable behavior, and `scripts/golden.py` checks a build against them. `scripts/compare.py` validates the Rust builds against the goldens and measures them; with `--with-go` it also builds the pinned Go v0.70.0 module for comparison on programs Go can parse. Rust measurements always use release builds with thin LTO and one codegen unit.
-
-See the [hash scaling and website results](benchmarks/hash-performance.md), the [first optimization results](benchmarks/performance-followup.md) and the [initial comparison](benchmarks/README.md). Native measurements describe the machine recorded in each result directory, and are not a general claim about Rust versus Go.
+This implementation is the reference. [The golden corpora](tests/golden/README.md) record its observable behavior, and `scripts/golden.py` checks a build against them. `scripts/compare.py` validates the portable and SIMD builds against the goldens and measures them, always with release builds using thin LTO and one codegen unit; see [the benchmarks](benchmarks/README.md).
 
 ## History
 
-This implementation began in 2026 as a port of Go Vibescript v0.70.0, which was its compatibility reference: shared fixtures, a replay of Go's whole test suite and differential comparisons held it to Go's results, apart from [deliberate differences](docs/compatibility.md) where Go contradicted Vibescript's documented value semantics or behaved inconsistently. The [language completion plan](docs/language-port.md) records that work. On 2026-09-24 the Rust implementation became the reference and the language moved to static types and a canonical surface (ADR-007 and ADR-008); the Go implementation is deprecated and keeps the earlier, dynamically typed language.
+This implementation began in 2026 as a port of Go Vibescript v0.70.0, which was its compatibility reference: shared fixtures, a replay of Go's whole test suite and differential comparisons held it to Go's results, apart from [deliberate differences](docs/compatibility.md) where Go contradicted Vibescript's documented value semantics or behaved inconsistently. [The port history](docs/language-port.md) summarizes that work. On 2026-09-24 the Rust implementation became the reference and the language moved to static types and a canonical surface (ADR-007 and ADR-008); the Go implementation is deprecated and keeps the earlier, dynamically typed language.

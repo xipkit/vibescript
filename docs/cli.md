@@ -291,7 +291,7 @@ Under WASI, `vibes.wasm` sees only the directories its host preopens, and every 
 
 ## Differences from the Go reference
 
-`scripts/compare-cli.py` needs Go: it builds the reference CLI and compares exit status, stdout and stderr on the help and error paths, `fmt` over every `.vibe` file in both trees plus generated whitespace cases, `run` and `analyze` over the script corpus, and a `test` suite; all of them are identical. The analyzer was also compared on about 430,000 sources from the fixtures and generated programs with injected terminators; only three differ, where the two parsers disagree about a call on a parenthesized `begin` block. The `cli` [golden corpus](../tests/golden/README.md) records this CLI's results on the same kinds of invocations and needs no Go. These differences are intentional:
+Before the Rust implementation became the reference, a comparison script ran the Go CLI and this one on the help and error paths, `fmt` over every `.vibe` file in both trees plus generated whitespace cases, `run` and `analyze` over the script corpus, and a `test` suite, and all of them were identical. The analyzer was also compared on about 430,000 sources from the fixtures and generated programs with injected terminators; only three differed, where the two parsers disagree about a call on a parenthesized `begin` block. The `cli` [golden corpus](../tests/golden/README.md) records this CLI's results on the same kinds of invocations. These differences are intentional:
 
 - `vibes --version` prints the version; the reference reports an undefined flag.
 - The flat form, `vibes help flat` and the `check` flags `-e`/`-eval` and `-json` are extensions, and `vibes check --help` lists them. Each applies only where the reference reports an error.
