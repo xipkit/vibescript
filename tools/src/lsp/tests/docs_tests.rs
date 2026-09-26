@@ -2,7 +2,7 @@
 
 use super::super::docs::{
     CONTEXTUAL_WORDS, UNIVERSAL, builtin_docs, keyword_doc, keyword_doc_words, member_doc_markdown,
-    member_docs, parse_builtin_docs, runtime_members,
+    member_docs, member_receivers, parse_builtin_docs, receiver_members,
 };
 use super::*;
 use std::collections::HashSet;
@@ -109,13 +109,13 @@ fn keyword_docs_cover_the_parser_keywords() {
     assert!(keyword_doc("puts").is_none());
 }
 
-/// Every parsed member entry names a member the runtime dispatches for its
-/// receiver, one canary per parsed section guards against a dropped source,
-/// and most runtime members are documented.
+/// Every parsed member entry names a member its receiver has, or had before
+/// it was removed, one canary per parsed section guards against a dropped
+/// source, and most members are documented.
 #[test]
-fn member_docs_match_the_runtime_members() {
+fn member_docs_match_the_receiver_members() {
     let docs = member_docs();
-    let runtime = runtime_members();
+    let runtime = receiver_members();
     for (receiver, name) in [
         ("string", "upcase"),
         ("array", "map"),
@@ -141,23 +141,24 @@ fn member_docs_match_the_runtime_members() {
     for name in ["itself", "tap", "eql?", "respond_to?"] {
         assert!(docs.universal.contains_key(name), "lost universal {name}");
     }
+    let known = member_receivers();
     for name in docs.universal.keys() {
-        for (receiver, members) in runtime {
+        for receiver in runtime.keys() {
             assert!(
-                members.contains(&name.as_str()),
+                known[name.as_str()].contains(receiver),
                 "universal {name} is not on {receiver}"
             );
         }
     }
-    for name in ["to_s", "string"] {
-        assert!(!docs.universal.contains_key(name), "{name}");
-        let markdown = member_doc_markdown(name);
-        assert!(!markdown.is_empty(), "{name}");
-        let mut bodies = HashSet::new();
-        for section in markdown.split("\n\n---\n\n") {
-            let body = section.split_once("\n\n").map_or(section, |(_, body)| body);
-            assert!(bodies.insert(body), "{name} repeats a section: {markdown}");
-        }
+    // `to_s` is documented per receiver; `string`, removed from every
+    // type, is documented once.
+    assert!(!docs.universal.contains_key("to_s"));
+    assert!(docs.universal.contains_key("string"));
+    let markdown = member_doc_markdown("to_s");
+    let mut bodies = HashSet::new();
+    for section in markdown.split("\n\n---\n\n") {
+        let body = section.split_once("\n\n").map_or(section, |(_, body)| body);
+        assert!(bodies.insert(body), "to_s repeats a section: {markdown}");
     }
     for name in ["strip!", "lstrip!"] {
         assert!(
@@ -167,21 +168,21 @@ fn member_docs_match_the_runtime_members() {
     }
     assert!(member_doc_markdown("sub!").contains("never matched"));
 
-    let union: HashSet<&str> = runtime.values().flatten().copied().collect();
     for (name, entries) in &docs.entries {
         for entry in entries {
-            let members = runtime
-                .get(entry.receiver.as_str())
-                .unwrap_or_else(|| panic!("{}.{name} names an unknown receiver", entry.receiver));
             assert!(
-                members.contains(&name.as_str()),
+                runtime.contains_key(entry.receiver.as_str()),
+                "{}.{name} names an unknown receiver",
+                entry.receiver
+            );
+            assert!(
+                known
+                    .get(name.as_str())
+                    .is_some_and(|receivers| receivers.contains(entry.receiver.as_str())),
                 "{}.{name} does not exist",
                 entry.receiver
             );
         }
-    }
-    for name in docs.universal.keys() {
-        assert!(union.contains(name.as_str()), "{name}");
     }
     let (mut total, mut documented) = (0, 0);
     for (receiver, members) in runtime {

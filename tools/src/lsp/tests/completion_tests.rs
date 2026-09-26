@@ -350,8 +350,13 @@ fn member_items_carry_unambiguous_docs_and_table_signatures() {
             .unwrap()
             .contains("Unicode")
     );
-    assert!(find(&items, "itself")["documentation"].is_object());
-    assert!(find(&items, "size").get("documentation").is_none());
+    // Removed spellings are not offered.
+    for removed in ["itself", "size", "nil?"] {
+        assert!(
+            !items.iter().any(|item| item["label"] == removed),
+            "{removed}"
+        );
+    }
     for (label, signatures) in [
         (
             "fetch",
@@ -387,17 +392,11 @@ fn member_items_carry_unambiguous_docs_and_table_signatures() {
             assert!(value.contains(signature), "{label}: {value}");
         }
     }
-    // Removed spellings have no signature: the table lists canonical names.
-    let eql = find(&items, "eql?")["documentation"]["value"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    assert!(!eql.contains("eql?(other)"), "{eql}");
 }
 
 #[test]
 fn table_signatures_name_members_the_runtime_dispatches() {
-    let members = docs::runtime_members();
+    let members = docs::receiver_members();
     for item in &vibescript::signatures::table().items {
         let vibescript::signatures::Item::Class(class) = item else {
             continue;

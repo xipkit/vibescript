@@ -205,40 +205,43 @@ pub fn uppercase(c: char) -> bool {
     crate::syntax::unicode::upper(c)
 }
 
-/// Builtin member names per receiver kind, in reference order.
+/// Builtin member names per receiver kind, from the signature table
+/// `vibes prelude` prints.
 ///
 /// Receivers are named `string`, `symbol`, `array`, `hash`, `int`, `float`,
 /// `money`, `duration`, `time`, `range`, `nil`, `bool` and `regex`. Each list
-/// ends with the universal helpers, such as `tap` and `respond_to?`, that the
-/// kind does not dispatch itself.
+/// has the kind's own members in the table's order, then the members of
+/// every value, such as `dup` and `is_type?`.
 ///
 /// ```
 /// let members = vibescript::tooling::member_names();
 /// let (_, string) = members.iter().find(|(kind, _)| *kind == "string").unwrap();
-/// assert!(string.contains(&"upcase") && string.contains(&"tap"));
+/// assert!(string.contains(&"upcase") && string.contains(&"is_type?"));
+/// assert!(!string.contains(&"size"));
 /// ```
 pub fn member_names() -> Vec<(&'static str, Vec<&'static str>)> {
-    use crate::members::names::candidates::*;
+    let table = crate::signatures::table();
+    let members = |base: &'static str| {
+        table
+            .items
+            .iter()
+            .filter_map(move |item| match item {
+                crate::signatures::Item::Class(class) if class.base() == base => {
+                    Some(class.members.iter().map(crate::signatures::Member::name))
+                }
+                _ => None,
+            })
+            .flatten()
+    };
     [
-        ("string", STRING),
-        ("symbol", SYMBOL),
-        ("array", ARRAY),
-        ("hash", HASH),
-        ("int", INT),
-        ("float", FLOAT),
-        ("money", MONEY),
-        ("duration", DURATION),
-        ("time", TIME),
-        ("range", RANGE),
-        ("nil", NIL),
-        ("bool", BOOL),
-        ("regex", REGEX),
+        "string", "symbol", "array", "hash", "int", "float", "money", "duration", "time", "range",
+        "nil", "bool", "regex",
     ]
     .into_iter()
-    .map(|(kind, own)| {
-        let mut names = own.to_vec();
-        for name in UNIVERSAL {
-            if !names.contains(name) {
+    .map(|kind| {
+        let mut names: Vec<&'static str> = Vec::new();
+        for name in members(kind).chain(members("T")) {
+            if !names.contains(&name) {
                 names.push(name);
             }
         }

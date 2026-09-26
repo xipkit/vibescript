@@ -340,20 +340,29 @@ fn stdlib_section(title: &str) -> &'static str {
     }
 }
 
-/// Member names per receiver kind, as the runtime dispatches them.
-pub(crate) fn runtime_members() -> &'static BTreeMap<&'static str, Vec<&'static str>> {
+/// Member names per receiver kind, from the signature table.
+pub(crate) fn receiver_members() -> &'static BTreeMap<&'static str, Vec<&'static str>> {
     static MEMBERS: OnceLock<BTreeMap<&'static str, Vec<&'static str>>> = OnceLock::new();
     MEMBERS.get_or_init(|| vibescript::tooling::member_names().into_iter().collect())
 }
 
-/// The receivers dispatching each member name.
-fn runtime_index() -> &'static HashMap<&'static str, HashSet<&'static str>> {
+/// The receivers that have each member name, or had it before it was
+/// removed: the reference documents a removed spelling with what replaces
+/// it, which a hover shows.
+pub(crate) fn member_receivers() -> &'static HashMap<&'static str, HashSet<&'static str>> {
     static INDEX: OnceLock<HashMap<&'static str, HashSet<&'static str>>> = OnceLock::new();
     INDEX.get_or_init(|| {
         let mut index: HashMap<&str, HashSet<&str>> = HashMap::new();
-        for (receiver, names) in runtime_members() {
+        for (receiver, names) in receiver_members() {
             for name in names {
                 index.entry(name).or_default().insert(receiver);
+            }
+        }
+        for rename in vibescript::signatures::renames() {
+            for receiver in receiver_members().keys() {
+                if rename.receiver == "T" || rename.receiver == *receiver {
+                    index.entry(&rename.name).or_default().insert(receiver);
+                }
             }
         }
         index
@@ -453,10 +462,10 @@ impl MemberDocs {
     /// Moves universal entries the runtime does not dispatch on every receiver
     /// to typed entries for the receivers that do.
     fn demote_partial_universals(&mut self) {
-        let receivers = runtime_members();
+        let receivers = receiver_members();
         let names: Vec<String> = self.universal.keys().cloned().collect();
         for name in names {
-            let dispatching = runtime_index().get(name.as_str());
+            let dispatching = member_receivers().get(name.as_str());
             let universal = dispatching.is_some_and(|dispatching| {
                 !dispatching.is_empty()
                     && receivers
@@ -571,7 +580,7 @@ fn member_ref(span: &str, receiver: &str) -> Option<(String, String)> {
         return None;
     }
     if let Some((prefix, member)) = name.split_once('.') {
-        if !runtime_members().contains_key(prefix) || !member_name(member) {
+        if !receiver_members().contains_key(prefix) || !member_name(member) {
             return None;
         }
         return Some((prefix.to_owned(), member.to_owned()));
@@ -652,7 +661,7 @@ fn bang_variant_entries(word: &str) -> Vec<MemberDoc> {
     let Some(base) = word.strip_suffix('!').filter(|base| !base.is_empty()) else {
         return Vec::new();
     };
-    let Some(receivers) = runtime_index().get(word).filter(|set| !set.is_empty()) else {
+    let Some(receivers) = member_receivers().get(word).filter(|set| !set.is_empty()) else {
         return Vec::new();
     };
     let note = if word == "sub!" || word == "gsub!" {

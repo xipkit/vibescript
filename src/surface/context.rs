@@ -36,8 +36,8 @@ pub fn literal_type(surface: &Surface<'_>, expr: &Expr) -> Option<&'static str> 
 }
 
 /// Whether `h.name` on a hash calls a method rather than reading a field:
-/// on today's runtime, which answers its hash members and the members of
-/// every value before fields, or in the signature table.
+/// a member the signature table or the rename table has on hashes or on
+/// every value, except `string`, which a hash always read as a field.
 pub fn hash_method(name: &str) -> bool {
     static TABLE: std::sync::OnceLock<HashSet<&'static str>> = std::sync::OnceLock::new();
     let table = TABLE.get_or_init(|| {
@@ -53,10 +53,14 @@ pub fn hash_method(name: &str) -> bool {
             .flatten()
             .collect()
     });
-    crate::members::hash_builtin(name)
-        || crate::members::names::universal(name)
-        || matches!(name, "to_s" | "as")
+    matches!(name, "to_s" | "as")
         || table.contains(name)
+        || name != "string"
+            && super::patterns::patterns().iter().any(|pattern| {
+                pattern.callee == super::patterns::Callee::Member
+                    && matches!(pattern.receiver.as_str(), "hash" | "T")
+                    && pattern.name == name
+            })
 }
 
 /// Declarations in the source, gathered before the walk.

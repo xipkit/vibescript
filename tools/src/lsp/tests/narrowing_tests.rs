@@ -2,7 +2,7 @@
 //! `lsp_member_narrowing_test.go`).
 
 use super::super::completion::narrowed_entries;
-use super::super::docs::runtime_members;
+use super::super::docs::receiver_members;
 use super::*;
 
 fn narrowed(source: &str, line: i64, character: i64) -> Option<Vec<String>> {
@@ -26,7 +26,7 @@ fn completion_narrows_to_the_receiver_kind() {
     ] {
         let labels =
             narrowed(source, line, character).unwrap_or_else(|| panic!("{source} fell back"));
-        assert_eq!(labels.len(), runtime_members()[receiver].len(), "{source}");
+        assert_eq!(labels.len(), receiver_members()[receiver].len(), "{source}");
     }
 }
 
@@ -47,23 +47,24 @@ fn unresolved_receivers_fall_back_to_the_full_union() {
     }
 }
 
-/// The narrowed list keeps every member of its kind, including the
-/// universal helpers, and nothing from other kinds.
+/// The narrowed list keeps every member of its kind, including the members
+/// of every value, and nothing from other kinds or removed.
 #[test]
 fn narrowed_lists_keep_every_member_of_the_kind() {
     let labels = narrowed("def f(s: string)\n  s.\nend", 1, 4).unwrap();
-    for want in [
-        "upcase",
-        "split",
-        "length",
-        "nil?",
-        "respond_to?",
-        "eql?",
-        "tap",
-    ] {
+    for want in ["upcase", "split", "length", "is_type?", "dup"] {
         assert!(labels.iter().any(|label| label == want), "{want}");
     }
-    for unwanted in ["amount", "cents", "ago", "before"] {
+    for unwanted in [
+        "amount",
+        "cents",
+        "ago",
+        "before",
+        "size",
+        "nil?",
+        "respond_to?",
+        "tap",
+    ] {
         assert!(!labels.iter().any(|label| label == unwanted), "{unwanted}");
     }
 }

@@ -1,5 +1,4 @@
 use super::*;
-use crate::Engine;
 use std::collections::HashSet;
 
 const NAVIGATION: &str = "def helper(n)
@@ -408,7 +407,7 @@ fn keywords_are_the_reserved_words() {
 }
 
 #[test]
-fn member_names_resolve_on_their_receivers() {
+fn member_names_are_the_signature_tables() {
     let names = member_names();
     let kinds: Vec<_> = names.iter().map(|(kind, _)| *kind).collect();
     assert_eq!(
@@ -418,42 +417,21 @@ fn member_names_resolve_on_their_receivers() {
             "range", "nil", "bool", "regex"
         ]
     );
-    let receivers = [
-        "\"x\"",
-        ":x",
-        "[1]",
-        "{a: 1}",
-        "1",
-        "1.5",
-        "money(\"1.00 USD\")",
-        "1.seconds",
-        "Time.now",
-        "(1..2)",
-        "nil",
-        "true",
-        "/x/",
-    ];
-    for ((kind, members), receiver) in names.iter().zip(receivers) {
-        assert!(
-            members.contains(&"tap") && members.contains(&"respond_to?"),
-            "{kind}"
-        );
-        // The names include members static types removed, as `respond_to?`
-        // itself is, so the runtime's member lookup answers for each one.
-        let value = Engine::new()
-            .compile(&format!("({receiver})"))
-            .unwrap()
-            .run(Default::default())
-            .unwrap()
-            .value;
-        let mut ctx = crate::CallContext::new(Default::default());
+    let table = crate::signatures::prelude();
+    for (kind, members) in &names {
         let mut seen = HashSet::new();
         for member in members {
             assert!(seen.insert(member), "{kind}.{member} repeats");
-            let found =
-                crate::members::introspection::responds(&mut ctx, &value, member.as_bytes());
-            assert!(found.unwrap(), "{kind}.{member}");
+            assert!(
+                table.contains(&format!("def {member}")),
+                "{kind}.{member} is not in the prelude"
+            );
         }
+        assert!(members.contains(&"is_type?"), "{kind}");
+        assert!(
+            !members.contains(&"tap") && !members.contains(&"nil?"),
+            "{kind}"
+        );
     }
 }
 

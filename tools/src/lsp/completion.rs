@@ -4,7 +4,7 @@
 
 use super::catalog::{Catalog, catalog};
 use super::docs::{
-    builtin_docs, keyword_doc, namespace_doc, runtime_members, table_signatures,
+    builtin_docs, keyword_doc, namespace_doc, receiver_members, table_signatures,
     unambiguous_member_doc,
 };
 use super::document::{CompletionItem, CompletionKind};
@@ -83,7 +83,7 @@ pub(crate) fn members() -> &'static Entries {
 
 fn member_entries() -> Entries {
     let mut by_name: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
-    for (receiver, names) in runtime_members() {
+    for (receiver, names) in receiver_members() {
         for name in names {
             by_name.entry(name).or_default().push(receiver);
         }
@@ -101,7 +101,7 @@ fn member_entries() -> Entries {
 
 /// The members of one receiver kind, shaped like the union items.
 pub(crate) fn receiver_entries(receiver: &str) -> Option<Entries> {
-    let names = runtime_members()
+    let names = receiver_members()
         .get(receiver)
         .filter(|names| !names.is_empty())?;
     let mut sorted = names.clone();
