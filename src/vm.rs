@@ -2135,6 +2135,14 @@ impl Run {
                         stack.push(ctx, value)?;
                         continue;
                     }
+                    // A dot assigns only a class's or instance's field; a hash's
+                    // fields are written by index.
+                    if address.member_target {
+                        return Err(Error::new(
+                            ErrorKind::Type,
+                            format!("cannot assign to {}", address.value.type_name()),
+                        ));
+                    }
                     if matches!(address.value.0, Kind::Instance(_)) {
                         let call = operators::index(
                             program,

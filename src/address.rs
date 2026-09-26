@@ -212,19 +212,7 @@ impl Address {
         value: Value,
     ) -> Result<Value> {
         let selectors = std::mem::replace(&mut self.selectors, Buffer::empty());
-        let member = self.member_target;
-        let operation = if member {
-            "member assignment"
-        } else {
-            "index assignment"
-        };
         self.apply(ctx, bindings, pending, |ctx, receiver| {
-            if member && !matches!(receiver.0, Kind::Hash(_)) {
-                return Err(Error::new(
-                    ErrorKind::Type,
-                    format!("cannot assign to {}", receiver.type_name()),
-                ));
-            }
             let [key] = selectors.data.as_slice() else {
                 return Err(match &receiver.0 {
                     Kind::Array(_) => Error::new(
@@ -243,7 +231,7 @@ impl Address {
             };
             if let Kind::Hash(hash) = &receiver.0 {
                 if hash.tag.protected() {
-                    return Err(hash.tag.mutation_error(operation));
+                    return Err(hash.tag.mutation_error("index assignment"));
                 }
             }
             let receiver = ops::set_index(ctx, receiver, key.clone(), value.clone())?;
