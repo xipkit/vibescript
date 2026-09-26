@@ -57,6 +57,7 @@ mod pairs;
 mod printable;
 mod random;
 mod range;
+mod records;
 mod regex;
 mod scan;
 mod sequence;
