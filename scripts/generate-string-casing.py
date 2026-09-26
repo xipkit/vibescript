@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Generate full and simple-fold case mappings from the pinned Go reference."""
+"""Generate full and simple-fold case mappings from the pinned Go reference.
+
+Regenerating needs the Go 1.27.1 toolchain: `string-casing/` is a Go program
+that dumps the mappings of Go's unicode package and of golang.org/x/text,
+pinned by its go.mod.
+"""
 import hashlib
 import json
 import subprocess
@@ -8,13 +13,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 CACHE = ROOT / '.cache/language-string-casing'
 CACHE.mkdir(exist_ok=True)
-source = ROOT / 'scripts/generate-string-casing.go'
-go = ROOT / 'scripts/go'
-module = ROOT / 'benchmarks/go'
-assert not subprocess.check_output(['gofmt', '-l', str(source)], text=True).strip()
-subprocess.run([str(go), 'vet', str(source)], cwd=module, check=True)
+module = ROOT / 'scripts/string-casing'
+assert not subprocess.check_output(['gofmt', '-l', '.'], cwd=module, text=True).strip()
+subprocess.run(['go', 'vet', '.'], cwd=module, check=True)
 binary = CACHE / 'generate'
-subprocess.run([str(go), 'build', '-o', str(binary), str(source)], cwd=module, check=True)
+subprocess.run(['go', 'build', '-o', str(binary), '.'], cwd=module, check=True)
 raw = subprocess.check_output([str(binary)])
 data = json.loads(raw)
 assert (data['go'], data['text'], data['unicode'], data['cases']) == ('go1.27.1', 'v0.40.0', '17.0.0', '17.0.0'), data.keys()
