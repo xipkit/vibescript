@@ -88,13 +88,13 @@ fn resolves_and_attributes_required_modules() {
     // A diagnostic in a required file names it by its root-relative path.
     vibes(&["check", "-module-path", &modules, &script]).expect(
         1,
-        "helpers.vibe: error[V0101]: `bad` returns int, found string\n",
+        "helpers.vibe:2:3: error[V0101]: `bad` returns int, found string\n   |\n  2|   \"text\"\n   |   ^^^^^^\n   = expected int, found string\n",
         "check failed with 1 error(s)\n",
     );
     let only = files.write("script/only.vibe", "require \"helpers\"");
     vibes(&["check", "--module-path", &modules, &only]).expect(
         1,
-        "helpers.vibe: error[V0101]: `bad` returns int, found string\n",
+        "helpers.vibe:2:3: error[V0101]: `bad` returns int, found string\n   |\n  2|   \"text\"\n   |   ^^^^^^\n   = expected int, found string\n",
         "check failed with 1 error(s)\n",
     );
     files.write("modules/status.vibe", "enum Status\n  Draft\nend\n");

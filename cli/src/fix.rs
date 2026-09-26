@@ -109,13 +109,14 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
 /// `path:line:column: error[V0405]: message`, for a diagnostic no fix
 /// repaired.
 fn remaining(label: &str, diagnostic: &Diagnostic, source: &str) -> String {
-    let place = match &diagnostic.file {
-        Some(file) => String::from_utf8_lossy(file).into_owned(),
-        None => {
-            let position = diagnostic.span.position(source);
-            format!("{label}:{}:{}", position.line, position.column)
-        }
-    };
+    let source = diagnostic.source.as_deref().unwrap_or(source);
+    let label = diagnostic
+        .file
+        .as_deref()
+        .map(String::from_utf8_lossy)
+        .unwrap_or_else(|| label.into());
+    let position = diagnostic.span.position(source);
+    let place = format!("{label}:{}:{}", position.line, position.column);
     format!("{place}: {diagnostic}\n")
 }
 

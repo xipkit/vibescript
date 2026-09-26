@@ -330,7 +330,10 @@ impl<'a> Checker<'a> {
             let local = self.declare(&param.name, declared.ty, def.offset as usize, true);
             self.assign_local(local, declared.ty);
             if let Some(ivar) = &param.ivar {
-                self.assign_ivar(ivar, declared.ty, Span::at(def.offset as usize), accessor);
+                let span = self
+                    .spans
+                    .word_after(def.offset as usize, &format!("@{ivar}"));
+                self.assign_ivar(ivar, declared.ty, span, accessor);
             }
         }
         if sig.block.as_ref().is_some_and(|block| block.optional) {

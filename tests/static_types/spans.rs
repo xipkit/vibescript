@@ -59,3 +59,11 @@ fn the_fetch_fix_rewrites_the_whole_selector() {
     );
     codes(&repaired, &[]);
 }
+
+#[test]
+fn undeclared_instance_parameter_spans_the_parameter() {
+    let source = "class C\n  def initialize(@n: int)\n  end\nend";
+    let diagnostic = super::support::codes(source, &["V0204"]);
+    assert_eq!(super::support::spanned(source, &diagnostic[0]), "@n");
+    super::support::clean("class C; @n: int; def initialize(@n: int); end; end");
+}

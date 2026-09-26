@@ -54,7 +54,7 @@ pub(crate) struct Input<'a> {
 }
 
 /// Resolves a required module's name to its source and filename.
-pub(crate) type Modules<'a> = dyn Fn(&str, Option<&crate::loading::Origin>) -> Option<(String, crate::loading::Origin)>
+pub(crate) type Modules<'a> = dyn Fn(&str, Option<&crate::loading::Origin>) -> crate::Result<(String, crate::loading::Origin)>
     + Sync
     + 'a;
 

@@ -286,6 +286,17 @@ pub(crate) fn parse_error(
     if let Err(error) = work.checkpoint() {
         return error;
     }
+    if error.kind == crate::ErrorKind::Syntax && error.diagnostics().is_empty() {
+        let start = boundary(source, error.offset.unwrap_or(0));
+        let end = start + source[start..].chars().next().map_or(0, char::len_utf8);
+        let diagnostic = crate::diagnostic::Diagnostic::error(
+            crate::diagnostic::Code::SYNTAX,
+            crate::diagnostic::Span::new(start, end),
+            error.message.clone(),
+        )
+        .in_file(filename.cloned());
+        error = error.with_diagnostic(diagnostic);
+    }
     if let Some(offset) = error
         .offset
         .filter(|_| source.len() <= crate::syntax::MAX_SOURCE)

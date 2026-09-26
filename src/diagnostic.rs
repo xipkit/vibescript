@@ -390,6 +390,8 @@ pub struct Diagnostic {
     /// The root-relative filename of the required module the diagnostic is
     /// in, or none for the compiled source itself.
     pub file: Option<Arc<[u8]>>,
+    /// The required module's source, when the caller's source is a different file.
+    pub source: Option<Arc<str>>,
     /// Where the problem is.
     pub span: Span,
     pub message: String,
@@ -409,6 +411,7 @@ impl Diagnostic {
             code,
             severity: Severity::Error,
             file: None,
+            source: None,
             span,
             message: message.into(),
             labels: Vec::new(),
@@ -470,6 +473,7 @@ impl Diagnostic {
     /// Renders the diagnostic for a terminal, with the source line it points
     /// at, its labels, types and fixes. `source` is the text the spans index.
     pub fn render(&self, source: &str) -> String {
+        let source = self.source.as_deref().unwrap_or(source);
         let mut out = format!(
             "{}[{}]: {}\n",
             self.severity.as_str(),
@@ -518,6 +522,7 @@ impl Diagnostic {
     /// prints it. Positions are one-based lines and character columns in
     /// `source`; byte offsets are included as `start` and `end`.
     pub fn to_json(&self, source: &str) -> String {
+        let source = self.source.as_deref().unwrap_or(source);
         let span = |span: Span| {
             let start = span.position(source);
             let end = position(source, span.end);

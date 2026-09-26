@@ -251,3 +251,23 @@ fn require_validates_its_call_shape_and_alias() {
     }
     std::fs::remove_dir_all(directory).unwrap();
 }
+
+#[test]
+fn unresolved_modules_explain_the_failure_and_keep_foreign_positions() {
+    let (engine, directory) = engine(&[
+        ("bad-syntax.vibe", "def broken("),
+        ("bad-type.vibe", "\n\ndef f -> int\n  'wrong'\nend"),
+    ]);
+    for (source, reason) in [
+        ("require('missing')", "not found"),
+        ("require('bad-syntax')", "parse error"),
+    ] {
+        let errors = errors_with(&engine, source);
+        assert_eq!(errors[0].code, Code::UNDEFINED_NAME);
+        assert!(errors[0].message.contains(reason), "{errors:?}");
+    }
+    let errors = errors_with(&engine, "require('bad-type')");
+    assert!(errors[0].render("").contains("bad-type.vibe:4:3"));
+    assert!(errors[0].to_json("").contains("\"line\":4,\"column\":3"));
+    std::fs::remove_dir_all(directory).unwrap();
+}

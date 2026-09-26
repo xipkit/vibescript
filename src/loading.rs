@@ -96,20 +96,24 @@ impl Loader {
     }
 
     /// The source text and origin a `require` would load for the static checker.
-    /// Unreadable, denied and missing files give none.
-    pub fn source(&self, request: &str, caller: Option<&Origin>) -> Option<(String, Origin)> {
+    pub fn source(&self, request: &str, caller: Option<&Origin>) -> Result<(String, Origin)> {
         let mut ctx = CallContext::new(crate::CallOptions::default());
         let mut candidates = self
             .resolver
-            .candidates(&mut ctx, request.as_bytes(), caller)
-            .ok()?;
-        while let Some(candidate) = candidates.next(&mut ctx).ok()? {
-            if let Some(source) = self.resolver.read(&mut ctx, &candidate).ok()? {
-                let text = std::str::from_utf8(source.contents.as_bytes()?).ok()?;
-                return Some((text.to_owned(), candidate.origin()));
+            .candidates(&mut ctx, request.as_bytes(), caller)?;
+        while let Some(candidate) = candidates.next(&mut ctx)? {
+            if let Some(source) = self.resolver.read(&mut ctx, &candidate)? {
+                let bytes = source.contents.as_bytes().unwrap();
+                let text = std::str::from_utf8(bytes).map_err(|_| {
+                    Error::new(ErrorKind::Syntax, "required module source is not UTF-8")
+                })?;
+                return Ok((text.to_owned(), candidate.origin()));
             }
         }
-        None
+        Err(Error::new(
+            ErrorKind::Name,
+            "require: module not found in configured module paths",
+        ))
     }
 
     pub fn load(

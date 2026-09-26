@@ -96,6 +96,9 @@ pub(crate) fn host_resolution(
     }
     let mut error = Error::from_bytes(writer.ctx, &writer.bytes.data)?;
     error.kind = ErrorKind::Type;
+    if matches!(context, Context::Cast) {
+        error = error.with_class(crate::ErrorClass::Type);
+    }
     Ok(error)
 }
 
@@ -151,6 +154,9 @@ pub(super) fn mismatch(
     drop(actual);
     let mut error = Error::from_bytes(writer.ctx, &writer.bytes.data)?;
     error.kind = ErrorKind::Type;
+    if matches!(context, Context::Cast) {
+        error = error.with_class(crate::ErrorClass::Type);
+    }
     Ok(error)
 }
 

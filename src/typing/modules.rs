@@ -88,7 +88,7 @@ pub(crate) struct Required<'a> {
     declared: &'a crate::declared::Declarations,
     depth: usize,
     pub loaded: Vec<Exports>,
-    by_path: HashMap<String, Option<u32>>,
+    by_path: HashMap<String, Result<u32, String>>,
     /// Aliases `require(..., as:)` binds, to the exports they name.
     pub aliases: HashMap<String, u32>,
     /// Exported functions, which `require` also publishes by name.
@@ -112,7 +112,10 @@ impl<'a> Required<'a> {
 
     /// The exports of a literal path, once required.
     pub fn exports(&self, path: &str) -> Option<u32> {
-        self.by_path.get(path).copied().flatten()
+        self.by_path
+            .get(path)
+            .and_then(|result| result.as_ref().ok())
+            .copied()
     }
 }
 
@@ -139,14 +142,14 @@ impl<'a> Checker<'a> {
         requests.sort_by_key(|request| request.2);
         for (path, alias, offset) in requests {
             let id = self.load_module(&path);
-            if id.is_none() {
+            if let Err(reason) = &id {
                 self.report(Diagnostic::error(
                     Code::UNDEFINED_NAME,
                     self.spans.token(offset),
-                    format!("cannot statically resolve required module {path:?}"),
+                    format!("cannot statically resolve required module {path:?}: {reason}"),
                 ));
             }
-            if let (Some(id), Some(alias)) = (id, alias) {
+            if let (Ok(id), Some(alias)) = (id, alias) {
                 self.modules
                     .aliases
                     .entry(alias.trim().to_owned())
@@ -155,17 +158,39 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn load_module(&mut self, path: &str) -> Option<u32> {
-        if let Some(&known) = self.modules.by_path.get(path) {
-            return known;
+    fn load_module(&mut self, path: &str) -> Result<u32, String> {
+        if let Some(known) = self.modules.by_path.get(path) {
+            return known.clone();
         }
-        self.modules.by_path.insert(path.to_owned(), None);
+        self.modules
+            .by_path
+            .insert(path.to_owned(), Err("circular require".into()));
+        let result = self.load_module_uncached(path);
+        self.modules.by_path.insert(path.to_owned(), result.clone());
+        result
+    }
+
+    fn load_module_uncached(&mut self, path: &str) -> Result<u32, String> {
         if self.modules.depth >= DEPTH {
-            return None;
+            return Err(format!(
+                "require nesting exceeds {DEPTH} files (possible circular require)"
+            ));
         }
-        let (source, origin) = (self.modules.resolve?)(path, self.modules.origin)?;
+        let resolve = self
+            .modules
+            .resolve
+            .ok_or("no module resolver is configured")?;
+        let (source, origin) = resolve(path, self.modules.origin).map_err(|error| error.message)?;
         let filename = origin.filename();
-        let (parsed, tokens) = crate::syntax::parse_with_tokens(&source, &()).ok()?;
+        let (parsed, tokens) = crate::syntax::parse_with_tokens(&source, &()).map_err(|error| {
+            let error = crate::source::parse_error(
+                &source,
+                Some(&filename),
+                crate::syntax::canonical_syntax(&source, &(), error),
+                &(),
+            );
+            error.to_string()
+        })?;
         let input = Input {
             source: &source,
             parsed: &parsed,
@@ -178,7 +203,11 @@ impl<'a> Checker<'a> {
         };
         let checked = super::check_nested(&input, self.modules.depth + 1);
         self.steps += checked.steps;
-        for diagnostic in checked.diagnostics.into_iter().filter(Diagnostic::is_error) {
+        let source: Arc<str> = source.into();
+        for mut diagnostic in checked.diagnostics.into_iter().filter(Diagnostic::is_error) {
+            if diagnostic.source.is_none() {
+                diagnostic.source = Some(source.clone());
+            }
             let file = diagnostic
                 .file
                 .clone()
@@ -201,8 +230,7 @@ impl<'a> Checker<'a> {
             functions,
             enums,
         });
-        self.modules.by_path.insert(path.to_owned(), Some(id));
-        Some(id)
+        Ok(id)
     }
 
     /// What this check's file exports: its public functions, its enums and

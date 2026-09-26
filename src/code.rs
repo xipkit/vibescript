@@ -136,7 +136,7 @@ impl Code {
         let (parsed, tokens) = crate::syntax::parse_with_tokens(source, work)
             .map_err(|error| parse_error(crate::syntax::canonical_syntax(source, work, error)))?;
         let resolve = |path: &str, origin: Option<&crate::loading::Origin>| {
-            loader.and_then(|loader| loader.source(path, origin))
+            loader.unwrap().source(path, origin)
         };
         let checked = crate::typing::check(&crate::typing::Input {
             source,

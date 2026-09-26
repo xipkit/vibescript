@@ -93,3 +93,21 @@ fn diagnostics_print_as_json() {
     );
     assert!(json.contains("\"replacement\":\"items.length\""), "{json}");
 }
+
+#[test]
+fn compile_syntax_errors_keep_their_codes() {
+    let error = Engine::new().compile("def broken(").err().unwrap();
+    assert_eq!(error.kind, ErrorKind::Syntax);
+    assert_eq!(error.diagnostics()[0].code, Code::SYNTAX);
+}
+
+#[test]
+fn checked_cast_failures_raise_type_error() {
+    let source = "begin; JSON.parse('\"bad\"').as(int); rescue TypeError => e; e.class; end";
+    let outcome = Engine::new()
+        .compile(source)
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap();
+    assert_eq!(outcome.value.as_bytes(), Some(b"TypeError".as_slice()));
+}

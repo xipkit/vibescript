@@ -179,9 +179,9 @@ pub fn diagnostic(
     source: &str,
     label: &str,
 ) -> String {
-    if let Some(file) = &diagnostic.file {
-        return format!("{}: {diagnostic}\n", String::from_utf8_lossy(file));
-    }
+    let source = diagnostic.source.as_deref().unwrap_or(source);
+    let file = diagnostic.file.as_deref().map(String::from_utf8_lossy);
+    let label = file.as_deref().unwrap_or(label);
     let position = diagnostic.span.position(source);
     let rendered = diagnostic.render(source);
     let body = rendered.split_once('\n').map_or("", |(_, rest)| rest);
