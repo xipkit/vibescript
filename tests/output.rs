@@ -551,7 +551,7 @@ fn writer_can_reenter_another_script_without_disturbing_pending_rendering() {
         Ok(())
     });
     let script = engine
-        .compile("class C\ndef to_s\n\"outer\"\nend\nend\nputs(C.new,\"after\")")
+        .compile("class C\ndef to_s -> string\n\"outer\"\nend\nend\nputs(C.new,\"after\")")
         .unwrap();
     let result = script.run(CallOptions::default()).unwrap();
     assert_eq!(result.stats.retained_memory_bytes, 0);
