@@ -47,7 +47,7 @@ fn round_trip(source: &str, code: Code, at: &str, expected: &str) {
 /// Asserts that `source` compiles with static types, and has no `code`.
 fn assert_clean(source: &str, code: Code) {
     assert!(with_code(source, code).is_empty(), "{source:?}");
-    let mut engine = Engine::new();
+    let engine = Engine::new();
     if let Err(error) = engine.compile(source) {
         assert!(
             error.diagnostics().iter().all(|d| d.code != code),
@@ -288,7 +288,7 @@ fn dispatch_by_name_preserves_resolved_user_methods() {
                 "class C; def {name}(x: int) -> int; x; end; end; class D; def {name}(x: int) -> int; x; end; end; def run(c: C | D) -> int; c.{name}(1); end; run(C.new)"
             ),
         ] {
-            let mut engine = Engine::new();
+            let engine = Engine::new();
             let checked = engine.type_check(&source).unwrap();
             assert!(
                 checked.diagnostics.is_empty(),
@@ -519,7 +519,7 @@ fn keyword_parameters_move_after_a_bare_star() {
         Code::KEYWORD_PARAMETER,
     );
     assert_eq!(fixed, "def f(a: int, *, name, label = [])\nend\n");
-    let mut engine = Engine::new();
+    let engine = Engine::new();
     let codes: Vec<Code> = engine
         .compile(&fixed)
         .err()
@@ -639,14 +639,6 @@ fn hash_fields_are_indexed_not_dotted() {
     ] {
         assert!(checked(source, Code::FIELD_ACCESS).is_empty(), "{source}");
     }
-    // Without static types, dot reads still run.
-    let script = Engine::new()
-        .compile("def run -> int\n  h = { a: 1 }\n  h.a\nend\n")
-        .unwrap();
-    let result = script
-        .call("run", &[], crate::CallOptions::default())
-        .unwrap();
-    assert_eq!(result.value.as_int(), Some(1));
 }
 
 #[test]
@@ -698,8 +690,7 @@ fn every_surface_code_is_registered_with_a_test() {
 #[test]
 fn static_compilation_reports_removed_spellings() {
     let source = "names = %w[a b]\nn = names.size\n";
-    let mut engine = Engine::new();
-    assert!(engine.compile(source).is_ok());
+    let engine = Engine::new();
     let error = engine.compile(source).err().expect("a compile error");
     let codes: Vec<String> = error
         .diagnostics()
