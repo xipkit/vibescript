@@ -4,7 +4,7 @@
 
 use super::catalog::{Catalog, catalog};
 use super::docs::{
-    builtin_docs, contract_signatures, keyword_doc, namespace_doc, runtime_members,
+    builtin_docs, keyword_doc, namespace_doc, runtime_members, table_signatures,
     unambiguous_member_doc,
 };
 use super::document::{CompletionItem, CompletionKind};
@@ -60,11 +60,11 @@ pub(crate) fn static_entries(catalog: &Catalog) -> Entries {
         .collect()
 }
 
-/// Documentation for a member item: unambiguous prose, then the registered
-/// receiver-qualified contract signatures.
+/// Documentation for a member item: unambiguous prose, then the signature
+/// table's receiver-qualified signatures.
 fn member_documentation(label: &str) -> Option<String> {
     let mut documentation = unambiguous_member_doc(label);
-    let signatures = contract_signatures(label);
+    let signatures = table_signatures(label);
     if !signatures.is_empty() {
         if !documentation.is_empty() {
             documentation.push_str("\n\n");

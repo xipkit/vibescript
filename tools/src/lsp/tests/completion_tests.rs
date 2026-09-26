@@ -337,7 +337,7 @@ fn completion_for_an_unknown_document_offers_keywords_and_builtins() {
 }
 
 #[test]
-fn member_items_carry_unambiguous_docs_and_contract_signatures() {
+fn member_items_carry_unambiguous_docs_and_table_signatures() {
     let items: Vec<Value> = completion::members()
         .iter()
         .map(|entry| serde_json::from_str(&server::completion_json(entry).encode()).unwrap())
@@ -353,28 +353,28 @@ fn member_items_carry_unambiguous_docs_and_contract_signatures() {
     assert!(find(&items, "itself")["documentation"].is_object());
     assert!(find(&items, "size").get("documentation").is_none());
     for (label, signatures) in [
-        ("at", &["`array.at(index)`"][..]),
-        ("fetch", &["`array.fetch(index, default?) { ... }`"]),
         (
-            "slice",
+            "fetch",
             &[
-                "`array.slice(start, length?)`",
-                "`string.slice(start, length?)`",
+                "`array<T>.fetch(index: int, default?: T, &block?: int -> T) -> T`",
+                "`hash<string, V>.fetch(key: string, default?: V, &block?: string -> V) -> V`",
+            ][..],
+        ),
+        (
+            "map",
+            &[
+                "`array<T>.map<U>(&block: T -> U) -> array<U>`",
+                "`hash<string, V>.map<U>(&block: (string, V) -> U) -> array<U>`",
+                "`hash<string, V>.map<U>(&block: [string, V] -> U) -> array<U>`",
             ],
         ),
         (
-            "to_i",
-            &["`string.to_i() -> int`", "`duration.to_i -> int`"],
+            "sort",
+            &["`array<T: comparable>.sort(&block?: (T, T) -> int) -> array<T>`"],
         ),
-        ("nil?", &["`nil?() -> bool`"]),
-        (
-            "eql?",
-            &[
-                "`duration.eql?(other) -> bool`",
-                "`time.eql?(other) -> bool`",
-                "`eql?(other) -> bool`",
-            ],
-        ),
+        ("to_i", &["`string.to_i -> int`", "`duration.to_i -> int`"]),
+        ("dup", &["`dup -> T`"]),
+        ("to_s", &["`nil.to_s -> string`", "`int.to_s -> string`"]),
     ] {
         let value = find(&items, label)["documentation"]["value"]
             .as_str()
@@ -384,22 +384,28 @@ fn member_items_carry_unambiguous_docs_and_contract_signatures() {
             assert!(value.contains(signature), "{label}: {value}");
         }
     }
+    // Removed spellings have no signature: the table lists canonical names.
+    let eql = find(&items, "eql?")["documentation"]["value"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(!eql.contains("eql?(other)"), "{eql}");
 }
 
 #[test]
-fn contracts_name_members_the_runtime_dispatches() {
+fn table_signatures_name_members_the_runtime_dispatches() {
     let members = docs::runtime_members();
-    for contract in contracts::CONTRACTS {
-        let names = std::iter::once(contract.name).chain(contract.aliases.iter().copied());
-        for name in names {
-            if contract.receiver == docs::UNIVERSAL {
-                for (receiver, available) in members {
-                    assert!(available.contains(&name), "{receiver}.{name}");
-                }
-            } else {
-                let available = &members[contract.receiver];
-                assert!(available.contains(&name), "{}.{name}", contract.receiver);
-            }
+    for item in &vibescript::signatures::table().items {
+        let vibescript::signatures::Item::Class(class) = item else {
+            continue;
+        };
+        let kind = class.base();
+        let Some(available) = members.get(kind) else {
+            continue;
+        };
+        for member in &class.members {
+            let name = member.name();
+            assert!(available.contains(&name), "{kind}.{name}");
         }
     }
 }

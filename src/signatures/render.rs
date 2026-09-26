@@ -71,6 +71,34 @@ fn members(f: &mut Formatter<'_>, members: &[Member]) -> fmt::Result {
     Ok(())
 }
 
+impl Class {
+    /// The receiver pattern as a declaration writes it, with each
+    /// variable's bound where it first appears, such as
+    /// `array<T: comparable>`.
+    ///
+    /// ```
+    /// use vibescript::signatures::{Item, table};
+    /// let patterns: Vec<String> = table()
+    ///     .items
+    ///     .iter()
+    ///     .filter_map(|item| match item {
+    ///         Item::Class(class) => Some(class.pattern()),
+    ///         _ => None,
+    ///     })
+    ///     .collect();
+    /// assert!(patterns.iter().any(|p| p == "array<T: comparable>"));
+    /// ```
+    pub fn pattern(&self) -> String {
+        struct Written<'a>(&'a Class);
+        impl Display for Written<'_> {
+            fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+                pattern(f, self.0, &self.0.receiver, &mut Vec::new())
+            }
+        }
+        Written(self).to_string()
+    }
+}
+
 /// Prints a receiver pattern, attaching each variable's bound where it first
 /// appears.
 fn pattern(f: &mut Formatter<'_>, class: &Class, ty: &Type, seen: &mut Vec<String>) -> fmt::Result {

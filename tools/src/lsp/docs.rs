@@ -6,7 +6,6 @@
 //! compiles their examples.
 
 use super::catalog::Catalog;
-use super::contracts::{CONTRACTS, Contract};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::OnceLock;
 
@@ -758,69 +757,44 @@ pub(crate) fn namespace_doc(catalog: &Catalog, word: &str) -> String {
     markdown
 }
 
-/// The contracts registered for each member name, aliases included.
-pub(crate) fn contracts_by_name() -> &'static HashMap<&'static str, Vec<&'static Contract>> {
-    static INDEX: OnceLock<HashMap<&'static str, Vec<&'static Contract>>> = OnceLock::new();
+/// The signature table's member signatures by member name, each a
+/// receiver-qualified line such as
+/// `` `array<T>.map<U>(&block: T -> U) -> array<U>` ``, one per overload, in
+/// table order. Members of every type are written without a receiver.
+fn member_signatures() -> &'static HashMap<&'static str, Vec<String>> {
+    static INDEX: OnceLock<HashMap<&'static str, Vec<String>>> = OnceLock::new();
     INDEX.get_or_init(|| {
-        let mut index: HashMap<&str, Vec<&Contract>> = HashMap::new();
-        for contract in CONTRACTS {
-            index.entry(contract.name).or_default().push(contract);
-            for alias in contract.aliases {
-                index.entry(alias).or_default().push(contract);
+        let mut index: HashMap<&str, Vec<String>> = HashMap::new();
+        for item in &vibescript::signatures::table().items {
+            let vibescript::signatures::Item::Class(class) = item else {
+                continue;
+            };
+            let every = matches!(class.receiver, vibescript::signatures::Type::Var(_));
+            let receiver = class.pattern();
+            for member in &class.members {
+                let vibescript::signatures::Member::Function(function) = member else {
+                    continue;
+                };
+                let declaration = function.to_string();
+                let signature = declaration.strip_prefix("def ").unwrap_or(&declaration);
+                let line = if every {
+                    format!("`{signature}`")
+                } else {
+                    format!("`{receiver}.{signature}`")
+                };
+                index.entry(function.name.as_str()).or_default().push(line);
             }
         }
         index
     })
 }
 
-/// Renders one member's contracts as receiver-qualified signature lines.
-pub(crate) fn contract_signatures(label: &str) -> String {
-    let Some(contracts) = contracts_by_name().get(label) else {
-        return String::new();
-    };
-    let lines: Vec<String> = contracts
-        .iter()
-        .map(|contract| format!("`{}`", contract_signature(label, contract)))
-        .collect();
-    lines.join("\n")
-}
-
-fn contract_signature(label: &str, contract: &Contract) -> String {
-    let mut signature = if contract.receiver == UNIVERSAL {
-        label.to_owned()
-    } else {
-        format!("{}.{label}", contract.receiver)
-    };
-    if contract.value_member {
-        if !contract.result.is_empty() {
-            signature.push_str(" -> ");
-            signature.push_str(contract.result);
-        }
-        return signature;
-    }
-    let mut params: Vec<String> = contract
-        .params
-        .iter()
-        .map(|(name, optional)| {
-            if *optional {
-                format!("{name}?")
-            } else {
-                (*name).to_owned()
-            }
-        })
-        .collect();
-    if contract.variadic {
-        params.push("...".to_owned());
-    }
-    signature.push('(');
-    signature.push_str(&params.join(", "));
-    signature.push(')');
-    if contract.takes_block {
-        signature.push_str(" { ... }");
-    }
-    if !contract.result.is_empty() {
-        signature.push_str(" -> ");
-        signature.push_str(contract.result);
-    }
-    signature
+/// Renders one member's signatures from the signature table, one line per
+/// receiver and overload, or nothing for a name the table does not list,
+/// such as a removed spelling.
+pub(crate) fn table_signatures(label: &str) -> String {
+    member_signatures()
+        .get(label)
+        .map(|lines| lines.join("\n"))
+        .unwrap_or_default()
 }

@@ -32,7 +32,6 @@
 mod analysis;
 mod catalog;
 mod completion;
-mod contracts;
 mod docs;
 mod document;
 mod hover;
