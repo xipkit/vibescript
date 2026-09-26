@@ -45,7 +45,7 @@ fn nested_hashes(depth: usize, leaf: Value) -> Value {
 fn sinks(engine: &Engine) -> Script {
     engine
         .compile(
-            "def render(x: array<any> | hash<string, any>) -> string\nx.to_s\nend\n\
+            "def render(x: array<any>) -> string\nx.to_s\nend\n\
              def interpolate(x: array<any> | hash<string, any>) -> string\n\"<#{x}>\"\nend\n\
              def inspect_value(x: array<any> | hash<string, any>) -> string\nx.inspect\nend\n\
              def project(x: array<any> | hash<string, any>) -> string\nformat(\"%.5s|%s\", x, x)\nend\n\

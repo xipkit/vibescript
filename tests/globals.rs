@@ -105,7 +105,11 @@ fn replacing_a_global_detaches_an_earlier_mutation_target() {
              Math.push(begin;Math {operator} [9];2;end)\n[Math,input]\nend"
         );
         let error = vibescript::Engine::new().compile(&source).err().unwrap();
-        assert_eq!(common::codes(&error), ["V0102", "V0104"], "{operator}");
+        assert_eq!(
+            common::codes(&error),
+            ["V0102", "V0102", "V0104"],
+            "{operator}"
+        );
         assert_eq!(
             error.diagnostics()[1].span.start,
             source.find(&format!("Math {operator}")).unwrap(),

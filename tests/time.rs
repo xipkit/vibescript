@@ -330,7 +330,10 @@ fn blocks_and_clock_aliases_follow_the_call_contracts() {
     }
     // A clock function named with `::` is a removed spelling first.
     for (source, codes) in [
-        ("f=Time::gm;f(2024) {unexpected()}", &["V0416", "V0310"][..]),
+        (
+            "f=Time::gm;f(2024) {unexpected()}",
+            &["V0416", "V0401", "V0310"][..],
+        ),
         ("f=Time::now;f()", &["V0416", "V0310"]),
         ("f=Time::now;f", &["V0416"]),
         ("f=Time::now;f.utc?", &["V0416"]),

@@ -470,6 +470,7 @@ fn instance_assignments_shadow_class_constants_and_preserve_visibility_locals() 
             r#"
 class Counter
   TOTAL = 2
+  @@shared: int = 2
   protected = 5
   protected
   def local -> int
@@ -478,7 +479,7 @@ class Counter
     total
   end
   def self.shared -> int
-    TOTAL += 1
+    @@shared += 1
   end
   private
 end
@@ -489,7 +490,7 @@ end
         )
         .unwrap();
     let output = script.call("run", &[], CallOptions::default()).unwrap();
-    assert_eq!(json(&output.value), serde_json::json!([10, 2, 3, 3]));
+    assert_eq!(json(&output.value), serde_json::json!([10, 2, 3, 2]));
 }
 
 #[test]

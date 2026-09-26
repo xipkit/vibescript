@@ -82,8 +82,8 @@ fn invalid_merge_arguments_and_keys_stop_before_later_callbacks() {
 #[test]
 fn retained_conflict_values_and_parent_keys_count_against_later_allocations() {
     for source in [
-        "h: hash<string, any> = (1..100).map {|n|[n.to_s,n]}.to_h {|pair|pair};h.merge(h){allocate()}",
-        "h=(1..100).map {|n|[n.to_s,n]}.to_h {|pair|pair};h.deep_transform_keys {allocate().as(string)}",
+        "h: hash<string, any> = (1..100).to_a.to_h {|n|[n.to_s,n]};h.merge(h){allocate()}",
+        "h=(1..100).to_a.to_h {|n|[n.to_s,n]};h.deep_transform_keys {allocate().as(string)}",
         "h: hash<string, any> = {leaf:1};60.times {h={node:h}};h.deep_transform_keys {allocate().as(string)}",
     ] {
         let calls = Arc::new(AtomicUsize::new(0));

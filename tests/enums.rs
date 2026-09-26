@@ -107,7 +107,7 @@ fn declarations_preserve_forward_lookup_shadowing_and_identifier_boundaries() {
             &["V0102", "V0202"][..],
             "Status=Status",
         ),
-        ("Status ||= 1\n", &["V0104"], "Status ||="),
+        ("Status ||= 1\n", &["V0102", "V0104"], "Status ||="),
     ] {
         let source = format!("{DECLARATIONS}{body}");
         let error = vibescript::Engine::new().compile(&source).err().unwrap();

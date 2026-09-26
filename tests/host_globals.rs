@@ -269,6 +269,11 @@ fn module_constants_take_precedence_over_host_bindings_in_call_targets() {
                     },
                 ),
             ] {
+                let script = if binding == "none" {
+                    script.clone()
+                } else {
+                    declaring(&[(name, "")]).compile(&source).unwrap()
+                };
                 assert_eq!(
                     script
                         .run(opts)
@@ -295,6 +300,11 @@ fn module_initializers_call_enclosing_bindings() {
         let source = format!("helper=[3];module M;Result={expression};end;M.Result");
         let script = Engine::new().compile(&source).unwrap();
         for opts in [CallOptions::default(), options(&[("helper", Value::nil())])] {
+            let script = if opts.globals.is_empty() {
+                script.clone()
+            } else {
+                declaring(&[("helper", "")]).compile(&source).unwrap()
+            };
             assert_eq!(
                 script.run(opts).unwrap().value.as_int(),
                 Some(3),
@@ -418,7 +428,7 @@ fn strict_globals_are_validated_before_initializers_defaults_and_callbacks() {
 
 #[test]
 fn strict_validation_is_metered_even_for_unused_globals() {
-    let mut engine = Engine::new();
+    let mut engine = declaring(&[("unused", "")]);
     engine.set_strict_effects(true);
     let script = engine.compile("1").unwrap();
     let input = Value::array(vec![Value::int(7); 4096]);
@@ -686,7 +696,7 @@ fn strict_data_globals_accept_shared_subgraphs_without_exponential_scans() {
     for _ in 0..64 {
         data = Value::array(vec![data.clone(), data]);
     }
-    let mut engine = Engine::new();
+    let mut engine = declaring(&[("unused", "")]);
     engine.set_strict_effects(true);
     let mut opts = options(&[("unused", data)]);
     opts.limits.steps = Some(10_000);

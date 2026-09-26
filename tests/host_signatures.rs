@@ -422,8 +422,12 @@ fn registered_methods_keep_compiled_snapshots_and_call_resolution() {
     );
     engine.register_method("echo", echo("int"));
     let global = HostMethod::new("echo", |_, _, _| Ok(Value::int(11)));
+    let mut overridden = engine.clone();
+    overridden
+        .declare_capability(&vibescript::Capability::from_value("echo", global.value()))
+        .unwrap();
     assert_eq!(
-        engine
+        overridden
             .compile("echo(7)")
             .unwrap()
             .run(CallOptions {
