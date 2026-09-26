@@ -842,25 +842,20 @@ fn compiler_bindings_preserve_shadowing_calls_and_internal_slot_names() {
             "pairs: array<[int, int]> = [[1,2]];pairs.map{|(a:int,b:int)|a+b}",
             "[3]",
         ),
-    ] {
-        run(crate::Engine::new(), source, expected);
-    }
-    // A rescue binding that shadows a parameter, and locals named like the
-    // functions they call, have no static types: the checker types the
-    // rescued `e` as the parameter, and a local hides a function's name.
-    for (source, expected) in [
+        // Locals named like functions leave calls with parentheses to them.
         (
-            "def f(e);begin;raise 'failure';rescue=>e;s=e.message;end;[e,s];end;f(11)",
-            "[11,\"failure\"]",
-        ),
-        (
-            "def a;3;end;def b;5;end;a,b=[a()+b(),b()+a()];[a,b]",
+            "def a -> int;3;end;def b -> int;5;end;a,b=[a()+b(),b()+a()];[a,b]",
             "[8,8]",
         ),
+        // A rescue binding that shadows a parameter holds the error only in
+        // its clause. The checker reads it as an assignment to the
+        // parameter, which must therefore accept an error.
+        (
+            "def f(e: any) -> array<any>;s='';begin;raise 'failure';rescue=>e;s=e.as(error).message;end;[e,s];end;f(11)",
+            "[11,\"failure\"]",
+        ),
     ] {
-        let mut engine = crate::Engine::legacy_unchecked();
-
-        run(engine, source, expected);
+        run(crate::Engine::new(), source, expected);
     }
 }
 
