@@ -26,4 +26,4 @@ The primitive atoms are `nil`, `bool`, `int`, `float`, `number`, `string`, `symb
 
 The test takes one positional argument and no keywords or block. Name scans, type lookup and temporary frames are accounted; results do not retain their inputs, and cancellation and invocation exhaustion remain uncatchable.
 
-`respond_to?`, `is_a?`, `kind_of?` and `instance_of?` were removed by [ADR-008](adr/008-canonical-surface-for-ai-authors.md): without inheritance the class predicates were the same test as `is_type?`, and a static type already says which members a value has. See [dispatch by name](forwarding.md) for the replacement of `respond_to?`. Until the switchover, a script compiled without static types can still call them.
+`respond_to?`, `is_a?`, `kind_of?` and `instance_of?` were removed by [ADR-008](adr/008-canonical-surface-for-ai-authors.md): without inheritance the class predicates were the same test as `is_type?`, and a static type already says which members a value has. See [dispatch by name](forwarding.md) for the replacement of `respond_to?`. The runtime keeps them only for the ADR-004 language that `vibes migrate` compiles, until that support is removed.

@@ -2,7 +2,7 @@
 
 Every Vibescript program is type checked before it runs, and a program with a type error does not compile ([ADR-007](adr/007-static-types.md)). The checker also reports the spellings [ADR-008](adr/008-canonical-surface-for-ai-authors.md) removed. The [language guide](language.md) describes the rules from an author's side; this page describes the checker, its entry points and its diagnostics.
 
-Until the switchover, static types are opt-in: `Engine::set_static_types(true)`, `vibes run --static`, `vibes check --static` and `vibes lsp --static` enable them. After it they are the default.
+Every engine, the command line, the REPL, the language server and the test runner type check every compile; there is no mode without static types.
 
 ## What it proves
 
@@ -32,12 +32,12 @@ The same pass also records the static type of every member call's receiver. The 
 
 ## Entry points
 
-- `Engine::compile` with static types on reports every diagnostic as a compile error; `Error::diagnostics()` returns them.
-- `Engine::type_check(source)` checks without compiling and returns every diagnostic, warnings included, with the receiver types.
+- `Engine::compile` reports every diagnostic as a compile error; `Error::diagnostics()` returns them.
+- `Engine::type_check(source)` checks without compiling and returns every diagnostic, warnings included, with the receiver types, and the types of the top-level locals and result, which a host continuing a session declares for its next script (see [sessions](sessions.md)).
 - `Engine::check_entry_arguments(source, function, count)` checks that a command line can call `function` with `count` string arguments.
-- `vibes check --static FILE` prints the diagnostics with their source lines; `--json` prints one JSON object per diagnostic. See [the command line](cli.md#vibes-check).
+- `vibes check FILE` prints the diagnostics with their source lines; `--json` prints one JSON object per diagnostic. See [the command line](cli.md#vibes-check).
 - `vibes fix` applies every machine-applicable fix and checks again until none applies; `vibes migrate` annotates and repairs scripts written for the earlier language.
-- `vibes lsp --static` publishes the diagnostics as the document changes and offers the fixes as quick fixes.
+- `vibes lsp` publishes the diagnostics as the document changes and offers the fixes as quick fixes.
 
 ## Diagnostics
 
@@ -117,4 +117,4 @@ A deliberately invalid example in this documentation is fenced as ```` ```vibe e
 
 ## The gradual checker
 
-The checker of [ADR-004](adr/004-static-checking-for-typed-boundaries.md) still exists until it is deleted after the switchover. It analyzes programs without static types by abstract interpretation: `vibes check` without `--static`, `Script::check`, `check_function`, `check_call` and their keyword variants, and `checked_call`, which executes only after a clean exact-call report. It reports known contradictions and an explicit "incomplete" result for code it cannot model, and it does not report the static language's diagnostics. The flat form's `--check` and `--checked` flags use it. It will be removed with its documentation; the history of its design is in git and in the [language completion plan](language-port.md).
+The checker of [ADR-004](adr/004-static-checking-for-typed-boundaries.md) is no longer part of the language or the command line. Its library entry points, `Script::check`, `check_function`, `check_call`, their keyword variants and `checked_call`, remain only for scripts in the ADR-004 language that `vibes migrate` compiles, and are removed with it; the history of its design is in git and in the [language completion plan](language-port.md).

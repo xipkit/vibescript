@@ -12,7 +12,7 @@ result = a == a.push(2)
 [result, a] # [false, [1, 2]]
 ```
 
-`eql?` and `equal?` were removed by [ADR-008](adr/008-canonical-surface-for-ai-authors.md); `==` is the one equality. `vibes fix` rewrites them. Until the switchover, a script compiled without static types can still call them: `eql?` also requires both sides to have the same kind at every depth (`1.eql?(1.0)` is false), and `equal?` compares collections by content and other values by identity, with any two NaN floats `equal?`.
+`eql?` and `equal?` were removed by [ADR-008](adr/008-canonical-surface-for-ai-authors.md); `==` is the one equality. `vibes fix` rewrites them. The runtime keeps them only for the ADR-004 language that `vibes migrate` compiles, until that support is removed: `eql?` also requires both sides to have the same kind at every depth (`1.eql?(1.0)` is false), and `equal?` compares collections by content and other values by identity, with any two NaN floats `equal?`.
 
 Comparisons charge visited values, string bytes and hash lookups. Within one comparison, `==`, `<=>` and sorting walk each pair of shared arrays or hashes once: a pair reached again along another path reuses its recorded result, so structures built from shared parts compare in time proportional to their distinct pairs rather than their unfolded size. Recorded pairs are charged and reserved against the memory limit, and are released when the comparison finishes. Enum tokens and their temporary lookup cache are reserved before allocation; imports charge metadata independently. Exact step and memory limits, cancellation and uncatchable invocation exhaustion remain enforced.
 

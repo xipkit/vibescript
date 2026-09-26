@@ -5,7 +5,9 @@
 ```rust
 use vibescript::{CallOptions, Engine, Value};
 
-let script = Engine::new().compile("settings[\"items\"].push(2); settings")?;
+let mut engine = Engine::new();
+engine.declare_global("settings", "{ items: array<int> }")?;
+let script = engine.compile("settings[\"items\"].push(2)\nsettings")?;
 let settings = Value::hash(vec![(
     b"items".to_vec(),
     Value::array(vec![Value::int(1)]),
@@ -22,7 +24,7 @@ Globals can shadow script functions, classes, enums, registered hosts and builti
 
 Incoming enums rebind to declarations from the same compiled script, including values first read inside a nested container. Named type lookup materializes matching global bindings without importing unrelated values. Foreign classes and instances keep their compiled code and original host callbacks, with fresh invocation state and receiving execution limits. An unread foreign namespace does not run its initializer.
 
-`Engine::declare_global(name, ty)` declares a global that every call supplies, with its type as an annotation; an empty type is `any`. The static checker types the name by its declaration, and with static types a bare name that nothing in scope and no declaration explains is a compile error (`V0201`), so a statically typed script reads only declared globals. Each call of a subsequently compiled script, static or not, must supply the global, or a capability of the name, and a global's value must have the declared type; otherwise the call fails before any script code runs, as an argument of the wrong type would. `Engine::prelude` lists declared names by their declarations. Without static types, undeclared globals keep working as described above.
+`Engine::declare_global(name, ty)` declares a global that every call supplies, with its type as an annotation; an empty type is `any`. The static checker types the name by its declaration, and a bare name that nothing in scope and no declaration explains is a compile error (`V0201`), so a script reads only declared globals. Each call of a subsequently compiled script must supply the global, or a capability of the name, and a global's value must have the declared type; otherwise the call fails before any script code runs, as an argument of the wrong type would. `Engine::prelude` lists declared names by their declarations.
 
 With `Engine::set_strict_effects(true)`, every global is validated before initializers, default arguments or script callbacks execute, including unused globals. Scalars, enums, regexes and collections of data are allowed. Functions, builtin descriptors, classes, instances, match-offset methods and type literals are rejected even when nested. Validation charges traversal work and temporary storage, respects cancellation, deadlines and the value-depth bound, and avoids repeatedly traversing shared subgraphs. Registered host capabilities remain available separately.
 

@@ -726,8 +726,7 @@ never matched.
 
 ## Removed spellings
 
-These names still run until the switchover but do not compile with static
-types:
+These names were removed and do not compile; `vibes fix` rewrites them:
 
 - `size` – removed; use `length`, the number of characters.
 - `intern` – removed; use `to_sym`.

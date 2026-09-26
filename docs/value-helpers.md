@@ -15,4 +15,4 @@ Match data and rescued errors keep their protection and special string rendering
 
 `dup` takes no arguments, keywords or block. User-defined class methods named `dup` take precedence, subject to visibility. It retains the same tracked storage and work counters as an ordinary binding.
 
-`clone`, `freeze` and `frozen?` were removed by [ADR-008](adr/008-canonical-surface-for-ai-authors.md): `clone` was a second spelling of `dup`, and with no mutable freeze flag `freeze` returned its receiver and `frozen?` always answered true. `vibes fix` rewrites them. Until the switchover, a script compiled without static types can still call them.
+`clone`, `freeze` and `frozen?` were removed by [ADR-008](adr/008-canonical-surface-for-ai-authors.md): `clone` was a second spelling of `dup`, and with no mutable freeze flag `freeze` returned its receiver and `frozen?` always answered true. `vibes fix` rewrites them. The runtime keeps them only for the ADR-004 language that `vibes migrate` compiles, until that support is removed.

@@ -10,4 +10,4 @@ counts.fetch("done", 0) # 0
 
 Hashes carry no default value: a missing key reads as `nil`, so `counts["done"]` has type `int?`, and `fetch(key, fallback)` or its block form supplies a fallback for one lookup. A new hash has the same logical value semantics as any other: changing one binding leaves an earlier copy unchanged, and each empty hash's storage is accounted before allocation.
 
-Until the switchover, a script compiled without static types can still call `Hash.new`, which accepts no default, keywords or block. Its [difference record](hash-new-differences.json) remains part of the `compatibility` golden corpus.
+The runtime keeps `Hash.new`, which accepts no default, keywords or block, only for the ADR-004 language that `vibes migrate` compiles, until that support is removed. Its [difference record](hash-new-differences.json) remains part of the `compatibility` golden corpus.

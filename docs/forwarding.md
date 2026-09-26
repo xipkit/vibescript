@@ -47,4 +47,4 @@ account.balance # 15
 
 `vibes migrate` rewrites a `send` whose name is a literal into the direct call and reports the others. Capability methods that happen to be named `send`, such as `sms.send(...)`, are ordinary calls and are unaffected.
 
-Until the switchover, a script compiled without static types still runs the removed helpers: `send` reaches private and protected methods, `public_send` keeps explicit-receiver visibility, and both pass the remaining arguments, keywords and block to the selected method. The [reference differences](forwarding-differences.json) recorded while porting them remain part of the `compatibility` golden corpus.
+The runtime keeps the removed helpers only for the ADR-004 language that `vibes migrate` compiles, until that support is removed: `send` reaches private and protected methods, `public_send` keeps explicit-receiver visibility, and both pass the remaining arguments, keywords and block to the selected method. The [reference differences](forwarding-differences.json) recorded while porting them remain part of the `compatibility` golden corpus.

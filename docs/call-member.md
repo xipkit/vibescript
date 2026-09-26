@@ -1,6 +1,6 @@
 # Calls to a member named call
 
-With static types, `.call(...)` is an ordinary method call: a class may define a `call` method, while a function or builtin name is never a value, so `helper.call(1)` is a compile error. The rules below describe how the runtime selects the target, and, until the switchover, how it treats a script compiled without static types.
+With static types, `.call(...)` is an ordinary method call: a class may define a `call` method, while a function or builtin name is never a value, so `helper.call(1)` is a compile error. The rules below describe how the runtime selects the target.
 
 An explicit `.call(...)` resolves its member before evaluating arguments. Missing and inaccessible members stop positional arguments, keyword arguments, splats and attached blocks from running. Safe navigation on nil skips the whole call. An existing non-callable data field keeps ordinary argument evaluation before the invocation error.
 

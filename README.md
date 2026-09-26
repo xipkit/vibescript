@@ -18,17 +18,15 @@ This checkout lives on `/Volumes/AI/Work/xipkit/vibescript.rs`. The original sib
 
 ```sh
 ./scripts/cargo run --release -p vibes -- examples/total.vibe --function total --arg '[10,20,30]' --stats
-./scripts/cargo run --release -p vibes -- check --static examples/total.vibe
+./scripts/cargo run --release -p vibes -- check examples/total.vibe
 ./scripts/cargo test --workspace --all-features
 ```
 
-The [CLI](docs/cli.md) provides `vibes run`, `check`, `fix`, `migrate`, `prelude`, `fmt`, `analyze`, `test`, `repl` and `lsp`. `vibes check --static FILE` compiles a script with static types and reports every diagnostic with its code; `--json` prints them as JSON Lines, and `vibes fix` applies their machine-applicable fixes. `vibes migrate` rewrites scripts written for the earlier, dynamically typed language, annotating them with the types observed while running recorded calls and reporting what needs a person. `vibes prelude` prints every builtin function, namespace and member under its one canonical name with its typed signature; `Engine::prelude` extends it with a host's functions, capabilities and globals. The flat form, `vibes FILE`, prints the final result as JSON and accepts `--function`, `--arg` and `--kwarg`; `vibes help flat` lists its limits, whose defaults are one million logical steps, 16 MiB of tracked memory, and 256 call frames. Scripts write `puts`, `print`, and `p` to stdout and `warn` to stderr. The formatter, analyzer, migrator, fixer, test runner, REPL and language server are also libraries in the `vibescript-tools` crate. `./scripts/check` runs the full local validation gate.
+The [CLI](docs/cli.md) provides `vibes run`, `check`, `fix`, `migrate`, `prelude`, `fmt`, `analyze`, `test`, `repl` and `lsp`. Every command type checks the scripts it compiles. `vibes check FILE` compiles a script without running it and reports every diagnostic with its code; `--json` prints them as JSON Lines, and `vibes fix` applies their machine-applicable fixes. `vibes migrate` rewrites scripts written for the earlier, dynamically typed language, annotating them with the types observed while running recorded calls and reporting what needs a person. `vibes prelude` prints every builtin function, namespace and member under its one canonical name with its typed signature; `Engine::prelude` extends it with a host's functions, capabilities and globals. The flat form, `vibes FILE`, prints the final result as JSON and accepts `--function`, `--arg` and `--kwarg`; `vibes help flat` lists its limits, whose defaults are one million logical steps, 16 MiB of tracked memory, and 256 call frames. Scripts write `puts`, `print`, and `p` to stdout and `warn` to stderr. The formatter, analyzer, migrator, fixer, test runner, REPL and language server are also libraries in the `vibescript-tools` crate. `./scripts/check` runs the full local validation gate.
 
 The CLI searches the input file's directory for required modules. Add other roots with repeatable `--module-path DIR` options, before the script path.
 
-`vibes lsp` is the language server editors launch for `*.vibe` files; with `--static` it reports the static language's diagnostics and offers their fixes as quick fixes. Hover and completion documentation comes from the [builtin reference](tools/src/lsp/reference). See [the language server](docs/lsp.md). `vibes repl` starts the interactive REPL; see [the REPL section](docs/cli.md#vibes-repl).
-
-Static types are opt-in until the switchover: `vibes run --static`, `vibes check --static` and `Engine::set_static_types(true)` enable them. After it, they are the default, `/` becomes true division, `fill` and `insert` raise past the end of an array, and the removed spellings stop compiling. The documentation already describes the language as it will be.
+`vibes lsp` is the language server editors launch for `*.vibe` files; it reports the type checker's diagnostics and offers their fixes as quick fixes. Hover and completion documentation comes from the [builtin reference](tools/src/lsp/reference). See [the language server](docs/lsp.md). `vibes repl` starts the interactive REPL; see [the REPL section](docs/cli.md#vibes-repl).
 
 ## Embed it
 
@@ -49,7 +47,6 @@ let double = HostMethod::new("double", |ctx, args, _| {
     accepts_block: false,
 })?;
 let mut engine = Engine::new();
-engine.set_static_types(true);
 engine.register_method("double", double);
 let script = engine.compile("def run(n: int) -> int\n  double(n) + 1\nend")?;
 let result = script.call("run", &[Value::int(20)], CallOptions::default())?;

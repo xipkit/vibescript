@@ -53,7 +53,6 @@ let send = HostMethod::new("SMS.send", |ctx, _, _| ctx.bytes(b"queued"))
 let sms = Capability::from_value("SMS", Value::object(vec![(b"send".to_vec(), send.value())]));
 let mut engine = Engine::new();
 engine.set_strict_effects(true);
-engine.set_static_types(true);
 engine.declare_capability(&sms)?;
 let script = engine.compile("def run -> string\n  SMS.send(\"hello\")\nend")?;
 let result = script.call("run", &[], CallOptions {
