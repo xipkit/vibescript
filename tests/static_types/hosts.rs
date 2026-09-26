@@ -264,7 +264,7 @@ fn a_capability_of_data_has_the_type_its_template_shows() {
 }
 
 #[test]
-fn scripts_and_locals_shadow_declared_names() {
+fn locals_shadow_declared_names_and_globals_precede_functions() {
     let engine = engine();
     codes_with(
         &engine,
@@ -274,7 +274,7 @@ fn scripts_and_locals_shadow_declared_names() {
     codes_with(
         &engine,
         "def config -> int\n  1\nend\ndef run -> int\n  config + 1\nend\n",
-        &[],
+        &["V0108"],
     );
 }
 

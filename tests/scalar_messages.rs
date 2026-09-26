@@ -2,7 +2,7 @@
 //! and the compile errors that now refuse what used to fail with them.
 mod common;
 
-use vibescript::{CallOptions, Engine, ErrorClass, Limits, Value};
+use vibescript::{CallOptions, ErrorClass, Limits, Value};
 
 fn fail(source: &str, args: &[Value], limits: Limits) -> vibescript::Error {
     let script = common::runtime_engine()

@@ -1,6 +1,6 @@
 mod common;
 
-use vibescript::{CallOptions, Engine, Value, stringify_json};
+use vibescript::{CallOptions, Value, stringify_json};
 
 fn json(value: &Value) -> serde_json::Value {
     let encoded = stringify_json(value, CallOptions::default()).unwrap();
