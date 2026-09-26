@@ -531,7 +531,9 @@ impl<'a> Checker<'a> {
                     sig.name = format!("{}.new", self.program.namespaces[ns as usize].name);
                     // A break out of the block is the value of `new`,
                     // unchecked by the initializer's result.
-                    sig.checks_break = false;
+                    if sig.breaks == sigs::Breaks::Result {
+                        sig.breaks = sigs::Breaks::Call;
+                    }
                     sig
                 }
                 None => Sig {
@@ -540,7 +542,7 @@ impl<'a> Checker<'a> {
                     result: None,
                     block: None,
                     vars: Vec::new(),
-                    checks_break: false,
+                    breaks: sigs::Breaks::Call,
                 },
             };
             let (_, breaks) = self.call_sigs_parts(call, &[(Rc::new(sig), Vec::new())]);
@@ -1196,15 +1198,19 @@ impl<'a> Checker<'a> {
                 let block_sig = block_sig.clone();
                 // A script function returns a break value through its
                 // declared result, which the runtime checks.
-                let break_to = match (sig.checks_break, sig.result) {
-                    (true, Some(result)) => {
+                let break_to = match (sig.breaks, sig.result) {
+                    (sigs::Breaks::Result, Some(result)) => {
                         Some((self.types.close(result, &bindings), function.clone()))
                     }
                     _ => None,
                 };
-                let checked = break_to.is_some();
+                let call_value = match sig.breaks {
+                    sigs::Breaks::Call => true,
+                    sigs::Breaks::Result => break_to.is_none(),
+                    sigs::Breaks::Inside => false,
+                };
                 breaks = self.call_block(block, &block_sig, &mut bindings, break_to);
-                if checked {
+                if !call_value {
                     breaks.clear();
                 }
             }

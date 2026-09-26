@@ -52,11 +52,23 @@ pub(crate) struct Sig {
     pub block: Option<BlockSig>,
     /// Type variables, class variables first; `Kind::Var(i)` is `vars[i]`.
     pub vars: Vec<Var>,
-    /// Whether a `break` out of the call's block returns from the function
-    /// through its declared result, which the runtime checks, as it does
-    /// for a script function. Otherwise the break value is the call's
-    /// value as it is.
-    pub checks_break: bool,
+    /// Where a `break` out of the call's block goes.
+    pub breaks: Breaks,
+}
+
+/// Where a `break` out of the block a call passes goes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Breaks {
+    /// It ends the call, and its value is the call's, as for a builtin.
+    Call,
+    /// It returns from the function through the function's declared
+    /// result, which the runtime checks: a script function that yields
+    /// only outside loops and blocks.
+    Result,
+    /// It ends the loop or the call with a block around the function's
+    /// `yield`, so the call's value is the function's result; or the
+    /// function never yields, so nothing breaks.
+    Inside,
 }
 
 impl Sig {
@@ -306,7 +318,7 @@ impl Converter {
                 .map(|ty| table_type(types, ty, &names)),
             block,
             vars,
-            checks_break: false,
+            breaks: Breaks::Call,
         }
     }
 }

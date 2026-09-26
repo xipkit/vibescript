@@ -375,7 +375,7 @@ impl<'a> Checker<'a> {
             result,
             block: block_sig,
             vars: Vec::new(),
-            checks_break: true,
+            breaks: yields(&def.body),
         });
         self.program.fns.push(FnDecl {
             def: Some(def),
@@ -642,6 +642,137 @@ fn literal_type(expr: &crate::syntax::Expr) -> Ty {
             _ => Ty::ERROR,
         },
         _ => Ty::ERROR,
+    }
+}
+
+/// Where a `break` out of the block a function body yields to goes: out
+/// of the function when every `yield` stands outside loops and blocks, and
+/// otherwise into the loop or call around a `yield`, or nowhere when the
+/// body never yields.
+fn yields(body: &[crate::syntax::Stmt]) -> sigs::Breaks {
+    let mut found = false;
+    use crate::syntax::{Node, Statement};
+    let mut statements: Vec<(&crate::syntax::Stmt, bool)> =
+        body.iter().map(|stmt| (stmt, false)).collect();
+    let mut expressions: Vec<(&crate::syntax::Expr, bool)> = Vec::new();
+    loop {
+        if let Some((expr, inside)) = expressions.pop() {
+            match &expr.node {
+                Node::Yield(args) => {
+                    if inside {
+                        return sigs::Breaks::Inside;
+                    }
+                    found = true;
+                    expressions.extend(args.iter().map(|arg| (arg, inside)));
+                }
+                Node::BlockCall(call, block) => {
+                    expressions.push((call, inside));
+                    statements.extend(block.body.iter().map(|stmt| (stmt, true)));
+                }
+                Node::Compound(stmt) => statements.push((stmt, inside)),
+                Node::Try(attempt) => {
+                    let bodies = [&attempt.body, &attempt.alternate, &attempt.ensure];
+                    for body in bodies {
+                        statements.extend(body.iter().map(|stmt| (stmt, inside)));
+                    }
+                    for rescue in attempt.rescues.iter() {
+                        statements.extend(rescue.body.iter().map(|stmt| (stmt, inside)));
+                    }
+                }
+                Node::Conditional(branches, alternate) => {
+                    for (condition, value) in branches.iter() {
+                        expressions.push((condition, inside));
+                        expressions.push((value, inside));
+                    }
+                    expressions.push((alternate, inside));
+                }
+                Node::Case(subject, whens, alternate) => {
+                    expressions.extend(subject.as_deref().map(|e| (e, inside)));
+                    for when in whens.iter() {
+                        expressions.extend(when.values.iter().map(|(value, _)| (value, inside)));
+                        expressions.push((&when.result, inside));
+                    }
+                    expressions.extend(alternate.as_deref().map(|e| (e, inside)));
+                }
+                Node::Binary(_, left, right) => {
+                    expressions.push((left, inside));
+                    expressions.push((right, inside));
+                }
+                Node::Range(start, end, _) => {
+                    expressions.extend([start, end].into_iter().flatten().map(|e| (&**e, inside)));
+                }
+                Node::Unary(_, value) => expressions.push((value, inside)),
+                Node::Call(_, args, _) => {
+                    expressions.extend(args.iter().map(|arg| (&arg.value, inside)));
+                }
+                Node::ComputedCall(receiver, args) => {
+                    expressions.push((receiver, inside));
+                    expressions.extend(args.iter().map(|arg| (&arg.value, inside)));
+                }
+                Node::Method(receiver, _, args, _) | Node::SafeMethod(receiver, _, args, _) => {
+                    expressions.push((receiver, inside));
+                    expressions.extend(args.iter().map(|arg| (&arg.value, inside)));
+                }
+                Node::Scope(receiver, _, args) => {
+                    expressions.push((receiver, inside));
+                    for arg in args.iter().flat_map(|args| args.iter()) {
+                        expressions.push((&arg.value, inside));
+                    }
+                }
+                Node::Member(receiver, _) | Node::SafeMember(receiver, _) => {
+                    expressions.push((receiver, inside));
+                }
+                Node::Index(receiver, selectors) => {
+                    expressions.push((receiver, inside));
+                    expressions.extend(selectors.iter().map(|e| (e, inside)));
+                }
+                Node::Array(items) | Node::Template(items, _) => {
+                    expressions.extend(items.iter().map(|e| (e, inside)));
+                }
+                Node::Hash(entries) => {
+                    expressions.extend(entries.iter().map(|(_, e)| (e, inside)));
+                }
+                Node::Shape(_, fallback, _) => {
+                    expressions.extend(fallback.as_deref().map(|e| (e, inside)));
+                }
+                _ => (),
+            }
+            continue;
+        }
+        let Some((stmt, inside)) = statements.pop() else {
+            return if found {
+                sigs::Breaks::Result
+            } else {
+                sigs::Breaks::Inside
+            };
+        };
+        match &stmt.node {
+            Statement::Expr(e) => expressions.push((e, inside)),
+            Statement::Assign(_, _, e) => expressions.push((e, inside)),
+            Statement::Return(Some(e)) | Statement::Break(Some(e)) | Statement::Next(Some(e)) => {
+                expressions.push((e, inside));
+            }
+            Statement::Raise(value, message) => {
+                expressions.extend(value.as_deref().map(|e| (e, inside)));
+                expressions.extend(message.as_deref().map(|e| (e, inside)));
+            }
+            Statement::If(branches, alternate, _) => {
+                for (condition, body) in branches.iter() {
+                    expressions.push((condition, inside));
+                    statements.extend(body.iter().map(|stmt| (stmt, inside)));
+                }
+                statements.extend(alternate.iter().map(|stmt| (stmt, inside)));
+            }
+            Statement::While(condition, body, _) => {
+                expressions.push((condition, inside));
+                statements.extend(body.iter().map(|stmt| (stmt, true)));
+            }
+            Statement::For(_, iterable, body) => {
+                expressions.push((iterable, inside));
+                statements.extend(body.iter().map(|stmt| (stmt, true)));
+            }
+            _ => (),
+        }
     }
 }
 

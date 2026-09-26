@@ -325,7 +325,7 @@ impl<'a> Checker<'a> {
             result: sig.result.map(|ty| self.import_ty(from, ty, imports)),
             block,
             vars: Vec::new(),
-            checks_break: sig.checks_break,
+            breaks: sig.breaks,
         }
     }
 
