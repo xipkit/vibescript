@@ -348,4 +348,3 @@ Before → after. Time is µs, tracked memory is KiB, RSS is MiB, and allocation
 | parse_unicode_4k | 5.08 → 2.52 | 30 → 30 | 17.16 → 17.16 | 4.66 → 4.66 | 13.47 → 13.47 |
 | stringify_unicode_4k | 5.44 → 5.42 | 30 → 30 | 12.28 → 12.28 | 4.12 → 4.12 | 13.47 → 13.45 |
 | transform | 87.09 → 64.19 | 1,253 → 497 | 66.76 → 42.09 | 0.12 → 0.12 | 13.47 → 13.47 |
-
