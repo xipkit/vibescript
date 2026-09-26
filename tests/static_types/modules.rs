@@ -177,3 +177,24 @@ fn modules_are_namespaces_and_cannot_be_used_as_instance_types() {
         assert!(Engine::new().compile(source).is_err());
     }
 }
+
+#[test]
+fn capitalized_methods_use_dot_dispatch() {
+    let source = "module M; def self.F -> int; 7; end; end; M :: F";
+    let diagnostic = super::support::codes(source, &["V0416"]);
+    let fixed = super::support::fixed(source, &diagnostic[0]);
+    super::support::clean(&fixed);
+    assert_eq!(
+        Engine::new()
+            .compile(&fixed)
+            .unwrap()
+            .run(Default::default())
+            .unwrap()
+            .value
+            .as_int(),
+        Some(7),
+    );
+    super::support::clean(
+        "module M; F = 3; def self.F -> string; 'method'; end; end; x: int = M::F; y: string = M.F",
+    );
+}

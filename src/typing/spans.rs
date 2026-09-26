@@ -232,6 +232,21 @@ impl<'a> Spans<'a> {
         None
     }
 
+    /// The dot or scope operator before a member's name.
+    pub fn member_operator(&self, receiver: &Expr, name: &str) -> Option<Span> {
+        let member = self.member(receiver, name)?;
+        let mut index = self.token_from(member.start);
+        while index > 0 {
+            index -= 1;
+            self.step(1);
+            let token = &self.tokens[index];
+            if token.kind != TokenKind::Newline {
+                return Some(Span::new(token.span.start, token.span.end));
+            }
+        }
+        None
+    }
+
     /// The span of the `[`...`]` index selectors after a receiver, from the
     /// `[` to the `]`.
     pub fn index_brackets(&self, receiver: &Expr, whole: &Expr) -> Option<Span> {

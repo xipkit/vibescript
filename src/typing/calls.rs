@@ -898,6 +898,21 @@ impl<'a> Checker<'a> {
                 if let Some(&child) = self.program.namespaces[ns as usize].children.get(name) {
                     return self.types.intern(Kind::Namespace(child));
                 }
+                if super::check::is_constant(name)
+                    && self.program.namespaces[ns as usize]
+                        .statics
+                        .contains_key(name)
+                {
+                    let span = self.spans.member_operator(receiver, name).unwrap();
+                    self.report(
+                        Diagnostic::error(
+                            Code::SCOPED_CALL,
+                            span,
+                            "`::` names constants, nested types and enum members; call this method with a dot",
+                        )
+                        .with_fix(Fix::replace("call the method with a dot", span, ".")),
+                    );
+                }
                 self.dispatch(&call, receiver, ty)
             }
             _ => self.dispatch(&call, receiver, ty),
