@@ -439,8 +439,8 @@
 {"id":"host_globals/overwrite/strict","ok":["int","7"]}
 {"id":"host_globals/parameter/ordinary","ok":["int","4"]}
 {"id":"host_globals/parameter/strict","ok":["int","4"]}
-{"id":"host_globals/rescued_call/ordinary","ok":["int","7"]}
-{"id":"host_globals/rescued_call/strict","ok":["int","7"]}
+{"error":{"at":[2,7],"class":"TypeError","kind":"Type","message":"error[V0310]: `helper` is a nil the host declares, not a function","phase":"compile"},"id":"host_globals/rescued_call/ordinary"}
+{"error":{"at":[2,7],"class":"TypeError","kind":"Type","message":"error[V0310]: `helper` is a nil the host declares, not a function","phase":"compile"},"id":"host_globals/rescued_call/strict"}
 {"id":"host_signatures/bad_return/capability/ordinary/metered","ok":["array",[["string","52756e74696d654572726f72"],["string","72657475726e2076616c756520666f722074797065642e6563686f20657870656374656420696e742c20676f7420737472696e67"]]]}
 {"id":"host_signatures/bad_return/capability/ordinary/unlimited","ok":["array",[["string","52756e74696d654572726f72"],["string","72657475726e2076616c756520666f722074797065642e6563686f20657870656374656420696e742c20676f7420737472696e67"]]]}
 {"id":"host_signatures/bad_return/capability/strict/metered","ok":["array",[["string","52756e74696d654572726f72"],["string","72657475726e2076616c756520666f722074797065642e6563686f20657870656374656420696e742c20676f7420737472696e67"]]]}
@@ -751,66 +751,66 @@
 {"id":"required_files/alias/development/strict","ok":["int","42"]}
 {"id":"required_files/alias/production/ordinary","ok":["int","42"]}
 {"id":"required_files/alias/production/strict","ok":["int","42"]}
-{"id":"required_files/alias_conflict/development/ordinary","ok":["int","9"]}
-{"id":"required_files/alias_conflict/development/strict","ok":["int","9"]}
-{"id":"required_files/alias_conflict/production/ordinary","ok":["int","9"]}
-{"id":"required_files/alias_conflict/production/strict","ok":["int","9"]}
+{"error":{"at":[3,28],"class":"TypeError","kind":"Type","message":"error[V0209]: `require` alias `Taken` is already defined; choose a free name","phase":"compile"},"id":"required_files/alias_conflict/development/ordinary"}
+{"error":{"at":[3,28],"class":"TypeError","kind":"Type","message":"error[V0209]: `require` alias `Taken` is already defined; choose a free name","phase":"compile"},"id":"required_files/alias_conflict/development/strict"}
+{"error":{"at":[3,28],"class":"TypeError","kind":"Type","message":"error[V0209]: `require` alias `Taken` is already defined; choose a free name","phase":"compile"},"id":"required_files/alias_conflict/production/ordinary"}
+{"error":{"at":[3,28],"class":"TypeError","kind":"Type","message":"error[V0209]: `require` alias `Taken` is already defined; choose a free name","phase":"compile"},"id":"required_files/alias_conflict/production/strict"}
 {"id":"required_files/allow/development/ordinary","ok":["int","42"]}
 {"id":"required_files/allow/development/strict","ok":["int","42"]}
 {"id":"required_files/allow/production/ordinary","ok":["int","42"]}
 {"id":"required_files/allow/production/strict","ok":["int","42"]}
-{"id":"required_files/argument_error_class/block/development/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/block/development/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/block/production/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/block/production/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its alias as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/boolean_alias/development/ordinary"}
-{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its alias as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/boolean_alias/development/strict"}
-{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its alias as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/boolean_alias/production/ordinary"}
-{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its alias as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/boolean_alias/production/strict"}
-{"id":"required_files/argument_error_class/builtin_alias/development/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/builtin_alias/development/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/builtin_alias/production/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/builtin_alias/production/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/empty_alias/development/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/empty_alias/development/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/empty_alias/production/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/empty_alias/production/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0305]: `require` does not take a block","phase":"compile"},"id":"required_files/argument_error_class/block/development/ordinary"}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0305]: `require` does not take a block","phase":"compile"},"id":"required_files/argument_error_class/block/development/strict"}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0305]: `require` does not take a block","phase":"compile"},"id":"required_files/argument_error_class/block/production/ordinary"}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0305]: `require` does not take a block","phase":"compile"},"id":"required_files/argument_error_class/block/production/strict"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/argument_error_class/boolean_alias/development/ordinary"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/argument_error_class/boolean_alias/development/strict"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/argument_error_class/boolean_alias/production/ordinary"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/argument_error_class/boolean_alias/production/strict"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0209]: `require` alias `Math` is already defined; choose a free name","phase":"compile"},"id":"required_files/argument_error_class/builtin_alias/development/ordinary"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0209]: `require` alias `Math` is already defined; choose a free name","phase":"compile"},"id":"required_files/argument_error_class/builtin_alias/development/strict"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0209]: `require` alias `Math` is already defined; choose a free name","phase":"compile"},"id":"required_files/argument_error_class/builtin_alias/production/ordinary"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0209]: `require` alias `Math` is already defined; choose a free name","phase":"compile"},"id":"required_files/argument_error_class/builtin_alias/production/strict"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0311]: a `require` alias must be an identifier other than a keyword","phase":"compile"},"id":"required_files/argument_error_class/empty_alias/development/ordinary"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0311]: a `require` alias must be an identifier other than a keyword","phase":"compile"},"id":"required_files/argument_error_class/empty_alias/development/strict"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0311]: a `require` alias must be an identifier other than a keyword","phase":"compile"},"id":"required_files/argument_error_class/empty_alias/production/ordinary"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0311]: a `require` alias must be an identifier other than a keyword","phase":"compile"},"id":"required_files/argument_error_class/empty_alias/production/strict"}
 {"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0102]: a function cannot assign capitalized name `Taken`; use a lowercase local or a declared class variable","phase":"compile"},"id":"required_files/argument_error_class/existing_alias/development/ordinary"}
 {"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0102]: a function cannot assign capitalized name `Taken`; use a lowercase local or a declared class variable","phase":"compile"},"id":"required_files/argument_error_class/existing_alias/development/strict"}
 {"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0102]: a function cannot assign capitalized name `Taken`; use a lowercase local or a declared class variable","phase":"compile"},"id":"required_files/argument_error_class/existing_alias/production/ordinary"}
 {"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0102]: a function cannot assign capitalized name `Taken`; use a lowercase local or a declared class variable","phase":"compile"},"id":"required_files/argument_error_class/existing_alias/production/strict"}
-{"id":"required_files/argument_error_class/extra/development/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/extra/development/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/extra/production/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/extra/production/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/integer/development/ordinary"}
-{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/integer/development/strict"}
-{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/integer/production/ordinary"}
-{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/integer/production/strict"}
-{"id":"required_files/argument_error_class/invalid_alias/development/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/invalid_alias/development/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/invalid_alias/production/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/invalid_alias/production/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/invalid_utf8_alias/development/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/invalid_utf8_alias/development/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/invalid_utf8_alias/production/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/invalid_utf8_alias/production/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"error":{"at":[3,35],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/keyword/development/ordinary"}
-{"error":{"at":[3,35],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/keyword/development/strict"}
-{"error":{"at":[3,35],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/keyword/production/ordinary"}
-{"error":{"at":[3,35],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/keyword/production/strict"}
-{"id":"required_files/argument_error_class/missing/development/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/missing/development/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/missing/production/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/missing/production/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/nil/development/ordinary"}
-{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/nil/development/strict"}
-{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/nil/production/ordinary"}
-{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/nil/production/strict"}
-{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its alias as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/nil_alias/development/ordinary"}
-{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its alias as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/nil_alias/development/strict"}
-{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its alias as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/nil_alias/production/ordinary"}
-{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its alias as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/nil_alias/production/strict"}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0301]: `require` takes one module name and at most one `as:` alias","phase":"compile"},"id":"required_files/argument_error_class/extra/development/ordinary"}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0301]: `require` takes one module name and at most one `as:` alias","phase":"compile"},"id":"required_files/argument_error_class/extra/development/strict"}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0301]: `require` takes one module name and at most one `as:` alias","phase":"compile"},"id":"required_files/argument_error_class/extra/production/ordinary"}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0301]: `require` takes one module name and at most one `as:` alias","phase":"compile"},"id":"required_files/argument_error_class/extra/production/strict"}
+{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/argument_error_class/integer/development/ordinary"}
+{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/argument_error_class/integer/development/strict"}
+{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/argument_error_class/integer/production/ordinary"}
+{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/argument_error_class/integer/production/strict"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0311]: a `require` alias must be an identifier other than a keyword","phase":"compile"},"id":"required_files/argument_error_class/invalid_alias/development/ordinary"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0311]: a `require` alias must be an identifier other than a keyword","phase":"compile"},"id":"required_files/argument_error_class/invalid_alias/development/strict"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0311]: a `require` alias must be an identifier other than a keyword","phase":"compile"},"id":"required_files/argument_error_class/invalid_alias/production/ordinary"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0311]: a `require` alias must be an identifier other than a keyword","phase":"compile"},"id":"required_files/argument_error_class/invalid_alias/production/strict"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/argument_error_class/invalid_utf8_alias/development/ordinary"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/argument_error_class/invalid_utf8_alias/development/strict"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/argument_error_class/invalid_utf8_alias/production/ordinary"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/argument_error_class/invalid_utf8_alias/production/strict"}
+{"error":{"at":[3,35],"class":"TypeError","kind":"Type","message":"error[V0302]: `require` has no keyword `unknown`; its only keyword is `as`","phase":"compile"},"id":"required_files/argument_error_class/keyword/development/ordinary"}
+{"error":{"at":[3,35],"class":"TypeError","kind":"Type","message":"error[V0302]: `require` has no keyword `unknown`; its only keyword is `as`","phase":"compile"},"id":"required_files/argument_error_class/keyword/development/strict"}
+{"error":{"at":[3,35],"class":"TypeError","kind":"Type","message":"error[V0302]: `require` has no keyword `unknown`; its only keyword is `as`","phase":"compile"},"id":"required_files/argument_error_class/keyword/production/ordinary"}
+{"error":{"at":[3,35],"class":"TypeError","kind":"Type","message":"error[V0302]: `require` has no keyword `unknown`; its only keyword is `as`","phase":"compile"},"id":"required_files/argument_error_class/keyword/production/strict"}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0301]: `require` takes one module name and at most one `as:` alias","phase":"compile"},"id":"required_files/argument_error_class/missing/development/ordinary"}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0301]: `require` takes one module name and at most one `as:` alias","phase":"compile"},"id":"required_files/argument_error_class/missing/development/strict"}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0301]: `require` takes one module name and at most one `as:` alias","phase":"compile"},"id":"required_files/argument_error_class/missing/production/ordinary"}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0301]: `require` takes one module name and at most one `as:` alias","phase":"compile"},"id":"required_files/argument_error_class/missing/production/strict"}
+{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/argument_error_class/nil/development/ordinary"}
+{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/argument_error_class/nil/development/strict"}
+{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/argument_error_class/nil/production/ordinary"}
+{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/argument_error_class/nil/production/strict"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/argument_error_class/nil_alias/development/ordinary"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/argument_error_class/nil_alias/development/strict"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/argument_error_class/nil_alias/production/ordinary"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/argument_error_class/nil_alias/production/strict"}
 {"id":"required_files/arguments/development/ordinary","ok":["array",[["int","1"],["array",[["int","2"],["int","3"]]],["int","4"]]]}
 {"id":"required_files/arguments/development/strict","ok":["array",[["int","1"],["array",[["int","2"],["int","3"]]],["int","4"]]]}
 {"id":"required_files/arguments/production/ordinary","ok":["array",[["int","1"],["array",[["int","2"],["int","3"]]],["int","4"]]]}
@@ -823,14 +823,14 @@
 {"id":"required_files/class/development/strict","ok":["array",[["int","7"],["int","9"]]]}
 {"id":"required_files/class/production/ordinary","ok":["array",[["int","7"],["int","9"]]]}
 {"id":"required_files/class/production/strict","ok":["array",[["int","7"],["int","9"]]]}
-{"error":{"class":"TypeError","kind":"Type","message":"right.vibe: error[V0201]: cannot statically resolve required module \"left\"","phase":"compile"},"id":"required_files/cycle/development/ordinary"}
-{"error":{"class":"TypeError","kind":"Type","message":"right.vibe: error[V0201]: cannot statically resolve required module \"left\"","phase":"compile"},"id":"required_files/cycle/development/strict"}
-{"error":{"class":"TypeError","kind":"Type","message":"right.vibe: error[V0201]: cannot statically resolve required module \"left\"","phase":"compile"},"id":"required_files/cycle/production/ordinary"}
-{"error":{"class":"TypeError","kind":"Type","message":"right.vibe: error[V0201]: cannot statically resolve required module \"left\"","phase":"compile"},"id":"required_files/cycle/production/strict"}
-{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\"","phase":"compile"},"id":"required_files/deny/development/ordinary"}
-{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\"","phase":"compile"},"id":"required_files/deny/development/strict"}
-{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\"","phase":"compile"},"id":"required_files/deny/production/ordinary"}
-{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\"","phase":"compile"},"id":"required_files/deny/production/strict"}
+{"error":{"class":"TypeError","kind":"Type","message":"right.vibe: error[V0201]: cannot statically resolve required module \"left\": require nesting exceeds 16 files (possible circular require)","phase":"compile"},"id":"required_files/cycle/development/ordinary"}
+{"error":{"class":"TypeError","kind":"Type","message":"right.vibe: error[V0201]: cannot statically resolve required module \"left\": require nesting exceeds 16 files (possible circular require)","phase":"compile"},"id":"required_files/cycle/development/strict"}
+{"error":{"class":"TypeError","kind":"Type","message":"right.vibe: error[V0201]: cannot statically resolve required module \"left\": require nesting exceeds 16 files (possible circular require)","phase":"compile"},"id":"required_files/cycle/production/ordinary"}
+{"error":{"class":"TypeError","kind":"Type","message":"right.vibe: error[V0201]: cannot statically resolve required module \"left\": require nesting exceeds 16 files (possible circular require)","phase":"compile"},"id":"required_files/cycle/production/strict"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\": require: module denied by policy","phase":"compile"},"id":"required_files/deny/development/ordinary"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\": require: module denied by policy","phase":"compile"},"id":"required_files/deny/development/strict"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\": require: module denied by policy","phase":"compile"},"id":"required_files/deny/production/ordinary"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\": require: module denied by policy","phase":"compile"},"id":"required_files/deny/production/strict"}
 {"id":"required_files/direct/development/ordinary","ok":["int","42"]}
 {"id":"required_files/direct/development/strict","ok":["int","42"]}
 {"id":"required_files/direct/production/ordinary","ok":["int","42"]}
@@ -863,10 +863,10 @@
 {"error":{"class":"TypeError","kind":"Type","message":"other.vibe: error[V0201]: `value` is not a local, function or builtin in scope, and the host declares no global or capability of that name","phase":"compile"},"id":"required_files/function_member_receiver_values/development/strict"}
 {"error":{"class":"TypeError","kind":"Type","message":"other.vibe: error[V0201]: `value` is not a local, function or builtin in scope, and the host declares no global or capability of that name","phase":"compile"},"id":"required_files/function_member_receiver_values/production/ordinary"}
 {"error":{"class":"TypeError","kind":"Type","message":"other.vibe: error[V0201]: `value` is not a local, function or builtin in scope, and the host declares no global or capability of that name","phase":"compile"},"id":"required_files/function_member_receiver_values/production/strict"}
-{"error":{"at":[3,136],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/function_member_receivers/development/ordinary"}
-{"error":{"at":[3,136],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/function_member_receivers/development/strict"}
-{"error":{"at":[3,136],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/function_member_receivers/production/ordinary"}
-{"error":{"at":[3,136],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/function_member_receivers/production/strict"}
+{"error":{"at":[3,136],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/function_member_receivers/development/ordinary"}
+{"error":{"at":[3,136],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/function_member_receivers/development/strict"}
+{"error":{"at":[3,136],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/function_member_receivers/production/ordinary"}
+{"error":{"at":[3,136],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/function_member_receivers/production/strict"}
 {"id":"required_files/global_conflict/development/ordinary","ok":["array",[["int","9"],["int","42"]]]}
 {"id":"required_files/global_conflict/development/strict","ok":["array",[["int","9"],["int","42"]]]}
 {"id":"required_files/global_conflict/production/ordinary","ok":["array",[["int","9"],["int","42"]]]}
@@ -883,18 +883,18 @@
 {"id":"required_files/initializer_order/development/strict","ok":["array",[["array",[["string","636c617373"],["string","66696c65"]]],["array",[["string","636c617373"],["string","66696c65"]]]]]}
 {"id":"required_files/initializer_order/production/ordinary","ok":["array",[["array",[["string","636c617373"],["string","66696c65"]]],["array",[["string","636c617373"],["string","66696c65"]]]]]}
 {"id":"required_files/initializer_order/production/strict","ok":["array",[["array",[["string","636c617373"],["string","66696c65"]]],["array",[["string","636c617373"],["string","66696c65"]]]]]}
-{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"missing\"","phase":"compile"},"id":"required_files/missing/development/ordinary"}
-{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"missing\"","phase":"compile"},"id":"required_files/missing/development/strict"}
-{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"missing\"","phase":"compile"},"id":"required_files/missing/production/ordinary"}
-{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"missing\"","phase":"compile"},"id":"required_files/missing/production/strict"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"missing\": require: module not found in configured module paths","phase":"compile"},"id":"required_files/missing/development/ordinary"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"missing\": require: module not found in configured module paths","phase":"compile"},"id":"required_files/missing/development/strict"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"missing\": require: module not found in configured module paths","phase":"compile"},"id":"required_files/missing/production/ordinary"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"missing\": require: module not found in configured module paths","phase":"compile"},"id":"required_files/missing/production/strict"}
 {"id":"required_files/nested/development/ordinary","ok":["int","42"]}
 {"id":"required_files/nested/development/strict","ok":["int","42"]}
 {"id":"required_files/nested/production/ordinary","ok":["int","42"]}
 {"id":"required_files/nested/production/strict","ok":["int","42"]}
-{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\"","phase":"compile"},"id":"required_files/not_allowed/development/ordinary"}
-{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\"","phase":"compile"},"id":"required_files/not_allowed/development/strict"}
-{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\"","phase":"compile"},"id":"required_files/not_allowed/production/ordinary"}
-{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\"","phase":"compile"},"id":"required_files/not_allowed/production/strict"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\": require: module not allowed by policy","phase":"compile"},"id":"required_files/not_allowed/development/ordinary"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\": require: module not allowed by policy","phase":"compile"},"id":"required_files/not_allowed/development/strict"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\": require: module not allowed by policy","phase":"compile"},"id":"required_files/not_allowed/production/ordinary"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\": require: module not allowed by policy","phase":"compile"},"id":"required_files/not_allowed/production/strict"}
 {"id":"required_files/private_helper/development/ordinary","ok":["int","42"]}
 {"id":"required_files/private_helper/development/strict","ok":["int","42"]}
 {"id":"required_files/private_helper/production/ordinary","ok":["int","42"]}
@@ -931,14 +931,14 @@
 {"id":"required_files/same_module/development/strict","ok":["array",[["int","1"],["int","2"]]]}
 {"id":"required_files/same_module/production/ordinary","ok":["array",[["int","1"],["int","2"]]]}
 {"id":"required_files/same_module/production/strict","ok":["array",[["int","1"],["int","2"]]]}
-{"error":{"at":[3,70],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/same_name_call_forms_skip_file_scope/development/ordinary"}
-{"error":{"at":[3,70],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/same_name_call_forms_skip_file_scope/development/strict"}
-{"error":{"at":[3,70],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/same_name_call_forms_skip_file_scope/production/ordinary"}
-{"error":{"at":[3,70],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/same_name_call_forms_skip_file_scope/production/strict"}
-{"error":{"at":[3,60],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/same_name_call_other_forms_keep_file_scope/development/ordinary"}
-{"error":{"at":[3,60],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/same_name_call_other_forms_keep_file_scope/development/strict"}
-{"error":{"at":[3,60],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/same_name_call_other_forms_keep_file_scope/production/ordinary"}
-{"error":{"at":[3,60],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/same_name_call_other_forms_keep_file_scope/production/strict"}
+{"error":{"at":[3,70],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/same_name_call_forms_skip_file_scope/development/ordinary"}
+{"error":{"at":[3,70],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/same_name_call_forms_skip_file_scope/development/strict"}
+{"error":{"at":[3,70],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/same_name_call_forms_skip_file_scope/production/ordinary"}
+{"error":{"at":[3,70],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/same_name_call_forms_skip_file_scope/production/strict"}
+{"error":{"at":[3,60],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/same_name_call_other_forms_keep_file_scope/development/ordinary"}
+{"error":{"at":[3,60],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/same_name_call_other_forms_keep_file_scope/development/strict"}
+{"error":{"at":[3,60],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/same_name_call_other_forms_keep_file_scope/production/ordinary"}
+{"error":{"at":[3,60],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its module name and alias as string literals, without splats","phase":"compile"},"id":"required_files/same_name_call_other_forms_keep_file_scope/production/strict"}
 {"id":"required_files/same_name_call_reaches_root_bindings/development/ordinary","ok":["array",[["int","2"],["int","7"],["int","1"]]]}
 {"id":"required_files/same_name_call_reaches_root_bindings/development/strict","ok":["array",[["int","2"],["int","7"],["int","1"]]]}
 {"id":"required_files/same_name_call_reaches_root_bindings/production/ordinary","ok":["array",[["int","2"],["int","7"],["int","1"]]]}
@@ -959,10 +959,10 @@
 {"error":{"at":[3,23],"class":"TypeError","kind":"Type","message":"error[V0405]: `send` was removed; call `answer` directly","phase":"compile"},"id":"required_files/symbolic/development/strict"}
 {"error":{"at":[3,23],"class":"TypeError","kind":"Type","message":"error[V0405]: `send` was removed; call `answer` directly","phase":"compile"},"id":"required_files/symbolic/production/ordinary"}
 {"error":{"at":[3,23],"class":"TypeError","kind":"Type","message":"error[V0405]: `send` was removed; call `answer` directly","phase":"compile"},"id":"required_files/symbolic/production/strict"}
-{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"broken\"","phase":"compile"},"id":"required_files/syntax_error/development/ordinary"}
-{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"broken\"","phase":"compile"},"id":"required_files/syntax_error/development/strict"}
-{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"broken\"","phase":"compile"},"id":"required_files/syntax_error/production/ordinary"}
-{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"broken\"","phase":"compile"},"id":"required_files/syntax_error/production/strict"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"broken\": parse error at broken.vibe:1:11: expected parameter name, got end of input\n  --> broken.vibe:1:11\n 1 | def answer(\n   |           ^","phase":"compile"},"id":"required_files/syntax_error/development/ordinary"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"broken\": parse error at broken.vibe:1:11: expected parameter name, got end of input\n  --> broken.vibe:1:11\n 1 | def answer(\n   |           ^","phase":"compile"},"id":"required_files/syntax_error/development/strict"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"broken\": parse error at broken.vibe:1:11: expected parameter name, got end of input\n  --> broken.vibe:1:11\n 1 | def answer(\n   |           ^","phase":"compile"},"id":"required_files/syntax_error/production/ordinary"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"broken\": parse error at broken.vibe:1:11: expected parameter name, got end of input\n  --> broken.vibe:1:11\n 1 | def answer(\n   |           ^","phase":"compile"},"id":"required_files/syntax_error/production/strict"}
 {"id":"site/rosettacode/popular/100_doors.vibe","ok":["array",[["int","1"],["int","4"],["int","9"],["int","16"],["int","25"],["int","36"],["int","49"],["int","64"],["int","81"],["int","100"]]]}
 {"id":"site/rosettacode/popular/99_bottles_of_beer.vibe","ok":{"bytes":23781,"sha256":"78d98e1d2d2644873b3f161ed9762ce1bf36954af92d227b0d333b02a504950b"}}
 {"id":"site/rosettacode/popular/a_b.vibe","ok":["array",[["hash",[["6c656674",["int","0"]],["7269676874",["int","0"]],["73756d",["int","0"]]]],["hash",[["6c656674",["int","2"]],["7269676874",["int","3"]],["73756d",["int","5"]]]],["hash",[["6c656674",["int","-5"]],["7269676874",["int","12"]],["73756d",["int","7"]]]]]]}

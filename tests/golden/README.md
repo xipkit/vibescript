@@ -15,8 +15,8 @@ To check or re-record only affected cases, pass `--cases FILE`, where the JSON f
 | Corpus | Cases | Sources |
 | --- | ---: | --- |
 | `conformance` | 1,248 | generated cases in `scripts/fixtures.py` and the host-binding, required-file, capability, block and signature generators; the site and upstream programs; the benchmark cases |
-| `language` | 106,416 | `tests/language.json` |
-| `rejections` | 33,098 | runtime errors in `tests/language-errors.json` and compile errors in `tests/syntax-errors.json`, and the static rejections among them that carry a `static_error` |
+| `language` | 106,389 | `tests/language.json` |
+| `rejections` | 33,125 | runtime errors in `tests/language-errors.json` and compile errors in `tests/syntax-errors.json`, and the static rejections among them that carry a `static_error` |
 | `compatibility` | 219 | the selected differences from Go: `docs/compatibility-cases.json`, the generators' policy cases and the sources in `docs/*-differences.json` and `docs/computed-call-gaps.json` |
 | `replay` | 56,827 | the calls and compiles Go v0.70.0's test suite made, in `replay/` |
 | `parse` | 35,965 | the site and upstream programs with a token deleted, duplicated or inserted, or cut after a line, as `scripts/mutations.py` makes them; parsed only |
@@ -37,7 +37,7 @@ The runner fixes what a result could otherwise take from the host. Scripts draw 
 
 `language` keeps its goldens where they already were: the expected values and output in `tests/language.json`. Cases that carry an independent expectation, in `tests/language.json` or a fixture generator, are also checked against it, and `--record` refuses a build that misses one or crashes.
 
-Accounting counters are separate, in `<corpus>.counters.jsonl.gz`: `[id, steps, peak bytes, retained bytes]` for each case that returned, or `[id]` when they varied. Changes are reported as counter drift and fail only with `--strict-counters`, since removing proven runtime checks will change step counts. Counters also differ slightly between platforms: on Linux x86_64 about 4,800 cases report drift, most of them eight bytes of peak memory. A `replay` case recorded under Go's tight quota whose outcome changes to or from a step or memory quota error is reported as accounting drift too, and fails only with `--strict-quota`.
+Accounting counters are separate, in `<corpus>.counters.jsonl.gz`: `[id, steps, peak bytes, retained bytes]` for each case that returned, or `[id]` when they varied. Changes are reported as counter drift and fail only with `--strict-counters`, since removing proven runtime checks will change step counts. Counters also differ slightly between platforms: on Linux x86_64 about 4,800 cases report drift, most of them eight bytes of peak memory. A `replay` case recorded under Go's tight quota whose runtime outcome changes to or from a step or memory quota error is reported as accounting drift too, and fails only with `--strict-quota`. A compile failure is always an observable difference, even when the other outcome is a quota error.
 
 ## The replay corpus
 
@@ -52,3 +52,48 @@ The `parse` corpus records only whether each source parses: its token mutations 
 ## History
 
 The corpora were validated against Go v0.70.0 until the Rust implementation became the reference, and moved to the static language when static types became the only mode (2026-09-26). The migration rewrote their sources, turned the cases that tested removed features into static rejections and recorded each non-mechanical decision, one per case, in `migration-decisions.jsonl`; that file and the migration tooling are in the repository's history. Until the ADR-004 escape hatch and the runtime support for removed spellings were deleted, a static rejection's golden kept the outcome it had in the ADR-004 language; those goldens now record the compile error, and 611 more cases whose removed spellings the checker had missed became static rejections. Accounting counters were not re-recorded with either change, so they drift as described above.
+
+
+## Soundness audit after legacy deletion
+
+The soundness changes were rebased onto the legacy deletion at `bab6498`. Its
+fixtures and goldens were kept, then the intentional source changes and static
+expectations were reapplied. Its broader removal rules handle item 8; a typing
+fallback covers scoped removed calls on literal values that would otherwise
+fail silently. Ambiguous call shapes have no automatic fix.
+
+Relative to that baseline, 28 more language cases become static rejections:
+compound class-constant writes and removed or invalid scoped member calls.
+`error_handling_109_binding_implicit_it` returns to the language corpus because a
+rescue binding has its own error-typed scope. `iteration_to_hash_duplicates`
+uses a string key in its checked pair, preserving the duplicate-key result.
+There are 176 corrected static expectations among existing rejection fixtures;
+their goldens have 193 changed observations, principally earlier type errors,
+accurate spans (including interpolations and instance parameters), and the eight
+`operator_visibility_*` cast failures that now raise `TypeError`.
+
+The five replay cases `call2512`, `call2515`, `call2518`, `call2521` and
+`call2524` are static rejections, each expecting `V0101` at 4:19: their
+`fetch_values` splat supplies symbols where string keys are required. Their old
+step-quota outcomes no longer conceal the compile failure. Positive checker and
+runtime tests cover a string splat. The replay corpus has 64 changed static
+expectations and 85 changed observations, including the restored rescue cases
+`call15776` and `compile1153`, invalid module annotations, checked block results,
+unsupported conversions and selectors, tuple mutation, and module-resolution
+reasons.
+
+Eleven replay sources are rewritten while preserving their runtime purpose:
+`call41858` declares its returned `to_h` pair as `[string, int]`; `call41862`
+uses `.fetch(0)` after `flat_map` so the retained hash is non-nullable.
+`call41884`–`call41887` and `call54673`–`call54677` use `.new` instead of `.new()`
+inside interpolation. Correct interpolation spans now let the surface rules
+recognize these constructors; the rewrites keep their string-conversion tests.
+
+The conformance corpus has 86 changed observations for invalid `require` calls,
+alias conflicts, declared data called as a function, and module-resolution
+reasons. One CLI observation adds the invalid string-selector diagnostic.
+All 216 LSP sessions retain their reply indexes; 615 shared replies change:
+613 syntax diagnostics retain `V0001`, and two completion documents describe
+`flat_map` accepting scalar or array block results. Compatibility and parse
+observations are unchanged. Only affected cases were recorded; accounting
+counters were kept.
