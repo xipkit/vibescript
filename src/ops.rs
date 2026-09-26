@@ -21,7 +21,7 @@ pub(crate) fn unsupported(op: &str) -> Error {
             "+" => "unsupported addition operands",
             "-" => "unsupported subtraction operands",
             "*" => "unsupported multiplication operands",
-            "/" | LEGACY_DIVIDE => "unsupported division operands",
+            "/" => "unsupported division operands",
             "//" => "unsupported floor division operands",
             "%" => "unsupported modulo operands",
             "**" => "unsupported exponentiation operands",
@@ -31,16 +31,6 @@ pub(crate) fn unsupported(op: &str) -> Error {
             _ => "unsupported operator",
         },
     )
-}
-
-/// The operator the ADR-004 language compiles `/` to, only in engines made
-/// by [`crate::Engine::legacy_unchecked`]: it floors two integers, where `/`
-/// divides them to a float (ADR-008), and divides other operands as `/` does.
-pub(crate) const LEGACY_DIVIDE: &str = "/ (floor)";
-
-/// The name of the method a class defines to implement operator `op`.
-pub(crate) fn method_name(op: &str) -> &str {
-    if op == LEGACY_DIVIDE { "/" } else { op }
 }
 
 /// The reference's message when `array.sum` meets values `+` cannot add.
@@ -108,7 +98,7 @@ pub(crate) fn immediate(
             "/" if *b != 0 && a.unsigned_abs() <= EXACT && b.unsigned_abs() <= EXACT => {
                 Some(Value::float(*a as f64 / *b as f64))
             }
-            "//" | LEGACY_DIVIDE | "%" if *b != 0 => floor_divide(op, *a, *b).map(Value::int),
+            "//" | "%" if *b != 0 => floor_divide(op, *a, *b).map(Value::int),
             "<" => Some(Value::boolean(a < b)),
             "<=" => Some(Value::boolean(a <= b)),
             ">" => Some(Value::boolean(a > b)),
@@ -170,8 +160,8 @@ fn float_modulo(a: f64, b: f64) -> f64 {
 }
 
 pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Result<Value> {
-    if op == "//" || op == LEGACY_DIVIDE {
-        return floor_division(ctx, op, a, b);
+    if op == "//" {
+        return floor_division(ctx, a, b);
     }
     if op == "%" {
         if let Kind::Bytes(pattern) = &a.0 {
@@ -356,11 +346,10 @@ fn integers(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Result<Value
 /// Floor division: integers of any size give the floored integer quotient,
 /// and a float operand gives the floored float quotient, which like float `/`
 /// is infinite or NaN for a zero divisor. Money and durations keep their own
-/// division. [`LEGACY_DIVIDE`] floors only two integers.
-fn floor_division(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Result<Value> {
+/// division.
+fn floor_division(ctx: &mut CallContext, a: Value, b: Value) -> Result<Value> {
     match (&a.0, &b.0) {
         (Kind::Int(_) | Kind::Big(_), Kind::Int(_) | Kind::Big(_)) => integers(ctx, "//", a, b),
-        _ if op == LEGACY_DIVIDE => binary(ctx, "/", a, b),
         (
             Kind::Int(_) | Kind::Big(_) | Kind::Float(_),
             Kind::Int(_) | Kind::Big(_) | Kind::Float(_),

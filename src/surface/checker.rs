@@ -3,7 +3,7 @@
 
 use super::{Finding, Rule, context::Surface, hooks::Hooks, parse, syntax, walk::Walk};
 use crate::{
-    diagnostic::{Diagnostic, Edit, Fix, Span},
+    diagnostic::{Code, Diagnostic, Edit, Fix, Span},
     tooling,
     typing::CallTypes,
 };
@@ -36,8 +36,14 @@ pub fn check(source: &str) -> crate::Result<Vec<Diagnostic>> {
 /// Diagnostics are in source order. A source the rules' parser cannot
 /// read has none.
 pub fn check_tokens(source: &str, tokens: &[tooling::Token], calls: &CallTypes) -> Vec<Diagnostic> {
+    walk(source, tokens, calls).unwrap_or_default()
+}
+
+/// The removed spellings in `source`, or `None` when the rules' parser
+/// cannot read it.
+fn walk(source: &str, tokens: &[tooling::Token], calls: &CallTypes) -> Option<Vec<Diagnostic>> {
     match parse::parse_tokens(source, tokens, NESTING) {
-        Ok(tree) => diagnostics(source, &tree, calls),
+        Ok(tree) => Some(diagnostics(source, &tree, calls)),
         Err(_) => deep(source, tokens, calls),
     }
 }
@@ -54,7 +60,21 @@ pub(crate) fn add_to(
     tokens: &[tooling::Token],
 ) {
     checked.steps += u64::try_from(tokens.len()).unwrap_or(u64::MAX);
-    let surface = check_tokens(source, tokens, &checked.calls);
+    let Some(surface) = walk(source, tokens, &checked.calls) else {
+        // The compiler's grammar reads the removed syntax only so that these
+        // rules report it. A source they cannot read must parse without
+        // it, so that removed syntax never compiles.
+        checked.steps += u64::try_from(tokens.len()).unwrap_or(u64::MAX);
+        if let Some(error) = crate::syntax::canonical_error(source, &()) {
+            let at = error.offset.unwrap_or(0);
+            checked.diagnostics.push(Diagnostic::error(
+                Code::SYNTAX,
+                Span::new(at, at),
+                error.message,
+            ));
+        }
+        return;
+    };
     if surface.is_empty() {
         return;
     }
@@ -70,26 +90,26 @@ pub(crate) fn add_to(
 }
 
 #[cfg(not(target_os = "wasi"))]
-fn deep(source: &str, tokens: &[tooling::Token], calls: &CallTypes) -> Vec<Diagnostic> {
+fn deep(source: &str, tokens: &[tooling::Token], calls: &CallTypes) -> Option<Vec<Diagnostic>> {
     std::thread::scope(|scope| {
         std::thread::Builder::new()
             .stack_size(DEEP_STACK)
             .spawn_scoped(scope, || {
                 parse::parse_tokens(source, tokens, usize::MAX)
+                    .ok()
                     .map(|tree| diagnostics(source, &tree, calls))
-                    .unwrap_or_default()
             })
             .ok()
             .and_then(|thread| thread.join().ok())
-            .unwrap_or_default()
+            .flatten()
     })
 }
 
 /// WASI preview 1 cannot start a thread with a larger stack, so a source
-/// nested this deeply goes unchecked there.
+/// nested this deeply goes unread there.
 #[cfg(target_os = "wasi")]
-fn deep(_: &str, _: &[tooling::Token], _: &CallTypes) -> Vec<Diagnostic> {
-    Vec::new()
+fn deep(_: &str, _: &[tooling::Token], _: &CallTypes) -> Option<Vec<Diagnostic>> {
+    None
 }
 
 fn diagnostics(source: &str, tree: &syntax::Tree, calls: &CallTypes) -> Vec<Diagnostic> {

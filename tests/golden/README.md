@@ -51,11 +51,7 @@ Accounting counters are separate, in `<corpus>.counters.jsonl.gz`: `[id, steps, 
 
 Every source in these corpora is written in the language of [ADR-007](../../docs/adr/007-static-types.md) and [ADR-008](../../docs/adr/008-canonical-surface-for-ai-authors.md), and `golden.py` compiles every engine case with static types, declaring the globals and capabilities the case supplies by their values' types, as a statically typed host would: a case must compile and do what its golden records. A case whose purpose is to fail with static types carries `static_error`, the checker's first error as `{"code", "at"}`, and is checked against that instead. Its golden keeps the outcome it had in the ADR-004 language before the switchover, and recording keeps it too; a case that became a static rejection with the switchover records its compile error.
 
-The `parse` corpus runs without static types, through the ADR-004 engine that `vibes migrate` uses (`Engine::legacy_unchecked`).
-Its token mutations deliberately produce malformed or partially valid programs;
-it records parser acceptance and syntax errors, not semantic validity. Static
-rejections belong in the semantic corpora, where their first diagnostic is
-recorded explicitly.
+The `parse` corpus records only whether each source parses: its token mutations deliberately produce malformed or partially valid programs, so a case records `compiled` when its source parses and otherwise the syntax error `Engine::compile` reports, whatever it would report about types. Static rejections belong in the semantic corpora, where their first diagnostic is recorded explicitly.
 
 ### The switchover
 

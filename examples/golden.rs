@@ -11,9 +11,8 @@
 //!
 //! A case compiles with static types, declaring the globals and capabilities
 //! it supplies by their values' types, as a statically typed host would. A
-//! compilation that fails records its diagnostics' codes. A `legacy` case,
-//! such as a parse sweep's, compiles the ADR-004 language instead, through
-//! the engine `vibes migrate` uses, since it records only what parses.
+//! compilation that fails records its diagnostics' codes. A `parse` case,
+//! such as a parse sweep's, records only whether its source parses.
 use serde_json::{Value as Json, json};
 use std::{
     collections::{BTreeMap, HashMap},
@@ -115,12 +114,15 @@ fn observe(case: &Json) -> Json {
 }
 
 fn execute(case: &Json, stdout: &Capture, stderr: &Capture) -> Json {
-    let static_types = !flag(case, "legacy");
-    let mut engine = if static_types {
-        Engine::new()
-    } else {
-        Engine::legacy_unchecked()
-    };
+    let source = case["source"].as_str().unwrap_or_default();
+    if flag(case, "parse") {
+        // Type checking fails only on a syntax error.
+        return match Engine::new().type_check(source) {
+            Ok(_) => json!({"phase": "compiled"}),
+            Err(error) => compile_failure(source, &error),
+        };
+    }
+    let mut engine = Engine::new();
     engine.set_strict_effects(flag(case, "strict_effects"));
     if case.get("module_paths").is_some() {
         let config = ModuleConfig {
@@ -178,54 +180,19 @@ fn execute(case: &Json, stdout: &Capture, stderr: &Capture) -> Json {
         Err(error) => return failure("setup", &error),
     };
     // A statically typed host declares what each call supplies before compiling.
-    let mut prepared = None;
-    if static_types {
-        match inputs(case, signature.clone()) {
-            Ok(inputs) => {
-                if let Err(error) = declare(&mut engine, case, &inputs.0, signature.as_ref()) {
-                    return failure("setup", &error);
-                }
-                prepared = Some(inputs);
-            }
-            Err(message) => return json!({"phase": "setup", "error": {"message": message}}),
-        }
+    let (options, args, keywords) = match inputs(case, signature.clone()) {
+        Ok(inputs) => inputs,
+        Err(message) => return json!({"phase": "setup", "error": {"message": message}}),
+    };
+    if let Err(error) = declare(&mut engine, case, &options, signature.as_ref()) {
+        return failure("setup", &error);
     }
-    let source = case["source"].as_str().unwrap_or_default();
     let script = match engine.compile(source) {
         Ok(script) => script,
-        Err(error) => {
-            let mut record = failure("compile", &error);
-            let diagnostics: Vec<Json> = error
-                .diagnostics()
-                .iter()
-                .filter(|diagnostic| diagnostic.is_error())
-                .map(|diagnostic| {
-                    // A diagnostic in a required file has no position in this source.
-                    let at = diagnostic.file.is_none().then(|| {
-                        let at = diagnostic.span.position(source);
-                        [at.line, at.column]
-                    });
-                    json!({
-                        "code": diagnostic.code.to_string(),
-                        "at": at,
-                        "file": diagnostic.file.as_deref().map(String::from_utf8_lossy),
-                        "message": diagnostic.message,
-                    })
-                })
-                .collect();
-            if let Some(first) = diagnostics.first() {
-                record["error"]["code"] = first["code"].clone();
-                record["diagnostics"] = Json::Array(diagnostics);
-            }
-            return record;
-        }
+        Err(error) => return compile_failure(source, &error),
     };
     let Some(function) = case["function"].as_str() else {
         return json!({"phase": "compiled"});
-    };
-    let (options, args, keywords) = match prepared.map_or_else(|| inputs(case, signature), Ok) {
-        Ok(inputs) => inputs,
-        Err(message) => return json!({"phase": "setup", "error": {"message": message}}),
     };
     match script.call_with_keywords(function, &args, &keywords, options) {
         Ok(outcome) => {
@@ -249,6 +216,34 @@ fn execute(case: &Json, stdout: &Capture, stderr: &Capture) -> Json {
         }
         Err(error) => failure("call", &error),
     }
+}
+
+/// A failed compilation, with the codes of its error diagnostics.
+fn compile_failure(source: &str, error: &Error) -> Json {
+    let mut record = failure("compile", error);
+    let diagnostics: Vec<Json> = error
+        .diagnostics()
+        .iter()
+        .filter(|diagnostic| diagnostic.is_error())
+        .map(|diagnostic| {
+            // A diagnostic in a required file has no position in this source.
+            let at = diagnostic.file.is_none().then(|| {
+                let at = diagnostic.span.position(source);
+                [at.line, at.column]
+            });
+            json!({
+                "code": diagnostic.code.to_string(),
+                "at": at,
+                "file": diagnostic.file.as_deref().map(String::from_utf8_lossy),
+                "message": diagnostic.message,
+            })
+        })
+        .collect();
+    if let Some(first) = diagnostics.first() {
+        record["error"]["code"] = first["code"].clone();
+        record["diagnostics"] = Json::Array(diagnostics);
+    }
+    record
 }
 
 type Inputs = (CallOptions, Vec<Value>, Vec<(String, Value)>);

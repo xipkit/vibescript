@@ -108,9 +108,6 @@ pub struct Engine {
     declared: Arc<declared::Declarations>,
     loader: Arc<loading::Loader>,
     strict_effects: bool,
-    /// Whether compilation skips static types and keeps the ADR-004
-    /// language, as [`Engine::legacy_unchecked`] engines do.
-    legacy: bool,
     random_source: Option<random::Source>,
     output_writer: Option<output::Writer>,
     error_writer: Option<output::Writer>,
@@ -133,23 +130,6 @@ impl Engine {
     /// unused values. Earlier scripts retain their previous mode. Disabled by default.
     pub fn set_strict_effects(&mut self, enabled: bool) {
         self.strict_effects = enabled;
-    }
-    /// Creates an engine that compiles the ADR-004 language: without static
-    /// types, accepting the removed spellings of ADR-008, and with that
-    /// language's runtime rules, under which `/` floors two integers, a
-    /// function returns its last expression whatever its signature, and
-    /// `fill` and `insert` pad past the end of an array with `nil`.
-    ///
-    /// This exists only so that `vibes migrate` can compile, run and observe
-    /// scripts written before static types became the language (ADR-007).
-    /// Until they are removed with it, the gradual checker's own tests and
-    /// the golden parse sweep use it too; nothing else may.
-    #[doc(hidden)]
-    pub fn legacy_unchecked() -> Self {
-        Self {
-            legacy: true,
-            ..Self::default()
-        }
     }
     /// Type checks `source` without compiling it, as [`Self::compile`]
     /// does, returning every diagnostic and the static receiver type of each
@@ -435,13 +415,8 @@ impl Engine {
     }
     /// Compiles UTF-8 source, enforcing source-size and syntax-depth guards.
     pub fn compile(&self, source: &str) -> Result<Script> {
-        let code = code::Code::compile_metered(
-            source,
-            &self.hosts,
-            &self.declared,
-            &(),
-            (!self.legacy).then_some(&*self.loader),
-        )?;
+        let code =
+            code::Code::compile_metered(source, &self.hosts, &self.declared, &(), &self.loader)?;
         Ok(self.script(code))
     }
 
@@ -479,7 +454,7 @@ impl Engine {
             &self.hosts,
             &self.declared,
             &compilation::Meter(std::cell::RefCell::new(&mut ctx)),
-            (!self.legacy).then_some(&*self.loader),
+            &self.loader,
         )?;
         ctx.checkpoint()?;
         Ok(self.script(code))

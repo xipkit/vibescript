@@ -978,7 +978,7 @@ def check_corpus(corpus, args, overrides, report):
     # The parse sweep records what parses, not what type checks.
     if corpus.name == "parse":
         for case in cases:
-            case["legacy"] = True
+            case["parse"] = True
     if corpus.name in overrides:
         if not corpus.migratable:
             raise SystemExit(f"{corpus.name}: sources cannot be overridden")

@@ -330,7 +330,7 @@ mod tests {
             ..ModuleConfig::default()
         })
         .unwrap();
-        let receiving = crate::code::Code::compile("nil", &Default::default(), false).unwrap();
+        let receiving = crate::code::Code::compile("nil", &Default::default()).unwrap();
         let run = |ctx: &mut CallContext| {
             loader.load(ctx, &mut Buffer::empty(), b"answer", None, &receiving)
         };
@@ -379,9 +379,9 @@ mod tests {
     fn cached_compilation_releases_the_first_invocations_temporary_storage() {
         let directory = test_support::Directory::new();
         let source = format!(
-            "def unused;{}end;class Box;def original;{}end;alias copied original;end;def value;42;end",
+            "def unused;{}end;class Box;def original;{}end;alias copied original;end;def value -> int;42;end",
             "1;".repeat(1024),
-            r#"["text",:symbol,/pattern/,999999999999999999999999,{label:"value"},%W[word#{1}]];"#
+            r#"["text",:symbol,/pattern/,999999999999999999999999,{label:"value"},["word#{1}"]];"#
         );
         let path = directory.write("answer.vibe", source.as_bytes());
         let loader = Loader::new(ModuleConfig {
@@ -389,7 +389,7 @@ mod tests {
             ..ModuleConfig::default()
         })
         .unwrap();
-        let receiving = crate::code::Code::compile("nil", &Default::default(), false).unwrap();
+        let receiving = crate::code::Code::compile("nil", &Default::default()).unwrap();
         let mut context = CallContext::new(CallOptions::default());
         let memory = Arc::downgrade(&context.identity());
         let mut pins = Buffer::empty();

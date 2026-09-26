@@ -592,7 +592,7 @@ mod compilation_tests {
     #[test]
     fn compilation_errors_transfer_to_rescue_without_duplicate_storage_charges() {
         let program = Program {
-            code: Code::compile("0", &Default::default(), false).unwrap(),
+            code: Code::compile("0", &Default::default()).unwrap(),
             environment: None,
             index: 0,
             global_base: 0,

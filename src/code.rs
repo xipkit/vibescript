@@ -9,8 +9,6 @@ pub(crate) struct Code {
     pub declared: Arc<crate::declared::Declarations>,
     pub origin: Option<crate::loading::Origin>,
     pub exports: Vec<(String, Export)>,
-    /// Whether the code and the files it requires are type checked statically.
-    pub static_types: bool,
 }
 
 pub(crate) enum Export {
@@ -37,13 +35,9 @@ impl Code {
         result
     }
 
+    /// Compiles host source without a module loader.
     #[cfg(test)]
-    pub fn compile(
-        source: &str,
-        registered: &BTreeMap<String, Registered>,
-        static_types: bool,
-    ) -> Result<Arc<Self>> {
-        let typing = static_types.then_some(Typing { loader: None });
+    pub fn compile(source: &str, registered: &BTreeMap<String, Registered>) -> Result<Arc<Self>> {
         Self::compile_typed(
             source,
             registered.iter(),
@@ -51,22 +45,19 @@ impl Code {
             false,
             None,
             &(),
-            typing,
+            None,
         )
     }
 
-    /// Compiles host source, charging the work to `work`. In static mode,
-    /// `loader` resolves the files the source requires.
+    /// Compiles host source, charging the work to `work`, with `loader`
+    /// resolving the files it requires.
     pub fn compile_metered(
         source: &str,
         registered: &BTreeMap<String, Registered>,
         declared: &Arc<crate::declared::Declarations>,
         work: &dyn crate::compilation::Work,
-        static_types: Option<&crate::loading::Loader>,
+        loader: &crate::loading::Loader,
     ) -> Result<Arc<Self>> {
-        let typing = static_types.map(|loader| Typing {
-            loader: Some(loader),
-        });
         Self::compile_typed(
             source,
             registered.iter(),
@@ -74,10 +65,11 @@ impl Code {
             false,
             None,
             work,
-            typing,
+            Some(loader),
         )
     }
 
+    /// Compiles a required file without a module loader.
     #[cfg(test)]
     pub fn compile_file(
         source: &str,
@@ -93,9 +85,6 @@ impl Code {
         origin: crate::loading::Origin,
         loader: &crate::loading::Loader,
     ) -> Result<Arc<Self>> {
-        let typing = receiving.static_types.then_some(Typing {
-            loader: Some(loader),
-        });
         Self::compile_typed(
             source,
             receiving.program.hosts.iter().zip(&receiving.hosts),
@@ -103,7 +92,7 @@ impl Code {
             true,
             Some(origin),
             &crate::compilation::Meter(std::cell::RefCell::new(ctx)),
-            typing,
+            Some(loader),
         )
     }
 
@@ -133,9 +122,8 @@ impl Code {
         file: bool,
         origin: Option<crate::loading::Origin>,
         work: &dyn crate::compilation::Work,
-        typing: Option<Typing<'_>>,
+        loader: Option<&crate::loading::Loader>,
     ) -> Result<Arc<Self>> {
-        let static_types = typing.is_some();
         work.checkpoint()?;
         let mut names = Vec::new();
         for (name, _) in registered.clone() {
@@ -145,50 +133,42 @@ impl Code {
         let filename = origin.as_ref().map(crate::loading::Origin::filename);
         let parse_error =
             |error| crate::source::parse_error(source, filename.as_ref(), error, work);
-        let mut program = if let Some(typing) = typing {
-            let (parsed, tokens) =
-                crate::syntax::parse_with_tokens(source, work).map_err(|error| {
-                    parse_error(crate::syntax::canonical_syntax(source, work, error))
-                })?;
-            let resolve = |path: &str, origin: Option<&crate::loading::Origin>| {
-                typing.loader.and_then(|loader| loader.source(path, origin))
-            };
-            let checked = crate::typing::check(&crate::typing::Input {
-                source,
-                parsed: &parsed,
-                tokens: &tokens,
-                hosts: registered.clone().collect(),
-                declared,
-                file,
-                origin: origin.as_ref(),
-                modules: typing.loader.is_some().then_some(&resolve),
-            });
-            work.charge(usize::try_from(checked.steps).unwrap_or(usize::MAX))?;
-            work.checkpoint()?;
-            if checked.diagnostics.iter().any(|d| d.is_error()) {
-                let mut text = crate::source::Source::compile(source, work)?;
-                text.filename = filename.clone();
-                let diagnostics = checked
-                    .diagnostics
-                    .into_iter()
-                    .map(|diagnostic| match diagnostic.file {
-                        Some(_) => diagnostic,
-                        None => diagnostic.in_file(filename.clone()),
-                    })
-                    .collect();
-                return Err(Error::from_diagnostics(
-                    crate::ErrorKind::Type,
-                    diagnostics,
-                    &text,
-                ));
-            }
-            crate::bytecode::compile_parsed(source, parsed, names, file, false, work)
-        } else if file {
-            crate::bytecode::compile_file(source, names, work)
-        } else {
-            crate::bytecode::compile(source, names, work)
+        let (parsed, tokens) = crate::syntax::parse_with_tokens(source, work)
+            .map_err(|error| parse_error(crate::syntax::canonical_syntax(source, work, error)))?;
+        let resolve = |path: &str, origin: Option<&crate::loading::Origin>| {
+            loader.and_then(|loader| loader.source(path, origin))
+        };
+        let checked = crate::typing::check(&crate::typing::Input {
+            source,
+            parsed: &parsed,
+            tokens: &tokens,
+            hosts: registered.clone().collect(),
+            declared,
+            file,
+            origin: origin.as_ref(),
+            modules: loader.is_some().then_some(&resolve),
+        });
+        work.charge(usize::try_from(checked.steps).unwrap_or(usize::MAX))?;
+        work.checkpoint()?;
+        if checked.diagnostics.iter().any(|d| d.is_error()) {
+            let mut text = crate::source::Source::compile(source, work)?;
+            text.filename = filename.clone();
+            let diagnostics = checked
+                .diagnostics
+                .into_iter()
+                .map(|diagnostic| match diagnostic.file {
+                    Some(_) => diagnostic,
+                    None => diagnostic.in_file(filename.clone()),
+                })
+                .collect();
+            return Err(Error::from_diagnostics(
+                crate::ErrorKind::Type,
+                diagnostics,
+                &text,
+            ));
         }
-        .map_err(parse_error)?;
+        let mut program = crate::bytecode::compile_parsed(source, parsed, names, file, work)
+            .map_err(parse_error)?;
         program.source.filename = filename;
         let mut hosts = Vec::new();
         for (name, host) in registered {
@@ -229,16 +209,9 @@ impl Code {
                 declared: declared.clone(),
                 origin,
                 exports,
-                static_types,
             }
         }))
     }
-}
-
-/// How a static compilation resolves what it requires.
-#[derive(Clone, Copy)]
-struct Typing<'a> {
-    loader: Option<&'a crate::loading::Loader>,
 }
 
 impl fmt::Debug for Code {

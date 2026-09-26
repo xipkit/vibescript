@@ -461,14 +461,14 @@ fn canonical() -> bool {
     CANONICAL.with(std::cell::Cell::get)
 }
 
-/// The syntax error `source` has in the canonical surface of ADR-008, for a
-/// source whose parse in the full grammar already failed. The full grammar
-/// still reads the removed syntax, so that a well-formed use of it reaches
-/// the checker, which reports it with a fix; a source that does not parse
-/// either way reports the error the canonical grammar finds, where the
-/// removed syntax is no syntax at all. Returns `None` when the canonical
+/// The syntax error `source` has in the canonical surface of ADR-008. The
+/// full grammar still reads the removed syntax, only so that a well-formed
+/// use of it reaches the checker, which reports it with a fix; a source that
+/// does not parse either way reports the error the canonical grammar finds,
+/// where the removed syntax is no syntax at all, and so does a source the
+/// checker's surface rules cannot read. Returns `None` when the canonical
 /// parse succeeds.
-fn canonical_error(source: &str, work: &dyn crate::compilation::Work) -> Option<Error> {
+pub(crate) fn canonical_error(source: &str, work: &dyn crate::compilation::Work) -> Option<Error> {
     struct Restore(bool);
     impl Drop for Restore {
         fn drop(&mut self) {
