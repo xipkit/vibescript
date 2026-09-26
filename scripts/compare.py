@@ -17,6 +17,7 @@ import sys
 import time
 from pathlib import Path
 from fixtures import benchmark_cases, conformance_cases, site_benchmark_cases
+from json_fixtures import benchmark_cases as json_benchmark_cases
 from module_fixtures import materialize
 import golden
 
@@ -36,12 +37,12 @@ def build(out):
     BINS.mkdir(parents=True,exist_ok=True)
     with (out/"build.log").open("w") as log:
         for name,features in [("rust-portable",[]),("rust-simd",["simd"]),("rust-portable-alloc",["allocation-stats"]),("rust-simd-alloc",["simd","allocation-stats"])]:
-            cmd=[CARGO,"build","--release","--locked","--example","compare","--no-default-features"]
+            cmd=[CARGO,"build","--offline","--release","--locked","--example","compare","--no-default-features"]
             if features: cmd += ["--features",",".join(features)]
             run(cmd,cwd=ROOT,stdout=log,stderr=log)
             shutil.copy2(ROOT/"target/release/examples/compare",BINS/name)
         for name,features in [("golden-portable",[]),("golden-simd",["simd"])]:
-            cmd=[CARGO,"build","--release","--locked","--example","golden","--no-default-features"]
+            cmd=[CARGO,"build","--offline","--release","--locked","--example","golden","--no-default-features"]
             if features: cmd += ["--features",",".join(features)]
             run(cmd,cwd=ROOT,stdout=log,stderr=log)
             shutil.copy2(ROOT/"target/release/examples/golden",BINS/name)
@@ -66,7 +67,7 @@ def equal_json(actual,expected):
 
 def validate(out):
     # A case whose purpose is a static rejection does not run; golden.py checks it.
-    cases=[case for case in conformance_cases()+benchmark_cases() if "static_error" not in case]
+    cases=[case for case in conformance_cases()+benchmark_cases()+json_benchmark_cases() if "static_error" not in case]
     expected=materialize(cases,out)
     path=out/"validation-inputs.json"
     path.write_text(json.dumps(expected,ensure_ascii=False,sort_keys=True)+"\n")
@@ -100,7 +101,7 @@ def validate(out):
 
 
 def measure(out,rounds,target_ms,expected,suite):
-    source=site_benchmark_cases() if suite=="site" else benchmark_cases()
+    source={"site":site_benchmark_cases,"core":benchmark_cases,"json":json_benchmark_cases}[suite]()
     cases=[{k:v for k,v in case.items() if k!="expected"} for case in source]
     path=out/"measurement-inputs.json";path.write_text(json.dumps(cases,ensure_ascii=False,sort_keys=True)+"\n")
     pilot={};pilot_digests={}
@@ -134,19 +135,24 @@ def measure(out,rounds,target_ms,expected,suite):
     allocations={};rss={}
     for variant in VARIANTS:
         records=invoke(variant+"-alloc",path,100,"alloc",out/f"allocations-{variant}.jsonl")
-        allocations[variant]={r["name"]:{k:r[k] for k in ["alloc_bytes","allocations"]} for r in records}
+        allocations[variant]={r["name"]:{k:r[k] for k in ["alloc_bytes","allocations","steps","tracked_peak_bytes","tracked_retained_bytes"]} for r in records}
         for record in records: assert record["digest"]==expected[record["name"]]
-        rss_file=out/f"rss-{variant}.txt"
-        with rss_file.open("w") as err,(out/f"rss-{variant}.jsonl").open("w") as output:
-            run(["/usr/bin/time","-l",BINS/variant,path,100,"timing"],cwd=ROOT,stdout=output,stderr=err)
-        line=next(line for line in rss_file.read_text().splitlines() if "maximum resident set size" in line)
-        rss[variant]=int(line.split()[0])
+        rss[variant]={}
+        for index,case in enumerate(cases):
+            rss_input=out/"rss-input.json"
+            rss_input.write_text(json.dumps([case],ensure_ascii=False)+"\n")
+            rss_file=out/f"rss-{variant}-{index}.txt"
+            with rss_file.open("w") as err,(out/f"rss-{variant}-{index}.jsonl").open("w") as output:
+                flag="-l" if sys.platform=="darwin" else "-v"
+                run(["/usr/bin/time",flag,BINS/variant,rss_input,20,"timing"],cwd=ROOT,stdout=output,stderr=err,env={**os.environ,"LC_ALL":"C"})
+            line=next(line for line in rss_file.read_text().splitlines() if "maximum resident set size" in line.lower())
+            rss[variant][case["name"]]=int(line.split()[0]) if sys.platform=="darwin" else int(line.rsplit(":",1)[1])*1024
     summary={"rounds":rounds,"order":order,"peak_rss_bytes":rss,"cases":{}}
     for case in cases:
         name=case["name"];summary["cases"][name]={}
         for variant in VARIANTS:
             times=samples[variant][name]
-            summary["cases"][name][variant]={"median_ns":statistics.median(times),"min_ns":min(times),"max_ns":max(times),"samples_ns":times,**allocations[variant][name]}
+            summary["cases"][name][variant]={"median_ns":statistics.median(times),"min_ns":min(times),"max_ns":max(times),"samples_ns":times,"peak_rss_bytes":rss[variant][name],**allocations[variant][name]}
     (out/"summary.json").write_text(json.dumps(summary,indent=2)+"\n")
     print(f"Timing, allocations, and process RSS saved to {out}",flush=True)
 
@@ -164,7 +170,7 @@ def cpu_name():
 
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument("--out",type=Path,default=ROOT/"benchmarks/results"/time.strftime("%Y-%m-%d-%H%M%S"));parser.add_argument("--skip-build",action="store_true");parser.add_argument("--validate-only",action="store_true");parser.add_argument("--rounds",type=int,default=8);parser.add_argument("--target-ms",type=float,default=75);parser.add_argument("--suite",choices=["core","site"],default="core",help="core micro-benchmarks, or every site program")
+    parser=argparse.ArgumentParser();parser.add_argument("--out",type=Path,default=ROOT/"benchmarks/results"/time.strftime("%Y-%m-%d-%H%M%S"));parser.add_argument("--skip-build",action="store_true");parser.add_argument("--validate-only",action="store_true");parser.add_argument("--rounds",type=int,default=8);parser.add_argument("--target-ms",type=float,default=75);parser.add_argument("--suite",choices=["core","site","json"],default="core",help="core micro-benchmarks, site programs, or API JSON workloads")
     parser.add_argument("--baseline",type=Path,help="Directory containing prior rust-portable/rust-simd timing and allocation binaries, plus a revision file")
     args=parser.parse_args();out=args.out.resolve();out.mkdir(parents=True,exist_ok=False)
     baseline_revision=None
