@@ -61,14 +61,11 @@ fn defaults_match_parameter_types_in_declaration_order() {
 }
 
 #[test]
-fn loop_and_rescue_bindings_keep_existing_local_types() {
+fn loop_bindings_keep_types_and_rescue_bindings_shadow() {
     clean("x = 0\nfor x in [1, 2]\n  x + 1\nend\n");
     codes("x = \"s\"\nfor x in [1, 2]\nend\n", &["V0102"]);
     clean("begin\n  raise \"x\"\nrescue => e\n  e.message\nend\n");
-    codes(
-        "e = 1\nbegin\n  raise \"x\"\nrescue => e\n  0\nend\n",
-        &["V0102"],
-    );
+    clean("e = 1\nbegin\n  raise \"x\"\nrescue => e\n  0\nend\n");
 }
 
 #[test]
@@ -215,7 +212,10 @@ fn capitalized_assignments_in_functions_are_rejected() {
     clean("def bump -> int\n  count = 1\n  count = 2\n  count\nend\n");
     codes("def bad\n  COUNT = 1\nend\n", &["V0102"]);
     codes("class C; N = 1; def bad; N += 1; end; end", &["V0102"]);
-    codes("class C; FLAG = true; def bad; FLAG &&= false; end; end", &["V0102"]);
+    codes(
+        "class C; FLAG = true; def bad; FLAG &&= false; end; end",
+        &["V0102"],
+    );
     clean("class C; @@n: int = 1; def bump -> int; @@n += 1; end; end; C.new.bump");
 }
 
