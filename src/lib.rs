@@ -153,8 +153,8 @@ impl Engine {
     ///
     /// This exists only so that `vibes migrate` can compile, run and observe
     /// scripts written before static types became the language (ADR-007).
-    /// Until they are removed with it, the gradual checker's own tests use it
-    /// too; nothing else may.
+    /// Until they are removed with it, the gradual checker's own tests and
+    /// the golden parse sweep use it too; nothing else may.
     #[doc(hidden)]
     pub fn legacy_unchecked() -> Self {
         Self {

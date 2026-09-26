@@ -9,9 +9,11 @@
 //! and compares the records with the committed goldens. Records are flushed one
 //! at a time so the driver can resume after the process dies.
 //!
-//! A case with `static_types` compiles with the static checker, declaring the
-//! globals and capabilities it supplies by their values' types, as a statically
-//! typed host would. A compilation that fails records its diagnostics' codes.
+//! A case compiles with static types, declaring the globals and capabilities
+//! it supplies by their values' types, as a statically typed host would. A
+//! compilation that fails records its diagnostics' codes. A `legacy` case,
+//! such as a parse sweep's, compiles the ADR-004 language instead, through
+//! the engine `vibes migrate` uses, since it records only what parses.
 use serde_json::{Value as Json, json};
 use std::{
     collections::{BTreeMap, HashMap},
@@ -113,9 +115,12 @@ fn observe(case: &Json) -> Json {
 }
 
 fn execute(case: &Json, stdout: &Capture, stderr: &Capture) -> Json {
-    let mut engine = Engine::new();
-    let static_types = flag(case, "static_types");
-    engine.set_static_types(static_types);
+    let static_types = !flag(case, "legacy");
+    let mut engine = if static_types {
+        Engine::new()
+    } else {
+        Engine::legacy_unchecked()
+    };
     engine.set_strict_effects(flag(case, "strict_effects"));
     if case.get("module_paths").is_some() {
         let config = ModuleConfig {

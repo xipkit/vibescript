@@ -273,8 +273,8 @@ CLI_ARGUMENTS = [
 ]
 CLI_SOURCES = ["tests/site", "tests/upstream", "examples"]
 CLI_SUITE = {
-    "math_test.vibe": "def test_addition()\n  assert 1 + 2 == 3\nend\n\ndef helper()\n  1\nend\n",
-    "broken_test.vibe": "def test_failure()\n  assert 1 == 2, \"one is not two\"\nend\n\ndef test_needs(value)\nend\n\n"
+    "math_test.vibe": "def test_addition\n  assert 1 + 2 == 3\nend\n\ndef helper -> int\n  1\nend\n",
+    "broken_test.vibe": "def test_failure\n  assert 1 == 2, \"one is not two\"\nend\n\ndef test_needs(value: int)\nend\n\n"
                         "def test_prints\n  puts \"hello\"\n  raise \"boom\"\nend\n",
     "top_test.vibe": "puts \"top\"\ndef test_a\nend\n",
     "assign_test.vibe": "x = 1\n",
@@ -689,9 +689,9 @@ def static_error_failure(case, observation):
     return None
 
 
-def expectation_failure(case, observation, static=False):
+def expectation_failure(case, observation):
     """Checks a generator's independent expectation; returns a message or None."""
-    if static and "_static_error" in case:
+    if "_static_error" in case:
         return static_error_failure(case, observation)
     if "_phase" in case and observation["phase"] != case["_phase"]:
         return f"expected a {case['_phase']} error, got {observation['phase']}"
@@ -975,9 +975,10 @@ def check_corpus(corpus, args, overrides, report):
     """Runs one corpus and reports how it compares with its goldens, or records them."""
     started = time.monotonic()
     cases = corpus.cases()
-    if args.static and corpus.kind == "engine" and corpus.name != "parse":
+    # The parse sweep records what parses, not what type checks.
+    if corpus.name == "parse":
         for case in cases:
-            case["static_types"] = True
+            case["legacy"] = True
     if corpus.name in overrides:
         if not corpus.migratable:
             raise SystemExit(f"{corpus.name}: sources cannot be overridden")
@@ -1043,7 +1044,7 @@ def check_corpus(corpus, args, overrides, report):
         if observation.get("phase") in ("panic", "crash", "hang") or "failure" in observation:
             add("crashes", cid, describe(actual[cid]))
         if corpus.kind == "engine":
-            message = expectation_failure(by_id[cid], observation, args.static)
+            message = expectation_failure(by_id[cid], observation)
             if message:
                 # A legacy corpus keeps its goldens as these expectations.
                 add("observable differences" if corpus.legacy else "expectation failures", cid, message)
@@ -1051,8 +1052,9 @@ def check_corpus(corpus, args, overrides, report):
         problems["observable differences"]["blocking"] = True
     if not corpus.legacy and (golden or not args.record):
         for cid in ids:
-            # The goldens record outcomes without static types; a static rejection is checked above.
-            if args.static and "_static_error" in by_id[cid]:
+            # A static rejection is checked above; its golden keeps the outcome
+            # it had in the ADR-004 language.
+            if "_static_error" in by_id[cid]:
                 continue
             compare_case(by_id[cid], golden.get(cid), actual[cid], varies.get(cid), table, add)
         for cid in sorted(set(golden) - set(ids)) if selected is None else ():
@@ -1075,7 +1077,9 @@ def check_corpus(corpus, args, overrides, report):
     elif any(entry["blocking"] and entry["cases"] for entry in problems.values()):
         report.section(corpus.name, len(ids), problems, notes + ["not recorded"])
     else:
-        record_corpus(corpus, ids, actual, counters, varies, table, preserve=selected is not None)
+        rejected = {cid for cid in ids if "_static_error" in by_id[cid]}
+        record_corpus(corpus, ids, actual, counters, varies, table, preserve=selected is not None,
+                      keep=rejected)
         report.section(corpus.name, len(ids), problems, notes + [
             f"recorded in {elapsed}" + (f"; {len(varies)} cases vary between runs" if varies else "")])
 
@@ -1126,11 +1130,22 @@ def lsp_difference(document, expected, got, table):
     return f"expected {len(expected)} replies, got {len(got)}"
 
 
-def record_corpus(corpus, ids, actual, counters, varies, table, preserve=False):
-    """Records selected observations, preserving other cases when requested."""
+def record_corpus(corpus, ids, actual, counters, varies, table, preserve=False, keep=frozenset()):
+    """Records selected observations, preserving other cases when requested.
+
+    The cases in `keep`, static rejections, keep their recorded goldens and
+    counters, the outcomes they had in the ADR-004 language; one without a
+    golden records its compile error."""
+    previous = {record["id"]: record for record in read_jsonl(corpus.golden)} \
+        if not corpus.legacy and corpus.golden.exists() else {}
     if not corpus.legacy:
-        records = {record["id"]: record for record in read_jsonl(corpus.golden)} if preserve and corpus.golden.exists() else {}
+        records = dict(previous) if preserve else {}
+        for cid in keep:
+            if cid in previous:
+                records[cid] = previous[cid]
         for cid in sorted(ids):
+            if cid in keep and cid in previous:
+                continue
             if cid in varies:
                 records[cid] = {"id": cid, "varies": varies[cid]}
             else:
@@ -1140,8 +1155,10 @@ def record_corpus(corpus, ids, actual, counters, varies, table, preserve=False):
             compact_replies(records, table)
         write_jsonl(corpus.golden, records)
     if counters or preserve and corpus.counters.exists():
-        kept = {cid: values for cid, values in load_counters(corpus).items() if cid not in ids} if preserve else {}
-        kept.update({cid: values for cid, values in counters.items() if cid not in varies})
+        recorded = load_counters(corpus)
+        kept = {cid: values for cid, values in recorded.items() if cid not in ids} if preserve else {}
+        kept.update({cid: values for cid, values in counters.items() if cid not in varies and cid not in keep})
+        kept.update({cid: recorded[cid] for cid in keep if cid in recorded})
         write_jsonl(corpus.counters, [[cid, *kept[cid]] for cid in sorted(kept)])
     if table is not None:
         write_jsonl(GOLDEN / "lsp.replies.jsonl.gz", [{"reply": body} for body in table.bodies])
@@ -1180,9 +1197,6 @@ def main(argv=None):
                         help="record the goldens from this build instead of checking them")
     parser.add_argument("--cases", type=Path, metavar="FILE",
                         help='run only case ids from a JSON map {"corpus": ["id", ...]}; recording preserves other cases')
-    parser.add_argument("--static", action="store_true",
-                        help="compile engine cases with static types, declaring the globals and capabilities each "
-                             "supplies; a case with a static_error expects that compile error instead of its golden")
     parser.add_argument("--observations", type=Path, metavar="FILE",
                         help="also write every engine case's raw observation, one JSON line each")
     parser.add_argument("--strict-counters", action="store_true", help="fail when accounting counters drift")

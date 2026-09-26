@@ -15,8 +15,8 @@ To check or re-record only affected cases, pass `--cases FILE`, where the JSON f
 | Corpus | Cases | Sources |
 | --- | ---: | --- |
 | `conformance` | 1,248 | generated cases in `scripts/fixtures.py` and the host-binding, required-file, capability, block and signature generators; the site and upstream programs; the benchmark cases |
-| `language` | 106,877 | `tests/language.json` |
-| `rejections` | 32,637 | runtime errors in `tests/language-errors.json` and compile errors in `tests/syntax-errors.json`; with static types, the cases that carry a `static_error` |
+| `language` | 106,791 | `tests/language.json` |
+| `rejections` | 32,723 | runtime errors in `tests/language-errors.json` and compile errors in `tests/syntax-errors.json`, and the static rejections among them that carry a `static_error` |
 | `compatibility` | 219 | the selected differences from Go: `docs/compatibility-cases.json`, the generators' policy cases and the sources in `docs/*-differences.json` and `docs/computed-call-gaps.json` |
 | `replay` | 56,827 | the calls and compiles Go v0.70.0's test suite made, in `replay/` |
 | `parse` | 35,965 | the site and upstream programs with a token deleted, duplicated or inserted, or cut after a line, as `scripts/parse-sweep.py` makes them; compiled only |
@@ -49,13 +49,33 @@ Accounting counters are separate, in `<corpus>.counters.jsonl.gz`: `[id, steps, 
 
 ## Static types
 
-Every source in these corpora is written in the language of [ADR-007](../../docs/adr/007-static-types.md) and [ADR-008](../../docs/adr/008-canonical-surface-for-ai-authors.md). `golden.py --static` compiles every engine case with the static checker, declaring the globals and capabilities the case supplies by their values' types, as a statically typed host would, and checks it against the same goldens: a case must compile and do what its golden records. A case whose purpose is to fail with static types carries `static_error`, the checker's first error as `{"code", "at"}`, and is checked against that instead; its golden still records what it does without static types, which is what the goldens check until the switchover makes static types the default.
+Every source in these corpora is written in the language of [ADR-007](../../docs/adr/007-static-types.md) and [ADR-008](../../docs/adr/008-canonical-surface-for-ai-authors.md), and `golden.py` compiles every engine case with static types, declaring the globals and capabilities the case supplies by their values' types, as a statically typed host would: a case must compile and do what its golden records. A case whose purpose is to fail with static types carries `static_error`, the checker's first error as `{"code", "at"}`, and is checked against that instead. Its golden keeps the outcome it had in the ADR-004 language before the switchover, and recording keeps it too; a case that became a static rejection with the switchover records its compile error.
 
-The `parse` corpus always runs without static types, including under `--static`.
+The `parse` corpus runs without static types, through the ADR-004 engine that `vibes migrate` uses (`Engine::legacy_unchecked`).
 Its token mutations deliberately produce malformed or partially valid programs;
 it records parser acceptance and syntax errors, not semantic validity. Static
 rejections belong in the semantic corpora, where their first diagnostic is
 recorded explicitly.
+
+### The switchover
+
+When static types became the only mode (2026-09-26), these goldens were re-recorded, and only for these rules:
+
+| Rule | `language` | `rejections` | `replay` | Total |
+| --- | ---: | ---: | ---: | ---: |
+| `/` is true division | 0 | 0 | 0 | 0 |
+| `fill` and `insert` raise past the end | 6 | | 16 | 22 |
+| a function or method without `-> T` returns `nil` | 129 | 32 | 2 | 163 |
+| a class's `==` is typed by its declared result | 2 | | | 2 |
+| removed syntax stops parsing | | 83 | 1 | 84 |
+
+- True division changed no case: the migration rewrote every `/` between ints as `//`.
+- Of the `language` cases, 51 took a new expected value, 12 now raise at runtime and 74 fail to compile; the last two groups moved to `tests/language-errors.json`. Of the 32 `rejections` cases, 10 raised at runtime and now fail to compile, and 22 whose private `==` declares no result now report `V0101` before `V0208`; each carries its new `static_error` and keeps its golden.
+- Most of the `nil` returns are operator methods without `-> T`, such as `def ==(other: int); false; end`. Since `==` and `!=` of a class give what its method returns, several now fail to compile where the method's result reaches a typed position. Two `language` cases declare `==` with a non-bool result, which the checker used to type as `bool`.
+- Of the 44 `surface-at-flip` cases, 14 changed; the other 30 report the same first error in the canonical grammar. 69 more parse-error cases changed for the same rule: malformed parameter lists that the removed `name: default` keyword form used to read. `tests/syntax-errors.json` gives each its new message in `error`.
+- The `cli` corpus changed in 62 cases: the help and flag errors of the commands whose `--static` and `--check` flags were removed (30), and `run` and `analyze` of the 16 programs that do not type check without their host's capabilities or are deliberately ill-typed, which now fail to compile. The `test` suite is written in the static language and records the same reports.
+- 214 of the 216 `lsp` sessions changed: the server advertises quick fixes, and the diagnostics of 55 documents are the type checker's instead of the gradual checker's findings.
+- Accounting was not re-recorded. As with `--static` before, a statically typed host checks each call's declared globals and capabilities at entry, so counters drift and 330 `replay` cases recorded under Go's tight quota change quota outcome; all of it is reported as accounting drift and fails only with `--strict-counters` or `--strict-quota`.
 
 The migration's non-mechanical decisions are in [migration-decisions.jsonl](migration-decisions.jsonl), one per case, sorted by corpus and id, each with a short reason:
 
