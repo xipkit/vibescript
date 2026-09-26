@@ -40,7 +40,7 @@ impl Range {
     }
 
     pub fn import(ctx: &mut CallContext, range: &Arc<Self>) -> Result<Arc<Self>> {
-        if ctx.owns(&range.charge) || ctx.options.limits.memory_bytes.is_none() {
+        if ctx.owns(&range.charge) {
             Ok(range.clone())
         } else {
             Self::new(ctx, range.start, range.end, range.exclusive)

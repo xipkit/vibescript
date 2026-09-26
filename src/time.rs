@@ -95,7 +95,7 @@ impl Zoned {
         }))
     }
     pub fn import(ctx: &mut CallContext, value: &Arc<Self>) -> Result<Arc<Self>> {
-        if ctx.owns(&value.header) || ctx.options.limits.memory_bytes.is_none() {
+        if ctx.owns(&value.header) {
             return Ok(value.clone());
         }
         let zone = zone::Zone::import(ctx, &value.zone)?;

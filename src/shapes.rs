@@ -33,7 +33,7 @@ pub(crate) fn compile(ty: Type) -> Value {
 
 impl Shape {
     pub fn import(ctx: &mut CallContext, value: &Arc<Self>) -> Result<Arc<Self>> {
-        if ctx.owns(&value.header) || ctx.options.limits.memory_bytes.is_none() {
+        if ctx.owns(&value.header) {
             return Ok(value.clone());
         }
         let metadata = ctx.reserve(value.definition.bytes)?;

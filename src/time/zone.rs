@@ -262,7 +262,7 @@ impl Zone {
     }
 
     pub fn import(ctx: &mut CallContext, zone: &Arc<Self>) -> Result<Arc<Self>> {
-        if ctx.owns(&zone.header) || ctx.options.limits.memory_bytes.is_none() {
+        if ctx.owns(&zone.header) {
             return Ok(zone.clone());
         }
         let bytes = ctx.import(&zone.bytes)?;
@@ -273,9 +273,6 @@ impl Zone {
     /// sharing the parsed data. Unlike [`Self::import`], it charges no work,
     /// so a resolution costs the same steps with or without a memory quota.
     fn share(ctx: &mut CallContext, zone: &Arc<Self>) -> Result<Arc<Self>> {
-        if ctx.options.limits.memory_bytes.is_none() {
-            return Ok(zone.clone());
-        }
         let Kind::Bytes(data) = &zone.bytes.0 else {
             unreachable!("zone data is stored as bytes");
         };

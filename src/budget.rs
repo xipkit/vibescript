@@ -424,9 +424,6 @@ impl CallContext {
 
     pub(crate) fn check_memory(&mut self, bytes: usize) -> Result<()> {
         self.checkpoint()?;
-        if self.options.limits.memory_bytes.is_none() {
-            return Ok(());
-        }
         let used = self.memory.used.load(Ordering::Relaxed);
         let Some(next) = used.checked_add(bytes) else {
             return self.fail(ErrorKind::Memory, "memory size overflow");
@@ -444,9 +441,7 @@ impl CallContext {
 
     pub(crate) fn reserve(&mut self, bytes: usize) -> Result<Option<Charge>> {
         self.check_memory(bytes)?;
-        if self.options.limits.memory_bytes.is_none() {
-            return Ok(None);
-        }
+        // Ownership controls import work even when the host sets no memory quota.
         // Execution allocates on one thread; returned values can be dropped on another.
         let actual = self.memory.used.fetch_add(bytes, Ordering::Relaxed) + bytes;
         self.memory.peak.fetch_max(actual, Ordering::Relaxed);

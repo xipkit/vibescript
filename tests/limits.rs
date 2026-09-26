@@ -354,3 +354,46 @@ fn ignored_host_memory_failure_is_not_recoverable() {
     );
     assert!(entered.load(Ordering::SeqCst));
 }
+
+#[test]
+fn memory_limits_do_not_change_step_accounting() {
+    let mut engine = Engine::new();
+    engine.register("echo", |_, values| Ok(values[0].clone()));
+    for source in [
+        "def run(x: any) -> any; echo(x); end",
+        "def run(x: any) -> any; x; end",
+        "class C; @n: int; def initialize(@n: int); end; def n -> int; @n; end; end; def run(x: any) -> any; echo(C.new(3)); end",
+        "module M; N = 3; end; def run(x: any) -> any; echo(M); end",
+        "def run(x: any) -> any; echo(/abc/i); end",
+        "def run(x: any) -> any; echo(Time.parse('2026-01-01T00:00:00Z')); end",
+    ] {
+        let script = engine.compile(source).unwrap();
+        let argument = Value::object(vec![(
+            b"items".to_vec(),
+            Value::array(vec![Value::bytes("payload"), Value::int(42)]),
+        )]);
+        let run = |memory_bytes| {
+            script
+                .call(
+                    "run",
+                    std::slice::from_ref(&argument),
+                    CallOptions {
+                        limits: Limits {
+                            memory_bytes,
+                            ..Limits::default()
+                        },
+                        ..CallOptions::default()
+                    },
+                )
+                .unwrap()
+        };
+        let limited = run(Some(16 << 20));
+        let unlimited = run(None);
+        assert_eq!(
+            limited.value.to_string(),
+            unlimited.value.to_string(),
+            "{source}"
+        );
+        assert_eq!(limited.stats.steps, unlimited.stats.steps, "{source}");
+    }
+}
