@@ -605,7 +605,6 @@ impl Receiver {
 /// lookup failure's suggestion. Every name resolves on its receiver.
 pub(crate) mod candidates {
     pub(crate) const ARRAY: &[&str] = &[
-        "size",
         "length",
         "empty?",
         "each",
@@ -617,18 +616,14 @@ pub(crate) mod candidates {
         "map",
         "map_with_index",
         "flat_map",
-        "collect_concat",
         "filter_map",
         "select",
         "reject",
         "find",
-        "find_index",
         "reduce",
         "include?",
         "index",
         "rindex",
-        "at",
-        "slice",
         "fetch",
         "values_at",
         "dig",
@@ -644,9 +639,7 @@ pub(crate) mod candidates {
         "slice_when",
         "chunk_while",
         "push",
-        "append",
         "prepend",
-        "unshift",
         "pop",
         "shift",
         "delete",
@@ -666,7 +659,6 @@ pub(crate) mod candidates {
         "join",
         "reverse",
         "to_h",
-        "take",
         "drop",
         "zip",
         "transpose",
@@ -693,18 +685,12 @@ pub(crate) mod candidates {
         "max_by",
         "inspect",
         "to_s",
-        "string",
     ];
     pub(crate) const HASH: &[&str] = &[
-        "size",
         "length",
         "empty?",
         "key?",
-        "has_key?",
-        "member?",
-        "include?",
         "value?",
-        "has_value?",
         "keys",
         "values",
         "values_at",
@@ -718,7 +704,6 @@ pub(crate) mod candidates {
         "to_a",
         "merge",
         "replace",
-        "store",
         "delete",
         "clear",
         "delete_if",
@@ -738,7 +723,6 @@ pub(crate) mod candidates {
         "inspect",
     ];
     pub(crate) const STRING: &[&str] = &[
-        "size",
         "length",
         "bytesize",
         "ord",
@@ -748,11 +732,9 @@ pub(crate) mod candidates {
         "hex",
         "oct",
         "empty?",
-        "clear",
         "concat",
         "prepend",
         "insert",
-        "replace",
         "start_with?",
         "end_with?",
         "include?",
@@ -820,23 +802,16 @@ pub(crate) mod candidates {
         "clamp",
         "inspect",
         "to_sym",
-        "intern",
         "to_s",
-        "string",
         "to_i",
         "to_f",
     ];
     pub(crate) const INT: &[&str] = &[
         "seconds",
-        "second",
         "minutes",
-        "minute",
         "hours",
-        "hour",
         "days",
-        "day",
         "weeks",
-        "week",
         "abs",
         "clamp",
         "between?",
@@ -850,7 +825,6 @@ pub(crate) mod candidates {
         "positive?",
         "negative?",
         "nonzero?",
-        "next",
         "succ",
         "pred",
         "round",
@@ -860,9 +834,7 @@ pub(crate) mod candidates {
         "divmod",
         "fdiv",
         "remainder",
-        "modulo",
         "to_s",
-        "string",
         "to_i",
         "to_f",
         "inspect",
@@ -885,27 +857,17 @@ pub(crate) mod candidates {
         "divmod",
         "fdiv",
         "remainder",
-        "modulo",
         "to_s",
-        "string",
         "to_i",
         "to_f",
         "inspect",
     ];
-    pub(crate) const MONEY: &[&str] = &[
-        "currency", "cents", "amount", "format", "between?", "to_s", "string", "inspect",
-    ];
+    pub(crate) const MONEY: &[&str] = &["currency", "cents", "between?", "to_s", "inspect"];
     pub(crate) const DURATION: &[&str] = &[
-        "seconds",
-        "second",
         "minutes",
-        "minute",
         "hours",
-        "hour",
         "days",
-        "day",
         "weeks",
-        "week",
         "in_seconds",
         "in_minutes",
         "in_hours",
@@ -917,47 +879,31 @@ pub(crate) mod candidates {
         "parts",
         "to_i",
         "to_s",
-        "string",
         "inspect",
-        "format",
-        "eql?",
         "between?",
         "after",
-        "since",
         "from_now",
         "ago",
         "before",
-        "until",
     ];
     pub(crate) const TIME: &[&str] = &[
         "year",
         "month",
-        "mon",
-        "mday",
         "day",
         "hour",
         "min",
         "sec",
         "usec",
-        "tv_usec",
         "nsec",
-        "tv_nsec",
         "subsec",
         "wday",
         "yday",
-        "hash",
         "utc_offset",
-        "gmt_offset",
-        "gmtoff",
         "to_f",
         "to_i",
-        "tv_sec",
-        "to_r",
         "zone",
         "utc?",
-        "gmt?",
         "dst?",
-        "isdst",
         "sunday?",
         "monday?",
         "tuesday?",
@@ -965,38 +911,25 @@ pub(crate) mod candidates {
         "thursday?",
         "friday?",
         "saturday?",
-        "<=>",
-        "eql?",
         "between?",
         "to_s",
-        "string",
         "inspect",
         "to_a",
         "iso8601",
-        "xmlschema",
-        "rfc3339",
         "httpdate",
         "rfc2822",
-        "rfc822",
         "format",
         "strftime",
-        "getutc",
-        "getgm",
-        "getlocal",
         "utc",
-        "gmtime",
         "localtime",
         "round",
         "ceil",
         "floor",
     ];
     pub(crate) const RANGE: &[&str] = &[
-        "cover?",
         "include?",
-        "member?",
         "first",
         "last",
-        "size",
         "exclude_end?",
         "to_a",
         "each",
@@ -1011,36 +944,16 @@ pub(crate) mod candidates {
         "min",
         "max",
         "to_s",
-        "string",
         "inspect",
         "length",
     ];
     pub(crate) const REGEX: &[&str] = &["match", "match?", "source", "flags", "inspect"];
-    pub(crate) const SYMBOL: &[&str] = &["inspect", "id2name", "to_s", "string", "to_sym"];
-    pub(crate) const NIL: &[&str] = &["inspect", "to_s", "string"];
-    pub(crate) const BOOL: &[&str] = &["inspect", "to_s", "string"];
+    pub(crate) const SYMBOL: &[&str] = &["inspect", "to_s", "to_sym"];
+    pub(crate) const NIL: &[&str] = &["inspect", "to_s"];
+    pub(crate) const BOOL: &[&str] = &["inspect", "to_s"];
     pub(crate) const ENUM: &[&str] = &["name", "to_s", "inspect"];
-    pub(crate) const ENUM_MEMBER: &[&str] =
-        &["name", "symbol", "enum", "to_s", "string", "inspect"];
-    pub(crate) const UNIVERSAL: &[&str] = &[
-        "itself",
-        "dup",
-        "clone",
-        "freeze",
-        "frozen?",
-        "nil?",
-        "eql?",
-        "equal?",
-        "send",
-        "public_send",
-        "tap",
-        "yield_self",
-        "respond_to?",
-        "is_a?",
-        "kind_of?",
-        "instance_of?",
-        "is_type?",
-    ];
+    pub(crate) const ENUM_MEMBER: &[&str] = &["name", "symbol", "enum", "to_s", "inspect"];
+    pub(crate) const UNIVERSAL: &[&str] = &["dup", "is_type?"];
 }
 
 pub(crate) fn typed(value: &Value, name: &str) -> Option<&'static str> {
@@ -1056,26 +969,7 @@ pub(crate) fn temporal_method(value: &Value, name: &str) -> bool {
 }
 
 pub(crate) fn universal(name: &str) -> bool {
-    matches!(
-        name,
-        "itself"
-            | "dup"
-            | "clone"
-            | "freeze"
-            | "frozen?"
-            | "nil?"
-            | "eql?"
-            | "equal?"
-            | "send"
-            | "public_send"
-            | "tap"
-            | "yield_self"
-            | "respond_to?"
-            | "is_a?"
-            | "kind_of?"
-            | "instance_of?"
-            | "is_type?"
-    )
+    matches!(name, "dup" | "is_type?")
 }
 
 /// A duration's whole minutes, hours, days or weeks, which an int also

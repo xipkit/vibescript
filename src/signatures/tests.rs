@@ -415,27 +415,42 @@ fn every_builtin_global_has_a_signature() {
 }
 
 #[test]
-fn every_rename_leaves_a_runtime_spelling_for_a_canonical_one() {
+fn every_rename_is_removed_from_the_runtime_for_a_canonical_spelling() {
     let runtime = runtime_members();
     let table = table();
     let declared = table_members();
+    let declares = |base: &str, name: &str| {
+        [base, "T"].iter().any(|base| {
+            declared
+                .get(*base)
+                .is_some_and(|names| names.contains_key(name))
+        })
+    };
     let mut problems = Vec::new();
     for rename in renames() {
         let receiver = rename.receiver.as_str();
         let name = rename.name.as_str();
+        // A removed spelling is served only where another overload of the
+        // name, or a record's field, is canonical.
         let served = match receiver {
-            "*" => true,
-            "type" => crate::types::builtin_name(name).is_some(),
-            "T" => runtime.values().any(|names| names.contains(name)),
+            "*" | "type" => Vec::new(),
+            "T" => runtime
+                .iter()
+                .filter(|(base, names)| names.contains(name) && !declares(base, name))
+                .map(|(base, _)| *base)
+                .filter(|base| !matches!(*base, "match_data" | "error"))
+                .collect(),
             _ => match runtime.get(receiver) {
-                Some(names) => names.contains(name) || runtime["T"].contains(name),
-                // Global functions and namespaces serve only their canonical
-                // names, as `every_builtin_global_has_a_signature` checks.
-                None => true,
+                Some(names) if names.contains(name) && !declares(receiver, name) => {
+                    vec![receiver]
+                }
+                _ => Vec::new(),
             },
         };
-        if !served {
-            problems.push(format!("{receiver}.{name} is not a runtime spelling"));
+        for base in served {
+            if base != "error" {
+                problems.push(format!("{receiver}.{name} is still served on {base}"));
+            }
         }
         if !matches!(rename.replacement, Replacement::Rewrite(_)) {
             continue;
@@ -443,30 +458,15 @@ fn every_rename_leaves_a_runtime_spelling_for_a_canonical_one() {
         let Some((namespace, canonical)) = rename.canonical() else {
             continue;
         };
-        let declared = match (receiver, namespace) {
+        let has_signature = match (receiver, namespace) {
             ("global", None) => table.functions(canonical).next().is_some(),
             (_, Some(namespace)) => table
                 .module(namespace)
                 .is_some_and(|module| module.named(canonical).next().is_some()),
-            (receiver, None) => {
-                let has = |base: &str| {
-                    [base, "T"].iter().any(|base| {
-                        declared
-                            .get(*base)
-                            .is_some_and(|names| names.contains_key(canonical))
-                    })
-                };
-                if receiver == "T" {
-                    let mut serving = runtime
-                        .iter()
-                        .filter(|(base, names)| **base != "T" && names.contains(name));
-                    serving.all(|(base, _)| has(base))
-                } else {
-                    has(receiver)
-                }
-            }
+            ("T", None) => declared.values().any(|names| names.contains_key(canonical)),
+            (receiver, None) => declares(receiver, canonical),
         };
-        if !declared {
+        if !has_signature {
             problems.push(format!(
                 "{receiver}.{name} becomes {canonical}, which has no signature"
             ));
