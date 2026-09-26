@@ -112,49 +112,42 @@ mod tests {
             sender: "Demo".into(),
         }))
         .unwrap();
-        // The capability's contract checks arguments at runtime, which is
-        // reachable only without static types; with them, main shows the
-        // declared capability instead.
-        let mut engine = Engine::legacy_unchecked();
-
+        let mut engine = Engine::new();
         engine.set_strict_effects(true);
+        engine.declare_capability(&sms).unwrap();
+        // The published signature types every call, so arguments that do
+        // not match it are refused before the script runs.
+        for (source, code) in [
+            ("sms.send(1,\"body\")", "V0101"),
+            ("sms.send(\"phone\")", "V0301"),
+            ("sms.send(\"phone\",\"body\", extra: 1)", "V0302"),
+        ] {
+            let error = engine.compile(source).err().unwrap();
+            assert_eq!(error.diagnostics()[0].code.to_string(), code, "{source}");
+        }
         let options = CallOptions {
             capabilities: vec![sms],
             ..CallOptions::default()
         };
-        for (source, kind) in [
-            ("sms.send(1,\"body\")", ErrorKind::Type),
-            ("sms.send(\"phone\")", ErrorKind::Argument),
-            (
-                "sms.send(\"phone\",\"body\", extra: 1)",
-                ErrorKind::Argument,
-            ),
-            ("sms.send(\"phone\",\"\\xff\")", ErrorKind::Argument),
-        ] {
-            assert_eq!(
-                engine
-                    .compile(source)
-                    .unwrap()
-                    .run(options.clone())
-                    .unwrap_err()
-                    .kind,
-                kind
-            );
-        }
+        // Bytes that are not UTF-8 are still a string, which the host
+        // rejects when the call runs.
+        assert_eq!(
+            engine
+                .compile("sms.send(\"phone\",\"\\xff\")")
+                .unwrap()
+                .run(options.clone())
+                .unwrap_err()
+                .kind,
+            ErrorKind::Argument
+        );
         let script = engine.compile("sms.send(\"phone\",\"body\")").unwrap();
         options.cancellation.cancel();
         assert_eq!(script.run(options).unwrap_err().kind, ErrorKind::Cancelled);
-        let mut undeclared = Engine::legacy_unchecked();
-
-        assert_eq!(
-            undeclared
-                .compile("sms.send(\"phone\",\"body\")")
-                .unwrap()
-                .run(CallOptions::default())
-                .unwrap_err()
-                .kind,
-            ErrorKind::Name
-        );
+        let undeclared = Engine::new()
+            .compile("sms.send(\"phone\",\"body\")")
+            .err()
+            .unwrap();
+        assert_eq!(undeclared.diagnostics()[0].code.to_string(), "V0201");
         main().unwrap();
     }
 }
