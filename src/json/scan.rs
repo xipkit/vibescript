@@ -97,6 +97,16 @@ impl Scanner {
         }
     }
 
+    /// Resumes structural scanning outside a string decoded without the index.
+    pub fn end_string(&mut self, pos: usize) {
+        if pos >= self.end {
+            self.start = pos;
+            self.end = pos;
+            self.inside = false;
+            self.escaped = false;
+        }
+    }
+
     /// Returns a whitespace prefix, with the caller retaining charge boundaries.
     pub fn space(&mut self, input: &[u8], pos: usize, end: usize) -> usize {
         self.prefix(input, pos, end, |m| m.space)

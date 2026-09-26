@@ -134,7 +134,9 @@ pub(super) struct Parser<'a> {
     /// there; the port rejects the digit, which must be the next failure.
     zero: Option<(usize, usize)>,
     scanner: super::scan::Scanner,
-    keys: [Value; 64],
+    // Arrays amortize indexing and key sharing across repeated records.
+    indexed: bool,
+    keys: Option<[Value; 64]>,
     pub typed: super::typed::Stream<'a>,
 }
 
@@ -152,7 +154,8 @@ impl<'a> Parser<'a> {
             failure: None,
             zero: None,
             scanner: super::scan::Scanner::default(),
-            keys: std::array::from_fn(|_| Value::nil()),
+            indexed: false,
+            keys: None,
             typed: super::typed::Stream::default(),
         }
     }
@@ -188,9 +191,15 @@ impl<'a> Parser<'a> {
             .is_some_and(|b| matches!(b, b' ' | b'\n' | b'\r' | b'\t'))
         {
             let start = self.pos;
-            self.pos +=
-                self.scanner
-                    .space(self.input, self.pos, self.input.len().min(start + CHUNK));
+            let end = self.input.len().min(start + CHUNK);
+            self.pos += if self.indexed {
+                self.scanner.space(self.input, self.pos, end)
+            } else {
+                self.input[self.pos..end]
+                    .iter()
+                    .take_while(|b| matches!(b, b' ' | b'\n' | b'\r' | b'\t'))
+                    .count()
+            };
             self.ctx.work_bytes(self.pos - start)?;
         }
         Ok(())
@@ -198,7 +207,7 @@ impl<'a> Parser<'a> {
 
     fn take(&mut self, b: u8) -> bool {
         if self.input.get(self.pos) == Some(&b) {
-            if self.input.len() >= 512
+            if self.indexed
                 && matches!(b, b']' | b'}' | b',' | b':')
                 && !self.scanner.punctuation(self.input, self.pos)
             {
@@ -225,7 +234,9 @@ impl<'a> Parser<'a> {
             // Deliver the finished value to the innermost open container, then
             // keep closing containers while their terminators follow.
             loop {
-                self.typed.complete(frames.data.len(), &value);
+                if self.typed.ty.is_some() {
+                    self.typed.complete(frames.data.len(), &value);
+                }
                 let Some(frame) = frames.data.last_mut() else {
                     return Ok(value);
                 };
@@ -274,18 +285,24 @@ impl<'a> Parser<'a> {
     fn start(&mut self, frames: &mut Buffer<Frame>) -> Result<Option<Value>> {
         self.ctx.charge(1)?;
         self.space()?;
-        let key = match frames.data.last() {
-            Some(Frame::Hash { key, .. }) => key.as_bytes(),
-            _ => None,
-        };
-        self.typed.start(
-            frames.data.len(),
-            key,
-            self.input.get(self.pos) == Some(&b'['),
-        );
+        if self.typed.ty.is_some() {
+            let key = match frames.data.last() {
+                Some(Frame::Hash { key, .. }) => key.as_bytes(),
+                _ => None,
+            };
+            self.typed.start(
+                frames.data.len(),
+                key,
+                self.input.get(self.pos) == Some(&b'['),
+            );
+        }
         match self.input.get(self.pos).copied() {
             Some(b'"') => self.string().map(Some),
             Some(b'[') => {
+                if !self.indexed && self.input.len() >= 512 {
+                    self.indexed = true;
+                    self.scanner.end_string(self.pos);
+                }
                 self.enter(frames)?;
                 self.pos += 1;
                 self.space()?;
@@ -384,7 +401,11 @@ impl<'a> Parser<'a> {
                 return self.err("unterminated JSON string", Failure::End);
             }
             let end = self.input.len().min(self.pos + CHUNK);
-            let span = self.span(end);
+            let span = if self.indexed {
+                self.span(end)
+            } else {
+                scan::text_span(&self.input[self.pos..end], Class::JsonParse)
+            };
             if span.len > 0 {
                 self.ctx.charge(span.steps)?;
                 self.pos += span.len;
@@ -392,25 +413,29 @@ impl<'a> Parser<'a> {
             }
             if self.input[self.pos] == b'"' {
                 let bytes = &self.input[start..self.pos];
-                let value = if key && self.input.len() >= 512 && bytes.len() <= 64 {
+                let value = if key && self.indexed && bytes.len() <= 64 {
                     let slot = bytes
                         .iter()
                         .fold(0usize, |hash, &b| hash.wrapping_mul(33) ^ usize::from(b))
                         & 63;
-                    if self.keys[slot].as_bytes() == Some(bytes) {
+                    let keys = self
+                        .keys
+                        .get_or_insert_with(|| std::array::from_fn(|_| Value::nil()));
+                    if keys[slot].as_bytes() == Some(bytes) {
                         // Sharing an existing key replaces its materialization,
                         // with the same logical work as copying the bytes.
                         self.ctx.work_bytes(bytes.len())?;
-                        self.keys[slot].clone()
+                        keys[slot].clone()
                     } else {
                         let value = self.ctx.bytes(bytes)?;
-                        self.keys[slot] = value.clone();
+                        keys[slot] = value.clone();
                         value
                     }
                 } else {
                     self.ctx.bytes(bytes)?
                 };
                 self.pos += 1;
+                self.scanner.end_string(self.pos);
                 return Ok(value);
             }
             break;
@@ -433,7 +458,7 @@ impl<'a> Parser<'a> {
                 return self.err("unterminated JSON string", Failure::End);
             }
             let end = self.input.len().min(self.pos + CHUNK);
-            let span = self.span(end);
+            let span = scan::text_span(&self.input[self.pos..end], Class::JsonParse);
             if span.len > 0 {
                 if span.runes != span.len {
                     pending += span.steps;
@@ -475,7 +500,10 @@ impl<'a> Parser<'a> {
             }
             self.ctx.charge_pending(&mut pending)?;
             match b {
-                b'"' => return Value::from_bytes(self.ctx, out),
+                b'"' => {
+                    self.scanner.end_string(self.pos);
+                    return Value::from_bytes(self.ctx, out);
+                }
                 b'\\' => {
                     let Some(&b) = self.input.get(self.pos) else {
                         return self.err("incomplete JSON escape", Failure::End);
@@ -603,7 +631,7 @@ impl<'a> Parser<'a> {
         while self.input.get(self.pos).is_some_and(u8::is_ascii_digit) {
             self.ctx.charge(1)?;
             let end = self.input.len().min(self.pos + 64);
-            self.pos += if self.input.len() < 512 {
+            self.pos += if !self.indexed {
                 self.input[self.pos..end]
                     .iter()
                     .take_while(|b| b.is_ascii_digit())
@@ -616,8 +644,11 @@ impl<'a> Parser<'a> {
     }
 
     fn span(&mut self, end: usize) -> scan::TextSpan {
-        if self.input.len() < 512 {
+        if !self.indexed {
             return scan::text_span(&self.input[self.pos..end], Class::JsonParse);
+        }
+        if self.input[self.pos] < 128 && !scan::ordinary(self.input[self.pos], Class::JsonParse) {
+            return scan::TextSpan::default();
         }
         let mut span = scan::TextSpan::default();
         while self.pos + span.len < end {

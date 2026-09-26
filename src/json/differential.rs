@@ -107,6 +107,8 @@ fn random_and_adversarial_documents_match_both_scanners() {
         ] {
             let input = format!("[\"{}{tail}]", "a".repeat(padding));
             compare(input.as_bytes(), None);
+            let indexed = format!("{}{input}", " ".repeat(512));
+            compare(indexed.as_bytes(), None);
         }
     }
     // Invalid bytes occur in values, keys, delimiters, whitespace, numbers,
@@ -118,7 +120,9 @@ fn random_and_adversarial_documents_match_both_scanners() {
             input[pos] = byte;
             compare(&input, None);
             let mut indexed = vec![b' '; 513];
+            indexed.push(b'[');
             indexed.extend_from_slice(&input);
+            indexed.push(b']');
             compare(&indexed, None);
         }
     }

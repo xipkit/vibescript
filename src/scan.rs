@@ -24,12 +24,12 @@ pub(crate) fn prefix(s: &[u8], class: Class) -> usize {
     while s.len() - i >= 16 {
         // SAFETY: each unaligned vector load stays within this 16-byte slice;
         // NEON and SSE2 are baseline features of the respective target architectures.
-        let n = unsafe { vector_prefix(&s[i..i + 16], class) };
-        if n != 16 {
-            return i + n;
+        if !unsafe { vector_clean(&s[i..i + 16], class) } {
+            break;
         }
         i += 16;
     }
+    #[cfg(not(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64"))))]
     while s.len() - i >= 8 {
         let v = u64::from_le_bytes(s[i..i + 8].try_into().unwrap());
         let equal = |byte: u8| {
@@ -63,6 +63,7 @@ pub(crate) struct TextSpan {
 }
 
 /// Scans valid UTF-8 until an escape, invalid byte, or incomplete trailing rune.
+#[inline]
 pub(crate) fn text_span(s: &[u8], class: Class) -> TextSpan {
     let mut span = TextSpan::default();
     while span.len < s.len() {
@@ -176,9 +177,9 @@ pub(crate) fn ascii_case(s: &mut [u8], upper: bool) {
 }
 
 #[cfg(all(feature = "simd", target_arch = "aarch64"))]
-unsafe fn vector_prefix(s: &[u8], class: Class) -> usize {
+unsafe fn vector_clean(s: &[u8], class: Class) -> bool {
     use std::arch::aarch64::*;
-    // SAFETY: caller provides 16 accessible bytes and a NEON-capable target.
+    // SAFETY: caller supplies a full vector on a NEON target.
     unsafe {
         let v = vld1q_u8(s.as_ptr());
         let mut bad = vcgeq_u8(v, vdupq_n_u8(128));
@@ -192,10 +193,29 @@ unsafe fn vector_prefix(s: &[u8], class: Class) -> usize {
                 bad = vorrq_u8(bad, vceqq_u8(v, vdupq_n_u8(b)));
             }
         }
-        let bits = vget_lane_u64::<0>(vreinterpret_u64_u8(vshrn_n_u16::<4>(vreinterpretq_u16_u8(
-            bad,
-        ))));
-        bits.trailing_zeros() as usize / 4
+        vmaxvq_u8(bad) == 0
+    }
+}
+
+#[cfg(all(feature = "simd", target_arch = "x86_64"))]
+unsafe fn vector_clean(s: &[u8], class: Class) -> bool {
+    use std::arch::x86_64::*;
+    // SAFETY: caller supplies a full vector; SSE2 is baseline on x86_64.
+    unsafe {
+        let v = _mm_loadu_si128(s.as_ptr().cast());
+        if matches!(class, Class::Ascii) {
+            return _mm_movemask_epi8(v) == 0;
+        }
+        let mut bad = _mm_cmplt_epi8(v, _mm_set1_epi8(32));
+        for b in *b"\"\\" {
+            bad = _mm_or_si128(bad, _mm_cmpeq_epi8(v, _mm_set1_epi8(b as i8)));
+        }
+        if matches!(class, Class::JsonStringify) {
+            for b in *b"<>&" {
+                bad = _mm_or_si128(bad, _mm_cmpeq_epi8(v, _mm_set1_epi8(b as i8)));
+            }
+        }
+        _mm_movemask_epi8(bad) == 0
     }
 }
 
@@ -328,28 +348,6 @@ unsafe fn vector_case(s: &mut [u8], upper: bool) {
         let mask = vandq_u8(vcgeq_u8(v, vdupq_n_u8(lo)), vcleq_u8(v, vdupq_n_u8(hi)));
         let flipped = veorq_u8(v, vandq_u8(mask, vdupq_n_u8(32)));
         vst1q_u8(s.as_mut_ptr(), flipped);
-    }
-}
-
-#[cfg(all(feature = "simd", target_arch = "x86_64"))]
-unsafe fn vector_prefix(s: &[u8], class: Class) -> usize {
-    use std::arch::x86_64::*;
-    // SAFETY: caller provides 16 accessible bytes; x86_64 guarantees SSE2.
-    unsafe {
-        let v = _mm_loadu_si128(s.as_ptr().cast());
-        if matches!(class, Class::Ascii) {
-            return (_mm_movemask_epi8(v) as u32 | (1 << 16)).trailing_zeros() as usize;
-        }
-        let mut bad = _mm_cmplt_epi8(v, _mm_set1_epi8(32));
-        for b in *b"\"\\" {
-            bad = _mm_or_si128(bad, _mm_cmpeq_epi8(v, _mm_set1_epi8(b as i8)));
-        }
-        if matches!(class, Class::JsonStringify) {
-            for b in *b"<>&" {
-                bad = _mm_or_si128(bad, _mm_cmpeq_epi8(v, _mm_set1_epi8(b as i8)));
-            }
-        }
-        (_mm_movemask_epi8(bad) as u32 | (1 << 16)).trailing_zeros() as usize
     }
 }
 

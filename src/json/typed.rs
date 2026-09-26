@@ -13,6 +13,7 @@ pub(super) fn check(
     depth: usize,
     saved: Option<(&Type, u64)>,
 ) -> Option<u64> {
+    // A speculative proof cannot defer interruption for an unbounded walk.
     visit(ty, value, depth, saved, &mut 4096)
 }
 
