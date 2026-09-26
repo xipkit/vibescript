@@ -231,8 +231,8 @@ impl<'a> Parser<'a> {
     /// frame count rather than the native stack. Any error drops the frames,
     /// releasing every partially built container and completed sibling.
     pub fn value(&mut self) -> Result<Value> {
-        // Flat documents avoid index bookkeeping in the parsing loop. Only
-        // object roots need a search; '[' inside a key is a harmless positive.
+        // Sample object prefixes so large string payloads do not pay for a
+        // document-wide search. A later array still uses the ordinary parser.
         let indexed = self.input.len() >= 512
             && match self
                 .input
@@ -240,7 +240,7 @@ impl<'a> Parser<'a> {
                 .find(|&&b| !matches!(b, b' ' | b'\n' | b'\r' | b'\t'))
             {
                 Some(b'[') => true,
-                Some(b'{') => self.input.contains(&b'['),
+                Some(b'{') => self.input[..512].contains(&b'['),
                 _ => false,
             };
         match (indexed, self.typed.ty.is_some()) {
@@ -757,6 +757,49 @@ impl<'a> Parser<'a> {
 mod tests {
     use super::*;
     use crate::{CallOptions, Limits};
+
+    #[test]
+    fn object_prefix_sampling_preserves_results_errors_and_steps() {
+        for padding in [0, 480, 500, 511, 512, 513, 1024] {
+            for tail in [r#"[{"a":1,"a":2},{"a":3}]}"#, r#"[{"a":1},"\x"]}"#] {
+                let input = format!(r#"{{"padding":"{}","rows":{tail}"#, "a".repeat(padding));
+                for limit in [None, Some(0), Some(1), Some(10), Some(50), Some(100)] {
+                    let run = |indexed| {
+                        let mut ctx = CallContext::new(CallOptions {
+                            limits: Limits {
+                                steps: limit,
+                                ..Limits::default()
+                            },
+                            ..CallOptions::default()
+                        });
+                        let mut parser = Parser::new(&mut ctx, input.as_bytes());
+                        let result = match indexed {
+                            Some(true) => parser.value_with::<true, false>(),
+                            Some(false) => parser.value_with::<false, false>(),
+                            None => parser.value(),
+                        };
+                        let failure = parser.failure;
+                        drop(parser);
+                        let steps = ctx.stats().steps;
+                        let result = result
+                            .map(|value| {
+                                let mut out = CallContext::new(CallOptions::default());
+                                crate::json::stringify(&mut out, &value)
+                                    .unwrap()
+                                    .as_bytes()
+                                    .unwrap()
+                                    .to_vec()
+                            })
+                            .map_err(|e| (e.kind, e.message));
+                        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+                        (result, failure, steps)
+                    };
+                    assert_eq!(run(None), run(Some(false)), "{padding} {limit:?}");
+                    assert_eq!(run(None), run(Some(true)), "{padding} {limit:?}");
+                }
+            }
+        }
+    }
 
     /// The escape-at-a-time string reader the batched one replaces, kept as
     /// the accounting oracle.
