@@ -258,19 +258,26 @@ fn execution_limits_stop_state_work_and_compilation() {
 
 #[test]
 fn namespace_aliases_keywords_and_rebinding_use_ordinary_calls() {
-    let script = common::runtime_engine()
+    let script = Engine::new()
         .compile(
             r#"
 alias=Regex
-args=["a", "ba"]
+args: [string, string] = ["a", "ba"]
 first=alias.match(*args)
-Regex={match:7}
-[first,Regex["match"],alias.replace_all("aba","a","X")]
+[first,alias.replace_all("aba","a","X")]
 "#,
         )
         .unwrap();
     let result = script.run(CallOptions::default()).unwrap();
-    assert_eq!(json(&result.value), serde_json::json!(["a", 7, "XbX"]));
+    assert_eq!(json(&result.value), serde_json::json!(["a", "XbX"]));
+    // A namespace cannot be rebound.
+    let source = "alias=Regex\nRegex={match:7}\n";
+    let error = Engine::new().compile(source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0102"]);
+    assert_eq!(
+        error.diagnostics()[0].span.start,
+        source.find("Regex=").unwrap()
+    );
 }
 
 #[test]
