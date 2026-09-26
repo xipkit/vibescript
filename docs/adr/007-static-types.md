@@ -512,3 +512,22 @@ retained bindings so both scripts resolve the same supplied type. Changing a
 dependency requires replacing the retained namespace too. This lets a REPL
 retain typed values without allowing undeclared globals to replace compiled
 declarations.
+
+### The typed VM
+
+The runtime uses the static types (see [the typed VM](../vm.md)). A call
+from script code no longer checks its arguments or its result, and typed
+locals, `yield` arguments and block results are not checked again. Four
+checks inside a program stay, because they do more than the checker
+proves: a type naming a class or enum, which resolves at runtime and turns
+a symbol into an enum member; a hash key type that no string satisfies,
+such as `hash<int, any>`, which the checker admits; the result of an
+instance method, since a class property that no path assigns reads as
+`nil`, a gap in the checker; and instance variable writes. Member calls on
+a receiver whose static base type is `hash`, `array`, `string`, `int` or
+`float` call common builtins directly, checking only the receiver's runtime
+kind. Records stay ordinary hashes whose keys the literals of a program
+share, one string per distinct text per call; field positions are not
+fixed at compile time, because shape types are order-free while insertion
+order is observable. Step counts dropped by the removed checks and
+instructions, and the golden counters were re-recorded.

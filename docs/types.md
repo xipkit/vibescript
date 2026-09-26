@@ -55,6 +55,8 @@ A typed boundary between two well-typed parts of a program is proven when it com
 - `JSON.parse_as(text, T)` and the checked cast `value.as(T)`, which both have type `T` and raise the typed boundary error on a mismatch;
 - the results of host capabilities with declared contracts.
 
+The runtime also keeps the few checks inside a program that do more than the checker proves: a type that names a class or enum, since an enum parameter turns a symbol literal into its member; a hash type whose key type no string satisfies; the result of an instance method, which can read a property its class never assigned; and instance variable writes. The [typed VM](vm.md) describes which checks it omits.
+
 These checks follow the declared type exactly. Union arms are tried in source order, with `any` last, and a matching symbol becomes a nominal enum member:
 
 ```vibe
