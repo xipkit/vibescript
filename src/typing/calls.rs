@@ -107,7 +107,17 @@ impl<'a> Checker<'a> {
                     None => Ty::ANY,
                 };
             }
-            "block_given?" => return Ty::BOOL,
+            "block_given?" => {
+                if !bare {
+                    self.report(Diagnostic::error(
+                        Code::NO_OVERLOAD,
+                        call.name_span,
+                        "`block_given?` takes no arguments or block",
+                    ));
+                    self.loose_args(&call);
+                }
+                return Ty::BOOL;
+            }
             _ => (),
         }
         if let Some(ns) = self.frame.owner {

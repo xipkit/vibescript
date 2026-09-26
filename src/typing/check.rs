@@ -210,6 +210,13 @@ impl<'a> Checker<'a> {
             self.track_initialize(owner);
         }
         for (param, declared) in def.params.iter().zip(&sig.params) {
+            if let Some(default) = &param.default {
+                self.expr_against(
+                    default,
+                    declared.ty,
+                    &Purpose::Local(param.name.to_string()),
+                );
+            }
             let local = self.declare(&param.name, declared.ty, def.offset as usize, true);
             self.assign_local(local, declared.ty);
             if let Some(ivar) = &param.ivar {
@@ -655,7 +662,7 @@ impl<'a> Checker<'a> {
         let element = self.iterated(ty, iterable);
         self.widen_for_loop(body);
         let before = self.frame.flow.mark();
-        self.bind_target(target, element, false);
+        self.bind_target(target, element, true);
         self.frame.contexts.push(Context::Loop {
             mark: before,
             exits: Exits::default(),
@@ -780,6 +787,7 @@ impl<'a> Checker<'a> {
     }
 
     fn break_statement(&mut self, stmt: &'a Stmt, value: Option<&'a Expr>) {
+        self.check_loop_control(stmt, "break");
         let break_to = match self.frame.contexts.last() {
             Some(Context::Block { break_to, .. }) => break_to.clone(),
             _ => None,
@@ -825,6 +833,7 @@ impl<'a> Checker<'a> {
     }
 
     fn next_statement(&mut self, stmt: &'a Stmt, value: Option<&'a Expr>) {
+        self.check_loop_control(stmt, "next");
         let block = match self.frame.contexts.last() {
             Some(Context::Block { result, used, .. }) => Some((*result, *used)),
             _ => None,
@@ -857,6 +866,16 @@ impl<'a> Checker<'a> {
         }
         self.exit_context(false);
         self.frame.flow.live = false;
+    }
+
+    fn check_loop_control(&mut self, stmt: &Stmt, name: &str) {
+        if self.frame.contexts.is_empty() {
+            self.report(Diagnostic::error(
+                Code::SYNTAX,
+                self.spans.token(stmt.offset as usize),
+                format!("`{name}` is only valid inside a loop or block"),
+            ));
+        }
     }
 
     // Assignment -------------------------------------------------------
@@ -1510,6 +1529,11 @@ impl<'a> Checker<'a> {
     /// as `@@name: T = value`; every assignment must keep that type.
     fn write_class_variable(&mut self, name: &str, ty: Ty, target: &Expr, value: &Expr) {
         let Some(ns) = self.frame.owner else {
+            self.report(Diagnostic::error(
+                Code::UNDECLARED_IVAR,
+                self.spans.expr(target),
+                format!("class variable `{name}` cannot be assigned outside a class"),
+            ));
             return;
         };
         let key = (Some(ns), name.to_owned());
