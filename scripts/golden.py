@@ -9,10 +9,8 @@ fails with --strict-counters. Nothing here needs Go. See tests/golden/README.md.
 """
 import argparse
 import collections
-import functools
 import gzip
 import hashlib
-import importlib.util
 import json
 import os
 import random
@@ -30,9 +28,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import fixtures  # noqa: E402
+import lsp_sessions  # noqa: E402
 from block_fixtures import cases as block_cases  # noqa: E402
 from capability_fixtures import cases as capability_cases  # noqa: E402
 from module_fixtures import cases as module_cases  # noqa: E402
+from mutations import mutations  # noqa: E402
 from signature_fixtures import cases as signature_cases  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -215,27 +215,17 @@ def replay_cases():
     return cases
 
 
-@functools.cache
-def load_script(name):
-    """Imports a hyphenated script from scripts/ as a module."""
-    spec = importlib.util.spec_from_file_location(name.replace("-", "_"), ROOT / "scripts" / f"{name}.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 PARSE_SOURCES = ["tests/site", "tests/upstream"]
 
 
 def parse_cases():
-    """Mutated corpus programs, each compiled only, as `scripts/parse-sweep.py` makes them."""
-    sweep = load_script("parse-sweep")
+    """Mutated corpus programs, each compiled only, as `scripts/mutations.py` makes them."""
     rng = random.Random(1)
     cases, seen = [], set()
     for path in sorted(p for d in PARSE_SOURCES for p in (ROOT / d).rglob("*.vibe")):
         source = read_source(path)
         name = path.relative_to(ROOT).as_posix()
-        for kind, text in sweep.mutations(source, rng, 8):
+        for kind, text in mutations(source, rng, 8):
             key = hashlib.sha1(text.encode()).hexdigest()
             if key not in seen:
                 seen.add(key)
@@ -441,7 +431,6 @@ ID_FIELD = re.compile(rb'^\{"jsonrpc":"2\.0","id":(?:-?[0-9.]+|null|"[^"]*"),')
 
 def lsp_transcript(binary, case, directory, env):
     """Returns the reply bodies, with request ids removed, of one session."""
-    transcripts = load_script("lsp-transcripts")
     server = Server(binary, directory, env)
     # A hung server is killed, which ends the session with an error.
     timer = threading.Timer(10 * HANG_SECONDS, server.process.kill)
@@ -454,14 +443,14 @@ def lsp_transcript(binary, case, directory, env):
 
     try:
         if case["id"] == "protocol":
-            for message, expected in transcripts.PROTOCOL:
+            for message, expected in lsp_sessions.PROTOCOL:
                 send(message, expected)
             return replies
         send({"jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {}}, 1)
         send({"jsonrpc": "2.0", "method": "initialized", "params": {}}, 0)
         uri = "file:///corpus/" + case["id"].replace(" ", "%20")
         request = 0
-        for message, expected in transcripts.session(uri, read_source(ROOT / case["id"])):
+        for message, expected in lsp_sessions.session(uri, read_source(ROOT / case["id"])):
             message = {"jsonrpc": "2.0", **message}
             if not message["method"].startswith("textDocument/did"):
                 request += 1
@@ -737,11 +726,11 @@ CORPORA = {corpus.name: corpus for corpus in [
     Corpus("replay", "engine", replay_cases,
            "calls and compiles recorded from Go v0.70.0's test suite (tests/golden/replay)", compress=True),
     Corpus("parse", "engine", parse_cases,
-           "mutated site and upstream programs, compiled only (as in scripts/parse-sweep.py)", compress=True,
+           "mutated site and upstream programs, compiled only (scripts/mutations.py)", compress=True,
            migratable=False),
-    Corpus("cli", "cli", cli_cases, "vibes commands over the corpus programs (as in scripts/compare-cli.py)",
+    Corpus("cli", "cli", cli_cases, "vibes commands over the corpus programs",
            compress=True),
-    Corpus("lsp", "lsp", lsp_cases, "vibes lsp sessions over the corpus programs (as in scripts/lsp-transcripts.py)",
+    Corpus("lsp", "lsp", lsp_cases, "vibes lsp sessions over the corpus programs (scripts/lsp_sessions.py)",
            compress=True),
 ]}
 
@@ -1115,12 +1104,11 @@ def compare_case(case, expected, got, varies, table, add):
 
 
 def lsp_difference(document, expected, got, table):
-    transcripts = load_script("lsp-transcripts")
     if document == "protocol":
-        labels = [f"protocol message {i}" for i in range(len(transcripts.PROTOCOL))]
+        labels = [f"protocol message {i}" for i in range(len(lsp_sessions.PROTOCOL))]
     else:
         uri = "file:///corpus/" + document
-        session = transcripts.session(uri, read_source(ROOT / document))
+        session = lsp_sessions.session(uri, read_source(ROOT / document))
         labels = ["initialize", "initialized"] + [
             f"{m['method']} {canonical(m['params'].get('position'))}" for m, _ in session] + ["shutdown"]
     for index, (a, b) in enumerate(zip(expected, got)):
