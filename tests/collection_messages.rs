@@ -19,6 +19,19 @@ fn message(body: &str) -> String {
     }
 }
 
+/// The message of the error `body` raises without static types, which
+/// refuse a removed spelling at compile time.
+fn runtime_message(body: &str) -> String {
+    let source = format!("def run -> any\n{body}\nend");
+    let script = common::gradual_engine()
+        .compile(&source)
+        .unwrap_or_else(|error| panic!("{body}: {error}"));
+    match script.call("run", &[], CallOptions::default()) {
+        Ok(outcome) => panic!("{body}: expected an error, got {}", outcome.value),
+        Err(error) => error.message,
+    }
+}
+
 /// The code of the first diagnostic that refuses `source` at compile time,
 /// and the text it points at.
 fn refusal(source: &str) -> (String, String) {
@@ -948,7 +961,8 @@ fn range_members_check_calls_in_reference_order() {
 
 #[test]
 fn universal_members_and_conversions_refuse_extra_input_in_reference_order() {
-    let cases = [
+    // `nil?` is removed, with any arguments.
+    for (body, expected) in [
         ("nil.nil?(1)", "nil.nil? does not take arguments"),
         (
             "[1].nil?(a: 1)",
@@ -956,6 +970,12 @@ fn universal_members_and_conversions_refuse_extra_input_in_reference_order() {
         ),
         ("{a: 1}.nil? { 1 }", "hash.nil? does not take a block"),
         ("5.nil?(1, a: 1)", "int.nil? does not take arguments"),
+    ] {
+        assert_eq!(runtime_message(body), expected, "{body}");
+        let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
+        assert_eq!((found.as_str(), at.as_str()), ("V0402", "nil?"), "{body}");
+    }
+    let cases = [
         ("[1].itself(1)", "array.itself expects 0 arguments, got 1"),
         (
             "5.itself(1, a: 1)",
@@ -1132,14 +1152,14 @@ fn member_access_refusals_name_the_receiver() {
             "schema = {name: string}\nschema.itself(1)",
             "shape.itself expects 0 arguments, got 1",
         ),
-        (
-            "schema = {name: string}\nschema.nil?(1)",
-            "shape.nil? does not take arguments",
-        ),
     ];
     for (body, expected) in cases {
         assert_eq!(message(body), expected, "{body}");
     }
+    let body = "schema = {name: string}\nschema.nil?(1)";
+    assert_eq!(runtime_message(body), "shape.nil? does not take arguments");
+    let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
+    assert_eq!((found.as_str(), at.as_str()), ("V0402", "nil?"));
     for (body, code, text) in [
         ("[1]..[2]", "V0101", "[1]"),
         ("{a: 7}::a", "V0203", "a"),

@@ -37,6 +37,18 @@ pub trait Rules<'a>: Hooks<'a> {
             .iter()
             .find(|p| p.callee == Callee::Global && p.name == name && p.args.is_none())
         else {
+            // A method body calls a member of every value on `self`; a
+            // type name, as in the shape `{ name: string }`, calls nothing.
+            let on_self = patterns()
+                .iter()
+                .find(|p| p.callee == Callee::Member && p.receiver == "T" && p.name == name);
+            if let Some(pattern) = on_self
+                && self.scope().class.is_some()
+                && self.scope().def.is_some()
+                && !super::parse::builtin_type(name)
+            {
+                self.unmatched_at(expr.span, name, pattern);
+            }
             return;
         };
         self.apply_pattern(expr, None, pattern, &Captures::default(), place);
@@ -988,6 +1000,23 @@ pub trait Rules<'a>: Hooks<'a> {
                 .filter(|p| p.callee == Callee::Global)
                 .find_map(|p| self.match_args(call, p).map(|c| (*p, c)))
             else {
+                let global = candidates
+                    .iter()
+                    .find(|p| p.callee == Callee::Global)
+                    .filter(|_| {
+                        crate::signatures::table()
+                            .functions(&call.name)
+                            .next()
+                            .is_none()
+                    });
+                // A method body calls a member of every value on `self`.
+                let on_self = candidates
+                    .iter()
+                    .find(|p| p.callee == Callee::Member && p.receiver == "T")
+                    .filter(|_| self.scope().class.is_some() && self.scope().def.is_some());
+                if let Some(pattern) = global.or(on_self) {
+                    self.unmatched(call, pattern);
+                }
                 return false;
             };
             return self.apply_pattern(expr, Some(call), pattern, &captures, place);
@@ -1074,6 +1103,24 @@ pub trait Rules<'a>: Hooks<'a> {
                         }
                         (None, Some(_)) => mixed = true,
                         (None, None) => unmatched = true,
+                    }
+                }
+                // `nil?` with arguments or a block is still `nil?`.
+                if chosen.is_none() && !mixed && call.name == "nil?" {
+                    let removed = kinds.iter().find_map(|kind| {
+                        let own = patterns().iter().find(|p| {
+                            p.callee == Callee::Member
+                                && p.name == call.name
+                                && (p.receiver == *kind || p.receiver == "T")
+                        });
+                        own.filter(|_| {
+                            !matches!(kind.as_str(), "any" | "instance")
+                                && !kind.starts_with("class ")
+                                && !declares(kind, &call.name)
+                        })
+                    });
+                    if let Some(pattern) = removed {
+                        self.unmatched(call, pattern);
                     }
                 }
                 if mixed {
@@ -1258,6 +1305,27 @@ pub trait Rules<'a>: Hooks<'a> {
         }
         captures.rest = remaining;
         Some(captures)
+    }
+
+    /// Reports a removed spelling that no rewrite takes as it is called,
+    /// with arguments or a block its replacement has no place for, or on
+    /// the implicit `self` of a method, leaving the rewrite to a person.
+    fn unmatched(&mut self, call: &'a Call, pattern: &Pattern) {
+        let span = self.token_span(call.name_tok);
+        self.unmatched_at(span, &call.name, pattern);
+    }
+
+    /// Reports removed spelling `name` at `span`, as [`Self::unmatched`] does.
+    fn unmatched_at(&mut self, span: Span, name: &str, pattern: &Pattern) {
+        let finding = Finding::new(
+            Reason::Rename,
+            span,
+            format!(
+                "{name} is removed, and no rewrite takes it as it is called here; rewrite it by hand"
+            ),
+        )
+        .spelling(rule_of(pattern), name, pattern.advice());
+        self.report(finding);
     }
 
     /// Whether a call rewrites to an index its arguments can fill, as
@@ -1767,6 +1835,20 @@ pub trait Rules<'a>: Hooks<'a> {
 impl<'a, T: Hooks<'a> + ?Sized> Rules<'a> for T {}
 
 /// The rule a rename pattern's removed spelling belongs to.
+/// Whether the signature table declares member `name` on values of `kind`,
+/// or on every value.
+fn declares(kind: &str, name: &str) -> bool {
+    crate::signatures::table()
+        .items
+        .iter()
+        .any(|item| match item {
+            crate::signatures::Item::Class(class) => {
+                (class.base() == kind || class.base() == "T") && class.named(name).next().is_some()
+            }
+            _ => false,
+        })
+}
+
 fn rule_of(pattern: &Pattern) -> Rule {
     match pattern.name.as_str() {
         "nil?" => Rule::NilPredicate,

@@ -335,6 +335,23 @@ fn duration_parsing_and_members_use_go_wording() {
 }
 
 #[test]
+fn removed_calls_refuse_arguments_without_static_types() {
+    let error = common::gradual_engine()
+        .compile("def run -> any\n  now(1)\nend")
+        .unwrap()
+        .call("run", &[], CallOptions::default())
+        .unwrap_err();
+    assert_eq!(error.message, "now does not take arguments");
+    assert_eq!(error.class(), Some(ErrorClass::Runtime));
+    let error = common::gradual_engine()
+        .compile("def run -> any\n  Time.at(0).nil?(x: 1)\nend")
+        .unwrap()
+        .call("run", &[], CallOptions::default())
+        .unwrap_err();
+    assert_eq!(error.message, "time.nil? does not take keyword arguments");
+}
+
+#[test]
 fn time_constructors_and_members_use_go_wording() {
     use ErrorClass::{Limit, Runtime};
     rejects(&[
@@ -362,11 +379,6 @@ fn time_constructors_and_members_use_go_wording() {
             "def run -> any\n  Time.parse(\"x\")\nend",
             Runtime,
             "Time.parse could not parse time",
-        ),
-        (
-            "def run -> any\n  now(1)\nend",
-            Runtime,
-            "now does not take arguments",
         ),
         (
             "def run -> any\n  Time.at(0).localtime(\"+0x:00\")\nend",
@@ -407,11 +419,6 @@ fn time_constructors_and_members_use_go_wording() {
             "def run -> any\n  Time.at(0).<=>(1, 2)\nend",
             Runtime,
             "time.<=> expects 1 argument, got 2",
-        ),
-        (
-            "def run -> any\n  Time.at(0).nil?(x: 1)\nend",
-            Runtime,
-            "time.nil? does not take keyword arguments",
         ),
         (
             "def run -> any\n  Time.at(0).itself(1)\nend",
@@ -477,6 +484,14 @@ fn time_constructors_and_members_use_go_wording() {
             "foo:",
         ),
         ("def run -> any\n  Time.now(1)\nend", "V0301", "now"),
+        // The removed global `now` is refused with any arguments; without
+        // static types the runtime refuses them.
+        ("def run -> any\n  now(1)\nend", "V0401", "now"),
+        (
+            "def run -> any\n  Time.at(0).nil?(x: 1)\nend",
+            "V0402",
+            "nil?",
+        ),
         (
             "def run -> any\n  Time.local(2024, in: 5)\nend",
             "V0101",

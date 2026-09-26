@@ -762,3 +762,52 @@ fn every_rename_table_entry_is_reported() {
     }
     assert!(missing.is_empty(), "{}", missing.join("\n"));
 }
+
+#[test]
+fn removed_spellings_are_reported_where_no_rewrite_takes_them() {
+    // Arguments or a block the replacement has no place for.
+    for (source, code, at) in [
+        ("x = now(k: 1)\n", Code::REMOVED_NAME, "now"),
+        ("x = now { 1 }\n", Code::REMOVED_NAME, "now"),
+        ("x = 1.nil? { }\n", Code::NIL_PREDICATE, "nil?"),
+        ("x = 1.nil?(2)\n", Code::NIL_PREDICATE, "nil?"),
+    ] {
+        let found = checked(source, code);
+        assert_eq!(found.len(), 1, "{source:?}: {found:?}");
+        assert_eq!(&source[found[0].span.start..found[0].span.end], at);
+        assert!(found[0].fixes.is_empty(), "{source:?}");
+    }
+    // A member of every value called on the implicit `self` of a method.
+    let source = "class C\n  def f -> bool\n    nil?\n  end\n  def g -> any\n    itself\n  end\n  \
+                  def self.h -> bool\n    eql?(1)\n  end\nend\n";
+    let codes: Vec<(Code, &str)> = Engine::new()
+        .type_check(source)
+        .unwrap()
+        .diagnostics
+        .iter()
+        .map(|d| (d.code, &source[d.span.start..d.span.end]))
+        .collect();
+    assert_eq!(
+        codes,
+        [
+            (Code::NIL_PREDICATE, "nil?"),
+            (Code::IDENTITY_CALL, "itself"),
+            (Code::IDENTITY_EQUALITY, "eql?"),
+        ]
+    );
+    // A class's own method, a type name and a canonical member are left alone.
+    for source in [
+        "class C\n  def nil? -> bool\n    true\n  end\n  def f -> bool\n    nil?\n  end\nend\n",
+        "class C\n  def f(raw: string) -> any\n    JSON.parse_as(raw, { name: string })\n  end\nend\n",
+        "x = [1].count(1)\n",
+    ] {
+        assert!(
+            Engine::new()
+                .type_check(source)
+                .unwrap()
+                .diagnostics
+                .is_empty(),
+            "{source}"
+        );
+    }
+}

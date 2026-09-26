@@ -176,9 +176,6 @@ fn invalid_money_operations_stop_before_later_host_effects() {
         "money_cents(0,\"USD\")*(2**100)",
         "money(\"1 USD\")+money(\"1 EUR\")",
         "money(\"1 USD\")<money(\"1 EUR\")",
-        // The checker does not report the removed nil? when it has a block
-        // yet, so the runtime refuses the block.
-        "money(\"1 USD\").nil? {effect()}",
         "JSON.stringify(money(\"1 USD\"))",
     ] {
         let script = engine.compile(&format!("{expression};effect()")).unwrap();
@@ -196,6 +193,7 @@ fn invalid_money_operations_stop_before_later_host_effects() {
         ("money(\"1 USD\").cents()", "V0412"),
         ("money(\"1 USD\").to_s {effect()}", "V0305"),
         ("money(\"1 USD\").inspect(x:1)", "V0302"),
+        ("money(\"1 USD\").nil? {effect()}", "V0402"),
     ] {
         let error = checked
             .compile(&format!("{expression};effect()"))

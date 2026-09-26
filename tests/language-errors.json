@@ -714,7 +714,8 @@
   {
     "name": "call_builtin_keyword_array_nil?",
     "source": "def run(input: any) -> any\n[1,2].nil?(ignored:true)\nend\n",
-    "go_error": "array.nil? does not take keyword arguments"
+    "go_error": "array.nil? does not take keyword arguments",
+    "static_error": {"code": "V0402", "at": [2, 7]}
   },
   {
     "name": "call_builtin_keyword_array_itself",
@@ -765,7 +766,8 @@
   {
     "name": "call_builtin_keyword_hash_nil?",
     "source": "def run(input: any) -> any\n{a:1}.nil?(ignored:true)\nend\n",
-    "go_error": "hash.nil? does not take keyword arguments"
+    "go_error": "hash.nil? does not take keyword arguments",
+    "static_error": {"code": "V0402", "at": [2, 7]}
   },
   {
     "name": "call_builtin_keyword_hash_itself",
@@ -823,7 +825,8 @@
   {
     "name": "call_builtin_keyword_string_nil?",
     "source": "def run(input: any) -> any\n\"abc\".nil?(ignored:true)\nend\n",
-    "go_error": "string.nil? does not take keyword arguments"
+    "go_error": "string.nil? does not take keyword arguments",
+    "static_error": {"code": "V0402", "at": [2, 7]}
   },
   {
     "name": "call_builtin_keyword_string_itself",
@@ -857,7 +860,8 @@
   {
     "name": "call_builtin_keyword_int_nil?",
     "source": "def run(input: any) -> any\n3.nil?(ignored:true)\nend\n",
-    "go_error": "int.nil? does not take keyword arguments"
+    "go_error": "int.nil? does not take keyword arguments",
+    "static_error": {"code": "V0402", "at": [2, 3]}
   },
   {
     "name": "call_builtin_keyword_int_itself",
@@ -921,7 +925,8 @@
   {
     "name": "call_builtin_keyword_range_nil?",
     "source": "def run(input: any) -> any\n(1..3).nil?(ignored:true)\nend\n",
-    "go_error": "range.nil? does not take keyword arguments"
+    "go_error": "range.nil? does not take keyword arguments",
+    "static_error": {"code": "V0402", "at": [2, 8]}
   },
   {
     "name": "call_builtin_keyword_range_itself",
@@ -16481,17 +16486,20 @@
   {
     "name": "money_member_2405",
     "source": "def run(input: any) -> any\nm=money_cents(123,\"USD\");v=m.nil?(1);v.to_s\nend\n",
-    "go_error": "money.nil? does not take arguments"
+    "go_error": "money.nil? does not take arguments",
+    "static_error": {"code": "V0402", "at": [2, 30]}
   },
   {
     "name": "money_member_2406",
     "source": "def run(input: any) -> any\nm=money_cents(123,\"USD\");v=m.nil?(x:1);v.to_s\nend\n",
-    "go_error": "money.nil? does not take keyword arguments"
+    "go_error": "money.nil? does not take keyword arguments",
+    "static_error": {"code": "V0402", "at": [2, 30]}
   },
   {
     "name": "money_member_2407",
     "source": "def run(input: any) -> any\nm=money_cents(123,\"USD\");v=m.nil? {7};v.to_s\nend\n",
-    "go_error": "money.nil? does not take a block"
+    "go_error": "money.nil? does not take a block",
+    "static_error": {"code": "V0402", "at": [2, 30]}
   },
   {
     "name": "money_member_2410",
@@ -21663,17 +21671,20 @@
   {
     "name": "duration_members_4537",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 0);v=d.nil?(1);v.to_s\nend\n",
-    "go_error": "duration.nil? does not take arguments"
+    "go_error": "duration.nil? does not take arguments",
+    "static_error": {"code": "V0402", "at": [2, 34]}
   },
   {
     "name": "duration_members_4538",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 0);v=d.nil?(x:1);v.to_s\nend\n",
-    "go_error": "duration.nil? does not take keyword arguments"
+    "go_error": "duration.nil? does not take keyword arguments",
+    "static_error": {"code": "V0402", "at": [2, 34]}
   },
   {
     "name": "duration_members_4539",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 0);v=d.nil? {7};v.to_s\nend\n",
-    "go_error": "duration.nil? does not take a block"
+    "go_error": "duration.nil? does not take a block",
+    "static_error": {"code": "V0402", "at": [2, 34]}
   },
   {
     "name": "duration_members_4542",
@@ -22166,17 +22177,20 @@
   {
     "name": "duration_members_4692",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 1);v=d.nil?(1);v.to_s\nend\n",
-    "go_error": "duration.nil? does not take arguments"
+    "go_error": "duration.nil? does not take arguments",
+    "static_error": {"code": "V0402", "at": [2, 34]}
   },
   {
     "name": "duration_members_4693",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 1);v=d.nil?(x:1);v.to_s\nend\n",
-    "go_error": "duration.nil? does not take keyword arguments"
+    "go_error": "duration.nil? does not take keyword arguments",
+    "static_error": {"code": "V0402", "at": [2, 34]}
   },
   {
     "name": "duration_members_4694",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 1);v=d.nil? {7};v.to_s\nend\n",
-    "go_error": "duration.nil? does not take a block"
+    "go_error": "duration.nil? does not take a block",
+    "static_error": {"code": "V0402", "at": [2, 34]}
   },
   {
     "name": "duration_members_4697",
@@ -22669,17 +22683,20 @@
   {
     "name": "duration_members_4847",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: -1);v=d.nil?(1);v.to_s\nend\n",
-    "go_error": "duration.nil? does not take arguments"
+    "go_error": "duration.nil? does not take arguments",
+    "static_error": {"code": "V0402", "at": [2, 35]}
   },
   {
     "name": "duration_members_4848",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: -1);v=d.nil?(x:1);v.to_s\nend\n",
-    "go_error": "duration.nil? does not take keyword arguments"
+    "go_error": "duration.nil? does not take keyword arguments",
+    "static_error": {"code": "V0402", "at": [2, 35]}
   },
   {
     "name": "duration_members_4849",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: -1);v=d.nil? {7};v.to_s\nend\n",
-    "go_error": "duration.nil? does not take a block"
+    "go_error": "duration.nil? does not take a block",
+    "static_error": {"code": "V0402", "at": [2, 35]}
   },
   {
     "name": "duration_members_4852",
@@ -23172,17 +23189,20 @@
   {
     "name": "duration_members_5002",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 90061);v=d.nil?(1);v.to_s\nend\n",
-    "go_error": "duration.nil? does not take arguments"
+    "go_error": "duration.nil? does not take arguments",
+    "static_error": {"code": "V0402", "at": [2, 38]}
   },
   {
     "name": "duration_members_5003",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 90061);v=d.nil?(x:1);v.to_s\nend\n",
-    "go_error": "duration.nil? does not take keyword arguments"
+    "go_error": "duration.nil? does not take keyword arguments",
+    "static_error": {"code": "V0402", "at": [2, 38]}
   },
   {
     "name": "duration_members_5004",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 90061);v=d.nil? {7};v.to_s\nend\n",
-    "go_error": "duration.nil? does not take a block"
+    "go_error": "duration.nil? does not take a block",
+    "static_error": {"code": "V0402", "at": [2, 38]}
   },
   {
     "name": "duration_members_5007",
@@ -23675,17 +23695,20 @@
   {
     "name": "duration_members_5157",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: -90061);v=d.nil?(1);v.to_s\nend\n",
-    "go_error": "duration.nil? does not take arguments"
+    "go_error": "duration.nil? does not take arguments",
+    "static_error": {"code": "V0402", "at": [2, 39]}
   },
   {
     "name": "duration_members_5158",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: -90061);v=d.nil?(x:1);v.to_s\nend\n",
-    "go_error": "duration.nil? does not take keyword arguments"
+    "go_error": "duration.nil? does not take keyword arguments",
+    "static_error": {"code": "V0402", "at": [2, 39]}
   },
   {
     "name": "duration_members_5159",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: -90061);v=d.nil? {7};v.to_s\nend\n",
-    "go_error": "duration.nil? does not take a block"
+    "go_error": "duration.nil? does not take a block",
+    "static_error": {"code": "V0402", "at": [2, 39]}
   },
   {
     "name": "duration_members_5162",
@@ -24178,17 +24201,20 @@
   {
     "name": "duration_members_5312",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 9223372036854775807);v=d.nil?(1);v.to_s\nend\n",
-    "go_error": "duration.nil? does not take arguments"
+    "go_error": "duration.nil? does not take arguments",
+    "static_error": {"code": "V0402", "at": [2, 52]}
   },
   {
     "name": "duration_members_5313",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 9223372036854775807);v=d.nil?(x:1);v.to_s\nend\n",
-    "go_error": "duration.nil? does not take keyword arguments"
+    "go_error": "duration.nil? does not take keyword arguments",
+    "static_error": {"code": "V0402", "at": [2, 52]}
   },
   {
     "name": "duration_members_5314",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 9223372036854775807);v=d.nil? {7};v.to_s\nend\n",
-    "go_error": "duration.nil? does not take a block"
+    "go_error": "duration.nil? does not take a block",
+    "static_error": {"code": "V0402", "at": [2, 52]}
   },
   {
     "name": "duration_members_5317",
@@ -24681,17 +24707,20 @@
   {
     "name": "duration_members_5467",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: -9223372036854775808);v=d.nil?(1);v.to_s\nend\n",
-    "go_error": "duration.nil? does not take arguments"
+    "go_error": "duration.nil? does not take arguments",
+    "static_error": {"code": "V0402", "at": [2, 53]}
   },
   {
     "name": "duration_members_5468",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: -9223372036854775808);v=d.nil?(x:1);v.to_s\nend\n",
-    "go_error": "duration.nil? does not take keyword arguments"
+    "go_error": "duration.nil? does not take keyword arguments",
+    "static_error": {"code": "V0402", "at": [2, 53]}
   },
   {
     "name": "duration_members_5469",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: -9223372036854775808);v=d.nil? {7};v.to_s\nend\n",
-    "go_error": "duration.nil? does not take a block"
+    "go_error": "duration.nil? does not take a block",
+    "static_error": {"code": "V0402", "at": [2, 53]}
   },
   {
     "name": "duration_members_5472",
@@ -26623,47 +26652,56 @@
   {
     "name": "time_signature_127",
     "source": "def run(input: any) -> any\nt=Time.utc(2024);t.nil?(nil)\nend\n",
-    "go_error": "time.nil? does not take arguments"
+    "go_error": "time.nil? does not take arguments",
+    "static_error": {"code": "V0402", "at": [2, 20]}
   },
   {
     "name": "time_signature_128",
     "source": "def run(input: any) -> any\nt=Time.utc(2024);t.nil?(1)\nend\n",
-    "go_error": "time.nil? does not take arguments"
+    "go_error": "time.nil? does not take arguments",
+    "static_error": {"code": "V0402", "at": [2, 20]}
   },
   {
     "name": "time_signature_129",
     "source": "def run(input: any) -> any\nt=Time.utc(2024);t.nil?(1.5)\nend\n",
-    "go_error": "time.nil? does not take arguments"
+    "go_error": "time.nil? does not take arguments",
+    "static_error": {"code": "V0402", "at": [2, 20]}
   },
   {
     "name": "time_signature_130",
     "source": "def run(input: any) -> any\nt=Time.utc(2024);t.nil?(-1)\nend\n",
-    "go_error": "time.nil? does not take arguments"
+    "go_error": "time.nil? does not take arguments",
+    "static_error": {"code": "V0402", "at": [2, 20]}
   },
   {
     "name": "time_signature_131",
     "source": "def run(input: any) -> any\nt=Time.utc(2024);t.nil?(2**63)\nend\n",
-    "go_error": "time.nil? does not take arguments"
+    "go_error": "time.nil? does not take arguments",
+    "static_error": {"code": "V0402", "at": [2, 20]}
   },
   {
     "name": "time_signature_132",
     "source": "def run(input: any) -> any\nt=Time.utc(2024);t.nil?(0,1)\nend\n",
-    "go_error": "time.nil? does not take arguments"
+    "go_error": "time.nil? does not take arguments",
+    "static_error": {"code": "V0402", "at": [2, 20]}
   },
   {
     "name": "time_signature_133",
     "source": "def run(input: any) -> any\nt=Time.utc(2024);t.nil?(other:1)\nend\n",
-    "go_error": "time.nil? does not take keyword arguments"
+    "go_error": "time.nil? does not take keyword arguments",
+    "static_error": {"code": "V0402", "at": [2, 20]}
   },
   {
     "name": "time_signature_134",
     "source": "def run(input: any) -> any\nt=Time.utc(2024);t.nil?(0,other:1)\nend\n",
-    "go_error": "time.nil? does not take arguments"
+    "go_error": "time.nil? does not take arguments",
+    "static_error": {"code": "V0402", "at": [2, 20]}
   },
   {
     "name": "time_block_signature_14",
     "source": "def run(input: any) -> any\nt=Time.utc(2024);t.nil? {1}\nend\n",
-    "go_error": "time.nil? does not take a block"
+    "go_error": "time.nil? does not take a block",
+    "static_error": {"code": "V0402", "at": [2, 20]}
   },
   {
     "name": "time_signature_136",
@@ -68651,22 +68689,26 @@
   {
     "name": "enums_members_74",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> any\nStatus.nil?(1)\nend\n",
-    "go_error": "enum.nil? does not take arguments"
+    "go_error": "enum.nil? does not take arguments",
+    "static_error": {"code": "V0402", "at": [10, 8]}
   },
   {
     "name": "enums_members_75",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> any\nStatus.nil?(bad:1)\nend\n",
-    "go_error": "enum.nil? does not take keyword arguments"
+    "go_error": "enum.nil? does not take keyword arguments",
+    "static_error": {"code": "V0402", "at": [10, 8]}
   },
   {
     "name": "enums_members_76",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> any\nStatus.nil?{1//0}\nend\n",
-    "go_error": "enum.nil? does not take a block"
+    "go_error": "enum.nil? does not take a block",
+    "static_error": {"code": "V0402", "at": [10, 8]}
   },
   {
     "name": "enums_members_77",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> any\nStatus.nil?(1//0)\nend\n",
-    "go_error": "division by zero"
+    "go_error": "division by zero",
+    "static_error": {"code": "V0402", "at": [10, 8]}
   },
   {
     "name": "enums_members_82",
@@ -69459,22 +69501,26 @@
   {
     "name": "enums_members_170",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> any\nStatus::Draft.nil?(1)\nend\n",
-    "go_error": "enum value.nil? does not take arguments"
+    "go_error": "enum value.nil? does not take arguments",
+    "static_error": {"code": "V0402", "at": [10, 15]}
   },
   {
     "name": "enums_members_171",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> any\nStatus::Draft.nil?(bad:1)\nend\n",
-    "go_error": "enum value.nil? does not take keyword arguments"
+    "go_error": "enum value.nil? does not take keyword arguments",
+    "static_error": {"code": "V0402", "at": [10, 15]}
   },
   {
     "name": "enums_members_172",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> any\nStatus::Draft.nil?{1//0}\nend\n",
-    "go_error": "enum value.nil? does not take a block"
+    "go_error": "enum value.nil? does not take a block",
+    "static_error": {"code": "V0402", "at": [10, 15]}
   },
   {
     "name": "enums_members_173",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> any\nStatus::Draft.nil?(1//0)\nend\n",
-    "go_error": "division by zero"
+    "go_error": "division by zero",
+    "static_error": {"code": "V0402", "at": [10, 15]}
   },
   {
     "name": "enums_members_178",
@@ -88567,7 +88613,8 @@
   {
     "name": "shapes_universal_blocks_0",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> any\n(nil).nil?{7}\nend\n",
-    "go_error": "nil.nil? does not take a block"
+    "go_error": "nil.nil? does not take a block",
+    "static_error": {"code": "V0402", "at": [9, 7]}
   },
   {
     "name": "shapes_universal_blocks_1",
@@ -88583,7 +88630,8 @@
   {
     "name": "shapes_universal_blocks_3",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> any\n(true).nil?{7}\nend\n",
-    "go_error": "bool.nil? does not take a block"
+    "go_error": "bool.nil? does not take a block",
+    "static_error": {"code": "V0402", "at": [9, 8]}
   },
   {
     "name": "shapes_universal_blocks_4",
@@ -88599,7 +88647,8 @@
   {
     "name": "shapes_universal_blocks_6",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> any\n(1).nil?{7}\nend\n",
-    "go_error": "int.nil? does not take a block"
+    "go_error": "int.nil? does not take a block",
+    "static_error": {"code": "V0402", "at": [9, 5]}
   },
   {
     "name": "shapes_universal_blocks_7",
@@ -88615,7 +88664,8 @@
   {
     "name": "shapes_universal_blocks_9",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> any\n(1.0).nil?{7}\nend\n",
-    "go_error": "float.nil? does not take a block"
+    "go_error": "float.nil? does not take a block",
+    "static_error": {"code": "V0402", "at": [9, 7]}
   },
   {
     "name": "shapes_universal_blocks_10",
@@ -88631,7 +88681,8 @@
   {
     "name": "shapes_universal_blocks_12",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> any\n(\"x\").nil?{7}\nend\n",
-    "go_error": "string.nil? does not take a block"
+    "go_error": "string.nil? does not take a block",
+    "static_error": {"code": "V0402", "at": [9, 7]}
   },
   {
     "name": "shapes_universal_blocks_13",
@@ -88647,7 +88698,8 @@
   {
     "name": "shapes_universal_blocks_15",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> any\n(:x).nil?{7}\nend\n",
-    "go_error": "symbol.nil? does not take a block"
+    "go_error": "symbol.nil? does not take a block",
+    "static_error": {"code": "V0402", "at": [9, 6]}
   },
   {
     "name": "shapes_universal_blocks_16",
@@ -88663,7 +88715,8 @@
   {
     "name": "shapes_universal_blocks_18",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> any\n([]).nil?{7}\nend\n",
-    "go_error": "array.nil? does not take a block"
+    "go_error": "array.nil? does not take a block",
+    "static_error": {"code": "V0402", "at": [9, 6]}
   },
   {
     "name": "shapes_universal_blocks_19",
@@ -88679,7 +88732,8 @@
   {
     "name": "shapes_universal_blocks_21",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> any\n({}).nil?{7}\nend\n",
-    "go_error": "hash.nil? does not take a block"
+    "go_error": "hash.nil? does not take a block",
+    "static_error": {"code": "V0402", "at": [9, 6]}
   },
   {
     "name": "shapes_universal_blocks_22",
@@ -88695,7 +88749,8 @@
   {
     "name": "shapes_universal_blocks_24",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> any\n(1..3).nil?{7}\nend\n",
-    "go_error": "range.nil? does not take a block"
+    "go_error": "range.nil? does not take a block",
+    "static_error": {"code": "V0402", "at": [9, 8]}
   },
   {
     "name": "shapes_universal_blocks_25",
@@ -88711,7 +88766,8 @@
   {
     "name": "shapes_universal_blocks_27",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> any\n({x:int}).nil?{7}\nend\n",
-    "go_error": "shape.nil? does not take a block"
+    "go_error": "shape.nil? does not take a block",
+    "static_error": {"code": "V0402", "at": [9, 11]}
   },
   {
     "name": "shapes_universal_blocks_28",
@@ -118375,7 +118431,8 @@
   {
     "name": "module_saved_20",
     "source": "module M\n C=1\n def self.f -> int;2;end\nend\ndef run(input: any) -> any\nM.nil?(1)\nend\n",
-    "go_error": "class.nil? does not take arguments"
+    "go_error": "class.nil? does not take arguments",
+    "static_error": {"code": "V0402", "at": [6, 3]}
   },
   {
     "name": "module_saved_21",
@@ -161881,5 +161938,30 @@
     "stderr": true,
     "stdout_hex": "",
     "stderr_hex": ""
+  },
+  {
+    "name": "enums_members_174",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> bool\nStatus::Draft.nil?(*[])\nend\n",
+    "static_error": {"code": "V0402", "at": [10, 15]}
+  },
+  {
+    "name": "enums_members_175",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> bool\nStatus::Draft.nil?(**{})\nend\n",
+    "static_error": {"code": "V0402", "at": [10, 15]}
+  },
+  {
+    "name": "enums_members_78",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> bool\nStatus.nil?(*[])\nend\n",
+    "static_error": {"code": "V0402", "at": [10, 8]}
+  },
+  {
+    "name": "enums_members_79",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> bool\nStatus.nil?(**{})\nend\n",
+    "static_error": {"code": "V0402", "at": [10, 8]}
+  },
+  {
+    "name": "time_integration_4",
+    "source": "def run(input: any) -> array<int>\n[Time.now.iso8601.length,now(other:1).length,now {1}.length]\nend\n",
+    "static_error": {"code": "V0401", "at": [2, 26]}
   }
 ]
