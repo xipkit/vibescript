@@ -26,7 +26,6 @@ fn unknown_calls_remain_gradual_without_hiding_known_contradictions() {
         "def run(value);value(7);end",
         "def take(n:int);n;end;def run(value)->int;take(value.foo);end",
         "def run(value);n=0;value.visit {|item|n+=1};n;end",
-        "def run(value);n=0;value {|item|n+=1};n;end",
         "def run(value);value.map {|item|item.foo};end",
         "def run(value);value.visit {value.visit {7}};end",
         "def run(value);value.nil?;end",

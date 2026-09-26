@@ -260,7 +260,8 @@ impl Tail {
 /// colon from a symbol, and the tokens before the current one.
 #[derive(Default)]
 struct Nesting {
-    /// Each open bracket and whether a `(` opens call arguments.
+    /// Each open bracket and whether it follows an expression on its line:
+    /// a `(` then opens call arguments, and a `{` a block.
     brackets: Buffer<(u8, bool)>,
     /// Each pending ternary's bracket depth and whether a label colon inside
     /// it belongs to a parenless keyword call.
@@ -689,7 +690,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
         let nesting = &mut self.nesting;
         match lexeme.token {
             Token::P(open @ ('(' | '[' | '{')) => {
-                let call = open == '('
+                let call = open != '['
                     && nesting
                         .last
                         .is_some_and(|last| last.ends && last.end_line == lexeme.line);
@@ -1096,7 +1097,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
             && nesting
                 .brackets
                 .last()
-                .is_some_and(|&(kind, _)| kind == b'{')
+                .is_some_and(|&(kind, block)| kind == b'{' && !block)
     }
 
     fn label_follows_bracket(&self) -> bool {
@@ -1105,10 +1106,12 @@ impl<'a, 'w> Lexer<'a, 'w> {
         else {
             return false;
         };
+        // A block's statements start with no label, so `{ break :done }`
+        // after a call breaks with a symbol.
         match previous.mark {
-            b'{' => kind == b'{',
+            b'{' => kind == b'{' && !call,
             b'(' => kind == b'(' && call,
-            b',' => kind == b'{' || (kind == b'(' && call),
+            b',' => (kind == b'{' && !call) || (kind == b'(' && call),
             _ => false,
         }
     }

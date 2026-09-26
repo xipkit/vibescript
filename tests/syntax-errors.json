@@ -22,7 +22,8 @@
   {
     "name": "command_hash_later",
     "source": "def pack(*args: array<any>,**kw: hash<string, any>) -> any\n[args,kw]\nend\ndef id(x: any) -> any\nx\nend\ndef n() -> int\n10\nend\ndef run(input: any)\npack 1,{a:2}\nend",
-    "go_error": "parse error at 11:1: invalid destructuring assignment target"
+    "go_error": "parse error at 11:1: invalid destructuring assignment target",
+    "error": "parse error at 11:8: a hash literal passed to `pack` needs parentheses, as in `pack(..., { ... })`; after a call, `{` starts a block"
   },
   {
     "name": "command_trailing_comma",
@@ -9407,7 +9408,8 @@
   {
     "name": "shapes_contexts_0",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\nJSON.parse_as \"1\", {name:string}\nend",
-    "go_error": "parse error at 9:1: invalid destructuring assignment target"
+    "go_error": "parse error at 9:1: invalid destructuring assignment target",
+    "error": "parse error at 9:20: a hash literal passed to `parse_as` needs parentheses, as in `parse_as(..., { ... })`; after a call, `{` starts a block"
   },
   {
     "name": "shapes_contexts_4",
@@ -9472,7 +9474,8 @@
   {
     "name": "shapes_contexts_28",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any)\nJSON.parse_as \"1\", {name:string,...}\nend",
-    "go_error": "parse error at 9:1: invalid destructuring assignment target"
+    "go_error": "parse error at 9:1: invalid destructuring assignment target",
+    "error": "parse error at 9:20: a hash literal passed to `parse_as` needs parentheses, as in `parse_as(..., { ... })`; after a call, `{` starts a block"
   },
   {
     "name": "shapes_structural_6",
@@ -14059,11 +14062,6 @@
     "go_error": "parse error at 2:5: unexpected token \"]\""
   },
   {
-    "name": "parity_next_symbol_value",
-    "source": "[1].map { next :x }\n",
-    "go_error": "parse error at 1:16: unexpected token \":\""
-  },
-  {
     "name": "parity_ivar_parameter_type",
     "source": "def f(@n:int)\nend\n",
     "go_error": "parse error at 1:9: expected \")\", got symbol"
@@ -14072,5 +14070,106 @@
     "name": "parity_operator_symbol_member",
     "source": "p :->.to_s\n",
     "go_error": "parse error at 1:6: unexpected token \".\""
+  },
+  {
+    "name": "block_brace_on_literal",
+    "source": "def zero(&block: () -> int) -> int\nyield\nend\ndef one(x: int, &block: int -> int) -> int\nyield x\nend\ndef two(x: int,y: int, &block: (int, int) -> int) -> int\nyield x,y\nend\ndef twice(x: int, &block: int -> int) -> array<int>\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present() -> bool\nblock_given?\nend\ndef x() -> int\n4\nend\ndef f(a: any =yield()) -> any\na\nend\ndef run(input: any) -> any\n1 {2}\nend\n",
+    "go_error": "attempted to call non-callable value",
+    "error": "parse error at 25:4: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "block_do_on_literal",
+    "source": "def zero(&block: () -> int) -> int\nyield\nend\ndef one(x: int, &block: int -> int) -> int\nyield x\nend\ndef two(x: int,y: int, &block: (int, int) -> int) -> int\nyield x,y\nend\ndef twice(x: int, &block: int -> int) -> array<int>\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present() -> bool\nblock_given?\nend\ndef x() -> int\n4\nend\ndef f(a: any =yield()) -> any\na\nend\ndef run(input: any) -> any\n1 { 2 }\nend\n",
+    "go_error": "attempted to call non-callable value",
+    "error": "parse error at 25:5: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "literals_percent_w_6_5",
+    "source": "\ndef run(input: any) -> any\n[]{7}#\nend\n",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %w##{7}#\n   | ^\n  at run (3:1)\n  at run (2:1)",
+    "error": "parse error at 3:4: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "literals_percent_w_6_6",
+    "source": "\ndef run(input: any) -> any\n[\"a\"]{1+2}b c#\nend\n",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %w#a#{1+2}b c#\n   | ^\n  at run (3:1)\n  at run (2:1)",
+    "error": "parse error at 3:7: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "literals_percent_w_6_7",
+    "source": "\ndef run(input: any) -> any\n[]{\"}\"} x#\nend\n",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %w##{\"}\"} x#\n   | ^\n  at run (3:1)\n  at run (2:1)",
+    "error": "parse error at 3:4: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "literals_percent_W_6_5",
+    "source": "\ndef run(input: any) -> any\n[]{7}#\nend\n",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %W##{7}#\n   | ^\n  at run (3:1)\n  at run (2:1)",
+    "error": "parse error at 3:4: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "literals_percent_W_6_6",
+    "source": "\ndef run(input: any) -> any\n[\"a\"]{1+2}b c#\nend\n",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %W#a#{1+2}b c#\n   | ^\n  at run (3:1)\n  at run (2:1)",
+    "error": "parse error at 3:7: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "literals_percent_W_6_7",
+    "source": "\ndef run(input: any) -> any\n[]{\"}\"} x#\nend\n",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %W##{\"}\"} x#\n   | ^\n  at run (3:1)\n  at run (2:1)",
+    "error": "parse error at 3:4: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "literals_percent_i_6_5",
+    "source": "\ndef run(input: any) -> any\n[]{7}#\nend\n",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %i##{7}#\n   | ^\n  at run (3:1)\n  at run (2:1)",
+    "error": "parse error at 3:4: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "literals_percent_i_6_6",
+    "source": "\ndef run(input: any) -> any\n[:a]{1+2}b c#\nend\n",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %i#a#{1+2}b c#\n   | ^\n  at run (3:1)\n  at run (2:1)",
+    "error": "parse error at 3:6: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "literals_percent_i_6_7",
+    "source": "\ndef run(input: any) -> any\n[]{\"}\"} x#\nend\n",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %i##{\"}\"} x#\n   | ^\n  at run (3:1)\n  at run (2:1)",
+    "error": "parse error at 3:4: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "literals_percent_I_6_5",
+    "source": "\ndef run(input: any) -> any\n[]{7}#\nend\n",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %I##{7}#\n   | ^\n  at run (3:1)\n  at run (2:1)",
+    "error": "parse error at 3:4: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "literals_percent_I_6_6",
+    "source": "\ndef run(input: any) -> any\n[:a]{1+2}b c#\nend\n",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %I#a#{1+2}b c#\n   | ^\n  at run (3:1)\n  at run (2:1)",
+    "error": "parse error at 3:6: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "literals_percent_I_6_7",
+    "source": "\ndef run(input: any) -> any\n[]{\"}\"} x#\nend\n",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %I##{\"}\"} x#\n   | ^\n  at run (3:1)\n  at run (2:1)",
+    "error": "parse error at 3:4: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "enums_call_20",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> any\nStatus{1//0}\nend\n",
+    "go_error": "attempted to call non-callable value",
+    "error": "parse error at 10:8: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "enums_call_21",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> Status\nStatus::Draft{1//0}\nend\n",
+    "go_error": "attempted to call non-callable value",
+    "error": "parse error at 10:15: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "block_do_double_attachment",
+    "source": "def zero(&block: () -> int) -> int\nyield\nend\ndef one(x: int, &block: int -> int) -> int\nyield x\nend\ndef two(x: int,y: int, &block: (int, int) -> int) -> int\nyield x,y\nend\ndef twice(x: int, &block: int -> int) -> array<int>\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present() -> bool\nblock_given?\nend\ndef x() -> int\n4\nend\ndef f(a: any =yield()) -> any\na\nend\ndef run(input: any) -> int\nzero {3} { 4 }\nend\n",
+    "error": "parse error at 25:12: invalid hash pair: expected key like name: or \"name\":"
   }
 ]

@@ -104,3 +104,17 @@ fn a_file_that_does_not_parse_is_reported() {
 fn fix_requires_a_path() {
     vibes_in(None, &["fix"]).fails("vibes fix: file or directory required");
 }
+
+#[test]
+fn a_hash_argument_without_parentheses_gets_them() {
+    let files = Files::new();
+    files.write("log.vibe", "puts { id: 1 }\np 1, { id: 2 }\n");
+    let run = vibes_in(Some(&files.0), &["fix", "log.vibe"]);
+    assert_eq!(run.status, Some(0), "{run:?}");
+    assert!(
+        run.stdout.contains("log.vibe:1:6: fixed V0002:"),
+        "{}",
+        run.stdout
+    );
+    assert_eq!(files.read("log.vibe"), "puts({ id: 1 })\np(1, { id: 2 })\n");
+}

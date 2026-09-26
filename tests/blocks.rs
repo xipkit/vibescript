@@ -301,3 +301,118 @@ fn implicit_it_stays_callable_through_rescue_callee_branches() {
         .unwrap_err();
     assert!(error.message.contains("non-callable"), "{}", error.message);
 }
+
+/// Runs `source`'s top-level statements with static types and returns the
+/// result of the last one.
+fn value_of(source: &str) -> Value {
+    common::static_engine()
+        .compile(source)
+        .unwrap_or_else(|error| panic!("{source}: {error}"))
+        .run(CallOptions::default())
+        .unwrap_or_else(|error| panic!("{source}: {error}"))
+        .value
+}
+
+#[test]
+fn a_brace_after_a_call_starts_a_block_whose_statements_are_never_hash_entries() {
+    for (source, expected) in [
+        ("loop { break :done }", "done"),
+        ("loop {\n  break :done\n}", "done"),
+        (
+            "def f -> symbol\n  [1].each { return :found }\n  :none\nend\nf",
+            "found",
+        ),
+        (
+            "def f -> symbol\n  [1].each {\n    return :found\n  }\n  :none\nend\nf",
+            "found",
+        ),
+        ("[1].map { :a }.fetch(0)", "a"),
+        ("[1].map { |n| :a }.fetch(0)", "a"),
+    ] {
+        let value = value_of(source);
+        assert_eq!(value.type_name(), "symbol", "{source}");
+        assert_eq!(value.as_bytes(), Some(expected.as_bytes()), "{source}");
+    }
+    // Anywhere else a brace starts a hash, whose `name :value` still labels.
+    let value = value_of("h = { name: 1 }\nh.fetch(\"name\")");
+    assert_eq!(value.as_int(), Some(1));
+}
+
+#[test]
+fn a_brace_after_a_parenless_call_s_last_argument_is_that_call_s_block() {
+    let definitions = "def twice(n: int, &block: int -> int) -> int\n  yield(n) + yield(n)\nend\n";
+    for (body, expected) in [
+        ("twice 2 { |n| n * 10 }", 40),
+        ("x = 3\ntwice x { |n| n }", 6),
+        // The nearest call takes the block.
+        ("[[1, 2], [3]].map { |pair| pair.length }.sum", 3),
+    ] {
+        let value = value_of(&format!("{definitions}{body}"));
+        assert_eq!(value.as_int(), Some(expected), "{body}");
+    }
+    let value = value_of(
+        "groups: array<array<int>> = []\n[1, 2, 3].each_slice 2 { |s| groups << s }\ngroups.length",
+    );
+    assert_eq!(value.as_int(), Some(2));
+}
+
+#[test]
+fn a_block_starts_on_its_call_s_line() {
+    // A brace on the next line starts a hash statement of its own.
+    let value = value_of("x = [1].length\n{ a: 1 }");
+    assert_eq!(value.type_name(), "hash");
+    // After a value, a brace cannot start a block.
+    for source in ["x = (loop\n  { break 1 })", "y = 1\nz = (y { })"] {
+        let error = common::static_engine().compile(source).err().unwrap();
+        assert_eq!(error.kind, ErrorKind::Syntax, "{source}");
+    }
+}
+
+#[test]
+fn a_hash_argument_to_a_call_without_parentheses_is_refused_with_a_fix() {
+    for (source, fixed) in [
+        ("puts { a: 1 }\n", Some("puts({ a: 1 })\n")),
+        ("puts { \"a\": 1 }\n", Some("puts({ \"a\": 1 })\n")),
+        (
+            "x = [1].first { a: 1 }\n",
+            Some("x = [1].first({ a: 1 })\n"),
+        ),
+        (
+            "[1].each { |x| p { a: x } }\n",
+            Some("[1].each { |x| p({ a: x }) }\n"),
+        ),
+        ("p 1, { a: 1 }\n", Some("p(1, { a: 1 })\n")),
+        ("p 1, { a: 1 }, 2\n", Some("p(1, { a: 1 }, 2)\n")),
+        // The block after an argument has no single repair.
+        ("y = 1\np y { a: 1 }\n", None),
+    ] {
+        for static_types in [true, false] {
+            let mut engine = Engine::new();
+            engine.set_static_types(static_types);
+            let error = engine.compile(source).err().unwrap();
+            assert_eq!(error.kind, ErrorKind::Syntax, "{source}");
+            assert!(
+                error.message.contains("needs parentheses"),
+                "{source}: {error}"
+            );
+            let [diagnostic] = error.diagnostics() else {
+                panic!("{source}: {:?}", error.diagnostics());
+            };
+            assert_eq!(diagnostic.code.to_string(), "V0002", "{source}");
+            let applied = diagnostic
+                .applicable_fix()
+                .and_then(|fix| fix.apply(source));
+            assert_eq!(applied.as_deref(), fixed, "{source}");
+            if let Some(fixed) = fixed {
+                let parsed = engine.compile(fixed).err();
+                assert!(
+                    parsed.is_none_or(|error| error.kind != ErrorKind::Syntax),
+                    "{fixed}"
+                );
+            }
+        }
+    }
+    // A typed local in a block is a statement, not a hash entry.
+    let value = value_of("[1].map { total: int = 2\n  total }.fetch(0)");
+    assert_eq!(value.as_int(), Some(2));
+}

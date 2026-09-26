@@ -67,7 +67,14 @@ fn syntax_errors_use_the_reference_text_and_position() {
             .err()
             .unwrap_or_else(|| panic!("{name} compiled"));
         // Go goes on to report later errors; the port reports the first.
-        let expected = case["go_error"].as_str().unwrap().lines().next();
+        // `error` gives the port's message where the language has changed.
+        let expected = case
+            .get("error")
+            .unwrap_or(&case["go_error"])
+            .as_str()
+            .unwrap()
+            .lines()
+            .next();
         assert_eq!(error.to_string().lines().next(), expected, "{name}");
     }
     let error = Engine::new().compile("case 1\nend").err().unwrap();

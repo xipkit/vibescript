@@ -78,7 +78,7 @@
 {"id":"hash-new-differences/hash_new_read_49","ok":["array",[["string","52756e74696d654572726f72"],["string","7072696e74206f757470757420777269746572206973206e6f7420636f6e66696775726564"]]]}
 {"id":"hash-new-differences/hash_new_read_50","ok":["array",[["string","52756e74696d654572726f72"],["string","756e6b6e6f776e2068617368206d6574686f642063616c6c"]]]}
 {"id":"hash-new-differences/hash_new_read_51","ok":["array",[["string","52756e74696d654572726f72"],["string","6e65772069732061206d6574686f6420616e642063616e6e6f74206265207573656420617320612076616c75653b2063616c6c2069742077697468206e6577282e2e2e29"]]]}
-{"error":{"at":[4,14],"class":null,"kind":"Syntax","message":"unexpected token \":\"","phase":"compile"},"id":"loop-differences/loop_break_4"}
+{"id":"loop-differences/loop_break_4","ok":["symbol","646f6e65"]}
 {"id":"options-hash-differences/options_matrix_prefix_empty_bare","ok":["array",[["string","417267756d656e744572726f72"],["string","6d697373696e6720617267756d656e7420707265666978"]]]}
 {"id":"options-hash-differences/options_matrix_prefix_empty_forwarded","ok":["array",[["string","417267756d656e744572726f72"],["string","6d697373696e6720617267756d656e7420707265666978"]]]}
 {"id":"options-hash-differences/options_matrix_prefix_empty_function","ok":["array",[["string","417267756d656e744572726f72"],["string","6d697373696e6720617267756d656e7420707265666978"]]]}

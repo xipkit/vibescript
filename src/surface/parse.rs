@@ -636,7 +636,7 @@ impl<'s> Parser<'s> {
     fn statement_continues(&self) -> bool {
         let next = &self.tokens[self.pos];
         let continues = match &next.kind {
-            TokenKind::Punct('.' | '(' | '[' | '{' | '?') => true,
+            TokenKind::Punct('.' | '(' | '[' | '?') => true,
             TokenKind::Operator(op) => matches!(*op, "&." | "::") || binding_power(op).is_some(),
             TokenKind::Word => matches!(self.text(self.pos), "do" | "rescue"),
             _ => false,
@@ -703,7 +703,7 @@ impl<'s> Parser<'s> {
             TokenKind::Punct('.') => true,
             TokenKind::Operator("::" | "&.") => true,
             TokenKind::Punct('?') => min <= 2,
-            TokenKind::Punct('(' | '[' | '{') => self.line_exprs == 0 && self.groups > 0,
+            TokenKind::Punct('(' | '[') => self.line_exprs == 0 && self.groups > 0,
             TokenKind::Operator(op) => {
                 let (left, _) = binding_power(op)?;
                 if left < min {
@@ -801,6 +801,30 @@ impl<'s> Parser<'s> {
             previous = i;
         }
         false
+    }
+
+    /// Whether the `{` at the current token starts `lhs`'s block: it follows
+    /// a `)`, or `lhs` is a call and not a value such as a local, a
+    /// constant or a literal.
+    fn block_follows(&self, lhs: &Expr) -> bool {
+        self.is_p(self.pos - 1, ')') || self.block_owner(lhs)
+    }
+
+    fn block_owner(&self, lhs: &Expr) -> bool {
+        let lowercase = |name: &str| {
+            !name
+                .chars()
+                .next()
+                .is_some_and(crate::syntax::unicode::upper)
+        };
+        match &lhs.kind {
+            ExprKind::Name(name) => lowercase(name) && !self.locals.contains(name),
+            ExprKind::Call(call) => {
+                !call.scoped(&self.tokens) || call.args.is_some() || lowercase(&call.name)
+            }
+            ExprKind::Computed(..) => true,
+            _ => false,
+        }
     }
 
     fn command_start(&self, lhs: &Expr, min: u8) -> bool {
@@ -2440,7 +2464,7 @@ impl<'s> Parser<'s> {
         let brace = if self.is_word(next, "do") {
             (next != self.pos || self.can_attach_do()).then_some(false)
         } else if self.is_p(next, '{') {
-            (next == self.pos).then_some(true)
+            (next == self.pos && self.block_follows(&expr)).then_some(true)
         } else {
             None
         };
@@ -2991,16 +3015,17 @@ impl<'s> Parser<'s> {
         if self.command_start(lhs, min) {
             return Some(Suffix::Command);
         }
-        let brace = self.at_p('{');
-        let do_block = self.at_word("do")
-            && (self.can_attach_do()
-                || (self.pos != self.call_end && self.significant(self.call_end) == self.pos));
-        if (brace || do_block)
-            && (do_block
-                || resumed.is_some()
-                || self.tokens[self.pos].line == self.previous().end_line)
+        if self.at_p('{')
+            && self.tokens[self.pos].line == self.previous().end_line
+            && self.block_follows(lhs)
         {
-            return Some(Suffix::Block(brace));
+            return Some(Suffix::Block(true));
+        }
+        if self.at_word("do")
+            && (self.can_attach_do()
+                || (self.pos != self.call_end && self.significant(self.call_end) == self.pos))
+        {
+            return Some(Suffix::Block(false));
         }
         if self.take_p('(').is_some() {
             return Some(Suffix::Call);

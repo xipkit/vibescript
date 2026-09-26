@@ -133,7 +133,11 @@ pub(crate) fn analyze(uri: &str, source: &str, options: &Options) -> Analysis {
         }
         // A static check that found errors parsed the source, so its
         // declarations stand.
-        Err(error) if options.static_types && !error.diagnostics().is_empty() => {
+        Err(error)
+            if options.static_types
+                && error.kind != ErrorKind::Syntax
+                && !error.diagnostics().is_empty() =>
+        {
             let program = match tooling::outline(source) {
                 Ok(outline) => Program::Parsed(outline),
                 Err(_) => Program::Kept,
@@ -156,8 +160,16 @@ pub(crate) fn analyze(uri: &str, source: &str, options: &Options) -> Analysis {
                 Err(error) if error.diagnostic.is_none() => Program::Missing,
                 Err(_) => sections(source).map_or(Program::Kept, Program::Parsed),
             };
+            // A syntax error may carry a coded diagnostic with a fix.
+            let diagnostics = match error.diagnostics() {
+                [] => vec![compile_diagnostic(source, &error)],
+                coded_errors => coded_errors
+                    .iter()
+                    .map(|found| coded(source, found))
+                    .collect(),
+            };
             return Analysis {
-                diagnostics: vec![compile_diagnostic(source, &error)],
+                diagnostics,
                 compiled: false,
                 program,
                 cancelled: false,

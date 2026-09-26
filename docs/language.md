@@ -146,6 +146,20 @@ first_big = prices.find { |p| p > 5 }          # 8, an int?
 
 Block parameters take their types from the called function's signature; annotations such as `|p: int|` are optional and must match. `next value` ends one call of the block, and `break value` ends the whole call with that value, so the call's type includes the break value's: `[1, 2].each { |n| break "s" }` is `array<int> | string`, and a `break` without a value adds `nil`. A `break` out of the block of a function that declares `-> T` returns from it as a `T`, and `loop { ... }` has the type of its break values.
 
+A `{` starts a block when it follows a call on the same line: a function or method name (`loop {`, `items.each {`), a `)` (`reduce(0) {`), or the last argument of a call without parentheses (`each_slice 2 {`). Anywhere else it starts a hash literal. So a block's statements never read as hash entries, and a hash passed to a call needs the call's parentheses:
+
+```vibe
+state = loop { break :done }                   # :done
+def log(message: string, fields: hash<string, int> = {})
+  puts "#{message} #{fields}"
+end
+log("sent", { id: 1 })
+```
+
+```vibe error=V0002
+puts { id: 1 }                                 # a block, not a hash: write puts({ id: 1 })
+```
+
 A function that yields declares its block as its last parameter. The block's name is a declaration only; `yield` and `block_given?` are the only ways to use it.
 
 ```vibe
@@ -518,7 +532,7 @@ What remains at runtime: `fetch`, `as` and `JSON.parse_as` raise when the value 
 
 ## Diagnostics and fixes
 
-Every compile error has a stable code, a span and, where they apply, the expected and found types. Codes are grouped by area: `V0001` syntax, `V01xx` types, `V02xx` names, `V03xx` calls and `V04xx` removed spellings. See [diagnostics](diagnostics.md).
+Every compile error has a stable code, a span and, where they apply, the expected and found types. Codes are grouped by area: `V00xx` syntax, `V01xx` types, `V02xx` names, `V03xx` calls and `V04xx` removed spellings. See [diagnostics](diagnostics.md).
 
 ```sh
 vibes check --static script.vibe   # human-readable diagnostics

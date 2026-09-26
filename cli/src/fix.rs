@@ -48,7 +48,13 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
             .map_err(|error| format!("collect {}: {error}", path.display()))?;
     }
     let engine = Engine::new();
-    let check = |text: &str| engine.type_check(text).map(|checked| checked.diagnostics);
+    // A syntax error that carries a coded diagnostic, such as a hash
+    // argument without parentheses, may have a fix too.
+    let check = |text: &str| match engine.type_check(text) {
+        Ok(checked) => Ok(checked.diagnostics),
+        Err(error) if !error.diagnostics().is_empty() => Ok(error.diagnostics().to_vec()),
+        Err(error) => Err(error),
+    };
     let mut report = String::new();
     let mut diff = String::new();
     let (mut fixes, mut changed_files, mut errors) = (0, 0, 0);

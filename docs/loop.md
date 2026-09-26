@@ -16,4 +16,4 @@ The block receives no arguments. Calls reject positional arguments and keywords,
 
 `loop` is a direct call target and cannot be read as a value. Its native frame holds the block and call roots for the duration of execution, charges work on every iteration and uses the recursion limit. Discarded results are released before the next block call; retained results continue consuming the memory budget. Cancellation and exhausted limits remain uncatchable and prevent subsequent rescue or ensure effects.
 
-A block without parameters whose first statement is a word followed by a symbol, such as `loop { break :done }`, currently parses as a hash literal and fails with a syntax error, as it does in Go v0.70.0; write `break(:done)` instead. The [difference record](loop-differences.json) kept from the port predates this parse and still lists the compact spelling as accepted.
+A `{` after a call starts its block, so a block's first statement never reads as a hash entry: `loop { break :done }` breaks with the symbol, where Go v0.70.0 read the braces as a hash literal and failed with a syntax error. The [difference record](loop-differences.json) lists this spelling.

@@ -48,6 +48,7 @@ Two diagnostics are warnings, which do not stop compilation: `V0121`, a nil test
 | Code | Name | Meaning |
 | --- | --- | --- |
 | `V0001` | `syntax` | The source does not parse. |
+| `V0002` | `hash-argument` | A hash literal is passed to a call without parentheses, where `{` after the call starts a block; the call's arguments need parentheses. |
 | `V0101` | `type-mismatch` | A value's type is not assignable to the type its position expects. |
 | `V0102` | `local-type-changed` | A local is assigned a value of a type other than the one its first assignment fixed. |
 | `V0103` | `needs-type` | `nil`, `[]` or `{}` appears where no declared type gives it one. |

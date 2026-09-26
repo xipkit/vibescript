@@ -1287,12 +1287,6 @@
     "static_error": {"code": "V0201", "at": [11, 1]}
   },
   {
-    "name": "block_bare_brace",
-    "source": "def zero(&block: () -> int) -> int\nyield\nend\ndef one(x: any, &block: any -> any) -> any\nyield x\nend\ndef two(x: int,y: int, &block: (int, int) -> int) -> int\nyield x,y\nend\ndef twice(x: int, &block: int -> int) -> array<int>\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present() -> bool\nblock_given?\nend\ndef k(*, a: any, &block: any -> any) -> any\nyield a\nend\ndef d(a: any =yield) -> any\na\nend\ndef run(input: any) -> any\none 2 { |x| x+1 }\nend\n",
-    "go_error": "attempted to call non-callable value",
-    "static_error": {"code": "V0304", "at": [25, 1]}
-  },
-  {
     "name": "block_explicit_no_inference",
     "source": "def zero(&block: () -> int) -> int\nyield\nend\ndef one(x: int, &block: int -> any) -> any\nyield x\nend\ndef two(x: int,y: int, &block: (int, int) -> int) -> int\nyield x,y\nend\ndef twice(x: int, &block: int -> int) -> array<int>\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present() -> bool\nblock_given?\nend\ndef k(*, a: any, &block: any -> any) -> any\nyield a\nend\ndef d(a: any =yield) -> any\na\nend\ndef run(input: any) -> any\none(3) {|| _1}\nend\n",
     "go_error": "undefined variable _1",
@@ -1364,16 +1358,6 @@
     "static_error": {"code": "V0108", "at": [25, 8]}
   },
   {
-    "name": "block_brace_on_literal",
-    "source": "def zero(&block: () -> int) -> int\nyield\nend\ndef one(x: int, &block: int -> int) -> int\nyield x\nend\ndef two(x: int,y: int, &block: (int, int) -> int) -> int\nyield x,y\nend\ndef twice(x: int, &block: int -> int) -> array<int>\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present() -> bool\nblock_given?\nend\ndef x() -> int\n4\nend\ndef f(a: any =yield()) -> any\na\nend\ndef run(input: any) -> any\n1 {2}\nend\n",
-    "go_error": "attempted to call non-callable value"
-  },
-  {
-    "name": "block_do_on_literal",
-    "source": "def zero(&block: () -> int) -> int\nyield\nend\ndef one(x: int, &block: int -> int) -> int\nyield x\nend\ndef two(x: int,y: int, &block: (int, int) -> int) -> int\nyield x,y\nend\ndef twice(x: int, &block: int -> int) -> array<int>\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present() -> bool\nblock_given?\nend\ndef x() -> int\n4\nend\ndef f(a: any =yield()) -> any\na\nend\ndef run(input: any) -> any\n1 { 2 }\nend\n",
-    "go_error": "attempted to call non-callable value"
-  },
-  {
     "name": "block_brace_nested_command",
     "source": "def zero(&block: () -> int) -> int\nyield\nend\ndef one(x: int, &block: any -> any) -> any\nyield x\nend\ndef two(x: int,y: int, &block: (int, int) -> int) -> int\nyield x,y\nend\ndef twice(x: int, &block: int -> int) -> array<int>\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present() -> bool\nblock_given?\nend\ndef x() -> int\n4\nend\ndef f(a: any =yield()) -> any\na\nend\ndef run(input: any) -> any\none zero {3}\nend\n",
     "go_error": "no block given",
@@ -1384,12 +1368,6 @@
     "source": "def zero(&block: () -> any) -> any\nyield\nend\ndef one(x: any, &block: any -> any) -> any\nyield x\nend\ndef two(x: int,y: int, &block: (int, int) -> int) -> int\nyield x,y\nend\ndef twice(x: int, &block: int -> int) -> array<int>\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present() -> bool\nblock_given?\nend\ndef x() -> int\n4\nend\ndef f(a: any =yield()) -> any\na\nend\ndef run(input: any) -> any\none(zero) { 3 }\nend\n",
     "go_error": "no block given",
     "static_error": {"code": "V0304", "at": [25, 5]}
-  },
-  {
-    "name": "block_literal_brace_argument",
-    "source": "def zero(&block: () -> int) -> int\nyield\nend\ndef one(x: any, &block: any -> any) -> any\nyield x\nend\ndef two(x: int,y: int, &block: (int, int) -> int) -> int\nyield x,y\nend\ndef twice(x: int, &block: int -> int) -> array<int>\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present() -> bool\nblock_given?\nend\n\ndef run(input: any) -> any\none [1] {|x|x}\nend\n",
-    "go_error": "attempted to call non-callable value",
-    "static_error": {"code": "V0304", "at": [20, 1]}
   },
   {
     "name": "block_block_shadow_default_name",
@@ -4475,74 +4453,6 @@
     "source": "\ndef run(input: any) -> array<int>\n\"before #{missing} after\".bytes\nend\n",
     "go_error": "undefined variable missing\n  --> line 1, column 1\n 1 | \n   | ^\n  at run (1:1)\n  at run (2:1)",
     "static_error": {"code": "V0201", "at": [3, 11]}
-  },
-  {
-    "name": "literals_percent_w_6_5",
-    "source": "\ndef run(input: any) -> any\n[]{7}#\nend\n",
-    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %w##{7}#\n   | ^\n  at run (3:1)\n  at run (2:1)"
-  },
-  {
-    "name": "literals_percent_w_6_6",
-    "source": "\ndef run(input: any) -> any\n[\"a\"]{1+2}b c#\nend\n",
-    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %w#a#{1+2}b c#\n   | ^\n  at run (3:1)\n  at run (2:1)",
-    "static_error": {"code": "V0201", "at": [3, 11]}
-  },
-  {
-    "name": "literals_percent_w_6_7",
-    "source": "\ndef run(input: any) -> any\n[]{\"}\"} x#\nend\n",
-    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %w##{\"}\"} x#\n   | ^\n  at run (3:1)\n  at run (2:1)",
-    "static_error": {"code": "V0201", "at": [3, 9]}
-  },
-  {
-    "name": "literals_percent_W_6_5",
-    "source": "\ndef run(input: any) -> any\n[]{7}#\nend\n",
-    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %W##{7}#\n   | ^\n  at run (3:1)\n  at run (2:1)"
-  },
-  {
-    "name": "literals_percent_W_6_6",
-    "source": "\ndef run(input: any) -> any\n[\"a\"]{1+2}b c#\nend\n",
-    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %W#a#{1+2}b c#\n   | ^\n  at run (3:1)\n  at run (2:1)",
-    "static_error": {"code": "V0201", "at": [3, 11]}
-  },
-  {
-    "name": "literals_percent_W_6_7",
-    "source": "\ndef run(input: any) -> any\n[]{\"}\"} x#\nend\n",
-    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %W##{\"}\"} x#\n   | ^\n  at run (3:1)\n  at run (2:1)",
-    "static_error": {"code": "V0201", "at": [3, 9]}
-  },
-  {
-    "name": "literals_percent_i_6_5",
-    "source": "\ndef run(input: any) -> any\n[]{7}#\nend\n",
-    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %i##{7}#\n   | ^\n  at run (3:1)\n  at run (2:1)"
-  },
-  {
-    "name": "literals_percent_i_6_6",
-    "source": "\ndef run(input: any) -> any\n[:a]{1+2}b c#\nend\n",
-    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %i#a#{1+2}b c#\n   | ^\n  at run (3:1)\n  at run (2:1)",
-    "static_error": {"code": "V0201", "at": [3, 10]}
-  },
-  {
-    "name": "literals_percent_i_6_7",
-    "source": "\ndef run(input: any) -> any\n[]{\"}\"} x#\nend\n",
-    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %i##{\"}\"} x#\n   | ^\n  at run (3:1)\n  at run (2:1)",
-    "static_error": {"code": "V0201", "at": [3, 9]}
-  },
-  {
-    "name": "literals_percent_I_6_5",
-    "source": "\ndef run(input: any) -> any\n[]{7}#\nend\n",
-    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %I##{7}#\n   | ^\n  at run (3:1)\n  at run (2:1)"
-  },
-  {
-    "name": "literals_percent_I_6_6",
-    "source": "\ndef run(input: any) -> any\n[:a]{1+2}b c#\nend\n",
-    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %I#a#{1+2}b c#\n   | ^\n  at run (3:1)\n  at run (2:1)",
-    "static_error": {"code": "V0201", "at": [3, 10]}
-  },
-  {
-    "name": "literals_percent_I_6_7",
-    "source": "\ndef run(input: any) -> any\n[]{\"}\"} x#\nend\n",
-    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %I##{\"}\"} x#\n   | ^\n  at run (3:1)\n  at run (2:1)",
-    "static_error": {"code": "V0201", "at": [3, 9]}
   },
   {
     "name": "literals_interpolation_scope_1",
@@ -70140,17 +70050,6 @@
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nStatus::Draft::name(bad:1)\nend\n",
     "go_error": "scoped member access is only supported on enums and namespaces",
     "static_error": {"code": "V0302", "at": [10, 21]}
-  },
-  {
-    "name": "enums_call_20",
-    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> any\nStatus{1//0}\nend\n",
-    "go_error": "attempted to call non-callable value",
-    "static_error": {"code": "V0201", "at": [10, 1]}
-  },
-  {
-    "name": "enums_call_21",
-    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> Status\nStatus::Draft{1//0}\nend\n",
-    "go_error": "attempted to call non-callable value"
   },
   {
     "name": "enums_call_22",

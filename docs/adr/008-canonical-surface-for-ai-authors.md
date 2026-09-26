@@ -133,8 +133,17 @@ Members that always answer the same are removed: `frozen?`,
 | `x.length()`, `uuid()`, `Time.now()` | `x.length`, `uuid`, `Time.now`: a call without arguments has no parentheses |
 | `JSON::parse(x)`, `Pricing::with_tax(1)` | `JSON.parse(x)`, `Pricing.with_tax(1)`: `::` names only constants, nested types and enum members |
 
-Symbols remain for enum members. Braces bind to the nearest call, so a block
-always attaches to the call it follows.
+Symbols remain for enum members.
+
+Braces bind to the nearest call, so a block always attaches to the call it
+follows. A `{` starts a block when it follows a call on the same line: a
+function or method name (`loop {`, `items.each {`), a `)` (`reduce(0) {`), or the last argument of a call without parentheses
+(`each_slice 2 {`), where the block belongs to that call. Anywhere else, `{`
+starts a hash literal. A block's statements therefore never read as hash
+entries: `loop { break :done }` breaks with a symbol. A hash literal passed to a
+call without parentheses needs them, `log({ id: 1 })` and
+`log("sent", { id: 1 })`, and `log { id: 1 }` is a syntax error (V0002) whose
+fix adds them.
 
 Hashes are read by index only. A field never answers a dot, so it cannot
 shadow a member, and `h.as(T)` is always the cast. `h.name` on a hash or shape

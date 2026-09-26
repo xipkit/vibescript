@@ -250,6 +250,13 @@ impl Error {
         }
     }
 
+    /// Makes a syntax error carry its coded diagnostic, such as one with a
+    /// fix, which [`Self::diagnostics`] returns.
+    pub(crate) fn with_diagnostic(mut self, diagnostic: crate::diagnostic::Diagnostic) -> Self {
+        self.extra = Some(Arc::new(Extra::Diagnostics(Box::new([diagnostic]))));
+        self
+    }
+
     /// Builds a compile error from diagnostics, of which at least one should be
     /// an error. The first error sets the message, offset and code frame.
     pub(crate) fn from_diagnostics(

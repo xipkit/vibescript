@@ -263,7 +263,6 @@ fn host_block_calls_support_attached_and_forwarded_dispatch() {
         "visit",
         "host.run",
         "host::run",
-        "host[:run]",
         "host.send(:run)",
         "host.public_send(:run)",
     ] {

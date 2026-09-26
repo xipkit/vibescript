@@ -620,7 +620,7 @@ impl<'a> Parsing<'a> {
 
     /// Attaches a block to a whole statement-level expression, as Go's
     /// `canAttachPeekBlock` does after a line expression: a `do` block from
-    /// any line, or a brace block on the same line.
+    /// any line, or a brace block on the same line after a call.
     async fn trailing_block(&self, expr: Expr) -> Result<Expr> {
         let brace = {
             let mut p = self.p();
@@ -629,7 +629,7 @@ impl<'a> Parsing<'a> {
                 Token::Word(w) if w == "do" => {
                     (next != p.pos || p.can_attach_do()).then_some(false)
                 }
-                Token::P('{') => (next == p.pos).then_some(true),
+                Token::P('{') => (next == p.pos && p.block_follows(&expr)?).then_some(true),
                 _ => None,
             };
             if brace.is_some() {
@@ -1807,6 +1807,9 @@ impl<'a> Parsing<'a> {
 
     async fn block_expression(&self, mut lhs: Expr, brace: bool) -> Result<Expr> {
         self.p().work.charge(1)?;
+        if brace {
+            Box::pin(self.hash_block(&lhs)).await?;
+        }
         let offset = lhs.offset;
         let block = self.attached_block(brace).await?;
         if matches!(lhs.node, Node::BlockCall(..)) {
@@ -1830,6 +1833,86 @@ impl<'a> Parsing<'a> {
             depth,
             offset,
         )
+    }
+
+    /// Refuses braces after a call that hold a hash literal, `puts { a: 1 }`,
+    /// rather than a block's statements. A `{` after a call starts its
+    /// block, so a hash argument needs the call's parentheses; the fix adds
+    /// them when the call has no other arguments.
+    async fn hash_block(&self, lhs: &Expr) -> Result<()> {
+        // Only a call without arguments takes the hash as its first.
+        let (name, bare) = match &lhs.node {
+            Node::Var(name) | Node::Member(_, name) | Node::SafeMember(_, name) => (name, true),
+            Node::Call(name, ..) | Node::Method(_, name, ..) | Node::SafeMethod(_, name, ..) => {
+                (name, false)
+            }
+            _ => return Ok(()),
+        };
+        let open = {
+            let mut p = self.p();
+            let open = p.pos;
+            let first = p.significant(open + 1);
+            let key = match &p.tokens[first].token {
+                Token::Word(word) if !word.starts_with('@') => {
+                    p.pos = first;
+                    let typed = p.typed_local_ahead();
+                    p.pos = open;
+                    !typed?
+                }
+                Token::Bytes(_) | Token::QuotedSymbol(_) => true,
+                _ => false,
+            };
+            // A key is never the last token, which is the end of input.
+            if !key
+                || p.tokens[first + 1].token != Token::P(':')
+                || p.tokens[first + 1].offset != p.tokens[first].end
+            {
+                return Ok(());
+            }
+            open
+        };
+        // Read the braces as the hash they hold, to find where it ends.
+        self.p().pos = open + 1;
+        let end = match self.hash_expr().await {
+            Ok(_) => Some(self.p().pos),
+            Err(error) if error.kind == crate::ErrorKind::Syntax => None,
+            Err(error) => return Err(error),
+        };
+        let p = self.p();
+        let brace = p.tokens[open].offset;
+        let message = format!(
+            "a hash literal passed to `{name}` needs parentheses, as in `{name}({{ ... }})`; after a call, `{{` starts a block"
+        );
+        let close = end.map(|end| p.tokens[end - 1].end);
+        let span = crate::diagnostic::Span::new(brace, close.unwrap_or(brace + 1));
+        let mut diagnostic = crate::diagnostic::Diagnostic::error(
+            crate::diagnostic::Code::HASH_ARGUMENT,
+            span,
+            message.clone(),
+        );
+        let ends_call = |index: usize| match &p.tokens[index].token {
+            Token::EndLine | Token::Eof | Token::P('}' | ')' | ']') => true,
+            Token::Word(word) => matches!(word.as_str(), "if" | "unless" | "while" | "until"),
+            _ => false,
+        };
+        if let (Some(end), Some(close), true) = (end, close, bare)
+            && ends_call(end)
+        {
+            diagnostic = diagnostic.with_fix(crate::diagnostic::Fix::edits(
+                "pass the hash in parentheses",
+                vec![
+                    crate::diagnostic::Edit {
+                        span: crate::diagnostic::Span::new(p.tokens[open - 1].end, brace),
+                        replacement: "(".to_owned(),
+                    },
+                    crate::diagnostic::Edit {
+                        span: crate::diagnostic::Span::at(close),
+                        replacement: ")".to_owned(),
+                    },
+                ],
+            ));
+        }
+        Err(Error::syntax(p.work, brace, message).with_diagnostic(diagnostic))
     }
 
     async fn scoped_expression(&self, lhs: Expr) -> Result<Expr> {
@@ -2101,6 +2184,8 @@ impl<'a> Parsing<'a> {
         work.charge(1)?;
         let mut args = Buffer::new();
         let mut keywords = false;
+        let start = self.p().pos;
+        let mut hash = None;
         loop {
             if keywords {
                 self.p().keyword_order(
@@ -2118,11 +2203,21 @@ impl<'a> Parsing<'a> {
             if p.token() != &Token::P(',')
                 || p.tokens[p.pos].line != last.line
                 || p.tokens[p.pos + 1].line != last.line
-                || !p.command_argument_start(p.pos + 1, true)
             {
                 break;
             }
+            // Read a hash literal after a comma, to refuse it with a fix.
+            let brace = p.tokens[p.pos + 1].token == Token::P('{');
+            if !brace && !p.command_argument_start(p.pos + 1, true) {
+                break;
+            }
+            if brace {
+                hash.get_or_insert(p.tokens[p.pos + 1].offset);
+            }
             p.bump()?;
+        }
+        if let Some(brace) = hash {
+            return Err(self.p().hash_argument(start, brace));
         }
         Ok(args)
     }
@@ -3039,7 +3134,7 @@ impl<'a> Parser<'a> {
     fn statement_continues(&self) -> Result<bool> {
         let next = &self.tokens[self.pos];
         let continues = match &next.token {
-            Token::P('.' | '(' | '[' | '{' | '?') | Token::Op("&." | "::") => true,
+            Token::P('.' | '(' | '[' | '?') | Token::Op("&." | "::") => true,
             Token::Op(op) => binding_power(op).is_some(),
             Token::Words(words) => words.ambiguous,
             Token::Word(w) => matches!(w.as_str(), "do" | "rescue"),
@@ -3090,16 +3185,19 @@ impl<'a> Parser<'a> {
             }
             return Ok(Some(Suffix::Command));
         }
-        let brace = self.token() == &Token::P('{');
-        let do_block = matches!(self.token(), Token::Word(w) if w == "do")
-            && (self.can_attach_do()
-                || (self.pos != self.call_end && self.significant(self.call_end) == self.pos));
-        if (brace || do_block)
-            && (do_block
-                || resumed.is_some()
-                || self.tokens[self.pos].line == self.previous()?.end_line)
+        // A brace on the line of a call starts its block; anywhere else it
+        // starts a hash literal, which cannot follow an expression.
+        if self.token() == &Token::P('{')
+            && self.tokens[self.pos].line == self.previous()?.end_line
+            && self.block_follows(lhs)?
         {
-            return Ok(Some(Suffix::Block(brace)));
+            return Ok(Some(Suffix::Block(true)));
+        }
+        if matches!(self.token(), Token::Word(w) if w == "do")
+            && (self.can_attach_do()
+                || (self.pos != self.call_end && self.significant(self.call_end) == self.pos))
+        {
+            return Ok(Some(Suffix::Block(false)));
         }
         if self.take_p('(') {
             return Ok(Some(Suffix::Call));
@@ -3217,6 +3315,71 @@ impl<'a> Parser<'a> {
             _ => false,
         })
     }
+    /// Refuses a hash literal, at offset `brace`, among the arguments of a
+    /// parenless call whose first argument starts at token `start`. The fix
+    /// gives the call parentheses; without them a hash first after the call
+    /// would read as a block.
+    fn hash_argument(&self, start: usize, brace: usize) -> Error {
+        let callee = &self.tokens[start - 1];
+        let name = match &callee.token {
+            Token::Word(name) => name.as_str(),
+            _ => "the call",
+        };
+        let message = format!(
+            "a hash literal passed to `{name}` needs parentheses, as in `{name}(..., {{ ... }})`; after a call, `{{` starts a block"
+        );
+        let span = crate::diagnostic::Span::new(brace, brace + 1);
+        let edits = vec![
+            crate::diagnostic::Edit {
+                span: crate::diagnostic::Span::new(callee.end, self.tokens[start].offset),
+                replacement: "(".to_owned(),
+            },
+            crate::diagnostic::Edit {
+                span: crate::diagnostic::Span::at(self.previous().map_or(brace, |last| last.end)),
+                replacement: ")".to_owned(),
+            },
+        ];
+        let diagnostic = crate::diagnostic::Diagnostic::error(
+            crate::diagnostic::Code::HASH_ARGUMENT,
+            span,
+            &message,
+        )
+        .with_fix(crate::diagnostic::Fix::edits(
+            "give the call parentheses",
+            edits,
+        ));
+        Error::syntax(self.work, brace, message).with_diagnostic(diagnostic)
+    }
+
+    /// Whether the `{` at the current token starts `lhs`'s block: it follows
+    /// a `)`, or `lhs` is a call.
+    fn block_follows(&self, lhs: &Expr) -> Result<bool> {
+        Ok(self.tokens[self.pos - 1].token == Token::P(')') || self.block_owner(lhs)?)
+    }
+    /// Whether `lhs` is a call that a `{` after it gives a block: a function
+    /// or method name or a call with arguments, and not a value such as a
+    /// local, a constant or a literal. After a value, the brace is left for
+    /// the parenless call whose last argument the value is.
+    fn block_owner(&self, lhs: &Expr) -> Result<bool> {
+        Ok(match &lhs.node {
+            Node::Var(name) => {
+                !(name == "self"
+                    || name.starts_with('@')
+                    || name.chars().next().is_some_and(unicode::upper)
+                    || self.locals.contains(self.work, name)?)
+            }
+            Node::Scope(_, name, args) => {
+                args.is_some() || !name.chars().next().is_some_and(unicode::upper)
+            }
+            Node::Call(..)
+            | Node::Method(..)
+            | Node::SafeMethod(..)
+            | Node::Member(..)
+            | Node::SafeMember(..)
+            | Node::ComputedCall(..) => true,
+            _ => false,
+        })
+    }
     fn can_attach_do(&self) -> bool {
         (self.command_depth == 0 || self.groups > self.command_group)
             && self.loop_condition.is_none_or(|group| self.groups > group)
@@ -3242,8 +3405,9 @@ impl<'a> Parser<'a> {
             }
             Token::P('.') | Token::Op("::" | "&.") => true,
             Token::P('?') => min <= 2,
-            // Outside a line expression, Go reads any suffix after a line break.
-            Token::P('(' | '[' | '{') => self.line_exprs == 0 && self.groups > 0,
+            // Outside a line expression, Go reads any suffix after a line
+            // break, but a block starts on its call's line.
+            Token::P('(' | '[') => self.line_exprs == 0 && self.groups > 0,
             Token::Word(ref word) if word == "rescue" => {
                 self.line_exprs == 0 && self.groups > 0 && min == 0 && !self.keyword_label(next)
             }
