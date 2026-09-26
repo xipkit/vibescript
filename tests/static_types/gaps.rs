@@ -148,3 +148,21 @@ fn capitalized_assignments_in_functions_are_rejected() {
     clean("def bump -> int\n  count = 1\n  count = 2\n  count\nend\n");
     codes("def bad\n  COUNT = 1\nend\n", &["V0102"]);
 }
+
+#[test]
+fn splats_select_overloads_and_check_every_element() {
+    clean("x: array<int> = [1, 2].first(*[1])\n");
+    clean("x: int? = [1, 2].first(*[])\n");
+    codes("[1, 2].first(*[\"s\"])\n", &["V0101"]);
+    codes("[1, 2].first(*[1, 2])\n", &["V0301"]);
+    codes("def f(x: int)\nend\nf(*[])\n", &["V0301"]);
+    clean("def f(*xs: array<int>)\nend\na = [1, 2]\nf(*a)\n");
+    codes(
+        "def f(*xs: array<int>)\nend\na = [\"s\"]\nf(*a)\n",
+        &["V0101"],
+    );
+    codes("def f(x: int)\nend\na = [1]\nf(*a)\n", &["V0301"]);
+    clean("def f(*, x: int)\nend\nf(**{x: 1})\n");
+    codes("def f(*, x: int)\nend\nf(**{x: \"s\"})\n", &["V0101"]);
+    codes("def f(*, x: int)\nend\nf(**{})\n", &["V0303"]);
+}

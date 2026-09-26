@@ -37,16 +37,14 @@ impl<'a> Call<'a, '_> {
     fn positional(&self) -> usize {
         self.args
             .iter()
-            .filter(|arg| matches!(arg.kind, ArgumentKind::Positional))
-            .count()
+            .map(|arg| match (&arg.kind, &arg.value.node) {
+                (ArgumentKind::Positional, _) => 1,
+                (ArgumentKind::Splat, Node::Array(items)) => items.len(),
+                _ => 0,
+            })
+            .sum::<usize>()
             + self.selectors.len()
             + usize::from(self.extra.is_some())
-    }
-
-    fn splat(&self) -> bool {
-        self.args
-            .iter()
-            .any(|arg| matches!(arg.kind, ArgumentKind::Splat | ArgumentKind::KeywordSplat))
     }
 
     fn keywords(&self) -> impl Iterator<Item = &'a str> {
@@ -988,13 +986,44 @@ impl<'a> Checker<'a> {
     /// The candidate whose shape accepts the call: its positional count,
     /// keyword names, block, and the parameters the block declares.
     fn select(&mut self, call: &Call<'a, '_>, candidates: &[Candidate]) -> Option<usize> {
-        let positional = call.positional();
-        let splat = call.splat();
-        let keywords: Vec<&str> = call.keywords().collect();
+        let mut positional = call.positional();
+        let mut splat = false;
+        for arg in call.args.iter().filter(|arg| {
+            matches!(arg.kind, ArgumentKind::Splat) && !matches!(arg.value.node, Node::Array(_))
+        }) {
+            let ty = match &arg.value.node {
+                Node::Var(name) => self.local(name).map(|id| self.frame.flow.get(id).ty),
+                _ => None,
+            };
+            if let Some(Kind::Tuple(items)) = ty.map(|ty| self.types.kind(ty)) {
+                positional += items.len();
+            } else {
+                splat = true;
+            }
+        }
+        let mut keywords: Vec<String> = call.keywords().map(str::to_owned).collect();
+        for arg in call
+            .args
+            .iter()
+            .filter(|arg| matches!(arg.kind, ArgumentKind::KeywordSplat))
+        {
+            if let Node::Hash(entries) = &arg.value.node {
+                keywords.extend(
+                    entries
+                        .iter()
+                        .map(|(name, _)| String::from_utf8_lossy(name).into_owned()),
+                );
+            }
+        }
         let declared = call.block.map(block_arity);
         let fits = |sig: &Sig, relaxed: bool| {
             let (min, max) = sig.positional();
-            let count = splat || (positional >= min && max.is_none_or(|max| positional <= max));
+            let count = positional >= min
+                && if splat {
+                    max.is_none()
+                } else {
+                    max.is_none_or(|max| positional <= max)
+                };
             let keyword_ok = keywords
                 .iter()
                 .all(|name| sig.keyword(name).is_some() || sig.keyword_rest().is_some())
@@ -1002,7 +1031,7 @@ impl<'a> Checker<'a> {
                     .params
                     .iter()
                     .filter(|p| p.kind == ParamKind::Keyword && !p.optional)
-                    .all(|p| keywords.contains(&p.name.as_str()));
+                    .all(|p| keywords.contains(&p.name));
             let block_ok = match (&sig.block, declared) {
                 (None, None) => true,
                 (None, Some(_)) => false,
@@ -1064,7 +1093,10 @@ impl<'a> Checker<'a> {
         for arg in call.args {
             match &arg.kind {
                 ArgumentKind::Positional => arguments.push((&arg.value, false)),
-                ArgumentKind::Splat => arguments.push((&arg.value, true)),
+                ArgumentKind::Splat => match &arg.value.node {
+                    Node::Array(items) => arguments.extend(items.iter().map(|item| (item, false))),
+                    _ => arguments.push((&arg.value, true)),
+                },
                 _ => (),
             }
         }
@@ -1090,12 +1122,29 @@ impl<'a> Checker<'a> {
                         .with_types("array<any>", found),
                     );
                 }
-                if let Some(element) = self.types.element(ty) {
+                if let Kind::Tuple(items) = self.types.kind(ty).clone() {
+                    splatted = false;
+                    for &element in items.iter() {
+                        let param = positional_params.get(index).map(|p| p.ty).or(rest_element);
+                        if let Some(param) = param {
+                            self.spread_argument(value, element, param, &mut bindings, &function);
+                        }
+                        index += 1;
+                    }
+                } else if let Some(element) = self.types.element(ty) {
                     for param in positional_params.iter().skip(index) {
-                        self.unify(param.ty, element, &mut bindings);
+                        self.spread_argument(value, element, param.ty, &mut bindings, &function);
                     }
                     if let Some(rest) = rest_element {
-                        self.unify(rest, element, &mut bindings);
+                        self.spread_argument(value, element, rest, &mut bindings, &function);
+                    }
+                    let (min, max) = sig.positional();
+                    if index < min || max.is_some() {
+                        self.report(Diagnostic::error(
+                            Code::NO_OVERLOAD,
+                            call.name_span,
+                            format!("the length of this splat is unknown; `{function}` must accept every possible argument count"),
+                        ));
                     }
                 }
                 continue;
@@ -1116,7 +1165,15 @@ impl<'a> Checker<'a> {
                 name,
                 function: function.clone(),
             };
-            self.argument(value, param_ty, &mut bindings, &purpose);
+            let actual = self.argument(value, param_ty, &mut bindings, &purpose);
+            if splatted {
+                for param in positional_params.iter().skip(index + 1) {
+                    self.spread_argument(value, actual, param.ty, &mut bindings, &function);
+                }
+                if let Some(rest) = rest_element {
+                    self.spread_argument(value, actual, rest, &mut bindings, &function);
+                }
+            }
             index += 1;
         }
         if !splatted {
@@ -1138,7 +1195,7 @@ impl<'a> Checker<'a> {
         for arg in call.args {
             match &arg.kind {
                 ArgumentKind::Keyword(name) => {
-                    given.push(name.as_str());
+                    given.push(name.to_string());
                     let param = sig.keyword(name).map(|p| p.ty).or_else(|| {
                         sig.keyword_rest()
                             .map(|p| self.types.hash_value(p.ty).unwrap_or(Ty::ANY))
@@ -1165,6 +1222,58 @@ impl<'a> Checker<'a> {
                 }
                 ArgumentKind::KeywordSplat => {
                     let ty = self.expr(&arg.value, None);
+                    if let Kind::Shape(fields, _) = self.types.kind(ty).clone() {
+                        for field in fields.iter() {
+                            if !field.optional {
+                                given.push(field.name.to_string());
+                            }
+                            let expected = sig.keyword(&field.name).map(|p| p.ty).or_else(|| {
+                                sig.keyword_rest()
+                                    .map(|p| self.types.hash_value(p.ty).unwrap_or(Ty::ANY))
+                            });
+                            if let Some(expected) = expected {
+                                self.spread_argument(
+                                    &arg.value,
+                                    field.ty,
+                                    expected,
+                                    &mut bindings,
+                                    &function,
+                                );
+                            } else {
+                                self.report(Diagnostic::error(
+                                    Code::UNKNOWN_KEYWORD,
+                                    self.spans.expr(&arg.value),
+                                    format!("`{function}` has no keyword `{}:`", field.name),
+                                ));
+                            }
+                        }
+                    } else if let Some(element) = self.types.hash_value(ty) {
+                        if ty != Ty::EMPTY_HASH {
+                            if let Some(rest) = sig.keyword_rest() {
+                                let expected = self.types.hash_value(rest.ty).unwrap_or(Ty::ANY);
+                                self.spread_argument(
+                                    &arg.value,
+                                    element,
+                                    expected,
+                                    &mut bindings,
+                                    &function,
+                                );
+                                for param in
+                                    sig.params.iter().filter(|p| p.kind == ParamKind::Keyword)
+                                {
+                                    self.spread_argument(
+                                        &arg.value,
+                                        element,
+                                        param.ty,
+                                        &mut bindings,
+                                        &function,
+                                    );
+                                }
+                            } else {
+                                self.report(Diagnostic::error(Code::UNKNOWN_KEYWORD, self.spans.expr(&arg.value), format!("a dictionary splat has unknown keys; `{function}` needs a keyword rest parameter")));
+                            }
+                        }
+                    }
                     if self.operand(&arg.value, ty) && self.types.hash_value(ty).is_none() {
                         let span = self.spans.expr(&arg.value);
                         let found = self.types.display(ty);
@@ -1181,15 +1290,11 @@ impl<'a> Checker<'a> {
                 _ => (),
             }
         }
-        if !call
-            .args
-            .iter()
-            .any(|a| matches!(a.kind, ArgumentKind::KeywordSplat))
         {
             for param in &sig.params {
                 if param.kind == ParamKind::Keyword
                     && !param.optional
-                    && !given.contains(&param.name.as_str())
+                    && !given.contains(&param.name)
                 {
                     self.report(Diagnostic::error(
                         Code::MISSING_KEYWORD,
@@ -1322,6 +1427,30 @@ impl<'a> Checker<'a> {
             self.not_a_type(value, ty, purpose);
         }
         ty
+    }
+
+    fn spread_argument(
+        &mut self,
+        value: &Expr,
+        actual: Ty,
+        param: Ty,
+        bindings: &mut [Option<Ty>],
+        function: &str,
+    ) {
+        self.unify(param, actual, bindings);
+        let expected = self.types.close(param, bindings);
+        if !self.types.assignable(actual, expected) {
+            self.mismatch(
+                self.spans.expr(value),
+                expected,
+                actual,
+                &Purpose::Argument {
+                    index: 0,
+                    name: "splat element".to_owned(),
+                    function: function.to_owned(),
+                },
+            );
+        }
     }
 
     /// Reports a value passed where a type literal is expected.
