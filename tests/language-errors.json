@@ -104641,25 +104641,49 @@
     "name": "regex_value_value_contract_4",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.source(\"a\")}\"\nend\n",
     "go_error": "regex.source does not take arguments",
-    "static_error": {"code": "V0301", "at": [2, 12]}
+    "static_error": {
+      "code": "V0301",
+      "at": [
+        2,
+        14
+      ]
+    }
   },
   {
     "name": "regex_value_value_contract_5",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.source(\"a\")}\"\nend\n",
     "go_error": "regex.source does not take arguments",
-    "static_error": {"code": "V0301", "at": [2, 12]}
+    "static_error": {
+      "code": "V0301",
+      "at": [
+        2,
+        14
+      ]
+    }
   },
   {
     "name": "regex_value_value_contract_12",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.flags(\"a\")}\"\nend\n",
     "go_error": "regex.flags does not take arguments",
-    "static_error": {"code": "V0301", "at": [2, 12]}
+    "static_error": {
+      "code": "V0301",
+      "at": [
+        2,
+        14
+      ]
+    }
   },
   {
     "name": "regex_value_value_contract_13",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.flags(\"a\")}\"\nend\n",
     "go_error": "regex.flags does not take arguments",
-    "static_error": {"code": "V0301", "at": [2, 12]}
+    "static_error": {
+      "code": "V0301",
+      "at": [
+        2,
+        14
+      ]
+    }
   },
   {
     "name": "regex_value_value_contract_17",
@@ -104677,13 +104701,25 @@
     "name": "regex_value_value_contract_20",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.inspect(\"a\")}\"\nend\n",
     "go_error": "regex.inspect does not take arguments",
-    "static_error": {"code": "V0301", "at": [2, 12]}
+    "static_error": {
+      "code": "V0301",
+      "at": [
+        2,
+        14
+      ]
+    }
   },
   {
     "name": "regex_value_value_contract_21",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.inspect(\"a\"){7}}\"\nend\n",
     "go_error": "regex.inspect does not take arguments",
-    "static_error": {"code": "V0301", "at": [2, 12]}
+    "static_error": {
+      "code": "V0301",
+      "at": [
+        2,
+        14
+      ]
+    }
   },
   {
     "name": "regex_value_value_contract_22",
@@ -104705,7 +104741,7 @@
       "code": "V0203",
       "at": [
         2,
-        12
+        14
       ]
     }
   },
@@ -104713,7 +104749,13 @@
     "name": "regex_value_value_contract_25",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.to_s{7}}\"\nend\n",
     "go_error": "unknown regex method to_s",
-    "static_error": {"code": "V0203", "at": [2, 12]}
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        2,
+        14
+      ]
+    }
   },
   {
     "name": "regex_value_value_contract_26",
@@ -104723,7 +104765,7 @@
       "code": "V0203",
       "at": [
         2,
-        12
+        14
       ]
     }
   },
@@ -104731,31 +104773,61 @@
     "name": "regex_value_value_contract_27",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.to_s(){7}}\"\nend\n",
     "go_error": "unknown regex method to_s",
-    "static_error": {"code": "V0203", "at": [2, 12]}
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        2,
+        14
+      ]
+    }
   },
   {
     "name": "regex_value_value_contract_28",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.to_s(\"a\")}\"\nend\n",
     "go_error": "unknown regex method to_s",
-    "static_error": {"code": "V0203", "at": [2, 12]}
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        2,
+        14
+      ]
+    }
   },
   {
     "name": "regex_value_value_contract_29",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.to_s(\"a\"){7}}\"\nend\n",
     "go_error": "unknown regex method to_s",
-    "static_error": {"code": "V0203", "at": [2, 12]}
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        2,
+        14
+      ]
+    }
   },
   {
     "name": "regex_value_value_contract_30",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.to_s(x:1)}\"\nend\n",
     "go_error": "unknown regex method to_s",
-    "static_error": {"code": "V0203", "at": [2, 12]}
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        2,
+        14
+      ]
+    }
   },
   {
     "name": "regex_value_value_contract_31",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.to_s(x:1){7}}\"\nend\n",
     "go_error": "unknown regex method to_s",
-    "static_error": {"code": "V0203", "at": [2, 12]}
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        2,
+        14
+      ]
+    }
   },
   {
     "name": "regex_value_value_contract_33",
@@ -104809,13 +104881,25 @@
     "name": "regex_value_value_contract_44",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.dup(\"a\")}\"\nend\n",
     "go_error": "dup does not take arguments",
-    "static_error": {"code": "V0301", "at": [2, 12]}
+    "static_error": {
+      "code": "V0301",
+      "at": [
+        2,
+        14
+      ]
+    }
   },
   {
     "name": "regex_value_value_contract_45",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.dup(\"a\"){7}}\"\nend\n",
     "go_error": "dup does not take arguments",
-    "static_error": {"code": "V0301", "at": [2, 12]}
+    "static_error": {
+      "code": "V0301",
+      "at": [
+        2,
+        14
+      ]
+    }
   },
   {
     "name": "regex_value_value_contract_46",
@@ -104869,37 +104953,73 @@
     "name": "regex_value_value_contract_56",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.match?}\"\nend\n",
     "go_error": "regex.match? expects text",
-    "static_error": {"code": "V0301", "at": [2, 12]}
+    "static_error": {
+      "code": "V0301",
+      "at": [
+        2,
+        14
+      ]
+    }
   },
   {
     "name": "regex_value_value_contract_57",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.match?}\"\nend\n",
     "go_error": "regex.match? expects text",
-    "static_error": {"code": "V0301", "at": [2, 12]}
+    "static_error": {
+      "code": "V0301",
+      "at": [
+        2,
+        14
+      ]
+    }
   },
   {
     "name": "regex_value_value_contract_58",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.match?()}\"\nend\n",
     "go_error": "regex.match? expects text",
-    "static_error": {"code": "V0301", "at": [2, 12]}
+    "static_error": {
+      "code": "V0301",
+      "at": [
+        2,
+        14
+      ]
+    }
   },
   {
     "name": "regex_value_value_contract_59",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.match?}\"\nend\n",
     "go_error": "regex.match? expects text",
-    "static_error": {"code": "V0301", "at": [2, 12]}
+    "static_error": {
+      "code": "V0301",
+      "at": [
+        2,
+        14
+      ]
+    }
   },
   {
     "name": "regex_value_value_contract_62",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.match?(x:1)}\"\nend\n",
     "go_error": "regex.match? does not accept keyword arguments",
-    "static_error": {"code": "V0301", "at": [2, 12]}
+    "static_error": {
+      "code": "V0301",
+      "at": [
+        2,
+        14
+      ]
+    }
   },
   {
     "name": "regex_value_value_contract_63",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.match?(x:1)}\"\nend\n",
     "go_error": "regex.match? does not accept keyword arguments",
-    "static_error": {"code": "V0301", "at": [2, 12]}
+    "static_error": {
+      "code": "V0301",
+      "at": [
+        2,
+        14
+      ]
+    }
   },
   {
     "name": "regex_value_syntax_29",
