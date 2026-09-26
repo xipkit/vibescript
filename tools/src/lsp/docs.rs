@@ -730,13 +730,9 @@ fn namespace_intros() -> &'static HashMap<String, String> {
             }
         }
         flush(&current, &intro, &mut table);
-        // Proc and Regexp have no section of their own.
+        // Proc has no section of its own.
         table.entry("Proc".to_owned()).or_insert_with(|| {
             "Removed callable constructor: `Proc.new` fails with a teaching error, since executable code is not a value. Define a named function or attach a block instead.".to_owned()
-        });
-        table.entry("Regexp".to_owned()).or_insert_with(|| {
-            "Ruby-style regular expression helpers for building and inspecting regex values."
-                .to_owned()
         });
         table
     })

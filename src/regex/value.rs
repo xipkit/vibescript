@@ -202,27 +202,14 @@ pub(crate) enum Constructor {
     New,
     Union,
     Escape,
-    Quote,
-    LastMatch,
 }
 
 impl Constructor {
-    pub fn member(self) -> &'static str {
-        match self {
-            Self::New => "new",
-            Self::Union => "union",
-            Self::Escape => "escape",
-            Self::Quote => "quote",
-            Self::LastMatch => "last_match",
-        }
-    }
     pub fn name(self) -> &'static str {
         match self {
             Self::New => "Regexp.new",
             Self::Union => "Regexp.union",
             Self::Escape => "Regexp.escape",
-            Self::Quote => "Regexp.quote",
-            Self::LastMatch => "Regexp.last_match",
         }
     }
     pub fn call(
@@ -232,16 +219,8 @@ impl Constructor {
         keywords: &[(Value, Value)],
         block: bool,
     ) -> Result<Value> {
-        // Regexp.quote shares Regexp.escape's implementation and wording in Go.
-        let name = if self == Self::Quote {
-            Self::Escape.name()
-        } else {
-            self.name()
-        };
+        let name = self.name();
         let argument = |message: String| Error::new(ErrorKind::Argument, message);
-        if self == Self::LastMatch && !args.is_empty() {
-            return Err(argument(format!("{name} does not take arguments")));
-        }
         if !keywords.is_empty() {
             return Err(argument(format!(
                 "{name} does not accept keyword arguments"
@@ -249,9 +228,6 @@ impl Constructor {
         }
         if block {
             return Err(argument(format!("{name} does not accept blocks")));
-        }
-        if self == Self::LastMatch {
-            return Ok(Value::nil());
         }
         let shape = match self {
             Self::New => "expects a pattern",

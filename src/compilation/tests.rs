@@ -103,7 +103,7 @@ fn sources() -> Vec<String> {
         ),
         format!("schema={}int{};schema", "{x:".repeat(63), "}".repeat(63)),
         "def take(a:int|nil=nil,b:{id:int}={id:1});[a,b];end;take(b:{id:2})".into(),
-        "module M;Hash[:n]=1;Regexp[:n]=2;Regex[:n]=3;Time[:n]=4;Duration[:n]=5;JSON[:n]=6;Math[:n]=7;end;0".into(),
+        "module M;Regex[:n]=1;Time[:n]=2;Duration[:n]=3;JSON[:n]=4;Math[:n]=5;end;0".into(),
         "w={\"]\":3};n=10;n %w[\"]\"];17".into(),
         "def f(x);begin;x;rescue ArgumentError|TypeError=>e;raise e;ensure;nil;end;end".into(),
         format!("x=1\n{}+ 2", "\n".repeat(1024)),
@@ -413,7 +413,7 @@ fn compiled_builtin_namespaces_retain_sorted_unique_members_without_the_budget()
     let mut context = CallContext::new(CallOptions::default());
     let budget = std::sync::Arc::downgrade(&context.identity());
     let program = crate::bytecode::compile(
-        "[Hash, Regexp, Regex, Time, Duration, JSON, Math]",
+        "[Regex, Time, Duration, JSON, Math]",
         Vec::new(),
         &Meter(RefCell::new(&mut context)),
     )
@@ -422,8 +422,6 @@ fn compiled_builtin_namespaces_retain_sorted_unique_members_without_the_budget()
     drop(context);
     assert!(budget.upgrade().is_none());
     let expected: &[(&str, &[&str])] = &[
-        ("Hash", &["new"]),
-        ("Regexp", &["escape", "last_match", "new", "quote", "union"]),
         (
             "Regex",
             &["escape", "match", "new", "replace", "replace_all", "union"],
@@ -457,7 +455,7 @@ fn compiled_builtin_namespaces_retain_sorted_unique_members_without_the_budget()
             match (name, *member, &value.0) {
                 ("Math", "E", _) => assert_eq!(value.as_float(), Some(std::f64::consts::E)),
                 ("Math", "PI", _) => assert_eq!(value.as_float(), Some(std::f64::consts::PI)),
-                // The canonical spellings share Regexp's builtins, and their wording.
+                // These name themselves `Regexp.*` in their messages, as Go does.
                 ("Regex", "escape" | "new" | "union", crate::value::Kind::Builtin(builtin)) => {
                     assert_eq!(builtin.name(), format!("Regexp.{member}"))
                 }

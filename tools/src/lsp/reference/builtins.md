@@ -407,25 +407,6 @@ Regex.escape("a.b*c")                               # "a\\.b\\*c"
 Regex.union("cat", "dog").match?("dog")             # true
 ```
 
-## Regexp
-
-The `Regexp` namespace is removed; `Regex` is the one regex namespace. These
-names still run until the static language is the default, but do not compile
-with static types.
-
-- `Regexp.new` – removed; use `Regex.new`.
-- `Regexp.escape`, `Regexp.quote` – removed; use `Regex.escape`.
-- `Regexp.union` – removed; use `Regex.union`.
-- `Regexp.last_match` – removed; it was always `nil`. Keep the match data
-  that `match` returns instead.
-
-## Hash
-
-The `Hash` namespace is removed; an empty hash is `{}` with a declared type.
-
-- `Hash.new` – removed; write `{}` with a declared type, such as
-  `counts: hash<string, int> = {}`.
-
 ## Removed spellings
 
 These names are removed; each entry says what to write instead.

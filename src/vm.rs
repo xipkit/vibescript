@@ -3855,8 +3855,6 @@ fn undefined(
         "Proc",
         "JSON",
         "Regex",
-        "Regexp",
-        "Hash",
         "Math",
         "Duration",
         "Time",

@@ -8,7 +8,8 @@ pub(crate) enum Builtin {
     Format,
     Assert,
     Loop,
-    HashNew,
+    /// `Regex.new`, `Regex.union` and `Regex.escape`, which name themselves
+    /// `Regexp.*` in their messages, as Go does.
     Regexp(crate::regex::value::Constructor),
     Regex(crate::regex::Utility),
     Time(crate::time::Constructor),
@@ -50,8 +51,6 @@ pub(crate) enum Global {
     Format,
     Assert,
     Loop,
-    Hash,
-    Regexp,
     Regex,
     Time,
     Random(crate::random::Method),
@@ -66,13 +65,11 @@ pub(crate) enum Global {
 
 impl Global {
     /// Every global a script can reach by name, in name order.
-    pub const ALL: [Self; 23] = [
+    pub const ALL: [Self; 21] = [
         Self::Duration,
-        Self::Hash,
         Self::Json,
         Self::Math,
         Self::Regex,
-        Self::Regexp,
         Self::Time,
         Self::Assert,
         Self::Format,
@@ -99,8 +96,6 @@ impl Global {
             Self::Format => "format",
             Self::Assert => "assert",
             Self::Loop => "loop",
-            Self::Hash => "Hash",
-            Self::Regexp => "Regexp",
             Self::Regex => "Regex",
             Self::Time => "Time",
             Self::Random(method) => method.name(),
@@ -122,8 +117,6 @@ impl Global {
             "format" => Some(Self::Format),
             "assert" => Some(Self::Assert),
             "loop" => Some(Self::Loop),
-            "Hash" => Some(Self::Hash),
-            "Regexp" => Some(Self::Regexp),
             "Regex" => Some(Self::Regex),
             "Time" => Some(Self::Time),
             "rand" => Some(Self::Random(crate::random::Method::Rand)),
@@ -150,22 +143,6 @@ impl Global {
             Self::Format => return Value(Kind::Builtin(Format)),
             Self::Assert => return Value(Kind::Builtin(Assert)),
             Self::Loop => return Value(Kind::Builtin(Loop)),
-            Self::Hash => vec![field("new", Value(Kind::Builtin(HashNew)))],
-            Self::Regexp => [
-                crate::regex::value::Constructor::New,
-                crate::regex::value::Constructor::Union,
-                crate::regex::value::Constructor::Escape,
-                crate::regex::value::Constructor::Quote,
-                crate::regex::value::Constructor::LastMatch,
-            ]
-            .into_iter()
-            .map(|constructor| {
-                field(
-                    constructor.member(),
-                    Value(Kind::Builtin(Regexp(constructor))),
-                )
-            })
-            .collect(),
             Self::Regex => vec![
                 field(
                     "escape",
@@ -276,15 +253,8 @@ impl Builtin {
     /// Reports whether a read of the builtin without arguments calls it: the
     /// language writes a call without arguments without parentheses.
     pub fn auto(self) -> bool {
-        matches!(self, Self::HashNew | Self::DurationBuild)
-            || matches!(self, Self::Output(_) | Self::Random(_))
-            || matches!(
-                self,
-                Self::Regexp(
-                    crate::regex::value::Constructor::LastMatch
-                        | crate::regex::value::Constructor::Union
-                )
-            )
+        matches!(self, Self::DurationBuild | Self::Output(_) | Self::Random(_))
+            || self == Self::Regexp(crate::regex::value::Constructor::Union)
             || matches!(self, Self::Time(constructor) if constructor.auto())
     }
 
@@ -304,7 +274,6 @@ impl Builtin {
             Self::Format => "format",
             Self::Assert => "assert",
             Self::Loop => "loop",
-            Self::HashNew => "Hash.new",
             Self::Regexp(constructor) => constructor.name(),
             Self::Regex(utility) => utility.name(),
             Self::Time(constructor) => constructor.name(),
@@ -423,21 +392,6 @@ impl Builtin {
             Self::Output(_) | Self::Format | Self::Loop | Self::Require
         ) {
             return Err(self.value_error());
-        }
-        if self == Self::HashNew {
-            if !keywords.is_empty() {
-                return Err(Error::new(
-                    ErrorKind::Argument,
-                    "Hash.new does not accept keyword arguments",
-                ));
-            }
-            if !args.is_empty() || block {
-                return Err(Error::new(
-                    ErrorKind::Argument,
-                    "Hash.new takes no default: a missing key reads as nil, and hash.fetch(key, fallback) supplies a default per lookup",
-                ));
-            }
-            return Value::from_hash(ctx, crate::hash::Hash::empty());
         }
         if self == Self::Assert {
             let Some(condition) = args.first() else {
@@ -597,8 +551,7 @@ impl Builtin {
             | Self::Regexp(_)
             | Self::Assert
             | Self::Loop
-            | Self::Require
-            | Self::HashNew => unreachable!(),
+            | Self::Require => unreachable!(),
         }
     }
 }

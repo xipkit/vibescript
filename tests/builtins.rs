@@ -453,11 +453,9 @@ fn builtin_catalog_lists_the_names_scripts_reach() {
         names,
         [
             "Duration",
-            "Hash",
             "JSON",
             "Math",
             "Regex",
-            "Regexp",
             "Time",
             "assert",
             "format",
