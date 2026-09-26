@@ -40,16 +40,7 @@ pub(crate) fn build(
     args: &[Value],
     keywords: &[(Value, Value)],
 ) -> Result<Value> {
-    if keywords.is_empty() && args.len() == 1 {
-        return numeric(&args[0]).map(Value::duration);
-    }
-    if !args.is_empty() {
-        return Err(Error::new(
-            ErrorKind::Argument,
-            "Duration.build accepts either seconds or named parts, not both",
-        ));
-    }
-    if keywords.is_empty() {
+    if !args.is_empty() || keywords.is_empty() {
         return Err(Error::new(
             ErrorKind::Argument,
             "Duration.build expects seconds or named parts",
