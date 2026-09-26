@@ -986,6 +986,13 @@ def check_corpus(corpus, args, overrides, report):
     duplicates = [cid for cid, n in collections.Counter(ids).items() if n > 1]
     if duplicates:
         raise SystemExit(f"{corpus.name}: duplicate case ids: {duplicates[:5]}")
+    selected = args.cases.get(corpus.name) if args.cases is not None else None
+    if selected is not None:
+        unknown = set(selected) - set(ids)
+        if unknown:
+            raise SystemExit(f"{corpus.name}: unknown case ids: {sorted(unknown)[:5]}")
+        cases = [case for case in cases if case["id"] in selected]
+        ids = [case["id"] for case in cases]
     by_id = {case["id"]: case for case in cases}
     runs = 2 if args.record else 1
     observed = []
@@ -1048,7 +1055,7 @@ def check_corpus(corpus, args, overrides, report):
             if args.static and "_static_error" in by_id[cid]:
                 continue
             compare_case(by_id[cid], golden.get(cid), actual[cid], varies.get(cid), table, add)
-        for cid in sorted(set(golden) - set(ids)):
+        for cid in sorted(set(golden) - set(ids)) if selected is None else ():
             add("stale goldens", cid, "golden has no case")
     notes = []
     if corpus.kind == "engine":
@@ -1068,7 +1075,7 @@ def check_corpus(corpus, args, overrides, report):
     elif any(entry["blocking"] and entry["cases"] for entry in problems.values()):
         report.section(corpus.name, len(ids), problems, notes + ["not recorded"])
     else:
-        record_corpus(corpus, ids, actual, counters, varies, table)
+        record_corpus(corpus, ids, actual, counters, varies, table, preserve=selected is not None)
         report.section(corpus.name, len(ids), problems, notes + [
             f"recorded in {elapsed}" + (f"; {len(varies)} cases vary between runs" if varies else "")])
 
@@ -1119,19 +1126,23 @@ def lsp_difference(document, expected, got, table):
     return f"expected {len(expected)} replies, got {len(got)}"
 
 
-def record_corpus(corpus, ids, actual, counters, varies, table):
+def record_corpus(corpus, ids, actual, counters, varies, table, preserve=False):
+    """Records selected observations, preserving other cases when requested."""
     if not corpus.legacy:
-        records = []
+        records = {record["id"]: record for record in read_jsonl(corpus.golden)} if preserve and corpus.golden.exists() else {}
         for cid in sorted(ids):
             if cid in varies:
-                records.append({"id": cid, "varies": varies[cid]})
+                records[cid] = {"id": cid, "varies": varies[cid]}
             else:
-                records.append({"id": cid, **actual[cid]})
+                records[cid] = {"id": cid, **actual[cid]}
+        records = [records[cid] for cid in sorted(records)]
         if table is not None:
             compact_replies(records, table)
         write_jsonl(corpus.golden, records)
-    if counters:
-        write_jsonl(corpus.counters, [[cid, *counters[cid]] for cid in sorted(counters) if cid not in varies])
+    if counters or preserve and corpus.counters.exists():
+        kept = {cid: values for cid, values in load_counters(corpus).items() if cid not in ids} if preserve else {}
+        kept.update({cid: values for cid, values in counters.items() if cid not in varies})
+        write_jsonl(corpus.counters, [[cid, *kept[cid]] for cid in sorted(kept)])
     if table is not None:
         write_jsonl(GOLDEN / "lsp.replies.jsonl.gz", [{"reply": body} for body in table.bodies])
 
@@ -1167,6 +1178,8 @@ def main(argv=None):
     parser.add_argument("--show", type=int, default=10, help="examples shown per category")
     parser.add_argument("--record", action="store_true",
                         help="record the goldens from this build instead of checking them")
+    parser.add_argument("--cases", type=Path, metavar="FILE",
+                        help='run only case ids from a JSON map {"corpus": ["id", ...]}; recording preserves other cases')
     parser.add_argument("--static", action="store_true",
                         help="compile engine cases with static types, declaring the globals and capabilities each "
                              "supplies; a case with a static_error expects that compile error instead of its golden")
@@ -1188,7 +1201,16 @@ def main(argv=None):
         for corpus in CORPORA.values():
             print(f"{corpus.name:14} {corpus.description}")
         return 0
-    names = args.corpus.split(",") if args.corpus else list(CORPORA)
+    if args.cases is not None:
+        args.cases = json.loads(args.cases.read_text())
+        if not isinstance(args.cases, dict) or any(
+                not isinstance(ids, list) or any(not isinstance(cid, str) for cid in ids)
+                for ids in args.cases.values()):
+            parser.error("--cases expects a JSON object mapping corpus names to lists of case ids")
+        args.cases = {name: set(ids) for name, ids in args.cases.items()}
+    names = args.corpus.split(",") if args.corpus else list(args.cases if args.cases is not None else CORPORA)
+    if args.cases is not None and any(name not in args.cases for name in names):
+        parser.error("--cases must include every selected corpus")
     unknown = [name for name in names if name not in CORPORA]
     if unknown:
         parser.error(f"unknown corpus {', '.join(unknown)}; choose from {', '.join(CORPORA)}")

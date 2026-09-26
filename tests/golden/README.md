@@ -10,6 +10,8 @@ python3 scripts/golden.py --record --corpus parse  # accept a deliberate change
 
 It builds `examples/golden.rs`, the engine harness, and the `vibes` binary in release mode; `--harness`, `--bin` and `--no-build` check other builds. A full check takes about a minute on ten cores after the build. `./scripts/check` runs it, and `scripts/compare.py --validate-only` runs the engine corpora against its portable and SIMD builds.
 
+To check or re-record only affected cases, pass `--cases FILE`, where the JSON file maps corpus names to lists of exact case ids, for example `{"conformance": ["case_id"]}`. Use it with `--record --corpus conformance` to preserve every unselected observation and counter. Selected recordings still run twice, validate independent fixture expectations, and preserve the contents of unselected LSP replies when their shared table is renumbered.
+
 | Corpus | Cases | Sources |
 | --- | ---: | --- |
 | `conformance` | 1,248 | generated cases in `scripts/fixtures.py` and the host-binding, required-file, capability, block and signature generators; the site and upstream programs; the benchmark cases |
@@ -48,6 +50,12 @@ Accounting counters are separate, in `<corpus>.counters.jsonl.gz`: `[id, steps, 
 ## Static types
 
 Every source in these corpora is written in the language of [ADR-007](../../docs/adr/007-static-types.md) and [ADR-008](../../docs/adr/008-canonical-surface-for-ai-authors.md). `golden.py --static` compiles every engine case with the static checker, declaring the globals and capabilities the case supplies by their values' types, as a statically typed host would, and checks it against the same goldens: a case must compile and do what its golden records. A case whose purpose is to fail with static types carries `static_error`, the checker's first error as `{"code", "at"}`, and is checked against that instead; its golden still records what it does without static types, which is what the goldens check until the switchover makes static types the default.
+
+The `parse` corpus always runs without static types, including under `--static`.
+Its token mutations deliberately produce malformed or partially valid programs;
+it records parser acceptance and syntax errors, not semantic validity. Static
+rejections belong in the semantic corpora, where their first diagnostic is
+recorded explicitly.
 
 The migration's non-mechanical decisions are in [migration-decisions.jsonl](migration-decisions.jsonl), one per case, sorted by corpus and id, each with a short reason:
 
