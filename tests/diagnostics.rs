@@ -51,9 +51,10 @@ fn check_position(error: &Error, source: &str, offset: usize) {
 
 #[test]
 fn failures_point_at_operators_members_indices_and_nested_calls() {
-    // Two-character operators are stamped at their second character.
+    // Two-character operators are stamped at their second character, as Go
+    // stamped them, except `//`, which Go lacks, at its first.
     for (body, needle) in [
-        ("1 // 0", "/ 0"),
+        ("1 // 0", "// 0"),
         ("[1].fetch(5)", "[1]"),
         ("Math.sqrt(-1)", "Math"),
         ("\"x\" * -1", "* -1"),
@@ -89,11 +90,11 @@ fn failures_point_at_operators_members_indices_and_nested_calls() {
             .iter()
             .map(|frame| (&*frame.function, frame.position.line, frame.position.column))
             .collect::<Vec<_>>(),
-        [("divide", 2, 5), ("divide", 5, 2), ("run", 4, 1)]
+        [("divide", 2, 4), ("divide", 5, 2), ("run", 4, 1)]
     );
     assert_eq!(
         error.to_string(),
-        "division by zero\n  --> line 2, column 5\n 2 |  a // b\n   |     ^\n  at divide (2:5)\n  at divide (5:2)\n  at run (4:1)"
+        "division by zero\n  --> line 2, column 4\n 2 |  a // b\n   |    ^\n  at divide (2:4)\n  at divide (5:2)\n  at run (4:1)"
     );
 }
 
@@ -181,7 +182,7 @@ fn interpolation_and_unicode_use_the_original_source() {
         "def run(input: any)\n  [\"hello\", \"#{1//0}\"]\nend",
     ] {
         let error = failure(source);
-        check_position(&error, source, source.rfind('/').unwrap());
+        check_position(&error, source, source.rfind("//").unwrap());
         assert_eq!(
             &*error.diagnostic.as_ref().unwrap().frames[0].function,
             "run"
@@ -247,7 +248,7 @@ fn default_expressions_keep_their_locations_without_inventing_callee_frames() {
             "def target(a: {ty} = {default})\n a\nend\ndef run(input: any)\n target()\nend"
         );
         let error = failure(&source);
-        check_position(&error, &source, source.rfind('/').unwrap());
+        check_position(&error, &source, source.rfind("//").unwrap());
         assert_eq!(
             error
                 .diagnostic
@@ -294,7 +295,7 @@ fn entry_checks_and_initializers_have_script_context() {
 fn nested_blocks_use_the_active_call_stack_and_to_s_uses_its_source_expression() {
     let source = "def target(&block: ())\n [1].each { yield }\nend\ndef run(input: any)\n target { [1].map { 1//0 } }\nend";
     let error = failure(source);
-    check_position(&error, source, source.rfind('/').unwrap());
+    check_position(&error, source, source.rfind("//").unwrap());
     assert_eq!(
         error
             .diagnostic
@@ -308,7 +309,7 @@ fn nested_blocks_use_the_active_call_stack_and_to_s_uses_its_source_expression()
     );
     let source = "class C\n def to_s -> string\n  (1//0).to_s\n end\nend\ndef run(input: any)\n \"hello #{C.new}!\"\nend";
     let error = failure(source);
-    check_position(&error, source, source.rfind('/').unwrap());
+    check_position(&error, source, source.rfind("//").unwrap());
     let call = &error.diagnostic.as_ref().unwrap().frames[1];
     assert_eq!(&*call.function, "to_s");
     assert_eq!(
@@ -448,7 +449,7 @@ fn long_lines_and_many_lines_keep_snippets_bounded() {
     for prefix in ["\n".repeat(9000), format!("\"{}\";", "α".repeat(10000))] {
         let source = format!("def run(input: any)\n{prefix} 1//0\nend");
         let error = failure(&source);
-        check_position(&error, &source, source.rfind('/').unwrap());
+        check_position(&error, &source, source.rfind("//").unwrap());
         let diagnostic = error.diagnostic.as_ref().unwrap();
         assert!(
             diagnostic.code_frame.len() < 1024,

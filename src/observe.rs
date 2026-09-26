@@ -435,7 +435,7 @@ mod tests {
             *log.0.lock().unwrap(),
             [
                 "0 param n int",
-                "34 binary // int int",
+                "33 binary // int int",
                 "27 store x int",
                 "47 binary > int int",
                 "40 condition from 47 bool",
