@@ -499,7 +499,9 @@ impl Parsing<'_> {
             (p.tokens[colon].token == Token::P(':')).then_some(colon)
         };
         if let Some(colon) = colon {
-            let plain = kind == ParamKind::Positional && !instance && !strict;
+            // The canonical surface declares keywords only after `*`.
+            let plain =
+                kind == ParamKind::Positional && !instance && !strict && !super::canonical();
             let keyword = {
                 let mut p = self.p();
                 p.pos = colon + 1;

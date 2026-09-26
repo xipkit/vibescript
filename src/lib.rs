@@ -180,8 +180,14 @@ impl Engine {
     /// # Ok::<(), vibescript::Error>(())
     /// ```
     pub fn type_check(&self, source: &str) -> Result<typing::Checked> {
-        let (parsed, tokens) = syntax::parse_with_tokens(source, &())
-            .map_err(|error| source::parse_error(source, None, error, &()))?;
+        let (parsed, tokens) = syntax::parse_with_tokens(source, &()).map_err(|error| {
+            source::parse_error(
+                source,
+                None,
+                syntax::canonical_syntax(source, &(), error),
+                &(),
+            )
+        })?;
         let resolve =
             |path: &str, origin: Option<&loading::Origin>| self.loader.source(path, origin);
         Ok(typing::check(&typing::Input {
@@ -215,8 +221,14 @@ impl Engine {
         function: &str,
         count: usize,
     ) -> Result<Vec<diagnostic::Diagnostic>> {
-        let (parsed, tokens) = syntax::parse_with_tokens(source, &())
-            .map_err(|error| source::parse_error(source, None, error, &()))?;
+        let (parsed, tokens) = syntax::parse_with_tokens(source, &()).map_err(|error| {
+            source::parse_error(
+                source,
+                None,
+                syntax::canonical_syntax(source, &(), error),
+                &(),
+            )
+        })?;
         Ok(typing::entry_arguments(
             &typing::Input {
                 source,

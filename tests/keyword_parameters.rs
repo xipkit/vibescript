@@ -151,10 +151,8 @@ fn a_misplaced_star_is_a_syntax_error() {
             "def f(*items, *, b: int)\nend\n",
             "parameters after a rest parameter are keyword parameters already",
         ),
-        (
-            "def f(a:, *, b: int)\nend\n",
-            "a bare `*` must precede keyword and keyword rest parameters",
-        ),
+        // `name:` declares no keyword parameter in the canonical grammar.
+        ("def f(a:, *, b: int)\nend\n", "expected type name"),
         // After a bare `*`, only the canonical forms parse.
         ("def f(*, b: 3)\nend\n", "expected type name"),
         ("def f(*, b: int:)\nend\n", "expected \")\""),

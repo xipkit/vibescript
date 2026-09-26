@@ -147,7 +147,9 @@ impl Code {
             |error| crate::source::parse_error(source, filename.as_ref(), error, work);
         let mut program = if let Some(typing) = typing {
             let (parsed, tokens) =
-                crate::syntax::parse_with_tokens(source, work).map_err(parse_error)?;
+                crate::syntax::parse_with_tokens(source, work).map_err(|error| {
+                    parse_error(crate::syntax::canonical_syntax(source, work, error))
+                })?;
             let resolve = |path: &str, origin: Option<&crate::loading::Origin>| {
                 typing.loader.and_then(|loader| loader.source(path, origin))
             };

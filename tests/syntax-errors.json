@@ -343,12 +343,14 @@
   {
     "name": "literals_percent_w_2_7",
     "source": "\ndef run(input: any)\n%w{#{\"}\"} x}\nend",
-    "go_error": "parse error at 3:12: unexpected token \"}\"\n  --> line 3, column 12\n 3 | %w{#{\"}\"} x}\n   |            ^"
+    "go_error": "parse error at 3:12: unexpected token \"}\"\n  --> line 3, column 12\n 3 | %w{#{\"}\"} x}\n   |            ^",
+    "error": "parse error at 3:1: unexpected token \"%\""
   },
   {
     "name": "literals_percent_i_2_7",
     "source": "\ndef run(input: any)\n%i{#{\"}\"} x}\nend",
-    "go_error": "parse error at 3:12: unexpected token \"}\"\n  --> line 3, column 12\n 3 | %i{#{\"}\"} x}\n   |            ^"
+    "go_error": "parse error at 3:12: unexpected token \"}\"\n  --> line 3, column 12\n 3 | %i{#{\"}\"} x}\n   |            ^",
+    "error": "parse error at 3:1: unexpected token \"%\""
   },
   {
     "name": "literals_percent_delimiter_0",
@@ -383,12 +385,14 @@
   {
     "name": "literals_percent_reject_0",
     "source": "\ndef run(input: any)\n%w[abc\nend",
-    "go_error": "parse error at 3:1: unterminated percent array literal\n  --> line 3, column 1\n 3 | %w[abc\n   | ^\n\nparse error at 4:3: expected end, got end of input\n  --> line 4, column 3\n 4 | end\n   |   ^"
+    "go_error": "parse error at 3:1: unterminated percent array literal\n  --> line 3, column 1\n 3 | %w[abc\n   | ^\n\nparse error at 4:3: expected end, got end of input\n  --> line 4, column 3\n 4 | end\n   |   ^",
+    "error": "parse error at 3:1: unexpected token \"%\""
   },
   {
     "name": "literals_percent_reject_1",
     "source": "\ndef run(input: any)\n%W[#{1]\nend",
-    "go_error": "parse error at 3:1: unterminated string interpolation in percent array literal\n  --> line 3, column 1\n 3 | %W[#{1]\n   | ^\n\nparse error at 3:6: invalid hash pair: expected key like name: or \"name\":\n  --> line 3, column 6\n 3 | %W[#{1]\n   |      ^\n\nparse error at 4:3: expected \"}\", got end of input\n  --> line 4, column 3\n 4 | end\n   |   ^\n\nparse error at 4:3: expected end, got end of input\n  --> line 4, column 3\n 4 | end\n   |   ^"
+    "go_error": "parse error at 3:1: unterminated string interpolation in percent array literal\n  --> line 3, column 1\n 3 | %W[#{1]\n   | ^\n\nparse error at 3:6: invalid hash pair: expected key like name: or \"name\":\n  --> line 3, column 6\n 3 | %W[#{1]\n   |      ^\n\nparse error at 4:3: expected \"}\", got end of input\n  --> line 4, column 3\n 4 | end\n   |   ^\n\nparse error at 4:3: expected end, got end of input\n  --> line 4, column 3\n 4 | end\n   |   ^",
+    "error": "parse error at 3:1: unexpected token \"%\""
   },
   {
     "name": "literals_percent_reject_2",
@@ -408,12 +412,14 @@
   {
     "name": "literals_percent_reject_5",
     "source": "\ndef run(input: any)\n%w[a\\]\nend",
-    "go_error": "parse error at 3:1: unterminated percent array literal\n  --> line 3, column 1\n 3 | %w[a\\]\n   | ^\n\nparse error at 4:3: expected end, got end of input\n  --> line 4, column 3\n 4 | end\n   |   ^"
+    "go_error": "parse error at 3:1: unterminated percent array literal\n  --> line 3, column 1\n 3 | %w[a\\]\n   | ^\n\nparse error at 4:3: expected end, got end of input\n  --> line 4, column 3\n 4 | end\n   |   ^",
+    "error": "parse error at 3:1: unexpected token \"%\""
   },
   {
     "name": "literals_percent_reject_6",
     "source": "\ndef run(input: any)\n%W[#{1;2}]\nend",
-    "go_error": "parse error at 3:1: string interpolation must contain a single expression\n  --> line 3, column 1\n 3 | %W[#{1;2}]\n   | ^"
+    "go_error": "parse error at 3:1: string interpolation must contain a single expression\n  --> line 3, column 1\n 3 | %W[#{1;2}]\n   | ^",
+    "error": "parse error at 3:1: unexpected token \"%\""
   },
   {
     "name": "literals_nesting_strings_9",
@@ -8304,12 +8310,14 @@
   {
     "name": "types_syntax_30",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(array:,value:array<int>)\n7\nend\ndef run(input: any) -> any\ntyped()\nend",
-    "go_error": "parse error at 12:18: ordinary parameters must precede rest, keyword, and keyword rest parameters"
+    "go_error": "parse error at 12:18: ordinary parameters must precede rest, keyword, and keyword rest parameters",
+    "error": "parse error at 12:17: expected type name, got \",\""
   },
   {
     "name": "types_syntax_31",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed array:,value:array<int>\n7\nend\ndef run(input: any) -> any\ntyped()\nend",
-    "go_error": "parse error at 12:18: ordinary parameters must precede rest, keyword, and keyword rest parameters"
+    "go_error": "parse error at 12:18: ordinary parameters must precede rest, keyword, and keyword rest parameters",
+    "error": "parse error at 12:17: expected type name, got \",\""
   },
   {
     "name": "types_syntax_40",
@@ -8374,12 +8382,14 @@
   {
     "name": "types_syntax_54",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value:int: = 1)\n7\nend\ndef run(input: any) -> any\ntyped()\nend",
-    "go_error": "parse error at 12:20: typed required keyword parameter must end after trailing ':'"
+    "go_error": "parse error at 12:20: typed required keyword parameter must end after trailing ':'",
+    "error": "parse error at 12:20: expected \")\", got \":\""
   },
   {
     "name": "types_syntax_55",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value:int: = 1\n7\nend\ndef run(input: any) -> any\ntyped()\nend",
-    "go_error": "parse error at 12:20: typed required keyword parameter must end after trailing ':'"
+    "go_error": "parse error at 12:20: typed required keyword parameter must end after trailing ':'",
+    "error": "parse error at 12:20: unexpected token \":\""
   },
   {
     "name": "types_syntax_56",
@@ -8433,302 +8443,362 @@
   {
     "name": "types_shape_fields_60",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:name:int,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:24: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_61",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:name:int,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name:1})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:24: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_62",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:name:int,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name: :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:24: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_63",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:name:int,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"name?\": :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:24: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_64",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:name:int,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"\\xFF\": :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:24: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_65",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:name:Status,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:24: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_66",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:name:Status,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name:1})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:24: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_67",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:name:Status,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name: :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:24: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_68",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:name:Status,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"name?\": :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:24: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_69",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:name:Status,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"\\xFF\": :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:24: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_70",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:name:Status?,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:24: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_71",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:name:Status?,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name:1})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:24: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_72",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:name:Status?,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name: :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:24: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_73",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:name:Status?,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"name?\": :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:24: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_74",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:name:Status?,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"\\xFF\": :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:24: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_75",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:name:int | nil,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:24: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_76",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:name:int | nil,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name:1})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:24: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_77",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:name:int | nil,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name: :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:24: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_78",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:name:int | nil,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"name?\": :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:24: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_79",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:name:int | nil,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"\\xFF\": :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:24: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_80",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:\"name?\":int,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:27: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_81",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:\"name?\":int,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name:1})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:27: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_82",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:\"name?\":int,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name: :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:27: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_83",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:\"name?\":int,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"name?\": :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:27: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_84",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:\"name?\":int,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"\\xFF\": :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:27: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_85",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:\"name?\":Status,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:27: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_86",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:\"name?\":Status,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name:1})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:27: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_87",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:\"name?\":Status,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name: :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:27: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_88",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:\"name?\":Status,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"name?\": :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:27: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_89",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:\"name?\":Status,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"\\xFF\": :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:27: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_90",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:\"name?\":Status?,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:27: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_91",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:\"name?\":Status?,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name:1})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:27: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_92",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:\"name?\":Status?,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name: :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:27: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_93",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:\"name?\":Status?,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"name?\": :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:27: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_94",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:\"name?\":Status?,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"\\xFF\": :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:27: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_95",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:\"name?\":int | nil,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:27: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_96",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:\"name?\":int | nil,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name:1})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:27: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_97",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:\"name?\":int | nil,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name: :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:27: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_98",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:\"name?\":int | nil,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"name?\": :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:27: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_99",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:\"name?\":int | nil,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"\\xFF\": :draft})\nend",
-    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:19: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:27: expected :, got symbol"
   },
   {
     "name": "types_shape_fields_180",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name??:int,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({})\nend",
-    "go_error": "parse error at 12:32: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:32: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:19: duplicate optional suffix on shape field name??"
   },
   {
     "name": "types_shape_fields_181",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name??:int,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name:1})\nend",
-    "go_error": "parse error at 12:32: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:32: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:19: duplicate optional suffix on shape field name??"
   },
   {
     "name": "types_shape_fields_182",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name??:int,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name: :draft})\nend",
-    "go_error": "parse error at 12:32: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:32: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:19: duplicate optional suffix on shape field name??"
   },
   {
     "name": "types_shape_fields_183",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name??:int,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"name?\": :draft})\nend",
-    "go_error": "parse error at 12:32: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:32: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:19: duplicate optional suffix on shape field name??"
   },
   {
     "name": "types_shape_fields_184",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name??:int,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"\\xFF\": :draft})\nend",
-    "go_error": "parse error at 12:32: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:32: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:19: duplicate optional suffix on shape field name??"
   },
   {
     "name": "types_shape_fields_185",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name??:Status,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({})\nend",
-    "go_error": "parse error at 12:35: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:35: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:19: duplicate optional suffix on shape field name??"
   },
   {
     "name": "types_shape_fields_186",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name??:Status,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name:1})\nend",
-    "go_error": "parse error at 12:35: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:35: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:19: duplicate optional suffix on shape field name??"
   },
   {
     "name": "types_shape_fields_187",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name??:Status,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name: :draft})\nend",
-    "go_error": "parse error at 12:35: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:35: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:19: duplicate optional suffix on shape field name??"
   },
   {
     "name": "types_shape_fields_188",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name??:Status,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"name?\": :draft})\nend",
-    "go_error": "parse error at 12:35: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:35: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:19: duplicate optional suffix on shape field name??"
   },
   {
     "name": "types_shape_fields_189",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name??:Status,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"\\xFF\": :draft})\nend",
-    "go_error": "parse error at 12:35: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:35: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:19: duplicate optional suffix on shape field name??"
   },
   {
     "name": "types_shape_fields_190",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name??:Status?,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({})\nend",
-    "go_error": "parse error at 12:36: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:36: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:19: duplicate optional suffix on shape field name??"
   },
   {
     "name": "types_shape_fields_191",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name??:Status?,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name:1})\nend",
-    "go_error": "parse error at 12:36: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:36: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:19: duplicate optional suffix on shape field name??"
   },
   {
     "name": "types_shape_fields_192",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name??:Status?,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name: :draft})\nend",
-    "go_error": "parse error at 12:36: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:36: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:19: duplicate optional suffix on shape field name??"
   },
   {
     "name": "types_shape_fields_193",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name??:Status?,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"name?\": :draft})\nend",
-    "go_error": "parse error at 12:36: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:36: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:19: duplicate optional suffix on shape field name??"
   },
   {
     "name": "types_shape_fields_194",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name??:Status?,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"\\xFF\": :draft})\nend",
-    "go_error": "parse error at 12:36: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:36: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:19: duplicate optional suffix on shape field name??"
   },
   {
     "name": "types_shape_fields_195",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name??:int | nil,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({})\nend",
-    "go_error": "parse error at 12:30: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:30: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:19: duplicate optional suffix on shape field name??"
   },
   {
     "name": "types_shape_fields_196",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name??:int | nil,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name:1})\nend",
-    "go_error": "parse error at 12:30: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:30: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:19: duplicate optional suffix on shape field name??"
   },
   {
     "name": "types_shape_fields_197",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name??:int | nil,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({name: :draft})\nend",
-    "go_error": "parse error at 12:30: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:30: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:19: duplicate optional suffix on shape field name??"
   },
   {
     "name": "types_shape_fields_198",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name??:int | nil,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"name?\": :draft})\nend",
-    "go_error": "parse error at 12:30: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:30: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:19: duplicate optional suffix on shape field name??"
   },
   {
     "name": "types_shape_fields_199",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name??:int | nil,...})\nrender(value)\nend\ndef run(input: any) -> any\ntyped({\"\\xFF\": :draft})\nend",
-    "go_error": "parse error at 12:30: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 12:30: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 12:19: duplicate optional suffix on shape field name??"
   },
   {
     "name": "types_qualified_6",
@@ -9555,7 +9625,8 @@
   {
     "name": "shapes_trailing_types_2",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\ndef typed(x:{x:int,}={x:1})\nx\nend\ndef run(input: any) -> any\ntyped()\nend",
-    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+    "go_error": "parse error at 7:21: expected \")\", got \"=\"",
+    "error": "parse error at 7:20: expected shape field name, got \"}\""
   },
   {
     "name": "shapes_trailing_types_3",
@@ -9570,7 +9641,8 @@
   {
     "name": "shapes_trailing_types_7",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\ndef typed(x:{x:{y:int,}}={x:1})\nx\nend\ndef run(input: any) -> any\ntyped()\nend",
-    "go_error": "parse error at 7:25: expected \")\", got \"=\""
+    "go_error": "parse error at 7:25: expected \")\", got \"=\"",
+    "error": "parse error at 7:23: expected shape field name, got \"}\""
   },
   {
     "name": "shapes_trailing_types_8",
@@ -9610,7 +9682,8 @@
   {
     "name": "shapes_trailing_types_17",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\ndef typed(x:{x:nil,}={x:1})\nx\nend\ndef run(input: any) -> any\ntyped()\nend",
-    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+    "go_error": "parse error at 7:21: expected \")\", got \"=\"",
+    "error": "parse error at 7:20: expected shape field name, got \"}\""
   },
   {
     "name": "shapes_trailing_types_18",
@@ -9630,12 +9703,14 @@
   {
     "name": "shapes_trailing_types_26",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\ndef typed(x:{x:int, ...,})\nx\nend\ndef run(input: any) -> any\ntyped({x:1})\nend",
-    "go_error": "parse error at 7:23: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 7:23: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 7:24: expected }, got \",\""
   },
   {
     "name": "shapes_trailing_types_27",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\ndef typed(x:{x:int, ...,}={x:1})\nx\nend\ndef run(input: any) -> any\ntyped()\nend",
-    "go_error": "parse error at 7:23: invalid hash pair: expected key like name: or \"name\":"
+    "go_error": "parse error at 7:23: invalid hash pair: expected key like name: or \"name\":",
+    "error": "parse error at 7:24: expected }, got \",\""
   },
   {
     "name": "shapes_trailing_types_28",
@@ -13093,7 +13168,8 @@
   {
     "name": "begin_modifier_boundary_plain_unless",
     "source": "def run(_: any) -> int\ni=5\nbegin\n i += 1\nend unless false\ni\nend",
-    "go_error": "parse error at 5:5: modifier unless is only supported after expression or assignment statements, or leaf control-flow statements\n  --> line 5, column 5\n 5 | end unless false\n   |     ^"
+    "go_error": "parse error at 5:5: modifier unless is only supported after expression or assignment statements, or leaf control-flow statements\n  --> line 5, column 5\n 5 | end unless false\n   |     ^",
+    "error": "parse error at 5:5: unexpected token 'unless'"
   },
   {
     "name": "begin_modifier_boundary_plain_while",
@@ -13103,7 +13179,8 @@
   {
     "name": "begin_modifier_boundary_plain_until",
     "source": "def run(_: any) -> int\ni=5\nbegin\n i += 1\nend until i > 3\ni\nend",
-    "go_error": "parse error at 5:5: modifier until is only supported after expression or assignment statements, or leaf control-flow statements\n  --> line 5, column 5\n 5 | end until i > 3\n   |     ^"
+    "go_error": "parse error at 5:5: modifier until is only supported after expression or assignment statements, or leaf control-flow statements\n  --> line 5, column 5\n 5 | end until i > 3\n   |     ^",
+    "error": "parse error at 5:5: unexpected token \"until\""
   },
   {
     "name": "begin_modifier_boundary_plain_rescue",
@@ -13113,7 +13190,8 @@
   {
     "name": "begin_modifier_boundary_plain_ensure",
     "source": "def run(_: any)\nbegin\n1\nensure\n2\nend unless false\nend",
-    "go_error": "parse error at 6:5: modifier unless is only supported after expression or assignment statements, or leaf control-flow statements\n  --> line 6, column 5\n 6 | end unless false\n   |     ^"
+    "go_error": "parse error at 6:5: modifier unless is only supported after expression or assignment statements, or leaf control-flow statements\n  --> line 6, column 5\n 6 | end unless false\n   |     ^",
+    "error": "parse error at 6:5: unexpected token 'unless'"
   },
   {
     "name": "symbol_variable_boundary_instance_bare",
@@ -13731,7 +13809,8 @@
   {
     "name": "sweep_expected_block_parameter_got_do",
     "source": "  mapped = [10].map do |do shadow|",
-    "go_error": "parse error at 1:25: expected block parameter, got 'do'"
+    "go_error": "parse error at 1:25: expected block parameter, got 'do'",
+    "error": "parse error at 1:21: unexpected token 'do'"
   },
   {
     "name": "sweep_expected_block_parameter_got_symbol",
@@ -13911,7 +13990,8 @@
   {
     "name": "sweep_ordinary_parameter_after_rest",
     "source": "def arg_type_mismatch(n: ,int)",
-    "go_error": "parse error at 1:27: ordinary parameters must precede rest, keyword, and keyword rest parameters"
+    "go_error": "parse error at 1:27: ordinary parameters must precede rest, keyword, and keyword rest parameters",
+    "error": "parse error at 1:26: expected type name, got \",\""
   },
   {
     "name": "sweep_parallel_assignment_without_equals",
@@ -13961,7 +14041,8 @@
   {
     "name": "sweep_unterminated_percent_array_literal",
     "source": "  %i[[queued running done]",
-    "go_error": "parse error at 1:3: unterminated percent array literal"
+    "go_error": "parse error at 1:3: unterminated percent array literal",
+    "error": "parse error at 1:3: unexpected token \"%\""
   },
   {
     "name": "parity_do_after_condition_line",
@@ -13991,7 +14072,8 @@
   {
     "name": "parity_statement_block_ends_line",
     "source": "x = [1].map\n  do |v| v end.size\n",
-    "go_error": "parse error at 2:15: unexpected token \".\""
+    "go_error": "parse error at 2:15: unexpected token \".\"",
+    "error": "parse error at 2:3: unexpected token 'do'"
   },
   {
     "name": "parity_multiline_array_index_in_hash",

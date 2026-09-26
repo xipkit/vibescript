@@ -436,6 +436,52 @@ pub(crate) fn parse_type(source: &str) -> Result<crate::types::Type> {
 
 pub(crate) use record::parse_with_tokens;
 
+thread_local! {
+    /// Whether the parse in progress reads only the canonical surface of
+    /// ADR-008, as [`canonical_error`] asks.
+    static CANONICAL: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Whether the parse in progress reads only the canonical surface: `do`
+/// opens no block, `unless` and `until` start nothing, `%` never starts a
+/// percent literal, and a keyword parameter follows a bare `*` or a rest
+/// parameter.
+fn canonical() -> bool {
+    CANONICAL.with(std::cell::Cell::get)
+}
+
+/// The syntax error `source` has in the canonical surface of ADR-008, for a
+/// source whose parse in the full grammar already failed. The full grammar
+/// still reads the removed syntax, so that a well-formed use of it reaches
+/// the checker, which reports it with a fix; a source that does not parse
+/// either way reports the error the canonical grammar finds, where the
+/// removed syntax is no syntax at all. Returns `None` when the canonical
+/// parse succeeds.
+fn canonical_error(source: &str, work: &dyn crate::compilation::Work) -> Option<Error> {
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            CANONICAL.with(|canonical| canonical.set(self.0));
+        }
+    }
+    let _restore = Restore(CANONICAL.with(|canonical| canonical.replace(true)));
+    parse(source, work).err()
+}
+
+/// Replaces a syntax error of the full grammar with the one the canonical
+/// surface reports for `source` ([`canonical_error`]); other errors, such
+/// as an exhausted quota, stand.
+pub(crate) fn canonical_syntax(
+    source: &str,
+    work: &dyn crate::compilation::Work,
+    error: Error,
+) -> Error {
+    if error.kind != crate::ErrorKind::Syntax {
+        return error;
+    }
+    canonical_error(source, work).unwrap_or(error)
+}
+
 pub(crate) fn parse(source: &str, work: &dyn crate::compilation::Work) -> Result<Declarations> {
     let parsing = Parsing::new(parser(source, work)?);
     match parsing.run(Call::Program)? {
@@ -631,7 +677,7 @@ impl<'a> Parsing<'a> {
             let mut p = self.p();
             let next = p.significant(p.pos);
             let brace = match &p.tokens[next].token {
-                Token::Word(w) if w == "do" => {
+                Token::Word(w) if w == "do" && !canonical() => {
                     (next != p.pos || p.can_attach_do()).then_some(false)
                 }
                 Token::P('{') => (next == p.pos && p.block_follows(&expr)?).then_some(true),
@@ -761,7 +807,8 @@ impl<'a> Parsing<'a> {
             stmt = Box::pin(self.continued_statement(stmt, offset)).await?;
         }
         let modifier = match self.p().token() {
-            Token::Word(w) if matches!(w.as_str(), "if" | "unless" | "while" | "until") => *w,
+            Token::Word(w) if matches!(w.as_str(), "if" | "while") => *w,
+            Token::Word(w) if matches!(w.as_str(), "unless" | "until") && !canonical() => *w,
             _ => return Ok(stmt),
         };
         let bare_begin = starts_begin
@@ -866,7 +913,8 @@ impl<'a> Parsing<'a> {
                 "next",
             ]
             .into_iter()
-            .find(|keyword| matches!(p.token(), Token::Word(w) if w == keyword));
+            .find(|keyword| matches!(p.token(), Token::Word(w) if w == keyword))
+            .filter(|keyword| !matches!(*keyword, "unless" | "until") || !canonical());
             if keyword.is_some() {
                 p.pos += 1;
             }
@@ -1548,11 +1596,13 @@ impl<'a> Parsing<'a> {
             "nil" => self.p().make(Node::Literal(Value::nil()), 1),
             "true" => self.p().make(Node::Literal(Value::boolean(true)), 1),
             "false" => self.p().make(Node::Literal(Value::boolean(false)), 1),
-            "if" | "unless" => self.if_expr(w == "unless").await,
+            "if" => self.if_expr(false).await,
+            "unless" if !canonical() => self.if_expr(true).await,
             "case" => self.case_expr().await,
             "yield" => self.yield_expr().await,
             "begin" => self.begin_expression(offset).await,
-            "while" | "until" | "for" => self.loop_expression(w, offset).await,
+            "while" | "for" => self.loop_expression(w, offset).await,
+            "until" if !canonical() => self.loop_expression(w, offset).await,
             // Like Go, only `self` and `then` among the remaining keywords
             // start an expression.
             _ if keyword(w) && !matches!(w, "self" | "then") => Err(Error::syntax(
@@ -3148,7 +3198,7 @@ impl<'a> Parser<'a> {
             Token::P('.' | '(' | '[' | '?') | Token::Op("&." | "::") => true,
             Token::Op(op) => binding_power(op).is_some(),
             Token::Words(words) => words.ambiguous,
-            Token::Word(w) => matches!(w.as_str(), "do" | "rescue"),
+            Token::Word(w) => w == "rescue" || (w == "do" && !canonical()),
             _ => false,
         };
         Ok(continues && next.line == self.previous()?.end_line)
@@ -3204,7 +3254,7 @@ impl<'a> Parser<'a> {
         {
             return Ok(Some(Suffix::Block(true)));
         }
-        if matches!(self.token(), Token::Word(w) if w == "do")
+        if matches!(self.token(), Token::Word(w) if w == "do" && !canonical())
             && (self.can_attach_do()
                 || (self.pos != self.call_end && self.significant(self.call_end) == self.pos))
         {
@@ -3411,7 +3461,7 @@ impl<'a> Parser<'a> {
         let continues = match lexeme.token {
             // Go continues a line-limited expression onto a `do` only right
             // after a parenthesized call with arguments.
-            Token::Word(ref word) if word == "do" => {
+            Token::Word(ref word) if word == "do" && !canonical() => {
                 (self.line_exprs == 0 && self.can_attach_do()) || self.pos == self.call_end
             }
             Token::P('.') | Token::Op("::" | "&.") => true,

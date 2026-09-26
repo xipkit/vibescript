@@ -9,11 +9,21 @@ fn standalone_begin_rejects_statement_modifiers() {
         "begin;raise 'x';rescue;1;end",
         "begin;1;ensure;2;end",
     ] {
-        for modifier in ["if true", "unless false", "while false", "until true"] {
+        for modifier in ["if true", "while false"] {
             let source = format!("{body} {modifier}");
             let error = Engine::new().compile(&source).err().unwrap();
             assert_eq!(error.kind, ErrorKind::Syntax, "{source}: {error}");
             assert!(error.to_string().contains("modifier"), "{source}: {error}");
+        }
+        // `unless` and `until` are no modifiers at all (ADR-008).
+        for keyword in ["unless", "until"] {
+            let source = format!("{body} {keyword} true");
+            let error = Engine::new().compile(&source).err().unwrap();
+            assert_eq!(error.kind, ErrorKind::Syntax, "{source}: {error}");
+            assert!(
+                error.message.starts_with("unexpected token") && error.message.contains(keyword),
+                "{source}: {error}"
+            );
         }
     }
 }

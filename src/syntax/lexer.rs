@@ -521,6 +521,7 @@ impl<'a, 'w> Lexer<'a, 'w> {
                         token
                     }
                     b'%' if !(skip_first_percent && i == first)
+                        && !super::canonical()
                         && self.percent_kind().is_some() =>
                     {
                         let ambiguous = self

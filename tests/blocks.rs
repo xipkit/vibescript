@@ -209,12 +209,10 @@ fn block_recursion_and_syntax_depth_are_bounded() {
             .kind,
         ErrorKind::Cancelled
     );
-    for (open, close) in [("zero {", "}"), ("zero do\n", "\nend")] {
-        let source = format!("{}1{}", open.repeat(1100), close.repeat(1100));
-        let error = Engine::new().compile(&source).err().unwrap();
-        assert_eq!(error.kind, ErrorKind::Syntax);
-        assert!(error.message.contains("nesting too deep"));
-    }
+    let source = format!("{}1{}", "zero {".repeat(1100), "}".repeat(1100));
+    let error = Engine::new().compile(&source).err().unwrap();
+    assert_eq!(error.kind, ErrorKind::Syntax);
+    assert!(error.message.contains("nesting too deep"));
 }
 
 #[test]
