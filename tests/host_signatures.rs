@@ -116,25 +116,14 @@ fn typed_capability_methods_cover_every_immediate_dispatch_form() {
     for source in [
         "typed.echo(7)",
         "typed.echo 7",
-        "typed::echo(7)",
         "typed&.echo(7)",
         "typed.dup.echo(7)",
         "[typed][0]&.echo(7)",
         "typed.echo(*[7])",
-        // Legacy dispatch is exercised without static types.
-        "typed.send(:echo,7)",
-        "typed.public_send(:echo,7)",
     ] {
         for strict in [false, true] {
             let mut engine = engine(&echo("int"));
             engine.set_strict_effects(strict);
-            // `::` is refused with static types (V0416) but still runs without.
-            if source.contains("::")
-                || source.contains(".send(")
-                || source.contains(".public_send(")
-            {
-                engine.set_static_types(false);
-            }
             let outcome = engine
                 .compile(source)
                 .unwrap()
@@ -145,10 +134,15 @@ fn typed_capability_methods_cover_every_immediate_dispatch_form() {
         }
     }
     // A method is not a value: reading one is a call missing its
-    // argument, and a capability is not indexed or dispatched by name.
+    // argument. A capability is not indexed, a method is called with a dot,
+    // and dispatch by name is removed, so `send` names a member the
+    // capability does not declare.
     let method = echo("int");
     for (source, codes, at) in [
         ("typed.echo", &["V0301"][..], "echo"),
+        ("typed::echo(7)", &["V0416"], "::"),
+        ("typed.send(:echo,7)", &["V0203"], "send"),
+        ("typed.public_send(:echo,7)", &["V0203"], "public_send"),
         ("typed::echo", &["V0416", "V0301"], "::"),
         ("{f: typed::echo}", &["V0416", "V0301"], "::"),
         ("typed[:echo]", &["V0112", "V0409"], "typed"),
@@ -381,7 +375,7 @@ fn registered_methods_keep_compiled_snapshots_and_call_resolution() {
         "echo(7)",
         "echo(*[7])",
         "(echo)(7)",
-        "module M; def self.run; echo(7); end; end; M.run",
+        "module M; def self.run -> int; echo(7); end; end; M.run",
     ] {
         assert_eq!(
             engine
