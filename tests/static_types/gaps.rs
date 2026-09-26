@@ -214,6 +214,9 @@ fn union_receiver_blocks_are_checked_with_every_parameter_type() {
 fn capitalized_assignments_in_functions_are_rejected() {
     clean("def bump -> int\n  count = 1\n  count = 2\n  count\nend\n");
     codes("def bad\n  COUNT = 1\nend\n", &["V0102"]);
+    codes("class C; N = 1; def bad; N += 1; end; end", &["V0102"]);
+    codes("class C; FLAG = true; def bad; FLAG &&= false; end; end", &["V0102"]);
+    clean("class C; @@n: int = 1; def bump -> int; @@n += 1; end; end; C.new.bump");
 }
 
 #[test]

@@ -1095,6 +1095,9 @@ impl<'a> Checker<'a> {
     }
 
     fn assignment(&mut self, stmt: &'a Stmt, target: &'a Target, op: &str, value: &'a Expr) -> Ty {
+        if op != "=" {
+            self.check_binding_target(target);
+        }
         match op {
             "=" => self.assign(target, value),
             "||=" | "&&=" => {
