@@ -13,13 +13,15 @@
 //! and `{"$enum": [enum, member, symbol]}` name typed values. Hash comparison ignores
 //! insertion order but enforces the key set, as Go's `assertValueEqual` does.
 //! Rejections assert a runtime `ErrorKind` derived from the Rust source; Go's error
-//! wording is not asserted.
+//! wording is not asserted. Rejections that static types turn into compile errors
+//! assert those diagnostics instead (`STATIC_REJECTIONS`).
 
 use serde_json::{Value as Json, json};
 use std::{
     collections::{BTreeMap, BTreeSet},
     f64::consts::PI,
     fs,
+    ops::Range,
     path::Path,
 };
 use vibescript::{CallOptions, Engine, ErrorKind, Limits, Script, Value};
@@ -463,8 +465,12 @@ fn program_fixtures() {
     let mut covered = Coverage::default();
     for (id, path, expected) in program_fixture_cases() {
         let script = compile(&engine, path);
-        let value = call(id, &script, "run", &[], CallOptions::default());
-        assert_value(id, &value, &expected);
+        // A `run` static types refuse is covered by the diagnostics `compile`
+        // asserts.
+        if !refused(path, "run") {
+            let value = call(id, &script, "run", &[], CallOptions::default());
+            assert_value(id, &value, &expected);
+        }
         covered.record(id);
     }
 
@@ -543,7 +549,8 @@ fn enum_fixture_typed_calls() {
 #[test]
 fn block_error_cases() {
     let mut covered = Coverage::default();
-    let script = compile(&Engine::new(), "tests/blocks/error_cases.vibe");
+    let path = "tests/blocks/error_cases.vibe";
+    let script = compile(&Engine::new(), path);
 
     // Kind: src/iteration.rs:524 (`argument("<name> requires a block")`).
     for (id, function) in [
@@ -556,7 +563,7 @@ fn block_error_cases() {
             "map_without_block",
         ),
     ] {
-        reject(id, &script, function, &[], ErrorKind::Argument);
+        rejected(id, path, &script, function, &[], ErrorKind::Argument);
         covered.record(id);
     }
 
@@ -590,10 +597,11 @@ fn block_error_cases() {
 #[test]
 fn block_error_propagation() {
     let mut covered = Coverage::default();
-    let script = compile(&Engine::new(), "tests/blocks/block_error_propagation.vibe");
+    let path = "tests/blocks/block_error_propagation.vibe";
+    let script = compile(&Engine::new(), path);
     // An unknown int member raised inside a map block (src/vm/call_targets.rs:205).
     let id = "reject/blocks/block_error_propagation/explode";
-    reject(id, &script, "explode", &[], ErrorKind::Name);
+    rejected(id, path, &script, "explode", &[], ErrorKind::Name);
     covered.record(id);
     covered.finish(BLOCK_PROPAGATION_IDS.iter().copied());
 }
@@ -640,7 +648,8 @@ fn runtime_error_cases() {
 #[test]
 fn type_error_cases() {
     let mut covered = Coverage::default();
-    let script = compile(&Engine::new(), "tests/errors/types.vibe");
+    let path = "tests/errors/types.vibe";
+    let script = compile(&Engine::new(), path);
     for (id, function, kind) in TYPE_ERROR_CASES {
         // Line 591 passes the host string "wrong" to `arg_type_mismatch(n: int)`.
         let args = if *function == "arg_type_mismatch" {
@@ -648,7 +657,7 @@ fn type_error_cases() {
         } else {
             Vec::new()
         };
-        reject(id, &script, function, &args, *kind);
+        rejected(id, path, &script, function, &args, *kind);
         covered.record(id);
     }
     covered.finish(TYPE_ERROR_CASES.iter().map(|(id, _, _)| *id));
@@ -679,13 +688,14 @@ fn yield_error_cases() {
 #[test]
 fn argument_error_cases() {
     let mut covered = Coverage::default();
-    let script = compile(&Engine::new(), "tests/errors/arguments.vibe");
+    let path = "tests/errors/arguments.vibe";
+    let script = compile(&Engine::new(), path);
 
     for (id, function) in [
         ("reject/errors/arguments/too_few_args", "too_few_args"),
         ("reject/errors/arguments/too_many_args", "too_many_args"),
     ] {
-        reject(id, &script, function, &[], ErrorKind::Argument);
+        rejected(id, path, &script, function, &[], ErrorKind::Argument);
         covered.record(id);
     }
 
@@ -736,7 +746,9 @@ fn all_vibe_files_compile_and_run() {
             program.path
         );
         let script = compile(&engine, &program.path);
-        if program.defines_run {
+        if refused(&program.path, "run") {
+            // Covered by the diagnostics `compile` asserts.
+        } else if program.defines_run {
             call(&id, &script, "run", &[], high_quota());
         } else {
             let error = match script.call("run", &[], high_quota()) {
@@ -902,34 +914,174 @@ fn source(path: &str) -> String {
     fs::read_to_string(&full).unwrap_or_else(|e| panic!("{}: {e}", full.display()))
 }
 
-/// Pinned programs that call what static types refuse on purpose, so that
-/// their invocations reproduce the reference's runtime rejections.
-const RUNTIME_REJECTION_PROGRAMS: [&str; 9] = [
-    "tests/blocks/block_arity.vibe",
-    "tests/blocks/block_error_propagation.vibe",
-    "tests/blocks/error_cases.vibe",
-    "tests/classes/privacy.vibe",
-    "tests/errors/arguments.vibe",
-    "tests/errors/attributes.vibe",
-    "tests/errors/classes.vibe",
-    "tests/errors/runtime.vibe",
-    "tests/errors/types.vibe",
+/// A pinned program with functions that the reference rejects when they run
+/// and that static types refuse at compile time.
+struct Refusal {
+    path: &'static str,
+    /// Each refused function with the codes of the diagnostics reported in
+    /// it, in source order.
+    functions: &'static [(&'static str, &'static [&'static str])],
+    /// Functions that call refused ones, removed with them.
+    callers: &'static [&'static str],
+}
+
+const STATIC_REJECTIONS: &[Refusal] = &[
+    Refusal {
+        path: "tests/blocks/block_arity.vibe",
+        functions: &[("run", &["V0306", "V0306"])],
+        callers: &[],
+    },
+    Refusal {
+        path: "tests/blocks/block_error_propagation.vibe",
+        functions: &[("explode", &["V0203"])],
+        callers: &[],
+    },
+    Refusal {
+        path: "tests/blocks/error_cases.vibe",
+        functions: &[
+            ("each_without_block", &["V0304"]),
+            ("map_without_block", &["V0304"]),
+        ],
+        callers: &[],
+    },
+    Refusal {
+        path: "tests/classes/privacy.vibe",
+        functions: &[("attempt", &["V0208"])],
+        callers: &["violate"],
+    },
+    Refusal {
+        path: "tests/errors/arguments.vibe",
+        functions: &[("too_few_args", &["V0301"]), ("too_many_args", &["V0301"])],
+        callers: &[],
+    },
+    Refusal {
+        path: "tests/errors/attributes.vibe",
+        functions: &[("set_readonly", &["V0203"])],
+        callers: &[],
+    },
+    Refusal {
+        path: "tests/errors/classes.vibe",
+        functions: &[
+            ("undefined_method", &["V0203"]),
+            ("private_method_external", &["V0208"]),
+            ("write_to_readonly", &["V0203"]),
+            ("wrong_init_args", &["V0301"]),
+        ],
+        callers: &[],
+    },
+    Refusal {
+        path: "tests/errors/runtime.vibe",
+        functions: &[
+            ("array_non_integer_index", &["V0101"]),
+            ("index_unsupported_type", &["V0112"]),
+            ("method_missing", &["V0203"]),
+            ("nil_method", &["V0203"]),
+        ],
+        callers: &[],
+    },
+    Refusal {
+        path: "tests/errors/types.vibe",
+        functions: &[
+            ("sub_mismatch", &["V0108"]),
+            ("mul_mismatch", &["V0108"]),
+            ("div_mismatch", &["V0108"]),
+            ("unary_mismatch", &["V0108"]),
+            ("return_type_mismatch", &["V0101"]),
+        ],
+        callers: &[],
+    },
 ];
 
-/// Compiles a pinned program; the runtime rejection programs compile
-/// without static types.
-fn compile(engine: &Engine, path: &str) -> Script {
-    let untyped;
-    let engine = if RUNTIME_REJECTION_PROGRAMS.contains(&path) {
-        let mut plain = Engine::legacy_unchecked();
+/// Whether static types refuse `function` in the pinned program at `path`,
+/// so that the diagnostics `compile` asserts stand for its rejection.
+fn refused(path: &str, function: &str) -> bool {
+    STATIC_REJECTIONS.iter().any(|refusal| {
+        refusal.path == path && refusal.functions.iter().any(|(name, _)| *name == function)
+    })
+}
 
-        untyped = plain;
-        &untyped
-    } else {
-        engine
-    };
+/// The byte range of the definition of `function` in `text`, from its `def`
+/// line through the `end` at the same indentation.
+fn definition(text: &str, function: &str) -> Range<usize> {
+    let mut offset = 0;
+    let mut open: Option<(usize, &str)> = None;
+    for line in text.split_inclusive('\n') {
+        let body = line.trim_start();
+        let indent = &line[..line.len() - body.len()];
+        match open {
+            None => {
+                let head = body.strip_prefix("private ").unwrap_or(body);
+                let named = head
+                    .strip_prefix("def ")
+                    .and_then(|rest| rest.strip_prefix(function));
+                if named.is_some_and(|rest| {
+                    !rest.starts_with(|c: char| c.is_alphanumeric() || "_?!=".contains(c))
+                }) {
+                    open = Some((offset, indent));
+                }
+            }
+            Some((start, opened)) if indent == opened && body.trim_end() == "end" => {
+                return start..offset + line.len();
+            }
+            Some(_) => {}
+        }
+        offset += line.len();
+    }
+    panic!("no definition of {function}");
+}
+
+/// Compiles a pinned program. A program with functions static types refuse
+/// must report exactly their diagnostics, and the rest of it compiles and
+/// runs without them.
+fn compile(engine: &Engine, path: &str) -> Script {
+    let mut text = source(path);
+    if let Some(refusal) = STATIC_REJECTIONS
+        .iter()
+        .find(|refusal| refusal.path == path)
+    {
+        let error = engine
+            .compile(&text)
+            .err()
+            .unwrap_or_else(|| panic!("{path}: compiled with static types"));
+        let found: Vec<(&str, String)> = error
+            .diagnostics()
+            .iter()
+            .filter(|diagnostic| diagnostic.is_error())
+            .map(|diagnostic| {
+                let function = refusal
+                    .functions
+                    .iter()
+                    .map(|(name, _)| *name)
+                    .find(|name| definition(&text, name).contains(&diagnostic.span.start))
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "{path}: unexpected {}: {}",
+                            diagnostic.code, diagnostic.message
+                        )
+                    });
+                (function, diagnostic.code.to_string())
+            })
+            .collect();
+        let expected: Vec<(&str, String)> = refusal
+            .functions
+            .iter()
+            .flat_map(|(name, codes)| codes.iter().map(|code| (*name, code.to_string())))
+            .collect();
+        assert_eq!(found, expected, "{path}");
+        let mut removed: Vec<Range<usize>> = refusal
+            .functions
+            .iter()
+            .map(|(name, _)| *name)
+            .chain(refusal.callers.iter().copied())
+            .map(|name| definition(&text, name))
+            .collect();
+        removed.sort_by_key(|range| std::cmp::Reverse(range.start));
+        for range in removed {
+            text.replace_range(range, "");
+        }
+    }
     engine
-        .compile(&source(path))
+        .compile(&text)
         .unwrap_or_else(|e| panic!("{path}: compile failed: {e}"))
 }
 
@@ -976,11 +1128,27 @@ fn reject(id: &str, script: &Script, function: &str, args: &[Value], kind: Error
     assert_eq!(error.kind, kind, "{id}: {error}");
 }
 
+/// Asserts the reference's rejection of `function` in the program at `path`:
+/// the runtime error kind, or, when static types refuse the function, the
+/// diagnostics `compile` asserted.
+fn rejected(
+    id: &str,
+    path: &str,
+    script: &Script,
+    function: &str,
+    args: &[Value],
+    kind: ErrorKind,
+) {
+    if !refused(path, function) {
+        reject(id, script, function, args, kind);
+    }
+}
+
 fn rejection_group(path: &str, cases: &[(&str, &str, ErrorKind)]) {
     let mut covered = Coverage::default();
     let script = compile(&Engine::new(), path);
     for (id, function, kind) in cases {
-        reject(id, &script, function, &[], *kind);
+        rejected(id, path, &script, function, &[], *kind);
         covered.record(id);
     }
     covered.finish(cases.iter().map(|(id, _, _)| *id));
