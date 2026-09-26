@@ -29,14 +29,14 @@ def cases():
         add("expanded", f"{call}(*[7])", 7, returns="int", registration=registration, value="int")
         add("block", f"{call}(7) {{ |n| n.as(int)+1 }}", 8, returns="int", registration=registration, callback="block", block=True,
             value="int")
-        add("module_default", 'require("worker").run()', 7, registration=registration, allow_require=True, static_error={"code": "V0412", "at": [4, 22]},
+        add("module_default", 'require("worker").run', 7, registration=registration, allow_require=True,
             params=[{"name":"value", "type":"Widget"}], returns="Widget", value="int",
 
-            files={"worker.vibe":f"class Widget; def id -> int; 7; end; end; def run(x: Widget = {call}(Widget.new)) -> int; {call}(x).as(Widget).id; end"})
-        add("module_enum", 'require("worker").run()', True, registration=registration, allow_require=True, static_error={"code": "V0412", "at": [4, 22]},
+            files={"worker.vibe":f"class Widget; def id -> int; 7; end; end; def run(x: Widget = {call}(Widget.new).as(Widget)) -> int; {call}(x).as(Widget).id; end"})
+        add("module_enum", 'require("worker").run', True, registration=registration, allow_require=True,
             params=[{"name":"value", "type":"Status"}], returns="Status", value="bool",
 
-            files={"worker.vibe":f"enum Status; Draft; end; def run(x: Status = {call}(:draft)) -> bool; x==Status::Draft; end"})
+            files={"worker.vibe":f"enum Status; Draft; end; def run(x: Status = {call}(:draft).as(Status)) -> bool; x==Status::Draft; end"})
 
     # Indexing a capability by name is a static rejection; `send` on a capability compiles,
     # as a capability method of that name would (ADR-008), and dispatches at runtime.
@@ -127,14 +127,14 @@ def cases():
         add(name, body, expected, block=True, callback="block", returns="int", run_type=run_type)
     for registration, call in [("capability", "typed.echo"), ("registered", "echo"), ("global", "echo")]:
         for name, ty, body, prefix, expected, got, value in [
-            ("class_shadow", "Widget", f"class Widget; def id -> int; 7; end; end; def run(x: Widget = {call}(Widget.new)) -> int; {call}(x).as(Widget).id; end",
+            ("class_shadow", "Widget", f"class Widget; def id -> int; 7; end; end; def run(x: Widget = {call}(Widget.new).as(Widget)) -> int; {call}(x).as(Widget).id; end",
              "class Widget; def id -> int; 99; end; end", 7, "instance", "int"),
-            ("enum_shadow", "Status", f"enum Status; Draft; end; def run(x: Status = {call}(:draft)) -> bool; x==Status::Draft; end",
+            ("enum_shadow", "Status", f"enum Status; Draft; end; def run(x: Status = {call}(:draft).as(Status)) -> bool; x==Status::Draft; end",
              "enum Status; Root; end", True, "symbol", "bool"),
         ]:
-            add(name, 'require("worker").run()', expected, registration=registration,
+            add(name, 'require("worker").run', expected, registration=registration,
                 params=[{"name":"value", "type":ty}], returns=ty, value=value,
-                prefix=prefix, files={"worker.vibe":body}, allow_require=True, static_error={"code": "V0412", "at": [4, 22]},
+                prefix=prefix, files={"worker.vibe":body}, allow_require=True,
                 go=["unexpected", "RuntimeError", f"{call} argument value expected {ty}, got {got}"],
                 policy="consistent_signature_type_scope",
                 reason="Apply the selected consistent binding rule to named host types: declarations in the active required source precede same-named root declarations, including defaults.")
