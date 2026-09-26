@@ -15,8 +15,8 @@ To check or re-record only affected cases, pass `--cases FILE`, where the JSON f
 | Corpus | Cases | Sources |
 | --- | ---: | --- |
 | `conformance` | 1,248 | generated cases in `scripts/fixtures.py` and the host-binding, required-file, capability, block and signature generators; the site and upstream programs; the benchmark cases |
-| `language` | 106,873 | `tests/language.json` |
-| `rejections` | 32,641 | runtime errors in `tests/language-errors.json` and compile errors in `tests/syntax-errors.json`; with static types, the cases that carry a `static_error` |
+| `language` | 106,877 | `tests/language.json` |
+| `rejections` | 32,637 | runtime errors in `tests/language-errors.json` and compile errors in `tests/syntax-errors.json`; with static types, the cases that carry a `static_error` |
 | `compatibility` | 219 | the selected differences from Go: `docs/compatibility-cases.json`, the generators' policy cases and the sources in `docs/*-differences.json` and `docs/computed-call-gaps.json` |
 | `replay` | 56,827 | the calls and compiles Go v0.70.0's test suite made, in `replay/` |
 | `parse` | 35,965 | the site and upstream programs with a token deleted, duplicated or inserted, or cut after a line, as `scripts/parse-sweep.py` makes them; compiled only |
@@ -70,9 +70,9 @@ The migration's non-mechanical decisions are in [migration-decisions.jsonl](migr
 
 | Corpus | converted | deleted | rewritten | sloppiness | at the flip | restored | checker issue |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `language` |  | 5,653 | 3,938 | 3,058 |  | 84 |  |
-| `language -> rejections` | 6,480 |  |  |  |  |  | 18 |
-| `rejections` | 12,695 | 1,020 | 42 | 148 | 44 |  | 4 |
+| `language` |  | 5,653 | 3,938 | 3,058 |  | 88 |  |
+| `language -> rejections` | 6,476 |  |  |  |  |  | 12 |
+| `rejections` | 12,695 | 1,020 | 42 | 148 | 44 |  |  |
 | `replay` | 3,356 | 906 | 3,207 | 40 |  | 13 |  |
 | `conformance` | 187 |  | 78 |  |  | 54 |  |
 | `compatibility` | 143 |  | 9 | 2 |  | 28 |  |
