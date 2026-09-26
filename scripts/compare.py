@@ -143,10 +143,9 @@ def measure(out,rounds,target_ms,expected,suite):
             rss_input.write_text(json.dumps([case],ensure_ascii=False)+"\n")
             rss_file=out/f"rss-{variant}-{index}.txt"
             with rss_file.open("w") as err,(out/f"rss-{variant}-{index}.jsonl").open("w") as output:
-                flag="-l" if sys.platform=="darwin" else "-v"
-                run(["/usr/bin/time",flag,BINS/variant,rss_input,20,"timing"],cwd=ROOT,stdout=output,stderr=err,env={**os.environ,"LC_ALL":"C"})
+                run([sys.executable,ROOT/"scripts/rss.py",BINS/variant,rss_input,20,"timing"],cwd=ROOT,stdout=output,stderr=err)
             line=next(line for line in rss_file.read_text().splitlines() if "maximum resident set size" in line.lower())
-            rss[variant][case["name"]]=int(line.split()[0]) if sys.platform=="darwin" else int(line.rsplit(":",1)[1])*1024
+            rss[variant][case["name"]]=int(line.split()[0])
     summary={"rounds":rounds,"order":order,"peak_rss_bytes":rss,"cases":{}}
     for case in cases:
         name=case["name"];summary["cases"][name]={}
