@@ -59,10 +59,25 @@ pub(crate) fn serves(base: Base, method: Method, count: usize) -> bool {
     }
 }
 
-/// Calls `method` on `receiver` as dynamic dispatch would when the receiver's
-/// runtime kind is one the member serves, or returns `None` to leave the call
-/// to dynamic dispatch: for an arbitrary-precision integer, a host object,
-/// whose fields come before hash members, or a rescued error or match data.
+/// Whether [`call`] serves `method` with `count` arguments on `receiver`:
+/// its runtime kind must be one the member serves, which excludes an
+/// arbitrary-precision integer, a host object, whose fields come before
+/// hash members, and a rescued error or match data.
+pub(crate) fn accepts(method: Method, receiver: &Value, count: usize) -> bool {
+    let base = match &receiver.0 {
+        Kind::Bytes(_) => Base::String,
+        Kind::Array(_) => Base::Array,
+        Kind::Hash(hash) if !hash.object && hash.tag == Tag::None => Base::Hash,
+        Kind::Int(_) => Base::Int,
+        Kind::Float(_) => Base::Float,
+        _ => return false,
+    };
+    serves(base, method, count)
+}
+
+/// Calls `method` on `receiver` as dynamic dispatch would when [`accepts`]
+/// does, or returns `None`, having charged nothing, to leave the call to
+/// dynamic dispatch.
 pub(crate) fn call(
     ctx: &mut CallContext,
     method: Method,
@@ -70,15 +85,7 @@ pub(crate) fn call(
     receiver: &Value,
     args: &[Value],
 ) -> Result<Option<Value>> {
-    let base = match &receiver.0 {
-        Kind::Bytes(_) => Base::String,
-        Kind::Array(_) => Base::Array,
-        Kind::Hash(hash) if !hash.object && hash.tag == Tag::None => Base::Hash,
-        Kind::Int(_) => Base::Int,
-        Kind::Float(_) => Base::Float,
-        _ => return Ok(None),
-    };
-    if !serves(base, method, args.len()) {
+    if !accepts(method, receiver, args.len()) {
         return Ok(None);
     }
     ops::method(ctx, method, name, receiver.clone(), args).map(Some)

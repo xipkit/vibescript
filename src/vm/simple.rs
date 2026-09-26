@@ -165,6 +165,12 @@ pub(super) fn run(
                 step(ctx, frame)?;
                 array(ctx, stack, n)?;
             }
+            Op::Direct(site, n) => {
+                // Exported values need their arguments and result checked.
+                if ctx.has_exports || !direct(ctx, program, frame, stack, site, n)? {
+                    return Ok(());
+                }
+            }
             Op::Shadow(slot) => {
                 step(ctx, frame)?;
                 store(storage, frame.local_base + slot, Value::nil());
@@ -265,6 +271,38 @@ fn index(
     }
     stack.data.truncate(base);
     stack.push(ctx, value)
+}
+
+/// Calls a direct builtin member on the receiver under its `count`
+/// arguments, reporting whether it could; one it declines is left for the
+/// general loop, uncharged.
+#[inline(never)]
+fn direct(
+    ctx: &mut CallContext,
+    program: &Program,
+    frame: &mut Frame,
+    stack: &mut Buffer<Value>,
+    site: crate::bytecode::CallSite,
+    count: usize,
+) -> Result<bool> {
+    let base = stack.data.len() - count - 1;
+    let method = site.method.unwrap();
+    if !members::direct::accepts(method, &stack.data[base], count) {
+        return Ok(false);
+    }
+    step(ctx, frame)?;
+    let name = &program.members[site.name];
+    let value = members::direct::call(
+        ctx,
+        method,
+        name,
+        &stack.data[base],
+        &stack.data[base + 1..],
+    )?
+    .unwrap();
+    stack.data.truncate(base);
+    stack.push(ctx, value)?;
+    Ok(true)
 }
 
 /// Collects the `count` topmost values into an array literal.
