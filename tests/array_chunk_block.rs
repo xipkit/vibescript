@@ -1,8 +1,7 @@
 //! The block form of `chunk` groups consecutive elements by the key the
 //! block returns, `chunk<K>(&block: T -> K) -> array<[K, array<T>]>`. The
-//! programs type check, so they run with the build's default; the calls the
-//! checker refuses, such as `chunk` with both a size and a block, check the
-//! runtime without static types.
+//! calls the checker refuses, such as `chunk` with both a size and a block,
+//! are checked by their diagnostics.
 mod common;
 
 use std::sync::{
@@ -90,31 +89,30 @@ fn chunk_groups_consecutive_equal_keys_in_order() {
     ] {
         assert_eq!(json(&run(source)), expected, "{source}");
     }
-    // Forwarded and expanded spellings, which the checker refuses, reach
-    // the same overload at runtime.
+    // Empty expansions reach the same overload.
     for source in [
-        "a=[1,1,2]; a.send(:chunk) { |n| n }",
-        "a=[1,1,2]; a.public_send(:chunk) { |n| n }",
         "a=[1,1,2]; a.chunk(*[]) { |n| n }",
         "a=[1,1,2]; a.chunk(**{}) { |n| n }",
     ] {
-        let value = common::gradual_engine()
-            .compile(&format!("def run\n{source}\nend"))
-            .unwrap_or_else(|error| panic!("{source}: {error}"))
-            .call("run", &[], CallOptions::default())
-            .unwrap_or_else(|error| panic!("{source}: {error}"))
-            .value;
         assert_eq!(
-            json(&value),
+            json(&run(source)),
             serde_json::json!([[1, [1, 1]], [2, [2]]]),
             "{source}"
         );
+    }
+    // Dispatch by name is removed.
+    for source in [
+        "a=[1,1,2]; a.send(:chunk) { |n| n }",
+        "a=[1,1,2]; a.public_send(:chunk) { |n| n }",
+    ] {
+        let error = Engine::new().compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0405"], "{source}");
     }
 }
 
 #[test]
 fn the_block_form_is_typed_by_its_keys() {
-    let mut engine = Engine::new();
+    let engine = Engine::new();
     for source in [
         "def f(xs: array<int>) -> array<[bool, array<int>]>\n  xs.chunk { |n| n.even? }\nend\n",
         "def f(xs: array<string>) -> array<[symbol?, array<string>]>\n  xs.chunk { |s| s.empty? ? nil : :word }\nend\n",
@@ -203,51 +201,33 @@ fn reserved_symbol_keys_are_runtime_errors() {
 
 #[test]
 fn arguments_and_keywords_are_rejected_before_the_block_runs() {
-    // The checker refuses these calls; the runtime refuses them before the
-    // block runs too.
-    let (engine, effects) = effect_engine(common::gradual_engine());
-    for (expression, message) in [
-        (
-            "[1].chunk(2) { effect() }",
-            "array.chunk does not take arguments when a block is supplied",
-        ),
-        (
-            "[1].chunk(2, k: 1) { effect() }",
-            "array.chunk does not take arguments when a block is supplied",
-        ),
-        (
-            "[1].chunk(k: 1) { effect() }",
-            "array.chunk does not take keyword arguments",
-        ),
-        (
-            "[].chunk(k: 1) { effect() }",
-            "array.chunk does not take keyword arguments",
-        ),
-        (
-            "[1].send(:chunk, 2) { effect() }",
-            "array.chunk does not take arguments when a block is supplied",
-        ),
+    // The checker refuses these calls, so the block never runs.
+    let (engine, _) = effect_engine(Engine::new());
+    for (expression, code, text) in [
+        ("[1].chunk(2) { effect }", "V0301", "chunk"),
+        ("[1].chunk(2, k: 1) { effect }", "V0301", "chunk"),
+        ("[1].chunk(k: 1) { effect }", "V0301", "chunk"),
+        ("[].chunk(k: 1) { effect }", "V0301", "chunk"),
+        ("[1].send(:chunk, 2) { effect }", "V0405", "send"),
+        ("[1,2,3].chunk", "V0301", "chunk"),
     ] {
-        let script = engine
-            .compile(&format!("{expression};effect()"))
-            .unwrap_or_else(|error| panic!("{expression}: {error}"));
-        let error = script.run(CallOptions::default()).unwrap_err();
-        assert_eq!(error.kind, ErrorKind::Argument, "{expression}: {error:?}");
-        assert_eq!(error.class(), Some(ErrorClass::Runtime), "{expression}");
-        assert_eq!(error.message, message, "{expression}");
-        assert_eq!(effects.load(Ordering::SeqCst), 0, "{expression}");
+        let source = format!("{expression};effect");
+        let error = engine.compile(&source).err().unwrap();
+        let first = &error.diagnostics()[0];
+        assert_eq!(
+            (
+                first.code.to_string().as_str(),
+                &source[first.span.start..first.span.end]
+            ),
+            (code, text),
+            "{expression}"
+        );
     }
     // The sized form is unchanged.
     assert_eq!(
         json(&run("[1,2,3].chunk(2)")),
         serde_json::json!([[1, 2], [3]])
     );
-    let error = common::gradual_engine()
-        .compile("[1,2,3].chunk")
-        .unwrap()
-        .run(CallOptions::default())
-        .unwrap_err();
-    assert_eq!(error.kind, ErrorKind::Argument);
 }
 
 #[test]
