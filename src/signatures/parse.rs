@@ -191,7 +191,9 @@ pub(super) fn table(source: &str) -> Result<Table> {
                 parser.overload("", &function, start)?;
                 items.push(Item::Function(function));
             }
-            Token::Word(word) if word == "module" => items.push(Item::Module(parser.module(doc)?)),
+            Token::Word(word) if word == "module" => {
+                items.push(Item::Module(parser.module(doc, "")?))
+            }
             Token::Word(word) if word == "class" => items.push(Item::Class(parser.class(doc)?)),
             Token::Word(word) if word == "type" => items.push(Item::Alias(parser.alias(doc)?)),
             Token::Word(_) => items.push(Item::Constant(parser.constant(doc)?)),
@@ -324,11 +326,11 @@ impl Parser {
         Ok(lines)
     }
 
-    fn module(&mut self, doc: Vec<String>) -> Result<Module> {
+    fn module(&mut self, doc: Vec<String>, scope: &str) -> Result<Module> {
         self.keyword("module")?;
         let name = self.word("a module name")?;
         self.line_end()?;
-        let members = self.members(&format!("module {name}"), false)?;
+        let members = self.members(&format!("{scope}::module {name}"), false)?;
         Ok(Module { doc, name, members })
     }
 
@@ -423,6 +425,9 @@ impl Parser {
                     let function = self.function(doc)?;
                     self.overload(scope, &function, start)?;
                     Member::Function(function)
+                }
+                Token::Word(word) if word == "module" && !class => {
+                    Member::Module(self.module(doc, scope)?)
                 }
                 Token::Word(_) if !class => Member::Constant(self.constant(doc)?),
                 _ => return self.fail("expected a member declaration or `end`"),

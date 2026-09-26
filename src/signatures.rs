@@ -78,6 +78,8 @@ pub struct Class {
 #[non_exhaustive]
 pub enum Member {
     Function(Function),
+    /// A nested capability namespace.
+    Module(Module),
     /// A namespace constant such as `Math::PI`.
     Constant(Constant),
 }
@@ -87,6 +89,7 @@ impl Member {
     pub fn name(&self) -> &str {
         match self {
             Self::Function(function) => &function.name,
+            Self::Module(module) => &module.name,
             Self::Constant(value) => &value.name,
         }
     }

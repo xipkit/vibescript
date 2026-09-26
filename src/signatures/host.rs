@@ -109,26 +109,18 @@ fn documented(item: Item, doc: &str) -> Item {
 pub(crate) fn binding(name: &str, value: &Value) -> Item {
     match &value.0 {
         Kind::Host(bound) => Item::Function(method_function(name, bound)),
-        Kind::Hash(hash)
-            if hash
-                .buffer
-                .data
-                .iter()
-                .any(|(_, field)| matches!(field.0, Kind::Host(_))) =>
-        {
+        Kind::Hash(hash) if contains_methods(value) => {
             let members = hash
                 .buffer
                 .data
                 .iter()
                 .filter_map(|(key, field)| {
                     let key = String::from_utf8_lossy(key.as_bytes()?).into_owned();
-                    Some(match &field.0 {
-                        Kind::Host(bound) => Member::Function(method_function(&key, bound)),
-                        _ => Member::Constant(Constant {
-                            doc: Vec::new(),
-                            name: key,
-                            ty: value_type(field, 0),
-                        }),
+                    Some(match binding(&key, field) {
+                        Item::Function(function) => Member::Function(function),
+                        Item::Module(module) => Member::Module(module),
+                        Item::Constant(constant) => Member::Constant(constant),
+                        _ => unreachable!(),
                     })
                 })
                 .collect();
@@ -143,6 +135,18 @@ pub(crate) fn binding(name: &str, value: &Value) -> Item {
             name: name.to_owned(),
             ty: value_type(value, 0),
         }),
+    }
+}
+
+fn contains_methods(value: &Value) -> bool {
+    match &value.0 {
+        Kind::Host(_) => true,
+        Kind::Hash(hash) => hash
+            .buffer
+            .data
+            .iter()
+            .any(|(_, value)| contains_methods(value)),
+        _ => false,
     }
 }
 

@@ -28,7 +28,7 @@ impl Display for Table {
                 Item::Module(module) => {
                     comments(f, "", &module.doc)?;
                     writeln!(f, "module {}", module.name)?;
-                    members(f, &module.members)?;
+                    members(f, &module.members, "  ")?;
                     writeln!(f, "end")?;
                 }
                 Item::Class(class) => {
@@ -36,7 +36,7 @@ impl Display for Table {
                     write!(f, "class ")?;
                     pattern(f, class, &class.receiver, &mut Vec::new())?;
                     f.write_char('\n')?;
-                    members(f, &class.members)?;
+                    members(f, &class.members, "  ")?;
                     writeln!(f, "end")?;
                 }
             }
@@ -56,16 +56,22 @@ fn comments(f: &mut Formatter<'_>, indent: &str, lines: &[String]) -> fmt::Resul
     Ok(())
 }
 
-fn members(f: &mut Formatter<'_>, members: &[Member]) -> fmt::Result {
-    for member in members {
+fn members(f: &mut Formatter<'_>, entries: &[Member], indent: &str) -> fmt::Result {
+    for member in entries {
         let doc = match member {
             Member::Function(function) => &function.doc,
             Member::Constant(value) => &value.doc,
+            Member::Module(module) => &module.doc,
         };
-        comments(f, "  ", doc)?;
+        comments(f, indent, doc)?;
         match member {
-            Member::Function(function) => writeln!(f, "  {function}")?,
-            Member::Constant(Constant { name, ty, .. }) => writeln!(f, "  {name}: {ty}")?,
+            Member::Module(module) => {
+                writeln!(f, "{indent}module {}", module.name)?;
+                members(f, &module.members, &format!("{indent}  "))?;
+                writeln!(f, "{indent}end")?;
+            }
+            Member::Function(function) => writeln!(f, "{indent}{function}")?,
+            Member::Constant(Constant { name, ty, .. }) => writeln!(f, "{indent}{name}: {ty}")?,
         }
     }
     Ok(())

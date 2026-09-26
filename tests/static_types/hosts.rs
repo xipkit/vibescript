@@ -275,3 +275,63 @@ fn required_files_see_the_declared_names() {
     assert_eq!(outcome.value.as_int(), Some(42));
     std::fs::remove_dir_all(directory).unwrap();
 }
+
+#[test]
+fn declared_capability_methods_keep_their_contracts_and_names() {
+    let mut engine = Engine::new();
+    let cap = Capability::from_value(
+        "host",
+        Value::object(vec![
+            (
+                b"send".to_vec(),
+                signed("send", &[("message", "string")], "string").value(),
+            ),
+            (
+                b"clone".to_vec(),
+                signed("clone", &[("message", "string")], "string").value(),
+            ),
+        ]),
+    );
+    engine.declare_capability(&cap).unwrap();
+    codes_with(&engine, "host.send(\"x\")\nhost.clone(\"x\")\n", &[]);
+    codes_with(&engine, "host.send(1)\n", &["V0101"]);
+    codes_with(&engine, "host.clone(1)\n", &["V0101"]);
+}
+
+#[test]
+fn nested_method_objects_are_capability_namespaces() {
+    let mut engine = Engine::new();
+    let cap = Capability::from_value(
+        "cap",
+        Value::object(vec![(
+            b"inner".to_vec(),
+            Value::object(vec![(
+                b"m".to_vec(),
+                signed("m", &[("message", "string")], "string").value(),
+            )]),
+        )]),
+    );
+    engine.declare_capability(&cap).unwrap();
+    codes_with(&engine, "cap.inner.m(\"x\")\n", &[]);
+    codes_with(&engine, "cap.inner.m(1)\n", &["V0101"]);
+    codes_with(&engine, "cap.send(1)\n", &["V0203"]);
+    codes_with(&engine, "cap.clone\n", &["V0203"]);
+    engine.set_static_types(true);
+    let result = engine
+        .compile("cap.inner.m(\"x\")\n")
+        .unwrap()
+        .run(vibescript::CallOptions {
+            capabilities: vec![cap],
+            ..vibescript::CallOptions::default()
+        })
+        .unwrap();
+    assert_eq!(result.value.as_bytes(), Some(b"ok".as_slice()));
+    let prelude = engine.prelude(&vibescript::CallOptions::default());
+    assert!(prelude.contains("  module inner\n    def m(message: string) -> string\n  end\n"));
+    assert_eq!(
+        vibescript::signatures::Table::parse(&prelude)
+            .unwrap()
+            .to_string(),
+        prelude
+    );
+}

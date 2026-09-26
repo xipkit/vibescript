@@ -511,6 +511,25 @@ impl<'a> Checker<'a> {
                         .convert_owned(&mut self.types, function, None);
                     candidates.push((Rc::new(sig), Vec::new()));
                 }
+                crate::signatures::Member::Module(module) => {
+                    self.loose_args(call);
+                    let id = self
+                        .program
+                        .host_modules
+                        .iter()
+                        .position(|&known| std::ptr::eq(known, module))
+                        .unwrap_or_else(|| {
+                            let id = self.program.host_modules.len();
+                            self.program.host_modules.push(module);
+                            self.types.names.hosts.push(format!(
+                                "{}.{}",
+                                self.types.display(ty),
+                                module.name
+                            ));
+                            id
+                        });
+                    return self.types.intern(Kind::Host(id as u32));
+                }
                 crate::signatures::Member::Constant(constant) => {
                     self.loose_args(call);
                     return sigs::table_type(&mut self.types, &constant.ty, &[]);
@@ -518,7 +537,17 @@ impl<'a> Checker<'a> {
             }
         }
         if candidates.is_empty() {
-            return self.table_member(call, ty);
+            self.report(Diagnostic::error(
+                Code::UNKNOWN_MEMBER,
+                call.name_span,
+                format!(
+                    "{} declares no member `{}`",
+                    self.types.display(ty),
+                    call.name
+                ),
+            ));
+            self.loose_args(call);
+            return Ty::ERROR;
         }
         self.call_sigs(call, &candidates)
     }
@@ -585,6 +614,7 @@ impl<'a> Checker<'a> {
                         Vec::new(),
                     ));
                 }
+                crate::signatures::Member::Module(_) => continue,
                 crate::signatures::Member::Constant(constant) => {
                     self.loose_args(call);
                     return sigs::table_type(&mut self.types, &constant.ty, &[]);
