@@ -164,3 +164,16 @@ fn relative_requires_use_the_requiring_files_origin() {
     assert_eq!(found[0].code, Code::TYPE_MISMATCH);
     std::fs::remove_dir_all(directory).unwrap();
 }
+
+#[test]
+fn modules_are_namespaces_and_cannot_be_used_as_instance_types() {
+    super::support::clean("class C; end; x: C = C.new; module M; N = 1; end; M::N");
+    for source in [
+        "module M; end; x: M = M",
+        "module Outer; module M; end; end; x: Outer::M = Outer::M",
+        "module M; end; def f(x: M); end",
+    ] {
+        super::support::codes(source, &["V0116"]);
+        assert!(Engine::new().compile(source).is_err());
+    }
+}

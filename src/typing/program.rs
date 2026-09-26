@@ -622,12 +622,12 @@ impl<'a> Checker<'a> {
                 break;
             };
             if let Some(&child) = self.program.namespaces[ns as usize].children.get(name) {
-                return Some(self.namespace_type(child));
+                return self.namespace_type(child);
             }
             current = self.program.namespaces[ns as usize].parent;
         }
         if let Some(&ns) = self.program.roots.get(name) {
-            return Some(self.namespace_type(ns));
+            return self.namespace_type(ns);
         }
         if let Some(&id) = self.program.enum_names.get(name) {
             return Some(self.types.intern(Kind::EnumValue(id)));
@@ -650,7 +650,7 @@ impl<'a> Checker<'a> {
             return Some(ty);
         }
         let child = *self.program.namespaces[ns as usize].children.get(name)?;
-        Some(self.namespace_type(child))
+        self.namespace_type(child)
     }
 
     fn namespace_named(&self, name: &str, scope: Option<NsId>) -> Option<NsId> {
@@ -666,11 +666,11 @@ impl<'a> Checker<'a> {
 
     /// The type an annotation naming a class or module denotes: instances of
     /// a class. A module has no instances.
-    fn namespace_type(&mut self, ns: NsId) -> Ty {
+    fn namespace_type(&mut self, ns: NsId) -> Option<Ty> {
         if self.program.namespaces[ns as usize].is_class {
-            self.types.intern(Kind::Instance(ns))
+            Some(self.types.intern(Kind::Instance(ns)))
         } else {
-            Ty::ERROR
+            None
         }
     }
 
