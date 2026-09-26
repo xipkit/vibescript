@@ -2,19 +2,21 @@
 //! terminal.
 //!
 //! A [`ReplSession`] takes input one line at a time. Lines that leave a
-//! construct open are held until it is complete; a complete input runs as a
-//! top-level snippet. The variables it assigns and the functions, classes,
-//! modules and enums it declares stay available to later inputs, and `_` holds
-//! the last result. Instances made in one input still belong to their class in
-//! the next, while class and module state starts afresh for each input. Results and errors are rendered as the Go REPL renders
-//! them, and errors keep their structured diagnostics with positions in the
-//! text that was typed. Lines starting with `:` run the REPL's commands.
+//! construct open are held until it is complete; a complete input is type
+//! checked and runs as a top-level snippet. The variables it assigns keep the
+//! types the checker gave them, the functions, classes, modules and enums it
+//! declares stay available to later inputs, and `_` holds the last result.
+//! Instances made in one input still belong to their class in the next,
+//! while class and module state starts afresh for each input. Results and
+//! errors are rendered as the Go REPL renders them, and errors keep their
+//! structured diagnostics with positions in the text that was typed. Lines
+//! starting with `:` run the REPL's commands.
 //!
 //! ```
 //! use vibescript_tools::repl::{ReplOptions, ReplSession, Response};
 //!
 //! let mut session = ReplSession::new(ReplOptions::default());
-//! let response = session.feed_line("def double(n)");
+//! let response = session.feed_line("def double(n: int) -> int");
 //! assert!(matches!(response, Response::NeedsMoreInput));
 //! session.feed_line("  n * 2");
 //! session.feed_line("end");
@@ -421,6 +423,7 @@ impl ReplSession {
             .session
             .prelude
             .iter()
+            .filter(|carried| carried.kind == DeclarationKind::Function)
             .map(|carried| (carried.kind, carried.name.as_str()));
         let types = self
             .session

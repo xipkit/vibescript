@@ -39,18 +39,22 @@ fn repl(args: &[&str], input: &str) -> Run {
 fn piped_input_runs_one_line_at_a_time_without_escapes() {
     let run = repl(
         &[],
-        "x = 10\ndef scale(n)\n  n * x\nend\nscale(4)\nputs \"hi\"; nil\nmissing\n",
+        "x = 10\ndef scale(n: int, by: int) -> int\n  n * by\nend\nscale(4, x)\nputs \"hi\"; nil\n\
+         missing\n[1].fetch(3)\n",
     );
     assert_eq!(run.status, Some(0), "{}", run.stderr);
     assert_eq!(run.stderr, "");
     assert_eq!(
         run.stdout,
         "  › x = 10\n  → 10\n\n\
-         \x20 › def scale(n)\n      n * x\n    end\n  → nil\n\n\
-         \x20 › scale(4)\n  → 40\n\n\
+         \x20 › def scale(n: int, by: int) -> int\n      n * by\n    end\n  → nil\n\n\
+         \x20 › scale(4, x)\n  → 40\n\n\
          \x20 › puts \"hi\"; nil\n  → hi\n\n\
-         \x20 › missing\n  ✗ runtime error: undefined variable missing\n  \
-         --> line 1, column 1\n 1 | missing\n   | ^\n  at <repl> (1:1)\n\n"
+         \x20 › missing\n  ✗ compile error: error[V0201]: `missing` is not a local, function or \
+         builtin in scope, and the host declares no global or capability of that name\n  \
+         --> line 1, column 1\n 1 | missing\n   | ^\n\n\
+         \x20 › [1].fetch(3)\n  ✗ runtime error: array.fetch index 3 outside of array bounds: \
+         -1...1\n  --> line 1, column 1\n 1 | [1].fetch(3)\n   | ^\n  at <repl> (1:1)\n\n"
     );
 }
 
@@ -80,7 +84,7 @@ fn quota_flags_select_the_profile() {
         run.stdout
     );
     // xhigh leaves steps and memory unlimited and caps recursion at 10,000.
-    let run = repl(&[], "def down(n)\n  down(n + 1)\nend\ndown(0)\n");
+    let run = repl(&[], "def down(n: int)\n  down(n + 1)\nend\ndown(0)\n");
     assert!(
         run.stdout
             .contains("recursion depth exceeded (limit 10000)"),

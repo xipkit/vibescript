@@ -37,34 +37,41 @@ fn main() -> vibescript::Result<()> {
 }
 ```
 
-Compiling the text of earlier function declarations ahead of new source carries them into a later script. Classes, modules and enums are better carried as the values `run_bindings` returns: recompiling their source creates new types, so instances made earlier would no longer match them. The list is compiled metadata; building it charges the compile's work budget like the rest of the parse.
+Compiling the text of earlier declarations ahead of new source carries them into a later script, so the type checker knows them. Recompiling a class, module or enum creates a new one, so also pass the value `run_bindings` returned for it as a global of the same name: a supplied global shadows the declaration, and instances made earlier keep matching their class. The list is compiled metadata; building it charges the compile's work budget like the rest of the parse.
 
 ## Root bindings
 
 `Script::run_bindings(options)` runs the top-level statements like `Script::run` and also returns the root bindings they leave: every entry of `CallOptions::globals` with the value the run left in it, the classes, modules and enums the script declares at the top level, and every top-level local the statements assigned. A local takes precedence over a global of the same name, and a supplied global shadows a declaration of the same name, as it does during the run. A local that only an unexecuted branch assigns is bound to `nil`, as a later read in the same script would see it.
+
+A later script declares the variables it continues with the types the checker gave them: `Engine::type_check(source).locals` lists each top-level local a script assigns on every path, with its type as an annotation writes it.
 
 ```rust
 use std::collections::BTreeMap;
 use vibescript::{CallOptions, Engine};
 
 fn main() -> vibescript::Result<()> {
-    // Later inputs read the earlier ones' bindings, including the class, as
-    // globals, which static types cannot declare yet.
-    let mut engine = Engine::new();
-    engine.set_static_types(false);
     let mut session = BTreeMap::new();
+    let mut types: BTreeMap<String, String> = BTreeMap::new();
     for source in [
-        "class Box\n  @n: int\n\n  def initialize(n: int)\n    @n = n\n  end\nend\nitems = [Box.new(1)]",
-        "items.push(Box.new(2))\ncount = items.length",
-        "kept = items.all? { |item| item.is_type?(:Box) }",
+        "items = [1]",
+        "items.push(2)\ncount = items.length",
+        "kept = items.all? { |item| item > 0 }",
     ] {
+        let mut engine = Engine::new();
+        for (name, ty) in &types {
+            engine.declare_global(name.as_str(), ty)?;
+        }
+        let script = engine.compile(source)?;
+        types.extend(engine.type_check(source)?.locals);
         let options = CallOptions { globals: session, ..CallOptions::default() };
-        session = engine.compile(source)?.run_bindings(options)?.1;
+        session = script.run_bindings(options)?.1;
     }
     assert_eq!(session["count"].as_int(), Some(2));
     assert_eq!(session["kept"].truthy(), true);
     Ok(())
 }
 ```
+
+A declared global's type names builtin types only. A variable that holds an instance of a carried class is bound instead by a checked cast from a global declared as `any`, as `vibes repl` binds every variable: `origin = session.fetch("origin").as(Point)`, where the global `session` holds the earlier values. The class value passed as `Point` shadows the recompiled declaration, so the cast accepts the earlier instance.
 
 The values follow the result's contracts. They are isolated snapshots: the host's original globals are unchanged, and a later call cannot change a returned value. Passing them back as globals continues the session. Instances keep their fields and compiled code, and still belong to the class values passed with them, so `is_type?`, type annotations and enum comparisons behave as in one script. Each call starts class and module state afresh, as for any separately compiled namespace. A module object returned by `require` keeps its private file state, but the export names that `require` published into the root are not bindings; keep the returned object to use them later. Functions are not values, so they are not bindings; carry them as source with `Script::declarations`. Capturing the bindings charges the run's work budget, and a failed run returns only its error.

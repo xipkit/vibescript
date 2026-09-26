@@ -306,7 +306,19 @@ impl<'a> Checker<'a> {
             (false, None) => Want::Discard,
         };
         let body = &def.body;
-        self.stmts(body, want);
+        let result = self.stmts(body, want);
+        if main && !self.program.file {
+            self.session = Some(super::Session {
+                locals: self
+                    .frame
+                    .names
+                    .iter()
+                    .filter(|(_, id)| self.frame.flow.get(**id).assigned)
+                    .map(|(name, &id)| (name.clone(), self.frame.locals[id as usize].declared))
+                    .collect(),
+                result,
+            });
+        }
         if main && self.program.file {
             for (name, &id) in &self.frame.names {
                 if self.frame.flow.get(id).assigned {

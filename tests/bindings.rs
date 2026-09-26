@@ -1,5 +1,3 @@
-mod common;
-
 use std::collections::BTreeMap;
 use vibescript::{CallOptions, Engine, ErrorKind, Value};
 
@@ -122,29 +120,69 @@ fn globals_come_back_with_the_values_the_run_left() {
     assert_eq!(items.as_array().unwrap().len(), 1);
 }
 
+/// An engine for a session's scripts: each binds the earlier scripts'
+/// variables from the declared global `session`, as `vibes repl` does.
+fn session_engine() -> Engine {
+    let mut engine = Engine::new();
+    engine
+        .declare_global("session", "hash<string, any>")
+        .unwrap();
+    engine
+}
+
+/// Runs `source` with `bindings` as the session's variables and `classes`
+/// as globals that shadow the declarations `source` carries.
+fn continue_session(
+    engine: &Engine,
+    source: &str,
+    bindings: &BTreeMap<String, Value>,
+    classes: &[&str],
+) -> (Value, BTreeMap<String, Value>) {
+    let mut globals: BTreeMap<String, Value> = classes
+        .iter()
+        .map(|&name| (name.to_owned(), bindings[name].clone()))
+        .collect();
+    let variables = bindings
+        .iter()
+        .filter(|(name, _)| !classes.contains(&name.as_str()))
+        .map(|(name, value)| (name.as_bytes().to_vec(), value.clone()))
+        .collect();
+    globals.insert("session".to_owned(), Value::object(variables));
+    let (outcome, mut bindings) = engine
+        .compile(source)
+        .unwrap_or_else(|error| panic!("{source}: {error}"))
+        .run_bindings(CallOptions {
+            globals,
+            ..CallOptions::default()
+        })
+        .unwrap();
+    bindings.remove("session");
+    (outcome.value, bindings)
+}
+
 #[test]
 fn bindings_continue_a_session_across_scripts() {
-    // A session carries script classes, instances and enums into later
-    // scripts as globals, which static types cannot declare yet, so it
-    // keeps the ADR-004 language, as the REPL does.
-    let engine = common::gradual_engine();
+    // A later script carries the class as source, so the checker knows it,
+    // while the class value the first run left shadows the declaration, so
+    // the instance keeps its class; the instance comes back typed through a
+    // checked cast.
+    const COUNTER: &str =
+        "class Counter\n  @n: int = 0\n  def bump -> int\n    @n += 1\n  end\nend\n";
+    let engine = session_engine();
     let mut session = BTreeMap::new();
     for source in [
-        "class Counter\n  def initialize\n    @n = 0\n  end\n  def bump\n    @n += 1\n  end\nend\n\
-         counter = Counter.new",
-        "counter.bump\ncounter.bump",
-        "seen = counter.bump",
+        format!("{COUNTER}counter = Counter.new"),
+        format!(
+            "{COUNTER}counter = session.fetch(\"counter\").as(Counter)\ncounter.bump\ncounter.bump"
+        ),
+        format!("{COUNTER}counter = session.fetch(\"counter\").as(Counter)\nseen = counter.bump"),
     ] {
-        let options = CallOptions {
-            globals: session,
-            ..CallOptions::default()
+        let classes: &[&str] = if session.is_empty() {
+            &[]
+        } else {
+            &["Counter"]
         };
-        session = engine
-            .compile(source)
-            .unwrap()
-            .run_bindings(options)
-            .unwrap()
-            .1;
+        session = continue_session(&engine, &source, &session, classes).1;
     }
     assert_eq!(session["seen"].as_int(), Some(3));
     assert_eq!(session["counter"].type_name(), "instance");
@@ -153,35 +191,24 @@ fn bindings_continue_a_session_across_scripts() {
 
 #[test]
 fn declared_types_keep_their_identity_in_later_scripts() {
-    // A session carries script classes, instances and enums into later
-    // scripts as globals, which static types cannot declare yet, so it
-    // keeps the ADR-004 language, as the REPL does.
-    let engine = common::gradual_engine();
-    let first = "class Point
-  def initialize(x)
-    @x = x
-  end
-  def x
-    @x
+    const DECLARATIONS: &str = "class Point
+  getter x: int
+  def initialize(@x: int)
   end
 end
-                 module Shapes
+module Shapes
   SIDES = 4
 end
-                 enum Level
+enum Level
   Low
   High
 end
-                 def helper
-  1
-end
-                 origin = Point.new(3)
-level = Level::High";
-    let (_, bindings) = engine
-        .compile(first)
-        .unwrap()
-        .run_bindings(CallOptions::default())
-        .unwrap();
+";
+    let engine = session_engine();
+    let first = format!(
+        "{DECLARATIONS}def helper -> int\n  1\nend\norigin = Point.new(3)\nlevel = Level::High"
+    );
+    let (_, bindings) = continue_session(&engine, &first, &BTreeMap::new(), &[]);
     let kinds: Vec<_> = bindings
         .iter()
         .map(|(name, value)| (name.as_str(), value.type_name()))
@@ -197,20 +224,17 @@ level = Level::High";
             ("origin", "instance"),
         ]
     );
-    let options = CallOptions {
-        globals: bindings,
-        ..CallOptions::default()
-    };
-    let later = "def measure(p: Point) -> int
+    let later = format!(
+        "{DECLARATIONS}def measure(p: Point) -> int
   p.x + Shapes::SIDES
 end
-                 [origin.is_a?(Point), level == Level::High, measure(origin), measure(Point.new(1))]";
-    let (outcome, bindings) = engine
-        .compile(later)
-        .unwrap()
-        .run_bindings(options)
-        .unwrap();
-    assert_eq!(outcome.value.to_string(), "[true, true, 7, 5]");
+origin = session.fetch(\"origin\").as(Point)
+level = session.fetch(\"level\").as(Level)
+[origin.is_type?(:Point), level == Level::High, measure(origin), measure(Point.new(1))]"
+    );
+    let (value, bindings) =
+        continue_session(&engine, &later, &bindings, &["Level", "Point", "Shapes"]);
+    assert_eq!(value.to_string(), "[true, true, 7, 5]");
     assert!(!bindings.contains_key("measure"));
 }
 

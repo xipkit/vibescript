@@ -1,12 +1,20 @@
-//! Evaluation for the REPL: compiles each input as a top-level snippet, runs it
-//! with the session's variables as globals and keeps what it leaves behind.
+//! Evaluation for the REPL: compiles each input as a top-level snippet with
+//! static types, runs it, and keeps what it leaves behind.
 //!
-//! Variables, classes, modules and enums persist as the values
-//! [`Script::run_bindings`] returns, passed back as globals, so instances keep
-//! matching their classes. Functions are not values, so they persist as source:
-//! each input is compiled after the function declarations carried from earlier
-//! inputs, found through [`Script::declarations`], and positions are mapped
-//! back to the text the user typed.
+//! Declarations persist as source: each input is compiled after the
+//! functions, classes, modules and enums carried from earlier inputs, found
+//! through [`Script::declarations`], so the checker knows them, and
+//! positions are mapped back to the text the user typed. Classes, modules
+//! and enums also persist as the values [`Script::run_bindings`] returns,
+//! passed back as globals that shadow their carried declarations, so
+//! instances made earlier keep matching their classes.
+//!
+//! Variables persist with the types the checker gave them. Each input starts
+//! by binding them, as locals of those types, from one declared global that
+//! holds the session's values, `__session__`: `type __session__0 = int;
+//! x = __session__.fetch("x").as(__session__0)`. The cast checks the value
+//! as a host global's declared type would be checked, and gives the local
+//! its type for the rest of the input.
 
 use super::format;
 use std::{
@@ -15,13 +23,15 @@ use std::{
 };
 use vibescript::{
     CallOptions, CancellationToken, DeclarationKind, Diagnostic, Engine, Error, ErrorKind, Limits,
-    Position, Script, Value,
+    Position, Script, Value, tooling,
 };
 
 /// The name reported for frames in the input, as the Go REPL does.
 const DISPLAY_FUNCTION: &str = "<repl>";
 /// The name the library gives top-level frames.
 const TOP_LEVEL_FUNCTION: &str = "<script>";
+/// The declared global that holds the session's variables for each input.
+const SESSION: &str = "__session__";
 
 /// Evaluation state that persists across inputs.
 pub struct Session {
@@ -31,9 +41,12 @@ pub struct Session {
     interrupt: CancellationToken,
     /// Variables visible to the next input, including `_`, the last result.
     pub env: BTreeMap<String, Value>,
+    /// The static type of each variable, as an annotation writes it. A
+    /// variable without one, such as one a host added, is `any`.
+    pub env_types: BTreeMap<String, String>,
     /// Classes, modules and enums declared by earlier inputs, by name.
     pub types: BTreeMap<String, (DeclarationKind, Value)>,
-    /// Functions declared by earlier inputs, in the order they were made.
+    /// Declarations made by earlier inputs, in the order they were made.
     pub prelude: Vec<Carried>,
     /// The rendered text of the most recent failure, or empty.
     pub last_error: String,
@@ -59,10 +72,9 @@ impl Session {
         let stdout = Arc::new(Mutex::new(Vec::new()));
         let stderr = Arc::new(Mutex::new(Vec::new()));
         let mut engine = Engine::new();
-        // Each input sees the earlier inputs' variables as runtime globals,
-        // which static types do not declare yet, so the session keeps the
-        // ADR-004 language until it binds their types across inputs.
-        engine.set_static_types(false);
+        engine
+            .declare_global(SESSION, "hash<string, any>")
+            .expect("the session global's type is valid");
         let out = stdout.clone();
         engine.set_output_writer(move |_, bytes| {
             out.lock().unwrap().extend_from_slice(bytes);
@@ -79,6 +91,7 @@ impl Session {
             interrupt: cancellation.child_token(),
             cancellation,
             env: BTreeMap::new(),
+            env_types: BTreeMap::new(),
             types: BTreeMap::new(),
             prelude: Vec::new(),
             last_error: String::new(),
@@ -101,6 +114,7 @@ impl Session {
     /// Forgets every variable and carried declaration.
     pub fn reset(&mut self) {
         self.env.clear();
+        self.env_types.clear();
         self.types.clear();
         self.prelude.clear();
     }
@@ -144,7 +158,12 @@ impl Session {
             .filter(|(name, _)| !redeclared(name))
             .map(|(name, (_, value))| (name.clone(), value.clone()))
             .collect();
-        globals.extend(self.env.clone());
+        let variables = self
+            .env
+            .iter()
+            .map(|(name, value)| (name.as_bytes().to_vec(), value.clone()))
+            .collect();
+        globals.insert(SESSION.to_owned(), Value::object(variables));
         let options = CallOptions {
             globals,
             limits: self.limits.clone(),
@@ -169,20 +188,28 @@ impl Session {
                     }
                 }
                 self.env.clear();
+                self.env_types.clear();
                 self.types.clear();
                 for (name, value) in bindings {
-                    match kinds.get(&name) {
-                        Some(&kind) => {
-                            self.types.insert(name, (kind, value));
-                        }
-                        None => {
-                            self.env.insert(name, value);
-                        }
+                    if name == SESSION {
+                        continue;
+                    }
+                    if let Some(&kind) = kinds.get(&name) {
+                        self.types.insert(name, (kind, value));
+                        continue;
+                    }
+                    // A local only some paths assign is not a variable later
+                    // inputs may read.
+                    if let Some(ty) = compiled.locals.get(&name) {
+                        self.env.insert(name.clone(), value);
+                        self.env_types.insert(name, ty.clone());
                     }
                 }
-                self.prelude = compiled.functions;
+                self.prelude = compiled.carried;
                 let output = self.output(&outcome.value);
                 self.env.insert("_".to_owned(), outcome.value.clone());
+                self.env_types
+                    .insert("_".to_owned(), compiled.result.clone());
                 Evaluated {
                     output,
                     result: Ok(outcome.value),
@@ -226,47 +253,37 @@ impl Session {
         }
     }
 
-    /// Compiles `input` after the carried functions it does not redeclare.
-    /// Syntax errors are reported against the input alone.
+    /// Compiles `input` after the carried declarations it does not
+    /// redeclare and the lines that bind the session's variables. Syntax
+    /// errors are reported against the input alone.
     fn compile(&self, input: &str) -> Result<Compiled, Error> {
         let source: Arc<str> = Arc::from(input);
-        let alone = match self.engine.compile(input) {
-            Ok(script) => script,
-            // A top-level alias can name a carried function, so the input may
-            // need the prelude to compile at all.
-            Err(error) => {
-                return self
-                    .compile_after_prelude(&source)
-                    .ok_or_else(|| snippet_error(error, input.len()));
-            }
-        };
-        let declared = carry(&source, alone.declarations(), 0);
-        let kept = kept(&self.prelude, &declared);
-        if kept.is_empty() {
-            return Ok(Compiled::new(
-                alone,
-                SourceMap::plain(source),
-                kept,
-                declared,
-            ));
+        match tooling::outline(input) {
+            Ok(outline) => self.compile_after(source, &declared_names(&outline)),
+            // A top-level alias can name a carried function, so the input
+            // may need the carried declarations to parse at all.
+            Err(error) => self.compile_after(source, &[]).map_err(|_| {
+                let error = self.engine.compile(input).err().unwrap_or(error);
+                snippet_error(error, input.len())
+            }),
         }
-        let (combined, map) = SourceMap::build(&kept, source);
+    }
+
+    /// Compiles `source` after the carried declarations other than
+    /// `names`, which it declares itself, and the variables' bindings.
+    fn compile_after(&self, source: Arc<str>, names: &[String]) -> Result<Compiled, Error> {
+        let kept: Vec<Carried> = self
+            .prelude
+            .iter()
+            .filter(|carried| !names.contains(&carried.name))
+            .cloned()
+            .collect();
+        let bindings = self.bindings(names, &kept);
+        let (combined, map) = SourceMap::build(bindings, &kept, source.clone());
         let script = self
             .engine
             .compile(&combined)
             .map_err(|error| snippet_error(map.remap(error), combined.len()))?;
-        Ok(Compiled::new(script, map, kept, declared))
-    }
-
-    /// Compiles the input after every carried function, taking its own
-    /// declarations from the combined script. Returns `None` when that fails
-    /// too, or when nothing is carried.
-    fn compile_after_prelude(&self, source: &Arc<str>) -> Option<Compiled> {
-        if self.prelude.is_empty() {
-            return None;
-        }
-        let (combined, map) = SourceMap::build(&self.prelude, source.clone());
-        let script = self.engine.compile(&combined).ok()?;
         let start = combined.len() - source.len();
         let own: Vec<_> = script
             .declarations()
@@ -274,44 +291,100 @@ impl Session {
             .filter(|declaration| declaration.span.start >= start)
             .cloned()
             .collect();
-        let declared = carry(source, &own, start);
-        let kept = kept(&self.prelude, &declared);
-        Some(Compiled::new(script, map, kept, declared))
+        let declared = carry(&source, &own, start);
+        let checked = self
+            .engine
+            .type_check(&combined)
+            .map_err(|error| snippet_error(map.remap(error), combined.len()))?;
+        Ok(Compiled::new(script, map, kept, declared, checked))
+    }
+
+    /// The line that binds each variable, as a local of its type, before an
+    /// input that declares `names`, or nothing when there are none. A
+    /// variable whose type names a declaration the input replaces is bound
+    /// as `any`, since its value belongs to the replaced one.
+    fn bindings(&self, names: &[String], kept: &[Carried]) -> Option<String> {
+        let mut statements = Vec::new();
+        for name in self.env.keys() {
+            if names.contains(name) || kept.iter().any(|carried| carried.name == *name) {
+                continue;
+            }
+            let ty = self.env_types.get(name).map_or("any", String::as_str);
+            let replaced = ty
+                .split(|c: char| !(c.is_alphanumeric() || c == '_' || c == ':'))
+                .flat_map(|word| word.split("::"))
+                .any(|word| names.iter().any(|name| name == word));
+            let value = format!("{SESSION}.fetch({name:?})");
+            if ty == "any" || replaced {
+                statements.push(format!("{name} = {value}"));
+            } else {
+                // An alias reads the type in a type's position, where a
+                // shape field may be `nil`.
+                let alias = format!("{SESSION}{}", statements.len());
+                statements.push(format!("type {alias} = {ty}"));
+                statements.push(format!("{name} = {value}.as({alias})"));
+            }
+        }
+        if statements.is_empty() {
+            return None;
+        }
+        // An input without statements of its own produces nil, not the last
+        // binding.
+        statements.push("nil".to_owned());
+        Some(statements.join("; "))
     }
 }
 
-/// The carried functions that `declared` does not replace.
-fn kept(prelude: &[Carried], declared: &[Carried]) -> Vec<Carried> {
-    prelude
+/// The names of the top-level declarations in an outline.
+fn declared_names(outline: &tooling::Outline) -> Vec<String> {
+    use tooling::ItemKind;
+    outline
+        .items
         .iter()
-        .filter(|carried| !declared.iter().any(|new| new.name == carried.name))
-        .cloned()
+        .filter(|item| {
+            matches!(
+                item.kind,
+                ItemKind::Function
+                    | ItemKind::Alias
+                    | ItemKind::Class
+                    | ItemKind::Module
+                    | ItemKind::Enum
+            )
+        })
+        .map(|item| item.name.clone())
         .collect()
 }
 
 struct Compiled {
     script: Script,
     map: SourceMap,
-    /// The functions to carry after this input succeeds.
-    functions: Vec<Carried>,
+    /// The declarations to carry after this input succeeds.
+    carried: Vec<Carried>,
     /// Every top-level declaration in the input.
     declared: Vec<Carried>,
+    /// The type of each top-level local assigned on every path.
+    locals: BTreeMap<String, String>,
+    /// The type of the input's result.
+    result: String,
 }
 
 impl Compiled {
-    fn new(script: Script, map: SourceMap, kept: Vec<Carried>, declared: Vec<Carried>) -> Self {
-        let mut functions = kept;
-        functions.extend(
-            declared
-                .iter()
-                .filter(|carried| carried.kind == DeclarationKind::Function)
-                .cloned(),
-        );
+    fn new(
+        script: Script,
+        map: SourceMap,
+        kept: Vec<Carried>,
+        declared: Vec<Carried>,
+        checked: vibescript::typing::Checked,
+    ) -> Self {
+        let mut carried = kept;
+        carried.extend(declared.iter().cloned());
         Self {
             script,
             map,
-            functions,
+            carried,
             declared,
+            locals: checked.locals.into_iter().collect(),
+            result: checked.result.unwrap_or_else(|| "any".to_owned()),
         }
     }
 }
@@ -351,27 +424,39 @@ fn carry(source: &Arc<str>, declarations: &[vibescript::Declaration], base: usiz
 /// Maps positions in a compiled source back to the text the user typed.
 struct SourceMap {
     input: Arc<str>,
-    /// Lines before the input: the carried declarations.
+    /// Lines before the input: the variables' bindings and the carried
+    /// declarations.
     lines: usize,
-    /// Each carried declaration and the combined-source line it starts on.
+    /// Each line of bindings or carried declaration and the combined-source
+    /// line it starts on.
     regions: Vec<(usize, Carried)>,
 }
 
 impl SourceMap {
-    fn plain(input: Arc<str>) -> Self {
-        Self {
-            input,
-            lines: 0,
-            regions: Vec::new(),
-        }
-    }
-
-    /// Places each declaration on its own lines, indented to its original
-    /// column so columns need no mapping, and then the input.
-    fn build(prelude: &[Carried], input: Arc<str>) -> (String, Self) {
+    /// Places the bindings on the first line, then each declaration on its
+    /// own lines, indented to its original column so columns need no
+    /// mapping, and then the input.
+    fn build(bindings: Option<String>, prelude: &[Carried], input: Arc<str>) -> (String, Self) {
         let mut combined = String::new();
         let mut regions = Vec::new();
         let mut line = 1;
+        if let Some(bindings) = bindings {
+            let text: Arc<str> = Arc::from(bindings.as_str());
+            regions.push((
+                line,
+                Carried {
+                    kind: DeclarationKind::Function,
+                    name: String::new(),
+                    text: bindings,
+                    line: 1,
+                    column: 1,
+                    source: text,
+                },
+            ));
+            combined.push_str(&regions[0].1.text);
+            combined.push('\n');
+            line += 1;
+        }
         for carried in prelude {
             regions.push((line, carried.clone()));
             combined.extend(std::iter::repeat_n(' ', carried.column - 1));
@@ -502,16 +587,9 @@ mod tests {
 
     #[test]
     fn code_frames_match_the_library() {
-        for (source, line) in [
-            ("x = 1\n\tfoo(y)", 2),
-            ("abc", 1),
-            (&format!("{}zzz", "a".repeat(300)), 1),
-        ] {
-            // The session compiles without static types, so it matches
-            // the library's frames for runtime errors.
-            let mut engine = Engine::new();
-            engine.set_static_types(false);
-            let error = engine
+        let long = format!("{}1 // 0", "1 + ".repeat(100));
+        for (source, line) in [("x = 1\n\tx // 0", 2), ("1 // 0", 1), (long.as_str(), 1)] {
+            let error = Engine::new()
                 .compile(source)
                 .unwrap()
                 .run(CallOptions::default())

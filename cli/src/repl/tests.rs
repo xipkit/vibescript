@@ -152,9 +152,9 @@ fn up_and_down_recall_whole_inputs() {
 fn pasted_lines_submit_one_at_a_time() {
     let mut m = model();
     m.update(Key::Paste(
-        "def triple(n)\r\n  n * 3\nend\ntriple(".to_owned(),
+        "def triple(n: int) -> int\r\n  n * 3\nend\ntriple(".to_owned(),
     ));
-    assert_eq!(last(&m).input, "def triple(n)\n  n * 3\nend");
+    assert_eq!(last(&m).input, "def triple(n: int) -> int\n  n * 3\nend");
     assert_eq!(m.editor.value(), "triple(");
     m.update(Key::Text("2)".to_owned()));
     m.update(Key::Enter);
@@ -176,7 +176,7 @@ fn the_view_follows_the_go_layout() {
     assert_eq!(text[2], "");
     assert_eq!(&text[3..6], ["  › 1 + 2", "  → 3", ""]);
     assert_eq!(text[6], "  › unknown");
-    assert!(text[7].starts_with("  ✗ runtime error: undefined variable unknown"));
+    assert!(text[7].starts_with("  ✗ compile error: error[V0201]: `unknown` is not"));
     let prompt = text.len() - 3;
     assert_eq!(text[prompt], "vibes> type an expression...");
     assert_eq!(cursor, (prompt, 7));
@@ -234,13 +234,13 @@ fn line_mode_prints_each_entry_and_stops_at_quit() {
     let mut m = model();
     let output = run_lines(
         &mut m,
-        "x = 2\r\ndef sq(n)\n  n * n\nend\rsq(x)\n:vars\n:quit\n1 + 1\n",
+        "x = 2\r\ndef sq(n: int) -> int\n  n * n\nend\rsq(x)\n:vars\n:quit\n1 + 1\n",
     )
     .unwrap();
     assert_eq!(
         output,
         "  › x = 2\n  → 2\n\n\
-         \x20 › def sq(n)\n      n * n\n    end\n  → nil\n\n\
+         \x20 › def sq(n: int) -> int\n      n * n\n    end\n  → nil\n\n\
          \x20 › sq(x)\n  → 4\n\n\
          ╭───────────╮\n│ Variables │\n│   _ = 4   │\n│   x = 2   │\n╰───────────╯\n"
     );

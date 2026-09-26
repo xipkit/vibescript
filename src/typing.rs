@@ -79,6 +79,23 @@ pub struct Checked {
     /// What a required file exports, with the types its declarations give
     /// them.
     pub(crate) exported: Option<std::sync::Arc<modules::Exported>>,
+    /// The top-level locals a host script assigns on every path, in name
+    /// order, each with its declared type as an annotation writes it, or
+    /// `any` where no annotation can name the type, such as a class used as
+    /// a value. A host continuing a session, as `vibes repl` does, declares
+    /// them for the next script.
+    pub locals: Vec<(String, String)>,
+    /// The type of the value the top-level statements produce, which
+    /// `Script::run` returns, written the same way; `None` for a required
+    /// file.
+    pub result: Option<String>,
+}
+
+/// What checking the top-level statements of a host script found, for
+/// [`Checked::locals`] and [`Checked::result`].
+pub(crate) struct Session {
+    locals: Vec<(String, ty::Ty)>,
+    result: ty::Ty,
 }
 
 /// The static type of the receiver at each member call, keyed by the byte
@@ -218,6 +235,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         modules: modules::Required::new(input, depth),
         memo: None,
         write_chain: HashSet::new(),
+        session: None,
     };
     for (name, host) in &input.hosts {
         let function = crate::signatures::host::function(name, host);
@@ -236,6 +254,18 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     let steps =
         checker.steps + checker.frame.flow.steps + checker.types.steps + checker.spans.steps.get();
     let exported = input.file.then(|| std::sync::Arc::new(checker.export()));
+    let (mut locals, result) = match checker.session.take() {
+        Some(session) => (
+            session
+                .locals
+                .into_iter()
+                .map(|(name, ty)| (name, checker.types.annotation(ty)))
+                .collect(),
+            Some(checker.types.annotation(session.result)),
+        ),
+        None => (Vec::new(), None),
+    };
+    locals.sort();
     let mut diagnostics = checker.diagnostics;
     diagnostics.sort_by_key(|d| (d.span.start, d.span.end));
     diagnostics.dedup_by(|a, b| a.code == b.code && a.span == b.span && a.message == b.message);
@@ -244,6 +274,8 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         calls: CallTypes::from_entries(checker.calls),
         steps,
         exported,
+        locals,
+        result,
     };
     // Removed spellings of the canonical surface are compile errors too.
     crate::surface::add_to(&mut checked, input.source, input.tokens);
@@ -271,6 +303,7 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
         modules: modules::Required::new(input, 0),
         memo: None,
         write_chain: HashSet::new(),
+        session: None,
     };
     checker.declare_hosts(input.declared);
     checker.declare_program(input.parsed);
@@ -310,6 +343,8 @@ pub(crate) struct Checker<'a> {
     /// runtime raises when it is missing, and no fix rewrites one, since a
     /// write through a rewritten read would reach a copy.
     write_chain: HashSet<usize>,
+    /// The top-level statements' locals and result, once checked.
+    session: Option<Session>,
 }
 
 /// Expression types by node, recorded or replayed.

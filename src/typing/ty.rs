@@ -435,6 +435,45 @@ impl Types {
     }
 
     /// The type as an annotation writes it.
+    /// `ty` as an annotation writes it, or `any` when no annotation can
+    /// name it, such as for a class used as a value or a required file.
+    pub fn annotation(&self, ty: Ty) -> String {
+        if self.nameable(ty) {
+            self.display(ty)
+        } else {
+            "any".to_owned()
+        }
+    }
+
+    fn nameable(&self, ty: Ty) -> bool {
+        match self.kind(ty) {
+            Kind::Any
+            | Kind::Nil
+            | Kind::Bool
+            | Kind::Int
+            | Kind::Float
+            | Kind::String
+            | Kind::Symbol
+            | Kind::Duration
+            | Kind::Time
+            | Kind::Money
+            | Kind::Range
+            | Kind::Regex
+            | Kind::MatchData
+            | Kind::ErrorValue
+            | Kind::AnyEnum
+            | Kind::AnyEnumType
+            | Kind::Instance(_)
+            | Kind::EnumValue(_) => true,
+            Kind::Array(inner) | Kind::Hash(inner) => self.nameable(*inner),
+            Kind::Shape(fields, _) => fields.iter().all(|field| self.nameable(field.ty)),
+            Kind::Tuple(items) | Kind::Union(items) => {
+                items.iter().all(|&item| self.nameable(item))
+            }
+            _ => false,
+        }
+    }
+
     pub fn display(&self, ty: Ty) -> String {
         let mut out = String::new();
         self.write(ty, &mut out);

@@ -141,11 +141,20 @@ fn evaluate() {
         EvaluateCase {
             name: "runtime_error_returns_error",
             setup: none,
+            input: "[1].fetch(3)",
+            want_error: true,
+            check: nothing,
+            want_output: "outside of array bounds",
+            error_in_last: "runtime error:",
+        },
+        EvaluateCase {
+            name: "undefined_names_are_compile_errors",
+            setup: none,
             input: "unknown_var",
             want_error: true,
             check: nothing,
-            want_output: "undefined variable",
-            error_in_last: "runtime error:",
+            want_output: "error[V0201]",
+            error_in_last: "compile error:",
         },
         EvaluateCase {
             name: "puts_writes_to_history",
@@ -250,7 +259,7 @@ fn quota_is_configurable() {
 #[test]
 fn last_error_command_shows_previous_error() {
     let mut s = session();
-    assert!(s.evaluate("unknown_var").is_error());
+    assert!(s.evaluate("[1].fetch(3)").is_error());
     let Response::Command(entry) = s.command(":last_error") else {
         panic!("expected an entry");
     };
@@ -382,17 +391,23 @@ fn autocomplete() {
 #[test]
 fn unfinished_input_continues_until_complete() {
     let mut s = session();
-    for line in ["def add(a,", "        b)", "  a + b"] {
+    for line in ["def add(a: int,", "        b: int) -> int", "  a + b"] {
         assert!(
             matches!(s.feed_line(line), Response::NeedsMoreInput),
             "{line}"
         );
     }
-    assert_eq!(s.pending(), ["def add(a,", "        b)", "  a + b"]);
+    assert_eq!(
+        s.pending(),
+        ["def add(a: int,", "        b: int) -> int", "  a + b"]
+    );
     let Response::Evaluated(evaluation) = s.feed_line("end") else {
         panic!("expected an evaluation");
     };
-    assert_eq!(evaluation.input, "def add(a,\n        b)\n  a + b\nend");
+    assert_eq!(
+        evaluation.input,
+        "def add(a: int,\n        b: int) -> int\n  a + b\nend"
+    );
     assert_eq!(evaluation.output, "nil");
     assert!(s.pending().is_empty());
     let Response::Evaluated(evaluation) = s.feed_line("add(2, 3)") else {
@@ -423,14 +438,12 @@ fn declarations_persist_across_inputs() {
         &mut s,
         &[
             "rate = 3",
-            "def scale(n)",
-            "  n * rate",
+            "def scale(n: int, by: int) -> int",
+            "  n * by",
             "end",
             "class Counter",
-            "  def initialize",
-            "    @n = 0",
-            "  end",
-            "  def bump",
+            "  @n: int = 0",
+            "  def bump -> int",
             "    @n += 1",
             "  end",
             "end",
@@ -443,7 +456,7 @@ fn declarations_persist_across_inputs() {
             "end",
             "counter = Counter.new",
             "counter.bump",
-            "[scale(2), counter.bump, Tax::RATE, Level::High]",
+            "[scale(2, rate), counter.bump, Tax::RATE, Level::High]",
         ],
     );
     assert_eq!(last(&s).output, "[6, 2, 2, Level::High]");
@@ -458,28 +471,43 @@ fn declarations_persist_across_inputs() {
         ]
     );
     assert!(s.functions().split('\n').any(|name| name == "scale"));
-    // Instances and enum members keep matching their types, and variables
-    // list no declarations.
+    // Instances and enum members keep matching their types, variables keep
+    // theirs, and variables list no declarations.
     feed_all(
         &mut s,
         &[
             "def total(c: Counter) -> int",
             "  c.bump",
             "end",
-            "[counter.is_a?(Counter), total(counter), Level::High == Level::High]",
+            "[counter.is_type?(:Counter), total(counter), Level::High == Level::High]",
         ],
     );
     assert_eq!(last(&s).output, "[true, 3, true]");
     assert!(!s.variables().contains_key("Counter"));
+    s.feed_line("rate = \"three\"");
+    assert!(last(&s).output.contains("error[V0102]"), "{:?}", last(&s));
     // A redefinition replaces the earlier declaration.
-    feed_all(&mut s, &["def scale(n)", "  n * 10", "end", "scale(2)"]);
+    feed_all(
+        &mut s,
+        &["def scale(n: int) -> int", "  n * 10", "end", "scale(2)"],
+    );
     assert_eq!(last(&s).output, "20");
     feed_all(
         &mut s,
-        &["class Counter", "  def bump", "    99", "  end", "end"],
+        &[
+            "class Counter",
+            "  def bump -> int",
+            "    99",
+            "  end",
+            "end",
+        ],
     );
-    feed_all(&mut s, &["[Counter.new.bump, counter.bump]"]);
-    assert_eq!(last(&s).output, "[99, 4]");
+    feed_all(&mut s, &["Counter.new.bump"]);
+    assert_eq!(last(&s).output, "99");
+    // An instance of the replaced class is no longer a `Counter`, so it is
+    // `any` from then on.
+    s.feed_line("counter.bump");
+    assert!(last(&s).output.contains("error[V0106]"), "{:?}", last(&s));
     assert_eq!(s.declarations().count(), 5);
     s.feed_line(":reset");
     assert_eq!(last(&s).output, "Environment reset");
@@ -504,13 +532,16 @@ fn failures_leave_the_session_unchanged() {
 #[test]
 fn errors_keep_diagnostics_in_the_typed_text() {
     let mut s = session();
-    feed_all(&mut s, &["x = 1", "def ratio(n)", "  n / 0", "end"]);
+    feed_all(
+        &mut s,
+        &["x = 1", "def ratio(n: int) -> int", "  n // 0", "end"],
+    );
     let Response::Evaluated(evaluation) = s.feed_line("y = ratio(4)") else {
         panic!("expected an evaluation");
     };
     assert_eq!(
         evaluation.output,
-        "runtime error: division by zero\n  --> line 2, column 5\n 2 |   n / 0\n   |     ^\n  \
+        "runtime error: division by zero\n  --> line 2, column 5\n 2 |   n // 0\n   |     ^\n  \
          at ratio (2:5)\n  at ratio (1:5)"
     );
     let error = evaluation.result.unwrap_err();
@@ -540,7 +571,12 @@ fn top_level_aliases_can_name_carried_functions() {
     let mut s = session();
     feed_all(
         &mut s,
-        &["def double(n)", "  n * 2", "end", "alias twice double"],
+        &[
+            "def double(n: int) -> int",
+            "  n * 2",
+            "end",
+            "alias twice double",
+        ],
     );
     s.feed_line("twice(4)");
     assert_eq!(last(&s).output, "8");
@@ -590,10 +626,10 @@ fn commands_follow_the_go_repl() {
     assert_eq!(last(&s).output, "No globals defined");
     assert!(matches!(s.feed_line(":clear"), Response::Cleared));
     assert!(s.transcript().is_empty());
-    s.feed_line("x = nil");
+    s.feed_line("x: int? = nil");
     s.feed_line(":globals");
     assert_eq!(last(&s).output, "_ = \nx = ");
-    assert_eq!(s.history(), ["x = nil"]);
+    assert_eq!(s.history(), ["x: int? = nil"]);
     s.clear_transcript();
     assert!(s.transcript().is_empty());
 }
@@ -627,7 +663,7 @@ fn outputs_combine_printed_text_and_results_like_the_go_repl() {
 #[test]
 fn completion_includes_declarations_and_ignores_trailing_space() {
     let mut s = session();
-    feed_all(&mut s, &["def compute_total", "  1", "end"]);
+    feed_all(&mut s, &["def compute_total -> int", "  1", "end"]);
     assert_eq!(
         s.complete("x = compute_t"),
         Completion::Completed("x = compute_total".to_owned())
@@ -640,7 +676,7 @@ fn completion_includes_declarations_and_ignores_trailing_space() {
 #[test]
 fn chunks_feed_one_line_at_a_time() {
     let mut s = session();
-    let responses = s.feed("def triple(n)\r\n  n * 3\rend\ntriple(2)\n");
+    let responses = s.feed("def triple(n: int) -> int\r\n  n * 3\rend\ntriple(2)\n");
     assert_eq!(responses.len(), 4);
     assert!(matches!(responses[0], Response::NeedsMoreInput));
     let Response::Evaluated(evaluation) = &responses[3] else {
