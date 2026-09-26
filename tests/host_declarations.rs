@@ -87,20 +87,19 @@ fn a_global_declared_without_a_type_takes_any_value_but_must_be_supplied() {
     );
 }
 
-/// Without static types, a global the host does not declare still resolves
-/// when the call supplies it.
+/// A global the host does not declare is not in scope, even though a call
+/// could supply it, so the program does not compile.
 #[test]
-fn undeclared_globals_keep_working() {
-    let mut engine = common::gradual_engine();
+fn undeclared_globals_are_refused() {
+    let mut engine = Engine::new();
     engine.declare_global("limit", "int").unwrap();
-    let script = engine.compile("limit + extra").unwrap();
-    let outcome = script
-        .run(globals(vec![
-            ("limit", Value::int(40)),
-            ("extra", Value::int(2)),
-        ]))
-        .unwrap();
-    assert_eq!(outcome.value.as_int(), Some(42));
+    let source = "limit + extra";
+    let error = engine.compile(source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0201"]);
+    assert_eq!(
+        error.diagnostics()[0].span.start,
+        source.find("extra").unwrap()
+    );
 }
 
 #[test]
