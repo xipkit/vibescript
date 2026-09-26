@@ -3,6 +3,15 @@
 use super::support::{clean, codes};
 
 #[test]
+fn optional_defaults_do_not_definitely_assign_body_locals() {
+    clean("def f(a: int = (while true; x=7; break x; end)) -> int\n  a\nend\nf(1)\n");
+    codes(
+        "def f(a: int = (while true; x=7; break x; end)) -> int\n  x\nend\nf(1)\n",
+        &["V0202"],
+    );
+}
+
+#[test]
 fn removed_names_keep_their_diagnostic_and_fix_with_invalid_arguments() {
     clean("1.seconds.to_s\n[1].length\n");
     for source in [

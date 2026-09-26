@@ -267,11 +267,20 @@ impl<'a> Checker<'a> {
         }
         for (param, declared) in def.params.iter().zip(&sig.params) {
             if let Some(default) = &param.default {
+                let mark = self.frame.flow.mark();
                 self.expr_against(
                     default,
                     declared.ty,
                     &Purpose::Local(param.name.to_string()),
                 );
+                let evaluated = self.frame.flow.rollback(mark);
+                self.join(vec![
+                    evaluated,
+                    Branch {
+                        live: true,
+                        changes: Vec::new(),
+                    },
+                ]);
             }
             let local = self.declare(&param.name, declared.ty, def.offset as usize, true);
             self.assign_local(local, declared.ty);
