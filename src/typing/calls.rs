@@ -827,9 +827,6 @@ impl<'a> Checker<'a> {
         if call.name == "as" {
             return self.cast(call, ty);
         }
-        if call.name == "to_s" && call.args.is_empty() && call.block.is_none() {
-            return Ty::STRING;
-        }
         // A removed spelling is the surface diagnostics' to report; type
         // the call as its replacement when that is a plain rename.
         for base in sigs::bases(&self.types, ty) {
@@ -985,6 +982,25 @@ impl<'a> Checker<'a> {
             selectors: &[],
         };
         match self.types.kind(ty).clone() {
+            Kind::EnumValue(_) | Kind::AnyEnum => {
+                let span = self
+                    .spans
+                    .member_operator(receiver, name)
+                    .unwrap_or(call.name_span);
+                self.report(
+                    Diagnostic::error(
+                        Code::SCOPED_CALL,
+                        span,
+                        "an enum value has no constants; call its members with a dot",
+                    )
+                    .with_fix(Fix::replace(
+                        "call the member with a dot",
+                        span,
+                        ".",
+                    )),
+                );
+                self.dispatch(&call, receiver, ty)
+            }
             Kind::EnumType(id) if args.is_none() => {
                 let decl = &self.program.enums[id as usize];
                 if decl.members.iter().any(|member| member == name) {
@@ -1724,6 +1740,11 @@ impl<'a> Checker<'a> {
             self.types.kind(pattern).clone(),
             self.types.kind(actual).clone(),
         ) {
+            (_, Kind::Union(arms)) => {
+                for actual in arms.iter() {
+                    self.unify(pattern, *actual, bindings);
+                }
+            }
             (Kind::Var(index), _) => {
                 let Some(slot) = bindings.get_mut(index as usize) else {
                     return;
@@ -1897,7 +1918,7 @@ impl<'a> Checker<'a> {
             Some(result) => {
                 let expected = self.types.subst(result, bindings);
                 if self.types.has_var(expected) {
-                    (Want::Infer(None), Some(result))
+                    (Want::Infer(Some(expected)), Some(result))
                 } else {
                     (Want::Check(expected), None)
                 }
@@ -1911,6 +1932,11 @@ impl<'a> Checker<'a> {
         let (result, breaks) = self.block_with_rest(block, &params, rest, want, break_to);
         if let Some(pattern) = infer {
             self.unify(pattern, result, bindings);
+            let expected = self.types.close(pattern, bindings);
+            if !self.types.assignable(result, expected) {
+                let span = self.spans.token(block.offset as usize);
+                self.mismatch(span, expected, result, &Purpose::BlockResult);
+            }
         }
         breaks
     }
@@ -1960,6 +1986,7 @@ impl<'a> Checker<'a> {
             mark: before,
             exits: super::check::Exits::default(),
             result,
+            hint: want.hint(),
             break_to,
             used,
             results: Vec::new(),

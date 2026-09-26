@@ -409,6 +409,14 @@ impl<'a> Checker<'a> {
         });
         match hint.map(|hint| (hint, self.types.kind(hint).clone())) {
             Some((hint, Kind::Tuple(elements))) if elements.len() == items.len() => {
+                if self.types.has_var(hint) {
+                    let actual = items
+                        .iter()
+                        .zip(elements.iter())
+                        .map(|(item, &element)| self.expr(item, Some(element)))
+                        .collect();
+                    return self.types.tuple(actual);
+                }
                 for (item, &element) in items.iter().zip(elements.iter()) {
                     self.expr_against(item, element, &Purpose::Element);
                 }
@@ -1123,7 +1131,7 @@ impl<'a> Checker<'a> {
             }
             (Kind::String, [selector]) => {
                 let key = self.expr(selector, None);
-                if key != Ty::RANGE && key != Ty::STRING && key != Ty::REGEX {
+                if key != Ty::RANGE {
                     self.selector(selector, key, Ty::INT);
                 }
                 self.types.optional(Ty::STRING)

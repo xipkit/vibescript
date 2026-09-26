@@ -48,6 +48,8 @@ pub(crate) enum Context {
         exits: Exits,
         /// The type the block must return, when known.
         result: Option<Ty>,
+        /// Context for literals while inferring a generic block result.
+        hint: Option<Ty>,
         /// The declared result a `break` returns through, and the function
         /// that declares it, when the runtime checks break values against it.
         break_to: Option<(Ty, String)>,
@@ -1012,16 +1014,18 @@ impl<'a> Checker<'a> {
     fn next_statement(&mut self, stmt: &'a Stmt, value: Option<&'a Expr>) {
         self.check_loop_control(stmt, "next");
         let block = match self.frame.contexts.last() {
-            Some(Context::Block { result, used, .. }) => Some((*result, *used)),
+            Some(Context::Block {
+                result, hint, used, ..
+            }) => Some((*result, *hint, *used)),
             _ => None,
         };
         match block {
-            Some((result, used)) => {
+            Some((result, hint, used)) => {
                 let ty = match (value, result) {
                     (Some(value), Some(result)) => {
                         self.expr_against(value, result, &Purpose::BlockResult)
                     }
-                    (Some(value), None) => self.expr(value, None),
+                    (Some(value), None) => self.expr(value, hint),
                     (None, Some(result)) => {
                         if used && !self.types.assignable(Ty::NIL, result) {
                             let span = self.spans.stmt(stmt);

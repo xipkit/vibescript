@@ -148,3 +148,47 @@ fn fetching_a_declared_field_gives_its_type() {
     clean("def f(u: { name: string, age?: int }) -> string\n  u.fetch(\"name\")\nend\n");
     clean("def f(u: { name: string, age?: int }) -> int\n  u.fetch(\"age\")\nend\n");
 }
+
+#[test]
+fn conversions_and_string_selectors_match_the_runtime() {
+    clean("{a: 1}.inspect");
+    assert!(!super::support::errors("{a: 1}.to_s").is_empty());
+    clean("'s'[0]; 's'[0..1]");
+    codes("'s'[/s/]", &["V0101"]);
+    codes("'s'['x']", &["V0101"]);
+    for source in [
+        "[1].to_h { |n| ['a', n] }",
+        "[1].to_h { |n| next ['a', n] }",
+    ] {
+        clean(source);
+        let value = vibescript::Engine::new()
+            .compile(source)
+            .unwrap()
+            .run(Default::default())
+            .unwrap()
+            .value;
+        assert_eq!(value.type_name(), "hash");
+    }
+    for source in [
+        "[1].to_h { |n| n }",
+        "[1].to_h { |n| [n, n] }",
+        "[1].to_h { |n| ['a', n, n] }",
+        "[1].to_h { |n| next n }",
+    ] {
+        codes(source, &["V0101"]);
+    }
+    let source = "enum Status; Draft; end; Status::Draft::name";
+    let diagnostics = codes(source, &["V0416"]);
+    let fixed = super::support::fixed(source, &diagnostics[0]);
+    clean(&fixed);
+    assert_eq!(
+        vibescript::Engine::new()
+            .compile(&fixed)
+            .unwrap()
+            .run(Default::default())
+            .unwrap()
+            .value
+            .as_bytes(),
+        Some(b"Draft".as_slice())
+    );
+}
