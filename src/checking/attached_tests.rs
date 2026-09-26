@@ -397,7 +397,7 @@ fn root_host_methods_allow_calls_but_keep_ordinary_reads_attached() {
 }
 
 #[test]
-fn attached_source_methods_support_calls_and_only_nullary_automatic_reads() {
+fn attached_source_methods_support_calls_and_optional_automatic_reads() {
     for (body, expected, rejected) in [
         ("m.echo(7)", "7", false),
         ("m::echo(7)", "7", false),
@@ -409,7 +409,7 @@ fn attached_source_methods_support_calls_and_only_nullary_automatic_reads() {
         ("begin; m.echo; rescue; 9; end", "9", true),
         ("begin; m::answer; rescue; 9; end", "9", true),
         ("begin; m[:answer]; rescue; 9; end", "9", true),
-        ("begin; m.fallback; rescue; 9; end", "9", true),
+        ("begin; m.fallback; rescue; 9; end", "7", false),
         ("m.fallback()", "7", false),
         ("begin; m.values; rescue; 9; end", "9", true),
     ] {

@@ -15,7 +15,7 @@ impl Walker<'_> {
                 self.facts.node(self.facts.arm(value, index)),
                 Node::Callable { .. }
             ) {
-                return self.read_attached(state, pc, value, origin);
+                return self.read_attached(state, pc, value, origin, Receiving::Value);
             }
         }
         let mut readable = Buffer::empty();
@@ -118,26 +118,19 @@ impl Walker<'_> {
         self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))
     }
 
-    /// Reads a script function for `receiving`. Only a required file's own
-    /// functions are bound dynamically.
+    /// Reads a script function before selecting a member of its result.
     pub(super) fn receive_function(
         &mut self,
         state: &mut State,
         pc: usize,
         function: CallableId,
         receiving: Receiving,
-        dynamic: bool,
     ) -> Result<bool> {
         if let Some(member) = receiving.member() {
-            let runs = if dynamic {
-                receiving.runs_dynamic()
-            } else {
-                let Some(parameters) = self.function_parameters(pc, function)? else {
-                    return Ok(false);
-                };
-                receiving.runs_static(Some(parameters))
+            let Some(parameters) = self.function_parameters(pc, function)? else {
+                return Ok(false);
             };
-            if !runs {
+            if !receiving.runs_static(Some(parameters)) {
                 self.callable_member(state, pc, Target::Function(function), member)?;
                 return Ok(false);
             }
@@ -145,22 +138,20 @@ impl Walker<'_> {
         self.read_function(state, pc, function)
     }
 
-    /// Reads a host method for `receiving`, which always fails.
+    /// Calls a host method before selecting a member of its result.
     pub(super) fn receive_host(
         &mut self,
-        state: &State,
+        state: &mut State,
         pc: usize,
         target: Target,
         receiving: Receiving,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         match receiving.member() {
             Some(member) if !receiving.runs_static(None) => {
-                self.callable_member(state, pc, target, member)
+                self.callable_member(state, pc, target, member)?;
+                Ok(false)
             }
-            _ => {
-                self.issue(pc, IssueKind::DetachedValue(target))?;
-                self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))
-            }
+            _ => self.read_call(state, pc, target),
         }
     }
 
@@ -184,14 +175,32 @@ impl Walker<'_> {
         function: CallableId,
     ) -> Result<bool> {
         let target = Target::Function(function);
-        let Some(parameters) = self.function_parameters(pc, function)? else {
+        let required = if function.source == self.source {
+            let body = &self.program.functions[function.index];
+            self.ctx.charge(body.params.len() as u64)?;
+            Some(super::super::calls::required_parameters(body))
+        } else {
+            self.calls.function_required(self.ctx, function)?
+        };
+        let Some(required) = required else {
+            self.incomplete(pc)?;
             return Ok(false);
         };
-        if parameters != 0 {
+        if required != 0 {
             self.issue(pc, IssueKind::DetachedValue(target))?;
             self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
             return Ok(false);
         }
+        self.read_call(state, pc, target)
+    }
+
+    /// Continues a bare read with the result of an empty call.
+    pub(super) fn read_call(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        target: Target,
+    ) -> Result<bool> {
         if let Some(edges) = self.invoke(state, pc, target, Arguments::new())? {
             for edge in edges.into_iter().flatten() {
                 self.extra.push(self.ctx, edge)?;
@@ -240,14 +249,13 @@ impl Walker<'_> {
         }
         if let Some(&function) = self.program.names.get(name) {
             let function = self.source.callable(function);
-            return self.receive_function(state, pc, function, receiving, self.program.file);
+            return self.receive_function(state, pc, function, receiving);
         }
         for (index, host) in self.program.hosts.iter().enumerate() {
             self.ctx.work_bytes(host.len().max(name.len()))?;
             if host == name {
                 let target = Target::Host(self.source.callable(index));
-                self.receive_host(state, pc, target, receiving)?;
-                return Ok(false);
+                return self.receive_host(state, pc, target, receiving);
             }
         }
         if let Some(readable) = self.read_receiving(state, pc, name, receiving)? {
@@ -359,12 +367,9 @@ impl Walker<'_> {
                 }
             }
             Target::Function(function) => self
-                .receive_function(state, pc, function, receiving, false)
+                .receive_function(state, pc, function, receiving)
                 .map(Some),
-            target @ Target::Host(_) => {
-                self.receive_host(state, pc, target, receiving)?;
-                Ok(Some(false))
-            }
+            target @ Target::Host(_) => self.receive_host(state, pc, target, receiving).map(Some),
             Target::Undefined => Ok(None),
             _ => {
                 self.incomplete(pc)?;

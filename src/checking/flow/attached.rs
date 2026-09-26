@@ -244,6 +244,7 @@ impl Walker<'_> {
         pc: usize,
         value: Fact,
         origin: Option<usize>,
+        receiving: Receiving,
     ) -> Result<bool> {
         let mut normal: Option<State> = None;
         for i in 0..self.facts.arm_count(value) {
@@ -256,18 +257,16 @@ impl Walker<'_> {
                     ..
                 } => {
                     let target = self.value_target(arm)?;
-                    self.issue(pc, IssueKind::DetachedValue(target))?;
-                    self.emit_error(&next, pc, handlers::bit(ErrorClass::Runtime))?;
-                    false
+                    self.receive_host(&mut next, pc, target, receiving)?
                 }
                 Node::Callable { .. } => {
                     let Target::Function(function) = self.value_target(arm)? else {
                         self.incomplete(pc)?;
                         return Ok(false);
                     };
-                    self.read_function(&mut next, pc, function)?
+                    self.receive_function(&mut next, pc, function, receiving)?
                 }
-                _ => self.read_value(&mut next, pc, arm, origin)?,
+                _ => self.receive_value(&mut next, pc, arm, origin, receiving)?,
             };
             if readable {
                 if let Some(normal) = &mut normal {

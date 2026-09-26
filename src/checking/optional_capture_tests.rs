@@ -75,7 +75,7 @@ fn optional_capture_updates_preserve_pending_addresses_and_value_copies() {
 }
 
 #[test]
-fn optional_host_method_reads_fail_without_running_the_callback() {
+fn optional_host_method_reads_call_only_at_runtime_when_not_shadowed() {
     use crate::{Engine, HostMethod};
     use std::sync::{
         Arc,
@@ -96,8 +96,9 @@ fn optional_host_method_reads_fail_without_running_the_callback() {
     let mut facts = Facts::new(&mut ctx).unwrap();
     let report = analyze(&mut ctx, &mut facts, &script.inner.code.program).unwrap();
     assert!(report.incomplete.data.is_empty(), "{report:?}");
-    assert!(!report.issues.data.is_empty());
-    for (flag, expected) in [(false, 99), (true, 7)] {
+    assert!(report.issues.data.is_empty(), "{report:?}");
+    assert_eq!(count.load(Ordering::SeqCst), 0);
+    for (flag, expected) in [(false, 3), (true, 7)] {
         let result = script
             .call("run", &[Value::boolean(flag)], CallOptions::default())
             .unwrap();
@@ -108,7 +109,7 @@ fn optional_host_method_reads_fail_without_running_the_callback() {
             super::relation::Relation::Rejected
         );
     }
-    assert_eq!(count.load(Ordering::SeqCst), 0);
+    assert_eq!(count.load(Ordering::SeqCst), 1);
     drop((report, facts));
     assert_eq!(ctx.stats().retained_memory_bytes, 0);
 }
@@ -242,20 +243,26 @@ fn optional_global_replacements_flow_into_captures() {
 }
 
 #[test]
-fn bare_parameterized_functions_are_not_detached_or_implicitly_called() {
-    for signature in ["x", "x=7", "*xs", "x:"] {
+fn bare_parameterized_functions_call_when_all_parameters_are_optional() {
+    for (signature, expected, rejected) in [
+        ("x", "9", true),
+        ("x=7", "3", false),
+        ("*xs", "3", false),
+        ("x:", "9", true),
+        ("**kw", "3", false),
+    ] {
         witness(
             &format!("def f({signature}); 3; end; def run; begin; f; rescue; 9; end; end"),
             &[],
-            "9",
-            true,
+            expected,
+            rejected,
         );
         both(
             &format!(
                 "def f({signature}); 3; end; def once; yield; end; def run(flag:bool); ignored=if flag; begin; f=7; end; end; [0].length; begin; once {{f}}; rescue; 9; end; end"
             ),
-            ["9", "7"],
-            true,
+            [expected, "7"],
+            rejected,
         );
     }
 }

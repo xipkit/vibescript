@@ -3192,8 +3192,7 @@ impl Walker<'_> {
                         return self.incomplete(pc);
                     }
                     let function = self.source.callable(function);
-                    let dynamic = self.program.file;
-                    if !self.receive_function(&mut state, pc, function, receiving, dynamic)? {
+                    if !self.receive_function(&mut state, pc, function, receiving)? {
                         return Ok([None, None]);
                     }
                 }
@@ -3207,8 +3206,9 @@ impl Walker<'_> {
                         return self.incomplete(pc);
                     } else {
                         let target = Target::Host(self.source.callable(host));
-                        self.receive_host(&state, pc, target, receiving)?;
-                        return Ok([None, None]);
+                        if !self.receive_host(&mut state, pc, target, receiving)? {
+                            return Ok([None, None]);
+                        }
                     }
                 }
                 Op::Argument(kind) => {

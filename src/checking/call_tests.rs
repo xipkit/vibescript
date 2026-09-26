@@ -841,6 +841,11 @@ fn bare_function_reads_distinguish_attached_methods_from_opaque_roots() {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
         let types = contracts(&mut ctx, &mut facts, program).unwrap();
+        let mut hosts = Buffer::empty();
+        if let crate::value::Kind::Host(method) = &value.0 {
+            let host = Host::new(&mut ctx, &mut facts, method.compiled_signature()).unwrap();
+            hosts.push(&mut ctx, host).unwrap();
+        }
         let result = calls::analyze(
             &mut ctx,
             &mut facts,
@@ -850,7 +855,7 @@ fn bare_function_reads_distinguish_attached_methods_from_opaque_roots() {
                 source_owner: 0,
                 program,
                 contracts: &types.data,
-                hosts: &[],
+                hosts: &hosts.data,
                 globals: &[(Value::bytes(b"f"), target)],
             },
             program.names["run"],
@@ -864,7 +869,10 @@ fn bare_function_reads_distinguish_attached_methods_from_opaque_roots() {
             assert!(
                 result.issues.data.iter().any(|issue| matches!(
                     issue.issue.kind,
-                    super::flow::IssueKind::DetachedValue(_)
+                    super::flow::IssueKind::Call {
+                        failure: Failure::HostArity,
+                        ..
+                    }
                 )),
                 "{result:?}"
             );

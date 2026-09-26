@@ -1,6 +1,6 @@
 use super::{
     arguments,
-    calls::{self, Analysis, Target, World},
+    calls::{self, Analysis, Host, Target, World},
     facts::Facts,
     normalization_tests::observed,
     relation::Relation,
@@ -47,6 +47,11 @@ fn analyze_roots(
         &program.functions[function].params,
         &contracts.data,
     )?;
+    let mut hosts = Buffer::empty();
+    for _ in &program.hosts {
+        let host = Host::new(ctx, facts, None)?;
+        hosts.push(ctx, host)?;
+    }
     calls::analyze(
         ctx,
         facts,
@@ -56,7 +61,7 @@ fn analyze_roots(
             program,
             source_owner: 0,
             contracts: &contracts.data,
-            hosts: &[],
+            hosts: &hosts.data,
             globals: roots,
         },
         function,
@@ -588,9 +593,18 @@ fn copying_root_values_into_arguments_and_callback_bindings_detaches_mutations()
 }
 
 #[test]
-fn declared_host_reads_observe_supplied_values_and_keep_methods_attached() {
+fn declared_host_reads_observe_supplied_values_or_call_methods() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    let count = Arc::new(AtomicUsize::new(0));
+    let observed_calls = count.clone();
     let mut engine = Engine::new();
-    engine.register("host", |_, _| panic!("analysis executed a host callback"));
+    engine.register("host", move |_, _| {
+        observed_calls.fetch_add(1, Ordering::SeqCst);
+        Ok(Value::int(3))
+    });
     for (body, roots, rejected, expected) in [
         ("host", vec![("host".to_owned(), Value::int(7))], false, "7"),
         (
@@ -599,12 +613,13 @@ fn declared_host_reads_observe_supplied_values_and_keep_methods_attached() {
             false,
             "9",
         ),
-        ("begin; host; rescue; 7; end", vec![], true, "7"),
+        ("begin; host; rescue; 7; end", vec![], false, "3"),
     ] {
         let script = engine.compile(&format!("def run; {body}; end")).unwrap();
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
         let report = analyze(&mut ctx, &mut facts, &script.inner.code.program, &roots).unwrap();
+        assert_eq!(count.load(Ordering::SeqCst), 0);
         assert!(report.incomplete.data.is_empty(), "{body}: {report:?}");
         assert_eq!(
             !report.issues.data.is_empty(),
@@ -631,4 +646,5 @@ fn declared_host_reads_observe_supplied_values_and_keep_methods_attached() {
         drop((report, facts));
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
+    assert_eq!(count.load(Ordering::SeqCst), 1);
 }

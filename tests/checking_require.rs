@@ -1168,7 +1168,7 @@ fn checks_resolve_same_name_calls_past_the_required_file_scope() {
 }
 
 #[test]
-fn checks_report_required_file_functions_kept_as_member_receivers() {
+fn checks_call_required_file_functions_before_selecting_result_members() {
     let files = Files::new();
     for (name, source) in [
         ("top", "def helper;1;end;x=helper.to_s"),
@@ -1202,9 +1202,15 @@ fn checks_report_required_file_functions_kept_as_member_receivers() {
             .check_call("run", &[], &CallOptions::default())
             .unwrap();
         assert!(report.incomplete.is_empty(), "{name}: {report:?}");
-        assert!(!report.diagnostics.is_empty(), "{name}: {report:?}");
-        assert!(
+        let rejected = matches!(name, "call" | "builtin");
+        assert_eq!(
+            !report.diagnostics.is_empty(),
+            rejected,
+            "{name}: {report:?}"
+        );
+        assert_eq!(
             script.call("run", &[], CallOptions::default()).is_err(),
+            rejected,
             "{name}"
         );
     }
@@ -1216,7 +1222,15 @@ fn checks_report_required_file_functions_kept_as_member_receivers() {
         .check_call("run", &[], &CallOptions::default())
         .unwrap();
     assert!(report.incomplete.is_empty(), "{report:?}");
-    assert!(!report.diagnostics.is_empty(), "{report:?}");
+    assert!(report.diagnostics.is_empty(), "{report:?}");
+    assert_eq!(
+        script
+            .call("run", &[], CallOptions::default())
+            .unwrap()
+            .value
+            .to_string(),
+        "[1]"
+    );
     witness(
         &files,
         "def value;7;end\ndef run;[require(:bare).peek,require(:root).peek,require(:export)&&helper[0]];end",
@@ -1243,16 +1257,7 @@ fn checks_evaluate_module_functions_written_through_their_names() {
         "def run;require(:m);helper.pop;end",
         "def run;require(:pop).peek;end",
     ] {
-        let script = files.engine().compile(source).unwrap();
-        let report = script
-            .check_call("run", &[], &CallOptions::default())
-            .unwrap();
-        assert!(report.incomplete.is_empty(), "{source}: {report:?}");
-        assert!(!report.diagnostics.is_empty(), "{source}: {report:?}");
-        assert!(
-            script.call("run", &[], CallOptions::default()).is_err(),
-            "{source}"
-        );
+        witness(&files, source, CallOptions::default(), "1");
     }
 }
 

@@ -306,6 +306,11 @@ pub(super) trait Calls {
         ctx.checkpoint()?;
         Ok(None)
     }
+    /// Reads the required parameter count before an automatic call.
+    fn function_required(&mut self, ctx: &mut CallContext, _: CallableId) -> Result<Option<usize>> {
+        ctx.checkpoint()?;
+        Ok(None)
+    }
     /// Finds a receiving script declaration after an imported file's private bindings.
     fn receiving_binding(&mut self, ctx: &mut CallContext, _: &str) -> Result<Target> {
         ctx.checkpoint()?;
@@ -1968,6 +1973,20 @@ impl Calls for Solver<'_, '_> {
             .get(function.index)
             .map(|body| body.params.len()))
     }
+    fn function_required(
+        &mut self,
+        ctx: &mut CallContext,
+        function: CallableId,
+    ) -> Result<Option<usize>> {
+        let Some((_, handle)) = self.state.worlds.find(ctx, function.source)? else {
+            return Ok(None);
+        };
+        let Some(body) = handle.view().world.program.functions.get(function.index) else {
+            return Ok(None);
+        };
+        ctx.charge(body.params.len() as u64)?;
+        Ok(Some(required_parameters(body)))
+    }
     fn global(&mut self, ctx: &mut CallContext, name: &str) -> Result<bool> {
         let handle = self.root_handle(ctx)?;
         for (key, _) in handle.view().world.globals {
@@ -2078,4 +2097,19 @@ impl Calls for Solver<'_, '_> {
         }
         self.invoke_local(ctx, facts, target, args, current_error, globals, outcome)
     }
+}
+
+/// Counts parameters that prevent an automatic call without arguments.
+pub(super) fn required_parameters(function: &crate::bytecode::Function) -> usize {
+    function
+        .params
+        .iter()
+        .filter(|param| {
+            !param.default
+                && !matches!(
+                    param.kind,
+                    crate::syntax::ParamKind::Rest | crate::syntax::ParamKind::KeywordRest
+                )
+        })
+        .count()
 }

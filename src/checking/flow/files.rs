@@ -384,7 +384,12 @@ impl<'a> Walker<'a> {
                 return self.address_binding(state, pc, slot, next);
             }
             let value = state.locals.get(self.ctx, slot)?.value;
-            self.receive_value(&mut state, pc, value, Some(slot), receiving)?
+            if binding.is_none() {
+                let index = slot - state.global_base;
+                self.read_global(&mut state, pc, index, receiving)?
+            } else {
+                self.receive_value(&mut state, pc, value, Some(slot), receiving)?
+            }
         } else if !address && self.file_declared_target(name)?.is_none() {
             let Some(readable) = self.read_receiving(&mut state, pc, name, receiving)? else {
                 return Ok([Some((pc + 1, state)), None]);

@@ -470,7 +470,7 @@ fn callable_overrides_are_analyzed_without_executing_callbacks() {
             ("def run(h:{a:int,...})->int;h.size();end", 99, false),
             ("def run(h:{a:int,...})->int;h.fetch(:x);end", 42, false),
             ("def run(h:{a:int,...})->int;h.send(:size);end", 99, false),
-            ("def run(h:{a:int,...})->int;h.size;end", 0, true),
+            ("def run(h:{a:int,...})->int;h.size;end", 99, false),
         ] {
             let counter = Arc::new(AtomicUsize::new(0));
             let input = counting_object(&counter, rounds);

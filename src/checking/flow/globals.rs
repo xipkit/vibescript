@@ -149,6 +149,18 @@ impl Walker<'_> {
             }
         }
         let value = state.locals.get(self.ctx, slot)?.value;
+        // Supplied roots and required exports have no original builtin slot.
+        if state.source_slots.original(self.ctx, index)?.is_none() {
+            for arm in 0..self.facts.arm_count(value) {
+                self.ctx.charge(1)?;
+                if matches!(
+                    self.facts.node(self.facts.arm(value, arm)),
+                    Node::Callable { .. }
+                ) {
+                    return self.read_attached(state, pc, value, Some(slot), receiving);
+                }
+            }
+        }
         let Some(member) = receiving.member() else {
             return self.read_value(state, pc, value, Some(slot));
         };

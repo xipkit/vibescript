@@ -735,8 +735,7 @@ fn primitive_binary(op: &str, a: Atom, b: Atom) -> Option<Atom> {
                 Bool
             }
         }
-        "+" | "-" | "*" | "/" | "//" | "**" if number(a) && number(b) => numeric,
-        "%" if a == Int && b == Int => Int,
+        "+" | "-" | "*" | "/" | "//" | "%" | "**" if number(a) && number(b) => numeric,
         "+" if (a == String || b == String) && printable(a) && printable(b) => String,
         "*" if a == String && number(b) => String,
         "%" if a == String => String,

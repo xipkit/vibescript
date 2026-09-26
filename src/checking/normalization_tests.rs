@@ -47,6 +47,11 @@ pub(super) fn analyze_source(
         &program.functions[function].params,
         &contracts.data,
     )?;
+    let mut hosts = Buffer::empty();
+    for _ in &program.hosts {
+        let host = Host::new(ctx, facts, None)?;
+        hosts.push(ctx, host)?;
+    }
     calls::analyze(
         ctx,
         facts,
@@ -56,7 +61,7 @@ pub(super) fn analyze_source(
             source_owner,
             program,
             contracts: &contracts.data,
-            hosts: &[],
+            hosts: &hosts.data,
             globals: &[],
         },
         function,
