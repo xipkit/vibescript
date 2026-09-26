@@ -314,8 +314,8 @@ fn unknown_functions_and_members_are_reported() {
 
 #[test]
 fn require_takes_literal_names() {
-    clean("mod = require(\"helpers\")\n");
-    clean("mod = require(\"helpers\", as: \"h\")\n");
+    codes("mod = require(\"helpers\")\n", &["V0201"]);
+    codes("mod = require(\"helpers\", as: \"h\")\n", &["V0201"]);
     let source = "name = \"helpers\"\nmod = require(name)\n";
     let diagnostic = error(source, "V0309", "string literal");
     assert_eq!(spanned(source, &diagnostic), "name");

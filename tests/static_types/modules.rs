@@ -102,3 +102,35 @@ fn required_functions_read_their_files_top_level_locals() {
     assert!(errors_with(&engine, "m = require(\"locals\")\nx: int = m.get\n").is_empty());
     std::fs::remove_dir_all(directory).unwrap();
 }
+
+#[test]
+fn relative_requires_use_the_requiring_files_origin() {
+    let source = "other = require(\"./relative_target\")\ndef run -> int\n  other.double(3)\nend\n";
+    let (mut engine, directory) = engine(&[
+        ("relative_caller.vibe", source),
+        ("relative_target.vibe", HELPERS),
+    ]);
+    let script = "m = require(\"relative_caller\")\nm.run\n";
+    assert!(
+        errors_with(&engine, script).is_empty(),
+        "{:?}",
+        errors_with(&engine, script)
+    );
+    engine.set_static_types(true);
+    let value = engine
+        .compile(script)
+        .unwrap()
+        .run(vibescript::CallOptions::default())
+        .unwrap()
+        .value;
+    assert_eq!(value.as_int(), Some(6));
+    std::fs::write(
+        directory.join("relative_caller.vibe"),
+        source.replace("double(3)", "double(\"bad\")"),
+    )
+    .unwrap();
+    let found = errors_with(&engine, script);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].code, Code::TYPE_MISMATCH);
+    std::fs::remove_dir_all(directory).unwrap();
+}

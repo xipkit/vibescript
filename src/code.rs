@@ -148,7 +148,9 @@ impl Code {
         let mut program = if let Some(typing) = typing {
             let (parsed, tokens) =
                 crate::syntax::parse_with_tokens(source, work).map_err(parse_error)?;
-            let resolve = |path: &str| typing.loader.and_then(|loader| loader.source(path));
+            let resolve = |path: &str, origin: Option<&crate::loading::Origin>| {
+                typing.loader.and_then(|loader| loader.source(path, origin))
+            };
             let checked = crate::typing::check(&crate::typing::Input {
                 source,
                 parsed: &parsed,
@@ -156,6 +158,7 @@ impl Code {
                 hosts: registered.clone().collect(),
                 declared,
                 file,
+                origin: origin.as_ref(),
                 modules: typing.loader.is_some().then_some(&resolve),
             });
             work.charge(usize::try_from(checked.steps).unwrap_or(usize::MAX))?;

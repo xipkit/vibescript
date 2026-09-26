@@ -199,7 +199,8 @@ impl Engine {
     pub fn type_check(&self, source: &str) -> Result<typing::Checked> {
         let (parsed, tokens) = syntax::parse_with_tokens(source, &())
             .map_err(|error| source::parse_error(source, None, error, &()))?;
-        let resolve = |path: &str| self.loader.source(path);
+        let resolve =
+            |path: &str, origin: Option<&loading::Origin>| self.loader.source(path, origin);
         Ok(typing::check(&typing::Input {
             source,
             parsed: &parsed,
@@ -207,6 +208,7 @@ impl Engine {
             hosts: self.hosts.iter().collect(),
             declared: &self.declared,
             file: false,
+            origin: None,
             modules: Some(&resolve),
         }))
     }
@@ -240,6 +242,7 @@ impl Engine {
                 hosts: self.hosts.iter().collect(),
                 declared: &self.declared,
                 file: false,
+                origin: None,
                 modules: None,
             },
             function,

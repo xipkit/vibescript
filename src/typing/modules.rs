@@ -83,6 +83,7 @@ struct Imports {
 /// What the program requires.
 pub(crate) struct Required<'a> {
     resolve: Option<&'a Modules<'a>>,
+    origin: Option<&'a crate::loading::Origin>,
     hosts: Vec<(&'a String, &'a Registered)>,
     declared: &'a crate::declared::Declarations,
     depth: usize,
@@ -98,6 +99,7 @@ impl<'a> Required<'a> {
     pub fn new(input: &Input<'a>, depth: usize) -> Self {
         Self {
             resolve: input.modules,
+            origin: input.origin,
             hosts: input.hosts.clone(),
             declared: input.declared,
             depth,
@@ -134,8 +136,15 @@ impl<'a> Checker<'a> {
         for body in bodies {
             requires(body, &mut requests);
         }
-        for (path, alias) in requests {
+        for (path, alias, offset) in requests {
             let id = self.load_module(&path);
+            if id.is_none() {
+                self.report(Diagnostic::error(
+                    Code::UNDEFINED_NAME,
+                    self.spans.token(offset),
+                    format!("cannot statically resolve required module {path:?}"),
+                ));
+            }
             if let (Some(id), Some(alias)) = (id, alias) {
                 self.modules.aliases.insert(alias, id);
             }
@@ -150,7 +159,8 @@ impl<'a> Checker<'a> {
         if self.modules.depth >= DEPTH {
             return None;
         }
-        let (source, filename) = (self.modules.resolve?)(path)?;
+        let (source, origin) = (self.modules.resolve?)(path, self.modules.origin)?;
+        let filename = origin.filename();
         let (parsed, tokens) = crate::syntax::parse_with_tokens(&source, &()).ok()?;
         let input = Input {
             source: &source,
@@ -159,6 +169,7 @@ impl<'a> Checker<'a> {
             hosts: self.modules.hosts.clone(),
             declared: self.modules.declared,
             file: true,
+            origin: Some(&origin),
             modules: self.modules.resolve,
         };
         let checked = super::check_nested(&input, self.modules.depth + 1);
@@ -431,7 +442,7 @@ impl<'a> Checker<'a> {
 }
 
 /// The literal paths, and aliases, of the `require` calls in statements.
-fn requires(body: &[Stmt], out: &mut Vec<(String, Option<String>)>) {
+fn requires(body: &[Stmt], out: &mut Vec<(String, Option<String>, usize)>) {
     let mut statements: Vec<&Stmt> = body.iter().collect();
     let mut expressions: Vec<&Expr> = Vec::new();
     loop {
@@ -472,7 +483,7 @@ fn visit<'x>(
     expr: &'x Expr,
     statements: &mut Vec<&'x Stmt>,
     expressions: &mut Vec<&'x Expr>,
-    out: &mut Vec<(String, Option<String>)>,
+    out: &mut Vec<(String, Option<String>, usize)>,
 ) {
     match &expr.node {
         Node::Call(name, args, _) => {
@@ -499,7 +510,7 @@ fn visit<'x>(
                         _ => None,
                     });
                 if let Some(path) = path {
-                    out.push((path, alias));
+                    out.push((path, alias, expr.offset as usize));
                 }
             }
             expressions.extend(args.iter().map(|a| &a.value));

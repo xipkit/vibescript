@@ -47,13 +47,16 @@ pub(crate) struct Input<'a> {
     pub declared: &'a crate::declared::Declarations,
     /// Whether the source is a required file rather than a host script.
     pub file: bool,
+    pub origin: Option<&'a crate::loading::Origin>,
     /// Finds the source and filename of a module `require` names, when the
     /// engine can load modules.
     pub modules: Option<&'a Modules<'a>>,
 }
 
 /// Resolves a required module's name to its source and filename.
-pub(crate) type Modules<'a> = dyn Fn(&str) -> Option<(String, std::sync::Arc<[u8]>)> + Sync + 'a;
+pub(crate) type Modules<'a> = dyn Fn(&str, Option<&crate::loading::Origin>) -> Option<(String, crate::loading::Origin)>
+    + Sync
+    + 'a;
 
 /// Sources longer than this are checked on a thread with [`STACK`] bytes of
 /// stack: the checker recurses once per level of syntax, which the parser
