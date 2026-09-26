@@ -833,6 +833,24 @@ fn casts_name_classes_enums_and_scoped_aliases_inside_types() {
             serde_json::from_slice(json.value.as_bytes().unwrap()).unwrap();
         assert_eq!(value, serde_json::json!([2, 4, 1, 5, "refused"]));
     }
+    // `JSON.parse_as` reads enum members by their symbols inside the type.
+    let parsed = "enum Status\n  Draft\n  Done\nend\n\
+                  a = JSON.parse_as(\"{\\\"s\\\": \\\"draft\\\"}\", { s: Status? })\n\
+                  b = JSON.parse_as(\"[\\\"done\\\"]\", array<Status>)\n\
+                  [a[\"s\"] == Status::Draft, b.fetch(0) == Status::Done]";
+    for static_types in [false, true] {
+        let mut engine = Engine::new();
+        engine.set_static_types(static_types);
+        let result = engine
+            .compile(parsed)
+            .unwrap_or_else(|error| panic!("{error}"))
+            .run(CallOptions::default())
+            .unwrap();
+        let json = stringify_json(&result.value, CallOptions::default()).unwrap();
+        let value: serde_json::Value =
+            serde_json::from_slice(json.value.as_bytes().unwrap()).unwrap();
+        assert_eq!(value, serde_json::json!([true, true]));
+    }
     // Elsewhere, a braced group that names a class is a hash of values.
     assert_eq!(
         evaluate("class Box\nend\nh = { kind: Box }\nh.length"),
