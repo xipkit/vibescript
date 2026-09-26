@@ -27,7 +27,7 @@ fn hash_constructors_are_refused_in_favour_of_literals() {
         "Hash.new.call(mark(1))",
         "Hash.new(*[],**{})",
     ] {
-        let mut engine = common::static_engine();
+        let mut engine = vibescript::Engine::new();
         engine.register("mark", |_, _| panic!("mark ran"));
         let error = engine.compile(source).err().unwrap();
         assert_eq!(common::codes(&error), ["V0411"], "{source}");

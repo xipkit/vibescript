@@ -102,7 +102,7 @@ fn keyword_arguments_never_bind_positional_options() {
         ("c=C.new retries:3;c.options", "V0302", "retries:"),
     ] {
         let source = format!("{DECLARATIONS}\n{call}");
-        let error = common::static_engine().compile(&source).err().unwrap();
+        let error = vibescript::Engine::new().compile(&source).err().unwrap();
         let first = &error.diagnostics()[0];
         assert_eq!(first.code.to_string(), code, "{call}");
         assert_eq!(&source[first.span.start..first.span.end], text, "{call}");
@@ -125,7 +125,7 @@ fn keyword_arguments_never_bind_positional_options() {
             let source = format!(
                 "{kind} C\ndef {prefix}take(options: any) -> any\noptions\nend\ndef {prefix}check -> any\n{call}\nend\nend\n{receiver}.check"
             );
-            let error = common::static_engine().compile(&source).err().unwrap();
+            let error = vibescript::Engine::new().compile(&source).err().unwrap();
             assert_eq!(error.diagnostics()[0].code.to_string(), "V0301", "{source}");
         }
     }
@@ -133,7 +133,7 @@ fn keyword_arguments_never_bind_positional_options() {
     for params in ["options: hash<string, int> = {}", "*options: array<any>"] {
         let source =
             format!("class C\ndef take({params}) -> any\noptions\nend\nend\nC.new.take(retries:3)");
-        let error = common::static_engine().compile(&source).err().unwrap();
+        let error = vibescript::Engine::new().compile(&source).err().unwrap();
         assert_eq!(common::codes(&error), ["V0302"], "{params}");
     }
 }

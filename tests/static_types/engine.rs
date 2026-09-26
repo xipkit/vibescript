@@ -1,6 +1,6 @@
-//! The static mode of the engine: compile errors carry the diagnostics, the
-//! default mode is unchanged, host functions are typed by their signatures,
-//! and the checker reports each member call's receiver type.
+//! The engine type checks every compile: compile errors carry the
+//! diagnostics, host functions are typed by their signatures, and the
+//! checker reports each member call's receiver type.
 
 use super::support::errors_with;
 use vibescript::{
@@ -8,15 +8,9 @@ use vibescript::{
 };
 
 #[test]
-fn a_program_with_type_errors_does_not_compile_in_static_mode() {
+fn a_program_with_type_errors_does_not_compile() {
     let source = "def run -> int\n  count = 1\n  count = \"one\"\n  count\nend\n";
-    let mut engine = crate::common::gradual_engine();
-    assert!(
-        engine.compile(source).is_ok(),
-        "the mode without static types still compiles it"
-    );
-    engine.set_static_types(true);
-    let error = engine.compile(source).err().expect("a type error");
+    let error = Engine::new().compile(source).err().expect("a type error");
     assert_eq!(error.kind, ErrorKind::Type);
     assert_eq!(error.diagnostics().len(), 1);
     assert_eq!(error.diagnostics()[0].code, Code::LOCAL_TYPE_CHANGED);
@@ -30,9 +24,8 @@ fn a_program_with_type_errors_does_not_compile_in_static_mode() {
 }
 
 #[test]
-fn a_well_typed_program_compiles_and_runs_in_static_mode() {
-    let mut engine = Engine::new();
-    engine.set_static_types(true);
+fn a_well_typed_program_compiles_and_runs() {
+    let engine = Engine::new();
     let script = engine
         .compile("def add(a: int, b: int) -> int\n  a + b\nend\n")
         .unwrap();

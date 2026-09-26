@@ -38,7 +38,7 @@ fn dispatch_by_name_is_refused_on_values_receivers_and_through_forwarding() {
         ("a = [1, 2]\na.send(:include?, a.pop)", 1, "send"),
         ("m = \"ab\".match(/(a)(b)/)\nm&.send(:clear)", 1, "send"),
     ] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), vec!["V0405"; count], "{source}");
         assert_eq!(
             error.diagnostics()[0].span.start,

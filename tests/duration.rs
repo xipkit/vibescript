@@ -217,7 +217,7 @@ fn invalid_duration_operations_stop_before_host_effects() {
     }
     // A positional argument beside keywords, removed members, attribute
     // parentheses and blocks are refused before anything runs.
-    let mut checked = common::static_engine();
+    let mut checked = vibescript::Engine::new();
     checked.register("effect", |_, _| panic!("effect ran"));
     for (source, code) in [
         ("Duration.build(1,seconds:2)", "V0301"),
@@ -249,7 +249,7 @@ fn duration_builders_take_keywords_and_refuse_blocks() {
     }
     // Blocks, unknown keywords, removed members and a local called as a
     // function are refused before anything runs.
-    let mut checked = common::static_engine();
+    let mut checked = vibescript::Engine::new();
     checked.register("effect", |_, _| panic!("effect ran"));
     for (source, expected) in [
         (
@@ -294,7 +294,7 @@ fn cancellation_and_ignored_quota_failures_prevent_duration_results() {
             .unwrap_err();
         assert_eq!(error.kind, expected, "{source}");
     }
-    let mut checked = common::static_engine();
+    let mut checked = vibescript::Engine::new();
     checked.register("ignore", |_, _| panic!("ignore ran"));
     let error = checked
         .compile("Duration.parse(\"1s\",ignored:ignore())")

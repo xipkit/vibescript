@@ -115,7 +115,7 @@ fn representational_guards_recover_without_callbacks_or_partial_mutation() {
     }
     // fill takes no block, so its block form is refused before anything
     // runs.
-    let mut checked = common::static_engine();
+    let mut checked = vibescript::Engine::new();
     checked.register("entered", |_, _| panic!("entered ran"));
     for (expression, expected) in [
         ("a.fill(9223372036854775807,1) {entered()}", &["V0305"][..]),
@@ -163,7 +163,7 @@ fn validation_order_distinguishes_runtime_errors_from_limits() {
         ("9223372036854775808.step(1,:bad)", &["V0304", "V0101"]),
         ("0.step(1.5,9223372036854775808)", &["V0304", "V0101"]),
     ] {
-        let error = common::static_engine().compile(expression).err().unwrap();
+        let error = vibescript::Engine::new().compile(expression).err().unwrap();
         assert_eq!(common::codes(&error), expected, "{expression}");
     }
     let error = Engine::new()

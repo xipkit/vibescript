@@ -215,7 +215,7 @@ fn large_sets_consume_work_and_bad_calls_stop_before_host_effects() {
         Ok(Value::int(1))
     });
     // Blocks and unknown keywords are refused before anything runs.
-    let mut checked = common::static_engine();
+    let mut checked = vibescript::Engine::new();
     checked.register("touch", |_, _| panic!("touch ran"));
     for (method, args) in [
         ("count", "\"a\""),

@@ -49,14 +49,14 @@ fn named_atoms_resolve_in_the_active_lexical_scope() {
     );
     // A type atom is a symbol.
     let source = "nil.is_type?(\"int?\")";
-    let error = common::static_engine().compile(source).err().unwrap();
+    let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0101"]);
     assert_eq!(error.diagnostics()[0].span.start, 13);
 }
 
 #[test]
 fn invalid_predicates_are_refused_before_blocks() {
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine.register("entered", |_, _| panic!("entered ran"));
     for receiver in ["1", "C.new", "C", "{x:int}"] {
         for (suffix, expected) in [

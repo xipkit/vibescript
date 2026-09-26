@@ -19,7 +19,7 @@ fn evaluate(source: &str) -> serde_json::Value {
 
 /// The code and offset of each static diagnostic that refuses `source`.
 fn refused(source: &str) -> Vec<(String, usize)> {
-    let error = common::static_engine()
+    let error = vibescript::Engine::new()
         .compile(source)
         .err()
         .unwrap_or_else(|| panic!("{source} compiled"));

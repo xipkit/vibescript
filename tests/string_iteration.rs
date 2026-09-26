@@ -52,7 +52,7 @@ fn iteration_returns_the_original_receiver_and_preserves_bindings() {
 
 #[test]
 fn missing_blocks_and_argument_errors_are_refused_before_callback_effects() {
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine.register("effect", |_, _| panic!("effect ran"));
     let refused = |source: &str, code: &str| {
         let error = engine.compile(source).err().unwrap();

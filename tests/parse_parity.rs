@@ -96,7 +96,7 @@ fn forms_the_reference_rejects_at_run_time_are_refused_at_compile_time() {
             "do",
         ),
     ] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), codes, "{source}");
         let last = error.diagnostics().last().unwrap();
         assert_eq!(last.span.start, source.find(at).unwrap(), "{source}");

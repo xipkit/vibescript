@@ -276,7 +276,7 @@ fn formatter_signatures_and_cancellation_prevent_later_host_effects() {
             (format!("t.{method}"), &["V0301"]),
             (format!("t.{method}(\"{layout}\") {{effect()}}"), &["V0305"]),
         ] {
-            let mut checked = common::static_engine();
+            let mut checked = vibescript::Engine::new();
             checked.register("effect", |_, _| panic!("effect ran"));
             let source = format!("t=Time.utc(2024);{call};effect()");
             let error = checked.compile(&source).err().unwrap();

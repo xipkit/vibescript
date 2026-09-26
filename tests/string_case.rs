@@ -171,7 +171,7 @@ fn output_storage_has_an_independent_lifetime_and_repeated_transforms_release_ol
 
 #[test]
 fn keywords_blocks_and_bad_modes_are_refused_before_host_effects() {
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine.register("touch", |_, _| panic!("touch ran"));
     for method in [
         "upcase",

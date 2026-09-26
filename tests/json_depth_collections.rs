@@ -64,7 +64,7 @@ fn nested_collections_have_no_static_ordering() {
         ("[[[1,2],[9]],[[1,2],[0]]].min", "V0115", "min"),
         ("[[[1,2],[9]],[[1,2],[0]]].max", "V0115", "max"),
     ] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), [code], "{source}");
         let span = error.diagnostics()[0].span;
         assert_eq!(&source[span.start..span.end], operator, "{source}");

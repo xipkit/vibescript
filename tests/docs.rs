@@ -2,8 +2,9 @@
 //!
 //! Each fenced ```` ```vibe ```` block in `README.md`, `docs/` and the
 //! builtin reference in `tools/src/lsp/reference/` must compile with
-//! [`Engine::set_static_types`] and produce no diagnostics, warnings
-//! included. The fence's info string may add attributes, separated by spaces:
+//! [`Engine::new`], which type checks every compile, and produce no
+//! diagnostics, warnings included. The fence's info string may add
+//! attributes, separated by spaces:
 //!
 //! - `error=V0101` marks a deliberately invalid example. It must fail to
 //!   compile with exactly the listed codes, separated by commas; a syntax
@@ -182,7 +183,6 @@ fn check(block: &Block, modules: &mut Option<PathBuf>) -> Result<(), String> {
         None => block.source.clone(),
     };
     let mut engine = Engine::new();
-    engine.set_static_types(true);
     if let Some(directory) = modules {
         engine
             .set_module_config(ModuleConfig {

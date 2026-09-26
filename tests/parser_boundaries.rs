@@ -192,7 +192,7 @@ fn an_implicit_it_still_calls_a_function_with_a_percent_array() {
             &[("V0201", "w["), ("V0201", "a]")],
         ),
     ] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         let found: Vec<(String, usize)> = error
             .diagnostics()
             .iter()

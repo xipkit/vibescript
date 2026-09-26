@@ -42,7 +42,7 @@ fn keywords_after_a_bare_star_bind_by_name() {
         (SEND, "send_email(\"a@b.c\", bcc: \"x\")", "V0302", "bcc"),
     ] {
         let program = format!("{source}def run -> string\n  {call}\nend\n");
-        let error = common::static_engine().compile(&program).err().unwrap();
+        let error = vibescript::Engine::new().compile(&program).err().unwrap();
         assert_eq!(common::codes(&error), [code], "{call}");
         let start = program.rfind(call).unwrap() + call.find(at).unwrap();
         assert_eq!(error.diagnostics()[0].span.start, start, "{call}");
@@ -188,8 +188,7 @@ fn outlines_report_keywords_after_the_star() {
 
 #[test]
 fn static_types_check_the_new_form_and_reject_the_removed_ones() {
-    let mut engine = Engine::new();
-    engine.set_static_types(true);
+    let engine = Engine::new();
     let script = engine.compile(SEND).unwrap();
     let result = script
         .call("send_email", &[Value::bytes("a")], CallOptions::default())
@@ -230,20 +229,17 @@ fn nil_and_tuple_types_after_a_colon_are_positional_parameters() {
             "E::Ab",
         ),
     ] {
-        for static_types in [false, true] {
-            let program = format!("{source}def run -> string\n  {call}\nend\n");
-            let mut engine = Engine::new();
-            engine.set_static_types(static_types);
-            let script = engine
-                .compile(&program)
-                .unwrap_or_else(|error| panic!("{source}: {error}"));
-            let result = script.call("run", &[], CallOptions::default()).unwrap();
-            assert_eq!(
-                result.value.as_bytes(),
-                Some(expected.as_bytes()),
-                "{source}"
-            );
-        }
+        let program = format!("{source}def run -> string\n  {call}\nend\n");
+        let engine = Engine::new();
+        let script = engine
+            .compile(&program)
+            .unwrap_or_else(|error| panic!("{source}: {error}"));
+        let result = script.call("run", &[], CallOptions::default()).unwrap();
+        assert_eq!(
+            result.value.as_bytes(),
+            Some(expected.as_bytes()),
+            "{source}"
+        );
         let outline = tooling::outline(source).unwrap();
         let function = outline.items.last().unwrap().function.as_ref().unwrap();
         assert_eq!(

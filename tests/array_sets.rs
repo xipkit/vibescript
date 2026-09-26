@@ -133,7 +133,7 @@ fn blocks_and_invalid_arguments_are_refused_before_host_effects() {
             ("[],1)", "V0101", "1"),
         ] {
             let source = format!("[1].{method}({args};mark()");
-            let mut engine = common::static_engine();
+            let mut engine = vibescript::Engine::new();
             engine.register("mark", |_, _| panic!("mark ran"));
             let error = engine.compile(&source).err().unwrap();
             assert_eq!(common::codes(&error), [code], "{source}");

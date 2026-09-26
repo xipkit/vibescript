@@ -37,7 +37,7 @@ const HELPERS: &str =
 
 #[test]
 fn required_user_methods_do_not_trigger_builtin_dispatch_rules() {
-    let (mut engine, directory) = engine(&[(
+    let (engine, directory) = engine(&[(
         "dispatch.vibe",
         "class C; def send(n: int) -> int; n; end; end; def value -> C; C.new; end; def send(n: int) -> int; n; end",
     )]);
@@ -47,7 +47,6 @@ fn required_user_methods_do_not_trigger_builtin_dispatch_rules() {
         "{:?}",
         errors_with(&engine, source)
     );
-    engine.set_static_types(true);
     assert_eq!(
         engine
             .compile(source)
@@ -106,8 +105,6 @@ fn a_required_files_type_errors_are_reported_in_that_file() {
     assert_eq!(found.len(), 1, "{found:?}");
     assert_eq!(found[0].code, Code::NO_OPERATOR);
     assert_eq!(found[0].file.as_deref(), Some(b"broken.vibe".as_slice()));
-    let mut engine = engine;
-    engine.set_static_types(true);
     let error = engine
         .compile("require(\"broken\")\n")
         .err()
@@ -140,7 +137,7 @@ fn required_functions_read_their_files_top_level_locals() {
 #[test]
 fn relative_requires_use_the_requiring_files_origin() {
     let source = "other = require(\"./relative_target\")\ndef run -> int\n  other.double(3)\nend\n";
-    let (mut engine, directory) = engine(&[
+    let (engine, directory) = engine(&[
         ("relative_caller.vibe", source),
         ("relative_target.vibe", HELPERS),
     ]);
@@ -150,7 +147,6 @@ fn relative_requires_use_the_requiring_files_origin() {
         "{:?}",
         errors_with(&engine, script)
     );
-    engine.set_static_types(true);
     let value = engine
         .compile(script)
         .unwrap()

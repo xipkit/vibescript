@@ -123,7 +123,7 @@ fn nested_namespaces_are_named_through_their_scope() {
         .unwrap_err();
     assert_eq!(error.kind, ErrorKind::Type);
     let missing = "module A\nend\ndef keep(x: A::Missing?)\n  x\nend\n";
-    let error = common::static_engine().compile(missing).err().unwrap();
+    let error = vibescript::Engine::new().compile(missing).err().unwrap();
     assert_eq!(common::codes(&error), ["V0116"]);
     assert!(
         error.message.contains("unknown type `A::Missing`"),

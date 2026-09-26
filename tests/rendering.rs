@@ -81,7 +81,7 @@ fn projections_preserve_selector_order_and_collection_values() {
     );
     // A float selector is refused before anything runs.
     let source = "[10,20,30].values_at(1.9,-1.9)";
-    let error = common::static_engine().compile(source).err().unwrap();
+    let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0101", "V0101"]);
     assert_eq!(
         evaluate(
@@ -120,7 +120,7 @@ fn templates_resolve_data_paths_and_serialize_scalars() {
         ("\"{{x}}\".template({x:JSON.parse})", "V0301"),
         ("\"{{utc}}\".template(Time)", "V0101"),
     ] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), [code], "{source}");
     }
     for source in [
@@ -140,7 +140,7 @@ fn templates_resolve_data_paths_and_serialize_scalars() {
 
 #[test]
 fn blocks_and_rejected_arguments_are_refused_before_host_effects() {
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine.register("effect", |_, _| panic!("effect ran"));
     for (source, expected) in [
         ("[1].values_at(0){effect()}", &["V0305"][..]),

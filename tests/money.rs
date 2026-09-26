@@ -100,7 +100,7 @@ fn money_arrays_and_formatted_strings_keep_their_storage_charged() {
     // amount, format and string are to_s now.
     for member in ["amount", "format", "string"] {
         let source = format!("money_cents(1234,\"USD\").{member}");
-        let error = common::static_engine().compile(&source).err().unwrap();
+        let error = vibescript::Engine::new().compile(&source).err().unwrap();
         assert_eq!(common::codes(&error), ["V0401"], "{member}");
     }
     assert_eq!(
@@ -184,7 +184,7 @@ fn invalid_money_operations_stop_before_later_host_effects() {
     }
     // Float cents, float factors, attribute parentheses, blocks and unknown
     // keywords are refused before anything runs.
-    let mut checked = common::static_engine();
+    let mut checked = vibescript::Engine::new();
     checked.register("effect", |_, _| panic!("effect ran"));
     for (expression, code) in [
         ("money_cents(1e309,\"USD\")", "V0101"),
@@ -205,7 +205,7 @@ fn invalid_money_operations_stop_before_later_host_effects() {
 
 #[test]
 fn constructors_and_formatting_refuse_extra_arguments_and_blocks() {
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine.register("argument", |_, _| panic!("argument ran"));
     engine.register("effect", |_, _| panic!("effect ran"));
     for (source, expected) in [

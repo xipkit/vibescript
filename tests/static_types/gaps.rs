@@ -19,8 +19,7 @@ fn namespace_blocks_do_not_capture_assigned_ambient_locals() {
         "x=1;module M;[2].each { x+=1 };C=x;end;[x,M.C]\n",
         &["V0202"],
     );
-    let mut engine = vibescript::Engine::new();
-    engine.set_static_types(true);
+    let engine = vibescript::Engine::new();
     let result = engine
         .compile("x=1;module M;[2].each { x=2 };C=x;end;[x,M.C]\n")
         .unwrap()

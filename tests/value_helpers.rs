@@ -96,7 +96,7 @@ fn builtins_are_not_values_to_copy() {
     // A builtin names a call; it is not a value that could be copied and
     // called later.
     let source = "cb=JSON::parse.dup;cb(\"[8]\")";
-    let error = common::static_engine().compile(source).err().unwrap();
+    let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0416", "V0301", "V0106", "V0310"]);
     assert_eq!(
         error.diagnostics()[0].span.start,
@@ -174,7 +174,7 @@ fn arguments_to_dup_are_refused_before_running() {
     let cancellation = token.clone();
     let calls = Arc::new(AtomicUsize::new(0));
     let captured = calls.clone();
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine.register("stop", move |_, _| {
         cancellation.cancel();
         Ok(Value::nil())

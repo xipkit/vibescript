@@ -149,7 +149,7 @@ fn string_bounds_follow_byte_order_and_short_circuit_between() {
         "\"a\".between?(nil,\"z\")",
         "\"m\".between?(\"a\",nil)",
     ] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), ["V0101"], "{source}");
     }
 }
@@ -210,7 +210,7 @@ fn substring_offsets_count_characters_and_invalid_bytes_match_replacement_runes(
     );
     // A nil needle and a float offset are refused before anything runs.
     for source in ["\"hello\".rindex(nil,-9)", "\"éa\".index(\"a\",1.9)"] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), ["V0101"], "{source}");
     }
 }
@@ -243,7 +243,7 @@ fn signatures_validate_arguments_before_later_host_effects() {
     assert_eq!(calls.load(Ordering::SeqCst), 1);
     // Other bad arguments, keywords and blocks are refused before
     // anything runs.
-    let mut checked = common::static_engine();
+    let mut checked = vibescript::Engine::new();
     checked.register("effect", |_, _| panic!("effect ran"));
     for (source, expected) in [
         ("\"x\".concat(:x)", &["V0101"][..]),

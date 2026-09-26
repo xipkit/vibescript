@@ -110,7 +110,6 @@ fn supplied_globals_shadow_namespace_declarations() {
     let source = "class Box\nend\nMath + Box.length\n";
     codes_with(&engine, source, &[]);
     codes_with(&engine, "class Box\nend\nBox.new\n", &["V0203"]);
-    engine.set_static_types(true);
     let result = engine
         .compile(source)
         .unwrap()
@@ -289,7 +288,6 @@ fn required_files_see_the_declared_names() {
         .declare_global("config", "{ region: string, limit: int }")
         .unwrap();
     codes_with(&engine, source, &[]);
-    engine.set_static_types(true);
     let script = engine.compile(source).unwrap();
     let options = vibescript::CallOptions {
         globals: [(
@@ -347,7 +345,6 @@ fn nested_method_objects_are_capability_namespaces() {
     codes_with(&engine, "cap.inner.m(1)\n", &["V0101"]);
     codes_with(&engine, "cap.send(1)\n", &["V0203"]);
     codes_with(&engine, "cap.clone\n", &["V0203"]);
-    engine.set_static_types(true);
     let result = engine
         .compile("cap.inner.m(\"x\")\n")
         .unwrap()

@@ -80,7 +80,7 @@ fn failed_block_updates_do_not_publish_partial_results() {
     assert_eq!(result(source), serde_json::json!([1, 2, 3]));
     // `fill` takes no block now.
     let source = "a=[1,2,3];begin\na.fill {|i| raise \"stop\" if i==1;9}\nrescue\na\nend";
-    let error = common::static_engine().compile(source).err().unwrap();
+    let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0301", "V0305"]);
     assert_eq!(
         error.diagnostics()[0].span.start,
@@ -105,7 +105,7 @@ fn prior_writes_and_explicit_callback_writes_survive_later_failures() {
         ("s=\"ab\";begin\ns.insert(:x,\"c\")\nrescue\ns\nend", ":x"),
         ("h={a:1};begin\nh.replace([1])\nrescue\nh\nend", "[1]"),
     ] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), ["V0101"], "{source}");
         assert_eq!(error.diagnostics()[0].span.start, source.find(at).unwrap());
     }

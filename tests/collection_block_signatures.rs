@@ -10,7 +10,7 @@ fn json(value: &Value) -> serde_json::Value {
 /// Compiles `source` with static types and a host `effect` that must not
 /// run, and returns the codes of its errors and the text each points at.
 fn refused(source: &str) -> Vec<(String, String)> {
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine.register("effect", |_, _| panic!("effect ran"));
     let error = engine
         .compile(source)

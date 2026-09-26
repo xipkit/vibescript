@@ -94,7 +94,7 @@ fn padding_counts_characters_and_partition_searches_raw_bytes() {
         assert_eq!(result.value.as_bytes(), Some(expected.as_bytes()), "{call}");
     }
     // A float width is refused before anything runs.
-    let error = common::static_engine()
+    let error = vibescript::Engine::new()
         .compile("def run(input: string) -> string\ninput.ljust(5.9,\"🙂界\")\nend")
         .err()
         .unwrap();
@@ -246,7 +246,7 @@ fn call_contracts_stop_later_effects() {
     assert_eq!(effects.load(Ordering::Relaxed), 0);
     // Unknown keywords, blocks and arguments of the wrong type or count
     // are refused before anything runs.
-    let mut checked = common::static_engine();
+    let mut checked = vibescript::Engine::new();
     checked.register("touch", |_, _| panic!("touch ran"));
     let refused = |source: &str, expected: &[&str]| {
         let error = checked.compile(source).err().unwrap();

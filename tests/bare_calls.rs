@@ -5,17 +5,14 @@ use vibescript::{CallOptions, Capability, HostMethod, Signature, Value};
 
 #[test]
 fn optional_script_parameters_are_bound_by_a_bare_call() {
-    let mut engine = common::static_engine();
+    let engine = vibescript::Engine::new();
     let source = "def g(x: int = 4) -> int\n  x\nend\ng + 1\n";
-    for static_types in [false, true] {
-        engine.set_static_types(static_types);
-        let result = engine
-            .compile(source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap();
-        assert_eq!(result.value.as_int(), Some(5));
-    }
+    let result = engine
+        .compile(source)
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap();
+    assert_eq!(result.value.as_int(), Some(5));
     assert!(
         engine
             .compile("def g(x: int) -> int\n  x\nend\ng\n")
@@ -34,7 +31,7 @@ fn required_file_bare_calls_can_receive_a_member_call() {
         "def value(x: int = 7) -> int\n x\nend\ndef label -> string\n value.to_s\nend\n",
     )
     .unwrap();
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine
         .set_module_config(vibescript::ModuleConfig {
             paths: vec![dir.clone()],
@@ -56,7 +53,7 @@ fn host_functions_and_capability_methods_run_without_parentheses() {
         })
         .unwrap();
     let cap = Capability::from_value("cap", Value::object(vec![(b"tick".to_vec(), tick.value())]));
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine.register_method("tick", tick);
     engine.declare_capability(&cap).unwrap();
     let source = "tick + cap.tick\n";

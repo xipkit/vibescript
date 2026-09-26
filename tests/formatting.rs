@@ -79,7 +79,7 @@ end
         ])
     );
     // Functions are not values, so a rescued callee cannot be called.
-    let error = common::static_engine()
+    let error = vibescript::Engine::new()
         .compile("(missing rescue format)(\"%s\",:ok)")
         .err()
         .unwrap();
@@ -126,7 +126,7 @@ end
         assert_eq!(writes.lock().unwrap().concat(), effects.as_bytes());
     }
     // A pattern that is not a string is refused before anything runs.
-    let error = common::static_engine()
+    let error = vibescript::Engine::new()
         .compile("class C\nend\nformat(7,C.new,C.new)")
         .err()
         .unwrap();
@@ -172,7 +172,7 @@ fn helper_validation_precedes_conversions_and_hosts_can_override_helpers() {
         let source = format!(
             "class C\ndef to_s -> string\nraise \"converted\"\nend\nend\nformat{arguments}"
         );
-        let error = common::static_engine().compile(&source).err().unwrap();
+        let error = vibescript::Engine::new().compile(&source).err().unwrap();
         assert_eq!(common::codes(&error), expected, "{arguments}");
     }
     let mut engine = Engine::new();
@@ -187,7 +187,7 @@ fn helper_validation_precedes_conversions_and_hosts_can_override_helpers() {
 
 #[test]
 fn formatting_helpers_cannot_escape_through_member_calls() {
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine.register("effect", |_, _| panic!("effect ran"));
     for (tail, expected) in [
         (".call(effect())", &["V0301", "V0203"][..]),

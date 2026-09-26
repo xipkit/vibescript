@@ -110,7 +110,7 @@ fn range_errors_and_expansion_limits() {
         ("[1][\"1\"]", "V0101", 4),
         ("[1][0,nil]", "V0107", 6),
     ] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), [code], "{source}");
         assert_eq!(error.diagnostics()[0].span.start, at, "{source}");
     }
@@ -257,8 +257,7 @@ fn language_runtime_rejections() {
             .unwrap_or_else(|| format!("def run(input)\n{}\nend", case["body"].as_str().unwrap()));
         // A case the static checker rejects fails to compile with static types.
         if let Some(expected) = case.get("static_error") {
-            let mut engine = engine(case).0;
-            engine.set_static_types(true);
+            let engine = engine(case).0;
             let error = engine
                 .compile(&source)
                 .err()

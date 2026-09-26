@@ -159,7 +159,7 @@ fn bare_calls_resolve_names_and_cancel_before_later_arguments() {
     });
     // A missing name is refused before any argument runs.
     for source in ["missing tick 0", "missing.push tick 0"] {
-        let mut checked = common::static_engine();
+        let mut checked = vibescript::Engine::new();
         checked.register("tick", |_, _| panic!("tick ran"));
         let error = checked.compile(source).err().unwrap();
         assert_eq!(common::codes(&error), ["V0201"], "{source}");

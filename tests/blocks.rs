@@ -267,7 +267,7 @@ fn breaking_a_receiving_loop_restores_local_call_lookup() {
     let source = "def id(x: int) -> int\nx\nend\n\
                   def receive(&block: int -> int) -> int\nid=9\nwhile true\nid=yield id(3)\nend\nid(4)\nend\n\
                   def run(input: any) -> int\nreceive {break 7}\nend";
-    let error = common::static_engine().compile(source).err().unwrap();
+    let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0310", "V0310"]);
     let calls: Vec<usize> = error.diagnostics().iter().map(|d| d.span.start).collect();
     assert_eq!(
@@ -306,7 +306,7 @@ fn implicit_it_stays_callable_through_rescue_callee_branches() {
 /// Runs `source`'s top-level statements with static types and returns the
 /// result of the last one.
 fn value_of(source: &str) -> Value {
-    common::static_engine()
+    vibescript::Engine::new()
         .compile(source)
         .unwrap_or_else(|error| panic!("{source}: {error}"))
         .run(CallOptions::default())
@@ -364,7 +364,7 @@ fn a_block_starts_on_its_call_s_line() {
     assert_eq!(value.type_name(), "hash");
     // After a value, a brace cannot start a block.
     for source in ["x = (loop\n  { break 1 })", "y = 1\nz = (y { })"] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(error.kind, ErrorKind::Syntax, "{source}");
     }
 }
@@ -387,30 +387,27 @@ fn a_hash_argument_to_a_call_without_parentheses_is_refused_with_a_fix() {
         // The block after an argument has no single repair.
         ("y = 1\np y { a: 1 }\n", None),
     ] {
-        for static_types in [true, false] {
-            let mut engine = Engine::new();
-            engine.set_static_types(static_types);
-            let error = engine.compile(source).err().unwrap();
-            assert_eq!(error.kind, ErrorKind::Syntax, "{source}");
+        let engine = Engine::new();
+        let error = engine.compile(source).err().unwrap();
+        assert_eq!(error.kind, ErrorKind::Syntax, "{source}");
+        assert!(
+            error.message.contains("needs parentheses"),
+            "{source}: {error}"
+        );
+        let [diagnostic] = error.diagnostics() else {
+            panic!("{source}: {:?}", error.diagnostics());
+        };
+        assert_eq!(diagnostic.code.to_string(), "V0002", "{source}");
+        let applied = diagnostic
+            .applicable_fix()
+            .and_then(|fix| fix.apply(source));
+        assert_eq!(applied.as_deref(), fixed, "{source}");
+        if let Some(fixed) = fixed {
+            let parsed = engine.compile(fixed).err();
             assert!(
-                error.message.contains("needs parentheses"),
-                "{source}: {error}"
+                parsed.is_none_or(|error| error.kind != ErrorKind::Syntax),
+                "{fixed}"
             );
-            let [diagnostic] = error.diagnostics() else {
-                panic!("{source}: {:?}", error.diagnostics());
-            };
-            assert_eq!(diagnostic.code.to_string(), "V0002", "{source}");
-            let applied = diagnostic
-                .applicable_fix()
-                .and_then(|fix| fix.apply(source));
-            assert_eq!(applied.as_deref(), fixed, "{source}");
-            if let Some(fixed) = fixed {
-                let parsed = engine.compile(fixed).err();
-                assert!(
-                    parsed.is_none_or(|error| error.kind != ErrorKind::Syntax),
-                    "{fixed}"
-                );
-            }
         }
     }
     // A typed local in a block is a statement, not a hash entry.

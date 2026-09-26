@@ -10,7 +10,7 @@ use vibescript::{Engine, ErrorKind};
 /// Asserts that `source` is refused with `codes`, the first at `at`.
 #[track_caller]
 fn refused(source: &str, codes: &[&str], at: &str) {
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     for host in ["record", "observe", "stop", "fallback"] {
         engine.register(host, |_, _| panic!("a host ran"));
     }

@@ -70,7 +70,7 @@ fn invalid_merge_arguments_and_keys_stop_before_later_callbacks() {
             "effect",
         ),
     ] {
-        let mut engine = common::static_engine();
+        let mut engine = vibescript::Engine::new();
         engine.register("effect", |_, _| panic!("effect ran"));
         let error = engine.compile(source).err().unwrap();
         assert_eq!(common::codes(&error), [code], "{source}");

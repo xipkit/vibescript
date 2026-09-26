@@ -122,11 +122,6 @@ pub struct Engine {
     observer: Option<Arc<dyn observe::Observer>>,
 }
 
-/// Transitional: every engine type checks now. Removed once no test reads
-/// it.
-#[doc(hidden)]
-pub const STATIC_TYPES_BY_DEFAULT: bool = true;
-
 impl Engine {
     /// Creates an engine with core builtins and no external capabilities,
     /// which type checks every script it compiles and the files they
@@ -161,14 +156,6 @@ impl Engine {
             legacy: true,
             ..Self::default()
         }
-    }
-    /// Transitional: `false` makes this engine compile as
-    /// [`Self::legacy_unchecked`] does. Removed once the tests pinned to the
-    /// mode without static types are converted.
-    #[doc(hidden)]
-    pub fn set_static_types(&mut self, enabled: bool) {
-        self.legacy = !enabled;
-        self.loader = Arc::new(self.loader.fresh());
     }
     /// Type checks `source` without compiling it, as [`Self::compile`]
     /// does, returning every diagnostic and the static receiver type of each

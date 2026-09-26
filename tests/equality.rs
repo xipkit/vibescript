@@ -78,7 +78,7 @@ fn hash_fields_named_like_removed_predicates_stay_data() {
     );
     // A method named like a removed predicate cannot be called by it.
     let source = "class C\ndef eql?(x: int) -> int\nx+3\nend\ndef equal?(x: int) -> int\nx+4\nend\nend\na=C.new;[a.eql?(2),a.equal?(2)]";
-    let error = common::static_engine().compile(source).err().unwrap();
+    let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0403", "V0403"]);
     assert_eq!(
         error.diagnostics()[0].span.start,

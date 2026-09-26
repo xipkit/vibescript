@@ -388,7 +388,7 @@ fn locals_read_where_control_skips_their_assignment_are_refused() {
             "later",
         ),
     ] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), codes, "{source}");
         assert_eq!(
             error.diagnostics()[0].span.start,

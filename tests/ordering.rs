@@ -86,7 +86,7 @@ fn key_sort_is_stable_across_merge_boundaries_and_preserves_inputs() {
 fn arrays_are_not_ordered() {
     // Only scalars are ordered, so sorting, comparing or picking extremes
     // by arrays is refused before running.
-    let engine = common::static_engine();
+    let engine = vibescript::Engine::new();
     let arrays = "a: array<any> = [0];b: array<any> = [0];";
     for (source, code, text) in [
         (
@@ -154,7 +154,7 @@ fn unordered_values_differ_from_numeric_comparator_results() {
         assert_eq!(error.kind, ErrorKind::Type, "{source}");
     }
     // Arrays are not ordered, and a comparator returns an int.
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine.register_method("nan", typed("nan", "float", |_| Ok(Value::float(f64::NAN))));
     let source = "n=nan();a=[n];[[n]<=>[n],a<=>a,[3,1,2].sort {n}]";
     let comparisons: Vec<(String, usize)> = source

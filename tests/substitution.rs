@@ -160,7 +160,7 @@ result="aba".gsub(/(a)(b)?/) {|whole|seen.push(whole);next "7"}
         ("{\"a\".match(/a/)[:begin]}", &["V0107", "V0409"]),
     ] {
         let source = format!("enum Status\nOpen\nend\nx=\"a\".sub(/a/) {block}\n");
-        let error = common::static_engine().compile(&source).err().unwrap();
+        let error = vibescript::Engine::new().compile(&source).err().unwrap();
         assert_eq!(common::codes(&error), expected, "{block}");
     }
 }
@@ -190,7 +190,7 @@ fn invalid_signatures_and_references_stop_later_host_effects() {
     assert_eq!(calls.load(Ordering::SeqCst), 0);
     // Wrong arguments, keywords and blocks, and the removed regex:
     // keyword, are refused before anything runs.
-    let mut checked = common::static_engine();
+    let mut checked = vibescript::Engine::new();
     checked.register("effect", |_, _| panic!("effect ran"));
     for (operation, code) in [
         (r#""a".sub("a")"#, "V0301"),

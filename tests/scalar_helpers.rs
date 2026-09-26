@@ -27,7 +27,7 @@ fn symbol_conversions_preserve_raw_bytes_and_distinct_value_kinds() {
 
 #[test]
 fn scalar_conversions_refuse_arguments_keywords_and_blocks_before_entry() {
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine.register("entered", |_, _| panic!("entered ran"));
     for (receiver, methods) in [
         ("nil", &["to_s"][..]),
@@ -52,7 +52,7 @@ fn scalar_conversions_refuse_arguments_keywords_and_blocks_before_entry() {
 #[test]
 fn scalar_aliases_and_dispatch_by_name_are_removed() {
     let source = "[:name.id2name,:name.to_sym,:name.respond_to?(:id2name),:name.respond_to?(:to_sym),:name.id2name.is_type?(:string),:name.to_sym.is_type?(:symbol),[1,:odd?].reduce(:respond_to?),[nil,:nil].reduce(:is_type?)]";
-    let error = common::static_engine().compile(source).err().unwrap();
+    let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(
         common::codes(&error),
         ["V0401", "V0405", "V0405", "V0401", "V0401", "V0401"]

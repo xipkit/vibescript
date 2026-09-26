@@ -59,7 +59,7 @@ fn labels_allow_physical_newlines_but_require_values_for_quoted_keys() {
     // An omitted value names a local, function or builtin, so a missing
     // name or a keyword is refused before anything runs.
     for source in ["{missing:}", "{nil:}", "{true:}", "{false:}", "{end:}"] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), ["V0201"], "{source}");
         assert_eq!(error.diagnostics()[0].span.start, 1, "{source}");
     }
@@ -108,7 +108,7 @@ fn temporary_hash_storage_is_reclaimed_and_failures_stop_before_host_effects() {
         counter.fetch_add(1, Ordering::Relaxed);
         Ok(Value::nil())
     });
-    let mut refusing = common::static_engine();
+    let mut refusing = vibescript::Engine::new();
     refusing.register("mark", |_, _| panic!("mark ran"));
     let error = refusing.compile("{missing:};mark()").err().unwrap();
     assert_eq!(common::codes(&error), ["V0201"]);

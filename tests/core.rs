@@ -38,7 +38,7 @@ fn precedence_truthiness_and_floor_arithmetic() {
     );
     // Only a bool is a condition, so nil and 0 are not truthy operands.
     for source in ["nil || 9", "0 && 4"] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), ["V0105", "V0105"], "{source}");
     }
 }

@@ -148,7 +148,7 @@ fn include_string_searches_and_block_calls_keep_their_contracts() {
         "[1].index(1,0){true}",
         "[1].rindex(1,0){true}",
     ] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), ["V0301"], "{source}");
         assert_eq!(error.diagnostics()[0].span.start, 4, "{source}");
     }

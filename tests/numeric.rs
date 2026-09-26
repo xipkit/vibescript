@@ -112,7 +112,7 @@ fn clamp_compares_bounds_exactly_and_preserves_the_selected_value_type() {
         ("9007199254740992.0.clamp(9007199254740993,nil)", "V0101"),
         ("1.between?(2,\"unused\")", "V0101"),
     ] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), [code], "{source}");
     }
 }
@@ -242,7 +242,7 @@ fn numeric_validation_fails_during_execution_before_later_host_effects() {
     }
     // Arguments of the wrong type and blocks are refused before anything
     // runs.
-    let mut checked = common::static_engine();
+    let mut checked = vibescript::Engine::new();
     checked.register("effect", |_, _| panic!("effect ran"));
     for (expression, code) in [
         ("1.round(1.5)", "V0101"),
