@@ -138,6 +138,15 @@ fn continue_session(
     bindings: &BTreeMap<String, Value>,
     classes: &[&str],
 ) -> (Value, BTreeMap<String, Value>) {
+    let mut engine = engine.clone();
+    for &name in classes {
+        engine
+            .declare_capability(&vibescript::Capability::from_value(
+                name,
+                bindings[name].clone(),
+            ))
+            .unwrap();
+    }
     let mut globals: BTreeMap<String, Value> = classes
         .iter()
         .map(|&name| (name.to_owned(), bindings[name].clone()))
@@ -241,7 +250,10 @@ level = session.fetch(\"level\").as(Level)
 #[test]
 fn a_supplied_global_shadows_a_declaration_of_the_same_name() {
     let globals = BTreeMap::from([("Point".to_owned(), Value::int(7))]);
-    let bindings = run(
+    let mut engine = Engine::new();
+    engine.declare_global("Point", "int").unwrap();
+    let bindings = run_with(
+        &engine,
         "class Point
 end
 kind = Point",
@@ -283,4 +295,41 @@ fn a_top_level_return_still_reports_its_locals() {
         .unwrap();
     assert_eq!(outcome.value.as_int(), Some(10));
     assert_eq!(ints(&bindings), [("x", Some(5))]);
+}
+
+#[test]
+fn retained_type_globals_require_matching_declarations_and_identity() {
+    for source in ["class C; def n -> int; 1; end; end", "enum C; A; B; end"] {
+        let (_, bindings) = Engine::new()
+            .compile(source)
+            .unwrap()
+            .run_bindings(CallOptions::default())
+            .unwrap();
+        let retained = bindings["C"].clone();
+        let mut engine = Engine::new();
+        engine
+            .declare_capability(&vibescript::Capability::from_value("C", retained.clone()))
+            .unwrap();
+        let script = engine.compile(source).unwrap();
+        script
+            .run(CallOptions {
+                globals: [("C".into(), retained)].into(),
+                ..CallOptions::default()
+            })
+            .unwrap();
+        assert!(engine.compile("class C; end").is_err());
+        let (_, other) = Engine::new()
+            .compile(source)
+            .unwrap()
+            .run_bindings(CallOptions::default())
+            .unwrap();
+        let error = script
+            .run(CallOptions {
+                globals: [("C".into(), other["C"].clone())].into(),
+                ..CallOptions::default()
+            })
+            .unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Type);
+        assert!(error.message.contains("identity"));
+    }
 }

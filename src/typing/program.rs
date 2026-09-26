@@ -95,12 +95,57 @@ pub(crate) struct Program<'a> {
 }
 
 impl<'a> Checker<'a> {
+    /// Verifies the source contracts of explicitly retained script type values.
+    pub(super) fn check_retained_declarations(&mut self, declared: &crate::declared::Declarations) {
+        for (name, declaration) in declared {
+            let Some((value, source)) = declaration.retained() else {
+                continue;
+            };
+            let valid = match &value.0 {
+                crate::value::Kind::Namespace(namespace) => self
+                    .program
+                    .roots
+                    .get(name.as_str())
+                    .and_then(|&ns| self.program.namespaces[ns as usize].module)
+                    .is_some_and(|module| {
+                        namespace.definition.name == *name
+                            && source.is_some_and(|source| {
+                                self.steps += source.len() as u64;
+                                self.source[module.offset as usize..].starts_with(source)
+                            })
+                    }),
+                crate::value::Kind::Enum(enumeration) => self
+                    .program
+                    .enum_names
+                    .get(name.as_str())
+                    .is_some_and(|&id| {
+                        let found = &self.program.enums[id as usize];
+                        self.steps += enumeration.definition.members.len() as u64;
+                        enumeration.definition.name == *name
+                            && found.members.iter().eq(enumeration
+                                .definition
+                                .members
+                                .iter()
+                                .map(|member| &member.name))
+                    }),
+                _ => false,
+            };
+            if !valid {
+                self.report(Diagnostic::error(Code::TYPE_MISMATCH, crate::diagnostic::Span::at(0),
+                    format!("retained declaration `{name}` must appear with its original source and members")));
+            }
+        }
+    }
+
     /// Types the globals and capabilities the host declares: a global or a
     /// capability's data by its type, a capability with members as a
     /// namespace of them, and a callable capability as a host function.
     pub(super) fn declare_hosts(&mut self, declared: &'a crate::declared::Declarations) {
         for (name, declaration) in declared {
             self.steps += 1;
+            if declaration.retained().is_some() {
+                continue;
+            }
             match &declaration.item {
                 crate::signatures::Item::Constant(constant) => {
                     let ty = sigs::table_type(&mut self.types, &constant.ty, &[]);

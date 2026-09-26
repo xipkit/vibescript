@@ -99,7 +99,7 @@ type HostCallback =
     Arc<dyn Fn(&mut CallContext, &[Value], &[(Value, Value)]) -> Result<Value> + Send + Sync>;
 
 /// A compiler configured with explicitly registered host capabilities.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Engine {
     hosts: BTreeMap<String, capability::Registered>,
     /// Hosts registered with [`Self::register`], which refuse keywords.
@@ -374,6 +374,10 @@ impl Engine {
     /// assert!(script.call("notify", &[], CallOptions::default()).is_err());
     /// # Ok::<(), vibescript::Error>(())
     /// ```
+    ///
+    /// A template that is a retained script class, module or enum pins that
+    /// declaration's identity. The source must carry the original namespace
+    /// declaration or enum members; each call supplies that retained value.
     pub fn declare_capability(&mut self, capability: &Capability) -> Result<()> {
         let declaration = declared::Declaration::capability(capability)?;
         Arc::make_mut(&mut self.declared).insert(capability.name.clone(), declaration);

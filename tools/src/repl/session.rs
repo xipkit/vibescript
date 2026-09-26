@@ -280,8 +280,16 @@ impl Session {
             .collect();
         let bindings = self.bindings(names, &kept);
         let (combined, map) = SourceMap::build(bindings, &kept, source.clone());
-        let script = self
-            .engine
+        let mut engine = self.engine.clone();
+        for (name, (_, value)) in &self.types {
+            if !names.contains(name) {
+                engine.declare_capability(&vibescript::Capability::from_value(
+                    name.clone(),
+                    value.clone(),
+                ))?;
+            }
+        }
+        let script = engine
             .compile(&combined)
             .map_err(|error| snippet_error(map.remap(error), combined.len()))?;
         let start = combined.len() - source.len();
@@ -292,8 +300,7 @@ impl Session {
             .cloned()
             .collect();
         let declared = carry(&source, &own, start);
-        let checked = self
-            .engine
+        let checked = engine
             .type_check(&combined)
             .map_err(|error| snippet_error(map.remap(error), combined.len()))?;
         Ok(Compiled::new(script, map, kept, declared, checked))

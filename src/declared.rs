@@ -34,6 +34,8 @@ enum Shape {
     Method(Option<crate::Signature>),
     /// An object with these members.
     Object(Vec<(String, Shape)>),
+    /// A retained script declaration, pinned to its nominal identity and source.
+    Retained(Value, Option<String>),
 }
 
 impl Declaration {
@@ -88,6 +90,14 @@ impl Declaration {
         })
     }
 
+    /// The retained script declaration, if the capability template names one.
+    pub fn retained(&self) -> Option<(&Value, Option<&str>)> {
+        match &self.shape {
+            Shape::Retained(value, source) => Some((value, source.as_deref())),
+            _ => None,
+        }
+    }
+
     /// Checks the value a call supplies for the declared name `name`, as
     /// `subject` names it in errors, such as `global tenant`.
     fn check(&self, ctx: &mut CallContext, subject: &str, value: &Value) -> Result<()> {
@@ -120,6 +130,40 @@ fn named(ty: &Type) -> Option<&str> {
 /// [`signatures::host::binding`] renders for it.
 fn shape(value: &Value, top: bool) -> Result<Shape> {
     Ok(match &value.0 {
+        Kind::Namespace(namespace) if top => {
+            let owner = namespace
+                .owner
+                .clone()
+                .or_else(|| {
+                    namespace
+                        .definition
+                        .owner
+                        .get()
+                        .and_then(std::sync::Weak::upgrade)
+                })
+                .ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Argument,
+                        "retained namespace has no source owner",
+                    )
+                })?;
+            let declaration = owner
+                .program
+                .outline
+                .iter()
+                .find(|declaration| declaration.name == namespace.definition.name)
+                .ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Argument,
+                        "only top-level script declarations can be retained",
+                    )
+                })?;
+            Shape::Retained(
+                value.clone(),
+                Some(owner.program.source.text()[declaration.span.clone()].to_owned()),
+            )
+        }
+        Kind::Enum(_) if top => Shape::Retained(value.clone(), None),
         Kind::Host(method) => {
             Shape::Method(method.signature().map(|signature| signature.source.clone()))
         }
@@ -153,6 +197,22 @@ fn shape(value: &Value, top: bool) -> Result<Shape> {
 fn check(ctx: &mut CallContext, shape: &Shape, subject: &str, value: &Value) -> Result<()> {
     ctx.charge(1)?;
     match shape {
+        Shape::Retained(template, _) => {
+            let same = match (&template.0, &value.0) {
+                (Kind::Namespace(expected), Kind::Namespace(actual)) => expected.same_type(actual),
+                (Kind::Enum(expected), Kind::Enum(actual)) => expected.identical(actual),
+                _ => false,
+            };
+            if same {
+                Ok(())
+            } else {
+                Err(Error::new(
+                    ErrorKind::Type,
+                    format!("{subject} must retain its declared script type identity"),
+                )
+                .with_class(crate::ErrorClass::Type))
+            }
+        }
         Shape::Value(None) => Ok(()),
         Shape::Value(Some(ty)) => {
             let prepared = crate::types::prepare(ctx, ty, |_, _| {
