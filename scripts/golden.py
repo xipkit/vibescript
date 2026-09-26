@@ -39,8 +39,8 @@ ROOT = Path(__file__).resolve().parent.parent
 GOLDEN = ROOT / "tests/golden"
 SCRATCH = ROOT / ".cache/golden"
 CARGO = ROOT / "scripts/cargo"
-HARNESS = ROOT / "target/release/examples/golden"
-VIBES = ROOT / "target/release/vibes"
+HARNESS = ROOT / "target/gate/examples/golden"
+VIBES = ROOT / "target/gate/vibes"
 # Values, messages and streams longer than this are recorded as digests.
 LIMIT = 4096
 # A case that is quiet for this long is killed and recorded as hung.
@@ -1179,9 +1179,9 @@ def compact_replies(records, table):
 def build(args, corpora):
     kinds = {corpus.kind for corpus in corpora}
     if "engine" in kinds and args.harness == HARNESS:
-        subprocess.run([str(CARGO), "build", "--release", "--locked", "--example", "golden"], cwd=ROOT, check=True)
+        subprocess.run([str(CARGO), "build", "--profile", "gate", "--locked", "--example", "golden"], cwd=ROOT, check=True)
     if kinds & {"cli", "lsp"} and args.bin == VIBES:
-        subprocess.run([str(CARGO), "build", "--release", "--locked", "-p", "vibes"], cwd=ROOT, check=True)
+        subprocess.run([str(CARGO), "build", "--profile", "gate", "--locked", "-p", "vibes"], cwd=ROOT, check=True)
 
 
 def main(argv=None):

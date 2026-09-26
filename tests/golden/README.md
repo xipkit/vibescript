@@ -8,7 +8,7 @@ python3 scripts/golden.py --corpus replay,cli      # check some corpora; --list 
 python3 scripts/golden.py --record --corpus parse  # accept a deliberate change
 ```
 
-It builds `examples/golden.rs`, the engine harness, and the `vibes` binary in release mode; `--harness`, `--bin` and `--no-build` check other builds. A full check takes about a minute on ten cores after the build. `./scripts/check` runs it, and `scripts/compare.py --validate-only` runs the engine corpora against its portable and SIMD builds.
+It builds `examples/golden.rs`, the engine harness, and the `vibes` binary with the `gate` profile (release optimizations with parallel code generation); `--harness`, `--bin` and `--no-build` check other builds. A full check takes about a minute on ten cores after the build. `./scripts/check` runs it, and `scripts/compare.py --validate-only` runs the engine corpora against its portable and SIMD builds.
 
 To check or re-record only affected cases, pass `--cases FILE`, where the JSON file maps corpus names to lists of exact case ids, for example `{"conformance": ["case_id"]}`. Use it with `--record --corpus conformance` to preserve every unselected observation and counter. Selected recordings still run twice, validate independent fixture expectations, and preserve the contents of unselected LSP replies when their shared table is renumbered.
 

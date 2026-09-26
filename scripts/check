@@ -15,8 +15,8 @@ done
 ./scripts/cargo clippy --workspace --all-targets --all-features -- -D warnings
 ./scripts/cargo clippy --workspace --all-targets --no-default-features -- -D warnings
 ./scripts/cargo test --workspace --all-targets --all-features
-./scripts/cargo test --workspace --release --all-targets --all-features
-./scripts/cargo test --workspace --release --all-targets --no-default-features
+./scripts/cargo test --workspace --profile gate --all-targets --all-features
+./scripts/cargo test --workspace --profile gate --all-targets --no-default-features
 ./scripts/cargo test --workspace --doc --all-features
 python3 scripts/golden.py
 if [ "$with_go" = 1 ]; then
