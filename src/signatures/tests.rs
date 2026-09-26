@@ -253,18 +253,17 @@ fn runtime_members() -> BTreeMap<&'static str, BTreeSet<String>> {
     members.get_mut("T").unwrap().insert("as".to_owned());
     // Match data and rescued errors are records whose fields are their members.
     for (receiver, source) in [
-        ("match_data", "\"abc\".match(\"b\").keys"),
+        ("match_data", "\"abc\".match(\"b\")"),
         (
             "error",
-            "begin\n  raise \"bad\"\nrescue => error\n  error.keys\nend",
+            "begin\n  raise \"bad\"\nrescue => error\n  error\nend",
         ),
     ] {
-        // The fields are runtime members the static table does not declare.
-        let mut engine = Engine::legacy_unchecked();
-
-        let script = engine.compile(source).unwrap();
-        let keys = script.run(CallOptions::default()).unwrap().value;
-        let keys = keys.as_array().unwrap().iter().map(text);
+        // The fields are runtime members the static table does not declare,
+        // so they are read from the record the script returns.
+        let script = Engine::new().compile(source).unwrap();
+        let record = script.run(CallOptions::default()).unwrap().value;
+        let keys = record.as_hash().unwrap().iter().map(|(key, _)| text(key));
         members.insert(receiver, keys.collect());
     }
     members
