@@ -9,12 +9,8 @@ pub(super) fn rewrite(source: &str) -> String {
         return source.to_owned();
     };
     let definitions = sites::defs(&tree);
-    let functions: HashMap<_, _> = definitions
-        .iter()
-        .filter(|site| site.owner.is_empty())
-        .map(|site| (site.def.name.as_str(), site.def))
-        .collect();
-    let mut calls: HashMap<&str, Vec<&Call>> = HashMap::new();
+    let checked = vibescript::Engine::new().type_check(source).ok();
+    let mut calls: HashMap<usize, Vec<&Call>> = HashMap::new();
     for stmt in &tree.body {
         sites::each_stmt(stmt, &mut |node| {
             if let Node::Expr(Expr {
@@ -22,16 +18,64 @@ pub(super) fn rewrite(source: &str) -> String {
                 ..
             }) = node
             {
-                if call.receiver.is_none() && functions.contains_key(call.name.as_str()) {
-                    calls.entry(call.name.as_str()).or_default().push(call);
+                let offset = tree.tokens[call.name_tok].start;
+                let enclosing = definitions
+                    .iter()
+                    .filter(|site| site.span.start <= offset && offset < site.span.end)
+                    .min_by_key(|site| site.span.end - site.span.start);
+                let receiver = checked
+                    .as_ref()
+                    .and_then(|checked| checked.calls.receiver_at(offset));
+                let target = if call.receiver.is_some() {
+                    receiver.and_then(|receiver| {
+                        let constructor = receiver.is("namespace") && call.name == "new";
+                        let name = if constructor {
+                            "initialize"
+                        } else {
+                            &call.name
+                        };
+                        definitions
+                            .iter()
+                            .enumerate()
+                            .find(|(_, site)| {
+                                site.owner == receiver.name()
+                                    && site.def.name == name
+                                    && (constructor
+                                        || site.def.class_method == receiver.is("namespace"))
+                            })
+                            .map(|(id, _)| id)
+                    })
+                } else {
+                    let method = enclosing.and_then(|enclosing| {
+                        definitions
+                            .iter()
+                            .enumerate()
+                            .find(|(_, site)| {
+                                !site.owner.is_empty()
+                                    && site.owner == enclosing.owner
+                                    && site.def.class_method == enclosing.def.class_method
+                                    && site.def.name == call.name
+                            })
+                            .map(|(id, _)| id)
+                    });
+                    method.or_else(|| {
+                        definitions
+                            .iter()
+                            .enumerate()
+                            .find(|(_, site)| site.owner.is_empty() && site.def.name == call.name)
+                            .map(|(id, _)| id)
+                    })
+                };
+                if let Some(target) = target {
+                    calls.entry(target).or_default().push(call);
                 }
             }
             true
         });
     }
     let mut edits = Edits::default();
-    for (name, calls) in calls {
-        let def = functions[name];
+    for (id, calls) in calls {
+        let def = definitions[id].def;
         if def.params.iter().any(|p| p.kind == ParamKind::Rest)
             || calls
                 .iter()

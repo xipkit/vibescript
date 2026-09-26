@@ -632,3 +632,38 @@ fn positional_parameters_passed_by_name_become_keywords() {
     let (unchanged, _) = full("def add(x: int) -> int\n  x + 1\nend\nadd(1)\n", &[]);
     assert!(!unchanged.contains('*'), "{unchanged}");
 }
+
+#[test]
+fn named_method_arguments_rewrite_the_resolved_definition() {
+    let source = "class A\n  def add(x: int) -> int\n    x + 1\n  end\nend\nclass B\n  def add(x: int) -> int\n    x + 2\n  end\nend\na=A.new\na.add(x: 1)\na.add(2)\nB.new.add(3)\n";
+    let (out, _) = full(source, &[]);
+    assert!(out.contains("def add(*, x: int)"), "{out}");
+    assert!(out.contains("a.add(x: 2)"), "{out}");
+    assert!(out.contains("B.new.add(3)"), "{out}");
+    assert_eq!(out.matches("def add(*, x: int)").count(), 1, "{out}");
+    assert!(
+        vibescript::Engine::new()
+            .type_check(&out)
+            .unwrap()
+            .diagnostics
+            .is_empty(),
+        "{out}"
+    );
+}
+
+#[test]
+fn named_constructor_and_namespace_arguments_become_keywords() {
+    let source = "class C\n  property x: int\n  def initialize(@x: int)\n  end\n  def self.add(x: int) -> int\n    x + 1\n  end\nend\nC.new(x: 1).x\nC.add(x: 2)\nC.add(3)\n";
+    let (out, _) = full(source, &[]);
+    assert!(out.contains("def initialize(*, @x: int)"), "{out}");
+    assert!(out.contains("def self.add(*, x: int)"), "{out}");
+    assert!(out.contains("C.add(x: 3)"), "{out}");
+    assert!(
+        vibescript::Engine::new()
+            .type_check(&out)
+            .unwrap()
+            .diagnostics
+            .is_empty(),
+        "{out}"
+    );
+}
