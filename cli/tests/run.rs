@@ -16,7 +16,12 @@ fn runs_files_with_the_reference_defaults() {
             vec!["-function", "greet"],
             "hello\n",
         ),
-        ("run.vibe", "def run\n  \"ok\"\nend", vec![], "ok\n"),
+        (
+            "run.vibe",
+            "def run -> string\n  \"ok\"\nend",
+            vec![],
+            "ok\n",
+        ),
         (
             "class.vibe",
             "class Settings\n  @@limit: int = 10\n\n  def self.limit -> int\n    @@limit\n  end\nend\n\ndef run -> int\n  Settings.limit\nend",
@@ -56,32 +61,43 @@ fn runs_files_with_the_reference_defaults() {
 }
 
 #[test]
-fn check_validates_the_selected_invocation_without_executing() {
+fn type_errors_refuse_the_selected_invocation_before_it_runs() {
     let files = Files::new();
-    let ok = files.write("ok.vibe", "def run\n  \"ok\"\nend");
-    vibes(&["run", "-check", &ok]).expect(0, "", "");
-    let top = files.write("top.vibe", "def double(x)\n  x * 2\nend\n\ndouble(3)");
-    vibes(&["run", "-check", &top]).expect(0, "", "");
-    let named = files.write("named.vibe", "def run(name)\n  name\nend");
-    vibes(&["run", "-check", &named, "Ada"]).expect(0, "", "");
     let typed = files.write("typed.vibe", "def run(count: int)\n  count\nend");
-    let run = vibes(&["run", "-check", &typed, "one"]);
+    let run = vibes(&["run", &typed, "one"]);
     assert_eq!(run.status, Some(1));
     assert_eq!(run.stdout, "");
-    assert!(run.stderr.starts_with("check failed: "), "{}", run.stderr);
-    assert!(run.stderr.contains("(run)"), "{}", run.stderr);
+    assert!(
+        run.stderr.starts_with(&format!(
+            "compile failed with 1 diagnostic(s)\n{typed}:1:9: error[V0101]: "
+        )),
+        "{}",
+        run.stderr
+    );
     let two = files.write(
         "two.vibe",
         "def run\n  a\n  b\nend\ndef a -> int\n  \"x\"\nend\ndef b -> int\n  \"y\"\nend\n",
     );
-    let run = vibes(&["run", "-check", "-function", "a", &two]);
-    run.expect(
-        1,
-        "",
-        "check failed: 6:3: Return value: expected int, got string (a)\n",
+    // The whole script is checked, whichever function the command line selects.
+    let run = vibes(&["run", "-function", "a", &two]);
+    assert_eq!(run.status, Some(1));
+    assert_eq!(run.stdout, "");
+    assert!(
+        run.stderr.starts_with(&format!(
+            "compile failed with 2 diagnostic(s)\n{two}:6:3: error[V0101]: `a` returns int, found string\n"
+        )),
+        "{}",
+        run.stderr
+    );
+    assert!(
+        run.stderr.contains(&format!(
+            "{two}:9:3: error[V0101]: `b` returns int, found string\n"
+        )),
+        "{}",
+        run.stderr
     );
     let none = files.write("none.vibe", "def other\nend\n");
-    vibes(&["run", "-check", &none]).fails("function run not found");
+    vibes(&["run", &none]).fails("execution failed: function run not found");
 }
 
 #[test]
@@ -89,11 +105,11 @@ fn inline_snippets_run_and_print_their_result() {
     for (args, stdout) in [
         (vec!["-e", "1 + 2"], "3\n"),
         (vec!["-e", "x = 2\ny = 3\nx * y"], "6\n"),
-        (vec!["-e", "def helper\n  1\nend\nhelper"], "1\n"),
+        (vec!["-e", "def helper -> int\n  1\nend\nhelper"], "1\n"),
         (
             vec![
                 "-e",
-                "class Helper\n  def value\n    42\n  end\nend\nHelper.new.value",
+                "class Helper\n  def value -> int\n    42\n  end\nend\nHelper.new.value",
             ],
             "42\n",
         ),
@@ -102,14 +118,19 @@ fn inline_snippets_run_and_print_their_result() {
             "Draft\n",
         ),
         (
-            vec!["-e", "export def helper\n  \"exported\"\nend\nhelper"],
+            vec![
+                "-e",
+                "export def helper -> string\n  \"exported\"\nend\nhelper",
+            ],
             "exported\n",
         ),
         (
-            vec!["-e", "private def helper\n  \"private\"\nend\nhelper"],
+            vec![
+                "-e",
+                "private def helper -> string\n  \"private\"\nend\nhelper",
+            ],
             "private\n",
         ),
-        (vec!["-check", "-e", "1 + 2"], ""),
         (vec!["-e", "nil"], ""),
         (vec!["-e", "puts \"side\"\nnil"], "side\n"),
     ] {
@@ -143,45 +164,55 @@ fn inline_snippets_run_and_print_their_result() {
 
 #[test]
 fn inline_checks_cover_the_whole_snippet() {
-    let run = vibes(&["run", "-check", "-e", "missing_name"]);
+    let run = vibes(&["run", "-e", "missing_name"]);
     assert_eq!(run.status, Some(1));
     assert!(
-        run.stderr.starts_with("check failed: 1:1: "),
+        run.stderr
+            .starts_with("compile failed with 1 diagnostic(s)\n<eval>:1:1: error[V0201]: "),
         "{}",
         run.stderr
     );
     let run = vibes(&[
         "run",
-        "-check",
         "-e",
         "def takes_string(value: string)\n  value\nend\n\ndef bad(value: int)\n  takes_string(value)\nend\n\n1",
     ]);
     assert_eq!(run.status, Some(1));
-    assert!(run.stderr.starts_with("check failed: "), "{}", run.stderr);
     assert!(
-        run.stderr.contains("expected string, got int"),
+        run.stderr
+            .starts_with("compile failed with 1 diagnostic(s)\n<eval>:6:16: error[V0101]: "),
+        "{}",
+        run.stderr
+    );
+    assert!(
+        run.stderr.contains("expected string, found int"),
+        "{}",
+        run.stderr
+    );
+    // A parameter without a type is refused, even in a function never called.
+    let run = vibes(&[
+        "run",
+        "-e",
+        "def gradual(value)\n  value.whatever_member\nend\n\n3",
+    ]);
+    assert_eq!(run.status, Some(1));
+    assert!(
+        run.stderr
+            .starts_with("compile failed with 1 diagnostic(s)\n<eval>:1:13: error[V0118]: "),
         "{}",
         run.stderr
     );
     vibes(&[
         "run",
-        "-check",
-        "-e",
-        "def gradual(value)\n  value.whatever_member\nend\n\n3",
-    ])
-    .expect(0, "", "");
-    let run = vibes(&[
-        "run",
-        "-check",
         "-e",
         "def a -> int\n  \"x\"\nend\ndef b -> int\n  \"y\"\nend\n",
-    ]);
-    run.expect(
-        1,
-        "",
-        "check failed with 2 issue(s):\n  \
-         2:3: Return value: expected int, got string (a)\n  \
-         5:3: Return value: expected int, got string (b)\n",
+    ])
+    .fails(
+        "compile failed with 2 diagnostic(s)\n\
+         <eval>:2:3: error[V0101]: `a` returns int, found string\n   |\n  2|   \"x\"\n   |   ^^^\n   \
+         = expected int, found string\n\n\
+         <eval>:5:3: error[V0101]: `b` returns int, found string\n   |\n  5|   \"y\"\n   |   ^^^\n   \
+         = expected int, found string",
     );
 }
 
@@ -367,26 +398,18 @@ fn interrupt_cancels_a_running_script() {
 }
 
 #[test]
-fn static_mode_refuses_type_errors_and_entry_arguments_that_are_not_strings() {
+fn refuses_type_errors_and_entry_arguments_that_are_not_strings() {
     let files = Files::new();
     let path = files.write(
         "greet.vibe",
         "def run(name: string, times: int) -> string\n  name * times\nend\n",
     );
-    // Without static types the call fails when it starts; with them on by
-    // default, the command line's strings are refused before it runs.
+    // The command line's strings are refused before the call runs.
     let run = vibes(&["run", &path, "ada", "2"]);
-    let refusal = if vibescript::STATIC_TYPES_BY_DEFAULT {
-        "compile failed with 1 diagnostic(s)"
-    } else {
-        "execution failed: argument times expected int, got string"
-    };
-    assert!(run.stderr.starts_with(refusal), "{}", run.stderr);
-    let run = vibes(&["run", "--static", &path, "ada", "2"]);
     assert_eq!(run.status, Some(1), "{}", run.stdout);
     assert!(
-        run.stderr.contains(&format!(
-            "{path}:1:23: error[V0101]: the command line passes strings, but `times` of `run` is int"
+        run.stderr.starts_with(&format!(
+            "compile failed with 1 diagnostic(s)\n{path}:1:23: error[V0101]: the command line passes strings, but `times` of `run` is int"
         )),
         "{}",
         run.stderr
@@ -395,14 +418,13 @@ fn static_mode_refuses_type_errors_and_entry_arguments_that_are_not_strings() {
         "shout.vibe",
         "def run(name: string) -> string\n  name.upcase\nend\n",
     );
-    vibes(&["run", "--static", &path, "ada"]).expect(0, "ADA\n", "");
+    vibes(&["run", &path, "ada"]).expect(0, "ADA\n", "");
     let path = files.write("broken.vibe", "def run -> int\n  \"one\"\nend\n");
-    let run = vibes(&["run", "--static", &path]);
+    let run = vibes(&["run", &path]);
     assert_eq!(run.status, Some(1));
     assert!(
         run.stderr
-            .starts_with("vibes: compile failed with 1 diagnostic(s)\n")
-            || run.stderr.contains("compile failed with 1 diagnostic(s)"),
+            .starts_with("compile failed with 1 diagnostic(s)\n"),
         "{}",
         run.stderr
     );
