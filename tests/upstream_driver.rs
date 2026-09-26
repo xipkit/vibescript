@@ -902,7 +902,31 @@ fn source(path: &str) -> String {
     fs::read_to_string(&full).unwrap_or_else(|e| panic!("{}: {e}", full.display()))
 }
 
+/// Pinned programs that call what static types refuse on purpose, so that
+/// their invocations reproduce the reference's runtime rejections.
+const RUNTIME_REJECTION_PROGRAMS: [&str; 8] = [
+    "tests/blocks/block_arity.vibe",
+    "tests/blocks/block_error_propagation.vibe",
+    "tests/blocks/error_cases.vibe",
+    "tests/errors/arguments.vibe",
+    "tests/errors/attributes.vibe",
+    "tests/errors/classes.vibe",
+    "tests/errors/runtime.vibe",
+    "tests/errors/types.vibe",
+];
+
+/// Compiles a pinned program; the runtime rejection programs compile
+/// without static types.
 fn compile(engine: &Engine, path: &str) -> Script {
+    let untyped;
+    let engine = if RUNTIME_REJECTION_PROGRAMS.contains(&path) {
+        let mut plain = Engine::new();
+        plain.set_static_types(false);
+        untyped = plain;
+        &untyped
+    } else {
+        engine
+    };
     engine
         .compile(&source(path))
         .unwrap_or_else(|e| panic!("{path}: compile failed: {e}"))
