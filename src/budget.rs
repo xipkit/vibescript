@@ -466,6 +466,11 @@ impl CallContext {
     }
 }
 
+/// Elements larger than this, such as the VM's frames, iteration states and
+/// pending argument lists, start a buffer at four rather than eight, since
+/// those stacks rarely grow past four.
+const LARGE: usize = 128;
+
 #[derive(Debug)]
 pub(crate) struct Buffer<T> {
     pub data: Vec<T>,
@@ -526,12 +531,15 @@ impl<T> Buffer<T> {
 
     pub fn push(&mut self, ctx: &mut CallContext, value: T) -> Result<()> {
         if self.data.len() == self.data.capacity() {
-            let capacity = self
-                .data
-                .capacity()
-                .max(4)
-                .checked_mul(2)
-                .ok_or_else(|| Error::new(ErrorKind::Memory, "allocation size overflow"))?;
+            let capacity = if self.data.capacity() == 0 && size_of::<T>() > LARGE {
+                4
+            } else {
+                self.data
+                    .capacity()
+                    .max(4)
+                    .checked_mul(2)
+                    .ok_or_else(|| Error::new(ErrorKind::Memory, "allocation size overflow"))?
+            };
             self.ensure(ctx, capacity)?;
         }
         self.data.push(value);

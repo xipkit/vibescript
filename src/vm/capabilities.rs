@@ -31,7 +31,7 @@ impl Call {
                 frame.block = args.block;
                 frame.return_to = return_to;
                 frame.arguments.push(ctx, args)?;
-                push_frame(ctx, frames, frame)
+                frames.push(ctx, frame)
             }
         }
     }
