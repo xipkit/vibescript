@@ -186,75 +186,63 @@ fn bare_callable_names_execute_optional_defaults() {
 fn conditional_default_locals_resolve_hosts_before_evaluating_arguments() {
     let calls = Arc::new(AtomicUsize::new(0));
     let seen = calls.clone();
-    let mut engine = common::runtime_engine();
-    engine.register_with_keywords("probe", move |_, args, keywords| {
-        if args.is_empty() && keywords.is_empty() {
-            return Err(vibescript::Error::new(
-                ErrorKind::Argument,
-                "probe requires arguments",
-            ));
-        }
-        assert_eq!(keywords.len(), 1);
-        assert_eq!(keywords[0].0.as_bytes(), Some(b"flag".as_slice()));
-        assert_eq!(args.len(), 1);
+    let mut engine = Engine::new();
+    engine.register_with_keywords("probe", move |_, args, _| {
         seen.fetch_add(1, Ordering::SeqCst);
         Ok(args[0].clone())
     });
-    let script = engine
-        .compile(
+    // A local assigned in any default shadows the host function in every
+    // later default, whether or not that default ran, and it must be
+    // assigned on every path before it is read.
+    for (source, expected) in [
+        (
             "def f(a: int =(while true\nprobe=7\nbreak 0\nend),\n\
              b: int =probe(*[(while true\nprobe=42\nbreak 3\nend)],flag:true)) -> array<any>\n\
              [b,probe]\nend\nf(1)",
-        )
-        .unwrap();
-    let result = script.run(CallOptions::default()).unwrap();
-    assert_eq!(result.value.as_array().unwrap()[0].as_int(), Some(3));
-    assert_eq!(result.value.as_array().unwrap()[1].as_int(), Some(42));
-    assert_eq!(calls.load(Ordering::SeqCst), 1);
-    for (source, kind) in [
+            &[("V0310", "probe(*"), ("V0202", "probe]")][..],
+        ),
         (
             "def f(a: any =(while true\nprobe=7\nbreak 0\nend),b: any =probe) -> any\nb\nend\nf(1)",
-            ErrorKind::Argument,
+            &[("V0202", "probe)")][..],
         ),
         (
             "def f(a: any =(while true\nprobe: nil =nil\nbreak 0\nend),b: any =probe(flag:true)) -> any\nb\nend\nf()",
-            ErrorKind::Type,
+            &[("V0310", "probe(flag")][..],
         ),
     ] {
-        assert_eq!(
-            engine
-                .compile(source)
-                .unwrap()
-                .run(CallOptions::default())
-                .unwrap_err()
-                .kind,
-            kind
-        );
-        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        let error = engine.compile(source).err().unwrap();
+        let found: Vec<(String, usize)> = error
+            .diagnostics()
+            .iter()
+            .map(|d| (d.code.to_string(), d.span.start))
+            .collect();
+        let expected: Vec<(String, usize)> = expected
+            .iter()
+            .map(|(code, text)| ((*code).to_owned(), source.find(text).unwrap()))
+            .collect();
+        assert_eq!(found, expected, "{source}");
     }
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
 }
 
 #[test]
 fn unbound_callees_and_receivers_fail_before_argument_evaluation() {
     let calls = Arc::new(AtomicUsize::new(0));
     let seen = calls.clone();
-    let mut engine = common::runtime_engine();
+    let mut engine = Engine::new();
     engine.register("tick", move |_, _| {
         seen.fetch_add(1, Ordering::SeqCst);
         Ok(Value::int(1))
     });
-    // A default can still read a local that an earlier default never
+    // A default cannot read a local that an earlier default may not have
     // assigned.
     let source = "def f(a: any = (while false\nmissing = [1]\nend), \
-                  b: any = missing.push(tick())) -> any\nb\nend\nf()";
+                  b: any = missing.push(tick().as(int))) -> any\nb\nend\nf()";
+    let error = engine.compile(source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0202"]);
     assert_eq!(
-        engine
-            .compile(source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap_err()
-            .kind,
-        ErrorKind::Name
+        error.diagnostics()[0].span.start,
+        source.find("missing.push").unwrap()
     );
     assert_eq!(calls.load(Ordering::SeqCst), 0);
     // Elsewhere, a name read before its assignment is refused before
