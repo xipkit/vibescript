@@ -5,7 +5,7 @@ mod common;
 use vibescript::{CallOptions, ErrorClass, Limits, Value};
 
 fn fail(source: &str, args: &[Value], limits: Limits) -> vibescript::Error {
-    let script = common::runtime_engine()
+    let script = vibescript::Engine::new()
         .compile(source)
         .unwrap_or_else(|error| panic!("{source}: {error}"));
     let options = CallOptions {
@@ -335,19 +335,14 @@ fn duration_parsing_and_members_use_go_wording() {
 
 #[test]
 fn removed_calls_refuse_arguments_without_static_types() {
-    let error = common::gradual_engine()
-        .compile("def run -> any\n  now(1)\nend")
-        .unwrap()
-        .call("run", &[], CallOptions::default())
-        .unwrap_err();
-    assert_eq!(error.message, "now does not take arguments");
-    assert_eq!(error.class(), Some(ErrorClass::Runtime));
-    let error = common::gradual_engine()
-        .compile("def run -> any\n  Time.at(0).nil?(x: 1)\nend")
-        .unwrap()
-        .call("run", &[], CallOptions::default())
-        .unwrap_err();
-    assert_eq!(error.message, "time.nil? does not take keyword arguments");
+    refuses(&[
+        ("def run -> any\n  now(1)\nend", "V0401", "now"),
+        (
+            "def run -> any\n  Time.at(0).nil?(x: 1)\nend",
+            "V0402",
+            "nil?",
+        ),
+    ]);
 }
 
 #[test]
@@ -414,18 +409,18 @@ fn time_constructors_and_members_use_go_wording() {
             Limit,
             "time.iso8601 precision exceeds maximum 100 digits",
         ),
-        (
-            "def run -> any\n  Time.at(0).<=>(1, 2)\nend",
-            Runtime,
-            "time.<=> expects 1 argument, got 2",
-        ),
-        (
-            "def run -> any\n  Time.at(0).itself(1)\nend",
-            Runtime,
-            "time.itself expects 0 arguments, got 1",
-        ),
     ]);
     refuses(&[
+        (
+            "def run -> any\n  Time.at(0).<=>(Time.at(1))\nend",
+            "V0401",
+            "<=>",
+        ),
+        (
+            "def run -> any\n  Time.at(0).itself\nend",
+            "V0404",
+            "itself",
+        ),
         ("def run -> any\n  Time.utc(nil)\nend", "V0101", "nil"),
         (
             "def run -> any\n  Time.utc(0.0/0.0)\nend",
@@ -820,13 +815,13 @@ fn money_literals_and_members_use_go_wording() {
             Runtime,
             "invalid money literal \"1 2 USD\"",
         ),
-        (
-            "def run -> any\n  money(\"1.00 USD\").itself(x: 1)\nend",
-            Runtime,
-            "money.itself does not accept keyword arguments",
-        ),
     ]);
     refuses(&[
+        (
+            "def run -> any\n  money(\"1.00 USD\").itself\nend",
+            "V0404",
+            "itself",
+        ),
         (
             "def run -> any\n  money(\"a\", \"b\")\nend",
             "V0301",
@@ -1055,46 +1050,30 @@ fn regex_errors_quote_go_syntax_errors_and_name_the_operation() {
 
 #[test]
 fn calls_name_missing_arguments_visibility_and_removed_constructors() {
-    use ErrorClass::Runtime;
-    rejects(&[(
-        "def run -> any\n  next\nend",
-        Runtime,
-        "next used outside of loop",
-    )]);
-    // The checker refuses a call its visibility forbids (V0208); without
-    // static types, the runtime refuses it when it runs.
-    for (source, message, text) in [
+    // A loop transfer outside a loop, and a call its visibility forbids,
+    // are refused before running.
+    refuses(&[
+        ("def run -> any\n  next\nend", "V0001", "next"),
         (
             "class C\n  private def secret\n    1\n  end\nend\ndef run -> any\n  C.new.secret\nend",
-            "private method secret",
+            "V0208",
             "secret",
         ),
         (
             "class C\n  private\n  def x=(v: int)\n    1\n  end\nend\ndef run -> any\n  c = C.new\n  c.x = 2\nend",
-            "private method x=",
+            "V0208",
             "x",
         ),
         (
             "class C\n  private def ==(o: any) -> bool\n    true\n  end\nend\ndef run -> any\n  C.new != 1\nend",
-            "private method ==",
+            "V0208",
             "!=",
         ),
         (
             "module M\n  protected\n  def self.f\n    1\n  end\nend\ndef run -> any\n  M.f\nend",
-            "protected method f",
+            "V0208",
             "f",
         ),
-    ] {
-        let error = common::gradual_engine()
-            .compile(source)
-            .unwrap()
-            .call("run", &[], CallOptions::default())
-            .unwrap_err();
-        assert_eq!(error.message, message, "{source}");
-        assert_eq!(error.class(), Some(Runtime), "{source}");
-        refuses(&[(source, "V0208", text)]);
-    }
-    refuses(&[
         (
             "def add(a: int, b: int) -> int\n  a + b\nend\ndef run -> any\n  add(1)\nend",
             "V0301",
@@ -1290,10 +1269,6 @@ fn string_members_name_themselves_and_the_rejected_argument() {
         ),
         ("\"\".ord", "string.ord requires non-empty string"),
         (
-            "\"ab\".replace",
-            "string.replace expects exactly one replacement",
-        ),
-        (
             "\"ab\".insert(-5, \"y\")",
             "string.insert index -5 out of string",
         ),
@@ -1311,6 +1286,7 @@ fn string_members_name_themselves_and_the_rejected_argument() {
         limited(&source, &[], Limits::default(), Runtime, message);
     }
     for (expression, code, text) in [
+        ("\"ab\".replace", "V0401", "replace"),
         ("\"abc\".index(\"b\", \"x\")", "V0101", "\"x\""),
         ("\"abc\".rindex(1, 2)", "V0101", "1"),
         ("\"abc\".rindex(\"b\", 1, 2)", "V0301", "rindex"),
