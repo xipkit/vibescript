@@ -154,7 +154,7 @@ def rejection_cases():
     for filename in ["language-errors.json", "syntax-errors.json"]:
         for case in json.loads((ROOT / "tests" / filename).read_text()):
             out = engine_case(case["name"], case)
-            # A case the static checker rejects keeps its recorded outcome without static types.
+            # Any other case fails in its phase: compiling a syntax error, or calling.
             if case["name"] not in ACCEPTED_SYNTAX and "static_error" not in case:
                 out["_phase"] = "compile" if filename == "syntax-errors.json" else "call"
             cases.append(out)
@@ -200,7 +200,7 @@ def replay_cases():
     cases = []
     for spec in read_jsonl(REPLAY / "cases.jsonl.gz"):
         out = {"id": spec["id"], "source": programs[spec["program"]], "function": spec.get("function"),
-               "stdout": True, "stderr": True, "_source_key": spec["program"], "_quota": spec.get("quota", False)}
+               "stdout": True, "stderr": True, "_quota": spec.get("quota", False)}
         for field in ["strict_effects", "allow_require", "steps", "memory", "recursion"]:
             if field in spec:
                 out[field] = spec[field]
@@ -706,9 +706,10 @@ def expectation_failure(case, observation):
 
 
 class Corpus:
-    def __init__(self, name, kind, cases, description, compress=False, legacy=False, migratable=True):
+    def __init__(self, name, kind, cases, description, compress=False, inline=False):
         self.name, self.kind, self.cases, self.description = name, kind, cases, description
-        self.legacy, self.migratable = legacy, migratable and kind == "engine"
+        # An inline corpus keeps its goldens as its fixtures' expectations.
+        self.inline = inline
         suffix = ".jsonl.gz" if compress else ".jsonl"
         self.golden = GOLDEN / f"{name}{suffix}"
         self.counters = GOLDEN / f"{name}.counters.jsonl.gz"
@@ -718,7 +719,7 @@ CORPORA = {corpus.name: corpus for corpus in [
     Corpus("conformance", "engine", conformance_cases,
            "generated conformance, site, upstream, host-binding and benchmark cases (scripts/fixtures.py)"),
     Corpus("language", "engine", language_cases,
-           "tests/language.json, whose expected values and output are the goldens", legacy=True),
+           "tests/language.json, whose expected values and output are the goldens", inline=True),
     Corpus("rejections", "engine", rejection_cases,
            "runtime and syntax rejections (tests/language-errors.json, tests/syntax-errors.json)", compress=True),
     Corpus("compatibility", "engine", compatibility_cases,
@@ -726,102 +727,12 @@ CORPORA = {corpus.name: corpus for corpus in [
     Corpus("replay", "engine", replay_cases,
            "calls and compiles recorded from Go v0.70.0's test suite (tests/golden/replay)", compress=True),
     Corpus("parse", "engine", parse_cases,
-           "mutated site and upstream programs, compiled only (scripts/mutations.py)", compress=True,
-           migratable=False),
+           "mutated site and upstream programs, parsed only (scripts/mutations.py)", compress=True),
     Corpus("cli", "cli", cli_cases, "vibes commands over the corpus programs",
            compress=True),
     Corpus("lsp", "lsp", lsp_cases, "vibes lsp sessions over the corpus programs (scripts/lsp_sessions.py)",
            compress=True),
 ]}
-
-
-# Source overrides for migrated corpora -------------------------------------
-
-
-def source_keys(case):
-    """Yields (key, text) for every source a case compiles or requires."""
-    key = case.get("_source_key", case["id"])
-    yield key, case["source"]
-    for name, text in (case.get("_files") or {}).items():
-        yield f"{key}::{name}", text
-
-
-def apply_overrides(cases, overrides):
-    """Replaces case sources with migrated ones; marks the cases that changed."""
-    for case in cases:
-        key = case.get("_source_key", case["id"])
-        changed = False
-        if key in overrides:
-            changed |= overrides[key] != case["source"]
-            case["source"] = overrides[key]
-        if case.get("_files"):
-            files = dict(case["_files"])
-            for name in files:
-                if f"{key}::{name}" in overrides:
-                    changed |= overrides[f"{key}::{name}"] != files[name]
-                    files[name] = overrides[f"{key}::{name}"]
-            case["_files"] = files
-        case["_overridden"] = changed
-
-
-def export_path(key):
-    path = re.sub(r"[^A-Za-z0-9._/-]", "_", key.replace("::", ".files/"))
-    parts = [part if part not in ("", ".", "..") else "_" for part in path.split("/")]
-    path = "/".join(parts)
-    return path if path.endswith(".vibe") else path + ".vibe"
-
-
-def case_inputs(case, index):
-    """The invocation `vibes migrate --inputs` runs for a case, naming its exported source."""
-    key = case.get("_source_key", case["id"])
-    record = {"file": index[key]}
-    for field in CASE_FIELDS + ["module_allow", "module_deny", "module_development", "allow_require",
-                                "memory", "recursion"]:
-        if field in case:
-            record[field] = case[field]
-    given = case.get("_input")
-    if given is not None:
-        for field in ["typed_args", "typed_kwargs", "typed_globals"]:
-            if given.get(field):
-                record[field] = given[field]
-    if case.get("_files"):
-        first = next(iter(case["_files"]))
-        record["module_paths"] = [index[f"{key}::{first}"].rsplit("/", first.count("/") + 1)[0]]
-    return record
-
-
-def export(corpora, directory):
-    for corpus in corpora:
-        if not corpus.migratable:
-            print(f"{corpus.name}: not migrated, so not exported")
-            continue
-        index, used, invocations = {}, set(), []
-        cases = corpus.cases()
-        for case in cases:
-            for key, text in source_keys(case):
-                if key in index:
-                    continue
-                path = export_path(key)
-                while path.lower() in used:
-                    path = path.removesuffix(".vibe") + "_.vibe"
-                used.add(path.lower())
-                write_source(directory / corpus.name / path, text)
-                index[key] = path
-        for case in cases:
-            if case.get("function") is not None:
-                invocations.append(case_inputs(case, index))
-        (directory / corpus.name / "index.json").write_text(canonical(index) + "\n")
-        write_jsonl(directory / corpus.name / "inputs.jsonl", invocations)
-        print(f"{corpus.name}: exported {len(index)} sources and {len(invocations)} invocations "
-              f"to {directory / corpus.name}")
-
-
-def load_sources(directory):
-    overrides = {}
-    for index in sorted(Path(directory).glob("*/index.json")):
-        paths = json.loads(index.read_text())
-        overrides[index.parent.name] = {key: read_source(index.parent / path) for key, path in paths.items()}
-    return overrides
 
 
 # Checking and recording -----------------------------------------------------
@@ -960,7 +871,7 @@ def load_counters(corpus):
     return {record[0]: record[1:] for record in read_jsonl(corpus.counters)}
 
 
-def check_corpus(corpus, args, overrides, report):
+def check_corpus(corpus, args, report):
     """Runs one corpus and reports how it compares with its goldens, or records them."""
     started = time.monotonic()
     cases = corpus.cases()
@@ -968,10 +879,6 @@ def check_corpus(corpus, args, overrides, report):
     if corpus.name == "parse":
         for case in cases:
             case["parse"] = True
-    if corpus.name in overrides:
-        if not corpus.migratable:
-            raise SystemExit(f"{corpus.name}: sources cannot be overridden")
-        apply_overrides(cases, overrides[corpus.name])
     ids = [case["id"] for case in cases]
     duplicates = [cid for cid, n in collections.Counter(ids).items() if n > 1]
     if duplicates:
@@ -994,7 +901,7 @@ def check_corpus(corpus, args, overrides, report):
         else:
             observed.append(run_lsp(args.bin, cases, args.jobs))
     golden = {}
-    if not corpus.legacy and corpus.golden.exists():
+    if not corpus.inline and corpus.golden.exists():
         golden = {record["id"]: record for record in read_jsonl(corpus.golden)}
     table = None
     if corpus.kind == "lsp":
@@ -1024,7 +931,6 @@ def check_corpus(corpus, args, overrides, report):
     problems = collections.OrderedDict((name, {"blocking": blocking, "cases": []}) for name, blocking in [
         ("crashes", True), ("expectation failures", True),
         ("observable differences", compared), ("unrecorded cases", compared), ("stale goldens", compared),
-        ("position drift in migrated sources", False),
         ("quota outcomes that followed accounting drift", compared and args.strict_quota),
     ])
     add = lambda category, cid, message: problems[category]["cases"].append((cid, message))  # noqa: E731
@@ -1035,16 +941,11 @@ def check_corpus(corpus, args, overrides, report):
         if corpus.kind == "engine":
             message = expectation_failure(by_id[cid], observation)
             if message:
-                # A legacy corpus keeps its goldens as these expectations.
-                add("observable differences" if corpus.legacy else "expectation failures", cid, message)
-    if corpus.legacy:
+                add("observable differences" if corpus.inline else "expectation failures", cid, message)
+    if corpus.inline:
         problems["observable differences"]["blocking"] = True
-    if not corpus.legacy and (golden or not args.record):
+    if not corpus.inline and (golden or not args.record):
         for cid in ids:
-            # A static rejection is checked above; its golden keeps the outcome
-            # it had in the ADR-004 language.
-            if "_static_error" in by_id[cid]:
-                continue
             compare_case(by_id[cid], golden.get(cid), actual[cid], varies.get(cid), table, add)
         for cid in sorted(set(golden) - set(ids)) if selected is None else ():
             add("stale goldens", cid, "golden has no case")
@@ -1066,9 +967,7 @@ def check_corpus(corpus, args, overrides, report):
     elif any(entry["blocking"] and entry["cases"] for entry in problems.values()):
         report.section(corpus.name, len(ids), problems, notes + ["not recorded"])
     else:
-        rejected = {cid for cid in ids if "_static_error" in by_id[cid]}
-        record_corpus(corpus, ids, actual, counters, varies, table, preserve=selected is not None,
-                      keep=rejected)
+        record_corpus(corpus, ids, actual, counters, varies, table, preserve=selected is not None)
         report.section(corpus.name, len(ids), problems, notes + [
             f"recorded in {elapsed}" + (f"; {len(varies)} cases vary between runs" if varies else "")])
 
@@ -1090,11 +989,7 @@ def compare_case(case, expected, got, varies, table, add):
         return
     category = "observable differences"
     quota = case.get("_quota") and any(r.get("error", {}).get("kind") in QUOTA_KINDS for r in (expected, got))
-    unplaced = [{**r, "error": {k: v for k, v in r["error"].items() if k != "at"}} if "error" in r else r
-                for r in (expected, got)]
-    if case.get("_overridden") and unplaced[0] == unplaced[1]:
-        category = "position drift in migrated sources"
-    elif quota:
+    if quota:
         category = "quota outcomes that followed accounting drift"
     if table is not None and "replies" in expected and "replies" in got:
         message = lsp_difference(cid, expected["replies"], got["replies"], table)
@@ -1118,22 +1013,13 @@ def lsp_difference(document, expected, got, table):
     return f"expected {len(expected)} replies, got {len(got)}"
 
 
-def record_corpus(corpus, ids, actual, counters, varies, table, preserve=False, keep=frozenset()):
-    """Records selected observations, preserving other cases when requested.
-
-    The cases in `keep`, static rejections, keep their recorded goldens and
-    counters, the outcomes they had in the ADR-004 language; one without a
-    golden records its compile error."""
-    previous = {record["id"]: record for record in read_jsonl(corpus.golden)} \
-        if not corpus.legacy and corpus.golden.exists() else {}
-    if not corpus.legacy:
-        records = dict(previous) if preserve else {}
-        for cid in keep:
-            if cid in previous:
-                records[cid] = previous[cid]
+def record_corpus(corpus, ids, actual, counters, varies, table, preserve=False):
+    """Records selected observations, preserving other cases when requested."""
+    if not corpus.inline:
+        previous = {record["id"]: record for record in read_jsonl(corpus.golden)} \
+            if preserve and corpus.golden.exists() else {}
+        records = dict(previous)
         for cid in sorted(ids):
-            if cid in keep and cid in previous:
-                continue
             if cid in varies:
                 records[cid] = {"id": cid, "varies": varies[cid]}
             else:
@@ -1145,8 +1031,7 @@ def record_corpus(corpus, ids, actual, counters, varies, table, preserve=False, 
     if counters or preserve and corpus.counters.exists():
         recorded = load_counters(corpus)
         kept = {cid: values for cid, values in recorded.items() if cid not in ids} if preserve else {}
-        kept.update({cid: values for cid, values in counters.items() if cid not in varies and cid not in keep})
-        kept.update({cid: recorded[cid] for cid in keep if cid in recorded})
+        kept.update({cid: values for cid, values in counters.items() if cid not in varies})
         write_jsonl(corpus.counters, [[cid, *kept[cid]] for cid in sorted(kept)])
     if table is not None:
         write_jsonl(GOLDEN / "lsp.replies.jsonl.gz", [{"reply": body} for body in table.bodies])
@@ -1190,12 +1075,6 @@ def main(argv=None):
     parser.add_argument("--strict-counters", action="store_true", help="fail when accounting counters drift")
     parser.add_argument("--strict-quota", action="store_true",
                         help="fail when a quota-limited case changes outcome under a quota error")
-    parser.add_argument("--export", type=Path, metavar="DIR",
-                        help="write every case source to DIR/<corpus>/, with an index.json, and exit")
-    parser.add_argument("--sources", type=Path, metavar="DIR",
-                        help="run the sources in an --export tree (such as a migrated copy) against the goldens")
-    parser.add_argument("--override", type=Path, metavar="FILE",
-                        help='a JSON map {"corpus": {"source key": "source"}} of sources to run instead')
     parser.add_argument("--failures", type=Path, metavar="FILE",
                         help="also write every problem's case ids, by corpus and category, as JSON")
     args = parser.parse_args(argv)
@@ -1217,25 +1096,14 @@ def main(argv=None):
     if unknown:
         parser.error(f"unknown corpus {', '.join(unknown)}; choose from {', '.join(CORPORA)}")
     corpora = [CORPORA[name] for name in names]
-    if not args.no_build and not args.export:
+    if not args.no_build:
         build(args, corpora)
     args.harness, args.bin = args.harness.resolve(), args.bin.resolve()
-    if args.export:
-        export(corpora, args.export.resolve())
-        return 0
-    overrides = {}
-    if args.sources:
-        overrides = load_sources(args.sources)
-    if args.override:
-        for name, sources in json.loads(args.override.read_text()).items():
-            overrides.setdefault(name, {}).update(sources)
-    if args.record and overrides:
-        parser.error("--record records the original sources; drop --sources and --override")
     report = Report(args.show)
     if args.observations:
         args.observations.write_text("")
     for corpus in corpora:
-        check_corpus(corpus, args, overrides, report)
+        check_corpus(corpus, args, report)
     if args.failures:
         args.failures.write_text(canonical(report.cases) + "\n")
     return 1 if report.failed else 0

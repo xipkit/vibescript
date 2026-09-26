@@ -62,18 +62,18 @@
 {"id":"capabilities/checked/ordinary/unlimited","ok":["array",[["int","7"],["int","2"]]]}
 {"id":"capabilities/checked/strict/metered","ok":["array",[["int","7"],["int","2"]]]}
 {"id":"capabilities/checked/strict/unlimited","ok":["array",[["int","7"],["int","2"]]]}
-{"id":"capabilities/checked_symbolic/ordinary/metered","ok":["array",[["int","7"],["int","2"]]]}
-{"id":"capabilities/checked_symbolic/ordinary/unlimited","ok":["array",[["int","7"],["int","2"]]]}
-{"id":"capabilities/checked_symbolic/strict/metered","ok":["array",[["int","7"],["int","2"]]]}
-{"id":"capabilities/checked_symbolic/strict/unlimited","ok":["array",[["int","7"],["int","2"]]]}
-{"id":"capabilities/clone/ordinary/metered","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
-{"id":"capabilities/clone/ordinary/unlimited","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
-{"id":"capabilities/clone/strict/metered","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
-{"id":"capabilities/clone/strict/unlimited","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
-{"id":"capabilities/computed/ordinary/metered","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
-{"id":"capabilities/computed/ordinary/unlimited","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
-{"id":"capabilities/computed/strict/metered","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
-{"id":"capabilities/computed/strict/unlimited","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `send`","phase":"compile"},"id":"capabilities/checked_symbolic/ordinary/metered"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `send`","phase":"compile"},"id":"capabilities/checked_symbolic/ordinary/unlimited"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `send`","phase":"compile"},"id":"capabilities/checked_symbolic/strict/metered"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `send`","phase":"compile"},"id":"capabilities/checked_symbolic/strict/unlimited"}
+{"error":{"at":[3,6],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `clone`","phase":"compile"},"id":"capabilities/clone/ordinary/metered"}
+{"error":{"at":[3,6],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `clone`","phase":"compile"},"id":"capabilities/clone/ordinary/unlimited"}
+{"error":{"at":[3,6],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `clone`","phase":"compile"},"id":"capabilities/clone/strict/metered"}
+{"error":{"at":[3,6],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `clone`","phase":"compile"},"id":"capabilities/clone/strict/unlimited"}
+{"error":{"at":[3,2],"class":"TypeError","kind":"Type","message":"error[V0112]: host cannot be indexed with 1 selector(s)","phase":"compile"},"id":"capabilities/computed/ordinary/metered"}
+{"error":{"at":[3,2],"class":"TypeError","kind":"Type","message":"error[V0112]: host cannot be indexed with 1 selector(s)","phase":"compile"},"id":"capabilities/computed/ordinary/unlimited"}
+{"error":{"at":[3,2],"class":"TypeError","kind":"Type","message":"error[V0112]: host cannot be indexed with 1 selector(s)","phase":"compile"},"id":"capabilities/computed/strict/metered"}
+{"error":{"at":[3,2],"class":"TypeError","kind":"Type","message":"error[V0112]: host cannot be indexed with 1 selector(s)","phase":"compile"},"id":"capabilities/computed/strict/unlimited"}
 {"id":"capabilities/copy/ordinary/metered","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
 {"id":"capabilities/copy/ordinary/unlimited","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
 {"id":"capabilities/copy/strict/metered","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
@@ -94,14 +94,14 @@
 {"id":"capabilities/ensure/ordinary/unlimited","ok":["array",[["int","1"],["int","2"]]]}
 {"id":"capabilities/ensure/strict/metered","ok":["array",[["int","1"],["int","2"]]]}
 {"id":"capabilities/ensure/strict/unlimited","ok":["array",[["int","1"],["int","2"]]]}
-{"id":"capabilities/factory/ordinary/metered","ok":["array",[["int","7"],["int","2"]]]}
-{"id":"capabilities/factory/ordinary/unlimited","ok":["array",[["int","7"],["int","2"]]]}
-{"id":"capabilities/factory/strict/metered","ok":["array",[["int","7"],["int","2"]]]}
-{"id":"capabilities/factory/strict/unlimited","ok":["array",[["int","7"],["int","2"]]]}
-{"id":"capabilities/factory_contract/ordinary/metered","ok":["int","1"]}
-{"id":"capabilities/factory_contract/ordinary/unlimited","ok":["int","1"]}
-{"id":"capabilities/factory_contract/strict/metered","ok":["int","1"]}
-{"id":"capabilities/factory_contract/strict/unlimited","ok":["int","1"]}
+{"error":{"at":[3,17],"class":"TypeError","kind":"Type","message":"error[V0106]: this value has type any; narrow it with `is_type?`, `.as(T)` or `JSON.parse_as` before calling `checked`","phase":"compile"},"id":"capabilities/factory/ordinary/metered"}
+{"error":{"at":[3,17],"class":"TypeError","kind":"Type","message":"error[V0106]: this value has type any; narrow it with `is_type?`, `.as(T)` or `JSON.parse_as` before calling `checked`","phase":"compile"},"id":"capabilities/factory/ordinary/unlimited"}
+{"error":{"at":[3,17],"class":"TypeError","kind":"Type","message":"error[V0106]: this value has type any; narrow it with `is_type?`, `.as(T)` or `JSON.parse_as` before calling `checked`","phase":"compile"},"id":"capabilities/factory/strict/metered"}
+{"error":{"at":[3,17],"class":"TypeError","kind":"Type","message":"error[V0106]: this value has type any; narrow it with `is_type?`, `.as(T)` or `JSON.parse_as` before calling `checked`","phase":"compile"},"id":"capabilities/factory/strict/unlimited"}
+{"error":{"at":[3,22],"class":"TypeError","kind":"Type","message":"error[V0106]: this value has type any; narrow it with `is_type?`, `.as(T)` or `JSON.parse_as` before calling `checked`","phase":"compile"},"id":"capabilities/factory_contract/ordinary/metered"}
+{"error":{"at":[3,22],"class":"TypeError","kind":"Type","message":"error[V0106]: this value has type any; narrow it with `is_type?`, `.as(T)` or `JSON.parse_as` before calling `checked`","phase":"compile"},"id":"capabilities/factory_contract/ordinary/unlimited"}
+{"error":{"at":[3,22],"class":"TypeError","kind":"Type","message":"error[V0106]: this value has type any; narrow it with `is_type?`, `.as(T)` or `JSON.parse_as` before calling `checked`","phase":"compile"},"id":"capabilities/factory_contract/strict/metered"}
+{"error":{"at":[3,22],"class":"TypeError","kind":"Type","message":"error[V0106]: this value has type any; narrow it with `is_type?`, `.as(T)` or `JSON.parse_as` before calling `checked`","phase":"compile"},"id":"capabilities/factory_contract/strict/unlimited"}
 {"id":"capabilities/file/ordinary/metered","ok":["array",[["array",[["int","7"]]],["hash",[]]]]}
 {"id":"capabilities/file/ordinary/unlimited","ok":["array",[["array",[["int","7"]]],["hash",[]]]]}
 {"id":"capabilities/file/strict/metered","ok":["array",[["array",[["int","7"]]],["hash",[]]]]}
@@ -110,10 +110,10 @@
 {"id":"capabilities/host_error/ordinary/unlimited","ok":["int","7"]}
 {"id":"capabilities/host_error/strict/metered","ok":["int","7"]}
 {"id":"capabilities/host_error/strict/unlimited","ok":["int","7"]}
-{"id":"capabilities/indexed/ordinary/metered","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
-{"id":"capabilities/indexed/ordinary/unlimited","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
-{"id":"capabilities/indexed/strict/metered","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
-{"id":"capabilities/indexed/strict/unlimited","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
+{"error":{"at":[3,1],"class":"TypeError","kind":"Type","message":"error[V0112]: host cannot be indexed with 1 selector(s)","phase":"compile"},"id":"capabilities/indexed/ordinary/metered"}
+{"error":{"at":[3,1],"class":"TypeError","kind":"Type","message":"error[V0112]: host cannot be indexed with 1 selector(s)","phase":"compile"},"id":"capabilities/indexed/ordinary/unlimited"}
+{"error":{"at":[3,1],"class":"TypeError","kind":"Type","message":"error[V0112]: host cannot be indexed with 1 selector(s)","phase":"compile"},"id":"capabilities/indexed/strict/metered"}
+{"error":{"at":[3,1],"class":"TypeError","kind":"Type","message":"error[V0112]: host cannot be indexed with 1 selector(s)","phase":"compile"},"id":"capabilities/indexed/strict/unlimited"}
 {"id":"capabilities/initializer/ordinary/metered","ok":["array",[["int","1"],["int","2"]]]}
 {"id":"capabilities/initializer/ordinary/unlimited","ok":["array",[["int","1"],["int","2"]]]}
 {"id":"capabilities/initializer/strict/metered","ok":["array",[["int","1"],["int","2"]]]}
@@ -142,18 +142,18 @@
 {"id":"capabilities/keyword_override/ordinary/unlimited","ok":["array",[["array",[["int","1"]]],["hash",[["746167",["int","2"]]]]]]}
 {"id":"capabilities/keyword_override/strict/metered","ok":["array",[["array",[["int","1"]]],["hash",[["746167",["int","2"]]]]]]}
 {"id":"capabilities/keyword_override/strict/unlimited","ok":["array",[["array",[["int","1"]]],["hash",[["746167",["int","2"]]]]]]}
-{"id":"capabilities/keyword_symbolic/ordinary/metered","ok":["array",[["array",[["int","1"]]],["hash",[["746167",["int","2"]]]]]]}
-{"id":"capabilities/keyword_symbolic/ordinary/unlimited","ok":["array",[["array",[["int","1"]]],["hash",[["746167",["int","2"]]]]]]}
-{"id":"capabilities/keyword_symbolic/strict/metered","ok":["array",[["array",[["int","1"]]],["hash",[["746167",["int","2"]]]]]]}
-{"id":"capabilities/keyword_symbolic/strict/unlimited","ok":["array",[["array",[["int","1"]]],["hash",[["746167",["int","2"]]]]]]}
+{"error":{"at":[3,6],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `public_send`","phase":"compile"},"id":"capabilities/keyword_symbolic/ordinary/metered"}
+{"error":{"at":[3,6],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `public_send`","phase":"compile"},"id":"capabilities/keyword_symbolic/ordinary/unlimited"}
+{"error":{"at":[3,6],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `public_send`","phase":"compile"},"id":"capabilities/keyword_symbolic/strict/metered"}
+{"error":{"at":[3,6],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `public_send`","phase":"compile"},"id":"capabilities/keyword_symbolic/strict/unlimited"}
 {"id":"capabilities/keywords/ordinary/metered","ok":["array",[["array",[["int","1"]]],["hash",[["746167",["int","2"]]]]]]}
 {"id":"capabilities/keywords/ordinary/unlimited","ok":["array",[["array",[["int","1"]]],["hash",[["746167",["int","2"]]]]]]}
 {"id":"capabilities/keywords/strict/metered","ok":["array",[["array",[["int","1"]]],["hash",[["746167",["int","2"]]]]]]}
 {"id":"capabilities/keywords/strict/unlimited","ok":["array",[["array",[["int","1"]]],["hash",[["746167",["int","2"]]]]]]}
-{"id":"capabilities/missing_skips_args/ordinary/metered","ok":["int","1"]}
-{"id":"capabilities/missing_skips_args/ordinary/unlimited","ok":["int","1"]}
-{"id":"capabilities/missing_skips_args/strict/metered","ok":["int","1"]}
-{"id":"capabilities/missing_skips_args/strict/unlimited","ok":["int","1"]}
+{"error":{"at":[1,23],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `missing`","phase":"compile"},"id":"capabilities/missing_skips_args/ordinary/metered"}
+{"error":{"at":[1,23],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `missing`","phase":"compile"},"id":"capabilities/missing_skips_args/ordinary/unlimited"}
+{"error":{"at":[1,23],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `missing`","phase":"compile"},"id":"capabilities/missing_skips_args/strict/metered"}
+{"error":{"at":[1,23],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `missing`","phase":"compile"},"id":"capabilities/missing_skips_args/strict/unlimited"}
 {"id":"capabilities/nested_script/ordinary/metered","ok":["array",[["int","1"],["int","2"]]]}
 {"id":"capabilities/nested_script/ordinary/unlimited","ok":["array",[["int","1"],["int","2"]]]}
 {"id":"capabilities/nested_script/strict/metered","ok":["array",[["int","1"],["int","2"]]]}
@@ -162,22 +162,22 @@
 {"id":"capabilities/override_global/ordinary/unlimited","ok":["nil"]}
 {"id":"capabilities/override_global/strict/metered","ok":["nil"]}
 {"id":"capabilities/override_global/strict/unlimited","ok":["nil"]}
-{"id":"capabilities/public/ordinary/metered","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
-{"id":"capabilities/public/ordinary/unlimited","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
-{"id":"capabilities/public/strict/metered","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
-{"id":"capabilities/public/strict/unlimited","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
-{"id":"capabilities/responds/ordinary/metered","ok":["array",[["bool",true],["bool",false],["bool",false]]]}
-{"id":"capabilities/responds/ordinary/unlimited","ok":["array",[["bool",true],["bool",false],["bool",false]]]}
-{"id":"capabilities/responds/strict/metered","ok":["array",[["bool",true],["bool",false],["bool",false]]]}
-{"id":"capabilities/responds/strict/unlimited","ok":["array",[["bool",true],["bool",false],["bool",false]]]}
+{"error":{"at":[3,6],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `public_send`","phase":"compile"},"id":"capabilities/public/ordinary/metered"}
+{"error":{"at":[3,6],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `public_send`","phase":"compile"},"id":"capabilities/public/ordinary/unlimited"}
+{"error":{"at":[3,6],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `public_send`","phase":"compile"},"id":"capabilities/public/strict/metered"}
+{"error":{"at":[3,6],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `public_send`","phase":"compile"},"id":"capabilities/public/strict/unlimited"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `respond_to?`","phase":"compile"},"id":"capabilities/responds/ordinary/metered"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `respond_to?`","phase":"compile"},"id":"capabilities/responds/ordinary/unlimited"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `respond_to?`","phase":"compile"},"id":"capabilities/responds/strict/metered"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `respond_to?`","phase":"compile"},"id":"capabilities/responds/strict/unlimited"}
 {"id":"capabilities/safe/ordinary/metered","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
 {"id":"capabilities/safe/ordinary/unlimited","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
 {"id":"capabilities/safe/strict/metered","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
 {"id":"capabilities/safe/strict/unlimited","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
-{"id":"capabilities/scoped/ordinary/metered","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
-{"id":"capabilities/scoped/ordinary/unlimited","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
-{"id":"capabilities/scoped/strict/metered","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
-{"id":"capabilities/scoped/strict/unlimited","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
+{"error":{"at":[3,5],"class":"TypeError","kind":"Type","message":"error[V0416]: `host::echo` was removed; use `host.echo`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"capabilities/scoped/ordinary/metered"}
+{"error":{"at":[3,5],"class":"TypeError","kind":"Type","message":"error[V0416]: `host::echo` was removed; use `host.echo`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"capabilities/scoped/ordinary/unlimited"}
+{"error":{"at":[3,5],"class":"TypeError","kind":"Type","message":"error[V0416]: `host::echo` was removed; use `host.echo`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"capabilities/scoped/strict/metered"}
+{"error":{"at":[3,5],"class":"TypeError","kind":"Type","message":"error[V0416]: `host::echo` was removed; use `host.echo`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"capabilities/scoped/strict/unlimited"}
 {"id":"capabilities/shadow_parameter/ordinary/metered","ok":["array",[["int","9"]]]}
 {"id":"capabilities/shadow_parameter/ordinary/unlimited","ok":["array",[["int","9"]]]}
 {"id":"capabilities/shadow_parameter/strict/metered","ok":["array",[["int","9"]]]}
@@ -186,16 +186,16 @@
 {"id":"capabilities/splats/ordinary/unlimited","ok":["array",[["array",[["int","1"]]],["hash",[["746167",["int","2"]]]]]]}
 {"id":"capabilities/splats/strict/metered","ok":["array",[["array",[["int","1"]]],["hash",[["746167",["int","2"]]]]]]}
 {"id":"capabilities/splats/strict/unlimited","ok":["array",[["array",[["int","1"]]],["hash",[["746167",["int","2"]]]]]]}
-{"id":"capabilities/symbolic/ordinary/metered","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
-{"id":"capabilities/symbolic/ordinary/unlimited","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
-{"id":"capabilities/symbolic/strict/metered","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
-{"id":"capabilities/symbolic/strict/unlimited","ok":["array",[["array",[["int","1"],["int","2"]]],["hash",[]]]]}
+{"error":{"at":[3,6],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `send`","phase":"compile"},"id":"capabilities/symbolic/ordinary/metered"}
+{"error":{"at":[3,6],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `send`","phase":"compile"},"id":"capabilities/symbolic/ordinary/unlimited"}
+{"error":{"at":[3,6],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `send`","phase":"compile"},"id":"capabilities/symbolic/strict/metered"}
+{"error":{"at":[3,6],"class":"TypeError","kind":"Type","message":"error[V0203]: host declares no member `send`","phase":"compile"},"id":"capabilities/symbolic/strict/unlimited"}
 {"id":"early_return","ok":["int","42"]}
 {"id":"encoding/distinct_tags","ok":["array",[["array",[["string","6d6f6e6579"],["string","555344"],["string","313235"]]],["money","USD","125"]]]}
 {"id":"encoding/duration_bounds","ok":["array",[["duration","-9223372036854775808"],["duration","9223372036854775807"]]]}
 {"id":"encoding/money_bounds","ok":["array",[["money","USD","9223372036854775807"],["money","EUR","-9223372036854775808"]]]}
 {"id":"encoding/nested_order","ok":["hash",[["7a",["money","USD","125"]],["61",["array",[["duration","-120"],["nil"]]]]]]}
-{"id":"encoding/normalized_keys","ok":["hash",[["7a",["int","3"]],["61",["int","2"]]]]}
+{"error":{"at":[2,42],"class":"TypeError","kind":"Type","message":"error[V0409]: `:z` was removed; hash keys are strings: `\"z\"`","phase":"compile"},"id":"encoding/normalized_keys"}
 {"id":"encoding/raw_bytes","ok":["array",[["string","c3a900ff"],["symbol","636166c3a9"]]]}
 {"id":"encoding/scalars","ok":["array",[["nil"],["bool",true],["bool",false],["int","0"],["int","-7"],["int","1267650600228229401496703205376"],["float","3ff8000000000000"],["float","8000000000000000"],["string","616263"],["symbol","616263"],["array",[]],["hash",[]]]]}
 {"id":"float_arithmetic","ok":["array",[["float","400c000000000000"],["float","4004000000000000"],["float","4059200000000000"]]]}
@@ -255,10 +255,10 @@
 {"id":"host_blocks/captured_write/ordinary/unlimited","ok":["array",[["int","1"],["int","2"],["int","3"]]]}
 {"id":"host_blocks/captured_write/strict/metered","ok":["array",[["int","1"],["int","2"],["int","3"]]]}
 {"id":"host_blocks/captured_write/strict/unlimited","ok":["array",[["int","1"],["int","2"],["int","3"]]]}
-{"id":"host_blocks/computed/ordinary/metered","ok":["int","4"]}
-{"id":"host_blocks/computed/ordinary/unlimited","ok":["int","4"]}
-{"id":"host_blocks/computed/strict/metered","ok":["int","4"]}
-{"id":"host_blocks/computed/strict/unlimited","ok":["int","4"]}
+{"error":{"at":[3,2],"class":"TypeError","kind":"Type","message":"error[V0112]: blocks cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_blocks/computed/ordinary/metered"}
+{"error":{"at":[3,2],"class":"TypeError","kind":"Type","message":"error[V0112]: blocks cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_blocks/computed/ordinary/unlimited"}
+{"error":{"at":[3,2],"class":"TypeError","kind":"Type","message":"error[V0112]: blocks cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_blocks/computed/strict/metered"}
+{"error":{"at":[3,2],"class":"TypeError","kind":"Type","message":"error[V0112]: blocks cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_blocks/computed/strict/unlimited"}
 {"id":"host_blocks/copy/ordinary/metered","ok":["int","4"]}
 {"id":"host_blocks/copy/ordinary/unlimited","ok":["int","4"]}
 {"id":"host_blocks/copy/strict/metered","ok":["int","4"]}
@@ -307,14 +307,14 @@
 {"id":"host_blocks/implicit/ordinary/unlimited","ok":["int","4"]}
 {"id":"host_blocks/implicit/strict/metered","ok":["int","4"]}
 {"id":"host_blocks/implicit/strict/unlimited","ok":["int","4"]}
-{"id":"host_blocks/indexed/ordinary/metered","ok":["int","4"]}
-{"id":"host_blocks/indexed/ordinary/unlimited","ok":["int","4"]}
-{"id":"host_blocks/indexed/strict/metered","ok":["int","4"]}
-{"id":"host_blocks/indexed/strict/unlimited","ok":["int","4"]}
-{"id":"host_blocks/invalid_type/ordinary/metered","ok":["string","52756e74696d654572726f72"]}
-{"id":"host_blocks/invalid_type/ordinary/unlimited","ok":["string","52756e74696d654572726f72"]}
-{"id":"host_blocks/invalid_type/strict/metered","ok":["string","52756e74696d654572726f72"]}
-{"id":"host_blocks/invalid_type/strict/unlimited","ok":["string","52756e74696d654572726f72"]}
+{"error":{"at":[3,1],"class":"TypeError","kind":"Type","message":"error[V0112]: blocks cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_blocks/indexed/ordinary/metered"}
+{"error":{"at":[3,1],"class":"TypeError","kind":"Type","message":"error[V0112]: blocks cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_blocks/indexed/ordinary/unlimited"}
+{"error":{"at":[3,1],"class":"TypeError","kind":"Type","message":"error[V0112]: blocks cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_blocks/indexed/strict/metered"}
+{"error":{"at":[3,1],"class":"TypeError","kind":"Type","message":"error[V0112]: blocks cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_blocks/indexed/strict/unlimited"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0106]: the annotation says int, found any; narrow the value first with `is_type?`, `.as(int)` or `JSON.parse_as`","phase":"compile"},"id":"host_blocks/invalid_type/ordinary/metered"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0106]: the annotation says int, found any; narrow the value first with `is_type?`, `.as(int)` or `JSON.parse_as`","phase":"compile"},"id":"host_blocks/invalid_type/ordinary/unlimited"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0106]: the annotation says int, found any; narrow the value first with `is_type?`, `.as(int)` or `JSON.parse_as`","phase":"compile"},"id":"host_blocks/invalid_type/strict/metered"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0106]: the annotation says int, found any; narrow the value first with `is_type?`, `.as(int)` or `JSON.parse_as`","phase":"compile"},"id":"host_blocks/invalid_type/strict/unlimited"}
 {"id":"host_blocks/keywords/ordinary/metered","ok":["array",[["array",[["int","1"]]],["int","2"]]]}
 {"id":"host_blocks/keywords/ordinary/unlimited","ok":["array",[["array",[["int","1"]]],["int","2"]]]}
 {"id":"host_blocks/keywords/strict/metered","ok":["array",[["array",[["int","1"]]],["int","2"]]]}
@@ -363,10 +363,10 @@
 {"id":"host_blocks/presence_contract/ordinary/unlimited","ok":["string","6f6e6520617267756d656e7420616e6420626c6f636b207265717569726564"]}
 {"id":"host_blocks/presence_contract/strict/metered","ok":["string","6f6e6520617267756d656e7420616e6420626c6f636b207265717569726564"]}
 {"id":"host_blocks/presence_contract/strict/unlimited","ok":["string","6f6e6520617267756d656e7420616e6420626c6f636b207265717569726564"]}
-{"id":"host_blocks/public/ordinary/metered","ok":["int","4"]}
-{"id":"host_blocks/public/ordinary/unlimited","ok":["int","4"]}
-{"id":"host_blocks/public/strict/metered","ok":["int","4"]}
-{"id":"host_blocks/public/strict/unlimited","ok":["int","4"]}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0203]: blocks declares no member `public_send`","phase":"compile"},"id":"host_blocks/public/ordinary/metered"}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0203]: blocks declares no member `public_send`","phase":"compile"},"id":"host_blocks/public/ordinary/unlimited"}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0203]: blocks declares no member `public_send`","phase":"compile"},"id":"host_blocks/public/strict/metered"}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0203]: blocks declares no member `public_send`","phase":"compile"},"id":"host_blocks/public/strict/unlimited"}
 {"id":"host_blocks/relay_direct/ordinary/metered","ok":["int","7"]}
 {"id":"host_blocks/relay_direct/ordinary/unlimited","ok":["int","7"]}
 {"id":"host_blocks/relay_direct/strict/metered","ok":["int","7"]}
@@ -399,18 +399,18 @@
 {"id":"host_blocks/safe/ordinary/unlimited","ok":["int","4"]}
 {"id":"host_blocks/safe/strict/metered","ok":["int","4"]}
 {"id":"host_blocks/safe/strict/unlimited","ok":["int","4"]}
-{"id":"host_blocks/scoped/ordinary/metered","ok":["int","4"]}
-{"id":"host_blocks/scoped/ordinary/unlimited","ok":["int","4"]}
-{"id":"host_blocks/scoped/strict/metered","ok":["int","4"]}
-{"id":"host_blocks/scoped/strict/unlimited","ok":["int","4"]}
-{"id":"host_blocks/symbolic/ordinary/metered","ok":["int","4"]}
-{"id":"host_blocks/symbolic/ordinary/unlimited","ok":["int","4"]}
-{"id":"host_blocks/symbolic/strict/metered","ok":["int","4"]}
-{"id":"host_blocks/symbolic/strict/unlimited","ok":["int","4"]}
-{"id":"host_blocks/typed/ordinary/metered","ok":["int","4"]}
-{"id":"host_blocks/typed/ordinary/unlimited","ok":["int","4"]}
-{"id":"host_blocks/typed/strict/metered","ok":["int","4"]}
-{"id":"host_blocks/typed/strict/unlimited","ok":["int","4"]}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0416]: `blocks::once` was removed; use `blocks.once`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"host_blocks/scoped/ordinary/metered"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0416]: `blocks::once` was removed; use `blocks.once`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"host_blocks/scoped/ordinary/unlimited"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0416]: `blocks::once` was removed; use `blocks.once`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"host_blocks/scoped/strict/metered"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0416]: `blocks::once` was removed; use `blocks.once`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"host_blocks/scoped/strict/unlimited"}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0203]: blocks declares no member `send`","phase":"compile"},"id":"host_blocks/symbolic/ordinary/metered"}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0203]: blocks declares no member `send`","phase":"compile"},"id":"host_blocks/symbolic/ordinary/unlimited"}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0203]: blocks declares no member `send`","phase":"compile"},"id":"host_blocks/symbolic/strict/metered"}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0203]: blocks declares no member `send`","phase":"compile"},"id":"host_blocks/symbolic/strict/unlimited"}
+{"error":{"at":[3,19],"class":"TypeError","kind":"Type","message":"error[V0106]: the annotation says int, found any; narrow the value first with `is_type?`, `.as(int)` or `JSON.parse_as`","phase":"compile"},"id":"host_blocks/typed/ordinary/metered"}
+{"error":{"at":[3,19],"class":"TypeError","kind":"Type","message":"error[V0106]: the annotation says int, found any; narrow the value first with `is_type?`, `.as(int)` or `JSON.parse_as`","phase":"compile"},"id":"host_blocks/typed/ordinary/unlimited"}
+{"error":{"at":[3,19],"class":"TypeError","kind":"Type","message":"error[V0106]: the annotation says int, found any; narrow the value first with `is_type?`, `.as(int)` or `JSON.parse_as`","phase":"compile"},"id":"host_blocks/typed/strict/metered"}
+{"error":{"at":[3,19],"class":"TypeError","kind":"Type","message":"error[V0106]: the annotation says int, found any; narrow the value first with `is_type?`, `.as(int)` or `JSON.parse_as`","phase":"compile"},"id":"host_blocks/typed/strict/unlimited"}
 {"id":"host_globals/block_parameter/ordinary","ok":["array",[["int","2"]]]}
 {"id":"host_globals/block_parameter/strict","ok":["array",[["int","2"]]]}
 {"id":"host_globals/builtin/ordinary","ok":["int","42"]}
@@ -423,14 +423,14 @@
 {"id":"host_globals/enum/strict","ok":["int","7"]}
 {"id":"host_globals/function/ordinary","ok":["int","42"]}
 {"id":"host_globals/function/strict","ok":["int","42"]}
-{"id":"host_globals/module_constant/Parser/0/False/ordinary","ok":["int","3"]}
-{"id":"host_globals/module_constant/Parser/0/False/strict","ok":["int","3"]}
-{"id":"host_globals/module_constant/Parser/1/False/ordinary","ok":["int","3"]}
-{"id":"host_globals/module_constant/Parser/1/False/strict","ok":["int","3"]}
-{"id":"host_globals/module_constant/Parser/2/False/ordinary","ok":["int","3"]}
-{"id":"host_globals/module_constant/Parser/2/False/strict","ok":["int","3"]}
-{"id":"host_globals/module_constant/Parser/3/False/ordinary","ok":["int","3"]}
-{"id":"host_globals/module_constant/Parser/3/False/strict","ok":["int","3"]}
+{"error":{"at":[1,31],"class":"TypeError","kind":"Type","message":"error[V0112]: JSON cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_globals/module_constant/Parser/0/False/ordinary"}
+{"error":{"at":[1,31],"class":"TypeError","kind":"Type","message":"error[V0112]: JSON cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_globals/module_constant/Parser/0/False/strict"}
+{"error":{"at":[1,31],"class":"TypeError","kind":"Type","message":"error[V0112]: JSON cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_globals/module_constant/Parser/1/False/ordinary"}
+{"error":{"at":[1,31],"class":"TypeError","kind":"Type","message":"error[V0112]: JSON cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_globals/module_constant/Parser/1/False/strict"}
+{"error":{"at":[1,31],"class":"TypeError","kind":"Type","message":"error[V0112]: JSON cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_globals/module_constant/Parser/2/False/ordinary"}
+{"error":{"at":[1,31],"class":"TypeError","kind":"Type","message":"error[V0112]: JSON cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_globals/module_constant/Parser/2/False/strict"}
+{"error":{"at":[1,31],"class":"TypeError","kind":"Type","message":"error[V0112]: JSON cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_globals/module_constant/Parser/3/False/ordinary"}
+{"error":{"at":[1,31],"class":"TypeError","kind":"Type","message":"error[V0112]: JSON cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_globals/module_constant/Parser/3/False/strict"}
 {"id":"host_globals/nested_address/ordinary","ok":["array",[["array",[["int","1"],["int","2"]]]]]}
 {"id":"host_globals/nested_address/strict","ok":["array",[["array",[["int","1"],["int","2"]]]]]}
 {"id":"host_globals/nil/ordinary","ok":["nil"]}
@@ -469,10 +469,10 @@
 {"id":"host_signatures/break/capability/ordinary/unlimited","ok":["int","7"]}
 {"id":"host_signatures/break/capability/strict/metered","ok":["int","7"]}
 {"id":"host_signatures/break/capability/strict/unlimited","ok":["int","7"]}
-{"id":"host_signatures/computed/capability/ordinary/metered","ok":["int","7"]}
-{"id":"host_signatures/computed/capability/ordinary/unlimited","ok":["int","7"]}
-{"id":"host_signatures/computed/capability/strict/metered","ok":["int","7"]}
-{"id":"host_signatures/computed/capability/strict/unlimited","ok":["int","7"]}
+{"error":{"at":[4,2],"class":"TypeError","kind":"Type","message":"error[V0112]: typed cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_signatures/computed/capability/ordinary/metered"}
+{"error":{"at":[4,2],"class":"TypeError","kind":"Type","message":"error[V0112]: typed cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_signatures/computed/capability/ordinary/unlimited"}
+{"error":{"at":[4,2],"class":"TypeError","kind":"Type","message":"error[V0112]: typed cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_signatures/computed/capability/strict/metered"}
+{"error":{"at":[4,2],"class":"TypeError","kind":"Type","message":"error[V0112]: typed cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_signatures/computed/capability/strict/unlimited"}
 {"id":"host_signatures/copy/capability/ordinary/metered","ok":["int","7"]}
 {"id":"host_signatures/copy/capability/ordinary/unlimited","ok":["int","7"]}
 {"id":"host_signatures/copy/capability/strict/metered","ok":["int","7"]}
@@ -515,14 +515,14 @@
 {"id":"host_signatures/expanded/registered/ordinary/unlimited","ok":["int","7"]}
 {"id":"host_signatures/expanded/registered/strict/metered","ok":["int","7"]}
 {"id":"host_signatures/expanded/registered/strict/unlimited","ok":["int","7"]}
-{"id":"host_signatures/indexed/capability/ordinary/metered","ok":["int","7"]}
-{"id":"host_signatures/indexed/capability/ordinary/unlimited","ok":["int","7"]}
-{"id":"host_signatures/indexed/capability/strict/metered","ok":["int","7"]}
-{"id":"host_signatures/indexed/capability/strict/unlimited","ok":["int","7"]}
-{"id":"host_signatures/keywords/capability/ordinary/metered","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f20646f6573206e6f742074616b65206b6579776f726420617267756d656e7473"]]]}
-{"id":"host_signatures/keywords/capability/ordinary/unlimited","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f20646f6573206e6f742074616b65206b6579776f726420617267756d656e7473"]]]}
-{"id":"host_signatures/keywords/capability/strict/metered","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f20646f6573206e6f742074616b65206b6579776f726420617267756d656e7473"]]]}
-{"id":"host_signatures/keywords/capability/strict/unlimited","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f20646f6573206e6f742074616b65206b6579776f726420617267756d656e7473"]]]}
+{"error":{"at":[4,1],"class":"TypeError","kind":"Type","message":"error[V0112]: typed cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_signatures/indexed/capability/ordinary/metered"}
+{"error":{"at":[4,1],"class":"TypeError","kind":"Type","message":"error[V0112]: typed cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_signatures/indexed/capability/ordinary/unlimited"}
+{"error":{"at":[4,1],"class":"TypeError","kind":"Type","message":"error[V0112]: typed cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_signatures/indexed/capability/strict/metered"}
+{"error":{"at":[4,1],"class":"TypeError","kind":"Type","message":"error[V0112]: typed cannot be indexed with 1 selector(s)","phase":"compile"},"id":"host_signatures/indexed/capability/strict/unlimited"}
+{"error":{"at":[4,22],"class":"TypeError","kind":"Type","message":"error[V0302]: `echo` has no keyword `key:`","phase":"compile"},"id":"host_signatures/keywords/capability/ordinary/metered"}
+{"error":{"at":[4,22],"class":"TypeError","kind":"Type","message":"error[V0302]: `echo` has no keyword `key:`","phase":"compile"},"id":"host_signatures/keywords/capability/ordinary/unlimited"}
+{"error":{"at":[4,22],"class":"TypeError","kind":"Type","message":"error[V0302]: `echo` has no keyword `key:`","phase":"compile"},"id":"host_signatures/keywords/capability/strict/metered"}
+{"error":{"at":[4,22],"class":"TypeError","kind":"Type","message":"error[V0302]: `echo` has no keyword `key:`","phase":"compile"},"id":"host_signatures/keywords/capability/strict/unlimited"}
 {"id":"host_signatures/module_default/capability/ordinary/metered","ok":["int","7"]}
 {"id":"host_signatures/module_default/capability/ordinary/unlimited","ok":["int","7"]}
 {"id":"host_signatures/module_default/capability/strict/metered","ok":["int","7"]}
@@ -555,10 +555,10 @@
 {"id":"host_signatures/next/capability/ordinary/unlimited","ok":["int","7"]}
 {"id":"host_signatures/next/capability/strict/metered","ok":["int","7"]}
 {"id":"host_signatures/next/capability/strict/unlimited","ok":["int","7"]}
-{"id":"host_signatures/no_block/capability/ordinary/metered","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f20646f6573206e6f742074616b65206120626c6f636b"]]]}
-{"id":"host_signatures/no_block/capability/ordinary/unlimited","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f20646f6573206e6f742074616b65206120626c6f636b"]]]}
-{"id":"host_signatures/no_block/capability/strict/metered","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f20646f6573206e6f742074616b65206120626c6f636b"]]]}
-{"id":"host_signatures/no_block/capability/strict/unlimited","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f20646f6573206e6f742074616b65206120626c6f636b"]]]}
+{"error":{"at":[4,22],"class":"TypeError","kind":"Type","message":"error[V0305]: `echo` takes no block","phase":"compile"},"id":"host_signatures/no_block/capability/ordinary/metered"}
+{"error":{"at":[4,22],"class":"TypeError","kind":"Type","message":"error[V0305]: `echo` takes no block","phase":"compile"},"id":"host_signatures/no_block/capability/ordinary/unlimited"}
+{"error":{"at":[4,22],"class":"TypeError","kind":"Type","message":"error[V0305]: `echo` takes no block","phase":"compile"},"id":"host_signatures/no_block/capability/strict/metered"}
+{"error":{"at":[4,22],"class":"TypeError","kind":"Type","message":"error[V0305]: `echo` takes no block","phase":"compile"},"id":"host_signatures/no_block/capability/strict/unlimited"}
 {"id":"host_signatures/optional_absent/capability/ordinary/metered","ok":["array",[["int","1"]]]}
 {"id":"host_signatures/optional_absent/capability/ordinary/unlimited","ok":["array",[["int","1"]]]}
 {"id":"host_signatures/optional_absent/capability/strict/metered","ok":["array",[["int","1"]]]}
@@ -571,38 +571,38 @@
 {"id":"host_signatures/optional_unknown/capability/ordinary/unlimited","ok":["array",[]]}
 {"id":"host_signatures/optional_unknown/capability/strict/metered","ok":["array",[]]}
 {"id":"host_signatures/optional_unknown/capability/strict/unlimited","ok":["array",[]]}
-{"id":"host_signatures/public/capability/ordinary/metered","ok":["int","7"]}
-{"id":"host_signatures/public/capability/ordinary/unlimited","ok":["int","7"]}
-{"id":"host_signatures/public/capability/strict/metered","ok":["int","7"]}
-{"id":"host_signatures/public/capability/strict/unlimited","ok":["int","7"]}
+{"error":{"at":[4,7],"class":"TypeError","kind":"Type","message":"error[V0203]: typed declares no member `public_send`","phase":"compile"},"id":"host_signatures/public/capability/ordinary/metered"}
+{"error":{"at":[4,7],"class":"TypeError","kind":"Type","message":"error[V0203]: typed declares no member `public_send`","phase":"compile"},"id":"host_signatures/public/capability/ordinary/unlimited"}
+{"error":{"at":[4,7],"class":"TypeError","kind":"Type","message":"error[V0203]: typed declares no member `public_send`","phase":"compile"},"id":"host_signatures/public/capability/strict/metered"}
+{"error":{"at":[4,7],"class":"TypeError","kind":"Type","message":"error[V0203]: typed declares no member `public_send`","phase":"compile"},"id":"host_signatures/public/capability/strict/unlimited"}
 {"id":"host_signatures/return/capability/ordinary/metered","ok":["string","6f6b"]}
 {"id":"host_signatures/return/capability/ordinary/unlimited","ok":["string","6f6b"]}
 {"id":"host_signatures/return/capability/strict/metered","ok":["string","6f6b"]}
 {"id":"host_signatures/return/capability/strict/unlimited","ok":["string","6f6b"]}
-{"id":"host_signatures/root_fallback/capability/ordinary/metered","ok":["bool",true]}
-{"id":"host_signatures/root_fallback/capability/ordinary/unlimited","ok":["bool",true]}
-{"id":"host_signatures/root_fallback/capability/strict/metered","ok":["bool",true]}
-{"id":"host_signatures/root_fallback/capability/strict/unlimited","ok":["bool",true]}
+{"error":{"class":"TypeError","kind":"Type","message":"worker.vibe: error[V0201]: `Status` is not a local, function or builtin in scope, and the host declares no global or capability of that name","phase":"compile"},"id":"host_signatures/root_fallback/capability/ordinary/metered"}
+{"error":{"class":"TypeError","kind":"Type","message":"worker.vibe: error[V0201]: `Status` is not a local, function or builtin in scope, and the host declares no global or capability of that name","phase":"compile"},"id":"host_signatures/root_fallback/capability/ordinary/unlimited"}
+{"error":{"class":"TypeError","kind":"Type","message":"worker.vibe: error[V0201]: `Status` is not a local, function or builtin in scope, and the host declares no global or capability of that name","phase":"compile"},"id":"host_signatures/root_fallback/capability/strict/metered"}
+{"error":{"class":"TypeError","kind":"Type","message":"worker.vibe: error[V0201]: `Status` is not a local, function or builtin in scope, and the host declares no global or capability of that name","phase":"compile"},"id":"host_signatures/root_fallback/capability/strict/unlimited"}
 {"id":"host_signatures/safe/capability/ordinary/metered","ok":["int","7"]}
 {"id":"host_signatures/safe/capability/ordinary/unlimited","ok":["int","7"]}
 {"id":"host_signatures/safe/capability/strict/metered","ok":["int","7"]}
 {"id":"host_signatures/safe/capability/strict/unlimited","ok":["int","7"]}
-{"id":"host_signatures/scoped/capability/ordinary/metered","ok":["int","7"]}
-{"id":"host_signatures/scoped/capability/ordinary/unlimited","ok":["int","7"]}
-{"id":"host_signatures/scoped/capability/strict/metered","ok":["int","7"]}
-{"id":"host_signatures/scoped/capability/strict/unlimited","ok":["int","7"]}
-{"id":"host_signatures/symbolic/capability/ordinary/metered","ok":["int","7"]}
-{"id":"host_signatures/symbolic/capability/ordinary/unlimited","ok":["int","7"]}
-{"id":"host_signatures/symbolic/capability/strict/metered","ok":["int","7"]}
-{"id":"host_signatures/symbolic/capability/strict/unlimited","ok":["int","7"]}
-{"id":"host_signatures/too_few/capability/ordinary/metered","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f2065787065637473206174206c65617374203120617267756d656e74732c20676f742030"]]]}
-{"id":"host_signatures/too_few/capability/ordinary/unlimited","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f2065787065637473206174206c65617374203120617267756d656e74732c20676f742030"]]]}
-{"id":"host_signatures/too_few/capability/strict/metered","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f2065787065637473206174206c65617374203120617267756d656e74732c20676f742030"]]]}
-{"id":"host_signatures/too_few/capability/strict/unlimited","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f2065787065637473206174206c65617374203120617267756d656e74732c20676f742030"]]]}
-{"id":"host_signatures/too_many/capability/ordinary/metered","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f2065787065637473206174206d6f7374203120617267756d656e74732c20676f742032"]]]}
-{"id":"host_signatures/too_many/capability/ordinary/unlimited","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f2065787065637473206174206d6f7374203120617267756d656e74732c20676f742032"]]]}
-{"id":"host_signatures/too_many/capability/strict/metered","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f2065787065637473206174206d6f7374203120617267756d656e74732c20676f742032"]]]}
-{"id":"host_signatures/too_many/capability/strict/unlimited","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f2065787065637473206174206d6f7374203120617267756d656e74732c20676f742032"]]]}
+{"error":{"at":[4,6],"class":"TypeError","kind":"Type","message":"error[V0416]: `typed::echo` was removed; use `typed.echo`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"host_signatures/scoped/capability/ordinary/metered"}
+{"error":{"at":[4,6],"class":"TypeError","kind":"Type","message":"error[V0416]: `typed::echo` was removed; use `typed.echo`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"host_signatures/scoped/capability/ordinary/unlimited"}
+{"error":{"at":[4,6],"class":"TypeError","kind":"Type","message":"error[V0416]: `typed::echo` was removed; use `typed.echo`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"host_signatures/scoped/capability/strict/metered"}
+{"error":{"at":[4,6],"class":"TypeError","kind":"Type","message":"error[V0416]: `typed::echo` was removed; use `typed.echo`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"host_signatures/scoped/capability/strict/unlimited"}
+{"error":{"at":[4,7],"class":"TypeError","kind":"Type","message":"error[V0203]: typed declares no member `send`","phase":"compile"},"id":"host_signatures/symbolic/capability/ordinary/metered"}
+{"error":{"at":[4,7],"class":"TypeError","kind":"Type","message":"error[V0203]: typed declares no member `send`","phase":"compile"},"id":"host_signatures/symbolic/capability/ordinary/unlimited"}
+{"error":{"at":[4,7],"class":"TypeError","kind":"Type","message":"error[V0203]: typed declares no member `send`","phase":"compile"},"id":"host_signatures/symbolic/capability/strict/metered"}
+{"error":{"at":[4,7],"class":"TypeError","kind":"Type","message":"error[V0203]: typed declares no member `send`","phase":"compile"},"id":"host_signatures/symbolic/capability/strict/unlimited"}
+{"error":{"at":[4,14],"class":"TypeError","kind":"Type","message":"error[V0301]: `echo` takes 1 positional argument(s), got 0","phase":"compile"},"id":"host_signatures/too_few/capability/ordinary/metered"}
+{"error":{"at":[4,14],"class":"TypeError","kind":"Type","message":"error[V0301]: `echo` takes 1 positional argument(s), got 0","phase":"compile"},"id":"host_signatures/too_few/capability/ordinary/unlimited"}
+{"error":{"at":[4,14],"class":"TypeError","kind":"Type","message":"error[V0301]: `echo` takes 1 positional argument(s), got 0","phase":"compile"},"id":"host_signatures/too_few/capability/strict/metered"}
+{"error":{"at":[4,14],"class":"TypeError","kind":"Type","message":"error[V0301]: `echo` takes 1 positional argument(s), got 0","phase":"compile"},"id":"host_signatures/too_few/capability/strict/unlimited"}
+{"error":{"at":[4,14],"class":"TypeError","kind":"Type","message":"error[V0301]: `echo` takes 1 positional argument(s), got 2","phase":"compile"},"id":"host_signatures/too_many/capability/ordinary/metered"}
+{"error":{"at":[4,14],"class":"TypeError","kind":"Type","message":"error[V0301]: `echo` takes 1 positional argument(s), got 2","phase":"compile"},"id":"host_signatures/too_many/capability/ordinary/unlimited"}
+{"error":{"at":[4,14],"class":"TypeError","kind":"Type","message":"error[V0301]: `echo` takes 1 positional argument(s), got 2","phase":"compile"},"id":"host_signatures/too_many/capability/strict/metered"}
+{"error":{"at":[4,14],"class":"TypeError","kind":"Type","message":"error[V0301]: `echo` takes 1 positional argument(s), got 2","phase":"compile"},"id":"host_signatures/too_many/capability/strict/unlimited"}
 {"id":"host_signatures/type_any/capability/ordinary/metered","ok":["hash",[["61",["array",[["int","1"],["nil"]]]]]]}
 {"id":"host_signatures/type_any/capability/ordinary/unlimited","ok":["hash",[["61",["array",[["int","1"],["nil"]]]]]]}
 {"id":"host_signatures/type_any/capability/strict/metered","ok":["hash",[["61",["array",[["int","1"],["nil"]]]]]]}
@@ -671,14 +671,14 @@
 {"id":"host_signatures/unknown_result/capability/ordinary/unlimited","ok":["string","72657475726e207479706520636865636b206661696c656420666f722074797065642e6563686f3a20756e6b6e6f776e2074797065204d697373696e67"]}
 {"id":"host_signatures/unknown_result/capability/strict/metered","ok":["string","72657475726e207479706520636865636b206661696c656420666f722074797065642e6563686f3a20756e6b6e6f776e2074797065204d697373696e67"]}
 {"id":"host_signatures/unknown_result/capability/strict/unlimited","ok":["string","72657475726e207479706520636865636b206661696c656420666f722074797065642e6563686f3a20756e6b6e6f776e2074797065204d697373696e67"]}
-{"id":"host_signatures/unnamed/capability/ordinary/metered","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f20617267756d656e74203120657870656374656420696e742c20676f74206e696c"]]]}
-{"id":"host_signatures/unnamed/capability/ordinary/unlimited","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f20617267756d656e74203120657870656374656420696e742c20676f74206e696c"]]]}
-{"id":"host_signatures/unnamed/capability/strict/metered","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f20617267756d656e74203120657870656374656420696e742c20676f74206e696c"]]]}
-{"id":"host_signatures/unnamed/capability/strict/unlimited","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f20617267756d656e74203120657870656374656420696e742c20676f74206e696c"]]]}
-{"id":"host_signatures/wrong_type/capability/ordinary/metered","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f20617267756d656e742076616c756520657870656374656420696e742c20676f7420737472696e67"]]]}
-{"id":"host_signatures/wrong_type/capability/ordinary/unlimited","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f20617267756d656e742076616c756520657870656374656420696e742c20676f7420737472696e67"]]]}
-{"id":"host_signatures/wrong_type/capability/strict/metered","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f20617267756d656e742076616c756520657870656374656420696e742c20676f7420737472696e67"]]]}
-{"id":"host_signatures/wrong_type/capability/strict/unlimited","ok":["array",[["string","52756e74696d654572726f72"],["string","74797065642e6563686f20617267756d656e742076616c756520657870656374656420696e742c20676f7420737472696e67"]]]}
+{"error":{"at":[4,19],"class":"TypeError","kind":"Type","message":"error[V0101]: argument 1 (`arg1`) of `echo` is int, found nil","phase":"compile"},"id":"host_signatures/unnamed/capability/ordinary/metered"}
+{"error":{"at":[4,19],"class":"TypeError","kind":"Type","message":"error[V0101]: argument 1 (`arg1`) of `echo` is int, found nil","phase":"compile"},"id":"host_signatures/unnamed/capability/ordinary/unlimited"}
+{"error":{"at":[4,19],"class":"TypeError","kind":"Type","message":"error[V0101]: argument 1 (`arg1`) of `echo` is int, found nil","phase":"compile"},"id":"host_signatures/unnamed/capability/strict/metered"}
+{"error":{"at":[4,19],"class":"TypeError","kind":"Type","message":"error[V0101]: argument 1 (`arg1`) of `echo` is int, found nil","phase":"compile"},"id":"host_signatures/unnamed/capability/strict/unlimited"}
+{"error":{"at":[4,19],"class":"TypeError","kind":"Type","message":"error[V0101]: argument 1 (`value`) of `echo` is int, found string","phase":"compile"},"id":"host_signatures/wrong_type/capability/ordinary/metered"}
+{"error":{"at":[4,19],"class":"TypeError","kind":"Type","message":"error[V0101]: argument 1 (`value`) of `echo` is int, found string","phase":"compile"},"id":"host_signatures/wrong_type/capability/ordinary/unlimited"}
+{"error":{"at":[4,19],"class":"TypeError","kind":"Type","message":"error[V0101]: argument 1 (`value`) of `echo` is int, found string","phase":"compile"},"id":"host_signatures/wrong_type/capability/strict/metered"}
+{"error":{"at":[4,19],"class":"TypeError","kind":"Type","message":"error[V0101]: argument 1 (`value`) of `echo` is int, found string","phase":"compile"},"id":"host_signatures/wrong_type/capability/strict/unlimited"}
 {"id":"if_elsif","ok":["int","2"]}
 {"id":"index_assignment_result","ok":["int","7"]}
 {"id":"invalid_bytes","ok":["array",[["int","3"],["int","3"]]]}
@@ -763,10 +763,10 @@
 {"id":"required_files/argument_error_class/block/development/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
 {"id":"required_files/argument_error_class/block/production/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
 {"id":"required_files/argument_error_class/block/production/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/boolean_alias/development/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/boolean_alias/development/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/boolean_alias/production/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/boolean_alias/production/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its alias as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/boolean_alias/development/ordinary"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its alias as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/boolean_alias/development/strict"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its alias as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/boolean_alias/production/ordinary"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its alias as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/boolean_alias/production/strict"}
 {"id":"required_files/argument_error_class/builtin_alias/development/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
 {"id":"required_files/argument_error_class/builtin_alias/development/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
 {"id":"required_files/argument_error_class/builtin_alias/production/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
@@ -775,18 +775,18 @@
 {"id":"required_files/argument_error_class/empty_alias/development/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
 {"id":"required_files/argument_error_class/empty_alias/production/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
 {"id":"required_files/argument_error_class/empty_alias/production/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/existing_alias/development/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/existing_alias/development/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/existing_alias/production/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/existing_alias/production/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0102]: a function cannot assign capitalized name `Taken`; use a lowercase local or a declared class variable","phase":"compile"},"id":"required_files/argument_error_class/existing_alias/development/ordinary"}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0102]: a function cannot assign capitalized name `Taken`; use a lowercase local or a declared class variable","phase":"compile"},"id":"required_files/argument_error_class/existing_alias/development/strict"}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0102]: a function cannot assign capitalized name `Taken`; use a lowercase local or a declared class variable","phase":"compile"},"id":"required_files/argument_error_class/existing_alias/production/ordinary"}
+{"error":{"at":[3,8],"class":"TypeError","kind":"Type","message":"error[V0102]: a function cannot assign capitalized name `Taken`; use a lowercase local or a declared class variable","phase":"compile"},"id":"required_files/argument_error_class/existing_alias/production/strict"}
 {"id":"required_files/argument_error_class/extra/development/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
 {"id":"required_files/argument_error_class/extra/development/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
 {"id":"required_files/argument_error_class/extra/production/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
 {"id":"required_files/argument_error_class/extra/production/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/integer/development/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/integer/development/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/integer/production/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/integer/production/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
+{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/integer/development/ordinary"}
+{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/integer/development/strict"}
+{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/integer/production/ordinary"}
+{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/integer/production/strict"}
 {"id":"required_files/argument_error_class/invalid_alias/development/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
 {"id":"required_files/argument_error_class/invalid_alias/development/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
 {"id":"required_files/argument_error_class/invalid_alias/production/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
@@ -795,22 +795,22 @@
 {"id":"required_files/argument_error_class/invalid_utf8_alias/development/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
 {"id":"required_files/argument_error_class/invalid_utf8_alias/production/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
 {"id":"required_files/argument_error_class/invalid_utf8_alias/production/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/keyword/development/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/keyword/development/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/keyword/production/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/keyword/production/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
+{"error":{"at":[3,35],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/keyword/development/ordinary"}
+{"error":{"at":[3,35],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/keyword/development/strict"}
+{"error":{"at":[3,35],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/keyword/production/ordinary"}
+{"error":{"at":[3,35],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/keyword/production/strict"}
 {"id":"required_files/argument_error_class/missing/development/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
 {"id":"required_files/argument_error_class/missing/development/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
 {"id":"required_files/argument_error_class/missing/production/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
 {"id":"required_files/argument_error_class/missing/production/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/nil/development/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/nil/development/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/nil/production/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/nil/production/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/nil_alias/development/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/nil_alias/development/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/nil_alias/production/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
-{"id":"required_files/argument_error_class/nil_alias/production/strict","ok":["array",[["string","52756e74696d654572726f72"],["bool",true]]]}
+{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/nil/development/ordinary"}
+{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/nil/development/strict"}
+{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/nil/production/ordinary"}
+{"error":{"at":[3,16],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/nil/production/strict"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its alias as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/nil_alias/development/ordinary"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its alias as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/nil_alias/development/strict"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its alias as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/nil_alias/production/ordinary"}
+{"error":{"at":[3,30],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes its alias as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/argument_error_class/nil_alias/production/strict"}
 {"id":"required_files/arguments/development/ordinary","ok":["array",[["int","1"],["array",[["int","2"],["int","3"]]],["int","4"]]]}
 {"id":"required_files/arguments/development/strict","ok":["array",[["int","1"],["array",[["int","2"],["int","3"]]],["int","4"]]]}
 {"id":"required_files/arguments/production/ordinary","ok":["array",[["int","1"],["array",[["int","2"],["int","3"]]],["int","4"]]]}
@@ -823,14 +823,14 @@
 {"id":"required_files/class/development/strict","ok":["array",[["int","7"],["int","9"]]]}
 {"id":"required_files/class/production/ordinary","ok":["array",[["int","7"],["int","9"]]]}
 {"id":"required_files/class/production/strict","ok":["array",[["int","7"],["int","9"]]]}
-{"id":"required_files/cycle/development/ordinary","ok":["int","7"]}
-{"id":"required_files/cycle/development/strict","ok":["int","7"]}
-{"id":"required_files/cycle/production/ordinary","ok":["int","7"]}
-{"id":"required_files/cycle/production/strict","ok":["int","7"]}
-{"id":"required_files/deny/development/ordinary","ok":["int","7"]}
-{"id":"required_files/deny/development/strict","ok":["int","7"]}
-{"id":"required_files/deny/production/ordinary","ok":["int","7"]}
-{"id":"required_files/deny/production/strict","ok":["int","7"]}
+{"error":{"class":"TypeError","kind":"Type","message":"right.vibe: error[V0201]: cannot statically resolve required module \"left\"","phase":"compile"},"id":"required_files/cycle/development/ordinary"}
+{"error":{"class":"TypeError","kind":"Type","message":"right.vibe: error[V0201]: cannot statically resolve required module \"left\"","phase":"compile"},"id":"required_files/cycle/development/strict"}
+{"error":{"class":"TypeError","kind":"Type","message":"right.vibe: error[V0201]: cannot statically resolve required module \"left\"","phase":"compile"},"id":"required_files/cycle/production/ordinary"}
+{"error":{"class":"TypeError","kind":"Type","message":"right.vibe: error[V0201]: cannot statically resolve required module \"left\"","phase":"compile"},"id":"required_files/cycle/production/strict"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\"","phase":"compile"},"id":"required_files/deny/development/ordinary"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\"","phase":"compile"},"id":"required_files/deny/development/strict"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\"","phase":"compile"},"id":"required_files/deny/production/ordinary"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\"","phase":"compile"},"id":"required_files/deny/production/strict"}
 {"id":"required_files/direct/development/ordinary","ok":["int","42"]}
 {"id":"required_files/direct/development/strict","ok":["int","42"]}
 {"id":"required_files/direct/production/ordinary","ok":["int","42"]}
@@ -855,18 +855,18 @@
 {"id":"required_files/function_member_mutators/development/strict","ok":["array",[["array",[["int","1"],["array",[["int","1"],["int","2"]]],["array",[["int","1"]]]]],["int","1"],["array",[["int","1"]]]]]}
 {"id":"required_files/function_member_mutators/production/ordinary","ok":["array",[["array",[["int","1"],["array",[["int","1"],["int","2"]]],["array",[["int","1"]]]]],["int","1"],["array",[["int","1"]]]]]}
 {"id":"required_files/function_member_mutators/production/strict","ok":["array",[["array",[["int","1"],["array",[["int","1"],["int","2"]]],["array",[["int","1"]]]]],["int","1"],["array",[["int","1"]]]]]}
-{"id":"required_files/function_member_receiver_exports/development/ordinary","ok":["array",[["array",[["int","7"]]],["int","7"],["string","5b375d"],["string","756e6b6e6f776e206172726179206d6574686f642063616c6c"]]]}
-{"id":"required_files/function_member_receiver_exports/development/strict","ok":["array",[["array",[["int","7"]]],["int","7"],["string","5b375d"],["string","756e6b6e6f776e206172726179206d6574686f642063616c6c"]]]}
-{"id":"required_files/function_member_receiver_exports/production/ordinary","ok":["array",[["array",[["int","7"]]],["int","7"],["string","5b375d"],["string","756e6b6e6f776e206172726179206d6574686f642063616c6c"]]]}
-{"id":"required_files/function_member_receiver_exports/production/strict","ok":["array",[["array",[["int","7"]]],["int","7"],["string","5b375d"],["string","756e6b6e6f776e206172726179206d6574686f642063616c6c"]]]}
-{"id":"required_files/function_member_receiver_values/development/ordinary","ok":["array",[["array",[["array",[["int","1"]]],["int","1"],["array",[["int","1"],["int","2"]]],["int","2"]]],["array",[["string","37"],["string","612066756e6374696f6e20686173206e6f206d656d6265722063616c6c3b2063616c6c2076616c7565282e2e2e29206469726563746c79"],["string","756e6b6e6f776e20696e74206d6574686f642063616c6c"]]]]]}
-{"id":"required_files/function_member_receiver_values/development/strict","ok":["array",[["array",[["array",[["int","1"]]],["int","1"],["array",[["int","1"],["int","2"]]],["int","2"]]],["array",[["string","37"],["string","612066756e6374696f6e20686173206e6f206d656d6265722063616c6c3b2063616c6c2076616c7565282e2e2e29206469726563746c79"],["string","756e6b6e6f776e20696e74206d6574686f642063616c6c"]]]]]}
-{"id":"required_files/function_member_receiver_values/production/ordinary","ok":["array",[["array",[["array",[["int","1"]]],["int","1"],["array",[["int","1"],["int","2"]]],["int","2"]]],["array",[["string","37"],["string","612066756e6374696f6e20686173206e6f206d656d6265722063616c6c3b2063616c6c2076616c7565282e2e2e29206469726563746c79"],["string","756e6b6e6f776e20696e74206d6574686f642063616c6c"]]]]]}
-{"id":"required_files/function_member_receiver_values/production/strict","ok":["array",[["array",[["array",[["int","1"]]],["int","1"],["array",[["int","1"],["int","2"]]],["int","2"]]],["array",[["string","37"],["string","612066756e6374696f6e20686173206e6f206d656d6265722063616c6c3b2063616c6c2076616c7565282e2e2e29206469726563746c79"],["string","756e6b6e6f776e20696e74206d6574686f642063616c6c"]]]]]}
-{"id":"required_files/function_member_receivers/development/ordinary","ok":["array",[["nil"],["nil"],["nil"],["nil"],["string","612066756e6374696f6e20686173206e6f206d656d6265722063616c6c3b2063616c6c2068656c706572282e2e2e29206469726563746c79"],["string","612066756e6374696f6e20686173206e6f206d656d6265722063616c6c3b2063616c6c2068656c706572282e2e2e29206469726563746c79"],["string","756e6b6e6f776e20696e74206d6574686f642063616c6c"],["nil"],["nil"],["nil"],["nil"],["string","68656c70657220697320612066756e6374696f6e20616e642063616e6e6f74206265207573656420617320612076616c75653b2063616c6c20697420776974682068656c706572282e2e2e29"],["nil"],["nil"]]]}
-{"id":"required_files/function_member_receivers/development/strict","ok":["array",[["nil"],["nil"],["nil"],["nil"],["string","612066756e6374696f6e20686173206e6f206d656d6265722063616c6c3b2063616c6c2068656c706572282e2e2e29206469726563746c79"],["string","612066756e6374696f6e20686173206e6f206d656d6265722063616c6c3b2063616c6c2068656c706572282e2e2e29206469726563746c79"],["string","756e6b6e6f776e20696e74206d6574686f642063616c6c"],["nil"],["nil"],["nil"],["nil"],["string","68656c70657220697320612066756e6374696f6e20616e642063616e6e6f74206265207573656420617320612076616c75653b2063616c6c20697420776974682068656c706572282e2e2e29"],["nil"],["nil"]]]}
-{"id":"required_files/function_member_receivers/production/ordinary","ok":["array",[["nil"],["nil"],["nil"],["nil"],["string","612066756e6374696f6e20686173206e6f206d656d6265722063616c6c3b2063616c6c2068656c706572282e2e2e29206469726563746c79"],["string","612066756e6374696f6e20686173206e6f206d656d6265722063616c6c3b2063616c6c2068656c706572282e2e2e29206469726563746c79"],["string","756e6b6e6f776e20696e74206d6574686f642063616c6c"],["nil"],["nil"],["nil"],["nil"],["string","68656c70657220697320612066756e6374696f6e20616e642063616e6e6f74206265207573656420617320612076616c75653b2063616c6c20697420776974682068656c706572282e2e2e29"],["nil"],["nil"]]]}
-{"id":"required_files/function_member_receivers/production/strict","ok":["array",[["nil"],["nil"],["nil"],["nil"],["string","612066756e6374696f6e20686173206e6f206d656d6265722063616c6c3b2063616c6c2068656c706572282e2e2e29206469726563746c79"],["string","612066756e6374696f6e20686173206e6f206d656d6265722063616c6c3b2063616c6c2068656c706572282e2e2e29206469726563746c79"],["string","756e6b6e6f776e20696e74206d6574686f642063616c6c"],["nil"],["nil"],["nil"],["nil"],["string","68656c70657220697320612066756e6374696f6e20616e642063616e6e6f74206265207573656420617320612076616c75653b2063616c6c20697420776974682068656c706572282e2e2e29"],["nil"],["nil"]]]}
+{"error":{"at":[3,89],"class":"TypeError","kind":"Type","message":"error[V0203]: array<int> has no member `call`","phase":"compile"},"id":"required_files/function_member_receiver_exports/development/ordinary"}
+{"error":{"at":[3,89],"class":"TypeError","kind":"Type","message":"error[V0203]: array<int> has no member `call`","phase":"compile"},"id":"required_files/function_member_receiver_exports/development/strict"}
+{"error":{"at":[3,89],"class":"TypeError","kind":"Type","message":"error[V0203]: array<int> has no member `call`","phase":"compile"},"id":"required_files/function_member_receiver_exports/production/ordinary"}
+{"error":{"at":[3,89],"class":"TypeError","kind":"Type","message":"error[V0203]: array<int> has no member `call`","phase":"compile"},"id":"required_files/function_member_receiver_exports/production/strict"}
+{"error":{"class":"TypeError","kind":"Type","message":"other.vibe: error[V0201]: `value` is not a local, function or builtin in scope, and the host declares no global or capability of that name","phase":"compile"},"id":"required_files/function_member_receiver_values/development/ordinary"}
+{"error":{"class":"TypeError","kind":"Type","message":"other.vibe: error[V0201]: `value` is not a local, function or builtin in scope, and the host declares no global or capability of that name","phase":"compile"},"id":"required_files/function_member_receiver_values/development/strict"}
+{"error":{"class":"TypeError","kind":"Type","message":"other.vibe: error[V0201]: `value` is not a local, function or builtin in scope, and the host declares no global or capability of that name","phase":"compile"},"id":"required_files/function_member_receiver_values/production/ordinary"}
+{"error":{"class":"TypeError","kind":"Type","message":"other.vibe: error[V0201]: `value` is not a local, function or builtin in scope, and the host declares no global or capability of that name","phase":"compile"},"id":"required_files/function_member_receiver_values/production/strict"}
+{"error":{"at":[3,136],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/function_member_receivers/development/ordinary"}
+{"error":{"at":[3,136],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/function_member_receivers/development/strict"}
+{"error":{"at":[3,136],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/function_member_receivers/production/ordinary"}
+{"error":{"at":[3,136],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/function_member_receivers/production/strict"}
 {"id":"required_files/global_conflict/development/ordinary","ok":["array",[["int","9"],["int","42"]]]}
 {"id":"required_files/global_conflict/development/strict","ok":["array",[["int","9"],["int","42"]]]}
 {"id":"required_files/global_conflict/production/ordinary","ok":["array",[["int","9"],["int","42"]]]}
@@ -875,26 +875,26 @@
 {"id":"required_files/host_global/development/strict","ok":["int","42"]}
 {"id":"required_files/host_global/production/ordinary","ok":["int","42"]}
 {"id":"required_files/host_global/production/strict","ok":["int","42"]}
-{"id":"required_files/indexed/development/ordinary","ok":["int","42"]}
-{"id":"required_files/indexed/development/strict","ok":["int","42"]}
-{"id":"required_files/indexed/production/ordinary","ok":["int","42"]}
-{"id":"required_files/indexed/production/strict","ok":["int","42"]}
+{"error":{"at":[3,21],"class":"TypeError","kind":"Type","message":"error[V0112]: module cannot be indexed with 1 selector(s)","phase":"compile"},"id":"required_files/indexed/development/ordinary"}
+{"error":{"at":[3,21],"class":"TypeError","kind":"Type","message":"error[V0112]: module cannot be indexed with 1 selector(s)","phase":"compile"},"id":"required_files/indexed/development/strict"}
+{"error":{"at":[3,21],"class":"TypeError","kind":"Type","message":"error[V0112]: module cannot be indexed with 1 selector(s)","phase":"compile"},"id":"required_files/indexed/production/ordinary"}
+{"error":{"at":[3,21],"class":"TypeError","kind":"Type","message":"error[V0112]: module cannot be indexed with 1 selector(s)","phase":"compile"},"id":"required_files/indexed/production/strict"}
 {"id":"required_files/initializer_order/development/ordinary","ok":["array",[["array",[["string","636c617373"],["string","66696c65"]]],["array",[["string","636c617373"],["string","66696c65"]]]]]}
 {"id":"required_files/initializer_order/development/strict","ok":["array",[["array",[["string","636c617373"],["string","66696c65"]]],["array",[["string","636c617373"],["string","66696c65"]]]]]}
 {"id":"required_files/initializer_order/production/ordinary","ok":["array",[["array",[["string","636c617373"],["string","66696c65"]]],["array",[["string","636c617373"],["string","66696c65"]]]]]}
 {"id":"required_files/initializer_order/production/strict","ok":["array",[["array",[["string","636c617373"],["string","66696c65"]]],["array",[["string","636c617373"],["string","66696c65"]]]]]}
-{"id":"required_files/missing/development/ordinary","ok":["int","7"]}
-{"id":"required_files/missing/development/strict","ok":["int","7"]}
-{"id":"required_files/missing/production/ordinary","ok":["int","7"]}
-{"id":"required_files/missing/production/strict","ok":["int","7"]}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"missing\"","phase":"compile"},"id":"required_files/missing/development/ordinary"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"missing\"","phase":"compile"},"id":"required_files/missing/development/strict"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"missing\"","phase":"compile"},"id":"required_files/missing/production/ordinary"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"missing\"","phase":"compile"},"id":"required_files/missing/production/strict"}
 {"id":"required_files/nested/development/ordinary","ok":["int","42"]}
 {"id":"required_files/nested/development/strict","ok":["int","42"]}
 {"id":"required_files/nested/production/ordinary","ok":["int","42"]}
 {"id":"required_files/nested/production/strict","ok":["int","42"]}
-{"id":"required_files/not_allowed/development/ordinary","ok":["int","7"]}
-{"id":"required_files/not_allowed/development/strict","ok":["int","7"]}
-{"id":"required_files/not_allowed/production/ordinary","ok":["int","7"]}
-{"id":"required_files/not_allowed/production/strict","ok":["int","7"]}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\"","phase":"compile"},"id":"required_files/not_allowed/development/ordinary"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\"","phase":"compile"},"id":"required_files/not_allowed/development/strict"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\"","phase":"compile"},"id":"required_files/not_allowed/production/ordinary"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"answer\"","phase":"compile"},"id":"required_files/not_allowed/production/strict"}
 {"id":"required_files/private_helper/development/ordinary","ok":["int","42"]}
 {"id":"required_files/private_helper/development/strict","ok":["int","42"]}
 {"id":"required_files/private_helper/production/ordinary","ok":["int","42"]}
@@ -903,10 +903,10 @@
 {"id":"required_files/private_state/development/strict","ok":["array",[["int","1"],["int","2"]]]}
 {"id":"required_files/private_state/production/ordinary","ok":["array",[["int","1"],["int","2"]]]}
 {"id":"required_files/private_state/production/strict","ok":["array",[["int","1"],["int","2"]]]}
-{"id":"required_files/receiving_function/development/ordinary","ok":["int","42"]}
-{"id":"required_files/receiving_function/development/strict","ok":["int","42"]}
-{"id":"required_files/receiving_function/production/ordinary","ok":["int","42"]}
-{"id":"required_files/receiving_function/production/strict","ok":["int","42"]}
+{"error":{"class":"TypeError","kind":"Type","message":"answer.vibe: error[V0201]: `helper` is not a function, method or builtin in scope","phase":"compile"},"id":"required_files/receiving_function/development/ordinary"}
+{"error":{"class":"TypeError","kind":"Type","message":"answer.vibe: error[V0201]: `helper` is not a function, method or builtin in scope","phase":"compile"},"id":"required_files/receiving_function/development/strict"}
+{"error":{"class":"TypeError","kind":"Type","message":"answer.vibe: error[V0201]: `helper` is not a function, method or builtin in scope","phase":"compile"},"id":"required_files/receiving_function/production/ordinary"}
+{"error":{"class":"TypeError","kind":"Type","message":"answer.vibe: error[V0201]: `helper` is not a function, method or builtin in scope","phase":"compile"},"id":"required_files/receiving_function/production/strict"}
 {"id":"required_files/relative/development/ordinary","ok":["int","42"]}
 {"id":"required_files/relative/development/strict","ok":["int","42"]}
 {"id":"required_files/relative/production/ordinary","ok":["int","42"]}
@@ -931,14 +931,14 @@
 {"id":"required_files/same_module/development/strict","ok":["array",[["int","1"],["int","2"]]]}
 {"id":"required_files/same_module/production/ordinary","ok":["array",[["int","1"],["int","2"]]]}
 {"id":"required_files/same_module/production/strict","ok":["array",[["int","1"],["int","2"]]]}
-{"id":"required_files/same_name_call_forms_skip_file_scope/development/ordinary","ok":["array",[["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e6b6e6f776e20636c617373206d656d6265722068656c706572"]]]}
-{"id":"required_files/same_name_call_forms_skip_file_scope/development/strict","ok":["array",[["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e6b6e6f776e20636c617373206d656d6265722068656c706572"]]]}
-{"id":"required_files/same_name_call_forms_skip_file_scope/production/ordinary","ok":["array",[["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e6b6e6f776e20636c617373206d656d6265722068656c706572"]]]}
-{"id":"required_files/same_name_call_forms_skip_file_scope/production/strict","ok":["array",[["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e646566696e6564207661726961626c652068656c706572"],["string","756e6b6e6f776e20636c617373206d656d6265722068656c706572"]]]}
-{"id":"required_files/same_name_call_other_forms_keep_file_scope/development/ordinary","ok":["array",[["int","1"],["int","1"],["int","1"],["int","1"],["array",[["int","1"]]]]]}
-{"id":"required_files/same_name_call_other_forms_keep_file_scope/development/strict","ok":["array",[["int","1"],["int","1"],["int","1"],["int","1"],["array",[["int","1"]]]]]}
-{"id":"required_files/same_name_call_other_forms_keep_file_scope/production/ordinary","ok":["array",[["int","1"],["int","1"],["int","1"],["int","1"],["array",[["int","1"]]]]]}
-{"id":"required_files/same_name_call_other_forms_keep_file_scope/production/strict","ok":["array",[["int","1"],["int","1"],["int","1"],["int","1"],["array",[["int","1"]]]]]}
+{"error":{"at":[3,70],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/same_name_call_forms_skip_file_scope/development/ordinary"}
+{"error":{"at":[3,70],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/same_name_call_forms_skip_file_scope/development/strict"}
+{"error":{"at":[3,70],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/same_name_call_forms_skip_file_scope/production/ordinary"}
+{"error":{"at":[3,70],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/same_name_call_forms_skip_file_scope/production/strict"}
+{"error":{"at":[3,60],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/same_name_call_other_forms_keep_file_scope/development/ordinary"}
+{"error":{"at":[3,60],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/same_name_call_other_forms_keep_file_scope/development/strict"}
+{"error":{"at":[3,60],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/same_name_call_other_forms_keep_file_scope/production/ordinary"}
+{"error":{"at":[3,60],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` takes the module name as a string literal, so the compiler can resolve and check the module","phase":"compile"},"id":"required_files/same_name_call_other_forms_keep_file_scope/production/strict"}
 {"id":"required_files/same_name_call_reaches_root_bindings/development/ordinary","ok":["array",[["int","2"],["int","7"],["int","1"]]]}
 {"id":"required_files/same_name_call_reaches_root_bindings/development/strict","ok":["array",[["int","2"],["int","7"],["int","1"]]]}
 {"id":"required_files/same_name_call_reaches_root_bindings/production/ordinary","ok":["array",[["int","2"],["int","7"],["int","1"]]]}
@@ -947,22 +947,22 @@
 {"id":"required_files/same_name_call_skips_file_scope/development/strict","ok":["array",[["string","52756e74696d654572726f72"],["string","756e646566696e6564207661726961626c652068656c706572"]]]}
 {"id":"required_files/same_name_call_skips_file_scope/production/ordinary","ok":["array",[["string","52756e74696d654572726f72"],["string","756e646566696e6564207661726961626c652068656c706572"]]]}
 {"id":"required_files/same_name_call_skips_file_scope/production/strict","ok":["array",[["string","52756e74696d654572726f72"],["string","756e646566696e6564207661726961626c652068656c706572"]]]}
-{"id":"required_files/scoped/development/ordinary","ok":["int","42"]}
-{"id":"required_files/scoped/development/strict","ok":["int","42"]}
-{"id":"required_files/scoped/production/ordinary","ok":["int","42"]}
-{"id":"required_files/scoped/production/strict","ok":["int","42"]}
-{"id":"required_files/symbol/development/ordinary","ok":["int","42"]}
-{"id":"required_files/symbol/development/strict","ok":["int","42"]}
-{"id":"required_files/symbol/production/ordinary","ok":["int","42"]}
-{"id":"required_files/symbol/production/strict","ok":["int","42"]}
-{"id":"required_files/symbolic/development/ordinary","ok":["int","42"]}
-{"id":"required_files/symbolic/development/strict","ok":["int","42"]}
-{"id":"required_files/symbolic/production/ordinary","ok":["int","42"]}
-{"id":"required_files/symbolic/production/strict","ok":["int","42"]}
-{"id":"required_files/syntax_error/development/ordinary","ok":["int","7"]}
-{"id":"required_files/syntax_error/development/strict","ok":["int","7"]}
-{"id":"required_files/syntax_error/production/ordinary","ok":["int","7"]}
-{"id":"required_files/syntax_error/production/strict","ok":["int","7"]}
+{"error":{"at":[3,22],"class":"TypeError","kind":"Type","message":"error[V0416]: `m::answer` was removed; use `m.answer`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"required_files/scoped/development/ordinary"}
+{"error":{"at":[3,22],"class":"TypeError","kind":"Type","message":"error[V0416]: `m::answer` was removed; use `m.answer`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"required_files/scoped/development/strict"}
+{"error":{"at":[3,22],"class":"TypeError","kind":"Type","message":"error[V0416]: `m::answer` was removed; use `m.answer`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"required_files/scoped/production/ordinary"}
+{"error":{"at":[3,22],"class":"TypeError","kind":"Type","message":"error[V0416]: `m::answer` was removed; use `m.answer`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"required_files/scoped/production/strict"}
+{"error":{"at":[3,9],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` names modules and aliases with string literals, not `:answer`; name the module with the string `\"answer\"`","phase":"compile"},"id":"required_files/symbol/development/ordinary"}
+{"error":{"at":[3,9],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` names modules and aliases with string literals, not `:answer`; name the module with the string `\"answer\"`","phase":"compile"},"id":"required_files/symbol/development/strict"}
+{"error":{"at":[3,9],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` names modules and aliases with string literals, not `:answer`; name the module with the string `\"answer\"`","phase":"compile"},"id":"required_files/symbol/production/ordinary"}
+{"error":{"at":[3,9],"class":"TypeError","kind":"Type","message":"error[V0309]: `require` names modules and aliases with string literals, not `:answer`; name the module with the string `\"answer\"`","phase":"compile"},"id":"required_files/symbol/production/strict"}
+{"error":{"at":[3,23],"class":"TypeError","kind":"Type","message":"error[V0405]: `send` was removed; call `answer` directly","phase":"compile"},"id":"required_files/symbolic/development/ordinary"}
+{"error":{"at":[3,23],"class":"TypeError","kind":"Type","message":"error[V0405]: `send` was removed; call `answer` directly","phase":"compile"},"id":"required_files/symbolic/development/strict"}
+{"error":{"at":[3,23],"class":"TypeError","kind":"Type","message":"error[V0405]: `send` was removed; call `answer` directly","phase":"compile"},"id":"required_files/symbolic/production/ordinary"}
+{"error":{"at":[3,23],"class":"TypeError","kind":"Type","message":"error[V0405]: `send` was removed; call `answer` directly","phase":"compile"},"id":"required_files/symbolic/production/strict"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"broken\"","phase":"compile"},"id":"required_files/syntax_error/development/ordinary"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"broken\"","phase":"compile"},"id":"required_files/syntax_error/development/strict"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"broken\"","phase":"compile"},"id":"required_files/syntax_error/production/ordinary"}
+{"error":{"at":[3,7],"class":"TypeError","kind":"Type","message":"error[V0201]: cannot statically resolve required module \"broken\"","phase":"compile"},"id":"required_files/syntax_error/production/strict"}
 {"id":"site/rosettacode/popular/100_doors.vibe","ok":["array",[["int","1"],["int","4"],["int","9"],["int","16"],["int","25"],["int","36"],["int","49"],["int","64"],["int","81"],["int","100"]]]}
 {"id":"site/rosettacode/popular/99_bottles_of_beer.vibe","ok":{"bytes":23781,"sha256":"78d98e1d2d2644873b3f161ed9762ce1bf36954af92d227b0d333b02a504950b"}}
 {"id":"site/rosettacode/popular/a_b.vibe","ok":["array",[["hash",[["6c656674",["int","0"]],["7269676874",["int","0"]],["73756d",["int","0"]]]],["hash",[["6c656674",["int","2"]],["7269676874",["int","3"]],["73756d",["int","5"]]]],["hash",[["6c656674",["int","-5"]],["7269676874",["int","12"]],["73756d",["int","7"]]]]]]}
@@ -1132,7 +1132,7 @@
 {"id":"site/showcase/workflows/approval_chain.vibe","ok":["hash",[["70656e64696e67",["hash",[["6368616e67655f6964",["string","6368616e67655f3838"]],["7374617465",["string","526576696577"]],["6e6578745f7374617465",["string","426c6f636b6564"]],["636865636b735f706173736564",["bool",false]],["7374657073",["array",[["hash",[["6c6162656c",["string","736563757269747920726576696577"]],["6475655f696e",["string","50543448"]],["6475655f6174",["string","323032332d31312d32365431363a30303a30305a"]]]],["hash",[["6c6162656c",["string","6f7073207369676e6f6666"]],["6475655f696e",["string","50543848"]],["6475655f6174",["string","323032332d31312d32365432303a30303a30305a"]]]]]]]]]],["7265616479",["hash",[["6368616e67655f6964",["string","6368616e67655f3839"]],["7374617465",["string","526576696577"]],["6e6578745f7374617465",["string","417070726f766564"]],["636865636b735f706173736564",["bool",true]],["7374657073",["array",[["hash",[["6c6162656c",["string","736563757269747920726576696577"]],["6475655f696e",["string","50543448"]],["6475655f6174",["string","323032332d31312d32365431363a30303a30305a"]]]],["hash",[["6c6162656c",["string","6f7073207369676e6f6666"]],["6475655f696e",["string","50543848"]],["6475655f6174",["string","323032332d31312d32365432303a30303a30305a"]]]]]]]]]]]]}
 {"id":"site/showcase/workflows/release_readiness.vibe","ok":["hash",[["6472616674",["hash",[["6e616d65",["string","62696c6c696e672d7632"]],["737461747573",["string","4472616674"]],["6e6578745f737461747573",["string","417070726f766564"]],["7075626c69736861626c65",["bool",false]],["6c61756e63685f6174",["string","756e7363686564756c6564"]],["62616e6e6572",["string","62696c6c696e672d7632206973204472616674"]]]]],["7363686564756c6564",["hash",[["6e616d65",["string","62696c6c696e672d7632"]],["737461747573",["string","5363686564756c6564"]],["6e6578745f737461747573",["string","4c697665"]],["7075626c69736861626c65",["bool",true]],["6c61756e63685f6174",["string","323032332d31312d31355430303a31333a32305a"]],["62616e6e6572",["string","62696c6c696e672d7632206973205363686564756c6564"]]]]]]]}
 {"id":"site/upstream/arrays/extras.vibe","ok":["hash",[["66697273745f74776f",["array",[["int","2"],["int","4"]]]],["6c6173745f7468726565",["array",[["int","7"],["int","12"],["int","15"]]]],["6e756d657269635f73756d",["int","44"]],["646f75626c655f73756d",["int","88"]],["707573685f616e645f706f70",["hash",[["6172726179",["array",[["int","2"],["int","4"],["int","4"],["int","7"],["int","12"],["int","15"]]]],["706f70706564",["int","20"]]]]],["756e69715f76616c756573",["array",[["int","2"],["int","4"],["int","7"],["int","12"],["int","15"]]]],["636f6e6361745f76616c756573",["array",[["int","1"],["int","2"],["int","3"],["int","4"]]]],["73756274726163745f76616c756573",["array",[["int","2"],["int","7"],["int","12"]]]],["73686f76656c5f76616c7565",["array",[["int","1"],["int","2"],["int","3"]]]],["616363756d756c6174655f776974685f73686f76656c",["array",[["int","2"],["int","4"],["int","4"],["int","7"],["int","12"],["int","15"]]]],["696e746572736563745f76616c756573",["array",[["int","2"],["int","4"]]]],["696e636c7564655f76616c7565",["bool",true]],["66697273745f6d61746368",["int","12"]],["66697273745f6d617463685f696e646578",["int","4"]],["636f756e745f76616c7565",["int","2"]],["636f756e745f6c61726765",["int","3"]],["7072656469636174655f736e617073686f74",["hash",[["616e795f6c61726765",["bool",true]],["616c6c5f706f736974697665",["bool",true]],["6e6f6e655f6e65676174697665",["bool",true]]]]],["736f72745f76616c756573",["array",[["int","1"],["int","2"],["int","5"],["int","9"]]]],["736f72745f64657363",["array",[["int","9"],["int","5"],["int","2"],["int","1"]]]],["736f72745f776f7264735f62795f6c656e677468",["array",[["string","666967"],["string","70656172"],["string","6b697769"],["string","62616e616e61"]]]],["706172746974696f6e5f6576656e",["array",[["array",[["int","2"],["int","4"],["int","4"],["int","12"]]],["array",[["int","7"],["int","15"]]]]]],["67726f75705f62795f737461747573",["hash",[["616374697665",["array",[["hash",[["6e616d65",["string","416461"]],["737461747573",["string","616374697665"]]]],["hash",[["6e616d65",["string","536f6c"]],["737461747573",["string","616374697665"]]]]]]],["696e616374697665",["array",[["hash",[["6e616d65",["string","4c696e"]],["737461747573",["string","696e616374697665"]]]]]]]]]],["74616c6c795f7374617475736573",["hash",[["616374697665",["int","2"]],["696e616374697665",["int","1"]]]]],["6368756e6b5f76616c756573",["array",[["array",[["int","2"],["int","4"]]],["array",[["int","4"],["int","7"]]],["array",[["int","12"],["int","15"]]]]]],["77696e646f775f76616c756573",["array",[["array",[["int","2"],["int","4"],["int","4"]]],["array",[["int","4"],["int","4"],["int","7"]]],["array",[["int","4"],["int","7"],["int","12"]]],["array",[["int","7"],["int","12"],["int","15"]]]]]],["67726f75705f62795f737461626c655f737461747573",["array",[["array",[["string","616374697665"],["array",[["hash",[["6e616d65",["string","416461"]],["737461747573",["string","616374697665"]]]],["hash",[["6e616d65",["string","536f6c"]],["737461747573",["string","616374697665"]]]]]]]],["array",[["string","696e616374697665"],["array",[["hash",[["6e616d65",["string","4c696e"]],["737461747573",["string","696e616374697665"]]]]]]]]]]]]]}
-{"id":"site/upstream/background/jobs_and_events.vibe","ok":["hash",[["6e6f7465",["string","54686973206578616d706c65207265717569726573206a6f62732c206576656e74732c20616e64206462206361706162696c69746965732077686963682061726520696e6a65637465642062792074686520686f7374206170706c69636174696f6e2e"]],["66756e6374696f6e73",["array",[["string","71756575655f726563616c63"],["string","7075626c6973685f757064617465"],["string","6a6f625f726563616c635f706c617965725f746f74616c"]]]]]]}
+{"error":{"at":[6,3],"class":"TypeError","kind":"Type","message":"error[V0201]: `jobs` is not a local, function or builtin in scope, and the host declares no global or capability of that name","phase":"compile"},"id":"site/upstream/background/jobs_and_events.vibe"}
 {"id":"site/upstream/basics/functions_and_calls.vibe","ok":["hash",[["6772656574",["string","68656c6c6f2076696265736372697074"]],["6465636f7261746564",["string","5b68656c6c6f20766962657363726970745d"]],["73756d",["int","60"]],["6d6178",["int","42"]]]]}
 {"id":"site/upstream/basics/literals_and_operators.vibe","ok":["hash",[["616464",["int","35"]],["636f6d62696e65",["string","68656c6c6f20776f726c64"]],["6e6567617465",["int","-7"]],["7472757468",["bool",true]],["6c69746572616c73",["hash",[["616e73776572",["int","42"]],["726174696f",["float","400e000000000000"]],["71756f7465",["string","6b65657020676f696e67"]],["666c616773",["array",[["bool",true],["bool",false],["nil"]]]]]]]]]}
 {"id":"site/upstream/basics/namespaces.vibe","ok":["hash",[["62617365",["int","80"]],["776974685f626f6e7573",["int","90"]]]]}
@@ -1140,9 +1140,9 @@
 {"id":"site/upstream/blocks/enumerable_reports.vibe","ok":["hash",[["555344",["money","USD","8500"]]]]}
 {"id":"site/upstream/blocks/transformations.vibe","ok":["hash",[["646f75626c6564",["array",[["int","20"],["int","40"],["int","60"]]]],["746f74616c",["int","600"]]]]}
 {"id":"site/upstream/blocks/yield_patterns.vibe","ok":["hash",[["74696d6573",["array",[["int","0"],["int","1"],["int","2"],["int","3"],["int","4"]]]],["746170",["int","42"]],["7472616e73666f726d5f6b657973",["hash",[["6e616d65",["string","416c696365"]],["616765",["int","30"]]]]]]]}
-{"id":"site/upstream/capabilities/context_access.vibe","ok":["hash",[["6e6f7465",["string","54686973206578616d706c652072657175697265732074686520637478206361706162696c69747920776869636820697320696e6a65637465642062792074686520686f7374206170706c69636174696f6e2e"]],["66756e6374696f6e73",["array",[["string","63757272656e745f757365725f6964"],["string","636f6163683f"]]]]]]}
-{"id":"site/upstream/capabilities/database_queries.vibe","ok":["hash",[["6e6f7465",["string","54686973206578616d706c6520726571756972657320746865206462206361706162696c69747920776869636820697320696e6a65637465642062792074686520686f7374206170706c69636174696f6e2e"]],["66756e6374696f6e73",["array",[["string","6c6f61645f706c61796572"],["string","746f705f706c6179657273"],["string","696e6372656d656e745f746f74616c"]]]]]]}
-{"id":"site/upstream/capabilities/iteration.vibe","ok":["hash",[["6e6f7465",["string","54686973206578616d706c6520726571756972657320746865206462206361706162696c69747920776869636820697320696e6a65637465642062792074686520686f7374206170706c69636174696f6e2e"]],["66756e6374696f6e73",["array",[["string","746f74616c5f7261697365645f666f725f706c61796572"]]]]]]}
+{"error":{"at":[5,3],"class":"TypeError","kind":"Type","message":"error[V0201]: `ctx` is not a local, function or builtin in scope, and the host declares no global or capability of that name","phase":"compile"},"id":"site/upstream/capabilities/context_access.vibe"}
+{"error":{"at":[5,3],"class":"TypeError","kind":"Type","message":"error[V0201]: `db` is not a local, function or builtin in scope, and the host declares no global or capability of that name","phase":"compile"},"id":"site/upstream/capabilities/database_queries.vibe"}
+{"error":{"at":[6,3],"class":"TypeError","kind":"Type","message":"error[V0201]: `db` is not a local, function or builtin in scope, and the host declares no global or capability of that name","phase":"compile"},"id":"site/upstream/capabilities/iteration.vibe"}
 {"id":"site/upstream/collections/arrays.vibe","ok":["hash",[["68656164",["int","10"]],["7461696c",["int","20"]],["6d6174726978",["array",[["array",[["int","1"],["int","2"]]],["array",[["int","2"],["int","1"]]]]]],["7265706c61636564",["array",[["int","99"],["int","2"],["int","3"]]]]]]}
 {"id":"site/upstream/collections/hashes.vibe","ok":["hash",[["706c61796572",["hash",[["6e616d65",["string","416c696365"]],["676f616c",["int","1000"]],["726169736564",["int","0"]],["737461747573",["string","616374697665"]]]]],["636f6d706c65746564",["hash",[["6e616d65",["string","426f62"]],["676f616c",["int","500"]],["726169736564",["int","0"]],["737461747573",["string","636f6d706c657465"]]]]],["776974685f626f6e7573",["int","300"]],["6e6573746564",["string","766970"]]]]}
 {"id":"site/upstream/collections/symbols.vibe","ok":["hash",[["6b657973",["array",[["symbol","72656164"],["symbol","7772697465"],["symbol","64656c657465"]]]],["66657463686564",["string","416c696365"]],["6e6f726d616c697a6564",["hash",[["73616d655f656e747279",["bool",true]],["6b657973",["array",[["string","6e616d65"],["string","726f6c65"]]]]]]]]]}
@@ -1161,7 +1161,7 @@
 {"id":"site/upstream/loops/fizzbuzz.vibe","ok":["string","310a320a46697a7a0a340a42757a7a0a46697a7a0a370a380a46697a7a0a42757a7a0a31310a46697a7a0a31330a31340a46697a7a42757a7a0a31360a31370a46697a7a0a31390a42757a7a0a"]}
 {"id":"site/upstream/loops/iteration.vibe","ok":["hash",[["73756d5f72616e6765",["int","55"]],["70726f647563745f72616e6765",["int","720"]],["636f756e74646f776e",["int","15"]],["746f74616c5f65616368",["int","55"]],["646f75626c6564",["array",[["int","6"],["int","14"],["int","22"]]]],["61626f76655f35",["array",[["int","6"],["int","7"],["int","8"],["int","9"],["int","10"]]]],["726564756365",["int","55"]]]]}
 {"id":"site/upstream/money/operations.vibe","ok":["hash",[["6164646564",["money","USD","6250"]],["6e6574",["money","USD","4825"]],["65786365656473",["bool",true]]]]}
-{"id":"site/upstream/policies/access_control.vibe","ok":["hash",[["6e6f7465",["string","54686973206578616d706c652072657175697265732074686520637478206361706162696c69747920776869636820697320696e6a65637465642062792074686520686f7374206170706c69636174696f6e2e"]],["66756e6374696f6e73",["array",[["string","63616e5f656469745f706c617965723f"],["string","63616e5f766965775f706c617965723f"]]]],["63616e5f766965775f616374697665",["bool",true]],["63616e5f766965775f6172636869766564",["bool",false]]]]}
+{"error":{"at":[5,3],"class":"TypeError","kind":"Type","message":"error[V0201]: `ctx` is not a local, function or builtin in scope, and the host declares no global or capability of that name","phase":"compile"},"id":"site/upstream/policies/access_control.vibe"}
 {"id":"site/upstream/ranges/usage.vibe","ok":["hash",[["696e636c75736976655f73756d",["int","55"]],["64657363656e64696e67",["string","352c342c332c322c31"]],["6576656e73",["string","322c342c362c382c31302c31322c31342c31362c31382c3230"]]]]}
 {"id":"site/upstream/stdlib/core_utilities.vibe","ok":["hash",[["6a736f6e5f6964",["string","702d31"]],["6a736f6e5f73636f7265",["int","10"]],["6a736f6e5f656e636f646564",["string","7b226964223a22702d31222c2273636f7265223a31307d"]],["72656765785f6d61746368",["string","49442d3132"]],["72656765785f7265706c616365",["string","582049442d3334"]],["72656765785f7265706c6163655f616c6c",["string","582058"]],["757569645f6c656e677468",["int","36"]],["757569645f6861735f64617368",["bool",true]],["72616e646f6d5f6c656e677468",["int","8"]],["746f5f696e74",["int","42"]],["746f5f666c6f6174",["float","3ff4000000000000"]],["6d6174685f73717274",["float","4028000000000000"]],["6d6174685f6879706f74",["float","4014000000000000"]],["6d6174685f6c6f675f62617365",["float","4008000000000000"]],["6d6174685f70695f726f756e646564",["float","400922d0e5604189"]],["7061727365645f74696d65",["string","323032342d30352d30315431303a33303a30305a"]],["696e73706563745f737472696e67",["string","22615c746222"]],["696e73706563745f6172726179",["string","5b312c202278222c206e696c5d"]]]]}
 {"id":"site/upstream/strings/operations.vibe","ok":["hash",[["6e6f726d616c697a6564",["string","76696265736372697074206578616d706c65"]],["6279746573697a65",["int","3"]],["6f7264",["int","104"]],["636872",["string","68"]],["7570706572",["string","56494245534352495054204558414d504c45"]],["6c6f776572",["string","76696265736372697074206578616d706c65"]],["6361706974616c697a65",["string","48c3a96c6c6f20776f726c64"]],["7377617063617365",["string","68454c4c4f2076696265"]],["72657665727365",["string","6f6c6cc3a968"]],["737562",["string","62614e416e6173"]],["67737562",["string","62614e414e4173"]],["7375625f7265676578",["string","582049442d3334"]],["677375625f7265676578",["string","582058"]],["6d61746368",["array",[["string","49442d3132"],["string","3132"]]]],["7363616e",["array",[["string","49442d3132"],["string","49442d3334"]]]],["73747269705f62616e67",["string","68656c6c6f"]],["73747269705f62616e675f6e6f6368616e6765",["nil"]],["737175697368",["string","68656c6c6f20776f726c64"]],["7371756973685f62616e67",["string","68656c6c6f20776f726c64"]],["74656d706c617465",["string","506c6179657220416c65782073636f726564203432"]],["74656d706c6174655f6d697373696e67",["string","48656c6c6f207b7b6d697373696e677d7d"]],["696d6d757461626c655f6166746572",["string","202068656c6c6f2020"]],["636c656172",["string",""]],["636f6e636174",["string","68656c6c6f21"]],["636f6e6361745f6e6f6f70",["string","68656c6c6f"]],["7265706c616365",["string","6e6577"]],["7375625f62616e67",["string","62614e416e6173"]],["677375625f62616e67",["string","62614e414e4173"]],["6c7374726970",["string","68656c6c6f09"]],["727374726970",["string","0968656c6c6f"]],["63686f6d705f64656661756c74",["string","6c696e65"]],["63686f6d705f637573746f6d",["string","706174682f2f"]],["64656c6574655f707265666978",["string","6861707079"]],["64656c6574655f737566666978",["string","7265706f7274"]],["73706c69745f64656661756c74",["array",[["string","6f6e65"],["string","74776f"],["string","7468726565"]]]],["73706c69745f637573746f6d",["array",[["string","61"],["string","62"],["string","63"]]]],["74616773",["array",[["string","72756279"],["string","676f"],["string","76696265736372697074"]]]],["656d7074795f74727565",["bool",true]],["656d7074795f66616c7365",["bool",false]],["737461727473",["bool",true]],["656e6473",["bool",true]],["696e636c756465",["bool",true]],["696e646578",["int","2"]],["72696e646578",["int","8"]],["736c6963655f63686172",["string","c3a9"]],["736c6963655f72616e6765",["string","c3a96c6c6f"]],["6c656e677468",["int","5"]]]]}
@@ -1177,7 +1177,7 @@
 {"id":"strip_65536/metered","ok":{"bytes":131085,"sha256":"ba1f8aedd2853f7299fbf87b97ebc5c72b071a9aaecfc35484174feaa937e0ef"}}
 {"id":"strip_65536/unlimited","ok":{"bytes":131085,"sha256":"ba1f8aedd2853f7299fbf87b97ebc5c72b071a9aaecfc35484174feaa937e0ef"}}
 {"id":"strip_unicode","ok":["string","e28083200968656c6c6f0ac2a0"]}
-{"id":"truthiness","ok":["array",[["int","7"],["int","8"],["int","9"],["int","10"],["bool",false]]]}
+{"error":{"at":[2,2],"class":"TypeError","kind":"Type","message":"error[V0105]: `||` takes bool operands, found nil","phase":"compile"},"id":"truthiness"}
 {"id":"unicode_boundary_15","ok":["array",[["int","26"],["string","22616161616161616161616161616161c3a9e7958cf09f99825c75323032385c75323032395c75303033635c75303033655c75303032365c75666666645c75666666645c756666666422"]]]}
 {"id":"unicode_boundary_16","ok":["array",[["int","27"],["string","2261616161616161616161616161616161c3a9e7958cf09f99825c75323032385c75323032395c75303033635c75303033655c75303032365c75666666645c75666666645c756666666422"]]]}
 {"id":"unicode_boundary_17","ok":["array",[["int","28"],["string","226161616161616161616161616161616161c3a9e7958cf09f99825c75323032385c75323032395c75303033635c75303033655c75303032365c75666666645c75666666645c756666666422"]]]}

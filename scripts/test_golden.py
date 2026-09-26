@@ -13,7 +13,7 @@ class RecordingTests(unittest.TestCase):
     def test_selected_recording_preserves_other_observations_and_counters(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            corpus = SimpleNamespace(legacy=False, golden=root / "cases.jsonl", counters=root / "counters.jsonl.gz")
+            corpus = SimpleNamespace(inline=False, golden=root / "cases.jsonl", counters=root / "counters.jsonl.gz")
             golden.write_jsonl(corpus.golden, [{"id": "a", "ok": ["nil"]}, {"id": "b", "ok": ["int", "1"]}])
             golden.write_jsonl(corpus.counters, [["a", 1, 2, 3], ["b", 4, 5, 6]])
             golden.record_corpus(corpus, ["a"], {"a": {"compiled": True}}, {}, {}, None, preserve=True)
@@ -23,7 +23,7 @@ class RecordingTests(unittest.TestCase):
     def test_selected_lsp_recording_keeps_unselected_reply_contents(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            corpus = SimpleNamespace(legacy=False, golden=root / "cases.jsonl", counters=root / "counters.jsonl.gz")
+            corpus = SimpleNamespace(inline=False, golden=root / "cases.jsonl", counters=root / "counters.jsonl.gz")
             golden.write_jsonl(corpus.golden, [{"id": "a", "replies": [0]}, {"id": "b", "replies": [1]}])
             table = golden.Replies([{"reply": "old"}, {"reply": "keep"}])
             replacement = table.add("new")

@@ -16,17 +16,17 @@
 {"id":"compatibility-cases/iteration_array_mutation_map","ok":["array",[["array",[["int","1"],["int","2"],["int","3"]]],["array",[["int","1"],["int","9"],["int","3"]]],["array",[["int","1"],["int","2"],["int","3"]]]]]}
 {"id":"compatibility-cases/iteration_array_mutation_select","ok":["array",[["array",[["int","1"],["int","2"],["int","3"]]],["array",[["int","1"],["int","9"],["int","3"]]],["array",[["int","1"],["int","2"],["int","3"]]]]]}
 {"id":"compatibility-cases/iteration_hash_mutation_each","ok":["array",[["array",[["array",[["string","61"],["int","1"]]],["array",[["string","62"],["int","2"]]]]],["hash",[["61",["int","1"]],["62",["int","9"]]]],["hash",[["61",["int","1"]],["62",["int","2"]]]]]]}
-{"error":{"at":[2,18],"class":"RuntimeError","kind":"Argument","message":"clear cannot modify match data","phase":"call"},"id":"compatibility-cases/match_data_duplicate_mutation"}
+{"error":{"at":[2,26],"class":"TypeError","kind":"Type","message":"error[V0203]: match_data has no member `clear`","phase":"compile"},"id":"compatibility-cases/match_data_duplicate_mutation"}
 {"error":{"at":[2,20],"class":"RuntimeError","kind":"Argument","message":"assignment cannot modify match data","phase":"call"},"id":"compatibility-cases/match_data_duplicate_nested_write"}
 {"id":"compatibility-cases/match_data_duplicate_rendering","ok":["string","61"]}
 {"error":{"at":[2,20],"class":"RuntimeError","kind":"Argument","message":"assignment cannot modify match data","phase":"call"},"id":"compatibility-cases/match_data_nested_mutation"}
 {"error":{"at":[2,1],"class":"RuntimeError","kind":"Argument","message":"assignment cannot modify match data","phase":"call"},"id":"compatibility-cases/match_data_temporary_nested_write"}
-{"id":"compatibility-cases/module_array_assignment_snapshot","ok":["array",[["array",[["int","1"]]],["array",[["int","3"]]]]]}
-{"id":"compatibility-cases/module_array_assignment_snapshot/with_alias","ok":["array",[["array",[["int","1"]]],["array",[["int","3"]]]]]}
+{"error":{"at":[6,4],"class":"TypeError","kind":"Type","message":"error[V0203]: M has no member `A=`","phase":"compile"},"id":"compatibility-cases/module_array_assignment_snapshot"}
+{"error":{"at":[6,4],"class":"TypeError","kind":"Type","message":"error[V0203]: M has no member `A=`","phase":"compile"},"id":"compatibility-cases/module_array_assignment_snapshot/with_alias"}
 {"id":"compatibility-cases/module_returned_array_snapshot","ok":["array",[["array",[["int","1"]]],["array",[["int","1"],["int","1"]]]]]}
 {"id":"compatibility-cases/module_returned_array_snapshot/with_alias","ok":["array",[["array",[["int","1"]]],["array",[["int","1"],["int","1"]]]]]}
-{"id":"compatibility-cases/mutable_block_fill_changes_tail","ok":["array",[["array",[["int","7"],["int","2"],["int","3"]]],["array",[["int","7"],["int","2"],["int","3"]]]]]}
-{"id":"compatibility-cases/mutable_block_fill_negative_parent_growth","ok":["array",[["array",[["array",[["int","7"],["int","7"]]],["array",[["int","9"]]],["array",[["int","9"]]]]],["array",[["int","7"],["int","7"]]]]]}
+{"error":{"at":[2,24],"class":"TypeError","kind":"Type","message":"error[V0305]: `fill` takes no block","phase":"compile"},"id":"compatibility-cases/mutable_block_fill_changes_tail"}
+{"error":{"at":[2,20],"class":"TypeError","kind":"Type","message":"error[V0301]: `fill` takes 1 to 3 positional argument(s), got 0","phase":"compile"},"id":"compatibility-cases/mutable_block_fill_negative_parent_growth"}
 {"id":"compatibility-cases/mutable_block_filter_changes_tail","ok":["array",[["array",[["int","1"],["int","2"],["int","9"]]],["array",[["int","1"],["int","2"],["int","3"]]]]]}
 {"id":"compatibility-cases/mutable_block_filter_changes_tail_removes","ok":["array",[["array",[["int","1"],["int","3"]]],["array",[["int","1"],["int","3"]]]]]}
 {"id":"compatibility-cases/mutable_block_hash_filter_changes_noop","ok":["array",[["hash",[["61",["int","1"]],["62",["int","9"]]]],["hash",[["61",["int","1"]],["62",["int","2"]]]]]]}
@@ -36,97 +36,97 @@
 {"id":"compatibility-cases/regex_namespace_anchors","ok":["array",[["nil"],["string","6162"],["string","616261"],["bool",false]]]}
 {"id":"compatibility-cases/substitution_match_data_rendering","ok":["array",[["string","6161"],["string","6161"]]]}
 {"id":"compatibility-cases/substitution_word_boundaries","ok":["array",[["string","586158205862582058616158"],["string","615862586158625861"],["string","586158205862582058616158"]]]}
-{"id":"computed-call-gaps/begin_ensure_target","ok":["array",[["array",[["int","8"]]],["array",[["int","1"]]]]]}
-{"id":"computed-call-gaps/global_field","ok":["int","8"]}
-{"id":"computed-call-gaps/retry_target","ok":["array",[["int","8"]]]}
-{"id":"computed-call-gaps/selection_before_arguments","ok":["array",[["array",[["int","8"]]],["array",[["int","1"],["int","2"]]]]]}
-{"id":"forwarding-differences/forwarding_edge_address_public_send_protected_write_after_dup","ok":["array",[["string","52756e74696d654572726f72"],["string","61737369676e6d656e742063616e6e6f74206d6f64696679206d617463682064617461"]]]}
-{"id":"forwarding-differences/forwarding_edge_address_public_send_typed_ivar_path","ok":["array",[["array",[["int","1"]]],["array",[["int","1"]]]]]}
-{"id":"forwarding-differences/forwarding_edge_address_send_protected_write_after_dup","ok":["array",[["string","52756e74696d654572726f72"],["string","61737369676e6d656e742063616e6e6f74206d6f64696679206d617463682064617461"]]]}
-{"id":"forwarding-differences/forwarding_edge_address_send_typed_ivar_path","ok":["array",[["array",[["int","1"]]],["array",[["int","1"]]]]]}
-{"id":"forwarding-differences/forwarding_probe_path_public_send_dup_protected","ok":["array",[["string","52756e74696d654572726f72"],["string","636c6561722063616e6e6f74206d6f64696679206d617463682064617461"]]]}
-{"id":"forwarding-differences/forwarding_probe_path_public_send_write_protected","ok":["array",[["string","52756e74696d654572726f72"],["string","61737369676e6d656e742063616e6e6f74206d6f64696679206d617463682064617461"]]]}
-{"id":"forwarding-differences/forwarding_probe_path_send_dup_protected","ok":["array",[["string","52756e74696d654572726f72"],["string","636c6561722063616e6e6f74206d6f64696679206d617463682064617461"]]]}
-{"id":"forwarding-differences/forwarding_probe_path_send_write_protected","ok":["array",[["string","52756e74696d654572726f72"],["string","61737369676e6d656e742063616e6e6f74206d6f64696679206d617463682064617461"]]]}
-{"id":"forwarding-differences/forwarding_snapshot_public_send_export","ok":["array",[["hash",[]],["array",[["int","3"]]]]]}
-{"id":"forwarding-differences/forwarding_snapshot_public_send_iterator","ok":["array",[["array",[]],["array",[["int","4"],["int","5"]]]]]}
-{"id":"forwarding-differences/forwarding_snapshot_public_send_namespace_export","ok":["array",[["int","3"]]]}
-{"id":"forwarding-differences/forwarding_snapshot_public_send_nested_name","ok":["array",[["array",[]],["int","2"]]]}
-{"id":"forwarding-differences/forwarding_snapshot_public_send_replace_export","ok":["array",[["int","3"]]]}
-{"id":"forwarding-differences/forwarding_snapshot_public_send_tap","ok":["array",[["array",[]],["array",[["int","1"],["int","2"]]]]]}
-{"id":"forwarding-differences/forwarding_snapshot_send_export","ok":["array",[["hash",[]],["array",[["int","3"]]]]]}
-{"id":"forwarding-differences/forwarding_snapshot_send_iterator","ok":["array",[["array",[]],["array",[["int","4"],["int","5"]]]]]}
-{"id":"forwarding-differences/forwarding_snapshot_send_namespace_export","ok":["array",[["int","3"]]]}
-{"id":"forwarding-differences/forwarding_snapshot_send_nested_name","ok":["array",[["array",[]],["int","2"]]]}
-{"id":"forwarding-differences/forwarding_snapshot_send_replace_export","ok":["array",[["int","3"]]]}
-{"id":"forwarding-differences/forwarding_snapshot_send_tap","ok":["array",[["array",[]],["array",[["int","1"],["int","2"]]]]]}
-{"id":"hash-new-differences/hash_new_mutation_11","ok":["array",[["string","52756e74696d654572726f72"],["string","756e6b6e6f776e2068617368206d6574686f64206d6572676521202864696420796f75206d65616e20226d65726765223f29"]]]}
-{"id":"hash-new-differences/hash_new_mutation_4","ok":["array",[["string","52756e74696d654572726f72"],["string","63616e6e6f7420696e646578206275696c74696e"]]]}
-{"id":"hash-new-differences/hash_new_read_27","ok":["array",[["string","52756e74696d654572726f72"],["string","756e6b6e6f776e2068617368206d6574686f6420747970655f6e616d65"]]]}
-{"id":"hash-new-differences/hash_new_read_29","ok":["array",[["string","52756e74696d654572726f72"],["string","756e6b6e6f776e2068617368206d6574686f6420746f5f73202864696420796f75206d65616e2022746f5f61223f29"]]]}
-{"id":"hash-new-differences/hash_new_read_31","ok":["array",[["string","52756e74696d654572726f72"],["string","756e6b6e6f776e2068617368206d6574686f642063616c6c"]]]}
-{"id":"hash-new-differences/hash_new_read_32","ok":["array",[["string","52756e74696d654572726f72"],["string","756e6b6e6f776e2068617368206d6574686f64206d6574686f64"]]]}
-{"id":"hash-new-differences/hash_new_read_37","ok":["array",[["string","52756e74696d654572726f72"],["string","756e6b6e6f776e2068617368206d6574686f642064656661756c74"]]]}
-{"id":"hash-new-differences/hash_new_read_38","ok":["array",[["string","52756e74696d654572726f72"],["string","756e6b6e6f776e2068617368206d6574686f642064656661756c745f70726f63"]]]}
-{"id":"hash-new-differences/hash_new_read_39","ok":["array",[["string","52756e74696d654572726f72"],["string","756e6b6e6f776e2068617368206d6574686f642064656661756c74"]]]}
-{"id":"hash-new-differences/hash_new_read_41","ok":["array",[["string","6f6b"],["hash",[]]]]}
-{"id":"hash-new-differences/hash_new_read_44","ok":["array",[["string","52756e74696d654572726f72"],["string","756e6b6e6f776e2068617368206d6574686f642063616c6c"]]]}
-{"id":"hash-new-differences/hash_new_read_45","ok":["array",[["string","52756e74696d654572726f72"],["string","756e6b6e6f776e2068617368206d6574686f642063616c6c"]]]}
-{"id":"hash-new-differences/hash_new_read_46","ok":["array",[["string","52756e74696d654572726f72"],["string","756e6b6e6f776e2068617368206d6574686f642063616c6c"]]]}
-{"id":"hash-new-differences/hash_new_read_47","ok":["array",[["string","52756e74696d654572726f72"],["string","61206d6574686f6420686173206e6f206d656d6265722063616c6c3b2063616c6c20486173682e6e6577282e2e2e29206469726563746c79"]]]}
-{"id":"hash-new-differences/hash_new_read_48","ok":["array",[["string","52756e74696d654572726f72"],["string","61206d6574686f6420686173206e6f206d656d6265722063616c6c3b2063616c6c20486173682e6e6577282e2e2e29206469726563746c79"]]]}
-{"id":"hash-new-differences/hash_new_read_49","ok":["array",[["string","52756e74696d654572726f72"],["string","7072696e74206f757470757420777269746572206973206e6f7420636f6e66696775726564"]]]}
-{"id":"hash-new-differences/hash_new_read_50","ok":["array",[["string","52756e74696d654572726f72"],["string","756e6b6e6f776e2068617368206d6574686f642063616c6c"]]]}
-{"id":"hash-new-differences/hash_new_read_51","ok":["array",[["string","52756e74696d654572726f72"],["string","6e65772069732061206d6574686f6420616e642063616e6e6f74206265207573656420617320612076616c75653b2063616c6c2069742077697468206e6577282e2e2e29"]]]}
+{"error":{"at":[4,28],"class":"TypeError","kind":"Type","message":"error[V0106]: this value has type any; narrow it with `is_type?`, `.as(T)` or `JSON.parse_as` before calling it","phase":"compile"},"id":"computed-call-gaps/begin_ensure_target"}
+{"error":{"at":[12,7],"class":"TypeError","kind":"Type","message":"error[V0203]: JSON has no member `nope`","phase":"compile"},"id":"computed-call-gaps/global_field"}
+{"error":{"at":[4,6],"class":"TypeError","kind":"Type","message":"error[V0106]: this value has type any; narrow it with `is_type?`, `.as(T)` or `JSON.parse_as` before calling it","phase":"compile"},"id":"computed-call-gaps/retry_target"}
+{"error":{"at":[4,28],"class":"TypeError","kind":"Type","message":"error[V0106]: this value has type any; narrow it with `is_type?`, `.as(T)` or `JSON.parse_as` before calling it","phase":"compile"},"id":"computed-call-gaps/selection_before_arguments"}
+{"error":{"at":[91,26],"class":"TypeError","kind":"Type","message":"error[V0405]: `public_send` was removed; call `dup` directly","phase":"compile"},"id":"forwarding-differences/forwarding_edge_address_public_send_protected_write_after_dup"}
+{"error":{"at":[73,8],"class":"TypeError","kind":"Type","message":"error[V0405]: `public_send` was removed; call `push` directly","phase":"compile"},"id":"forwarding-differences/forwarding_edge_address_public_send_typed_ivar_path"}
+{"error":{"at":[91,26],"class":"TypeError","kind":"Type","message":"error[V0405]: `send` was removed; call `dup` directly","phase":"compile"},"id":"forwarding-differences/forwarding_edge_address_send_protected_write_after_dup"}
+{"error":{"at":[73,8],"class":"TypeError","kind":"Type","message":"error[V0405]: `send` was removed; call `push` directly","phase":"compile"},"id":"forwarding-differences/forwarding_edge_address_send_typed_ivar_path"}
+{"error":{"at":[45,30],"class":"TypeError","kind":"Type","message":"error[V0405]: `public_send` was removed; call `clear` directly","phase":"compile"},"id":"forwarding-differences/forwarding_probe_path_public_send_dup_protected"}
+{"error":{"at":[45,37],"class":"TypeError","kind":"Type","message":"error[V0405]: `public_send` was removed; call `push` directly","phase":"compile"},"id":"forwarding-differences/forwarding_probe_path_public_send_write_protected"}
+{"error":{"at":[45,30],"class":"TypeError","kind":"Type","message":"error[V0405]: `send` was removed; call `clear` directly","phase":"compile"},"id":"forwarding-differences/forwarding_probe_path_send_dup_protected"}
+{"error":{"at":[45,37],"class":"TypeError","kind":"Type","message":"error[V0405]: `send` was removed; call `push` directly","phase":"compile"},"id":"forwarding-differences/forwarding_probe_path_send_write_protected"}
+{"error":{"at":[3,11],"class":"TypeError","kind":"Type","message":"error[V0416]: `JSON::parse` was removed; use `JSON.parse`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"forwarding-differences/forwarding_snapshot_public_send_export"}
+{"error":{"at":[3,15],"class":"TypeError","kind":"Type","message":"error[V0405]: `public_send` was removed; call the member directly, or use `case` over the name","phase":"compile"},"id":"forwarding-differences/forwarding_snapshot_public_send_iterator"}
+{"error":{"at":[3,1],"class":"TypeError","kind":"Type","message":"error[V0112]: JSON cannot be assigned through an index","phase":"compile"},"id":"forwarding-differences/forwarding_snapshot_public_send_namespace_export"}
+{"error":{"at":[3,15],"class":"TypeError","kind":"Type","message":"error[V0405]: `public_send` was removed; call the member directly, or use `case` over the name","phase":"compile"},"id":"forwarding-differences/forwarding_snapshot_public_send_nested_name"}
+{"error":{"at":[3,11],"class":"TypeError","kind":"Type","message":"error[V0416]: `JSON::parse` was removed; use `JSON.parse`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"forwarding-differences/forwarding_snapshot_public_send_replace_export"}
+{"error":{"at":[3,15],"class":"TypeError","kind":"Type","message":"error[V0405]: `public_send` was removed; call the member directly, or use `case` over the name","phase":"compile"},"id":"forwarding-differences/forwarding_snapshot_public_send_tap"}
+{"error":{"at":[3,11],"class":"TypeError","kind":"Type","message":"error[V0416]: `JSON::parse` was removed; use `JSON.parse`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"forwarding-differences/forwarding_snapshot_send_export"}
+{"error":{"at":[3,15],"class":"TypeError","kind":"Type","message":"error[V0405]: `send` was removed; call the member directly, or use `case` over the name","phase":"compile"},"id":"forwarding-differences/forwarding_snapshot_send_iterator"}
+{"error":{"at":[3,1],"class":"TypeError","kind":"Type","message":"error[V0112]: JSON cannot be assigned through an index","phase":"compile"},"id":"forwarding-differences/forwarding_snapshot_send_namespace_export"}
+{"error":{"at":[3,15],"class":"TypeError","kind":"Type","message":"error[V0405]: `send` was removed; call the member directly, or use `case` over the name","phase":"compile"},"id":"forwarding-differences/forwarding_snapshot_send_nested_name"}
+{"error":{"at":[3,11],"class":"TypeError","kind":"Type","message":"error[V0416]: `JSON::parse` was removed; use `JSON.parse`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"forwarding-differences/forwarding_snapshot_send_replace_export"}
+{"error":{"at":[3,15],"class":"TypeError","kind":"Type","message":"error[V0405]: `send` was removed; call the member directly, or use `case` over the name","phase":"compile"},"id":"forwarding-differences/forwarding_snapshot_send_tap"}
+{"error":{"at":[4,3],"class":"TypeError","kind":"Type","message":"error[V0411]: `Hash.new` was removed; write `{}` with a declared type, such as `counts: hash<string, int> = {}`","phase":"compile"},"id":"hash-new-differences/hash_new_mutation_11"}
+{"error":{"at":[4,1],"class":"TypeError","kind":"Type","message":"error[V0411]: `Hash.new` was removed; write `{}` with a declared type, such as `counts: hash<string, int> = {}`","phase":"compile"},"id":"hash-new-differences/hash_new_mutation_4"}
+{"error":{"at":[4,8],"class":"TypeError","kind":"Type","message":"error[V0411]: `Hash.new` was removed; write `{}` with a declared type, such as `counts: hash<string, int> = {}`","phase":"compile"},"id":"hash-new-differences/hash_new_read_27"}
+{"error":{"at":[4,8],"class":"TypeError","kind":"Type","message":"error[V0411]: `Hash.new` was removed; write `{}` with a declared type, such as `counts: hash<string, int> = {}`","phase":"compile"},"id":"hash-new-differences/hash_new_read_29"}
+{"error":{"at":[4,8],"class":"TypeError","kind":"Type","message":"error[V0411]: `Hash.new` was removed; write `{}` with a declared type, such as `counts: hash<string, int> = {}`","phase":"compile"},"id":"hash-new-differences/hash_new_read_31"}
+{"error":{"at":[4,8],"class":"TypeError","kind":"Type","message":"error[V0411]: `Hash.new` was removed; write `{}` with a declared type, such as `counts: hash<string, int> = {}`","phase":"compile"},"id":"hash-new-differences/hash_new_read_32"}
+{"error":{"at":[4,8],"class":"TypeError","kind":"Type","message":"error[V0411]: `Hash.new` was removed; write `{}` with a declared type, such as `counts: hash<string, int> = {}`","phase":"compile"},"id":"hash-new-differences/hash_new_read_37"}
+{"error":{"at":[4,8],"class":"TypeError","kind":"Type","message":"error[V0411]: `Hash.new` was removed; write `{}` with a declared type, such as `counts: hash<string, int> = {}`","phase":"compile"},"id":"hash-new-differences/hash_new_read_38"}
+{"error":{"at":[4,8],"class":"TypeError","kind":"Type","message":"error[V0411]: `Hash.new` was removed; write `{}` with a declared type, such as `counts: hash<string, int> = {}`","phase":"compile"},"id":"hash-new-differences/hash_new_read_39"}
+{"error":{"at":[4,8],"class":"TypeError","kind":"Type","message":"error[V0411]: `Hash.new` was removed; write `{}` with a declared type, such as `counts: hash<string, int> = {}`","phase":"compile"},"id":"hash-new-differences/hash_new_read_41"}
+{"error":{"at":[4,8],"class":"TypeError","kind":"Type","message":"error[V0411]: `Hash.new` was removed; write `{}` with a declared type, such as `counts: hash<string, int> = {}`","phase":"compile"},"id":"hash-new-differences/hash_new_read_44"}
+{"error":{"at":[4,9],"class":"TypeError","kind":"Type","message":"error[V0411]: `Hash.new` was removed; write `{}` with a declared type, such as `counts: hash<string, int> = {}`","phase":"compile"},"id":"hash-new-differences/hash_new_read_45"}
+{"error":{"at":[4,13],"class":"TypeError","kind":"Type","message":"error[V0106]: this value has type any; narrow it with `is_type?`, `.as(T)` or `JSON.parse_as` before calling `send`","phase":"compile"},"id":"hash-new-differences/hash_new_read_46"}
+{"error":{"at":[4,8],"class":"TypeError","kind":"Type","message":"error[V0411]: `Hash` was removed; write `{}` with a declared type, such as `counts: hash<string, int> = {}`","phase":"compile"},"id":"hash-new-differences/hash_new_read_47"}
+{"error":{"at":[4,13],"class":"TypeError","kind":"Type","message":"error[V0106]: this value has type any; narrow it with `is_type?`, `.as(T)` or `JSON.parse_as` before calling `fetch`","phase":"compile"},"id":"hash-new-differences/hash_new_read_48"}
+{"error":{"at":[4,8],"class":"TypeError","kind":"Type","message":"error[V0411]: `Hash.new` was removed; write `{}` with a declared type, such as `counts: hash<string, int> = {}`","phase":"compile"},"id":"hash-new-differences/hash_new_read_49"}
+{"error":{"at":[4,8],"class":"TypeError","kind":"Type","message":"error[V0411]: `Hash.new` was removed; write `{}` with a declared type, such as `counts: hash<string, int> = {}`","phase":"compile"},"id":"hash-new-differences/hash_new_read_50"}
+{"error":{"at":[4,8],"class":"TypeError","kind":"Type","message":"error[V0411]: `Hash.new` was removed; write `{}` with a declared type, such as `counts: hash<string, int> = {}`","phase":"compile"},"id":"hash-new-differences/hash_new_read_51"}
 {"id":"loop-differences/loop_break_4","ok":["symbol","646f6e65"]}
-{"id":"options-hash-differences/options_matrix_prefix_empty_bare","ok":["array",[["string","417267756d656e744572726f72"],["string","6d697373696e6720617267756d656e7420707265666978"]]]}
-{"id":"options-hash-differences/options_matrix_prefix_empty_forwarded","ok":["array",[["string","417267756d656e744572726f72"],["string","6d697373696e6720617267756d656e7420707265666978"]]]}
-{"id":"options-hash-differences/options_matrix_prefix_empty_function","ok":["array",[["string","417267756d656e744572726f72"],["string","6d697373696e6720617267756d656e7420707265666978"]]]}
-{"id":"options-hash-differences/options_matrix_prefix_empty_implicit","ok":["array",[["string","417267756d656e744572726f72"],["string","6d697373696e6720617267756d656e7420707265666978"]]]}
-{"id":"options-hash-differences/options_matrix_prefix_empty_method","ok":["array",[["string","417267756d656e744572726f72"],["string","6d697373696e6720617267756d656e7420707265666978"]]]}
-{"id":"options-hash-differences/options_matrix_prefix_empty_selected","ok":["array",[["string","417267756d656e744572726f72"],["string","6d697373696e6720617267756d656e7420707265666978"]]]}
-{"id":"options-hash-differences/options_matrix_prefix_explicit_bare","ok":["array",[["string","417267756d656e744572726f72"],["string","6d697373696e6720617267756d656e74206f7074696f6e73"]]]}
-{"id":"options-hash-differences/options_matrix_prefix_explicit_forwarded","ok":["array",[["string","417267756d656e744572726f72"],["string","6d697373696e6720617267756d656e74206f7074696f6e73"]]]}
-{"id":"options-hash-differences/options_matrix_prefix_explicit_function","ok":["array",[["string","417267756d656e744572726f72"],["string","6d697373696e6720617267756d656e74206f7074696f6e73"]]]}
-{"id":"options-hash-differences/options_matrix_prefix_explicit_implicit","ok":["array",[["string","417267756d656e744572726f72"],["string","6d697373696e6720617267756d656e74206f7074696f6e73"]]]}
-{"id":"options-hash-differences/options_matrix_prefix_explicit_method","ok":["array",[["string","417267756d656e744572726f72"],["string","6d697373696e6720617267756d656e74206f7074696f6e73"]]]}
-{"id":"options-hash-differences/options_matrix_prefix_explicit_selected","ok":["array",[["string","417267756d656e744572726f72"],["string","6d697373696e6720617267756d656e74206f7074696f6e73"]]]}
-{"id":"options-hash-differences/options_matrix_required_empty_bare","ok":["array",[["string","417267756d656e744572726f72"],["string","6d697373696e6720617267756d656e74206f7074696f6e73"]]]}
-{"id":"options-hash-differences/options_matrix_required_empty_forwarded","ok":["array",[["string","417267756d656e744572726f72"],["string","6d697373696e6720617267756d656e74206f7074696f6e73"]]]}
-{"id":"options-hash-differences/options_matrix_required_empty_function","ok":["array",[["string","417267756d656e744572726f72"],["string","6d697373696e6720617267756d656e74206f7074696f6e73"]]]}
-{"id":"options-hash-differences/options_matrix_required_empty_implicit","ok":["array",[["string","417267756d656e744572726f72"],["string","6d697373696e6720617267756d656e74206f7074696f6e73"]]]}
-{"id":"options-hash-differences/options_matrix_required_empty_method","ok":["array",[["string","417267756d656e744572726f72"],["string","6d697373696e6720617267756d656e74206f7074696f6e73"]]]}
-{"id":"options-hash-differences/options_matrix_required_empty_selected","ok":["array",[["string","417267756d656e744572726f72"],["string","6d697373696e6720617267756d656e74206f7074696f6e73"]]]}
-{"id":"options-hash-differences/options_matrix_typed_bad_type_bare","ok":["array",[["string","52756e74696d654572726f72"],["string","617267756d656e74206f7074696f6e73206578706563746564207b20726574726965733a20696e74207d2c20676f74207b20726574726965733a20737472696e67207d"]]]}
-{"id":"options-hash-differences/options_matrix_typed_bad_type_forwarded","ok":["array",[["string","52756e74696d654572726f72"],["string","617267756d656e74206f7074696f6e73206578706563746564207b20726574726965733a20696e74207d2c20676f74207b20726574726965733a20737472696e67207d"]]]}
-{"id":"options-hash-differences/options_matrix_typed_bad_type_function","ok":["array",[["string","52756e74696d654572726f72"],["string","617267756d656e74206f7074696f6e73206578706563746564207b20726574726965733a20696e74207d2c20676f74207b20726574726965733a20737472696e67207d"]]]}
-{"id":"options-hash-differences/options_matrix_typed_default_bad_type_bare","ok":["array",[["string","52756e74696d654572726f72"],["string","617267756d656e74206f7074696f6e73206578706563746564207b20726574726965733a20696e74207d2c20676f74207b20726574726965733a20737472696e67207d"]]]}
-{"id":"options-hash-differences/options_matrix_typed_default_bad_type_forwarded","ok":["array",[["string","52756e74696d654572726f72"],["string","617267756d656e74206f7074696f6e73206578706563746564207b20726574726965733a20696e74207d2c20676f74207b20726574726965733a20737472696e67207d"]]]}
-{"id":"options-hash-differences/options_matrix_typed_default_bad_type_function","ok":["array",[["string","52756e74696d654572726f72"],["string","617267756d656e74206f7074696f6e73206578706563746564207b20726574726965733a20696e74207d2c20676f74207b20726574726965733a20737472696e67207d"]]]}
-{"id":"options-hash-differences/options_probe_C.new_call_scope","ok":["array",[["string","52756e74696d654572726f72"],["string","73636f706564206d656d62657220616363657373206973206f6e6c7920737570706f72746564206f6e20656e756d7320616e64206e616d65737061636573"]]]}
-{"id":"options-hash-differences/options_probe_C.new_take_scope","ok":["array",[["string","52756e74696d654572726f72"],["string","73636f706564206d656d62657220616363657373206973206f6e6c7920737570706f72746564206f6e20656e756d7320616e64206e616d65737061636573"]]]}
-{"id":"options-hash-differences/options_probe_C_call_scope","ok":["array",[["string","52756e74696d654572726f72"],["string","756e6b6e6f776e20636f6e7374616e7420433a3a63616c6c"]]]}
-{"id":"options-hash-differences/options_probe_C_take_scope","ok":["array",[["string","52756e74696d654572726f72"],["string","756e6b6e6f776e20636f6e7374616e7420433a3a74616b65"]]]}
-{"id":"options-hash-differences/options_probe_D.new_public_send_scope","ok":["array",[["string","52756e74696d654572726f72"],["string","73636f706564206d656d62657220616363657373206973206f6e6c7920737570706f72746564206f6e20656e756d7320616e64206e616d65737061636573"]]]}
-{"id":"options-hash-differences/options_probe_D.new_send_scope","ok":["array",[["string","52756e74696d654572726f72"],["string","73636f706564206d656d62657220616363657373206973206f6e6c7920737570706f72746564206f6e20656e756d7320616e64206e616d65737061636573"]]]}
-{"id":"options-hash-differences/options_probe_M_call_scope","ok":["array",[["string","52756e74696d654572726f72"],["string","756e6b6e6f776e20636f6e7374616e74204d3a3a63616c6c"]]]}
-{"id":"options-hash-differences/options_probe_M_take_scope","ok":["array",[["string","52756e74696d654572726f72"],["string","756e6b6e6f776e20636f6e7374616e74204d3a3a74616b65"]]]}
-{"id":"policies/capabilities/detached_indexed/ordinary/metered","ok":["string","61747461636865642d6d6574686f642d7265717569726564"]}
-{"id":"policies/capabilities/detached_indexed/ordinary/unlimited","ok":["string","61747461636865642d6d6574686f642d7265717569726564"]}
-{"id":"policies/capabilities/detached_indexed/strict/metered","ok":["string","61747461636865642d6d6574686f642d7265717569726564"]}
-{"id":"policies/capabilities/detached_indexed/strict/unlimited","ok":["string","61747461636865642d6d6574686f642d7265717569726564"]}
-{"id":"policies/capabilities/detached_scoped/ordinary/metered","ok":["string","61747461636865642d6d6574686f642d7265717569726564"]}
-{"id":"policies/capabilities/detached_scoped/ordinary/unlimited","ok":["string","61747461636865642d6d6574686f642d7265717569726564"]}
-{"id":"policies/capabilities/detached_scoped/strict/metered","ok":["string","61747461636865642d6d6574686f642d7265717569726564"]}
-{"id":"policies/capabilities/detached_scoped/strict/unlimited","ok":["string","61747461636865642d6d6574686f642d7265717569726564"]}
-{"id":"policies/host_blocks/detached_indexed/ordinary/metered","ok":["string","61747461636865642d6d6574686f642d7265717569726564"]}
-{"id":"policies/host_blocks/detached_indexed/ordinary/unlimited","ok":["string","61747461636865642d6d6574686f642d7265717569726564"]}
-{"id":"policies/host_blocks/detached_indexed/strict/metered","ok":["string","61747461636865642d6d6574686f642d7265717569726564"]}
-{"id":"policies/host_blocks/detached_indexed/strict/unlimited","ok":["string","61747461636865642d6d6574686f642d7265717569726564"]}
-{"id":"policies/host_blocks/detached_scoped/ordinary/metered","ok":["string","61747461636865642d6d6574686f642d7265717569726564"]}
-{"id":"policies/host_blocks/detached_scoped/ordinary/unlimited","ok":["string","61747461636865642d6d6574686f642d7265717569726564"]}
-{"id":"policies/host_blocks/detached_scoped/strict/metered","ok":["string","61747461636865642d6d6574686f642d7265717569726564"]}
-{"id":"policies/host_blocks/detached_scoped/strict/unlimited","ok":["string","61747461636865642d6d6574686f642d7265717569726564"]}
+{"error":{"at":[11,7],"class":"TypeError","kind":"Type","message":"error[V0301]: `C#take` takes 2 positional argument(s), got 0","phase":"compile"},"id":"options-hash-differences/options_matrix_prefix_empty_bare"}
+{"error":{"at":[11,7],"class":"TypeError","kind":"Type","message":"error[V0405]: `send` was removed; call `take` directly","phase":"compile"},"id":"options-hash-differences/options_matrix_prefix_empty_forwarded"}
+{"error":{"at":[11,1],"class":"TypeError","kind":"Type","message":"error[V0301]: `plain` takes 2 positional argument(s), got 0","phase":"compile"},"id":"options-hash-differences/options_matrix_prefix_empty_function"}
+{"error":{"at":[9,1],"class":"TypeError","kind":"Type","message":"error[V0301]: `C#take` takes 2 positional argument(s), got 0","phase":"compile"},"id":"options-hash-differences/options_matrix_prefix_empty_implicit"}
+{"error":{"at":[11,7],"class":"TypeError","kind":"Type","message":"error[V0301]: `C#take` takes 2 positional argument(s), got 0","phase":"compile"},"id":"options-hash-differences/options_matrix_prefix_empty_method"}
+{"error":{"at":[11,2],"class":"TypeError","kind":"Type","message":"error[V0201]: `missing` is not a local, function or builtin in scope, and the host declares no global or capability of that name","phase":"compile"},"id":"options-hash-differences/options_matrix_prefix_empty_selected"}
+{"error":{"at":[11,31],"class":"TypeError","kind":"Type","message":"error[V0301]: `C#take` takes 2 positional argument(s), got 1","phase":"compile"},"id":"options-hash-differences/options_matrix_prefix_explicit_bare"}
+{"error":{"at":[11,7],"class":"TypeError","kind":"Type","message":"error[V0405]: `send` was removed; call `take` directly","phase":"compile"},"id":"options-hash-differences/options_matrix_prefix_explicit_forwarded"}
+{"error":{"at":[11,1],"class":"TypeError","kind":"Type","message":"error[V0301]: `plain` takes 2 positional argument(s), got 1","phase":"compile"},"id":"options-hash-differences/options_matrix_prefix_explicit_function"}
+{"error":{"at":[9,1],"class":"TypeError","kind":"Type","message":"error[V0301]: `C#take` takes 2 positional argument(s), got 1","phase":"compile"},"id":"options-hash-differences/options_matrix_prefix_explicit_implicit"}
+{"error":{"at":[11,7],"class":"TypeError","kind":"Type","message":"error[V0301]: `C#take` takes 2 positional argument(s), got 1","phase":"compile"},"id":"options-hash-differences/options_matrix_prefix_explicit_method"}
+{"error":{"at":[11,2],"class":"TypeError","kind":"Type","message":"error[V0201]: `missing` is not a local, function or builtin in scope, and the host declares no global or capability of that name","phase":"compile"},"id":"options-hash-differences/options_matrix_prefix_explicit_selected"}
+{"error":{"at":[11,7],"class":"TypeError","kind":"Type","message":"error[V0301]: `C#take` takes 1 positional argument(s), got 0","phase":"compile"},"id":"options-hash-differences/options_matrix_required_empty_bare"}
+{"error":{"at":[11,7],"class":"TypeError","kind":"Type","message":"error[V0405]: `send` was removed; call `take` directly","phase":"compile"},"id":"options-hash-differences/options_matrix_required_empty_forwarded"}
+{"error":{"at":[11,1],"class":"TypeError","kind":"Type","message":"error[V0301]: `plain` takes 1 positional argument(s), got 0","phase":"compile"},"id":"options-hash-differences/options_matrix_required_empty_function"}
+{"error":{"at":[9,1],"class":"TypeError","kind":"Type","message":"error[V0301]: `C#take` takes 1 positional argument(s), got 0","phase":"compile"},"id":"options-hash-differences/options_matrix_required_empty_implicit"}
+{"error":{"at":[11,7],"class":"TypeError","kind":"Type","message":"error[V0301]: `C#take` takes 1 positional argument(s), got 0","phase":"compile"},"id":"options-hash-differences/options_matrix_required_empty_method"}
+{"error":{"at":[11,2],"class":"TypeError","kind":"Type","message":"error[V0201]: `missing` is not a local, function or builtin in scope, and the host declares no global or capability of that name","phase":"compile"},"id":"options-hash-differences/options_matrix_required_empty_selected"}
+{"error":{"at":[11,7],"class":"TypeError","kind":"Type","message":"error[V0301]: `C#take` takes 1 positional argument(s), got 0","phase":"compile"},"id":"options-hash-differences/options_matrix_typed_bad_type_bare"}
+{"error":{"at":[11,7],"class":"TypeError","kind":"Type","message":"error[V0405]: `send` was removed; call `take` directly","phase":"compile"},"id":"options-hash-differences/options_matrix_typed_bad_type_forwarded"}
+{"error":{"at":[11,1],"class":"TypeError","kind":"Type","message":"error[V0301]: `plain` takes 1 positional argument(s), got 0","phase":"compile"},"id":"options-hash-differences/options_matrix_typed_bad_type_function"}
+{"error":{"at":[11,12],"class":"TypeError","kind":"Type","message":"error[V0302]: `C#take` has no keyword `retries:`","phase":"compile"},"id":"options-hash-differences/options_matrix_typed_default_bad_type_bare"}
+{"error":{"at":[11,7],"class":"TypeError","kind":"Type","message":"error[V0405]: `send` was removed; call `take` directly","phase":"compile"},"id":"options-hash-differences/options_matrix_typed_default_bad_type_forwarded"}
+{"error":{"at":[11,7],"class":"TypeError","kind":"Type","message":"error[V0302]: `plain` has no keyword `retries:`","phase":"compile"},"id":"options-hash-differences/options_matrix_typed_default_bad_type_function"}
+{"error":{"at":[41,6],"class":"TypeError","kind":"Type","message":"error[V0416]: `C.new::call` was removed; use `C.new.call`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"options-hash-differences/options_probe_C.new_call_scope"}
+{"error":{"at":[41,6],"class":"TypeError","kind":"Type","message":"error[V0416]: `C.new::take` was removed; use `C.new.take`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"options-hash-differences/options_probe_C.new_take_scope"}
+{"error":{"at":[41,2],"class":"TypeError","kind":"Type","message":"error[V0416]: `C::call` was removed; use `C.call`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"options-hash-differences/options_probe_C_call_scope"}
+{"error":{"at":[41,2],"class":"TypeError","kind":"Type","message":"error[V0416]: `C::take` was removed; use `C.take`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"options-hash-differences/options_probe_C_take_scope"}
+{"error":{"at":[41,6],"class":"TypeError","kind":"Type","message":"error[V0416]: `D.new::public_send` was removed; use `D.new.public_send`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"options-hash-differences/options_probe_D.new_public_send_scope"}
+{"error":{"at":[41,6],"class":"TypeError","kind":"Type","message":"error[V0416]: `D.new::send` was removed; use `D.new.send`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"options-hash-differences/options_probe_D.new_send_scope"}
+{"error":{"at":[41,2],"class":"TypeError","kind":"Type","message":"error[V0416]: `M::call` was removed; use `M.call`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"options-hash-differences/options_probe_M_call_scope"}
+{"error":{"at":[41,2],"class":"TypeError","kind":"Type","message":"error[V0416]: `M::take` was removed; use `M.take`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"options-hash-differences/options_probe_M_take_scope"}
+{"error":{"at":[3,14],"class":"TypeError","kind":"Type","message":"error[V0112]: host cannot be indexed with 1 selector(s)","phase":"compile"},"id":"policies/capabilities/detached_indexed/ordinary/metered"}
+{"error":{"at":[3,14],"class":"TypeError","kind":"Type","message":"error[V0112]: host cannot be indexed with 1 selector(s)","phase":"compile"},"id":"policies/capabilities/detached_indexed/ordinary/unlimited"}
+{"error":{"at":[3,14],"class":"TypeError","kind":"Type","message":"error[V0112]: host cannot be indexed with 1 selector(s)","phase":"compile"},"id":"policies/capabilities/detached_indexed/strict/metered"}
+{"error":{"at":[3,14],"class":"TypeError","kind":"Type","message":"error[V0112]: host cannot be indexed with 1 selector(s)","phase":"compile"},"id":"policies/capabilities/detached_indexed/strict/unlimited"}
+{"error":{"at":[3,18],"class":"TypeError","kind":"Type","message":"error[V0416]: `host::checked` was removed; use `host.checked`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"policies/capabilities/detached_scoped/ordinary/metered"}
+{"error":{"at":[3,18],"class":"TypeError","kind":"Type","message":"error[V0416]: `host::checked` was removed; use `host.checked`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"policies/capabilities/detached_scoped/ordinary/unlimited"}
+{"error":{"at":[3,18],"class":"TypeError","kind":"Type","message":"error[V0416]: `host::checked` was removed; use `host.checked`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"policies/capabilities/detached_scoped/strict/metered"}
+{"error":{"at":[3,18],"class":"TypeError","kind":"Type","message":"error[V0416]: `host::checked` was removed; use `host.checked`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"policies/capabilities/detached_scoped/strict/unlimited"}
+{"error":{"at":[3,15],"class":"TypeError","kind":"Type","message":"error[V0112]: blocks cannot be indexed with 1 selector(s)","phase":"compile"},"id":"policies/host_blocks/detached_indexed/ordinary/metered"}
+{"error":{"at":[3,15],"class":"TypeError","kind":"Type","message":"error[V0112]: blocks cannot be indexed with 1 selector(s)","phase":"compile"},"id":"policies/host_blocks/detached_indexed/ordinary/unlimited"}
+{"error":{"at":[3,15],"class":"TypeError","kind":"Type","message":"error[V0112]: blocks cannot be indexed with 1 selector(s)","phase":"compile"},"id":"policies/host_blocks/detached_indexed/strict/metered"}
+{"error":{"at":[3,15],"class":"TypeError","kind":"Type","message":"error[V0112]: blocks cannot be indexed with 1 selector(s)","phase":"compile"},"id":"policies/host_blocks/detached_indexed/strict/unlimited"}
+{"error":{"at":[3,21],"class":"TypeError","kind":"Type","message":"error[V0416]: `blocks::once` was removed; use `blocks.once`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"policies/host_blocks/detached_scoped/ordinary/metered"}
+{"error":{"at":[3,21],"class":"TypeError","kind":"Type","message":"error[V0416]: `blocks::once` was removed; use `blocks.once`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"policies/host_blocks/detached_scoped/ordinary/unlimited"}
+{"error":{"at":[3,21],"class":"TypeError","kind":"Type","message":"error[V0416]: `blocks::once` was removed; use `blocks.once`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"policies/host_blocks/detached_scoped/strict/metered"}
+{"error":{"at":[3,21],"class":"TypeError","kind":"Type","message":"error[V0416]: `blocks::once` was removed; use `blocks.once`; `::` names only constants, nested types and enum members","phase":"compile"},"id":"policies/host_blocks/detached_scoped/strict/unlimited"}
 {"id":"policies/host_blocks/ignored_break/ordinary/metered","ok":["array",[["int","7"],["array",[["int","1"]]]]]}
 {"id":"policies/host_blocks/ignored_break/ordinary/unlimited","ok":["array",[["int","7"],["array",[["int","1"]]]]]}
 {"id":"policies/host_blocks/ignored_break/strict/metered","ok":["array",[["int","7"],["array",[["int","1"]]]]]}
@@ -137,46 +137,46 @@
 {"id":"policies/host_blocks/ignored_return/strict/unlimited","ok":["array",[["int","7"],["array",[["int","1"]]]]]}
 {"id":"policies/host_globals/block_write/ordinary","ok":["int","10"]}
 {"id":"policies/host_globals/block_write/strict","ok":["int","10"]}
-{"id":"policies/host_globals/module_constant/Box/0/False/ordinary","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Box/0/False/strict","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Box/0/True/ordinary","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Box/0/True/strict","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Box/1/False/ordinary","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Box/1/False/strict","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Box/1/True/ordinary","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Box/1/True/strict","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Box/2/False/ordinary","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Box/2/False/strict","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Box/2/True/ordinary","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Box/2/True/strict","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Box/3/False/ordinary","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Box/3/False/strict","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Box/3/True/ordinary","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Box/3/True/strict","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Math/0/False/ordinary","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Math/0/False/strict","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Math/0/True/ordinary","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Math/0/True/strict","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Math/1/False/ordinary","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Math/1/False/strict","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Math/1/True/ordinary","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Math/1/True/strict","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Math/2/False/ordinary","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Math/2/False/strict","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Math/2/True/ordinary","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Math/2/True/strict","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Math/3/False/ordinary","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Math/3/False/strict","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Math/3/True/ordinary","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Math/3/True/strict","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Parser/0/True/ordinary","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Parser/0/True/strict","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Parser/1/True/ordinary","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Parser/1/True/strict","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Parser/2/True/ordinary","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Parser/2/True/strict","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Parser/3/True/ordinary","ok":["int","3"]}
-{"id":"policies/host_globals/module_constant/Parser/3/True/strict","ok":["int","3"]}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Box` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Box/0/False/ordinary"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Box` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Box/0/False/strict"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Box` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Box/0/True/ordinary"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Box` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Box/0/True/strict"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Box` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Box/1/False/ordinary"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Box` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Box/1/False/strict"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Box` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Box/1/True/ordinary"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Box` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Box/1/True/strict"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Box` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Box/2/False/ordinary"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Box` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Box/2/False/strict"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Box` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Box/2/True/ordinary"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Box` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Box/2/True/strict"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Box` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Box/3/False/ordinary"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Box` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Box/3/False/strict"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Box` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Box/3/True/ordinary"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Box` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Box/3/True/strict"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Math` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Math/0/False/ordinary"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Math` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Math/0/False/strict"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Math` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Math/0/True/ordinary"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Math` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Math/0/True/strict"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Math` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Math/1/False/ordinary"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Math` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Math/1/False/strict"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Math` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Math/1/True/ordinary"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Math` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Math/1/True/strict"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Math` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Math/2/False/ordinary"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Math` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Math/2/False/strict"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Math` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Math/2/True/ordinary"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Math` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Math/2/True/strict"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Math` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Math/3/False/ordinary"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Math` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Math/3/False/strict"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Math` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Math/3/True/ordinary"}
+{"error":{"at":[1,24],"class":"TypeError","kind":"Type","message":"error[V0102]: `Math` names a namespace or function and cannot be rebound","phase":"compile"},"id":"policies/host_globals/module_constant/Math/3/True/strict"}
+{"error":{"at":[1,31],"class":"TypeError","kind":"Type","message":"error[V0112]: JSON cannot be indexed with 1 selector(s)","phase":"compile"},"id":"policies/host_globals/module_constant/Parser/0/True/ordinary"}
+{"error":{"at":[1,31],"class":"TypeError","kind":"Type","message":"error[V0112]: JSON cannot be indexed with 1 selector(s)","phase":"compile"},"id":"policies/host_globals/module_constant/Parser/0/True/strict"}
+{"error":{"at":[1,31],"class":"TypeError","kind":"Type","message":"error[V0112]: JSON cannot be indexed with 1 selector(s)","phase":"compile"},"id":"policies/host_globals/module_constant/Parser/1/True/ordinary"}
+{"error":{"at":[1,31],"class":"TypeError","kind":"Type","message":"error[V0112]: JSON cannot be indexed with 1 selector(s)","phase":"compile"},"id":"policies/host_globals/module_constant/Parser/1/True/strict"}
+{"error":{"at":[1,31],"class":"TypeError","kind":"Type","message":"error[V0112]: JSON cannot be indexed with 1 selector(s)","phase":"compile"},"id":"policies/host_globals/module_constant/Parser/2/True/ordinary"}
+{"error":{"at":[1,31],"class":"TypeError","kind":"Type","message":"error[V0112]: JSON cannot be indexed with 1 selector(s)","phase":"compile"},"id":"policies/host_globals/module_constant/Parser/2/True/strict"}
+{"error":{"at":[1,31],"class":"TypeError","kind":"Type","message":"error[V0112]: JSON cannot be indexed with 1 selector(s)","phase":"compile"},"id":"policies/host_globals/module_constant/Parser/3/True/ordinary"}
+{"error":{"at":[1,31],"class":"TypeError","kind":"Type","message":"error[V0112]: JSON cannot be indexed with 1 selector(s)","phase":"compile"},"id":"policies/host_globals/module_constant/Parser/3/True/strict"}
 {"id":"policies/host_signatures/bad_break/capability/ordinary/metered","ok":["string","72657475726e2076616c756520666f722074797065642e6563686f20657870656374656420696e742c20676f7420737472696e67"]}
 {"id":"policies/host_signatures/bad_break/capability/ordinary/unlimited","ok":["string","72657475726e2076616c756520666f722074797065642e6563686f20657870656374656420696e742c20676f7420737472696e67"]}
 {"id":"policies/host_signatures/bad_break/capability/strict/metered","ok":["string","72657475726e2076616c756520666f722074797065642e6563686f20657870656374656420696e742c20676f7420737472696e67"]}
@@ -209,11 +209,11 @@
 {"id":"policies/required_files/collection_state/development/strict","ok":["array",[["array",[["int","1"]]],["array",[["int","1"],["int","1"]]]]]}
 {"id":"policies/required_files/collection_state/production/ordinary","ok":["array",[["array",[["int","1"]]],["array",[["int","1"],["int","1"]]]]]}
 {"id":"policies/required_files/collection_state/production/strict","ok":["array",[["array",[["int","1"]]],["array",[["int","1"],["int","1"]]]]]}
-{"id":"policies/required_files/private_not_exported/development/ordinary","ok":["int","7"]}
-{"id":"policies/required_files/private_not_exported/development/strict","ok":["int","7"]}
-{"id":"policies/required_files/private_not_exported/production/ordinary","ok":["int","7"]}
-{"id":"policies/required_files/private_not_exported/production/strict","ok":["int","7"]}
-{"id":"value-helper-differences/error_protected_clone","ok":["string","52756e74696d654572726f72"]}
-{"id":"value-helper-differences/error_protected_freeze","ok":["string","52756e74696d654572726f72"]}
-{"id":"value-helper-differences/match_nested_clone","ok":["string","52756e74696d654572726f72"]}
-{"id":"value-helper-differences/match_nested_freeze","ok":["string","52756e74696d654572726f72"]}
+{"error":{"at":[1,46],"class":"TypeError","kind":"Type","message":"error[V0203]: the module \"answer\" exports no function `hidden`","phase":"compile"},"id":"policies/required_files/private_not_exported/development/ordinary"}
+{"error":{"at":[1,46],"class":"TypeError","kind":"Type","message":"error[V0203]: the module \"answer\" exports no function `hidden`","phase":"compile"},"id":"policies/required_files/private_not_exported/development/strict"}
+{"error":{"at":[1,46],"class":"TypeError","kind":"Type","message":"error[V0203]: the module \"answer\" exports no function `hidden`","phase":"compile"},"id":"policies/required_files/private_not_exported/production/ordinary"}
+{"error":{"at":[1,46],"class":"TypeError","kind":"Type","message":"error[V0203]: the module \"answer\" exports no function `hidden`","phase":"compile"},"id":"policies/required_files/private_not_exported/production/strict"}
+{"error":{"at":[7,3],"class":"TypeError","kind":"Type","message":"error[V0401]: `clone` was removed; use `dup`","phase":"compile"},"id":"value-helper-differences/error_protected_clone"}
+{"error":{"at":[7,3],"class":"TypeError","kind":"Type","message":"error[V0401]: `freeze` was removed; use `x`, where it behaves the same","phase":"compile"},"id":"value-helper-differences/error_protected_freeze"}
+{"error":{"at":[4,3],"class":"TypeError","kind":"Type","message":"error[V0401]: `clone` was removed; use `dup`","phase":"compile"},"id":"value-helper-differences/match_nested_clone"}
+{"error":{"at":[4,3],"class":"TypeError","kind":"Type","message":"error[V0401]: `freeze` was removed; use `x`, where it behaves the same","phase":"compile"},"id":"value-helper-differences/match_nested_freeze"}
