@@ -246,27 +246,22 @@ fn malformed_literal_combinations_return_errors_without_panicking() {
 
 #[test]
 fn interpolation_publishes_loop_bindings_without_publishing_block_locals() {
-    // The static checker does not let a for loop's variable be read after
-    // the loop yet (V0202), so the cases that read one run without static
-    // types.
-    for (published, body, expected) in [
+    // A published loop variable is a local, so `x %w[0]` is a remainder
+    // rather than a call.
+    for (body, expected) in [
         (
-            true,
-            "w: [int] = [3];r=[\"#{for x in [10];x;end}\",\"#{x %w[0]}\"];[r,x]",
-            serde_json::json!([["[10]", "1"], 10]),
+            "w: [int] = [3];r=[\"#{for x in [10];x;end}\",x %w[0]];[r,x]",
+            serde_json::json!([["[10]", 1], 10]),
         ),
         (
-            true,
             "r=\"#{for x in [];x;end}\";[r,x]",
             serde_json::json!(["[]", null]),
         ),
         (
-            false,
             "r=\"#{[10].map {|x|x}}\";w=[3];[r,x [\"0\"]]",
             serde_json::json!(["[10]", 1]),
         ),
         (
-            true,
             "r=\"#{for it in [10];it;end}\";[r,[1,2].map {it}]",
             serde_json::json!(["[10]", [10, 10]]),
         ),
@@ -274,12 +269,7 @@ fn interpolation_publishes_loop_bindings_without_publishing_block_locals() {
         let source = format!(
             "def x(*args: array<any>) -> int\nargs.length\nend\ndef run() -> array<any>\n{body}\nend"
         );
-        let engine = if published {
-            common::gradual_engine()
-        } else {
-            Engine::new()
-        };
-        let result = engine
+        let result = Engine::new()
             .compile(&source)
             .unwrap()
             .call("run", &[], CallOptions::default())
