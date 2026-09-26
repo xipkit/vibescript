@@ -2143,9 +2143,11 @@ impl Run {
                         stack.push(ctx, value)?;
                         continue;
                     }
-                    // A dot assigns only a class's or instance's field; a hash's
-                    // fields are written by index.
-                    if address.member_target {
+                    // Capability objects expose declared data through dot access;
+                    // ordinary hashes still require an index.
+                    if address.member_target
+                        && !matches!(&address.value.0, Kind::Hash(hash) if hash.object)
+                    {
                         return Err(Error::new(
                             ErrorKind::Type,
                             format!("cannot assign to {}", address.value.type_name()),
