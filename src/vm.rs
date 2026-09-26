@@ -548,6 +548,13 @@ impl Run {
                     stack.data.truncate(base);
                     continue;
                 }
+                Op::CallBlock(callee, count, block)
+                    if ctx.options.globals.is_empty() && ctx.capability_names.data.is_empty() =>
+                {
+                    ctx.charge(1)?;
+                    call_block(program, ctx, frames, storage, stack, (callee, count, block))?;
+                    continue;
+                }
                 Op::Return | Op::Finish => {
                     ctx.charge(1)?;
                     let mut value = stack.data.pop().unwrap();
@@ -636,13 +643,23 @@ impl Run {
                 }
                 op => op,
             };
-            if let Op::Call(_, count) | Op::Host(_, count) | Op::NonCallable(count) = op {
+            if let Op::Call(_, count)
+            | Op::CallBlock(_, count, _)
+            | Op::Host(_, count)
+            | Op::NonCallable(count) = op
+            {
                 if !ctx.options.globals.is_empty() || !ctx.capability_names.data.is_empty() {
                     let target = frames.data[current].arguments.data.pop().unwrap().target;
                     if let Some(target) = target {
                         let base = stack.data.len() - count;
                         let mut args = Arguments::from_values(ctx, &stack.data[base..])?;
                         args.target = Some(target);
+                        if let Op::CallBlock(_, _, function) = op {
+                            args.block = Some(Block {
+                                function,
+                                parent: current,
+                            });
+                        }
                         stack.data.truncate(base);
                         frames.data[current].arguments.push(ctx, args)?;
                         op = Op::Invoke(Invocation::Resolved);
@@ -2482,6 +2499,9 @@ impl Run {
                     )?;
                     stack.data.truncate(base);
                 }
+                Op::CallBlock(callee, count, block) => {
+                    call_block(program, ctx, frames, storage, stack, (callee, count, block))?;
+                }
                 Op::AutoCall(function, receiving) => {
                     if let Some(value) =
                         globals::get(ctx, storage, &program.functions[function].name)?
@@ -4226,6 +4246,35 @@ fn check_entry(
     }
     frames.data[current].ip = start;
     frames.data[current].checked = false;
+    Ok(())
+}
+
+/// Calls a script function with the arguments on top of the stack and a
+/// block of the calling frame, as `(callee, count, block)`.
+fn call_block(
+    program: &Program,
+    ctx: &mut CallContext,
+    frames: &mut Buffer<Frame>,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+    (callee, count, block): (usize, usize, usize),
+) -> Result<()> {
+    let parent = frames.data.len() - 1;
+    let base = stack.data.len() - count;
+    enter(
+        program,
+        ctx,
+        frames,
+        storage,
+        callee,
+        &stack.data[base..],
+        base,
+    )?;
+    frames.data.last_mut().unwrap().block = Some(Block {
+        function: block,
+        parent,
+    });
+    stack.data.truncate(base);
     Ok(())
 }
 

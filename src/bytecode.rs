@@ -120,6 +120,9 @@ pub(crate) enum Op {
     Break(bool),
     Next(bool),
     Call(usize, usize),
+    /// Calls script function `.0` with the `.1` arguments on top of the stack
+    /// and block `.2`, as a call with a block and plain arguments.
+    CallBlock(usize, usize, usize),
     AutoCall(usize, Receiving),
     Host(usize, usize),
     HostValue(usize, Receiving),
@@ -2763,13 +2766,23 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     c.emit(Op::ResolveCall(usize::MAX, site.name));
                     None
                 };
+                // A script function called with plain arguments takes them
+                // from the stack, without an argument list.
+                let listed = expanded(args) || !matches!(target, Some(Invocation::Function(_)));
                 if target.is_some() {
                     let name = c.call_site(name, false).name;
-                    c.emit(Op::RootCall(name, true));
+                    c.emit(Op::RootCall(name, listed));
                 }
                 target
             }
         };
+        if let (Some(Invocation::Function(callee)), false) = (target, expanded(args)) {
+            for arg in args {
+                self.expr(&arg.value).await?;
+            }
+            self.c().emit(Op::CallBlock(callee, args.len(), function));
+            return Ok(());
+        }
         self.argument_values(args).await?;
         let mut c = self.c();
         c.emit(Op::Attach(function));
