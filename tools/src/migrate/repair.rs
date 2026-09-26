@@ -85,7 +85,7 @@ pub fn repair(
     let mut repaired = migration.clone();
     if let Some(source) = repairer.run(&migration.source) {
         repaired.changed |= source != migration.source;
-        repaired.source = source;
+        repaired.source = super::migrator::preserve_line_endings(original, &source);
         repairer
             .original
             .settle_notes(&repaired.source, &mut repaired.diagnostics);

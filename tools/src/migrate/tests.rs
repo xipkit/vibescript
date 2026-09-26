@@ -584,3 +584,51 @@ fn reports_a_removed_spelling_the_rules_leave_in_place() {
         .collect();
     assert_eq!(notes, [(Code::Dispatch, 4)], "{:?}", repaired.diagnostics);
 }
+
+#[test]
+fn nil_observations_keep_the_statics_result_type() {
+    let source = "def first(items: array<int>)\n  items[0]\nend\n";
+    let (out, _) = full(source, &[("first", json!([[]]))]);
+    assert!(out.contains("-> int?"), "{out}");
+    assert!(
+        vibescript::Engine::new()
+            .type_check(&out)
+            .unwrap()
+            .diagnostics
+            .is_empty(),
+        "{out}"
+    );
+    let (nil, _) = full("def nothing\n  nil\nend\n", &[("nothing", json!([]))]);
+    assert!(!nil.contains("-> int"), "{nil}");
+}
+
+#[test]
+fn migration_preserves_crlf() {
+    let source = "def answer\r\n  42\r\nend\r\n";
+    let (out, _) = full(source, &[]);
+    assert!(out.contains("-> int\r\n"), "{out:?}");
+    assert_eq!(out.matches('\n').count(), out.matches("\r\n").count());
+    let (lf, _) = full(&source.replace("\r\n", "\n"), &[]);
+    assert!(!lf.contains('\r'));
+}
+
+#[test]
+fn positional_parameters_passed_by_name_become_keywords() {
+    let source = "def add(x: int, y: int = 2) -> int\n  x + y\nend\nadd(1, y: 3)\nadd(4, 5)\n";
+    let (out, _) = full(source, &[]);
+    assert!(
+        out.contains("def add(x: int, *, y: int = 2) -> int"),
+        "{out}"
+    );
+    assert!(out.contains("add(4, y: 5)"), "{out}");
+    assert!(
+        vibescript::Engine::new()
+            .type_check(&out)
+            .unwrap()
+            .diagnostics
+            .is_empty(),
+        "{out}"
+    );
+    let (unchanged, _) = full("def add(x: int) -> int\n  x + 1\nend\nadd(1)\n", &[]);
+    assert!(!unchanged.contains('*'), "{unchanged}");
+}

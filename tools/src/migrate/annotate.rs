@@ -269,7 +269,11 @@ impl<'a> Migrator<'a> {
                     without.nil = false;
                     without.is_empty()
                 };
-                if only_nil && !returns_value(&def.body) {
+                if only_nil && !returns_value(&def.body) && !value_body(&def.body) {
+                    return;
+                }
+                if only_nil && self.options.new_syntax {
+                    self.edits.insert(end, " -> any".to_owned());
                     return;
                 }
                 let ty = self.annotation(

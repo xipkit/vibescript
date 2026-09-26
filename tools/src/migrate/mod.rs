@@ -41,6 +41,7 @@
 mod annotate;
 mod compat;
 mod diff;
+mod keywords;
 mod migrator;
 mod narrow;
 mod observe;

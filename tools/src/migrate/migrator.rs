@@ -80,10 +80,15 @@ fn migrate_on_stack(source: &str, facts: Option<&Facts>, options: &Options) -> M
     let mut diagnostics = std::mem::take(&mut migrator.diagnostics);
     diagnostics.sort_by_key(|d| (d.offset, d.code));
     diagnostics.dedup();
-    if migrator.edits.is_empty() {
+    let output = migrator.edits.apply(source);
+    let output = if options.new_syntax && !options.surface_only {
+        super::keywords::rewrite(&output)
+    } else {
+        output
+    };
+    if output == source {
         return unchanged(source, diagnostics);
     }
-    let output = migrator.edits.apply(source);
     if let Some(span) = migrator.edits.conflicts.first() {
         diagnostics.push(diagnostic(
             source,
@@ -122,10 +127,25 @@ fn migrate_on_stack(source: &str, facts: Option<&Facts>, options: &Options) -> M
         ));
         return unchanged(source, diagnostics);
     }
+    let output = preserve_line_endings(source, &output);
     Migration {
         changed: output != source,
         source: output,
         diagnostics,
+    }
+}
+
+pub(super) fn preserve_line_endings(original: &str, output: &str) -> String {
+    let crlf = original.contains("\r\n")
+        && original
+            .as_bytes()
+            .iter()
+            .enumerate()
+            .all(|(i, &byte)| byte != b'\n' || i > 0 && original.as_bytes()[i - 1] == b'\r');
+    if crlf {
+        output.replace("\r\n", "\n").replace('\n', "\r\n")
+    } else {
+        output.to_owned()
     }
 }
 
