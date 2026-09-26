@@ -112,6 +112,7 @@ pub(crate) fn immediate(
             "*" => Some(Value::float(a * b)),
             "/" => Some(Value::float(a / b)),
             "//" => Some(Value::float((a / b).floor())),
+            "%" => Some(Value::float(float_modulo(*a, *b))),
             "<" => Some(Value::boolean(a < b)),
             "<=" => Some(Value::boolean(a <= b)),
             ">" => Some(Value::boolean(a > b)),
@@ -140,6 +141,15 @@ fn floor_divide(op: &str, a: i64, b: i64) -> Option<i64> {
     } else {
         r
     })
+}
+
+fn float_modulo(a: f64, b: f64) -> f64 {
+    let remainder = a % b;
+    if remainder != 0.0 && (remainder < 0.0) != (b < 0.0) {
+        remainder + b
+    } else {
+        remainder
+    }
 }
 
 pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Result<Value> {
@@ -281,6 +291,7 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
                 "-" => a - b,
                 "*" => a * b,
                 "/" => a / b,
+                "%" => float_modulo(a, b),
                 _ => return Err(unsupported(op)),
             }))
         }

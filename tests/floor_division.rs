@@ -310,3 +310,31 @@ fn slash_assignment_on_ints_is_fixed_to_floor_division_assignment() {
         .value;
     assert_eq!(value.as_int(), Some(2));
 }
+
+#[test]
+fn float_modulo_has_the_divisors_sign() {
+    for (expression, expected) in [
+        ("7.5 % 2.0", 1.5),
+        ("-7.5 % 2.0", 0.5),
+        ("7.5 % -2.0", -0.5),
+        ("-7.5 % -2.0", -1.5),
+        ("7.5 % 2", 1.5),
+        ("-7 % 2.5", 0.5),
+        ("(2 ** 70) % 3.0", 1.0),
+    ] {
+        let value = run(expression);
+        assert_eq!(value.type_name(), "float", "{expression}");
+        assert_eq!(value.as_float(), Some(expected), "{expression}");
+    }
+    assert!(run("1.0 % 0.0").as_float().unwrap().is_nan());
+    assert!(
+        common::static_engine()
+            .compile("x: float = 7.5 % 2\n")
+            .is_ok()
+    );
+    let error = common::static_engine()
+        .compile("x: int = 7.5 % 2\n")
+        .err()
+        .unwrap();
+    assert_eq!(common::codes(&error), ["V0101"]);
+}
