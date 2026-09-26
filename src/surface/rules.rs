@@ -515,8 +515,6 @@ pub trait Rules<'a>: Hooks<'a> {
         if !call.scoped(self.tokens) {
             return;
         }
-        // Arguments without parentheses do not make a scoped name a call.
-        let command = call.args.as_ref().is_some_and(|args| args.parens.is_none());
         let called = call.args.is_some() || call.block.is_some();
         let lowercase = call
             .name
@@ -529,7 +527,7 @@ pub trait Rules<'a>: Hooks<'a> {
         // its own.
         let hash_new =
             call.name == "new" && matches!(&receiver.kind, ExprKind::Name(name) if name == "Hash");
-        if command || hash_new || !((called || lowercase) && self.scopes_functions(receiver)) {
+        if hash_new || !((called || lowercase) && self.scopes_functions(receiver)) {
             return;
         }
         let span = self.token_span(operator);

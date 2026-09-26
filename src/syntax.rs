@@ -1805,6 +1805,7 @@ impl<'a> Parsing<'a> {
             Node::SafeMember(receiver, name) => {
                 Node::SafeMethod(receiver, name, args, CallForm::Bare)
             }
+            Node::Scope(receiver, name, None) => Node::Scope(receiver, name, Some(args)),
             _ => unreachable!(),
         };
         p.make_at(node, depth, offset)
@@ -3534,7 +3535,7 @@ impl<'a> Parser<'a> {
             || min > 14
             || !matches!(
                 lhs.node,
-                Node::Var(_) | Node::Member(..) | Node::SafeMember(..)
+                Node::Var(_) | Node::Member(..) | Node::SafeMember(..) | Node::Scope(_, _, None)
             )
         {
             return Ok(false);
@@ -3543,6 +3544,11 @@ impl<'a> Parser<'a> {
             // Like Go, only an identifier or member can take arguments.
             Node::Var(name) if name == "self" || name.starts_with('@') => return Ok(false),
             Node::Var(name) => self.locals.contains(self.work, name)?,
+            // A scoped function takes arguments, as in `Math::sqrt 9`; a
+            // constant, nested type or enum member takes none.
+            Node::Scope(_, name, _) if name.chars().next().is_some_and(unicode::upper) => {
+                return Ok(false);
+            }
             _ => false,
         };
         let previous = self.previous()?;

@@ -134430,7 +134430,7 @@
   },
   {
     "name": "builtins_namespace_713",
-    "source": "def run(input: any) -> int\nMath::sqrt 9\nend\n",
+    "source": "def run(input: any) -> float\nMath::sqrt 9\nend\n",
     "static_error": {"code": "V0416", "at": [2, 5]}
   },
   {

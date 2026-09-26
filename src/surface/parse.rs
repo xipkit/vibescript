@@ -858,11 +858,17 @@ impl<'s> Parser<'s> {
         }
         let local = match &lhs.kind {
             ExprKind::Name(name) => self.locals.contains(name),
+            // A scoped function takes arguments too, as in `Math::sqrt 9`.
             ExprKind::Call(call)
                 if call.receiver.is_some()
                     && call.args.is_none()
                     && call.block.is_none()
-                    && !call.scoped(&self.tokens) =>
+                    && (!call.scoped(&self.tokens)
+                        || !call
+                            .name
+                            .chars()
+                            .next()
+                            .is_some_and(crate::syntax::unicode::upper)) =>
             {
                 false
             }

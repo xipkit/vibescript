@@ -620,3 +620,29 @@ fn duplicate_and_reserved_function_names_are_coded() {
         .compile("class C\n  def require(path: string) -> int\n    1\n  end\nend\n")
         .unwrap_or_else(|error| panic!("{error}"));
 }
+
+#[test]
+fn a_scoped_call_takes_parenless_arguments() {
+    // `Math::sqrt 9` is one call, reported for its `::` alone, and its fix
+    // keeps the argument with the call.
+    let source = "def run(input: any) -> float\n  Math::sqrt 9\nend\n";
+    let error = common::static_engine().compile(source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0416"]);
+    let fixed = error.diagnostics()[0].fixes[0].apply(source).unwrap();
+    assert_eq!(fixed, "def run(input: any) -> float\n  Math.sqrt 9\nend\n");
+    let result = common::static_engine()
+        .compile(&fixed)
+        .unwrap()
+        .call("run", &[Value::nil()], CallOptions::default())
+        .unwrap();
+    assert_eq!(result.value.as_float(), Some(3.0));
+    // A constant or enum member written with `::` takes no arguments.
+    let value = Engine::new()
+        .compile(
+            "enum Status\n  Draft\nend\ndef run(input: any) -> int\n  Status::Draft\n  7\nend\n",
+        )
+        .unwrap()
+        .call("run", &[Value::nil()], CallOptions::default())
+        .unwrap();
+    assert_eq!(value.value.as_int(), Some(7));
+}

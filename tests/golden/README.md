@@ -63,7 +63,7 @@ The migration's non-mechanical decisions are in [migration-decisions.jsonl](migr
 | Corpus | converted | deleted | rewritten | sloppiness | at the flip | restored | checker issue |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `language` |  | 5,653 | 4,057 | 3,061 |  | 4 |  |
-| `language -> rejections` | 5,785 |  |  |  |  |  | 98 |
+| `language -> rejections` | 5,785 |  |  |  |  |  | 97 |
 | `rejections` | 12,677 | 1,020 | 59 | 149 | 44 |  | 18 |
 | `replay` | 3,326 | 906 | 3,248 | 42 |  |  | 28 |
 | `conformance` | 197 |  | 122 |  |  |  | 86 |
