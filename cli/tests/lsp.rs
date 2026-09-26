@@ -163,14 +163,15 @@ fn serves_editor_features_over_stdio() {
     assert_eq!(published["method"], "textDocument/publishDiagnostics");
     assert_eq!(published["params"]["uri"], uri);
     // The required file resolves from the document's directory, so the only
-    // finding is the checker's contradiction in label.
+    // finding is the type error in label.
     assert_eq!(
         published["params"]["diagnostics"],
         json!([{
-            "range": {"start": {"line": 8, "character": 2}, "end": {"line": 8, "character": 3}},
+            "range": {"start": {"line": 8, "character": 2}, "end": {"line": 8, "character": 10}},
             "severity": 1,
+            "code": "V0101",
             "source": "vibes-lsp",
-            "message": "Return value: expected int, got string",
+            "message": "`label` returns int, found string",
         }])
     );
 
@@ -356,14 +357,13 @@ fn lsp_takes_no_arguments() {
         String::from_utf8_lossy(&output.stdout),
         "NAME:\n   vibes lsp - start the language server over stdio\n\n\
          USAGE:\n   vibes lsp [options]\n\n\
-         OPTIONS:\n   --static    check documents in the static language (ADR-007), offering quick fixes\n   \
-         --help, -h  show help\n"
+         OPTIONS:\n   --help, -h  show help\n"
     );
 }
 
 #[test]
-fn the_static_server_publishes_codes_and_offers_quick_fixes() {
-    let mut session = Session::with_args(&["--static"]);
+fn the_server_publishes_codes_and_offers_quick_fixes() {
+    let mut session = Session::start();
     let initialized = session.request(1, "initialize", json!({}));
     assert_eq!(
         initialized["result"]["capabilities"]["codeActionProvider"],
