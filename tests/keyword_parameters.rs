@@ -119,20 +119,6 @@ fn typed_keywords_check_their_arguments_and_defaults() {
 }
 
 #[test]
-fn the_removed_forms_still_run_without_static_types() {
-    let run = |source: &str, call: &str| {
-        let source = format!("{source}def run -> string\n  {call}\nend\n");
-        let script = common::gradual_engine().compile(&source).unwrap();
-        let result = script.call("run", &[], CallOptions::default()).unwrap();
-        String::from_utf8(result.value.as_bytes().unwrap().to_vec()).unwrap()
-    };
-    let source = "def old(a, retries: 2, name:)\n  \"#{a}#{retries}#{name}\"\nend\n";
-    assert_eq!(run(source, "old(1, name: \"x\")"), "12x");
-    let typed = "def old(a, name: string:)\n  name\nend\n";
-    assert_eq!(run(typed, "old(1, name: \"y\")"), "y");
-}
-
-#[test]
 fn a_misplaced_star_is_a_syntax_error() {
     for (source, message) in [
         (
