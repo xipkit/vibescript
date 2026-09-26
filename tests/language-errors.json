@@ -125055,81 +125055,170 @@
   {
     "name": "operator_signature_88",
     "source": "class C\ndef ==();7;end\nend\ndef run(input: any) -> bool\nC.new == 3\nend\n",
-    "go_error": "unexpected positional arguments"
+    "go_error": "unexpected positional arguments",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
   },
   {
     "name": "operator_signature_91",
     "source": "class C\ndef ==(a: any,b: any);7;end\nend\ndef run(input: any) -> bool\nC.new == 3\nend\n",
-    "go_error": "missing argument b"
+    "go_error": "missing argument b",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
   },
   {
     "name": "operator_signature_93",
     "source": "class C\ndef ==(*, value: any);7;end\nend\ndef run(input: any) -> bool\nC.new == 3\nend\n",
-    "go_error": "missing keyword argument value"
+    "go_error": "missing keyword argument value",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
   },
   {
     "name": "operator_signature_94",
     "source": "class C\ndef ==(*, value: int = 2);7;end\nend\ndef run(input: any) -> bool\nC.new == 3\nend\n",
-    "go_error": "unexpected positional arguments"
+    "go_error": "unexpected positional arguments",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
   },
   {
     "name": "operator_signature_96",
     "source": "class C\ndef ==(**opts: hash<string, any>);7;end\nend\ndef run(input: any) -> bool\nC.new == 3\nend\n",
-    "go_error": "unexpected positional arguments"
+    "go_error": "unexpected positional arguments",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
   },
   {
     "name": "operator_visibility_125",
     "source": "class C\nprivate def ==(other: any);7;end\npublic\ndef probe(other: C) -> bool;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\nclass D\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\ndef run(input: any) -> bool\nC.new.probe(C.new)\nend\n",
     "go_error": "private method ==",
-    "static_error": {"code": "V0208", "at": [4, 35]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        29
+      ]
+    }
   },
   {
     "name": "operator_visibility_126",
     "source": "class C\nprivate def ==(other: any);7;end\npublic\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: C) -> bool;other == 1;end\nend\nclass D\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\ndef run(input: any) -> bool\nC.probe(C.new)\nend\n",
     "go_error": "private method ==",
-    "static_error": {"code": "V0208", "at": [5, 40]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        34
+      ]
+    }
   },
   {
     "name": "operator_visibility_127",
     "source": "class C\nprivate def ==(other: any);7;end\npublic\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\nclass D\ndef probe(other: C) -> bool;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\ndef run(input: any) -> bool\nD.new.probe(C.new)\nend\n",
     "go_error": "private method ==",
-    "static_error": {"code": "V0208", "at": [8, 35]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        8,
+        29
+      ]
+    }
   },
   {
     "name": "operator_visibility_128",
     "source": "class C\nprivate def ==(other: any);7;end\npublic\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\nclass D\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: C) -> bool;other == 1;end\nend\ndef run(input: any) -> bool\nD.probe(C.new)\nend\n",
     "go_error": "private method ==",
-    "static_error": {"code": "V0208", "at": [9, 40]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        9,
+        34
+      ]
+    }
   },
   {
     "name": "operator_visibility_129",
     "source": "class C\nprivate def ==(other: any);7;end\npublic\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\nclass D\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\ndef run(input: any) -> bool\nC.new == 1\nend\n",
     "go_error": "private method ==",
-    "static_error": {"code": "V0208", "at": [12, 7]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        12,
+        1
+      ]
+    }
   },
   {
     "name": "operator_visibility_131",
     "source": "class C\nprotected def ==(other: any);7;end\npublic\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: C) -> bool;other == 1;end\nend\nclass D\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\ndef run(input: any) -> bool\nC.probe(C.new)\nend\n",
     "go_error": "protected method ==",
-    "static_error": {"code": "V0208", "at": [5, 40]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        34
+      ]
+    }
   },
   {
     "name": "operator_visibility_132",
     "source": "class C\nprotected def ==(other: any);7;end\npublic\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\nclass D\ndef probe(other: C) -> bool;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\ndef run(input: any) -> bool\nD.new.probe(C.new)\nend\n",
     "go_error": "protected method ==",
-    "static_error": {"code": "V0208", "at": [8, 35]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        8,
+        29
+      ]
+    }
   },
   {
     "name": "operator_visibility_133",
     "source": "class C\nprotected def ==(other: any);7;end\npublic\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\nclass D\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: C) -> bool;other == 1;end\nend\ndef run(input: any) -> bool\nD.probe(C.new)\nend\n",
     "go_error": "protected method ==",
-    "static_error": {"code": "V0208", "at": [9, 40]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        9,
+        34
+      ]
+    }
   },
   {
     "name": "operator_visibility_134",
     "source": "class C\nprotected def ==(other: any);7;end\npublic\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\nclass D\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\ndef run(input: any) -> bool\nC.new == 1\nend\n",
     "go_error": "protected method ==",
-    "static_error": {"code": "V0208", "at": [12, 7]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        12,
+        1
+      ]
+    }
   },
   {
     "name": "operator_return_type_33",
@@ -125170,81 +125259,170 @@
   {
     "name": "operator_signature_99",
     "source": "class C\ndef !=();7;end\nend\ndef run(input: any) -> bool\nC.new != 3\nend\n",
-    "go_error": "unexpected positional arguments"
+    "go_error": "unexpected positional arguments",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
   },
   {
     "name": "operator_signature_102",
     "source": "class C\ndef !=(a: any,b: any);7;end\nend\ndef run(input: any) -> bool\nC.new != 3\nend\n",
-    "go_error": "missing argument b"
+    "go_error": "missing argument b",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
   },
   {
     "name": "operator_signature_104",
     "source": "class C\ndef !=(*, value: any);7;end\nend\ndef run(input: any) -> bool\nC.new != 3\nend\n",
-    "go_error": "missing keyword argument value"
+    "go_error": "missing keyword argument value",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
   },
   {
     "name": "operator_signature_105",
     "source": "class C\ndef !=(*, value: int = 2);7;end\nend\ndef run(input: any) -> bool\nC.new != 3\nend\n",
-    "go_error": "unexpected positional arguments"
+    "go_error": "unexpected positional arguments",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
   },
   {
     "name": "operator_signature_107",
     "source": "class C\ndef !=(**opts: hash<string, any>);7;end\nend\ndef run(input: any) -> bool\nC.new != 3\nend\n",
-    "go_error": "unexpected positional arguments"
+    "go_error": "unexpected positional arguments",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
   },
   {
     "name": "operator_visibility_140",
     "source": "class C\nprivate def !=(other: any);7;end\npublic\ndef probe(other: C) -> bool;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\nclass D\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\ndef run(input: any) -> bool\nC.new.probe(C.new)\nend\n",
     "go_error": "private method !=",
-    "static_error": {"code": "V0208", "at": [4, 35]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        29
+      ]
+    }
   },
   {
     "name": "operator_visibility_141",
     "source": "class C\nprivate def !=(other: any);7;end\npublic\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: C) -> bool;other != 1;end\nend\nclass D\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\ndef run(input: any) -> bool\nC.probe(C.new)\nend\n",
     "go_error": "private method !=",
-    "static_error": {"code": "V0208", "at": [5, 40]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        34
+      ]
+    }
   },
   {
     "name": "operator_visibility_142",
     "source": "class C\nprivate def !=(other: any);7;end\npublic\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\nclass D\ndef probe(other: C) -> bool;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\ndef run(input: any) -> bool\nD.new.probe(C.new)\nend\n",
     "go_error": "private method !=",
-    "static_error": {"code": "V0208", "at": [8, 35]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        8,
+        29
+      ]
+    }
   },
   {
     "name": "operator_visibility_143",
     "source": "class C\nprivate def !=(other: any);7;end\npublic\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\nclass D\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: C) -> bool;other != 1;end\nend\ndef run(input: any) -> bool\nD.probe(C.new)\nend\n",
     "go_error": "private method !=",
-    "static_error": {"code": "V0208", "at": [9, 40]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        9,
+        34
+      ]
+    }
   },
   {
     "name": "operator_visibility_144",
     "source": "class C\nprivate def !=(other: any);7;end\npublic\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\nclass D\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\ndef run(input: any) -> bool\nC.new != 1\nend\n",
     "go_error": "private method !=",
-    "static_error": {"code": "V0208", "at": [12, 7]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        12,
+        1
+      ]
+    }
   },
   {
     "name": "operator_visibility_146",
     "source": "class C\nprotected def !=(other: any);7;end\npublic\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: C) -> bool;other != 1;end\nend\nclass D\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\ndef run(input: any) -> bool\nC.probe(C.new)\nend\n",
     "go_error": "protected method !=",
-    "static_error": {"code": "V0208", "at": [5, 40]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        34
+      ]
+    }
   },
   {
     "name": "operator_visibility_147",
     "source": "class C\nprotected def !=(other: any);7;end\npublic\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\nclass D\ndef probe(other: C) -> bool;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\ndef run(input: any) -> bool\nD.new.probe(C.new)\nend\n",
     "go_error": "protected method !=",
-    "static_error": {"code": "V0208", "at": [8, 35]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        8,
+        29
+      ]
+    }
   },
   {
     "name": "operator_visibility_148",
     "source": "class C\nprotected def !=(other: any);7;end\npublic\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\nclass D\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: C) -> bool;other != 1;end\nend\ndef run(input: any) -> bool\nD.probe(C.new)\nend\n",
     "go_error": "protected method !=",
-    "static_error": {"code": "V0208", "at": [9, 40]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        9,
+        34
+      ]
+    }
   },
   {
     "name": "operator_visibility_149",
     "source": "class C\nprotected def !=(other: any);7;end\npublic\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\nclass D\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\ndef run(input: any) -> bool\nC.new != 1\nend\n",
     "go_error": "protected method !=",
-    "static_error": {"code": "V0208", "at": [12, 7]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        12,
+        1
+      ]
+    }
   },
   {
     "name": "operator_return_type_37",
@@ -126172,25 +126350,49 @@
     "name": "operator_aliases_33",
     "source": "class C\nprivate def original(*args: array<any>) -> int;args.length;end\nalias_method :\"==\", :original\nend\ndef run(input: any) -> bool\nC.new == 1\nend\n",
     "go_error": "private method ==",
-    "static_error": {"code": "V0208", "at": [6, 7]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        6,
+        1
+      ]
+    }
   },
   {
     "name": "operator_aliases_35",
     "source": "class C\nprivate def original(*args: array<any>) -> int;args.length;end\nalias :\"==\" :original\nend\ndef run(input: any) -> bool\nC.new == 1\nend\n",
     "go_error": "private method ==",
-    "static_error": {"code": "V0208", "at": [6, 7]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        6,
+        1
+      ]
+    }
   },
   {
     "name": "operator_aliases_37",
     "source": "class C\nprivate def original(*args: array<any>) -> int;args.length;end\nalias_method :\"!=\", :original\nend\ndef run(input: any) -> bool\nC.new != 1\nend\n",
     "go_error": "private method !=",
-    "static_error": {"code": "V0208", "at": [6, 7]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        6,
+        1
+      ]
+    }
   },
   {
     "name": "operator_aliases_39",
     "source": "class C\nprivate def original(*args: array<any>) -> int;args.length;end\nalias :\"!=\" :original\nend\ndef run(input: any) -> bool\nC.new != 1\nend\n",
     "go_error": "private method !=",
-    "static_error": {"code": "V0208", "at": [6, 7]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        6,
+        1
+      ]
+    }
   },
   {
     "name": "operator_aliases_41",
@@ -174498,6 +174700,868 @@
       "at": [
         8,
         3
+      ]
+    }
+  },
+  {
+    "name": "member_insert_padding",
+    "source": "def run(input: any) -> array<array<int?>>\na: array<int?> =[1];x=a.insert(3,4,5);[a,x]\nend\n"
+  },
+  {
+    "name": "member_fill_zero_growth",
+    "source": "def run(input: any) -> array<int?>\na: array<int?> =[1];a.fill(9,3,0);a\nend\n"
+  },
+  {
+    "name": "member_fill_growth",
+    "source": "def run(input: any) -> array<int?>\na: array<int?> =[1];a.fill(9,3,2);a\nend\n"
+  },
+  {
+    "name": "member_fill_reverse",
+    "source": "def run(input: any) -> array<int?>\na: array<int?> =[1];a.fill(9,3..1);a\nend\n"
+  },
+  {
+    "name": "operator_binary_48",
+    "source": "class C\ndef ==(other: nil?);[\"==\",other];end\nend\ndef run(input: any) -> array<string?> | bool\nC.new == (nil)\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_binary_49",
+    "source": "class C\ndef ==(other: bool);[\"==\",other];end\nend\ndef run(input: any) -> array<bool | string> | bool\nC.new == (false)\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_binary_50",
+    "source": "class C\ndef ==(other: int);[\"==\",other];end\nend\ndef run(input: any) -> array<int | string> | bool\nC.new == (2)\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_binary_51",
+    "source": "class C\ndef ==(other: string);[\"==\",other];end\nend\ndef run(input: any) -> array<string> | bool\nC.new == (\"value\")\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_binary_52",
+    "source": "class C\ndef ==(other: array<int>);[\"==\",other];end\nend\ndef run(input: any) -> array<array<int> | string> | bool\nC.new == ([2])\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_binary_53",
+    "source": "class C\ndef ==(other: { a: int });[\"==\",other];end\nend\ndef run(input: any) -> array<string | { a: int }> | bool\nC.new == ({a:1})\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_returns_81",
+    "source": "class C\ndef ==(other: int);false;end\nend\ndef run(input: any) -> bool\nC.new == 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_returns_82",
+    "source": "class C\ndef ==(other: int);true;end\nend\ndef run(input: any) -> bool\nC.new == 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_returns_83",
+    "source": "class C\ndef ==(other: int);0;end\nend\ndef run(input: any) -> bool | int\nC.new == 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_returns_84",
+    "source": "class C\ndef ==(other: int);1;end\nend\ndef run(input: any) -> bool | int\nC.new == 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_returns_85",
+    "source": "class C\ndef ==(other: int);\"\";end\nend\ndef run(input: any) -> bool | string\nC.new == 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_returns_86",
+    "source": "class C\ndef ==(other: int);\"value\";end\nend\ndef run(input: any) -> bool | string\nC.new == 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_returns_87",
+    "source": "class C\ndef ==(other: int);[];end\nend\ndef run(input: any) -> array<any> | bool\nC.new == 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_returns_88",
+    "source": "class C\ndef ==(other: int);[1];end\nend\ndef run(input: any) -> array<int> | bool\nC.new == 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_returns_89",
+    "source": "class C\ndef ==(other: int);{};end\nend\ndef run(input: any) -> bool | {}\nC.new == 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_signature_89",
+    "source": "class C\ndef ==(value: int);7;end\nend\ndef run(input: any) -> bool | int\nC.new == 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_signature_90",
+    "source": "class C\ndef ==(value: int =2);7;end\nend\ndef run(input: any) -> bool | int\nC.new == 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_signature_92",
+    "source": "class C\ndef ==(*values: array<int>);7;end\nend\ndef run(input: any) -> bool | int\nC.new == 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_signature_95",
+    "source": "class C\ndef ==(value: int,*rest: array<any>);7;end\nend\ndef run(input: any) -> bool | int\nC.new == 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_signature_97",
+    "source": "class C\n  @value: any\ndef ==(@value: int);7;end\nend\ndef run(input: any) -> bool | int\nC.new == 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        6,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_signature_98",
+    "source": "class C\ndef ==(value: int);7;end\nend\ndef run(input: any) -> bool | int\nC.new == 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_visibility_120",
+    "source": "class C\npublic def ==(other: int);7;end\npublic\ndef probe(other: C) -> bool | int;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\nclass D\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\ndef run(input: any) -> bool | int\nC.new.probe(C.new)\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        35
+      ]
+    }
+  },
+  {
+    "name": "operator_visibility_121",
+    "source": "class C\npublic def ==(other: int);7;end\npublic\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: C) -> bool | int;other == 1;end\nend\nclass D\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\ndef run(input: any) -> bool | int\nC.probe(C.new)\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        40
+      ]
+    }
+  },
+  {
+    "name": "operator_visibility_122",
+    "source": "class C\npublic def ==(other: int);7;end\npublic\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\nclass D\ndef probe(other: C) -> bool | int;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\ndef run(input: any) -> bool | int\nD.new.probe(C.new)\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        8,
+        35
+      ]
+    }
+  },
+  {
+    "name": "operator_visibility_123",
+    "source": "class C\npublic def ==(other: int);7;end\npublic\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\nclass D\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: C) -> bool | int;other == 1;end\nend\ndef run(input: any) -> bool | int\nD.probe(C.new)\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        9,
+        40
+      ]
+    }
+  },
+  {
+    "name": "operator_visibility_124",
+    "source": "class C\npublic def ==(other: int);7;end\npublic\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\nclass D\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\ndef run(input: any) -> bool | int\nC.new == 1\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        12,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_visibility_130",
+    "source": "class C\nprotected def ==(other: int);7;end\npublic\ndef probe(other: C) -> bool | int;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\nclass D\ndef probe(other: any) -> bool;other == 1;end\ndef self.probe(other: any) -> bool;other == 1;end\nend\ndef run(input: any) -> bool | int\nC.new.probe(C.new)\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        35
+      ]
+    }
+  },
+  {
+    "name": "operator_return_type_34",
+    "source": "class C\ndef ==(other: int) -> int?;7;end\nend\ndef run(input: any) -> bool | int\nC.new == 1\nend\n",
+    "static_error": {
+      "code": "V0107",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_binary_54",
+    "source": "class C\ndef !=(other: nil?);[\"!=\",other];end\nend\ndef run(input: any) -> array<string?> | bool\nC.new != (nil)\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_binary_55",
+    "source": "class C\ndef !=(other: bool);[\"!=\",other];end\nend\ndef run(input: any) -> array<bool | string> | bool\nC.new != (false)\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_binary_56",
+    "source": "class C\ndef !=(other: int);[\"!=\",other];end\nend\ndef run(input: any) -> array<int | string> | bool\nC.new != (2)\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_binary_57",
+    "source": "class C\ndef !=(other: string);[\"!=\",other];end\nend\ndef run(input: any) -> array<string> | bool\nC.new != (\"value\")\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_binary_58",
+    "source": "class C\ndef !=(other: array<int>);[\"!=\",other];end\nend\ndef run(input: any) -> array<array<int> | string> | bool\nC.new != ([2])\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_binary_59",
+    "source": "class C\ndef !=(other: { a: int });[\"!=\",other];end\nend\ndef run(input: any) -> array<string | { a: int }> | bool\nC.new != ({a:1})\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_returns_91",
+    "source": "class C\ndef !=(other: int);false;end\nend\ndef run(input: any) -> bool\nC.new != 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_returns_92",
+    "source": "class C\ndef !=(other: int);true;end\nend\ndef run(input: any) -> bool\nC.new != 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_returns_93",
+    "source": "class C\ndef !=(other: int);0;end\nend\ndef run(input: any) -> bool | int\nC.new != 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_returns_94",
+    "source": "class C\ndef !=(other: int);1;end\nend\ndef run(input: any) -> bool | int\nC.new != 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_returns_95",
+    "source": "class C\ndef !=(other: int);\"\";end\nend\ndef run(input: any) -> bool | string\nC.new != 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_returns_96",
+    "source": "class C\ndef !=(other: int);\"value\";end\nend\ndef run(input: any) -> bool | string\nC.new != 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_returns_97",
+    "source": "class C\ndef !=(other: int);[];end\nend\ndef run(input: any) -> array<any> | bool\nC.new != 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_returns_98",
+    "source": "class C\ndef !=(other: int);[1];end\nend\ndef run(input: any) -> array<int> | bool\nC.new != 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_returns_99",
+    "source": "class C\ndef !=(other: int);{};end\nend\ndef run(input: any) -> bool | {}\nC.new != 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_signature_100",
+    "source": "class C\ndef !=(value: int);7;end\nend\ndef run(input: any) -> bool | int\nC.new != 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_signature_101",
+    "source": "class C\ndef !=(value: int =2);7;end\nend\ndef run(input: any) -> bool | int\nC.new != 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_signature_103",
+    "source": "class C\ndef !=(*values: array<int>);7;end\nend\ndef run(input: any) -> bool | int\nC.new != 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_signature_106",
+    "source": "class C\ndef !=(value: int,*rest: array<any>);7;end\nend\ndef run(input: any) -> bool | int\nC.new != 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_signature_108",
+    "source": "class C\n  @value: any\ndef !=(@value: int);7;end\nend\ndef run(input: any) -> bool | int\nC.new != 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        6,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_signature_109",
+    "source": "class C\ndef !=(value: int);7;end\nend\ndef run(input: any) -> bool | int\nC.new != 3\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_visibility_135",
+    "source": "class C\npublic def !=(other: int);7;end\npublic\ndef probe(other: C) -> bool | int;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\nclass D\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\ndef run(input: any) -> bool | int\nC.new.probe(C.new)\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        35
+      ]
+    }
+  },
+  {
+    "name": "operator_visibility_136",
+    "source": "class C\npublic def !=(other: int);7;end\npublic\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: C) -> bool | int;other != 1;end\nend\nclass D\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\ndef run(input: any) -> bool | int\nC.probe(C.new)\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        5,
+        40
+      ]
+    }
+  },
+  {
+    "name": "operator_visibility_137",
+    "source": "class C\npublic def !=(other: int);7;end\npublic\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\nclass D\ndef probe(other: C) -> bool | int;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\ndef run(input: any) -> bool | int\nD.new.probe(C.new)\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        8,
+        35
+      ]
+    }
+  },
+  {
+    "name": "operator_visibility_138",
+    "source": "class C\npublic def !=(other: int);7;end\npublic\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\nclass D\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: C) -> bool | int;other != 1;end\nend\ndef run(input: any) -> bool | int\nD.probe(C.new)\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        9,
+        40
+      ]
+    }
+  },
+  {
+    "name": "operator_visibility_139",
+    "source": "class C\npublic def !=(other: int);7;end\npublic\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\nclass D\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\ndef run(input: any) -> bool | int\nC.new != 1\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        12,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_visibility_145",
+    "source": "class C\nprotected def !=(other: int);7;end\npublic\ndef probe(other: C) -> bool | int;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\nclass D\ndef probe(other: any) -> bool;other != 1;end\ndef self.probe(other: any) -> bool;other != 1;end\nend\ndef run(input: any) -> bool | int\nC.new.probe(C.new)\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        35
+      ]
+    }
+  },
+  {
+    "name": "operator_return_type_38",
+    "source": "class C\ndef !=(other: int) -> int?;7;end\nend\ndef run(input: any) -> bool | int\nC.new != 1\nend\n",
+    "static_error": {
+      "code": "V0107",
+      "at": [
+        5,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_visibility_165",
+    "source": "class C\npublic def <=(other: int);7;end\npublic\ndef probe(other: C) -> int?;other <= 1;end\ndef self.probe(other: C) -> int?;other <= 1;end\nend\nclass D\ndef probe(other: C) -> int?;other <= 1;end\ndef self.probe(other: C) -> int?;other <= 1;end\nend\ndef run(input: any) -> int\nC.new.probe(C.new).as(int)\nend\n"
+  },
+  {
+    "name": "operator_visibility_166",
+    "source": "class C\npublic def <=(other: int);7;end\npublic\ndef probe(other: C) -> int?;other <= 1;end\ndef self.probe(other: C) -> int?;other <= 1;end\nend\nclass D\ndef probe(other: C) -> int?;other <= 1;end\ndef self.probe(other: C) -> int?;other <= 1;end\nend\ndef run(input: any) -> int\nC.probe(C.new).as(int)\nend\n"
+  },
+  {
+    "name": "operator_visibility_167",
+    "source": "class C\npublic def <=(other: int);7;end\npublic\ndef probe(other: C) -> int?;other <= 1;end\ndef self.probe(other: C) -> int?;other <= 1;end\nend\nclass D\ndef probe(other: C) -> int?;other <= 1;end\ndef self.probe(other: C) -> int?;other <= 1;end\nend\ndef run(input: any) -> int\nD.new.probe(C.new).as(int)\nend\n"
+  },
+  {
+    "name": "operator_visibility_168",
+    "source": "class C\npublic def <=(other: int);7;end\npublic\ndef probe(other: C) -> int?;other <= 1;end\ndef self.probe(other: C) -> int?;other <= 1;end\nend\nclass D\ndef probe(other: C) -> int?;other <= 1;end\ndef self.probe(other: C) -> int?;other <= 1;end\nend\ndef run(input: any) -> int\nD.probe(C.new).as(int)\nend\n"
+  },
+  {
+    "name": "operator_visibility_195",
+    "source": "class C\npublic def >=(other: int);7;end\npublic\ndef probe(other: C) -> int?;other >= 1;end\ndef self.probe(other: C) -> int?;other >= 1;end\nend\nclass D\ndef probe(other: C) -> int?;other >= 1;end\ndef self.probe(other: C) -> int?;other >= 1;end\nend\ndef run(input: any) -> int\nC.new.probe(C.new).as(int)\nend\n"
+  },
+  {
+    "name": "operator_visibility_196",
+    "source": "class C\npublic def >=(other: int);7;end\npublic\ndef probe(other: C) -> int?;other >= 1;end\ndef self.probe(other: C) -> int?;other >= 1;end\nend\nclass D\ndef probe(other: C) -> int?;other >= 1;end\ndef self.probe(other: C) -> int?;other >= 1;end\nend\ndef run(input: any) -> int\nC.probe(C.new).as(int)\nend\n"
+  },
+  {
+    "name": "operator_visibility_197",
+    "source": "class C\npublic def >=(other: int);7;end\npublic\ndef probe(other: C) -> int?;other >= 1;end\ndef self.probe(other: C) -> int?;other >= 1;end\nend\nclass D\ndef probe(other: C) -> int?;other >= 1;end\ndef self.probe(other: C) -> int?;other >= 1;end\nend\ndef run(input: any) -> int\nD.new.probe(C.new).as(int)\nend\n"
+  },
+  {
+    "name": "operator_visibility_198",
+    "source": "class C\npublic def >=(other: int);7;end\npublic\ndef probe(other: C) -> int?;other >= 1;end\ndef self.probe(other: C) -> int?;other >= 1;end\nend\nclass D\ndef probe(other: C) -> int?;other >= 1;end\ndef self.probe(other: C) -> int?;other >= 1;end\nend\ndef run(input: any) -> int\nD.probe(C.new).as(int)\nend\n"
+  },
+  {
+    "name": "operator_inequality_2",
+    "source": "class C\ndef ==(other: int);false;end\n\nend\ndef run(input: any) -> array<bool>\n[C.new == 1,C.new != 1]\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        6,
+        2
+      ]
+    }
+  },
+  {
+    "name": "operator_inequality_3",
+    "source": "class C\ndef ==(other: int);false;end\ndef !=(value: int);\"explicit\";end\nend\ndef run(input: any) -> array<bool | string>\n[C.new == 1,C.new != 1]\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        6,
+        2
+      ]
+    }
+  },
+  {
+    "name": "operator_inequality_4",
+    "source": "class C\ndef ==(other: int);true;end\n\nend\ndef run(input: any) -> array<bool>\n[C.new == 1,C.new != 1]\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        6,
+        2
+      ]
+    }
+  },
+  {
+    "name": "operator_inequality_5",
+    "source": "class C\ndef ==(other: int);true;end\ndef !=(value: int);\"explicit\";end\nend\ndef run(input: any) -> array<bool | string>\n[C.new == 1,C.new != 1]\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        6,
+        2
+      ]
+    }
+  },
+  {
+    "name": "operator_inequality_6",
+    "source": "class C\ndef ==(other: int);0;end\n\nend\ndef run(input: any) -> array<bool | int>\n[C.new == 1,C.new != 1]\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        6,
+        2
+      ]
+    }
+  },
+  {
+    "name": "operator_inequality_7",
+    "source": "class C\ndef ==(other: int);0;end\ndef !=(value: int);\"explicit\";end\nend\ndef run(input: any) -> array<bool | int | string>\n[C.new == 1,C.new != 1]\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        6,
+        2
+      ]
+    }
+  },
+  {
+    "name": "operator_inequality_8",
+    "source": "class C\ndef ==(other: int);\"\";end\n\nend\ndef run(input: any) -> array<bool | string>\n[C.new == 1,C.new != 1]\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        6,
+        2
+      ]
+    }
+  },
+  {
+    "name": "operator_inequality_9",
+    "source": "class C\ndef ==(other: int);\"\";end\ndef !=(value: int);\"explicit\";end\nend\ndef run(input: any) -> array<bool | string>\n[C.new == 1,C.new != 1]\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        6,
+        2
+      ]
+    }
+  },
+  {
+    "name": "operator_inequality_10",
+    "source": "class C\ndef ==(other: int);\"yes\";end\n\nend\ndef run(input: any) -> array<bool | string>\n[C.new == 1,C.new != 1]\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        6,
+        2
+      ]
+    }
+  },
+  {
+    "name": "operator_inequality_11",
+    "source": "class C\ndef ==(other: int);\"yes\";end\ndef !=(value: int);\"explicit\";end\nend\ndef run(input: any) -> array<bool | string>\n[C.new == 1,C.new != 1]\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        6,
+        2
+      ]
+    }
+  },
+  {
+    "name": "operator_inequality_12",
+    "source": "class C\ndef ==(other: int);[];end\n\nend\ndef run(input: any) -> array<bool | array<any>>\n[C.new == 1,C.new != 1]\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        6,
+        2
+      ]
+    }
+  },
+  {
+    "name": "operator_inequality_13",
+    "source": "class C\ndef ==(other: int);[];end\ndef !=(value: int);\"explicit\";end\nend\ndef run(input: any) -> array<array<any> | bool | string>\n[C.new == 1,C.new != 1]\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        6,
+        2
+      ]
+    }
+  },
+  {
+    "name": "operator_inequality_14",
+    "source": "class C\ndef ==(other: int);{};end\n\nend\ndef run(input: any) -> array<bool | {}>\n[C.new == 1,C.new != 1]\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        6,
+        2
+      ]
+    }
+  },
+  {
+    "name": "operator_inequality_15",
+    "source": "class C\ndef ==(other: int);{};end\ndef !=(value: int);\"explicit\";end\nend\ndef run(input: any) -> array<bool | string | {}>\n[C.new == 1,C.new != 1]\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        6,
+        2
+      ]
+    }
+  },
+  {
+    "name": "operator_left_receiver_8",
+    "source": "class C\ndef ==(other: D);7;end\nend\nclass D\ndef ==(other: any);9;end\nend\ndef run(input: any) -> bool | int\nC.new == D.new\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        8,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_left_receiver_9",
+    "source": "class C\ndef !=(other: D);7;end\nend\nclass D\ndef !=(other: any);9;end\nend\ndef run(input: any) -> bool | int\nC.new != D.new\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        8,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_left_receiver_23",
+    "source": "class C\ndef ==(other: any);7;end\nend\nclass D\ndef ==(other: C);9;end\nend\ndef run(input: any) -> bool | int\nD.new == C.new\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        8,
+        1
+      ]
+    }
+  },
+  {
+    "name": "operator_left_receiver_24",
+    "source": "class C\ndef !=(other: any);7;end\nend\nclass D\ndef !=(other: C);9;end\nend\ndef run(input: any) -> bool | int\nD.new != C.new\nend\n",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        8,
+        1
       ]
     }
   }
