@@ -127,34 +127,17 @@ fn conversion_and_math_preserve_integer_types_and_ieee_special_values() {
 }
 
 #[test]
-fn namespace_assignments_are_visible_within_one_execution_and_reset_between_calls() {
-    let script = common::runtime_engine().compile(
-        "def read -> float\nMath.PI\nend\ndef change -> float\nMath={PI:7.0};read\nend\ndef constant -> float\nMath.PI\nend"
-    ).unwrap();
-    for _ in 0..3 {
-        assert_eq!(
-            script
-                .call("change", &[], CallOptions::default())
-                .unwrap()
-                .value
-                .as_float(),
-            Some(7.0)
-        );
-        let result = script
-            .call("constant", &[], CallOptions::default())
-            .unwrap();
-        assert_eq!(result.value.as_float(), Some(std::f64::consts::PI));
+fn namespaces_cannot_be_rebound_and_have_no_fields() {
+    // A namespace cannot be rebound, at the top level or in a function.
+    for (source, expected) in [
+        (
+            "def read -> float\nMath.PI\nend\ndef change -> float\nMath={PI:7.0};read\nend",
+            vec![("V0102", "Math=")],
+        ),
+        ("Math=7;[1].each {Math=8};Math", vec![("V0102", "Math=7")]),
+    ] {
+        assert_eq!(refused(source), at(source, &expected), "{source}");
     }
-    assert_eq!(
-        common::runtime_engine()
-            .compile("Math=7;[1].each {Math=8};Math")
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap()
-            .value
-            .as_int(),
-        Some(7)
-    );
     // A namespace is not a hash, so it has no fields to write, list, clear
     // or replace, and a local assigned on one path cannot be read.
     for (source, expected) in [
@@ -223,7 +206,7 @@ fn host_and_parameter_bindings_override_builtins_and_blocks_capture_parameters()
 #[test]
 fn namespaces_retained_by_hosts_keep_their_memory_charge_until_released() {
     let retained = Arc::new(Mutex::new(None));
-    let mut engine = common::runtime_engine();
+    let mut engine = Engine::new();
     let held = retained.clone();
     engine.register("retain", move |_, args| {
         *held.lock().unwrap() = Some(args[0].clone());
@@ -247,14 +230,14 @@ fn namespaces_retained_by_hosts_keep_their_memory_charge_until_released() {
     .unwrap();
     engine.register_method("tracked", tracked);
     let retained_result = engine
-        .compile("retain(Math);Math=0;nil")
+        .compile("retain(Math);nil")
         .unwrap()
         .run(CallOptions::default())
         .unwrap();
     assert!(retained_result.stats.retained_memory_bytes > 512);
     let original = retained.lock().unwrap().take().unwrap();
     assert_eq!(original.type_name(), "object");
-    let script = common::runtime_engine()
+    let script = Engine::new()
         .compile("def run(input: hash<string, any>) -> hash<string, any>\ninput.clear;input\nend")
         .unwrap();
     let cleared = script
@@ -267,10 +250,14 @@ fn namespaces_retained_by_hosts_keep_their_memory_charge_until_released() {
     assert_eq!(cleared.value.type_name(), "object");
     assert!(cleared.value.as_hash().unwrap().is_empty());
     assert_eq!(original.as_hash().unwrap().len(), 16);
+    // The namespace comes back as an argument, so the script can drop its
+    // own reference: a namespace cannot be rebound.
     let result = engine
-        .compile("retain(Math);Math=0;a=tracked();release();b=tracked();a-b")
+        .compile(
+            "def run(ns: any) -> int\nretain(ns);ns=nil;a=tracked();release();b=tracked();a-b\nend",
+        )
         .unwrap()
-        .run(CallOptions::default())
+        .call("run", &[original], CallOptions::default())
         .unwrap();
     assert!(result.value.as_int().unwrap() >= retained_result.stats.retained_memory_bytes as i64);
     assert_eq!(result.stats.retained_memory_bytes, 0);
