@@ -124,7 +124,7 @@ log "sent"
 
 - Every parameter declares its type. Optional parameters have defaults, `times: int = 1`.
 - Parameters after a bare `*`, or after a rest parameter `*items: array<int>`, are keywords, passed by name. `**options: hash<string, int>` collects extra keywords.
-- `-> T` declares the result, which is the last expression or an explicit `return`. A function without `->` returns `nil`, and `return value` in it is an error (V0117).
+- `-> T` declares the result, which is the last expression or an explicit `return`. A function without `->` returns `nil`: its last expression runs for its effect only, and `return value` in it is an error (V0117).
 - A call without arguments has no parentheses: `items.length`, `uuid`, `Time.now`, `log_all`.
 - `return a, b` returns a tuple when the result type is one, such as `-> [int, int]`; `q, r = divide(7, 2)` destructures it.
 - Functions are not values. They cannot be stored, passed or returned; pass a block instead, or choose between calls with `if` or `case`. Functions are not generic either: a helper that must accept several types takes `any` or a union and narrows.

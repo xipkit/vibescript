@@ -147,7 +147,8 @@ impl Engine {
     }
     /// Creates an engine that compiles the ADR-004 language: without static
     /// types, accepting the removed spellings of ADR-008, and with that
-    /// language's runtime rules, under which `/` floors two integers.
+    /// language's runtime rules, under which `/` floors two integers and a
+    /// function returns its last expression whatever its signature.
     ///
     /// This exists only so that `vibes migrate` can compile, run and observe
     /// scripts written before static types became the language (ADR-007).

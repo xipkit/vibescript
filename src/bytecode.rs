@@ -417,6 +417,10 @@ pub(crate) struct Function {
     pub block_arity: usize,
     pub local_names: Vec<String>,
     pub return_type: Option<usize>,
+    /// Whether the function returns `nil` when its body finishes, having
+    /// evaluated the last expression for effect: a function the static
+    /// language compiles without `-> T` (ADR-007).
+    pub returns_nil: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -429,7 +433,7 @@ pub(crate) struct Program {
     pub file: bool,
     /// Whether the program is in the ADR-004 language, compiled by an
     /// engine from [`crate::Engine::legacy_unchecked`]: `/` floors two
-    /// integers.
+    /// integers and every function returns its last expression.
     pub legacy: bool,
     pub owner: std::sync::Weak<crate::code::Code>,
     pub handlers: Vec<errors::TrySpec>,
@@ -620,6 +624,7 @@ pub(crate) fn compile_parsed(
             .map(|ty| c.annotation(ty))
             .transpose()?;
         debug_assert_eq!(c.code.len(), c.locations.len());
+        let def_accessor = def.accessor.as_ref().map(|(_, setter)| *setter);
         let function = Function {
             offset: def.offset,
             private: def.private,
@@ -640,6 +645,13 @@ pub(crate) fn compile_parsed(
             code: c.code,
             captures: Vec::new(),
             block_arity: 0,
+            // The top level, a namespace body and an accessor keep their
+            // value; a getter returns it explicitly anyway.
+            returns_nil: !legacy
+                && index != 0
+                && return_type.is_none()
+                && def_accessor.is_none()
+                && !contexts[index].1,
             return_type,
         };
         program.functions[index] = function;

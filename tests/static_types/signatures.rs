@@ -36,6 +36,22 @@ fn a_function_without_a_result_type_returns_nil() {
 }
 
 #[test]
+fn a_call_of_a_function_without_a_result_type_gives_nil() {
+    let source = "def log(message: string)\n  message.upcase\nend\n\
+                  class Box\n  def poke(n: int)\n    n + 1\n  end\nend\n\
+                  def poked -> any\n  Box.new.poke(1)\nend\n";
+    let script = vibescript::Engine::new().compile(source).unwrap();
+    let options = vibescript::CallOptions::default;
+    let logged = script.call("log", &[vibescript::Value::bytes("a")], options());
+    assert_eq!(logged.unwrap().value.type_name(), "nil");
+    let poked = script.call("poked", &[], options()).unwrap();
+    assert_eq!(poked.value.type_name(), "nil");
+    // The top-level statements still give their last value.
+    let top = vibescript::Engine::new().compile("x = 2\nx + 1\n").unwrap();
+    assert_eq!(top.run(options()).unwrap().value.as_int(), Some(3));
+}
+
+#[test]
 fn the_body_must_produce_the_declared_result() {
     error(
         "def name(id: int) -> string\n  id\nend\n",

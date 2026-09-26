@@ -581,7 +581,10 @@ impl Run {
                 }
                 Op::Return | Op::Finish => {
                     ctx.charge(1)?;
-                    let value = stack.data.pop().unwrap();
+                    let mut value = stack.data.pop().unwrap();
+                    if function.returns_nil && matches!(op, Op::Finish) {
+                        value = Value::nil();
+                    }
                     crate::exports::check(ctx, &value)?;
                     let target = if matches!(op, Op::Return)
                         && frame.parent.is_some()

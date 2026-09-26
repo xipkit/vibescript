@@ -387,7 +387,13 @@ pub(crate) fn before(
                 let site = Site::Return {
                     function: &home.name,
                 };
-                emit(ctx, source, home.offset as usize, site, last(1));
+                let nil = [Value::nil()];
+                let value = if home.returns_nil && matches!(op, Op::Finish) {
+                    &nil[..]
+                } else {
+                    last(1)
+                };
+                emit(ctx, source, home.offset as usize, site, value);
             }
         }
         _ => (),
