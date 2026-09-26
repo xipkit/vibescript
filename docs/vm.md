@@ -16,7 +16,7 @@ A function whose parameters are all required and positional has a *proven start*
 
 The runtime keeps a check where it does more than the checker proves (`Type::unproven`):
 
-- **Host entry.** Arguments to `Script::call`, declared globals and capabilities, `JSON.parse_as`, `as` casts and capability results are dynamic data. The entry call runs its function's prologue, which checks every argument.
+- **Host entry.** Arguments to `Script::call`, declared globals and capabilities, `JSON.parse_as`, `as` casts and capability results are dynamic data. The entry call checks every argument against its parameter's type. When the function has a proven start, it binds the host's arguments directly and checks each as its prologue's `Bind` instruction would, reporting a mismatch at the same place; otherwise it runs the prologue.
 - **Named types.** A type that names a class or enum resolves at runtime, and an enum parameter turns a symbol literal into its member, so the check is a conversion.
 - **Hash key types.** The checker admits a hash type whose key type no string satisfies, such as `hash<int, any>`, which only the runtime rejects.
 - **Instance method results.** A class property that no path assigns reads as `nil` whatever its declared type; the checker does not report it. The result check of instance methods and accessors keeps turning that `nil` into a type error where it surfaces.
@@ -33,9 +33,13 @@ The checker records the static base type of each member call's receiver when it 
 
 Receivers typed `any` or a union keep the dynamic path, and so do calls of script methods: their resolution by name also enforces visibility and nominal receivers, and it is not yet a measured cost.
 
-## Blocks
+## Calls and blocks
+
+Calls pass their arguments without temporary lists wherever the callee binds them directly: a call to a script function (`Op::Call`), a call with a block and plain arguments (`Op::CallBlock`), and a method call on an instance or namespace all enter from the operand stack. Only a callee with defaults, keywords or a rest parameter, or a call with a splat or keywords, builds an argument list.
 
 A block's arguments stay on the operand stack, below its own values, instead of in a list the block's frame owned; `BlockArg` reads them there. The simple loop runs block prologues (`Shadow`, `BlockArg`) and follows captured locals out to the frame that binds them, charging each frame it passes as the general path does. Frames are 32 bytes smaller as a result.
+
+Instance and class variable writes copy the variable's name into a field key only when the variable is new.
 
 ## Records
 
@@ -48,6 +52,10 @@ Field positions are not fixed at compile time. Shape types are structural and or
 
 `records::Fields` is the hook for building records outside the VM. `JSON.parse_as(raw, shape)` can import the shape's field names once per parse and key every object it builds with them, instead of copying each key of each object; that follow-up belongs to the JSON implementation.
 
+## Fixed memory
+
+A call's fixed memory was mostly the VM's control stacks, since a buffer's first growth reserves eight elements: 2,496 bytes of frames, 1,664 of pending argument lists and 4,352 for a first iteration. A buffer of elements over 128 bytes now starts at four, which covers almost every call; a trivial call peaks at about 1,700 bytes instead of 3,000.
+
 ## Typed arithmetic
 
 The simple loop already applies arithmetic and comparisons to two compact integers or two floats inline, checking their tags, and falls back to the general operator for big integers, instances and other operands; integer overflow promotes to a big integer there. Measurement found no cost left to remove: carrying the operator as an enum instead of its spelling made the numeric loops 5 to 10 percent slower on an Apple M4, and the tag checks cost less than the dispatch around them. Inlining the operand stack's push in the simple loop made them 6 to 15 percent faster.
@@ -56,8 +64,8 @@ The simple loop already applies arithmetic and comparisons to two compact intege
 
 Steps and tracked bytes stay exact and deterministic, and the portable and SIMD builds report the same counters. Limits, cancellation and latched exhaustion behave as before. Counters change only in these ways:
 
-- Removed checks no longer charge their work, and removed instructions (argument lists, prologue checks, receiver preparation of non-hash receivers) no longer charge their steps.
-- Frames are smaller and direct calls build no argument list, so peak bytes drop.
+- Removed checks no longer charge their work, and removed instructions (argument lists, prologue checks, receiver preparation of non-hash receivers) and copies (field names) no longer charge their steps.
+- Frames are smaller, control stacks start at four elements and calls build fewer argument lists, so peak bytes drop.
 - Shared literals lower peak and retained bytes wherever a literal is evaluated more than once, and add 16 bytes per distinct literal.
 
 The golden README's counter log records each re-recording.
