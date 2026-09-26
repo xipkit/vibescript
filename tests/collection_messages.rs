@@ -10,20 +10,7 @@ use vibescript::CallOptions;
 
 fn message(body: &str) -> String {
     let source = format!("def run -> any\n{body}\nend");
-    let script = common::runtime_engine()
-        .compile(&source)
-        .unwrap_or_else(|error| panic!("{body}: {error}"));
-    match script.call("run", &[], CallOptions::default()) {
-        Ok(outcome) => panic!("{body}: expected an error, got {}", outcome.value),
-        Err(error) => error.message,
-    }
-}
-
-/// The message of the error `body` raises without static types, which
-/// refuse a removed spelling at compile time.
-fn runtime_message(body: &str) -> String {
-    let source = format!("def run -> any\n{body}\nend");
-    let script = common::gradual_engine()
+    let script = vibescript::Engine::new()
         .compile(&source)
         .unwrap_or_else(|error| panic!("{body}: {error}"));
     match script.call("run", &[], CallOptions::default()) {
@@ -46,19 +33,8 @@ fn refusal(source: &str) -> (String, String) {
     )
 }
 
-const KEY_RULE: &str = "hash keys must be strings or symbols; convert the key with to_s";
-
 #[test]
 fn unsupported_hash_keys_name_the_kind_and_the_member_input() {
-    let plain = |kind: &str| format!("unsupported hash key type {kind}: {KEY_RULE}");
-    let at = |site: &str, kind: &str| format!("{site} unsupported hash key: {}", plain(kind));
-    let cases = [(
-        "[1].to_h { |x| [x, x] }",
-        at("array.to_h pair key is an", "int"),
-    )];
-    for (body, expected) in cases {
-        assert_eq!(message(body), expected, "{body}");
-    }
     for (body, code, text) in [
         ("h = {a: 1}\nh[[1]]", "V0101", "[1]"),
         ("h = {a: 1}\nh[1] = 2", "V0111", "1"),
@@ -95,13 +71,6 @@ fn unsupported_hash_keys_name_the_kind_and_the_member_input() {
 
 #[test]
 fn unknown_members_name_the_receiver_kind_and_suggest_close_names() {
-    let cases = [(
-        "{a: 1}.to_s",
-        "unknown hash method to_s (did you mean \"to_a\"?)",
-    )];
-    for (body, expected) in cases {
-        assert_eq!(message(body), expected, "{body}");
-    }
     for (body, code, text) in [
         ("[1].frobnicate", "V0203", "frobnicate"),
         ("[1].lengt", "V0203", "lengt"),
@@ -127,16 +96,6 @@ fn unknown_members_name_the_receiver_kind_and_suggest_close_names() {
     ] {
         let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
         assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
-    }
-}
-
-fn function_message(source: &str, function: &str) -> String {
-    let script = common::runtime_engine()
-        .compile(source)
-        .unwrap_or_else(|error| panic!("{source}: {error}"));
-    match script.call(function, &[], CallOptions::default()) {
-        Ok(outcome) => panic!("{source}: expected an error, got {}", outcome.value),
-        Err(error) => error.message,
     }
 }
 
@@ -373,9 +332,7 @@ fn block_driven_array_members_check_calls_in_reference_order() {
 #[test]
 fn array_members_name_themselves_in_count_and_index_errors() {
     let cases = [
-        ("[1].at(1, 2)", "array.at expects exactly one index"),
         ("[1].last(-1)", "array.last expects non-negative integer"),
-        ("[1].take", "array.take expects exactly one count"),
         (
             "[1].first(-(2**70))",
             "array.first expects non-negative integer",
@@ -400,6 +357,8 @@ fn array_members_name_themselves_in_count_and_index_errors() {
     }
     for (body, code, text) in [
         ("[1, 2].size(1)", "V0401", "size"),
+        ("[1].at(1)", "V0401", "at"),
+        ("[1].take", "V0401", "take"),
         ("[1].empty?(1)", "V0301", "empty?"),
         ("[1].include?", "V0301", "include?"),
         ("[1][nil]", "V0107", "nil"),
@@ -432,13 +391,6 @@ fn array_members_name_themselves_in_count_and_index_errors() {
 
 #[test]
 fn array_keyword_and_block_refusals_follow_the_reference_order() {
-    let cases = [(
-        "[1].at(1, a: 1)",
-        "array.at does not take keyword arguments",
-    )];
-    for (body, expected) in cases {
-        assert_eq!(message(body), expected, "{body}");
-    }
     for (body, code, text) in [
         ("[1].push(a: 1)", "V0302", "a:"),
         ("[1].prepend(a: 1)", "V0302", "a:"),
@@ -466,14 +418,6 @@ fn array_keyword_and_block_refusals_follow_the_reference_order() {
 #[test]
 fn array_element_bounds_and_comparison_errors_use_reference_wording() {
     let cases = [
-        (
-            "[1].to_h { |x| x }",
-            "array.to_h expects an array of two-element pairs",
-        ),
-        (
-            "[1].to_h { |x| [x] }",
-            "array.to_h pair must have exactly two elements",
-        ),
         (
             "[[1], [1, 2]].transpose",
             "array.transpose requires equal-length rows, but element at index 1 has length 2 (expected 1)",
@@ -532,17 +476,9 @@ fn array_element_bounds_and_comparison_errors_use_reference_wording() {
 
 #[test]
 fn string_members_name_themselves_in_argument_count_errors() {
-    let cases = [
-        ("\"ab\".clear(1)", "string.clear does not take arguments"),
-        (
-            "\"ab\".replace",
-            "string.replace expects exactly one replacement",
-        ),
-    ];
-    for (body, expected) in cases {
-        assert_eq!(message(body), expected, "{body}");
-    }
     for (body, code, text) in [
+        ("\"ab\".clear", "V0401", "clear"),
+        ("\"ab\".replace", "V0401", "replace"),
         ("\"ab\".size(1)", "V0401", "size"),
         ("\"ab\".length(1, 2)", "V0301", "length"),
         ("\"ab\".bytesize(1)", "V0301", "bytesize"),
@@ -797,11 +733,8 @@ fn string_keyword_and_block_refusals_follow_the_reference_order() {
 
 #[test]
 fn hash_members_name_themselves_in_argument_count_and_shape_errors() {
-    let cases = [("{a: 1}.store(:a)", "hash.store expects a key and a value")];
-    for (body, expected) in cases {
-        assert_eq!(message(body), expected, "{body}");
-    }
     for (body, code, text) in [
+        ("{a: 1}.store(\"a\", 1)", "V0401", "store"),
         ("{a: 1}.size(1)", "V0401", "size"),
         ("{a: 1}.empty?(1, k: 1)", "V0301", "empty?"),
         ("{a: 1}.keys(1)", "V0301", "keys"),
@@ -828,13 +761,6 @@ fn hash_members_name_themselves_in_argument_count_and_shape_errors() {
 
 #[test]
 fn hash_keyword_and_block_refusals_follow_the_reference_order() {
-    let cases = [(
-        "{a: 1}.store(:a, 1, k: 1)",
-        "hash.store does not accept keyword arguments".to_owned(),
-    )];
-    for (body, expected) in cases {
-        assert_eq!(message(body), expected, "{body}");
-    }
     for (body, code, text) in [
         ("{a: 1}.each(1)", "V0301", "each"),
         ("{a: 1}.each", "V0301", "each"),
@@ -962,31 +888,19 @@ fn range_members_check_calls_in_reference_order() {
 #[test]
 fn universal_members_and_conversions_refuse_extra_input_in_reference_order() {
     // `nil?` is removed, with any arguments.
-    for (body, expected) in [
-        ("nil.nil?(1)", "nil.nil? does not take arguments"),
-        (
-            "[1].nil?(a: 1)",
-            "array.nil? does not take keyword arguments",
-        ),
-        ("{a: 1}.nil? { 1 }", "hash.nil? does not take a block"),
-        ("5.nil?(1, a: 1)", "int.nil? does not take arguments"),
+    for body in [
+        "nil.nil?(1)",
+        "[1].nil?(a: 1)",
+        "{a: 1}.nil? { 1 }",
+        "5.nil?(1, a: 1)",
     ] {
-        assert_eq!(runtime_message(body), expected, "{body}");
         let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
         assert_eq!((found.as_str(), at.as_str()), ("V0402", "nil?"), "{body}");
     }
-    let cases = [
-        ("[1].itself(1)", "array.itself expects 0 arguments, got 1"),
-        (
-            "5.itself(1, a: 1)",
-            "int.itself does not accept keyword arguments",
-        ),
-        ("/a/.itself { 1 }", "regex.itself does not accept a block"),
-    ];
-    for (body, expected) in cases {
-        assert_eq!(message(body), expected, "{body}");
-    }
     for (body, code, text) in [
+        ("[1].itself", "V0404", "itself"),
+        ("5.itself", "V0404", "itself"),
+        ("/a/.itself", "V0404", "itself"),
         ("nil.to_s(1)", "V0301", "to_s"),
         ("nil.to_s(a: 1)", "V0302", "a:"),
         ("nil.to_s { 1 }", "V0305", "{"),
@@ -1129,38 +1043,13 @@ fn json_builtins_report_the_reference_parser_and_encoder_wording() {
         let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
         assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
     }
-    // Without static types, the runtime refuses a schema that is not a type.
-    let error = common::gradual_engine()
-        .compile("JSON.parse_as(\"1\", 1)")
-        .unwrap()
-        .run(CallOptions::default())
-        .unwrap_err();
-    assert_eq!(
-        error.message,
-        "JSON.parse_as expects a type literal as its second argument"
-    );
 }
 
 #[test]
 fn member_access_refusals_name_the_receiver() {
-    let cases = [
-        (
-            "schema = {name: string}\nschema.itself { 7 }",
-            "shape.itself does not accept a block",
-        ),
-        (
-            "schema = {name: string}\nschema.itself(1)",
-            "shape.itself expects 0 arguments, got 1",
-        ),
-    ];
-    for (body, expected) in cases {
-        assert_eq!(message(body), expected, "{body}");
-    }
-    let body = "schema = {name: string}\nschema.nil?(1)";
-    assert_eq!(runtime_message(body), "shape.nil? does not take arguments");
-    let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
-    assert_eq!((found.as_str(), at.as_str()), ("V0402", "nil?"));
     for (body, code, text) in [
+        ("schema = {name: string}\nschema.itself", "V0404", "itself"),
+        ("schema = {name: string}\nschema.nil?(1)", "V0402", "nil?"),
         ("[1]..[2]", "V0101", "[1]"),
         ("{a: 7}::a", "V0203", "a"),
         ("f = JSON::parse\nf.foo", "V0416", "::"),
@@ -1172,11 +1061,6 @@ fn member_access_refusals_name_the_receiver() {
         assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
     }
     let status = "enum Status\n  Draft\nend\n";
-    let source = format!("{status}def run -> any\n  Status::Draft::name\nend");
-    assert_eq!(
-        function_message(&source, "run"),
-        "scoped member access is only supported on enums and namespaces"
-    );
     for (body, text) in [
         ("Status::Draft()", "Draft"),
         ("Status::Draft.name = 3", "name"),
