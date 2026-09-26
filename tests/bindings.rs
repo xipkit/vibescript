@@ -359,11 +359,17 @@ fn retained_classes_keep_the_types_of_their_original_dependencies() {
         let retained = vibescript::Capability::from_value("C", bindings["C"].clone());
         let mut engine = Engine::new();
         engine.declare_capability(&retained).unwrap();
+        let mut capabilities = vec![retained];
+        if let Some(dependency) = bindings.get("D") {
+            let dependency = vibescript::Capability::from_value("D", dependency.clone());
+            engine.declare_capability(&dependency).unwrap();
+            capabilities.push(dependency);
+        }
         engine
             .compile(&source)
             .unwrap()
             .run(CallOptions {
-                capabilities: vec![retained],
+                capabilities,
                 ..CallOptions::default()
             })
             .unwrap();
@@ -373,4 +379,30 @@ fn retained_classes_keep_the_types_of_their_original_dependencies() {
             .unwrap();
         assert_eq!(error.diagnostics()[0].code.to_string(), "V0101");
     }
+}
+
+#[test]
+fn retained_classes_require_their_referenced_types_to_be_bound_too() {
+    let source = "class D; end; class C; @d: D; def initialize(@d: D); end; end;";
+    let (_, bindings) = Engine::new()
+        .compile(source)
+        .unwrap()
+        .run_bindings(CallOptions::default())
+        .unwrap();
+    let retained = vibescript::Capability::from_value("C", bindings["C"].clone());
+    let dependency = vibescript::Capability::from_value("D", bindings["D"].clone());
+    let mut engine = Engine::new();
+    engine.declare_capability(&retained).unwrap();
+    let source = format!("{source} C.new(D.new)");
+    let error = engine.compile(&source).err().unwrap();
+    assert_eq!(error.diagnostics()[0].code.to_string(), "V0101");
+    engine.declare_capability(&dependency).unwrap();
+    engine
+        .compile(&source)
+        .unwrap()
+        .run(CallOptions {
+            capabilities: vec![retained, dependency],
+            ..CallOptions::default()
+        })
+        .unwrap();
 }

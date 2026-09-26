@@ -507,7 +507,8 @@ identity at call entry, and requires the carried source to keep the namespace's
 original declaration environment or enum's members. For a namespace this
 conservatively includes the declarations and root type aliases its source
 references, transitively, since its methods still resolve that code's
-dependencies. Changing a dependency requires replacing the retained namespace
-too. This lets a REPL
+dependencies. Referenced classes, modules and enums must also be declared as
+retained bindings so both scripts resolve the same supplied type. Changing a
+dependency requires replacing the retained namespace too. This lets a REPL
 retain typed values without allowing undeclared globals to replace compiled
 declarations.

@@ -118,6 +118,12 @@ impl<'a> Checker<'a> {
                 )
             })
             .collect();
+        let nominal: std::collections::HashSet<_> = parsed
+            .outline
+            .iter()
+            .filter(|declaration| declaration.kind != crate::DeclarationKind::Function)
+            .map(|declaration| declaration.name.as_str())
+            .collect();
         let mut aliases = std::collections::HashMap::new();
         for (scope, alias) in &parsed.additions.aliases {
             if scope.is_none() {
@@ -141,9 +147,15 @@ impl<'a> Checker<'a> {
                                 aliases.get(name.as_str()) == Some(ty)
                             }) && retained.declarations.iter().all(|(name, source)| {
                                 self.steps += source.len() as u64;
-                                carried
-                                    .get(name.as_str())
-                                    .is_some_and(|&found| found == source)
+                                let bound = !nominal.contains(name.as_str())
+                                    || declared
+                                        .get(name)
+                                        .and_then(crate::declared::Declaration::retained)
+                                        .is_some();
+                                bound
+                                    && carried
+                                        .get(name.as_str())
+                                        .is_some_and(|&found| found == source)
                             })
                         })
                 }
