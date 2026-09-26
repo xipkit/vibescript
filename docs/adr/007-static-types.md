@@ -405,6 +405,11 @@ a namespace that depends on those statements therefore requires execution of
 the script's top level first. Required files keep their top-level bindings in
 the file environment, visible to their functions.
 
+A namespace block can read ambient top-level locals, but an assignment to one
+creates a block-local binding rather than capturing the top-level slot. A
+compound assignment therefore needs an earlier assignment in that block. Copy
+the value to a namespace-local name before the block when mutation must persist.
+
 Capitalized assignments in namespace methods use shared namespace storage,
 while ordinary function and top-level bindings have different lifetimes. The
 static language rejects capitalized assignments inside functions; use lowercase

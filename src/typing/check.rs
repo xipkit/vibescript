@@ -89,6 +89,7 @@ pub(crate) struct Frame {
     pub initialize: Vec<(String, LocalId)>,
     pub locals: Vec<Local>,
     pub names: HashMap<String, LocalId>,
+    pub ambient: Vec<LocalId>,
     /// Names each open block scope shadowed, to restore when it closes.
     pub scopes: Vec<Vec<(String, Option<LocalId>)>>,
     pub flow: Flow,
@@ -111,6 +112,7 @@ impl Frame {
             initialize: Vec::new(),
             locals: Vec::new(),
             names: HashMap::new(),
+            ambient: Vec::new(),
             scopes: Vec::new(),
             flow: Flow::new(),
             contexts: Vec::new(),
@@ -207,6 +209,7 @@ impl<'a> Checker<'a> {
         for (name, declared, offset, state) in &ambient {
             let id = self.declare(name, *declared, *offset, true);
             self.frame.flow.set(id, *state);
+            self.frame.ambient.push(id);
         }
         self.stmts(&module.body, Want::Discard);
         let changes: Vec<_> = ambient

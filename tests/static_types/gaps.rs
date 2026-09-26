@@ -12,6 +12,24 @@ fn optional_defaults_do_not_definitely_assign_body_locals() {
 }
 
 #[test]
+fn namespace_blocks_do_not_capture_assigned_ambient_locals() {
+    clean("x=1;module M;y=x;[2].each { y+=1 };C=y;end;[x,M.C]\n");
+    clean("x=1;module M;[2].each { x=2 };C=x;end;[x,M.C]\n");
+    codes(
+        "x=1;module M;[2].each { x+=1 };C=x;end;[x,M.C]\n",
+        &["V0202"],
+    );
+    let mut engine = vibescript::Engine::new();
+    engine.set_static_types(true);
+    let result = engine
+        .compile("x=1;module M;[2].each { x=2 };C=x;end;[x,M.C]\n")
+        .unwrap()
+        .run(vibescript::CallOptions::default())
+        .unwrap();
+    assert_eq!(result.value.to_string(), "[1, 1]");
+}
+
+#[test]
 fn removed_names_keep_their_diagnostic_and_fix_with_invalid_arguments() {
     clean("1.seconds.to_s\n[1].length\n");
     for source in [
