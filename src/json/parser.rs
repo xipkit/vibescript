@@ -469,9 +469,10 @@ impl<'a> Parser<'a> {
                         .fold(0usize, |hash, &b| hash.wrapping_mul(33) ^ usize::from(b))
                         & 31;
                     let slot = slot * 2;
-                    let keys = self
-                        .keys
-                        .get_or_insert_with(|| std::array::from_fn(|_| Value::nil()));
+                    if self.keys.is_none() {
+                        self.keys = Some([const { Value::nil() }; 64]);
+                    }
+                    let keys = self.keys.as_mut().unwrap();
                     let hit = if keys[slot].as_bytes() == Some(bytes) {
                         Some(slot)
                     } else if keys[slot + 1].as_bytes() == Some(bytes) {
