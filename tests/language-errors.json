@@ -211,8 +211,7 @@
   {
     "name": "address_nested_missing_receiver",
     "source": "def run(input: any)\na: hash<string, array<int>> ={}\na[\"missing\"][0]=2\nend\n",
-    "go_error": "cannot index nil",
-    "static_error": {"code": "V0107", "at": [3, 1]}
+    "go_error": "cannot index nil"
   },
   {
     "name": "address_index_slice_write",
@@ -10857,7 +10856,7 @@
     "name": "builtins_lookup_112",
     "source": "def run(input: any) -> array<int>\n[1].each {to_int=Math::sqrt;[1].each {to_int=7};to_int(9)}\nend\n",
     "go_error": "attempted to call non-callable value",
-    "static_error": {"code": "V0301", "at": [2, 24]}
+    "static_error": {"code": "V0416", "at": [2, 22]}
   },
   {
     "name": "builtins_lookup_114",
@@ -11811,13 +11810,13 @@
     "name": "builtins_namespace_711",
     "source": "def value_to_encode(input: any) -> any\nMath::sqrt\nend\ndef run(input: nil?) -> string\nJSON.stringify(value_to_encode(input))\nend\n",
     "go_error": "JSON.stringify unsupported value type builtin",
-    "static_error": {"code": "V0301", "at": [2, 7]}
+    "static_error": {"code": "V0416", "at": [2, 5]}
   },
   {
     "name": "builtins_namespace_714",
     "source": "def run(input: any) -> float\nMath::sqrt {9}\nend\n",
     "go_error": "Math.sqrt does not accept a block",
-    "static_error": {"code": "V0301", "at": [2, 7]}
+    "static_error": {"code": "V0416", "at": [2, 5]}
   },
   {
     "name": "builtins_namespace_715",
@@ -11834,7 +11833,7 @@
     "name": "builtins_namespace_721",
     "source": "def run(input: any) -> any\nMath::size\nend\n",
     "go_error": "unknown member size",
-    "static_error": {"code": "V0203", "at": [2, 7]}
+    "static_error": {"code": "V0416", "at": [2, 5]}
   },
   {
     "name": "builtins_namespace_726",
@@ -11951,25 +11950,25 @@
     "name": "builtins_signature_767",
     "source": "def run(input: any) -> float\nMath::sqrt()\nend\n",
     "go_error": "Math.sqrt expects 1 argument, got 0",
-    "static_error": {"code": "V0301", "at": [2, 7]}
+    "static_error": {"code": "V0416", "at": [2, 5]}
   },
   {
     "name": "builtins_signature_769",
     "source": "def run(input: any) -> float\nMath::sqrt(9,3,4)\nend\n",
     "go_error": "Math.sqrt expects 1 argument, got 3",
-    "static_error": {"code": "V0301", "at": [2, 7]}
+    "static_error": {"code": "V0416", "at": [2, 5]}
   },
   {
     "name": "builtins_signature_770",
     "source": "def run(input: any) -> float\nMath::sqrt(9,flag:1)\nend\n",
     "go_error": "Math.sqrt does not accept keyword arguments",
-    "static_error": {"code": "V0302", "at": [2, 14]}
+    "static_error": {"code": "V0416", "at": [2, 5]}
   },
   {
     "name": "builtins_signature_771",
     "source": "def run(input: any) -> float\nMath::sqrt(9) { 7 }\nend\n",
     "go_error": "Math.sqrt does not accept a block",
-    "static_error": {"code": "V0305", "at": [2, 15]}
+    "static_error": {"code": "V0416", "at": [2, 5]}
   },
   {
     "name": "builtins_signature_774",
@@ -25417,7 +25416,7 @@
     "name": "time_descriptor_5",
     "source": "def run(input: any) -> string\nf=Time::utc;f.to_s\nend\n",
     "go_error": "a method has no member to_s; call Time.utc(...) directly",
-    "static_error": {"code": "V0301", "at": [2, 9]}
+    "static_error": {"code": "V0416", "at": [2, 7]}
   },
   {
     "name": "time_construct_error_26",
@@ -25510,7 +25509,7 @@
     "name": "time_descriptor_11",
     "source": "def run(input: any) -> string\nf=Time::local;f.to_s\nend\n",
     "go_error": "a method has no member to_s; call Time.local(...) directly",
-    "static_error": {"code": "V0301", "at": [2, 9]}
+    "static_error": {"code": "V0416", "at": [2, 7]}
   },
   {
     "name": "time_construct_error_46",
@@ -88881,7 +88880,7 @@
     "name": "rendering_inspect_kinds_96",
     "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input: any) -> any\n(JSON::parse).inspect.bytes\nend\n",
     "go_error": "a method has no member inspect; call JSON.parse(...) directly",
-    "static_error": {"code": "V0301", "at": [7, 8]}
+    "static_error": {"code": "V0416", "at": [7, 6]}
   },
   {
     "name": "rendering_inspect_arguments_0",
@@ -89245,7 +89244,7 @@
     "name": "rendering_template_scalar_32",
     "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input: any) -> string\n\"{{value}}/{{value}}\".template({value: JSON::parse})\nend\n",
     "go_error": "string.template placeholder value value must be scalar",
-    "static_error": {"code": "V0301", "at": [7, 46]}
+    "static_error": {"code": "V0416", "at": [7, 44]}
   },
   {
     "name": "rendering_template_arguments_0",
@@ -103093,37 +103092,37 @@
     "name": "regex_match_scoped_2",
     "source": "def run(input: any) -> any\nRegex::enum\nend\n",
     "go_error": "unknown member enum",
-    "static_error": {"code": "V0203", "at": [2, 8]}
+    "static_error": {"code": "V0416", "at": [2, 6]}
   },
   {
     "name": "regex_match_scoped_16",
     "source": "def run(input: any) -> any\nRegex::public\nend\n",
     "go_error": "unknown member public",
-    "static_error": {"code": "V0203", "at": [2, 8]}
+    "static_error": {"code": "V0416", "at": [2, 6]}
   },
   {
     "name": "regex_match_scoped_17",
     "source": "def run(input: any) -> any\nRegex::attr_reader\nend\n",
     "go_error": "unknown member attr_reader",
-    "static_error": {"code": "V0203", "at": [2, 8]}
+    "static_error": {"code": "V0416", "at": [2, 6]}
   },
   {
     "name": "regex_match_scoped_21",
     "source": "def run(input: any) -> any\nRegex::and\nend\n",
     "go_error": "unknown member and",
-    "static_error": {"code": "V0203", "at": [2, 8]}
+    "static_error": {"code": "V0416", "at": [2, 6]}
   },
   {
     "name": "regex_match_scoped_22",
     "source": "def run(input: any) -> any\nRegex::or\nend\n",
     "go_error": "unknown member or",
-    "static_error": {"code": "V0203", "at": [2, 8]}
+    "static_error": {"code": "V0416", "at": [2, 6]}
   },
   {
     "name": "regex_match_scoped_23",
     "source": "def run(input: any) -> any\nRegex::not\nend\n",
     "go_error": "unknown member not",
-    "static_error": {"code": "V0203", "at": [2, 8]}
+    "static_error": {"code": "V0416", "at": [2, 6]}
   },
   {
     "name": "substitute_template_8",
@@ -118044,7 +118043,7 @@
     "name": "module_surface_10",
     "source": "module M\n A=[0]\n C=2\n @@x: int=1\n def self.f(x: int =3) -> int\n x+C\n end\nend\ndef run(input: any) -> any\nM::C(1)\nend\n",
     "go_error": "attempted to call non-callable value",
-    "static_error": {"code": "V0203", "at": [10, 4]}
+    "static_error": {"code": "V0416", "at": [10, 2]}
   },
   {
     "name": "module_surface_11",
@@ -123685,7 +123684,7 @@
     "name": "operator_shovel_nonarray_4",
     "source": "\ndef run(input: any) -> any\n{push: Math::sqrt} << 4\nend\n",
     "go_error": "unsupported shovel operands",
-    "static_error": {"code": "V0301", "at": [3, 14]}
+    "static_error": {"code": "V0416", "at": [3, 12]}
   },
   {
     "name": "operator_shovel_nonarray_5",
@@ -124595,7 +124594,7 @@
     "name": "safe_chains_8",
     "source": "\ndef run(input: any) -> any\nnil&.missing::x\nend\n",
     "go_error": "scoped member access is only supported on enums and namespaces",
-    "static_error": {"code": "V0203", "at": [3, 15]}
+    "static_error": {"code": "V0416", "at": [3, 13]}
   },
   {
     "name": "safe_chains_9",
@@ -126301,7 +126300,7 @@
     "stderr": true,
     "source": "\ndef run(input: any) -> bool\nputs::call(\"x\")\ntrue\nend\n",
     "go_error": "puts is a method and cannot be used as a value; call it with puts(...)",
-    "static_error": {"code": "V0203", "at": [3, 7]}
+    "static_error": {"code": "V0416", "at": [3, 5]}
   },
   {
     "name": "output_puts_alias_uncaught",
@@ -126317,7 +126316,7 @@
     "stderr": true,
     "source": "\ndef run(input: any) -> bool\na=puts::call\na(\"x\")\ntrue\nend\n",
     "go_error": "puts is a method and cannot be used as a value; call it with puts(...)",
-    "static_error": {"code": "V0203", "at": [3, 9]}
+    "static_error": {"code": "V0416", "at": [3, 7]}
   },
   {
     "name": "output_puts_hash_alias_uncaught",
@@ -126434,7 +126433,7 @@
     "stderr": true,
     "source": "\ndef run(input: any) -> bool\nprint::call(\"x\")\ntrue\nend\n",
     "go_error": "print is a method and cannot be used as a value; call it with print(...)",
-    "static_error": {"code": "V0203", "at": [3, 8]}
+    "static_error": {"code": "V0416", "at": [3, 6]}
   },
   {
     "name": "output_print_alias_uncaught",
@@ -126450,7 +126449,7 @@
     "stderr": true,
     "source": "\ndef run(input: any) -> bool\na=print::call\na(\"x\")\ntrue\nend\n",
     "go_error": "print is a method and cannot be used as a value; call it with print(...)",
-    "static_error": {"code": "V0203", "at": [3, 10]}
+    "static_error": {"code": "V0416", "at": [3, 8]}
   },
   {
     "name": "output_print_hash_alias_uncaught",
@@ -126567,7 +126566,7 @@
     "stderr": true,
     "source": "\ndef run(input: any) -> bool\nwarn::call(\"x\")\ntrue\nend\n",
     "go_error": "warn is a method and cannot be used as a value; call it with warn(...)",
-    "static_error": {"code": "V0203", "at": [3, 7]}
+    "static_error": {"code": "V0416", "at": [3, 5]}
   },
   {
     "name": "output_warn_alias_uncaught",
@@ -126583,7 +126582,7 @@
     "stderr": true,
     "source": "\ndef run(input: any) -> bool\na=warn::call\na(\"x\")\ntrue\nend\n",
     "go_error": "warn is a method and cannot be used as a value; call it with warn(...)",
-    "static_error": {"code": "V0203", "at": [3, 9]}
+    "static_error": {"code": "V0416", "at": [3, 7]}
   },
   {
     "name": "output_warn_hash_alias_uncaught",
@@ -126700,7 +126699,7 @@
     "stderr": true,
     "source": "\ndef run(input: any) -> bool\np::call(\"x\")\ntrue\nend\n",
     "go_error": "p is a method and cannot be used as a value; call it with p(...)",
-    "static_error": {"code": "V0203", "at": [3, 4]}
+    "static_error": {"code": "V0416", "at": [3, 2]}
   },
   {
     "name": "output_p_send_uncaught",
@@ -126732,7 +126731,7 @@
     "stderr": true,
     "source": "\ndef run(input: any) -> bool\na=p::call\na(\"x\")\ntrue\nend\n",
     "go_error": "p is a method and cannot be used as a value; call it with p(...)",
-    "static_error": {"code": "V0203", "at": [3, 6]}
+    "static_error": {"code": "V0416", "at": [3, 4]}
   },
   {
     "name": "output_p_hash_alias_uncaught",
@@ -129419,7 +129418,7 @@
     "go_error": "Math.sqrt expects 1 argument, got 0",
     "stdout": true,
     "stderr": true,
-    "static_error": {"code": "V0301", "at": [32, 20]}
+    "static_error": {"code": "V0416", "at": [32, 18]}
   },
   {
     "name": "call_member_route_17_2_uncaught",
@@ -129427,7 +129426,7 @@
     "go_error": "Math.sqrt expects a numeric argument, got nil",
     "stdout": true,
     "stderr": true,
-    "static_error": {"code": "V0301", "at": [32, 20]}
+    "static_error": {"code": "V0416", "at": [32, 18]}
   },
   {
     "name": "call_member_route_17_3_uncaught",
@@ -129435,7 +129434,7 @@
     "go_error": "Math.sqrt does not accept keyword arguments",
     "stdout": true,
     "stderr": true,
-    "static_error": {"code": "V0301", "at": [32, 20]}
+    "static_error": {"code": "V0416", "at": [32, 18]}
   },
   {
     "name": "call_member_route_17_7_uncaught",
@@ -129443,7 +129442,7 @@
     "go_error": "Math.sqrt does not accept a block",
     "stdout": true,
     "stderr": true,
-    "static_error": {"code": "V0301", "at": [32, 20]}
+    "static_error": {"code": "V0416", "at": [32, 18]}
   },
   {
     "name": "call_member_route_18_0_uncaught",
@@ -130192,11 +130191,6 @@
     "static_error": {"code": "V0101", "at": [2, 1]}
   },
   {
-    "name": "address_nested_array_write",
-    "source": "def run(input: any) -> array<array<array<int>>>\na=[[1,2],[3]]\nb=a\na[0][1]=9\n[a,b]\nend\n",
-    "static_error": {"code": "V0107", "at": [4, 1]}
-  },
-  {
     "name": "address_nested_compound",
     "source": "def run(input: any) -> array<array<array<int>>>\na=[[1,2]]\nb=a\na[0][1]+=7\n[a,b]\nend\n",
     "static_error": {"code": "V0107", "at": [4, 1]}
@@ -130214,17 +130208,12 @@
   {
     "name": "address_nested_selector_once",
     "source": "def run(input: any) -> array<array<int | array<int>>>\na=[[0,0],[0,0]]\ntrace: array<int> =[]\na[trace.push(0).fetch(-1)][trace.push(1).last]=trace.push(9).last\n[a,trace]\nend\n",
-    "static_error": {"code": "V0107", "at": [4, 1]}
+    "static_error": {"code": "V0107", "at": [4, 28]}
   },
   {
     "name": "address_logical_after_rhs_growth",
     "source": "def run(input: any) -> array<int?>\na=[nil,0]\na[0]||=a.push(3).length\na\nend\n",
     "static_error": {"code": "V0104", "at": [3, 1]}
-  },
-  {
-    "name": "address_pending_other_child_write",
-    "source": "def run(input: any) -> array<array<int | array<int>>>\na=[[1],[2]]\nx=a[0].push((while true\na[1][0]=9\nbreak 3\nend))\n[x,a]\nend\n",
-    "static_error": {"code": "V0107", "at": [3, 8]}
   },
   {
     "name": "address_pending_compound_root_replacement",
@@ -130367,11 +130356,6 @@
     "static_error": {"code": "V0201", "at": [5, 1]}
   },
   {
-    "name": "call_scope_address_zero_nested_push_used",
-    "source": "def x() -> array<array<int>>\n[[9]]\nend\ndef f(a: int =(while true\nx=[[7]]\nbreak 0\nend)) -> array<array<int | array<int>>>\nr=x[0].push(3)\n[r,x]\nend\ndef run(input: any) -> array<array<int | array<int>>>\nf()\nend\n",
-    "static_error": {"code": "V0107", "at": [8, 8]}
-  },
-  {
     "name": "call_scope_address_zero_compound_write_used",
     "source": "def x() -> array<array<int>>\n[[9]]\nend\ndef f(a: int =(while true\nx=[[7]]\nbreak 0\nend)) -> array<array<int>>\nx[0]+=[3]\nx\nend\ndef run(input: any) -> array<array<int>>\nf()\nend\n",
     "static_error": {"code": "V0107", "at": [8, 1]}
@@ -130390,11 +130374,6 @@
     "name": "call_scope_address_zero_logical_write_skip",
     "source": "def x() -> array<array<int>>\n[[9]]\nend\ndef f(a: int =(while true\nx=[[7]]\nbreak 0\nend)) -> array<array<int>>\nx[0]||=[3]\nx\nend\ndef run(input: any) -> array<array<int>>\nf(1)\nend\n",
     "static_error": {"code": "V0104", "at": [8, 1]}
-  },
-  {
-    "name": "call_scope_address_optional_nested_push_used",
-    "source": "def x(a: int =9) -> array<array<int>>\n[[a]]\nend\ndef f(a: int =(while true\nx=[[7]]\nbreak 0\nend)) -> array<array<int | array<int>>>\nr=x[0].push(3)\n[r,x]\nend\ndef run(input: any) -> array<array<int | array<int>>>\nf()\nend\n",
-    "static_error": {"code": "V0107", "at": [8, 8]}
   },
   {
     "name": "call_scope_address_optional_compound_write_used",
@@ -133959,7 +133938,7 @@
   {
     "name": "builtins_lookup_103",
     "source": "def run(input: any) -> float\nto_int=Math::sqrt;to_int(9)\nend\n",
-    "static_error": {"code": "V0301", "at": [2, 14]}
+    "static_error": {"code": "V0416", "at": [2, 12]}
   },
   {
     "name": "builtins_lookup_106",
@@ -134059,12 +134038,12 @@
   {
     "name": "builtins_namespace_712",
     "source": "def run(input: any) -> float\nf=Math::sqrt;f(9)\nend\n",
-    "static_error": {"code": "V0301", "at": [2, 9]}
+    "static_error": {"code": "V0416", "at": [2, 7]}
   },
   {
     "name": "builtins_namespace_713",
     "source": "def run(input: any) -> int\nMath::sqrt 9\nend\n",
-    "static_error": {"code": "V0301", "at": [2, 7]}
+    "static_error": {"code": "V0416", "at": [2, 5]}
   },
   {
     "name": "builtins_namespace_722",
@@ -134264,12 +134243,12 @@
   {
     "name": "time_descriptor_4",
     "source": "def run(input: any) -> int\nf=Time::utc;f(2024).year\nend\n",
-    "static_error": {"code": "V0301", "at": [2, 9]}
+    "static_error": {"code": "V0416", "at": [2, 7]}
   },
   {
     "name": "time_descriptor_10",
     "source": "def run(input: any) -> int\nf=Time::local;f(2024).year\nend\n",
-    "static_error": {"code": "V0301", "at": [2, 9]}
+    "static_error": {"code": "V0416", "at": [2, 7]}
   },
   {
     "name": "time_normalize_4",
@@ -134369,7 +134348,7 @@
   {
     "name": "time_integration_5",
     "source": "def run(input: any) -> bool\nf=Time::now;f().utc?\nend\n",
-    "static_error": {"code": "V0201", "at": [2, 13]}
+    "static_error": {"code": "V0416", "at": [2, 7]}
   },
   {
     "name": "time_auto_binding_7",
@@ -134379,7 +134358,7 @@
   {
     "name": "time_parse_alias_0",
     "source": "def run(input: any) -> int\nf=Time::parse;f(\"2024\",\"2006\").year\nend\n",
-    "static_error": {"code": "V0301", "at": [2, 9]}
+    "static_error": {"code": "V0416", "at": [2, 7]}
   },
   {
     "name": "time_parse_alias_1",
@@ -134989,12 +134968,12 @@
   {
     "name": "rendering_inspect_kinds_97",
     "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input: any) -> array<int>\n[JSON::parse].inspect.bytes\nend\n",
-    "static_error": {"code": "V0301", "at": [7, 8]}
+    "static_error": {"code": "V0416", "at": [7, 6]}
   },
   {
     "name": "rendering_inspect_kinds_98",
     "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input: any) -> array<int>\n{value: JSON::parse}.inspect.bytes\nend\n",
-    "static_error": {"code": "V0301", "at": [7, 15]}
+    "static_error": {"code": "V0416", "at": [7, 13]}
   },
   {
     "name": "rendering_template_arguments_3",
@@ -139000,7 +138979,7 @@
   {
     "name": "computed_call_instance_private",
     "source": "class C\ngetter value: int\ndef initialize(x: int =4)\n@value=x\nend\ndef add(x: int) -> int\n@value+x\nend\ndef self.good(x: int) -> int\nx+1\nend\nprivate\ndef hidden(x: int) -> int\nx\nend\nend\ndef good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | int\nbegin\n(C.new.hidden rescue good)(8)\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [28, 8]}
+    "static_error": {"code": "V0208", "at": [28, 8]}
   },
   {
     "name": "computed_call_constructor",
@@ -139045,7 +139024,7 @@
   {
     "name": "computed_call_array_targets",
     "source": "\ndef run(input: any) -> array<string | array<int>>\nbegin\nitems=[JSON::parse,JSON::stringify];[items[0](\"[8]\"),items[1]([9])]\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [4, 14]}
+    "static_error": {"code": "V0416", "at": [4, 12]}
   },
   {
     "name": "computed_call_conditional_builtin",
@@ -139055,7 +139034,7 @@
   {
     "name": "computed_call_returned_builtin",
     "source": "def factory -> any\nJSON::parse\nend\ndef run(input: any) -> array<int | string>\nbegin\nfactory()(\"[8]\")\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [2, 7]}
+    "static_error": {"code": "V0416", "at": [2, 5]}
   },
   {
     "name": "computed_call_keyword_target",
@@ -139070,7 +139049,7 @@
   {
     "name": "computed_call_target_snapshot",
     "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string | array<int>>\nbegin\ncb=JSON::parse;x=(cb rescue good)(begin\ncb=JSON::stringify;\"[8]\"\nend);[x,cb([9])]\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [12, 10]}
+    "static_error": {"code": "V0416", "at": [12, 8]}
   },
   {
     "name": "computed_call_instance_snapshot",
@@ -139090,22 +139069,22 @@
   {
     "name": "computed_call_class_constant_target",
     "source": "class C\nCB=JSON::parse\ndef self.go -> array<int>\n(missing rescue CB)(\"[8]\")\nend\nend\ndef run(input: any) -> array<int | string>\nbegin\nC.go\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [2, 10]}
+    "static_error": {"code": "V0416", "at": [2, 8]}
   },
   {
     "name": "computed_call_class_ivar_target",
     "source": "class C\n  @cb: any\ndef initialize\n@cb=JSON::parse\nend\ndef go -> array<int>\n(missing rescue @cb)(\"[8]\")\nend\nend\ndef run(input: any) -> array<int | string>\nbegin\nC.new.go\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [4, 11]}
+    "static_error": {"code": "V0416", "at": [4, 9]}
   },
   {
     "name": "computed_call_block_capture_target",
     "source": "\ndef run(input: any) -> array<array<int>>\nbegin\ncb=JSON::parse;[\"[1]\",\"[2]\"].map {(missing rescue cb)(it)}\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [4, 10]}
+    "static_error": {"code": "V0416", "at": [4, 8]}
   },
   {
     "name": "computed_call_numbered_capture_target",
     "source": "\ndef run(input: any) -> array<array<int>>\nbegin\n[JSON::parse].map {(missing rescue _1)(\"[8]\")}\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [4, 8]}
+    "static_error": {"code": "V0416", "at": [4, 6]}
   },
   {
     "name": "computed_call_nested_block_target",
@@ -143320,7 +143299,7 @@
   {
     "name": "introspection_probe_kind_20_is_a?",
     "source": "enum E\nA\nend\nclass C\nproperty p: any\ndef shown -> int\n1\nend\nprivate def hidden -> int\n2\nend\ndef inside -> int\nhidden\nend\nend\nmodule M\ndef self.shown -> int\n1\nend\nend\n\ndef run(input: any) -> array<string> | bool\nbegin\n(JSON::parse).is_type?(:C)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [24, 8]},
+    "static_error": {"code": "V0416", "at": [24, 6]},
     "function": "run",
     "accounting": true
   },
@@ -143334,7 +143313,7 @@
   {
     "name": "introspection_probe_kind_20_is_type?",
     "source": "enum E\nA\nend\nclass C\nproperty p: any\ndef shown -> int\n1\nend\nprivate def hidden -> int\n2\nend\ndef inside -> int\nhidden\nend\nend\nmodule M\ndef self.shown -> int\n1\nend\nend\n\ndef run(input: any) -> array<string> | bool\nbegin\n(JSON::parse).is_type?(:int)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [24, 8]},
+    "static_error": {"code": "V0416", "at": [24, 6]},
     "function": "run",
     "accounting": true
   },
@@ -143418,7 +143397,7 @@
   {
     "name": "introspection_matrix_types_21",
     "source": "enum E\nA\nend\nclass C\nproperty p: any\ndef shown -> int\n1\nend\nprivate def hidden -> int\n2\nend\ndef inside -> int\nhidden\nend\nend\nmodule M\ndef self.shown -> int\n1\nend\nend\n\ndef run(input: any) -> array<bool>\n[:nil, :bool, :int, :float, :number, :string, :symbol, :array, :hash, :object, :range, :duration, :time, :money, :C, :E, :Missing, :\"C?\", :\"E?\", :\"Missing?\"].map { |atom|\n(JSON::parse).is_type?(atom)\n}\nend\n",
-    "static_error": {"code": "V0301", "at": [24, 8]},
+    "static_error": {"code": "V0416", "at": [24, 6]},
     "function": "run",
     "accounting": true
   },
@@ -143432,14 +143411,14 @@
   {
     "name": "introspection_edge_override_respond_to?_instance_private_rescue",
     "source": "class C\nprivate def respond_to?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.new.respond_to? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 8]},
+    "static_error": {"code": "V0208", "at": [9, 8]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_respond_to?_instance_protected_rescue",
     "source": "class C\nprotected def respond_to?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.new.respond_to? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 8]},
+    "static_error": {"code": "V0208", "at": [9, 8]},
     "function": "run",
     "accounting": true
   },
@@ -143453,14 +143432,14 @@
   {
     "name": "introspection_edge_override_respond_to?_class_private_rescue",
     "source": "class C\nprivate def self.respond_to?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.respond_to? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0208", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_respond_to?_class_protected_rescue",
     "source": "class C\nprotected def self.respond_to?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.respond_to? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0208", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
@@ -143474,14 +143453,14 @@
   {
     "name": "introspection_edge_override_respond_to?_module_private_rescue",
     "source": "module M\nprivate def self.respond_to?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(M.respond_to? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0208", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_respond_to?_module_protected_rescue",
     "source": "module M\nprotected def self.respond_to?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(M.respond_to? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0208", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
@@ -143495,14 +143474,14 @@
   {
     "name": "introspection_edge_override_is_a?_instance_private_rescue",
     "source": "class C\nprivate def is_a?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.new.is_a? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 8]},
+    "static_error": {"code": "V0208", "at": [9, 8]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_is_a?_instance_protected_rescue",
     "source": "class C\nprotected def is_a?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.new.is_a? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 8]},
+    "static_error": {"code": "V0208", "at": [9, 8]},
     "function": "run",
     "accounting": true
   },
@@ -143516,14 +143495,14 @@
   {
     "name": "introspection_edge_override_is_a?_class_private_rescue",
     "source": "class C\nprivate def self.is_a?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.is_a? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0208", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_is_a?_class_protected_rescue",
     "source": "class C\nprotected def self.is_a?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.is_a? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0208", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
@@ -143537,14 +143516,14 @@
   {
     "name": "introspection_edge_override_is_a?_module_private_rescue",
     "source": "module M\nprivate def self.is_a?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(M.is_a? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0208", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_is_a?_module_protected_rescue",
     "source": "module M\nprotected def self.is_a?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(M.is_a? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0208", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
@@ -143565,14 +143544,14 @@
   {
     "name": "introspection_edge_override_kind_of?_instance_private_rescue",
     "source": "class C\nprivate def kind_of?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.new.kind_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 8]},
+    "static_error": {"code": "V0208", "at": [9, 8]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_kind_of?_instance_protected_rescue",
     "source": "class C\nprotected def kind_of?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.new.kind_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 8]},
+    "static_error": {"code": "V0208", "at": [9, 8]},
     "function": "run",
     "accounting": true
   },
@@ -143586,14 +143565,14 @@
   {
     "name": "introspection_edge_override_kind_of?_class_private_rescue",
     "source": "class C\nprivate def self.kind_of?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.kind_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0208", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_kind_of?_class_protected_rescue",
     "source": "class C\nprotected def self.kind_of?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.kind_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0208", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
@@ -143607,14 +143586,14 @@
   {
     "name": "introspection_edge_override_kind_of?_module_private_rescue",
     "source": "module M\nprivate def self.kind_of?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(M.kind_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0208", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_kind_of?_module_protected_rescue",
     "source": "module M\nprotected def self.kind_of?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(M.kind_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0208", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
@@ -143635,14 +143614,14 @@
   {
     "name": "introspection_edge_override_instance_of?_instance_private_rescue",
     "source": "class C\nprivate def instance_of?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.new.instance_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 8]},
+    "static_error": {"code": "V0208", "at": [9, 8]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_instance_of?_instance_protected_rescue",
     "source": "class C\nprotected def instance_of?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.new.instance_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 8]},
+    "static_error": {"code": "V0208", "at": [9, 8]},
     "function": "run",
     "accounting": true
   },
@@ -143656,14 +143635,14 @@
   {
     "name": "introspection_edge_override_instance_of?_class_private_rescue",
     "source": "class C\nprivate def self.instance_of?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.instance_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0208", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_instance_of?_class_protected_rescue",
     "source": "class C\nprotected def self.instance_of?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.instance_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0208", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
@@ -143677,14 +143656,14 @@
   {
     "name": "introspection_edge_override_instance_of?_module_private_rescue",
     "source": "module M\nprivate def self.instance_of?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(M.instance_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0208", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_instance_of?_module_protected_rescue",
     "source": "module M\nprotected def self.instance_of?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(M.instance_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0208", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
@@ -143705,14 +143684,14 @@
   {
     "name": "introspection_edge_override_is_type?_instance_private_rescue",
     "source": "class C\nprivate def is_type?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.new.is_type? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 8]},
+    "static_error": {"code": "V0208", "at": [9, 8]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_is_type?_instance_protected_rescue",
     "source": "class C\nprotected def is_type?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.new.is_type? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 8]},
+    "static_error": {"code": "V0208", "at": [9, 8]},
     "function": "run",
     "accounting": true
   },
@@ -143726,14 +143705,14 @@
   {
     "name": "introspection_edge_override_is_type?_class_private_rescue",
     "source": "class C\nprivate def self.is_type?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.is_type? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0208", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_is_type?_class_protected_rescue",
     "source": "class C\nprotected def self.is_type?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.is_type? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0208", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
@@ -143747,14 +143726,14 @@
   {
     "name": "introspection_edge_override_is_type?_module_private_rescue",
     "source": "module M\nprivate def self.is_type?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(M.is_type? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0208", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_is_type?_module_protected_rescue",
     "source": "module M\nprotected def self.is_type?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(M.is_type? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0208", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
@@ -143866,35 +143845,35 @@
   {
     "name": "introspection_edge_contracts_is_type?_318",
     "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string> | bool\nbegin\nJSON::parse.is_type?\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [8, 7]},
+    "static_error": {"code": "V0416", "at": [8, 5]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_contracts_is_type?_320",
     "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string> | bool\nbegin\nJSON::parse.is_type?(1)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [8, 7]},
+    "static_error": {"code": "V0416", "at": [8, 5]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_contracts_is_type?_321",
     "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string> | bool\nbegin\nJSON::parse.is_type?(1,2,3)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [8, 7]},
+    "static_error": {"code": "V0416", "at": [8, 5]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_contracts_is_type?_322",
     "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string> | bool\nbegin\nJSON::parse.is_type?(x:1)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [8, 7]},
+    "static_error": {"code": "V0416", "at": [8, 5]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_contracts_is_type?_323",
     "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string> | bool\nbegin\nJSON::parse.is_type?(:int) {raise \"entered\"}\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [8, 7]},
+    "static_error": {"code": "V0416", "at": [8, 5]},
     "function": "run",
     "accounting": true
   },
@@ -144104,14 +144083,14 @@
   {
     "name": "forwarding_edge_control_helper_send_JSON::parse_nil?",
     "source": "enum E\nA\nend\nclass C\nproperty p: int\ndef initialize(x: int =1)\n@p=x\nend\ndef take(options: any) -> any\noptions\nend\ndef keywords(*, x: any, **rest: hash<string, any>) -> any\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x: int) -> int\n@p+=x;@p\nend\nprivate def hidden(x: int =3) -> array<int>\n[@p,x]\nend\nprotected def guarded(x: int =4) -> array<int>\n[@p,x]\nend\nprivate def self.hidden(x: int =3) -> int\nx\nend\nprotected def self.guarded(x: int =4) -> int\nx\nend\ndef self.take(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\nend\n\n\ndef run(input: any) -> array<string> | bool\nbegin\n(JSON::parse) == nil\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [46, 8]},
+    "static_error": {"code": "V0416", "at": [46, 6]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "forwarding_edge_control_helper_send_JSON::parse_dup",
     "source": "enum E\nA\nend\nclass C\nproperty p: int\ndef initialize(x: int =1)\n@p=x\nend\ndef take(options: any) -> any\noptions\nend\ndef keywords(*, x: any, **rest: hash<string, any>) -> any\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x: int) -> int\n@p+=x;@p\nend\nprivate def hidden(x: int =3) -> array<int>\n[@p,x]\nend\nprotected def guarded(x: int =4) -> array<int>\n[@p,x]\nend\nprivate def self.hidden(x: int =3) -> int\nx\nend\nprotected def self.guarded(x: int =4) -> int\nx\nend\ndef self.take(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\nend\n\n\ndef run(input: any) -> array<string> | bool\nbegin\n(JSON::parse).dup == nil\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [46, 8]},
+    "static_error": {"code": "V0416", "at": [46, 6]},
     "function": "run",
     "accounting": true
   },
@@ -144153,7 +144132,7 @@
   {
     "name": "options_probe_C.new_take_scope",
     "source": "def plain(options: any) -> any\noptions\nend\nclass C\nproperty options: hash<string, any>\ndef initialize(options: hash<string, any> ={})\n@options=options\nend\ndef take(options: any) -> any\noptions\nend\ndef self.take(options: any) -> any\noptions\nend\ndef call(options: any) -> any\noptions\nend\ndef self.call(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\ndef self.call(options: any) -> any\noptions\nend\nend\nclass D\ndef send(options: any) -> any\noptions\nend\ndef public_send(options: any) -> any\noptions\nend\nend\n\ndef run(input: any) -> string\nbegin\nC.new::take(retries:3).as(string)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [41, 8]},
+    "static_error": {"code": "V0416", "at": [41, 6]},
     "function": "run",
     "accounting": true
   },
@@ -144223,7 +144202,7 @@
   {
     "name": "options_probe_C.new_call_scope",
     "source": "def plain(options: any) -> any\noptions\nend\nclass C\nproperty options: hash<string, any>\ndef initialize(options: hash<string, any> ={})\n@options=options\nend\ndef take(options: any) -> any\noptions\nend\ndef self.take(options: any) -> any\noptions\nend\ndef call(options: any) -> any\noptions\nend\ndef self.call(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\ndef self.call(options: any) -> any\noptions\nend\nend\nclass D\ndef send(options: any) -> any\noptions\nend\ndef public_send(options: any) -> any\noptions\nend\nend\n\ndef run(input: any) -> string\nbegin\nC.new::call(retries:3).as(string)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [41, 8]},
+    "static_error": {"code": "V0416", "at": [41, 6]},
     "function": "run",
     "accounting": true
   },
@@ -144286,7 +144265,7 @@
   {
     "name": "options_probe_C_take_scope",
     "source": "def plain(options: any) -> any\noptions\nend\nclass C\nproperty options: any\ndef initialize(options: any ={})\n@options=options\nend\ndef take(options: any) -> any\noptions\nend\ndef self.take(options: any) -> any\noptions\nend\ndef call(options: any) -> any\noptions\nend\ndef self.call(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\ndef self.call(options: any) -> any\noptions\nend\nend\nclass D\ndef send(options: any) -> any\noptions\nend\ndef public_send(options: any) -> any\noptions\nend\nend\n\ndef run(input: any) -> string\nbegin\nC::take(retries:3).as(string)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [41, 4]},
+    "static_error": {"code": "V0416", "at": [41, 2]},
     "function": "run",
     "accounting": true
   },
@@ -144349,7 +144328,7 @@
   {
     "name": "options_probe_C_call_scope",
     "source": "def plain(options: any) -> any\noptions\nend\nclass C\nproperty options: any\ndef initialize(options: any ={})\n@options=options\nend\ndef take(options: any) -> any\noptions\nend\ndef self.take(options: any) -> any\noptions\nend\ndef call(options: any) -> any\noptions\nend\ndef self.call(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\ndef self.call(options: any) -> any\noptions\nend\nend\nclass D\ndef send(options: any) -> any\noptions\nend\ndef public_send(options: any) -> any\noptions\nend\nend\n\ndef run(input: any) -> string\nbegin\nC::call(retries:3).as(string)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [41, 4]},
+    "static_error": {"code": "V0416", "at": [41, 2]},
     "function": "run",
     "accounting": true
   },
@@ -144412,7 +144391,7 @@
   {
     "name": "options_probe_M_take_scope",
     "source": "def plain(options: any) -> any\noptions\nend\nclass C\nproperty options: any\ndef initialize(options: any ={})\n@options=options\nend\ndef take(options: any) -> any\noptions\nend\ndef self.take(options: any) -> any\noptions\nend\ndef call(options: any) -> any\noptions\nend\ndef self.call(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\ndef self.call(options: any) -> any\noptions\nend\nend\nclass D\ndef send(options: any) -> any\noptions\nend\ndef public_send(options: any) -> any\noptions\nend\nend\n\ndef run(input: any) -> string\nbegin\nM::take(retries:3).as(string)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [41, 4]},
+    "static_error": {"code": "V0416", "at": [41, 2]},
     "function": "run",
     "accounting": true
   },
@@ -144475,7 +144454,7 @@
   {
     "name": "options_probe_M_call_scope",
     "source": "def plain(options: any) -> any\noptions\nend\nclass C\nproperty options: any\ndef initialize(options: any ={})\n@options=options\nend\ndef take(options: any) -> any\noptions\nend\ndef self.take(options: any) -> any\noptions\nend\ndef call(options: any) -> any\noptions\nend\ndef self.call(options: any) -> any\noptions\nend\nend\nmodule M\ndef self.take(options: any) -> any\noptions\nend\ndef self.call(options: any) -> any\noptions\nend\nend\nclass D\ndef send(options: any) -> any\noptions\nend\ndef public_send(options: any) -> any\noptions\nend\nend\n\ndef run(input: any) -> string\nbegin\nM::call(retries:3).as(string)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [41, 4]},
+    "static_error": {"code": "V0416", "at": [41, 2]},
     "function": "run",
     "accounting": true
   },
@@ -146767,7 +146746,7 @@
   {
     "name": "output_puts_scope_call",
     "source": "\ndef run(input: any) -> array<string> | bool\nbegin\nputs::call(\"x\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0203", "at": [4, 7]},
+    "static_error": {"code": "V0416", "at": [4, 5]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "0a",
@@ -146785,7 +146764,7 @@
   {
     "name": "output_puts_scoped_alias",
     "source": "\ndef run(input: any) -> array<string> | bool\nbegin\na=puts::call\na(\"x\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0203", "at": [4, 9]},
+    "static_error": {"code": "V0416", "at": [4, 7]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "0a",
@@ -146905,7 +146884,7 @@
   {
     "name": "output_print_scope_call",
     "source": "\ndef run(input: any) -> array<string> | bool\nbegin\nprint::call(\"x\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0203", "at": [4, 8]},
+    "static_error": {"code": "V0416", "at": [4, 6]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -146923,7 +146902,7 @@
   {
     "name": "output_print_scoped_alias",
     "source": "\ndef run(input: any) -> array<string> | bool\nbegin\na=print::call\na(\"x\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0203", "at": [4, 10]},
+    "static_error": {"code": "V0416", "at": [4, 8]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -147043,7 +147022,7 @@
   {
     "name": "output_warn_scope_call",
     "source": "\ndef run(input: any) -> array<string> | bool\nbegin\nwarn::call(\"x\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0203", "at": [4, 7]},
+    "static_error": {"code": "V0416", "at": [4, 5]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -147061,7 +147040,7 @@
   {
     "name": "output_warn_scoped_alias",
     "source": "\ndef run(input: any) -> array<string> | bool\nbegin\na=warn::call\na(\"x\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0203", "at": [4, 9]},
+    "static_error": {"code": "V0416", "at": [4, 7]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -147181,7 +147160,7 @@
   {
     "name": "output_p_scope_call",
     "source": "\ndef run(input: any) -> array<string> | bool\nbegin\np::call(\"x\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0203", "at": [4, 4]},
+    "static_error": {"code": "V0416", "at": [4, 2]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -147199,7 +147178,7 @@
   {
     "name": "output_p_scoped_alias",
     "source": "\ndef run(input: any) -> array<string> | bool\nbegin\na=p::call\na(\"x\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0203", "at": [4, 6]},
+    "static_error": {"code": "V0416", "at": [4, 4]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -147274,7 +147253,7 @@
   {
     "name": "output_matrix_puts_exports",
     "source": "\ndef run(input: any) -> array<string> | bool\nbegin\nputs(JSON::parse,Regexp::new,Math)\ntrue\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [4, 12]},
+    "static_error": {"code": "V0416", "at": [4, 10]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "3c6275696c74696e3e0a3c6275696c74696e3e0a3c6f626a6563743e0a",
@@ -147346,7 +147325,7 @@
   {
     "name": "output_matrix_puts_args_assigned_builtin",
     "source": "\ndef run(input: any) -> array<int | string>\nbegin\nputs=JSON::parse\nputs(\"[1,2]\")\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [4, 12]},
+    "static_error": {"code": "V0416", "at": [4, 10]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -147391,7 +147370,7 @@
   {
     "name": "output_matrix_print_exports",
     "source": "\ndef run(input: any) -> array<string> | bool\nbegin\nprint(JSON::parse,Regexp::new,Math)\ntrue\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [4, 13]},
+    "static_error": {"code": "V0416", "at": [4, 11]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "3c6275696c74696e3e3c6275696c74696e3e3c6f626a6563743e",
@@ -147463,7 +147442,7 @@
   {
     "name": "output_matrix_print_args_assigned_builtin",
     "source": "\ndef run(input: any) -> array<int | string>\nbegin\nprint=JSON::parse\nprint(\"[1,2]\")\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [4, 13]},
+    "static_error": {"code": "V0416", "at": [4, 11]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -147508,7 +147487,7 @@
   {
     "name": "output_matrix_warn_exports",
     "source": "\ndef run(input: any) -> array<string> | bool\nbegin\nwarn(JSON::parse,Regexp::new,Math)\ntrue\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [4, 12]},
+    "static_error": {"code": "V0416", "at": [4, 10]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -147580,7 +147559,7 @@
   {
     "name": "output_matrix_warn_args_assigned_builtin",
     "source": "\ndef run(input: any) -> array<int | string>\nbegin\nwarn=JSON::parse\nwarn(\"[1,2]\")\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [4, 12]},
+    "static_error": {"code": "V0416", "at": [4, 10]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -147625,7 +147604,7 @@
   {
     "name": "output_matrix_p_exports",
     "source": "\ndef run(input: any) -> array<string> | bool\nbegin\np(JSON::parse,Regexp::new,Math)\ntrue\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [4, 9]},
+    "static_error": {"code": "V0416", "at": [4, 7]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "3c6275696c74696e3e0a3c6275696c74696e3e0a7b453a20322e3731383238313832383435393034352c2050493a20332e3134313539323635333538393739332c2061636f733a203c6275696c74696e3e2c206173696e3a203c6275696c74696e3e2c206174616e3a203c6275696c74696e3e2c206174616e323a203c6275696c74696e3e2c20636272743a203c6275696c74696e3e2c20636f733a203c6275696c74696e3e2c206578703a203c6275696c74696e3e2c206879706f743a203c6275696c74696e3e2c206c6f673a203c6275696c74696e3e2c206c6f6731303a203c6275696c74696e3e2c206c6f67323a203c6275696c74696e3e2c2073696e3a203c6275696c74696e3e2c20737172743a203c6275696c74696e3e2c2074616e3a203c6275696c74696e3e7d0a",
@@ -147706,7 +147685,7 @@
   {
     "name": "output_matrix_p_args_assigned_builtin",
     "source": "\ndef run(input: any) -> array<int | string>\nbegin\np=JSON::parse\np(\"[1,2]\")\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [4, 9]},
+    "static_error": {"code": "V0416", "at": [4, 7]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -147751,7 +147730,7 @@
   {
     "name": "output_extra_puts_global_override",
     "source": "def override\nputs=JSON::parse\nnil\nend\ndef run(input: any) -> array<int>?\noverride;puts(\"[2]\")\nend\n",
-    "static_error": {"code": "V0301", "at": [2, 12]},
+    "static_error": {"code": "V0416", "at": [2, 10]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -147760,7 +147739,7 @@
   {
     "name": "output_extra_print_global_override",
     "source": "def override\nprint=JSON::parse\nnil\nend\ndef run(input: any) -> array<int>?\noverride;print(\"[2]\")\nend\n",
-    "static_error": {"code": "V0301", "at": [2, 13]},
+    "static_error": {"code": "V0416", "at": [2, 11]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -147769,7 +147748,7 @@
   {
     "name": "output_extra_warn_global_override",
     "source": "def override\nwarn=JSON::parse\nnil\nend\ndef run(input: any) -> array<int>?\noverride;warn(\"[2]\")\nend\n",
-    "static_error": {"code": "V0301", "at": [2, 12]},
+    "static_error": {"code": "V0416", "at": [2, 10]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -147778,7 +147757,7 @@
   {
     "name": "output_extra_p_global_override",
     "source": "def override\np=JSON::parse\nnil\nend\ndef run(input: any) -> array<int> | string\noverride;p(\"[2]\")\nend\n",
-    "static_error": {"code": "V0301", "at": [2, 9]},
+    "static_error": {"code": "V0416", "at": [2, 7]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -159819,7 +159798,7 @@
   {
     "name": "call_member_route_12_2",
     "source": "class C\ndef call(value: int =7,*, flag: int = 0, &block?: any -> any) -> array<int>\nout=[value,flag]\nif block_given?\nout.push(yield(value).as(int))\nend\nout\nend\ndef self.call(value: int =8) -> int\nvalue\nend\nend\nclass D\ndef call(options: any ={}) -> any\noptions\nend\nend\nclass P\nprivate\ndef call(value: int =7) -> int\nvalue\nend\nend\nmodule M\ndef self.call(value: int =9) -> int\nvalue\nend\nend\n\ndef run(input: any) -> array<int | string>\nbegin\nc=C.new\nvalue=(P.new.call(print(\"argument\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class]\nend\nend\n",
-    "static_error": {"code": "V0101", "at": [33, 19]},
+    "static_error": {"code": "V0208", "at": [33, 14]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -159828,7 +159807,7 @@
   {
     "name": "call_member_route_12_3",
     "source": "class C\ndef call(value: int =7,*, flag: int = 0, &block?: any -> any) -> array<int>\nout=[value,flag]\nif block_given?\nout.push(yield(value).as(int))\nend\nout\nend\ndef self.call(value: int =8) -> int\nvalue\nend\nend\nclass D\ndef call(options: any ={}) -> any\noptions\nend\nend\nclass P\nprivate\ndef call(value: int =7) -> int\nvalue\nend\nend\nmodule M\ndef self.call(value: int =9) -> int\nvalue\nend\nend\n\ndef run(input: any) -> array<int | string>\nbegin\nc=C.new\nvalue=(P.new.call(flag:print(\"keyword\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class]\nend\nend\n",
-    "static_error": {"code": "V0302", "at": [33, 19]},
+    "static_error": {"code": "V0208", "at": [33, 14]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -159837,7 +159816,7 @@
   {
     "name": "call_member_route_12_6",
     "source": "class C\ndef call(value: int =7,*, flag: int = 0, &block?: any -> any) -> array<int>\nout=[value,flag]\nif block_given?\nout.push(yield(value).as(int))\nend\nout\nend\ndef self.call(value: int =8) -> int\nvalue\nend\nend\nclass D\ndef call(options: any ={}) -> any\noptions\nend\nend\nclass P\nprivate\ndef call(value: int =7) -> int\nvalue\nend\nend\nmodule M\ndef self.call(value: int =9) -> int\nvalue\nend\nend\n\ndef run(input: any) -> array<int | string>\nbegin\nc=C.new\nvalue=(P.new.call(print(\"argument\"),flag:print(\"keyword\")){print(\"block\");11});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class]\nend\nend\n",
-    "static_error": {"code": "V0101", "at": [33, 19]},
+    "static_error": {"code": "V0208", "at": [33, 14]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -160062,7 +160041,7 @@
   {
     "name": "call_member_route_17_0",
     "source": "class C\ndef call(value: int =7,*, flag: int = 0, &block?: any -> any) -> array<int>\nout=[value,flag]\nif block_given?\nout.push(yield(value).as(int))\nend\nout\nend\ndef self.call(value: int =8) -> int\nvalue\nend\nend\nclass D\ndef call(options: any ={}) -> any\noptions\nend\nend\nclass P\nprivate\ndef call(value: int =7) -> int\nvalue\nend\nend\nmodule M\ndef self.call(value: int =9) -> int\nvalue\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nc=C.new\nvalue=({call:Math::sqrt}.call());[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [33, 20]},
+    "static_error": {"code": "V0416", "at": [33, 18]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -160071,7 +160050,7 @@
   {
     "name": "call_member_route_17_1",
     "source": "class C\ndef call(value: int =7,*, flag: int = 0, &block?: any -> any) -> array<int>\nout=[value,flag]\nif block_given?\nout.push(yield(value).as(int))\nend\nout\nend\ndef self.call(value: int =8) -> int\nvalue\nend\nend\nclass D\ndef call(options: any ={}) -> any\noptions\nend\nend\nclass P\nprivate\ndef call(value: int =7) -> int\nvalue\nend\nend\nmodule M\ndef self.call(value: int =9) -> int\nvalue\nend\nend\n\ndef run(input: any) -> array<float | string>\nbegin\nc=C.new\nvalue=({call:Math::sqrt}.call(16));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [33, 20]},
+    "static_error": {"code": "V0416", "at": [33, 18]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -160080,7 +160059,7 @@
   {
     "name": "call_member_route_17_2",
     "source": "class C\ndef call(value: int =7,*, flag: int = 0, &block?: any -> any) -> array<int>\nout=[value,flag]\nif block_given?\nout.push(yield(value).as(int))\nend\nout\nend\ndef self.call(value: int =8) -> int\nvalue\nend\nend\nclass D\ndef call(options: any ={}) -> any\noptions\nend\nend\nclass P\nprivate\ndef call(value: int =7) -> int\nvalue\nend\nend\nmodule M\ndef self.call(value: int =9) -> int\nvalue\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nc=C.new\nvalue=({call:Math::sqrt}.call(print(\"argument\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [33, 20]},
+    "static_error": {"code": "V0416", "at": [33, 18]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "617267756d656e74",
@@ -160089,7 +160068,7 @@
   {
     "name": "call_member_route_17_3",
     "source": "class C\ndef call(value: int =7,*, flag: int = 0, &block?: any -> any) -> array<int>\nout=[value,flag]\nif block_given?\nout.push(yield(value).as(int))\nend\nout\nend\ndef self.call(value: int =8) -> int\nvalue\nend\nend\nclass D\ndef call(options: any ={}) -> any\noptions\nend\nend\nclass P\nprivate\ndef call(value: int =7) -> int\nvalue\nend\nend\nmodule M\ndef self.call(value: int =9) -> int\nvalue\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nc=C.new\nvalue=({call:Math::sqrt}.call(flag:print(\"keyword\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [33, 20]},
+    "static_error": {"code": "V0416", "at": [33, 18]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "6b6579776f7264",
@@ -160098,7 +160077,7 @@
   {
     "name": "call_member_route_17_4",
     "source": "class C\ndef call(value: int =7,*, flag: int = 0, &block?: any -> any) -> array<int>\nout=[value,flag]\nif block_given?\nout.push(yield(value).as(int))\nend\nout\nend\ndef self.call(value: int =8) -> int\nvalue\nend\nend\nclass D\ndef call(options: any ={}) -> any\noptions\nend\nend\nclass P\nprivate\ndef call(value: int =7) -> int\nvalue\nend\nend\nmodule M\ndef self.call(value: int =9) -> int\nvalue\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nc=C.new\nvalue=({call:Math::sqrt}.call(*([print(\"splat\")])));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [33, 20]},
+    "static_error": {"code": "V0416", "at": [33, 18]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "73706c6174",
@@ -160107,7 +160086,7 @@
   {
     "name": "call_member_route_17_5",
     "source": "class C\ndef call(value: int =7,*, flag: int = 0, &block?: any -> any) -> array<int>\nout=[value,flag]\nif block_given?\nout.push(yield(value).as(int))\nend\nout\nend\ndef self.call(value: int =8) -> int\nvalue\nend\nend\nclass D\ndef call(options: any ={}) -> any\noptions\nend\nend\nclass P\nprivate\ndef call(value: int =7) -> int\nvalue\nend\nend\nmodule M\ndef self.call(value: int =9) -> int\nvalue\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nc=C.new\nvalue=({call:Math::sqrt}.call(**{flag:print(\"keywords\")}));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [33, 20]},
+    "static_error": {"code": "V0416", "at": [33, 18]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "6b6579776f726473",
@@ -160116,7 +160095,7 @@
   {
     "name": "call_member_route_17_6",
     "source": "class C\ndef call(value: int =7,*, flag: int = 0, &block?: any -> any) -> array<int>\nout=[value,flag]\nif block_given?\nout.push(yield(value).as(int))\nend\nout\nend\ndef self.call(value: int =8) -> int\nvalue\nend\nend\nclass D\ndef call(options: any ={}) -> any\noptions\nend\nend\nclass P\nprivate\ndef call(value: int =7) -> int\nvalue\nend\nend\nmodule M\ndef self.call(value: int =9) -> int\nvalue\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nc=C.new\nvalue=({call:Math::sqrt}.call(print(\"argument\"),flag:print(\"keyword\")){print(\"block\");11});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [33, 20]},
+    "static_error": {"code": "V0416", "at": [33, 18]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "617267756d656e746b6579776f7264",
@@ -160125,7 +160104,7 @@
   {
     "name": "call_member_route_17_7",
     "source": "class C\ndef call(value: int =7,*, flag: int = 0, &block?: any -> any) -> array<int>\nout=[value,flag]\nif block_given?\nout.push(yield(value).as(int))\nend\nout\nend\ndef self.call(value: int =8) -> int\nvalue\nend\nend\nclass D\ndef call(options: any ={}) -> any\noptions\nend\nend\nclass P\nprivate\ndef call(value: int =7) -> int\nvalue\nend\nend\nmodule M\ndef self.call(value: int =9) -> int\nvalue\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nc=C.new\nvalue=({call:Math::sqrt}.call(){|v|print(\"block\");v});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [33, 20]},
+    "static_error": {"code": "V0416", "at": [33, 18]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -160350,7 +160329,7 @@
   {
     "name": "call_member_behavior_0",
     "source": "class C\ndef call(value: int =7,*, flag: int = 0, &block?: any -> any) -> array<int>\nout=[value,flag]\nif block_given?\nout.push(yield(value).as(int))\nend\nout\nend\ndef self.call(value: int =8) -> int\nvalue\nend\nend\nclass D\ndef call(options: any ={}) -> any\noptions\nend\nend\nclass P\nprivate\ndef call(value: int =7) -> int\nvalue\nend\nend\nmodule M\ndef self.call(value: int =9) -> int\nvalue\nend\nend\n\ndef run(input: any) -> array<string> | float\nbegin\nc=C.new\nh={call:Math::sqrt};h.call(h.clear.length)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [33, 15]},
+    "static_error": {"code": "V0416", "at": [33, 13]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -160864,7 +160843,7 @@
   {
     "name": "instance_method_class_constant_writes",
     "source": "class Consts\n  LIST = [1, [2, 3]]\n  H = {a: {b: 1}}\n\n  def poke() -> string\n    LIST[0] = 9\n    LIST.inspect\n  end\n\n  def nested() -> array<string>\n    LIST[1][0] = 20\n    H[\"a\"][\"c\"] = 5\n    [LIST.inspect, H.inspect]\n  end\n\n  def compound() -> array<string>\n    LIST[0] += 10\n    H[\"z\"] ||= 7\n    [LIST.inspect, H.inspect]\n  end\n\n  def member() -> string\n    H[\"a\"] = 5\n    H.inspect\n  end\n\n  def blocky() -> string\n    [1].each { LIST[0] = 99 }\n    LIST.inspect\n  end\n\n  def read() -> array<string>\n    [LIST.inspect, H.inspect]\n  end\n\n  def self.read() -> array<string>\n    [LIST.inspect, H.inspect]\n  end\nend\n\ndef run(input: any) -> array<string | array<string>>\n  c = Consts.new\n  [c.poke, c.nested, c.compound, c.blocky, c.member, c.read, Consts.read, Consts::LIST.inspect]\nend\n",
-    "static_error": {"code": "V0107", "at": [11, 5]}
+    "static_error": {"code": "V0112", "at": [11, 5]}
   },
   {
     "name": "rescued_error_fields_are_sorted",
