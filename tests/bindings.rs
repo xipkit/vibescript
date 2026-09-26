@@ -306,14 +306,19 @@ fn retained_type_globals_require_matching_declarations_and_identity() {
             .run_bindings(CallOptions::default())
             .unwrap();
         let retained = bindings["C"].clone();
+        let template = vibescript::Capability::from_value("C", retained.clone());
         let mut engine = Engine::new();
-        engine
-            .declare_capability(&vibescript::Capability::from_value("C", retained.clone()))
-            .unwrap();
+        engine.declare_capability(&template).unwrap();
         let script = engine.compile(source).unwrap();
         script
             .run(CallOptions {
                 globals: [("C".into(), retained)].into(),
+                ..CallOptions::default()
+            })
+            .unwrap();
+        script
+            .run(CallOptions {
+                capabilities: vec![template],
                 ..CallOptions::default()
             })
             .unwrap();
@@ -383,26 +388,28 @@ fn retained_classes_keep_the_types_of_their_original_dependencies() {
 
 #[test]
 fn retained_classes_require_their_referenced_types_to_be_bound_too() {
-    let source = "class D; end; class C; @d: D; def initialize(@d: D); end; end;";
-    let (_, bindings) = Engine::new()
-        .compile(source)
-        .unwrap()
-        .run_bindings(CallOptions::default())
-        .unwrap();
-    let retained = vibescript::Capability::from_value("C", bindings["C"].clone());
-    let dependency = vibescript::Capability::from_value("D", bindings["D"].clone());
-    let mut engine = Engine::new();
-    engine.declare_capability(&retained).unwrap();
-    let source = format!("{source} C.new(D.new)");
-    let error = engine.compile(&source).err().unwrap();
-    assert_eq!(error.diagnostics()[0].code.to_string(), "V0101");
-    engine.declare_capability(&dependency).unwrap();
-    engine
-        .compile(&source)
-        .unwrap()
-        .run(CallOptions {
-            capabilities: vec![retained, dependency],
-            ..CallOptions::default()
-        })
-        .unwrap();
+    for (declaration, value) in [("class D; end;", "D.new"), ("enum D; A; B; end;", "D::A")] {
+        let source = format!("{declaration} class C; @d: D; def initialize(@d: D); end; end;");
+        let (_, bindings) = Engine::new()
+            .compile(&source)
+            .unwrap()
+            .run_bindings(CallOptions::default())
+            .unwrap();
+        let retained = vibescript::Capability::from_value("C", bindings["C"].clone());
+        let dependency = vibescript::Capability::from_value("D", bindings["D"].clone());
+        let mut engine = Engine::new();
+        engine.declare_capability(&retained).unwrap();
+        let source = format!("{source} C.new({value})");
+        let error = engine.compile(&source).err().unwrap();
+        assert_eq!(error.diagnostics()[0].code.to_string(), "V0101");
+        engine.declare_capability(&dependency).unwrap();
+        engine
+            .compile(&source)
+            .unwrap()
+            .run(CallOptions {
+                capabilities: vec![retained, dependency],
+                ..CallOptions::default()
+            })
+            .unwrap();
+    }
 }
