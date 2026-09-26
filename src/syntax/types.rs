@@ -11,7 +11,8 @@ impl Parsing<'_> {
             let mut p = self.p();
             p.work.charge(1)?;
             let start = p.pos - 1;
-            let (candidate, end, malformed) = p.hash_type_candidate()?;
+            let classes = std::mem::take(&mut p.type_argument);
+            let (candidate, end, malformed) = p.hash_type_candidate(classes)?;
             p.pos = start + 1;
             (candidate, end, malformed)
         };
@@ -50,6 +51,20 @@ impl Parsing<'_> {
                 let mut names = Buffer::new();
                 work.ty(&ty)?;
                 literal_names(&ty, &mut names, work)?;
+                // A class or enum is bound as a declaration, which cannot
+                // turn the group back into a hash.
+                let names = {
+                    let p = self.p();
+                    let mut kept = Buffer::new();
+                    for name in names {
+                        let last = name.rsplit("::").next().unwrap_or(&name);
+                        if !p.declared_type(last) || p.is_alias(last) {
+                            kept.push(work, name)?;
+                        }
+                    }
+                    kept
+                };
+                let mut names = names;
                 work.charge(
                     names
                         .len()
@@ -126,9 +141,12 @@ impl Parser<'_> {
             return Ok(None);
         };
         self.work.ty(&ty)?;
+        // A call that takes types may name the source's classes and enums
+        // inside a type; a bare name is the class or enum's own value.
+        let classes = types && !(matches!(ty.kind, TypeKind::Named) && !ty.nullable);
         if !boundary
             || matches!(ty.kind, TypeKind::Scalar(Scalar::Nil) | TypeKind::Shape(..))
-            || !self.literal_leaves(&ty)
+            || !self.literal_leaves(&ty, classes)
         {
             return Ok(None);
         }
@@ -201,9 +219,9 @@ impl Parser<'_> {
     }
 
     /// A tuple type as an argument of a call that takes types, `[int,
-    /// string]`, where every element is a builtin type or an alias and none
-    /// names a local; an array of values otherwise, since a class or enum
-    /// name is also a value.
+    /// string]`, where every element is a builtin type, an alias, or a class
+    /// or enum the source declares, and none names a local; an array of
+    /// values otherwise.
     fn argument_tuple_literal(&mut self) -> Result<Option<Expr>> {
         if !self.tuple_start(self.significant(self.pos + 1)) {
             return Ok(None);
@@ -225,7 +243,11 @@ impl Parser<'_> {
         let TypeKind::Tuple(elements) = &ty.kind else {
             return Ok(None);
         };
-        if !boundary || !elements.iter().all(|element| self.literal_leaves(element)) {
+        if !boundary
+            || !elements
+                .iter()
+                .all(|element| self.literal_leaves(element, true))
+        {
             return Ok(None);
         }
         let mut names = Buffer::new();
@@ -243,7 +265,12 @@ impl Parser<'_> {
         )?))
     }
 
-    pub(super) fn hash_type_candidate(&mut self) -> Result<(Option<Type>, usize, bool)> {
+    /// Reads the braced group at the current token as a shape type, whose
+    /// leaves may name the source's classes and enums when `classes`.
+    pub(super) fn hash_type_candidate(
+        &mut self,
+        classes: bool,
+    ) -> Result<(Option<Type>, usize, bool)> {
         let structural = self.type_structural_error;
         self.type_structural_error = false;
         let candidate = self.type_shape(0);
@@ -258,7 +285,7 @@ impl Parser<'_> {
             Ok(ty)
                 if self.token() != &Token::P('?')
                     && !self.default_field(&ty)?
-                    && self.literal_leaves(&ty) =>
+                    && self.literal_leaves(&ty, classes) =>
             {
                 Some(ty)
             }
@@ -779,22 +806,34 @@ impl Parser<'_> {
 
 impl Parser<'_> {
     /// Whether every leaf of a type an expression could also spell reads as
-    /// a type literal: a builtin type name, or a type alias. A single name
-    /// that a local shadows, such as a rescued `error`, reads as the local
-    /// through the literal's fallback.
-    fn literal_leaves(&self, ty: &Type) -> bool {
+    /// a type literal: a builtin type name, or a type alias, and with
+    /// `classes` a class or enum the source declares, also through its
+    /// scope as `Outer::Inner`. A single name that a local shadows, such as
+    /// a rescued `error`, reads as the local through the literal's fallback.
+    fn literal_leaves(&self, ty: &Type, classes: bool) -> bool {
         match &ty.kind {
             TypeKind::Named => {
-                self.is_alias(&ty.name) || crate::signatures::alias_type(&ty.name).is_some()
+                self.is_alias(&ty.name)
+                    || crate::signatures::alias_type(&ty.name).is_some()
+                    || (classes
+                        && ty
+                            .name
+                            .rsplit("::")
+                            .next()
+                            .is_some_and(|name| self.declared_type(name)))
             }
             TypeKind::Tuple(_) => false,
-            TypeKind::Literal(Some(described)) => self.literal_leaves(described),
-            TypeKind::Array(Some(element)) => self.literal_leaves(element),
+            TypeKind::Literal(Some(described)) => self.literal_leaves(described, classes),
+            TypeKind::Array(Some(element)) => self.literal_leaves(element, classes),
             TypeKind::Hash(Some(pair)) => {
-                self.literal_leaves(&pair.0) && self.literal_leaves(&pair.1)
+                self.literal_leaves(&pair.0, classes) && self.literal_leaves(&pair.1, classes)
             }
-            TypeKind::Shape(fields, _) => fields.iter().all(|field| self.literal_leaves(&field.ty)),
-            TypeKind::Union(options) => options.iter().all(|option| self.literal_leaves(option)),
+            TypeKind::Shape(fields, _) => fields
+                .iter()
+                .all(|field| self.literal_leaves(&field.ty, classes)),
+            TypeKind::Union(options) => options
+                .iter()
+                .all(|option| self.literal_leaves(option, classes)),
             _ => true,
         }
     }

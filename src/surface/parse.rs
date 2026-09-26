@@ -3314,7 +3314,14 @@ impl<'s> Parser<'s> {
         self.restore(saved);
         let ty = candidate.ok()?;
         let nil = matches!(&ty.kind, TypeKind::Named(tok, _) if self.text(*tok) == "nil");
-        if !boundary || nil || matches!(ty.kind, TypeKind::Shape(..)) || !self.builtin_leaves(&ty) {
+        // A bare scoped name is the class's own value, as in the compiler.
+        let scoped = matches!(ty.kind, TypeKind::Qualified(_)) && !ty.nullable;
+        if !boundary
+            || nil
+            || scoped
+            || matches!(ty.kind, TypeKind::Shape(..))
+            || !self.builtin_leaves(&ty)
+        {
             return None;
         }
         self.pos = end;
@@ -3335,13 +3342,20 @@ impl<'s> Parser<'s> {
         })
     }
 
+    /// Whether every name in a type argument names a type: a builtin one,
+    /// or an alias, class or enum the source declares, also through its
+    /// scope, as the compiler reads a cast's type.
     fn builtin_leaves(&self, ty: &TypeExpr) -> bool {
         match &ty.kind {
             TypeKind::Named(tok, args) => {
-                builtin_type(self.text(*tok).trim_end_matches('?'))
+                let name = self.text(*tok).trim_end_matches('?');
+                (builtin_type(name) || self.type_names.contains(name))
                     && args.iter().all(|arg| self.builtin_leaves(arg))
             }
-            TypeKind::Qualified(_) => false,
+            TypeKind::Qualified(names) => {
+                let last = self.text(*names.last().unwrap()).trim_end_matches('?');
+                self.is_op(names[0] + 1, "::") && self.type_names.contains(last)
+            }
             TypeKind::Shape(fields, _) => fields.iter().all(|(_, ty)| self.builtin_leaves(ty)),
             TypeKind::Union(options) | TypeKind::Tuple(options) => {
                 options.iter().all(|ty| self.builtin_leaves(ty))

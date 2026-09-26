@@ -1325,7 +1325,7 @@ impl<'a> Checker<'a> {
         let mut message = format!("{what}, found {found}");
         if matches!(&value.node, Node::Hash(entries) if !entries.is_empty()) {
             message.push_str(
-                "; braces that name a class or enum make a hash, since the name is a value, so name the shape with a type alias, as in `type Payload = { ... }`",
+                "; braces make a type only where every field names one, as in `{ status: Status }`",
             );
         }
         self.report(

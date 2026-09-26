@@ -117,6 +117,18 @@ impl Aliases {
     /// aliases, then each enclosing module's, then the top level's, then the
     /// signature table's.
     pub fn get(&self, scope: &str, name: &str) -> Option<&types::Type> {
+        // An alias of another module or class is named through its scope,
+        // as `Shapes::Point`, relative to this scope or an enclosing one.
+        if let Some((qualifier, alias)) = name.rsplit_once("::") {
+            return scopes(scope).find_map(|scope| {
+                let qualified = if scope.is_empty() {
+                    qualifier.to_owned()
+                } else {
+                    format!("{scope}::{qualifier}")
+                };
+                self.scopes.get(&qualified)?.get(alias)
+            });
+        }
         let declared = scopes(scope).find_map(|scope| self.scopes.get(scope)?.get(name));
         declared.or_else(|| crate::signatures::alias_type(name).filter(|_| self.builtins))
     }
@@ -205,6 +217,16 @@ impl Resolving<'_> {
     }
 
     fn lookup(&self, scope: &str, name: &str) -> Option<usize> {
+        if let Some((qualifier, alias)) = name.rsplit_once("::") {
+            return scopes(scope).find_map(|scope| {
+                let qualified = if scope.is_empty() {
+                    qualifier.to_owned()
+                } else {
+                    format!("{scope}::{qualifier}")
+                };
+                self.index.get(&(qualified.as_str(), alias)).copied()
+            });
+        }
         scopes(scope).find_map(|scope| self.index.get(&(scope, name)).copied())
     }
 

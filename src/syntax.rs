@@ -409,6 +409,7 @@ fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result
         locals: Table::new(),
         declared_it: false,
         type_call: false,
+        type_argument: false,
         type_structural_error: false,
         interpolations: Buffer::new(),
         record: None,
@@ -462,6 +463,10 @@ struct Parser<'a> {
     /// Whether the call whose arguments come next takes types, as `as` and
     /// `JSON.parse_as` do, where `[int, string]` is a tuple type.
     type_call: bool,
+    /// Whether the braced group that comes next is an argument of a call
+    /// that takes types, where a shape may name the source's classes and
+    /// enums.
+    type_argument: bool,
     type_structural_error: bool,
     interpolations: Buffer<(u32, u32)>,
     /// Tooling facts, collected only by [`record::parse`].
@@ -2332,6 +2337,10 @@ impl<'a> Parsing<'a> {
                 p.line_breaks()?;
             }
             let literal = p.literal_argument(&kind, parenthesized, types)?;
+            p.type_argument = types
+                && parenthesized
+                && matches!(kind, ArgumentKind::Positional)
+                && p.token() == &Token::P('{');
             (kind, literal)
         };
         let value = match literal {
@@ -2974,6 +2983,7 @@ impl<'a> Parser<'a> {
             locals: std::mem::take(&mut self.locals),
             declared_it: self.declared_it,
             type_call: false,
+            type_argument: false,
             type_structural_error: false,
             interpolations: Buffer::new(),
             // Go parses interpolations without the member probe.

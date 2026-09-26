@@ -810,3 +810,32 @@ fn typed_constants_keep_their_declared_type() {
         assert_eq!((position.line, position.column), (line, 3), "{source}");
     }
 }
+
+#[test]
+fn casts_name_classes_enums_and_scoped_aliases_inside_types() {
+    let source = "enum Status\n  Draft\n  Done\nend\nclass Box\n  getter size: int\n  \
+                  def initialize(@size: int)\n  end\nend\nmodule Shapes\n  type Point = { x: int }\nend\n\
+                  boxes: any = [Box.new(2), Box.new(3)]\nheld: any = { box: Box.new(4), status: Status::Done }\n\
+                  points: any = [{ x: 1 }]\npair: any = [Box.new(5), Status::Draft]\n\
+                  [boxes.as(array<Box>).length, held.as({ box: Box, status: Status })[\"box\"].size,\n \
+                  points.as(array<Shapes::Point>).length, pair.as([Box, Status])[0].size,\n \
+                  (boxes.as(array<Status>) rescue \"refused\")]";
+    for static_types in [false, true] {
+        let mut engine = Engine::new();
+        engine.set_static_types(static_types);
+        let result = engine
+            .compile(source)
+            .unwrap_or_else(|error| panic!("{error}"))
+            .run(CallOptions::default())
+            .unwrap();
+        let json = stringify_json(&result.value, CallOptions::default()).unwrap();
+        let value: serde_json::Value =
+            serde_json::from_slice(json.value.as_bytes().unwrap()).unwrap();
+        assert_eq!(value, serde_json::json!([2, 4, 1, 5, "refused"]));
+    }
+    // Elsewhere, a braced group that names a class is a hash of values.
+    assert_eq!(
+        evaluate("class Box\nend\nh = { kind: Box }\nh.length"),
+        serde_json::json!(1)
+    );
+}

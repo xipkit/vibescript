@@ -46,7 +46,7 @@ fn a_checked_cast_gives_its_type() {
 
 /// Every type an annotation can name, as the argument of `as` and of
 /// `JSON.parse_as`, with the type a declaration of it has.
-const TYPES: [(&str, &str); 27] = [
+const TYPES: [(&str, &str); 34] = [
     ("any", "any"),
     ("int", "int"),
     ("float", "float"),
@@ -74,6 +74,17 @@ const TYPES: [(&str, &str); 27] = [
     ("Box", "Box"),
     ("Pair", "Pair"),
     ("Outer::Inner", "Outer::Inner"),
+    // A type literal names the source's classes and enums inside a type.
+    ("array<Box>", "array<Box>"),
+    ("array<Box?>", "array<Box?>"),
+    (
+        "{ box: Box, status: Status? }",
+        "{ box: Box, status: Status? }",
+    ),
+    ("hash<string, Status>", "hash<string, Status>"),
+    ("[Box, Status]", "[Box, Status]"),
+    ("array<Outer::Inner>", "array<Outer::Inner>"),
+    ("Box | Status", "Box | Status"),
 ];
 
 const DECLARATIONS: &str = "enum Status\n  Draft\nend\nclass Box\nend\nclass Outer\n  class Inner\n  end\nend\ntype Pair = [int, string]\n";

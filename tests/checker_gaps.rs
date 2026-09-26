@@ -650,19 +650,24 @@ mod parse_as_enums {
 
     #[test]
     fn a_value_where_a_type_is_expected_is_an_error() {
-        // Braces that name an enum are a hash, which the runtime refuses.
-        let source = format!("{STATUS}review = JSON.parse_as(\"{{}}\", {{ status: Status }})\n");
+        // Braces in the call that name an enum are a shape type.
+        clean(&format!(
+            "{STATUS}review = JSON.parse_as(\"{{}}\", {{ status: Status? }})\n"
+        ));
+        // Braces holding a member are a hash, which the runtime refuses.
+        let source =
+            format!("{STATUS}review = JSON.parse_as(\"{{}}\", {{ status: Status::Draft }})\n");
         let found = codes(&source, &[Code::TYPE_MISMATCH]);
         assert!(
             found[0].message.starts_with(
-                "argument 2 (`schema`) of `parse_as` is a type, found { status: Status }; braces that name a class or enum make a hash"
+                "argument 2 (`schema`) of `parse_as` is a type, found { status: Status }; braces make a type only where every field names one"
             ),
             "{}",
             found[0].message
         );
         let error = unchecked()
             .compile(&format!(
-                "{STATUS}def run -> any\n  JSON.parse_as(\"{{}}\", {{ status: Status }})\nend\n"
+                "{STATUS}def run -> any\n  JSON.parse_as(\"{{}}\", {{ status: Status::Draft }})\nend\n"
             ))
             .unwrap()
             .call("run", &[], CallOptions::default())
