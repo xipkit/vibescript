@@ -47,20 +47,32 @@ fn nester(name: &str) -> HostMethod {
     })
 }
 
+/// `set(key, value)` publishes one field of its receiver, which is how a
+/// static program rewrites the capability's data.
+fn setter(name: &str) -> HostMethod {
+    HostMethod::new_with_block(name, |call, args, _| {
+        let key = args[0].as_bytes().unwrap().to_vec();
+        Ok(Value::boolean(call.set_receiver_field(&key, &args[1])?))
+    })
+}
+
 /// The capability's value, whose `inner` object shares the very same `read`
 /// descriptor value.
 fn value() -> Value {
     let read = reader("cap.read").value();
     let nest = nester("cap.nest").value();
+    let set = setter("cap.set").value();
     let inner = Value::object(vec![
         (b"tag".to_vec(), Value::int(2)),
         (b"read".to_vec(), read.clone()),
         (b"nest".to_vec(), nest.clone()),
+        (b"set".to_vec(), set.clone()),
     ]);
     Value::object(vec![
         (b"tag".to_vec(), Value::int(1)),
         (b"read".to_vec(), read),
         (b"nest".to_vec(), nest),
+        (b"set".to_vec(), set),
         (b"inner".to_vec(), inner),
     ])
 }
@@ -68,19 +80,26 @@ fn value() -> Value {
 /// Grants `cap`.
 fn options() -> CallOptions {
     CallOptions {
-        capabilities: vec![Capability::new("cap", |_| Ok(value()))],
+        capabilities: vec![Capability::from_value("cap", value())],
         ..CallOptions::default()
     }
 }
 
-/// Runs `body`, which may write the capability's fields by index, compute
-/// its callee or call a nested object's method. Static types never index a
-/// namespace and type a nested object as a record, so these programs run
-/// without static types; `member_calls_keep_their_receiver_on_static_routes`
-/// covers the routes a static program has.
+/// An engine that declares the value template of every capability
+/// `options` grants.
+fn declaring(options: &CallOptions) -> Engine {
+    let mut engine = Engine::new();
+    for capability in &options.capabilities {
+        engine.declare_capability(capability).unwrap();
+    }
+    engine
+}
+
+/// Runs `body` as a function returning `any`, with the capabilities that
+/// `options` grants declared.
 fn run(body: &str, options: CallOptions) -> vibescript::Result<vibescript::Outcome> {
-    common::gradual_engine()
-        .compile(&format!("def run\n{body}\nend"))
+    declaring(&options)
+        .compile(&format!("def run -> any\n{body}\nend"))
         .unwrap()
         .call("run", &[], options)
 }
@@ -93,31 +112,8 @@ fn check(cases: &[(&str, &str)]) {
 }
 
 #[test]
-fn member_calls_expose_their_receiver_on_every_call_route() {
-    check(&[
-        ("cap.read()", "1"),
-        ("cap.read(1, 2)", "1"),
-        ("cap.read(*[1])", "1"),
-        ("cap.read(limit: 1)", "1"),
-        ("cap.read() { 0 }", "1"),
-        ("cap.read(*[1]) { 0 }", "1"),
-        ("cap::read()", "1"),
-        ("cap::read(*[1])", "1"),
-        ("cap::read() { 0 }", "1"),
-        ("cap[:read]()", "1"),
-        ("cap[:read](*[1])", "1"),
-        ("(cap[:read])()", "1"),
-        ("cap.send(:read)", "1"),
-        ("cap.public_send(:read, 1)", "1"),
-    ]);
-}
-
-#[test]
 fn member_calls_keep_their_receiver_on_static_routes() {
-    let mut engine = Engine::new();
-    engine
-        .declare_capability(&Capability::from_value("cap", value()))
-        .unwrap();
+    let engine = declaring(&options());
     for (body, expected) in [
         ("cap.read()", "1"),
         ("cap.read(1, 2)", "1"),
@@ -125,15 +121,10 @@ fn member_calls_keep_their_receiver_on_static_routes() {
         ("cap.read(limit: 1)", "1"),
         ("cap.read() { 0 }", "1"),
         ("cap.read(*[1]) { 0 }", "1"),
-        ("cap::read()", "1"),
-        ("cap::read(*[1])", "1"),
-        ("cap::read() { 0 }", "1"),
         ("a = cap; a.read()", "1"),
         ("cap.dup.read()", "1"),
         ("[cap].fetch(0).read()", "1"),
     ] {
-        // `::` is refused with static types (V0416) but still runs without.
-        engine.set_static_types(vibescript::STATIC_TYPES_BY_DEFAULT && !body.contains("::"));
         let script = engine
             .compile(&format!("def run -> any\n{body}\nend"))
             .unwrap_or_else(|error| panic!("{body}: {error}"));
@@ -142,27 +133,30 @@ fn member_calls_keep_their_receiver_on_static_routes() {
             .unwrap_or_else(|error| panic!("{body}: {error}"));
         assert_eq!(result.value.to_string(), expected, "{body}");
     }
-    // A namespace is not indexed, so the callee is never computed.
-    let source = "def run -> any\ncap[\"read\"]()\nend";
-    let error = engine.compile(source).err().unwrap();
-    assert_eq!(common::codes(&error)[0], "V0112");
-    assert_eq!(
-        error.diagnostics()[0].span.start,
-        source.find("cap[").unwrap()
-    );
+    // A namespace is not indexed, so the callee is never computed, and a
+    // method is called with a dot.
+    for (source, code, at) in [
+        ("def run -> any\ncap[\"read\"]()\nend", "V0112", "cap["),
+        ("def run -> any\ncap::read()\nend", "V0416", "::"),
+    ] {
+        let error = engine.compile(source).err().unwrap();
+        assert_eq!(common::codes(&error)[0], code, "{source}");
+        assert_eq!(
+            error.diagnostics()[0].span.start,
+            source.find(at).unwrap(),
+            "{source}"
+        );
+    }
 }
 
 #[test]
 fn nested_aliased_and_duplicated_receivers_select_the_object_actually_used() {
     check(&[
         ("cap.inner.read()", "2"),
-        ("cap.inner::read()", "2"),
-        ("cap[:inner][:read]()", "2"),
-        ("cap.inner.send(:read)", "2"),
         ("[cap.read(), cap.inner.read()]", "[1, 2]"),
         ("a = cap; a.read()", "1"),
         ("cap.dup.read()", "1"),
-        ("[cap][0].read()", "1"),
+        ("[cap][0]&.read()", "1"),
         ("a = cap.inner; a.read()", "2"),
     ]);
 }
@@ -170,56 +164,36 @@ fn nested_aliased_and_duplicated_receivers_select_the_object_actually_used() {
 #[test]
 fn receivers_snapshot_the_value_selected_before_arguments_and_blocks_run() {
     check(&[
-        ("cap[:tag] = 7; cap.read()", "7"),
-        ("cap[:inner][:tag] = 8; cap.inner.read()", "8"),
+        ("cap.set(\"tag\", 7); cap.read()", "7"),
+        ("cap.inner.set(\"tag\", 8); cap.inner.read()", "8"),
         (
-            "copy = cap; cap[:tag] = 7; [copy.read(), cap.read()]",
+            "copy = cap; cap.set(\"tag\", 7); [copy.read(), cap.read()]",
             "[1, 7]",
         ),
-        ("[cap.nest { cap[:tag] = 9 }, cap[:tag]]", "[[1, 9, 1], 9]"),
+        (
+            "[cap.nest { cap.set(\"tag\", 9); cap.tag }, cap.tag]",
+            "[[1, 9, 1], 9]",
+        ),
     ]);
 }
 
 /// An argument that rewrites the receiver's field runs after the callee was
 /// selected, so the callback sees the original object while the script sees
-/// the new field afterwards.
+/// the new field afterwards. The argument publishes the field, since a static
+/// program cannot index the capability.
 #[test]
 fn arguments_that_rewrite_the_receiver_do_not_change_the_selected_snapshot() {
     check(&[
-        ("[cap.read(0.tap { cap[:tag] = 9 }), cap[:tag]]", "[1, 9]"),
+        ("[cap.read(cap.set(\"tag\", 9)), cap.tag]", "[1, 9]"),
         (
-            "[cap.read(*[0].map { |x| cap[:tag] = 9; x }), cap[:tag]]",
+            "[cap.read(*[0].map { |x| cap.set(\"tag\", 9); x }), cap.tag]",
             "[1, 9]",
         ),
+        ("[cap.read(limit: cap.set(\"tag\", 9)), cap.tag]", "[1, 9]"),
+        ("[cap.read(cap.set(\"tag\", 9)) { 0 }, cap.tag]", "[1, 9]"),
         (
-            "[cap.read(limit: 0.tap { cap[:tag] = 9 }), cap[:tag]]",
-            "[1, 9]",
-        ),
-        (
-            "[cap.read(0.tap { cap[:tag] = 9 }) { 0 }, cap[:tag]]",
-            "[1, 9]",
-        ),
-        ("[cap::read(0.tap { cap[:tag] = 9 }), cap[:tag]]", "[1, 9]"),
-        (
-            "[cap::read(*[0].map { |x| cap[:tag] = 9; x }), cap[:tag]]",
-            "[1, 9]",
-        ),
-        ("[cap[:read](0.tap { cap[:tag] = 9 }), cap[:tag]]", "[1, 9]"),
-        (
-            "[cap[:read](*[0].map { |x| cap[:tag] = 9; x }), cap[:tag]]",
-            "[1, 9]",
-        ),
-        (
-            "[(cap[:read])(0.tap { cap[:tag] = 9 }), cap[:tag]]",
-            "[1, 9]",
-        ),
-        (
-            "[cap.inner.read(0.tap { cap[:inner][:tag] = 8 }), cap[:inner][:tag]]",
+            "[cap.inner.read(cap.inner.set(\"tag\", 8)), cap.inner.tag]",
             "[2, 8]",
-        ),
-        (
-            "[cap.send(:read, 0.tap { cap[:tag] = 9 }), cap[:tag]]",
-            "[1, 9]",
         ),
     ]);
 }
@@ -228,21 +202,22 @@ fn arguments_that_rewrite_the_receiver_do_not_change_the_selected_snapshot() {
 fn builtin_named_host_methods_keep_receivers_on_special_dispatch_routes() {
     for name in ["push", "call", "each", "is_type?", "send"] {
         for args in [
-            "0.tap { cap[:tag] = 9 }",
-            "*[0].map { |x| cap[:tag] = 9; x }",
+            "cap.set(\"tag\", 9)",
+            "*[0].map { |x| cap.set(\"tag\", 9); x }",
         ] {
-            let name = name.to_owned();
-            let source = format!("[cap.{name}({args}), cap[:tag]]");
+            let source = format!("[cap.{name}({args}), cap.tag]");
             let options = CallOptions {
-                capabilities: vec![Capability::new("cap", move |_| {
-                    Ok(Value::object(vec![
+                capabilities: vec![Capability::from_value(
+                    "cap",
+                    Value::object(vec![
                         (b"tag".to_vec(), Value::int(1)),
                         (
                             name.as_bytes().to_vec(),
                             reader(&format!("cap.{name}")).value(),
                         ),
-                    ]))
-                })],
+                        (b"set".to_vec(), setter("cap.set").value()),
+                    ]),
+                )],
                 ..CallOptions::default()
             };
             let outcome = run(&source, options).unwrap_or_else(|error| panic!("{source}: {error}"));
@@ -267,15 +242,15 @@ fn signed_methods_keep_the_receiver_through_argument_normalization() {
         accepts_block: true,
     })
     .unwrap();
-    for source in ["cap.read(3)", "cap[:read](*[3])", "cap::read(3) { 0 }"] {
-        let method = method.clone();
+    for source in ["cap.read(3)", "cap.read(*[3])", "cap.read(3) { 0 }"] {
         let options = CallOptions {
-            capabilities: vec![Capability::new("cap", move |_| {
-                Ok(Value::object(vec![
+            capabilities: vec![Capability::from_value(
+                "cap",
+                Value::object(vec![
                     (b"tag".to_vec(), Value::int(1)),
                     (b"read".to_vec(), method.value()),
-                ]))
-            })],
+                ]),
+            )],
             ..CallOptions::default()
         };
         let outcome = run(source, options).unwrap_or_else(|error| panic!("{source}: {error}"));
@@ -287,13 +262,10 @@ fn signed_methods_keep_the_receiver_through_argument_normalization() {
 fn top_level_scripts_select_receivers_like_called_functions() {
     for (source, expected) in [
         ("cap.read()", "1"),
-        ("cap[:read]()", "1"),
-        ("cap::read()", "1"),
         ("cap.inner.read { 0 }", "2"),
-        ("[cap.read(0.tap { cap[:tag] = 9 }), cap[:tag]]", "[1, 9]"),
-        ("[cap[:read](0.tap { cap[:tag] = 9 }), cap[:tag]]", "[1, 9]"),
+        ("[cap.read(cap.set(\"tag\", 9)), cap.tag]", "[1, 9]"),
     ] {
-        let result = common::gradual_engine()
+        let result = declaring(&options())
             .compile(source)
             .unwrap()
             .run(options())
@@ -322,7 +294,7 @@ fn nested_host_and_block_reentry_restores_the_outer_receiver() {
             "cap.inner.nest { cap.nest { cap.inner.read() } }",
             "[2, [1, 2, 1], 2]",
         ),
-        ("cap.nest { cap[:read]() }", "[1, 1, 1]"),
+        ("cap.nest { cap.read() }", "[1, 1, 1]"),
     ]);
 }
 
@@ -367,10 +339,10 @@ fn required_scripts_see_the_receiver_of_the_receiving_calls_grant() {
     fs::create_dir_all(&dir).unwrap();
     fs::write(
         dir.join("reader.vibe"),
-        "def read_tags; [cap.read(), cap.inner.read(), cap[:read]()]; end",
+        "def read_tags -> array<any>\n  [cap.read(), cap.inner.read(), cap.dup.read()]\nend\n",
     )
     .unwrap();
-    let mut engine = common::gradual_engine();
+    let mut engine = declaring(&options());
     engine
         .set_module_config(ModuleConfig {
             paths: vec![dir.clone()],
@@ -378,7 +350,7 @@ fn required_scripts_see_the_receiver_of_the_receiving_calls_grant() {
         })
         .unwrap();
     let script = engine
-        .compile("def run; require(:reader).read_tags(); end")
+        .compile("def run -> any\n  require(\"reader\").read_tags\nend")
         .unwrap();
     let result = script.call(
         "run",
@@ -401,13 +373,14 @@ fn escaped_receiver_snapshots_keep_their_expired_grant() {
         Ok(Value::nil())
     });
     let options = CallOptions {
-        capabilities: vec![Capability::new("cap", move |_| {
-            Ok(Value::object(vec![
+        capabilities: vec![Capability::from_value(
+            "cap",
+            Value::object(vec![
                 (b"tag".to_vec(), Value::int(1)),
                 (b"read".to_vec(), reader("cap.read").value()),
                 (b"keep".to_vec(), keep.value()),
-            ]))
-        })],
+            ]),
+        )],
         ..CallOptions::default()
     };
     run("cap.keep()", options).unwrap();
@@ -419,7 +392,7 @@ fn escaped_receiver_snapshots_keep_their_expired_grant() {
         capabilities: vec![Capability::from_value("old", escaped.clone())],
         ..CallOptions::default()
     };
-    assert_eq!(run("old[:tag]", later()).unwrap().value.as_int(), Some(1));
+    assert_eq!(run("old.tag", later()).unwrap().value.as_int(), Some(1));
     let error = run("old.read()", later()).unwrap_err();
     assert_eq!(error.kind, ErrorKind::Runtime, "{error}");
     assert!(error.message.contains("not granted"), "{error}");
@@ -438,12 +411,13 @@ fn receiver_reads_cannot_swallow_a_latched_step_failure() {
         Ok(Value::int(5))
     });
     let mut options = CallOptions {
-        capabilities: vec![Capability::new("cap", move |_| {
-            Ok(Value::object(vec![
+        capabilities: vec![Capability::from_value(
+            "cap",
+            Value::object(vec![
                 (b"tag".to_vec(), Value::int(1)),
                 (b"spin".to_vec(), method.value()),
-            ]))
-        })],
+            ]),
+        )],
         ..CallOptions::default()
     };
     options.limits.steps = Some(10_000);
@@ -472,12 +446,13 @@ fn receiver_reads_surface_cancellation_and_latched_errors() {
     });
     let options = CallOptions {
         cancellation,
-        capabilities: vec![Capability::new("cap", move |_| {
-            Ok(Value::object(vec![
+        capabilities: vec![Capability::from_value(
+            "cap",
+            Value::object(vec![
                 (b"tag".to_vec(), Value::int(1)),
                 (b"cancel".to_vec(), method.value()),
-            ]))
-        })],
+            ]),
+        )],
         ..CallOptions::default()
     };
     let error = run("cap.cancel()", options).unwrap_err();
@@ -491,13 +466,22 @@ fn receiver_reads_surface_cancellation_and_latched_errors() {
 #[test]
 fn detached_methods_stay_rejected_even_when_receivers_are_tracked() {
     assert_eq!(run("cap.read", options()).unwrap().value.as_int(), Some(1));
-    for body in [
-        "cap[:read]",
-        "f = cap::read; f()",
-        "f = cap[:read]; f()",
-        "[cap[:read]]",
+    // A namespace is not indexed and a local is never called, so a method
+    // cannot be detached into a value.
+    let engine = declaring(&options());
+    for (body, codes, at) in [
+        ("cap[:read]", &["V0112", "V0409"][..], "cap["),
+        ("f = cap::read; f()", &["V0416", "V0310"], "::"),
+        ("f = cap[:read]; f()", &["V0112", "V0409", "V0310"], "cap["),
+        ("[cap[:read]]", &["V0112", "V0409"], "cap["),
     ] {
-        let error = run(body, options()).unwrap_err();
-        assert!(error.kind == ErrorKind::Type, "{body}: {error}");
+        let source = format!("def run -> any\n{body}\nend");
+        let error = engine.compile(&source).err().unwrap();
+        assert_eq!(common::codes(&error), codes, "{body}");
+        assert_eq!(
+            error.diagnostics()[0].span.start,
+            source.find(at).unwrap(),
+            "{body}"
+        );
     }
 }
