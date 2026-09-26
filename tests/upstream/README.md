@@ -2,9 +2,9 @@
 
 These 48 files come from Go Vibescript v0.70.0 under its MIT license: nine `examples/` programs and all 39 programs under Go's `tests/` tree, rewritten into the statically typed language of ADR-007 and ADR-008 with the same results. `sources.json` pins the repository, commit and paths, and the SHA-256 hashes of the rewritten files. `tests/errors/{arguments,attributes,classes,runtime,types}.vibe` and `tests/blocks/{block_arity,block_error_propagation,error_cases}.vibe` keep the calls that exist to fail, so they do not compile with static types. Passing any of the checks below does not establish full language compatibility.
 
-## Shared comparison corpus
+## Shared fixture corpus
 
-`cases.json` selects 46 named-function invocations across the nine `examples/` files and `tests/complex/operators.vibe`, with independently computed expected results in plain JSON. `tests/upstream.rs` runs them natively, and `scripts/fixtures.py` feeds the same cases to the Go/Rust comparison harness. This corpus is unchanged by the driver harness below and remains the only part of this directory that the Go binary also executes.
+`cases.json` selects 46 named-function invocations across the nine `examples/` files and `tests/complex/operators.vibe`, with independently computed expected results in plain JSON. `tests/upstream.rs` runs them natively, and `scripts/fixtures.py` feeds the same cases to the conformance goldens and the benchmarks. This corpus is unchanged by the driver harness below.
 
 ## Native driver harness
 
@@ -22,4 +22,4 @@ The native harness mirrors the 105 invocations of these programs in Go's `intern
 
 `tests/upstream_driver.rs` implements these natively. Expected values are the driver's literals in a small JSON notation with `$symbol`, `$money`, `$time` and `$enum` tags, compared against typed `Value` accessors so that integers, floats, symbols, strings, money, times and enum members are distinguished. Hash comparison ignores insertion order but enforces the key set, as Go's `assertValueEqual` does. Rejections assert the Rust error kind, not Go's message text. Default-limit cases use `CallOptions::default()`; only the two Go tests that set `StepQuota: 5_000_000` use a raised step limit.
 
-The harness records the identifier of every assertion it makes; each group test checks that it covered exactly its declared identifiers, and `driver_manifest_is_fully_covered` checks that the groups together cover all 105 identifiers and that every pinned `tests/` program has a walk entry. It is native-only: it does not extend the typed-v1 encoders or the Go comparison binary, and the driver's `run` values for `hash_edges`, `string_edges`, `array_edges` and `errors/classes` remain unpinned because the Go driver only requires that they run.
+The harness records the identifier of every assertion it makes; each group test checks that it covered exactly its declared identifiers, and `driver_manifest_is_fully_covered` checks that the groups together cover all 105 identifiers and that every pinned `tests/` program has a walk entry. It is native-only: it does not extend the typed-v1 encoders, and the driver's `run` values for `hash_edges`, `string_edges`, `array_edges` and `errors/classes` remain unpinned because the Go driver only requires that they run.
