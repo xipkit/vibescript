@@ -559,13 +559,12 @@ pub(crate) fn set(
 ) -> Result<()> {
     let heap = instance.writable_heap(ctx)?;
     let value = ctx.import(value)?;
-    let key = ctx.bytes(name.as_bytes())?;
     let mut data = heap.data.lock().unwrap();
     let value = data.map(ctx, &heap, &value, true)?.unwrap_or(value);
     data.reserve_scratch(ctx, value.depth())?;
     data.entries.data[instance.identity.slot.load(Ordering::Relaxed)]
         .fields
-        .insert_field(ctx, key, value)
+        .insert_named_field(ctx, name.as_bytes(), value)
 }
 
 pub(crate) fn address(

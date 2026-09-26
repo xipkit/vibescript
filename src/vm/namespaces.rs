@@ -460,7 +460,6 @@ pub(super) fn set(
         }
         return crate::objects::set(ctx, backing, name, &value);
     }
-    let key = ctx.bytes(name.as_bytes())?;
     if let Some(field) = storage.namespaces.data[index]
         .fields
         .find(ctx, name.as_bytes())?
@@ -475,7 +474,7 @@ pub(super) fn set(
     }
     storage.namespaces.data[index]
         .fields
-        .insert_field(ctx, key, value)
+        .insert_named_field(ctx, name.as_bytes(), value)
 }
 
 pub(super) fn address(

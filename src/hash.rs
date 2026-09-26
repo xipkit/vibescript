@@ -79,6 +79,22 @@ impl Tag {
     }
 }
 
+/// A key to store: a string value, or a name to copy into one only when
+/// the entry is new.
+enum Key<'a> {
+    Value(Value),
+    Name(&'a [u8]),
+}
+
+impl Key<'_> {
+    fn bytes(&self) -> Result<&[u8]> {
+        match self {
+            Self::Value(key) => key.require_bytes(),
+            Self::Name(name) => Ok(name),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct Hash {
     pub buffer: Buffer<(Value, Value)>,
@@ -198,28 +214,39 @@ impl Hash {
     }
 
     pub fn insert(&mut self, ctx: &mut CallContext, key: Value, value: Value) -> Result<()> {
-        self.insert_with_limit(ctx, key, value, MAX_VALUE_DEPTH)
+        self.insert_with_limit(ctx, Key::Value(key), value, MAX_VALUE_DEPTH)
     }
 
     /// Stores a field without counting the internal field table as a value container.
     pub fn insert_field(&mut self, ctx: &mut CallContext, key: Value, value: Value) -> Result<()> {
-        self.insert_with_limit(ctx, key, value, MAX_VALUE_DEPTH + 1)
+        self.insert_with_limit(ctx, Key::Value(key), value, MAX_VALUE_DEPTH + 1)
+    }
+
+    /// Stores a field by `name`, as [`Self::insert_field`] does, copying the
+    /// name into a key only when the field is new.
+    pub fn insert_named_field(
+        &mut self,
+        ctx: &mut CallContext,
+        name: &[u8],
+        value: Value,
+    ) -> Result<()> {
+        self.insert_with_limit(ctx, Key::Name(name), value, MAX_VALUE_DEPTH + 1)
     }
 
     fn insert_with_limit(
         &mut self,
         ctx: &mut CallContext,
-        key: Value,
+        key: Key<'_>,
         value: Value,
         limit: usize,
     ) -> Result<()> {
         ctx.charge(1)?;
         let hash = if self.index.is_some() || self.buffer.data.len() >= INDEX_THRESHOLD - 1 {
-            hash_key(ctx, key.require_bytes()?)?
+            hash_key(ctx, key.bytes()?)?
         } else {
             0
         };
-        let existing = self.find_hashed(ctx, key.require_bytes()?, hash)?;
+        let existing = self.find_hashed(ctx, key.bytes()?, hash)?;
         let mut depth = self.depth.max(value.depth() + 1);
         if let Some(i) = existing {
             if self.depth > 1
@@ -243,6 +270,10 @@ impl Hash {
         } else {
             let Some(len) = self.buffer.data.len().checked_add(1) else {
                 return ctx.fail(ErrorKind::Memory, "hash size overflow");
+            };
+            let key = match key {
+                Key::Value(key) => key,
+                Key::Name(name) => ctx.bytes(name)?,
             };
             self.ensure_index(ctx, len)?;
             let slot = self
