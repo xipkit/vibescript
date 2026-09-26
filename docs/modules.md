@@ -24,7 +24,7 @@ Use `public`, `private` or `protected` as a visibility section, before a method 
 
 Module bodies run once per invocation, with nested bodies initialized before their parent. Snippet bodies execute at their declaration's position. A body can read earlier top-level locals and update a lower-case local already bound there. Module methods have their own declaration scope. Assignments in a block stop at the module-body boundary; reads and addressed collection mutations can still reach ambient values.
 
-`@@name` accesses a module variable, declared with a value as `@@count: int = 0`. Uppercase assignments within a module create its constants. `M.name = value` writes a field or calls its setter. Nested indexed assignment through `M::ARRAY` updates that field; `M.ARRAY` is an evaluated getter result.
+`@@name` accesses a module variable, declared with a value as `@@count: int = 0`. Uppercase assignments within a module create its constants, and `NAMES: array<string> = []` declares one's type. `M.name = value` writes a field or calls its setter. Nested indexed assignment through `M::ARRAY` updates that field; `M.ARRAY` is an evaluated getter result.
 
 Module aliases, including `dup`, share identity and state within a call. Collections stored in fields retain value semantics: assigning an array to a field does not let later field mutations change the original local, and a returned array keeps its earlier value. The [compatibility notes](compatibility.md) record how this differs from Go.
 

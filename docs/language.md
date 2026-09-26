@@ -394,7 +394,7 @@ label = case post.status
 ```
 
 - Every instance variable is declared: in the class body (`@views: int = 0`, or `@name: string` assigned by `initialize`), or by `getter`, `setter` or `property`. Reading an undeclared one is an error (V0204), and one without a default must be assigned on every path through `initialize` (V0205). `@title: string` in a parameter list assigns that field.
-- Class variables are declared with a value, `@@count: int = 0`. Class methods are `def self.name`. Uppercase assignments in the body, such as `LIMIT = 3`, are constants, read as `Post::LIMIT` outside.
+- Class variables are declared with a value, `@@count: int = 0`. Class methods are `def self.name`. Uppercase assignments in the body, such as `LIMIT = 3`, are constants, read as `Post::LIMIT` outside. A constant may declare its type, `TAGS: array<string> = []`, which its value and every later assignment keep.
 - Classes have no inheritance, and instances have identity: two names for the same instance see the same changes. Classes can define operators, `==`, `to_s`, `[]` and `[]=`. See [classes](classes.md).
 - An enum is a type. A symbol literal naming a member, such as `:draft`, is accepted wherever that enum is expected; otherwise write `Status::Draft`. Members have `name`, `symbol` and `to_s`.
 - `case` over an enum or a `bool` must handle every member or have an `else` (V0114), so adding a member shows every `case` that needs it. Its `when` values name members as `Status::Draft`.

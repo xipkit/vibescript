@@ -756,3 +756,57 @@ fn a_value_may_follow_type_arguments_without_a_space() {
     // A comparison is still one operator.
     assert_eq!(evaluate("a = 2\nb = 1\na >= b"), serde_json::json!(true));
 }
+
+#[test]
+fn typed_constants_keep_their_declared_type() {
+    let source = "module Limits\n  MAX: int = 3\n  NAMES: array<string> = []\n  \
+                  def self.total -> int\n    MAX + NAMES.length\n  end\nend\n\
+                  class Store\n  COUNTS: hash<string, int> = {}\n  LABEL: string? = nil\n  \
+                  def self.size -> int\n    COUNTS.length\n  end\nend\n\
+                  TOP: int | string = 1\n[Limits.total, Limits::MAX, Store.size, Store::LABEL, TOP]";
+    for static_types in [false, true] {
+        let mut engine = Engine::new();
+        engine.set_static_types(static_types);
+        let result = engine
+            .compile(source)
+            .unwrap_or_else(|error| panic!("{error}"))
+            .run(CallOptions::default())
+            .unwrap();
+        let json = stringify_json(&result.value, CallOptions::default()).unwrap();
+        let value: serde_json::Value =
+            serde_json::from_slice(json.value.as_bytes().unwrap()).unwrap();
+        assert_eq!(value, serde_json::json!([3, 3, 0, null, 1]));
+    }
+    // The checker refuses a value, or a later assignment, of another type,
+    // and reads the constant with its declared type.
+    assert_eq!(
+        refused("module M\n  MAX: int = \"a\"\nend\n"),
+        [("V0101".to_owned(), (2, 14))]
+    );
+    assert_eq!(
+        refused("module M\n  MAX: int = 3\n  MAX = \"b\"\nend\n"),
+        [("V0101".to_owned(), (3, 9))]
+    );
+    assert_eq!(
+        refused("class C\n  MAX: int? = nil\n  def self.max -> int\n    MAX\n  end\nend\n"),
+        [("V0107".to_owned(), (4, 5))]
+    );
+    // Without static types, the runtime checks every value it is given.
+    for (source, line) in [
+        ("module M\n  MAX: int = \"a\"\nend\nM::MAX", 2),
+        ("module M\n  MAX: int = 3\n  MAX = \"b\"\nend\nM::MAX", 3),
+    ] {
+        let error = common::gradual_engine()
+            .compile(source)
+            .unwrap()
+            .run(CallOptions::default())
+            .unwrap_err();
+        let position = error.diagnostic.as_ref().unwrap().position;
+        assert_eq!(error.kind, ErrorKind::Type, "{source}");
+        assert_eq!(
+            error.message, "constant MAX expected int, got string",
+            "{source}"
+        );
+        assert_eq!((position.line, position.column), (line, 3), "{source}");
+    }
+}

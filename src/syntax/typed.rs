@@ -3,7 +3,7 @@
 
 use super::{
     BlockParam, Expr, Label, Node, Parser, Parsing, Statement, Target, Token, TypeAlias,
-    source_text, unicode,
+    source_text,
 };
 use crate::{
     Error, Result,
@@ -87,16 +87,14 @@ impl Parser<'_> {
             && matches!(self.source.as_bytes().get(colon.end), Some(b' ' | b'\t'))
     }
 
-    /// Whether a statement starts a typed local declaration, `name: T = value`.
-    /// A statement that only resembles one, such as a stray hash entry, keeps
-    /// the error it had before typed locals existed: the declaration needs a
-    /// type followed by `=`, or a builtin or declared type ending its line.
+    /// Whether a statement starts a typed local or constant declaration,
+    /// `name: T = value`. A statement that only resembles one, such as a
+    /// stray hash entry, keeps the error it had before typed locals existed:
+    /// the declaration needs a type followed by `=`, or a builtin or declared
+    /// type ending its line.
     pub(super) fn typed_local_ahead(&mut self) -> Result<bool> {
-        let Token::Word(word) = self.token() else {
-            return Ok(false);
-        };
-        if !self.ident(self.pos)
-            || word.chars().next().is_some_and(unicode::upper)
+        if !matches!(self.token(), Token::Word(_))
+            || !self.ident(self.pos)
             || !self.annotation_colon(self.pos)
         {
             return Ok(false);
@@ -336,7 +334,7 @@ impl Parser<'_> {
 }
 
 impl Parsing<'_> {
-    /// Parses a typed local declaration, `name: T = value`.
+    /// Parses a typed local or constant declaration, `name: T = value`.
     pub(super) async fn typed_local(&self) -> Result<Statement> {
         let work = self.p().work;
         let target = {

@@ -297,6 +297,7 @@ impl<'x> Compiling<'_, 'x> {
             };
             self.assignment_rhs(binding, &[rhs]).await?;
             let mut c = self.c();
+            c.check_local(name)?;
             c.store_namespace_name(name);
             let end = c.code.len();
             c.patch(skip, end);
@@ -319,6 +320,8 @@ impl<'x> Compiling<'_, 'x> {
         if let Some(op) = binary {
             c.emit(Op::Binary(op));
         }
+        // A typed constant checks every value it is given.
+        c.check_local(name)?;
         c.store_namespace_name(name);
         Ok(())
     }

@@ -1237,15 +1237,10 @@ impl<'s> Parser<'s> {
             )
     }
 
-    /// Whether a statement declares a typed local, `name: T = value`.
+    /// Whether a statement declares a typed local or constant,
+    /// `name: T = value`.
     fn typed_local_ahead(&mut self) -> bool {
-        let Some(word) = self.word_at(self.pos) else {
-            return false;
-        };
-        if !self.ident(self.pos)
-            || word.chars().next().is_some_and(char::is_uppercase)
-            || !self.annotation_colon(self.pos)
-        {
+        if !self.ident(self.pos) || !self.annotation_colon(self.pos) {
             return false;
         }
         let saved = self.save();

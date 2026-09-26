@@ -1989,7 +1989,12 @@ impl<'a, 'x> Compiling<'a, 'x> {
         let check = {
             let mut c = self.c();
             let ty = c.annotation(ty)?;
-            let subject = c.subject(&["local variable ", name])?;
+            let kind = if c.namespace_binding(name)? {
+                "constant "
+            } else {
+                "local variable "
+            };
+            let subject = c.subject(&[kind, name])?;
             c.emit(Op::Check(ty, subject));
             (ty, subject)
         };
@@ -1999,7 +2004,10 @@ impl<'a, 'x> Compiling<'a, 'x> {
         self.assign_value(inner).await?;
         let mut c = self.c();
         let work = c.work;
-        if !c.namespace_binding(name)? && c.global_binding(name)?.is_none() {
+        // A typed constant keeps its type in the body that declares it.
+        let constant =
+            c.namespace_binding(name)? && name.chars().next().is_some_and(syntax::unicode::upper);
+        if (constant || !c.namespace_binding(name)?) && c.global_binding(name)?.is_none() {
             c.typed.insert(work, name.clone(), check)?;
         }
         Ok(())
@@ -2043,6 +2051,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             }) => {
                 let mut c = self.c();
                 if c.namespace_binding(name)? {
+                    c.check_local(name)?;
                     c.store_namespace_name(name);
                 } else if let Some(global) = c.global_binding(name)? {
                     c.emit(Op::StoreGlobal(global));

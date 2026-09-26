@@ -1137,6 +1137,11 @@ impl<'a> Checker<'a> {
                 };
                 let declared = self.annotation(annotation, self.frame.owner, *offset as usize);
                 let ty = self.expr_against(value, declared, &Purpose::Local(name.to_string()));
+                if self.frame.namespace_body && is_constant(name) {
+                    self.constants
+                        .insert((self.frame.owner, name.to_string()), declared);
+                    return ty;
+                }
                 let id = match self.local(name) {
                     Some(id) => {
                         let existing = self.frame.locals[id as usize].declared;
@@ -1191,6 +1196,13 @@ impl<'a> Checker<'a> {
                     ty
                 }
                 Node::Var(name) if self.frame.namespace_body && is_constant(name) => {
+                    if let Some(declared) = self.declared_constant(name) {
+                        return self.expr_against(
+                            value,
+                            declared,
+                            &Purpose::Local(name.to_string()),
+                        );
+                    }
                     let ty = self.expr(value, None);
                     let key = (self.frame.owner, name.to_string());
                     self.constants.insert(key, ty);
@@ -1468,6 +1480,21 @@ impl<'a> Checker<'a> {
             ),
         ));
         None
+    }
+
+    /// The type the current class or module body declares for constant
+    /// `name`, as in `LIMIT: int = 3`, which every assignment keeps.
+    fn declared_constant(&mut self, name: &str) -> Option<Ty> {
+        let ns = self.frame.owner?;
+        let module = self.program.namespaces[ns as usize].module?;
+        let (ty, offset) = module.body.iter().find_map(|stmt| match &stmt.node {
+            Statement::Assign(target, "=", _) => {
+                let (declared, ty) = crate::syntax::typed::declared_local(target)?;
+                (declared == name).then_some((ty, stmt.offset))
+            }
+            _ => None,
+        })?;
+        Some(self.annotation(ty, Some(ns), offset as usize))
     }
 
     /// Assigns a class variable, which its class or module body declares
