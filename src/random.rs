@@ -4,7 +4,10 @@ use crate::{
     value::{Bytes, Kind},
 };
 use std::{
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -244,16 +247,51 @@ fn seed(ctx: &mut CallContext, argument: Option<&Value>) -> Result<Value> {
     Ok(result)
 }
 
+/// The last timestamp prefix this process put in a UUID: Unix milliseconds
+/// shifted left by 12, plus a 12-bit sub-millisecond fraction.
+static LAST_STAMP: AtomicU64 = AtomicU64::new(0);
+
+/// The current time as a UUIDv7 timestamp prefix (RFC 9562 §6.2, method 3).
+fn clock() -> u64 {
+    let since = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    let millis = since.as_millis() as u64 & ((1 << 48) - 1);
+    let fraction = u64::from(since.subsec_nanos() % 1_000_000) * 4096 / 1_000_000;
+    millis << 12 | fraction
+}
+
+/// Returns a timestamp prefix greater than every earlier one in this process,
+/// so UUIDs sort in creation order. When the clock has not advanced, the
+/// fraction counts up instead. Once the current millisecond's 4096 values are
+/// used, it waits for the clock rather than run ahead; after the clock steps
+/// backwards it keeps counting from the last prefix, as RFC 9562 suggests.
+fn stamp() -> u64 {
+    loop {
+        let now = clock();
+        let last = LAST_STAMP.load(Ordering::Acquire);
+        if last >> 12 == now >> 12 && last & 0xfff == 0xfff {
+            std::hint::spin_loop();
+            continue;
+        }
+        let next = now.max(last + 1);
+        if LAST_STAMP
+            .compare_exchange_weak(last, next, Ordering::AcqRel, Ordering::Acquire)
+            .is_ok()
+        {
+            return next;
+        }
+    }
+}
+
 fn uuid(ctx: &mut CallContext) -> Result<Value> {
     ctx.check_memory(Bytes::header_bytes() + 36)?;
     let mut raw = [0; 16];
     read(ctx, &mut raw)?;
-    let millis = match SystemTime::now().duration_since(UNIX_EPOCH) {
-        Ok(duration) => duration.as_millis() as u64,
-        Err(error) => (-(error.duration().as_nanos().div_ceil(1_000_000) as i128)) as u64,
-    };
-    raw[..6].copy_from_slice(&millis.to_be_bytes()[2..]);
-    raw[6] = (raw[6] & 0x0f) | 0x70;
+    let stamp = stamp();
+    raw[..6].copy_from_slice(&(stamp >> 12).to_be_bytes()[2..]);
+    raw[6] = 0x70 | ((stamp >> 8) & 0x0f) as u8;
+    raw[7] = stamp as u8;
     raw[8] = (raw[8] & 0x3f) | 0x80;
     let mut text = [0; 36];
     let mut position = 0;
@@ -337,6 +375,17 @@ mod tests {
     use super::*;
     use crate::CallOptions;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn stamps_increase_strictly_and_never_run_ahead_of_the_clock() {
+        let mut previous = stamp();
+        for _ in 0..100_000 {
+            let next = stamp();
+            assert!(next > previous);
+            previous = next;
+        }
+        assert!(previous >> 12 <= clock() >> 12);
+    }
 
     fn context(byte: u8) -> (CallContext, Arc<AtomicUsize>) {
         let reads = Arc::new(AtomicUsize::new(0));

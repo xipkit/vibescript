@@ -395,6 +395,42 @@ fn actual_os_entropy_produces_valid_uuid_timestamps_and_tokens() {
 }
 
 #[test]
+fn uuids_sort_in_creation_order_within_and_across_calls() {
+    let script = Engine::new()
+        .compile(
+            "def run -> array<string>\n  ids: array<string> = []\n  2000.times { ids << uuid }\n  ids\nend\n",
+        )
+        .unwrap();
+    let batches: Vec<Vec<String>> = common::scope(|scope| {
+        let workers: Vec<_> = (0..4)
+            .map(|_| {
+                scope.spawn(|| {
+                    let output = script.call("run", &[], CallOptions::default()).unwrap();
+                    output
+                        .value
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|id| String::from_utf8(id.as_bytes().unwrap().to_vec()).unwrap())
+                        .collect()
+                })
+            })
+            .collect();
+        workers.into_iter().map(|w| w.join().unwrap()).collect()
+    });
+    let mut all = std::collections::HashSet::new();
+    for ids in &batches {
+        assert!(ids.windows(2).all(|pair| pair[0] < pair[1]), "{ids:?}");
+        for id in ids {
+            assert_eq!(&id[14..15], "7");
+            assert!(matches!(id.as_bytes()[19], b'8' | b'9' | b'a' | b'b'));
+            assert!(all.insert(id.clone()));
+        }
+    }
+    assert_eq!(all.len(), 8000);
+}
+
+#[test]
 fn reader_ignored_exhaustion_and_rejected_sampling_stop_later_effects() {
     for ignored in [false, true] {
         let mut engine = Engine::new();
