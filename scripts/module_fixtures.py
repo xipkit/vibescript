@@ -7,6 +7,15 @@ def cases():
 
     def add(name, body, expected, files, prefix="", expected_by_strict=None, returns=None, static_error=None, **options):
         static_error = {
+            'alias_conflict': {'code': 'V0209', 'at': [3, 28]},
+            'argument_error_class/block': {'code': 'V0305', 'at': [3, 8]},
+            'argument_error_class/builtin_alias': {'code': 'V0209', 'at': [3, 30]},
+            'argument_error_class/empty_alias': {'code': 'V0311', 'at': [3, 30]},
+            'argument_error_class/extra': {'code': 'V0301', 'at': [3, 8]},
+            'argument_error_class/invalid_alias': {'code': 'V0311', 'at': [3, 30]},
+            'argument_error_class/invalid_utf8_alias': {'code': 'V0309', 'at': [3, 30]},
+            'argument_error_class/keyword': {'code': 'V0302', 'at': [3, 35]},
+            'argument_error_class/missing': {'code': 'V0301', 'at': [3, 8]},
             'argument_error_class/existing_alias': {'code': 'V0102', 'at': [3, 8]},
             'scoped': {'code': 'V0416', 'at': [3, 22]},
         }.get(name, static_error)

@@ -973,6 +973,7 @@ const STATIC_REJECTIONS: &[Refusal] = &[
         path: "tests/errors/runtime.vibe",
         functions: &[
             ("array_non_integer_index", &["V0101"]),
+            ("string_non_integer_index", &["V0101"]),
             ("index_unsupported_type", &["V0112"]),
             ("method_missing", &["V0203"]),
             ("nil_method", &["V0203"]),
