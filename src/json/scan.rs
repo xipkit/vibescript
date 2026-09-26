@@ -251,6 +251,39 @@ unsafe fn vector(input: &[u8]) -> Masks {
     }
 }
 
+#[cfg(all(feature = "simd", target_arch = "x86_64"))]
+unsafe fn vector(input: &[u8]) -> Masks {
+    use std::arch::x86_64::*;
+    // SAFETY: caller supplies a full vector; SSE2 is baseline on x86_64.
+    unsafe {
+        let v = _mm_loadu_si128(input.as_ptr().cast());
+        let eq = |b| _mm_cmpeq_epi8(v, _mm_set1_epi8(b as i8));
+        let bits = |v| _mm_movemask_epi8(v) as u64;
+        let high = bits(v);
+        Masks {
+            punctuation: bits(_mm_or_si128(
+                _mm_or_si128(
+                    _mm_or_si128(eq(b'{'), eq(b'}')),
+                    _mm_or_si128(eq(b'['), eq(b']')),
+                ),
+                _mm_or_si128(eq(b':'), eq(b',')),
+            )),
+            quote: bits(eq(b'"')),
+            slash: bits(eq(b'\\')),
+            space: bits(_mm_or_si128(
+                _mm_or_si128(eq(b' '), eq(b'\t')),
+                _mm_or_si128(eq(b'\n'), eq(b'\r')),
+            )),
+            control: bits(_mm_cmplt_epi8(v, _mm_set1_epi8(32))) & !high,
+            high,
+            digit: bits(_mm_and_si128(
+                _mm_cmpgt_epi8(v, _mm_set1_epi8(47)),
+                _mm_cmplt_epi8(v, _mm_set1_epi8(58)),
+            )),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -305,39 +338,6 @@ mod tests {
                     escaped = byte == b'\\' && !escaped;
                 }
             }
-        }
-    }
-}
-
-#[cfg(all(feature = "simd", target_arch = "x86_64"))]
-unsafe fn vector(input: &[u8]) -> Masks {
-    use std::arch::x86_64::*;
-    // SAFETY: caller supplies a full vector; SSE2 is baseline on x86_64.
-    unsafe {
-        let v = _mm_loadu_si128(input.as_ptr().cast());
-        let eq = |b| _mm_cmpeq_epi8(v, _mm_set1_epi8(b as i8));
-        let bits = |v| _mm_movemask_epi8(v) as u64;
-        let high = bits(v);
-        Masks {
-            punctuation: bits(_mm_or_si128(
-                _mm_or_si128(
-                    _mm_or_si128(eq(b'{'), eq(b'}')),
-                    _mm_or_si128(eq(b'['), eq(b']')),
-                ),
-                _mm_or_si128(eq(b':'), eq(b',')),
-            )),
-            quote: bits(eq(b'"')),
-            slash: bits(eq(b'\\')),
-            space: bits(_mm_or_si128(
-                _mm_or_si128(eq(b' '), eq(b'\t')),
-                _mm_or_si128(eq(b'\n'), eq(b'\r')),
-            )),
-            control: bits(_mm_cmplt_epi8(v, _mm_set1_epi8(32))) & !high,
-            high,
-            digit: bits(_mm_and_si128(
-                _mm_cmpgt_epi8(v, _mm_set1_epi8(47)),
-                _mm_cmplt_epi8(v, _mm_set1_epi8(58)),
-            )),
         }
     }
 }
