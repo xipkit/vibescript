@@ -49,7 +49,6 @@ mod tests {
                 name: 0,
                 method: Method::parse(name),
                 auto: true,
-                parenthesized: false,
                 scope: false,
             };
             let value = call(&mut ctx, site, name, &source, &[], (false, false))
@@ -99,7 +98,6 @@ mod tests {
                 name: 0,
                 method: None,
                 auto: true,
-                parenthesized: false,
                 scope: false,
             };
             let error = call(&mut ctx, site, "to_s", &source, &[], (false, false)).unwrap_err();

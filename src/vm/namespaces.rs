@@ -94,7 +94,6 @@ pub(super) fn implicit(
         name: 0,
         method: None,
         auto: true,
-        parenthesized: false,
         scope: false,
     };
     member(

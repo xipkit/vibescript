@@ -196,7 +196,6 @@ fn bind_entry(
     keywords: &[(String, Value)],
 ) -> Result<Arguments> {
     let mut input = Arguments::empty();
-    input.options_hash = false;
     input.positional = Buffer::with_capacity(ctx, args.len())?;
     for arg in args {
         let value = ctx.import(arg)?;
@@ -622,11 +621,9 @@ impl Run {
                 // A required file's own bindings live in its scope rather than in slots.
                 Op::Bypass(n) if program.file => Op::Bypass(bound(n)?),
                 Op::Bypass(n) => Op::Bypass(slot(n, false)?),
-                Op::ResolveCall(n, name, parenthesized) => Op::ResolveCall(
-                    if n == usize::MAX { n } else { slot(n, true)? },
-                    name,
-                    parenthesized,
-                ),
+                Op::ResolveCall(n, name) => {
+                    Op::ResolveCall(if n == usize::MAX { n } else { slot(n, true)? }, name)
+                }
                 Op::CallName(n, name) => {
                     Op::CallName(if n == usize::MAX { n } else { slot(n, false)? }, name)
                 }
@@ -2533,14 +2530,14 @@ impl Run {
                         .data
                         .last_mut()
                         .unwrap()
-                        .resolve(target, true);
+                        .resolve(target);
                 }
                 Op::CallValue => {
                     let value = stack.data.pop().unwrap();
                     let args = frame.arguments.data.last_mut().unwrap();
                     // An immediate `receiver[:name](...)` left its root here.
                     let pending = args.receiver.take();
-                    args.resolve(value_invocation(&value), true);
+                    args.resolve(value_invocation(&value));
                     args.keep_receiver(pending);
                 }
                 Op::CallMember(site) => {
@@ -2556,10 +2553,10 @@ impl Run {
                         frame.receiver.is_some(),
                     )?;
                     let args = frame.arguments.data.last_mut().unwrap();
-                    args.resolve(target, site.parenthesized);
+                    args.resolve(target);
                     args.keep_receiver(Some(selected));
                 }
-                Op::ResolveCall(slot, name, parenthesized) => {
+                Op::ResolveCall(slot, name) => {
                     let self_value = frame.receiver.clone();
                     let name_index = name;
                     let name = &program.members[name];
@@ -2632,7 +2629,7 @@ impl Run {
                         }
                     };
                     let mut arguments = Arguments::empty();
-                    arguments.resolve(target, parenthesized);
+                    arguments.resolve(target);
                     frames.data[current].arguments.push(ctx, arguments)?;
                 }
                 Op::Argument(op) => {
@@ -2723,7 +2720,6 @@ impl Run {
                                     name,
                                     method: crate::bytecode::Method::parse(&program.members[name]),
                                     auto: false,
-                                    parenthesized: false,
                                     scope: false,
                                 },
                                 false,
@@ -2784,7 +2780,6 @@ impl Run {
                                 name,
                                 method: crate::bytecode::Method::parse(&program.members[name]),
                                 auto: false,
-                                parenthesized: false,
                                 scope: false,
                             },
                             false,
@@ -3778,7 +3773,6 @@ fn implicit_read(
                 name,
                 method: crate::bytecode::Method::parse(text),
                 auto: true,
-                parenthesized: false,
                 scope: false,
             };
             let (_, value) = members::call(ctx, site, text, receiver, &[])?;

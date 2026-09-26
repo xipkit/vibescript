@@ -1,12 +1,7 @@
 use super::*;
 
 impl<'x> Compiling<'_, 'x> {
-    pub(super) async fn named_call(
-        &self,
-        name: &str,
-        args: &'x [Argument],
-        form: CallForm,
-    ) -> Result<()> {
+    pub(super) async fn named_call(&self, name: &str, args: &'x [Argument]) -> Result<()> {
         let target = {
             let mut c = self.c();
             let work = c.work;
@@ -15,11 +10,11 @@ impl<'x> Compiling<'_, 'x> {
             if c.program.file || c.namespace.is_some() {
                 let slot = c.locals.get(work, name)?.copied().unwrap_or(usize::MAX);
                 let name = c.call_site(name, false).name;
-                c.emit(Op::ResolveCall(slot, name, form == CallForm::Parenthesized));
+                c.emit(Op::ResolveCall(slot, name));
                 None
             } else if let Some(&slot) = c.locals.get(work, name)? {
                 let name = c.call_site(name, false).name;
-                c.emit(Op::ResolveCall(slot, name, form == CallForm::Parenthesized));
+                c.emit(Op::ResolveCall(slot, name));
                 None
             } else if c.program.declaration_names.contains_key(name) {
                 Some(Invocation::NonCallable)
@@ -32,11 +27,7 @@ impl<'x> Compiling<'_, 'x> {
                 None
             } else {
                 let site = c.call_site(name, false);
-                c.emit(Op::ResolveCall(
-                    usize::MAX,
-                    site.name,
-                    form == CallForm::Parenthesized,
-                ));
+                c.emit(Op::ResolveCall(usize::MAX, site.name));
                 None
             }
         };

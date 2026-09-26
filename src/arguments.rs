@@ -6,7 +6,7 @@ use crate::{
     syntax::ParamKind,
     value::Kind,
 };
-use std::{cmp::Ordering, mem};
+use std::cmp::Ordering;
 
 /// Refuses any argument, keyword or block for a nullary member such as
 /// `duration.to_s`, in the order and words Go uses.
@@ -59,7 +59,6 @@ pub(crate) enum Target {
 pub(crate) struct Arguments {
     pub positional: Buffer<Value>,
     pub keywords: Hash,
-    pub options_hash: bool,
     pub target: Option<Target>,
     pub block: Option<Block>,
     /// The value a host method was selected from, kept only for the duration
@@ -78,7 +77,6 @@ impl Arguments {
         Self {
             positional: Buffer::empty(),
             keywords: Hash::empty(),
-            options_hash: true,
             target: None,
             block: None,
             receiver: None,
@@ -92,10 +90,8 @@ impl Arguments {
         Ok(arguments)
     }
 
-    /// Selects the callee and its options binding rule, including rescue fallbacks.
-    pub fn resolve(&mut self, target: Target, parenthesized: bool) {
-        self.options_hash =
-            !parenthesized || !matches!(&target, Target::Method(call) if !call.constructor);
+    /// Selects the callee, including rescue fallbacks.
+    pub fn resolve(&mut self, target: Target) {
         self.target = Some(target);
     }
 
@@ -158,37 +154,6 @@ impl Arguments {
             }
         }
     }
-
-    fn collapse(&mut self, ctx: &mut CallContext, params: &[Parameter]) -> Result<()> {
-        if !self.options_hash || self.keywords.buffer.data.is_empty() {
-            return Ok(());
-        }
-        for param in params {
-            ctx.charge(1)?;
-            if matches!(param.kind, ParamKind::Keyword | ParamKind::KeywordRest) {
-                return Ok(());
-            }
-        }
-        let mut positional = self.positional.data.len();
-        for param in params {
-            ctx.charge(1)?;
-            if param.kind == ParamKind::Positional {
-                if positional > 0 {
-                    positional -= 1;
-                    continue;
-                }
-                if self.keywords.find(ctx, param.name.as_bytes())?.is_some() {
-                    return Ok(());
-                }
-            }
-            let hash = mem::replace(&mut self.keywords, Hash::empty());
-            let hash = ordered_hash(ctx, hash.into_buffer())?;
-            let value = Value::from_hash(ctx, hash)?;
-            self.positional.push(ctx, value)?;
-            break;
-        }
-        Ok(())
-    }
 }
 
 enum Source {
@@ -206,12 +171,7 @@ pub(crate) struct Binding {
 }
 
 impl Binding {
-    pub fn new(
-        ctx: &mut CallContext,
-        params: &[Parameter],
-        mut arguments: Arguments,
-    ) -> Result<Self> {
-        arguments.collapse(ctx, params)?;
+    pub fn new(ctx: &mut CallContext, params: &[Parameter], arguments: Arguments) -> Result<Self> {
         let mut used = Buffer::with_capacity(ctx, arguments.keywords.buffer.data.len())?;
         for _ in &arguments.keywords.buffer.data {
             ctx.charge(1)?;

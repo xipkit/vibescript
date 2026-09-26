@@ -50,7 +50,7 @@ fn invoke(
         site,
         name,
         mutating,
-        mut args,
+        args,
         access: _,
     } = call;
     if name == "as"
@@ -134,9 +134,6 @@ fn invoke(
     }
     match selected {
         namespaces::Member::Function(function) => {
-            if site.parenthesized && !function.constructor {
-                args.options_hash = false;
-            }
             if mutating {
                 storage.addresses.data.pop();
             } else {

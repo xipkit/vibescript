@@ -121,7 +121,7 @@ pub(crate) enum Op {
     Method(CallSite, usize),
     Arguments,
     RootCall(usize, bool),
-    ResolveCall(usize, usize, bool),
+    ResolveCall(usize, usize),
     CallName(usize, usize),
     CallValue,
     CallMember(CallSite),
@@ -233,7 +233,6 @@ pub(crate) struct CallSite {
     pub name: usize,
     pub method: Option<Method>,
     pub auto: bool,
-    pub parenthesized: bool,
     pub scope: bool,
 }
 
@@ -1195,7 +1194,6 @@ impl Compiler<'_> {
             name: index,
             method: Method::parse(name),
             auto,
-            parenthesized: !auto,
             scope: false,
         }
     }
@@ -2257,7 +2255,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             Node::ComputedCall(call, args) => {
                 Box::pin(self.computed_call(call, args, None)).await?
             }
-            Node::Call(name, args, form) => self.named_call(name, args, *form).await?,
+            Node::Call(name, args, _) => self.named_call(name, args).await?,
             Node::Member(recv, name) | Node::SafeMember(recv, name) => {
                 (self.member_call(
                     recv,
@@ -2419,8 +2417,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     Op::JumpNil(0)
                 })
             });
-            let mut site = c.call_site(name, form == CallForm::Auto);
-            site.parenthesized = form == CallForm::Parenthesized;
+            let site = c.call_site(name, form == CallForm::Auto);
             if name != "call" && (mutating || form != CallForm::Auto) {
                 c.emit(Op::PrepareMember(site, mutating));
             }
@@ -2557,9 +2554,9 @@ impl<'a, 'x> Compiling<'a, 'x> {
     async fn block_call(&self, call: &'x Expr, block: &'x Block) -> Result<()> {
         self.c().work.charge(1)?;
         let function = self.compile_block(block).await?;
-        let (name, args, form) = match &call.node {
-            Node::Var(name) => (name.as_str(), &[][..], CallForm::Bare),
-            Node::Call(name, args, form) => (name.as_str(), args.as_slice(), *form),
+        let (name, args) = match &call.node {
+            Node::Var(name) => (name.as_str(), &[][..]),
+            Node::Call(name, args, _) => (name.as_str(), args.as_slice()),
             Node::Member(receiver, name) | Node::SafeMember(receiver, name) => {
                 return self
                     .member_call(
@@ -2607,7 +2604,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 c.global(name);
                 let slot = c.locals.get(c.work, name)?.copied().unwrap_or(usize::MAX);
                 let name = c.call_site(name, false).name;
-                c.emit(Op::ResolveCall(slot, name, form == CallForm::Parenthesized));
+                c.emit(Op::ResolveCall(slot, name));
                 true
             } else {
                 false
@@ -2624,7 +2621,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             let mut c = self.c();
             if let Some(&slot) = c.locals.get(c.work, name)? {
                 let name = c.call_site(name, false).name;
-                c.emit(Op::ResolveCall(slot, name, form == CallForm::Parenthesized));
+                c.emit(Op::ResolveCall(slot, name));
                 Some(Invocation::Resolved)
             } else if let Some(global) = c.global_binding(name)? {
                 c.emit(Op::ResolveGlobalCall(global));
@@ -2638,11 +2635,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     Some(Invocation::Host(host))
                 } else {
                     let site = c.call_site(name, false);
-                    c.emit(Op::ResolveCall(
-                        usize::MAX,
-                        site.name,
-                        form == CallForm::Parenthesized,
-                    ));
+                    c.emit(Op::ResolveCall(usize::MAX, site.name));
                     None
                 };
                 if target.is_some() {
