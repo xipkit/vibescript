@@ -338,22 +338,17 @@ fn loop_calls_preserve_host_overrides_and_method_control_boundaries() {
         .run(CallOptions::default())
         .unwrap();
     assert_eq!(json(&output.value), serde_json::json!([14, 15]));
+    // A method body is not inside the caller's loop, so a loop transfer
+    // there is refused before anything runs.
     for control in ["break 7", "next 7"] {
-        let script = common::runtime_engine()
-            .compile(&format!(
-                "def invalid -> any\n{control}\nend\ndef run -> any\nloop{{invalid}}\nend\ndef good -> int\nloop{{break 9}}.as(int)\nend"
-            ))
-            .unwrap();
-        let baseline = script.call("good", &[], CallOptions::default()).unwrap();
+        let source =
+            format!("def invalid -> any\n{control}\nend\ndef run -> any\nloop{{invalid}}\nend");
+        let error = Engine::new().compile(&source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0001"], "{control}");
         assert_eq!(
-            script
-                .call("run", &[], CallOptions::default())
-                .unwrap_err()
-                .kind,
-            ErrorKind::Argument
+            error.diagnostics()[0].span.start,
+            source.find(control).unwrap(),
+            "{control}"
         );
-        let fresh = script.call("good", &[], CallOptions::default()).unwrap();
-        assert_eq!(json(&fresh.value), serde_json::json!(9));
-        assert_eq!(counters(baseline.stats), counters(fresh.stats));
     }
 }
