@@ -19,7 +19,7 @@ fn options() -> CallOptions {
 }
 
 fn failure(declarations: &str, body: &str) -> Error {
-    common::runtime_engine()
+    Engine::new()
         .compile(&program(declarations, body))
         .unwrap()
         .call("run", &[Value::nil()], options())
@@ -68,8 +68,6 @@ fn language_classes_are_independent_of_native_error_categories() {
         ("1.hours / 0.0", ErrorClass::ZeroDivision),
         ("1.hours / 0.seconds", ErrorClass::ZeroDivision),
         ("1.hours % 0.seconds", ErrorClass::ZeroDivision),
-        ("break", ErrorClass::Runtime),
-        ("next", ErrorClass::Runtime),
     ] {
         let error = failure("", source);
         assert_eq!(error.class(), Some(class), "{source}: {error}");
@@ -89,6 +87,8 @@ fn language_classes_are_independent_of_native_error_categories() {
         ("Math.sqrt()", &["V0301"]),
         ("1.div", &["V0301"]),
         ("yield", &["V0308"]),
+        ("break", &["V0001"]),
+        ("next", &["V0001"]),
     ] {
         assert_eq!(refused("", source), codes, "{source}");
     }
