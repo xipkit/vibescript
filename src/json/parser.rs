@@ -79,7 +79,6 @@ impl Failure {
     }
 }
 
-/// Quotes one input byte as Go's `%q` renders a byte: a rune literal.
 /// Reads an integer literal, `-?[0-9]+`, as `str::parse::<i64>` does, or
 /// returns `None` when it does not fit.
 fn integer(text: &[u8]) -> Option<i64> {
@@ -105,6 +104,7 @@ fn integer(text: &[u8]) -> Option<i64> {
     })
 }
 
+/// Quotes one input byte as Go's `%q` renders a byte: a rune literal.
 fn quote_byte(byte: u8, out: &mut impl std::fmt::Write) -> std::fmt::Result {
     let rune = char::from(byte);
     out.write_char('\'')?;

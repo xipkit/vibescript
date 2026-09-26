@@ -1,0 +1,35 @@
+{
+  "platform": "Linux-7.1.6-arch1-1-x86_64-with-glibc2.44",
+  "machine": "x86_64",
+  "cpu": "Intel(R) Core(TM) Ultra 9 285H",
+  "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)\nbinary: rustc\ncommit-hash: 48a229ceaefd4985c50990b14116b6d856af0985\ncommit-date: 2026-09-01\nhost: x86_64-unknown-linux-gnu\nrelease: 1.98.1\nLLVM version: 22.1.8\n",
+  "source_revision": "68accfadee2ffb52678cfaea3d54a185a9277b32",
+  "dirty": "?? .cache\n?? target\n",
+  "binary_sha256": {
+    "rust-portable": "036b7bba4d02e1246c75570fc347c878e46c6cfc7251ee584f401d6e35edf7f2",
+    "rust-simd": "a5fec54bcbafb1c7adbac4dc611ad08927176d5dcc9ffc971f2ddca1b923420a",
+    "rust-before-portable": "86a321c62a0a2b67e3159109b57a0bdaa29d97e14207e73e58000174d399cf0c",
+    "rust-before-simd": "e3e4724970a24b85b4b078c71247550958ef9111f4cffd5b345ad89d9bc7889e"
+  },
+  "RUSTFLAGS": "",
+  "target_ms": 75,
+  "command": [
+    "scripts/compare.py",
+    "--skip-build",
+    "--suite",
+    "core",
+    "--baseline",
+    "/tmp/json-baseline-bins",
+    "--rounds",
+    "8",
+    "--out",
+    "/tmp/json-core-after-v2"
+  ],
+  "baseline_source_revision": "bfe501d86d455d296732c4d3706661ab57194982",
+  "allocation_binary_sha256": {
+    "rust-portable-alloc": "bb5fe3ebd98f5c575ee4efa77d2fac5ba17bbc740bacdce696bc70fa8246df54",
+    "rust-simd-alloc": "2a2f55df5df994034f53cb2849586f89237710f68ee2731db3e0c963706b4b25",
+    "rust-before-portable-alloc": "2a7ae06c7c5d15be9754893dc7ce3128dd0eaccc5094ffea27a580e0462eec94",
+    "rust-before-simd-alloc": "5f01f477f7bb04ffdde3a7eb9e1e59137e14e84485f72881ccaf7d325e835d1b"
+  }
+}
