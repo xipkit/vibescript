@@ -185,6 +185,10 @@ impl<'a> Parser<'a> {
     }
 
     pub fn space(&mut self) -> Result<()> {
+        self.space_with::<true>()
+    }
+
+    fn space_with<const INDEX: bool>(&mut self) -> Result<()> {
         while self
             .input
             .get(self.pos)
@@ -192,7 +196,7 @@ impl<'a> Parser<'a> {
         {
             let start = self.pos;
             let end = self.input.len().min(start + CHUNK);
-            self.pos += if self.indexed {
+            self.pos += if INDEX && self.indexed {
                 self.scanner.space(self.input, self.pos, end)
             } else {
                 self.input[self.pos..end]
@@ -205,9 +209,10 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    fn take(&mut self, b: u8) -> bool {
+    fn take<const INDEX: bool>(&mut self, b: u8) -> bool {
         if self.input.get(self.pos) == Some(&b) {
-            if self.indexed
+            if INDEX
+                && self.indexed
                 && matches!(b, b']' | b'}' | b',' | b':')
                 && !self.scanner.punctuation(self.input, self.pos)
             {
@@ -226,15 +231,36 @@ impl<'a> Parser<'a> {
     /// frame count rather than the native stack. Any error drops the frames,
     /// releasing every partially built container and completed sibling.
     pub fn value(&mut self) -> Result<Value> {
+        // Flat documents avoid index bookkeeping in the parsing loop. Only
+        // object roots need a search; '[' inside a key is a harmless positive.
+        let indexed = self.input.len() >= 512
+            && match self
+                .input
+                .iter()
+                .find(|&&b| !matches!(b, b' ' | b'\n' | b'\r' | b'\t'))
+            {
+                Some(b'[') => true,
+                Some(b'{') => self.input.contains(&b'['),
+                _ => false,
+            };
+        match (indexed, self.typed.ty.is_some()) {
+            (false, false) => self.value_with::<false, false>(),
+            (false, true) => self.value_with::<false, true>(),
+            (true, false) => self.value_with::<true, false>(),
+            (true, true) => self.value_with::<true, true>(),
+        }
+    }
+
+    fn value_with<const INDEX: bool, const TYPED: bool>(&mut self) -> Result<Value> {
         let mut frames: Buffer<Frame> = Buffer::empty();
         loop {
-            let Some(mut value) = self.start(&mut frames)? else {
+            let Some(mut value) = self.start::<INDEX, TYPED>(&mut frames)? else {
                 continue;
             };
             // Deliver the finished value to the innermost open container, then
             // keep closing containers while their terminators follow.
             loop {
-                if self.typed.ty.is_some() {
+                if TYPED {
                     self.typed.complete(frames.data.len(), &value);
                 }
                 let Some(frame) = frames.data.last_mut() else {
@@ -243,15 +269,15 @@ impl<'a> Parser<'a> {
                 match frame {
                     Frame::Array(out) => {
                         out.push(self.ctx, value)?;
-                        self.space()?;
-                        if self.take(b']') {
+                        self.space_with::<INDEX>()?;
+                        if self.take::<INDEX>(b']') {
                             let Some(Frame::Array(out)) = frames.data.pop() else {
                                 return self.err("expected closing bracket", Failure::End);
                             };
                             value = Value::from_array(self.ctx, out)?;
                             continue;
                         }
-                        if !self.take(b',') {
+                        if !self.take::<INDEX>(b',') {
                             let failure = self.found(Failure::AfterElement);
                             return self.err("expected comma or closing bracket", failure);
                         }
@@ -259,19 +285,19 @@ impl<'a> Parser<'a> {
                     }
                     Frame::Hash { out, key } => {
                         out.insert(self.ctx, std::mem::take(key), value)?;
-                        self.space()?;
-                        if self.take(b'}') {
+                        self.space_with::<INDEX>()?;
+                        if self.take::<INDEX>(b'}') {
                             let Some(Frame::Hash { out, .. }) = frames.data.pop() else {
                                 return self.err("expected closing brace", Failure::End);
                             };
                             value = Value::from_hash(self.ctx, out)?;
                             continue;
                         }
-                        if !self.take(b',') {
+                        if !self.take::<INDEX>(b',') {
                             let failure = self.found(Failure::AfterValue);
                             return self.err("expected comma or closing brace", failure);
                         }
-                        *key = self.key()?;
+                        *key = self.key::<INDEX>()?;
                         break;
                     }
                 }
@@ -282,10 +308,13 @@ impl<'a> Parser<'a> {
     /// Consumes the start of a value. Scalars and empty containers complete
     /// immediately; a non-empty container pushes a frame and returns `None` so
     /// the caller continues with its first element.
-    fn start(&mut self, frames: &mut Buffer<Frame>) -> Result<Option<Value>> {
+    fn start<const INDEX: bool, const TYPED: bool>(
+        &mut self,
+        frames: &mut Buffer<Frame>,
+    ) -> Result<Option<Value>> {
         self.ctx.charge(1)?;
-        self.space()?;
-        if self.typed.ty.is_some() {
+        self.space_with::<INDEX>()?;
+        if TYPED {
             let key = match frames.data.last() {
                 Some(Frame::Hash { key, .. }) => key.as_bytes(),
                 _ => None,
@@ -297,16 +326,16 @@ impl<'a> Parser<'a> {
             );
         }
         match self.input.get(self.pos).copied() {
-            Some(b'"') => self.string().map(Some),
+            Some(b'"') => self.string::<INDEX>().map(Some),
             Some(b'[') => {
-                if !self.indexed && self.input.len() >= 512 {
+                if INDEX && !self.indexed {
                     self.indexed = true;
                     self.scanner.end_string(self.pos);
                 }
                 self.enter(frames)?;
                 self.pos += 1;
-                self.space()?;
-                if self.take(b']') {
+                self.space_with::<INDEX>()?;
+                if self.take::<INDEX>(b']') {
                     return Value::from_array(self.ctx, Buffer::empty()).map(Some);
                 }
                 frames.push(self.ctx, Frame::Array(Buffer::empty()))?;
@@ -315,11 +344,11 @@ impl<'a> Parser<'a> {
             Some(b'{') => {
                 self.enter(frames)?;
                 self.pos += 1;
-                self.space()?;
-                if self.take(b'}') {
+                self.space_with::<INDEX>()?;
+                if self.take::<INDEX>(b'}') {
                     return Value::from_hash(self.ctx, Hash::empty()).map(Some);
                 }
-                let key = self.key()?;
+                let key = self.key::<INDEX>()?;
                 frames.push(
                     self.ctx,
                     Frame::Hash {
@@ -341,7 +370,7 @@ impl<'a> Parser<'a> {
                 self.literal(b"null")?;
                 Ok(Some(Value::nil()))
             }
-            Some(b'-' | b'0'..=b'9') => self.number().map(Some),
+            Some(b'-' | b'0'..=b'9') => self.number::<INDEX>().map(Some),
             _ => {
                 let failure = self.found(Failure::Value);
                 self.err("expected JSON value", failure)
@@ -364,15 +393,15 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    fn key(&mut self) -> Result<Value> {
-        self.space()?;
+    fn key<const INDEX: bool>(&mut self) -> Result<Value> {
+        self.space_with::<INDEX>()?;
         if self.input.get(self.pos) != Some(&b'"') {
             let failure = self.found(Failure::KeyStart);
             return self.err("expected JSON object key", failure);
         }
-        let key = self.read_string(true)?;
-        self.space()?;
-        if !self.take(b':') {
+        let key = self.read_string::<INDEX>(true)?;
+        self.space_with::<INDEX>()?;
+        if !self.take::<INDEX>(b':') {
             let failure = self.found(Failure::AfterKey);
             return self.err("expected colon", failure);
         }
@@ -389,19 +418,38 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn string(&mut self) -> Result<Value> {
-        self.read_string(false)
+    fn string<const INDEX: bool>(&mut self) -> Result<Value> {
+        self.read_string::<INDEX>(false)
     }
 
-    fn read_string(&mut self, key: bool) -> Result<Value> {
+    fn read_string<const INDEX: bool>(&mut self, key: bool) -> Result<Value> {
         self.pos += 1;
         let start = self.pos;
+        if !INDEX {
+            // Most flat-object keys finish before a span scanner pays off.
+            for (len, &byte) in self.input[start..].iter().take(8).enumerate() {
+                if byte == b'"' {
+                    if len != 0 {
+                        self.ctx.charge(1)?;
+                    }
+                    self.pos += len;
+                    let value = self.ctx.bytes(&self.input[start..self.pos])?;
+                    self.pos += 1;
+                    return Ok(value);
+                }
+                if !scan::ordinary(byte, Class::JsonParse) {
+                    break;
+                }
+            }
+        }
         loop {
             if self.pos >= self.input.len() {
                 return self.err("unterminated JSON string", Failure::End);
             }
             let end = self.input.len().min(self.pos + CHUNK);
-            let span = if self.indexed {
+            let span = if matches!(self.input[self.pos], 0..=31 | b'"' | b'\\') {
+                scan::TextSpan::default()
+            } else if INDEX && self.indexed {
                 self.span(end)
             } else {
                 scan::text_span(&self.input[self.pos..end], Class::JsonParse)
@@ -413,29 +461,41 @@ impl<'a> Parser<'a> {
             }
             if self.input[self.pos] == b'"' {
                 let bytes = &self.input[start..self.pos];
-                let value = if key && self.indexed && bytes.len() <= 64 {
+                let value = if key && INDEX && self.indexed && bytes.len() <= 64 {
+                    // Two ways retain common colliding keys across records
+                    // without enlarging the bounded cache.
                     let slot = bytes
                         .iter()
                         .fold(0usize, |hash, &b| hash.wrapping_mul(33) ^ usize::from(b))
-                        & 63;
+                        & 31;
+                    let slot = slot * 2;
                     let keys = self
                         .keys
                         .get_or_insert_with(|| std::array::from_fn(|_| Value::nil()));
-                    if keys[slot].as_bytes() == Some(bytes) {
+                    let hit = if keys[slot].as_bytes() == Some(bytes) {
+                        Some(slot)
+                    } else if keys[slot + 1].as_bytes() == Some(bytes) {
+                        Some(slot + 1)
+                    } else {
+                        None
+                    };
+                    if let Some(hit) = hit {
                         // Sharing an existing key replaces its materialization,
                         // with the same logical work as copying the bytes.
                         self.ctx.work_bytes(bytes.len())?;
-                        keys[slot].clone()
+                        keys[hit].clone()
                     } else {
                         let value = self.ctx.bytes(bytes)?;
-                        keys[slot] = value.clone();
+                        keys[slot + 1] = std::mem::replace(&mut keys[slot], value.clone());
                         value
                     }
                 } else {
                     self.ctx.bytes(bytes)?
                 };
                 self.pos += 1;
-                self.scanner.end_string(self.pos);
+                if INDEX && self.indexed {
+                    self.scanner.end_string(self.pos);
+                }
                 return Ok(value);
             }
             break;
@@ -458,7 +518,22 @@ impl<'a> Parser<'a> {
                 return self.err("unterminated JSON string", Failure::End);
             }
             let end = self.input.len().min(self.pos + CHUNK);
-            let span = scan::text_span(&self.input[self.pos..end], Class::JsonParse);
+            let span = if matches!(self.input[self.pos], 0..=31 | b'"' | b'\\') {
+                scan::TextSpan::default()
+            } else if self.input[self.pos] < 128
+                && self
+                    .input
+                    .get(self.pos + 1)
+                    .is_some_and(|next| matches!(next, 0..=31 | b'"' | b'\\'))
+            {
+                scan::TextSpan {
+                    len: 1,
+                    runes: 1,
+                    steps: 1,
+                }
+            } else {
+                scan::text_span(&self.input[self.pos..end], Class::JsonParse)
+            };
             if span.len > 0 {
                 if span.runes != span.len {
                     pending += span.steps;
@@ -501,7 +576,9 @@ impl<'a> Parser<'a> {
             self.ctx.charge_pending(&mut pending)?;
             match b {
                 b'"' => {
-                    self.scanner.end_string(self.pos);
+                    if INDEX && self.indexed {
+                        self.scanner.end_string(self.pos);
+                    }
                     return Value::from_bytes(self.ctx, out);
                 }
                 b'\\' => {
@@ -575,36 +652,36 @@ impl<'a> Parser<'a> {
         Ok(n)
     }
 
-    fn number(&mut self) -> Result<Value> {
+    fn number<const INDEX: bool>(&mut self) -> Result<Value> {
         let start = self.pos;
-        self.take(b'-');
-        if self.take(b'0') {
+        self.take::<INDEX>(b'-');
+        if self.take::<INDEX>(b'0') {
             if self.input.get(self.pos).is_some_and(u8::is_ascii_digit) {
                 self.zero = Some((start, self.pos + 1));
             }
         } else {
             let digits = self.pos;
-            self.digits()?;
+            self.digits::<INDEX>()?;
             if digits == self.pos {
                 return self.err("invalid JSON number", Failure::Number(start, self.pos));
             }
         }
         let mut float = false;
-        if self.take(b'.') {
+        if self.take::<INDEX>(b'.') {
             float = true;
             let digits = self.pos;
-            self.digits()?;
+            self.digits::<INDEX>()?;
             if digits == self.pos {
                 return self.err("invalid JSON fraction", Failure::Number(start, self.pos));
             }
         }
-        if self.take(b'e') || self.take(b'E') {
+        if self.take::<INDEX>(b'e') || self.take::<INDEX>(b'E') {
             float = true;
-            if !self.take(b'+') {
-                self.take(b'-');
+            if !self.take::<INDEX>(b'+') {
+                self.take::<INDEX>(b'-');
             }
             let digits = self.pos;
-            self.digits()?;
+            self.digits::<INDEX>()?;
             if digits == self.pos {
                 return self.err("invalid JSON exponent", Failure::Number(start, self.pos));
             }
@@ -627,11 +704,11 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn digits(&mut self) -> Result<()> {
+    fn digits<const INDEX: bool>(&mut self) -> Result<()> {
         while self.input.get(self.pos).is_some_and(u8::is_ascii_digit) {
             self.ctx.charge(1)?;
             let end = self.input.len().min(self.pos + 64);
-            self.pos += if !self.indexed {
+            self.pos += if !INDEX || !self.indexed {
                 self.input[self.pos..end]
                     .iter()
                     .take_while(|b| b.is_ascii_digit())
@@ -899,7 +976,7 @@ mod tests {
                 };
                 assert_eq!(
                     run(reference),
-                    run(|parser| parser.string()),
+                    run(|parser| parser.string::<false>()),
                     "case {case} {limits:?}"
                 );
             }

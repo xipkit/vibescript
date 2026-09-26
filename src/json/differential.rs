@@ -1,6 +1,30 @@
 use super::*;
 use crate::{CallOptions, Limits, budget::MAX_VALUE_DEPTH};
 
+#[test]
+fn colliding_record_keys_share_storage_without_changing_values() {
+    let record = r#"{"name":"Ada","city":"Paris","name":"Grace"}"#;
+    let input = format!("[{}]", vec![record; 32].join(","));
+    let mut ctx = CallContext::new(CallOptions::default());
+    let parsed = parse(&mut ctx, input.as_bytes()).unwrap();
+    let records = parsed.as_array().unwrap();
+    let first = records[0].as_hash().unwrap();
+    for record in records {
+        let fields = record.as_hash().unwrap();
+        assert_eq!(fields.len(), 2);
+        assert_eq!(fields[0].1.as_bytes(), Some(b"Grace".as_slice()));
+        assert_eq!(fields[1].1.as_bytes(), Some(b"Paris".as_slice()));
+        for (actual, shared) in fields.iter().zip(first) {
+            assert!(std::ptr::eq(
+                actual.0.as_bytes().unwrap(),
+                shared.0.as_bytes().unwrap()
+            ));
+        }
+    }
+    drop(parsed);
+    assert_eq!(ctx.stats().retained_memory_bytes, 0);
+}
+
 fn compare(input: &[u8], limit: Option<u64>) {
     let run = |portable| {
         let mut ctx = CallContext::new(CallOptions {

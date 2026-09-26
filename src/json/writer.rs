@@ -7,6 +7,27 @@ use crate::{
 };
 use std::fmt::Write;
 
+// Zero means ordinary ASCII, one a six-byte escape, otherwise its short code.
+const ASCII_ESCAPES: [u8; 128] = {
+    let mut escapes = [0; 128];
+    let mut byte = 0;
+    while byte < 32 {
+        escapes[byte] = 1;
+        byte += 1;
+    }
+    escapes[b'"' as usize] = b'"';
+    escapes[b'\\' as usize] = b'\\';
+    escapes[b'\n' as usize] = b'n';
+    escapes[b'\r' as usize] = b'r';
+    escapes[b'\t' as usize] = b't';
+    escapes[8] = b'b';
+    escapes[12] = b'f';
+    escapes[b'<' as usize] = 1;
+    escapes[b'>' as usize] = 1;
+    escapes[b'&' as usize] = 1;
+    escapes
+};
+
 pub(super) struct Output {
     pub buffer: Buffer<u8>,
     limit: Option<usize>,
@@ -385,7 +406,8 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
             settled = i;
         }
         let b = input[i];
-        if b < 128 && !scan::ordinary(b, Class::JsonStringify) {
+        let escape = ASCII_ESCAPES.get(usize::from(b)).copied().unwrap_or(0);
+        if escape != 0 {
             pending += 1;
             i += 1;
             // Go reserves room for the longest escape before any ASCII escape.
@@ -394,17 +416,8 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
                 ctx.charge_pending(&mut pending)?;
                 out.check(ctx, reserved)?;
             }
-            let short = match b {
-                b'"' | b'\\' => b,
-                b'\n' => b'n',
-                b'\r' => b'r',
-                b'\t' => b't',
-                8 => b'b',
-                12 => b'f',
-                _ => 0,
-            };
-            if short != 0 {
-                out.put(ctx, &[b'\\', short], &mut pending)?;
+            if escape != 1 {
+                out.put(ctx, &[b'\\', escape], &mut pending)?;
             } else {
                 let hex = b"0123456789abcdef";
                 let unicode = [
@@ -421,6 +434,16 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
         }
         let window = &input[i..input.len().min(i + CHUNK)];
         if b < 128 {
+            // A one-byte run between ASCII escapes needs no vector/SWAR mask.
+            if window.get(1).is_some_and(|&next| {
+                ASCII_ESCAPES
+                    .get(usize::from(next))
+                    .is_some_and(|&e| e != 0)
+            }) {
+                out.put(ctx, &window[..1], &mut pending)?;
+                i += 1;
+                continue;
+            }
             // An ordinary run ending at an escape or the window is exactly
             // the span `text_span` would find, so it skips the rune scan.
             let n = scan::prefix(window, Class::JsonStringify);
