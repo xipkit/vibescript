@@ -58,9 +58,13 @@ fn invalid_call_members_stop_before_arguments_and_blocks() {
             assert!(error.diagnostics()[0].span.start > prefix.len(), "{source}");
         }
     }
+    // `P#call` is also private, which a receiver cannot reach.
     for (suffix, codes) in [
-        (".call(flag:mark(1)){mark(2)}", &["V0302", "V0305"][..]),
-        (".call{mark(1)}", &["V0305"]),
+        (
+            ".call(flag:mark(1)){mark(2)}",
+            &["V0208", "V0302", "V0305"][..],
+        ),
+        (".call{mark(1)}", &["V0208", "V0305"]),
     ] {
         let source = format!("{prefix}\nP.new{suffix}");
         let error = checked.compile(&source).err().unwrap();
