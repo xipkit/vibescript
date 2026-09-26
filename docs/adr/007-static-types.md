@@ -387,7 +387,7 @@ callee bodies and declaration order, and makes a function's contract implicit.
 - Builds on: [ADR-006: Slim the language for predictable
   sandboxing](006-slim-language-for-predictable-sandboxing.md)
 - Current type syntax and runtime contracts: [types](../types.md)
-- Current checker, to be replaced: [checker](../checker.md)
+- The checker: [checker](../checker.md)
 
 ## Implementation notes
 
@@ -406,16 +406,30 @@ with it: `/` divides numbers to a float, a function without `-> T` returns
 ints while it still floored them, is retired; its number stays registered
 and is not reused.
 
-One escape hatch remains, `Engine::legacy_unchecked()`, hidden from the
-documentation. It compiles the ADR-004 language without static types, with
-that language's runtime rules: `/` floors two integers (it compiles to a
-separate operator), every function returns its last expression, and `fill`
-and `insert` pad with `nil`. It exists so that `vibes migrate` can compile,
-run and observe scripts written before the switchover, and compare their
-behavior with their migrations. Until the gradual checker and the runtime
-support for removed spellings are deleted, the checker's own tests and the
-golden `parse` sweep, which records what the grammar accepts rather than what
-type checks, use it too; nothing else does.
+One escape hatch remained at the switchover, `Engine::legacy_unchecked()`,
+which compiled the ADR-004 language without static types and with that
+language's runtime rules, so that `vibes migrate` could compile, run and
+observe scripts written before it. Phase 5 deleted it the same day, with
+everything only the old language used: the migrator and the `observe` feature
+that fed it runtime types, the gradual checker and its `Script::check` family,
+the runtime rules the escape hatch kept (`/` flooring two integers, `fill` and
+`insert` padding with `nil`, and every function returning its last
+expression), and the runtime support for removed spellings (synonym members,
+dispatch by name, `nil?`, `eql?` and `equal?`, `tap` and its relatives,
+`Hash.new`, `Regexp`, `sprintf`, the global `now`, `Time.gm`, `mktime` and
+`new`, hash fields written with a dot, symbol hash keys and the options-hash
+rule). The migration's tooling and decision log are in the repository's
+history, and the golden `parse` sweep now only parses.
+
+The full grammar still reads the removed syntax, only so that the checker
+reports it with its fix; a source the checker's surface rules cannot read must
+also parse in the canonical grammar, so removed syntax never compiles. Those
+rules report a removed spelling however it is written. Before phase 5 they
+missed one called with arguments its rewrite does not take, on a builtin
+namespace or class instance, inside a computed callee or named bare, and such
+code ran the removed support. The runtime's selection of a computed call
+target stays, although the checker rejects every computed call (V0310): it is
+shared with calls of a member named `call`.
 
 Decisions the ADRs left open:
 
@@ -450,9 +464,9 @@ Decisions the ADRs left open:
   runs on natively, a source whose syntax is more than 128 levels tall
   fails to compile with `V0001` rather than exhausting the default stack;
   native targets keep the parser's limit of 1,024.
-- The golden cases whose purpose is a static rejection keep the outcome
-  their goldens recorded in the ADR-004 language; they are checked against
-  their `static_error` only.
+- The golden cases whose purpose is a static rejection kept the outcome
+  their goldens recorded in the ADR-004 language until phase 5; their
+  goldens now record the compile error.
 
 Namespace initializers run where the top-level module declaration is executed,
 with nested modules initialized before their parent. Their bodies can read and
