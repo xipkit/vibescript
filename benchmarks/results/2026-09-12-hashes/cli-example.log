@@ -1,5 +1,0 @@
-   Compiling vibescript v0.1.0 (/Volumes/m2/Work/xipkit/vibescript.rs)
-    Finished `release` profile [optimized + debuginfo] target(s) in 1.80s
-     Running `target/release/vibes tests/site/rosettacode/popular/top_rank_per_group.vibe --function run --stats`
-[{"group":"blue","name":"Ava","score":92},{"group":"green","name":"Mia","score":91},{"group":"red","name":"Eli","score":84}]
-steps=716 peak_bytes=6115 retained_bytes=2199

@@ -1,4 +1,0 @@
-   Compiling vibescript v0.1.0 (/Volumes/m2/Work/xipkit/vibescript.rs)
-    Finished `release` profile [optimized + debuginfo] target(s) in 3.27s
-     Running `target/release/examples/sms`
-Demo -> +12025550123: Order 1042 is on its way.
