@@ -228,3 +228,12 @@ mod unix {
         assert_eq!(String::from_utf8(output.stdout).unwrap(), expected);
     }
 }
+
+#[test]
+fn floor_division_assignment_survives_formatting() {
+    let files = Files::new();
+    let path = files.write("halve.vibe", "a = 12  \na //= 5\t\np a\n");
+    vibes(&["fmt", "-w", &path]).expect(0, "", "");
+    assert_eq!(files.read("halve.vibe"), "a = 12\na //= 5\np a\n");
+    vibes(&["run", &path]).expect(0, "2\n2\n", "");
+}

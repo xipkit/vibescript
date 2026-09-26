@@ -510,7 +510,7 @@ assert value >= -1, "unexpected value"
 | `<<` | Appends one element to an array. |
 | `.. ...` | Inclusive and exclusive ranges. |
 | `&.` | Calls through an optional value, giving `nil` when it is `nil`. |
-| `+= -= *= %= **=` | Compound assignment; `&&=` and `\|\|=` take `bool` targets. |
+| `+= -= *= /= //= %= **=` | Compound assignment; `&&=` and `\|\|=` take `bool` targets. |
 
 Money adds and subtracts money of the same currency and multiplies by integers. Durations add to times and to each other: `Time.now + 2.hours`, `5.minutes.ago`, `3.days.after(start)`.
 

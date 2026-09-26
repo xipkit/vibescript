@@ -834,13 +834,24 @@ impl<'a> Checker<'a> {
             }
             "/" => {
                 if left == Ty::INT && right == Ty::INT {
+                    // A compound assignment's span is its `/=`.
+                    let (written, floor) = match self.source.get(span.start..span.end) {
+                        Some("/=") => ("/=", "//="),
+                        _ => ("/", "//"),
+                    };
                     self.report(
                         Diagnostic::error(
                             Code::INTEGER_DIVISION,
                             span,
-                            "`/` on two ints divides to a float once ADR-008 lands; write `//` to keep floor division",
+                            format!(
+                                "`{written}` on two ints divides to a float once ADR-008 lands; write `{floor}` to keep floor division"
+                            ),
                         )
-                        .with_fix(Fix::replace("use floor division `//`", span, "//")),
+                        .with_fix(Fix::replace(
+                            format!("use floor division `{floor}`"),
+                            span,
+                            floor,
+                        )),
                     );
                     Ty::INT
                 } else if ln && rn {

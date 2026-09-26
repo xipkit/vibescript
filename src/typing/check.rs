@@ -931,7 +931,16 @@ impl<'a> Checker<'a> {
                 let outer = self.memo.replace(super::Memo::default());
                 let current = self.target_read(target);
                 let right = self.expr(value, None);
-                let span = self.spans.stmt(stmt);
+                let mut span = self.spans.stmt(stmt);
+                // Floor division's fix edits the operator: `/=` becomes `//=`.
+                if operator == "/" {
+                    let target_end = self.target_span(target).end;
+                    let value_start = self.spans.expr(value).start;
+                    let between = self.source.get(target_end..value_start).unwrap_or("");
+                    if let Some(at) = between.find(op) {
+                        span = Span::new(target_end + at, target_end + at + op.len());
+                    }
+                }
                 self.memo.as_mut().unwrap().replay = true;
                 let result = match self.optional_element(target, op, value, current) {
                     Some(present) => {

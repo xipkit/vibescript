@@ -240,3 +240,73 @@ fn the_checker_types_floor_division() {
         "Operator \"//\" does not accept duration and int"
     );
 }
+
+#[test]
+fn compound_floor_division_assigns_the_floored_value() {
+    for (body, expected) in [
+        ("a = 7\n  a //= 2\n  a", "3"),
+        ("a = -7\n  a //= 2\n  a", "-4"),
+        ("a = 2 ** 70\n  a //= 3\n  a", "393530540239137101141"),
+        ("b = 7.5\n  b //= 2\n  b", "3"),
+        ("h = { n: 9 }\n  h[\"n\"] //= 4\n  h[\"n\"]", "2"),
+    ] {
+        assert_eq!(run(body).to_string(), expected, "{body}");
+    }
+    let source = "class Counter\n  @@n: int = 9\n  def self.halve -> int\n    @@n //= 2\n    @@n\n  end\nend\n\
+                  def run -> int\n  Counter.halve\nend\n";
+    for static_types in [false, true] {
+        let mut engine = Engine::new();
+        engine.set_static_types(static_types);
+        let value = engine
+            .compile(source)
+            .unwrap()
+            .call("run", &[], CallOptions::default())
+            .unwrap()
+            .value;
+        assert_eq!(value.as_int(), Some(4));
+    }
+    // A zero divisor raises as `//` does.
+    let error = failure("y = 1\n  y //= 0");
+    assert_eq!(error.kind, ErrorKind::Arithmetic);
+    assert_eq!(error.class(), Some(ErrorClass::ZeroDivision));
+}
+
+#[test]
+fn the_checker_types_compound_floor_division() {
+    let checked = |source: &str| -> Vec<String> {
+        match common::static_engine().compile(source) {
+            Ok(_) => Vec::new(),
+            Err(error) => common::codes(&error),
+        }
+    };
+    assert!(checked("def f(n: int) -> int\n  n //= 2\n  n\nend\n").is_empty());
+    assert!(checked("def f(x: float) -> float\n  x //= 2\n  x\nend\n").is_empty());
+    assert_eq!(
+        checked("def f(s: string) -> string\n  s //= 2\n  s\nend\n"),
+        ["V0108"]
+    );
+    // The result keeps the target's type: floor division of an int by a
+    // float is a float.
+    assert_eq!(
+        checked("def f(n: int) -> int\n  n //= 2.0\n  n\nend\n"),
+        ["V0102"]
+    );
+}
+
+#[test]
+fn slash_assignment_on_ints_is_fixed_to_floor_division_assignment() {
+    let source = "def run -> int\n  a = 12\n  a /= 5\n  a\nend\n";
+    let error = common::static_engine().compile(source).err().unwrap();
+    let diagnostic = &error.diagnostics()[0];
+    assert_eq!(diagnostic.code.to_string(), "V0109");
+    assert_eq!(&source[diagnostic.span.start..diagnostic.span.end], "/=");
+    let fixed = diagnostic.fixes[0].apply(source).unwrap();
+    assert_eq!(fixed, "def run -> int\n  a = 12\n  a //= 5\n  a\nend\n");
+    let value = common::static_engine()
+        .compile(&fixed)
+        .unwrap()
+        .call("run", &[], CallOptions::default())
+        .unwrap()
+        .value;
+    assert_eq!(value.as_int(), Some(2));
+}
