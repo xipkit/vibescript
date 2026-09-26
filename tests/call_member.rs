@@ -212,7 +212,7 @@ fn unknown_call_members_use_the_reference_wording() {
                     case["body"].as_str().unwrap()
                 )
             });
-        let error = Engine::new()
+        let error = common::fixture_engine(case.get("static_error"), &source, name)
             .compile(&source)
             .unwrap()
             .call("run", &[Value::nil()], CallOptions::default())
@@ -234,8 +234,9 @@ fn bare_names_receiving_call_follow_the_reference_rules() {
         if !name.starts_with("call_receiver_") || case.get("go_error").is_none() {
             continue;
         }
-        let error = Engine::new()
-            .compile(case["source"].as_str().unwrap())
+        let source = case["source"].as_str().unwrap();
+        let error = common::fixture_engine(case.get("static_error"), source, name)
+            .compile(source)
             .unwrap()
             .call("run", &[Value::nil()], CallOptions::default())
             .unwrap_err();

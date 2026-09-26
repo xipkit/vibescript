@@ -293,7 +293,7 @@ fn streaming_matches_observe_limits_and_cancellation() {
 #[test]
 fn selected_regex_policies_preserve_anchors_and_match_data_identity() {
     let copy = Engine::new()
-        .compile("m=\"a\".match(/(a)/);x=m.captures.dup.push(\"x\");[x,m.captures,m.dup.to_s]")
+        .compile("m=\"a\".match(/(a)/).as(match_data);x=m.captures.dup.push(\"x\");[x,m.captures,m.dup.to_s]")
         .unwrap()
         .run(CallOptions::default())
         .unwrap();
@@ -310,8 +310,10 @@ fn selected_regex_policies_preserve_anchors_and_match_data_identity() {
         ) {
             continue;
         }
-        let script = Engine::new()
-            .compile(case["source"].as_str().unwrap())
+        let source = case["source"].as_str().unwrap();
+        let name = case["name"].as_str().unwrap();
+        let script = common::fixture_engine(case.get("static_error"), source, name)
+            .compile(source)
             .unwrap();
         let result = script.call("run", &[Value::nil()], CallOptions::default());
         if case.get("expected_error").is_some() {
@@ -330,7 +332,7 @@ fn selected_regex_policies_preserve_anchors_and_match_data_identity() {
             );
         }
     }
-    let source = r##"m="ab".match(/(?<x>a)(b)/);alias=m;captures=m.captures;captures.push("x");[captures,m.captures,alias.captures,m.dup.to_s,"#{m.dup}"]"##;
+    let source = r##"m="ab".match(/(?<x>a)(b)/).as(match_data);alias=m;captures=m.captures;captures.push("x");[captures,m.captures,alias.captures,m.dup.to_s,"#{m.dup}"]"##;
     let value = Engine::new()
         .compile(source)
         .unwrap()

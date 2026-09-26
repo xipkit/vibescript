@@ -11,7 +11,7 @@ fn typed_results_preserve_exact_data_and_type_distinctions() {
     let cases: Vec<Json> = serde_json::from_str(include_str!("encoding-cases.json")).unwrap();
     for case in cases {
         let source = case["source"].as_str().unwrap();
-        let result = Engine::new()
+        let result = common::fixture_engine(case.get("static_error"), source, source)
             .compile(source)
             .unwrap_or_else(|error| panic!("{source}: {error}"))
             .call("run", &[Value::nil()], CallOptions::default())

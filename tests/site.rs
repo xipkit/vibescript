@@ -1,6 +1,8 @@
 use serde_json::Value as Json;
 use std::{fs, path::Path};
-use vibescript::{CallOptions, Engine, Limits};
+use vibescript::{CallOptions, Limits};
+
+mod common;
 
 #[path = "../examples/support/mod.rs"]
 mod support;
@@ -15,7 +17,7 @@ fn unchanged_site_examples_match_go_results() {
     for case in cases {
         let path = case["path"].as_str().unwrap();
         let source = fs::read_to_string(root.join(path)).unwrap();
-        let mut engine = Engine::new();
+        let mut engine = common::fixture_engine(settings[path].get("static_error"), &source, path);
         if let Some(byte) = case.get("entropy_byte") {
             let byte = u8::try_from(byte.as_u64().unwrap()).unwrap();
             engine.set_random_source(move |_, output| {
@@ -23,16 +25,20 @@ fn unchanged_site_examples_match_go_results() {
                 Ok(output.len())
             });
         }
+        let capabilities: Vec<_> = settings[path]["notifications"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|name| support::notification(name.as_str().unwrap()).unwrap())
+            .collect();
+        for capability in &capabilities {
+            engine.declare_capability(capability).unwrap();
+        }
         let script = engine
             .compile(&source)
             .unwrap_or_else(|e| panic!("{path}: {e}"));
         let options = CallOptions {
-            capabilities: settings[path]["notifications"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .map(|name| support::notification(name.as_str().unwrap()).unwrap())
-                .collect(),
+            capabilities,
             limits: Limits {
                 steps: Some(5_000_000),
                 memory_bytes: Some(64 << 20),

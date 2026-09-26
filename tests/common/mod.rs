@@ -76,3 +76,30 @@ pub fn codes(error: &vibescript::Error) -> Vec<String> {
         .map(|diagnostic| diagnostic.code.to_string())
         .collect()
 }
+
+/// An engine for a fixture case. When the case records the static
+/// diagnostic its program draws, this checks that the program is refused
+/// with that code and returns an engine without static types, so the case's
+/// runtime result can still be compared; otherwise it returns the default
+/// engine.
+pub fn fixture_engine(
+    static_error: Option<&serde_json::Value>,
+    source: &str,
+    name: &str,
+) -> vibescript::Engine {
+    let mut engine = vibescript::Engine::new();
+    if let Some(expected) = static_error {
+        let error = static_engine()
+            .compile(source)
+            .err()
+            .unwrap_or_else(|| panic!("{name}: compiled with static types"));
+        let first = error
+            .diagnostics()
+            .iter()
+            .find(|diagnostic| diagnostic.is_error())
+            .unwrap_or_else(|| panic!("{name}: {error}"));
+        assert_eq!(first.code.to_string(), expected["code"], "{name}");
+        engine.set_static_types(false);
+    }
+    engine
+}

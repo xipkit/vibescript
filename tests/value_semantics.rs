@@ -26,7 +26,8 @@ fn documented_values_remain_stable_with_and_without_an_unused_alias() {
             None => with_unused_alias(source),
         };
         for source in [source, &with_alias] {
-            let result = Engine::new()
+            let name = case["name"].as_str().unwrap();
+            let result = common::fixture_engine(case.get("static_error"), source, name)
                 .compile(source)
                 .unwrap()
                 .call("run", &[vibescript::Value::nil()], CallOptions::default())
