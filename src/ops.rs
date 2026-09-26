@@ -465,14 +465,6 @@ pub(crate) fn compare(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Opt
     }
 }
 
-pub(crate) fn equal(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -> Result<bool> {
-    equal_kinds(ctx, a, b, depth, false)
-}
-
-pub(crate) fn eql(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -> Result<bool> {
-    equal_kinds(ctx, a, b, depth, true)
-}
-
 /// One suspended container comparison. Frames only borrow the operands, so
 /// unwinding the walk never runs recursive drop glue. `shared` holds the
 /// storage addresses of a pair that other paths may reach again.
@@ -505,18 +497,17 @@ pub(crate) fn shared_pair<T>(a: &Arc<T>, b: &Arc<T>) -> Option<(usize, usize)> {
         .then_some((Arc::as_ptr(a) as usize, Arc::as_ptr(b) as usize))
 }
 
-fn equal_kinds<'a>(
+pub(crate) fn equal<'a>(
     ctx: &mut CallContext,
     a: &'a Value,
     b: &'a Value,
     depth: usize,
-    strict: bool,
 ) -> Result<bool> {
     // Shared container pairs already found equal in this walk. A pair that
     // differed ends the walk, so only equal pairs are recorded; the operands
     // stay borrowed until it returns, which keeps every address valid.
     let mut equal = crate::pairs::Pairs::new();
-    let mut current = match equal_step(ctx, a, b, depth, strict, &equal)? {
+    let mut current = match equal_step(ctx, a, b, depth, &equal)? {
         EqualStep::Same => return Ok(true),
         EqualStep::Different => return Ok(false),
         EqualStep::Enter(mut frame) => {
@@ -576,7 +567,7 @@ fn equal_kinds<'a>(
             }
             continue;
         };
-        match equal_step(ctx, x, y, level, strict, &equal)? {
+        match equal_step(ctx, x, y, level, &equal)? {
             EqualStep::Same => {}
             EqualStep::Different => return Ok(false),
             EqualStep::Enter(frame) => {
@@ -592,15 +583,11 @@ fn equal_step<'a>(
     a: &'a Value,
     b: &'a Value,
     depth: usize,
-    strict: bool,
     equal: &crate::pairs::Pairs<()>,
 ) -> Result<EqualStep<'a>> {
     ctx.charge(1)?;
     if depth > MAX_VALUE_DEPTH {
         return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
-    }
-    if strict && a.type_name() != b.type_name() {
-        return Ok(EqualStep::Different);
     }
     // A remembered pair stands in for its walk only where that walk could not
     // reach the nesting limit from this depth.
@@ -898,12 +885,8 @@ pub(crate) fn method(
 ) -> Result<Value> {
     use Method::*;
     match method {
-        IsNil => {
-            crate::members::universal_shape(name, &value, args.len(), false, false)?;
-            return Ok(Value::boolean(matches!(value.0, Kind::Nil)));
-        }
-        Itself | Dup => {
-            crate::members::universal_shape(name, &value, args.len(), false, false)?;
+        Dup => {
+            crate::members::dup_shape(args.len(), false, false)?;
             return Ok(value);
         }
         ToString => {
@@ -926,7 +909,7 @@ pub(crate) fn method(
         return crate::range::method(ctx, method, name, range, args);
     }
     match method {
-        IsNil | Itself | Dup | ToString => unreachable!(),
+        Dup | ToString => unreachable!(),
         Prepend | Pop | Shift | Delete | Insert | Clear | Fill | Store | Replace => {
             crate::mutate::call(ctx, method, name, value, args).map(|(_, result)| result)
         }
@@ -1536,14 +1519,12 @@ mod tests {
         let loose = Value::array(vec![ints(&[1])]);
         let float = Value::array(vec![Value::array(vec![Value::float(1.0)])]);
         assert!(equal(&mut ctx, &loose, &float, 0).unwrap());
-        assert!(!eql(&mut ctx, &loose, &float, 0).unwrap());
         let symbol = Value::array(vec![Value::symbol("x")]);
         let text = Value::array(vec![Value::bytes("x")]);
         assert!(!equal(&mut ctx, &symbol, &text, 0).unwrap());
         let hash = pairs(&[("a", ints(&[1])), ("b", Value::int(2))]);
         let reordered = pairs(&[("b", Value::int(2)), ("a", ints(&[1]))]);
         assert!(equal(&mut ctx, &hash, &reordered, 0).unwrap());
-        assert!(eql(&mut ctx, &hash, &reordered, 0).unwrap());
         let object = Value::object(vec![
             (b"a".to_vec(), ints(&[1])),
             (b"b".to_vec(), Value::int(2)),
@@ -1556,11 +1537,9 @@ mod tests {
             ("b", Value::int(2)),
         ]);
         assert!(equal(&mut ctx, &hash, &coerced, 0).unwrap());
-        assert!(!eql(&mut ctx, &hash, &coerced, 0).unwrap());
         // Nested NaN stays unequal, even against the same storage.
         let wrapped = Value::array(vec![Value::array(vec![nan.clone()])]);
         assert!(!equal(&mut ctx, &wrapped, &wrapped, 0).unwrap());
-        assert!(!eql(&mut ctx, &wrapped, &wrapped.clone(), 0).unwrap());
         let keyed = pairs(&[("n", nan)]);
         assert!(!equal(&mut ctx, &keyed, &keyed, 0).unwrap());
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
@@ -1625,12 +1604,10 @@ mod tests {
         let a = shared(40, Value::int(0));
         let b = shared(40, Value::int(0));
         let c = shared(40, Value::int(1));
-        for strict in [false, true] {
-            let mut ctx = context(Some(1_000), None);
-            assert!(equal_kinds(&mut ctx, &a, &b, 0, strict).unwrap());
-            assert!(!equal_kinds(&mut ctx, &a, &c, 0, strict).unwrap());
-            assert_eq!(ctx.stats().retained_memory_bytes, 0);
-        }
+        let mut ctx = context(Some(1_000), None);
+        assert!(equal(&mut ctx, &a, &b, 0).unwrap());
+        assert!(!equal(&mut ctx, &a, &c, 0).unwrap());
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
         // Each level costs its two element steps and one recorded pair.
         let cost = |levels| {
             let mut ctx = context(None, Some(usize::MAX));
@@ -1696,12 +1673,9 @@ mod tests {
             );
             let within = (
                 equal(&mut ctx, &arrays.0, &arrays.1, 0),
-                eql(&mut ctx, &arrays.0, &arrays.1, 0),
                 equal(&mut ctx, &arrays.0, &arrays.2, 0),
-                eql(&mut ctx, &arrays.0, &arrays.2, 0),
                 equal(&mut ctx, &arrays.0, &arrays.3, 0),
                 equal(&mut ctx, &hashes.0, &hashes.1, 0),
-                eql(&mut ctx, &hashes.0, &hashes.1, 0),
             );
             let steps = ctx.stats().steps;
             let beyond = (
@@ -1712,7 +1686,7 @@ mod tests {
             );
             let errors = (
                 equal(&mut ctx, &beyond.0, &beyond.1, 0),
-                eql(&mut ctx, &beyond.2, &beyond.3, 0),
+                equal(&mut ctx, &beyond.2, &beyond.3, 0),
             );
             let stats = ctx.stats();
             for value in [
@@ -1726,13 +1700,10 @@ mod tests {
         let (within, steps, errors, stats) = outcome;
         assert!(within.0.unwrap());
         assert!(within.1.unwrap());
-        assert!(within.2.unwrap());
-        assert!(!within.3.unwrap());
-        assert!(!within.4.unwrap());
-        assert!(within.5.unwrap());
-        assert!(within.6.unwrap());
+        assert!(!within.2.unwrap());
+        assert!(within.3.unwrap());
         // Every array walk charges one step per level plus the leaf pair.
-        assert!(steps >= 5 * (MAX_VALUE_DEPTH as u64 + 1));
+        assert!(steps >= 3 * (MAX_VALUE_DEPTH as u64 + 1));
         for error in [errors.0.unwrap_err(), errors.1.unwrap_err()] {
             assert_eq!(error.kind, ErrorKind::Recursion);
             assert_eq!(error.class(), Some(ErrorClass::Limit));

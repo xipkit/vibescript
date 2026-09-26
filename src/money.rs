@@ -219,36 +219,9 @@ pub(crate) fn member(
         return Ok(None);
     };
     let result = match name {
-        "nil?" => {
-            crate::arguments::nullary("money.nil?", args, keywords, block)?;
-            Value::boolean(false)
-        }
-        "itself" => {
-            let refused = if keywords {
-                "does not accept keyword arguments".to_owned()
-            } else if block {
-                "does not accept a block".to_owned()
-            } else if !args.is_empty() {
-                format!("expects 0 arguments, got {}", args.len())
-            } else {
-                return Ok(Some(receiver.clone()));
-            };
-            return Err(Error::new(
-                ErrorKind::Argument,
-                format!("money.itself {refused}"),
-            ));
-        }
         "dup" => {
-            let refused = if !args.is_empty() {
-                "does not take arguments"
-            } else if keywords {
-                "does not take keyword arguments"
-            } else if block {
-                "does not accept blocks"
-            } else {
-                return Ok(Some(receiver.clone()));
-            };
-            return Err(Error::new(ErrorKind::Argument, format!("dup {refused}")));
+            crate::members::dup_shape(args.len(), keywords, block)?;
+            return Ok(Some(receiver.clone()));
         }
         "currency" | "cents" | "amount" => {
             if !site.auto || keywords || block {

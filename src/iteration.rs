@@ -15,8 +15,6 @@ mod range;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum MethodKind {
-    Tap,
-    YieldSelf,
     Each,
     EachIndex,
     EachKey,
@@ -76,8 +74,6 @@ enum MethodKind {
 impl MethodKind {
     fn parse(name: &str) -> Option<Self> {
         Some(match name {
-            "tap" => Self::Tap,
-            "yield_self" => Self::YieldSelf,
             "each" => Self::Each,
             "each_with_index" => Self::EachIndex,
             "each_key" => Self::EachKey,
@@ -144,7 +140,6 @@ pub(crate) fn method(name: &str) -> bool {
 
 pub(crate) enum Progress {
     Yield([Value; 3], usize),
-    Call(Value, Value, Value),
     Done(Value),
 }
 
@@ -245,7 +240,6 @@ pub(crate) struct Loop {
     pending_index: i128,
     accumulator: Option<Value>,
     pattern: Option<Value>,
-    operation: Option<Value>,
     count: i64,
     dropping: bool,
     output: Buffer<Value>,
@@ -350,70 +344,52 @@ pub(crate) fn start(
     let Some(method) = MethodKind::parse(name).or(chunk_by_block.then_some(Chunk)) else {
         return Ok(None);
     };
-    let universal = matches!(method, Tap | YieldSelf);
-    let supported = universal
-        || match &receiver.0 {
-            Kind::Array(_) => !matches!(
-                method,
-                EachKey
-                    | EachValue
-                    | FetchValues
-                    | TransformKeys
-                    | TransformValues
-                    | Times
-                    | Upto
-                    | Downto
-                    | Step
-            ),
-            Kind::Hash(_) => matches!(
-                method,
-                Each | EachIndex
-                    | EachKey
-                    | EachValue
-                    | Map
-                    | MapIndex
-                    | Select
-                    | Reject
-                    | Fetch
-                    | FetchValues
-                    | TransformKeys
-                    | TransformValues
-                    | DeleteIf
-                    | KeepIf
-                    | Delete
-            ),
-            Kind::Range(_) => matches!(
-                method,
-                Each | Map | Select | Reject | Find | Reduce | Count | Step | Sum | Min | Max
-            ),
-            Kind::Int(_) | Kind::Big(_) => matches!(method, Times | Upto | Downto | Step),
-            _ => false,
-        };
+    let supported = match &receiver.0 {
+        Kind::Array(_) => !matches!(
+            method,
+            EachKey
+                | EachValue
+                | FetchValues
+                | TransformKeys
+                | TransformValues
+                | Times
+                | Upto
+                | Downto
+                | Step
+        ),
+        Kind::Hash(_) => matches!(
+            method,
+            Each | EachIndex
+                | EachKey
+                | EachValue
+                | Map
+                | MapIndex
+                | Select
+                | Reject
+                | Fetch
+                | FetchValues
+                | TransformKeys
+                | TransformValues
+                | DeleteIf
+                | KeepIf
+                | Delete
+        ),
+        Kind::Range(_) => matches!(
+            method,
+            Each | Map | Select | Reject | Find | Reduce | Count | Step | Sum | Min | Max
+        ),
+        Kind::Int(_) | Kind::Big(_) => matches!(method, Times | Upto | Downto | Step),
+        _ => false,
+    };
     if !supported {
         return Ok(None);
     }
-    if universal {
-        if let Kind::Hash(hash) = &receiver.0 {
-            if hash.find(ctx, name.as_bytes())?.is_some() {
-                return Ok(None);
-            }
-        }
-        // The block helpers check arguments, then keywords, then the block.
-        if !args.is_empty() {
-            return Err(argument(&format!("{name} does not take arguments")));
-        }
-        if keywords {
-            return Err(argument(&format!("{name} does not take keyword arguments")));
-        }
-    }
     let has_block = block_arity.is_some();
-    if !universal {
-        match receiver.0 {
-            Kind::Array(_) => array::check(name, method, args, keywords, has_block)?,
-            Kind::Hash(_) => hash::check(name, method, args, keywords, has_block)?,
-            Kind::Range(_) => range::check(name, method, args, keywords, has_block)?,
-            _ => {}
-        }
+    match receiver.0 {
+        Kind::Array(_) => array::check(name, method, args, keywords, has_block)?,
+        Kind::Hash(_) => hash::check(name, method, args, keywords, has_block)?,
+        Kind::Range(_) => range::check(name, method, args, keywords, has_block)?,
+        _ => {}
     }
     let is_range = matches!(receiver.0, Kind::Range(_));
     if is_range && matches!(method, Sum | Min | Max) {
@@ -445,8 +421,7 @@ pub(crate) fn start(
     }
     let is_hash = matches!(receiver.0, Kind::Hash(_));
     let is_int = matches!(receiver.0, Kind::Int(_) | Kind::Big(_));
-    let rejects_keywords = universal
-        || is_range
+    let rejects_keywords = is_range
         || (is_int && method != Times)
         || matches!(
             method,
@@ -483,7 +458,6 @@ pub(crate) fn start(
         Fetch | Fill => 2,
         Delete => 1,
         FetchValues => usize::MAX,
-        Reduce if !is_range => 2,
         Reduce => 1,
         Step if is_int => 2,
         Step => 1,
@@ -512,7 +486,6 @@ pub(crate) fn start(
         pending_index: 0,
         accumulator: None,
         pattern: None,
-        operation: None,
         count: 0,
         dropping: method == DropWhile,
         output: Buffer::empty(),
@@ -548,17 +521,7 @@ pub(crate) fn start(
         }
     }
     if method == Reduce {
-        if !is_range && (args.len() == 2 || (args.len() == 1 && !has_block)) {
-            let operation = args.last().unwrap();
-            operation.require_bytes()?;
-            state.operation = Some(operation.clone());
-            state.block = false;
-            if args.len() == 2 {
-                state.accumulator = Some(args[0].clone());
-            }
-        } else {
-            state.accumulator = args.first().cloned();
-        }
+        state.accumulator = args.first().cloned();
     }
     if method == Sum {
         state.accumulator = Some(args.first().cloned().unwrap_or_else(|| Value::int(0)));
@@ -566,12 +529,11 @@ pub(crate) fn start(
     let optional = matches!(
         method,
         Count | Any | All | NoneMatch | One | Tally | Grep | GrepV | Sum | Min | Max | FetchValues
-    ) || (method == Reduce && state.operation.is_some());
+    );
     if !has_block && !optional {
         return Err(argument(&format!("{name} requires a block")));
     }
     state.length = match &receiver.0 {
-        _ if universal => 1,
         Kind::Array(array) => array.buffer.data.len() as i128,
         Kind::Hash(hash) => hash.buffer.data.len() as i128,
         Kind::Range(range) => {
@@ -759,21 +721,7 @@ impl Loop {
                 let [first, second] = args;
                 return Ok(Progress::Yield([first, second, Value::nil()], count));
             }
-            let value = if let Some(operation) = &self.operation {
-                let name = operation.require_bytes()?;
-                let receiver = self.accumulator.take().unwrap();
-                if matches!(
-                    name,
-                    b"+" | b"-" | b"*" | b"/" | b"%" | b"**" | b"<<" | b"&"
-                ) {
-                    ctx.work_bytes(name.len())?;
-                    let operator = std::str::from_utf8(name).unwrap();
-                    ops::binary(ctx, operator, receiver, args[0].clone())?
-                } else {
-                    self.waiting = true;
-                    return Ok(Progress::Call(receiver, operation.clone(), args[0].clone()));
-                }
-            } else if let (Count, Some(pattern)) = (self.method, self.pattern.as_ref()) {
+            let value = if let (Count, Some(pattern)) = (self.method, self.pattern.as_ref()) {
                 Value::boolean(ops::equal(ctx, &args[0], pattern, 0)?)
             } else if let (Any | All | NoneMatch, Some(pattern)) =
                 (self.method, self.pattern.as_ref())
@@ -799,9 +747,7 @@ impl Loop {
             1
         };
         self.pending_index = index;
-        if matches!(self.method, Tap | YieldSelf) {
-            args[0] = self.receiver.clone();
-        } else if matches!(self.method, SliceWhen | ChunkWhile) {
+        if matches!(self.method, SliceWhen | ChunkWhile) {
             let array = self.receiver.as_array().unwrap();
             args = [
                 array[index as usize - 1].clone(),
@@ -879,9 +825,9 @@ impl Loop {
             return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
         }
         match self.method {
-            Tap | Each | EachIndex | EachKey | EachValue | EachSlice | EachCons | ReverseEach
-            | Cycle | Times | Upto | Downto | Step => (),
-            YieldSelf | Fetch | Reduce | Delete => self.accumulator = Some(value),
+            Each | EachIndex | EachKey | EachValue | EachSlice | EachCons | ReverseEach | Cycle
+            | Times | Upto | Downto | Step => (),
+            Fetch | Reduce | Delete => self.accumulator = Some(value),
             Map | MapIndex | Grep | GrepV | FetchValues | Fill => self.output.push(ctx, value)?,
             FlatMap => {
                 if let Some(items) = value.as_array() {
@@ -1159,10 +1105,11 @@ impl Loop {
             self.flush_chunk(ctx)?;
         }
         match self.method {
-            Tap | Each | EachIndex | EachKey | EachValue | ReverseEach | Times | Upto | Downto
-            | Step => Ok(self.receiver.clone()),
+            Each | EachIndex | EachKey | EachValue | ReverseEach | Times | Upto | Downto | Step => {
+                Ok(self.receiver.clone())
+            }
             EachSlice | EachCons | Cycle => Ok(Value::nil()),
-            YieldSelf | Fetch | Reduce | Find | Index | Rindex | Sum | Min | Max | Delete => {
+            Fetch | Reduce | Find | Index | Rindex | Sum | Min | Max | Delete => {
                 Ok(self.accumulator.take().unwrap_or_default())
             }
             DeleteIf | KeepIf | Fill => {
@@ -1229,7 +1176,7 @@ pub(crate) fn without_block(
     };
     match state.advance(ctx, None)? {
         Progress::Done(value) => Ok(Some(value)),
-        Progress::Yield(..) | Progress::Call(..) => unreachable!(),
+        Progress::Yield(..) => unreachable!(),
     }
 }
 

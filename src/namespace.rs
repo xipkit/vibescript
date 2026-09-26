@@ -219,12 +219,6 @@ pub(crate) struct State {
     pub backing: Option<Arc<crate::objects::Instance>>,
     pub initialized: bool,
 }
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum Helper {
-    Equality(bool),
-    Predicate(crate::members::introspection::Predicate, bool),
-}
-
 #[derive(Debug)]
 pub(crate) struct Call {
     pub function: usize,

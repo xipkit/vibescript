@@ -72,19 +72,15 @@ pub(crate) fn member(
     if !matches!(value.0, Kind::Shape(_)) {
         return Ok(None);
     }
-    if !matches!(name, "nil?" | "itself" | "dup") {
+    if name != "dup" {
         return Err(Error::new(
             ErrorKind::Name,
             "unsupported member access on shape",
         ));
     }
-    crate::members::universal_shape(name, value, args.len(), keywords, block)?;
+    crate::members::dup_shape(args.len(), keywords, block)?;
     ctx.charge(1)?;
-    Ok(Some(if name == "nil?" {
-        Value::boolean(false)
-    } else {
-        value.clone()
-    }))
+    Ok(Some(value.clone()))
 }
 
 pub(crate) fn retained(ty: &Type) -> usize {

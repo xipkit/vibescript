@@ -698,45 +698,9 @@ pub(crate) fn member(
         return Ok(None);
     }
     let result = match name {
-        "nil?" => {
-            crate::arguments::nullary("time.nil?", args, keywords, block)?;
-            Value::boolean(false)
-        }
-        "itself" => {
-            let refused = if keywords {
-                "does not accept keyword arguments".to_owned()
-            } else if block {
-                "does not accept a block".to_owned()
-            } else if !args.is_empty() {
-                format!("expects 0 arguments, got {}", args.len())
-            } else {
-                return Ok(Some(receiver.clone()));
-            };
-            return Err(argument(format!("time.itself {refused}")));
-        }
         "dup" => {
-            let refused = if !args.is_empty() {
-                "does not take arguments"
-            } else if keywords {
-                "does not take keyword arguments"
-            } else if block {
-                "does not accept blocks"
-            } else {
-                return Ok(Some(receiver.clone()));
-            };
-            return Err(argument(format!("dup {refused}")));
-        }
-        "<=>" => {
-            if keywords {
-                return Err(argument("time.<=> does not accept keyword arguments"));
-            }
-            if args.len() != 1 {
-                return Err(argument(format!(
-                    "time.<=> expects 1 argument, got {}",
-                    args.len()
-                )));
-            }
-            stamp(&args[0]).map_or(Value::nil(), |other| Value::int(time.order(other) as i64))
+            crate::members::dup_shape(args.len(), keywords, block)?;
+            return Ok(Some(receiver.clone()));
         }
         "between?" => {
             crate::arguments::between("time.between?", args, keywords, block)?;

@@ -121,7 +121,6 @@ pub(crate) enum Op {
     Method(CallSite, usize),
     Arguments,
     RootCall(usize, bool),
-    ForwardArguments,
     ResolveCall(usize, usize, bool),
     CallName(usize, usize),
     CallValue,
@@ -296,8 +295,6 @@ pub(crate) enum Method {
     Codepoints,
     StartWith,
     EndWith,
-    IsNil,
-    Itself,
     ByteSize,
     Include,
     Index,
@@ -367,8 +364,6 @@ impl Method {
             "codepoints" => Self::Codepoints,
             "start_with?" => Self::StartWith,
             "end_with?" => Self::EndWith,
-            "nil?" => Self::IsNil,
-            "itself" => Self::Itself,
             "bytesize" => Self::ByteSize,
             "include?" => Self::Include,
             "index" | "find_index" => Self::Index,
@@ -2420,8 +2415,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
         safe: bool,
     ) -> Result<()> {
         self.c().work.charge(1)?;
-        let forwarding = crate::members::forwarding::supported(name);
-        let mutating = mutating_member(name) || forwarding;
+        let mutating = mutating_member(name);
         let receiving = self.receiving(receiver, name, form, args.len());
         if mutating {
             self.address_receiver(receiver, receiving).await?;
@@ -2439,7 +2433,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             });
             let mut site = c.call_site(name, form == CallForm::Auto);
             site.parenthesized = form == CallForm::Parenthesized;
-            if !forwarding && name != "call" && (mutating || form != CallForm::Auto) {
+            if name != "call" && (mutating || form != CallForm::Auto) {
                 c.emit(Op::PrepareMember(site, mutating));
             }
             (skip, site)
@@ -2467,14 +2461,8 @@ impl<'a, 'x> Compiling<'a, 'x> {
             || crate::iteration::method(name)
             || name == "is_type?"
             || name == "as"
-            || forwarding
         {
-            if forwarding {
-                self.c().emit(Op::ForwardArguments);
-                self.argument_values(args).await?;
-            } else {
-                self.call_arguments(args).await?;
-            }
+            self.call_arguments(args).await?;
             let mut c = self.c();
             if let Some(block) = block {
                 c.emit(Op::Attach(block));

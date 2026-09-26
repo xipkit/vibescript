@@ -6,10 +6,7 @@ use crate::{
 };
 
 mod conversion;
-pub(crate) mod equality;
-pub(crate) mod forwarding;
 pub(crate) mod introspection;
-mod lifecycle;
 pub(crate) mod names;
 pub(crate) mod suggest;
 
@@ -32,46 +29,6 @@ fn dispatch_keywords(
     receiver: Value,
     args: &crate::arguments::Arguments,
 ) -> Result<(Value, Value)> {
-    if forwarding::applicable(ctx, site, name, &receiver)? {
-        forwarding::method(name, &args.positional.data)?;
-        return Err(Error::new(
-            ErrorKind::Type,
-            "forwarded call requires an execution context",
-        ));
-    }
-    if let Some(value) = introspection::call(
-        ctx,
-        site,
-        name,
-        &receiver,
-        &args.positional.data,
-        !args.keywords.buffer.data.is_empty(),
-        args.block.is_some(),
-    )? {
-        return Ok((receiver, value));
-    }
-    if let Some(value) = equality::call(
-        ctx,
-        site,
-        name,
-        &receiver,
-        &args.positional.data,
-        !args.keywords.buffer.data.is_empty(),
-        args.block.is_some(),
-    )? {
-        return Ok((receiver, value));
-    }
-    if let Some(value) = lifecycle::call(
-        ctx,
-        site,
-        name,
-        &receiver,
-        &args.positional.data,
-        !args.keywords.buffer.data.is_empty(),
-        args.block.is_some(),
-    )? {
-        return Ok((receiver, value));
-    }
     if let Some(value) = conversion::call(
         ctx,
         site,
@@ -257,11 +214,8 @@ fn dispatch_keywords(
         !args.keywords.buffer.data.is_empty(),
         args.block.is_some(),
     );
-    if matches!(
-        site.method,
-        Some(Method::IsNil | Method::Itself | Method::Dup)
-    ) {
-        universal_shape(name, &receiver, count, keywords, block)?;
+    if matches!(site.method, Some(Method::Dup)) {
+        dup_shape(count, keywords, block)?;
     }
     if numeric && (keywords || block) {
         let kind = receiver.type_name();
@@ -349,22 +303,6 @@ fn dispatch(
             let result = ops::method(ctx, method, name, receiver.clone(), args)?;
             return Ok((receiver, result));
         }
-    }
-    if forwarding::applicable(ctx, site, name, &receiver)? {
-        forwarding::method(name, args)?;
-        return Err(Error::new(
-            ErrorKind::Type,
-            "forwarded call requires an execution context",
-        ));
-    }
-    if let Some(value) = introspection::call(ctx, site, name, &receiver, args, false, false)? {
-        return Ok((receiver, value));
-    }
-    if let Some(value) = equality::call(ctx, site, name, &receiver, args, false, false)? {
-        return Ok((receiver, value));
-    }
-    if let Some(value) = lifecycle::call(ctx, site, name, &receiver, args, false, false)? {
-        return Ok((receiver, value));
     }
     if let Some(value) = conversion::call(ctx, site, name, &receiver, args, (false, false))? {
         return Ok((receiver, value));
@@ -518,27 +456,27 @@ pub(crate) fn nullary(
     ))
 }
 
-/// Refuses a malformed call to the universal `nil?`, `itself` or `dup`, in
-/// the order and wording each has in the reference.
-pub(crate) fn universal_shape(
-    name: &str,
-    receiver: &Value,
-    count: usize,
-    keywords: bool,
-    block: bool,
-) -> Result<()> {
-    let kind = receiver.type_name();
-    let refusal = match name {
-        "nil?" => return nullary(format_args!("{kind}.nil?"), count, keywords, block),
-        "itself" if keywords => format!("{kind}.itself does not accept keyword arguments"),
-        "itself" if block => format!("{kind}.itself does not accept a block"),
-        "itself" if count > 0 => format!("{kind}.itself expects 0 arguments, got {count}"),
-        "dup" | "clone" if count > 0 => format!("{name} does not take arguments"),
-        "dup" | "clone" if keywords => format!("{name} does not take keyword arguments"),
-        "dup" | "clone" if block => format!("{name} does not accept blocks"),
-        _ => return Ok(()),
+/// Refuses arguments, then keywords, then a block passed to the universal
+/// `dup`, in the reference's wording.
+pub(crate) fn dup_shape(count: usize, keywords: bool, block: bool) -> Result<()> {
+    let refusal = if count > 0 {
+        "does not take arguments"
+    } else if keywords {
+        "does not take keyword arguments"
+    } else if block {
+        "does not accept blocks"
+    } else {
+        return Ok(());
     };
-    Err(Error::new(ErrorKind::Argument, refusal))
+    Err(Error::new(ErrorKind::Argument, format!("dup {refusal}")))
+}
+
+/// Whether a value is a method, which a call reaches rather than reads.
+pub(crate) fn callable(value: &Value) -> bool {
+    matches!(
+        value.0,
+        Kind::Builtin(_) | Kind::Offset(_) | Kind::Function(_) | Kind::Host(_)
+    )
 }
 
 /// Reports a dispatch failure for a member the receiver's kind does not define
@@ -628,7 +566,7 @@ pub(crate) fn field(
     name: &str,
     receiver: &Value,
 ) -> Result<Option<Value>> {
-    if !site.scope && names::universal(name) && lifecycle::callable(receiver) {
+    if !site.scope && names::universal(name) && callable(receiver) {
         return Ok(None);
     }
     if let Kind::Host(method) = &receiver.0 {
@@ -652,11 +590,7 @@ pub(crate) fn field(
     if let Kind::Hash(hash) = &receiver.0 {
         if hash.object || !hash_builtin(name) {
             if let Some(index) = hash.find(ctx, name.as_bytes())? {
-                if !site.scope
-                    && names::universal(name)
-                    && !matches!(name, "tap" | "yield_self")
-                    && !lifecycle::callable(&hash.buffer.data[index].1)
-                {
+                if !site.scope && names::universal(name) && !callable(&hash.buffer.data[index].1) {
                     return Ok(None);
                 }
                 return Ok(Some(hash.buffer.data[index].1.clone()));

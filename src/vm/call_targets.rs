@@ -65,12 +65,7 @@ pub(super) fn identifier(
     )? {
         namespaces::Member::Function(call) => Ok(Target::Method(call)),
         namespaces::Member::Value(value) => Ok(value_invocation(&value)),
-        namespaces::Member::Helper(receiver, helper)
-            if matches!(name.as_str(), "eql?" | "equal?") =>
-        {
-            Ok(Target::Helper(receiver, helper))
-        }
-        namespaces::Member::Helper(_, _) => Ok(Target::Member(Value::nil(), index)),
+        namespaces::Member::IsType(_) => Ok(Target::Member(Value::nil(), index)),
         namespaces::Member::Missing => match namespace {
             Some(module) if !names::universal(name) => Err(namespaces::missing_implicit(
                 storage,
@@ -111,18 +106,10 @@ pub(super) fn member(
         )? {
             namespaces::Member::Function(call) => return Ok(Target::Method(call)),
             namespaces::Member::Value(value) => return Ok(value_invocation(&value)),
-            namespaces::Member::Helper(receiver, helper)
-                if matches!(name.as_str(), "eql?" | "equal?") =>
-            {
-                return Ok(Target::Helper(receiver, helper));
-            }
-            namespaces::Member::Helper(_, _) => return Ok(Target::Member(Value::nil(), site.name)),
+            namespaces::Member::IsType(_) => return Ok(Target::Member(Value::nil(), site.name)),
             namespaces::Member::Missing => {}
         }
     } else if matches!(receiver.0, Kind::Enum(_) | Kind::EnumMember(_)) {
-        if !site.scope && matches!(name.as_str(), "itself" | "eql?" | "equal?") {
-            return Ok(Target::Member(receiver, site.name));
-        }
         if !site.scope && names::universal(name) {
             return Ok(Target::Member(Value::nil(), site.name));
         }
@@ -147,11 +134,6 @@ pub(super) fn member(
         if hash.tag.protected() && crate::bytecode::mutating_member(name) {
             return Err(hash.tag.mutation_error(name));
         }
-    }
-    if matches!(name.as_str(), "itself" | "eql?" | "equal?")
-        && !names::temporal_method(&receiver, name)
-    {
-        return Ok(Target::Member(receiver, site.name));
     }
     if matches!(receiver.0, Kind::Range(_))
         && matches!(name.as_str(), "to_s" | "string" | "inspect")

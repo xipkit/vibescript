@@ -20,10 +20,8 @@ pub(super) fn check(
     block: bool,
 ) -> Result<()> {
     use MethodKind::*;
-    // `collect_concat` is an alias the reference reports under `flat_map`.
-    let label = if method == FlatMap { "flat_map" } else { name };
     let refuse =
-        |problem: &str| -> Result<()> { Err(argument(&format!("array.{label} {problem}"))) };
+        |problem: &str| -> Result<()> { Err(argument(&format!("array.{name} {problem}"))) };
     let no_arguments = || {
         if args.is_empty() {
             Ok(())
@@ -68,7 +66,7 @@ pub(super) fn check(
             match size.0 {
                 Kind::Int(n) if n > 0 => needs_block(),
                 Kind::Int(_) => refuse(invalid),
-                _ => Err(type_error(format!("array.{label} {invalid}"))),
+                _ => Err(type_error(format!("array.{name} {invalid}"))),
             }
         }
         Cycle => {
@@ -78,11 +76,9 @@ pub(super) fn check(
             match args.first().map(|count| &count.0) {
                 None | Some(Kind::Nil | Kind::Int(_)) => needs_block(),
                 Some(Kind::Big(_)) => {
-                    Err(type_error(format!("array.{label} count is out of range")))
+                    Err(type_error(format!("array.{name} count is out of range")))
                 }
-                Some(_) => Err(type_error(format!(
-                    "array.{label} count must be an integer"
-                ))),
+                Some(_) => Err(type_error(format!("array.{name} count must be an integer"))),
             }
         }
         Find => {
@@ -110,21 +106,10 @@ pub(super) fn check(
         }
         Reduce => {
             no_keywords()?;
-            if args.len() > 2 {
-                return refuse("accepts at most an initial value and an operation");
+            if args.len() > 1 {
+                return refuse("accepts at most an initial value");
             }
-            let operation = match args {
-                [_, operation] => Some(operation),
-                [operation] if !block => Some(operation),
-                [] if !block => return refuse("requires a block or an operation"),
-                _ => None,
-            };
-            if operation.is_some_and(|operation| operation.as_bytes().is_none()) {
-                return Err(type_error(format!(
-                    "array.{label} operation must be a symbol or string"
-                )));
-            }
-            Ok(())
+            needs_block()
         }
         Count => {
             if args.len() > 1 {
@@ -150,7 +135,7 @@ pub(super) fn check(
             }
             let index = &args[0];
             if crate::sequence::integer(index).is_err() {
-                return Err(type_error(format!("array.{label} index must be integer")));
+                return Err(type_error(format!("array.{name} index must be integer")));
             }
             if matches!(index.0, Kind::Float(f) if f.trunc() != f) {
                 return refuse("index must be integer");

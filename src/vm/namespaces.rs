@@ -17,7 +17,8 @@ pub(super) struct Access {
 pub(super) enum Member {
     Value(Value),
     Function(crate::namespace::Call),
-    Helper(Value, crate::namespace::Helper),
+    /// `is_type?`, which tests the receiver against a type.
+    IsType(Value),
     Missing,
 }
 
@@ -605,18 +606,10 @@ pub(super) fn member(
             }));
         }
     }
-    let helper = match name {
-        "eql?" | "equal?" => Some(crate::namespace::Helper::Equality(name == "eql?")),
-        _ => crate::members::introspection::Predicate::parse(name)
-            .map(|predicate| crate::namespace::Helper::Predicate(predicate, access.implicit)),
-    };
-    if let Some(helper) = helper {
-        return Ok(Member::Helper(receiver.clone(), helper));
+    if name == "is_type?" {
+        return Ok(Member::IsType(receiver.clone()));
     }
-    if !matches!(
-        name,
-        "nil?" | "itself" | "dup" | "clone" | "freeze" | "frozen?" | "send" | "public_send"
-    ) {
+    if name != "dup" {
         let value = if let Some(instance) = instance {
             crate::objects::field(ctx, instance, name)?
         } else {
@@ -731,101 +724,4 @@ pub(super) fn setter(
         ));
     }
     Ok(None)
-}
-
-pub(super) fn call_helper(
-    ctx: &mut CallContext,
-    storage: &mut Storage,
-    receiver: Value,
-    helper: crate::namespace::Helper,
-    args: &Arguments,
-    auto: bool,
-) -> Result<Value> {
-    use crate::namespace::Helper;
-    if let Helper::Equality(strict) = helper {
-        return crate::members::equality::invoke(
-            ctx,
-            auto,
-            if strict { "eql?" } else { "equal?" },
-            &receiver,
-            &args.positional.data,
-            !args.keywords.buffer.data.is_empty(),
-            args.block.is_some(),
-        );
-    }
-    let Helper::Predicate(predicate, caller) = helper else {
-        unreachable!()
-    };
-    use crate::members::introspection::{self, Query};
-    let query = predicate.validate(
-        ctx,
-        &args.positional.data,
-        !args.keywords.buffer.data.is_empty(),
-        args.block.is_some(),
-    )?;
-    let result = match query {
-        Query::Class(class) => introspection::belongs(&receiver, class),
-        Query::Respond(name, private) => {
-            responds(ctx, storage, &receiver, name, caller || private)?
-        }
-        Query::Type(_) => {
-            return Err(Error::new(
-                ErrorKind::Type,
-                "type predicate requires an execution context",
-            ));
-        }
-    };
-    Ok(Value::boolean(result))
-}
-
-fn responds(
-    ctx: &mut CallContext,
-    storage: &mut Storage,
-    receiver: &Value,
-    name: &[u8],
-    private: bool,
-) -> Result<bool> {
-    let Some(text) = crate::members::introspection::method_name(ctx, name)? else {
-        return Ok(false);
-    };
-    let (namespace, instance) = match &receiver.0 {
-        Kind::Namespace(namespace) => (namespace, None),
-        Kind::Instance(instance) => (instance.class(), Some(instance)),
-        _ => unreachable!(),
-    };
-    let owner = programs::namespace(ctx, storage, namespace)?;
-    let program = &*owner;
-    let module = namespace.definition.index;
-    if (instance.is_some() && name == b"class")
-        || (instance.is_none() && namespace.definition.constructor.is_some() && name == b"new")
-    {
-        return Ok(true);
-    }
-    let methods = if instance.is_some() {
-        &namespace.definition.instance_methods
-    } else {
-        &namespace.definition.methods
-    };
-    for method in methods {
-        ctx.charge(1)?;
-        ctx.work_bytes(name.len().max(method.name.len()))?;
-        if method.name.as_bytes() == name {
-            return Ok(private || method.visibility == Visibility::Public);
-        }
-    }
-    let name = text;
-    if !crate::members::names::universal(name) {
-        return Ok(false);
-    }
-    if matches!(name, "tap" | "yield_self") {
-        let value = if let Some(instance) = instance {
-            crate::objects::field(ctx, instance, name)?
-        } else {
-            field(program, ctx, storage, module, name)?
-        };
-        return Ok(value
-            .as_ref()
-            .is_none_or(crate::members::introspection::callable));
-    }
-    Ok(true)
 }

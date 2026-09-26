@@ -132,10 +132,6 @@ pub(crate) fn symbol(name: &str) -> String {
 }
 
 impl Enumeration {
-    pub(crate) fn identical(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.identity, &other.identity)
-    }
-
     pub(crate) fn instantiate(ctx: &mut CallContext, value: &Arc<Self>) -> Result<Arc<Self>> {
         let identity = Rebind::resolve(ctx, &value.definition, true)?
             .expect("compiled enum belongs to the invocation");
@@ -357,23 +353,14 @@ pub(crate) fn call(
             index,
         )?))));
     }
-    if matches!(
-        name,
-        "to_s" | "string" | "inspect" | "nil?" | "itself" | "dup"
-    ) {
-        if matches!(name, "nil?" | "itself" | "dup") {
-            crate::members::universal_shape(name, receiver, args.len(), keywords, block)?;
-        } else {
-            let kind = receiver.type_name();
-            crate::members::nullary(format_args!("{kind}.{name}"), args.len(), keywords, block)?;
+    if matches!(name, "to_s" | "inspect" | "dup") {
+        if name == "dup" {
+            crate::members::dup_shape(args.len(), keywords, block)?;
+            return Ok(Some(receiver.clone()));
         }
-        return if name == "nil?" {
-            Ok(Some(Value::boolean(false)))
-        } else if matches!(name, "itself" | "dup") {
-            Ok(Some(receiver.clone()))
-        } else {
-            text(ctx, receiver).map(Some)
-        };
+        let kind = receiver.type_name();
+        crate::members::nullary(format_args!("{kind}.{name}"), args.len(), keywords, block)?;
+        return text(ctx, receiver).map(Some);
     }
     let value = match (&receiver.0, name) {
         (Kind::Enum(e), "name") => ctx.bytes(e.definition.name.as_bytes())?,

@@ -1,11 +1,5 @@
 use super::*;
-use crate::{
-    bytecode::CallSite,
-    members::introspection::{Predicate, Query},
-    namespace::Helper,
-};
-
-mod send;
+use crate::bytecode::CallSite;
 
 pub(super) struct Call<'a> {
     pub site: CallSite,
@@ -23,9 +17,7 @@ pub(super) fn member(
     stack: &mut Buffer<Value>,
     call: Call<'_>,
 ) -> Result<()> {
-    let receiver = if let Some(crate::arguments::Target::Receiver(receiver)) = &call.args.target {
-        receiver
-    } else if call.mutating {
+    let receiver = if call.mutating {
         &storage.addresses.data.last().unwrap().value
     } else {
         stack.data.last().unwrap()
@@ -57,9 +49,9 @@ fn invoke(
     let Call {
         site,
         name,
-        mut mutating,
+        mutating,
         mut args,
-        access,
+        access: _,
     } = call;
     if name == "as"
         && !site.scope
@@ -73,21 +65,11 @@ fn invoke(
         stack.push(ctx, value)?;
         return Ok(());
     }
-    let captured = if matches!(args.target, Some(crate::arguments::Target::Receiver(_))) {
-        let Some(crate::arguments::Target::Receiver(receiver)) = args.target.take() else {
-            unreachable!()
-        };
-        Some(receiver)
+    let receiver = if mutating {
+        &storage.addresses.data.last().unwrap().value
     } else {
-        None
+        stack.data.last().unwrap()
     };
-    let receiver = captured.as_ref().unwrap_or_else(|| {
-        if mutating {
-            &storage.addresses.data.last().unwrap().value
-        } else {
-            stack.data.last().unwrap()
-        }
-    });
     let method = if mutating {
         storage.addresses.data.last().unwrap().capability.clone()
     } else {
@@ -191,16 +173,8 @@ fn invoke(
             value.finish(program, ctx, frames, storage, stack, ReturnTo::Stack)?;
             return Ok(());
         }
-        namespaces::Member::Helper(module, helper) => {
-            let value = dispatch::helper(
-                program,
-                ctx,
-                frames,
-                storage,
-                (module, helper),
-                &args,
-                site.auto,
-            )?;
+        namespaces::Member::IsType(receiver) => {
+            let value = type_predicate(program, ctx, frames, storage, &receiver, &args)?;
             if mutating {
                 storage.addresses.data.pop();
             } else {
@@ -210,35 +184,6 @@ fn invoke(
             return Ok(());
         }
         namespaces::Member::Missing => {}
-    }
-    let receiver = if let Some(receiver) = &captured {
-        receiver
-    } else if mutating {
-        &storage.addresses.data.last().unwrap().value
-    } else {
-        stack.data.last().unwrap()
-    };
-    if members::forwarding::applicable(ctx, site, name, receiver)? {
-        return send::call(
-            program,
-            ctx,
-            frames,
-            storage,
-            stack,
-            Call {
-                site,
-                name,
-                mutating,
-                args,
-                access,
-            },
-            captured,
-        );
-    }
-    if let Some(receiver) = captured {
-        storage.addresses.data.pop().unwrap();
-        stack.push(ctx, receiver)?;
-        mutating = false;
     }
     if name == "is_type?"
         && members::introspection::applicable(ctx, site, name, stack.data.last().unwrap())?
@@ -324,23 +269,6 @@ fn invoke(
     };
     stack.push(ctx, value)?;
     Ok(())
-}
-
-pub(super) fn helper(
-    program: &Program,
-    ctx: &mut CallContext,
-    frames: &Buffer<Frame>,
-    storage: &mut Storage,
-    target: (Value, Helper),
-    args: &Arguments,
-    auto: bool,
-) -> Result<Value> {
-    let (receiver, helper) = target;
-    if matches!(helper, Helper::Predicate(Predicate::IsType, _)) {
-        type_predicate(program, ctx, frames, storage, &receiver, args)
-    } else {
-        namespaces::call_helper(ctx, storage, receiver, helper, args, auto)
-    }
 }
 
 /// `value.as(T)`: checks the value against a type literal as a typed
@@ -453,7 +381,7 @@ pub(super) fn parse_as(
     }
 }
 
-fn type_predicate(
+pub(super) fn type_predicate(
     program: &Program,
     ctx: &mut CallContext,
     frames: &Buffer<Frame>,
@@ -461,15 +389,12 @@ fn type_predicate(
     receiver: &Value,
     args: &Arguments,
 ) -> Result<Value> {
-    let Query::Type(atom) = Predicate::IsType.validate(
+    let atom = members::introspection::type_atom(
         ctx,
         &args.positional.data,
         !args.keywords.buffer.data.is_empty(),
         args.block.is_some(),
-    )?
-    else {
-        unreachable!()
-    };
+    )?;
     let resolved = if atom.nominal {
         let lexical = lexical_scope(ctx, frames)?;
         match resolve_type(program, ctx, frames, storage, lexical, atom.name, true) {
@@ -495,72 +420,4 @@ pub(super) fn lexical_scope(
         }
     }
     Ok(None)
-}
-
-pub(super) fn reduce(
-    program: &Program,
-    ctx: &mut CallContext,
-    frames: &mut Buffer<Frame>,
-    storage: &mut Storage,
-    stack: &mut Buffer<Value>,
-    values: [Value; 3],
-) -> Result<()> {
-    let [receiver, operation, argument] = values;
-    let bytes = operation.require_bytes()?;
-    let name = members::introspection::method_name(ctx, bytes)?;
-    let args = Arguments::from_values(ctx, &[argument])?;
-    let Some(name) = name else {
-        if let Kind::Hash(hash) = &receiver.0 {
-            if let Some(index) = hash.find(ctx, bytes)? {
-                let site = CallSite {
-                    name: 0,
-                    method: None,
-                    auto: false,
-                    parenthesized: false,
-                    scope: false,
-                };
-                let value = capabilities::field_on(
-                    ctx,
-                    storage,
-                    site,
-                    Some(&receiver),
-                    hash.buffer.data[index].1.clone(),
-                    &args.positional.data,
-                    &[],
-                    None,
-                )?;
-                return value.finish(program, ctx, frames, storage, stack, ReturnTo::Stack);
-            }
-        }
-        return Err(Error::new(ErrorKind::Argument, "invalid reduce operation"));
-    };
-    let caller = &frames.data[lexical_scope(ctx, frames)?.unwrap()];
-    let access = namespaces::Access {
-        program: caller.program.index,
-        caller: caller.program.functions[caller.function.unwrap()].namespace,
-        implicit: false,
-        instance: matches!(caller.receiver, Some(Value(Kind::Instance(_)))),
-    };
-    let site = CallSite {
-        name: 0,
-        method: crate::bytecode::Method::parse(name),
-        auto: false,
-        parenthesized: false,
-        scope: false,
-    };
-    stack.push(ctx, receiver)?;
-    member(
-        program,
-        ctx,
-        frames,
-        storage,
-        stack,
-        Call {
-            site,
-            name,
-            mutating: false,
-            args,
-            access,
-        },
-    )
 }

@@ -117,7 +117,7 @@ impl Receiver {
     pub(crate) fn rejects_keywords(self, method: Option<crate::bytecode::Method>) -> bool {
         use crate::bytecode::Method::*;
         match method {
-            Some(IsNil | Itself | Dup | ToString | ToInt | ToFloat) => true,
+            Some(Dup | ToString | ToInt | ToFloat) => true,
             Some(method) => match self {
                 Self::Array => matches!(
                     method,
@@ -631,18 +631,6 @@ impl Receiver {
         }
     }
 
-    pub(crate) fn property(self, name: &str) -> bool {
-        match self {
-            Self::Int | Self::Big => duration_unit(name),
-            Self::Money | Self::Duration | Self::Time | Self::Zoned => {
-                self.available(name) && self.typed(name).is_none() && !self.temporal_method(name)
-            }
-            Self::Enum => name == "name",
-            Self::EnumMember => matches!(name, "name" | "symbol" | "enum"),
-            _ => false,
-        }
-    }
-
     pub(crate) fn temporal_method(self, name: &str) -> bool {
         match self {
             Self::Money => matches!(name, "to_s" | "string" | "inspect"),
@@ -1135,10 +1123,6 @@ pub(crate) fn typed(value: &Value, name: &str) -> Option<&'static str> {
 
 pub(crate) fn available(value: &Value, name: &str) -> bool {
     Receiver::of(value).available(name)
-}
-
-pub(crate) fn property(value: &Value, name: &str) -> bool {
-    Receiver::of(value).property(name)
 }
 
 pub(crate) fn temporal_method(value: &Value, name: &str) -> bool {

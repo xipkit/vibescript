@@ -450,7 +450,6 @@ impl Run {
                         programs::release(ctx, storage)?;
                     }
                 }
-                let program = &**active;
                 if frames.data[current].host {
                     return Ok(Event::Host);
                 }
@@ -476,16 +475,6 @@ impl Run {
                                 block,
                                 &args[..count],
                                 stack.data.len(),
-                            )?;
-                        }
-                        Progress::Call(receiver, operation, argument) => {
-                            dispatch::reduce(
-                                program,
-                                ctx,
-                                frames,
-                                storage,
-                                stack,
-                                [receiver, operation, argument],
                             )?;
                         }
                         Progress::Done(mut value) => {
@@ -1922,15 +1911,14 @@ impl Run {
                                 )?;
                                 continue;
                             }
-                            namespaces::Member::Helper(module, helper) => {
-                                let value = dispatch::helper(
+                            namespaces::Member::IsType(module) => {
+                                let value = dispatch::type_predicate(
                                     program,
                                     ctx,
                                     frames,
                                     storage,
-                                    (module, helper),
+                                    &module,
                                     &Arguments::empty(),
-                                    true,
                                 )?;
                                 stack.push(ctx, value)?;
                                 continue;
@@ -1953,7 +1941,7 @@ impl Run {
                                 unreachable!()
                             };
                             let value = &hash.buffer.data[index].1;
-                            if members::introspection::callable(value) {
+                            if members::callable(value) {
                                 let value = value.clone();
                                 let value =
                                     capabilities::field(ctx, storage, site, value, &[], &[], None)?;
@@ -2039,15 +2027,14 @@ impl Run {
                                     stack.push(ctx, value)?;
                                     continue;
                                 }
-                                namespaces::Member::Helper(module, helper) => {
-                                    let value = dispatch::helper(
+                                namespaces::Member::IsType(module) => {
+                                    let value = dispatch::type_predicate(
                                         program,
                                         ctx,
                                         frames,
                                         storage,
-                                        (module, helper),
+                                        &module,
                                         &Arguments::empty(),
-                                        true,
                                     )?;
                                     stack.push(ctx, value)?;
                                     continue;
@@ -2295,16 +2282,10 @@ impl Run {
                                 )?;
                                 continue;
                             }
-                            namespaces::Member::Helper(module, helper) => {
+                            namespaces::Member::IsType(module) => {
                                 let args = Arguments::from_values(ctx, &stack.data[base..])?;
-                                let value = dispatch::helper(
-                                    program,
-                                    ctx,
-                                    frames,
-                                    storage,
-                                    (module, helper),
-                                    &args,
-                                    site.auto,
+                                let value = dispatch::type_predicate(
+                                    program, ctx, frames, storage, &module, &args,
                                 )?;
                                 stack.data.truncate(base);
                                 stack.push(ctx, value)?;
@@ -2535,14 +2516,6 @@ impl Run {
                     }
                 }
                 Op::Arguments => frame.arguments.push(ctx, Arguments::empty())?,
-                Op::ForwardArguments => {
-                    // Forwarded reads need the evaluated value; mutators keep the live address.
-                    let mut args = Arguments::empty();
-                    args.target = Some(crate::arguments::Target::Receiver(
-                        storage.addresses.data.last().unwrap().value.clone(),
-                    ));
-                    frame.arguments.push(ctx, args)?;
-                }
                 Op::CallName(slot, name) => {
                     let target = call_targets::identifier(
                         program, ctx, frames, storage, current, slot, name,
@@ -2629,8 +2602,8 @@ impl Run {
                                 crate::arguments::Target::Method(function)
                             }
                             namespaces::Member::Value(value) => value_invocation(&value),
-                            namespaces::Member::Helper(receiver, helper) => {
-                                crate::arguments::Target::Helper(receiver, helper)
+                            namespaces::Member::IsType(receiver) => {
+                                crate::arguments::Target::IsType(receiver)
                             }
                             namespaces::Member::Missing => {
                                 let Some(module) = namespace else {
@@ -2720,8 +2693,7 @@ impl Run {
                         }
                         crate::arguments::Target::Raise(..)
                         | crate::arguments::Target::Output(..)
-                        | crate::arguments::Target::Format(..)
-                        | crate::arguments::Target::Receiver(..) => unreachable!(),
+                        | crate::arguments::Target::Format(..) => unreachable!(),
                         crate::arguments::Target::Unbound(kind, name) => {
                             let required = if kind == "hash" {
                                 "hash or object"
@@ -2774,15 +2746,9 @@ impl Run {
                             )?;
                             continue;
                         }
-                        crate::arguments::Target::Helper(receiver, helper) => {
-                            let value = dispatch::helper(
-                                program,
-                                ctx,
-                                frames,
-                                storage,
-                                (receiver, helper),
-                                &args,
-                                false,
+                        crate::arguments::Target::IsType(receiver) => {
+                            let value = dispatch::type_predicate(
+                                program, ctx, frames, storage, &receiver, &args,
                             )?;
                             stack.push(ctx, value)?;
                             continue;
@@ -3020,16 +2986,10 @@ impl Run {
                                 )?;
                                 continue;
                             }
-                            namespaces::Member::Helper(module, helper) => {
+                            namespaces::Member::IsType(module) => {
                                 let args = Arguments::from_values(ctx, &stack.data[base + 1..])?;
-                                let value = dispatch::helper(
-                                    program,
-                                    ctx,
-                                    frames,
-                                    storage,
-                                    (module, helper),
-                                    &args,
-                                    site.auto,
+                                let value = dispatch::type_predicate(
+                                    program, ctx, frames, storage, &module, &args,
                                 )?;
                                 stack.data.truncate(base);
                                 stack.push(ctx, value)?;
@@ -3778,15 +3738,14 @@ fn implicit_read(
             stack.data.len(),
         ),
         namespaces::Member::Value(value) => stack.push(ctx, value),
-        namespaces::Member::Helper(module, helper) => {
-            let value = dispatch::helper(
+        namespaces::Member::IsType(module) => {
+            let value = dispatch::type_predicate(
                 program,
                 ctx,
                 frames,
                 storage,
-                (module, helper),
+                &module,
                 &Arguments::empty(),
-                true,
             )?;
             stack.push(ctx, value)
         }
