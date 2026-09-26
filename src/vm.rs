@@ -3108,8 +3108,8 @@ fn method(
             },
         )? {
             namespaces::Member::Function(function) => {
-                let args = Arguments::from_values(ctx, &stack.data[base + 1..])?;
-                enter_arguments(program, ctx, frames, storage, function, args, base)?;
+                let args = &stack.data[base + 1..];
+                enter_values(program, ctx, frames, storage, function, args, base)?;
                 stack.data.truncate(base);
                 return Ok(());
             }
@@ -4166,32 +4166,12 @@ fn enter_checked(
     checked: bool,
 ) -> Result<()> {
     let mut call = call.into();
-    let owner = call
-        .receiver
-        .as_ref()
-        .map(|receiver| programs::receiver(ctx, storage, receiver))
-        .transpose()?
-        .flatten();
+    let owner = callee(ctx, storage, &mut call)?;
     let program = owner.as_deref().unwrap_or(program);
-    let function = call.function;
-    if call.constructor {
-        let Some(Value(Kind::Namespace(class))) = &call.receiver else {
-            unreachable!()
-        };
-        call.receiver = Some(Value(Kind::Instance(crate::objects::new(ctx, class)?)));
-        if call.ignore_arguments {
-            arguments = Arguments::empty();
-        }
+    if call.constructor && call.ignore_arguments {
+        arguments = Arguments::empty();
     }
-    let fun = &program.functions[function];
-    if fun.instance
-        && !matches!(&call.receiver, Some(Value(Kind::Instance(instance))) if fun.namespace.is_some_and(|namespace| program.namespace_matches(namespace, instance.class())))
-    {
-        return Err(Error::new(
-            ErrorKind::Type,
-            "instance method requires its instance receiver",
-        ));
-    }
+    let fun = receiving(program, &call)?;
     if (fun.plain || fun.proven.is_some() && !checked) && arguments.keywords.buffer.data.is_empty()
     {
         enter(
@@ -4199,7 +4179,7 @@ fn enter_checked(
             ctx,
             frames,
             storage,
-            function,
+            call.function,
             &arguments.positional.data,
             base,
         )?;
@@ -4209,6 +4189,96 @@ fn enter_checked(
         frame.constructor = call.constructor;
         return Ok(());
     }
+    bind(
+        program, ctx, frames, storage, call, arguments, base, checked,
+    )
+}
+
+/// Enters a call from script code with the positional `values` it reads
+/// from the operand stack, building an argument list only for a callee
+/// whose parameters bind through one.
+fn enter_values(
+    program: &Program,
+    ctx: &mut CallContext,
+    frames: &mut Buffer<Frame>,
+    storage: &mut Storage,
+    call: impl Into<crate::namespace::Call>,
+    mut values: &[Value],
+    base: usize,
+) -> Result<()> {
+    let mut call = call.into();
+    let owner = callee(ctx, storage, &mut call)?;
+    let program = owner.as_deref().unwrap_or(program);
+    if call.constructor && call.ignore_arguments {
+        values = &[];
+    }
+    let fun = receiving(program, &call)?;
+    if fun.plain || fun.proven.is_some() {
+        enter(program, ctx, frames, storage, call.function, values, base)?;
+        let frame = frames.data.last_mut().unwrap();
+        frame.receiver = call.receiver;
+        frame.constructor = call.constructor;
+        return Ok(());
+    }
+    let arguments = Arguments::from_values(ctx, values)?;
+    bind(program, ctx, frames, storage, call, arguments, base, false)
+}
+
+/// Resolves the program that owns a call's receiver, and creates the
+/// instance a constructor initializes.
+fn callee(
+    ctx: &mut CallContext,
+    storage: &mut Storage,
+    call: &mut crate::namespace::Call,
+) -> Result<Option<Arc<Program>>> {
+    let owner = call
+        .receiver
+        .as_ref()
+        .map(|receiver| programs::receiver(ctx, storage, receiver))
+        .transpose()?
+        .flatten();
+    if call.constructor {
+        let Some(Value(Kind::Namespace(class))) = &call.receiver else {
+            unreachable!()
+        };
+        call.receiver = Some(Value(Kind::Instance(crate::objects::new(ctx, class)?)));
+    }
+    Ok(owner)
+}
+
+/// The function a call enters, refusing an instance method called without
+/// its instance.
+fn receiving<'a>(
+    program: &'a Program,
+    call: &crate::namespace::Call,
+) -> Result<&'a crate::bytecode::Function> {
+    let fun = &program.functions[call.function];
+    if fun.instance
+        && !matches!(&call.receiver, Some(Value(Kind::Instance(instance))) if fun.namespace.is_some_and(|namespace| program.namespace_matches(namespace, instance.class())))
+    {
+        return Err(Error::new(
+            ErrorKind::Type,
+            "instance method requires its instance receiver",
+        ));
+    }
+    Ok(fun)
+}
+
+/// Enters a call whose arguments bind through their list: a host entry, or
+/// a callee with defaults, keywords or a rest parameter.
+#[allow(clippy::too_many_arguments)]
+fn bind(
+    program: &Program,
+    ctx: &mut CallContext,
+    frames: &mut Buffer<Frame>,
+    storage: &mut Storage,
+    call: crate::namespace::Call,
+    arguments: Arguments,
+    base: usize,
+    checked: bool,
+) -> Result<()> {
+    let function = call.function;
+    let fun = &program.functions[function];
     ctx.charge(1)?;
     if frames.data.len() >= ctx.options.limits.recursion {
         return recursion_exceeded(ctx);
