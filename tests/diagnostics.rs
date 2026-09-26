@@ -137,16 +137,10 @@ fn blocks_report_names_outside_their_enclosing_frames() {
 
 #[test]
 fn binary_operators_are_located_where_the_reference_lexer_stamps_them() {
-    for (body, needle, message) in [(
-        "x = 0 ** -1",
-        "* -1",
-        "float exponentiation result is not finite",
-    )] {
-        let source = format!("def run(input: any)\n  {body}\nend");
-        let error = failure(&source);
-        assert_eq!(error.message, message, "{body}");
-        check_position(&error, &source, source.find(needle).unwrap());
-    }
+    let source = "def run(input: any)\n  x = 0 ** -1\nend";
+    let error = failure(source);
+    assert_eq!(error.message, "float exponentiation result is not finite");
+    check_position(&error, source, source.find("* -1").unwrap());
     // Operands the operator does not take and unknown members are refused
     // before running.
     for (body, expected) in [
