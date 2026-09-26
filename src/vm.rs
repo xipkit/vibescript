@@ -2830,10 +2830,8 @@ impl Run {
                                 output::start(program, ctx, frames, storage, stack, kind, args)?;
                                 continue;
                             }
-                            if let crate::builtin::Builtin::Format(function) = builtin {
-                                format::start(
-                                    program, ctx, frames, storage, stack, function, args,
-                                )?;
+                            if builtin == crate::builtin::Builtin::Format {
+                                format::start(program, ctx, frames, storage, stack, args)?;
                                 continue;
                             }
                             if builtin == crate::builtin::Builtin::Loop {
@@ -3845,9 +3843,7 @@ fn undefined(
         "print",
         "puts",
         "require",
-        "now",
         "rand",
-        "sprintf",
         "srand",
         "uuid",
         "warn",

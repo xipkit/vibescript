@@ -428,16 +428,7 @@ The `Hash` namespace is removed; an empty hash is `{}` with a declared type.
 
 ## Removed spellings
 
-These global names still run until the static language is the default, but do
-not compile with static types. Each has one replacement.
-
-### `sprintf`
-
-Removed; use `format`.
-
-### `now`
-
-Removed; use `Time.now`, with `Time.now.iso8601` for the timestamp string.
+These names are removed; each entry says what to write instead.
 
 ### `proc` / `Proc` / `lambda`
 

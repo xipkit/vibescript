@@ -1,5 +1,5 @@
 use super::*;
-use crate::{arguments::Target, format::Function};
+use crate::arguments::Target;
 
 pub(super) fn start(
     program: &Program,
@@ -7,10 +7,9 @@ pub(super) fn start(
     frames: &mut Buffer<Frame>,
     storage: &mut Storage,
     stack: &mut Buffer<Value>,
-    function: Function,
     mut args: Arguments,
 ) -> Result<()> {
-    function.validate(
+    crate::format::validate(
         ctx,
         &args.positional.data,
         !args.keywords.buffer.data.is_empty(),

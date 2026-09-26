@@ -517,14 +517,6 @@ impl Constructor {
     }
 }
 
-pub(crate) fn now(ctx: &mut CallContext, args: &[Value]) -> Result<Value> {
-    if !args.is_empty() {
-        return Err(argument("now does not take arguments"));
-    }
-    ctx.checkpoint()?;
-    text(ctx, &Value(Kind::Time(Stamp::now())), Some(0))
-}
-
 pub(crate) fn anchor(
     ctx: &mut CallContext,
     seconds: i64,

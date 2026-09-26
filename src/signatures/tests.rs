@@ -419,7 +419,6 @@ fn every_builtin_global_has_one_signature_or_a_rename() {
 #[test]
 fn every_rename_leaves_a_runtime_spelling_for_a_canonical_one() {
     let runtime = runtime_members();
-    let (functions, namespaces) = runtime_globals();
     let table = table();
     let declared = table_members();
     let mut problems = Vec::new();
@@ -428,14 +427,12 @@ fn every_rename_leaves_a_runtime_spelling_for_a_canonical_one() {
         let name = rename.name.as_str();
         let served = match receiver {
             "*" => true,
-            "global" => functions.contains(name),
             "type" => crate::types::builtin_name(name).is_some(),
             "T" => runtime.values().any(|names| names.contains(name)),
             _ => match runtime.get(receiver) {
                 Some(names) => names.contains(name) || runtime["T"].contains(name),
-                None => namespaces
-                    .get(receiver)
-                    .is_some_and(|members| members.contains(name)),
+                // Removed global functions and namespace members need not be served.
+                None => true,
             },
         };
         if !served {

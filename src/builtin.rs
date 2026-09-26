@@ -5,14 +5,13 @@ use std::sync::Arc;
 pub(crate) enum Builtin {
     Require,
     Output(crate::output::Kind),
-    Format(crate::format::Function),
+    Format,
     Assert,
     Loop,
     HashNew,
     Regexp(crate::regex::value::Constructor),
     Regex(crate::regex::Utility),
     Time(crate::time::Constructor),
-    Now,
     Random(crate::random::Method),
     DurationBuild,
     DurationParse,
@@ -48,14 +47,13 @@ pub(crate) enum Math {
 pub(crate) enum Global {
     Require,
     Output(crate::output::Kind),
-    Format(crate::format::Function),
+    Format,
     Assert,
     Loop,
     Hash,
     Regexp,
     Regex,
     Time,
-    Now,
     Random(crate::random::Method),
     Duration,
     Money,
@@ -68,7 +66,7 @@ pub(crate) enum Global {
 
 impl Global {
     /// Every global a script can reach by name, in name order.
-    pub const ALL: [Self; 25] = [
+    pub const ALL: [Self; 23] = [
         Self::Duration,
         Self::Hash,
         Self::Json,
@@ -77,18 +75,16 @@ impl Global {
         Self::Regexp,
         Self::Time,
         Self::Assert,
-        Self::Format(crate::format::Function::Format),
+        Self::Format,
         Self::Loop,
         Self::Money,
         Self::MoneyCents,
-        Self::Now,
         Self::Output(crate::output::Kind::Inspect),
         Self::Output(crate::output::Kind::Print),
         Self::Output(crate::output::Kind::Puts),
         Self::Random(crate::random::Method::Rand),
         Self::Random(crate::random::Method::Id),
         Self::Require,
-        Self::Format(crate::format::Function::Sprintf),
         Self::Random(crate::random::Method::Seed),
         Self::ToFloat,
         Self::ToInt,
@@ -100,14 +96,13 @@ impl Global {
         match self {
             Self::Require => "require",
             Self::Output(kind) => kind.name(),
-            Self::Format(function) => function.name(),
+            Self::Format => "format",
             Self::Assert => "assert",
             Self::Loop => "loop",
             Self::Hash => "Hash",
             Self::Regexp => "Regexp",
             Self::Regex => "Regex",
             Self::Time => "Time",
-            Self::Now => "now",
             Self::Random(method) => method.name(),
             Self::Duration => "Duration",
             Self::Money => "money",
@@ -124,15 +119,13 @@ impl Global {
         }
         match name {
             "require" => Some(Self::Require),
-            "format" => Some(Self::Format(crate::format::Function::Format)),
-            "sprintf" => Some(Self::Format(crate::format::Function::Sprintf)),
+            "format" => Some(Self::Format),
             "assert" => Some(Self::Assert),
             "loop" => Some(Self::Loop),
             "Hash" => Some(Self::Hash),
             "Regexp" => Some(Self::Regexp),
             "Regex" => Some(Self::Regex),
             "Time" => Some(Self::Time),
-            "now" => Some(Self::Now),
             "rand" => Some(Self::Random(crate::random::Method::Rand)),
             "srand" => Some(Self::Random(crate::random::Method::Seed)),
             "uuid" => Some(Self::Random(crate::random::Method::Uuid)),
@@ -154,7 +147,7 @@ impl Global {
         let mut entries = match self {
             Self::Require => return Value(Kind::Builtin(Require)),
             Self::Output(kind) => return Value(Kind::Builtin(Output(kind))),
-            Self::Format(function) => return Value(Kind::Builtin(Format(function))),
+            Self::Format => return Value(Kind::Builtin(Format)),
             Self::Assert => return Value(Kind::Builtin(Assert)),
             Self::Loop => return Value(Kind::Builtin(Loop)),
             Self::Hash => vec![field("new", Value(Kind::Builtin(HashNew)))],
@@ -221,7 +214,6 @@ impl Global {
                 )
             })
             .collect(),
-            Self::Now => return Value(Kind::Builtin(Now)),
             Self::Random(method) => return Value(Kind::Builtin(Random(method))),
             Self::Duration => vec![
                 field("build", Value(Kind::Builtin(DurationBuild))),
@@ -284,7 +276,7 @@ impl Builtin {
     /// Reports whether a read of the builtin without arguments calls it: the
     /// language writes a call without arguments without parentheses.
     pub fn auto(self) -> bool {
-        matches!(self, Self::Now | Self::HashNew | Self::DurationBuild)
+        matches!(self, Self::HashNew | Self::DurationBuild)
             || matches!(self, Self::Output(_) | Self::Random(_))
             || matches!(
                 self,
@@ -309,14 +301,13 @@ impl Builtin {
         match self {
             Self::Require => "require",
             Self::Output(kind) => kind.name(),
-            Self::Format(function) => function.name(),
+            Self::Format => "format",
             Self::Assert => "assert",
             Self::Loop => "loop",
             Self::HashNew => "Hash.new",
             Self::Regexp(constructor) => constructor.name(),
             Self::Regex(utility) => utility.name(),
             Self::Time(constructor) => constructor.name(),
-            Self::Now => "now",
             Self::Random(method) => method.name(),
             Self::DurationBuild => "Duration.build",
             Self::DurationParse => "Duration.parse",
@@ -429,7 +420,7 @@ impl Builtin {
         // Calls with script conversions or repeated blocks run through the VM.
         if matches!(
             self,
-            Self::Output(_) | Self::Format(_) | Self::Loop | Self::Require
+            Self::Output(_) | Self::Format | Self::Loop | Self::Require
         ) {
             return Err(self.value_error());
         }
@@ -458,11 +449,7 @@ impl Builtin {
             if condition.truthy() {
                 return Ok(Value::nil());
             }
-            let keyword = keywords
-                .iter()
-                .find(|(key, _)| key.as_bytes() == Some(b"message"))
-                .map(|(_, value)| value);
-            let message = match args.get(1).or(keyword) {
+            let message = match args.get(1) {
                 Some(value) => ops::to_string(ctx, value)?,
                 None => ctx.bytes(b"assertion failed")?,
             };
@@ -480,9 +467,6 @@ impl Builtin {
         }
         if let Self::Time(constructor) = self {
             return constructor.call(ctx, args, keywords);
-        }
-        if self == Self::Now {
-            return crate::time::now(ctx, args);
         }
         if self == Self::DurationBuild {
             return crate::duration::build(ctx, args, keywords);
@@ -602,13 +586,12 @@ impl Builtin {
             | Self::JsonParseAs
             | Self::Math(_)
             | Self::Output(_)
-            | Self::Format(_)
+            | Self::Format
             | Self::Money
             | Self::MoneyCents
             | Self::DurationBuild
             | Self::DurationParse
             | Self::Time(_)
-            | Self::Now
             | Self::Random(_)
             | Self::Regex(_)
             | Self::Regexp(_)

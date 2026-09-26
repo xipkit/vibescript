@@ -8,44 +8,29 @@ mod tests;
 
 const LIMIT: usize = 1 << 20;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Function {
-    Format,
-    Sprintf,
-}
-
-impl Function {
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Format => "format",
-            Self::Sprintf => "sprintf",
-        }
+/// Checks the shape of a `format` call before its values are converted.
+pub(crate) fn validate(
+    ctx: &mut CallContext,
+    args: &[Value],
+    keywords: bool,
+    block: bool,
+) -> Result<()> {
+    ctx.checkpoint()?;
+    let message = if keywords {
+        Some("does not take keyword arguments")
+    } else if block {
+        Some("does not accept blocks")
+    } else if args.is_empty() {
+        Some("expects a format string")
+    } else if !matches!(args[0].0, Kind::Bytes(_)) {
+        Some("expects a string format")
+    } else {
+        None
+    };
+    if let Some(message) = message {
+        return Err(error(ctx, format_args!("format {message}"))?);
     }
-
-    pub fn validate(
-        self,
-        ctx: &mut CallContext,
-        args: &[Value],
-        keywords: bool,
-        block: bool,
-    ) -> Result<()> {
-        ctx.checkpoint()?;
-        let message = if keywords {
-            Some("does not take keyword arguments")
-        } else if block {
-            Some("does not accept blocks")
-        } else if args.is_empty() {
-            Some("expects a format string")
-        } else if !matches!(args[0].0, Kind::Bytes(_)) {
-            Some("expects a string format")
-        } else {
-            None
-        };
-        if let Some(message) = message {
-            return Err(error(ctx, format_args!("{} {message}", self.name()))?);
-        }
-        Ok(())
-    }
+    Ok(())
 }
 
 #[derive(Clone, Copy, Default)]
