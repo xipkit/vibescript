@@ -722,3 +722,37 @@ end
         Some(5)
     );
 }
+
+#[test]
+fn a_value_may_follow_type_arguments_without_a_space() {
+    let source = "class C\n  @@all: array<int>=[1]\n  @some: hash<string, int>={}\n  \
+                  def self.all -> array<int>\n    @@all\n  end\n  def some -> hash<string, int>\n    @some\n  end\nend\n\
+                  module M\n  @@nested: array<array<int>>=[[2]]\n  def self.nested -> array<array<int>>\n    @@nested\n  end\nend\n\
+                  def f(n: int, z: array<int>=[3]) -> array<int>\n  z\nend\n\
+                  x: array<string>=[\"a\"]\n[x, C.all, C.new.some, M.nested, f(1)]";
+    for static_types in [false, true] {
+        let mut engine = Engine::new();
+        engine.set_static_types(static_types);
+        let result = engine
+            .compile(source)
+            .unwrap_or_else(|error| panic!("{error}"))
+            .run(CallOptions::default())
+            .unwrap();
+        let json = stringify_json(&result.value, CallOptions::default()).unwrap();
+        let value: serde_json::Value =
+            serde_json::from_slice(json.value.as_bytes().unwrap()).unwrap();
+        assert_eq!(value, serde_json::json!([["a"], [1], {}, [[2]], [3]]));
+    }
+    // The split `>` and `=` are what tools see.
+    let tokens = vibescript::tooling::tokens("x: array<int>=[]\n").unwrap();
+    let operators: Vec<_> = tokens
+        .iter()
+        .filter_map(|token| match token.kind {
+            vibescript::tooling::TokenKind::Operator(op) => Some((op, token.span.clone())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(operators, [("<", 8..9), (">", 12..13), ("=", 13..14)]);
+    // A comparison is still one operator.
+    assert_eq!(evaluate("a = 2\nb = 1\na >= b"), serde_json::json!(true));
+}

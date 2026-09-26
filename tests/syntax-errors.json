@@ -8383,22 +8383,26 @@
   {
     "name": "types_syntax_56",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(*values:array<int>=[])\n7\nend\ndef run(input: any) -> any\ntyped()\nend",
-    "go_error": "parse error at 12:29: expected >, got \">=\""
+    "go_error": "parse error at 12:29: expected >, got \">=\"",
+    "error": "parse error at 12:29: capture parameters cannot have default values"
   },
   {
     "name": "types_syntax_57",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed *values:array<int>=[]\n7\nend\ndef run(input: any) -> any\ntyped()\nend",
-    "go_error": "parse error at 12:29: expected >, got \">=\""
+    "go_error": "parse error at 12:29: expected >, got \">=\"",
+    "error": "parse error at 12:29: capture parameters cannot have default values"
   },
   {
     "name": "types_syntax_58",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(**values:hash<string,int>={})\n7\nend\ndef run(input: any) -> any\ntyped()\nend",
-    "go_error": "parse error at 12:36: expected >, got \">=\""
+    "go_error": "parse error at 12:36: expected >, got \">=\"",
+    "error": "parse error at 12:36: capture parameters cannot have default values"
   },
   {
     "name": "types_syntax_59",
     "source": "def render(item: any) -> string\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed **values:hash<string,int>={}\n7\nend\ndef run(input: any) -> any\ntyped()\nend",
-    "go_error": "parse error at 12:36: expected >, got \">=\""
+    "go_error": "parse error at 12:36: expected >, got \">=\"",
+    "error": "parse error at 12:36: capture parameters cannot have default values"
   },
   {
     "name": "types_depth_8",

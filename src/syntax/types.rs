@@ -438,6 +438,9 @@ impl Parser<'_> {
             if self.take_p(',') {
                 continue;
             }
+            if self.token() == &Token::Op(">=") {
+                self.split_closing_angle()?;
+            }
             if self.token() != &Token::Op(">") {
                 return self.expected(Label::Text(">"));
             }
@@ -476,6 +479,28 @@ impl Parser<'_> {
             TypeKind::Hash(Some(Boxed::new(self.work, (first, second))?))
         };
         Ok(ty)
+    }
+
+    /// Splits the `>=` that closes type arguments followed by a value, as in
+    /// `names: array<string>=[]`, into its `>` and `=`.
+    fn split_closing_angle(&mut self) -> Result<()> {
+        let lexeme = &self.tokens[self.pos];
+        let (offset, end, line) = (lexeme.offset, lexeme.end, lexeme.line);
+        let at = |token, offset, end| super::lexer::Lexeme {
+            token,
+            offset,
+            end,
+            line,
+            end_line: line,
+        };
+        let pair = Buffer::from_array(
+            self.work,
+            [
+                at(Token::Op(">"), offset, offset + 1),
+                at(Token::Op("="), offset + 1, end),
+            ],
+        )?;
+        self.tokens.replace(self.pos..self.pos + 1, pair, self.work)
     }
 
     /// Parses a shape type after its `{`, as Go's `parseTypeShape` does.
