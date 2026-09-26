@@ -210,3 +210,9 @@ fn nested_classes_are_named_through_their_scope() {
         &["V0401"],
     );
 }
+
+#[test]
+fn class_variable_initializers_keep_their_declared_types() {
+    clean("class C; @@n: int? = nil; def self.n -> int?; @@n; end; end; C.n");
+    codes("class C; @@n: int = nil; end", &["V0101"]);
+}

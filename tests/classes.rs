@@ -714,3 +714,49 @@ def read(a: Node) -> array<int>; [a.value, a.links.fetch(0)["next"].value]; end
         serde_json::json!([1, 2])
     );
 }
+
+#[test]
+fn partial_namespace_snapshots_never_read_missing_class_variables_as_nil() {
+    use std::sync::{Arc, Mutex};
+    let saved = Arc::new(Mutex::new(None));
+    let capture = saved.clone();
+    let mut engine = Engine::new();
+    engine.register("capture", move |_, args| {
+        *capture.lock().unwrap() = Some(args[0].clone());
+        Ok(Value::nil())
+    });
+    let script = engine
+        .compile(
+            "class C
+        def read -> int; @@n; end
+        def bump -> int; @@n += 1; end
+        capture(C.new)
+        @@n: int = 7
+    end
+    def read(value: C) -> int; value.read; end
+    def bump(value: C) -> int; value.bump; end
+    C.new.read",
+        )
+        .unwrap();
+    assert_eq!(
+        script.run(CallOptions::default()).unwrap().value.as_int(),
+        Some(7)
+    );
+    let value = saved.lock().unwrap().take().unwrap();
+    for function in ["read", "bump"] {
+        let error = script
+            .call(
+                function,
+                std::slice::from_ref(&value),
+                CallOptions::default(),
+            )
+            .unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Runtime);
+        assert!(
+            error
+                .message
+                .contains("class variable @@n is not initialized"),
+            "{error}"
+        );
+    }
+}

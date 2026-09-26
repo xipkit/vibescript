@@ -493,3 +493,10 @@ Every write keeps the data member's declared type, including `=`, compound
 assignment, appending and index assignment. Methods and nested capability
 namespaces cannot be replaced. Collection updates preserve ADR-006 value
 semantics: a copy previously read from a member is unchanged.
+
+A class variable has no value until its initializer assigns it, even when its
+type accepts nil. A read or update before that assignment raises an
+initialization error instead of producing nil. This also applies to host
+snapshots captured during a namespace initializer: snapshots keep their partial
+state and never replay the initializer. Explicitly initialized nil remains valid
+only for a type that allows it.

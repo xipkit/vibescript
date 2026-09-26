@@ -946,13 +946,16 @@ impl Run {
                     let (module, name) =
                         namespaces::variable_name(namespace, &program.members[name], false)?;
                     let value = namespaces::field(program, ctx, storage, module, name)?;
-                    let value = if optional {
-                        value.unwrap_or_default()
-                    } else {
-                        value.ok_or_else(|| {
+                    let value = value.ok_or_else(|| {
+                        if optional {
+                            Error::new(
+                                ErrorKind::Runtime,
+                                format!("class variable @@{name} is not initialized"),
+                            )
+                        } else {
                             Error::new(ErrorKind::Name, "undefined class variable")
-                        })?
-                    };
+                        }
+                    })?;
                     stack.push(ctx, value)?;
                 }
                 Op::NamespaceAddress(name, optional) => {
@@ -970,6 +973,14 @@ impl Run {
                     }
                     let (module, name) =
                         namespaces::variable_name(namespace, &program.members[name], false)?;
+                    if raw.starts_with("@@")
+                        && namespaces::field(program, ctx, storage, module, name)?.is_none()
+                    {
+                        return Err(Error::new(
+                            ErrorKind::Runtime,
+                            format!("class variable @@{name} is not initialized"),
+                        ));
+                    }
                     let address = if !optional
                         && namespaces::field(program, ctx, storage, module, name)?.is_none()
                     {
