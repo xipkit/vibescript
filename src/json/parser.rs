@@ -1,8 +1,9 @@
+use crate::scan::Class;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK, MAX_VALUE_DEPTH},
     hash::Hash,
-    scan::{self, Class},
+    scan,
 };
 
 /// A partially parsed container awaiting further elements.
@@ -86,6 +87,13 @@ fn integer(text: &[u8]) -> Option<i64> {
         [b'-', digits @ ..] => (true, digits),
         _ => (false, text),
     };
+    if digits.len() <= 18 {
+        let mut n = 0i64;
+        for &digit in digits {
+            n = n * 10 + i64::from(digit - b'0');
+        }
+        return Some(if negative { -n } else { n });
+    }
     digits.iter().try_fold(0i64, |n, &digit| {
         let digit = i64::from(digit - b'0');
         let n = n.checked_mul(10)?;
@@ -125,9 +133,17 @@ pub(super) struct Parser<'a> {
     /// A leading zero followed by a digit. The reference rejects the number
     /// there; the port rejects the digit, which must be the next failure.
     zero: Option<(usize, usize)>,
+    scanner: super::scan::Scanner,
+    keys: [Value; 64],
+    pub typed: super::typed::Stream<'a>,
 }
 
 impl<'a> Parser<'a> {
+    #[cfg(test)]
+    pub fn portable(&mut self) {
+        self.scanner.portable = true;
+    }
+
     pub fn new(ctx: &'a mut CallContext, input: &'a [u8]) -> Self {
         Self {
             ctx,
@@ -135,6 +151,9 @@ impl<'a> Parser<'a> {
             pos: 0,
             failure: None,
             zero: None,
+            scanner: super::scan::Scanner::default(),
+            keys: std::array::from_fn(|_| Value::nil()),
+            typed: super::typed::Stream::default(),
         }
     }
 
@@ -169,12 +188,9 @@ impl<'a> Parser<'a> {
             .is_some_and(|b| matches!(b, b' ' | b'\n' | b'\r' | b'\t'))
         {
             let start = self.pos;
-            while self.pos < self.input.len()
-                && self.pos - start < CHUNK
-                && matches!(self.input[self.pos], b' ' | b'\n' | b'\r' | b'\t')
-            {
-                self.pos += 1;
-            }
+            self.pos +=
+                self.scanner
+                    .space(self.input, self.pos, self.input.len().min(start + CHUNK));
             self.ctx.work_bytes(self.pos - start)?;
         }
         Ok(())
@@ -182,6 +198,12 @@ impl<'a> Parser<'a> {
 
     fn take(&mut self, b: u8) -> bool {
         if self.input.get(self.pos) == Some(&b) {
+            if self.input.len() >= 512
+                && matches!(b, b']' | b'}' | b',' | b':')
+                && !self.scanner.punctuation(self.input, self.pos)
+            {
+                return false;
+            }
             self.pos += 1;
             true
         } else {
@@ -203,6 +225,7 @@ impl<'a> Parser<'a> {
             // Deliver the finished value to the innermost open container, then
             // keep closing containers while their terminators follow.
             loop {
+                self.typed.complete(frames.data.len(), &value);
                 let Some(frame) = frames.data.last_mut() else {
                     return Ok(value);
                 };
@@ -251,6 +274,15 @@ impl<'a> Parser<'a> {
     fn start(&mut self, frames: &mut Buffer<Frame>) -> Result<Option<Value>> {
         self.ctx.charge(1)?;
         self.space()?;
+        let key = match frames.data.last() {
+            Some(Frame::Hash { key, .. }) => key.as_bytes(),
+            _ => None,
+        };
+        self.typed.start(
+            frames.data.len(),
+            key,
+            self.input.get(self.pos) == Some(&b'['),
+        );
         match self.input.get(self.pos).copied() {
             Some(b'"') => self.string().map(Some),
             Some(b'[') => {
@@ -321,7 +353,7 @@ impl<'a> Parser<'a> {
             let failure = self.found(Failure::KeyStart);
             return self.err("expected JSON object key", failure);
         }
-        let key = self.string()?;
+        let key = self.read_string(true)?;
         self.space()?;
         if !self.take(b':') {
             let failure = self.found(Failure::AfterKey);
@@ -341,6 +373,10 @@ impl<'a> Parser<'a> {
     }
 
     fn string(&mut self) -> Result<Value> {
+        self.read_string(false)
+    }
+
+    fn read_string(&mut self, key: bool) -> Result<Value> {
         self.pos += 1;
         let start = self.pos;
         loop {
@@ -348,14 +384,32 @@ impl<'a> Parser<'a> {
                 return self.err("unterminated JSON string", Failure::End);
             }
             let end = self.input.len().min(self.pos + CHUNK);
-            let span = scan::text_span(&self.input[self.pos..end], Class::JsonParse);
+            let span = self.span(end);
             if span.len > 0 {
                 self.ctx.charge(span.steps)?;
                 self.pos += span.len;
                 continue;
             }
             if self.input[self.pos] == b'"' {
-                let value = self.ctx.bytes(&self.input[start..self.pos])?;
+                let bytes = &self.input[start..self.pos];
+                let value = if key && self.input.len() >= 512 && bytes.len() <= 64 {
+                    let slot = bytes
+                        .iter()
+                        .fold(0usize, |hash, &b| hash.wrapping_mul(33) ^ usize::from(b))
+                        & 63;
+                    if self.keys[slot].as_bytes() == Some(bytes) {
+                        // Sharing an existing key replaces its materialization,
+                        // with the same logical work as copying the bytes.
+                        self.ctx.work_bytes(bytes.len())?;
+                        self.keys[slot].clone()
+                    } else {
+                        let value = self.ctx.bytes(bytes)?;
+                        self.keys[slot] = value.clone();
+                        value
+                    }
+                } else {
+                    self.ctx.bytes(bytes)?
+                };
                 self.pos += 1;
                 return Ok(value);
             }
@@ -379,7 +433,7 @@ impl<'a> Parser<'a> {
                 return self.err("unterminated JSON string", Failure::End);
             }
             let end = self.input.len().min(self.pos + CHUNK);
-            let span = scan::text_span(&self.input[self.pos..end], Class::JsonParse);
+            let span = self.span(end);
             if span.len > 0 {
                 if span.runes != span.len {
                     pending += span.steps;
@@ -546,14 +600,48 @@ impl<'a> Parser<'a> {
     }
 
     fn digits(&mut self) -> Result<()> {
-        let start = self.pos;
         while self.input.get(self.pos).is_some_and(u8::is_ascii_digit) {
-            if (self.pos - start) % 64 == 0 {
-                self.ctx.charge(1)?;
-            }
-            self.pos += 1;
+            self.ctx.charge(1)?;
+            let end = self.input.len().min(self.pos + 64);
+            self.pos += if self.input.len() < 512 {
+                self.input[self.pos..end]
+                    .iter()
+                    .take_while(|b| b.is_ascii_digit())
+                    .count()
+            } else {
+                self.scanner.digits(self.input, self.pos, end)
+            };
         }
         Ok(())
+    }
+
+    fn span(&mut self, end: usize) -> scan::TextSpan {
+        if self.input.len() < 512 {
+            return scan::text_span(&self.input[self.pos..end], Class::JsonParse);
+        }
+        let mut span = scan::TextSpan::default();
+        while self.pos + span.len < end {
+            let at = self.pos + span.len;
+            if self.input[at] < 128 {
+                let n = self.scanner.string(self.input, at, end);
+                span.len += n;
+                span.runes += n;
+                span.steps += (n as u64).div_ceil(64);
+                if n == 0 || self.input.get(self.pos + span.len).is_none_or(|&b| b < 128) {
+                    break;
+                }
+            } else {
+                let text = scan::text_span(&self.input[at..end], Class::JsonParse);
+                if text.len == 0 {
+                    break;
+                }
+                span.len += text.len;
+                span.runes += text.runes;
+                span.steps += text.steps;
+                self.scanner.skip_string(self.pos + span.len);
+            }
+        }
+        span
     }
 }
 

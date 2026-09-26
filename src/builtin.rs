@@ -601,12 +601,13 @@ pub(crate) fn parse_as(
             "expects a type literal as its second argument",
         ));
     };
-    let parsed = json::parse_builtin(ctx, &bytes.data, name)?;
-    crate::types::prepare(ctx, &shape.definition.ty, resolve)?.normalize_with(
-        ctx,
-        parsed,
-        crate::types::Context::Json,
-    )
+    let (parsed, checked) = json::parse_typed(ctx, &bytes.data, name, Some(&shape.definition.ty))?;
+    let prepared = crate::types::prepare(ctx, &shape.definition.ty, resolve)?;
+    if let Some(steps) = checked {
+        ctx.charge_each(steps)?;
+        return Ok(parsed);
+    }
+    prepared.normalize_with(ctx, parsed, crate::types::Context::Json)
 }
 
 fn call_math(

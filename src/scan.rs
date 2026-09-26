@@ -24,10 +24,30 @@ pub(crate) fn prefix(s: &[u8], class: Class) -> usize {
     while s.len() - i >= 16 {
         // SAFETY: each unaligned vector load stays within this 16-byte slice;
         // NEON and SSE2 are baseline features of the respective target architectures.
-        if !unsafe { vector_ordinary(&s[i..i + 16], class) } {
-            break;
+        let n = unsafe { vector_prefix(&s[i..i + 16], class) };
+        if n != 16 {
+            return i + n;
         }
         i += 16;
+    }
+    while s.len() - i >= 8 {
+        let v = u64::from_le_bytes(s[i..i + 8].try_into().unwrap());
+        let equal = |byte: u8| {
+            let x = v ^ (u64::from(byte) * 0x0101010101010101);
+            !(((x & 0x7f7f7f7f7f7f7f7f) + 0x7f7f7f7f7f7f7f7f) | x | 0x7f7f7f7f7f7f7f7f)
+        };
+        let mut bad = v & 0x8080808080808080;
+        if !matches!(class, Class::Ascii) {
+            bad |= !(v | ((v & 0x7f7f7f7f7f7f7f7f) + 0x6060606060606060)) & 0x8080808080808080;
+            bad |= equal(b'"') | equal(b'\\');
+        }
+        if matches!(class, Class::JsonStringify) {
+            bad |= equal(b'<') | equal(b'>') | equal(b'&');
+        }
+        if bad != 0 {
+            return i + bad.trailing_zeros() as usize / 8;
+        }
+        i += 8;
     }
     while i < s.len() && ordinary(s[i], class) {
         i += 1;
@@ -59,6 +79,16 @@ pub(crate) fn text_span(s: &[u8], class: Class) -> TextSpan {
             }
         } else {
             let tail = &s[span.len..];
+            if matches!(class, Class::JsonParse) {
+                let unicode = unicode_span(tail);
+                if unicode.len == 0 {
+                    break;
+                }
+                span.len += unicode.len;
+                span.runes += unicode.runes;
+                span.steps += unicode.steps;
+                continue;
+            }
             let (n, valid) = rune_width(tail);
             if !valid
                 || (matches!(class, Class::JsonStringify)
@@ -79,11 +109,10 @@ pub(crate) fn text_span(s: &[u8], class: Class) -> TextSpan {
 
 /// Counts a run of valid non-ASCII characters without constructing code points.
 pub(crate) fn unicode_span(s: &[u8]) -> TextSpan {
-    // Only aarch64 has a vector validator; other targets use the loops below.
-    #[cfg(all(feature = "simd", target_arch = "aarch64"))]
-    // SAFETY: NEON is a baseline feature of aarch64.
+    #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
+    // SAFETY: NEON and SSE2 are baseline features of these architectures.
     let (mut len, mut runes) = unsafe { vector_unicode(s) };
-    #[cfg(not(all(feature = "simd", target_arch = "aarch64")))]
+    #[cfg(not(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64"))))]
     let (mut len, mut runes) = (0, 0);
     // While a whole four-byte sequence fits, the width comes from the lead's
     // leading ones rather than a table load, which keeps the loop's carried
@@ -147,7 +176,7 @@ pub(crate) fn ascii_case(s: &mut [u8], upper: bool) {
 }
 
 #[cfg(all(feature = "simd", target_arch = "aarch64"))]
-unsafe fn vector_ordinary(s: &[u8], class: Class) -> bool {
+unsafe fn vector_prefix(s: &[u8], class: Class) -> usize {
     use std::arch::aarch64::*;
     // SAFETY: caller provides 16 accessible bytes and a NEON-capable target.
     unsafe {
@@ -163,7 +192,60 @@ unsafe fn vector_ordinary(s: &[u8], class: Class) -> bool {
                 bad = vorrq_u8(bad, vceqq_u8(v, vdupq_n_u8(b)));
             }
         }
-        vmaxvq_u8(bad) == 0
+        let bits = vget_lane_u64::<0>(vreinterpret_u64_u8(vshrn_n_u16::<4>(vreinterpretq_u16_u8(
+            bad,
+        ))));
+        bits.trailing_zeros() as usize / 4
+    }
+}
+
+#[cfg(all(feature = "simd", target_arch = "x86_64"))]
+unsafe fn vector_unicode(s: &[u8]) -> (usize, usize) {
+    use std::arch::x86_64::*;
+    // SAFETY: the loop bounds every unaligned 16-byte load; SSE2 is baseline.
+    unsafe {
+        let at_least = |v, b: u8| {
+            _mm_cmpgt_epi8(
+                _mm_xor_si128(v, _mm_set1_epi8(-128)),
+                _mm_set1_epi8((b ^ 128).wrapping_sub(1) as i8),
+            )
+        };
+        let below = |v, b| _mm_andnot_si128(at_least(v, b), _mm_set1_epi8(-1));
+        let equal = |v, b: u8| _mm_cmpeq_epi8(v, _mm_set1_epi8(b as i8));
+        let mut previous = _mm_setzero_si128();
+        let (mut start, mut leads, mut boundary) = (0, 0, 0);
+        while s.len() - start >= 16 {
+            let v = _mm_loadu_si128(s.as_ptr().add(start).cast());
+            let prev1 = _mm_or_si128(_mm_slli_si128::<1>(v), _mm_srli_si128::<15>(previous));
+            let prev2 = _mm_or_si128(_mm_slli_si128::<2>(v), _mm_srli_si128::<14>(previous));
+            let prev3 = _mm_or_si128(_mm_slli_si128::<3>(v), _mm_srli_si128::<13>(previous));
+            let continuation = below(v, 0xc0);
+            let expected = _mm_or_si128(
+                _mm_or_si128(at_least(prev1, 0xc0), at_least(prev2, 0xe0)),
+                at_least(prev3, 0xf0),
+            );
+            let mut bad = _mm_or_si128(_mm_xor_si128(continuation, expected), below(v, 0x80));
+            bad = _mm_or_si128(bad, _mm_and_si128(equal(prev1, 0xe0), below(v, 0xa0)));
+            bad = _mm_or_si128(bad, _mm_and_si128(equal(prev1, 0xed), at_least(v, 0xa0)));
+            bad = _mm_or_si128(bad, _mm_and_si128(equal(prev1, 0xf0), below(v, 0x90)));
+            bad = _mm_or_si128(bad, _mm_and_si128(equal(prev1, 0xf4), at_least(v, 0x90)));
+            bad = _mm_or_si128(
+                bad,
+                _mm_andnot_si128(
+                    continuation,
+                    _mm_or_si128(below(v, 0xc2), at_least(v, 0xf5)),
+                ),
+            );
+            if _mm_movemask_epi8(bad) != 0 {
+                break;
+            }
+            let lead = (!_mm_movemask_epi8(continuation) as u32) & 0xffff;
+            leads += lead.count_ones() as usize;
+            boundary = start + (31 - lead.leading_zeros()) as usize;
+            previous = v;
+            start += 16;
+        }
+        (boundary, leads.saturating_sub(1))
     }
 }
 
@@ -250,13 +332,13 @@ unsafe fn vector_case(s: &mut [u8], upper: bool) {
 }
 
 #[cfg(all(feature = "simd", target_arch = "x86_64"))]
-unsafe fn vector_ordinary(s: &[u8], class: Class) -> bool {
+unsafe fn vector_prefix(s: &[u8], class: Class) -> usize {
     use std::arch::x86_64::*;
     // SAFETY: caller provides 16 accessible bytes; x86_64 guarantees SSE2.
     unsafe {
         let v = _mm_loadu_si128(s.as_ptr().cast());
         if matches!(class, Class::Ascii) {
-            return _mm_movemask_epi8(v) == 0;
+            return (_mm_movemask_epi8(v) as u32 | (1 << 16)).trailing_zeros() as usize;
         }
         let mut bad = _mm_cmplt_epi8(v, _mm_set1_epi8(32));
         for b in *b"\"\\" {
@@ -267,7 +349,7 @@ unsafe fn vector_ordinary(s: &[u8], class: Class) -> bool {
                 bad = _mm_or_si128(bad, _mm_cmpeq_epi8(v, _mm_set1_epi8(b as i8)));
             }
         }
-        _mm_movemask_epi8(bad) == 0
+        (_mm_movemask_epi8(bad) as u32 | (1 << 16)).trailing_zeros() as usize
     }
 }
 

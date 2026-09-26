@@ -1,7 +1,11 @@
 use crate::{CallContext, Error, ErrorKind, Result, Value, budget::CHUNK};
 use std::fmt::{self, Write};
 
+#[cfg(test)]
+mod differential;
 mod parser;
+mod scan;
+mod typed;
 mod writer;
 
 const MAX_PAYLOAD: usize = 1 << 20;
@@ -24,6 +28,17 @@ fn document(p: &mut parser::Parser<'_>) -> Result<Value> {
 /// Parses script input for the builtin `name` (`JSON.parse` or
 /// `JSON.parse_as`), reporting failures in the reference's wording.
 pub(crate) fn parse_builtin(ctx: &mut CallContext, input: &[u8], name: &str) -> Result<Value> {
+    parse_typed(ctx, input, name, None).map(|(value, _)| value)
+}
+
+/// Parses with an optional streaming type check; successful proof charges are
+/// settled after ordinary type preparation to preserve boundary error order.
+pub(crate) fn parse_typed(
+    ctx: &mut CallContext,
+    input: &[u8],
+    name: &str,
+    ty: Option<&crate::types::Type>,
+) -> Result<(Value, Option<u64>)> {
     ctx.checkpoint()?;
     if input.len() > MAX_PAYLOAD {
         return ctx.guard(
@@ -32,10 +47,14 @@ pub(crate) fn parse_builtin(ctx: &mut CallContext, input: &[u8], name: &str) -> 
         );
     }
     let mut p = parser::Parser::new(ctx, input);
+    p.typed.ty = ty;
     let result = document(&mut p);
     let failure = p.failure;
     let error = match result {
-        Ok(value) => return Ok(value),
+        Ok(value) => {
+            let steps = p.typed.finish(&value);
+            return Ok((value, steps));
+        }
         Err(error) => error,
     };
     match failure {
