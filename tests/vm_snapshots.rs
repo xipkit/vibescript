@@ -1,8 +1,8 @@
-//! The programs these tests run read another program's instances and
-//! modules, which reach them through a capability's data. A program cannot
-//! name a class or module another program declares, and a module value has
-//! no static type, so those programs keep the ADR-004 language explicitly;
-//! the programs that build the state are typed.
+//! A typed program sees another program's modules and instances as `any`
+//! and cannot call them, so these programs snapshot their own state: they
+//! push instances and modules into the capability's `slots`, which the
+//! capability's callback reads as its receiver, and read the copies back
+//! through instances narrowed with `.as`, whose methods run in the copy.
 
 mod common;
 
@@ -18,40 +18,28 @@ use vibescript::{
     CallOptions, Capability, Engine, Error, ErrorKind, HostMethod, ModuleConfig, Value,
 };
 
-fn payload() -> Value {
-    Engine::new()
-        .compile(
-            "class Node
-               @next: Node
-               @value: int
-               def initialize; @value=1; @next=self; end
-               def value -> int; @value; end
-               def bump -> int; @value+=1; end
-               def next_node -> Node; @next; end
-             end
-             module Counter
-               @@value: int=1
-               def self.value -> int; @@value; end
-               def self.bump -> int; @@value+=1; end
-             end
-             node=Node.new
-             {node:node, alias:node, counter:Counter}",
-        )
-        .unwrap()
-        .run(CallOptions::default())
-        .unwrap()
-        .value
+/// The `cap` capability: `slots` for the state a program snapshots, and
+/// `method` as `capture`.
+fn capability(method: HostMethod) -> Capability {
+    Capability::from_value(
+        "cap",
+        Value::object(vec![
+            (b"slots".to_vec(), Value::array(vec![])),
+            (b"capture".to_vec(), method.value()),
+        ]),
+    )
+}
+
+/// An engine that declares the `cap` capability with a `capture` method.
+fn engine() -> Engine {
+    let mut engine = Engine::new();
+    engine.declare_capability(&capability(capture())).unwrap();
+    engine
 }
 
 fn options(method: HostMethod) -> CallOptions {
     CallOptions {
-        capabilities: vec![Capability::from_value(
-            "cap",
-            Value::object(vec![
-                (b"data".to_vec(), payload()),
-                (b"capture".to_vec(), method.value()),
-            ]),
-        )],
+        capabilities: vec![capability(method)],
         ..CallOptions::default()
     }
 }
@@ -65,36 +53,70 @@ fn capture() -> HostMethod {
     })
 }
 
+/// A node that reads and bumps the `Counter` module in whichever copy of
+/// the program's state it belongs to, and helpers to read a snapshot.
+const STATE: &str = "
+    class Node
+      @next: Node
+      @value: int
+      def initialize; @value=1; @next=self; end
+      def value -> int; @value; end
+      def bump -> int; @value+=1; end
+      def next_node -> Node; @next; end
+      def counter -> int; Counter.value; end
+      def bump_counter -> int; Counter.bump; end
+    end
+    module Counter
+      @@value: int=1
+      def self.value -> int; @@value; end
+      def self.bump -> int; @@value+=1; end
+    end
+    def slots(snapshot: any) -> array<any>
+      snapshot.as(hash<string, any>).fetch(\"slots\").as(array<any>)
+    end
+    def node_at(snapshot: any) -> Node
+      slots(snapshot).fetch(0).as(Node)
+    end
+";
+
 const SOURCE: &str = "
-    snapshots=cap.capture { cap[:data][:node].bump; cap[:data][:counter].bump }
-    old=snapshots[0][:data]
-    new=snapshots[1][:data]
-    [old[:node].value, old[:counter].value,
-     new[:node].value, new[:counter].value,
-     old[:node]==old[:alias], old[:node]==old[:node].next_node,
-     old[:node]==new[:node]]
+    def run -> array<int | bool>
+      node=Node.new
+      cap.slots.push(node)
+      cap.slots.push(node)
+      snapshots=cap.capture { node.bump; Counter.bump }.as(array<any>)
+      old=slots(snapshots.fetch(0))
+      old_node=node_at(snapshots.fetch(0))
+      new_node=node_at(snapshots.fetch(1))
+      [old_node.value, old_node.counter,
+       new_node.value, new_node.counter,
+       old_node==old.fetch(1), old_node==old_node.next_node,
+       old_node==new_node]
+    end
 ";
 
 #[test]
 fn receiver_snapshots_isolate_instances_and_module_state_across_block_reentry() {
-    let outcome = common::gradual_engine()
-        .compile(SOURCE)
+    let outcome = engine()
+        .compile(&format!("{STATE}{SOURCE}"))
         .unwrap()
-        .run(options(capture()))
+        .call("run", &[], options(capture()))
         .unwrap();
     assert_eq!(outcome.value.to_string(), "[1, 1, 2, 2, true, true, false]");
 }
 
 #[test]
 fn each_receiver_read_has_fresh_state_without_reusing_the_import_cache() {
-    let outcome = common::gradual_engine()
-        .compile(
-            "first=cap.capture { cap[:data][:counter].bump }
-             second=cap.capture { cap[:data][:counter].bump }
-             [first[0][:data][:counter].value, first[1][:data][:counter].value,
-              second[0][:data][:counter].value, second[1][:data][:counter].value,
-              cap[:data][:counter].value]",
-        )
+    let outcome = engine()
+        .compile(&format!(
+            "{STATE}
+             cap.slots.push(Node.new)
+             first=cap.capture {{ Counter.bump }}.as(array<any>)
+             second=cap.capture {{ Counter.bump }}.as(array<any>)
+             [node_at(first.fetch(0)).counter, node_at(first.fetch(1)).counter,
+              node_at(second.fetch(0)).counter, node_at(second.fetch(1)).counter,
+              Counter.value]"
+        ))
         .unwrap()
         .run(options(capture()))
         .unwrap();
@@ -103,16 +125,21 @@ fn each_receiver_read_has_fresh_state_without_reusing_the_import_cache() {
 
 #[test]
 fn mutating_a_returned_snapshot_does_not_change_the_receiver_or_another_snapshot() {
-    let outcome = common::gradual_engine()
-        .compile(
-            "snapshots=cap.capture { nil }
-             old=snapshots[0][:data]
-             old[:node].bump
-             old[:counter].bump
-             [old[:alias].value, old[:counter].value,
-              snapshots[1][:data][:node].value, snapshots[1][:data][:counter].value,
-              cap[:data][:node].value, cap[:data][:counter].value]",
-        )
+    let outcome = engine()
+        .compile(&format!(
+            "{STATE}
+             node=Node.new
+             cap.slots.push(node)
+             cap.slots.push(node)
+             snapshots=cap.capture {{ nil }}.as(array<any>)
+             old=slots(snapshots.fetch(0))
+             old_node=old.fetch(0).as(Node)
+             old_node.bump
+             old_node.bump_counter
+             [old.fetch(1).as(Node).value, old_node.counter,
+              node_at(snapshots.fetch(1)).value, node_at(snapshots.fetch(1)).counter,
+              node.value, Counter.value]"
+        ))
         .unwrap()
         .run(options(capture()))
         .unwrap();
@@ -135,9 +162,7 @@ async fn async_receiver_snapshots_survive_suspension_and_block_reentry() {
     let outcome = vibescript::asynchronous::Runner::new(1)
         .unwrap()
         .call(
-            common::gradual_engine()
-                .compile(&format!("def run\n{SOURCE}\nend"))
-                .unwrap(),
+            engine().compile(&format!("{STATE}{SOURCE}")).unwrap(),
             "run".into(),
             vec![],
             options(method),
@@ -162,32 +187,33 @@ fn saved_snapshot() -> (Engine, CallOptions, Arc<AtomicUsize>, SnapshotStore) {
         Ok(Value::nil())
     });
     let read = saved.clone();
-    let mut engine = common::gradual_engine();
+    let mut engine = engine();
     engine.register("take_snapshot", move |_, _| {
         Ok(read.lock().unwrap().take().unwrap())
     });
-    let options = CallOptions {
-        capabilities: vec![Capability::from_value(
-            "cap",
-            Value::object(vec![(b"capture".to_vec(), capture.value())]),
-        )],
-        ..CallOptions::default()
-    };
+    let options = options(capture);
     (engine, options, calls, saved)
 }
 
+/// A snapshot taken while `First` initializes, before `Later` has, and a
+/// probe that reads both in the copy it belongs to. `Later`'s value is
+/// optional because a copy taken before it initializes has none.
 const INITIALIZING: &str = "
+    class Probe
+      def first -> int; First.value; end
+      def later -> int?; Later.value; end
+      def to_s -> string; [first, later].inspect; end
+    end
     module First
-      @@value=1
-      cap[:data]=First
-      cap.capture()
+      @@value: int=1
+      cap.slots.push(Probe.new)
+      cap.capture
       @@value=2
-      def self.value; @@value; end
-      def self.later; Later.value; end
+      def self.value -> int; @@value; end
     end
     module Later
-      @@value=effect()
-      def self.value; @@value; end
+      @@value: int=effect().as(int)
+      def self.value -> int?; @@value; end
     end
 ";
 
@@ -203,8 +229,8 @@ fn unbound_snapshots_capture_partial_initialization_without_replaying_effects() 
     let result = engine
         .compile(&format!(
             "{INITIALIZING}
-         old=take_snapshot()[:data]
-         [old.value, First.value, old.later, Later.value]"
+         old=take_snapshot().as(hash<string, any>).fetch(\"slots\").as(array<any>).fetch(0).as(Probe)
+         [old.first, First.value, old.later, Later.value]"
         ))
         .unwrap()
         .run(options);
@@ -227,7 +253,14 @@ fn captured_file_snapshots_do_not_resume_or_replay_source_initializers() {
     fs::create_dir_all(&dir).unwrap();
     fs::write(
         dir.join("initializing.vibe"),
-        format!("{INITIALIZING}\ndef first; First; end\ndef later; Later; end"),
+        format!(
+            "{INITIALIZING}
+             def first -> int; First.value; end
+             def later -> int?; Later.value; end
+             def probe(snapshot: any) -> Probe
+               snapshot.as(hash<string, any>).fetch(\"slots\").as(array<any>).fetch(0).as(Probe)
+             end"
+        ),
     )
     .unwrap();
     let (mut engine, mut options, calls, saved) = saved_snapshot();
@@ -246,9 +279,9 @@ fn captured_file_snapshots_do_not_resume_or_replay_source_initializers() {
     options.allow_require = true;
     let result = engine
         .compile(
-            "m=require(:initializing)
-         old=take_snapshot()[:data]
-         [old.value, m.first().value, old.later, m.later().value]",
+            "m=require(\"initializing\")
+         old=m.probe(take_snapshot())
+         [old.first, m.first, old.later, m.later]",
         )
         .unwrap()
         .run(options);
@@ -261,8 +294,10 @@ fn captured_file_snapshots_do_not_resume_or_replay_source_initializers() {
 
 #[test]
 fn dropped_vm_snapshots_release_all_invocation_storage() {
-    let result = common::gradual_engine()
-        .compile("cap.capture { cap[:data][:counter].bump }; nil")
+    let result = engine()
+        .compile(&format!(
+            "{STATE}cap.slots.push(Node.new)\ncap.capture {{ Counter.bump }}\nnil"
+        ))
         .unwrap()
         .run(options(capture()))
         .unwrap();
@@ -286,8 +321,12 @@ fn retained_vm_snapshots_keep_state_when_imported_by_a_later_invocation() {
     let snapshot = saved.lock().unwrap().take().unwrap();
     let mut options = CallOptions::default();
     options.globals.insert("old".into(), snapshot);
-    let result = common::gradual_engine()
-        .compile("[old[:data].value, old[:data].later]")
+    // The later program cannot name the probe's class, so it renders the
+    // probe, whose to_s reads the copy.
+    let mut reader = Engine::new();
+    reader.declare_global("old", "").unwrap();
+    let result = reader
+        .compile("\"#{old.as(hash<string, any>).fetch(\"slots\").as(array<any>).fetch(0)}\"")
         .unwrap()
         .run(options)
         .unwrap();
@@ -298,23 +337,27 @@ fn retained_vm_snapshots_keep_state_when_imported_by_a_later_invocation() {
 
 #[test]
 fn vm_snapshots_keep_class_state_shared_inside_each_copy() {
-    let result = common::gradual_engine()
+    let result = engine()
         .compile(
             "class Meter
-           @@value=1
-           def value; @@value; end
-           def bump; @@value+=1; end
-           def self.value; @@value; end
+           @@value: int=1
+           def value -> int; @@value; end
+           def bump -> int; @@value+=1; end
+           def self.value -> int; @@value; end
          end
-         cap[:instance]=Meter.new
-         cap[:class]=Meter
-         snapshots=cap.capture { cap[:instance].bump }
-         old=snapshots[0]
-         new=snapshots[1]
-         first=[old[:instance].value, old[:class].value,
-                new[:instance].value, new[:class].value, Meter.value]
-         old[:instance].bump
-         [first, old[:class].value, new[:class].value, Meter.value]",
+         def meters(snapshot: any) -> array<Meter>
+           snapshot.as(hash<string, any>).fetch(\"slots\").as(array<Meter>)
+         end
+         meter=Meter.new
+         cap.slots.push(meter)
+         cap.slots.push(Meter.new)
+         snapshots=cap.capture { meter.bump }.as(array<any>)
+         old=meters(snapshots.fetch(0))
+         new=meters(snapshots.fetch(1))
+         first=[old.fetch(0).value, old.fetch(1).value,
+                new.fetch(0).value, new.fetch(1).value, Meter.value]
+         old.fetch(0).bump
+         [first, old.fetch(1).value, new.fetch(1).value, Meter.value]",
         )
         .unwrap()
         .run(options(capture()))
@@ -324,24 +367,33 @@ fn vm_snapshots_keep_class_state_shared_inside_each_copy() {
 
 #[test]
 fn transitive_foreign_modules_and_direct_aliases_share_one_snapshot_environment() {
-    let result = common::gradual_engine()
-        .compile(
-            "module Local
-           @@peer=cap[:data][:counter]
-           @@value=3
-           def self.peer; @@peer; end
-           def self.value; @@value; end
-           def self.bump; @@value+=1; @@peer.bump; end
+    let result = engine()
+        .compile(&format!(
+            "{STATE}
+         module Local
+           @@peer: any=Counter
+           @@value: int=3
+           def self.peer -> any; @@peer; end
+           def self.value -> int; @@value; end
+           def self.bump -> int; @@value+=1; Counter.bump; end
          end
-         cap[:root]=Local
-         snapshots=cap.capture { Local.bump }
-         old=snapshots[0]
-         new=snapshots[1]
-         [old[:root].value, old[:root].peer.value,
-          new[:root].value, new[:root].peer.value,
-          old[:root].peer==old[:data][:counter],
-          old[:root].peer==new[:root].peer]",
-        )
+         class Probe
+           def value -> int; Local.value; end
+           def peer -> any; Local.peer; end
+         end
+         cap.slots.push(Node.new)
+         cap.slots.push(Probe.new)
+         cap.slots.push(Counter)
+         snapshots=cap.capture {{ Local.bump }}.as(array<any>)
+         old=slots(snapshots.fetch(0))
+         new=slots(snapshots.fetch(1))
+         old_probe=old.fetch(1).as(Probe)
+         new_probe=new.fetch(1).as(Probe)
+         [old_probe.value, node_at(snapshots.fetch(0)).counter,
+          new_probe.value, node_at(snapshots.fetch(1)).counter,
+          old_probe.peer==old.fetch(2),
+          old_probe.peer==new_probe.peer]"
+        ))
         .unwrap()
         .run(options(capture()))
         .unwrap();
@@ -352,14 +404,22 @@ fn transitive_foreign_modules_and_direct_aliases_share_one_snapshot_environment(
 fn unbound_module_snapshots_still_read_the_receiving_invocations_ambient_globals() {
     let mut options = options(capture());
     options.globals.insert("count".into(), Value::int(3));
-    let result = common::gradual_engine()
+    let mut engine = engine();
+    engine.declare_global("count", "int").unwrap();
+    let result = engine
         .compile(
             "module Reads
-           def self.value; count; end
+           def self.value -> int; count; end
          end
-         cap[:reader]=Reads
-         snapshots=cap.capture { count+=1 }
-         [snapshots[0][:reader].value, snapshots[1][:reader].value, Reads.value, count]",
+         class Reader
+           def value -> int; Reads.value; end
+         end
+         def reader(snapshot: any) -> Reader
+           snapshot.as(hash<string, any>).fetch(\"slots\").as(array<any>).fetch(0).as(Reader)
+         end
+         cap.slots.push(Reader.new)
+         snapshots=cap.capture { count+=1 }.as(array<any>)
+         [reader(snapshots.fetch(0)).value, reader(snapshots.fetch(1)).value, Reads.value, count]",
         )
         .unwrap()
         .run(options)
@@ -373,9 +433,7 @@ async fn synchronous_callbacks_on_the_async_runner_snapshot_vm_state() {
     let result = vibescript::asynchronous::Runner::new(1)
         .unwrap()
         .call(
-            common::gradual_engine()
-                .compile(&format!("def run\n{SOURCE}\nend"))
-                .unwrap(),
+            engine().compile(&format!("{STATE}{SOURCE}")).unwrap(),
             "run".into(),
             vec![],
             options(capture()),
@@ -388,7 +446,9 @@ async fn synchronous_callbacks_on_the_async_runner_snapshot_vm_state() {
 #[test]
 fn vm_state_in_deep_receivers_uses_the_default_stack_through_copy_and_drop() {
     let mut value = Engine::new()
-        .compile("module Deep; @@value: int=9; def self.value -> int; @@value; end; end; Deep")
+        .compile(
+            "class Deep; @@value: int=9; def value -> int; @@value; end; def to_s -> string; value.to_s; end; end; Deep.new",
+        )
         .unwrap()
         .run(CallOptions::default())
         .unwrap()
@@ -397,17 +457,20 @@ fn vm_state_in_deep_receivers_uses_the_default_stack_through_copy_and_drop() {
         value = Value::array(vec![value]);
     }
     let read = HostMethod::new_with_block("cap.read", |call, _, _| Ok(call.receiver()?.unwrap()));
-    let result = common::gradual_engine()
-        .compile("cap.read()")
+    let capability = Capability::from_value(
+        "cap",
+        Value::object(vec![
+            (b"data".to_vec(), value),
+            (b"read".to_vec(), read.value()),
+        ]),
+    );
+    let mut engine = Engine::new();
+    engine.declare_capability(&capability).unwrap();
+    let result = engine
+        .compile("cap.read")
         .unwrap()
         .run(CallOptions {
-            capabilities: vec![Capability::from_value(
-                "cap",
-                Value::object(vec![
-                    (b"data".to_vec(), value),
-                    (b"read".to_vec(), read.value()),
-                ]),
-            )],
+            capabilities: vec![capability],
             ..CallOptions::default()
         })
         .unwrap();
@@ -424,15 +487,18 @@ fn vm_state_in_deep_receivers_uses_the_default_stack_through_copy_and_drop() {
     }
     let mut options = CallOptions::default();
     options.globals.insert("data".into(), value.clone());
+    // The reader cannot name the instance's class, so it renders it.
+    let mut reader = Engine::new();
+    reader.declare_global("data", "").unwrap();
     assert_eq!(
-        common::gradual_engine()
-            .compile("data.value")
+        reader
+            .compile("\"#{data}\"")
             .unwrap()
             .run(options)
             .unwrap()
             .value
-            .as_int(),
-        Some(9)
+            .as_bytes(),
+        Some(b"9".as_slice())
     );
     drop(result);
 }
