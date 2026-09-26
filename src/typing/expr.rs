@@ -286,6 +286,9 @@ impl<'a> Checker<'a> {
         if name == "block_given?" {
             return Ty::BOOL;
         }
+        if let Some(&ty) = self.program.declared.get(name) {
+            return ty;
+        }
         if let Some(ty) = self.declaration(name) {
             return ty;
         }

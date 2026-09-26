@@ -103,6 +103,30 @@ fn a_declared_global_has_its_type() {
 }
 
 #[test]
+fn supplied_globals_shadow_namespace_declarations() {
+    let mut engine = Engine::new();
+    engine.declare_global("Math", "int").unwrap();
+    engine.declare_global("Box", "array<int>").unwrap();
+    let source = "class Box\nend\nMath + Box.length\n";
+    codes_with(&engine, source, &[]);
+    codes_with(&engine, "class Box\nend\nBox.new\n", &["V0203"]);
+    engine.set_static_types(true);
+    let result = engine
+        .compile(source)
+        .unwrap()
+        .run(vibescript::CallOptions {
+            globals: [
+                ("Math".into(), Value::int(7)),
+                ("Box".into(), Value::array(vec![Value::int(1)])),
+            ]
+            .into(),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(result.value.as_int(), Some(8));
+}
+
+#[test]
 fn capability_data_is_readable_but_cannot_take_arguments() {
     let engine = engine();
     codes_with(&engine, "SMS.region\n", &[]);
