@@ -196,12 +196,12 @@ fn saved_snapshot() -> (Engine, CallOptions, Arc<AtomicUsize>, SnapshotStore) {
 }
 
 /// A snapshot taken while `First` initializes, before `Later` has, and a
-/// probe that reads both in the copy it belongs to. `Later`'s value is
-/// optional because a copy taken before it initializes has none.
+/// probe that reads both in the copy it belongs to. A read of `Later`
+/// before its initializer assigns the value reports an initialization error.
 const INITIALIZING: &str = "
     class Probe
       def first -> int; First.value; end
-      def later -> int?; Later.value; end
+      def later -> int | string; begin; Later.value; rescue RuntimeError => e; e.message; end; end
       def to_s -> string; [first, later].inspect; end
     end
     module First
@@ -213,7 +213,7 @@ const INITIALIZING: &str = "
     end
     module Later
       @@value: int=effect().as(int)
-      def self.value -> int?; @@value; end
+      def self.value -> int; @@value; end
     end
 ";
 
@@ -235,7 +235,10 @@ fn unbound_snapshots_capture_partial_initialization_without_replaying_effects() 
         .unwrap()
         .run(options);
     saved.lock().unwrap().take();
-    assert_eq!(result.unwrap().value.to_string(), "[1, 2, nil, 7]");
+    assert_eq!(
+        result.unwrap().value.to_string(),
+        "[1, 2, class variable @@value is not initialized, 7]"
+    );
     assert_eq!(calls.load(Ordering::SeqCst), 1);
     assert_eq!(effects.load(Ordering::SeqCst), 1);
 }
@@ -256,7 +259,7 @@ fn captured_file_snapshots_do_not_resume_or_replay_source_initializers() {
         format!(
             "{INITIALIZING}
              def first -> int; First.value; end
-             def later -> int?; Later.value; end
+             def later -> int | string; begin; Later.value; rescue RuntimeError => e; e.message; end; end
              def probe(snapshot: any) -> Probe
                snapshot.as(hash<string, any>).fetch(\"slots\").as(array<any>).fetch(0).as(Probe)
              end"
@@ -287,7 +290,10 @@ fn captured_file_snapshots_do_not_resume_or_replay_source_initializers() {
         .run(options);
     saved.lock().unwrap().take();
     fs::remove_dir_all(dir).unwrap();
-    assert_eq!(result.unwrap().value.to_string(), "[1, 2, nil, 7]");
+    assert_eq!(
+        result.unwrap().value.to_string(),
+        "[1, 2, class variable @@value is not initialized, 7]"
+    );
     assert_eq!(calls.load(Ordering::SeqCst), 1);
     assert_eq!(effects.load(Ordering::SeqCst), 1);
 }
@@ -330,7 +336,10 @@ fn retained_vm_snapshots_keep_state_when_imported_by_a_later_invocation() {
         .unwrap()
         .run(options)
         .unwrap();
-    assert_eq!(result.value.to_string(), "[1, nil]");
+    assert_eq!(
+        result.value.to_string(),
+        "[1, \"class variable @@value is not initialized\"]"
+    );
     assert_eq!(calls.load(Ordering::SeqCst), 1);
     assert_eq!(effects.load(Ordering::SeqCst), 1);
 }
