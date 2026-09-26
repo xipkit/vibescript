@@ -88,7 +88,7 @@ fn run(body: &str, options: CallOptions) -> vibescript::Result<vibescript::Outco
     let mut engine = declared(&options);
     engine.set_strict_effects(true);
     // `::` is refused with static types (V0416) but still runs without.
-    if body.contains("::") {
+    if body.contains("::") || body.contains(".send(") || body.contains(".public_send(") {
         engine.set_static_types(false);
     }
     engine
@@ -103,7 +103,7 @@ fn host_blocks_support_dispatch_binding_captures_and_repeated_calls() {
     for (body, expected) in [
         ("host.once(3) { |n| n.as(int)+1 }", "4"),
         ("host::once(3) { |n| n.as(int)+1 }", "4"),
-        // The checker does not refuse dispatch by name on a capability.
+        // Legacy dispatch is exercised without static types.
         ("host.send(:once, 3) { |n| n.as(int)+1 }", "4"),
         ("host.public_send(:once, 3) { |n| n.as(int)+1 }", "4"),
         ("copy=host.dup; copy.once(3) { |n| n.as(int)+1 }", "4"),
@@ -648,12 +648,11 @@ fn foreign_block_arguments_keep_their_program_types_and_isolated_state() {
 
 #[test]
 fn block_capability_methods_cannot_be_detached_or_regranted() {
-    // A bare method reads as a call without arguments, but the runtime
-    // refuses it as a value.
+    // A bare method is a call, so a method requiring a block refuses it.
     for body in ["host::once", "host.once(host::once) { 1 }"] {
         assert_eq!(
             run(body, options(&Trace::default())).unwrap_err().kind,
-            ErrorKind::Type,
+            ErrorKind::Argument,
             "{body}"
         );
     }

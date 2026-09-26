@@ -202,13 +202,22 @@ fn return_annotations_apply_to_all_function_exit_paths() {
         "def typed(&block: () -> Status)->Status\nyield\nend\ntyped{break (:draft)}.name",
         "def typed(x:Status=([1].map{return (:draft)}))->Status\nx\nend\ntyped().name",
     ] {
-        assert_eq!(evaluate(source), serde_json::json!("Draft"), "{source}");
+        let value = if source.contains("x:Status=") {
+            let result = common::runtime_engine()
+                .compile(&format!("{ENUMS}{source}"))
+                .unwrap()
+                .run(CallOptions::default())
+                .unwrap();
+            serde_json::Value::String(result.value.to_string())
+        } else {
+            evaluate(source)
+        };
+        assert_eq!(value, serde_json::json!("Draft"), "{source}");
         let missing = source.replace(":draft", ":missing");
-        // A member the enum lacks is refused before running where the
-        // checker sees the value leave the function; a `return` in a
-        // default is still checked when it runs.
+        // Preserve the runtime boundary test for a default whose block
+        // may return before producing a value for the parameter.
         if source.contains("x:Status=") {
-            let error = Engine::new()
+            let error = common::runtime_engine()
                 .compile(&format!("{ENUMS}{missing}"))
                 .unwrap()
                 .run(CallOptions::default())
@@ -247,7 +256,7 @@ fn named_types_use_definition_scopes_and_nominal_host_identity() {
         ),
         (
             "def typed->T\nT=Status;:draft\nend\ntyped",
-            vec![("V0116", "T\n")],
+            vec![("V0116", "T\n"), ("V0102", "T=Status")],
         ),
         (
             "STatus=Status;StAtUs=Review;[:draft].map{|x:status|x}",
@@ -291,7 +300,7 @@ fn named_types_use_definition_scopes_and_nominal_host_identity() {
 fn invalid_typed_values_stop_later_defaults_and_host_effects() {
     let calls = Arc::new(AtomicUsize::new(0));
     let seen = calls.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::runtime_engine();
     engine.register("effect", move |_, _| {
         seen.fetch_add(1, Ordering::SeqCst);
         Ok(Value::int(1))

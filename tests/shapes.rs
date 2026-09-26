@@ -145,8 +145,8 @@ fn literal_fallback_uses_bound_names_and_current_lexical_scopes() {
     engine.register("int", |_, _| Ok(Value::int(7)));
     let script = engine.compile(&format!("{IDENTITY}identity(int)")).unwrap();
     assert_eq!(
-        script.run(CallOptions::default()).unwrap_err().kind,
-        ErrorKind::Type
+        script.run(CallOptions::default()).unwrap().value.as_int(),
+        Some(7)
     );
     let result = engine
         .compile("JSON.parse_as(\"[7]\",array<int>)")
@@ -229,7 +229,7 @@ end"#,
 #[test]
 fn hosts_can_retain_import_and_reuse_types_after_the_script_is_dropped() {
     assert_eq!(size_of::<Value>(), 16);
-    let script = Engine::new().compile("{name:string}").unwrap();
+    let script = common::runtime_engine().compile("{name:string}").unwrap();
     let schema = script.run(CallOptions::default()).unwrap();
     assert_eq!(schema.value.type_name(), "shape");
     assert_eq!(
@@ -240,7 +240,7 @@ fn hosts_can_retain_import_and_reuse_types_after_the_script_is_dropped() {
     assert_eq!(Value::nil().as_type_literal(), None);
     drop(script);
     let retained = schema.value;
-    let mut engine = Engine::new();
+    let mut engine = common::runtime_engine();
     engine.register("schema", move |ctx, _| ctx.import(&retained));
     let output = engine
         .compile("JSON.parse_as(\"{\\\"name\\\":\\\"Ada\\\"}\",schema()).name")

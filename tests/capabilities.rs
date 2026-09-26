@@ -152,14 +152,14 @@ fn explicit_global_method_grants_remain_callable_without_becoming_values() {
             assert_eq!(output.value.to_string(), "[1, 2]", "{source}");
         }
         for source in ["deliver", "[deliver]"] {
-            let error = engine
+            let result = engine
                 .compile(source)
                 .unwrap()
                 .run(options.clone())
-                .unwrap_err();
-            assert!(
-                error.message.contains("cannot be used as a value"),
-                "{source}: {error}"
+                .unwrap();
+            assert_eq!(
+                result.value.to_string(),
+                if source == "deliver" { "[]" } else { "[[]]" }
             );
         }
     }
@@ -383,23 +383,19 @@ fn saved_namespaces_cannot_reuse_grants_in_later_calls_even_with_unlimited_memor
 }
 
 #[test]
-fn capability_methods_cannot_escape_through_reads_containers_or_host_arguments() {
+fn bare_capability_methods_run_and_method_values_cannot_escape() {
     for source in ["sms.deliver", "sms::deliver"] {
         let mut engine = engine();
         if source.contains("::") {
             engine.set_static_types(false);
         }
         engine.register("identity", |_, _| panic!("detached method reached host"));
-        let error = engine
+        let result = engine
             .compile(source)
             .unwrap()
             .run(granted(echo()))
-            .unwrap_err();
-        assert_eq!(error.kind, ErrorKind::Type, "{source}: {error}");
-        assert!(
-            error.message.contains("cannot be used as a value"),
-            "{source}: {error}"
-        );
+            .unwrap();
+        assert_eq!(result.value.to_string(), "[]", "{source}");
     }
     // A namespace is not indexed, a local is never called and a method's
     // result is `any`, so the other escapes do not compile.

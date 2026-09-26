@@ -370,7 +370,10 @@ fn member_items_carry_unambiguous_docs_and_table_signatures() {
         ),
         (
             "sort",
-            &["`array<T: comparable>.sort(&block?: (T, T) -> int) -> array<T>`"],
+            &[
+                "`array<T>.sort(&block: (T, T) -> int) -> array<T>`",
+                "`array<T: comparable>.sort -> array<T>`",
+            ],
         ),
         ("to_i", &["`string.to_i -> int`", "`duration.to_i -> int`"]),
         ("dup", &["`dup -> T`"]),

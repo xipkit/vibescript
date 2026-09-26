@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use vibescript::{CallOptions, Engine, Error, ErrorKind, Limits, Value, stringify_json};
 
 fn fail(source: &str) -> Error {
-    Engine::new()
+    common::runtime_engine()
         .compile(source)
         .unwrap()
         .run(CallOptions::default())

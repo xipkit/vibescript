@@ -6,11 +6,11 @@
 
 mod common;
 
-use vibescript::{CallOptions, Engine};
+use vibescript::CallOptions;
 
 fn message(body: &str) -> String {
     let source = format!("def run -> any\n{body}\nend");
-    let script = Engine::new()
+    let script = common::runtime_engine()
         .compile(&source)
         .unwrap_or_else(|error| panic!("{body}: {error}"));
     match script.call("run", &[], CallOptions::default()) {
@@ -131,7 +131,7 @@ fn unknown_members_name_the_receiver_kind_and_suggest_close_names() {
 }
 
 fn function_message(source: &str, function: &str) -> String {
-    let script = Engine::new()
+    let script = common::runtime_engine()
         .compile(source)
         .unwrap_or_else(|error| panic!("{source}: {error}"));
     match script.call(function, &[], CallOptions::default()) {
@@ -399,7 +399,7 @@ fn array_members_name_themselves_in_count_and_index_errors() {
         assert_eq!(message(body), expected, "{body}");
     }
     for (body, code, text) in [
-        ("[1, 2].size(1)", "V0301", "size"),
+        ("[1, 2].size(1)", "V0401", "size"),
         ("[1].empty?(1)", "V0301", "empty?"),
         ("[1].include?", "V0301", "include?"),
         ("[1][nil]", "V0107", "nil"),
@@ -449,7 +449,7 @@ fn array_keyword_and_block_refusals_follow_the_reference_order() {
         ("[1].transpose(a: 1)", "V0203", "transpose"),
         ("[1].clear(a: 1) { |x| x }", "V0302", "a:"),
         ("[1].to_s(1, a: 1)", "V0301", "to_s"),
-        ("[1].string(a: 1)", "V0302", "a:"),
+        ("[1].string(a: 1)", "V0401", "string"),
         ("[1].union(1, a: 1)", "V0101", "1"),
         ("[1].inspect(1, a: 1)", "V0301", "inspect"),
         ("[1].inspect { |x| x }", "V0305", "{"),
@@ -543,7 +543,7 @@ fn string_members_name_themselves_in_argument_count_errors() {
         assert_eq!(message(body), expected, "{body}");
     }
     for (body, code, text) in [
-        ("\"ab\".size(1)", "V0301", "size"),
+        ("\"ab\".size(1)", "V0401", "size"),
         ("\"ab\".length(1, 2)", "V0301", "length"),
         ("\"ab\".bytesize(1)", "V0301", "bytesize"),
         ("\"ab\".empty?(nil)", "V0301", "empty?"),
@@ -762,9 +762,9 @@ fn string_member_arguments_report_type_and_value_errors_in_reference_wording() {
 fn string_keyword_and_block_refusals_follow_the_reference_order() {
     for (body, code, text) in [
         ("\"ab\".to_s(1)", "V0301", "to_s"),
-        ("\"ab\".string(1, a: 1)", "V0301", "string"),
+        ("\"ab\".string(1, a: 1)", "V0401", "string"),
         ("\"ab\".to_sym(a: 1)", "V0302", "a:"),
-        ("\"ab\".intern { |x| x }", "V0305", "{"),
+        ("\"ab\".intern { |x| x }", "V0401", "intern"),
         ("\"ab\".to_s(a: 1) { |x| x }", "V0302", "a:"),
         ("\"ab\".to_sym(1) { |x| x }", "V0301", "to_sym"),
         ("\"ab\".getbyte(0, a: 1)", "V0302", "a:"),
@@ -802,12 +802,12 @@ fn hash_members_name_themselves_in_argument_count_and_shape_errors() {
         assert_eq!(message(body), expected, "{body}");
     }
     for (body, code, text) in [
-        ("{a: 1}.size(1)", "V0301", "size"),
+        ("{a: 1}.size(1)", "V0401", "size"),
         ("{a: 1}.empty?(1, k: 1)", "V0301", "empty?"),
         ("{a: 1}.keys(1)", "V0301", "keys"),
-        ("{a: 1}.has_key?", "V0301", "has_key?"),
-        ("{a: 1}.include?(:a, :b)", "V0301", "include?"),
-        ("{a: 1}.has_value?(1, 2)", "V0301", "has_value?"),
+        ("{a: 1}.has_key?", "V0401", "has_key?"),
+        ("{a: 1}.include?(:a, :b)", "V0401", "include?"),
+        ("{a: 1}.has_value?(1, 2)", "V0401", "has_value?"),
         ("{a: 1}.to_a(1)", "V0301", "to_a"),
         ("{a: 1}.delete(:a, :b)", "V0301", "delete"),
         ("{a: 1}.clear(1)", "V0301", "clear"),
@@ -931,14 +931,14 @@ fn range_members_check_calls_in_reference_order() {
         assert_eq!(message(body), expected, "{body}");
     }
     for (body, code, text) in [
-        ("(1..5).cover?(1, 2)", "V0301", "cover?"),
-        ("(1..5).member?(k: 1)", "V0301", "member?"),
+        ("(1..5).cover?(1, 2)", "V0401", "cover?"),
+        ("(1..5).member?(k: 1)", "V0401", "member?"),
         ("(1..5).include?(1, k: 1)", "V0302", "k:"),
         ("(1..5).first(1, 2)", "V0301", "first"),
         ("(1..5).first(\"x\")", "V0101", "\"x\""),
         ("(..3).last(\"x\")", "V0101", "\"x\""),
         ("(1..5).first(k: 1)", "V0301", "first"),
-        ("(1..5).size(1, k: 1)", "V0301", "size"),
+        ("(1..5).size(1, k: 1)", "V0401", "size"),
         ("(1..5).exclude_end?(k: 1)", "V0302", "k:"),
         ("(1..5).to_a(1)", "V0301", "to_a"),
         ("(1..5).length(1, k: 1)", "V0301", "length"),
@@ -951,7 +951,7 @@ fn range_members_check_calls_in_reference_order() {
         ("(1..5).reduce(1)", "V0401", "reduce"),
         ("(1..5).count(1, k: 1)", "V0301", "count"),
         ("(1..5).to_s(1, k: 1)", "V0301", "to_s"),
-        ("(1..5).string(k: 1) { |x| x }", "V0302", "k:"),
+        ("(1..5).string(k: 1) { |x| x }", "V0401", "string"),
         ("(1..5).to_s { |x| x }", "V0305", "{"),
     ] {
         let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
@@ -990,8 +990,8 @@ fn universal_members_and_conversions_refuse_extra_input_in_reference_order() {
         ("nil.to_s(1)", "V0301", "to_s"),
         ("nil.to_s(a: 1)", "V0302", "a:"),
         ("nil.to_s { 1 }", "V0305", "{"),
-        ("true.string(1)", "V0301", "string"),
-        (":a.id2name(a: 1)", "V0302", "a:"),
+        ("true.string(1)", "V0401", "string"),
+        (":a.id2name(a: 1)", "V0401", "id2name"),
         (":a.to_sym { 1 }", "V0305", "{"),
         ("5.to_s(1, a: 1)", "V0301", "to_s"),
         ("1.5.to_f { 1 }", "V0305", "{"),

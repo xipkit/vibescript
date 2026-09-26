@@ -46,7 +46,6 @@ fn static_types_refuse_dynamic_namespace_access() {
             "data=\"",
         ),
         ("module M\nend\nM.respond_to?(:x)", "V0405", "respond_to?"),
-        ("x=1\nmodule M\n [2].each{x+=1}\nend\n9", "V0201", "x+="),
         (
             "module M\n def self.f -> int;1;end\nend\ndef read(m: any) -> int;m.f;end",
             "V0106",

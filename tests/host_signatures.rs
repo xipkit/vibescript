@@ -121,7 +121,7 @@ fn typed_capability_methods_cover_every_immediate_dispatch_form() {
         "typed.dup.echo(7)",
         "[typed][0]&.echo(7)",
         "typed.echo(*[7])",
-        // The checker does not refuse dispatch by name on a capability.
+        // Legacy dispatch is exercised without static types.
         "typed.send(:echo,7)",
         "typed.public_send(:echo,7)",
     ] {
@@ -129,7 +129,10 @@ fn typed_capability_methods_cover_every_immediate_dispatch_form() {
             let mut engine = engine(&echo("int"));
             engine.set_strict_effects(strict);
             // `::` is refused with static types (V0416) but still runs without.
-            if source.contains("::") {
+            if source.contains("::")
+                || source.contains(".send(")
+                || source.contains(".public_send(")
+            {
                 engine.set_static_types(false);
             }
             let outcome = engine

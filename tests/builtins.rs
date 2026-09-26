@@ -128,7 +128,7 @@ fn conversion_and_math_preserve_integer_types_and_ieee_special_values() {
 
 #[test]
 fn namespace_assignments_are_visible_within_one_execution_and_reset_between_calls() {
-    let script = Engine::new().compile(
+    let script = common::runtime_engine().compile(
         "def read -> float\nMath.PI\nend\ndef change -> float\nMath={PI:7.0};read\nend\ndef constant -> float\nMath.PI\nend"
     ).unwrap();
     for _ in 0..3 {
@@ -145,7 +145,16 @@ fn namespace_assignments_are_visible_within_one_execution_and_reset_between_call
             .unwrap();
         assert_eq!(result.value.as_float(), Some(std::f64::consts::PI));
     }
-    assert_eq!(run("Math=7;[1].each {Math=8};Math").value.as_int(), Some(7));
+    assert_eq!(
+        common::runtime_engine()
+            .compile("Math=7;[1].each {Math=8};Math")
+            .unwrap()
+            .run(CallOptions::default())
+            .unwrap()
+            .value
+            .as_int(),
+        Some(7)
+    );
     // A namespace is not a hash, so it has no fields to write, list, clear
     // or replace, and a local assigned on one path cannot be read.
     for (source, expected) in [
@@ -153,7 +162,7 @@ fn namespace_assignments_are_visible_within_one_execution_and_reset_between_call
         ("JSON.keys", vec![("V0203", "keys")]),
         (
             "[1].each {if false;Math=7;end;Math.PI}",
-            vec![("V0202", "Math.PI"), ("V0203", "PI}")],
+            vec![("V0102", "Math=7"), ("V0202", "Math.PI"), ("V0203", "PI}")],
         ),
         ("Math.clear;Math=={}", vec![("V0203", "clear")]),
         ("Math.replace({});Math=={}", vec![("V0203", "replace")]),
@@ -214,7 +223,7 @@ fn host_and_parameter_bindings_override_builtins_and_blocks_capture_parameters()
 #[test]
 fn namespaces_retained_by_hosts_keep_their_memory_charge_until_released() {
     let retained = Arc::new(Mutex::new(None));
-    let mut engine = Engine::new();
+    let mut engine = common::runtime_engine();
     let held = retained.clone();
     engine.register("retain", move |_, args| {
         *held.lock().unwrap() = Some(args[0].clone());
@@ -245,7 +254,7 @@ fn namespaces_retained_by_hosts_keep_their_memory_charge_until_released() {
     assert!(retained_result.stats.retained_memory_bytes > 512);
     let original = retained.lock().unwrap().take().unwrap();
     assert_eq!(original.type_name(), "object");
-    let script = Engine::new()
+    let script = common::runtime_engine()
         .compile("def run(input: hash<string, any>) -> hash<string, any>\ninput.clear;input\nend")
         .unwrap();
     let cleared = script
@@ -402,6 +411,9 @@ fn invalid_builtin_calls_fail_before_later_effects_and_do_not_invoke_blocks() {
             .map(|d| (d.code.to_string(), d.span.start))
             .collect();
         let mut expected = at(&source, &[(code, text)]);
+        if expression.starts_with("Math=7") {
+            expected.insert(0, ("V0102".to_owned(), 0));
+        }
         if text == "::a" {
             expected[0].1 += 2;
         }

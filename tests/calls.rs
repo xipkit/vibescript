@@ -132,7 +132,7 @@ fn invalid_calls_do_not_evaluate_defaults_or_enter_host_callbacks() {
 }
 
 #[test]
-fn callable_names_in_value_positions_do_not_execute_optional_defaults() {
+fn bare_callable_names_execute_optional_defaults() {
     let calls = Arc::new(AtomicUsize::new(0));
     let seen = calls.clone();
     let mut engine = Engine::new();
@@ -140,34 +140,33 @@ fn callable_names_in_value_positions_do_not_execute_optional_defaults() {
         seen.fetch_add(1, Ordering::SeqCst);
         Ok(Value::int(9))
     });
-    // The checker takes a bare name of a function whose parameters are all
-    // optional for a call, but the runtime refuses it as a value.
-    for params in [
-        "a: any = tick()",
-        "*, a: any = tick()",
-        "*a: array<any>",
-        "**a: hash<string, any>",
+    for (params, count) in [
+        ("a: any = tick()", 2),
+        ("*, a: any = tick()", 2),
+        ("*a: array<any>", 1),
+        ("**a: hash<string, any>", 1),
     ] {
+        calls.store(0, Ordering::SeqCst);
         let source = format!("def f({params}) -> any\ntick()\nend\nf");
-        let error = engine
+        let result = engine
             .compile(&source)
             .unwrap()
             .run(CallOptions::default())
-            .unwrap_err();
-        assert_eq!(error.kind, ErrorKind::Type);
-        assert!(error.message.contains("cannot be used as a value"));
-        assert_eq!(calls.load(Ordering::SeqCst), 0);
+            .unwrap();
+        assert_eq!(result.value.as_int(), Some(9));
+        assert_eq!(calls.load(Ordering::SeqCst), count);
     }
     assert_eq!(
         engine
             .compile("tick")
             .unwrap()
             .run(CallOptions::default())
-            .unwrap_err()
-            .kind,
-        ErrorKind::Type
+            .unwrap()
+            .value
+            .as_int(),
+        Some(9)
     );
-    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    calls.store(0, Ordering::SeqCst);
     let mut checked = common::static_engine();
     checked.register("tick", |_, _| panic!("tick ran"));
     let source = "def f(a: any) -> any\ntick()\nend\nf";
@@ -187,8 +186,14 @@ fn callable_names_in_value_positions_do_not_execute_optional_defaults() {
 fn conditional_default_locals_resolve_hosts_before_evaluating_arguments() {
     let calls = Arc::new(AtomicUsize::new(0));
     let seen = calls.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::runtime_engine();
     engine.register_with_keywords("probe", move |_, args, keywords| {
+        if args.is_empty() && keywords.is_empty() {
+            return Err(vibescript::Error::new(
+                ErrorKind::Argument,
+                "probe requires arguments",
+            ));
+        }
         assert_eq!(keywords.len(), 1);
         assert_eq!(keywords[0].0.as_bytes(), Some(b"flag".as_slice()));
         assert_eq!(args.len(), 1);
@@ -206,9 +211,15 @@ fn conditional_default_locals_resolve_hosts_before_evaluating_arguments() {
     assert_eq!(result.value.as_array().unwrap()[0].as_int(), Some(3));
     assert_eq!(result.value.as_array().unwrap()[1].as_int(), Some(42));
     assert_eq!(calls.load(Ordering::SeqCst), 1);
-    for source in [
-        "def f(a: any =(while true\nprobe=7\nbreak 0\nend),b: any =probe) -> any\nb\nend\nf(1)",
-        "def f(a: any =(while true\nprobe: nil =nil\nbreak 0\nend),b: any =probe(flag:true)) -> any\nb\nend\nf()",
+    for (source, kind) in [
+        (
+            "def f(a: any =(while true\nprobe=7\nbreak 0\nend),b: any =probe) -> any\nb\nend\nf(1)",
+            ErrorKind::Argument,
+        ),
+        (
+            "def f(a: any =(while true\nprobe: nil =nil\nbreak 0\nend),b: any =probe(flag:true)) -> any\nb\nend\nf()",
+            ErrorKind::Type,
+        ),
     ] {
         assert_eq!(
             engine
@@ -217,7 +228,7 @@ fn conditional_default_locals_resolve_hosts_before_evaluating_arguments() {
                 .run(CallOptions::default())
                 .unwrap_err()
                 .kind,
-            ErrorKind::Type
+            kind
         );
         assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
@@ -227,7 +238,7 @@ fn conditional_default_locals_resolve_hosts_before_evaluating_arguments() {
 fn unbound_callees_and_receivers_fail_before_argument_evaluation() {
     let calls = Arc::new(AtomicUsize::new(0));
     let seen = calls.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::runtime_engine();
     engine.register("tick", move |_, _| {
         seen.fetch_add(1, Ordering::SeqCst);
         Ok(Value::int(1))

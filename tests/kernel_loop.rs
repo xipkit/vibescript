@@ -339,7 +339,7 @@ fn loop_calls_preserve_host_overrides_and_method_control_boundaries() {
         .unwrap();
     assert_eq!(json(&output.value), serde_json::json!([14, 15]));
     for control in ["break 7", "next 7"] {
-        let script = Engine::new()
+        let script = common::runtime_engine()
             .compile(&format!(
                 "def invalid -> any\n{control}\nend\ndef run -> any\nloop{{invalid}}\nend\ndef good -> int\nloop{{break 9}}.as(int)\nend"
             ))

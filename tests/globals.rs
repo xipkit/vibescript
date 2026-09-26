@@ -38,7 +38,7 @@ fn global_mutations_preserve_local_bindings_and_pending_writes() {
         let source = format!(
             "def run(input: array<int>) -> array<array<int>>\nMath=input\n{body}\n[Math,input]\nend"
         );
-        let script = Engine::new().compile(&source).unwrap();
+        let script = common::runtime_engine().compile(&source).unwrap();
         let input = Value::array(vec![Value::int(1)]);
         let output = script
             .call("run", std::slice::from_ref(&input), CallOptions::default())
@@ -68,7 +68,7 @@ fn replacing_a_global_detaches_an_earlier_mutation_target() {
         let source = format!(
             "def replace -> int\nMath=[9]\n2\nend\ndef run(input: array<int>) -> array<array<int>>\nMath=input\n{body}\n[Math,input]\nend"
         );
-        let script = Engine::new().compile(&source).unwrap();
+        let script = common::runtime_engine().compile(&source).unwrap();
         let output = script
             .call(
                 "run",
@@ -84,7 +84,7 @@ fn replacing_a_global_detaches_an_earlier_mutation_target() {
     }
     // Compound assignment selects its target before the right-hand side. An
     // array element may be missing, so a record's field shows it.
-    let script = Engine::new()
+    let script = common::runtime_engine()
         .compile(
             "def run(input: { a: int }) -> array<{ a: int }>\nMath=input\n\
              Math[\"a\"]+=begin;Math={a: 9};2;end\n[Math,input]\nend",
@@ -102,9 +102,9 @@ fn replacing_a_global_detaches_an_earlier_mutation_target() {
              Math.push(begin;Math {operator} [9];2;end)\n[Math,input]\nend"
         );
         let error = common::static_engine().compile(&source).err().unwrap();
-        assert_eq!(common::codes(&error), ["V0104"], "{operator}");
+        assert_eq!(common::codes(&error), ["V0102", "V0104"], "{operator}");
         assert_eq!(
-            error.diagnostics()[0].span.start,
+            error.diagnostics()[1].span.start,
             source.find(&format!("Math {operator}")).unwrap(),
             "{operator}"
         );

@@ -237,11 +237,10 @@ fn required_files_resolve_nested_imports_within_the_script_directory() {
     files.write("outside.vibe", "puts 'escaped'; def value -> int; 99; end");
     let run = vibes_in(Some(&elsewhere.0), &[&path]);
     if vibescript::STATIC_TYPES_BY_DEFAULT {
-        // Static types do not resolve relative requires yet, so the helper
-        // cannot call what its relative import exports.
+        // The relative import outside the configured root is refused statically.
         assert_eq!(run.status, Some(1), "{}", run.stderr);
         assert!(
-            run.stderr.contains("helper.vibe: error[V0106]"),
+            run.stderr.contains("helper.vibe: error[V0201]"),
             "{}",
             run.stderr
         );
@@ -260,7 +259,13 @@ fn required_files_resolve_nested_imports_within_the_script_directory() {
             "scripts/linked.vibe",
             "begin; require(\"leak\"); false; rescue; true; end",
         );
-        vibes_in(Some(&elsewhere.0), &[&path]).expect(0, "true\n", "");
+        let run = vibes_in(Some(&elsewhere.0), &[&path]);
+        if vibescript::STATIC_TYPES_BY_DEFAULT {
+            assert_eq!(run.status, Some(1));
+            assert!(run.stderr.contains("error[V0201]"), "{}", run.stderr);
+        } else {
+            run.expect(0, "true\n", "");
+        }
     }
 }
 
@@ -948,7 +953,7 @@ fn check_command_uses_top_level_state_and_never_runs_script_output() {
     assert_eq!(run.stdout.lines().count(), 1, "{}", run.stdout);
     assert_eq!(run.stderr, "check failed with 1 issue(s)\n");
     assert!(!run.stdout.contains("incomplete"), "{}", run.stdout);
-    expect_ill_typed_run(&[&file], 0, "top\ninit\nvalue\n7\n", "careful\n");
+    vibes(&[&file]).expect(0, "top\ninit\nvalue\n7\n", "careful\n");
     let file = files.write(
         "bad-state.vibe",
         "x = \"bad\"\nmodule M\n  K = x\n  def self.value -> int\n    K\n  end\nend\n",

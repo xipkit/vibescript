@@ -455,7 +455,7 @@ end
 
 #[test]
 fn instance_assignments_shadow_class_constants_and_preserve_visibility_locals() {
-    let script = Engine::new()
+    let script = common::runtime_engine()
         .compile(
             r#"
 class Counter

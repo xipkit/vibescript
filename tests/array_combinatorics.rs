@@ -309,6 +309,7 @@ end
 #[test]
 fn invalid_calls_fail_before_entropy_block_or_host_effects() {
     let (mut engine, reads) = fixed_entropy_engine(0);
+    engine.set_static_types(false);
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();
     engine.register("effect", move |_, _| {
@@ -390,6 +391,8 @@ fn invalid_calls_fail_before_entropy_block_or_host_effects() {
         ("[1].product(k:1)", &["V0301"][..]),
         ("[1].product([1]){effect()}", &["V0301"][..]),
         ("[1].product([2],nil)", &["V0101"][..]),
+        ("[1].product([],'x')", &["V0101"][..]),
+        ("[].product(1)", &["V0101"][..]),
         ("[1].combination(k:1)", &["V0301", "V0302"][..]),
         ("[1].combination(1){effect()}", &["V0305"][..]),
         ("[1].combination", &["V0301"][..]),

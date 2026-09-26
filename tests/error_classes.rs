@@ -19,7 +19,7 @@ fn options() -> CallOptions {
 }
 
 fn failure(declarations: &str, body: &str) -> Error {
-    Engine::new()
+    common::runtime_engine()
         .compile(&program(declarations, body))
         .unwrap()
         .call("run", &[Value::nil()], options())

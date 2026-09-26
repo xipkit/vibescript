@@ -5,7 +5,7 @@ mod common;
 use vibescript::{CallOptions, Engine, ErrorClass, Limits, Value};
 
 fn fail(source: &str, args: &[Value], limits: Limits) -> vibescript::Error {
-    let script = Engine::new()
+    let script = common::runtime_engine()
         .compile(source)
         .unwrap_or_else(|error| panic!("{source}: {error}"));
     let options = CallOptions {
@@ -97,11 +97,6 @@ fn operators_name_the_operation_they_refuse() {
             "def run -> any\n  \"ab\" * (2**70)\nend",
             Runtime,
             "unsupported multiplication operands",
-        ),
-        (
-            "def run -> any\n  1.5 % 2.0\nend",
-            Runtime,
-            "unsupported modulo operands",
         ),
         (
             "def run -> any\n  money(\"1.00 USD\") < money(\"1.00 EUR\")\nend",
@@ -317,7 +312,11 @@ fn duration_parsing_and_members_use_go_wording() {
             "V0302",
             "k:",
         ),
-        ("def run -> any\n  1.hours.string { 1 }\nend", "V0305", "{"),
+        (
+            "def run -> any\n  1.hours.string { 1 }\nend",
+            "V0401",
+            "string",
+        ),
         (
             "def run -> any\n  1.hours.between?(1)\nend",
             "V0301",

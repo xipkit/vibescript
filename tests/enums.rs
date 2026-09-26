@@ -75,7 +75,7 @@ fn declarations_preserve_forward_lookup_shadowing_and_identifier_boundaries() {
         let source = format!(
             "def run(input: any) -> array<string>\nbefore={name};{name}={name}::Draft;[before.name,{name}.name]\nend\nenum {name}\nDraft\nend"
         );
-        let output = Engine::new()
+        let output = common::runtime_engine()
             .compile(&source)
             .unwrap()
             .call("run", &[Value::nil()], CallOptions::default())
@@ -90,17 +90,17 @@ fn declarations_preserve_forward_lookup_shadowing_and_identifier_boundaries() {
     );
     // A local assigned on one path only, and `||=` on an enum, are refused
     // rather than falling back to the enum.
-    for (body, code, at) in [
+    for (body, codes, at) in [
         (
             "def run -> string\nif false;Status=Status::Draft;end;Status.name\nend\n",
-            "V0202",
-            "Status.name",
+            &["V0102", "V0202"][..],
+            "Status=Status",
         ),
-        ("Status ||= 1\n", "V0104", "Status ||="),
+        ("Status ||= 1\n", &["V0104"], "Status ||="),
     ] {
         let source = format!("{DECLARATIONS}{body}");
         let error = common::static_engine().compile(&source).err().unwrap();
-        assert_eq!(common::codes(&error), [code], "{body}");
+        assert_eq!(common::codes(&error), codes, "{body}");
         assert_eq!(
             error.diagnostics()[0].span.start,
             source.find(at).unwrap(),
@@ -271,9 +271,14 @@ fn calls_of_enums_and_blocks_for_their_members_are_refused() {
             .compile(&format!("{DECLARATIONS}{expression};mark()"))
             .err()
             .unwrap();
-        assert_eq!(common::codes(&error), [code], "{expression}");
+        let expected = if expression.starts_with("if false") {
+            vec!["V0102", code]
+        } else {
+            vec![code]
+        };
+        assert_eq!(common::codes(&error), expected, "{expression}");
         assert_eq!(
-            error.diagnostics()[0].span.start,
+            error.diagnostics()[expected.len() - 1].span.start,
             DECLARATIONS.len() + at,
             "{expression}"
         );

@@ -345,7 +345,7 @@ fn cold_compilation_obeys_limits_without_publishing_or_initializing() {
 #[test]
 fn cold_module_type_and_percent_parsing_cannot_rescue_exhaustion() {
     let files = Files::new();
-    let mut engine = files.engine();
+    let mut engine = files.dynamic_engine();
     let effects = Arc::new(AtomicUsize::new(0));
     let captured = effects.clone();
     engine.register("effect", move |_, _| {
@@ -386,7 +386,7 @@ fn required_compilation_accepts_deep_type_literals() {
 fn required_compilation_rejects_excessive_nesting_without_initializing() {
     let files = Files::new();
     let effects = Arc::new(AtomicUsize::new(0));
-    let mut engine = files.engine();
+    let mut engine = files.dynamic_engine();
     let captured = effects.clone();
     engine.register("effect", move |_, _| {
         captured.fetch_add(1, Ordering::SeqCst);
@@ -744,7 +744,7 @@ fn require_permission_does_not_override_module_roots_or_policy() {
             "source exceeds maximum size",
         ),
     ] {
-        let mut engine = Engine::new();
+        let mut engine = common::runtime_engine();
         engine.set_strict_effects(true);
         engine.set_module_config(config).unwrap();
         // The module cannot load, so static types know nothing of it and
@@ -793,7 +793,7 @@ fn strict_effects_preserves_explicit_host_and_script_overrides() {
 
 #[test]
 fn repeated_require_denials_release_memory_and_obey_execution_limits() {
-    let mut engine = Engine::new();
+    let mut engine = common::runtime_engine();
     engine.set_strict_effects(true);
     let script = engine.compile("def run(n: int) -> int;i=0;while i<n;begin;require(\"disabled\");rescue=>e;raise \"wrong failure\" if !e.message.start_with?(\"strict effects:\");end;i+=1;end;42;end").unwrap();
     let mut options = CallOptions::default();
@@ -972,7 +972,7 @@ fn required_parse_and_initializer_failures_identify_the_failed_file() {
     let files = Files::new();
     files.write("pkg/main.vibe", "require(\"./broken\")");
     files.write("pkg/broken.vibe", "def fail\n $\nend");
-    let engine = files.engine();
+    let engine = files.dynamic_engine();
     let script = engine.compile("require(\"pkg/main\")").unwrap();
     let error = script.run(CallOptions::default()).unwrap_err();
     let diagnostic = error.diagnostic.as_ref().unwrap();
@@ -1038,7 +1038,7 @@ fn required_parse_errors_are_rescuable_without_caching_failed_sources() {
 fn rescued_required_syntax_keeps_its_origin_and_obeys_receiving_limits() {
     let files = Files::new();
     files.write("broken.vibe", "def answer(");
-    let engine = files.engine();
+    let engine = files.dynamic_engine();
     assert_eq!(engine.compile("def answer(").err().unwrap().class(), None);
     let error = engine
         .compile("begin;require(\"broken\");rescue;raise;end")
@@ -2338,7 +2338,7 @@ fn configured_cache_source_limits_and_mid_initializer_cancellation_are_enforced(
     let files = Files::new();
     files.write("one.vibe", "def value;1;end");
     files.write("two.vibe", "def value;2;end");
-    let mut engine = Engine::new();
+    let mut engine = common::runtime_engine();
     engine
         .set_module_config(ModuleConfig {
             paths: vec![files.0.clone()],
@@ -2366,7 +2366,7 @@ fn configured_cache_source_limits_and_mid_initializer_cancellation_are_enforced(
         "{error:?}"
     );
     files.write("cancel.vibe", "stop();effect();def value -> int;1;end");
-    let mut engine = files.engine();
+    let mut engine = files.dynamic_engine();
     let token = CancellationToken::new();
     let captured = token.clone();
     engine.register("stop", move |_, _| {
@@ -2549,113 +2549,59 @@ fn same_name_calls_in_required_files_skip_the_file_scope() {
 }
 
 #[test]
-fn required_file_functions_stay_values_as_member_receivers() {
-    // A required file's function name read without a call is a function
-    // value at runtime, where static types read a call, and the program
-    // reads the module's published exports.
+fn required_file_functions_call_before_reading_result_members() {
     let files = Files::new();
     for (name, source) in [
-        ("top", "def helper\n  1\nend\nx = helper.to_s\n"),
-        ("safe", "def helper;1;end\nx = helper&.to_s"),
-        ("func", "def helper;1;end\ndef peek;helper.to_s;end\npeek()"),
-        ("block", "def helper;1;end\n[1].each { |i| helper.call }"),
+        ("top", "def helper -> int;1;end;x = helper.to_s"),
+        ("safe", "def helper -> int;1;end;x = helper&.to_s"),
+        (
+            "func",
+            "def helper -> int;1;end;def peek -> string;helper.to_s;end;x = peek",
+        ),
         (
             "method",
-            "def helper;1;end\nclass K\n  def go\n    helper.to_s\n  end\nend\nK.new.go",
-        ),
-        ("export", "def helper;[1];end"),
-        (
-            "bare",
-            "def helper;[1];end\ndef peek;[helper, helper[0], helper + [2]];end",
+            "def helper -> int;1;end;class K;def go -> string;helper.to_s;end;end;x = K.new.go",
         ),
     ] {
-        files.write(&format!("{name}.vibe"), source);
+        files.write(
+            &format!("{name}.vibe"),
+            &format!("{source};def result -> string?;x;end"),
+        );
     }
-    let engine = files.dynamic_engine();
-    for (name, member, line, column) in [
-        ("top", "to_s", 4, 5),
-        ("safe", "to_s", 2, 5),
-        ("func", "to_s", 2, 10),
-        ("block", "call", 2, 16),
-        ("method", "to_s", 4, 5),
-    ] {
-        let error = engine
-            .compile(&format!("require(:{name})"))
+    let engine = files.engine();
+    for name in ["top", "safe", "func", "method"] {
+        let value = engine
+            .compile(&format!("require(\"{name}\").result"))
             .unwrap()
             .run(CallOptions::default())
-            .unwrap_err();
-        assert_eq!(
-            error.message,
-            format!("a function has no member {member}; call helper(...) directly"),
-            "{name}"
-        );
-        let diagnostic = error.diagnostic.unwrap();
-        assert_eq!(diagnostic.position, Position { line, column }, "{name}");
-        assert_eq!(
-            diagnostic.filename.as_deref(),
-            Some(format!("{name}.vibe").as_bytes()),
-            "{name}"
-        );
+            .unwrap()
+            .value;
+        assert_eq!(json(&value), serde_json::json!("1"), "{name}");
     }
-    let error = engine
-        .compile("require(:export)\nhelper.to_s")
-        .unwrap()
-        .run(CallOptions::default())
-        .unwrap_err();
-    assert_eq!(
-        error.message,
-        "a function has no member to_s; call helper(...) directly"
-    );
-    assert_eq!(
-        error.diagnostic.unwrap().position,
-        Position { line: 2, column: 1 }
-    );
-    let value = engine
-        .compile(
-            "def value;7;end\n[require(:bare).peek, require(:export) && helper[0], value.to_s]",
-        )
-        .unwrap()
-        .run(CallOptions::default())
-        .unwrap()
-        .value;
-    assert_eq!(json(&value), serde_json::json!([[[1], 1, [1, 2]], 1, "7"]));
 }
 
 #[test]
 fn writes_through_module_function_names_update_their_results() {
-    // A required file's function name read without a call is a function
-    // value at runtime, where static types read a call.
     let files = Files::new();
     files.write(
         "m.vibe",
-        "def helper;[1];end\ndef peek\n  helper.push(2)\nend",
+        "def helper -> array<int>;[1];end;def peek -> array<int>;helper.push(2);end",
     );
-    let engine = files.dynamic_engine();
-    let value = engine
-        .compile("require(:m)\nhelper[0] = 5\nhelper << 3\nhelper")
-        .unwrap()
-        .run(CallOptions::default())
-        .unwrap()
-        .value;
-    assert_eq!(json(&value), serde_json::json!([1]));
-    for (source, member, line, column) in [
-        ("require(:m)\nhelper.pop", "pop", 2, 1),
-        ("require(:m).peek", "push", 3, 3),
+    let engine = files.engine();
+    for (source, expected) in [
+        (
+            "require(\"m\");helper[0] = 5;helper << 3;helper",
+            serde_json::json!([1]),
+        ),
+        ("require(\"m\");helper.pop", serde_json::json!(1)),
+        ("require(\"m\").peek", serde_json::json!([1, 2])),
     ] {
-        let error = engine
+        let value = engine
             .compile(source)
             .unwrap()
             .run(CallOptions::default())
-            .unwrap_err();
-        assert_eq!(
-            error.message,
-            format!("a function has no member {member}; call helper(...) directly"),
-            "{source}"
-        );
-        assert_eq!(
-            error.diagnostic.unwrap().position,
-            Position { line, column },
-            "{source}"
-        );
+            .unwrap()
+            .value;
+        assert_eq!(json(&value), expected, "{source}");
     }
 }

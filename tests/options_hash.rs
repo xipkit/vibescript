@@ -140,10 +140,7 @@ fn keyword_arguments_never_bind_positional_options() {
 
 #[test]
 fn explicit_options_and_matching_keywords_still_bind() {
-    for call in [
-        "C.new.take({retries:3})",
-        "M.take(*[],**{options:{retries:3}})",
-    ] {
+    for call in ["C.new.take({retries:3})", "M.take(*[{retries:3}],**{})"] {
         assert_eq!(
             result(&format!("{DECLARATIONS}\n{call}")),
             serde_json::json!({"retries":3}),

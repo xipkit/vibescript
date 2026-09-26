@@ -100,10 +100,10 @@ fn extreme_duration_anchors_preserve_wrapping_conversion() {
 
 #[test]
 fn clock_defaults_count_from_now_and_refuse_other_forms() {
-    let engine = Engine::new();
+    let engine = common::runtime_engine();
     // `ago` and `from_now` count from now, so they need no parentheses.
-    // The checker does not check arity through an empty splat yet, so the
-    // splat forms of the other anchors still compile and count from now.
+    // Legacy aliases still count from now at runtime, including empty splats;
+    // static tests below check their canonical replacements.
     for (source, before) in [
         ("5.minutes.from_now", false),
         ("5.minutes.ago", true),
@@ -140,22 +140,22 @@ fn clock_defaults_count_from_now_and_refuse_other_forms() {
     for (source, expected) in [
         ("5.minutes.after", &["V0401"][..]),
         ("5.minutes.after()", &["V0401"]),
-        ("5.minutes.after(**{})", &["V0301"]),
+        ("5.minutes.after(**{})", &["V0401"]),
         ("5.minutes.after {unexpected()}", &["V0301", "V0305"]),
         ("5.minutes.since", &["V0401"]),
         ("5.minutes.since()", &["V0401"]),
-        ("5.minutes.since {unexpected()}", &["V0305"]),
+        ("5.minutes.since {unexpected()}", &["V0401"]),
         ("5.minutes.from_now()", &["V0412"]),
         ("5.minutes.from_now {unexpected()}", &["V0305"]),
         ("5.minutes.ago()", &["V0412"]),
         ("5.minutes.ago {unexpected()}", &["V0305"]),
         ("5.minutes.before", &["V0401"]),
         ("5.minutes.before()", &["V0401"]),
-        ("5.minutes.before(**{})", &["V0301"]),
+        ("5.minutes.before(**{})", &["V0401"]),
         ("5.minutes.before {unexpected()}", &["V0301", "V0305"]),
         ("5.minutes.until", &["V0401"]),
         ("5.minutes.until()", &["V0401"]),
-        ("5.minutes.until {unexpected()}", &["V0305"]),
+        ("5.minutes.until {unexpected()}", &["V0401"]),
         ("1.seconds.after.to_s", &["V0401"]),
         ("1.seconds.after.call()", &["V0401", "V0203"]),
     ] {

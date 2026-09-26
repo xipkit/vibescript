@@ -150,7 +150,7 @@ fn match_accessors_are_calls_and_small_matches_detach() {
         ),
         (
             "m=\"xA\".match(/A/).as(match_data);f=m[\"begin\"];f(0)",
-            &["V0310"],
+            &["V0310", "V0310"],
         ),
     ] {
         let error = common::static_engine().compile(source).err().unwrap();
@@ -194,13 +194,12 @@ fn match_accessors_are_calls_and_small_matches_detach() {
 fn protected_fields_and_bad_accessors_stop_later_host_effects() {
     let calls = Arc::new(AtomicUsize::new(0));
     let count = calls.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::runtime_engine();
     engine.register("effect", move |_, _| {
         count.fetch_add(1, Ordering::SeqCst);
         Ok(Value::nil())
     });
-    // The checker reads an accessor name as a capture, so the last two
-    // cases compile and fail when the accessor is read as a value.
+    // Runtime protections also apply without the static checker.
     for operation in [
         "m.captures.push(\"x\")",
         "m.captures[0]=\"x\"",
@@ -245,7 +244,7 @@ fn protected_fields_and_bad_accessors_stop_later_host_effects() {
         ("m.begin", &["V0301"]),
         ("m.begin(0,extra:1)", &["V0302"]),
         ("m.begin(0){effect()}", &["V0305"]),
-        ("f=m[\"begin\"];f(nil)", &["V0310"]),
+        ("f=m[\"begin\"];f(nil)", &["V0310", "V0310"]),
     ] {
         let source = format!("m=\"a\".match(/(a)/).as(match_data);{operation};effect()");
         let error = checked.compile(&source).err().unwrap();

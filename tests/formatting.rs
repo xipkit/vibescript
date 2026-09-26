@@ -41,8 +41,8 @@ def %(other: int) -> string
 "class:"+other.to_s
 end
 end
-def wrapped(*args: array<int | string>) -> string
-format(*args)
+def wrapped(template: string, *args: array<int | string>) -> string
+format(template, *args)
 end
 def run -> array<int | string>
 local="%s:%03d"

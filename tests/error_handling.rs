@@ -4,7 +4,11 @@ use std::sync::{Arc, Mutex};
 use vibescript::{CallOptions, Engine, ErrorClass, ErrorKind, Limits, Value, stringify_json};
 
 fn result(source: &str) -> serde_json::Value {
-    let script = Engine::new().compile(source).unwrap();
+    result_with(Engine::new(), source)
+}
+
+fn result_with(engine: Engine, source: &str) -> serde_json::Value {
+    let script = engine.compile(source).unwrap();
     let output = script.run(CallOptions::default()).unwrap();
     let output = stringify_json(&output.value, CallOptions::default()).unwrap();
     serde_json::from_slice(output.value.as_bytes().unwrap()).unwrap()
@@ -382,7 +386,7 @@ fn invalid_loop_transfers_become_rescuable_only_after_callee_cleanup() {
     for jump in ["break", "next", "break 9", "next 9"] {
         let events = Arc::new(Mutex::new(Vec::new()));
         let recorded = events.clone();
-        let mut engine = Engine::new();
+        let mut engine = common::runtime_engine();
         engine.register("record", move |_, args| {
             recorded.lock().unwrap().push(args[0].as_int().unwrap());
             Ok(Value::nil())
@@ -405,7 +409,11 @@ fn invalid_loop_transfers_reject_before_evaluating_values() {
         let source = format!(
             "events: array<int> =[];begin\n{jump} events.push(1)\nrescue RuntimeError\nevents.push(2)\nend;events"
         );
-        assert_eq!(result(&source), serde_json::json!([2]), "{jump}");
+        assert_eq!(
+            result_with(common::runtime_engine(), &source),
+            serde_json::json!([2]),
+            "{jump}"
+        );
     }
 }
 

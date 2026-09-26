@@ -20,7 +20,7 @@ fn evaluate(source: &str) -> serde_json::Value {
 
 /// The runtime failure of `source`, with its one-based line and column.
 fn failure(source: &str) -> (ErrorKind, String, (usize, usize)) {
-    let error = Engine::new()
+    let error = common::runtime_engine()
         .compile(source)
         .unwrap_or_else(|error| panic!("{source}: {error}"))
         .run(CallOptions::default())
@@ -440,7 +440,7 @@ fn type_aliases_name_types_anywhere() {
     // The signature table's aliases name types like the builtin names.
     assert_eq!(
         evaluate(
-            "def f(x: comparable) -> comparable\n  x\nend\n[f(1), f(\"a\"), f(:b), f(2.5), f(90.seconds).to_i]"
+            "def f(x: comparable) -> comparable\n  x\nend\n[f(1), f(\"a\"), f(:b), f(2.5), f(90.seconds).as(duration).to_i]"
         ),
         serde_json::json!([1, "a", "b", 2.5, 90])
     );

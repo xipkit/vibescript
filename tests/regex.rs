@@ -258,7 +258,7 @@ fn execution_limits_stop_state_work_and_compilation() {
 
 #[test]
 fn namespace_aliases_keywords_and_rebinding_use_ordinary_calls() {
-    let script = Engine::new()
+    let script = common::runtime_engine()
         .compile(
             r#"
 alias=Regex

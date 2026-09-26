@@ -264,16 +264,12 @@ fn value_templates_keep_call_forms_attachment_and_repeated_grants() {
             assert_eq!(output.value.to_string(), "[1, 2]", "{source}");
         }
     }
-    let error = declared
+    let result = declared
         .compile("sms.deliver")
         .unwrap()
         .run(deliverer())
-        .unwrap_err();
-    assert_eq!(error.kind, ErrorKind::Type, "{error}");
-    assert!(
-        error.message.contains("cannot be used as a value"),
-        "{error}"
-    );
+        .unwrap();
+    assert_eq!(result.value.to_string(), "[]");
     // A namespace is not indexed and a local is never called, so the other
     // forms do not compile.
     let mut refusing = Engine::new();

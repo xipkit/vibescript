@@ -491,17 +491,14 @@ fn receiver_reads_surface_cancellation_and_latched_errors() {
 
 #[test]
 fn detached_methods_stay_rejected_even_when_receivers_are_tracked() {
+    assert_eq!(run("cap.read", options()).unwrap().value.as_int(), Some(1));
     for body in [
-        "cap.read",
         "cap[:read]",
         "f = cap::read; f()",
         "f = cap[:read]; f()",
         "[cap[:read]]",
     ] {
         let error = run(body, options()).unwrap_err();
-        assert!(
-            error.message.contains("cannot be used as a value"),
-            "{body}: {error}"
-        );
+        assert!(error.kind == ErrorKind::Type, "{body}: {error}");
     }
 }
