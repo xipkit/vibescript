@@ -62,27 +62,31 @@ fn probe(limit: Limit) -> (crate::Result<crate::Outcome>, Observation) {
         // surface a latched error after the temporary snapshot state is cleared.
         Ok(Value::nil())
     });
-    // The program stores a module in the capability object it is granted,
-    // which static types refuse, so it compiles without them.
-    let mut engine = Engine::legacy_unchecked();
-
+    // The program stores a module in the capability's slots, so the
+    // receiver the callback reads holds its state.
+    let capability = Capability::from_value(
+        "cap",
+        Value::object(vec![
+            (b"slots".to_vec(), Value::array(vec![])),
+            (b"capture".to_vec(), method.value()),
+        ]),
+    );
+    let mut engine = Engine::new();
+    engine.declare_capability(&capability).unwrap();
     let result = engine
         .compile(
             "module Data
                ITEMS=(1..256).to_a
-               @@value=4
-               def self.value; @@value; end
+               @@value: int=4
+               def self.value -> int; @@value; end
              end
-             cap[:data]=Data
-             cap.capture()
+             cap.slots.push(Data)
+             cap.capture
              7",
         )
         .unwrap()
         .run(CallOptions {
-            capabilities: vec![Capability::from_value(
-                "cap",
-                Value::object(vec![(b"capture".to_vec(), method.value())]),
-            )],
+            capabilities: vec![capability],
             ..CallOptions::default()
         });
     let observation = std::mem::take(&mut *observed.lock().unwrap());
