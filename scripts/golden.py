@@ -1058,7 +1058,7 @@ def check_corpus(corpus, args, overrides, report):
         notes += counter_lines
         if drifted and args.strict_counters and not args.record:
             add("observable differences", corpus.name, "counters drifted (--strict-counters)")
-    if args.observations:
+    if args.observations and corpus.kind == "engine":
         with open(args.observations, "a", encoding="utf-8") as out:
             for cid in ids:
                 out.write(canonical({"corpus": corpus.name, **observed[0][cid]}) + "\n")
