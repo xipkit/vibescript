@@ -1,7 +1,7 @@
 //! Writes through an element keep the address they started from while the
-//! parent grows. An array element may be missing, so a mutating call on it
-//! goes through `&.`; a tuple's elements are present, so nested writes
-//! through tuple types need none.
+//! parent grows. A write through an array element reads it as present and
+//! raises when it is missing, so a mutating call on it needs no `&.`; a
+//! read of an element may still find it missing.
 
 mod common;
 
@@ -53,25 +53,27 @@ fn negative_receivers_keep_selected_elements_when_their_parents_grow() {
             "module M;@@rows: array<array<int>> = [[1]];def self.run -> array<any>;x=@@rows[-1]&.push((while true;@@rows.push([9]);break 2;end));[x,@@rows];end;end;M.run",
             serde_json::json!([[1, 2], [[1, 2], [9]]]),
         ),
+        (
+            "a=[[1],[2]];x=a[-1].push(3);[x,a]",
+            serde_json::json!([[2, 3], [[1], [2, 3]]]),
+        ),
+        (
+            "a=[[[1]]];x=a[-1][-1].push((while true;a[-1].push([8]);a.push([[9]]);break 2;end));[x,a]",
+            serde_json::json!([[1, 2], [[[1, 2], [8]], [[9]]]]),
+        ),
     ] {
         assert_eq!(evaluate(source), expected, "{source}");
     }
-    // A float index, a call on an element that may be missing, dispatch by
-    // name, a nested element path, a dotted field and a namespace written
-    // like a hash are refused before running.
+    // A float index, dispatch by name, a dotted field and a namespace
+    // written like a hash are refused before running.
     for (source, expected) in [
         (
             "a=[[1],[2]];x=a[-1.9]&.push(3);[x,a]",
             vec![("V0101", "1.9")],
         ),
-        ("a=[[1],[2]];x=a[-1].push(3);[x,a]", vec![("V0107", "push")]),
         (
             "a=[[1],[2]];x=a[-1].send(:push,3);[x,a]",
             vec![("V0405", "send")],
-        ),
-        (
-            "a=[[[1]]];x=a[-1][-1].push((while true;a[-1].push([8]);a.push([[9]]);break 2;end));[x,a]",
-            vec![("V0107", "a[-1][-1]"), ("V0107", "push([8])")],
         ),
         (
             "a=[{items:[1]}];x=a[-1].items.push((while true;a.push({items:[9]});break 2;end));[x,a]",
@@ -118,7 +120,7 @@ fn captured_compound_targets_keep_their_original_positions_and_evaluation_order(
         ),
         (
             "a=[[1]];a[-1][-1]+=(while true;a[0].push(8);a.push([9]);break 2;end);a",
-            vec![("V0107", "a[-1]"), ("V0107", "push(8)")],
+            vec![("V0107", "a[-1]")],
         ),
         (
             "a=[1,2];begin;a[-1]+=(while true;a.pop;break 3;end);rescue;a;end",
@@ -278,8 +280,8 @@ fn path_storage_and_work_are_accounted_before_writing() {
 
 #[test]
 fn pending_writes_are_reclaimed_on_return_and_call_completion() {
-    // A compound write to a nested element goes through a tuple type; the
-    // others grow the array.
+    // Compound writes to a nested element, through a tuple type or an
+    // array element, and writes that grow the array.
     let rows = "array<array<any>>";
     let pair = "Pair\ntype Pair = [[int, string]]";
     for (ty, body) in [
@@ -294,6 +296,10 @@ fn pending_writes_are_reclaimed_on_return_and_call_completion() {
         (
             rows,
             "input[-1]&.fill((while true\ninput.push([9])\nreturn 7\nend))\n7",
+        ),
+        (
+            rows,
+            "input[-1][-2]+=(while true\ninput.push([9])\nreturn 7\nend)",
         ),
     ] {
         let (ty, alias) = ty.split_once('\n').unwrap_or((ty, ""));
@@ -321,10 +327,6 @@ fn pending_writes_are_reclaimed_on_return_and_call_completion() {
         assert_eq!(result.value.as_int(), Some(7), "{body}");
         assert_eq!(result.stats.retained_memory_bytes, 0, "{body}");
     }
-    // Growing the array and writing an element of an element cannot be
-    // combined, since the element may be missing.
-    let source = "def f(input: array<array<any>>) -> any\ninput[-1][-2]+=(while true\ninput.push([9])\nreturn 7\nend)\nend";
-    assert_eq!(refused(source), [("V0107".to_owned(), 39)]);
 }
 
 #[test]

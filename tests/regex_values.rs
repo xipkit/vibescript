@@ -234,7 +234,7 @@ fn protected_fields_and_bad_accessors_stop_later_host_effects() {
     for (operation, expected) in [
         ("m[\"to_s\"]=7", &["V0112"][..]),
         ("m.dup.clear", &["V0203"]),
-        ("[m].dup[0].clear", &["V0107", "V0203"]),
+        ("[m].dup[0].clear", &["V0203"]),
         ("m.to_s=7", &["V0203"]),
         ("m.clear", &["V0203"]),
         ("m.replace({})", &["V0203"]),

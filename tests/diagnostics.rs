@@ -104,7 +104,7 @@ fn writes_and_their_compound_operators_point_at_the_target() {
     for (body, expected) in [
         (
             "arr = [1, [2]]\n  arr[1].first = 3",
-            vec![("V0107", "first ="), ("V0203", "first =")],
+            vec![("V0203", "first =")],
         ),
         ("arr = [1]\n  arr[5] += 2", vec![("V0107", "arr[5]")]),
         ("h = {a: [1]}\n  h.a.first -= 1", vec![("V0415", ".a")]),
