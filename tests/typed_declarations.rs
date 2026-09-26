@@ -18,21 +18,10 @@ fn evaluate(source: &str) -> serde_json::Value {
     serde_json::from_slice(json.value.as_bytes().unwrap()).unwrap()
 }
 
-/// The runtime failure of `source`, with its one-based line and column.
-fn failure(source: &str) -> (ErrorKind, String, (usize, usize)) {
-    let error = common::runtime_engine()
-        .compile(source)
-        .unwrap_or_else(|error| panic!("{source}: {error}"))
-        .run(CallOptions::default())
-        .expect_err(source);
-    let position = error.diagnostic.as_ref().unwrap().position;
-    (error.kind, error.message, (position.line, position.column))
-}
-
 /// The code and one-based line and column of each static diagnostic that
 /// refuses `source`.
 fn refused(source: &str) -> Vec<(String, (usize, usize))> {
-    let Err(error) = common::static_engine().compile(source) else {
+    let Err(error) = vibescript::Engine::new().compile(source) else {
         panic!("{source} compiled");
     };
     error
@@ -148,16 +137,11 @@ fn typed_locals_check_every_assignment() {
         // `||=` tests a bool, and a declaration under a modifier may not run.
         ("x: int? = nil\nx ||= 4\nx", vec![("V0104", (2, 1))]),
         ("x: int = 1 if true\nx", vec![("V0202", (2, 1))]),
+        // A `for` variable keeps the type of the local it assigns.
+        ("x: int = 1\nfor x in [\"a\"]\nend", vec![("V0102", (2, 5))]),
     ] {
         assert_eq!(refused(source), diagnostics(&expected), "{source}");
     }
-    // A `for` variable is still checked when the loop assigns it.
-    let (kind, actual, position) = failure("x: int = 1\nfor x in [\"a\"]\nend");
-    assert_eq!(kind, ErrorKind::Type);
-    assert_eq!(
-        (actual.as_str(), position),
-        ("local variable x expected int, got string", (2, 5))
-    );
 }
 
 #[test]
@@ -211,11 +195,11 @@ fn typed_block_parameters_check_yields_and_results() {
             serde_json::json!([2, 3]),
         ),
         (
-            "def pairs(&block: [string, int] -> string)\n  yield [\"a\", 1]\nend\npairs { |pair| pair[0] }".into(),
+            "def pairs(&block: [string, int] -> string) -> string\n  yield [\"a\", 1]\nend\npairs { |pair| pair[0] }".into(),
             serde_json::json!("a"),
         ),
         (
-            "def maybe(msg: string, &block?: string -> nil)\n  yield msg if block_given?\n  block_given?\nend\n[maybe(\"m\"), maybe(\"m\") { |m| nil }]".into(),
+            "def maybe(msg: string, &block?: string -> nil) -> bool\n  yield msg if block_given?\n  block_given?\nend\n[maybe(\"m\"), maybe(\"m\") { |m| nil }]".into(),
             serde_json::json!([false, true]),
         ),
         (
@@ -227,7 +211,7 @@ fn typed_block_parameters_check_yields_and_results() {
             serde_json::json!(["a", null]),
         ),
         (
-            "def f(&block: int)\n  [1].map { |block| block + 1 }\nend\nf { |x| x }".into(),
+            "def f(&block: int) -> array<int>\n  [1].map { |block| block + 1 }\nend\nf { |x| x }".into(),
             serde_json::json!([2]),
         ),
     ] {
@@ -730,19 +714,15 @@ fn a_value_may_follow_type_arguments_without_a_space() {
                   module M\n  @@nested: array<array<int>>=[[2]]\n  def self.nested -> array<array<int>>\n    @@nested\n  end\nend\n\
                   def f(n: int, z: array<int>=[3]) -> array<int>\n  z\nend\n\
                   x: array<string>=[\"a\"]\n[x, C.all, C.new.some, M.nested, f(1)]";
-    for static_types in [false, true] {
-        let mut engine = Engine::new();
-        engine.set_static_types(static_types);
-        let result = engine
-            .compile(source)
-            .unwrap_or_else(|error| panic!("{error}"))
-            .run(CallOptions::default())
-            .unwrap();
-        let json = stringify_json(&result.value, CallOptions::default()).unwrap();
-        let value: serde_json::Value =
-            serde_json::from_slice(json.value.as_bytes().unwrap()).unwrap();
-        assert_eq!(value, serde_json::json!([["a"], [1], {}, [[2]], [3]]));
-    }
+    let engine = Engine::new();
+    let result = engine
+        .compile(source)
+        .unwrap_or_else(|error| panic!("{error}"))
+        .run(CallOptions::default())
+        .unwrap();
+    let json = stringify_json(&result.value, CallOptions::default()).unwrap();
+    let value: serde_json::Value = serde_json::from_slice(json.value.as_bytes().unwrap()).unwrap();
+    assert_eq!(value, serde_json::json!([["a"], [1], {}, [[2]], [3]]));
     // The split `>` and `=` are what tools see.
     let tokens = vibescript::tooling::tokens("x: array<int>=[]\n").unwrap();
     let operators: Vec<_> = tokens
@@ -764,19 +744,15 @@ fn typed_constants_keep_their_declared_type() {
                   class Store\n  COUNTS: hash<string, int> = {}\n  LABEL: string? = nil\n  \
                   def self.size -> int\n    COUNTS.length\n  end\nend\n\
                   TOP: int | string = 1\n[Limits.total, Limits::MAX, Store.size, Store::LABEL, TOP]";
-    for static_types in [false, true] {
-        let mut engine = Engine::new();
-        engine.set_static_types(static_types);
-        let result = engine
-            .compile(source)
-            .unwrap_or_else(|error| panic!("{error}"))
-            .run(CallOptions::default())
-            .unwrap();
-        let json = stringify_json(&result.value, CallOptions::default()).unwrap();
-        let value: serde_json::Value =
-            serde_json::from_slice(json.value.as_bytes().unwrap()).unwrap();
-        assert_eq!(value, serde_json::json!([3, 3, 0, null, 1]));
-    }
+    let engine = Engine::new();
+    let result = engine
+        .compile(source)
+        .unwrap_or_else(|error| panic!("{error}"))
+        .run(CallOptions::default())
+        .unwrap();
+    let json = stringify_json(&result.value, CallOptions::default()).unwrap();
+    let value: serde_json::Value = serde_json::from_slice(json.value.as_bytes().unwrap()).unwrap();
+    assert_eq!(value, serde_json::json!([3, 3, 0, null, 1]));
     // The checker refuses a value, or a later assignment, of another type,
     // and reads the constant with its declared type.
     assert_eq!(
@@ -791,24 +767,6 @@ fn typed_constants_keep_their_declared_type() {
         refused("class C\n  MAX: int? = nil\n  def self.max -> int\n    MAX\n  end\nend\n"),
         [("V0107".to_owned(), (4, 5))]
     );
-    // Without static types, the runtime checks every value it is given.
-    for (source, line) in [
-        ("module M\n  MAX: int = \"a\"\nend\nM::MAX", 2),
-        ("module M\n  MAX: int = 3\n  MAX = \"b\"\nend\nM::MAX", 3),
-    ] {
-        let error = common::gradual_engine()
-            .compile(source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap_err();
-        let position = error.diagnostic.as_ref().unwrap().position;
-        assert_eq!(error.kind, ErrorKind::Type, "{source}");
-        assert_eq!(
-            error.message, "constant MAX expected int, got string",
-            "{source}"
-        );
-        assert_eq!((position.line, position.column), (line, 3), "{source}");
-    }
 }
 
 #[test]
@@ -820,37 +778,29 @@ fn casts_name_classes_enums_and_scoped_aliases_inside_types() {
                   [boxes.as(array<Box>).length, held.as({ box: Box, status: Status })[\"box\"].size,\n \
                   points.as(array<Shapes::Point>).length, pair.as([Box, Status])[0].size,\n \
                   (boxes.as(array<Status>) rescue \"refused\")]";
-    for static_types in [false, true] {
-        let mut engine = Engine::new();
-        engine.set_static_types(static_types);
-        let result = engine
-            .compile(source)
-            .unwrap_or_else(|error| panic!("{error}"))
-            .run(CallOptions::default())
-            .unwrap();
-        let json = stringify_json(&result.value, CallOptions::default()).unwrap();
-        let value: serde_json::Value =
-            serde_json::from_slice(json.value.as_bytes().unwrap()).unwrap();
-        assert_eq!(value, serde_json::json!([2, 4, 1, 5, "refused"]));
-    }
+    let engine = Engine::new();
+    let result = engine
+        .compile(source)
+        .unwrap_or_else(|error| panic!("{error}"))
+        .run(CallOptions::default())
+        .unwrap();
+    let json = stringify_json(&result.value, CallOptions::default()).unwrap();
+    let value: serde_json::Value = serde_json::from_slice(json.value.as_bytes().unwrap()).unwrap();
+    assert_eq!(value, serde_json::json!([2, 4, 1, 5, "refused"]));
     // `JSON.parse_as` reads enum members by their symbols inside the type.
     let parsed = "enum Status\n  Draft\n  Done\nend\n\
                   a = JSON.parse_as(\"{\\\"s\\\": \\\"draft\\\"}\", { s: Status? })\n\
                   b = JSON.parse_as(\"[\\\"done\\\"]\", array<Status>)\n\
                   [a[\"s\"] == Status::Draft, b.fetch(0) == Status::Done]";
-    for static_types in [false, true] {
-        let mut engine = Engine::new();
-        engine.set_static_types(static_types);
-        let result = engine
-            .compile(parsed)
-            .unwrap_or_else(|error| panic!("{error}"))
-            .run(CallOptions::default())
-            .unwrap();
-        let json = stringify_json(&result.value, CallOptions::default()).unwrap();
-        let value: serde_json::Value =
-            serde_json::from_slice(json.value.as_bytes().unwrap()).unwrap();
-        assert_eq!(value, serde_json::json!([true, true]));
-    }
+    let engine = Engine::new();
+    let result = engine
+        .compile(parsed)
+        .unwrap_or_else(|error| panic!("{error}"))
+        .run(CallOptions::default())
+        .unwrap();
+    let json = stringify_json(&result.value, CallOptions::default()).unwrap();
+    let value: serde_json::Value = serde_json::from_slice(json.value.as_bytes().unwrap()).unwrap();
+    assert_eq!(value, serde_json::json!([true, true]));
     // Elsewhere, a braced group that names a class is a hash of values.
     assert_eq!(
         evaluate("class Box\nend\nh = { kind: Box }\nh.length"),
