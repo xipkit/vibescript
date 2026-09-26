@@ -1246,7 +1246,12 @@ impl Run {
                         .iter()
                         .position(|h| h == &program.members[name])
                     {
-                        return Err(receive_host(program, &program.hosts[host], receiving));
+                        if !receiving.runs_static(None) {
+                            return Err(receive_host(program, &program.hosts[host], receiving));
+                        }
+                        let value =
+                            capabilities::registered(ctx, storage, &hosts[host], &[], &[], None)?;
+                        value.finish(program, ctx, frames, storage, stack, ReturnTo::Stack)?;
                     } else if let Some(binding) =
                         file_bindings::root_binding(program, ctx, storage, &program.members[name])?
                     {
@@ -2533,7 +2538,12 @@ impl Run {
                         )?;
                         continue;
                     }
-                    return Err(receive_host(program, &program.hosts[host], receiving));
+                    if !receiving.runs_static(None) {
+                        return Err(receive_host(program, &program.hosts[host], receiving));
+                    }
+                    let value =
+                        capabilities::registered(ctx, storage, &hosts[host], &[], &[], None)?;
+                    value.finish(program, ctx, frames, storage, stack, ReturnTo::Stack)?;
                 }
                 Op::RootCall(name, expanded) => {
                     if expanded
@@ -4067,7 +4077,13 @@ fn enter_auto(
     base: usize,
 ) -> Result<()> {
     let fun = &program.functions[function];
-    if !fun.params.is_empty() {
+    if fun.params.iter().any(|param| {
+        !param.default
+            && !matches!(
+                param.kind,
+                crate::syntax::ParamKind::Rest | crate::syntax::ParamKind::KeywordRest
+            )
+    }) {
         return Err(callable_value_error(&fun.name, "function"));
     }
     enter(program, ctx, frames, storage, function, &[], base)

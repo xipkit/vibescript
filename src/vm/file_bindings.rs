@@ -270,7 +270,11 @@ pub(super) fn read_root(
         ),
         RootBinding::Value(value) => {
             let value = match value.0 {
-                Kind::Host(method) => return Err(method.value_error()),
+                Kind::Host(method) => {
+                    let owner = frames.data.last().unwrap().program.clone();
+                    let value = capabilities::call(ctx, storage, &method, &[], &[], None, true)?;
+                    return value.finish(&owner, ctx, frames, storage, stack, ReturnTo::Stack);
+                }
                 Kind::Builtin(builtin) => builtin.read(ctx)?,
                 Kind::Offset(offset) => return Err(offset.value_error()),
                 _ => value,
@@ -280,7 +284,11 @@ pub(super) fn read_root(
         RootBinding::Function(owner, function) => {
             enter_auto(&owner, ctx, frames, storage, function, stack.data.len())
         }
-        RootBinding::Host(owner, host) => Err(callable_value_error(&owner.hosts[host], "method")),
+        RootBinding::Host(owner, host) => {
+            let value =
+                capabilities::registered(ctx, storage, &owner.code.hosts[host], &[], &[], None)?;
+            value.finish(&owner, ctx, frames, storage, stack, ReturnTo::Stack)
+        }
     }
 }
 

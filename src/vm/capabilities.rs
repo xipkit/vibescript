@@ -115,7 +115,11 @@ pub(super) fn call_on(
     block: Option<Block>,
     auto: bool,
 ) -> Result<Call> {
-    if auto {
+    if auto
+        && method
+            .signature()
+            .is_some_and(|sig| sig.source.params.iter().any(|p| !p.optional))
+    {
         return Err(method.value_error());
     }
     if method.needs_frame() {
