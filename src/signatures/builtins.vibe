@@ -428,6 +428,7 @@ class array<T>
   def shuffle -> array<T>
   def slice_when(&block: (T, T) -> bool) -> array<array<T>>
   def sort_by<K: comparable>(&block: T -> K) -> array<T>
+  def sort(&block: (T, T) -> int) -> array<T>
   # Adds the block's values, starting from 0.
   def sum(&block: T -> int) -> int
   # Adds the block's values to `initial`.
@@ -449,7 +450,7 @@ class array<T: comparable>
   def max -> T?
   def min -> T?
   def minmax -> [T?, T?]
-  def sort(&block?: (T, T) -> int) -> array<T>
+  def sort -> array<T>
 end
 
 class array<T: int>

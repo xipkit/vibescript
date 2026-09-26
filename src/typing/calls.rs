@@ -422,16 +422,13 @@ impl<'a> Checker<'a> {
         };
         let outer = self.memo.replace(super::Memo::default());
         results.push(self.member(call, first));
-        // The other alternatives reuse the arguments' types, without
-        // checking them or reporting their errors again.
+        // Reuse evaluated argument types, but check every receiver's contract.
         self.memo.as_mut().unwrap().replay = true;
-        self.mute += 1;
         for &alternative in rest {
             let mark = self.frame.flow.mark();
             results.push(self.member(call, alternative));
             self.frame.flow.rollback(mark);
         }
-        self.mute -= 1;
         self.restore_memo(outer);
         self.types.union(&results)
     }
@@ -1312,8 +1309,8 @@ impl<'a> Checker<'a> {
             ty = self.nominal_type(ty);
         }
         self.unify(param, ty, bindings);
-        let expected = self.types.subst(param, bindings);
-        if !self.types.has_var(expected) && !self.types.assignable(ty, expected) {
+        let expected = self.types.close(param, bindings);
+        if !self.types.assignable(ty, expected) {
             let span = self.spans.expr(value);
             self.mismatch(span, expected, ty, purpose);
         } else if takes_type

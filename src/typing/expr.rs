@@ -353,6 +353,37 @@ impl<'a> Checker<'a> {
     }
 
     fn array_literal(&mut self, items: &'a [Expr], hint: Option<Ty>) -> Ty {
+        if let Some(hint) = hint {
+            let alternatives: Vec<Ty> = self
+                .types
+                .members(hint)
+                .into_iter()
+                .filter(|&ty| matches!(self.types.kind(ty), Kind::Array(_) | Kind::Tuple(_)))
+                .collect();
+            if alternatives.len() > 1 {
+                let mut values = Vec::new();
+                for (index, item) in items.iter().enumerate() {
+                    let hints: Vec<Ty> = alternatives
+                        .iter()
+                        .filter_map(|&ty| match self.types.kind(ty) {
+                            Kind::Array(element) => Some(*element),
+                            Kind::Tuple(elements) => elements.get(index).copied(),
+                            _ => None,
+                        })
+                        .collect();
+                    let element = self.types.union(&hints);
+                    values.push(self.expr(item, Some(element)));
+                }
+                let tuple = self.types.tuple(values.clone());
+                for alternative in alternatives {
+                    if self.types.assignable(tuple, alternative) {
+                        return alternative;
+                    }
+                }
+                let element = self.types.union(&values);
+                return self.types.array(element);
+            }
+        }
         let hint = self.literal_hint(hint, |kind| {
             matches!(kind, Kind::Array(_) | Kind::Tuple(_) | Kind::Any)
         });
@@ -1089,8 +1120,38 @@ impl<'a> Checker<'a> {
                 self.types.optional(Ty::STRING)
             }
             (Kind::MatchData, [selector]) => {
-                self.expr(selector, None);
-                self.types.optional(Ty::STRING)
+                let key = self.expr(selector, None);
+                let expected = self.types.union(&[Ty::STRING, Ty::NUMBER]);
+                self.selector(selector, key, expected);
+                match string_literal(selector).as_deref() {
+                    Some("begin" | "end") => {
+                        self.report(Diagnostic::error(
+                            Code::NOT_CALLABLE,
+                            self.spans.expr(expr),
+                            "a match offset is a method; call `.begin(index)` or `.end(index)`",
+                        ));
+                        Ty::ERROR
+                    }
+                    Some("captures") => {
+                        let element = self.types.optional(Ty::STRING);
+                        self.types.array(element)
+                    }
+                    Some("named_captures") => {
+                        let value = self.types.optional(Ty::STRING);
+                        self.types.hash(value)
+                    }
+                    Some("to_s" | "pre_match" | "post_match") => Ty::STRING,
+                    Some(_) => self.types.optional(Ty::STRING),
+                    None if key == Ty::STRING => {
+                        self.report(Diagnostic::error(
+                            Code::DYNAMIC_KEY,
+                            self.spans.expr(selector),
+                            "index match data with a literal string or a capture index",
+                        ));
+                        Ty::ERROR
+                    }
+                    None => self.types.optional(Ty::STRING),
+                }
             }
             (Kind::Instance(_), _) => {
                 let name = "[]";
@@ -1103,13 +1164,11 @@ impl<'a> Checker<'a> {
                 let mut results = vec![result];
                 // The other alternatives reuse the selectors' types.
                 self.memo.as_mut().unwrap().replay = true;
-                self.mute += 1;
                 for &alternative in &alternatives[1..] {
                     let mark = self.frame.flow.mark();
                     results.push(self.index_type(expr, receiver, alternative, selectors));
                     self.frame.flow.rollback(mark);
                 }
-                self.mute -= 1;
                 self.restore_memo(outer);
                 self.types.union(&results)
             }
@@ -1259,7 +1318,12 @@ impl<'a> Checker<'a> {
             },
             (Kind::Instance(_), _) => {
                 if evaluate {
-                    return self.method_on(expr, ty, "[]=", None, selectors, Some(value));
+                    let outer = self.memo.replace(super::Memo::default());
+                    self.method_on(expr, ty, "[]=", None, selectors, Some(value));
+                    self.memo.as_mut().unwrap().replay = true;
+                    let assigned = self.expr(value, None);
+                    self.restore_memo(outer);
+                    return assigned;
                 }
                 None
             }
