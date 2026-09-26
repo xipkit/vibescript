@@ -1,7 +1,8 @@
 //! `vibes check`, ported from the Go reference's check_command_test.go.
 //!
-//! The issues come from this library's checker, whose messages differ from the
-//! reference's; these tests assert the command's contract and report format.
+//! The diagnostics come from this library's static type checker (ADR-007),
+//! whose messages differ from the reference's; these tests assert the
+//! command's contract and report format.
 
 // These tests run the vibes binary as a subprocess, which WASI cannot spawn.
 #![cfg(not(target_os = "wasi"))]
@@ -20,7 +21,7 @@ fn reports_issues_one_per_line_and_fails() {
         ),
         ("def helper -> int\n  \"text\"\nend", 1),
         (
-            "def create_user(name: string)\n  name\nend\n\nbody = JSON.parse(\"{}\")\ncreate_user(body[\"name\"])",
+            "def create_user(name: string)\n  name\nend\n\nbody = JSON.parse_as(\"{\\\"name\\\": \\\"Ada\\\"}\", { name: string })\ncreate_user(body[\"name\"])",
             0,
         ),
     ] {
@@ -31,23 +32,24 @@ fn reports_issues_one_per_line_and_fails() {
             continue;
         }
         assert_eq!(run.status, Some(1), "{source}: {}", run.stderr);
-        assert_eq!(
-            run.stdout.lines().count(),
-            issues,
-            "{source}: {}",
-            run.stdout
-        );
-        for line in run.stdout.lines() {
-            assert!(line.starts_with(&format!("{path}:")), "{line}");
-            assert!(line.ends_with(')'), "{line}");
+        let headers: Vec<&str> = run
+            .stdout
+            .lines()
+            .filter(|line| line.starts_with(&format!("{path}:")))
+            .collect();
+        assert_eq!(headers.len(), issues, "{source}: {}", run.stdout);
+        for line in headers {
+            assert!(line.contains(": error[V"), "{line}");
         }
-        assert_eq!(run.stderr, format!("check failed with {issues} issue(s)\n"));
+        assert_eq!(run.stderr, format!("check failed with {issues} error(s)\n"));
     }
     let path = files.write("helper.vibe", "def helper -> int\n  \"text\"\nend");
     vibes(&["check", &path]).expect(
         1,
-        &format!("{path}:2:3: Return value: expected int, got string (helper)\n"),
-        "check failed with 1 issue(s)\n",
+        &format!(
+            "{path}:2:3: error[V0101]: `helper` returns int, found string\n   |\n  2|   \"text\"\n   |   ^^^^^^\n   = expected int, found string\n"
+        ),
+        "check failed with 1 error(s)\n",
     );
 }
 
@@ -56,14 +58,19 @@ fn analysis_has_no_default_quota() {
     let source: String = (0..80)
         .map(|i| {
             format!(
-                "def helper{i}(items)\n  totals = {{ count: 0, names: [] }}\n  items.each do |item|\n    totals[:count] = totals[:count] + 1\n    totals[:names] = totals[:names] + [item[:name]]\n  end\n  \"#{{totals[:count]}}: \" + totals[:names].join(\", \")\nend\n\n"
+                "def helper{i}(items: array<{{ name: string }}>) -> string\n  count = 0\n  names: array<string> = []\n  items.each {{ |item|\n    count = count + 1\n    names = names + [item[\"name\"]]\n  }}\n  \"#{{count}}: \" + names.join(\", \")\nend\n\n"
             )
         })
         .collect();
     let files = Files::new();
     let path = files.write("large.vibe", &source);
     vibes(&["check", &path]).expect(0, "No issues found\n", "");
-    vibes(&["check", "--steps", "1000000", &path]).expect(1, "", "step quota exceeded (1000000)\n");
+    // The type check runs no script code, so it takes no quota flags.
+    vibes(&["check", "--steps", "1000000", &path]).expect(
+        1,
+        "",
+        "flag provided but not defined: -steps\n",
+    );
 }
 
 #[test]
@@ -78,17 +85,17 @@ fn resolves_and_attributes_required_modules() {
     let modules = files.path("modules");
     files.write("modules/helpers.vibe", "def bad -> int\n  \"text\"\nend\n");
     let script = files.write("script/main.vibe", "require \"helpers\"\n\nbad");
-    let helper = files.path("modules/helpers.vibe");
+    // A diagnostic in a required file names it by its root-relative path.
     vibes(&["check", "-module-path", &modules, &script]).expect(
         1,
-        &format!("{helper}:2:3: Return value: expected int, got string (bad)\n"),
-        "check failed with 1 issue(s)\n",
+        "helpers.vibe: error[V0101]: `bad` returns int, found string\n",
+        "check failed with 1 error(s)\n",
     );
     let only = files.write("script/only.vibe", "require \"helpers\"");
     vibes(&["check", "--module-path", &modules, &only]).expect(
         1,
-        &format!("{helper}:2:3: Return value: expected int, got string (bad)\n"),
-        "check failed with 1 issue(s)\n",
+        "helpers.vibe: error[V0101]: `bad` returns int, found string\n",
+        "check failed with 1 error(s)\n",
     );
     files.write("modules/status.vibe", "enum Status\n  Draft\nend\n");
     let typed = files.write(
@@ -103,16 +110,16 @@ fn resolves_and_attributes_required_modules() {
 }
 
 #[test]
-fn static_mode_reports_every_type_error_with_its_code() {
+fn reports_every_type_error_with_its_code() {
     let files = Files::new();
     let path = files.write(
         "clean.vibe",
         "def add(a: int, b: int) -> int\n  a + b\nend\n",
     );
-    vibes(&["check", "--static", &path]).expect(0, "No issues found\n", "");
-    let source = "count = 1\ncount = \"one\"\nhalf = 7 / 2\n";
+    vibes(&["check", &path]).expect(0, "No issues found\n", "");
+    let source = "count = 1\ncount = \"one\"\nscores = [1]\nbest = scores[0] + 1\n";
     let path = files.write("broken.vibe", source);
-    let run = vibes(&["check", "--static", &path]);
+    let run = vibes(&["check", &path]);
     assert_eq!(run.status, Some(1), "{}", run.stderr);
     assert!(
         run.stdout
@@ -121,12 +128,13 @@ fn static_mode_reports_every_type_error_with_its_code() {
         run.stdout
     );
     assert!(
-        run.stdout.contains(&format!("{path}:3:10: error[V0109]: ")),
+        run.stdout.contains(&format!("{path}:4:8: error[V0107]: ")),
         "{}",
         run.stdout
     );
     assert!(
-        run.stdout.contains("   = fix: use floor division `//`\n"),
+        run.stdout
+            .contains("   = fix: read it with `fetch(0)`, which raises when it is missing\n"),
         "{}",
         run.stdout
     );
@@ -185,10 +193,10 @@ fn check_json_prints_warnings_and_codes_syntax_errors() {
 }
 
 #[test]
-fn static_check_renders_removed_spellings_for_people() {
+fn check_renders_removed_spellings_for_people() {
     let files = Files::new();
     files.write("names.vibe", "n = [1].size\n");
-    let run = vibes_in(Some(&files.0), &["check", "--static", "names.vibe"]);
+    let run = vibes_in(Some(&files.0), &["check", "names.vibe"]);
     assert_eq!(run.status, Some(1), "{run:?}");
     assert!(
         run.stdout.contains(
