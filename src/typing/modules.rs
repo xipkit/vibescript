@@ -89,6 +89,7 @@ pub(crate) struct Required<'a> {
     depth: usize,
     pub loaded: Vec<Exports>,
     by_path: HashMap<String, Result<u32, String>>,
+    by_origin: HashMap<crate::loading::Origin, u32>,
     /// Aliases `require(..., as:)` binds, to the exports they name.
     pub aliases: HashMap<String, u32>,
     /// Exported functions, which `require` also publishes by name.
@@ -105,6 +106,7 @@ impl<'a> Required<'a> {
             depth,
             loaded: Vec::new(),
             by_path: HashMap::new(),
+            by_origin: HashMap::new(),
             aliases: HashMap::new(),
             published: HashMap::new(),
         }
@@ -181,6 +183,9 @@ impl<'a> Checker<'a> {
             .resolve
             .ok_or("no module resolver is configured")?;
         let (source, origin) = resolve(path, self.modules.origin).map_err(|error| error.message)?;
+        if let Some(&id) = self.modules.by_origin.get(&origin) {
+            return Ok(id);
+        }
         let filename = origin.filename();
         let (parsed, tokens) = crate::syntax::parse_with_tokens(&source, &()).map_err(|error| {
             let error = crate::source::parse_error(
@@ -230,6 +235,7 @@ impl<'a> Checker<'a> {
             functions,
             enums,
         });
+        self.modules.by_origin.insert(origin, id);
         Ok(id)
     }
 

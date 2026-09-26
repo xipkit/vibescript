@@ -214,8 +214,7 @@ fn capitalized_methods_use_dot_dispatch() {
 #[test]
 fn require_validates_its_call_shape_and_alias() {
     let (engine, directory) = engine(&[("required.vibe", HELPERS), ("other.vibe", HELPERS)]);
-    let source =
-        "require('required', as: 'helpers'); require('required', as: 'helpers'); helpers.double(3)";
+    let source = "require('required', as: 'helpers'); require('required', as: 'helpers'); require('required.vibe', as: 'helpers'); helpers.double(3)";
     assert!(errors_with(&engine, source).is_empty());
     assert_eq!(
         engine
