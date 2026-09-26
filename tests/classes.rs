@@ -455,7 +455,17 @@ end
 
 #[test]
 fn instance_assignments_shadow_class_constants_and_preserve_visibility_locals() {
-    let script = common::runtime_engine()
+    // A method cannot assign a capitalized name, so it cannot shadow a
+    // constant with a local.
+    let source =
+        "class Counter\n  TOTAL = 2\n  def local -> int\n    TOTAL = 9\n    TOTAL\n  end\nend\n";
+    let error = Engine::new().compile(source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0102"]);
+    assert_eq!(
+        error.diagnostics()[0].span.start,
+        source.find("TOTAL = 9").unwrap()
+    );
+    let script = Engine::new()
         .compile(
             r#"
 class Counter
@@ -463,9 +473,9 @@ class Counter
   protected = 5
   protected
   def local -> int
-    TOTAL = 9
-    TOTAL += 1
-    TOTAL
+    total = TOTAL + 7
+    total += 1
+    total
   end
   def self.shared -> int
     TOTAL += 1
