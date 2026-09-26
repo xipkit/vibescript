@@ -4,7 +4,7 @@
 use super::{
     Checker,
     check::{Purpose, Want, is_constant},
-    program::NsId,
+    program::{FnId, NsId},
     sigs,
     ty::{Field, Kind, Ty},
 };
@@ -655,6 +655,17 @@ impl<'a> Checker<'a> {
                         }
                     }
                 }
+                // A class's own `==` or `!=` gives what its method returns,
+                // `nil` without `-> T`; a `!=` the runtime answers by
+                // negating `==` is a `bool`.
+                if op != "==="
+                    && let Kind::Instance(ns) = self.types.kind(lt).clone()
+                    && let Some(&id) = self.program.namespaces[ns as usize].methods.get(op)
+                {
+                    let span = self.spans.operator(expr.offset as usize);
+                    self.operator_operand(id, rt, span);
+                    return self.program.fns[id].sig.result.unwrap_or(Ty::NIL);
+                }
                 Ty::BOOL
             }
             _ => {
@@ -777,6 +788,13 @@ impl<'a> Checker<'a> {
             return Ty::ERROR;
         };
         self.visibility(op, self.spans.containing(span.start), id, ns, true);
+        self.operator_operand(id, right, span);
+        self.program.fns[id].sig.result.unwrap_or(Ty::NIL)
+    }
+
+    /// Checks the right operand of an operator against the first parameter
+    /// of the method `id` that implements it.
+    fn operator_operand(&mut self, id: FnId, right: Ty, span: Span) {
         let sig = self.program.fns[id].sig.clone();
         if let Some(param) = sig.params.first() {
             // A rest parameter collects the operand into its array.
@@ -790,7 +808,6 @@ impl<'a> Checker<'a> {
                 self.mismatch(span, expected, right, &Purpose::Operand);
             }
         }
-        sig.result.unwrap_or(Ty::NIL)
     }
 
     /// The operator table.

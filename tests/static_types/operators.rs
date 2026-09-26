@@ -3,6 +3,25 @@
 use super::support::{clean, codes};
 
 #[test]
+fn a_class_s_equality_gives_what_its_method_declares() {
+    let typed = "class Box\n  def ==(other: Box) -> int\n    1\n  end\nend\n";
+    clean(&format!(
+        "{typed}n: int = Box.new == Box.new\nsame: bool = Box.new != Box.new\n"
+    ));
+    codes(
+        &format!("{typed}same: bool = Box.new == Box.new\n"),
+        &["V0101"],
+    );
+    codes(&format!("{typed}n: int = Box.new == 1\n"), &["V0101"]);
+    // Without `-> T`, the method returns nil.
+    let untyped = "class Box\n  def ==(other: Box)\n    true\n  end\nend\n";
+    codes(
+        &format!("{untyped}same: bool = Box.new == Box.new\n"),
+        &["V0101"],
+    );
+}
+
+#[test]
 fn arithmetic_on_numbers_strings_arrays_money_durations_and_times() {
     clean(
         "a: int = 1 + 2\nb: float = 1 + 2.5\nc: string = \"a\" + \"b\"\nd: array<int | string> = [1] + [\"a\"]\n",
