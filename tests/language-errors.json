@@ -161129,7 +161129,7 @@
   {
     "name": "arr_chunk_block_present",
     "source": "def run(_: any) -> array<bool | string>\n  block_seen = false\n  recv = [1, 2, 3]\n  result: array<bool | string>? = nil\n  begin\n    recv.chunk(2) { |a| block_seen = true; a }\n    result = [\"ok\", block_seen]\n  rescue => err\n    result = [\"error\", err.class, block_seen]\n  end\n  result\nend\n",
-    "static_error": {"code": "V0305", "at": [6, 19]}
+    "static_error": {"code": "V0301", "at": [6, 10]}
   },
   {
     "name": "arr_reverse_block_present",
@@ -161145,21 +161145,6 @@
     "name": "remaining_obj_arr_to_s_block_present",
     "source": "def run(_: any) -> array<bool | string>\n  block_seen = false\n  recv = [1, 2]\n  result: array<bool | string>? = nil\n  begin\n    recv.to_s { |a| block_seen = true; a }\n    result = [\"ok\", block_seen]\n  rescue => err\n    result = [\"error\", err.class, block_seen]\n  end\n  result\nend\n",
     "static_error": {"code": "V0305", "at": [6, 15]}
-  },
-  {
-    "name": "chunk_block_reserved_28",
-    "source": "def run(_: any) -> array<array<int> | string>\nbegin; [1].chunk { :_bad };rescue => e; [e.class,e.message];end\nend\n",
-    "static_error": {"code": "V0301", "at": [2, 12]}
-  },
-  {
-    "name": "chunk_block_reserved_29",
-    "source": "def run(_: any) -> array<array<int> | string>\nbegin; [1].chunk { :_ };rescue => e; [e.class,e.message];end\nend\n",
-    "static_error": {"code": "V0301", "at": [2, 12]}
-  },
-  {
-    "name": "chunk_block_reserved_30",
-    "source": "def run(_: any) -> array<array<int> | string>\nbegin; [1].chunk { :__x };rescue => e; [e.class,e.message];end\nend\n",
-    "static_error": {"code": "V0301", "at": [2, 12]}
   },
   {
     "name": "float_range_endpoint_selectors",

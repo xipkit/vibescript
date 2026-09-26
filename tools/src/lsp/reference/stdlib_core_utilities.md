@@ -469,6 +469,8 @@ appends one element to the named array.
 - `shuffle -> array<T>` – the elements in random order.
 - `chunk(size: int) -> array<array<T>>` – consecutive slices of `size`
   elements.
+- `chunk<K>(&block: T -> K) -> array<[K, array<T>]>` – runs of consecutive
+  elements with the same key, each paired with its key.
 - `window(size: int) -> array<array<T>>` – every run of `size` consecutive
   elements.
 - `chunk_while(&block: (T, T) -> bool) -> array<array<T>>` – runs whose

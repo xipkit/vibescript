@@ -335,6 +335,10 @@ class array<T>
   def all?(pattern?: T | range, &block?: T -> bool) -> bool
   def any?(pattern?: T | range, &block?: T -> bool) -> bool
   def chunk(size: int) -> array<array<T>>
+  # Groups consecutive elements by the key the block returns. A `nil` or
+  # `:_separator` key drops its element, and `:_alone` gives it a group of
+  # its own.
+  def chunk<K>(&block: T -> K) -> array<[K, array<T>]>
   def chunk_while(&block: (T, T) -> bool) -> array<array<T>>
   def clear -> array<T>
   def combination(size: int) -> array<array<T>>

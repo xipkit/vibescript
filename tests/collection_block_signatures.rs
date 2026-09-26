@@ -37,9 +37,6 @@ fn blocks_on_non_iterating_collection_methods_fail_before_any_block_effect() {
         "[].clear{effect()}",
         "[1,nil,2].compact{effect()}",
         "[].compact{effect()}",
-        "[1,2,3].chunk(2){effect()}",
-        "[].chunk(2){effect()}",
-        "[1,2].chunk(*[2]){effect()}",
         "[1,2,3].reverse{effect()}",
         "[].reverse{effect()}",
         "{a: 1}.clear{effect()}",
@@ -59,6 +56,21 @@ fn blocks_on_non_iterating_collection_methods_fail_before_any_block_effect() {
 }
 
 #[test]
+fn chunk_takes_a_size_or_a_block_but_not_both() {
+    for expression in [
+        "[1,2,3].chunk(2){effect()}",
+        "[].chunk(2){effect()}",
+        "[1].chunk(2,k:1){effect()}",
+    ] {
+        assert_eq!(
+            refused(&format!("{expression};effect()")),
+            [("V0301".to_owned(), "chunk".to_owned())],
+            "{expression}"
+        );
+    }
+}
+
+#[test]
 fn argument_and_keyword_errors_take_precedence_over_the_block() {
     // The keyword or positional argument error is reported before the block.
     for (expression, code, text) in [
@@ -66,7 +78,6 @@ fn argument_and_keyword_errors_take_precedence_over_the_block() {
         ("[1].compact(k:1){effect()}", "V0302", "k:"),
         ("[1].reverse(k:1){effect()}", "V0302", "k:"),
         ("{a: 1}.clear(k:1){effect()}", "V0302", "k:"),
-        ("[1].chunk(2,k:1){effect()}", "V0302", "k:"),
         ("[1].clear(1){effect()}", "V0301", "clear"),
         ("[1].compact(1){effect()}", "V0301", "compact"),
         ("[1].reverse(1){effect()}", "V0301", "reverse"),

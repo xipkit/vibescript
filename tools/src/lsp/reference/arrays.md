@@ -341,10 +341,12 @@ Nested arrays spliced into one. Without a depth, or with a negative one, every
 level is flattened; `0` copies the array and a positive depth flattens that many
 levels. The result is `array<any>`, so narrow its elements before use.
 
-### `chunk(size: int) -> array<array<T>>`
+### `chunk(size: int) -> array<array<T>>` / `chunk<K>(&block: T -> K) -> array<[K, array<T>]>`
 
 Consecutive slices of `size` elements; the last may be shorter. `size` must be
-positive.
+positive. With a block, consecutive elements with the same key form a group,
+paired with its key: a `nil` or `:_separator` key drops its element, `:_alone`
+puts it in a group of its own, and other symbols starting with `_` raise.
 
 ### `window(size: int) -> array<array<T>>`
 
