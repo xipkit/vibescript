@@ -87,10 +87,6 @@ fn declared(options: &CallOptions) -> Engine {
 fn run(body: &str, options: CallOptions) -> vibescript::Result<vibescript::Outcome> {
     let mut engine = declared(&options);
     engine.set_strict_effects(true);
-    // `::` is refused with static types (V0416) but still runs without.
-    if body.contains("::") || body.contains(".send(") || body.contains(".public_send(") {
-        engine.set_static_types(false);
-    }
     engine
         .compile(&format!("def run -> any\n{body}\nend"))
         .unwrap()
@@ -102,10 +98,6 @@ fn host_blocks_support_dispatch_binding_captures_and_repeated_calls() {
     // What the host passes a block is any, so the blocks narrow it.
     for (body, expected) in [
         ("host.once(3) { |n| n.as(int)+1 }", "4"),
-        ("host::once(3) { |n| n.as(int)+1 }", "4"),
-        // Legacy dispatch is exercised without static types.
-        ("host.send(:once, 3) { |n| n.as(int)+1 }", "4"),
-        ("host.public_send(:once, 3) { |n| n.as(int)+1 }", "4"),
         ("copy=host.dup; copy.once(3) { |n| n.as(int)+1 }", "4"),
         ("host.once(1,2) { |a,b,c| [a,b,c] }", "[1, 2, nil]"),
         ("host.once([2,3]) { |a,b| a.as(int)+b.as(int) }", "5"),
@@ -607,13 +599,20 @@ fn precancelled_or_expired_calls_never_invoke_host_blocks() {
     }
 }
 
+/// The program that makes and receives the block arguments. No program can
+/// name another program's classes, so the arguments come from an earlier call
+/// of the receiving program, which narrows them to their types.
+const BOX: &str = "class Box; property items: array<int>; def initialize; @items=[1]; end; def add; @items.push(2); end; end; def make -> array<any>; [Box.new, /a/.match(\"a\")]; end";
+
 #[test]
 fn foreign_block_arguments_keep_their_program_types_and_isolated_state() {
-    let producer = Engine::new().compile("class Box; property items: array<int>; def initialize; @items=[1]; end; def add; @items.push(2); end; end; def make -> array<any>; [Box.new, /a/.match(\"a\")]; end").unwrap();
-    let input = producer
-        .call("make", &[], CallOptions::default())
-        .unwrap()
-        .value;
+    let placeholder = HostMethod::new_with_block("visit", |_, _, _| Ok(Value::nil()));
+    let placeholder = CallOptions {
+        capabilities: vec![callable("visit", &placeholder)],
+        ..CallOptions::default()
+    };
+    let script = declared(&placeholder).compile(&format!("{BOX}; def run -> any; visit {{ |pair| items=pair.as(array<any>); box=items.fetch(0).as(Box); m=items.fetch(1).as(match_data); box.add; [box.items,m.captures] }}; end; def first_items(pair: any) -> array<int>; pair.as(array<any>).fetch(0).as(Box).items; end")).unwrap();
+    let input = script.call("make", &[], placeholder.clone()).unwrap().value;
     let supplied = input.clone();
     let method = HostMethod::new_with_block("visit", move |call, _, _| {
         call.call_block(std::slice::from_ref(&supplied))
@@ -622,9 +621,6 @@ fn foreign_block_arguments_keep_their_program_types_and_isolated_state() {
         capabilities: vec![callable("visit", &method)],
         ..CallOptions::default()
     };
-    // The receiving programs cannot name a class another program declares,
-    // so they read its instances in the ADR-004 language.
-    let script = common::gradual_engine().compile("def run; visit { |pair| box=pair[0]; m=pair[1]; box.add; begin; box.items.push(\"bad\"); rescue; nil; end; begin; m.captures.push(\"bad\"); rescue; nil; end; [box.items,m.captures] }; end").unwrap();
     common::scope(|scope| {
         let jobs: Vec<_> = (0..4)
             .map(|_| scope.spawn(|| script.call("run", &[], opts.clone()).unwrap()))
@@ -633,23 +629,30 @@ fn foreign_block_arguments_keep_their_program_types_and_isolated_state() {
             assert_eq!(job.join().unwrap().value.to_string(), "[[1, 2], []]");
         }
     });
-    let check = common::gradual_engine()
-        .compile("def run(pair); pair[0].items; end")
-        .unwrap();
     assert_eq!(
-        check
-            .call("run", &[input], CallOptions::default())
+        script
+            .call("first_items", &[input], placeholder.clone())
             .unwrap()
             .value
             .to_string(),
         "[1]"
+    );
+    // A narrowed instance keeps its class's field types.
+    let source = format!(
+        "{BOX}; def run -> any; visit {{ |pair| pair.as(array<any>).fetch(0).as(Box).items.push(\"bad\") }}; end"
+    );
+    let error = declared(&placeholder).compile(&source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0101"]);
+    assert_eq!(
+        error.diagnostics()[0].span.start,
+        source.find("\"bad\"").unwrap()
     );
 }
 
 #[test]
 fn block_capability_methods_cannot_be_detached_or_regranted() {
     // A bare method is a call, so a method requiring a block refuses it.
-    for body in ["host::once", "host.once(host::once) { 1 }"] {
+    for body in ["host.once", "host.once(host.once) { 1 }"] {
         assert_eq!(
             run(body, options(&Trace::default())).unwrap_err().kind,
             ErrorKind::Argument,
