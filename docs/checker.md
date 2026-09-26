@@ -71,6 +71,7 @@ Two diagnostics are warnings, which do not stop compilation: `V0121`, a nil test
 | `V0120` | `cast` | A checked cast or `is_type?` can never succeed for the value's type. |
 | `V0121` | `unreachable-narrowing` | A nil test or type test on a value whose type already decides it. |
 | `V0201` | `undefined-name` | A name does not refer to a local, function, constant or type in scope. |
+| `V0122` | `tuple-mutation` | A mutation could change a tuple's length or positional element types. |
 | `V0202` | `unassigned-local` | A local is read where it is not assigned on every path. |
 | `V0203` | `unknown-member` | A type has no member with this name. |
 | `V0204` | `undeclared-ivar` | An instance variable is read or assigned without a declaration. |

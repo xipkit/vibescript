@@ -192,3 +192,40 @@ fn conversions_and_string_selectors_match_the_runtime() {
         Some(b"Draft".as_slice())
     );
 }
+
+#[test]
+fn tuple_mutations_preserve_length_and_positional_types() {
+    let source = "pair: [int, string] = [1, 's']; pair[-1] = 't'; pair[0] += 1; pair";
+    clean(source);
+    assert_eq!(
+        vibescript::Engine::new()
+            .compile(source)
+            .unwrap()
+            .run(Default::default())
+            .unwrap()
+            .value
+            .to_string(),
+        "[2, t]"
+    );
+    for call in [
+        "push(2)",
+        "pop",
+        "clear",
+        "prepend(2)",
+        "shift",
+        "insert(0, 2)",
+        "fill(2)",
+    ] {
+        codes(
+            &format!("pair: [int, int] = [1, 2]; pair.{call}"),
+            &["V0122"],
+        );
+    }
+    codes("pair: [int, string] = [1, 's']; pair[-1] = 2", &["V0101"]);
+    codes("pair: [int, int] = [1, 2]; pair[2] = 3", &["V0122"]);
+    codes(
+        "pair: [int, string] = [1, 's']; i = 0; pair[i] = 't'",
+        &["V0122"],
+    );
+    clean("pair: [int, int] = [1, 2]; list: array<int> = pair; list.push(3)");
+}

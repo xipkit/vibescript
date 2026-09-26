@@ -1301,15 +1301,30 @@ impl<'a> Checker<'a> {
                 }
                 Some(element)
             }
-            (Kind::Tuple(items), [selector]) => match int_literal(selector) {
-                Some(index) => items.get(index.max(0) as usize).copied(),
-                None => {
+            (Kind::Tuple(items), [selector]) => {
+                let element = int_literal(selector).and_then(|index| {
+                    let index = if index < 0 {
+                        items.len() as i64 + index
+                    } else {
+                        index
+                    };
+                    usize::try_from(index)
+                        .ok()
+                        .and_then(|index| items.get(index))
+                        .copied()
+                });
+                if element.is_none() {
                     if evaluate {
                         self.expr(selector, None);
                     }
-                    Some(self.types.union(&items))
+                    self.report(Diagnostic::error(
+                        Code::TUPLE_MUTATION,
+                        self.spans.expr(selector),
+                        "a tuple write needs a literal index of one of its fixed elements",
+                    ));
                 }
-            },
+                element
+            }
             (Kind::Hash(value), [selector]) => {
                 if evaluate {
                     let key = self.expr(selector, Some(Ty::STRING));
