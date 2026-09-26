@@ -298,8 +298,8 @@ reminder = 5.minutes.ago          # five minutes before now, in UTC
 
 ## Removed spellings
 
-These names still run until the static language is the default, but do not
-compile with static types. Each has one replacement.
+These names do not compile; the compiler reports each with its one
+replacement.
 
 - `mon` – removed; use `month`.
 - `mday` – removed; use `day`.

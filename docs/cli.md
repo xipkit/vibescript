@@ -264,7 +264,7 @@ Diagnostics and parse errors name inline source `<eval>`; diagnostics from requi
 
 ### Required modules
 
-The flat form searches the input file's directory first for calls such as `require(:helpers)`; for inline source, the process working directory is searched first instead. Repeatable `--module-path DIR` options append search roots in the order supplied. Relative option paths are resolved from the process working directory; the script directory remains first even when the command runs elsewhere. Duplicate directories are collapsed after resolving links, and missing paths or ordinary files are rejected before execution.
+The flat form searches the input file's directory first for calls such as `require("helpers")`; for inline source, the process working directory is searched first instead. Repeatable `--module-path DIR` options append search roots in the order supplied. Relative option paths are resolved from the process working directory; the script directory remains first even when the command runs elsewhere. Duplicate directories are collapsed after resolving links, and missing paths or ordinary files are rejected before execution.
 
 ```sh
 vibes --module-path shared --module-path vendor app/main.vibe

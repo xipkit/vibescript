@@ -374,8 +374,7 @@ identifier and inspecting each value, in insertion order:
 
 ## Removed spellings
 
-These still run until the static language becomes the default, but they do not
-compile with static types.
+These do not compile; the compiler reports each with its replacement.
 
 - `size` – removed; use `length`.
 - `has_key?`, `member?` and `include?` – removed; use `key?`.

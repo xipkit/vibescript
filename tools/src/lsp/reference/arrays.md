@@ -609,8 +609,7 @@ render elements as text.
 
 ## Removed spellings
 
-These names still run until the static language becomes the default, but they
-do not compile with static types.
+These names do not compile; the compiler reports each with its replacement.
 
 - `size` – removed; use `length`.
 - `count` without an argument or block – removed; use `length`.

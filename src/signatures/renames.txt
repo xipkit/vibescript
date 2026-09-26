@@ -1,8 +1,8 @@
 # Removed spellings and what replaces them (ADR-008).
 #
-# The signature table lists only canonical names. Every other spelling the
-# runtime still accepts is listed here, and the migration rewrites each call
-# with its entry. Lines have the form
+# The signature table lists only canonical names. Every removed spelling is
+# listed here, and the compiler reports each call with its entry, offering
+# its rewrite as a fix. Lines have the form
 #
 #   receiver: pattern => replacement
 #

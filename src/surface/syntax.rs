@@ -62,7 +62,7 @@ pub enum StmtKind {
     Def(Box<Def>),
     Class(Box<Class>),
     Enum(Enum),
-    /// A declaration this migration leaves alone, such as an alias.
+    /// A declaration the rules leave alone, such as an alias.
     Other,
 }
 

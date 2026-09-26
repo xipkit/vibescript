@@ -195,8 +195,8 @@ reminder["remind_at"].iso8601  # "2025-01-15T09:30:00Z"
 
 ## Removed spellings
 
-These names still run until the static language is the default, but do not
-compile with static types. Each has one replacement.
+These names do not compile; the compiler reports each with its one
+replacement.
 
 - `seconds`, `second` – removed; use `to_i`, the total number of seconds.
 - `minute` – removed; use `minutes`.

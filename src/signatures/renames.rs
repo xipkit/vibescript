@@ -65,11 +65,11 @@ impl Rename {
 
 const RENAMES: &str = include_str!("renames.txt");
 
-/// Every removed spelling the runtime still accepts, in file order.
+/// Every removed spelling, in file order.
 ///
 /// Each entry names the receiver, the removed name, the call pattern it
-/// applies to and the replacement, so the migration and the compiler's fixes
-/// rewrite the same spellings the signature table leaves out.
+/// applies to and the replacement, which the compiler's diagnostics and
+/// fixes use for the spellings the signature table leaves out.
 ///
 /// ```
 /// let size = vibescript::signatures::renames()
