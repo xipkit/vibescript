@@ -148,8 +148,9 @@ fix adds them.
 Hashes are read by index only. A field never answers a dot, so it cannot
 shadow a member, and `h.as(T)` is always the cast. `h.name` on a hash or shape
 is reported with the fix `h["name"]` wherever the receiver's static type is a
-hash. Without static types, the runtime reads fields with a dot until the
-switchover.
+hash. The runtime reads a field with a dot only on a namespace, such as a
+builtin module, a required module's exports, a rescued error, match data or a
+host capability, and never writes one.
 
 ### Diagnostics
 

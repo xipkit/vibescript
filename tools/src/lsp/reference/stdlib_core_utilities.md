@@ -10,9 +10,9 @@ The narrative guides ([strings.md](strings.md), [arrays.md](arrays.md),
 [builtins.md](builtins.md)) explain idioms in depth; this page favors compact
 signatures and one-line descriptions.
 
-Each section ends with the removed spellings its type still answers at runtime.
-They do not compile with static types: the checker reports each one with the
-rewrite shown here, and `vibes fix` applies it.
+Each section ends with the removed spellings of its type. They do not compile:
+the checker reports each one with the rewrite shown here, and `vibes fix`
+applies it.
 
 ## How to Read Signatures
 

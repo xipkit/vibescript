@@ -45,6 +45,6 @@ end
 account.balance # 15
 ```
 
-`vibes migrate` rewrites a `send` whose name is a literal into the direct call and reports the others. Capability methods that happen to be named `send`, such as `sms.send(...)`, are ordinary calls and are unaffected.
+Each is reported as V0405; `vibes fix` rewrites a `send` or `public_send` whose name is a symbol literal into the direct call. Capability methods that happen to be named `send`, such as `sms.send(...)`, are ordinary calls and are unaffected.
 
-The runtime keeps the removed helpers only for the ADR-004 language that `vibes migrate` compiles, until that support is removed: `send` reaches private and protected methods, `public_send` keeps explicit-receiver visibility, and both pass the remaining arguments, keywords and block to the selected method. The [reference differences](forwarding-differences.json) recorded while porting them remain part of the `compatibility` golden corpus.
+The [reference differences](forwarding-differences.json) recorded while porting them remain part of the `compatibility` golden corpus.
