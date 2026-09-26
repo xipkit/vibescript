@@ -131,7 +131,7 @@ fn block_destructuring_charges_its_copy_before_entering_the_body() {
 fn block_errors_and_cancellation_prevent_later_host_calls() {
     let calls = Arc::new(AtomicUsize::new(0));
     let seen = calls.clone();
-    let mut engine = common::runtime_engine();
+    let mut engine = vibescript::Engine::new();
     engine.register("tick", move |_, _| {
         seen.fetch_add(1, Ordering::SeqCst);
         Ok(Value::int(1))
@@ -141,9 +141,8 @@ fn block_errors_and_cancellation_prevent_later_host_calls() {
         Ok(Value::nil())
     });
     for (source, kind) in [
-        ("block_given?(tick())", ErrorKind::Argument),
         (
-            "def zero(&block: () -> any) -> any\nyield\nend\nzero {cancel();tick()}",
+            "def zero(&block: () -> any) -> any\nyield\nend\nzero {cancel; tick}",
             ErrorKind::Cancelled,
         ),
         (
@@ -163,10 +162,14 @@ fn block_errors_and_cancellation_prevent_later_host_calls() {
         );
         assert_eq!(calls.load(Ordering::SeqCst), 0);
     }
-    // A yield without a declared block and a call of a missing function
-    // are refused before anything runs.
-    for (source, code) in [("yield tick()", "V0308"), ("missing {tick()}", "V0201")] {
-        let mut engine = common::static_engine();
+    // Arguments to `block_given?`, a yield without a declared block and a
+    // call of a missing function are refused before anything runs.
+    for (source, code) in [
+        ("block_given?(tick)", "V0301"),
+        ("yield tick", "V0308"),
+        ("missing {tick}", "V0201"),
+    ] {
+        let mut engine = vibescript::Engine::new();
         engine.register("tick", |_, _| panic!("tick ran"));
         let error = engine.compile(source).err().unwrap();
         assert_eq!(common::codes(&error), [code], "{source}");
