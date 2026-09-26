@@ -495,23 +495,29 @@ pub trait Rules<'a>: Hooks<'a> {
 
     /// Rewrites a call written with `::`, such as `JSON::parse(x)` or
     /// `Pricing::with_tax(1)`, with a dot: `::` names only constants,
-    /// nested types and enum members, which are capitalized and take no
-    /// arguments.
+    /// nested types and enum members, which take no arguments.
     fn scoped_call(&mut self, call: &'a Call) {
         let (Some(receiver), Some(operator)) = (&call.receiver, call.operator) else {
             return;
         };
+        if !call.scoped(self.tokens) {
+            return;
+        }
+        // Arguments without parentheses do not make a scoped name a call.
+        let command = call.args.as_ref().is_some_and(|args| args.parens.is_none());
+        let called = call.args.is_some() || call.block.is_some();
         let lowercase = call
             .name
             .chars()
             .next()
             .is_some_and(|c| c == '_' || c.is_lowercase());
-        // Arguments without parentheses do not make a scoped name a call.
-        let command = call.args.as_ref().is_some_and(|args| args.parens.is_none());
-        if !call.scoped(self.tokens)
-            || command
-            || (!lowercase && call.args.is_none() && call.block.is_none())
-        {
+        // A lowercase name may still be an enum member, and an enum member
+        // written with arguments is refused as it is, so only a
+        // namespace's or a value's name is a call. `Hash::new` has a rule of
+        // its own.
+        let hash_new =
+            call.name == "new" && matches!(&receiver.kind, ExprKind::Name(name) if name == "Hash");
+        if command || hash_new || !((called || lowercase) && self.scopes_functions(receiver)) {
             return;
         }
         let span = self.token_span(operator);
@@ -524,6 +530,22 @@ pub trait Rules<'a>: Hooks<'a> {
         let previous = self.enter(Rule::ScopedCall, span, removed, advice);
         self.edits.text(span, ".");
         self.leave(previous);
+    }
+
+    /// Whether a name after `receiver::` can only be a function: the receiver
+    /// is a builtin namespace, a class or module the source declares, or a
+    /// local or call that may hold one, but not an enum, which may be
+    /// lowercase, a type the source does not declare or a literal.
+    fn scopes_functions(&self, receiver: &'a Expr) -> bool {
+        let capitalized = |name: &str| name.chars().next().is_some_and(char::is_uppercase);
+        match &receiver.kind {
+            ExprKind::Name(name) if capitalized(name) => {
+                namespace_name(name) || self.declared.classes.contains_key(name.as_str())
+            }
+            ExprKind::Name(name) => !self.declared.enums.contains_key(name.as_str()),
+            ExprKind::Call(call) => !capitalized(&call.name),
+            _ => false,
+        }
     }
 
     /// Rewrites symbols naming a required module as strings, and reports a

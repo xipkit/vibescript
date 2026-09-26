@@ -109,6 +109,17 @@ mod scoped_calls {
         clean(
             "class Outer\n  LIMIT = 3\n  class Inner\n  end\nend\nenum Status\n  Draft\nend\nlimit = Outer::LIMIT\nstatus = Status::Draft\npi = Math::PI\ninner = Outer::Inner.new\n",
         );
+        // An enum member may be lowercase, so only a namespace's name
+        // without arguments is a call.
+        clean("enum Kind\n  enum\n  Other\nend\nkind = Kind::enum\n");
+        clean("enum _state\n  aBC\nend\nname = _state::aBC.name\n");
+        codes(
+            "enum Kind\n  Other\nend\nkind = Kind::missing\n",
+            &[Code::UNKNOWN_ENUM_MEMBER],
+        );
+        let source = "module Box\n  def self.size -> int\n    1\n  end\nend\nn = Box::size\n";
+        let found = codes(source, &[Code::SCOPED_CALL]);
+        assert!(fixed(source, &found[0]).ends_with("n = Box.size\n"));
     }
 
     #[test]
