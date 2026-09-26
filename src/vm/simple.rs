@@ -26,7 +26,7 @@ pub(super) fn run(
         match function.code[frame.ip] {
             Op::Nil => {
                 step(ctx, frame)?;
-                stack.push(ctx, Value::nil())?;
+                push(ctx, stack, Value::nil())?;
             }
             Op::Pop => {
                 step(ctx, frame)?;
@@ -35,12 +35,12 @@ pub(super) fn run(
             Op::Dup => {
                 step(ctx, frame)?;
                 let value = copy(stack.data.last().unwrap());
-                stack.push(ctx, value)?;
+                push(ctx, stack, value)?;
             }
             Op::Constant(n) => {
                 step(ctx, frame)?;
                 let value = ctx.import(&program.constants[n])?;
-                stack.push(ctx, value)?;
+                push(ctx, stack, value)?;
             }
             Op::Load(n) => {
                 let Some(slot) = own(function, frame, storage, n) else {
@@ -56,7 +56,7 @@ pub(super) fn run(
                 if let Kind::Builtin(builtin) = value.0 {
                     value = builtin.read(ctx)?;
                 }
-                stack.push(ctx, value)?;
+                push(ctx, stack, value)?;
             }
             Op::LoadOptional(n, _, _) => {
                 let Some(value) = storage.locals.data[frame.local_base + n].as_ref() else {
@@ -71,7 +71,7 @@ pub(super) fn run(
                 } else {
                     copy(value)
                 };
-                stack.push(ctx, value)?;
+                push(ctx, stack, value)?;
             }
             Op::ReceiverBound(n, next) => {
                 let Some(value) = storage.locals.data[frame.local_base + n].as_ref() else {
@@ -79,7 +79,7 @@ pub(super) fn run(
                 };
                 step(ctx, frame)?;
                 let value = copy(value);
-                stack.push(ctx, value)?;
+                push(ctx, stack, value)?;
                 frame.ip = next;
             }
             Op::Declare(n) => {
@@ -121,7 +121,7 @@ pub(super) fn run(
                     address::refresh(ctx, slot, &value, &mut storage.addresses.data, &[])?;
                 }
                 store(storage, slot, copy(&value));
-                stack.push(ctx, value)?;
+                push(ctx, stack, value)?;
             }
             Op::Binary(op) => {
                 if !plain_operand(stack) {
@@ -138,7 +138,7 @@ pub(super) fn run(
                     }
                     None => ops::binary(ctx, op, a, b)?,
                 };
-                stack.push(ctx, value)?;
+                push(ctx, stack, value)?;
             }
             Op::Index(n) => {
                 // Exported values need their depth checked after indexing.
@@ -267,6 +267,16 @@ fn iterate(ctx: &mut CallContext, frame: &mut Frame, stack: &mut Buffer<Value>) 
         frame.ip = state.end;
     }
     Ok(())
+}
+
+/// Pushes onto the operand stack, growing it out of line only when full.
+#[inline(always)]
+fn push(ctx: &mut CallContext, stack: &mut Buffer<Value>, value: Value) -> Result<()> {
+    if stack.data.len() < stack.data.capacity() {
+        stack.data.push(value);
+        return Ok(());
+    }
+    stack.push(ctx, value)
 }
 
 /// Moves past the current instruction and charges its step, as dispatch does.
