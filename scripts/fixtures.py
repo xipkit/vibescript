@@ -121,6 +121,25 @@ def benchmark_cases():
     raw=json.dumps(rows,ensure_ascii=False,separators=(",",":"),sort_keys=True)
     expected=json.dumps({"total":sum(row["score"] for row in rows),"count":len(rows)},separators=(",",":"))
     add("json_transform",'rows=JSON.parse_as(input, array<{ active: bool, id: int, name: string, score: int }>)\ni=0\ntotal=0\nwhile i<rows.length\n total+=rows.fetch(i)["score"]\n i+=1\nend\nJSON.stringify({total:total,count:rows.length})',raw,expected,returns="string",param="string")
+    # Loops: numeric work, blocks, member calls and string building.
+    add("loop_float","x=0.0\ni=0\nwhile i<input\n x=x*0.5+1.25\n i+=1\nend\nx",1000,2.5,returns="float",param="int")
+    add("loop_range","total=0\nfor i in 1..input\n total+=i*i%7\nend\ntotal",1000,sum(i*i%7 for i in range(1,1001)),returns="int",param="int")
+    add("loop_branches","i=0\nhits=0\nwhile i<input\n if i%3==0 && i != 9\n  hits+=1\n elsif i>900\n  hits+=2\n end\n i+=1\nend\nhits",1000,sum(1 if i%3==0 and i!=9 else 2 if i>900 else 0 for i in range(1000)),returns="int",param="int")
+    add("array_each","total=0\ninput.each { |n| total+=n }\ntotal",list(range(1000)),499500,returns="int",param="array<int>")
+    add("array_map_select","input.map { |n| n*3 }.select { |n| n%2==0 }.length",list(range(1000)),500,returns="int",param="array<int>")
+    add("nested_blocks","total=0\ninput.each { |a|\n input.each { |b| total+=a*b }\n}\ntotal",list(range(32)),sum(range(32))**2,returns="int",param="array<int>")
+    add("block_yield","",500,500000,source="def twice(n: int, &block: int -> int) -> int\n yield(n)+yield(n+1)\nend\n"+function("i=0\ntotal=0\nwhile i<input\n total+=twice(i) { |x| x*2 }\n i+=1\nend\ntotal","int","int"))
+    add("method_calls","",500,124750,source="class Counter\n @count: int = 0\n def add(n: int) -> int\n  @count+=n\n  @count\n end\nend\n"+function("c=Counter.new\ni=0\nwhile i<input\n c.add(i)\n i+=1\nend\nc.add(0)","int","int"))
+    words=[("a" if i%2==0 else "b")+f"word{i}" for i in range(256)]
+    add("member_calls",'total=0\ninput.each { |w|\n if w.start_with?("a") && !w.empty?\n  total+=w.length\n end\n}\ntotal',words,sum(len(w) for w in words if w.startswith("a")),returns="int",param="array<string>")
+    add("string_build",'parts: array<string> = []\ni=0\nwhile i<input\n parts << "item-#{i}"\n i+=1\nend\nparts.join(",").length',500,len(",".join(f"item-{i}" for i in range(500))),returns="int",param="int")
+    add("string_concat",'s=""\ni=0\nwhile i<input\n s+="ab"\n i+=1\nend\ns.length',500,1000,returns="int",param="int")
+    # Records: field reads and writes, building and retaining shapes.
+    records=[{"id":i,"name":f"r{i}","score":i*3,"active":i%2==0} for i in range(256)]
+    add("record_fields",'total=0\ninput.each { |r|\n if r["active"]\n  total+=r["score"]\n end\n}\ntotal',records,sum(r["score"] for r in records if r["active"]),returns="int",param="array<{ id: int, name: string, score: int, active: bool }>")
+    add("record_update",'acc={ count: 0, total: 0 }\ni=0\nwhile i<input\n acc["count"]+=1\n acc["total"]+=i\n i+=1\nend\nacc["total"]+acc["count"]',1000,499500+1000,returns="int",param="int")
+    add("record_build",'rows: array<{ id: int, score: int, label: string }> = []\ni=0\nwhile i<input\n rows << { id: i, score: i*3, label: "r" }\n i+=1\nend\ntotal=0\nrows.each { |r| total+=r["score"] }\ntotal',1000,3*499500,returns="int",param="int")
+    add("records_retained",'rows: array<{ id: int, name: string, active: bool }> = []\ni=0\nwhile i<input\n rows << { id: i, name: "row", active: i%2==0 }\n i+=1\nend\nrows',512,[{"id":i,"name":"row","active":i%2==0} for i in range(512)],returns="array<{ id: int, name: string, active: bool }>",param="int")
     for name,path,function_name,arg,expected in [
         ("upstream_fibonacci","examples/control_flow/recursion.vibe","fibonacci",12,144),
         ("upstream_countdown","examples/control_flow/while_loop.vibe","countdown",50,list(range(50,0,-1))),

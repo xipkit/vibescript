@@ -14,7 +14,7 @@ To check or re-record only affected cases, pass `--cases FILE`, where the JSON f
 
 | Corpus | Cases | Sources |
 | --- | ---: | --- |
-| `conformance` | 1,248 | generated cases in `scripts/fixtures.py` and the host-binding, required-file, capability, block and signature generators; the site and upstream programs; the benchmark cases |
+| `conformance` | 1,278 | generated cases in `scripts/fixtures.py` and the host-binding, required-file, capability, block and signature generators; the site and upstream programs; the benchmark cases |
 | `language` | 106,389 | `tests/language.json` |
 | `rejections` | 33,125 | runtime errors in `tests/language-errors.json` and compile errors in `tests/syntax-errors.json`, and the static rejections among them that carry a `static_error` |
 | `compatibility` | 219 | the selected differences from Go: `docs/compatibility-cases.json`, the generators' policy cases and the sources in `docs/*-differences.json` and `docs/computed-call-gaps.json` |
