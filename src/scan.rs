@@ -16,6 +16,13 @@ pub(crate) fn ordinary(b: u8, class: Class) -> bool {
 }
 
 pub(crate) fn prefix(s: &[u8], class: Class) -> usize {
+    #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
+    if s.len() == 16 {
+        // SAFETY: this input is exactly one full vector on a baseline target.
+        if unsafe { vector_clean(s, class) } {
+            return 16;
+        }
+    }
     if s.is_empty() || !ordinary(s[0], class) {
         return 0;
     }
@@ -182,6 +189,9 @@ unsafe fn vector_clean(s: &[u8], class: Class) -> bool {
     // SAFETY: caller supplies a full vector on a NEON target.
     unsafe {
         let v = vld1q_u8(s.as_ptr());
+        if matches!(class, Class::Ascii) {
+            return vmaxvq_u8(v) < 128;
+        }
         let mut bad = vcgeq_u8(v, vdupq_n_u8(128));
         if !matches!(class, Class::Ascii) {
             bad = vorrq_u8(bad, vcltq_u8(v, vdupq_n_u8(32)));
