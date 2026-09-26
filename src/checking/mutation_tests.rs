@@ -81,6 +81,8 @@ fn mutation_results_and_receivers_contain_runtime_values() {
                     .unwrap();
                 assert!(!inferred.unsupported, "{receiver:?}.{method:?}({args:?})");
                 let mut runtime = CallContext::new(CallOptions::default());
+                // The gradual checker models the ADR-004 language, which pads.
+                runtime.legacy = true;
                 match crate::mutate::call(&mut runtime, method, "", receiver.clone(), &args) {
                     Ok(actual) => {
                         contains(&mut ctx, &mut facts, inferred, actual);

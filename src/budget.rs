@@ -161,6 +161,10 @@ impl Drop for Charge {
 pub struct CallContext {
     pub(crate) options: CallOptions,
     pub(crate) strict_effects: bool,
+    /// Whether the call runs code in the ADR-004 language, compiled by an
+    /// engine from [`crate::Engine::legacy_unchecked`], whose `fill` and
+    /// `insert` pad past the end of an array with nil.
+    pub(crate) legacy: bool,
     memory: Arc<Memory>,
     steps: u64,
     exhausted: Option<Error>,
@@ -191,6 +195,7 @@ impl CallContext {
         Self {
             options,
             strict_effects: false,
+            legacy: false,
             memory: Arc::new(Memory::default()),
             steps: 0,
             exhausted: None,

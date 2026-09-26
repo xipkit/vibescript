@@ -70,7 +70,8 @@ fn shrinking_collections_release_removed_storage_and_excess_capacity() {
 #[test]
 fn mutators_check_expansion_and_scan_limits() {
     for (source, expected) in [
-        ("[0].insert(9223372036854775807,1)", ErrorKind::Memory),
+        // Inserting past the end raises instead of padding (ADR-008).
+        ("[0].insert(9223372036854775807,1)", ErrorKind::Argument),
         ("[0].fill(1,9223372036854775807,1)", ErrorKind::Arithmetic),
         ("[0].fill(1,0..9223372036854775807)", ErrorKind::Arithmetic),
         ("s=\"a\"*8192\ns.prepend(s,s)", ErrorKind::Memory),

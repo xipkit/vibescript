@@ -55,7 +55,10 @@ pub(crate) fn call(
                 } else {
                     index
                 };
-                if at < 0 {
+                // Inserting past the end would pad the gap with nil, which
+                // the array's element type may exclude (ADR-008); only the
+                // ADR-004 language pads.
+                if at < 0 || (at > array.buffer.data.len() as i128 && !ctx.legacy) {
                     return Err(argument(&format!(
                         "array.insert index {index} out of range"
                     )));
@@ -209,7 +212,31 @@ fn remove_end(
     Ok((receiver.keep_array_range(ctx, start, end)?, removed))
 }
 
+/// The window `array.fill` overwrites, from its start and length or range
+/// arguments, as the start and end of the window and the length of the
+/// result, which is the array's own: a window past the end raises instead
+/// of padding the gap with nil, which the element type may exclude
+/// (ADR-008). Only the ADR-004 language pads.
 pub(crate) fn fill_span(
+    ctx: &mut CallContext,
+    args: &[Value],
+    length: usize,
+) -> Result<(usize, usize, usize)> {
+    let (start, end, grown) = fill_window(ctx, args, length)?;
+    if grown > length && !ctx.legacy {
+        return Err(match args.first() {
+            Some(Value(Kind::Range(range))) => {
+                crate::collections::range_out_of_range("fill", range)
+            }
+            _ => argument(&format!(
+                "array.fill window {start}...{end} is past the end of the array (length {length})"
+            )),
+        });
+    }
+    Ok((start, end, grown))
+}
+
+fn fill_window(
     ctx: &mut CallContext,
     args: &[Value],
     length: usize,

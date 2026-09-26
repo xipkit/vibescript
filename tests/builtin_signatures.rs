@@ -604,6 +604,10 @@ const EXPECTED: &[(&str, &str)] = &[
     ("float.clamp", "min must be <= max"),
     ("float.clamp", "must not be NaN"),
     ("string.insert", "out of string"),
+    // `fill` and `insert` past the end raise instead of padding with nil.
+    ("array.fill", "past the end of the array"),
+    ("array.fill", "out of range"),
+    ("array.insert", "out of range"),
     ("match_data.begin", "capture index out of bounds"),
     ("match_data.end", "capture index out of bounds"),
     // At least one part is required.
@@ -619,26 +623,6 @@ const EXPECTED: &[(&str, &str)] = &[
     ("array.dig", "hash keys must be strings or symbols"),
     ("hash.dig", "hash keys must be strings or symbols"),
 ];
-
-/// Members whose results the language defines differently from today's
-/// runtime: `fill` and `insert` past the end raise instead of padding with
-/// nil. The canonical calls are spelled like today's, so no call shape can
-/// select the new behaviour; the switchover changes the runtime, and until
-/// then a padded result is accepted.
-const PADDING: &[&str] = &["array.fill", "array.insert"];
-
-/// Whether `value` is the declared array result padded with nil.
-fn padded(path: &str, value: &Value, result: &Type) -> bool {
-    let Type::Name(_, args) = result else {
-        return false;
-    };
-    PADDING.contains(&path)
-        && value.as_array().is_some_and(|items| {
-            items
-                .iter()
-                .all(|item| item.type_name() == "nil" || satisfies(item, &args[0]))
-        })
-}
 
 fn expected(path: &str, error: &Error) -> bool {
     EXPECTED
@@ -656,7 +640,7 @@ fn check(harness: &Harness, call: &Call, problems: &mut Vec<String>) {
     };
     match &outcome.result {
         Ok(value) => {
-            if !satisfies(value, &call.result) && !padded(&call.path, value, &call.result) {
+            if !satisfies(value, &call.result) {
                 problems.push(format!(
                     "{}\n    returned {} ({}), declared {}",
                     call.source,

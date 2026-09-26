@@ -40,7 +40,7 @@ fn block_mutations_publish_after_the_last_callback() {
     }
     // `fill` takes no block now.
     let source = "a=[1,2,3];seen: array<array<int>> = [];a.fill {|i|seen.push(a);i+7};[seen,a]";
-    let error = common::static_engine().compile(source).err().unwrap();
+    let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0301", "V0305"]);
     assert_eq!(
         error.diagnostics()[0].span.start,
@@ -83,8 +83,9 @@ fn mutable_blocks_preserve_host_inputs_across_calls() {
 }
 
 #[test]
-fn fill_growth_observes_steps_before_reserving_the_complete_gap() {
-    // Filling past the end pads the gap until ADR-008's switchover.
+fn fill_past_the_end_raises_before_reserving_a_gap() {
+    // Filling past the end raises instead of padding the gap with nil
+    // (ADR-008), so nothing is reserved or counted for the gap.
     let error = Engine::new()
         .compile("[1].fill(7,1000000000,0)")
         .unwrap()
@@ -97,10 +98,14 @@ fn fill_growth_observes_steps_before_reserving_the_complete_gap() {
             ..CallOptions::default()
         })
         .unwrap_err();
-    assert_eq!(error.kind, ErrorKind::Steps);
+    assert_eq!(error.kind, ErrorKind::Argument);
+    assert_eq!(
+        error.message,
+        "array.fill window 1000000000...1000000000 is past the end of the array (length 1)"
+    );
     // `fill` takes no block now.
     for source in ["[1].fill(1000000000,0) {7}", "[1].fill(0,1000000000) {7}"] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), ["V0305"], "{source}");
         assert_eq!(error.diagnostics()[0].span.start, source.find('{').unwrap());
     }
@@ -109,7 +114,7 @@ fn fill_growth_observes_steps_before_reserving_the_complete_gap() {
 #[test]
 fn staged_fill_results_are_charged_before_later_callbacks() {
     // `fill` takes no block now, so nothing stages its results.
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine.register("allocate", |_, _| panic!("allocate ran"));
     let source = "[1].fill(0,100) {allocate()}";
     let error = engine.compile(source).err().unwrap();
@@ -147,7 +152,7 @@ fn abandoned_mutations_release_addresses_and_staged_results() {
         assert_eq!(output.stats.retained_memory_bytes, 0, "{body}");
     }
     // `fill` takes no block now.
-    let mut checked = common::static_engine();
+    let mut checked = vibescript::Engine::new();
     checked.register("allocate", |_, _| panic!("allocate ran"));
     for body in [
         "a=[1,2];a.fill {|i|return 7 if i==1;allocate()};7",
@@ -166,7 +171,7 @@ fn abandoned_mutations_release_addresses_and_staged_results() {
 #[test]
 fn excessive_fill_depth_stops_before_another_callback() {
     // `fill` takes no block now, so no callback can stage a deep value.
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine.register("deep", |_, _| panic!("deep ran"));
     let source = "[1,2].fill {deep()}";
     let error = engine.compile(source).err().unwrap();

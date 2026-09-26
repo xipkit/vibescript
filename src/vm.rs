@@ -277,6 +277,7 @@ impl Run {
         ctx.enum_rebind.definitions =
             (!code.program.file && !definitions.is_empty()).then(|| definitions.clone());
         ctx.enum_rebind.active = true;
+        ctx.legacy = code.program.legacy;
         globals::validate(ctx)?;
         crate::declared::check_globals(ctx, &code.declared)?;
         let environment = code
