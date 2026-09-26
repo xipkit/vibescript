@@ -424,10 +424,10 @@ fn keyword_parameters_move_after_a_bare_star() {
     );
     // Without a literal default the type is left for a person to declare.
     let fixed = fixed(
-        "def f(a: int, name:, label: nil)\nend\n",
+        "def f(a: int, name:, label: [])\nend\n",
         Code::KEYWORD_PARAMETER,
     );
-    assert_eq!(fixed, "def f(a: int, *, name, label = nil)\nend\n");
+    assert_eq!(fixed, "def f(a: int, *, name, label = [])\nend\n");
     let mut engine = Engine::new();
     engine.set_static_types(true);
     let codes: Vec<Code> = engine
@@ -439,11 +439,16 @@ fn keyword_parameters_move_after_a_bare_star() {
         .map(|d| d.code)
         .collect();
     assert_eq!(codes, [Code::MISSING_PARAMETER_TYPE; 2]);
-    // The canonical forms are left alone.
+    // The canonical forms are left alone, and so are types that could
+    // also be read as defaults: `nil`, and tuples of type names.
     for source in [
         "def f(a: int, *, b: int, c: string? = nil)\nend\n",
         "def f(*items: array<int>, sep: string = \",\")\nend\n",
         "def f(a: int = 1, b: string = \"x\")\nend\n",
+        "def f(x: nil)\nend\n",
+        "def f(x: nil, y: int)\nend\n",
+        "def f(pair: [int, string]) -> int\n  pair[0]\nend\n",
+        "enum E\n  A\nend\ndef f(pair: [E, string?], n: int)\nend\n",
     ] {
         assert!(
             with_code(source, Code::KEYWORD_PARAMETER).is_empty(),

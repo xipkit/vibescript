@@ -27,6 +27,7 @@ pub fn parse(source: &str) -> Result<Tree> {
         message: error.to_string(),
     })?;
     let mut parser = Parser::new(source, tokens);
+    parser.declare_types();
     let body = parser.program()?;
     Ok(Tree {
         tokens: parser.tokens,
@@ -39,6 +40,7 @@ pub fn parse(source: &str) -> Result<Tree> {
 /// per level, so the limit bounds the stack it needs.
 pub fn parse_tokens(source: &str, tokens: &[tooling::Token], limit: usize) -> Result<Tree> {
     let mut parser = Parser::new(source, convert(source, tokens, 0));
+    parser.declare_types();
     parser.limit = limit;
     let body = parser.program();
     // A speculative parse that failed at the limit may have been retried
@@ -191,6 +193,8 @@ struct Parser<'s> {
     limit: usize,
     /// Where the nesting limit was first exceeded.
     too_deep: Option<usize>,
+    /// The type aliases, classes and enums the source declares anywhere.
+    type_names: std::rc::Rc<HashSet<String>>,
 }
 
 /// Parser state that a speculative parse restores.
@@ -232,7 +236,28 @@ impl<'s> Parser<'s> {
             depth: 0,
             limit: usize::MAX,
             too_deep: None,
+            type_names: std::rc::Rc::default(),
         }
+    }
+
+    /// Records the type aliases, classes and enums the source declares, as
+    /// the compiler's parser does, which read as types where a default
+    /// value could also be meant.
+    fn declare_types(&mut self) {
+        let mut names = HashSet::new();
+        for index in 0..self.tokens.len().saturating_sub(2) {
+            let Some(word) = self.word_at(index) else {
+                continue;
+            };
+            if !matches!(word, "type" | "class" | "enum") || !self.ident(index + 1) {
+                continue;
+            }
+            if word == "type" && !self.is_op(index + 2, "=") {
+                continue;
+            }
+            names.insert(self.text(index + 1).to_owned());
+        }
+        self.type_names = std::rc::Rc::new(names);
     }
 
     fn save(&self) -> Saved {
@@ -2008,8 +2033,23 @@ impl<'s> Parser<'s> {
     fn keyword_default(&mut self, parenthesized: bool) -> Result<bool> {
         let peek = self.significant(self.pos);
         Ok(match self.kind_at(peek) {
-            TokenKind::Word if self.text(peek) == "nil" => {
-                !self.is_p(self.significant(peek + 1), '|')
+            // `name: nil` declares a parameter of type nil, as the compiler reads it.
+            TokenKind::Word if self.text(peek) == "nil" => false,
+            // A bracket reads as a tuple type only when every leaf names a type.
+            TokenKind::Punct('[') if !self.tuple_start(peek + 1) => true,
+            TokenKind::Punct('[') => {
+                let saved = self.save();
+                self.pos = peek;
+                let annotation = match self.type_expr(1, false) {
+                    Ok(ty) => {
+                        self.declared_leaves(&ty)
+                            && !self.default_field(&ty)
+                            && self.type_boundary(self.pos - 1, parenthesized)
+                    }
+                    Err(_) => false,
+                };
+                self.restore(saved);
+                !annotation
             }
             TokenKind::Punct('{') => {
                 let saved = self.save();
@@ -2026,6 +2066,36 @@ impl<'s> Parser<'s> {
             _ if self.ident(peek) => self.name_starts_default(peek, parenthesized),
             _ => self.prefix(peek),
         })
+    }
+
+    /// Whether the token at `index` can start a tuple type's first element:
+    /// a builtin type name or a type the source declares.
+    fn tuple_start(&self, index: usize) -> bool {
+        self.word_at(index).is_some_and(|name| self.type_name(name))
+    }
+
+    /// Whether `name` names a builtin type, one of the signature table's
+    /// aliases or a type the source declares.
+    fn type_name(&self, name: &str) -> bool {
+        crate::types::builtin_name(name).is_some()
+            || crate::signatures::alias_type(name).is_some()
+            || self.type_names.contains(name)
+    }
+
+    /// Whether every name in a type is one [`Self::type_name`] accepts, so
+    /// the type cannot also read as a value.
+    fn declared_leaves(&self, ty: &TypeExpr) -> bool {
+        match &ty.kind {
+            TypeKind::Named(tok, arguments) if arguments.is_empty() => {
+                self.type_name(self.text(*tok).trim_end_matches('?'))
+            }
+            TypeKind::Named(_, arguments) => arguments.iter().all(|a| self.declared_leaves(a)),
+            TypeKind::Qualified(_) => false,
+            TypeKind::Shape(fields, _) => fields.iter().all(|(_, f)| self.declared_leaves(f)),
+            TypeKind::Union(options) | TypeKind::Tuple(options) => {
+                options.iter().all(|option| self.declared_leaves(option))
+            }
+        }
     }
 
     fn name_starts_default(&self, peek: usize, parenthesized: bool) -> bool {
@@ -2616,6 +2686,7 @@ impl<'s> Parser<'s> {
         parser.limit = self.limit;
         parser.locals = self.locals.clone();
         parser.declared_it = self.declared_it;
+        parser.type_names = self.type_names.clone();
         parser.lines();
         let expr = parser.line_expr(0).ok();
         parser.lines();

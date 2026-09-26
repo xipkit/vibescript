@@ -596,9 +596,9 @@ impl Parser<'_> {
     pub(super) fn keyword_default(&mut self, parenthesized: bool) -> Result<bool> {
         let peek = self.significant(self.pos);
         let result = match &self.tokens[peek].token {
-            Token::Word(name) if *name == "nil" => {
-                self.tokens[self.significant(peek + 1)].token != Token::P('|')
-            }
+            // `name: nil` declares a parameter of type nil, as `name: T`
+            // does for any type; a nil keyword default is `*, name: T? = nil`.
+            Token::Word(name) if *name == "nil" => false,
             Token::P('{') => {
                 let saved = self.pos;
                 let structural = self.type_structural_error;

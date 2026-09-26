@@ -226,3 +226,46 @@ fn static_types_check_the_new_form_and_reject_the_removed_ones() {
     );
     assert!(engine.compile(&fixed).is_ok());
 }
+
+#[test]
+fn nil_and_tuple_types_after_a_colon_are_positional_parameters() {
+    for (source, call, expected) in [
+        (
+            "def f(x: nil) -> string\n  x.to_s + \"!\"\nend\n",
+            "f(nil)",
+            "!",
+        ),
+        (
+            "def f(pair: [int, string]) -> string\n  pair[1] * pair[0]\nend\n",
+            "f([2, \"ab\"])",
+            "abab",
+        ),
+        (
+            "enum E\n  A\nend\ndef f(pair: [E, string]) -> string\n  pair[0].to_s + pair[1]\nend\n",
+            "f([E::A, \"b\"])",
+            "E::Ab",
+        ),
+    ] {
+        for static_types in [false, true] {
+            let program = format!("{source}def run -> string\n  {call}\nend\n");
+            let mut engine = Engine::new();
+            engine.set_static_types(static_types);
+            let script = engine
+                .compile(&program)
+                .unwrap_or_else(|error| panic!("{source}: {error}"));
+            let result = script.call("run", &[], CallOptions::default()).unwrap();
+            assert_eq!(
+                result.value.as_bytes(),
+                Some(expected.as_bytes()),
+                "{source}"
+            );
+        }
+        let outline = tooling::outline(source).unwrap();
+        let function = outline.items.last().unwrap().function.as_ref().unwrap();
+        assert_eq!(
+            function.params[0].kind,
+            ParameterKind::Positional,
+            "{source}"
+        );
+    }
+}
