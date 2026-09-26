@@ -323,6 +323,7 @@ fn blocks_and_clock_aliases_follow_the_call_contracts() {
         ("Time.now()", "V0412"),
         ("now", "V0401"),
         ("now()", "V0401"),
+        ("now(ignored:1) {unexpected()}", "V0401"),
     ] {
         let error = checked.compile(source).err().unwrap();
         assert_eq!(common::codes(&error), [code], "{source}");
@@ -331,17 +332,25 @@ fn blocks_and_clock_aliases_follow_the_call_contracts() {
     for (source, codes) in [
         ("f=Time::gm;f(2024) {unexpected()}", &["V0416", "V0310"][..]),
         ("f=Time::now;f()", &["V0416", "V0310"]),
+        ("f=Time::now;f", &["V0416"]),
+        ("f=Time::now;f.utc?", &["V0416"]),
+        ("now=Time::now;now.utc?", &["V0416"]),
+        (
+            "def call(f: any) -> any\nf\nend\ncall(Time::now)",
+            &["V0416"],
+        ),
+        (
+            "def call(f: any) -> any\nf.as(time).utc?\nend\ncall(Time::now)",
+            &["V0416"],
+        ),
     ] {
         let error = checked.compile(source).err().unwrap();
         assert_eq!(common::codes(&error), codes, "{source}");
     }
     for source in [
         "Time.now",
-        "f=Time::now;f",
-        "def call(f: any) -> any\nf\nend\ncall(Time::now)",
+        "def call(f: any) -> any\nf\nend\ncall(Time.now)",
     ] {
-        // `::` is refused with static types (V0416) but still runs without.
-        engine.set_static_types(vibescript::STATIC_TYPES_BY_DEFAULT && !source.contains("::"));
         let before = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap();
@@ -357,30 +366,6 @@ fn blocks_and_clock_aliases_follow_the_call_contracts() {
         let timestamp = std::time::Duration::new(seconds as u64, nanos);
         assert!(before <= timestamp && timestamp <= after);
         assert_eq!(result.stats.retained_memory_bytes, 0);
-    }
-    // The static checker does not report the removed `now` when it is
-    // called with a keyword or a block yet, so that call still runs.
-    let result = engine
-        .compile("now(ignored:1) {unexpected()}")
-        .unwrap()
-        .run(CallOptions::default())
-        .unwrap();
-    let text = result.value.as_bytes().unwrap();
-    assert_eq!(text.len(), 20);
-    assert_eq!(text[19], b'Z');
-    for source in [
-        "f=Time::now;f.utc?",
-        "now=Time::now;now.utc?",
-        "def call(f: any) -> any\nf.as(time).utc?\nend\ncall(Time::now)",
-    ] {
-        assert!(
-            engine
-                .compile(source)
-                .unwrap()
-                .run(CallOptions::default())
-                .is_err(),
-            "{source}"
-        );
     }
 }
 
