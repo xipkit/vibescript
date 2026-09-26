@@ -214,11 +214,17 @@ fn check(ctx: &mut CallContext, shape: &Shape, subject: &str, value: &Value) -> 
 /// name is supplied by a global or a capability. Capabilities are checked
 /// as they are bound, by [`check_capability`].
 pub(crate) fn check_globals(ctx: &mut CallContext, declared: &Declarations) -> Result<()> {
-    if declared.is_empty() {
-        return Ok(());
-    }
     let globals = std::mem::take(&mut ctx.options.globals);
     let result = (|| {
+        for name in globals.keys() {
+            ctx.work_bytes(name.len())?;
+            if !declared.contains_key(name) {
+                return Err(Error::new(
+                    ErrorKind::Argument,
+                    format!("undeclared global {name}; declare it on the engine before compiling"),
+                ));
+            }
+        }
         for (name, declaration) in declared {
             ctx.work_bytes(name.len())?;
             if let Some(value) = globals.get(name) {

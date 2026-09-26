@@ -152,6 +152,39 @@ fn namespace_constants_take_precedence_over_declared_globals() {
 }
 
 #[test]
+fn call_entry_rejects_undeclared_globals_before_running_script() {
+    let source = "def answer -> int; 42; end; answer + 1";
+    let script = Engine::new().compile(source).unwrap();
+    for name in ["answer", "Math", "unread"] {
+        let error = script
+            .run(vibescript::CallOptions {
+                globals: [(name.into(), Value::bytes("shadow"))].into(),
+                ..Default::default()
+            })
+            .unwrap_err();
+        assert_eq!(error.kind, vibescript::ErrorKind::Argument);
+        assert!(error.message.contains(&format!("undeclared global {name}")));
+    }
+    assert_eq!(
+        script.run(Default::default()).unwrap().value.as_int(),
+        Some(43)
+    );
+    let mut engine = Engine::new();
+    engine.declare_global("data", "int").unwrap();
+    codes_with(&engine, "data + 1", &[]);
+    codes_with(&engine, "undeclared + 1", &["V0201"]);
+    let result = engine
+        .compile("data + 1")
+        .unwrap()
+        .run(vibescript::CallOptions {
+            globals: [("data".into(), Value::int(5))].into(),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(result.value.as_int(), Some(6));
+}
+
+#[test]
 fn capability_data_is_readable_but_cannot_take_arguments() {
     let engine = engine();
     codes_with(&engine, "SMS.region\n", &[]);
