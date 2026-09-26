@@ -261,15 +261,15 @@ mod tests {
     fn reruns_on_change_and_survives_errors() {
         let scratch = Scratch::new("rerun");
         let script = scratch.0.join("main.vibe");
-        fs::write(&script, "def run()\n  \"first\"\nend\n").unwrap();
+        fs::write(&script, "def run -> string\n  \"first\"\nend\n").unwrap();
         let watching = Watching::start(invocation(&script, &scratch.0));
         wait_for(&watching.out, "first", 1);
-        fs::write(&script, "def run()\n  \"second result\"\nend\n").unwrap();
+        fs::write(&script, "def run -> string\n  \"second result\"\nend\n").unwrap();
         wait_for(&watching.out, "second result", 1);
         wait_for(&watching.status, "change detected, re-running main.vibe", 1);
         fs::write(&script, "def run(\n").unwrap();
         wait_for(&watching.status, "compile failed", 1);
-        fs::write(&script, "def run()\n  \"recovered output\"\nend\n").unwrap();
+        fs::write(&script, "def run -> string\n  \"recovered output\"\nend\n").unwrap();
         wait_for(&watching.out, "recovered output", 1);
         let status = watching.finish();
         assert!(
@@ -283,7 +283,7 @@ mod tests {
     fn reruns_on_module_changes_additions_and_deletions() {
         let scratch = Scratch::new("modules");
         let script = scratch.0.join("main.vibe");
-        fs::write(&script, "def run()\n  \"module watch up\"\nend\n").unwrap();
+        fs::write(&script, "def run -> string\n  \"module watch up\"\nend\n").unwrap();
         fs::create_dir(scratch.0.join("billing")).unwrap();
         let module = scratch.0.join("billing").join("helper.vibe");
         fs::write(&module, "def helper()\n  1\nend\n").unwrap();

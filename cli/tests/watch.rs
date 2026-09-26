@@ -48,7 +48,7 @@ fn wait_for(text: &Arc<Mutex<String>>, want: &str) {
 #[test]
 fn watch_reruns_on_change_and_stops_on_interrupt() {
     let files = Files::new();
-    let script = files.write("main.vibe", "def run()\n  \"first\"\nend\n");
+    let script = files.write("main.vibe", "def run -> string\n  \"first\"\nend\n");
     files.write("helper.vibe", "def helper\n  1\nend\n");
     let mut child = Command::new(VIBES)
         .args(["run", "-watch", &script])
@@ -62,7 +62,7 @@ fn watch_reruns_on_change_and_stops_on_interrupt() {
     wait_for(&stderr, "watching 2 file(s); press ctrl-c to stop\n");
     wait_for(&stdout, "first\n");
     // A distinct size guarantees a new stamp on coarse clocks.
-    fs::write(&script, "def run()\n  \"second result\"\nend\n").unwrap();
+    fs::write(&script, "def run -> string\n  \"second result\"\nend\n").unwrap();
     wait_for(&stdout, "second result\n");
     wait_for(&stderr, "change detected, re-running main.vibe\n");
     fs::write(&script, "def run(\n").unwrap();
