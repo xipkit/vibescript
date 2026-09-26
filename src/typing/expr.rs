@@ -423,6 +423,14 @@ impl<'a> Checker<'a> {
                 hint
             }
             Some((hint, Kind::Array(element))) => {
+                if self.types.has_var(hint) {
+                    let actual: Vec<Ty> = items
+                        .iter()
+                        .map(|item| self.expr(item, Some(element)))
+                        .collect();
+                    let element = self.types.union(&actual);
+                    return self.types.array(element);
+                }
                 for item in items {
                     self.expr_against(item, element, &Purpose::Element);
                 }
@@ -450,6 +458,14 @@ impl<'a> Checker<'a> {
         });
         match hint.map(|hint| (hint, self.types.kind(hint).clone())) {
             Some((hint, Kind::Hash(value))) => {
+                if self.types.has_var(hint) {
+                    let actual: Vec<Ty> = entries
+                        .iter()
+                        .map(|(_, entry)| self.expr(entry, Some(value)))
+                        .collect();
+                    let value = self.types.union(&actual);
+                    return self.types.hash(value);
+                }
                 for (_, entry) in entries {
                     self.expr_against(entry, value, &Purpose::Element);
                 }
