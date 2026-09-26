@@ -487,3 +487,9 @@ while ordinary function and top-level bindings have different lifetimes. The
 static language rejects capitalized assignments inside functions; use lowercase
 locals or explicitly declared class variables. Namespace-body constants keep
 one type across writes.
+
+Capability data members may be assigned and updated through an addressed path.
+Every write keeps the data member's declared type, including `=`, compound
+assignment, appending and index assignment. Methods and nested capability
+namespaces cannot be replaced. Collection updates preserve ADR-006 value
+semantics: a copy previously read from a member is unchanged.

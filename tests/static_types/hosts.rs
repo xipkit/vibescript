@@ -422,3 +422,39 @@ fn nested_method_objects_are_capability_namespaces() {
         prelude
     );
 }
+
+#[test]
+fn capability_data_writes_keep_the_declared_type() {
+    let mut engine = Engine::new();
+    let cap = Capability::from_value(
+        "Cap",
+        Value::object(vec![
+            (b"n".to_vec(), Value::int(1)),
+            (b"items".to_vec(), Value::array(vec![Value::int(1)])),
+            (b"send".to_vec(), signed("send", &[], "string").value()),
+        ]),
+    );
+    engine.declare_capability(&cap).unwrap();
+    let source = "saved = Cap.items; Cap.n = 2; Cap.n += 3; Cap.items = [2]; Cap.items << 3; Cap.items[0] = 4; [Cap.n, Cap.items, saved]";
+    codes_with(&engine, source, &[]);
+    let value = engine
+        .compile(source)
+        .unwrap()
+        .run(vibescript::CallOptions {
+            capabilities: vec![cap],
+            ..Default::default()
+        })
+        .unwrap()
+        .value;
+    assert_eq!(value.to_string(), "[5, [4, 3], [1]]");
+    for source in [
+        "Cap.n = 's'",
+        "Cap.items = ['s']",
+        "Cap.items << 's'",
+        "Cap.items[0] = 's'",
+    ] {
+        codes_with(&engine, source, &["V0101"]);
+    }
+    codes_with(&engine, "Cap.send = 1", &["V0203"]);
+    codes_with(&engine, "Cap.n += 's'", &["V0108"]);
+}

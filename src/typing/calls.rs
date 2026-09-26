@@ -571,6 +571,15 @@ impl<'a> Checker<'a> {
                 ty
             }
             Kind::Nil if matches!(call.name, "==" | "!=") => Ty::BOOL,
+            Kind::Tuple(_) if crate::bytecode::mutating_member(call.name) => {
+                self.report(Diagnostic::error(
+                    Code::TUPLE_MUTATION,
+                    call.name_span,
+                    "tuples have fixed elements; assign an element by its literal index or copy to a declared array before calling a mutating member",
+                ));
+                self.loose_args(call);
+                Ty::ERROR
+            }
             Kind::Any => {
                 if matches!(call.name, "is_type?" | "as" | "==" | "!=") {
                     return self.table_member(call, ty);
@@ -1059,6 +1068,39 @@ impl<'a> Checker<'a> {
         if let (Some(span), false) = (name_span, ty == Ty::ERROR) {
             let receiver_type = ReceiverType::new(self.types.display(ty), self.types.bases(ty));
             self.calls.push((span.start, receiver_type));
+        }
+        if let Kind::Host(index) = self.types.kind(ty).clone() {
+            let module = self.program.host_modules[index as usize];
+            if let Some(crate::signatures::Member::Constant(constant)) =
+                module.members.iter().find(|member| member.name() == name)
+            {
+                let expected = sigs::table_type(&mut self.types, &constant.ty, &[]);
+                if evaluate {
+                    return self.expr_against(value, expected, &Purpose::Operand);
+                }
+                if !self.types.assignable(value_ty, expected) {
+                    self.mismatch(
+                        self.spans.expr(value),
+                        expected,
+                        value_ty,
+                        &Purpose::Operand,
+                    );
+                }
+                return value_ty;
+            }
+            self.report(Diagnostic::error(
+                Code::UNKNOWN_MEMBER,
+                name_span.unwrap_or_else(|| self.spans.expr(expr)),
+                format!(
+                    "{} has no writable data member `{name}`",
+                    self.types.display(ty)
+                ),
+            ));
+            return if evaluate {
+                self.expr(value, None)
+            } else {
+                value_ty
+            };
         }
         let call = Call {
             name: setter,
