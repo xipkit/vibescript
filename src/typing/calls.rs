@@ -907,6 +907,26 @@ impl<'a> Checker<'a> {
         self.report(diagnostic);
     }
 
+    fn removed_scoped_call(&mut self, call: &Call<'a, '_>, rename: &crate::signatures::Rename) {
+        let code = match call.name {
+            "nil?" => Code::NIL_PREDICATE,
+            "eql?" | "equal?" => Code::IDENTITY_EQUALITY,
+            "itself" | "tap" | "yield_self" => Code::IDENTITY_CALL,
+            "send" | "public_send" | "respond_to?" => Code::DISPATCH_BY_NAME,
+            "new" if rename.receiver == "Hash" => Code::HASH_NEW,
+            _ => Code::REMOVED_NAME,
+        };
+        let advice = match &rename.replacement {
+            crate::signatures::Replacement::Manual(hint) => hint.clone(),
+            crate::signatures::Replacement::Rewrite(template) => format!("use `{template}`"),
+        };
+        self.report(Diagnostic::error(
+            code,
+            call.name_span,
+            format!("`{}` was removed; {advice}", call.name),
+        ));
+    }
+
     /// `value.as(T)`: a checked cast of `any` or a union to `T`.
     fn cast(&mut self, call: &Call<'a, '_>, ty: Ty) -> Ty {
         let [arg] = call.args else {
@@ -1053,7 +1073,21 @@ impl<'a> Checker<'a> {
                 }
                 self.dispatch(&call, receiver, ty)
             }
-            _ => self.dispatch(&call, receiver, ty),
+            _ => {
+                let before = self.diagnostics.len();
+                let result = self.dispatch(&call, receiver, ty);
+                // The surface walk leaves scoped calls on literal values alone.
+                // Report a removed member if dispatch otherwise failed silently.
+                if result == Ty::ERROR && self.diagnostics.len() == before {
+                    for base in sigs::bases(&self.types, ty) {
+                        if let Some(rename) = sigs::index().renames.get(&(*base, name)) {
+                            self.removed_scoped_call(&call, rename);
+                            break;
+                        }
+                    }
+                }
+                result
+            }
         }
     }
 

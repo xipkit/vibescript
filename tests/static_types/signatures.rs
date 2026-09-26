@@ -125,6 +125,9 @@ fn type_aliases_are_transparent() {
 fn removed_members_report_their_removal_even_with_wrong_arity() {
     for (source, code) in [
         ("1.nil?(2)", "V0402"),
+        ("(1::nil?(2))", "V0402"),
+        ("(1::freeze)", "V0401"),
+        ("([1]::freeze(2))", "V0401"),
         ("1.eql?", "V0403"),
         ("1.equal?(2, 3)", "V0403"),
         ("1.itself(2)", "V0404"),
