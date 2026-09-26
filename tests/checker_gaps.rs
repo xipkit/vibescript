@@ -60,6 +60,14 @@ fn fixed(source: &str, diagnostic: &Diagnostic) -> String {
     fix.apply(source).expect("the fix applies")
 }
 
+/// An engine without static types, for what the runtime does with a
+/// program the checker rejects.
+fn unchecked() -> Engine {
+    let mut engine = Engine::new();
+    engine.set_static_types(false);
+    engine
+}
+
 /// Runs `source` with static types on and returns the value of `run`.
 #[track_caller]
 fn run(source: &str) -> Result<Value, vibescript::Error> {
@@ -124,7 +132,7 @@ mod scoped_calls {
 
     #[test]
     fn a_scoped_call_still_runs_until_the_switchover() {
-        let value = Engine::new()
+        let value = unchecked()
             .compile("def run -> any\n  JSON::parse(\"[1]\")\nend\n")
             .unwrap()
             .call("run", &[], CallOptions::default())
@@ -175,7 +183,7 @@ end
     /// the runtime's visibility error.
     fn hidden_at_runtime(body: &str) -> bool {
         let source = format!("{CLASS}def run -> any\n  {body}\nend\n");
-        match Engine::new()
+        match unchecked()
             .compile(&source)
             .unwrap()
             .call("run", &[], CallOptions::default())
@@ -229,7 +237,7 @@ end
     fn a_receiver_makes_even_self_explicit() {
         let source = "class Box\n  def run -> int\n    self.secret\n  end\n\n  private def secret -> int\n    1\n  end\nend\n";
         codes(source, &[Code::VISIBILITY]);
-        let error = Engine::new()
+        let error = unchecked()
             .compile(&format!("{source}def run -> int\n  Box.new.run\nend\n"))
             .unwrap()
             .call("run", &[], CallOptions::default())
@@ -353,7 +361,7 @@ mod break_values {
             &format!("{twice}z = twice {{ |n| break }}\n"),
             &[Code::TYPE_MISMATCH],
         );
-        let error = Engine::new()
+        let error = unchecked()
             .compile(&format!(
                 "{twice}def run -> int\n  twice {{ |n| break \"early\" }}\nend\n"
             ))
@@ -640,7 +648,7 @@ mod parse_as_enums {
             "{}",
             found[0].message
         );
-        let error = Engine::new()
+        let error = unchecked()
             .compile(&format!(
                 "{STATUS}def run -> any\n  JSON.parse_as(\"{{}}\", {{ status: Status }})\nend\n"
             ))
@@ -780,7 +788,7 @@ end
             &format!("{prelude}def open(d: Door) -> bool\n  d.open?\nend\n"),
             &[Code::UNKNOWN_TYPE],
         );
-        let mut plain = Engine::new();
+        let mut plain = unchecked();
         plain
             .set_module_config(ModuleConfig {
                 paths: vec![directory.clone()],
