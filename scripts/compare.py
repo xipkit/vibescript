@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Build, validate, and measure compiled calls in Rust, and optionally in Go.
+"""Build, validate, and measure compiled calls in the portable and SIMD Rust builds.
 
-Validation checks every Rust build against the golden corpora and the fixture
-expectations; it does not need Go. --with-go adds the Go v0.70.0 reference
-builds to validation and timing, for benchmark comparisons.
+Validation checks every build against the golden corpora and the fixture
+expectations. --baseline adds preserved builds of an earlier revision to
+validation and timing, for before-and-after comparisons.
 """
 import argparse
 import hashlib
@@ -22,11 +22,8 @@ import golden
 
 ROOT=Path(__file__).resolve().parent.parent
 BINS=ROOT/"benchmarks/bin"
-GO=ROOT/"scripts/go"
 CARGO=ROOT/"scripts/cargo"
-ENV={**os.environ,"GOMAXPROCS":"1"}
-VARIANTS=["go-portable","go-simd","rust-portable","rust-simd"]
-RUST_VARIANTS=["rust-portable","rust-simd"]
+VARIANTS=["rust-portable","rust-simd"]
 # The golden corpora each Rust build is validated against.
 GOLDEN_CORPORA="conformance,language,rejections,compatibility"
 
@@ -35,7 +32,7 @@ def run(cmd,**kwargs):
     return subprocess.run([str(x) for x in cmd],check=True,text=True,**kwargs)
 
 
-def build(out,with_go):
+def build(out):
     BINS.mkdir(parents=True,exist_ok=True)
     with (out/"build.log").open("w") as log:
         for name,features in [("rust-portable",[]),("rust-simd",["simd"]),("rust-portable-alloc",["allocation-stats"]),("rust-simd-alloc",["simd","allocation-stats"])]:
@@ -48,15 +45,12 @@ def build(out,with_go):
             if features: cmd += ["--features",",".join(features)]
             run(cmd,cwd=ROOT,stdout=log,stderr=log)
             shutil.copy2(ROOT/"target/release/examples/golden",BINS/name)
-        if with_go:
-            for name,experiment in [("go-portable",""),("go-simd","simd")]:
-                run([GO,"build","-o",BINS/name,"."],cwd=ROOT/"benchmarks/go",env={**ENV,"GOEXPERIMENT":experiment},stdout=log,stderr=log)
-    print(f"Built {len(VARIANTS)} timing binaries, two allocation-instrumented and two golden Rust binaries",flush=True)
+    print("Built portable and SIMD timing, allocation-instrumented and golden binaries",flush=True)
 
 
 def invoke(variant,fixtures,n,mode,path):
     with path.open("w") as output:
-        run([BINS/variant,fixtures,n,mode],cwd=ROOT,env=ENV,stdout=output)
+        run([BINS/variant,fixtures,n,mode],cwd=ROOT,stdout=output)
     return [json.loads(line) for line in path.read_text().splitlines()]
 
 
@@ -100,35 +94,7 @@ def validate(out):
     for flavor in ["portable","simd"]:
         print(f"golden-{flavor}:",flush=True)
         assert golden.main(["--no-build","--harness",str(BINS/f"golden-{flavor}"),"--corpus",GOLDEN_CORPORA])==0,f"golden-{flavor} differs from the goldens"
-    if any(v.startswith("go-") for v in VARIANTS):
-        validate_rejections(out)
     return digests[VARIANTS[0]]
-
-
-def validate_rejections(out):
-    """Checks that the Go builds reject at each recorded phase; the goldens cover Rust."""
-    cases=[]
-    for filename,phase in [("language-errors.json","runtime"),("syntax-errors.json","syntax")]:
-        cases += [{**case,"phase":phase} for case in json.loads((ROOT/"tests"/filename).read_text())]
-    records=[]
-    for variant in [v for v in VARIANTS if v.startswith("go-")]:
-        for case in cases:
-            fixture={"name":case["name"],"source":case.get("source") or "def run(input)\n"+case["body"]+"\nend","args":[None],"accounting":True}
-            for field in ["entropy_byte","function","stdout","stderr"]:
-                if field in case:
-                    fixture[field]=case[field]
-            if case.get("function")=="__main__":
-                fixture["args"]=[]
-            path=out/"rejection-input.json"
-            path.write_text(json.dumps([fixture])+"\n")
-            proc=subprocess.run([str(BINS/variant),str(path),"1","validate"],cwd=ROOT,env=ENV,capture_output=True,text=True,errors="replace",timeout=10)
-            assert proc.returncode==1,(variant,case["name"],proc.returncode,proc.stdout,proc.stderr)
-            assert case["go_error"] in proc.stderr,(variant,case["name"],proc.stderr)
-            assert proc.stderr.startswith(case["name"]+": compile error:")==(case["phase"]=="syntax"),(variant,case["name"],proc.stderr)
-            records.append({"variant":variant,"name":case["name"],"phase":case["phase"],"stderr":proc.stderr})
-        counts={phase:sum(c["phase"]==phase for c in cases) for phase in ["runtime","syntax"]}
-        print(f"{variant}: {counts['runtime']} runtime errors and {counts['syntax']} syntax errors rejected",flush=True)
-    (out/"validation-rejections.json").write_text(json.dumps(records,indent=2)+"\n")
 
 
 def measure(out,rounds,target_ms,expected,suite):
@@ -165,13 +131,12 @@ def measure(out,rounds,target_ms,expected,suite):
         print(f"Measured round {round_index+1}/{rounds}",flush=True)
     allocations={};rss={}
     for variant in VARIANTS:
-        binary=variant+"-alloc" if variant.startswith("rust") else variant
-        records=invoke(binary,path,100,"alloc",out/f"allocations-{variant}.jsonl")
+        records=invoke(variant+"-alloc",path,100,"alloc",out/f"allocations-{variant}.jsonl")
         allocations[variant]={r["name"]:{k:r[k] for k in ["alloc_bytes","allocations"]} for r in records}
         for record in records: assert record["digest"]==expected[record["name"]]
         rss_file=out/f"rss-{variant}.txt"
         with rss_file.open("w") as err,(out/f"rss-{variant}.jsonl").open("w") as output:
-            run(["/usr/bin/time","-l",BINS/variant,path,100,"timing"],cwd=ROOT,env=ENV,stdout=output,stderr=err)
+            run(["/usr/bin/time","-l",BINS/variant,path,100,"timing"],cwd=ROOT,stdout=output,stderr=err)
         line=next(line for line in rss_file.read_text().splitlines() if "maximum resident set size" in line)
         rss[variant]=int(line.split()[0])
     summary={"rounds":rounds,"order":order,"peak_rss_bytes":rss,"cases":{}}
@@ -199,10 +164,7 @@ def cpu_name():
 def main():
     parser=argparse.ArgumentParser();parser.add_argument("--out",type=Path,default=ROOT/"benchmarks/results"/time.strftime("%Y-%m-%d-%H%M%S"));parser.add_argument("--skip-build",action="store_true");parser.add_argument("--validate-only",action="store_true");parser.add_argument("--rounds",type=int,default=8);parser.add_argument("--target-ms",type=float,default=75);parser.add_argument("--suite",choices=["core","site"],default="core",help="core micro-benchmarks, or every site program")
     parser.add_argument("--baseline",type=Path,help="Directory containing prior rust-portable/rust-simd timing and allocation binaries, plus a revision file")
-    parser.add_argument("--with-go",action="store_true",help="also build, validate and time the Go v0.70.0 reference (needs Go)")
     args=parser.parse_args();out=args.out.resolve();out.mkdir(parents=True,exist_ok=False)
-    if not args.with_go:
-        VARIANTS[:]=RUST_VARIANTS
     baseline_revision=None
     if args.baseline:
         baseline=args.baseline.resolve()
@@ -217,12 +179,10 @@ def main():
             VARIANTS.append(name)
     if args.target_ms<=0 or (not args.validate_only and (args.rounds<len(VARIANTS) or args.rounds%len(VARIANTS))):
         parser.error("use a positive target time and a round count that is a positive multiple of the variant count")
-    if not args.skip_build: build(out,args.with_go)
-    go_version=run([GO,"version"],capture_output=True).stdout if args.with_go else None
-    go_module=json.loads(run([GO,"list","-m","-json","github.com/mgomes/vibescript"],cwd=ROOT/"benchmarks/go",capture_output=True).stdout) if args.with_go else None
-    metadata={"platform":platform.platform(),"machine":platform.machine(),"cpu":cpu_name(),"rustc":run(["rustc","-Vv"],capture_output=True).stdout,"go":go_version,"go_module":go_module,"source_revision":run(["git","rev-parse","HEAD"],cwd=ROOT,capture_output=True).stdout.strip(),"dirty":run(["git","status","--porcelain"],cwd=ROOT,capture_output=True).stdout,"binary_sha256":{name:hashlib.sha256((BINS/name).read_bytes()).hexdigest() for name in VARIANTS},"RUSTFLAGS":os.environ.get("RUSTFLAGS",""),"GOFLAGS":os.environ.get("GOFLAGS",""),"GOMAXPROCS":1,"target_ms":args.target_ms,"command":sys.argv}
+    if not args.skip_build: build(out)
+    metadata={"platform":platform.platform(),"machine":platform.machine(),"cpu":cpu_name(),"rustc":run(["rustc","-Vv"],capture_output=True).stdout,"source_revision":run(["git","rev-parse","HEAD"],cwd=ROOT,capture_output=True).stdout.strip(),"dirty":run(["git","status","--porcelain"],cwd=ROOT,capture_output=True).stdout,"binary_sha256":{name:hashlib.sha256((BINS/name).read_bytes()).hexdigest() for name in VARIANTS},"RUSTFLAGS":os.environ.get("RUSTFLAGS",""),"target_ms":args.target_ms,"command":sys.argv}
     metadata["baseline_source_revision"]=baseline_revision
-    metadata["allocation_binary_sha256"]={name+"-alloc":hashlib.sha256((BINS/(name+"-alloc")).read_bytes()).hexdigest() for name in VARIANTS if name.startswith("rust")}
+    metadata["allocation_binary_sha256"]={name+"-alloc":hashlib.sha256((BINS/(name+"-alloc")).read_bytes()).hexdigest() for name in VARIANTS}
     (out/"environment.json").write_text(json.dumps(metadata,indent=2)+"\n")
     expected=validate(out)
     if not args.validate_only: measure(out,args.rounds,args.target_ms,expected,args.suite)
