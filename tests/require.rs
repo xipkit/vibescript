@@ -531,9 +531,9 @@ fn require_permission_follows_argument_evaluation_and_precedes_builtin_validatio
     }
     let source = "def run\nrequire(module_name(),as:alias_name()){effect()}\nend";
     let error = engine.compile(source).err().unwrap();
-    assert_eq!(common::codes(&error)[..2], ["V0309", "V0309"]);
+    assert_eq!(common::codes(&error), ["V0305", "V0309", "V0309"]);
     assert_eq!(
-        error.diagnostics()[0].span.start,
+        error.diagnostics()[1].span.start,
         source.find("module_name").unwrap()
     );
 }
@@ -1261,19 +1261,14 @@ fn aliases_reuse_a_module_but_reject_conflicts_before_initialization() {
         "def run(M: int) -> any;require(\"module\",as: \"M\");end;run(1)",
         "module Scope;M=1;def self.load -> any;require(\"module\",as: \"M\");end;end;Scope.load",
     ] {
-        // The runtime rejects an alias that names an existing binding.
         let mut engine = files.engine();
         let captured = effects.clone();
         engine.register("effect", move |_, _| {
             captured.fetch_add(1, Ordering::SeqCst);
             Ok(Value::nil())
         });
-        let error = engine
-            .compile(source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap_err();
-        assert_eq!(error.kind, ErrorKind::Argument, "{source}: {error:?}");
+        let error = engine.compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0209"], "{source}: {error:?}");
         assert_eq!(effects.load(Ordering::SeqCst), 0, "{source}");
     }
 }
@@ -1461,7 +1456,7 @@ fn cold_compilation_inherits_mixed_hosts_through_nested_requires() {
 }
 
 #[test]
-fn alias_rejections_release_unpublished_scopes_without_running_initializers() {
+fn alias_conflicts_are_rejected_without_running_initializers() {
     let files = Files::new();
     files.write(
         "rejected.vibe",
@@ -1469,25 +1464,16 @@ fn alias_rejections_release_unpublished_scopes_without_running_initializers() {
     );
     let effects = Arc::new(AtomicUsize::new(0));
     let captured = effects.clone();
-    // The runtime rejects an alias that names an existing function.
     let mut engine = files.engine();
     engine.register("effect", move |_, _| {
         captured.fetch_add(1, Ordering::SeqCst);
         Ok(Value::nil())
     });
-    let script = engine
+    let error = engine
         .compile("def taken -> int;7;end;def run(n: int) -> int;n.times{begin;require(\"rejected\",as: \"taken\");rescue;nil;end};7;end")
+        .err()
         .unwrap();
-    // Module lookup scratch scales with the platform's PATH_MAX, so leave room
-    // for it; a per-iteration leak would still exhaust this across 1,000 calls.
-    for count in [100, 1000] {
-        let mut options = CallOptions::default();
-        options.limits.steps = None;
-        options.limits.memory_bytes = Some(128 << 10);
-        let output = script.call("run", &[Value::int(count)], options).unwrap();
-        assert_eq!(output.value.as_int(), Some(7));
-        assert_eq!(output.stats.retained_memory_bytes, 0);
-    }
+    assert_eq!(common::codes(&error), ["V0209"]);
     assert_eq!(effects.load(Ordering::SeqCst), 0);
 }
 
@@ -1859,10 +1845,10 @@ require("empty",as: "A")
         error.diagnostics()[0].span.start,
         source.find("A={").unwrap()
     );
-    // The alias is the module, which has no `+`.
+    // A compound assignment cannot replace a capitalized root binding either.
     let source = "require(\"empty\",as: \"A\")\ndef bump -> int;A+=2;A;end\nbump";
     let error = engine.compile(source).err().unwrap();
-    assert_eq!(common::codes(&error)[0], "V0108");
+    assert_eq!(common::codes(&error)[0], "V0102");
     assert_eq!(
         error.diagnostics()[0].span.start,
         source.find("A+=").unwrap()
