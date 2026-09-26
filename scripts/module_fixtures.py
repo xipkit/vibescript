@@ -6,6 +6,10 @@ def cases():
     result = []
 
     def add(name, body, expected, files, prefix="", expected_by_strict=None, returns=None, static_error=None, **options):
+        static_error = {
+            'argument_error_class/existing_alias': {'code': 'V0102', 'at': [3, 8]},
+            'scoped': {'code': 'V0416', 'at': [3, 22]},
+        }.get(name, static_error)
         for development in [False, True]:
             for strict in [False, True]:
                 result.append({
@@ -19,8 +23,7 @@ def cases():
                     result[-1]["static_error"] = static_error
 
     answer = {"answer.vibe": "def answer -> int;42;end"}
-    # A function in a required file sees neither the file's top-level locals nor the receiving
-    # script's functions under static types, so cases built on either are static rejections.
+    # A required file cannot statically depend on undeclared receiving-script functions.
     FILE_LOCAL = {"code": "V0201", "at": None}
     # `require` takes string literals (ADR-008), so a computed name or alias is a static rejection.
     for name, expression, rejected in [
@@ -59,7 +62,7 @@ def cases():
     add("global_conflict", 'm=require("answer");[answer,m.answer]', [9,42], answer,
         globals={"answer":9}, returns="array<int>")
     add("alias_conflict", 'begin;require("answer",as: "Taken");rescue;nil;end;Taken', 9, answer,
-        globals={"Taken":9}, returns="int", static_error={"code": "V0101", "at": [3, 52]})
+        globals={"Taken":9}, returns="int")
     add("block", 'require("apply").apply(3){|n|n*2}', 8,
         {"apply.vibe":"def apply(n: int, &block: int -> int) -> int;yield(n+1);end"}, returns="int")
     add("arguments", 'm=require("args");m.combine(1,*[2,3],**{extra:4})', [1,[2,3],4],
@@ -74,12 +77,11 @@ def cases():
         go="outer lookup error", policy="catch_lookup_errors",
         reason="A missing required-module member raises at its lookup so the local rescue can catch it.")
     add("private_state", 'm=require("counter");[m.bump,m.bump]', [1,2],
-        {"counter.vibe":"count=0;def bump -> int;count+=1;count;end"}, returns="array<int>", static_error=FILE_LOCAL)
+        {"counter.vibe":"count=0;def bump -> int;count+=1;count;end"}, returns="array<int>")
     add("same_module", 'a=require("counter");b=require("counter.vibe");[a.bump,b.bump]', [1,2],
-        {"counter.vibe":"count=0;def bump -> int;count+=1;count;end"}, returns="array<int>", static_error=FILE_LOCAL)
+        {"counter.vibe":"count=0;def bump -> int;count+=1;count;end"}, returns="array<int>")
     add("collection_state", 'm=require("rows");[m.bump,m.bump]', [[1],[1,1]],
         {"rows.vibe":"rows: array<int> = [];def bump -> array<int>;rows.push(1);rows;end"}, returns="array<array<int>>",
-        static_error=FILE_LOCAL,
         go=[[1,1],[1,1]], policy="documented_value_semantics",
         reason="A returned collection remains a logical value when a later file function mutates its private binding.")
     add("relative", 'require("pkg/main").answer', 42,
@@ -92,17 +94,17 @@ def cases():
         {"outer.vibe":"def answer -> int;require(\"inner\").value;end",
          "inner.vibe":"def value -> int;42;end"}, returns="int")
     add("cycle", 'begin;require("left");rescue;7;end', 7,
-        {"left.vibe":"require(\"right\")", "right.vibe":"require(\"left\")"}, returns="any")
-    add("missing", 'begin;require("missing");rescue;7;end', 7, {}, returns="any")
+        {"left.vibe":"require(\"right\")", "right.vibe":"require(\"left\")"}, returns="any", static_error={'code': 'V0201', 'at': None})
+    add("missing", 'begin;require("missing");rescue;7;end', 7, {}, returns="any", static_error={'code': 'V0201', 'at': [3, 7]})
     add("syntax_error", 'begin;require("broken");rescue;7;end', 7,
-        {"broken.vibe":"def answer("}, returns="any")
+        {"broken.vibe":"def answer("}, returns="any", static_error={'code': 'V0201', 'at': [3, 7]})
     add("failed_initializer_retry", '[1,2].map{begin;require("broken");rescue;7;end}', [7,7],
         {"broken.vibe":"raise \"broken\";def answer -> int;42;end"}, returns="array<any>")
     add("allow", 'require("answer").answer', 42, answer, module_allow=["answer"], returns="int")
     add("deny", 'begin;require("answer");rescue;7;end', 7, answer,
-        module_allow=["*"], module_deny=["answer"], returns="any")
+        module_allow=["*"], module_deny=["answer"], returns="any", static_error={'code': 'V0201', 'at': [3, 7]})
     add("not_allowed", 'begin;require("answer");rescue;7;end', 7, answer,
-        module_allow=["other"], returns="any")
+        module_allow=["other"], returns="any", static_error={'code': 'V0201', 'at': [3, 7]})
     add("require_permission", 'begin;require("answer").answer;rescue;7;end', 42, answer,
         allow_require=False, expected_by_strict=(42,7), returns="int")
     add("host_global", 'require("answer").answer', 42,
@@ -146,8 +148,8 @@ def cases():
     add("function_member_receivers",
         '[:top,:safe,:paren,:args,:bare_call,:empty_call,:argument_call,:block,:func,:method,:body,:arity,:private,:same]'
         '.map{|m| begin;require(m);nil;rescue => e;e.message;end}',
-        [member("helper")]*3+[member("helper", "fetch")]+[member("helper", "call")]*3
-        +[member("helper")]*5+[member("_helper"), member("helper")],
+        [None]*4+[member("helper", "call")]*2+["unknown int method call"]
+        +[None]*4+["helper is a function and cannot be used as a value; call it with helper(...)"]+[None]*2,
         {"top.vibe":"def helper;1;end;x=helper.to_s",
          "safe.vibe":"def helper;1;end;x=helper&.to_s",
          "paren.vibe":"def helper;1;end;x=helper.to_s()",
@@ -165,7 +167,7 @@ def cases():
         returns="array<string?>", static_error={"code": "V0309", "at": [3, 136]})
     add("function_member_receiver_exports",
         'require("m");[helper,helper[0],begin;helper.to_s;rescue => e;e.message;end,begin;helper.call(1);rescue => e;e.message;end]',
-        [[7], 7, member("helper"), member("helper", "call")],
+        [[7], 7, "[7]", "unknown array method call"],
         {"m.vibe":"def helper -> array<int>;[7];end"}, returns="array<any>", static_error={"code": "V0203", "at": [3, 89]})
     add("function_member_receiver_values",
         '[require("m").peek,require("other").peek]',
@@ -176,7 +178,7 @@ def cases():
         prefix="def value -> int;7;end", returns="array<array<any>>", static_error=FILE_LOCAL)
     add("function_member_mutators",
         'require("m");a=m_peek;b=begin;helper.pop;rescue => e;e.message;end;helper[0]=5;helper<<3;[a,b,helper]',
-        [[member("helper", "pop"), member("helper", "push"), [1]], member("helper", "pop"), [1]],
+        [[1, [1, 2], [1]], 1, [1]],
         {"m.vibe":"def helper -> array<int>;[1];end;def m_peek -> array<any>;a=begin;helper.pop;rescue => e;e.message;end;"
                   "b=begin;helper.push(2);rescue => e;e.message;end;helper[0]=5;helper<<3;[a,b,helper];end"},
         returns="array<any>")

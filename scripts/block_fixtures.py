@@ -5,6 +5,12 @@ def cases():
     result = []
 
     def add(name, body, expected, prefix="", returns="any", static_error=None, **options):
+        static_error = {
+            'detached_scoped': {'code': 'V0416', 'at': [3, 21]},
+            'public': {'code': 'V0203', 'at': [3, 8]},
+            'scoped': {'code': 'V0416', 'at': [3, 7]},
+            'symbolic': {'code': 'V0203', 'at': [3, 8]},
+        }.get(name, static_error)
         for strict in [False, True]:
             for accounting in [False, True]:
                 result.append({

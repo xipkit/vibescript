@@ -5,6 +5,14 @@ def cases():
     result = []
 
     def add(name, body, expected, prefix="", returns="any", static_error=None, **options):
+        static_error = {
+            'clone': {'code': 'V0203', 'at': [3, 6]},
+            'detached_scoped': {'code': 'V0416', 'at': [3, 18]},
+            'keyword_symbolic': {'code': 'V0203', 'at': [3, 6]},
+            'public': {'code': 'V0203', 'at': [3, 6]},
+            'scoped': {'code': 'V0416', 'at': [3, 5]},
+            'symbolic': {'code': 'V0203', 'at': [3, 6]},
+        }.get(name, static_error)
         for strict in [False, True]:
             for accounting in [False, True]:
                 result.append({
@@ -16,10 +24,8 @@ def cases():
                 if static_error:
                     result[-1]["static_error"] = static_error
 
-    # The probe's methods have no signatures, so they take and return `any`. Indexing a
-    # capability by name is a static rejection. `send`, `public_send`, `respond_to?` and
-    # `clone` on a capability compile, as capability methods of those names would, and
-    # dispatch at runtime.
+    # The probe's unsigned methods take and return `any`. Undeclared members
+    # and indexing by name are static rejections.
     for name, body, static_error in [
         ("direct", "host.echo(1, 2)", None),
         ("bare", "host.echo 1, 2", None),
@@ -46,7 +52,7 @@ def cases():
     add("counter", "[host.next(), host.next()]", [1, 2], returns="array<any>")
     add("argument_order", "host.echo(host.next(), host.next(), tag: host.next())", [[1, 2], {"tag": 3}])
     add("checked", "[host.checked(7), host.next()]", [7, 2], returns="array<any>")
-    add("checked_symbolic", "[host.send(:checked, 7), host.next()]", [7, 2], returns="array<any>")
+    add("checked_symbolic", "[host.send(:checked, 7), host.next()]", [7, 2], returns="array<any>", static_error={'code': 'V0203', 'at': [3, 7]})
     # A factory's result is `any`, and calling a member on `any` is a type error.
     add("factory", "[host.factory().checked(7), host.next()]", [7, 2], returns="array<any>",
         static_error={"code": "V0106", "at": [3, 17]})
@@ -67,7 +73,7 @@ def cases():
     add("missing_skips_args", "begin;fetch;rescue;host.next();end", 1,
         prefix="def fetch -> any;host.missing(host.next());end", static_error={"code": "V0203", "at": [1, 23]})
     add("responds", "[host.respond_to?(:echo),host.respond_to?(:missing),host.respond_to?(:items)]", [True, False, False],
-        returns="array<bool>")
+        returns="array<bool>", static_error={'code': 'V0203', 'at': [3, 7]})
     add("file", 'require("send").deliver', [[7], {}], allow_require=True,
         files={"send.vibe": "def deliver -> any;host.echo(7);end"})
     for name, read, static_error in [("indexed", 'host["checked"]', {"code": "V0112", "at": [3, 14]}),

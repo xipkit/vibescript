@@ -6,6 +6,11 @@ def cases():
 
     def add(name, body, expected, *, params=None, returns="", callback="echo", block=False,
             registration="capability", prefix="", contract=False, value="any", run_type=None, static_error=None, **options):
+        static_error = {
+            'public': {'code': 'V0203', 'at': [4, 7]},
+            'scoped': {'code': 'V0416', 'at': [4, 6]},
+            'symbolic': {'code': 'V0203', 'at': [4, 7]},
+        }.get(name, static_error)
         if params is None:
             params = [{"name": "value", "type": "int"}]
         # `value` is the type of `body`; the rescue clause adds the error report's array<string>.
@@ -38,8 +43,7 @@ def cases():
 
             files={"worker.vibe":f"enum Status; Draft; end; def run(x: Status = {call}(:draft).as(Status)) -> bool; x==Status::Draft; end"})
 
-    # Indexing a capability by name is a static rejection; `send` on a capability compiles,
-    # as a capability method of that name would (ADR-008), and dispatches at runtime.
+    # Only declared capability methods are callable with static types.
     for name, call, value, static_error in [
         ("scoped", "typed::echo(7)", "int", None),
         ("indexed", 'typed["echo"](7)', "any", {"code": "V0112", "at": [4, 1]}),
@@ -102,8 +106,7 @@ def cases():
     add("qualified_type", 'require("worker").run', True, allow_require=True,
         params=[{"name":"value", "type":"types.Status"}], returns="types.Status", value="bool",
         files={"types.vibe":"enum Status; Draft; end", "worker.vibe":"types=require(\"types\"); def run -> bool; typed.echo(:draft)==types.Status::Draft; end"},
-        # The signature's type names the file's `types` binding, which its function cannot read statically.
-        static_error={"code": "V0201", "at": None},
+        static_error=None,
         go=["unexpected", "RuntimeError", "typed.echo argument value type check failed: unknown type types.Status"],
         policy="consistent_signature_type_scope",
         reason="Resolve qualified type aliases in the active file environment, consistently with other source bindings, instead of consulting only the call root.")
