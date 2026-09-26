@@ -753,6 +753,7 @@ impl<'a> Checker<'a> {
             Target::Value(expr) => {
                 if let Node::Var(name) = &expr.node {
                     if self.local(name).is_none() && !name.starts_with('@') {
+                        self.check_binding_target(target);
                         let declared = if nonempty {
                             element
                         } else {
@@ -1584,7 +1585,7 @@ impl<'a> Checker<'a> {
             ));
             return;
         }
-        if self.local(name).is_some() {
+        if !is_constant(name) || self.local(name).is_some() {
             return;
         }
         let reserved = self.program.roots.contains_key(name.as_str())

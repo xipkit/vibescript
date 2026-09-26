@@ -419,14 +419,17 @@ impl<'a> Checker<'a> {
             return Ty::ERROR;
         };
         let outer = self.memo.replace(super::Memo::default());
+        let mark = self.frame.flow.mark();
         results.push(self.member(call, first));
+        let mut branches = vec![self.frame.flow.rollback(mark)];
         // Reuse evaluated argument types, but check every receiver's contract.
         self.memo.as_mut().unwrap().replay = true;
         for &alternative in rest {
             let mark = self.frame.flow.mark();
             results.push(self.member(call, alternative));
-            self.frame.flow.rollback(mark);
+            branches.push(self.frame.flow.rollback(mark));
         }
+        self.join(branches);
         self.restore_memo(outer);
         self.types.union(&results)
     }
@@ -512,6 +515,7 @@ impl<'a> Checker<'a> {
                     candidates.push((Rc::new(sig), Vec::new()));
                 }
                 crate::signatures::Member::Module(module) => {
+                    self.non_callable_member(call);
                     self.loose_args(call);
                     let id = self
                         .program
@@ -531,6 +535,7 @@ impl<'a> Checker<'a> {
                     return self.types.intern(Kind::Host(id as u32));
                 }
                 crate::signatures::Member::Constant(constant) => {
+                    self.non_callable_member(call);
                     self.loose_args(call);
                     return sigs::table_type(&mut self.types, &constant.ty, &[]);
                 }
@@ -550,6 +555,16 @@ impl<'a> Checker<'a> {
             return Ty::ERROR;
         }
         self.call_sigs(call, &candidates)
+    }
+
+    fn non_callable_member(&mut self, call: &Call<'a, '_>) {
+        if !call.args.is_empty() || call.block.is_some() {
+            self.report(Diagnostic::error(
+                Code::NOT_CALLABLE,
+                call.name_span,
+                format!("`{}` is data, not a callable member", call.name),
+            ));
+        }
     }
 
     /// `Class.new`, `Class.method` and `Module.function`.
@@ -1719,6 +1734,8 @@ impl<'a> Checker<'a> {
         want: Want,
         break_to: Option<(Ty, String)>,
     ) -> (Ty, Vec<Ty>) {
+        // Union receivers supply different block parameter types on each pass.
+        let outer_memo = self.memo.take();
         self.open_scope();
         let before = self.frame.flow.mark();
         let (result, used) = match want {
@@ -1804,6 +1821,7 @@ impl<'a> Checker<'a> {
         }
         let breaks = self.finish_loop(before, context, true);
         self.close_scope();
+        self.memo = outer_memo;
         (self.types.union(&results), breaks)
     }
 

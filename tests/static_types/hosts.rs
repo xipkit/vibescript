@@ -103,6 +103,13 @@ fn a_declared_global_has_its_type() {
 }
 
 #[test]
+fn capability_data_is_readable_but_cannot_take_arguments() {
+    let engine = engine();
+    codes_with(&engine, "SMS.region\n", &[]);
+    codes_with(&engine, "SMS.region(1)\n", &["V0310"]);
+}
+
+#[test]
 fn a_global_declared_without_a_type_is_any() {
     let engine = engine();
     codes_with(&engine, "def run -> any\n  payload\nend\n", &[]);

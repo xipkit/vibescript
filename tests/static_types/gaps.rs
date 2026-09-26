@@ -135,12 +135,29 @@ fn implicit_block_parameters_are_values_not_functions() {
 }
 
 #[test]
-fn namespaces_and_functions_cannot_be_rebound() {
+fn namespace_rebinding_is_rejected_and_local_shadowing_is_tracked() {
     clean("math = 7\nmath + 1\n");
     codes("Math = 7\n", &["V0102"]);
-    codes("puts = 7\n", &["V0102"]);
+    codes("for Math in [7]\nend\n", &["V0102"]);
+    clean("p = 7\np + 1\n");
+    codes("puts = 7\nputs(1)\n", &["V0310"]);
     codes("class A\nend\nA = 7\n", &["V0102"]);
-    codes("def g(x: int = 1) -> int\n  x\nend\ng = 7\n", &["V0102"]);
+    codes(
+        "def g(x: int = 1) -> int\n  x\nend\ng = 7\ng(1)\n",
+        &["V0310"],
+    );
+}
+
+#[test]
+fn union_receiver_blocks_are_checked_with_every_parameter_type() {
+    let classes = "class A\n  def f(&block: int -> int) -> int\n    yield 1\n  end\nend\nclass B\n  def f(&block: string -> int) -> int\n    yield \"s\"\n  end\nend\n";
+    clean(&format!(
+        "{classes}def g(v: A | B) -> int\n  v.f {{ |x| x.to_s.length }}\nend\n"
+    ));
+    codes(
+        &format!("{classes}def g(v: A | B) -> int\n  v.f {{ |x| x + 1 }}\nend\n"),
+        &["V0108"],
+    );
 }
 
 #[test]
