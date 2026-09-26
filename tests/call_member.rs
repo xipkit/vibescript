@@ -1,7 +1,7 @@
 mod common;
 
 use std::sync::{Arc, Mutex};
-use vibescript::{CallOptions, Engine, ErrorKind, Limits, Value, stringify_json};
+use vibescript::{CallOptions, Engine, ErrorKind, Value, stringify_json};
 
 fn json(value: &Value) -> serde_json::Value {
     let encoded = stringify_json(value, CallOptions::default()).unwrap();
@@ -12,32 +12,32 @@ fn json(value: &Value) -> serde_json::Value {
 fn invalid_call_members_stop_before_arguments_and_blocks() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let seen = events.clone();
-    let mut engine = common::gradual_engine();
+    let mut engine = Engine::new();
     engine.register("mark", move |_, args| {
         seen.lock().unwrap().push(args[0].as_int().unwrap());
         Ok(args[0].clone())
     });
     let prefix = "class P\nprivate\ndef call(value: int = 7) -> int\nvalue\nend\nend\n";
-    // The checker refuses these calls to a private `call` (V0208); without
-    // static types the runtime refuses them, before their arguments run.
+    let mut checked = vibescript::Engine::new();
+    checked.register("mark", |_, _| panic!("mark ran"));
+    // A receiver cannot reach the private `call` (V0208), so these calls
+    // are refused before their arguments could run.
     for suffix in [
         ".call(mark(1).as(int))",
         "&.call(mark(1).as(int))",
-        ".call(*[mark(1)])",
+        ".call(*[mark(1).as(int)])",
     ] {
-        events.lock().unwrap().clear();
         let source = format!("{prefix}\nP.new{suffix}");
-        engine
-            .compile(&source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap_err();
-        assert!(events.lock().unwrap().is_empty(), "{source}");
+        let error = checked.compile(&source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0208"], "{source}");
+        assert_eq!(
+            error.diagnostics()[0].span.start,
+            source.rfind("call(").unwrap(),
+            "{source}"
+        );
     }
     // Every other receiver has no `call` member, and `P#call` takes no
     // keywords or block, so the rest are refused before anything runs.
-    let mut checked = vibescript::Engine::new();
-    checked.register("mark", |_, _| panic!("mark ran"));
     for (receiver, code) in [
         ("{}", "V0203"),
         ("[]", "V0203"),
@@ -156,7 +156,7 @@ fn call_targets_are_selected_before_arguments_mutate_callable_fields() {
 fn rejected_call_arguments_release_storage_and_cancellation_still_wins() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let seen = events.clone();
-    let mut engine = common::gradual_engine();
+    let mut engine = Engine::new();
     engine.register("mark", move |_, args| {
         seen.lock().unwrap().push(args[0].as_int().unwrap());
         Ok(Value::nil())
@@ -165,37 +165,15 @@ fn rejected_call_arguments_release_storage_and_cancellation_still_wins() {
         ctx.cancellation().cancel();
         Ok(Value::nil())
     });
-    // The checker refuses the call to a private `call` (V0208); without
-    // static types the runtime rejects it before its arguments run.
-    let script = engine.compile("class P\nprivate\ndef call(value: int = 7) -> int\nvalue\nend\nend\ndef reject\nbegin\nP.new.call(*[mark(1)])\nrescue RuntimeError\nnil\nend\nend\ndef run(n: int)\nfor i in 1..n\nreject\nend\nnil\nend").unwrap();
-    let small = script
-        .call("run", &[Value::int(32)], CallOptions::default())
-        .unwrap();
-    let large = script
-        .call("run", &[Value::int(256)], CallOptions::default())
-        .unwrap();
-    assert_eq!(small.stats.peak_memory_bytes, large.stats.peak_memory_bytes);
-    assert_eq!(large.stats.retained_memory_bytes, 0);
-    assert!(events.lock().unwrap().is_empty());
-    let options = CallOptions {
-        limits: Limits {
-            memory_bytes: Some(small.stats.peak_memory_bytes - 1),
-            ..Limits::default()
-        },
-        ..CallOptions::default()
-    };
+    // A call to a private `call` is refused (V0208) before anything runs,
+    // so no rejected call is left to hold storage.
+    let source = "class P\nprivate\ndef call(value: int = 7) -> int\nvalue\nend\nend\ndef reject\nbegin\nP.new.call(*[mark(1).as(int)])\nrescue RuntimeError\nnil\nend\nend\ndef run(n: int)\nfor i in 1..n\nreject\nend\nnil\nend";
+    let error = engine.compile(source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0208"]);
     assert_eq!(
-        script
-            .call("run", &[Value::int(32)], options)
-            .unwrap_err()
-            .kind,
-        ErrorKind::Memory
+        error.diagnostics()[0].span.start,
+        source.find("call(*").unwrap()
     );
-    let fresh = script
-        .call("run", &[Value::int(32)], CallOptions::default())
-        .unwrap();
-    assert_eq!(fresh.stats.peak_memory_bytes, small.stats.peak_memory_bytes);
-    assert_eq!(fresh.stats.retained_memory_bytes, 0);
     let cancelled = engine.compile("class C\ndef call(value: any = nil, &block: () -> any) -> any\nyield\nend\nend\nbegin\nC.new.call(cancel()){mark(2)}\nrescue RuntimeError\nmark(3)\nensure\nmark(4)\nend").unwrap().run(CallOptions::default()).unwrap_err();
     assert_eq!(cancelled.kind, ErrorKind::Cancelled);
     assert!(events.lock().unwrap().is_empty());
