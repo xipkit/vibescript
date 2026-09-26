@@ -233,7 +233,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     let mut checker = Checker {
         source: input.source,
         parsed: input.parsed,
-        spans: spans::Spans::new(input.source, input.tokens),
+        spans: spans::Spans::new(input.source, input.tokens, &input.parsed.interpolations),
         types: ty::Types::new(),
         program: program::Program::default(),
         converter: sigs::Converter::default(),
@@ -307,7 +307,7 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
     let mut checker = Checker {
         source: input.source,
         parsed: input.parsed,
-        spans: spans::Spans::new(input.source, input.tokens),
+        spans: spans::Spans::new(input.source, input.tokens, &input.parsed.interpolations),
         types: ty::Types::new(),
         program: program::Program::default(),
         converter: sigs::Converter::default(),

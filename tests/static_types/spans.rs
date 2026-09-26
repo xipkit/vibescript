@@ -67,3 +67,24 @@ fn undeclared_instance_parameter_spans_the_parameter() {
     assert_eq!(super::support::spanned(source, &diagnostic[0]), "@n");
     super::support::clean("class C; @n: int; def initialize(@n: int); end; end");
 }
+
+#[test]
+fn interpolated_member_fixes_target_only_the_member_once() {
+    for source in [
+        r##""#{[1].size}""##,
+        r#"items = [1]; "π #{items.size}""#,
+        r##""#{"#{[1].size}"}""##,
+        r##""#{[1].size} #{[2].length}""##,
+    ] {
+        let found = codes(source, &["V0401"]);
+        assert_eq!(spanned(source, &found[0]), "size");
+        let repaired = fixed(source, &found[0]);
+        assert_eq!(repaired, source.replace("size", "length"));
+        codes(&repaired, &[]);
+        vibescript::Engine::new()
+            .compile(&repaired)
+            .unwrap()
+            .run(vibescript::CallOptions::default())
+            .unwrap();
+    }
+}

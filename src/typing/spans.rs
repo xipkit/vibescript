@@ -18,7 +18,7 @@ enum Trail<'e> {
 
 pub(crate) struct Spans<'a> {
     source: &'a str,
-    tokens: &'a [Token],
+    tokens: std::borrow::Cow<'a, [Token]>,
     /// Tokens and nodes visited, for [`super::Checked::steps`].
     pub steps: std::cell::Cell<u64>,
     /// [`last_offset`] by node, so shared subtrees are walked once.
@@ -26,11 +26,34 @@ pub(crate) struct Spans<'a> {
 }
 
 impl<'a> Spans<'a> {
-    pub fn new(source: &'a str, tokens: &'a [Token]) -> Self {
+    pub fn new(source: &'a str, tokens: &'a [Token], interpolations: &[(u32, u32)]) -> Self {
+        let mut tokens = std::borrow::Cow::Borrowed(tokens);
+        let mut steps = 0;
+        // The parser lists each interpolation separately from its outer string
+        // token. Merge their tokens by source offset for member and edit spans.
+        for &(start, end) in interpolations {
+            let start = start as usize;
+            let end = end as usize - 1;
+            steps += (end - start) as u64;
+            if let Ok(inner) = crate::tooling::tokens(&source[start..end]) {
+                tokens
+                    .to_mut()
+                    .extend(inner.into_iter().filter_map(|mut token| {
+                        if token.kind == TokenKind::Eof {
+                            return None;
+                        }
+                        token.span = token.span.start + start..token.span.end + start;
+                        Some(token)
+                    }));
+            }
+        }
+        if let std::borrow::Cow::Owned(tokens) = &mut tokens {
+            tokens.sort_by_key(|token| token.span.start);
+        }
         Self {
             source,
             tokens,
-            steps: std::cell::Cell::new(0),
+            steps: std::cell::Cell::new(steps),
             lasts: std::cell::RefCell::default(),
         }
     }
