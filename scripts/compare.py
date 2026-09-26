@@ -65,7 +65,9 @@ def equal_json(actual,expected):
 
 
 def validate(out):
-    expected=materialize(conformance_cases()+benchmark_cases(),out)
+    # A case whose purpose is a static rejection does not run; golden.py checks it.
+    cases=[case for case in conformance_cases()+benchmark_cases() if "static_error" not in case]
+    expected=materialize(cases,out)
     path=out/"validation-inputs.json"
     path.write_text(json.dumps(expected,ensure_ascii=False,sort_keys=True)+"\n")
     reference={case["name"]:case["expected"] for case in expected}

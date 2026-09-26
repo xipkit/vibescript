@@ -25,10 +25,12 @@ use std::{
     },
     time::{Duration, Instant},
 };
-use vibescript::{CallOptions, Capability, Engine, Error, Limits, ModuleConfig, Value, parse_json};
+use vibescript::{CallOptions, Engine, Error, Limits, ModuleConfig, Value, parse_json};
 
 #[path = "support/blocks.rs"]
 mod blocks;
+#[path = "support/declare.rs"]
+mod declare;
 #[path = "support/probe.rs"]
 mod probe;
 #[path = "support/signatures.rs"]
@@ -184,7 +186,7 @@ fn execute(case: &Json, stdout: &Capture, stderr: &Capture) -> Json {
         Ok(inputs) => inputs,
         Err(message) => return json!({"phase": "setup", "error": {"message": message}}),
     };
-    if let Err(error) = declare(&mut engine, case, &options, signature.as_ref()) {
+    if let Err(error) = declare::declare(&mut engine, case, &options.globals, signature.as_ref()) {
         return failure("setup", &error);
     }
     let script = match engine.compile(source) {
@@ -247,45 +249,6 @@ fn compile_failure(source: &str, error: &Error) -> Json {
 }
 
 type Inputs = (CallOptions, Vec<Value>, Vec<(String, Value)>);
-
-/// Declares the globals and capabilities a call supplies, each typed by its
-/// value, as a statically typed host would. A capability built when a call
-/// starts is declared by a fresh value of the same kind.
-fn declare(
-    engine: &mut Engine,
-    case: &Json,
-    options: &CallOptions,
-    signature: Option<&vibescript::HostMethod>,
-) -> vibescript::Result<()> {
-    let mut declared = Vec::new();
-    if flag(case, "capability_probe") {
-        declared.push(Capability::from_value("host", probe::template()));
-    }
-    if flag(case, "block_probe") {
-        declared.push(Capability::from_value("blocks", blocks::template()));
-    }
-    for name in strings(&case["notifications"]) {
-        declared.push(support::notification(&name)?);
-    }
-    if let Some(method) = signature
-        && case["signature_probe"]["registration"]
-            .as_str()
-            .is_none_or(|registration| registration == "capability")
-    {
-        declared.push(Capability::from_value(
-            "typed",
-            Value::object(vec![(b"echo".to_vec(), method.value())]),
-        ));
-    }
-    // A global of a capability's name overrides it, as it does at runtime.
-    for (name, value) in &options.globals {
-        declared.push(Capability::from_value(name.clone(), value.clone()));
-    }
-    for capability in &declared {
-        engine.declare_capability(capability)?;
-    }
-    Ok(())
-}
 
 fn inputs(case: &Json, signature: Option<vibescript::HostMethod>) -> Result<Inputs, String> {
     let mut args = Vec::new();

@@ -120,11 +120,7 @@ fn remaining(label: &str, diagnostic: &Diagnostic, source: &str) -> String {
 }
 
 /// Lists the `.vibe` files under `path` in order, with their names relative to `root`.
-fn collect(
-    root: &Path,
-    path: &Path,
-    out: &mut Vec<(PathBuf, String)>,
-) -> std::io::Result<()> {
+fn collect(root: &Path, path: &Path, out: &mut Vec<(PathBuf, String)>) -> std::io::Result<()> {
     if path.is_dir() {
         let mut entries: Vec<PathBuf> = std::fs::read_dir(path)?
             .map(|entry| entry.map(|entry| entry.path()))

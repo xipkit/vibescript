@@ -10,6 +10,8 @@ use vibescript::{CallOptions, Engine, Limits, ModuleConfig, parse_json};
 
 #[path = "support/blocks.rs"]
 mod blocks;
+#[path = "support/declare.rs"]
+mod declare;
 #[path = "support/probe.rs"]
 mod probe;
 #[path = "support/signatures.rs"]
@@ -135,7 +137,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .get("signature_probe")
             .map(|probe| signatures::configure(&mut engine, probe))
             .transpose()?;
-        let script = engine.compile(source)?;
         let function = case["function"].as_str().unwrap_or("run");
         let mut input = Vec::new();
         for arg in case["args"].as_array().ok_or("missing args")? {
@@ -172,9 +173,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
             ..CallOptions::default()
         };
-        if let Some(method) = signature_method {
+        if let Some(method) = signature_method.clone() {
             signatures::bind(&mut options, &case["signature_probe"], method);
         }
+        declare::declare(
+            &mut engine,
+            &case,
+            &options.globals,
+            signature_method.as_ref(),
+        )?;
+        let script = engine.compile(source)?;
         let result = script.call(function, &input, options.clone())?;
         let encoding = case["result_encoding"].as_str().unwrap_or("");
         let output = support::encode(&result.value, encoding, codec_options())?;
