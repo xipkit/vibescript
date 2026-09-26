@@ -47,6 +47,7 @@ pub(crate) struct Ivar {
 
 /// A script class or module.
 pub(crate) struct Namespace<'a> {
+    pub checked: bool,
     /// Its declaration, or none for a class a required file declares.
     pub module: Option<&'a Module>,
     pub name: String,
@@ -70,6 +71,8 @@ pub(crate) struct Enum {
 /// Everything a program declares.
 #[derive(Default)]
 pub(crate) struct Program<'a> {
+    pub file: bool,
+    pub file_locals: HashMap<String, (Ty, usize)>,
     pub fns: Vec<FnDecl<'a>>,
     /// Top-level functions by name.
     pub functions: HashMap<&'a str, FnId>,
@@ -309,6 +312,7 @@ impl<'a> Checker<'a> {
         };
         self.types.names.namespaces.push(name.clone());
         self.program.namespaces.push(Namespace {
+            checked: false,
             module: Some(module),
             name,
             parent,

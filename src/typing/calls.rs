@@ -76,7 +76,7 @@ impl<'a> Checker<'a> {
             selectors: &[],
         };
         let bare = args.is_empty() && block.is_none();
-        if !bare && self.local(name).is_some() {
+        if self.local(name).is_some() {
             let span = call.name_span;
             self.report(Diagnostic::error(
                 Code::NOT_CALLABLE,
@@ -1769,7 +1769,12 @@ fn block_arity(block: &Block) -> usize {
                     pending.extend(args.iter().map(|a| &a.value));
                 }
                 Node::Member(r, _) | Node::SafeMember(r, _) => pending.push(r),
-                Node::Call(_, args, _) => pending.extend(args.iter().map(|a| &a.value)),
+                Node::Call(name, args, _) => {
+                    if name.as_str() == "it" {
+                        arity = arity.max(1);
+                    }
+                    pending.extend(args.iter().map(|a| &a.value));
+                }
                 Node::Index(r, s) => {
                     pending.push(r);
                     pending.extend(s.iter());

@@ -99,3 +99,52 @@ fn any_narrows_from_json_without_using_the_function_body() {
         &["V0101"],
     );
 }
+
+#[test]
+fn namespace_bodies_read_earlier_top_level_locals() {
+    clean("x = 1\nmodule M\n  VALUE = x + 1\nend\ny: int = M::VALUE\n");
+    codes("x = \"s\"\nmodule M\n  VALUE = x + 1\nend\n", &["V0108"]);
+    codes("module M\n  VALUE = x\nend\nx = 1\n", &["V0201"]);
+}
+
+#[test]
+fn nested_namespace_constants_are_initialized_before_the_parent() {
+    clean(
+        "module Outer\n  module Inner\n    VALUE = 2\n  end\n  TOTAL = Inner::VALUE + 1\nend\nx: int = Outer::TOTAL\n",
+    );
+    codes(
+        "module Outer\n  module Inner\n    VALUE = \"s\"\n  end\n  TOTAL = Inner::VALUE + 1\nend\n",
+        &["V0108"],
+    );
+}
+
+#[test]
+fn for_targets_are_assigned_even_when_the_loop_is_empty() {
+    clean("for x in [1]\nend\ny: int = x\n");
+    clean("def f(xs: array<int>) -> int?\n  for x in xs\n    x + 1\n  end\n  x\nend\n");
+    codes(
+        "def f(xs: array<int>) -> int\n  for x in xs\n  end\n  x\nend\n",
+        &["V0107"],
+    );
+}
+
+#[test]
+fn implicit_block_parameters_are_values_not_functions() {
+    clean("[1].map { it + 1 }\n");
+    codes("[1].map { it(2) }\n", &["V0310"]);
+}
+
+#[test]
+fn namespaces_and_functions_cannot_be_rebound() {
+    clean("math = 7\nmath + 1\n");
+    codes("Math = 7\n", &["V0102"]);
+    codes("puts = 7\n", &["V0102"]);
+    codes("class A\nend\nA = 7\n", &["V0102"]);
+    codes("def g(x: int = 1) -> int\n  x\nend\ng = 7\n", &["V0102"]);
+}
+
+#[test]
+fn capitalized_assignments_in_functions_are_rejected() {
+    clean("def bump -> int\n  count = 1\n  count = 2\n  count\nend\n");
+    codes("def bad\n  COUNT = 1\nend\n", &["V0102"]);
+}

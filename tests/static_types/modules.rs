@@ -84,3 +84,21 @@ fn a_required_files_type_errors_are_reported_in_that_file() {
     );
     std::fs::remove_dir_all(directory).unwrap();
 }
+
+#[test]
+fn required_functions_read_their_files_top_level_locals() {
+    let (engine, directory) = engine(&[(
+        "locals.vibe",
+        "x = 4\ndef get -> int\n  x\nend\ndef bad\n  x = \"s\"\nend\n",
+    )]);
+    let found = errors_with(&engine, "m = require(\"locals\")\nx: int = m.get\n");
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].code, Code::LOCAL_TYPE_CHANGED);
+    std::fs::write(
+        directory.join("locals.vibe"),
+        "x = 4\ndef get -> int\n  x\nend\n",
+    )
+    .unwrap();
+    assert!(errors_with(&engine, "m = require(\"locals\")\nx: int = m.get\n").is_empty());
+    std::fs::remove_dir_all(directory).unwrap();
+}

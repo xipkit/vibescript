@@ -259,6 +259,7 @@ impl<'a> Checker<'a> {
             let id = self.program.namespaces.len() as NsId;
             self.types.names.namespaces.push(class.name.clone());
             self.program.namespaces.push(Namespace {
+                checked: false,
                 module: None,
                 name: class.name.clone(),
                 parent: None,

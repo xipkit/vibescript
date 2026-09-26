@@ -216,6 +216,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
             .insert((*name).clone(), std::rc::Rc::new(sig));
     }
     checker.declare_hosts(input.declared);
+    checker.program.file = input.file;
     checker.declare_program(input.parsed);
     checker.check_all();
     let steps =

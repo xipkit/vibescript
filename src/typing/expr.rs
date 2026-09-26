@@ -338,7 +338,7 @@ impl<'a> Checker<'a> {
         if let Some(index) = sigs::index().module(name) {
             return Some(self.types.intern(Kind::Builtin(index)));
         }
-        None
+        self.constants.get(&(None, name.to_owned())).copied()
     }
 
     // Literals ---------------------------------------------------------

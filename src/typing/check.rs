@@ -157,15 +157,33 @@ impl<'a> Checker<'a> {
 
     /// Checks every function and namespace body.
     pub(super) fn check_all(&mut self) {
+        if let Some(main) = self.program.fns.iter().position(|decl| decl.main) {
+            self.check_function(main);
+        }
         for ns in 0..self.program.namespaces.len() {
             self.check_namespace_body(ns as NsId);
         }
         for id in 0..self.program.fns.len() {
-            self.check_function(id);
+            if !self.program.fns[id].main {
+                self.check_function(id);
+            }
         }
     }
 
     fn check_namespace_body(&mut self, ns: NsId) {
+        if self.program.namespaces[ns as usize].checked {
+            return;
+        }
+        self.program.namespaces[ns as usize].checked = true;
+        let mut children: Vec<NsId> = self.program.namespaces[ns as usize]
+            .children
+            .values()
+            .copied()
+            .collect();
+        children.sort_unstable();
+        for child in children {
+            self.check_namespace_body(child);
+        }
         let Some(module) = self.program.namespaces[ns as usize].module else {
             return;
         };
@@ -173,7 +191,31 @@ impl<'a> Checker<'a> {
         let mut frame = Frame::new(Some(ns), false, None, name);
         frame.namespace_body = true;
         let previous = self.enter_frame(frame);
+        let ambient: Vec<_> = previous
+            .names
+            .iter()
+            .map(|(name, &id)| {
+                let local = &previous.locals[id as usize];
+                (
+                    name.clone(),
+                    local.declared,
+                    local.offset,
+                    previous.flow.get(id),
+                )
+            })
+            .collect();
+        for (name, declared, offset, state) in &ambient {
+            let id = self.declare(name, *declared, *offset, true);
+            self.frame.flow.set(id, *state);
+        }
         self.stmts(&module.body, Want::Discard);
+        let changes: Vec<_> = ambient
+            .iter()
+            .filter_map(|(name, _, _, _)| {
+                self.local(name)
+                    .map(|id| (name.clone(), self.frame.flow.get(id)))
+            })
+            .collect();
         // Instance-variable defaults run for each instance.
         let defaults: Vec<&'a Stmt> = self
             .parsed
@@ -190,6 +232,11 @@ impl<'a> Checker<'a> {
         }
         self.leave_frame(body);
         self.leave_frame(previous);
+        for (name, state) in changes {
+            if let Some(id) = self.local(&name) {
+                self.frame.flow.set(id, state);
+            }
+        }
     }
 
     fn check_function(&mut self, id: FnId) {
@@ -206,6 +253,15 @@ impl<'a> Checker<'a> {
         frame.main = main;
         frame.block = sig.block.clone();
         let previous = self.enter_frame(frame);
+        if self.program.file && !main {
+            let locals = self.program.file_locals.clone();
+            for (name, (ty, offset)) in locals {
+                if !def.params.iter().any(|param| param.name == name) {
+                    let id = self.declare(&name, ty, offset, true);
+                    self.assign_local(id, ty);
+                }
+            }
+        }
         if instance && def.name == "initialize" {
             self.track_initialize(owner);
         }
@@ -239,6 +295,16 @@ impl<'a> Checker<'a> {
         };
         let body = &def.body;
         self.stmts(body, want);
+        if main && self.program.file {
+            for (name, &id) in &self.frame.names {
+                if self.frame.flow.get(id).assigned {
+                    let local = &self.frame.locals[id as usize];
+                    self.program
+                        .file_locals
+                        .insert(name.clone(), (local.declared, local.offset));
+                }
+            }
+        }
         if self.frame.flow.live {
             if let (Some(result), false) = (sig.result, main) {
                 if body.is_empty() && !self.types.assignable(Ty::NIL, result) {
@@ -542,7 +608,13 @@ impl<'a> Checker<'a> {
                 self.frame.flow.live = false;
                 Ty::NEVER
             }
-            Statement::Module(_) | Statement::UnboundClass(_) | Statement::Unsupported => {
+            Statement::Module(name) => {
+                if let Some(&ns) = self.program.roots.get(name.as_str()) {
+                    self.check_namespace_body(ns);
+                }
+                self.statement_value(stmt, Ty::NIL, want)
+            }
+            Statement::UnboundClass(_) | Statement::Unsupported => {
                 self.statement_value(stmt, Ty::NIL, want)
             }
         }
@@ -661,6 +733,9 @@ impl<'a> Checker<'a> {
         let ty = self.expr(iterable, None);
         let element = self.iterated(ty, iterable);
         self.widen_for_loop(body);
+        let nonempty = matches!(&iterable.node, Node::Array(items) if !items.is_empty())
+            || matches!(self.types.kind(ty), Kind::Tuple(items) if !items.is_empty());
+        self.declare_for_target(target, element, nonempty);
         let before = self.frame.flow.mark();
         self.bind_target(target, element, true);
         self.frame.contexts.push(Context::Loop {
@@ -671,6 +746,37 @@ impl<'a> Checker<'a> {
         let context = self.frame.contexts.pop().unwrap();
         self.finish_loop(before, context, true);
         ty
+    }
+
+    fn declare_for_target(&mut self, target: &'a Target, element: Ty, nonempty: bool) {
+        match target {
+            Target::Value(expr) => {
+                if let Node::Var(name) = &expr.node {
+                    if self.local(name).is_none() && !name.starts_with('@') {
+                        let declared = if nonempty {
+                            element
+                        } else {
+                            self.types.optional(element)
+                        };
+                        let id = self.declare(name, declared, expr.offset as usize, false);
+                        self.assign_local(id, if nonempty { element } else { Ty::NIL });
+                    }
+                }
+            }
+            Target::Tuple(parts) => {
+                for (index, (part, rest)) in parts.iter().enumerate() {
+                    if let Some(part) = part {
+                        let ty = if *rest {
+                            self.rest_of(element, index, parts.len())
+                        } else {
+                            self.element_of(element, index)
+                        };
+                        self.declare_for_target(part, ty, nonempty);
+                    }
+                }
+            }
+            Target::Typed(inner, _) => self.declare_for_target(inner, element, nonempty),
+        }
     }
 
     /// The element type `for` binds when iterating a value of type `ty`.
@@ -1151,6 +1257,7 @@ impl<'a> Checker<'a> {
     }
 
     fn assign(&mut self, target: &'a Target, value: &'a Expr) -> Ty {
+        self.check_binding_target(target);
         match target {
             Target::Typed(inner, annotation) => {
                 let Target::Value(Expr {
@@ -1231,10 +1338,14 @@ impl<'a> Checker<'a> {
                             &Purpose::Local(name.to_string()),
                         );
                     }
-                    let ty = self.expr(value, None);
                     let key = (self.frame.owner, name.to_string());
-                    self.constants.insert(key, ty);
-                    ty
+                    if let Some(&declared) = self.constants.get(&key) {
+                        self.expr_against(value, declared, &Purpose::Local(name.to_string()))
+                    } else {
+                        let ty = self.expr(value, None);
+                        self.constants.insert(key, ty);
+                        ty
+                    }
                 }
                 Node::Var(name) => {
                     if name.as_str() == "self" {
@@ -1376,6 +1487,9 @@ impl<'a> Checker<'a> {
 
     /// Binds a destructuring or block parameter target to a value of type `ty`.
     pub(super) fn bind_target(&mut self, target: &'a Target, ty: Ty, assignment: bool) {
+        if assignment {
+            self.check_binding_target(target);
+        }
         match target {
             Target::Value(expr) => match &expr.node {
                 Node::Var(name) if !name.starts_with('@') => {
@@ -1451,6 +1565,40 @@ impl<'a> Checker<'a> {
                     self.bind_target(part, element, assignment);
                 }
             }
+        }
+    }
+
+    fn check_binding_target(&mut self, target: &Target) {
+        let Target::Value(expr) = target else {
+            if let Target::Typed(inner, _) = target {
+                self.check_binding_target(inner);
+            }
+            return;
+        };
+        let Node::Var(name) = &expr.node else { return };
+        if is_constant(name) && !self.frame.main && !self.frame.namespace_body {
+            self.report(Diagnostic::error(
+                Code::LOCAL_TYPE_CHANGED,
+                self.spans.expr(expr),
+                format!("a function cannot assign capitalized name `{name}`; use a lowercase local or a declared class variable"),
+            ));
+            return;
+        }
+        if self.local(name).is_some() {
+            return;
+        }
+        let reserved = self.program.roots.contains_key(name.as_str())
+            || self.program.enum_names.contains_key(name.as_str())
+            || self.program.functions.contains_key(name.as_str())
+            || self.program.hosts.contains_key(name.as_str())
+            || super::sigs::index().module(name).is_some()
+            || super::sigs::index().globals.contains_key(name.as_str());
+        if reserved {
+            self.report(Diagnostic::error(
+                Code::LOCAL_TYPE_CHANGED,
+                self.spans.expr(expr),
+                format!("`{name}` names a namespace or function and cannot be rebound"),
+            ));
         }
     }
 

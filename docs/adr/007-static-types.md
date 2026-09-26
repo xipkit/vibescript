@@ -388,3 +388,25 @@ callee bodies and declaration order, and makes a function's contract implicit.
   sandboxing](006-slim-language-for-predictable-sandboxing.md)
 - Current type syntax and runtime contracts: [types](../types.md)
 - Current checker, to be replaced: [checker](../checker.md)
+
+## Implementation notes before the switchover
+
+The opt-in static checker treats every function without `-> T` as returning
+`nil`, independently of its body. The current runtime still returns the last
+expression of such a function. The switchover must discard that value; until
+then it is a known runtime mismatch, never evidence for a checker result type.
+
+Namespace initializers run where the top-level module declaration is executed,
+with nested modules initialized before their parent. Their bodies can read and
+update locals already assigned in that active top-level frame. Namespace
+methods do not capture those locals. Calling a function directly through the
+host can initialize namespaces without executing the top-level statements;
+a namespace that depends on those statements therefore requires execution of
+the script's top level first. Required files keep their top-level bindings in
+the file environment, visible to their functions.
+
+Capitalized assignments in namespace methods use shared namespace storage,
+while ordinary function and top-level bindings have different lifetimes. The
+static language rejects capitalized assignments inside functions; use lowercase
+locals or explicitly declared class variables. Namespace-body constants keep
+one type across writes.

@@ -7,12 +7,12 @@ const POINT: &str = "class Point\n  property x: int\n  @label: string = \"p\"\n 
 #[test]
 fn classes_type_their_constructors_properties_and_methods() {
     clean(&format!(
-        "{POINT}p = Point.new(1, 2)\ntotal: int = p.sum + p.x\np.x = 3\n"
+        "{POINT}point = Point.new(1, 2)\ntotal: int = point.sum + point.x\npoint.x = 3\n"
     ));
     codes(&format!("{POINT}Point.new(1)\n"), &["V0301"]);
     codes(&format!("{POINT}Point.new(1, \"2\")\n"), &["V0101"]);
     codes(
-        &format!("{POINT}p = Point.new(1, 2)\np.x = \"a\"\n"),
+        &format!("{POINT}point = Point.new(1, 2)\npoint.x = \"a\"\n"),
         &["V0101"],
     );
     let source = format!("{POINT}Point.new(1, 2).missing\n");
