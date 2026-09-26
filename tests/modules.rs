@@ -17,15 +17,6 @@ fn run(source: &str) -> serde_json::Value {
     run_on(Engine::new(), source)
 }
 
-/// Runs a program that writes fields into builtin namespaces or modules,
-/// reads enclosing bindings from a module body, or calls a module held as
-/// an `any` value. Static types refuse each of these
-/// (`static_types_refuse_dynamic_namespace_access`), so these programs run
-/// without them.
-fn run_dynamic(source: &str) -> serde_json::Value {
-    run_on(common::gradual_engine(), source)
-}
-
 fn run_on(engine: Engine, source: &str) -> serde_json::Value {
     let output = engine
         .compile(source)
@@ -63,76 +54,13 @@ fn static_types_refuse_dynamic_namespace_access() {
 }
 
 #[test]
-fn builtin_namespace_writes_do_not_require_an_unrelated_read() {
-    // A separate builtin read would register the fallback and hide the regression.
-    for builtin in [
-        "Hash", "Regexp", "Regex", "Time", "Duration", "JSON", "Math",
-    ] {
-        for assignment in [
-            format!("{builtin}[:probe]=7"),
-            format!("{builtin}.probe=7"),
-            format!("{builtin}[:probe]=[1];{builtin}::probe[0]=7"),
-        ] {
-            for kind in ["module", "class"] {
-                for source in [
-                    format!("{kind} M;Result=begin;{assignment};end;end;M::Result"),
-                    format!("{kind} M;def self.write;{assignment};end;end;M.write"),
-                ] {
-                    for unused in [String::new(), format!(";def unused;{builtin};end")] {
-                        let source = source.clone() + &unused;
-                        let script = common::gradual_engine()
-                            .compile(&source)
-                            .unwrap_or_else(|error| panic!("{source}: {error}"));
-                        let result = script
-                            .run(CallOptions::default())
-                            .unwrap_or_else(|error| panic!("{source}: {error}"));
-                        assert_eq!(result.value.as_int(), Some(7), "{source}");
-                    }
-                }
-            }
-        }
-    }
-}
-
-#[test]
-fn builtin_namespace_writes_cover_compound_nested_and_block_addresses() {
-    for body in [
-        "Math[:probe] ||= 7",
-        "Math[:probe]=1;Math[:probe] &&= 7",
-        "Math[:probe]=2;Math[:probe] += 5",
-        "Math.probe=[2];Math.probe[0] += 5",
-        "Math[:probe]={items:[2]};Math[:probe][:items][0] += 5",
-        "Math[:probe]=[2];Math::probe[0] += 5",
-        "[1].map{|n|Math[:probe]=n+6}.first",
-    ] {
-        let source = format!("module M;Result=begin;{body};end;end;M::Result");
-        let script = common::gradual_engine()
-            .compile(&source)
-            .unwrap_or_else(|error| panic!("{source}: {error}"));
-        assert_eq!(
-            script
-                .run(CallOptions::default())
-                .unwrap_or_else(|error| panic!("{source}: {error}"))
-                .value
-                .as_int(),
-            Some(7),
-            "{source}"
-        );
-    }
-    assert_eq!(
-        run_dynamic("module M;Math[:left],JSON[:right]=[3,7];end;0"),
-        serde_json::json!(0)
-    );
-    assert_eq!(
-        run_dynamic("module M;def self.write;Math[:probe]=7;end;Result=write;end;M::Result"),
-        serde_json::json!(7)
-    );
-}
-
-#[test]
 fn builtin_namespace_fallback_keeps_shadowing_and_per_call_isolation() {
-    let script = common::gradual_engine()
-        .compile("module M;def self.write;Math[:probe][0]+=5;end;end;def run;M.write;end")
+    let mut engine = Engine::new();
+    engine
+        .declare_global("Math", "{ probe: array<int> }")
+        .unwrap();
+    let script = engine
+        .compile("module M;def self.write -> int;Math[\"probe\"][0]=Math[\"probe\"].fetch(0)+5;end;end;def run -> int;M.write;end")
         .unwrap();
     let original = Value::hash(vec![(b"probe".to_vec(), Value::array(vec![Value::int(2)]))]);
     let options = CallOptions {
@@ -150,9 +78,20 @@ fn builtin_namespace_fallback_keeps_shadowing_and_per_call_isolation() {
         );
         assert_eq!(json(&original), serde_json::json!({"probe":[2]}));
     }
-    let script = common::gradual_engine().compile("module M;Math={probe:[2]};def self.write;Math[:probe][0]+=5;end;end;def run;M.write;end").unwrap();
+    // A builtin namespace cannot be rebound, so a module constant shadows a
+    // large host global, which is never imported.
+    let mut engine = Engine::new();
+    engine
+        .declare_global("Probe", "{ probe: array<int> }")
+        .unwrap();
+    let script = engine.compile("module M;Probe={probe:[2]};def self.write -> int;Probe[\"probe\"][0]=Probe[\"probe\"].fetch(0)+5;end;end;def run -> int;M.write;end").unwrap();
+    let large = Value::array(vec![Value::int(100); 16 * 1024]);
     let options = CallOptions {
-        globals: [("Math".into(), Value::bytes(vec![b'x'; 128 * 1024]))].into(),
+        globals: [(
+            "Probe".into(),
+            Value::hash(vec![(b"probe".to_vec(), large)]),
+        )]
+        .into(),
         limits: Limits {
             memory_bytes: Some(32 * 1024),
             ..Limits::default()
@@ -179,8 +118,10 @@ fn builtin_namespace_fallback_keeps_shadowing_and_per_call_isolation() {
 
 #[test]
 fn builtin_namespace_updates_obey_limits_and_release_temporary_state() {
-    let script = common::gradual_engine()
-        .compile("module M;64.times{Math[:items]='x'*512};end;def run;0;end")
+    // A builtin namespace has no fields to write, so the initializer updates
+    // the module's own constant.
+    let script = Engine::new()
+        .compile("module M;Items=[\"\"];64.times{Items[0]='x'*512};end;def run -> int;0;end")
         .unwrap();
     let baseline = script.call("run", &[], CallOptions::default()).unwrap();
     assert_eq!(baseline.stats.retained_memory_bytes, 0);
@@ -225,43 +166,46 @@ fn builtin_namespace_updates_obey_limits_and_release_temporary_state() {
 #[test]
 fn bodies_and_blocks_keep_their_assignment_boundaries() {
     assert_eq!(
-        run_dynamic(
-            "x=1\nC=7\nmodule M\n x=2\n [3].each{x=3}\n D=x\n E=C\n C=9\nend\n[x,C,M.C,M.D,M.E]"
-        ),
+        run("x=1\nC=7\nmodule M\n x=2\n [3].each{x=3}\n D=x\n E=C\n C=9\nend\n[x,C,M.C,M.D,M.E]"),
         serde_json::json!([2, 7, 9, 2, 7])
     );
     assert_eq!(
-        run_dynamic("x=[1]\nmodule M\n [2].each{x.push(2)}\n C=x\nend\n[x,M.C]"),
+        run("x=[1]\nmodule M\n [2].each{x.push(2)}\n C=x\nend\n[x,M.C]"),
         serde_json::json!([[1, 2], [1, 2]])
     );
     assert_eq!(
-        run_dynamic("module M\n C=N.C+1\n module N\n C=2\n end\nend\n[M.C,M::N::C]"),
+        run("module M\n C=N::C+1\n module N\n C=2\n end\nend\n[M.C,M::N::C]"),
         serde_json::json!([3, 2])
     );
+    // A module body has no result, so `return` takes no value.
+    assert_eq!(run("module M\n return\n C=1\nend\n9"), serde_json::json!(9));
+    // A block's assignment creates a block local, which `+=` reads first.
+    let source = "x=1\nmodule M\n[2].each{x+=1}\nend\n9";
+    let error = Engine::new().compile(source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0202"]);
     assert_eq!(
-        run_dynamic("module M\n return 7\n C=1\nend\n9"),
-        serde_json::json!(9)
+        error.diagnostics()[0].span.start,
+        source.find("x+=").unwrap()
     );
-    for body in ["[2].each{x+=1}", "[2].each{return 7}"] {
-        let source = format!("x=1\nmodule M\n{body}\nend\n9");
-        assert!(
-            common::gradual_engine()
-                .compile(&source)
-                .unwrap()
-                .run(CallOptions::default())
-                .is_err()
-        );
-    }
+    let source = "x=1\nmodule M\n[2].each{return}\nend\n9";
+    assert!(
+        Engine::new()
+            .compile(source)
+            .unwrap()
+            .run(CallOptions::default())
+            .is_err()
+    );
 }
 
 #[test]
 fn namespace_identity_and_collection_values_have_distinct_mutation_rules() {
-    for receiver in ["M.data", "M::data", "M.data.dup"] {
+    // A module's fields are its constants, assigned in its body.
+    for receiver in ["M.Data", "M::Data", "M.Data.dup"] {
         let source = format!(
-            "module M\n data=1\nend\nM.data=\"a\".match(/(a)/);{receiver}.captures.push(\"x\")"
+            "module M\n Data=\"a\".match(/(a)/).as(match_data)\nend\n{receiver}.captures.push(\"x\")"
         );
         assert_eq!(
-            common::gradual_engine()
+            Engine::new()
                 .compile(&source)
                 .unwrap()
                 .run(CallOptions::default())
@@ -278,17 +222,17 @@ fn namespace_identity_and_collection_values_have_distinct_mutation_rules() {
         serde_json::json!([[1], [1, 1]])
     );
     assert_eq!(
-        run_dynamic("module M\n A=[]\nend\nx=[1];M.A=x;M::A[0]=3;[x,M.A]"),
+        run("x=[1]\nmodule M\n A=x\nend\nM::A[0]=3;[x,M.A]"),
         serde_json::json!([[1], [3]])
     );
     assert_eq!(
-        run_dynamic(
-            "module M\n A=[1]\nend\nx=M.dup;x.C=3;M.cycle=M;[x==M,M.C,M.cycle.cycle==M,\"#{M}\"]"
+        run(
+            "module M\n @@n: int = 0\n Cycle=M\n def self.bump -> int;@@n+=1;@@n;end\nend\nx=M.dup;x.bump;[x==M,M.bump,M::Cycle::Cycle==M,\"#{M}\"]"
         ),
-        serde_json::json!([true, 3, true, "<Class M>"])
+        serde_json::json!([true, 2, true, "<Class M>"])
     );
     assert_eq!(
-        run_dynamic(
+        run(
             "module M\n A=[1]\nend\nM.A[0]=2;M.A.push(3);M::A.push(4);before=M.A;M::A[0]=9;[before,M.A]"
         ),
         serde_json::json!([[1], [9]])
@@ -297,47 +241,49 @@ fn namespace_identity_and_collection_values_have_distinct_mutation_rules() {
 
 #[test]
 fn methods_preserve_visibility_binding_blocks_and_setter_results() {
+    // `respond_to?` is removed, so `check` only calls the private method.
     assert_eq!(
-        run_dynamic(
-            r#"
+        run(r#"
 module M
  C=4
- private def self.hidden;7;end
- public def self.check
-  [hidden,respond_to?(:hidden),self.respond_to?(:hidden),self.respond_to?(:hidden,true)]
+ @@value: int = 0
+ private def self.hidden -> int;7;end
+ public def self.check -> int
+  hidden
  end
- def self.apply(x: int, extra: 2)
+ def self.apply(x: int, *, extra: int = 2, &block: int -> int) -> int
   yield(x+C+extra)
  end
- def self.value=(x: int)
+ def self.value=(x: int) -> int
   @@value=x+1
   99
  end
+ def self.value -> int
+  @@value
+ end
 end
-def assign
+def assign -> int
  M.value=5
 end
 [M.check,M.apply(3,extra:1){|x|x*2},assign,M.value]
-"#
-        ),
-        serde_json::json!([[7, true, false, true], 16, 5, 6])
+"#),
+        serde_json::json!([7, 16, 5, 6])
     );
-    for expression in [
-        "M.hidden",
-        "M::hidden",
-        "M.apply(false){1}",
-        "M.respond_to?(:hidden,1)",
-        "M.equal?(M){1}",
+    for (expression, code, at) in [
+        ("M.hidden", "V0208", "hidden"),
+        ("M::hidden", "V0416", "::"),
+        ("M.apply(false){|x|1}", "V0101", "false"),
+        ("M.respond_to?(:hidden,1)", "V0405", "respond_to?"),
+        ("M.equal?(M){1}", "V0403", "equal?"),
     ] {
         let source = format!(
-            "module M\n private def self.hidden;7;end\n public def self.apply(x: int);yield(x);end\nend\n{expression}"
+            "module M\n private def self.hidden -> int;7;end\n public def self.apply(x: int, &block: int -> int) -> int;yield(x);end\nend\n{expression}"
         );
-        assert!(
-            common::gradual_engine()
-                .compile(&source)
-                .unwrap()
-                .run(CallOptions::default())
-                .is_err(),
+        let error = Engine::new().compile(&source).err().expect(expression);
+        assert_eq!(common::codes(&error)[0], code, "{expression}");
+        assert_eq!(
+            error.diagnostics()[0].span.start,
+            source.rfind(at).unwrap(),
             "{expression}"
         );
     }
@@ -473,8 +419,10 @@ fn initialization_observes_cancellation_and_stops_later_effects() {
 
 #[test]
 fn escaped_namespace_metadata_is_accounted_and_dispatches_original_code() {
-    let script = common::gradual_engine()
-        .compile("module M\n C=1\n def self.f;C;end\nend\ndef make;M;end\ndef read(m);m.f;end")
+    // A namespace the host passes in is `any`, which a script compares but
+    // never calls, so `read` calls its own `M` when the value is that.
+    let script = Engine::new()
+        .compile("module M\n C=1\n def self.f -> int;C;end\nend\ndef make -> any;M;end\ndef read(m: any) -> int;m==M ? M.f : 0;end")
         .unwrap();
     let output = script.call("make", &[], CallOptions::default()).unwrap();
     assert_eq!(size_of::<Value>(), 16);
@@ -493,12 +441,15 @@ fn escaped_namespace_metadata_is_accounted_and_dispatches_original_code() {
         Some(1)
     );
     drop(script);
-    let foreign = common::gradual_engine()
-        .compile("module N\n def self.f;99;end\nend\ndef read(m);m.f;end")
+    // Another program's namespace of the same name is a different value.
+    let foreign = Engine::new()
+        .compile(
+            "module M\n def self.f -> int;99;end\nend\ndef read(m: any) -> int;m==M ? M.f : 0;end",
+        )
         .unwrap();
     let result = foreign
         .call("read", &[output.value], CallOptions::default())
         .unwrap();
-    assert_eq!(result.value.as_int(), Some(1));
+    assert_eq!(result.value.as_int(), Some(0));
     assert_eq!(result.stats.retained_memory_bytes, 0);
 }
