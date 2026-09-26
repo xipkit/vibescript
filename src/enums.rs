@@ -132,6 +132,10 @@ pub(crate) fn symbol(name: &str) -> String {
 }
 
 impl Enumeration {
+    pub(crate) fn identical(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.identity, &other.identity)
+    }
+
     pub(crate) fn instantiate(ctx: &mut CallContext, value: &Arc<Self>) -> Result<Arc<Self>> {
         let identity = Rebind::resolve(ctx, &value.definition, true)?
             .expect("compiled enum belongs to the invocation");
