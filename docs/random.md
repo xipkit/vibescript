@@ -15,7 +15,7 @@ previous = srand(42)
 [first == [rand, rand(10), rand(1..3)], previous] # [true, 42]
 ```
 
-`srand(seed)` takes a signed 64-bit integer and returns the previous seed, or `nil` before the first seed in that call, so its result is an `int?`. Omitting the seed, or passing `nil`, obtains a new seed from the entropy reader. Repeating a seed reproduces the same sequence, including mixed float, bounded-integer and wide-range draws, as Go v0.70.0 did. Calls and threads keep independent seeded state.
+`srand(seed)` takes a signed 64-bit integer and returns the previous seed, or `nil` before the first seed in that call, so its result is an `int?`. Omitting the seed, or passing `nil`, obtains a new seed from the entropy reader. Repeating a seed reproduces the same sequence, including mixed float, bounded-integer and wide-range draws. Calls and threads keep independent seeded state.
 
 Seeded `rand` is predictable and unsuitable for secrets. Unseeded `rand` reads entropy directly.
 
@@ -62,7 +62,7 @@ fn main() -> Result<(), vibescript::Error> {
 
 The callback returns the number of initialized bytes. The engine retries partial reads and rejects zero or oversized counts. Reader errors propagate. A reader may run concurrently; it owns synchronization of any captured state and must cooperate with the supplied context while doing blocking work. Reconfiguring the engine does not alter already compiled scripts.
 
-The comparison harness supports an optional `entropy_byte` fixture field. Only fixtures that specify it use repeated fixed bytes. This makes entropy-dependent conformance and accounting comparisons reproducible; native tests also exercise the real OS reader.
+The golden and benchmark harnesses support an optional `entropy_byte` fixture field. Only fixtures that specify it use repeated fixed bytes. This makes entropy-dependent results and accounting counters reproducible; native tests also exercise the real OS reader.
 
 ## Resource limits
 

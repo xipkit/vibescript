@@ -4,7 +4,7 @@ Three small APIs let a host keep state from one compiled snippet to the next, as
 
 ## Builtin names
 
-`vibescript::builtins()` returns the core builtins every script can reach by name, like Go's `Engine.Builtins`. Functions such as `puts` map to builtin descriptors, and namespaces such as `JSON` and `Math` map to objects whose fields are their members, including constants such as `Math::PI`:
+`vibescript::builtins()` returns the core builtins every script can reach by name. Functions such as `puts` map to builtin descriptors, and namespaces such as `JSON` and `Math` map to objects whose fields are their members, including constants such as `Math::PI`:
 
 ```rust
 let catalog = vibescript::builtins();

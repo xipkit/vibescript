@@ -1,6 +1,6 @@
 # Deep JSON values
 
-`JSON.parse`, `JSON.stringify` and the Rust `parse_json` and `stringify_json` helpers support 10,000 nested arrays or hashes. Empty containers count as one level; scalars do not. Entering the 10,001st container raises a recoverable `LimitError`. This matches the documented Go JSON boundary.
+`JSON.parse`, `JSON.stringify` and the Rust `parse_json` and `stringify_json` helpers support 10,000 nested arrays or hashes. Empty containers count as one level; scalars do not. Entering the 10,001st container raises a recoverable `LimitError`.
 
 Valid values retain that depth allowance through host imports, global bindings, instance and module fields, rendering, comparisons and collection traversal. Adding another array or hash around a value already at the limit is rejected. Internal field tables do not consume a data-container level. Typed normalization retains its separate depth rules.
 

@@ -73,7 +73,7 @@ Later capability grants replace earlier grants of the same name. Explicit call g
 
 A host-owned `HostMethod::value()` is a reusable grant template. Its first import binds it to the receiving invocation. A saved script namespace or object graph retains that invocation's grant; importing it into a later call cannot reactivate the old method, even if the later call receives a fresh capability with the same name. Reach the new grant through its root binding instead. A template supplied through `Capability::from_value` follows the same rule: a value saved from an earlier invocation keeps its expired grant, and the checker reports calls through it. Concurrent calls have independent grants and limits.
 
-The ADR-006 policy keeps capability methods attached to their bindings or namespaces. `SMS.send(...)` is a call; a method is never a value that can be extracted, stored, passed or returned. Go v0.70.0 permitted some extraction through indexed and scoped reads.
+The ADR-006 policy keeps capability methods attached to their bindings or namespaces. `SMS.send(...)` is a call; a method is never a value that can be extracted, stored, passed or returned.
 
 Imported containers, descriptor names and metadata, binding storage, traversal work and callback results count against the invocation's limits. Descriptors deferred for safe callback destruction retain their metadata charge until destruction; repeated references share that reservation. Returned or host-retained values retain their own charges. Callback closure captures and allocations made independently by trusted host code remain host-owned; callbacks must cooperate with cancellation and account their work. Rust's immutable values isolate arrays and hashes across the host boundary.
 
@@ -98,7 +98,7 @@ assert_eq!(result.value.as_int(), Some(21));
 
 A block's `next` returns to the driver. Its `break` terminates the receiving call and sends the break value through the host return contract. A nonlocal `return` validates at the defining script method. Inner rescue and ensure handlers run before ordinary failures reach the host; outer script handlers wait until the callback returns. The host may handle ordinary block errors and invoke the block again. Cancellation and exhausted step or memory quotas remain latched and prohibit later script effects, including rescue and ensure.
 
-The explicitly selected control-flow policy preserves a pending `break` or `return` even if a host callback ignores `ErrorKind::ControlFlow`. Further block calls cannot execute script after that transfer. Go v0.70.0 permits swallowing these signals and running the block again. This behavior is explicitly selected and recorded separately in the compatibility audit.
+The explicitly selected control-flow policy preserves a pending `break` or `return` even if a host callback ignores `ErrorKind::ControlFlow`. Further block calls cannot execute script after that transfer; see [the differences from Go](compatibility.md#attached-capability-methods-and-host-blocks).
 
 ## Publishing into the receiver
 

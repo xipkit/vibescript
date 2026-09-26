@@ -49,6 +49,6 @@ assert_eq!((found[0].position.line, found[0].position.column), (4, 5));
 
 ## Builtin catalogs
 
-`keywords()` lists the reserved words, and `identifier_char` and `uppercase` classify characters by the same Unicode tables as the lexer. `member_names()` lists the builtin member names per receiver kind in the reference order used for suggestions, followed by the universal helpers each kind answers; the lists match the Go reference's completion tables. The global builtins come from [`vibescript::builtins()`](sessions.md#builtin-names).
+`keywords()` lists the reserved words, and `identifier_char` and `uppercase` classify characters by the same Unicode tables as the lexer. `member_names()` lists the builtin member names per receiver kind in the order used for suggestions, followed by the universal helpers each kind answers. The global builtins come from [`vibescript::builtins()`](sessions.md#builtin-names).
 
 `Script::declarations()` also lists top-level declarations, with the byte span of each, for a script that compiled; an interactive session uses the spans to carry declarations into later input. `outline` differs in what it covers: it needs only a parse, and it describes members, signatures, bodies and statements, which an editor needs while a document is being written.
