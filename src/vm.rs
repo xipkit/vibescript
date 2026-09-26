@@ -63,6 +63,10 @@ enum ReturnTo {
 struct Frame {
     program: Arc<Program>,
     host: bool,
+    /// Whether the frame's arguments came from the host, which the
+    /// prologue checks against the parameter types; the checker proves
+    /// the arguments of every other call.
+    checked: bool,
     activation: bool,
     receiver: Option<Value>,
     constructor: bool,
@@ -438,7 +442,7 @@ impl Run {
                     }
                     if frames.data.is_empty() {
                         let (function, input) = pending_entry.take().unwrap();
-                        enter_arguments(program, ctx, frames, storage, function, input, 0)
+                        enter_checked(program, ctx, frames, storage, function, input, 0, true)
                             .map_err(entry_binding)?;
                     }
                 }
@@ -570,7 +574,7 @@ impl Run {
                         && current > floor
                         && matches!(frame.return_to, ReturnTo::Stack)
                         && !frame.constructor
-                        && function.return_type.is_none()
+                        && function.return_check.is_none()
                         && !function.initializer
                         && !handlers::guards(storage, current)
                         && !storage.releasing
@@ -1417,7 +1421,9 @@ impl Run {
                     if let Some(value) = frame.binding.data[0].value(ctx, param)? {
                         let param = &program.functions[frame.function.unwrap()].params[param];
                         let slot = frame.local_base + param.slot;
-                        let ty = param.ty;
+                        let ty = param
+                            .ty
+                            .filter(|&ty| frame.checked || program.types[ty].unproven());
                         let value = if let Some(ty) = ty {
                             normalize_type(
                                 program,
@@ -3214,7 +3220,7 @@ fn normalize_return(
     let Some(function) = frames.data[frame].function else {
         return Ok(value);
     };
-    let Some(ty) = program.functions[function].return_type else {
+    let Some(ty) = program.functions[function].return_check else {
         return Ok(value);
     };
     normalize_type(
@@ -4039,10 +4045,14 @@ fn enter(
     base: usize,
 ) -> Result<()> {
     let fun = &program.functions[function];
-    if !fun.plain {
-        let args = Arguments::from_values(ctx, args)?;
-        return enter_arguments(program, ctx, frames, storage, function, args, base);
-    }
+    let start = match fun.proven {
+        _ if fun.plain => 0,
+        Some(start) => start,
+        None => {
+            let args = Arguments::from_values(ctx, args)?;
+            return enter_arguments(program, ctx, frames, storage, function, args, base);
+        }
+    };
     ctx.charge(1)?;
     if frames.data.len() >= ctx.options.limits.recursion {
         return recursion_exceeded(ctx);
@@ -4065,6 +4075,7 @@ fn enter(
         ctx,
         Frame {
             home: (function != 0 && !fun.initializer).then_some(frames.data.len()),
+            ip: start,
             ..Frame::new(pinned, storage, Some(function), base, local_base)
         },
     )
@@ -4076,8 +4087,24 @@ fn enter_arguments(
     frames: &mut Buffer<Frame>,
     storage: &mut Storage,
     call: impl Into<crate::namespace::Call>,
+    arguments: Arguments,
+    base: usize,
+) -> Result<()> {
+    enter_checked(program, ctx, frames, storage, call, arguments, base, false)
+}
+
+/// Enters a call whose arguments the checker proved unless `checked`, when
+/// they come from the host and the callee's prologue checks them.
+#[allow(clippy::too_many_arguments)]
+fn enter_checked(
+    program: &Program,
+    ctx: &mut CallContext,
+    frames: &mut Buffer<Frame>,
+    storage: &mut Storage,
+    call: impl Into<crate::namespace::Call>,
     mut arguments: Arguments,
     base: usize,
+    checked: bool,
 ) -> Result<()> {
     let mut call = call.into();
     let owner = call
@@ -4106,7 +4133,9 @@ fn enter_arguments(
             "instance method requires its instance receiver",
         ));
     }
-    if fun.plain && arguments.keywords.buffer.data.is_empty() {
+    if (fun.plain || fun.proven.is_some() && !checked)
+        && arguments.keywords.buffer.data.is_empty()
+    {
         enter(
             program,
             ctx,
@@ -4130,6 +4159,7 @@ fn enter_arguments(
     let binding = Binding::new(ctx, &fun.params, arguments)?;
     let mut frame = new_frame(ctx, program, storage, Some(function), base)?;
     frame.home = (function != 0 && !fun.initializer).then_some(frames.data.len());
+    frame.checked = checked;
     frame.block = block;
     frame.receiver = call.receiver;
     frame.constructor = call.constructor;
@@ -4209,6 +4239,7 @@ impl Frame {
         Self {
             program,
             host: false,
+            checked: false,
             activation: false,
             receiver: None,
             constructor: false,

@@ -165,6 +165,36 @@ impl Type {
         }
     }
 
+    /// Whether a check against this type does more than the checker
+    /// proves, so the runtime keeps it even between two well-typed parts of
+    /// a program. A named type resolves at runtime and an enum turns a
+    /// symbol into its member, and the checker admits hash key types that
+    /// no string key satisfies, which only the runtime rejects.
+    pub fn unproven(&self) -> bool {
+        match &self.kind {
+            TypeKind::Named => true,
+            TypeKind::Scalar(_) | TypeKind::Literal(_) => false,
+            TypeKind::Array(element) => element.as_ref().is_some_and(|element| element.unproven()),
+            TypeKind::Hash(pair) => pair.as_ref().is_some_and(|pair| {
+                pair.0.unproven() || !pair.0.admits_keys() || pair.1.unproven()
+            }),
+            TypeKind::Shape(fields, _) => fields.iter().any(|field| field.ty.unproven()),
+            TypeKind::Union(options) | TypeKind::Tuple(options) => {
+                options.iter().any(Type::unproven)
+            }
+        }
+    }
+
+    /// Whether hash keys, which are strings, satisfy this key type, as
+    /// [`hash_keys`] decides it for a type without names.
+    fn admits_keys(&self) -> bool {
+        match &self.kind {
+            TypeKind::Scalar(Scalar::Any | Scalar::String | Scalar::Symbol) => true,
+            TypeKind::Union(options) => options.iter().any(Type::admits_keys),
+            _ => false,
+        }
+    }
+
     /// The number of type nodes, which bounds what substituting it costs.
     pub fn nodes(&self) -> usize {
         1 + match &self.kind {

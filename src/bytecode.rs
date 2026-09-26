@@ -393,12 +393,22 @@ pub(crate) struct Function {
     pub params: Vec<Parameter>,
     pub binds_parameters: bool,
     pub plain: bool,
+    /// Where a call from checked code starts, past the prologue's parameter
+    /// checks, when every parameter is a required positional one that such
+    /// a call binds directly: untyped, or typed with a type whose check the
+    /// checker proves (see [`crate::types::Type::unproven`]). Host entry
+    /// calls still run the prologue.
+    pub proven: Option<usize>,
     pub locals: usize,
     pub code: Vec<Op>,
     pub captures: Vec<Option<Capture>>,
     pub block_arity: usize,
     pub local_names: Vec<String>,
     pub return_type: Option<usize>,
+    /// The declared result type when the runtime still checks the returned
+    /// value against it: an unproven type, or any result of an instance
+    /// method. The checker proves the rest.
+    pub return_check: Option<usize>,
     /// Whether the function returns `nil` when its body finishes, having
     /// evaluated the last expression for effect: a function the static
     /// language compiles without `-> T` (ADR-007).
@@ -589,6 +599,7 @@ pub(crate) fn compile_parsed(
         };
         compiling.run(Call::Function(&def, binds_parameters, additions))?;
         let params = compiling.params.take();
+        let proven = compiling.proven.take();
         let mut c = compiling.compiler.into_inner();
         let finish = c.emit(Op::Finish);
         c.locations[finish] = def.body.last().map_or(def.offset, |stmt| stmt.offset);
@@ -597,6 +608,11 @@ pub(crate) fn compile_parsed(
             .as_ref()
             .map(|ty| c.annotation(ty))
             .transpose()?;
+        // A method may return an instance variable its class never assigned,
+        // which reads as nil whatever its declared type, so methods keep
+        // their result check.
+        let return_check =
+            return_type.filter(|&ty| contexts[index].2 || c.program.types[ty].unproven());
         debug_assert_eq!(c.code.len(), c.locations.len());
         let def_accessor = def.accessor.as_ref().map(|(_, setter)| *setter);
         let function = Function {
@@ -614,6 +630,7 @@ pub(crate) fn compile_parsed(
             params,
             binds_parameters,
             plain,
+            proven,
             locals: c.slots,
             local_names: local_names(&c.locals, c.slots, work)?,
             code: c.code,
@@ -626,6 +643,7 @@ pub(crate) fn compile_parsed(
                 && def_accessor.is_none()
                 && !contexts[index].1,
             return_type,
+            return_check,
         };
         program.functions[index] = function;
     }
@@ -1234,10 +1252,18 @@ impl Compiler<'_> {
             None => None,
         })
     }
+    /// Checks the value on top of the stack against `ty`, naming it by
+    /// `subject`, unless the checker proves the check (see
+    /// [`crate::types::Type::unproven`]).
+    fn check(&mut self, ty: usize, subject: usize) {
+        if self.program.types[ty].unproven() {
+            self.emit(Op::Check(ty, subject));
+        }
+    }
     /// Checks a value stored into `name` when it is a typed local.
     fn check_local(&mut self, name: &str) -> Result<()> {
         if let Some((ty, subject)) = self.local_type(name)? {
-            self.emit(Op::Check(ty, subject));
+            self.check(ty, subject);
         }
         Ok(())
     }
@@ -1388,6 +1414,8 @@ struct Compiling<'a, 'x> {
     compiler: std::cell::RefCell<Compiler<'a>>,
     tasks: Tasks<Call<'x>, ()>,
     params: std::cell::RefCell<Vec<Parameter>>,
+    /// The function's [`Function::proven`] start, once its prologue is generated.
+    proven: std::cell::Cell<Option<usize>>,
 }
 
 impl<'a, 'x> Compiling<'a, 'x> {
@@ -1396,6 +1424,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             compiler: std::cell::RefCell::new(compiler),
             tasks: Tasks::new(),
             params: std::cell::RefCell::new(Vec::new()),
+            proven: std::cell::Cell::new(None),
         }
     }
 
@@ -1500,7 +1529,8 @@ impl<'a, 'x> Compiling<'a, 'x> {
             if let Some(value) = &param.default {
                 self.c().declare_expr(value)?;
                 self.expr(value).await?;
-                if let Some(ty) = ty {
+                // The checker proves most defaults' types.
+                if let Some(ty) = ty.filter(|&ty| self.c().program.types[ty].unproven()) {
                     let mut c = self.c();
                     let label = c.program.constants.len();
                     c.program
@@ -1539,6 +1569,16 @@ impl<'a, 'x> Compiling<'a, 'x> {
             if binds_parameters {
                 c.emit(Op::BindEnd);
             }
+            let direct = additions.prologue.is_empty()
+                && def.params.iter().zip(&params).all(|(param, compiled)| {
+                    param.kind == ParamKind::Positional
+                        && param.default.is_none()
+                        && !(c.instance && param.ivar.is_some())
+                        && compiled
+                            .ty
+                            .is_none_or(|ty| !c.program.types[ty].unproven())
+                });
+            self.proven.set(direct.then_some(c.code.len()));
             c.declare(&def.body)?;
         }
         *self.params.borrow_mut() = params;
@@ -1995,7 +2035,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 "local variable "
             };
             let subject = c.subject(&[kind, name])?;
-            c.emit(Op::Check(ty, subject));
+            c.check(ty, subject);
             (ty, subject)
         };
         let Target::Typed(inner, _) = target else {
@@ -2038,10 +2078,12 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     if text.is_empty() {
                         text.extend_from_slice(work, b"destructured value")?;
                     }
-                    let label = c.program.constants.len();
-                    c.program.constants.push(Value::bytes(&*text));
+                    if c.program.types[ty].unproven() {
+                        let label = c.program.constants.len();
+                        c.program.constants.push(Value::bytes(&*text));
+                        c.emit(Op::Normalize(ty, label));
+                    }
                     drop(text);
-                    c.emit(Op::Normalize(ty, label));
                 }
                 self.nested_assign(target).await?;
             }
@@ -2235,14 +2277,14 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     let mut c = self.c();
                     let check = c.block.as_ref().and_then(|block| block.params.get(index));
                     if let Some(&(ty, subject)) = check {
-                        c.emit(Op::Check(ty, subject));
+                        c.check(ty, subject);
                     }
                 }
                 let mut c = self.c();
                 c.emit(Op::Yield(args.len()));
                 match c.block.as_ref().map(|block| block.result) {
                     Some(Some((ty, subject))) => {
-                        c.emit(Op::Check(ty, subject));
+                        c.check(ty, subject);
                     }
                     Some(None) => {
                         c.emit(Op::Pop);
