@@ -194,12 +194,12 @@ fn match_accessors_are_calls_and_small_matches_detach() {
 fn protected_fields_and_bad_accessors_stop_later_host_effects() {
     let calls = Arc::new(AtomicUsize::new(0));
     let count = calls.clone();
-    let mut engine = common::runtime_engine();
+    let mut engine = Engine::new();
     engine.register("effect", move |_, _| {
         count.fetch_add(1, Ordering::SeqCst);
         Ok(Value::nil())
     });
-    // Runtime protections also apply without the static checker.
+    // Match data protects its fields at run time.
     for operation in [
         "m.captures.push(\"x\")",
         "m.captures[0]=\"x\"",
@@ -212,8 +212,6 @@ fn protected_fields_and_bad_accessors_stop_later_host_effects() {
         "\"a\".match(/(a)/).as(match_data).captures.push(\"x\")",
         "m.begin(-4)",
         "m.end(2)",
-        "f=m[\"begin\"];f",
-        "Time=m[\"begin\"];Time",
     ] {
         let source = format!("m=\"a\".match(/(a)/).as(match_data);{operation};effect()");
         assert!(
@@ -245,6 +243,8 @@ fn protected_fields_and_bad_accessors_stop_later_host_effects() {
         ("m.begin(0,extra:1)", &["V0302"]),
         ("m.begin(0){effect()}", &["V0305"]),
         ("f=m[\"begin\"];f(nil)", &["V0310", "V0310"]),
+        ("f=m[\"begin\"];f", &["V0310"]),
+        ("Time=m[\"begin\"];Time", &["V0102", "V0310"]),
     ] {
         let source = format!("m=\"a\".match(/(a)/).as(match_data);{operation};effect()");
         let error = checked.compile(&source).err().unwrap();
