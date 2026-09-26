@@ -72,11 +72,22 @@ fn nominal_values_support_reflection_collections_and_serialization() {
 #[test]
 fn declarations_preserve_forward_lookup_shadowing_and_identifier_boundaries() {
     for name in ["Status", "JSON", "Math", "now", "module", "État"] {
-        let source = format!(
-            "def run(input: any) -> array<string>\nbefore={name};{name}={name}::Draft;[before.name,{name}.name]\nend\nenum {name}\nDraft\nend"
-        );
-        let output = common::runtime_engine()
-            .compile(&source)
+        // A local may shadow an enum, but a function cannot assign a
+        // capitalized name.
+        let shadowed = format!("before={name};{name}={name}::Draft;[before.name,{name}.name]");
+        let wrap = |body: &str| {
+            format!("def run(input: any) -> array<string>\n{body}\nend\nenum {name}\nDraft\nend")
+        };
+        let body = if name.starts_with(char::is_uppercase) {
+            let source = wrap(&shadowed);
+            let error = Engine::new().compile(&source).err().unwrap();
+            assert_eq!(common::codes(&error), ["V0102"], "{name}");
+            format!("before={name};[before.name,{name}::Draft.name]")
+        } else {
+            shadowed
+        };
+        let output = Engine::new()
+            .compile(&wrap(&body))
             .unwrap()
             .call("run", &[Value::nil()], CallOptions::default())
             .unwrap();
@@ -368,7 +379,7 @@ fn any_enum_and_its_members_are_annotation_types() {
          mixed: any = [Status::Draft]\n\
          [member(Status::Done), kind(Review), held.length, mixed.as(array<enum_value>).length]"
     );
-    let mut engine = Engine::new();
+    let engine = Engine::new();
     let output = engine
         .compile(&source)
         .unwrap_or_else(|error| panic!("{error}"))
