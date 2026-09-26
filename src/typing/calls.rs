@@ -1188,230 +1188,8 @@ impl<'a> Checker<'a> {
     ) -> (Ty, Vec<Ty>) {
         bindings.resize(sig.vars.len(), None);
         let function = sig.name.clone();
-        let positional_params: Vec<&sigs::Param> = sig
-            .params
-            .iter()
-            .filter(|p| p.kind == ParamKind::Positional)
-            .collect();
-        let rest = sig.rest().map(|p| p.ty);
-        let rest_element = rest.map(|ty| self.types.element(ty).unwrap_or(Ty::ANY));
-        let mut index = 0;
-        let mut splatted = false;
-        let mut arguments: Vec<(&'a Expr, bool)> = Vec::new();
-        for arg in call.args {
-            match &arg.kind {
-                ArgumentKind::Positional => arguments.push((&arg.value, false)),
-                ArgumentKind::Splat => match &arg.value.node {
-                    Node::Array(items) => arguments.extend(items.iter().map(|item| (item, false))),
-                    _ => arguments.push((&arg.value, true)),
-                },
-                _ => (),
-            }
-        }
-        for selector in call.selectors {
-            arguments.push((selector, false));
-        }
-        if let Some(extra) = call.extra {
-            arguments.push((extra, false));
-        }
-        for (value, splat) in arguments {
-            if splat {
-                splatted = true;
-                let ty = self.expr(value, None);
-                if self.operand(value, ty) && self.types.element(ty).is_none() {
-                    let span = self.spans.expr(value);
-                    let found = self.types.display(ty);
-                    self.report(
-                        Diagnostic::error(
-                            Code::TYPE_MISMATCH,
-                            span,
-                            format!("a splat spreads an array, found {found}"),
-                        )
-                        .with_types("array<any>", found),
-                    );
-                }
-                if let Kind::Tuple(items) = self.types.kind(ty).clone() {
-                    splatted = false;
-                    for &element in items.iter() {
-                        let param = positional_params.get(index).map(|p| p.ty).or(rest_element);
-                        if let Some(param) = param {
-                            self.spread_argument(value, element, param, &mut bindings, &function);
-                        }
-                        index += 1;
-                    }
-                } else if let Some(element) = self.types.element(ty) {
-                    for param in positional_params.iter().skip(index) {
-                        self.spread_argument(value, element, param.ty, &mut bindings, &function);
-                    }
-                    if let Some(rest) = rest_element {
-                        self.spread_argument(value, element, rest, &mut bindings, &function);
-                    }
-                    let (min, max) = sig.positional();
-                    if index < min || max.is_some() {
-                        self.report(Diagnostic::error(
-                            Code::NO_OVERLOAD,
-                            call.name_span,
-                            format!("the length of this splat is unknown; `{function}` must accept every possible argument count"),
-                        ));
-                    }
-                }
-                continue;
-            }
-            let (param_ty, name) = match positional_params.get(index) {
-                Some(param) => (param.ty, param.name.clone()),
-                None => match (rest_element, sig.rest()) {
-                    (Some(element), Some(param)) => (element, param.name.clone()),
-                    _ => {
-                        self.expr(value, None);
-                        index += 1;
-                        continue;
-                    }
-                },
-            };
-            let purpose = Purpose::Argument {
-                index,
-                name,
-                function: function.clone(),
-            };
-            let actual = self.argument(value, param_ty, &mut bindings, &purpose);
-            if splatted {
-                for param in positional_params.iter().skip(index + 1) {
-                    self.spread_argument(value, actual, param.ty, &mut bindings, &function);
-                }
-                if let Some(rest) = rest_element {
-                    self.spread_argument(value, actual, rest, &mut bindings, &function);
-                }
-            }
-            index += 1;
-        }
-        if !splatted {
-            let (min, max) = sig.positional();
-            if index < min || max.is_some_and(|max| index > max) {
-                let expected = match max {
-                    Some(max) if max == min => format!("{min}"),
-                    Some(max) => format!("{min} to {max}"),
-                    None => format!("at least {min}"),
-                };
-                self.report(Diagnostic::error(
-                    Code::NO_OVERLOAD,
-                    call.name_span,
-                    format!("`{function}` takes {expected} positional argument(s), got {index}"),
-                ));
-            }
-        }
-        let mut given = Vec::new();
-        for arg in call.args {
-            match &arg.kind {
-                ArgumentKind::Keyword(name) => {
-                    given.push(name.to_string());
-                    let param = sig.keyword(name).map(|p| p.ty).or_else(|| {
-                        sig.keyword_rest()
-                            .map(|p| self.types.hash_value(p.ty).unwrap_or(Ty::ANY))
-                    });
-                    match param {
-                        Some(param_ty) => {
-                            let purpose = Purpose::Keyword {
-                                name: name.to_string(),
-                                function: function.clone(),
-                            };
-                            self.argument(&arg.value, param_ty, &mut bindings, &purpose);
-                        }
-                        None => {
-                            self.expr(&arg.value, None);
-                            let span = self.spans.token(arg.value.offset as usize);
-                            let span = self.keyword_span(&arg.value).unwrap_or(span);
-                            self.report(Diagnostic::error(
-                                Code::UNKNOWN_KEYWORD,
-                                span,
-                                format!("`{function}` has no keyword `{name}:`"),
-                            ));
-                        }
-                    }
-                }
-                ArgumentKind::KeywordSplat => {
-                    let ty = self.expr(&arg.value, None);
-                    if let Kind::Shape(fields, _) = self.types.kind(ty).clone() {
-                        for field in fields.iter() {
-                            if !field.optional {
-                                given.push(field.name.to_string());
-                            }
-                            let expected = sig.keyword(&field.name).map(|p| p.ty).or_else(|| {
-                                sig.keyword_rest()
-                                    .map(|p| self.types.hash_value(p.ty).unwrap_or(Ty::ANY))
-                            });
-                            if let Some(expected) = expected {
-                                self.spread_argument(
-                                    &arg.value,
-                                    field.ty,
-                                    expected,
-                                    &mut bindings,
-                                    &function,
-                                );
-                            } else {
-                                self.report(Diagnostic::error(
-                                    Code::UNKNOWN_KEYWORD,
-                                    self.spans.expr(&arg.value),
-                                    format!("`{function}` has no keyword `{}:`", field.name),
-                                ));
-                            }
-                        }
-                    } else if let Some(element) = self.types.hash_value(ty) {
-                        if ty != Ty::EMPTY_HASH {
-                            if let Some(rest) = sig.keyword_rest() {
-                                let expected = self.types.hash_value(rest.ty).unwrap_or(Ty::ANY);
-                                self.spread_argument(
-                                    &arg.value,
-                                    element,
-                                    expected,
-                                    &mut bindings,
-                                    &function,
-                                );
-                                for param in
-                                    sig.params.iter().filter(|p| p.kind == ParamKind::Keyword)
-                                {
-                                    self.spread_argument(
-                                        &arg.value,
-                                        element,
-                                        param.ty,
-                                        &mut bindings,
-                                        &function,
-                                    );
-                                }
-                            } else {
-                                self.report(Diagnostic::error(Code::UNKNOWN_KEYWORD, self.spans.expr(&arg.value), format!("a dictionary splat has unknown keys; `{function}` needs a keyword rest parameter")));
-                            }
-                        }
-                    }
-                    if self.operand(&arg.value, ty) && self.types.hash_value(ty).is_none() {
-                        let span = self.spans.expr(&arg.value);
-                        let found = self.types.display(ty);
-                        self.report(
-                            Diagnostic::error(
-                                Code::TYPE_MISMATCH,
-                                span,
-                                format!("a keyword splat spreads a hash, found {found}"),
-                            )
-                            .with_types("hash<string, any>", found),
-                        );
-                    }
-                }
-                _ => (),
-            }
-        }
-        {
-            for param in &sig.params {
-                if param.kind == ParamKind::Keyword
-                    && !param.optional
-                    && !given.contains(&param.name)
-                {
-                    self.report(Diagnostic::error(
-                        Code::MISSING_KEYWORD,
-                        call.name_span,
-                        format!("`{function}` needs the keyword `{}:`", param.name),
-                    ));
-                }
-            }
-        }
+        self.check_positional(call, sig, &mut bindings);
+        self.check_keywords(call, sig, &mut bindings);
         let mut breaks = Vec::new();
         match (&sig.block, call.block) {
             (Some(block_sig), Some(block)) => {
@@ -1460,6 +1238,226 @@ impl<'a> Checker<'a> {
             None => Ty::NIL,
         };
         (result, breaks)
+    }
+
+    fn check_positional(&mut self, call: &Call<'a, '_>, sig: &Sig, bindings: &mut [Option<Ty>]) {
+        let function = sig.name.clone();
+        let positional_params: Vec<&sigs::Param> = sig
+            .params
+            .iter()
+            .filter(|p| p.kind == ParamKind::Positional)
+            .collect();
+        let rest = sig.rest().map(|p| p.ty);
+        let rest_element = rest.map(|ty| self.types.element(ty).unwrap_or(Ty::ANY));
+        let mut index = 0;
+        let mut splatted = false;
+        let mut arguments: Vec<(&'a Expr, bool)> = Vec::new();
+        for arg in call.args {
+            match &arg.kind {
+                ArgumentKind::Positional => arguments.push((&arg.value, false)),
+                ArgumentKind::Splat => match &arg.value.node {
+                    Node::Array(items) => arguments.extend(items.iter().map(|item| (item, false))),
+                    _ => arguments.push((&arg.value, true)),
+                },
+                _ => (),
+            }
+        }
+        for selector in call.selectors {
+            arguments.push((selector, false));
+        }
+        if let Some(extra) = call.extra {
+            arguments.push((extra, false));
+        }
+        for (value, splat) in arguments {
+            if splat {
+                splatted = true;
+                let ty = self.expr(value, None);
+                if self.operand(value, ty) && self.types.element(ty).is_none() {
+                    let span = self.spans.expr(value);
+                    let found = self.types.display(ty);
+                    self.report(
+                        Diagnostic::error(
+                            Code::TYPE_MISMATCH,
+                            span,
+                            format!("a splat spreads an array, found {found}"),
+                        )
+                        .with_types("array<any>", found),
+                    );
+                }
+                if let Kind::Tuple(items) = self.types.kind(ty).clone() {
+                    splatted = false;
+                    for &element in items.iter() {
+                        let param = positional_params.get(index).map(|p| p.ty).or(rest_element);
+                        if let Some(param) = param {
+                            self.spread_argument(value, element, param, bindings, &function);
+                        }
+                        index += 1;
+                    }
+                } else if let Some(element) = self.types.element(ty) {
+                    for param in positional_params.iter().skip(index) {
+                        self.spread_argument(value, element, param.ty, bindings, &function);
+                    }
+                    if let Some(rest) = rest_element {
+                        self.spread_argument(value, element, rest, bindings, &function);
+                    }
+                    let (min, max) = sig.positional();
+                    if index < min || max.is_some() {
+                        self.report(Diagnostic::error(
+                            Code::NO_OVERLOAD,
+                            call.name_span,
+                            format!("the length of this splat is unknown; `{function}` must accept every possible argument count"),
+                        ));
+                    }
+                }
+                continue;
+            }
+            let (param_ty, name) = match positional_params.get(index) {
+                Some(param) => (param.ty, param.name.clone()),
+                None => match (rest_element, sig.rest()) {
+                    (Some(element), Some(param)) => (element, param.name.clone()),
+                    _ => {
+                        self.expr(value, None);
+                        index += 1;
+                        continue;
+                    }
+                },
+            };
+            let purpose = Purpose::Argument {
+                index,
+                name,
+                function: function.clone(),
+            };
+            let actual = self.argument(value, param_ty, bindings, &purpose);
+            if splatted {
+                for param in positional_params.iter().skip(index + 1) {
+                    self.spread_argument(value, actual, param.ty, bindings, &function);
+                }
+                if let Some(rest) = rest_element {
+                    self.spread_argument(value, actual, rest, bindings, &function);
+                }
+            }
+            index += 1;
+        }
+        if !splatted {
+            let (min, max) = sig.positional();
+            if index < min || max.is_some_and(|max| index > max) {
+                let expected = match max {
+                    Some(max) if max == min => format!("{min}"),
+                    Some(max) => format!("{min} to {max}"),
+                    None => format!("at least {min}"),
+                };
+                self.report(Diagnostic::error(
+                    Code::NO_OVERLOAD,
+                    call.name_span,
+                    format!("`{function}` takes {expected} positional argument(s), got {index}"),
+                ));
+            }
+        }
+    }
+
+    fn check_keywords(&mut self, call: &Call<'a, '_>, sig: &Sig, bindings: &mut [Option<Ty>]) {
+        let function = sig.name.clone();
+        let mut given = Vec::new();
+        for arg in call.args {
+            match &arg.kind {
+                ArgumentKind::Keyword(name) => {
+                    given.push(name.to_string());
+                    let param = sig.keyword(name).map(|p| p.ty).or_else(|| {
+                        sig.keyword_rest()
+                            .map(|p| self.types.hash_value(p.ty).unwrap_or(Ty::ANY))
+                    });
+                    match param {
+                        Some(param_ty) => {
+                            let purpose = Purpose::Keyword {
+                                name: name.to_string(),
+                                function: function.clone(),
+                            };
+                            self.argument(&arg.value, param_ty, bindings, &purpose);
+                        }
+                        None => {
+                            self.expr(&arg.value, None);
+                            let span = self.spans.token(arg.value.offset as usize);
+                            let span = self.keyword_span(&arg.value).unwrap_or(span);
+                            self.report(Diagnostic::error(
+                                Code::UNKNOWN_KEYWORD,
+                                span,
+                                format!("`{function}` has no keyword `{name}:`"),
+                            ));
+                        }
+                    }
+                }
+                ArgumentKind::KeywordSplat => {
+                    let ty = self.expr(&arg.value, None);
+                    if let Kind::Shape(fields, _) = self.types.kind(ty).clone() {
+                        for field in fields.iter() {
+                            if !field.optional {
+                                given.push(field.name.to_string());
+                            }
+                            let expected = sig.keyword(&field.name).map(|p| p.ty).or_else(|| {
+                                sig.keyword_rest()
+                                    .map(|p| self.types.hash_value(p.ty).unwrap_or(Ty::ANY))
+                            });
+                            if let Some(expected) = expected {
+                                self.spread_argument(
+                                    &arg.value, field.ty, expected, bindings, &function,
+                                );
+                            } else {
+                                self.report(Diagnostic::error(
+                                    Code::UNKNOWN_KEYWORD,
+                                    self.spans.expr(&arg.value),
+                                    format!("`{function}` has no keyword `{}:`", field.name),
+                                ));
+                            }
+                        }
+                    } else if let Some(element) = self.types.hash_value(ty) {
+                        if ty != Ty::EMPTY_HASH {
+                            if let Some(rest) = sig.keyword_rest() {
+                                let expected = self.types.hash_value(rest.ty).unwrap_or(Ty::ANY);
+                                self.spread_argument(
+                                    &arg.value, element, expected, bindings, &function,
+                                );
+                                for param in
+                                    sig.params.iter().filter(|p| p.kind == ParamKind::Keyword)
+                                {
+                                    self.spread_argument(
+                                        &arg.value, element, param.ty, bindings, &function,
+                                    );
+                                }
+                            } else {
+                                self.report(Diagnostic::error(Code::UNKNOWN_KEYWORD, self.spans.expr(&arg.value), format!("a dictionary splat has unknown keys; `{function}` needs a keyword rest parameter")));
+                            }
+                        }
+                    }
+                    if self.operand(&arg.value, ty) && self.types.hash_value(ty).is_none() {
+                        let span = self.spans.expr(&arg.value);
+                        let found = self.types.display(ty);
+                        self.report(
+                            Diagnostic::error(
+                                Code::TYPE_MISMATCH,
+                                span,
+                                format!("a keyword splat spreads a hash, found {found}"),
+                            )
+                            .with_types("hash<string, any>", found),
+                        );
+                    }
+                }
+                _ => (),
+            }
+        }
+        {
+            for param in &sig.params {
+                if param.kind == ParamKind::Keyword
+                    && !param.optional
+                    && !given.contains(&param.name)
+                {
+                    self.report(Diagnostic::error(
+                        Code::MISSING_KEYWORD,
+                        call.name_span,
+                        format!("`{function}` needs the keyword `{}:`", param.name),
+                    ));
+                }
+            }
+        }
     }
 
     /// The type of a member call's result. Iterating members return their
