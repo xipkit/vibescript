@@ -376,7 +376,9 @@ fn failed_or_panicked_preparation_releases_imported_cycles() {
             })],
             ..CallOptions::default()
         };
-        let script = crate::Engine::new().compile("def run;nil;end").unwrap();
+        let mut engine = crate::Engine::new();
+        engine.declare_capability(&options.capabilities[0]).unwrap();
+        let script = engine.compile("def run;nil;end").unwrap();
         let result = catch_unwind(AssertUnwindSafe(|| script.call("run", &[], options)));
         if panicked {
             assert!(result.is_err());
