@@ -1070,10 +1070,6 @@ fn json_builtins_report_the_reference_parser_and_encoder_wording() {
             "JSON.parse_as invalid number \"1e999\"",
         ),
         (
-            "JSON.parse_as(\"1\", 1)",
-            "JSON.parse_as expects a type literal as its second argument",
-        ),
-        (
             "JSON.stringify({a: {b: [0.0/0]}})",
             "JSON.stringify key \"a\": JSON.stringify key \"b\": JSON.stringify array index 0: JSON.stringify failed: json: unsupported value: NaN",
         ),
@@ -1108,10 +1104,21 @@ fn json_builtins_report_the_reference_parser_and_encoder_wording() {
         ("JSON.parse_as(\"1\", int, a: 1)", "V0302", "a:"),
         ("JSON.stringify(1, 2)", "V0301", "stringify"),
         ("JSON.stringify(1) { 1 }", "V0305", "{"),
+        ("JSON.parse_as(\"1\", 1)", "V0101", "1"),
     ] {
         let (found, at) = refusal(&format!("def run -> any\n{body}\nend"));
         assert_eq!((found.as_str(), at.as_str()), (code, text), "{body}");
     }
+    // Without static types, the runtime refuses a schema that is not a type.
+    let error = common::gradual_engine()
+        .compile("JSON.parse_as(\"1\", 1)")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap_err();
+    assert_eq!(
+        error.message,
+        "JSON.parse_as expects a type literal as its second argument"
+    );
 }
 
 #[test]

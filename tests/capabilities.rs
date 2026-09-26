@@ -67,7 +67,12 @@ fn capability_methods_support_named_scoped_computed_and_forwarded_calls() {
         "sms.dup.deliver(1, 2)",
         "[sms].fetch(0).deliver(1, 2)",
     ] {
-        let script = engine().compile(source).unwrap();
+        let mut engine = engine();
+        // `::` is refused with static types (V0416) but still runs without.
+        if source.contains("::") {
+            engine.set_static_types(false);
+        }
+        let script = engine.compile(source).unwrap();
         let output = script
             .run(granted(echo()))
             .unwrap_or_else(|error| panic!("{source}: {error}"));
@@ -381,6 +386,9 @@ fn saved_namespaces_cannot_reuse_grants_in_later_calls_even_with_unlimited_memor
 fn capability_methods_cannot_escape_through_reads_containers_or_host_arguments() {
     for source in ["sms.deliver", "sms::deliver"] {
         let mut engine = engine();
+        if source.contains("::") {
+            engine.set_static_types(false);
+        }
         engine.register("identity", |_, _| panic!("detached method reached host"));
         let error = engine
             .compile(source)

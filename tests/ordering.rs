@@ -257,7 +257,7 @@ fn sorting_exits_release_keys_scratch_and_pending_receivers() {
     for body in [
         "[3,1,2].sort {allocate();return 7}",
         "[3,1,2].sort {allocate();break 7}",
-        "a: array<array<int>> = [];a.push([3,1,2].sort {allocate();break 7});7",
+        "a: array<array<int> | int> = [];a.push([3,1,2].sort {allocate();break 7});7",
         "[3,1,2].sort_by {|v|return 7 if v==2;allocate()}",
         "[3,1,2].sort_by {|v|break 7 if v==2;allocate()}",
         "[3,1,2].min_by {|v|return 7 if v==2;allocate()}",

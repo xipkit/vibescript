@@ -132,6 +132,8 @@ fn member_calls_keep_their_receiver_on_static_routes() {
         ("cap.dup.read()", "1"),
         ("[cap].fetch(0).read()", "1"),
     ] {
+        // `::` is refused with static types (V0416) but still runs without.
+        engine.set_static_types(vibescript::STATIC_TYPES_BY_DEFAULT && !body.contains("::"));
         let script = engine
             .compile(&format!("def run -> any\n{body}\nend"))
             .unwrap_or_else(|error| panic!("{body}: {error}"));

@@ -128,6 +128,10 @@ fn typed_capability_methods_cover_every_immediate_dispatch_form() {
         for strict in [false, true] {
             let mut engine = engine(&echo("int"));
             engine.set_strict_effects(strict);
+            // `::` is refused with static types (V0416) but still runs without.
+            if source.contains("::") {
+                engine.set_static_types(false);
+            }
             let outcome = engine
                 .compile(source)
                 .unwrap()

@@ -256,6 +256,8 @@ fn aliases_parse_and_exhaustion_stops_before_host_effects() {
         "ns=Time;ns.parse(\"1970-01-01\")",
         "Time::parse(\"1970-01-01\")",
     ] {
+        // `::` is refused with static types (V0416) but still runs without.
+        engine.set_static_types(vibescript::STATIC_TYPES_BY_DEFAULT && !source.contains("::"));
         let result = engine
             .compile(source)
             .unwrap()
@@ -263,6 +265,7 @@ fn aliases_parse_and_exhaustion_stops_before_host_effects() {
             .unwrap();
         assert_eq!(result.value.as_time(), Some((0, 0)));
     }
+    engine.set_static_types(vibescript::STATIC_TYPES_BY_DEFAULT);
     for argument in ["\"2023-02-29\"", "\"2024-01-01T23:59:60Z\""] {
         let script = engine
             .compile(&format!("Time.parse({argument});effect()"))

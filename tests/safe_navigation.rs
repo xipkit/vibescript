@@ -319,7 +319,9 @@ end
 
 #[test]
 fn safe_calls_preserve_visibility_and_vm_recursion_limits() {
-    let script = Engine::new()
+    // The checker refuses every call to `hidden` or `guarded` from outside
+    // `C` (V0208); without static types, the runtime refuses those that run.
+    let script = common::gradual_engine()
         .compile(
             r##"
 class C

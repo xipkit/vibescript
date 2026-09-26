@@ -286,11 +286,11 @@ async fn async_capabilities_keep_contracts_grants_and_attachment_rules() {
     let runner = Runner::new(1).unwrap();
     for (typed, expression) in [
         (true, "typed.echo(7)"),
-        (true, "typed::echo(7)"),
         (true, "typed&.echo(7)"),
         (true, "typed.dup.echo(7)"),
-        // Indexing the capability and dispatch by name compile only
-        // without static types.
+        // A call written with `::`, indexing the capability and dispatch by
+        // name compile only without static types.
+        (false, "typed::echo(7)"),
         (false, "typed[:echo](7)"),
         (false, "typed.send(:echo,7)"),
         (false, "typed.public_send(:echo,7)"),

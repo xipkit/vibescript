@@ -253,6 +253,8 @@ fn value_templates_keep_call_forms_attachment_and_repeated_grants() {
         "local = sms; local.deliver(1, 2)",
         "[sms].fetch(0).deliver(1, 2)",
     ] {
+        // `::` is refused with static types (V0416) but still runs without.
+        declared.set_static_types(vibescript::STATIC_TYPES_BY_DEFAULT && !source.contains("::"));
         let script = declared.compile(source).unwrap();
         let options = deliverer();
         for _ in 0..3 {

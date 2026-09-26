@@ -12,14 +12,14 @@ fn json(value: &Value) -> serde_json::Value {
 fn invalid_call_members_stop_before_arguments_and_blocks() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let seen = events.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register("mark", move |_, args| {
         seen.lock().unwrap().push(args[0].as_int().unwrap());
         Ok(args[0].clone())
     });
     let prefix = "class P\nprivate\ndef call(value: int = 7) -> int\nvalue\nend\nend\n";
-    // The checker does not see that `call` is private, so the runtime still
-    // refuses these calls, before their arguments run.
+    // The checker refuses these calls to a private `call` (V0208); without
+    // static types the runtime refuses them, before their arguments run.
     for suffix in [
         ".call(mark(1).as(int))",
         "&.call(mark(1).as(int))",
@@ -156,7 +156,7 @@ fn call_targets_are_selected_before_arguments_mutate_callable_fields() {
 fn rejected_call_arguments_release_storage_and_cancellation_still_wins() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let seen = events.clone();
-    let mut engine = Engine::new();
+    let mut engine = common::gradual_engine();
     engine.register("mark", move |_, args| {
         seen.lock().unwrap().push(args[0].as_int().unwrap());
         Ok(Value::nil())
@@ -165,8 +165,8 @@ fn rejected_call_arguments_release_storage_and_cancellation_still_wins() {
         ctx.cancellation().cancel();
         Ok(Value::nil())
     });
-    // The checker does not see that `call` is private, so the runtime still
-    // rejects the call before its arguments run.
+    // The checker refuses the call to a private `call` (V0208); without
+    // static types the runtime rejects it before its arguments run.
     let script = engine.compile("class P\nprivate\ndef call(value: int = 7) -> int\nvalue\nend\nend\ndef reject\nbegin\nP.new.call(*[mark(1)])\nrescue RuntimeError\nnil\nend\nend\ndef run(n: int)\nfor i in 1..n\nreject\nend\nnil\nend").unwrap();
     let small = script
         .call("run", &[Value::int(32)], CallOptions::default())

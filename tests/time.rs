@@ -340,6 +340,8 @@ fn blocks_and_clock_aliases_follow_the_call_contracts() {
         "f=Time::now;f",
         "def call(f: any) -> any\nf\nend\ncall(Time::now)",
     ] {
+        // `::` is refused with static types (V0416) but still runs without.
+        engine.set_static_types(vibescript::STATIC_TYPES_BY_DEFAULT && !source.contains("::"));
         let before = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap();

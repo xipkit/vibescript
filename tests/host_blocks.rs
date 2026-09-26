@@ -87,6 +87,10 @@ fn declared(options: &CallOptions) -> Engine {
 fn run(body: &str, options: CallOptions) -> vibescript::Result<vibescript::Outcome> {
     let mut engine = declared(&options);
     engine.set_strict_effects(true);
+    // `::` is refused with static types (V0416) but still runs without.
+    if body.contains("::") {
+        engine.set_static_types(false);
+    }
     engine
         .compile(&format!("def run -> any\n{body}\nend"))
         .unwrap()

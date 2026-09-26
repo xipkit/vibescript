@@ -196,10 +196,6 @@ fn argument_and_return_checks_point_to_the_calling_expression() {
     for (declaration, call) in [
         ("def target(a: int = \"x\")\n a\nend", "target()"),
         (
-            "def target(&block: () -> int) -> int\n yield\nend",
-            "target { break \"x\" }",
-        ),
-        (
             "def target(a: int = [1].each { return \"x\" }) -> int\n a\nend",
             "target()",
         ),
@@ -226,6 +222,11 @@ fn argument_and_return_checks_point_to_the_calling_expression() {
         ("def target(a:int)\n a\nend", "target(\"x\")", "\"x\")"),
         ("def target -> int\n \"x\"\nend", "target", "\"x\""),
         ("def target -> int\n return \"x\"\nend", "target", "\"x\""),
+        (
+            "def target(&block: () -> int) -> int\n yield\nend",
+            "target { break \"x\" }",
+            "\"x\"",
+        ),
         (
             "class C\n property value:int\nend",
             "C.new.value=\"x\"",

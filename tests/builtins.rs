@@ -372,7 +372,6 @@ fn invalid_builtin_calls_fail_before_later_effects_and_do_not_invoke_blocks() {
         "Math.log(2,-1)",
         "Math.asin(2)",
         "Math.PI()",
-        "JSON.parse_as(\"1\",\"int\")",
     ] {
         let script = engine.compile(&format!("{expression};effect()")).unwrap();
         assert!(script.run(CallOptions::default()).is_err(), "{expression}");
@@ -393,6 +392,7 @@ fn invalid_builtin_calls_fail_before_later_effects_and_do_not_invoke_blocks() {
         ("JSON.parse()", "V0301", "parse"),
         ("JSON.stringify(1,2)", "V0301", "stringify"),
         ("Math=7;Math(9)", "V0310", "Math(9)"),
+        ("JSON.parse_as(\"1\",\"int\")", "V0101", "\"int\""),
     ] {
         let source = format!("{expression};effect()");
         let error = engine.compile(&source).err().unwrap();

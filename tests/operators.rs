@@ -282,7 +282,9 @@ end
 
 #[test]
 fn operator_visibility_and_nonlocal_control_remain_call_boundaries() {
-    let script = Engine::new()
+    // The checker refuses `hidden` and `protected_outside` (V0208); without
+    // static types, the runtime refuses them when they run.
+    let script = common::gradual_engine()
         .compile(
             r##"
 class Hidden

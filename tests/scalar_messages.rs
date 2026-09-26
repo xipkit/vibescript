@@ -1042,33 +1042,44 @@ fn regex_errors_quote_go_syntax_errors_and_name_the_operation() {
 #[test]
 fn calls_name_missing_arguments_visibility_and_removed_constructors() {
     use ErrorClass::Runtime;
-    rejects(&[
+    rejects(&[(
+        "def run -> any\n  next\nend",
+        Runtime,
+        "next used outside of loop",
+    )]);
+    // The checker refuses a call its visibility forbids (V0208); without
+    // static types, the runtime refuses it when it runs.
+    for (source, message, text) in [
         (
             "class C\n  private def secret\n    1\n  end\nend\ndef run -> any\n  C.new.secret\nend",
-            Runtime,
             "private method secret",
+            "secret",
         ),
         (
             "class C\n  private\n  def x=(v: int)\n    1\n  end\nend\ndef run -> any\n  c = C.new\n  c.x = 2\nend",
-            Runtime,
             "private method x=",
+            "x",
         ),
         (
             "class C\n  private def ==(o: any) -> bool\n    true\n  end\nend\ndef run -> any\n  C.new != 1\nend",
-            Runtime,
             "private method ==",
+            "!=",
         ),
         (
             "module M\n  protected\n  def self.f\n    1\n  end\nend\ndef run -> any\n  M.f\nend",
-            Runtime,
             "protected method f",
+            "f",
         ),
-        (
-            "def run -> any\n  next\nend",
-            Runtime,
-            "next used outside of loop",
-        ),
-    ]);
+    ] {
+        let error = common::gradual_engine()
+            .compile(source)
+            .unwrap()
+            .call("run", &[], CallOptions::default())
+            .unwrap_err();
+        assert_eq!(error.message, message, "{source}");
+        assert_eq!(error.class(), Some(Runtime), "{source}");
+        refuses(&[(source, "V0208", text)]);
+    }
     refuses(&[
         (
             "def add(a: int, b: int) -> int\n  a + b\nend\ndef run -> any\n  add(1)\nend",

@@ -41,7 +41,6 @@ fn reusable_literals_validate_json_and_preserve_collection_values() {
         "JSON.parse_as(\"{\\\"id\\\":1,\\\"extra\\\":2}\",{id:int})",
         "JSON.parse_as(\"{\\\"id\\\":null}\",{id?:int})",
         "JSON.parse_as(\"{}\",hash<int,any>)",
-        "JSON.parse_as(\"invalid\",{})",
     ] {
         let error = Engine::new()
             .compile(expression)
@@ -50,6 +49,17 @@ fn reusable_literals_validate_json_and_preserve_collection_values() {
             .unwrap_err();
         assert_eq!(error.kind, ErrorKind::Type, "{expression}");
     }
+    // Empty braces are a hash, not a shape: the checker refuses them as a
+    // schema (V0101), and without static types so does the runtime.
+    let source = "JSON.parse_as(\"invalid\",{})";
+    let error = common::static_engine().compile(source).err().unwrap();
+    assert_eq!(common::codes(&error), ["V0101"]);
+    let error = common::gradual_engine()
+        .compile(source)
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Type);
     assert_eq!(
         Engine::new()
             .compile("JSON.parse_as(\"invalid\",int)")

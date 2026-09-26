@@ -205,9 +205,9 @@ fn return_annotations_apply_to_all_function_exit_paths() {
         assert_eq!(evaluate(source), serde_json::json!("Draft"), "{source}");
         let missing = source.replace(":draft", ":missing");
         // A member the enum lacks is refused before running where the
-        // checker sees the value leave the function; a block's `break`
-        // and a `return` in a default are still checked when they run.
-        if source.contains("break") || source.contains("x:Status=") {
+        // checker sees the value leave the function; a `return` in a
+        // default is still checked when it runs.
+        if source.contains("x:Status=") {
             let error = Engine::new()
                 .compile(&format!("{ENUMS}{missing}"))
                 .unwrap()
