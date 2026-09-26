@@ -10,18 +10,7 @@ use std::{
 };
 
 fn script(source: &str, calls: &Arc<AtomicUsize>) -> Script {
-    script_in(crate::Engine::new(), source, calls)
-}
-
-/// A script that compiles without static types: compound assignment to an
-/// array element reads the element as optional, which they refuse.
-fn untyped_script(source: &str, calls: &Arc<AtomicUsize>) -> Script {
-    let mut engine = Engine::legacy_unchecked();
-
-    script_in(engine, source, calls)
-}
-
-fn script_in(mut engine: Engine, source: &str, calls: &Arc<AtomicUsize>) -> Script {
+    let mut engine = Engine::new();
     let calls = calls.clone();
     engine.register_method(
         "pause",
@@ -87,9 +76,9 @@ fn suspended_execution_moves_between_workers_without_changing_values_or_accounti
             3,
         ),
         (
-            untyped_script,
-            "def run;a=[1];a[-1]+=pause(){a.push(2);3};a;end",
-            "[4, 2]",
+            script,
+            "def run -> array<{ n: int }>;rows=[{n: 1}];rows[-1][\"n\"]+=pause(){rows.push({n: 2});3}.as(int);rows;end",
+            "[{n: 4}, {n: 2}]",
             1,
         ),
         (
@@ -164,8 +153,8 @@ fn suspended_execution_preserves_limits_and_error_locations() {
     type Build = fn(&str, &Arc<AtomicUsize>) -> Script;
     for (build, source) in [
         (
-            untyped_script as Build,
-            "def run;a=[1];a[-1]+=pause(){a.push(2);3};a;end",
+            script as Build,
+            "def run -> array<{ n: int }>;rows=[{n: 1}];rows[-1][\"n\"]+=pause(){rows.push({n: 2});3}.as(int);rows;end",
         ),
         (
             script,
@@ -265,7 +254,7 @@ fn abandoned_execution_keeps_objects_retained_by_the_host() {
         "pause",
         HostMethod::new_with_block("pause", |_, _, _| unreachable!()),
     );
-    let script = engine.compile("class Box;property n: int?;property link: Box?;end;def run;b=Box.new;b.n=3;b.link=b;hold(b);pause();b.n=4;end").unwrap();
+    let script = engine.compile("class Box;property n: int?;property link: Box?;end;def run;b=Box.new;b.n=3;b.link=b;hold(b);pause();b.n=4;end\ndef read(b: Box) -> array<int | bool | nil>;[b.n,b.link==b];end").unwrap();
     let mut execution = Execution::new(&script, "run", &[], &[], CallOptions::default()).unwrap();
     assert!(matches!(
         execution
@@ -280,12 +269,9 @@ fn abandoned_execution_keeps_objects_retained_by_the_host() {
     drop(execution);
     let value = retained.lock().unwrap().take().unwrap();
     assert!(memory.upgrade().is_some());
-    // The reader cannot name the instance's class, which another script
-    // declares, so it reads the instance without static types.
-    let mut reader = Engine::legacy_unchecked();
-
-    let reader = reader.compile("def read(b);[b.n,b.link==b];end").unwrap();
-    let result = reader
+    // The instance returns to a later call of the script that declares its
+    // class.
+    let result = script
         .call("read", std::slice::from_ref(&value), CallOptions::default())
         .unwrap();
     assert_eq!(result.value.to_string(), "[3, true]");
