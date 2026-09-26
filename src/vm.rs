@@ -4130,8 +4130,9 @@ fn enter(
         storage.locals.data[local_base + param.slot] = Some(arg.clone());
     }
     // Built within the push, which spares the frame an intermediate copy.
-    frames.push(
+    push_frame(
         ctx,
+        frames,
         Frame {
             home: (function != 0 && !fun.initializer).then_some(frames.data.len()),
             ip: start,
@@ -4299,6 +4300,16 @@ fn bind(
             storage.locals.data[frame.local_base + param.slot] = binding.value(ctx, i)?;
         }
     }
+    push_frame(ctx, frames, frame)
+}
+
+/// Pushes a frame, first reserving room for four frames rather than the
+/// eight a buffer's first growth reserves: frames are the largest fixed
+/// cost of a call, and most calls stay that shallow.
+fn push_frame(ctx: &mut CallContext, frames: &mut Buffer<Frame>, frame: Frame) -> Result<()> {
+    if frames.data.capacity() == 0 {
+        frames.ensure(ctx, 4)?;
+    }
     frames.push(ctx, frame)
 }
 
@@ -4319,7 +4330,7 @@ fn enter_iteration(
     frame.block = args.block;
     frame.arguments.push(ctx, args)?;
     storage.iterations.push(ctx, iteration)?;
-    frames.push(ctx, frame)
+    push_frame(ctx, frames, frame)
 }
 
 fn new_frame(
@@ -4516,7 +4527,7 @@ fn enter_block(
     for chunk in stack.data[base..].chunks(crate::budget::CHUNK / std::mem::size_of::<Value>()) {
         ctx.work_bytes(std::mem::size_of_val(chunk))?;
     }
-    frames.push(ctx, frame)
+    push_frame(ctx, frames, frame)
 }
 
 /// A program's shared literal by slot, imported on its first use in the
