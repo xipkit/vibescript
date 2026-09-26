@@ -1849,6 +1849,21 @@ impl<'a> Checker<'a> {
                         self.types.union(&kept)
                     };
                     self.unify(vars[0], rest, bindings);
+                } else if let Some(&arm) = vars
+                    .iter()
+                    .find(|&&arm| {
+                        matches!(
+                            (self.types.kind(arm), self.types.kind(actual)),
+                            (Kind::Array(_), Kind::Array(_) | Kind::Tuple(_))
+                                | (Kind::Hash(_), Kind::Hash(_) | Kind::Shape(..))
+                        )
+                    })
+                    .or_else(|| {
+                        vars.iter()
+                            .find(|&&arm| matches!(self.types.kind(arm), Kind::Var(_)))
+                    })
+                {
+                    self.unify(arm, actual, bindings);
                 }
             }
             _ => (),

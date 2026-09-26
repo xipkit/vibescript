@@ -368,7 +368,7 @@ class array<T>
   def find(&block: T -> bool) -> T?
   def first -> T?
   def first(count: int) -> array<T>
-  def flat_map<U>(&block: T -> array<U>) -> array<U>
+  def flat_map<U>(&block: T -> U | array<U>) -> array<U>
   def flatten(depth: int? = nil) -> array<any>
   def grep(pattern: T | range) -> array<T>
   def grep_v(pattern: T | range) -> array<T>

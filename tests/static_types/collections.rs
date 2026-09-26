@@ -234,5 +234,7 @@ fn tuple_mutations_preserve_length_and_positional_types() {
 fn generic_block_literals_infer_elements_before_checking_results() {
     super::support::clean("x: array<int | array<int>> = [1, 2].flat_map { |v| [v, [v + 1]] }");
     super::support::clean("x: array<int> = [1, 2].flat_map { |v| [] }");
-    super::support::codes("[1, 2].flat_map { |v| v }", &["V0101"]);
+    super::support::clean("x: array<int> = [1, 2].flat_map { |v| v }");
+    super::support::clean("x: array<int> = [1, [2, 3]].flat_map { |v| v }");
+    super::support::codes("x: array<string> = [1, 2].flat_map { |v| v }", &["V0101"]);
 }
