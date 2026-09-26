@@ -222,9 +222,9 @@ fn snippet_errors_name_the_snippet() {
     assert_eq!(run.status, Some(1));
     for want in [
         "compile failed",
-        "parse error at 2:",
+        "<eval>:2:6: error[V0001]:",
         "y = (",
-        "unexpected end of snippet",
+        "unexpected token end of input",
     ] {
         assert!(run.stderr.contains(want), "{want:?}: {}", run.stderr);
     }

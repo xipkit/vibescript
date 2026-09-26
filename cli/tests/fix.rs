@@ -89,7 +89,7 @@ fn a_file_that_does_not_parse_is_reported() {
     let run = vibes_in(Some(&files.0), &["fix", "broken.vibe"]);
     assert_eq!(run.status, Some(1), "{run:?}");
     assert!(
-        run.stdout.starts_with("broken.vibe: does not parse:"),
+        run.stdout.starts_with("broken.vibe:1:5: error[V0001]:"),
         "{}",
         run.stdout
     );

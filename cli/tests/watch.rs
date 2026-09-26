@@ -66,7 +66,7 @@ fn watch_reruns_on_change_and_stops_on_interrupt() {
     wait_for(&stdout, "second result\n");
     wait_for(&stderr, "change detected, re-running main.vibe\n");
     fs::write(&script, "def run(\n").unwrap();
-    wait_for(&stderr, "compile failed: ");
+    wait_for(&stderr, "error[V0001]: ");
     // SAFETY: the pid names the child process this test spawned and still owns.
     unsafe {
         libc::kill(child.id() as libc::pid_t, libc::SIGINT);

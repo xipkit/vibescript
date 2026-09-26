@@ -198,6 +198,9 @@ pub fn diagnostic(
 /// in the reference.
 pub fn error(error: &Error, snippet: Option<&str>) -> String {
     let Some(diagnostic) = &error.diagnostic else {
+        if let Some(diagnostic) = error.diagnostics().iter().find(|d| d.source.is_some()) {
+            return self::diagnostic(diagnostic, "", "").trim_end().to_owned();
+        }
         return error.to_string();
     };
     let mut text = String::new();

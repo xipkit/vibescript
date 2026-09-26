@@ -224,7 +224,7 @@ fn required_files_resolve_nested_imports_within_the_script_directory() {
         1,
         "",
         "compile failed with 1 diagnostic(s)\n\
-         escaping.vibe: error[V0201]: cannot statically resolve required module \"../outside\"\n",
+         escaping.vibe:1:26: error[V0201]: cannot statically resolve required module \"../outside\": require: module name escapes module root\n   |\n  1| def value -> bool; begin;require('../outside');false;rescue;true;end;end\n   |                          ^^^^^^^\n",
     );
 
     #[cfg(unix)]
@@ -243,7 +243,7 @@ fn required_files_resolve_nested_imports_within_the_script_directory() {
         assert_eq!(run.stdout, "");
         assert!(
             run.stderr.contains(&format!(
-                "{path}:1:8: error[V0201]: cannot statically resolve required module \"leak\"\n"
+                "{path}:1:8: error[V0201]: cannot statically resolve required module \"leak\": require: module name escapes module root\n"
             )),
             "{}",
             run.stderr
@@ -975,16 +975,14 @@ fn check_command_reports_missing_unreadable_and_invalid_sources() {
     let binary = binary.to_str().unwrap();
     let run = vibes(&["check", binary]);
     assert_eq!(run.status, Some(1));
-    assert_eq!(run.stdout, "");
     assert!(
-        run.stderr
-            .starts_with("compile failed: parse error at 1:1: "),
-        "{}",
-        run.stderr
+        run.stdout
+            .starts_with(&format!("{binary}:1:1: error[V0001]: "))
     );
+    assert_eq!(run.stderr, "check failed with 1 error(s)\n");
     let broken = files.write("broken.vibe", "def run(\n");
-    let report = "compile failed: parse error at 2:0: expected parameter name, got end of input\n  --> line 2, column 1\n 2 | \n   | ^\n";
-    vibes(&["check", &broken]).expect(1, "", report);
+    let report = format!("{broken}:2:1: error[V0001]: expected parameter name, got end of input\n");
+    vibes(&["check", &broken]).expect(1, &report, "check failed with 1 error(s)\n");
     let directory = files.0.to_str().unwrap();
     vibes(&["check", directory]).expect(
         1,
@@ -1138,12 +1136,10 @@ fn inline_source_diagnostics_use_the_eval_label_and_keep_module_filenames() {
     let parse_error = "<eval>:2:0: parse error: expected parameter name, got end of input\n  --> line 2, column 1\n 2 | \n   | ^\n";
     vibes(&["-e", "def run(\n"]).expect(1, "", parse_error);
     vibes(&["-e", "def run(\n", "--function", "run"]).expect(1, "", parse_error);
-    // Go-style commands report a snippet that ends early as the reference does.
     vibes(&["check", "-e", "def run(\n"]).expect(
         1,
-        "",
-        "compile failed: parse error at 2:1: unexpected end of snippet\n  \
-         --> line 2, column 1\n 2 | \n   | ^\n",
+        "<eval>:2:1: error[V0001]: expected parameter name, got end of input\n",
+        "check failed with 1 error(s)\n",
     );
     vibes(&["-e", "x = \"é\"\nputs x\n[x == \"é\", 2]"]).expect(0, "é\n[true,2]\n", "");
     let files = Files::new();
@@ -1151,7 +1147,7 @@ fn inline_source_diagnostics_use_the_eval_label_and_keep_module_filenames() {
     let dir = Some(files.0.as_path());
     let source = "require(\"bad\").wrong";
     // A diagnostic in a required module names the module, not <eval>.
-    let module_report = "bad.vibe: error[V0101]: `wrong` returns int, found bool\n";
+    let module_report = "bad.vibe:2:3: error[V0101]: `wrong` returns int, found bool\n   |\n  2|   false\n   |   ^^^^^\n   = expected int, found bool\n";
     for args in [
         vec!["-e", source, "--function", "__main__"],
         vec!["-e", source],
@@ -1385,12 +1381,8 @@ fn inline_usage_errors_exit_with_status_two_before_any_read_or_effect() {
             .output()
             .unwrap();
         assert_eq!(output.status.code(), Some(1));
-        assert!(output.stdout.is_empty());
-        assert!(
-            output
-                .stderr
-                .starts_with(b"compile failed: parse error at 1:7: ")
-        );
+        assert!(output.stdout.starts_with(b"<eval>:1:7: error[V0001]: "));
+        assert_eq!(output.stderr, b"check failed with 1 error(s)\n");
     }
 }
 
