@@ -282,11 +282,9 @@ end
 
 #[test]
 fn operator_visibility_and_nonlocal_control_remain_call_boundaries() {
-    // The checker refuses `hidden` and `protected_outside` (V0208); without
-    // static types, the runtime refuses them when they run.
-    let script = common::gradual_engine()
-        .compile(
-            r##"
+    // Operators follow visibility (V0208), and an operator's body is not
+    // inside its caller's loop, so a loop transfer there is refused (V0001).
+    let source = r##"
 class Hidden
   private def +(other: any) -> int
     1
@@ -336,31 +334,34 @@ def bad_set
     object[n] = n
   end
 end
-"##,
-        )
-        .unwrap();
-    let result = script
+"##;
+    let error = Engine::new().compile(source).err().unwrap();
+    let found: Vec<(String, &str)> = error
+        .diagnostics()
+        .iter()
+        .map(|d| (d.code.to_string(), &source[d.span.start..d.span.end]))
+        .collect();
+    assert_eq!(
+        found,
+        [
+            ("V0001".to_owned(), "break"),
+            ("V0001".to_owned(), "next"),
+            ("V0001".to_owned(), "break"),
+            ("V0208".to_owned(), "+"),
+            ("V0208".to_owned(), "Related.new[1]"),
+        ]
+    );
+    // A protected operator answers its own class's instance methods.
+    let related =
+        &source[source.find("class Related").unwrap()..source.find("class Leaky").unwrap()];
+    let result = Engine::new()
+        .compile(&format!(
+            "{related}def protected_inside -> int\n  Related.new.read(Related.new)\nend\n"
+        ))
+        .unwrap()
         .call("protected_inside", &[], CallOptions::default())
         .unwrap();
     assert_eq!(json(&result.value), serde_json::json!(5));
-    for function in ["hidden", "protected_outside"] {
-        assert_eq!(
-            script
-                .call(function, &[], CallOptions::default())
-                .unwrap_err()
-                .kind,
-            ErrorKind::Name
-        );
-    }
-    for function in ["bad_plus", "bad_get", "bad_set"] {
-        assert_eq!(
-            script
-                .call(function, &[], CallOptions::default())
-                .unwrap_err()
-                .kind,
-            ErrorKind::Argument
-        );
-    }
 }
 
 #[test]
