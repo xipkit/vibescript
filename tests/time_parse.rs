@@ -252,20 +252,12 @@ fn aliases_parse_and_exhaustion_stops_before_host_effects() {
         let _ = ctx.charge(u64::MAX);
         Ok(Value::bytes("1970-01-01"))
     });
-    for source in [
-        "ns=Time;ns.parse(\"1970-01-01\")",
-        "Time::parse(\"1970-01-01\")",
-    ] {
-        // `::` is refused with static types (V0416) but still runs without.
-        engine.set_static_types(vibescript::STATIC_TYPES_BY_DEFAULT && !source.contains("::"));
-        let result = engine
-            .compile(source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap();
-        assert_eq!(result.value.as_time(), Some((0, 0)));
-    }
-    engine.set_static_types(vibescript::STATIC_TYPES_BY_DEFAULT);
+    let result = engine
+        .compile("ns=Time;ns.parse(\"1970-01-01\")")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap();
+    assert_eq!(result.value.as_time(), Some((0, 0)));
     for argument in ["\"2023-02-29\"", "\"2024-01-01T23:59:60Z\""] {
         let script = engine
             .compile(&format!("Time.parse({argument});effect()"))
@@ -290,9 +282,10 @@ fn aliases_parse_and_exhaustion_stops_before_host_effects() {
     let mut checked = vibescript::Engine::new();
     checked.register("effect", |_, _| panic!("effect ran"));
     for (source, expected) in [
+        ("Time::parse(\"1970-01-01\")", &["V0416"][..]),
         (
             "f=Time::parse;f(\"1970-01-01\") {effect()}",
-            &["V0416", "V0301", "V0310"][..],
+            &["V0416", "V0301", "V0310"],
         ),
         ("ns=Time;ns.parse(\"1970-01-01\") {effect()}", &["V0305"]),
         (
