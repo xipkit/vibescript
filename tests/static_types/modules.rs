@@ -198,3 +198,56 @@ fn capitalized_methods_use_dot_dispatch() {
         "module M; F = 3; def self.F -> string; 'method'; end; end; x: int = M::F; y: string = M.F",
     );
 }
+
+#[test]
+fn require_validates_its_call_shape_and_alias() {
+    let (engine, directory) = engine(&[("required.vibe", HELPERS), ("other.vibe", HELPERS)]);
+    let source =
+        "require('required', as: 'helpers'); require('required', as: 'helpers'); helpers.double(3)";
+    assert!(errors_with(&engine, source).is_empty());
+    assert_eq!(
+        engine
+            .compile(source)
+            .unwrap()
+            .run(Default::default())
+            .unwrap()
+            .value
+            .as_int(),
+        Some(6)
+    );
+    for (source, code) in [
+        ("require", Code::NO_OVERLOAD),
+        ("require('required', 'other')", Code::NO_OVERLOAD),
+        ("require('required', bad: 'helpers')", Code::UNKNOWN_KEYWORD),
+        ("require('required') { 1 }", Code::UNEXPECTED_BLOCK),
+        ("require('required', as: :helpers)", Code::DYNAMIC_REQUIRE),
+        ("require(*['required'])", Code::DYNAMIC_REQUIRE),
+        (
+            "require('required', as: 'not a name')",
+            Code::INVALID_REQUIRE_ALIAS,
+        ),
+        ("require('required', as: 'if')", Code::INVALID_REQUIRE_ALIAS),
+        ("h = 1; require('required', as: 'h')", Code::DUPLICATE_NAME),
+        (
+            "def h; end; require('required', as: 'h')",
+            Code::DUPLICATE_NAME,
+        ),
+        ("require('required', as: 'Math')", Code::DUPLICATE_NAME),
+        (
+            "require('required', as: 'h'); require('other', as: 'h')",
+            Code::DUPLICATE_NAME,
+        ),
+        (
+            "module M; H = 1; def self.load; require('required', as: 'H'); end; end",
+            Code::DUPLICATE_NAME,
+        ),
+    ] {
+        let diagnostics = errors_with(&engine, source);
+        assert!(
+            diagnostics.iter().any(|d| d.code == code),
+            "{source}: {diagnostics:?}"
+        );
+        assert!(engine.compile(source).is_err(), "{source}");
+    }
+    std::fs::remove_dir_all(directory).unwrap();
+}

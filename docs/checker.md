@@ -90,6 +90,7 @@ Two diagnostics are warnings, which do not stop compilation: `V0121`, a nil test
 | `V0308` | `undeclared-block` | A function yields but does not declare its block as a typed `&` parameter. |
 | `V0309` | `dynamic-require` | A `require` names its module or alias with something other than a string literal. |
 | `V0310` | `not-callable` | A value is called but is not a function. |
+| `V0311` | `invalid-require-alias` | A `require` alias is not a valid identifier or is a keyword. |
 | `V0401` | `removed-name` | A builtin member, function or namespace member is called by a removed name, such as `size` for `length`. |
 | `V0402` | `nil-predicate` | `nil?` is removed; `x == nil` tests for nil. |
 | `V0403` | `identity-equality` | `eql?` and `equal?` are removed; `==` compares values. |

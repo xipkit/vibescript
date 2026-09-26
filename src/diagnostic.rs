@@ -142,6 +142,8 @@ registry! {
     DYNAMIC_REQUIRE = 309, "dynamic-require", "A `require` names its module or alias with something other than a string literal.";
     NOT_CALLABLE = 310, "not-callable", "A value is called but is not a function.";
 
+    INVALID_REQUIRE_ALIAS = 311, "invalid-require-alias", "A require alias is not a valid identifier or is a keyword.";
+
     REMOVED_NAME = 401, "removed-name", "A builtin member, function or namespace member is called by a removed name, such as `size` for `length`.";
     NIL_PREDICATE = 402, "nil-predicate", "`nil?` is removed; `x == nil` tests for nil.";
     IDENTITY_EQUALITY = 403, "identity-equality", "`eql?` and `equal?` are removed; `==` compares values.";

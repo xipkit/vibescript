@@ -239,19 +239,109 @@ impl<'a> Checker<'a> {
 
     /// `require` with literal module names.
     fn require(&mut self, call: &Call<'a, '_>) {
+        let positional = call
+            .args
+            .iter()
+            .filter(|arg| matches!(arg.kind, ArgumentKind::Positional))
+            .count();
+        let aliases = call.keywords().filter(|name| *name == "as").count();
+        if positional != 1 || aliases > 1 {
+            self.report(Diagnostic::error(
+                Code::NO_OVERLOAD,
+                call.name_span,
+                "`require` takes one module name and at most one `as:` alias",
+            ));
+        }
+        if call.block.is_some() {
+            self.report(Diagnostic::error(
+                Code::UNEXPECTED_BLOCK,
+                call.name_span,
+                "`require` does not take a block",
+            ));
+        }
+        let path = call.args.iter().find_map(|arg| {
+            matches!(arg.kind, ArgumentKind::Positional)
+                .then(|| super::expr::string_literal(&arg.value))
+                .flatten()
+        });
+        let exports = path.as_deref().and_then(|path| self.modules.exports(path));
         for arg in call.args {
-            let literal = matches!(&arg.value.node, Node::Literal(value) if value.as_bytes().is_some() || super::symbol_text(value).is_some());
             self.expr(&arg.value, None);
-            if !literal {
-                let span = self.spans.expr(&arg.value);
-                let what = match &arg.kind {
-                    ArgumentKind::Keyword(name) if name.as_str() == "as" => "its alias",
-                    _ => "the module name",
-                };
+            let span = self.spans.expr(&arg.value);
+            let is_alias =
+                matches!(&arg.kind, ArgumentKind::Keyword(name) if name.as_str() == "as");
+            if let ArgumentKind::Keyword(name) = &arg.kind {
+                if !is_alias {
+                    self.report(Diagnostic::error(
+                        Code::UNKNOWN_KEYWORD,
+                        span,
+                        format!("`require` has no keyword `{name}`; its only keyword is `as`"),
+                    ));
+                    continue;
+                }
+            }
+            let literal = match &arg.value.node {
+                Node::Literal(value) => value
+                    .as_bytes()
+                    .and_then(|bytes| std::str::from_utf8(bytes).ok()),
+                _ => None,
+            };
+            let literal = literal.filter(|_| {
+                matches!(
+                    arg.kind,
+                    ArgumentKind::Positional | ArgumentKind::Keyword(_)
+                )
+            });
+            let Some(literal) = literal else {
                 self.report(Diagnostic::error(
                     Code::DYNAMIC_REQUIRE,
                     span,
-                    format!("`require` takes {what} as a string literal, so the compiler can resolve and check the module"),
+                    "`require` takes its module name and alias as string literals, without splats",
+                ));
+                continue;
+            };
+            if !is_alias {
+                continue;
+            }
+            let alias = literal.trim();
+            let mut chars = alias.chars();
+            if !chars
+                .next()
+                .is_some_and(|c| c == '_' || crate::syntax::unicode::letter(c))
+                || !chars.all(|c| {
+                    matches!(c, '_' | '?' | '!')
+                        || crate::syntax::unicode::letter(c)
+                        || crate::syntax::unicode::digit(c)
+                })
+                || crate::syntax::keyword(alias)
+            {
+                self.report(Diagnostic::error(
+                    Code::INVALID_REQUIRE_ALIAS,
+                    span,
+                    "a `require` alias must be an identifier other than a keyword",
+                ));
+                continue;
+            }
+            let local_conflict = self.local(alias).is_some_and(|id| {
+                let state = self.frame.flow.get(id);
+                !matches!(self.types.kind(state.ty), Kind::Exports(id) if Some(*id) == exports)
+            });
+            let conflict = local_conflict
+                || self.program.functions.contains_key(alias)
+                || self.program.hosts.contains_key(alias)
+                || self.program.declared.contains_key(alias)
+                || self.constant(alias, self.frame.owner).is_some()
+                || sigs::index().globals.contains_key(alias)
+                || self
+                    .modules
+                    .aliases
+                    .get(alias)
+                    .is_some_and(|id| Some(*id) != exports);
+            if conflict {
+                self.report(Diagnostic::error(
+                    Code::DUPLICATE_NAME,
+                    span,
+                    format!("`require` alias `{alias}` is already defined; choose a free name"),
                 ));
             }
         }

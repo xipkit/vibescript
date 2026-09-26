@@ -136,6 +136,7 @@ impl<'a> Checker<'a> {
         for body in bodies {
             requires(body, &mut requests);
         }
+        requests.sort_by_key(|request| request.2);
         for (path, alias, offset) in requests {
             let id = self.load_module(&path);
             if id.is_none() {
@@ -146,7 +147,10 @@ impl<'a> Checker<'a> {
                 ));
             }
             if let (Some(id), Some(alias)) = (id, alias) {
-                self.modules.aliases.insert(alias, id);
+                self.modules
+                    .aliases
+                    .entry(alias.trim().to_owned())
+                    .or_insert(id);
             }
         }
     }
@@ -505,7 +509,6 @@ fn visit<'x>(
                             value
                                 .as_bytes()
                                 .map(|b| String::from_utf8_lossy(b).into_owned())
-                                .or_else(|| super::symbol_text(value))
                         }
                         _ => None,
                     });
