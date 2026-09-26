@@ -7,42 +7,51 @@ fn json(value: &Value) -> serde_json::Value {
     serde_json::from_slice(encoded.value.as_bytes().unwrap()).unwrap()
 }
 
+/// Runs `source`, whose top level binds the capitalized global `Store`,
+/// with the host global `input`, declared as `ty`.
+fn run(source: &str, ty: &str, input: &Value) -> vibescript::Result<vibescript::Outcome> {
+    let mut engine = vibescript::Engine::new();
+    engine.declare_global("input", ty).unwrap();
+    engine.compile(source)?.run(CallOptions {
+        globals: [("input".to_owned(), input.clone())].into(),
+        ..CallOptions::default()
+    })
+}
+
+/// A function cannot assign a capitalized name, so the programs bind the
+/// global `Store` at top level, beside the host global `input`.
 #[test]
 fn global_mutations_preserve_local_bindings_and_pending_writes() {
     for (body, expected) in [
         (
-            "Math.push(input.push(3).length)",
+            "Store.push(input.push(3).length)",
             serde_json::json!([[1, 2], [1, 3]]),
         ),
         (
-            "Math.push(Math.push(2).length)",
+            "Store.push(Store.push(2).length)",
             serde_json::json!([[1, 2, 2], [1]]),
         ),
-        ("Math[0]=9", serde_json::json!([[9], [1]])),
-        ("Math[0]=Math.fetch(0)+4", serde_json::json!([[5], [1]])),
-        ("Math.push(2)", serde_json::json!([[1, 2], [1]])),
-        ("Math.fill(4)", serde_json::json!([[4], [1]])),
+        ("Store[0]=9", serde_json::json!([[9], [1]])),
+        ("Store[0]=Store.fetch(0)+4", serde_json::json!([[5], [1]])),
+        ("Store.push(2)", serde_json::json!([[1, 2], [1]])),
+        ("Store.fill(4)", serde_json::json!([[4], [1]])),
         (
-            "begin;Math.insert(-9,2);rescue;nil;end",
+            "begin;Store.insert(-9,2);rescue;nil;end",
             serde_json::json!([[1], [1]]),
         ),
         (
-            "begin;Math[9]=2;rescue;nil;end",
+            "begin;Store[9]=2;rescue;nil;end",
             serde_json::json!([[1], [1]]),
         ),
         (
-            "begin;Math.delete_if {|i| raise \"stop\"};rescue;nil;end",
+            "begin;Store.delete_if {|i| raise \"stop\"};rescue;nil;end",
             serde_json::json!([[1], [1]]),
         ),
     ] {
-        let source = format!(
-            "def run(input: array<int>) -> array<array<int>>\nMath=input\n{body}\n[Math,input]\nend"
-        );
-        let script = common::runtime_engine().compile(&source).unwrap();
+        let source = format!("Store=input\n{body}\n[Store,input]");
         let input = Value::array(vec![Value::int(1)]);
-        let output = script
-            .call("run", std::slice::from_ref(&input), CallOptions::default())
-            .unwrap_or_else(|error| panic!("{body}: {error}"));
+        let output =
+            run(&source, "array<int>", &input).unwrap_or_else(|error| panic!("{body}: {error}"));
         assert_eq!(json(&output.value), expected, "{body}");
         assert_eq!(json(&input), serde_json::json!([1]), "{body}");
     }
@@ -51,30 +60,26 @@ fn global_mutations_preserve_local_bindings_and_pending_writes() {
 #[test]
 fn replacing_a_global_detaches_an_earlier_mutation_target() {
     for (body, expected) in [
-        ("Math.push(begin;Math=[9];2;end)", serde_json::json!([9])),
+        ("Store.push(begin;Store=[9];2;end)", serde_json::json!([9])),
         // Plain indexed assignment selects its target after the right-hand side.
-        ("Math[0]=begin;Math=[9];2;end", serde_json::json!([2])),
+        ("Store[0]=begin;Store=[9];2;end", serde_json::json!([2])),
         (
-            "Math.push(begin;Math,other=[9],2;other;end)",
+            "Store.push(begin;Store,other=[9],2;other;end)",
             serde_json::json!([9]),
         ),
-        ("Math.push(replace)", serde_json::json!([9])),
-        ("Math.push(begin;Math=[1];2;end)", serde_json::json!([1])),
+        // A block rebinds the global while the argument runs.
         (
-            "Math.push(begin;Math=Math;2;end)",
+            "Store.push(loop{Store=[9];break 2})",
+            serde_json::json!([9]),
+        ),
+        ("Store.push(begin;Store=[1];2;end)", serde_json::json!([1])),
+        (
+            "Store.push(begin;Store=Store;2;end)",
             serde_json::json!([1, 2]),
         ),
     ] {
-        let source = format!(
-            "def replace -> int\nMath=[9]\n2\nend\ndef run(input: array<int>) -> array<array<int>>\nMath=input\n{body}\n[Math,input]\nend"
-        );
-        let script = common::runtime_engine().compile(&source).unwrap();
-        let output = script
-            .call(
-                "run",
-                &[Value::array(vec![Value::int(1)])],
-                CallOptions::default(),
-            )
+        let source = format!("Store=input\n{body}\n[Store,input]");
+        let output = run(&source, "array<int>", &Value::array(vec![Value::int(1)]))
             .unwrap_or_else(|error| panic!("{body}: {error}"));
         assert_eq!(
             json(&output.value),
@@ -84,17 +89,15 @@ fn replacing_a_global_detaches_an_earlier_mutation_target() {
     }
     // Compound assignment selects its target before the right-hand side. An
     // array element may be missing, so a record's field shows it.
-    let script = common::runtime_engine()
-        .compile(
-            "def run(input: { a: int }) -> array<{ a: int }>\nMath=input\n\
-             Math[\"a\"]+=begin;Math={a: 9};2;end\n[Math,input]\nend",
-        )
-        .unwrap();
     let input = Value::hash(vec![(b"a".to_vec(), Value::int(1))]);
-    let output = script
-        .call("run", &[input], CallOptions::default())
-        .unwrap();
+    let output = run(
+        "Store=input\nStore[\"a\"]+=begin;Store={a: 9};2;end\n[Store,input]",
+        "{ a: int }",
+        &input,
+    )
+    .unwrap();
     assert_eq!(json(&output.value), serde_json::json!([{"a": 9}, {"a": 1}]));
+    assert_eq!(json(&input), serde_json::json!({"a": 1}));
     // `&&=` and `||=` test their target, which must be a bool.
     for operator in ["&&=", "||="] {
         let source = format!(
