@@ -767,12 +767,13 @@ impl Loop {
                     b"+" | b"-" | b"*" | b"/" | b"%" | b"**" | b"<<" | b"&"
                 ) {
                     ctx.work_bytes(name.len())?;
-                    ops::binary(
-                        ctx,
-                        std::str::from_utf8(name).unwrap(),
-                        receiver,
-                        args[0].clone(),
-                    )?
+                    // A symbol operator is a removed spelling, so only the
+                    // ADR-004 language reaches it, where `/` floors integers.
+                    let operator = match name {
+                        b"/" => ops::LEGACY_DIVIDE,
+                        name => std::str::from_utf8(name).unwrap(),
+                    };
+                    ops::binary(ctx, operator, receiver, args[0].clone())?
                 } else {
                     self.waiting = true;
                     return Ok(Progress::Call(receiver, operation.clone(), args[0].clone()));

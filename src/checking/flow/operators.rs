@@ -68,7 +68,7 @@ impl Walker<'_> {
             return self.incomplete(pc).map(Some);
         };
         let name = match op {
-            Op::Binary(name) => name,
+            Op::Binary(name) => crate::ops::method_name(name),
             Op::AddStore(_) => "+",
             Op::Shovel(_) => "<<",
             Op::AddressStore => "[]=",

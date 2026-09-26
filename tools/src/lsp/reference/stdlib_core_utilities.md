@@ -708,8 +708,8 @@ continue past the 64-bit range, and results that fit return to compact
 storage. Indexes, counts, range endpoints, the iteration members and money,
 duration and time arithmetic stay within 64 bits and raise beyond them. `//`
 is floor division and `%` the floored remainder, so `-7 // 2` is `-4` and
-`-7 % 3` is `2`. `/` on two integers is true division, returning a float; until
-the switchover the checker rejects it (V0109) and asks for `//`. Integer
+`-7 % 3` is `2`. `/` on two integers is true division, returning the nearest
+float: `7 / 2` is `3.5`, and a quotient beyond the float range raises. Integer
 division or remainder by zero raises.
 
 - `abs -> int` – the absolute value.

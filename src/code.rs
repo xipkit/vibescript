@@ -180,7 +180,7 @@ impl Code {
                     &text,
                 ));
             }
-            crate::bytecode::compile_parsed(source, parsed, names, file, work)
+            crate::bytecode::compile_parsed(source, parsed, names, file, false, work)
         } else if file {
             crate::bytecode::compile_file(source, names, work)
         } else {

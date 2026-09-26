@@ -359,7 +359,10 @@ pub(crate) fn before(
             pend(ctx, frame.ip + 1, Pending::Result(call.name));
         }
         Op::Index(n) => emit(ctx, source, offset, Site::Index, last(n + 1)),
-        Op::Binary(operator) => emit(ctx, source, offset, Site::Binary { operator }, last(2)),
+        Op::Binary(operator) => {
+            let operator = crate::ops::method_name(operator);
+            emit(ctx, source, offset, Site::Binary { operator }, last(2));
+        }
         Op::Unary(operator) => emit(ctx, source, offset, Site::Unary { operator }, last(1)),
         Op::JumpFalse(_) | Op::JumpTrue(_) | Op::LoopTest => {
             emit(ctx, source, offset, Site::Condition { origin }, last(1));

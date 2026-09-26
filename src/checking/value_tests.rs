@@ -517,9 +517,14 @@ fn primitive_operator_facts_contain_temporal_regex_and_comparison_results() {
                 let b = literal_fact(&mut ctx, &mut facts, right);
                 let (inferred, _) = facts.scalar_binary(&mut ctx, op, a, b).unwrap();
                 assert!(!inferred.unsupported, "{left:?} {op} {right:?}");
+                // The gradual checker models the ADR-004 language's `/`.
                 let actual = crate::ops::binary(
                     &mut CallContext::new(CallOptions::default()),
-                    op,
+                    if op == "/" {
+                        crate::ops::LEGACY_DIVIDE
+                    } else {
+                        op
+                    },
                     left.clone(),
                     right.clone(),
                 );

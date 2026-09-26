@@ -57,7 +57,7 @@ Two diagnostics are warnings, which do not stop compilation: `V0121`, a nil test
 | `V0106` | `any-use` | A value of type `any` is used before it is narrowed. |
 | `V0107` | `optional-use` | A value that may be `nil` is used where `nil` is not accepted. |
 | `V0108` | `no-operator` | An operator is not defined for its operand types. |
-| `V0109` | `integer-division` | `/` divides two ints; write `//` for floor division. |
+| `V0109` | `integer-division` | Retired: it rejected `/` on two ints before `/` became true division. No diagnostic reports it, and the number is not reused. |
 | `V0110` | `unknown-field` | A shape is read or written at a key it does not declare. |
 | `V0111` | `dynamic-key` | A shape is indexed with a key known only at runtime. |
 | `V0112` | `not-indexable` | A value of this type cannot be indexed this way. |
@@ -107,7 +107,7 @@ Two diagnostics are warnings, which do not stop compilation: `V0121`, a nil test
 | `V0415` | `field-access` | A hash or shape field is read or written with a dot; dot calls methods, and a field is indexed as `h["name"]`. |
 | `V0416` | `scoped-call` | A function or method is called with `::`, as in `JSON::parse(x)`; `::` names only constants, nested types and enum members, and a dot calls. |
 
-`vibescript::diagnostic::codes()` returns this registry, and `Diagnostic::to_json` gives the JSON form `vibes check --json` prints:
+`vibescript::diagnostic::codes()` returns this registry, retired codes included and marked by `CodeInfo::retired`, and `Diagnostic::to_json` gives the JSON form `vibes check --json` prints:
 
 ```text
 {"code":"V0107","name":"optional-use","severity":"error","file":null,"span":{"start":24,"end":31,"line":2,"column":1,"end_line":2,"end_column":8},"message":"this value may be nil (array<int>?); test it with `!= nil` before indexing it","expected":null,"found":null,"labels":[],"fixes":[...]}

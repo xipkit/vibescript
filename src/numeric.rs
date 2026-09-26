@@ -100,7 +100,7 @@ fn division(ctx: &mut CallContext, method: &str, a: &Value, b: &Value) -> Result
     }
     if a.is_integer() && b.is_integer() {
         return match name {
-            "div" => calculate(ctx, "/", a, b),
+            "div" => calculate(ctx, "//", a, b),
             "modulo" => calculate(ctx, "%", a, b),
             "remainder" => match (a.as_int(), b.as_int()) {
                 (Some(a), Some(b)) => Ok(Value::int(a.checked_rem(b).unwrap_or(0))),
@@ -108,7 +108,7 @@ fn division(ctx: &mut CallContext, method: &str, a: &Value, b: &Value) -> Result
             },
             "divmod" => {
                 let (q, r) = if a.as_int().is_some() && b.as_int().is_some() {
-                    (calculate(ctx, "/", a, b)?, calculate(ctx, "%", a, b)?)
+                    (calculate(ctx, "//", a, b)?, calculate(ctx, "%", a, b)?)
                 } else {
                     integer::divmod(ctx, a, b)?
                 };

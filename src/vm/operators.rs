@@ -38,6 +38,7 @@ pub(super) fn resolve(
     name: &str,
     caller: (Option<usize>, bool),
 ) -> Result<Option<Resolved>> {
+    let name = crate::ops::method_name(name);
     let mut found = method(ctx, receiver, name)?;
     let mut negate = false;
     if found.is_none() && name == "!=" {

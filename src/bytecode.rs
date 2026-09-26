@@ -427,6 +427,10 @@ pub(crate) struct Capture {
 #[derive(Debug)]
 pub(crate) struct Program {
     pub file: bool,
+    /// Whether the program is in the ADR-004 language, compiled by an
+    /// engine from [`crate::Engine::legacy_unchecked`]: `/` floors two
+    /// integers.
+    pub legacy: bool,
     pub owner: std::sync::Weak<crate::code::Code>,
     pub handlers: Vec<errors::TrySpec>,
     pub source: crate::source::Source,
@@ -449,6 +453,7 @@ pub(crate) struct Program {
     pub outline: Vec<crate::Declaration>,
 }
 
+/// Compiles a host script in the ADR-004 language, without static types.
 pub(crate) fn compile(
     source: &str,
     hosts: Vec<String>,
@@ -457,6 +462,7 @@ pub(crate) fn compile(
     compile_mode(source, hosts, false, work)
 }
 
+/// Compiles a required file in the ADR-004 language, without static types.
 pub(crate) fn compile_file(
     source: &str,
     hosts: Vec<String>,
@@ -471,16 +477,24 @@ fn compile_mode(
     file: bool,
     work: &dyn crate::compilation::Work,
 ) -> Result<Program> {
-    compile_parsed(source, syntax::parse(source, work)?, hosts, file, work)
+    compile_parsed(
+        source,
+        syntax::parse(source, work)?,
+        hosts,
+        file,
+        true,
+        work,
+    )
 }
 
 /// Compiles parsed declarations of `source`, such as ones the static type
-/// checker has already read.
+/// checker has already read, in the ADR-004 language when `legacy`.
 pub(crate) fn compile_parsed(
     source: &str,
     parsed: syntax::Declarations,
     hosts: Vec<String>,
     file: bool,
+    legacy: bool,
     work: &dyn crate::compilation::Work,
 ) -> Result<Program> {
     let mut outline = Vec::with_capacity(parsed.outline.len());
@@ -532,6 +546,7 @@ pub(crate) fn compile_parsed(
         .collect();
     let mut program = Program {
         file,
+        legacy,
         owner: std::sync::Weak::new(),
         handlers: Vec::new(),
         source: crate::source::Source::compile(source, work)?,
@@ -1000,6 +1015,10 @@ impl Compiler<'_> {
         Ok(())
     }
     fn emit(&mut self, op: Op) -> usize {
+        let op = match op {
+            Op::Binary("/") if self.program.legacy => Op::Binary(crate::ops::LEGACY_DIVIDE),
+            op => op,
+        };
         let pos = self.code.len();
         self.code.push(op);
         self.locations.push(self.offset);

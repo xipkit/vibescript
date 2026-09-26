@@ -1,5 +1,6 @@
-//! `//` floor division (ADR-008): integers floor at any size, a float operand
-//! gives a floored float, and `/` on two ints is refused until it divides.
+//! Division (ADR-008): `/` divides numbers to a float, even two ints of any
+//! size, and `//` floors: integers floor at any size, and a float operand
+//! gives a floored float.
 
 mod common;
 
@@ -66,21 +67,89 @@ fn a_float_operand_gives_the_floored_float() {
 }
 
 #[test]
-fn integer_slash_division_is_refused_until_it_divides() {
-    // Until the switchover `/` still floors two ints, so the compiler asks
-    // for `//` where both operands are ints; a float operand divides.
-    let source = "def run -> array<number>\n  [7 / 2, -7 / 2, 7.0 / 2]\nend\n";
-    let error = common::static_engine().compile(source).err().unwrap();
-    assert_eq!(common::codes(&error), ["V0109", "V0109"]);
-    let spans: Vec<usize> = error.diagnostics().iter().map(|d| d.span.start).collect();
-    assert_eq!(
-        spans,
-        [
-            source.find("7 / 2").unwrap() + 2,
-            source.find("-7 / 2").unwrap() + 3
-        ]
+fn slash_divides_integers_to_the_nearest_float() {
+    for (expression, expected) in [
+        ("7 / 2", 3.5),
+        ("-7 / 2", -3.5),
+        ("7 / -2", -3.5),
+        ("6 / 3", 2.0),
+        ("1 / 3", 1.0 / 3.0),
+        ("7.0 / 2", 3.5),
+        ("7 / 2.0", 3.5),
+        // Past 2^53 the quotient is rounded once, from the exact value.
+        ("9007199254740993 / 1", 9007199254740992.0),
+        ("(2 ** 70) / 3", 2f64.powi(70) / 3.0),
+        ("(10 ** 20) / 3", 33333333333333332000.0),
+        ("9223372036854775807 / 7", 1317624576693539300.0),
+        ("(10 ** 400) / (10 ** 399)", 10.0),
+        ("-(10 ** 400) / (10 ** 399)", -10.0),
+        ("(2 ** 1024 - 2 ** 971) / 1", f64::MAX),
+        // Quotients below the float range round to a subnormal or to zero.
+        ("1 / (2 ** 1074)", 5e-324),
+        ("3 / (2 ** 1076)", 5e-324),
+        ("1 / (2 ** 1075)", 0.0),
+        ("1 / (10 ** 400)", 0.0),
+    ] {
+        let value = run(expression);
+        assert_eq!(value.type_name(), "float", "{expression}");
+        assert_eq!(value.as_float(), Some(expected), "{expression}");
+    }
+    // The sign of a zero quotient follows the operands'.
+    assert!(run("0 / -5").as_float().unwrap().is_sign_negative());
+    assert!(
+        run("-1 / (10 ** 400)")
+            .as_float()
+            .unwrap()
+            .is_sign_negative()
     );
-    assert_eq!(run("[7.0 / 2, 7 / 2.0]").to_string(), "[3.5, 3.5]");
+}
+
+#[test]
+fn slash_raises_for_zero_divisors_and_quotients_beyond_the_float_range() {
+    for expression in ["7 / 0", "(2 ** 70) / 0", "0 / 0"] {
+        let error = failure(expression);
+        assert_eq!(error.message, "division by zero", "{expression}");
+        assert_eq!(
+            error.class(),
+            Some(ErrorClass::ZeroDivision),
+            "{expression}"
+        );
+    }
+    // A float operand keeps float division's infinities.
+    assert_eq!(run("1.0 / 0").as_float(), Some(f64::INFINITY));
+    for expression in [
+        "(10 ** 400) / 1",
+        "-(10 ** 400) / 3",
+        "(2 ** 1024) / 1",
+        // Rounds up to 2^1024, one past the largest float.
+        "(2 ** 1024 - 2 ** 970) / 1",
+    ] {
+        let error = failure(expression);
+        assert_eq!(error.kind, ErrorKind::Arithmetic, "{expression}");
+        assert_eq!(
+            error.message, "integer division result is out of float range",
+            "{expression}"
+        );
+    }
+}
+
+#[test]
+fn slash_has_a_float_type_and_money_and_durations_keep_their_own() {
+    let error = Engine::new()
+        .compile("def run -> int\n  7 / 2\nend\n")
+        .err()
+        .unwrap();
+    assert_eq!(common::codes(&error), ["V0101"]);
+    // `/=` on an int local would change its type.
+    let error = Engine::new()
+        .compile("def run -> int\n  a = 12\n  a /= 5\n  a\nend\n")
+        .err()
+        .unwrap();
+    assert_eq!(common::codes(&error), ["V0102"]);
+    assert_eq!(run("b = 12.0\n  b /= 5\n  b").as_float(), Some(2.4));
+    assert_eq!(run("money(\"10.00 USD\") / 4").to_string(), "2.50 USD");
+    assert_eq!(run("30.minutes / 2").to_string(), "900s");
+    assert_eq!(run("30.minutes / 10.minutes").as_float(), Some(3.0));
 }
 
 #[test]
@@ -116,7 +185,7 @@ fn other_operands_are_refused_at_compile_time() {
         ("{ a: 1 } // 2", "V0108"),
     ] {
         let source = format!("def run\n  {expression}\nend\n");
-        let error = common::static_engine().compile(&source).err().unwrap();
+        let error = vibescript::Engine::new().compile(&source).err().unwrap();
         assert_eq!(common::codes(&error), [code], "{expression}");
         // An operand that cannot divide is reported at the operator, and a
         // nil operand where it is read.
@@ -254,17 +323,14 @@ fn compound_floor_division_assigns_the_floored_value() {
     }
     let source = "class Counter\n  @@n: int = 9\n  def self.halve -> int\n    @@n //= 2\n    @@n\n  end\nend\n\
                   def run -> int\n  Counter.halve\nend\n";
-    for static_types in [false, true] {
-        let mut engine = Engine::new();
-        engine.set_static_types(static_types);
-        let value = engine
-            .compile(source)
-            .unwrap()
-            .call("run", &[], CallOptions::default())
-            .unwrap()
-            .value;
-        assert_eq!(value.as_int(), Some(4));
-    }
+    let engine = Engine::new();
+    let value = engine
+        .compile(source)
+        .unwrap()
+        .call("run", &[], CallOptions::default())
+        .unwrap()
+        .value;
+    assert_eq!(value.as_int(), Some(4));
     // A zero divisor raises as `//` does.
     let error = failure("y = 1\n  y //= 0");
     assert_eq!(error.kind, ErrorKind::Arithmetic);
@@ -274,7 +340,7 @@ fn compound_floor_division_assigns_the_floored_value() {
 #[test]
 fn the_checker_types_compound_floor_division() {
     let checked = |source: &str| -> Vec<String> {
-        match common::static_engine().compile(source) {
+        match vibescript::Engine::new().compile(source) {
             Ok(_) => Vec::new(),
             Err(error) => common::codes(&error),
         }
@@ -294,24 +360,6 @@ fn the_checker_types_compound_floor_division() {
 }
 
 #[test]
-fn slash_assignment_on_ints_is_fixed_to_floor_division_assignment() {
-    let source = "def run -> int\n  a = 12\n  a /= 5\n  a\nend\n";
-    let error = common::static_engine().compile(source).err().unwrap();
-    let diagnostic = &error.diagnostics()[0];
-    assert_eq!(diagnostic.code.to_string(), "V0109");
-    assert_eq!(&source[diagnostic.span.start..diagnostic.span.end], "/=");
-    let fixed = diagnostic.fixes[0].apply(source).unwrap();
-    assert_eq!(fixed, "def run -> int\n  a = 12\n  a //= 5\n  a\nend\n");
-    let value = common::static_engine()
-        .compile(&fixed)
-        .unwrap()
-        .call("run", &[], CallOptions::default())
-        .unwrap()
-        .value;
-    assert_eq!(value.as_int(), Some(2));
-}
-
-#[test]
 fn float_modulo_has_the_divisors_sign() {
     for (expression, expected) in [
         ("7.5 % 2.0", 1.5),
@@ -328,11 +376,11 @@ fn float_modulo_has_the_divisors_sign() {
     }
     assert!(run("1.0 % 0.0").as_float().unwrap().is_nan());
     assert!(
-        common::static_engine()
+        vibescript::Engine::new()
             .compile("x: float = 7.5 % 2\n")
             .is_ok()
     );
-    let error = common::static_engine()
+    let error = vibescript::Engine::new()
         .compile("x: int = 7.5 % 2\n")
         .err()
         .unwrap();

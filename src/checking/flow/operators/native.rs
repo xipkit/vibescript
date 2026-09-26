@@ -197,7 +197,7 @@ impl Walker<'_> {
             Op::Binary(_) | Op::AddStore(_) => {
                 let instruction = op;
                 let op = match op {
-                    Op::Binary(op) => op,
+                    Op::Binary(op) => crate::ops::method_name(op),
                     _ => "+",
                 };
                 let right = state.stack.data.pop().unwrap();

@@ -620,7 +620,7 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: &Value, b: &Value) -> R
             let words = multiply(ctx, am, bm)?;
             finish(ctx, an != bn, words)
         }
-        "/" | "%" | "remainder" => {
+        "//" | "%" | "remainder" => {
             let (mut quotient, mut remainder) = divide(ctx, am, bm)?;
             if op != "remainder" && !remainder.data.is_empty() && an != bn {
                 quotient = add(ctx, Magnitude::Words(&quotient.data), Magnitude::Small(1))?;
@@ -628,7 +628,7 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: &Value, b: &Value) -> R
                 subtract(ctx, &mut corrected.data, Magnitude::Words(&remainder.data))?;
                 remainder = corrected;
             }
-            if op == "/" {
+            if op == "//" {
                 finish(ctx, an != bn, quotient)
             } else {
                 finish(ctx, if op == "remainder" { an } else { bn }, remainder)
@@ -636,6 +636,117 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: &Value, b: &Value) -> R
         }
         _ => Err(Error::new(ErrorKind::Type, "unsupported integer operator")),
     }
+}
+
+/// Divides two integers to the float nearest their exact quotient, rounding
+/// half to even, as `/` does (ADR-008). A zero divisor raises
+/// `ZeroDivisionError` and a quotient beyond the float range raises; one
+/// too small for a float is zero.
+pub(crate) fn true_divide(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Value> {
+    // The binary exponent range and precision of a float.
+    const MIN_EXP: i64 = -1021;
+    const MAX_EXP: i64 = 1024;
+    const DIGITS: i64 = 53;
+    let (an, am) = parts(a);
+    let (bn, bm) = parts(b);
+    if bm.len() == 0 {
+        return Err(Error::new(ErrorKind::Arithmetic, "division by zero")
+            .with_class(crate::ErrorClass::ZeroDivision));
+    }
+    let signed = |value: f64| Value::float(if an != bn { -value } else { value });
+    let (a_bits, b_bits) = (am.bits() as i64, bm.bits() as i64);
+    // Both operands are exact floats, so one float division rounds correctly.
+    if a_bits <= DIGITS && b_bits <= DIGITS {
+        return Ok(signed(am.window(0) as f64 / bm.window(0) as f64));
+    }
+    let overflow = || {
+        Error::new(
+            ErrorKind::Arithmetic,
+            "integer division result is out of float range",
+        )
+    };
+    let diff = a_bits - b_bits;
+    if diff > MAX_EXP {
+        return Err(overflow());
+    }
+    if diff < MIN_EXP - DIGITS - 1 {
+        return Ok(signed(0.0));
+    }
+    // Scale the dividend so the integer quotient keeps two or three bits
+    // beyond the float's precision, or its subnormal precision, and note
+    // whether anything the scaling or the division drops is nonzero.
+    let shift = diff.max(MIN_EXP) - DIGITS - 2;
+    let (scaled, mut inexact) = if shift <= 0 {
+        (shift_left(ctx, am, (-shift) as usize)?, false)
+    } else {
+        shift_right(ctx, am, shift as usize)?
+    };
+    let (quotient, remainder) = divide(ctx, Magnitude::Words(&scaled.data), bm)?;
+    inexact |= remainder.data.iter().any(|&word| word != 0);
+    let quotient = Magnitude::Words(&quotient.data);
+    let quotient_bits = quotient.bits() as i64;
+    let extra = quotient_bits.max(MIN_EXP - shift) - DIGITS;
+    let mask = 1u64 << (extra - 1);
+    let mut low = quotient.window(0) | u64::from(inexact);
+    if low & mask != 0 && low & (3 * mask - 1) != 0 {
+        low += mask;
+    }
+    low &= !(2 * mask - 1);
+    // At most 54 significant bits remain, so the conversion is exact.
+    let value = low as f64;
+    if shift + quotient_bits >= MAX_EXP
+        && (shift + quotient_bits > MAX_EXP || value == power_of_two(quotient_bits))
+    {
+        return Err(overflow());
+    }
+    // Two exact steps, since 2^shift alone may not be a normal float.
+    let half = shift / 2;
+    Ok(signed(
+        value * power_of_two(half) * power_of_two(shift - half),
+    ))
+}
+
+/// 2^`exponent`, for an exponent of a normal float.
+fn power_of_two(exponent: i64) -> f64 {
+    f64::from_bits(((exponent + 1023) as u64) << 52)
+}
+
+/// `value` shifted left by `bits`.
+fn shift_left(ctx: &mut CallContext, value: Magnitude<'_>, bits: usize) -> Result<Buffer<u32>> {
+    let (words, offset) = (bits / 32, (bits % 32) as u32);
+    let mut out = zeros(ctx, words + value.len() + 1)?;
+    for i in 0..value.len() {
+        work(ctx, i, value.len())?;
+        let wide = (value.word(i) as u64) << offset;
+        out.data[words + i] |= wide as u32;
+        out.data[words + i + 1] = (wide >> 32) as u32;
+    }
+    trim(ctx, &mut out.data)?;
+    Ok(out)
+}
+
+/// `value` shifted right by `bits`, and whether any bit shifted out was set.
+fn shift_right(
+    ctx: &mut CallContext,
+    value: Magnitude<'_>,
+    bits: usize,
+) -> Result<(Buffer<u32>, bool)> {
+    let (words, offset) = (bits / 32, (bits % 32) as u32);
+    let mut lost = false;
+    for i in 0..words.min(value.len()) {
+        work(ctx, i, value.len())?;
+        lost |= value.word(i) != 0;
+    }
+    lost |= offset != 0 && value.word(words) & ((1 << offset) - 1) != 0;
+    let length = value.len().saturating_sub(words);
+    let mut out = zeros(ctx, length)?;
+    for i in 0..length {
+        work(ctx, i, length)?;
+        let wide = (value.word(words + i + 1) as u64) << 32 | value.word(words + i) as u64;
+        out.data[i] = (wide >> offset) as u32;
+    }
+    trim(ctx, &mut out.data)?;
+    Ok((out, lost))
 }
 
 fn power(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Value> {

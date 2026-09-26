@@ -631,7 +631,13 @@ fn scalar_operator_facts_cover_runtime_results_and_type_failures() {
                     .scalar_binary(&mut ctx, op, left.fact(), right.fact())
                     .unwrap();
                 assert!(!inferred.unsupported);
-                let actual = crate::ops::binary(&mut ctx, op, a.clone(), b.clone());
+                // The gradual checker models the ADR-004 language's `/`.
+                let runtime = if op == "/" {
+                    crate::ops::LEGACY_DIVIDE
+                } else {
+                    op
+                };
+                let actual = crate::ops::binary(&mut ctx, runtime, a.clone(), b.clone());
                 match actual {
                     Ok(value) => {
                         assert!(!inferred.rejected, "{left:?} {op} {right:?}: {value:?}");

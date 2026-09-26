@@ -869,30 +869,9 @@ impl<'a> Checker<'a> {
                 }
             }
             "/" => {
-                if left == Ty::INT && right == Ty::INT {
-                    // A compound assignment's span is its `/=`.
-                    let (written, floor) = match self.source.get(span.start..span.end) {
-                        Some("/=") => ("/=", "//="),
-                        _ => ("/", "//"),
-                    };
-                    self.report(
-                        Diagnostic::error(
-                            Code::INTEGER_DIVISION,
-                            span,
-                            format!(
-                                "`{written}` on two ints divides to a float once ADR-008 lands; write `{floor}` to keep floor division"
-                            ),
-                        )
-                        .with_fix(Fix::replace(
-                            format!("use floor division `{floor}`"),
-                            span,
-                            floor,
-                        )),
-                    );
-                    Ty::INT
-                } else if ln && rn {
-                    numeric()
-                } else if left == Ty::DURATION && right == Ty::DURATION {
+                // True division: numbers always divide to a float (ADR-008),
+                // and so do two durations.
+                if (ln && rn) || (left == Ty::DURATION && right == Ty::DURATION) {
                     Ty::FLOAT
                 } else if left == Ty::DURATION && rn {
                     Ty::DURATION

@@ -146,7 +146,8 @@ impl Engine {
         self.strict_effects = enabled;
     }
     /// Creates an engine that compiles the ADR-004 language: without static
-    /// types and accepting the removed spellings of ADR-008.
+    /// types, accepting the removed spellings of ADR-008, and with that
+    /// language's runtime rules, under which `/` floors two integers.
     ///
     /// This exists only so that `vibes migrate` can compile, run and observe
     /// scripts written before static types became the language (ADR-007).

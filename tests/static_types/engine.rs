@@ -91,14 +91,12 @@ fn the_checker_reports_each_member_calls_receiver_type() {
 
 #[test]
 fn diagnostics_print_as_json() {
-    let source = "x = 7 / 2\n";
+    let source = "items = [1]\nn = items.size\n";
     let checked = Engine::new().type_check(source).unwrap();
     let json = checked.diagnostics[0].to_json(source);
     assert!(
-        json.starts_with(
-            "{\"code\":\"V0109\",\"name\":\"integer-division\",\"severity\":\"error\""
-        ),
+        json.starts_with("{\"code\":\"V0401\",\"name\":\"removed-name\",\"severity\":\"error\""),
         "{json}"
     );
-    assert!(json.contains("\"replacement\":\"//\""), "{json}");
+    assert!(json.contains("\"replacement\":\"items.length\""), "{json}");
 }

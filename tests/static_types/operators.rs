@@ -1,6 +1,6 @@
 //! Operators, typed by the operator table.
 
-use super::support::{clean, codes, error, fixed, spanned};
+use super::support::{clean, codes};
 
 #[test]
 fn arithmetic_on_numbers_strings_arrays_money_durations_and_times() {
@@ -17,13 +17,11 @@ fn arithmetic_on_numbers_strings_arrays_money_durations_and_times() {
 }
 
 #[test]
-fn integer_division_is_flagged_with_a_floor_division_fix() {
-    let source = "half = 7 / 2\n";
-    let diagnostic = error(source, "V0109", "`//`");
-    assert_eq!(spanned(source, &diagnostic), "/");
-    assert_eq!(fixed(source, &diagnostic), "half = 7 // 2\n");
-    clean("half = 7 // 2\nratio: float = 7 / 2.0\n");
+fn slash_divides_to_a_float_and_floor_division_keeps_integers() {
+    clean("half: float = 7 / 2\nratio: float = 7 / 2.0\nn: number = 1\nq: float = n / 2\n");
     clean("total: int = 7 // 2\n");
+    codes("half: int = 7 / 2\n", &["V0101"]);
+    codes("n = 12\nn /= 5\n", &["V0102"]);
 }
 
 #[test]

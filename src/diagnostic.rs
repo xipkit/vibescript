@@ -14,12 +14,12 @@
 //!
 //! ```
 //! use vibescript::diagnostic::{Code, Diagnostic, Fix, Span};
-//! let source = "total = 7 / 2\n";
-//! let diagnostic = Diagnostic::error(Code::INTEGER_DIVISION, Span::new(10, 11), "`/` on two ints")
-//!     .with_fix(Fix::replace("use floor division", Span::new(10, 11), "//"));
-//! assert_eq!(diagnostic.code.to_string(), "V0109");
-//! assert_eq!(diagnostic.fixes[0].apply(source).as_deref(), Some("total = 7 // 2\n"));
-//! assert!(diagnostic.render(source).starts_with("error[V0109]: `/` on two ints\n  --> 1:11\n"));
+//! let source = "items = [1]\nn = items.size\n";
+//! let diagnostic = Diagnostic::error(Code::REMOVED_NAME, Span::new(22, 26), "`size` was removed")
+//!     .with_fix(Fix::replace("use `length`", Span::new(22, 26), "length"));
+//! assert_eq!(diagnostic.code.to_string(), "V0401");
+//! assert_eq!(diagnostic.fixes[0].apply(source).as_deref(), Some("items = [1]\nn = items.length\n"));
+//! assert!(diagnostic.render(source).starts_with("error[V0401]: `size` was removed\n  --> 2:11\n"));
 //! ```
 
 use std::{fmt, sync::Arc};
@@ -54,10 +54,18 @@ pub struct CodeInfo {
     /// A kebab-case name, stable like the code, such as `type-mismatch`.
     pub name: &'static str,
     pub description: &'static str,
+    /// Whether the code is retired: no diagnostic reports it any more, and
+    /// its number is never given another meaning.
+    pub retired: bool,
 }
 
 macro_rules! registry {
-    ($($constant:ident = $number:literal, $name:literal, $description:literal;)*) => {
+    (
+        $($constant:ident = $number:literal, $name:literal, $description:literal;)*
+        @retired {
+            $($old:literal, $old_name:literal, $old_description:literal;)*
+        }
+    ) => {
         impl Code {
             $(
                 #[doc = $description]
@@ -65,9 +73,25 @@ macro_rules! registry {
             )*
         }
 
-        const REGISTRY: &[CodeInfo] = &[
-            $(CodeInfo { code: Code($number), name: $name, description: $description },)*
-        ];
+        const REGISTRY: &[CodeInfo] = &{
+            let mut registry = [
+                $(CodeInfo { code: Code($number), name: $name, description: $description, retired: false },)*
+                $(CodeInfo { code: Code($old), name: $old_name, description: $old_description, retired: true },)*
+            ];
+            // Numeric order, with the retired codes among the others.
+            let mut sorted = 1;
+            while sorted < registry.len() {
+                let mut at = sorted;
+                while at > 0 && registry[at - 1].code.0 > registry[at].code.0 {
+                    let previous = registry[at - 1];
+                    registry[at - 1] = registry[at];
+                    registry[at] = previous;
+                    at -= 1;
+                }
+                sorted += 1;
+            }
+            registry
+        };
     };
 }
 
@@ -83,7 +107,6 @@ registry! {
     ANY_USE = 106, "any-use", "A value of type `any` is used before it is narrowed.";
     OPTIONAL_USE = 107, "optional-use", "A value that may be `nil` is used where `nil` is not accepted.";
     NO_OPERATOR = 108, "no-operator", "An operator is not defined for its operand types.";
-    INTEGER_DIVISION = 109, "integer-division", "`/` divides two ints; write `//` for floor division.";
     UNKNOWN_FIELD = 110, "unknown-field", "A shape is read or written at a key it does not declare.";
     DYNAMIC_KEY = 111, "dynamic-key", "A shape is indexed with a key known only at runtime.";
     NOT_INDEXABLE = 112, "not-indexable", "A value of this type cannot be indexed this way.";
@@ -135,6 +158,10 @@ registry! {
     KEYWORD_PARAMETER = 414, "keyword-parameter", "A keyword parameter is declared as `name:`, `name: default` or `name: T:`; keyword parameters follow a bare `*`.";
     FIELD_ACCESS = 415, "field-access", "A hash or shape field is read or written with a dot; dot calls methods, and a field is indexed as `h[\"name\"]`.";
     SCOPED_CALL = 416, "scoped-call", "A function or method is called with `::`, as in `JSON::parse(x)`; `::` names only constants, nested types and enum members, and a dot calls.";
+
+    @retired {
+        109, "integer-division", "Retired when `/` became true division: it rejected `/` on two ints, whose floor division `//` now spells.";
+    }
 }
 
 impl Code {
@@ -183,6 +210,12 @@ impl Code {
     pub fn description(self) -> &'static str {
         self.info().map_or("", |info| info.description)
     }
+
+    /// Whether the code is registered as retired: no diagnostic reports it
+    /// any more.
+    pub fn retired(self) -> bool {
+        self.info().is_some_and(|info| info.retired)
+    }
 }
 
 impl fmt::Display for Code {
@@ -191,7 +224,7 @@ impl fmt::Display for Code {
     }
 }
 
-/// Every registered code in numeric order.
+/// Every registered code in numeric order, retired ones included.
 pub fn codes() -> &'static [CodeInfo] {
     REGISTRY
 }
@@ -615,6 +648,12 @@ mod tests {
         assert_eq!(Code::parse("V101"), None);
         assert_eq!(Code::parse("X0101"), None);
         assert_eq!(Code::TYPE_MISMATCH.area(), Some(Area::Types));
+        // `/` on two ints divides now, so V0109 stays registered, retired.
+        let retired: Vec<_> = codes.iter().filter(|info| info.retired).collect();
+        assert_eq!(retired.len(), 1);
+        assert_eq!(retired[0].code, Code::from_number(109));
+        assert!(Code::from_number(109).retired());
+        assert!(!Code::TYPE_MISMATCH.retired());
     }
 
     #[test]

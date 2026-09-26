@@ -500,7 +500,7 @@ assert value >= -1, "unexpected value"
 | Operators | Meaning |
 | --- | --- |
 | `+ - * **` | Arithmetic on `int` and `float`; `int` never overflows. `+` also joins two strings or two arrays; `*` repeats a string. |
-| `/` | True division: `7.0 / 2` is `3.5`. Until the switchover to static types by default, `/` on two ints is rejected (V0109) so that no existing floor division changes meaning silently. |
+| `/` | True division, always a `float` for numbers: `7 / 2` is `3.5`, and `6 / 3` is `2.0`. Two ints of any size divide to the nearest float; a quotient beyond the float range raises. |
 | `//` | Floor division: `7 // 2` is `3`, `-7 // 2` is `-4`. |
 | `%` | Remainder with the sign of the divisor, consistent with `//`: `-7 % 3` is `2`. On a string, `"%05.1f" % [3.14159]` formats. |
 | `== !=` | Equality by value; `1 == 1.0` is true, and large integers compare exactly. |
@@ -514,7 +514,7 @@ assert value >= -1, "unexpected value"
 
 Money adds and subtracts money of the same currency and multiplies by integers. Durations add to times and to each other: `Time.now + 2.hours`, `5.minutes.ago`, `3.days.after(start)`.
 
-Integer division by zero raises `ZeroDivisionError`.
+Dividing two ints by zero, with `/` or `//`, raises `ZeroDivisionError`; a float operand gives an infinity or NaN instead.
 
 ## What the checker guarantees
 
@@ -567,5 +567,4 @@ These are compile errors with static types, and `vibes fix` rewrites most of the
 | `uuid`, `x.length` | `uuid()`, `x.length()` |
 | `JSON.parse(x)`, `Pricing.with_tax(1)` | `JSON::parse(x)`, `Pricing::with_tax(1)` |
 | `def f(x: int, *, retries: int = 3)` | `def f(x: int, retries: 3)` |
-| `7 // 2` for floor division | `7 / 2` on ints |
 | a direct call, or `case` over an enum | `send`, `public_send`, `respond_to?` |
