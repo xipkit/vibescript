@@ -32,10 +32,30 @@ impl<'a> Checker<'a> {
         if self.local(name) || self.declared.methods.contains(name) || self.known_type(name) {
             return;
         }
-        let Some(pattern) = patterns()
-            .iter()
-            .find(|p| p.callee == Callee::Global && p.name == name && p.args.is_none())
-        else {
+        let globals = || {
+            patterns()
+                .iter()
+                .filter(|p| p.callee == Callee::Global && p.name == name)
+        };
+        let Some(pattern) = globals().find(|p| p.args.is_none()) else {
+            // A removed global named without its arguments, such as
+            // `sprintf`, or a removed namespace, such as `Regexp`.
+            let table = crate::signatures::table();
+            let removed = if table.functions(name).next().is_none() {
+                globals().next()
+            } else {
+                None
+            }
+            .or_else(|| {
+                patterns()
+                    .iter()
+                    .find(|p| p.callee == Callee::Namespace(name.to_owned()))
+                    .filter(|_| table.module(name).is_none())
+            });
+            if let Some(pattern) = removed {
+                self.unmatched_at(expr.span, name, pattern);
+                return;
+            }
             // A method body calls a member of every value on `self`; a
             // type name, as in the shape `{ name: string }`, calls nothing.
             let on_self = patterns()
@@ -801,14 +821,15 @@ impl<'a> Checker<'a> {
             && !self.local(name)
             && !self.declared.classes.contains_key(name.as_str())
         {
-            let Some((pattern, captures)) = candidates
+            // Otherwise a member of every value, such as `Math.itself`, is
+            // renamed below.
+            if let Some((pattern, captures)) = candidates
                 .iter()
                 .filter(|p| p.callee == Callee::Namespace(name.clone()))
                 .find_map(|p| self.match_args(call, p).map(|c| (*p, c)))
-            else {
-                return false;
-            };
-            return self.apply_pattern(expr, Some(call), pattern, &captures, place);
+            {
+                return self.apply_pattern(expr, Some(call), pattern, &captures, place);
+            }
         }
         let members: Vec<&Pattern> = candidates
             .into_iter()
@@ -860,19 +881,37 @@ impl<'a> Checker<'a> {
                         (None, None) => unmatched = true,
                     }
                 }
-                // `nil?` with arguments or a block is still `nil?`.
-                if chosen.is_none() && !mixed && call.name == "nil?" {
-                    let removed = kinds.iter().find_map(|kind| {
-                        let own = patterns().iter().find(|p| {
+                // A removed member is removed however it is called, such as
+                // `nil?` with arguments or `itself` with a splat. The static
+                // checker reports a plain rename's spelling, such as `size`.
+                if chosen.is_none() && !mixed {
+                    let first = |receiver: &str| {
+                        patterns().iter().find(|p| {
                             p.callee == Callee::Member
                                 && p.name == call.name
-                                && (p.receiver == *kind || p.receiver == "T")
-                        });
-                        own.filter(|_| {
-                            !matches!(kind.as_str(), "any" | "instance")
-                                && !kind.starts_with("class ")
-                                && !declares(kind, &call.name)
+                                && p.receiver == receiver
                         })
+                    };
+                    let removed = kinds.iter().find_map(|kind| {
+                        let own = match kind.strip_prefix("class ") {
+                            Some(class) => self
+                                .declared
+                                .classes
+                                .get(class)
+                                .is_some_and(|c| defines(c, &call.name)),
+                            None => kind == "any" || declares(kind, &call.name),
+                        };
+                        if own {
+                            return None;
+                        }
+                        let receiver = if kind.starts_with("class ") {
+                            "instance"
+                        } else {
+                            kind
+                        };
+                        first(receiver)
+                            .or_else(|| first("T"))
+                            .filter(|p| p.canonical.is_none())
                     });
                     if let Some(pattern) = removed {
                         self.unmatched(call, pattern);
@@ -906,6 +945,13 @@ impl<'a> Checker<'a> {
                     .filter_map(|p| self.match_args(call, p).map(|c| (*p, c)))
                     .collect();
                 let Some(first) = matched.first() else {
+                    // A name no builtin type has, called as no rewrite
+                    // takes it, is removed whatever the receiver is.
+                    if let Some(pattern) = members.first()
+                        && !declared_anywhere(&call.name)
+                    {
+                        self.unmatched(call, pattern);
+                    }
                     return false;
                 };
                 let same = matched
@@ -1441,6 +1487,17 @@ fn declares(kind: &str, name: &str) -> bool {
             crate::signatures::Item::Class(class) => {
                 (class.base() == kind || class.base() == "T") && class.named(name).next().is_some()
             }
+            _ => false,
+        })
+}
+
+/// Whether the signature table declares member `name` on any type.
+fn declared_anywhere(name: &str) -> bool {
+    crate::signatures::table()
+        .items
+        .iter()
+        .any(|item| match item {
+            crate::signatures::Item::Class(class) => class.named(name).next().is_some(),
             _ => false,
         })
 }

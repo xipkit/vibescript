@@ -413,7 +413,8 @@
   {
     "name": "member_hash_store_arity",
     "source": "def run(input: any) -> any\n{}.store(:a)\nend\n",
-    "go_error": "expects"
+    "go_error": "expects",
+    "static_error": {"code": "V0401", "at": [2, 4]}
   },
   {
     "name": "member_hash_store_type",
@@ -685,7 +686,8 @@
   {
     "name": "call_builtin_keyword_array_at",
     "source": "def run(input: any) -> any\n[1,2].at(0,ignored:true)\nend\n",
-    "go_error": "array.at does not take keyword arguments"
+    "go_error": "array.at does not take keyword arguments",
+    "static_error": {"code": "V0401", "at": [2, 7]}
   },
   {
     "name": "call_builtin_keyword_array_slice",
@@ -804,7 +806,8 @@
   {
     "name": "call_builtin_keyword_array_itself",
     "source": "def run(input: any) -> any\n[1,2].itself(ignored:true)\nend\n",
-    "go_error": "array.itself does not accept keyword arguments"
+    "go_error": "array.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [2, 7]}
   },
   {
     "name": "call_builtin_keyword_array_dup",
@@ -827,7 +830,8 @@
   {
     "name": "call_builtin_keyword_hash_store",
     "source": "def run(input: any) -> any\n{a:1}.store(:b,2,ignored:true)\nend\n",
-    "go_error": "hash.store does not accept keyword arguments"
+    "go_error": "hash.store does not accept keyword arguments",
+    "static_error": {"code": "V0401", "at": [2, 7]}
   },
   {
     "name": "call_builtin_keyword_hash_delete",
@@ -856,7 +860,8 @@
   {
     "name": "call_builtin_keyword_hash_itself",
     "source": "def run(input: any) -> any\n{a:1}.itself(ignored:true)\nend\n",
-    "go_error": "hash.itself does not accept keyword arguments"
+    "go_error": "hash.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [2, 7]}
   },
   {
     "name": "call_builtin_keyword_hash_dup",
@@ -915,7 +920,8 @@
   {
     "name": "call_builtin_keyword_string_itself",
     "source": "def run(input: any) -> any\n\"abc\".itself(ignored:true)\nend\n",
-    "go_error": "string.itself does not accept keyword arguments"
+    "go_error": "string.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [2, 7]}
   },
   {
     "name": "call_builtin_keyword_string_dup",
@@ -950,7 +956,8 @@
   {
     "name": "call_builtin_keyword_int_itself",
     "source": "def run(input: any) -> any\n3.itself(ignored:true)\nend\n",
-    "go_error": "int.itself does not accept keyword arguments"
+    "go_error": "int.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [2, 3]}
   },
   {
     "name": "call_builtin_keyword_int_dup",
@@ -1027,7 +1034,8 @@
   {
     "name": "call_builtin_keyword_range_itself",
     "source": "def run(input: any) -> any\n(1..3).itself(ignored:true)\nend\n",
-    "go_error": "range.itself does not accept keyword arguments"
+    "go_error": "range.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [2, 8]}
   },
   {
     "name": "call_builtin_keyword_range_dup",
@@ -7571,12 +7579,14 @@
   {
     "name": "numeric_members_signature_4055",
     "source": "def run(input: any) -> any\n(1).modulo\nend\n",
-    "go_error": "signature_4055: int.modulo expects one numeric argument"
+    "go_error": "signature_4055: int.modulo expects one numeric argument",
+    "static_error": {"code": "V0401", "at": [2, 5]}
   },
   {
     "name": "numeric_members_signature_4057",
     "source": "def run(input: any) -> any\n(1).modulo(1,2,3)\nend\n",
-    "go_error": "signature_4057: int.modulo expects one numeric argument"
+    "go_error": "signature_4057: int.modulo expects one numeric argument",
+    "static_error": {"code": "V0401", "at": [2, 5]}
   },
   {
     "name": "numeric_members_signature_4060",
@@ -7827,12 +7837,14 @@
   {
     "name": "numeric_members_signature_4155",
     "source": "def run(input: any) -> any\n(1.5).modulo\nend\n",
-    "go_error": "signature_4155: float.modulo expects one numeric argument"
+    "go_error": "signature_4155: float.modulo expects one numeric argument",
+    "static_error": {"code": "V0401", "at": [2, 7]}
   },
   {
     "name": "numeric_members_signature_4157",
     "source": "def run(input: any) -> any\n(1.5).modulo(1,2,3)\nend\n",
-    "go_error": "signature_4157: float.modulo expects one numeric argument"
+    "go_error": "signature_4157: float.modulo expects one numeric argument",
+    "static_error": {"code": "V0401", "at": [2, 7]}
   },
   {
     "name": "numeric_members_signature_4160",
@@ -8089,12 +8101,14 @@
   {
     "name": "numeric_members_signature_4255",
     "source": "def run(input: any) -> any\n((2**100)).modulo\nend\n",
-    "go_error": "signature_4255: int.modulo expects one numeric argument"
+    "go_error": "signature_4255: int.modulo expects one numeric argument",
+    "static_error": {"code": "V0401", "at": [2, 12]}
   },
   {
     "name": "numeric_members_signature_4257",
     "source": "def run(input: any) -> any\n((2**100)).modulo(1,2,3)\nend\n",
-    "go_error": "signature_4257: int.modulo expects one numeric argument"
+    "go_error": "signature_4257: int.modulo expects one numeric argument",
+    "static_error": {"code": "V0401", "at": [2, 12]}
   },
   {
     "name": "numeric_members_signature_4260",
@@ -17111,17 +17125,20 @@
   {
     "name": "money_member_2410",
     "source": "def run(input: any) -> any\nm=money_cents(123,\"USD\");v=m.itself(1);v.to_s\nend\n",
-    "go_error": "money.itself expects 0 arguments, got 1"
+    "go_error": "money.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [2, 30]}
   },
   {
     "name": "money_member_2411",
     "source": "def run(input: any) -> any\nm=money_cents(123,\"USD\");v=m.itself(x:1);v.to_s\nend\n",
-    "go_error": "money.itself does not accept keyword arguments"
+    "go_error": "money.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [2, 30]}
   },
   {
     "name": "money_member_2412",
     "source": "def run(input: any) -> any\nm=money_cents(123,\"USD\");v=m.itself {7};v.to_s\nend\n",
-    "go_error": "money.itself does not accept a block"
+    "go_error": "money.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [2, 30]}
   },
   {
     "name": "money_member_2415",
@@ -22398,17 +22415,20 @@
   {
     "name": "duration_members_4542",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 0);v=d.itself(1);v.to_s\nend\n",
-    "go_error": "duration.itself expects 0 arguments, got 1"
+    "go_error": "duration.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [2, 34]}
   },
   {
     "name": "duration_members_4543",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 0);v=d.itself(x:1);v.to_s\nend\n",
-    "go_error": "duration.itself does not accept keyword arguments"
+    "go_error": "duration.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [2, 34]}
   },
   {
     "name": "duration_members_4544",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 0);v=d.itself {7};v.to_s\nend\n",
-    "go_error": "duration.itself does not accept a block"
+    "go_error": "duration.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [2, 34]}
   },
   {
     "name": "duration_members_4547",
@@ -23006,17 +23026,20 @@
   {
     "name": "duration_members_4697",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 1);v=d.itself(1);v.to_s\nend\n",
-    "go_error": "duration.itself expects 0 arguments, got 1"
+    "go_error": "duration.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [2, 34]}
   },
   {
     "name": "duration_members_4698",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 1);v=d.itself(x:1);v.to_s\nend\n",
-    "go_error": "duration.itself does not accept keyword arguments"
+    "go_error": "duration.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [2, 34]}
   },
   {
     "name": "duration_members_4699",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 1);v=d.itself {7};v.to_s\nend\n",
-    "go_error": "duration.itself does not accept a block"
+    "go_error": "duration.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [2, 34]}
   },
   {
     "name": "duration_members_4702",
@@ -23614,17 +23637,20 @@
   {
     "name": "duration_members_4852",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: -1);v=d.itself(1);v.to_s\nend\n",
-    "go_error": "duration.itself expects 0 arguments, got 1"
+    "go_error": "duration.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [2, 35]}
   },
   {
     "name": "duration_members_4853",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: -1);v=d.itself(x:1);v.to_s\nend\n",
-    "go_error": "duration.itself does not accept keyword arguments"
+    "go_error": "duration.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [2, 35]}
   },
   {
     "name": "duration_members_4854",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: -1);v=d.itself {7};v.to_s\nend\n",
-    "go_error": "duration.itself does not accept a block"
+    "go_error": "duration.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [2, 35]}
   },
   {
     "name": "duration_members_4857",
@@ -24222,17 +24248,20 @@
   {
     "name": "duration_members_5007",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 90061);v=d.itself(1);v.to_s\nend\n",
-    "go_error": "duration.itself expects 0 arguments, got 1"
+    "go_error": "duration.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [2, 38]}
   },
   {
     "name": "duration_members_5008",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 90061);v=d.itself(x:1);v.to_s\nend\n",
-    "go_error": "duration.itself does not accept keyword arguments"
+    "go_error": "duration.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [2, 38]}
   },
   {
     "name": "duration_members_5009",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 90061);v=d.itself {7};v.to_s\nend\n",
-    "go_error": "duration.itself does not accept a block"
+    "go_error": "duration.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [2, 38]}
   },
   {
     "name": "duration_members_5012",
@@ -24830,17 +24859,20 @@
   {
     "name": "duration_members_5162",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: -90061);v=d.itself(1);v.to_s\nend\n",
-    "go_error": "duration.itself expects 0 arguments, got 1"
+    "go_error": "duration.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [2, 39]}
   },
   {
     "name": "duration_members_5163",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: -90061);v=d.itself(x:1);v.to_s\nend\n",
-    "go_error": "duration.itself does not accept keyword arguments"
+    "go_error": "duration.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [2, 39]}
   },
   {
     "name": "duration_members_5164",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: -90061);v=d.itself {7};v.to_s\nend\n",
-    "go_error": "duration.itself does not accept a block"
+    "go_error": "duration.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [2, 39]}
   },
   {
     "name": "duration_members_5167",
@@ -25438,17 +25470,20 @@
   {
     "name": "duration_members_5317",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 9223372036854775807);v=d.itself(1);v.to_s\nend\n",
-    "go_error": "duration.itself expects 0 arguments, got 1"
+    "go_error": "duration.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [2, 52]}
   },
   {
     "name": "duration_members_5318",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 9223372036854775807);v=d.itself(x:1);v.to_s\nend\n",
-    "go_error": "duration.itself does not accept keyword arguments"
+    "go_error": "duration.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [2, 52]}
   },
   {
     "name": "duration_members_5319",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: 9223372036854775807);v=d.itself {7};v.to_s\nend\n",
-    "go_error": "duration.itself does not accept a block"
+    "go_error": "duration.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [2, 52]}
   },
   {
     "name": "duration_members_5322",
@@ -26046,17 +26081,20 @@
   {
     "name": "duration_members_5472",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: -9223372036854775808);v=d.itself(1);v.to_s\nend\n",
-    "go_error": "duration.itself expects 0 arguments, got 1"
+    "go_error": "duration.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [2, 53]}
   },
   {
     "name": "duration_members_5473",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: -9223372036854775808);v=d.itself(x:1);v.to_s\nend\n",
-    "go_error": "duration.itself does not accept keyword arguments"
+    "go_error": "duration.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [2, 53]}
   },
   {
     "name": "duration_members_5474",
     "source": "def run(input: any) -> any\nd=Duration.build(seconds: -9223372036854775808);v=d.itself {7};v.to_s\nend\n",
-    "go_error": "duration.itself does not accept a block"
+    "go_error": "duration.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [2, 53]}
   },
   {
     "name": "duration_members_5477",
@@ -27236,7 +27274,8 @@
   {
     "name": "time_property_error_31",
     "source": "def run(input: any) -> any\nTime.utc(2024).hash {1}\nend\n",
-    "go_error": "attempted to call non-callable value"
+    "go_error": "attempted to call non-callable value",
+    "static_error": {"code": "V0401", "at": [2, 16]}
   },
   {
     "name": "time_property_error_33",
@@ -28129,47 +28168,56 @@
   {
     "name": "time_signature_136",
     "source": "def run(input: any) -> any\nt=Time.utc(2024);t.itself(nil).to_s\nend\n",
-    "go_error": "time.itself expects 0 arguments, got 1"
+    "go_error": "time.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [2, 20]}
   },
   {
     "name": "time_signature_137",
     "source": "def run(input: any) -> any\nt=Time.utc(2024);t.itself(1).to_s\nend\n",
-    "go_error": "time.itself expects 0 arguments, got 1"
+    "go_error": "time.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [2, 20]}
   },
   {
     "name": "time_signature_138",
     "source": "def run(input: any) -> any\nt=Time.utc(2024);t.itself(1.5).to_s\nend\n",
-    "go_error": "time.itself expects 0 arguments, got 1"
+    "go_error": "time.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [2, 20]}
   },
   {
     "name": "time_signature_139",
     "source": "def run(input: any) -> any\nt=Time.utc(2024);t.itself(-1).to_s\nend\n",
-    "go_error": "time.itself expects 0 arguments, got 1"
+    "go_error": "time.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [2, 20]}
   },
   {
     "name": "time_signature_140",
     "source": "def run(input: any) -> any\nt=Time.utc(2024);t.itself(2**63).to_s\nend\n",
-    "go_error": "time.itself expects 0 arguments, got 1"
+    "go_error": "time.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [2, 20]}
   },
   {
     "name": "time_signature_141",
     "source": "def run(input: any) -> any\nt=Time.utc(2024);t.itself(0,1).to_s\nend\n",
-    "go_error": "time.itself expects 0 arguments, got 2"
+    "go_error": "time.itself expects 0 arguments, got 2",
+    "static_error": {"code": "V0404", "at": [2, 20]}
   },
   {
     "name": "time_signature_142",
     "source": "def run(input: any) -> any\nt=Time.utc(2024);t.itself(other:1).to_s\nend\n",
-    "go_error": "time.itself does not accept keyword arguments"
+    "go_error": "time.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [2, 20]}
   },
   {
     "name": "time_signature_143",
     "source": "def run(input: any) -> any\nt=Time.utc(2024);t.itself(0,other:1).to_s\nend\n",
-    "go_error": "time.itself does not accept keyword arguments"
+    "go_error": "time.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [2, 20]}
   },
   {
     "name": "time_block_signature_15",
     "source": "def run(input: any) -> any\nt=Time.utc(2024);t.itself {1}.to_s\nend\n",
-    "go_error": "time.itself does not accept a block"
+    "go_error": "time.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [2, 20]}
   },
   {
     "name": "time_signature_145",
@@ -28288,27 +28336,32 @@
   {
     "name": "time_signature_180",
     "source": "def run(input: any) -> any\nt=Time.utc(2024);t.<=>\nend\n",
-    "go_error": "time.<=> expects 1 argument, got 0"
+    "go_error": "time.<=> expects 1 argument, got 0",
+    "static_error": {"code": "V0401", "at": [2, 20]}
   },
   {
     "name": "time_signature_186",
     "source": "def run(input: any) -> any\nt=Time.utc(2024);t.<=>(0,1)\nend\n",
-    "go_error": "time.<=> expects 1 argument, got 2"
+    "go_error": "time.<=> expects 1 argument, got 2",
+    "static_error": {"code": "V0401", "at": [2, 20]}
   },
   {
     "name": "time_signature_187",
     "source": "def run(input: any) -> any\nt=Time.utc(2024);t.<=>(other:1)\nend\n",
-    "go_error": "time.<=> does not accept keyword arguments"
+    "go_error": "time.<=> does not accept keyword arguments",
+    "static_error": {"code": "V0401", "at": [2, 20]}
   },
   {
     "name": "time_signature_188",
     "source": "def run(input: any) -> any\nt=Time.utc(2024);t.<=>(0,other:1)\nend\n",
-    "go_error": "time.<=> does not accept keyword arguments"
+    "go_error": "time.<=> does not accept keyword arguments",
+    "static_error": {"code": "V0401", "at": [2, 20]}
   },
   {
     "name": "time_block_signature_20",
     "source": "def run(input: any) -> any\nt=Time.utc(2024);t.<=> {1}\nend\n",
-    "go_error": "time.<=> expects 1 argument, got 0"
+    "go_error": "time.<=> expects 1 argument, got 0",
+    "static_error": {"code": "V0401", "at": [2, 20]}
   },
   {
     "name": "time_arithmetic_integer_0",
@@ -70337,22 +70390,26 @@
   {
     "name": "enums_members_82",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> any\n(Status.itself(1)).to_s\nend\n",
-    "go_error": "enum.itself expects 0 arguments, got 1"
+    "go_error": "enum.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [10, 9]}
   },
   {
     "name": "enums_members_83",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> any\n(Status.itself(bad:1)).to_s\nend\n",
-    "go_error": "enum.itself does not accept keyword arguments"
+    "go_error": "enum.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [10, 9]}
   },
   {
     "name": "enums_members_84",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> any\n(Status.itself{1//0}).to_s\nend\n",
-    "go_error": "enum.itself does not accept a block"
+    "go_error": "enum.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [10, 9]}
   },
   {
     "name": "enums_members_85",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> any\n(Status.itself(1//0)).to_s\nend\n",
-    "go_error": "division by zero"
+    "go_error": "division by zero",
+    "static_error": {"code": "V0404", "at": [10, 9]}
   },
   {
     "name": "enums_members_90",
@@ -71167,22 +71224,26 @@
   {
     "name": "enums_members_178",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> any\nStatus::Draft.itself(1)\nend\n",
-    "go_error": "enum value.itself expects 0 arguments, got 1"
+    "go_error": "enum value.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [10, 15]}
   },
   {
     "name": "enums_members_179",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> any\nStatus::Draft.itself(bad:1)\nend\n",
-    "go_error": "enum value.itself does not accept keyword arguments"
+    "go_error": "enum value.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [10, 15]}
   },
   {
     "name": "enums_members_180",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> any\nStatus::Draft.itself{1//0}\nend\n",
-    "go_error": "enum value.itself does not accept a block"
+    "go_error": "enum value.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [10, 15]}
   },
   {
     "name": "enums_members_181",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> any\nStatus::Draft.itself(1//0)\nend\n",
-    "go_error": "division by zero"
+    "go_error": "division by zero",
+    "static_error": {"code": "V0404", "at": [10, 15]}
   },
   {
     "name": "enums_members_186",
@@ -89507,17 +89568,20 @@
   {
     "name": "shapes_method_arguments_1",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={name:string};render(schema.itself(1))\nend\n",
-    "go_error": "shape.itself expects 0 arguments, got 1"
+    "go_error": "shape.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [9, 36]}
   },
   {
     "name": "shapes_method_arguments_2",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={name:string};render(schema.itself(bad:1))\nend\n",
-    "go_error": "shape.itself does not accept keyword arguments"
+    "go_error": "shape.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [9, 36]}
   },
   {
     "name": "shapes_method_arguments_3",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={name:string};render(schema.itself{7})\nend\n",
-    "go_error": "shape.itself does not accept a block"
+    "go_error": "shape.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 36]}
   },
   {
     "name": "shapes_methods_8",
@@ -89549,17 +89613,20 @@
   {
     "name": "shapes_method_arguments_5",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={age:int,name:string};render(schema.itself(1))\nend\n",
-    "go_error": "shape.itself expects 0 arguments, got 1"
+    "go_error": "shape.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [9, 44]}
   },
   {
     "name": "shapes_method_arguments_6",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={age:int,name:string};render(schema.itself(bad:1))\nend\n",
-    "go_error": "shape.itself does not accept keyword arguments"
+    "go_error": "shape.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [9, 44]}
   },
   {
     "name": "shapes_method_arguments_7",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={age:int,name:string};render(schema.itself{7})\nend\n",
-    "go_error": "shape.itself does not accept a block"
+    "go_error": "shape.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 44]}
   },
   {
     "name": "shapes_methods_16",
@@ -89591,17 +89658,20 @@
   {
     "name": "shapes_method_arguments_9",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={name:string,age:int};render(schema.itself(1))\nend\n",
-    "go_error": "shape.itself expects 0 arguments, got 1"
+    "go_error": "shape.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [9, 44]}
   },
   {
     "name": "shapes_method_arguments_10",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={name:string,age:int};render(schema.itself(bad:1))\nend\n",
-    "go_error": "shape.itself does not accept keyword arguments"
+    "go_error": "shape.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [9, 44]}
   },
   {
     "name": "shapes_method_arguments_11",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={name:string,age:int};render(schema.itself{7})\nend\n",
-    "go_error": "shape.itself does not accept a block"
+    "go_error": "shape.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 44]}
   },
   {
     "name": "shapes_methods_24",
@@ -89633,17 +89703,20 @@
   {
     "name": "shapes_method_arguments_13",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={name?:string};render(schema.itself(1))\nend\n",
-    "go_error": "shape.itself expects 0 arguments, got 1"
+    "go_error": "shape.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [9, 37]}
   },
   {
     "name": "shapes_method_arguments_14",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={name?:string};render(schema.itself(bad:1))\nend\n",
-    "go_error": "shape.itself does not accept keyword arguments"
+    "go_error": "shape.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [9, 37]}
   },
   {
     "name": "shapes_method_arguments_15",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={name?:string};render(schema.itself{7})\nend\n",
-    "go_error": "shape.itself does not accept a block"
+    "go_error": "shape.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 37]}
   },
   {
     "name": "shapes_methods_32",
@@ -89675,17 +89748,20 @@
   {
     "name": "shapes_method_arguments_17",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={\"name?\":string};render(schema.itself(1))\nend\n",
-    "go_error": "shape.itself expects 0 arguments, got 1"
+    "go_error": "shape.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [9, 39]}
   },
   {
     "name": "shapes_method_arguments_18",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={\"name?\":string};render(schema.itself(bad:1))\nend\n",
-    "go_error": "shape.itself does not accept keyword arguments"
+    "go_error": "shape.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [9, 39]}
   },
   {
     "name": "shapes_method_arguments_19",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={\"name?\":string};render(schema.itself{7})\nend\n",
-    "go_error": "shape.itself does not accept a block"
+    "go_error": "shape.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 39]}
   },
   {
     "name": "shapes_methods_40",
@@ -89717,17 +89793,20 @@
   {
     "name": "shapes_method_arguments_21",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:int | string};render(schema.itself(1))\nend\n",
-    "go_error": "shape.itself expects 0 arguments, got 1"
+    "go_error": "shape.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [9, 39]}
   },
   {
     "name": "shapes_method_arguments_22",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:int | string};render(schema.itself(bad:1))\nend\n",
-    "go_error": "shape.itself does not accept keyword arguments"
+    "go_error": "shape.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [9, 39]}
   },
   {
     "name": "shapes_method_arguments_23",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:int | string};render(schema.itself{7})\nend\n",
-    "go_error": "shape.itself does not accept a block"
+    "go_error": "shape.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 39]}
   },
   {
     "name": "shapes_methods_48",
@@ -89759,17 +89838,20 @@
   {
     "name": "shapes_method_arguments_25",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:string | int};render(schema.itself(1))\nend\n",
-    "go_error": "shape.itself expects 0 arguments, got 1"
+    "go_error": "shape.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [9, 39]}
   },
   {
     "name": "shapes_method_arguments_26",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:string | int};render(schema.itself(bad:1))\nend\n",
-    "go_error": "shape.itself does not accept keyword arguments"
+    "go_error": "shape.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [9, 39]}
   },
   {
     "name": "shapes_method_arguments_27",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:string | int};render(schema.itself{7})\nend\n",
-    "go_error": "shape.itself does not accept a block"
+    "go_error": "shape.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 39]}
   },
   {
     "name": "shapes_methods_56",
@@ -89801,17 +89883,20 @@
   {
     "name": "shapes_method_arguments_29",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:hash<string,int>};render(schema.itself(1))\nend\n",
-    "go_error": "shape.itself expects 0 arguments, got 1"
+    "go_error": "shape.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [9, 43]}
   },
   {
     "name": "shapes_method_arguments_30",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:hash<string,int>};render(schema.itself(bad:1))\nend\n",
-    "go_error": "shape.itself does not accept keyword arguments"
+    "go_error": "shape.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [9, 43]}
   },
   {
     "name": "shapes_method_arguments_31",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:hash<string,int>};render(schema.itself{7})\nend\n",
-    "go_error": "shape.itself does not accept a block"
+    "go_error": "shape.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 43]}
   },
   {
     "name": "shapes_methods_64",
@@ -89843,17 +89928,20 @@
   {
     "name": "shapes_method_arguments_33",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:object<string,int>};render(schema.itself(1))\nend\n",
-    "go_error": "shape.itself expects 0 arguments, got 1"
+    "go_error": "shape.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [9, 45]}
   },
   {
     "name": "shapes_method_arguments_34",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:object<string,int>};render(schema.itself(bad:1))\nend\n",
-    "go_error": "shape.itself does not accept keyword arguments"
+    "go_error": "shape.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [9, 45]}
   },
   {
     "name": "shapes_method_arguments_35",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:object<string,int>};render(schema.itself{7})\nend\n",
-    "go_error": "shape.itself does not accept a block"
+    "go_error": "shape.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 45]}
   },
   {
     "name": "shapes_methods_72",
@@ -89885,17 +89973,20 @@
   {
     "name": "shapes_method_arguments_37",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={...};render(schema.itself(1))\nend\n",
-    "go_error": "shape.itself expects 0 arguments, got 1"
+    "go_error": "shape.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [9, 28]}
   },
   {
     "name": "shapes_method_arguments_38",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={...};render(schema.itself(bad:1))\nend\n",
-    "go_error": "shape.itself does not accept keyword arguments"
+    "go_error": "shape.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [9, 28]}
   },
   {
     "name": "shapes_method_arguments_39",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={...};render(schema.itself{7})\nend\n",
-    "go_error": "shape.itself does not accept a block"
+    "go_error": "shape.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 28]}
   },
   {
     "name": "shapes_methods_80",
@@ -89927,17 +90018,20 @@
   {
     "name": "shapes_method_arguments_41",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:nil,...};render(schema.itself(1))\nend\n",
-    "go_error": "shape.itself expects 0 arguments, got 1"
+    "go_error": "shape.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [9, 34]}
   },
   {
     "name": "shapes_method_arguments_42",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:nil,...};render(schema.itself(bad:1))\nend\n",
-    "go_error": "shape.itself does not accept keyword arguments"
+    "go_error": "shape.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [9, 34]}
   },
   {
     "name": "shapes_method_arguments_43",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:nil,...};render(schema.itself{7})\nend\n",
-    "go_error": "shape.itself does not accept a block"
+    "go_error": "shape.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 34]}
   },
   {
     "name": "shapes_methods_88",
@@ -89969,17 +90063,20 @@
   {
     "name": "shapes_method_arguments_45",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:{},...};render(schema.itself(1))\nend\n",
-    "go_error": "shape.itself expects 0 arguments, got 1"
+    "go_error": "shape.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [9, 33]}
   },
   {
     "name": "shapes_method_arguments_46",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:{},...};render(schema.itself(bad:1))\nend\n",
-    "go_error": "shape.itself does not accept keyword arguments"
+    "go_error": "shape.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [9, 33]}
   },
   {
     "name": "shapes_method_arguments_47",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:{},...};render(schema.itself{7})\nend\n",
-    "go_error": "shape.itself does not accept a block"
+    "go_error": "shape.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 33]}
   },
   {
     "name": "shapes_methods_96",
@@ -90011,17 +90108,20 @@
   {
     "name": "shapes_method_arguments_49",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:{...}};render(schema.itself(1))\nend\n",
-    "go_error": "shape.itself expects 0 arguments, got 1"
+    "go_error": "shape.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [9, 32]}
   },
   {
     "name": "shapes_method_arguments_50",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:{...}};render(schema.itself(bad:1))\nend\n",
-    "go_error": "shape.itself does not accept keyword arguments"
+    "go_error": "shape.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [9, 32]}
   },
   {
     "name": "shapes_method_arguments_51",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:{...}};render(schema.itself{7})\nend\n",
-    "go_error": "shape.itself does not accept a block"
+    "go_error": "shape.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 32]}
   },
   {
     "name": "shapes_methods_104",
@@ -90053,17 +90153,20 @@
   {
     "name": "shapes_method_arguments_53",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:INT};render(schema.itself(1))\nend\n",
-    "go_error": "shape.itself expects 0 arguments, got 1"
+    "go_error": "shape.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [9, 30]}
   },
   {
     "name": "shapes_method_arguments_54",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:INT};render(schema.itself(bad:1))\nend\n",
-    "go_error": "shape.itself does not accept keyword arguments"
+    "go_error": "shape.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [9, 30]}
   },
   {
     "name": "shapes_method_arguments_55",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:INT};render(schema.itself{7})\nend\n",
-    "go_error": "shape.itself does not accept a block"
+    "go_error": "shape.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 30]}
   },
   {
     "name": "shapes_methods_112",
@@ -90095,17 +90198,20 @@
   {
     "name": "shapes_method_arguments_57",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:int?};render(schema.itself(1))\nend\n",
-    "go_error": "shape.itself expects 0 arguments, got 1"
+    "go_error": "shape.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [9, 31]}
   },
   {
     "name": "shapes_method_arguments_58",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:int?};render(schema.itself(bad:1))\nend\n",
-    "go_error": "shape.itself does not accept keyword arguments"
+    "go_error": "shape.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [9, 31]}
   },
   {
     "name": "shapes_method_arguments_59",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:int?};render(schema.itself{7})\nend\n",
-    "go_error": "shape.itself does not accept a block"
+    "go_error": "shape.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 31]}
   },
   {
     "name": "shapes_methods_120",
@@ -90137,17 +90243,20 @@
   {
     "name": "shapes_method_arguments_61",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:int ?};render(schema.itself(1))\nend\n",
-    "go_error": "shape.itself expects 0 arguments, got 1"
+    "go_error": "shape.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [9, 32]}
   },
   {
     "name": "shapes_method_arguments_62",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:int ?};render(schema.itself(bad:1))\nend\n",
-    "go_error": "shape.itself does not accept keyword arguments"
+    "go_error": "shape.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [9, 32]}
   },
   {
     "name": "shapes_method_arguments_63",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:int ?};render(schema.itself{7})\nend\n",
-    "go_error": "shape.itself does not accept a block"
+    "go_error": "shape.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 32]}
   },
   {
     "name": "shapes_methods_128",
@@ -90157,17 +90266,20 @@
   {
     "name": "shapes_method_arguments_65",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x: :int};render(schema.itself(1))\nend\n",
-    "go_error": "hash.itself expects 0 arguments, got 1"
+    "go_error": "hash.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [9, 32]}
   },
   {
     "name": "shapes_method_arguments_66",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x: :int};render(schema.itself(bad:1))\nend\n",
-    "go_error": "hash.itself does not accept keyword arguments"
+    "go_error": "hash.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [9, 32]}
   },
   {
     "name": "shapes_method_arguments_67",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x: :int};render(schema.itself{7})\nend\n",
-    "go_error": "hash.itself does not accept a block"
+    "go_error": "hash.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 32]}
   },
   {
     "name": "shapes_expressions_17",
@@ -90291,17 +90403,20 @@
   {
     "name": "shapes_method_arguments_73",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:money};render(schema.itself(1))\nend\n",
-    "go_error": "money is a method and cannot be used as a value; call it with money(...)"
+    "go_error": "money is a method and cannot be used as a value; call it with money(...)",
+    "static_error": {"code": "V0404", "at": [9, 32]}
   },
   {
     "name": "shapes_method_arguments_74",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:money};render(schema.itself(bad:1))\nend\n",
-    "go_error": "money is a method and cannot be used as a value; call it with money(...)"
+    "go_error": "money is a method and cannot be used as a value; call it with money(...)",
+    "static_error": {"code": "V0404", "at": [9, 32]}
   },
   {
     "name": "shapes_method_arguments_75",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:money};render(schema.itself{7})\nend\n",
-    "go_error": "money is a method and cannot be used as a value; call it with money(...)"
+    "go_error": "money is a method and cannot be used as a value; call it with money(...)",
+    "static_error": {"code": "V0404", "at": [9, 32]}
   },
   {
     "name": "shapes_shadow_24",
@@ -90955,7 +91070,8 @@
   {
     "name": "shapes_universal_blocks_1",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> any\n(nil).itself{7}\nend\n",
-    "go_error": "nil.itself does not accept a block"
+    "go_error": "nil.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 7]}
   },
   {
     "name": "shapes_universal_blocks_2",
@@ -90972,7 +91088,8 @@
   {
     "name": "shapes_universal_blocks_4",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> any\n(true).itself{7}\nend\n",
-    "go_error": "bool.itself does not accept a block"
+    "go_error": "bool.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 8]}
   },
   {
     "name": "shapes_universal_blocks_5",
@@ -90989,7 +91106,8 @@
   {
     "name": "shapes_universal_blocks_7",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> any\n(1).itself{7}\nend\n",
-    "go_error": "int.itself does not accept a block"
+    "go_error": "int.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 5]}
   },
   {
     "name": "shapes_universal_blocks_8",
@@ -91006,7 +91124,8 @@
   {
     "name": "shapes_universal_blocks_10",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> any\n(1.0).itself{7}\nend\n",
-    "go_error": "float.itself does not accept a block"
+    "go_error": "float.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 7]}
   },
   {
     "name": "shapes_universal_blocks_11",
@@ -91023,7 +91142,8 @@
   {
     "name": "shapes_universal_blocks_13",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> any\n(\"x\").itself{7}\nend\n",
-    "go_error": "string.itself does not accept a block"
+    "go_error": "string.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 7]}
   },
   {
     "name": "shapes_universal_blocks_14",
@@ -91040,7 +91160,8 @@
   {
     "name": "shapes_universal_blocks_16",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> any\n(:x).itself{7}\nend\n",
-    "go_error": "symbol.itself does not accept a block"
+    "go_error": "symbol.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 6]}
   },
   {
     "name": "shapes_universal_blocks_17",
@@ -91057,7 +91178,8 @@
   {
     "name": "shapes_universal_blocks_19",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> any\n([]).itself{7}\nend\n",
-    "go_error": "array.itself does not accept a block"
+    "go_error": "array.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 6]}
   },
   {
     "name": "shapes_universal_blocks_20",
@@ -91074,7 +91196,8 @@
   {
     "name": "shapes_universal_blocks_22",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> any\n({}).itself{7}\nend\n",
-    "go_error": "hash.itself does not accept a block"
+    "go_error": "hash.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 6]}
   },
   {
     "name": "shapes_universal_blocks_23",
@@ -91091,7 +91214,8 @@
   {
     "name": "shapes_universal_blocks_25",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> any\n(1..3).itself{7}\nend\n",
-    "go_error": "range.itself does not accept a block"
+    "go_error": "range.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 8]}
   },
   {
     "name": "shapes_universal_blocks_26",
@@ -91108,7 +91232,8 @@
   {
     "name": "shapes_universal_blocks_28",
     "source": "def render(x: any) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> any\n({x:int}).itself{7}\nend\n",
-    "go_error": "shape.itself does not accept a block"
+    "go_error": "shape.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [9, 11]}
   },
   {
     "name": "shapes_universal_blocks_29",
@@ -104222,32 +104347,38 @@
   {
     "name": "regex_value_value_contract_33",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.nil?{7}}\"\nend\n",
-    "go_error": "regex.nil? does not take a block"
+    "go_error": "regex.nil? does not take a block",
+    "static_error": {"code": "V0402", "at": [2, 14]}
   },
   {
     "name": "regex_value_value_contract_35",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.nil?(){7}}\"\nend\n",
-    "go_error": "regex.nil? does not take a block"
+    "go_error": "regex.nil? does not take a block",
+    "static_error": {"code": "V0402", "at": [2, 14]}
   },
   {
     "name": "regex_value_value_contract_36",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.nil?(\"a\")}\"\nend\n",
-    "go_error": "regex.nil? does not take arguments"
+    "go_error": "regex.nil? does not take arguments",
+    "static_error": {"code": "V0402", "at": [2, 14]}
   },
   {
     "name": "regex_value_value_contract_37",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.nil?(\"a\"){7}}\"\nend\n",
-    "go_error": "regex.nil? does not take arguments"
+    "go_error": "regex.nil? does not take arguments",
+    "static_error": {"code": "V0402", "at": [2, 14]}
   },
   {
     "name": "regex_value_value_contract_38",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.nil?(x:1)}\"\nend\n",
-    "go_error": "regex.nil? does not take keyword arguments"
+    "go_error": "regex.nil? does not take keyword arguments",
+    "static_error": {"code": "V0402", "at": [2, 14]}
   },
   {
     "name": "regex_value_value_contract_39",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.nil?(x:1){7}}\"\nend\n",
-    "go_error": "regex.nil? does not take keyword arguments"
+    "go_error": "regex.nil? does not take keyword arguments",
+    "static_error": {"code": "V0402", "at": [2, 14]}
   },
   {
     "name": "regex_value_value_contract_41",
@@ -104288,32 +104419,38 @@
   {
     "name": "regex_value_value_contract_49",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.itself{7}}\"\nend\n",
-    "go_error": "regex.itself does not accept a block"
+    "go_error": "regex.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [2, 14]}
   },
   {
     "name": "regex_value_value_contract_51",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.itself(){7}}\"\nend\n",
-    "go_error": "regex.itself does not accept a block"
+    "go_error": "regex.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [2, 14]}
   },
   {
     "name": "regex_value_value_contract_52",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.itself(\"a\")}\"\nend\n",
-    "go_error": "regex.itself expects 0 arguments, got 1"
+    "go_error": "regex.itself expects 0 arguments, got 1",
+    "static_error": {"code": "V0404", "at": [2, 14]}
   },
   {
     "name": "regex_value_value_contract_53",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.itself(\"a\"){7}}\"\nend\n",
-    "go_error": "regex.itself does not accept a block"
+    "go_error": "regex.itself does not accept a block",
+    "static_error": {"code": "V0404", "at": [2, 14]}
   },
   {
     "name": "regex_value_value_contract_54",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.itself(x:1)}\"\nend\n",
-    "go_error": "regex.itself does not accept keyword arguments"
+    "go_error": "regex.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [2, 14]}
   },
   {
     "name": "regex_value_value_contract_55",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.itself(x:1){7}}\"\nend\n",
-    "go_error": "regex.itself does not accept keyword arguments"
+    "go_error": "regex.itself does not accept keyword arguments",
+    "static_error": {"code": "V0404", "at": [2, 14]}
   },
   {
     "name": "regex_value_value_contract_56",
@@ -115041,7 +115178,8 @@
   {
     "name": "string_surface_clear_argument",
     "source": "def run(input: any) -> array<bool | string>\ns=\" a1 b2 \";r=s.clear(nil);[r == nil,\"#{r}\"]\nend\n",
-    "go_error": "string.clear does not take arguments"
+    "go_error": "string.clear does not take arguments",
+    "static_error": {"code": "V0401", "at": [2, 17]}
   },
   {
     "name": "string_surface_concat_argument",
@@ -130937,7 +131075,8 @@
     "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> any\nputs.itself(print(\"effect\")) {print(\"block\")}\nend\n",
     "stdout": true,
     "stderr": true,
-    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)",
+    "static_error": {"code": "V0404", "at": [7, 6]}
   },
   {
     "name": "output_guard_puts_dup_alias_uncaught",
@@ -130992,7 +131131,8 @@
     "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> any\nputs.freeze(print(\"effect\")) {print(\"block\")}\nend\n",
     "stdout": true,
     "stderr": true,
-    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)",
+    "static_error": {"code": "V0401", "at": [7, 6]}
   },
   {
     "name": "output_guard_puts_call_uncaught",
@@ -131031,7 +131171,8 @@
     "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> any\nprint.itself(print(\"effect\")) {print(\"block\")}\nend\n",
     "stdout": true,
     "stderr": true,
-    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)",
+    "static_error": {"code": "V0404", "at": [7, 7]}
   },
   {
     "name": "output_guard_print_dup_alias_uncaught",
@@ -131086,7 +131227,8 @@
     "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> any\nprint.freeze(print(\"effect\")) {print(\"block\")}\nend\n",
     "stdout": true,
     "stderr": true,
-    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)",
+    "static_error": {"code": "V0401", "at": [7, 7]}
   },
   {
     "name": "output_guard_print_call_uncaught",
@@ -131125,7 +131267,8 @@
     "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> any\nwarn.itself(print(\"effect\")) {print(\"block\")}\nend\n",
     "stdout": true,
     "stderr": true,
-    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)",
+    "static_error": {"code": "V0404", "at": [7, 6]}
   },
   {
     "name": "output_guard_warn_dup_alias_uncaught",
@@ -131180,7 +131323,8 @@
     "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> any\nwarn.freeze(print(\"effect\")) {print(\"block\")}\nend\n",
     "stdout": true,
     "stderr": true,
-    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)",
+    "static_error": {"code": "V0401", "at": [7, 6]}
   },
   {
     "name": "output_guard_warn_call_uncaught",
@@ -131219,7 +131363,8 @@
     "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> any\np.itself(print(\"effect\")) {print(\"block\")}\nend\n",
     "stdout": true,
     "stderr": true,
-    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)",
+    "static_error": {"code": "V0404", "at": [7, 3]}
   },
   {
     "name": "output_guard_p_dup_alias_uncaught",
@@ -131274,7 +131419,8 @@
     "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> any\np.freeze(print(\"effect\")) {print(\"block\")}\nend\n",
     "stdout": true,
     "stderr": true,
-    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)",
+    "static_error": {"code": "V0401", "at": [7, 3]}
   },
   {
     "name": "output_guard_p_call_uncaught",
@@ -131361,7 +131507,8 @@
     "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> any\nrandom_id.itself(print(\"effect\"))\nend\n",
     "stdout": true,
     "stderr": true,
-    "go_error": "random_id is a method and cannot be used as a value; call it with random_id(...)"
+    "go_error": "random_id is a method and cannot be used as a value; call it with random_id(...)",
+    "static_error": {"code": "V0404", "at": [7, 11]}
   },
   {
     "name": "type_diagnostics_actual_0_uncaught",
@@ -133244,7 +133391,8 @@
     "source": "class C\ndef to_s -> string\nprint(\"C\");\"custom\"\nend\nend\n\ndef run(input: any) -> any\nvalue=((sprintf).to_s);[\"ok\",value.bytes]\nend\n",
     "go_error": "sprintf is a method and cannot be used as a value; call it with sprintf(...)",
     "stdout": true,
-    "stderr": true
+    "stderr": true,
+    "static_error": {"code": "V0401", "at": [8, 9]}
   },
   {
     "name": "format_malformed_malformed_2335_uncaught",
@@ -133352,7 +133500,7 @@
     "go_error": "a method has no member call; call Regexp.last_match(...) directly",
     "stdout": true,
     "stderr": true,
-    "static_error": {"code": "V0106", "at": [32, 8]}
+    "static_error": {"code": "V0401", "at": [32, 8]}
   },
   {
     "name": "hash_new_mutation_4_uncaught",
@@ -142789,12 +142937,12 @@
   {
     "name": "computed_call_member_builtin",
     "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | int\nbegin\n({cb:JSON::parse}.cb rescue good)(\"8\")\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [12, 12]}
+    "static_error": {"code": "V0416", "at": [12, 10]}
   },
   {
     "name": "computed_call_member_missing",
     "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | int\nbegin\n({}.nope rescue good)(8)\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
-    "static_error": {"code": "V0203", "at": [12, 5]}
+    "static_error": {"code": "V0415", "at": [12, 4]}
   },
   {
     "name": "computed_call_rescue_string_member",
@@ -142825,7 +142973,7 @@
   {
     "name": "computed_call_scope_member",
     "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<int | string>\nbegin\n(JSON::parse rescue good)(\"[8]\")\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [12, 8]}
+    "static_error": {"code": "V0416", "at": [12, 6]}
   },
   {
     "name": "computed_call_offset",
@@ -142840,7 +142988,7 @@
   {
     "name": "computed_call_class_scope",
     "source": "class C\ngetter value: int\ndef initialize(x: int =4)\n@value=x\nend\ndef add(x: int) -> int\n@value+x\nend\ndef self.good(x: int) -> int\nx+1\nend\nprivate\ndef hidden(x: int) -> int\nx\nend\nend\ndef good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | int\nbegin\n(C::good rescue good)(8)\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [28, 5]}
+    "static_error": {"code": "V0416", "at": [28, 3]}
   },
   {
     "name": "computed_call_instance_method",
@@ -143045,7 +143193,7 @@
   {
     "name": "computed_call_wrapped_missing_xyz",
     "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | int\nbegin\n({}.missing_xyz rescue good)()\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
-    "static_error": {"code": "V0203", "at": [12, 5]}
+    "static_error": {"code": "V0415", "at": [12, 4]}
   },
   {
     "name": "computed_call_wrapped_7_dup",
@@ -147206,7 +147354,7 @@
   {
     "name": "introspection_probe_wrapped_20_is_a?",
     "source": "enum E\nA\nend\nclass C\nproperty p: any\ndef shown -> int\n1\nend\nprivate def hidden -> int\n2\nend\ndef inside -> int\nhidden\nend\nend\nmodule M\ndef self.shown -> int\n1\nend\nend\n\ndef run(input: any) -> array<string> | bool\nbegin\n((JSON::parse).is_type?)(:C)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [24, 9]},
+    "static_error": {"code": "V0416", "at": [24, 7]},
     "function": "run",
     "accounting": true
   },
@@ -147220,7 +147368,7 @@
   {
     "name": "introspection_probe_wrapped_20_is_type?",
     "source": "enum E\nA\nend\nclass C\nproperty p: any\ndef shown -> int\n1\nend\nprivate def hidden -> int\n2\nend\ndef inside -> int\nhidden\nend\nend\nmodule M\ndef self.shown -> int\n1\nend\nend\n\ndef run(input: any) -> array<string> | bool\nbegin\n((JSON::parse).is_type?)(:int)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [24, 9]},
+    "static_error": {"code": "V0416", "at": [24, 7]},
     "function": "run",
     "accounting": true
   },
@@ -147388,42 +147536,42 @@
   {
     "name": "introspection_edge_override_is_a?_class__rescue",
     "source": "class C\ndef self.is_a?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string>\nbegin\n(C.is_a? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_is_a?_class_private_rescue",
     "source": "class C\nprivate def self.is_a?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.is_a? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_is_a?_class_protected_rescue",
     "source": "class C\nprotected def self.is_a?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.is_a? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_is_a?_module__rescue",
     "source": "module M\ndef self.is_a?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string>\nbegin\n(M.is_a? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_is_a?_module_private_rescue",
     "source": "module M\nprivate def self.is_a?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(M.is_a? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_is_a?_module_protected_rescue",
     "source": "module M\nprotected def self.is_a?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(M.is_a? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
@@ -147458,42 +147606,42 @@
   {
     "name": "introspection_edge_override_kind_of?_class__rescue",
     "source": "class C\ndef self.kind_of?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string>\nbegin\n(C.kind_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_kind_of?_class_private_rescue",
     "source": "class C\nprivate def self.kind_of?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.kind_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_kind_of?_class_protected_rescue",
     "source": "class C\nprotected def self.kind_of?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.kind_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_kind_of?_module__rescue",
     "source": "module M\ndef self.kind_of?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string>\nbegin\n(M.kind_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_kind_of?_module_private_rescue",
     "source": "module M\nprivate def self.kind_of?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(M.kind_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_kind_of?_module_protected_rescue",
     "source": "module M\nprotected def self.kind_of?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(M.kind_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
@@ -147528,42 +147676,42 @@
   {
     "name": "introspection_edge_override_instance_of?_class__rescue",
     "source": "class C\ndef self.instance_of?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string>\nbegin\n(C.instance_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_instance_of?_class_private_rescue",
     "source": "class C\nprivate def self.instance_of?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.instance_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_instance_of?_class_protected_rescue",
     "source": "class C\nprotected def self.instance_of?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(C.instance_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_instance_of?_module__rescue",
     "source": "module M\ndef self.instance_of?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string>\nbegin\n(M.instance_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0301", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_instance_of?_module_private_rescue",
     "source": "module M\nprivate def self.instance_of?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(M.instance_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
   {
     "name": "introspection_edge_override_instance_of?_module_protected_rescue",
     "source": "module M\nprotected def self.instance_of?(x: any) -> any\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> string\nbegin\n(M.instance_of? rescue JSON::parse)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "accounting": true
   },
@@ -164499,7 +164647,7 @@
   {
     "name": "call_member_route_20_0",
     "source": "class C\ndef call(value: int =7,*, flag: int = 0, &block?: any -> any) -> array<int>\nout=[value,flag]\nif block_given?\nout.push(yield(value).as(int))\nend\nout\nend\ndef self.call(value: int =8) -> int\nvalue\nend\nend\nclass D\ndef call(options: any ={}) -> any\noptions\nend\nend\nclass P\nprivate\ndef call(value: int =7) -> int\nvalue\nend\nend\nmodule M\ndef self.call(value: int =9) -> int\nvalue\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nc=C.new\nvalue=(Regexp[\"last_match\"].call);[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class]\nend\nend\n",
-    "static_error": {"code": "V0106", "at": [33, 8]},
+    "static_error": {"code": "V0401", "at": [33, 8]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -164508,7 +164656,7 @@
   {
     "name": "call_member_route_20_1",
     "source": "class C\ndef call(value: int =7,*, flag: int = 0, &block?: any -> any) -> array<int>\nout=[value,flag]\nif block_given?\nout.push(yield(value).as(int))\nend\nout\nend\ndef self.call(value: int =8) -> int\nvalue\nend\nend\nclass D\ndef call(options: any ={}) -> any\noptions\nend\nend\nclass P\nprivate\ndef call(value: int =7) -> int\nvalue\nend\nend\nmodule M\ndef self.call(value: int =9) -> int\nvalue\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nc=C.new\nvalue=(Regexp[\"last_match\"].call(16));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class]\nend\nend\n",
-    "static_error": {"code": "V0106", "at": [33, 8]},
+    "static_error": {"code": "V0401", "at": [33, 8]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -164517,7 +164665,7 @@
   {
     "name": "call_member_route_20_2",
     "source": "class C\ndef call(value: int =7,*, flag: int = 0, &block?: any -> any) -> array<int>\nout=[value,flag]\nif block_given?\nout.push(yield(value).as(int))\nend\nout\nend\ndef self.call(value: int =8) -> int\nvalue\nend\nend\nclass D\ndef call(options: any ={}) -> any\noptions\nend\nend\nclass P\nprivate\ndef call(value: int =7) -> int\nvalue\nend\nend\nmodule M\ndef self.call(value: int =9) -> int\nvalue\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nc=C.new\nvalue=(Regexp[\"last_match\"].call(print(\"argument\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class]\nend\nend\n",
-    "static_error": {"code": "V0106", "at": [33, 8]},
+    "static_error": {"code": "V0401", "at": [33, 8]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -164526,7 +164674,7 @@
   {
     "name": "call_member_route_20_3",
     "source": "class C\ndef call(value: int =7,*, flag: int = 0, &block?: any -> any) -> array<int>\nout=[value,flag]\nif block_given?\nout.push(yield(value).as(int))\nend\nout\nend\ndef self.call(value: int =8) -> int\nvalue\nend\nend\nclass D\ndef call(options: any ={}) -> any\noptions\nend\nend\nclass P\nprivate\ndef call(value: int =7) -> int\nvalue\nend\nend\nmodule M\ndef self.call(value: int =9) -> int\nvalue\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nc=C.new\nvalue=(Regexp[\"last_match\"].call(flag:print(\"keyword\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class]\nend\nend\n",
-    "static_error": {"code": "V0106", "at": [33, 8]},
+    "static_error": {"code": "V0401", "at": [33, 8]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -164535,7 +164683,7 @@
   {
     "name": "call_member_route_20_4",
     "source": "class C\ndef call(value: int =7,*, flag: int = 0, &block?: any -> any) -> array<int>\nout=[value,flag]\nif block_given?\nout.push(yield(value).as(int))\nend\nout\nend\ndef self.call(value: int =8) -> int\nvalue\nend\nend\nclass D\ndef call(options: any ={}) -> any\noptions\nend\nend\nclass P\nprivate\ndef call(value: int =7) -> int\nvalue\nend\nend\nmodule M\ndef self.call(value: int =9) -> int\nvalue\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nc=C.new\nvalue=(Regexp[\"last_match\"].call(*([print(\"splat\")])));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class]\nend\nend\n",
-    "static_error": {"code": "V0106", "at": [33, 8]},
+    "static_error": {"code": "V0401", "at": [33, 8]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -164544,7 +164692,7 @@
   {
     "name": "call_member_route_20_5",
     "source": "class C\ndef call(value: int =7,*, flag: int = 0, &block?: any -> any) -> array<int>\nout=[value,flag]\nif block_given?\nout.push(yield(value).as(int))\nend\nout\nend\ndef self.call(value: int =8) -> int\nvalue\nend\nend\nclass D\ndef call(options: any ={}) -> any\noptions\nend\nend\nclass P\nprivate\ndef call(value: int =7) -> int\nvalue\nend\nend\nmodule M\ndef self.call(value: int =9) -> int\nvalue\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nc=C.new\nvalue=(Regexp[\"last_match\"].call(**{flag:print(\"keywords\")}));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class]\nend\nend\n",
-    "static_error": {"code": "V0106", "at": [33, 8]},
+    "static_error": {"code": "V0401", "at": [33, 8]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -164553,7 +164701,7 @@
   {
     "name": "call_member_route_20_6",
     "source": "class C\ndef call(value: int =7,*, flag: int = 0, &block?: any -> any) -> array<int>\nout=[value,flag]\nif block_given?\nout.push(yield(value).as(int))\nend\nout\nend\ndef self.call(value: int =8) -> int\nvalue\nend\nend\nclass D\ndef call(options: any ={}) -> any\noptions\nend\nend\nclass P\nprivate\ndef call(value: int =7) -> int\nvalue\nend\nend\nmodule M\ndef self.call(value: int =9) -> int\nvalue\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nc=C.new\nvalue=(Regexp[\"last_match\"].call(print(\"argument\"),flag:print(\"keyword\")){print(\"block\");11});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class]\nend\nend\n",
-    "static_error": {"code": "V0106", "at": [33, 8]},
+    "static_error": {"code": "V0401", "at": [33, 8]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -164562,7 +164710,7 @@
   {
     "name": "call_member_route_20_7",
     "source": "class C\ndef call(value: int =7,*, flag: int = 0, &block?: any -> any) -> array<int>\nout=[value,flag]\nif block_given?\nout.push(yield(value).as(int))\nend\nout\nend\ndef self.call(value: int =8) -> int\nvalue\nend\nend\nclass D\ndef call(options: any ={}) -> any\noptions\nend\nend\nclass P\nprivate\ndef call(value: int =7) -> int\nvalue\nend\nend\nmodule M\ndef self.call(value: int =9) -> int\nvalue\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nc=C.new\nvalue=(Regexp[\"last_match\"].call{|v|print(\"block\");v});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.class]\nend\nend\n",
-    "static_error": {"code": "V0106", "at": [33, 8]},
+    "static_error": {"code": "V0401", "at": [33, 8]},
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -165501,7 +165649,7 @@
   {
     "name": "introspection_edge_override_is_a?_class_private_wrapped",
     "source": "class C\nprivate def self.is_a?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string> | string\nbegin\n(C.is_a?)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "args": [null],
     "accounting": true
@@ -165509,7 +165657,7 @@
   {
     "name": "introspection_edge_override_is_a?_class_protected_wrapped",
     "source": "class C\nprotected def self.is_a?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string> | string\nbegin\n(C.is_a?)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "args": [null],
     "accounting": true
@@ -165517,7 +165665,7 @@
   {
     "name": "introspection_edge_override_is_a?_module_private_wrapped",
     "source": "module M\nprivate def self.is_a?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string> | string\nbegin\n(M.is_a?)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "args": [null],
     "accounting": true
@@ -165525,7 +165673,7 @@
   {
     "name": "introspection_edge_override_is_a?_module_protected_wrapped",
     "source": "module M\nprotected def self.is_a?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string> | string\nbegin\n(M.is_a?)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "args": [null],
     "accounting": true
@@ -165565,7 +165713,7 @@
   {
     "name": "introspection_edge_override_kind_of?_class_private_wrapped",
     "source": "class C\nprivate def self.kind_of?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string> | string\nbegin\n(C.kind_of?)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "args": [null],
     "accounting": true
@@ -165573,7 +165721,7 @@
   {
     "name": "introspection_edge_override_kind_of?_class_protected_wrapped",
     "source": "class C\nprotected def self.kind_of?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string> | string\nbegin\n(C.kind_of?)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "args": [null],
     "accounting": true
@@ -165581,7 +165729,7 @@
   {
     "name": "introspection_edge_override_kind_of?_module_private_wrapped",
     "source": "module M\nprivate def self.kind_of?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string> | string\nbegin\n(M.kind_of?)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "args": [null],
     "accounting": true
@@ -165589,7 +165737,7 @@
   {
     "name": "introspection_edge_override_kind_of?_module_protected_wrapped",
     "source": "module M\nprotected def self.kind_of?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string> | string\nbegin\n(M.kind_of?)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "args": [null],
     "accounting": true
@@ -165629,7 +165777,7 @@
   {
     "name": "introspection_edge_override_instance_of?_class_private_wrapped",
     "source": "class C\nprivate def self.instance_of?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string> | string\nbegin\n(C.instance_of?)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "args": [null],
     "accounting": true
@@ -165637,7 +165785,7 @@
   {
     "name": "introspection_edge_override_instance_of?_class_protected_wrapped",
     "source": "class C\nprotected def self.instance_of?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string> | string\nbegin\n(C.instance_of?)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "args": [null],
     "accounting": true
@@ -165645,7 +165793,7 @@
   {
     "name": "introspection_edge_override_instance_of?_module_private_wrapped",
     "source": "module M\nprivate def self.instance_of?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string> | string\nbegin\n(M.instance_of?)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "args": [null],
     "accounting": true
@@ -165653,7 +165801,7 @@
   {
     "name": "introspection_edge_override_instance_of?_module_protected_wrapped",
     "source": "module M\nprotected def self.instance_of?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string> | string\nbegin\n(M.instance_of?)(7)\nrescue RuntimeError | LimitError=>e\ne.class\nend\nend\n",
-    "static_error": {"code": "V0208", "at": [9, 4]},
+    "static_error": {"code": "V0401", "at": [9, 4]},
     "function": "run",
     "args": [null],
     "accounting": true
@@ -175564,5 +175712,2146 @@
         1
       ]
     }
+  },
+  {
+    "name": "builtins_lookup_12",
+    "source": "def run(input: any) -> bool\nMath.itself == Math\nend\n",
+    "static_error": {"code": "V0404", "at": [2, 6]}
+  },
+  {
+    "name": "builtins_lookup_13",
+    "source": "def run(input: any) -> bool\nMath.nil?\nend\n",
+    "static_error": {"code": "V0402", "at": [2, 6]}
+  },
+  {
+    "name": "call_builtin_keyword_string_clear",
+    "source": "def run(input: any) -> string\n\"abc\".clear(ignored:true)\nend\n",
+    "static_error": {"code": "V0401", "at": [2, 7]}
+  },
+  {
+    "name": "computed_call_duration_eql",
+    "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | bool\nbegin\n(5.seconds.eql? rescue good)(5.seconds)\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [12, 12]}
+  },
+  {
+    "name": "computed_call_enum_itself",
+    "source": "enum Status\nDraft\nend\ndef good -> int\n42\nend\ndef run(input: any) -> array<string> | string\nbegin\n(Status.itself rescue good)().name\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
+    "static_error": {"code": "V0404", "at": [9, 9]}
+  },
+  {
+    "name": "computed_call_enum_member_itself",
+    "source": "enum Status\nDraft\nend\ndef good -> int\n42\nend\ndef run(input: any) -> array<string> | string\nbegin\n(Status::Draft.itself rescue good)().name\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
+    "static_error": {"code": "V0404", "at": [9, 16]}
+  },
+  {
+    "name": "computed_call_wrapped_1_2_itself",
+    "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<int | string>\nbegin\n([1,2].itself rescue good)()\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
+    "static_error": {"code": "V0404", "at": [12, 8]}
+  },
+  {
+    "name": "computed_call_wrapped_1_2_nil",
+    "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | bool\nbegin\n([1,2].nil? rescue good)()\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
+    "static_error": {"code": "V0402", "at": [12, 8]}
+  },
+  {
+    "name": "computed_call_wrapped_1_3_nil",
+    "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | bool\nbegin\n((1..3).nil? rescue good)()\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
+    "static_error": {"code": "V0402", "at": [12, 9]}
+  },
+  {
+    "name": "computed_call_wrapped_5_seconds_nil",
+    "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | bool\nbegin\n(5.seconds.nil? rescue good)()\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
+    "static_error": {"code": "V0402", "at": [12, 12]}
+  },
+  {
+    "name": "computed_call_wrapped_7_5_itself",
+    "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | float\nbegin\n(7.5.itself rescue good)()\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
+    "static_error": {"code": "V0404", "at": [12, 6]}
+  },
+  {
+    "name": "computed_call_wrapped_7_5_nil",
+    "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | bool\nbegin\n(7.5.nil? rescue good)()\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
+    "static_error": {"code": "V0402", "at": [12, 6]}
+  },
+  {
+    "name": "computed_call_wrapped_7_itself",
+    "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | int\nbegin\n(7.itself rescue good)()\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
+    "static_error": {"code": "V0404", "at": [12, 4]}
+  },
+  {
+    "name": "computed_call_wrapped_7_nil",
+    "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | bool\nbegin\n(7.nil? rescue good)()\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
+    "static_error": {"code": "V0402", "at": [12, 4]}
+  },
+  {
+    "name": "computed_call_wrapped_a_nil",
+    "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | bool\nbegin\n(/a/.nil? rescue good)()\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
+    "static_error": {"code": "V0402", "at": [12, 6]}
+  },
+  {
+    "name": "computed_call_wrapped_abc_itself",
+    "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | string\nbegin\n(\"abc\".itself rescue good)()\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
+    "static_error": {"code": "V0404", "at": [12, 8]}
+  },
+  {
+    "name": "computed_call_wrapped_abc_nil",
+    "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | bool\nbegin\n(\"abc\".nil? rescue good)()\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
+    "static_error": {"code": "V0402", "at": [12, 8]}
+  },
+  {
+    "name": "computed_call_wrapped_itself",
+    "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | {}\nbegin\n({}.itself rescue good)()\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
+    "static_error": {"code": "V0404", "at": [12, 5]}
+  },
+  {
+    "name": "computed_call_wrapped_money_cents_500_USD_nil",
+    "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | bool\nbegin\n(money_cents(500,\"USD\").nil? rescue good)()\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
+    "static_error": {"code": "V0402", "at": [12, 25]}
+  },
+  {
+    "name": "computed_call_wrapped_nil",
+    "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | bool\nbegin\n({}.nil? rescue good)()\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
+    "static_error": {"code": "V0402", "at": [12, 5]}
+  },
+  {
+    "name": "computed_call_wrapped_nil_itself",
+    "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any)\nbegin\n(nil.itself rescue good)()\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
+    "static_error": {"code": "V0404", "at": [12, 6]}
+  },
+  {
+    "name": "computed_call_wrapped_nil_nil",
+    "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | bool\nbegin\n(nil.nil? rescue good)()\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
+    "static_error": {"code": "V0402", "at": [12, 6]}
+  },
+  {
+    "name": "computed_call_wrapped_s_itself",
+    "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | symbol\nbegin\n(:s.itself rescue good)()\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
+    "static_error": {"code": "V0404", "at": [12, 5]}
+  },
+  {
+    "name": "computed_call_wrapped_s_nil",
+    "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | bool\nbegin\n(:s.nil? rescue good)()\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
+    "static_error": {"code": "V0402", "at": [12, 5]}
+  },
+  {
+    "name": "computed_call_wrapped_true_itself",
+    "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | bool\nbegin\n(true.itself rescue good)()\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
+    "static_error": {"code": "V0404", "at": [12, 7]}
+  },
+  {
+    "name": "computed_call_wrapped_true_nil",
+    "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | bool\nbegin\n(true.nil? rescue good)()\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
+    "static_error": {"code": "V0402", "at": [12, 7]}
+  },
+  {
+    "name": "enums_members_182",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> Status\nStatus::Draft.itself(*[])\nend\n",
+    "static_error": {"code": "V0404", "at": [10, 15]}
+  },
+  {
+    "name": "enums_members_183",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> Status\nStatus::Draft.itself(**{})\nend\n",
+    "static_error": {"code": "V0404", "at": [10, 15]}
+  },
+  {
+    "name": "enums_members_86",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\n(Status.itself(*[])).to_s\nend\n",
+    "static_error": {"code": "V0404", "at": [10, 9]}
+  },
+  {
+    "name": "enums_members_87",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\n(Status.itself(**{})).to_s\nend\n",
+    "static_error": {"code": "V0404", "at": [10, 9]}
+  },
+  {
+    "name": "equality_matrix_signature_0_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na: nil =nil;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_0_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na: nil =nil;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_10_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=0.0/0.0;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_10_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=0.0/0.0;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_11_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=1.0/0.0;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_11_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=1.0/0.0;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_12_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=-1.0/0.0;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_12_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=-1.0/0.0;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_13_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=\"\";begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_13_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=\"\";begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_14_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=\"1\";begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_14_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=\"1\";begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_15_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=:one;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_15_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=:one;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_16_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na: array<any> =[];begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_16_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na: array<any> =[];begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_17_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=[1];begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_17_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=[1];begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_18_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=[1.0];begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_18_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=[1.0];begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_19_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=[[1],{x:2}];begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_19_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=[[1],{x:2}];begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_1_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=false;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_1_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=false;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_20_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na: hash<string, any> ={};begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_20_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na: hash<string, any> ={};begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_21_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na={x:1};begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_21_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na={x:1};begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_22_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na={x:1.0};begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_22_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na={x:1.0};begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_23_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=(1..3);begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_23_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=(1..3);begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_24_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=(1...3);begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_24_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=(1...3);begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_25_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=(1..);begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_25_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=(1..);begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_26_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=(..3);begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_26_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=(..3);begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_27_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=/a/i;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_27_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=/a/i;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_28_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=/a/;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_28_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=/a/;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_29_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=money(\"1.00 USD\");begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_29_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=money(\"1.00 USD\");begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_2_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=true;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_2_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=true;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_30_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=1.seconds;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_30_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=1.seconds;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_31_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=Time.at(0);begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_31_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=Time.at(0);begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_32_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=Time.at(0).localtime(\"+01:00\");begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_32_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=Time.at(0).localtime(\"+01:00\");begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_33_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na={x:int};begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_33_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na={x:int};begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_34_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=JSON;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_34_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=JSON;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_35_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=E;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_35_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=E;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_36_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=E::A;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_36_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=E::A;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_37_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=E::B;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_37_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=E::B;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_38_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=C;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_38_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=C;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_39_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=C.new;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_39_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=C.new;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_3_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=0;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_3_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=0;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_40_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=M;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_40_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=M;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_4_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=1;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_4_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=1;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_5_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=-1;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_5_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=-1;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_6_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=9223372036854775808;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_6_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=9223372036854775808;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_7_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=-9223372036854775809;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_7_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=-9223372036854775809;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_8_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=1.0;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_8_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=1.0;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_9_eql?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=1.5;begin\n(a.eql?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_matrix_signature_9_equal?_wrapped_missing",
+    "source": "enum E\nA\nB\nend\nclass C\nend\nmodule M\nend\ndef run(input: any) -> array<string>\na=1.5;begin\n(a.equal?)()\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [11, 4]}
+  },
+  {
+    "name": "equality_probe_class_wrapped",
+    "source": "enum E\nA\nB\nend\nclass C\nproperty p: any\nend\n\ndef run(input: any) -> array<bool>\na=C.new;[(a.equal?)(a),(a.eql?)(C.new)]\nend\n",
+    "static_error": {"code": "V0403", "at": [10, 13]}
+  },
+  {
+    "name": "equality_probe_enum_wrapped",
+    "source": "enum E\nA\nB\nend\nclass C\nproperty p: any\nend\n\ndef run(input: any) -> array<bool>\n[(E::A.equal?)(E::A),(E::A.eql?)(E::B)]\nend\n",
+    "static_error": {"code": "V0403", "at": [10, 8]}
+  },
+  {
+    "name": "equality_probe_temporal_zero_args",
+    "source": "\ndef run(input: any) -> array<bool>\n[(1.seconds.eql?)(1.seconds),(Time.at(0).eql?)(Time.at(0))]\nend\n",
+    "static_error": {"code": "V0403", "at": [3, 13]}
+  },
+  {
+    "name": "equality_probe_wrapped",
+    "source": "\ndef run(input: any) -> array<bool>\n[(1.eql?)(1),([1].equal?)([1.0])]\nend\n",
+    "static_error": {"code": "V0403", "at": [3, 5]}
+  },
+  {
+    "name": "equality_probe_wrapped_block",
+    "source": "\ndef run(input: any) -> string\nbegin\n(1.eql?)(1) {raise \"entered\"}\nrescue=>e\ne.message\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [4, 4]}
+  },
+  {
+    "name": "equality_probe_wrapped_keyword",
+    "source": "\ndef run(input: any) -> string\nbegin\n(1.eql?)(1,x:2)\nrescue=>e\ne.message\nend\nend\n",
+    "static_error": {"code": "V0403", "at": [4, 4]}
+  },
+  {
+    "name": "equality_probe_wrapped_nested_snapshot",
+    "source": "\ndef run(input: any) -> array<bool | { items: array<int> }>\na={items:[1]};[(a.equal?)(a[\"items\"].push(2)),a]\nend\n",
+    "static_error": {"code": "V0403", "at": [3, 19]}
+  },
+  {
+    "name": "equality_probe_wrapped_snapshot",
+    "source": "\ndef run(input: any) -> array<bool | array<int>>\na=[1];[(a.eql?)(a.push(2)),a]\nend\n",
+    "static_error": {"code": "V0403", "at": [3, 11]}
+  },
+  {
+    "name": "format_edge_route_12",
+    "source": "class C\ndef to_s -> string\nprint(\"C\");\"custom\"\nend\nend\n\ndef run(input: any) -> array<string>\nbegin\nvalue=((sprintf).to_s);[\"ok\",value.bytes]\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "stdout": true,
+    "stdout_hex": "",
+    "stderr": true,
+    "stderr_hex": "",
+    "static_error": {"code": "V0401", "at": [9, 9]}
+  },
+  {
+    "name": "introspection_edge_contracts_instance_of?_234",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.instance_of?\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_instance_of?_235",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.instance_of?\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_instance_of?_237",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.instance_of?(1,2,3)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_instance_of?_238",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.instance_of?(x:1)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_instance_of?_239",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.instance_of?(1) {raise \"entered\"}\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_instance_of?_246",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nM.instance_of?\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_instance_of?_247",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nM.instance_of?\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_instance_of?_249",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nM.instance_of?(1,2,3)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_instance_of?_250",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nM.instance_of?(x:1)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_instance_of?_251",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nM.instance_of?(1) {raise \"entered\"}\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_is_a?_102",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.is_a?\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_is_a?_103",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.is_a?\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_is_a?_105",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.is_a?(1,2,3)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_is_a?_106",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.is_a?(x:1)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_is_a?_107",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.is_a?(1) {raise \"entered\"}\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_is_a?_114",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nM.is_a?\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_is_a?_115",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nM.is_a?\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_is_a?_117",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nM.is_a?(1,2,3)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_is_a?_118",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nM.is_a?(x:1)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_is_a?_119",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nM.is_a?(1) {raise \"entered\"}\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_kind_of?_168",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.kind_of?\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_kind_of?_169",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.kind_of?\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_kind_of?_171",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.kind_of?(1,2,3)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_kind_of?_172",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.kind_of?(x:1)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_kind_of?_173",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.kind_of?(1) {raise \"entered\"}\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_kind_of?_180",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nM.kind_of?\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_kind_of?_181",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nM.kind_of?\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_kind_of?_183",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nM.kind_of?(1,2,3)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_kind_of?_184",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nM.kind_of?(x:1)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_contracts_kind_of?_185",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nM.kind_of?(1) {raise \"entered\"}\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "introspection_edge_override_instance_of?_class__wrapped",
+    "source": "class C\ndef self.instance_of?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string>\nbegin\n(C.instance_of?)(7)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [9, 4]}
+  },
+  {
+    "name": "introspection_edge_override_instance_of?_module__wrapped",
+    "source": "module M\ndef self.instance_of?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string>\nbegin\n(M.instance_of?)(7)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [9, 4]}
+  },
+  {
+    "name": "introspection_edge_override_is_a?_class__wrapped",
+    "source": "class C\ndef self.is_a?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string>\nbegin\n(C.is_a?)(7)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [9, 4]}
+  },
+  {
+    "name": "introspection_edge_override_is_a?_module__wrapped",
+    "source": "module M\ndef self.is_a?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string>\nbegin\n(M.is_a?)(7)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [9, 4]}
+  },
+  {
+    "name": "introspection_edge_override_kind_of?_class__wrapped",
+    "source": "class C\ndef self.kind_of?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string>\nbegin\n(C.kind_of?)(7)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [9, 4]}
+  },
+  {
+    "name": "introspection_edge_override_kind_of?_module__wrapped",
+    "source": "module M\ndef self.kind_of?(x: int) -> array<int | string>\n[\"override\",x]\nend\nend\n\ndef run(input: any) -> array<int | string>\nbegin\n(M.kind_of?)(7)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [9, 4]}
+  },
+  {
+    "name": "introspection_wrapping_equality_direct",
+    "source": "class C\nend\ndef run(input: any) -> array<string> | bool\nbegin\n([1].eql?)([1])\nrescue=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0403", "at": [5, 6]}
+  },
+  {
+    "name": "introspection_wrapping_respond_direct",
+    "source": "class C\nend\ndef run(input: any) -> array<string> | bool\nbegin\n(1.respond_to?)(:odd?)\nrescue=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0405", "at": [5, 4]}
+  },
+  {
+    "name": "lifecycle_array_freeze_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\n[[1],2].freeze(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 9]}
+  },
+  {
+    "name": "lifecycle_array_freeze_block",
+    "source": "\ndef run(input: any) -> string\nbegin\n[[1],2].freeze {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 9]}
+  },
+  {
+    "name": "lifecycle_array_freeze_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\n[[1],2].freeze(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 9]}
+  },
+  {
+    "name": "lifecycle_array_freeze_wrapped",
+    "source": "\ndef run(input: any)\n([[1],2].freeze rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 10]}
+  },
+  {
+    "name": "lifecycle_array_frozen?_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\n[[1],2].frozen?(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 9]}
+  },
+  {
+    "name": "lifecycle_array_frozen?_block",
+    "source": "\ndef run(input: any) -> string\nbegin\n[[1],2].frozen? {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 9]}
+  },
+  {
+    "name": "lifecycle_array_frozen?_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\n[[1],2].frozen?(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 9]}
+  },
+  {
+    "name": "lifecycle_array_frozen?_wrapped",
+    "source": "\ndef run(input: any) -> bool\n([[1],2].frozen? rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 10]}
+  },
+  {
+    "name": "lifecycle_big_freeze_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\n9223372036854775808.freeze(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 21]}
+  },
+  {
+    "name": "lifecycle_big_freeze_block",
+    "source": "\ndef run(input: any) -> string\nbegin\n9223372036854775808.freeze {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 21]}
+  },
+  {
+    "name": "lifecycle_big_freeze_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\n9223372036854775808.freeze(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 21]}
+  },
+  {
+    "name": "lifecycle_big_freeze_wrapped",
+    "source": "\ndef run(input: any)\n(9223372036854775808.freeze rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 22]}
+  },
+  {
+    "name": "lifecycle_big_frozen?_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\n9223372036854775808.frozen?(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 21]}
+  },
+  {
+    "name": "lifecycle_big_frozen?_block",
+    "source": "\ndef run(input: any) -> string\nbegin\n9223372036854775808.frozen? {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 21]}
+  },
+  {
+    "name": "lifecycle_big_frozen?_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\n9223372036854775808.frozen?(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 21]}
+  },
+  {
+    "name": "lifecycle_big_frozen?_wrapped",
+    "source": "\ndef run(input: any) -> bool\n(9223372036854775808.frozen? rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 22]}
+  },
+  {
+    "name": "lifecycle_bool_freeze_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\ntrue.freeze(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 6]}
+  },
+  {
+    "name": "lifecycle_bool_freeze_block",
+    "source": "\ndef run(input: any) -> string\nbegin\ntrue.freeze {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 6]}
+  },
+  {
+    "name": "lifecycle_bool_freeze_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\ntrue.freeze(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 6]}
+  },
+  {
+    "name": "lifecycle_bool_freeze_wrapped",
+    "source": "\ndef run(input: any)\n(true.freeze rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 7]}
+  },
+  {
+    "name": "lifecycle_bool_frozen?_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\ntrue.frozen?(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 6]}
+  },
+  {
+    "name": "lifecycle_bool_frozen?_block",
+    "source": "\ndef run(input: any) -> string\nbegin\ntrue.frozen? {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 6]}
+  },
+  {
+    "name": "lifecycle_bool_frozen?_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\ntrue.frozen?(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 6]}
+  },
+  {
+    "name": "lifecycle_bool_frozen?_wrapped",
+    "source": "\ndef run(input: any) -> bool\n(true.frozen? rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 7]}
+  },
+  {
+    "name": "lifecycle_class_freeze_argument",
+    "source": "class C\nend\ndef run(input: any) -> string\nbegin\nC.freeze(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [5, 3]}
+  },
+  {
+    "name": "lifecycle_class_freeze_block",
+    "source": "class C\nend\ndef run(input: any) -> string\nbegin\nC.freeze {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [5, 3]}
+  },
+  {
+    "name": "lifecycle_class_freeze_keywords",
+    "source": "class C\nend\ndef run(input: any) -> string\nbegin\nC.freeze(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [5, 3]}
+  },
+  {
+    "name": "lifecycle_class_freeze_wrapped",
+    "source": "class C\nend\ndef run(input: any)\n(C.freeze rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 4]}
+  },
+  {
+    "name": "lifecycle_class_frozen?_argument",
+    "source": "class C\nend\ndef run(input: any) -> string\nbegin\nC.frozen?(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [5, 3]}
+  },
+  {
+    "name": "lifecycle_class_frozen?_block",
+    "source": "class C\nend\ndef run(input: any) -> string\nbegin\nC.frozen? {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [5, 3]}
+  },
+  {
+    "name": "lifecycle_class_frozen?_keywords",
+    "source": "class C\nend\ndef run(input: any) -> string\nbegin\nC.frozen?(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [5, 3]}
+  },
+  {
+    "name": "lifecycle_class_frozen?_wrapped",
+    "source": "class C\nend\ndef run(input: any) -> bool\n(C.frozen? rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 4]}
+  },
+  {
+    "name": "lifecycle_duration_freeze_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\n5.seconds.freeze(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 11]}
+  },
+  {
+    "name": "lifecycle_duration_freeze_block",
+    "source": "\ndef run(input: any) -> string\nbegin\n5.seconds.freeze {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 11]}
+  },
+  {
+    "name": "lifecycle_duration_freeze_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\n5.seconds.freeze(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 11]}
+  },
+  {
+    "name": "lifecycle_duration_freeze_wrapped",
+    "source": "\ndef run(input: any)\n(5.seconds.freeze rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 12]}
+  },
+  {
+    "name": "lifecycle_duration_frozen?_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\n5.seconds.frozen?(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 11]}
+  },
+  {
+    "name": "lifecycle_duration_frozen?_block",
+    "source": "\ndef run(input: any) -> string\nbegin\n5.seconds.frozen? {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 11]}
+  },
+  {
+    "name": "lifecycle_duration_frozen?_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\n5.seconds.frozen?(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 11]}
+  },
+  {
+    "name": "lifecycle_duration_frozen?_wrapped",
+    "source": "\ndef run(input: any) -> bool\n(5.seconds.frozen? rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 12]}
+  },
+  {
+    "name": "lifecycle_enum_freeze_argument",
+    "source": "enum Status\nDraft\nend\ndef run(input: any) -> string\nbegin\nStatus.freeze(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [6, 8]}
+  },
+  {
+    "name": "lifecycle_enum_freeze_block",
+    "source": "enum Status\nDraft\nend\ndef run(input: any) -> string\nbegin\nStatus.freeze {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [6, 8]}
+  },
+  {
+    "name": "lifecycle_enum_freeze_keywords",
+    "source": "enum Status\nDraft\nend\ndef run(input: any) -> string\nbegin\nStatus.freeze(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [6, 8]}
+  },
+  {
+    "name": "lifecycle_enum_freeze_wrapped",
+    "source": "enum Status\nDraft\nend\ndef run(input: any)\n(Status.freeze rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [5, 9]}
+  },
+  {
+    "name": "lifecycle_enum_frozen?_argument",
+    "source": "enum Status\nDraft\nend\ndef run(input: any) -> string\nbegin\nStatus.frozen?(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [6, 8]}
+  },
+  {
+    "name": "lifecycle_enum_frozen?_block",
+    "source": "enum Status\nDraft\nend\ndef run(input: any) -> string\nbegin\nStatus.frozen? {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [6, 8]}
+  },
+  {
+    "name": "lifecycle_enum_frozen?_keywords",
+    "source": "enum Status\nDraft\nend\ndef run(input: any) -> string\nbegin\nStatus.frozen?(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [6, 8]}
+  },
+  {
+    "name": "lifecycle_enum_frozen?_wrapped",
+    "source": "enum Status\nDraft\nend\ndef run(input: any) -> bool\n(Status.frozen? rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [5, 9]}
+  },
+  {
+    "name": "lifecycle_enum_member_freeze_argument",
+    "source": "enum Status\nDraft\nend\ndef run(input: any) -> string\nbegin\nStatus::Draft.freeze(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [6, 15]}
+  },
+  {
+    "name": "lifecycle_enum_member_freeze_block",
+    "source": "enum Status\nDraft\nend\ndef run(input: any) -> string\nbegin\nStatus::Draft.freeze {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [6, 15]}
+  },
+  {
+    "name": "lifecycle_enum_member_freeze_keywords",
+    "source": "enum Status\nDraft\nend\ndef run(input: any) -> string\nbegin\nStatus::Draft.freeze(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [6, 15]}
+  },
+  {
+    "name": "lifecycle_enum_member_freeze_wrapped",
+    "source": "enum Status\nDraft\nend\ndef run(input: any)\n(Status::Draft.freeze rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [5, 16]}
+  },
+  {
+    "name": "lifecycle_enum_member_frozen?_argument",
+    "source": "enum Status\nDraft\nend\ndef run(input: any) -> string\nbegin\nStatus::Draft.frozen?(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [6, 15]}
+  },
+  {
+    "name": "lifecycle_enum_member_frozen?_block",
+    "source": "enum Status\nDraft\nend\ndef run(input: any) -> string\nbegin\nStatus::Draft.frozen? {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [6, 15]}
+  },
+  {
+    "name": "lifecycle_enum_member_frozen?_keywords",
+    "source": "enum Status\nDraft\nend\ndef run(input: any) -> string\nbegin\nStatus::Draft.frozen?(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [6, 15]}
+  },
+  {
+    "name": "lifecycle_enum_member_frozen?_wrapped",
+    "source": "enum Status\nDraft\nend\ndef run(input: any) -> bool\n(Status::Draft.frozen? rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [5, 16]}
+  },
+  {
+    "name": "lifecycle_float_freeze_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\n7.5.freeze(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 5]}
+  },
+  {
+    "name": "lifecycle_float_freeze_block",
+    "source": "\ndef run(input: any) -> string\nbegin\n7.5.freeze {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 5]}
+  },
+  {
+    "name": "lifecycle_float_freeze_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\n7.5.freeze(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 5]}
+  },
+  {
+    "name": "lifecycle_float_freeze_wrapped",
+    "source": "\ndef run(input: any)\n(7.5.freeze rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 6]}
+  },
+  {
+    "name": "lifecycle_float_frozen?_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\n7.5.frozen?(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 5]}
+  },
+  {
+    "name": "lifecycle_float_frozen?_block",
+    "source": "\ndef run(input: any) -> string\nbegin\n7.5.frozen? {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 5]}
+  },
+  {
+    "name": "lifecycle_float_frozen?_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\n7.5.frozen?(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 5]}
+  },
+  {
+    "name": "lifecycle_float_frozen?_wrapped",
+    "source": "\ndef run(input: any) -> bool\n(7.5.frozen? rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 6]}
+  },
+  {
+    "name": "lifecycle_global_freeze_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\nJSON.freeze(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 6]}
+  },
+  {
+    "name": "lifecycle_global_freeze_block",
+    "source": "\ndef run(input: any) -> string\nbegin\nJSON.freeze {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 6]}
+  },
+  {
+    "name": "lifecycle_global_freeze_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\nJSON.freeze(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 6]}
+  },
+  {
+    "name": "lifecycle_global_freeze_wrapped",
+    "source": "\ndef run(input: any)\n(JSON.freeze rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 7]}
+  },
+  {
+    "name": "lifecycle_global_frozen?_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\nJSON.frozen?(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 6]}
+  },
+  {
+    "name": "lifecycle_global_frozen?_block",
+    "source": "\ndef run(input: any) -> string\nbegin\nJSON.frozen? {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 6]}
+  },
+  {
+    "name": "lifecycle_global_frozen?_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\nJSON.frozen?(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 6]}
+  },
+  {
+    "name": "lifecycle_global_frozen?_wrapped",
+    "source": "\ndef run(input: any) -> bool\n(JSON.frozen? rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 7]}
+  },
+  {
+    "name": "lifecycle_hash_freeze_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\n{a:[1]}.freeze(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 9]}
+  },
+  {
+    "name": "lifecycle_hash_freeze_block",
+    "source": "\ndef run(input: any) -> string\nbegin\n{a:[1]}.freeze {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 9]}
+  },
+  {
+    "name": "lifecycle_hash_freeze_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\n{a:[1]}.freeze(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 9]}
+  },
+  {
+    "name": "lifecycle_hash_freeze_wrapped",
+    "source": "\ndef run(input: any)\n({a:[1]}.freeze rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 10]}
+  },
+  {
+    "name": "lifecycle_hash_frozen?_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\n{a:[1]}.frozen?(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 9]}
+  },
+  {
+    "name": "lifecycle_hash_frozen?_block",
+    "source": "\ndef run(input: any) -> string\nbegin\n{a:[1]}.frozen? {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 9]}
+  },
+  {
+    "name": "lifecycle_hash_frozen?_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\n{a:[1]}.frozen?(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 9]}
+  },
+  {
+    "name": "lifecycle_hash_frozen?_wrapped",
+    "source": "\ndef run(input: any) -> bool\n({a:[1]}.frozen? rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 10]}
+  },
+  {
+    "name": "lifecycle_instance_freeze_wrapped",
+    "source": "class C\nend\ndef run(input: any)\n(C.new.freeze rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 8]}
+  },
+  {
+    "name": "lifecycle_instance_frozen?_wrapped",
+    "source": "class C\nend\ndef run(input: any) -> bool\n(C.new.frozen? rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 8]}
+  },
+  {
+    "name": "lifecycle_int_freeze_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\n7.freeze(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 3]}
+  },
+  {
+    "name": "lifecycle_int_freeze_block",
+    "source": "\ndef run(input: any) -> string\nbegin\n7.freeze {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 3]}
+  },
+  {
+    "name": "lifecycle_int_freeze_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\n7.freeze(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 3]}
+  },
+  {
+    "name": "lifecycle_int_freeze_wrapped",
+    "source": "\ndef run(input: any)\n(7.freeze rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 4]}
+  },
+  {
+    "name": "lifecycle_int_frozen?_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\n7.frozen?(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 3]}
+  },
+  {
+    "name": "lifecycle_int_frozen?_block",
+    "source": "\ndef run(input: any) -> string\nbegin\n7.frozen? {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 3]}
+  },
+  {
+    "name": "lifecycle_int_frozen?_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\n7.frozen?(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 3]}
+  },
+  {
+    "name": "lifecycle_int_frozen?_wrapped",
+    "source": "\ndef run(input: any) -> bool\n(7.frozen? rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 4]}
+  },
+  {
+    "name": "lifecycle_module_freeze_argument",
+    "source": "module M\nend\ndef run(input: any) -> string\nbegin\nM.freeze(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [5, 3]}
+  },
+  {
+    "name": "lifecycle_module_freeze_block",
+    "source": "module M\nend\ndef run(input: any) -> string\nbegin\nM.freeze {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [5, 3]}
+  },
+  {
+    "name": "lifecycle_module_freeze_keywords",
+    "source": "module M\nend\ndef run(input: any) -> string\nbegin\nM.freeze(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [5, 3]}
+  },
+  {
+    "name": "lifecycle_module_freeze_wrapped",
+    "source": "module M\nend\ndef run(input: any)\n(M.freeze rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 4]}
+  },
+  {
+    "name": "lifecycle_module_frozen?_argument",
+    "source": "module M\nend\ndef run(input: any) -> string\nbegin\nM.frozen?(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [5, 3]}
+  },
+  {
+    "name": "lifecycle_module_frozen?_block",
+    "source": "module M\nend\ndef run(input: any) -> string\nbegin\nM.frozen? {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [5, 3]}
+  },
+  {
+    "name": "lifecycle_module_frozen?_keywords",
+    "source": "module M\nend\ndef run(input: any) -> string\nbegin\nM.frozen?(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [5, 3]}
+  },
+  {
+    "name": "lifecycle_module_frozen?_wrapped",
+    "source": "module M\nend\ndef run(input: any) -> bool\n(M.frozen? rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 4]}
+  },
+  {
+    "name": "lifecycle_money_freeze_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\nmoney_cents(500,\"USD\").freeze(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 24]}
+  },
+  {
+    "name": "lifecycle_money_freeze_block",
+    "source": "\ndef run(input: any) -> string\nbegin\nmoney_cents(500,\"USD\").freeze {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 24]}
+  },
+  {
+    "name": "lifecycle_money_freeze_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\nmoney_cents(500,\"USD\").freeze(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 24]}
+  },
+  {
+    "name": "lifecycle_money_freeze_wrapped",
+    "source": "\ndef run(input: any)\n(money_cents(500,\"USD\").freeze rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 25]}
+  },
+  {
+    "name": "lifecycle_money_frozen?_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\nmoney_cents(500,\"USD\").frozen?(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 24]}
+  },
+  {
+    "name": "lifecycle_money_frozen?_block",
+    "source": "\ndef run(input: any) -> string\nbegin\nmoney_cents(500,\"USD\").frozen? {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 24]}
+  },
+  {
+    "name": "lifecycle_money_frozen?_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\nmoney_cents(500,\"USD\").frozen?(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 24]}
+  },
+  {
+    "name": "lifecycle_money_frozen?_wrapped",
+    "source": "\ndef run(input: any) -> bool\n(money_cents(500,\"USD\").frozen? rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 25]}
+  },
+  {
+    "name": "lifecycle_nil_freeze_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\nnil.freeze(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 5]}
+  },
+  {
+    "name": "lifecycle_nil_freeze_block",
+    "source": "\ndef run(input: any) -> string\nbegin\nnil.freeze {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 5]}
+  },
+  {
+    "name": "lifecycle_nil_freeze_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\nnil.freeze(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 5]}
+  },
+  {
+    "name": "lifecycle_nil_freeze_wrapped",
+    "source": "\ndef run(input: any)\n(nil.freeze rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 6]}
+  },
+  {
+    "name": "lifecycle_nil_frozen?_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\nnil.frozen?(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 5]}
+  },
+  {
+    "name": "lifecycle_nil_frozen?_block",
+    "source": "\ndef run(input: any) -> string\nbegin\nnil.frozen? {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 5]}
+  },
+  {
+    "name": "lifecycle_nil_frozen?_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\nnil.frozen?(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 5]}
+  },
+  {
+    "name": "lifecycle_nil_frozen?_wrapped",
+    "source": "\ndef run(input: any) -> bool\n(nil.frozen? rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 6]}
+  },
+  {
+    "name": "lifecycle_range_freeze_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\n(1..3).freeze(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 8]}
+  },
+  {
+    "name": "lifecycle_range_freeze_block",
+    "source": "\ndef run(input: any) -> string\nbegin\n(1..3).freeze {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 8]}
+  },
+  {
+    "name": "lifecycle_range_freeze_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\n(1..3).freeze(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 8]}
+  },
+  {
+    "name": "lifecycle_range_freeze_wrapped",
+    "source": "\ndef run(input: any)\n((1..3).freeze rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 9]}
+  },
+  {
+    "name": "lifecycle_range_frozen?_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\n(1..3).frozen?(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 8]}
+  },
+  {
+    "name": "lifecycle_range_frozen?_block",
+    "source": "\ndef run(input: any) -> string\nbegin\n(1..3).frozen? {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 8]}
+  },
+  {
+    "name": "lifecycle_range_frozen?_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\n(1..3).frozen?(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 8]}
+  },
+  {
+    "name": "lifecycle_range_frozen?_wrapped",
+    "source": "\ndef run(input: any) -> bool\n((1..3).frozen? rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 9]}
+  },
+  {
+    "name": "lifecycle_regex_freeze_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\n/a/.freeze(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 5]}
+  },
+  {
+    "name": "lifecycle_regex_freeze_block",
+    "source": "\ndef run(input: any) -> string\nbegin\n/a/.freeze {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 5]}
+  },
+  {
+    "name": "lifecycle_regex_freeze_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\n/a/.freeze(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 5]}
+  },
+  {
+    "name": "lifecycle_regex_freeze_wrapped",
+    "source": "\ndef run(input: any)\n(/a/.freeze rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 6]}
+  },
+  {
+    "name": "lifecycle_regex_frozen?_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\n/a/.frozen?(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 5]}
+  },
+  {
+    "name": "lifecycle_regex_frozen?_block",
+    "source": "\ndef run(input: any) -> string\nbegin\n/a/.frozen? {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 5]}
+  },
+  {
+    "name": "lifecycle_regex_frozen?_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\n/a/.frozen?(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 5]}
+  },
+  {
+    "name": "lifecycle_regex_frozen?_wrapped",
+    "source": "\ndef run(input: any) -> bool\n(/a/.frozen? rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 6]}
+  },
+  {
+    "name": "lifecycle_shape_freeze_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\n{a: String}.freeze(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 13]}
+  },
+  {
+    "name": "lifecycle_shape_freeze_block",
+    "source": "\ndef run(input: any) -> string\nbegin\n{a: String}.freeze {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 13]}
+  },
+  {
+    "name": "lifecycle_shape_freeze_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\n{a: String}.freeze(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 13]}
+  },
+  {
+    "name": "lifecycle_shape_freeze_wrapped",
+    "source": "\ndef run(input: any)\n({a: String}.freeze rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 14]}
+  },
+  {
+    "name": "lifecycle_shape_frozen?_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\n{a: String}.frozen?(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 13]}
+  },
+  {
+    "name": "lifecycle_shape_frozen?_block",
+    "source": "\ndef run(input: any) -> string\nbegin\n{a: String}.frozen? {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 13]}
+  },
+  {
+    "name": "lifecycle_shape_frozen?_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\n{a: String}.frozen?(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 13]}
+  },
+  {
+    "name": "lifecycle_shape_frozen?_wrapped",
+    "source": "\ndef run(input: any) -> bool\n({a: String}.frozen? rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 14]}
+  },
+  {
+    "name": "lifecycle_string_freeze_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\n\"abc\".freeze(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 7]}
+  },
+  {
+    "name": "lifecycle_string_freeze_block",
+    "source": "\ndef run(input: any) -> string\nbegin\n\"abc\".freeze {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 7]}
+  },
+  {
+    "name": "lifecycle_string_freeze_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\n\"abc\".freeze(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 7]}
+  },
+  {
+    "name": "lifecycle_string_freeze_wrapped",
+    "source": "\ndef run(input: any)\n(\"abc\".freeze rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 8]}
+  },
+  {
+    "name": "lifecycle_string_frozen?_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\n\"abc\".frozen?(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 7]}
+  },
+  {
+    "name": "lifecycle_string_frozen?_block",
+    "source": "\ndef run(input: any) -> string\nbegin\n\"abc\".frozen? {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 7]}
+  },
+  {
+    "name": "lifecycle_string_frozen?_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\n\"abc\".frozen?(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 7]}
+  },
+  {
+    "name": "lifecycle_string_frozen?_wrapped",
+    "source": "\ndef run(input: any) -> bool\n(\"abc\".frozen? rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 8]}
+  },
+  {
+    "name": "lifecycle_symbol_freeze_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\n:s.freeze(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 4]}
+  },
+  {
+    "name": "lifecycle_symbol_freeze_block",
+    "source": "\ndef run(input: any) -> string\nbegin\n:s.freeze {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 4]}
+  },
+  {
+    "name": "lifecycle_symbol_freeze_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\n:s.freeze(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 4]}
+  },
+  {
+    "name": "lifecycle_symbol_freeze_wrapped",
+    "source": "\ndef run(input: any)\n(:s.freeze rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 5]}
+  },
+  {
+    "name": "lifecycle_symbol_frozen?_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\n:s.frozen?(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 4]}
+  },
+  {
+    "name": "lifecycle_symbol_frozen?_block",
+    "source": "\ndef run(input: any) -> string\nbegin\n:s.frozen? {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 4]}
+  },
+  {
+    "name": "lifecycle_symbol_frozen?_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\n:s.frozen?(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 4]}
+  },
+  {
+    "name": "lifecycle_symbol_frozen?_wrapped",
+    "source": "\ndef run(input: any) -> bool\n(:s.frozen? rescue nil)()\nend\n",
+    "static_error": {"code": "V0401", "at": [3, 5]}
+  },
+  {
+    "name": "lifecycle_time_freeze_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\nTime.at(0).utc.freeze(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 16]}
+  },
+  {
+    "name": "lifecycle_time_freeze_block",
+    "source": "\ndef run(input: any) -> string\nbegin\nTime.at(0).utc.freeze {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 16]}
+  },
+  {
+    "name": "lifecycle_time_freeze_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\nTime.at(0).utc.freeze(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 16]}
+  },
+  {
+    "name": "lifecycle_time_frozen?_argument",
+    "source": "\ndef run(input: any) -> string\nbegin\nTime.at(0).utc.frozen?(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 16]}
+  },
+  {
+    "name": "lifecycle_time_frozen?_block",
+    "source": "\ndef run(input: any) -> string\nbegin\nTime.at(0).utc.frozen? {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 16]}
+  },
+  {
+    "name": "lifecycle_time_frozen?_keywords",
+    "source": "\ndef run(input: any) -> string\nbegin\nTime.at(0).utc.frozen?(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [4, 16]}
+  },
+  {
+    "name": "numeric_members_signature_4058",
+    "source": "def run(input: any) -> int\n(1).modulo(2,flag:1)\nend\n",
+    "static_error": {"code": "V0401", "at": [2, 5]}
+  },
+  {
+    "name": "numeric_members_signature_4059",
+    "source": "def run(input: any) -> int\n(1).modulo(2) { 7 }\nend\n",
+    "static_error": {"code": "V0401", "at": [2, 5]}
+  },
+  {
+    "name": "numeric_members_signature_4158",
+    "source": "def run(input: any) -> float\n(1.5).modulo(2,flag:1)\nend\n",
+    "static_error": {"code": "V0401", "at": [2, 7]}
+  },
+  {
+    "name": "numeric_members_signature_4159",
+    "source": "def run(input: any) -> float\n(1.5).modulo(2) { 7 }\nend\n",
+    "static_error": {"code": "V0401", "at": [2, 7]}
+  },
+  {
+    "name": "numeric_members_signature_4258",
+    "source": "def run(input: any) -> int\n((2**100)).modulo(2,flag:1)\nend\n",
+    "static_error": {"code": "V0401", "at": [2, 12]}
+  },
+  {
+    "name": "numeric_members_signature_4259",
+    "source": "def run(input: any) -> int\n((2**100)).modulo(2) { 7 }\nend\n",
+    "static_error": {"code": "V0401", "at": [2, 12]}
+  },
+  {
+    "name": "output_guard_p_freeze_effect",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> array<string>\nbegin\np.freeze(print(\"effect\")) {print(\"block\")}\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "656666656374",
+    "stderr_hex": "",
+    "static_error": {"code": "V0401", "at": [8, 3]}
+  },
+  {
+    "name": "output_guard_p_itself_effect",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> array<string>\nbegin\np.itself(print(\"effect\")) {print(\"block\")}\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "656666656374",
+    "stderr_hex": "",
+    "static_error": {"code": "V0404", "at": [8, 3]}
+  },
+  {
+    "name": "output_guard_print_freeze_effect",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> array<string>\nbegin\nprint.freeze(print(\"effect\")) {print(\"block\")}\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "656666656374",
+    "stderr_hex": "",
+    "static_error": {"code": "V0401", "at": [8, 7]}
+  },
+  {
+    "name": "output_guard_print_itself_effect",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> array<string>\nbegin\nprint.itself(print(\"effect\")) {print(\"block\")}\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "656666656374",
+    "stderr_hex": "",
+    "static_error": {"code": "V0404", "at": [8, 7]}
+  },
+  {
+    "name": "output_guard_puts_freeze_effect",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> array<string>\nbegin\nputs.freeze(print(\"effect\")) {print(\"block\")}\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "0a656666656374",
+    "stderr_hex": "",
+    "static_error": {"code": "V0401", "at": [8, 6]}
+  },
+  {
+    "name": "output_guard_puts_itself_effect",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> array<string>\nbegin\nputs.itself(print(\"effect\")) {print(\"block\")}\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "0a656666656374",
+    "stderr_hex": "",
+    "static_error": {"code": "V0404", "at": [8, 6]}
+  },
+  {
+    "name": "output_guard_random_id_itself",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> string\nbegin\nrandom_id.itself(print(\"effect\"))\nrescue RuntimeError=>e\ne.class\nend\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "656666656374",
+    "stderr_hex": "",
+    "static_error": {"code": "V0404", "at": [8, 11]}
+  },
+  {
+    "name": "output_guard_warn_freeze_effect",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> array<string>\nbegin\nwarn.freeze(print(\"effect\")) {print(\"block\")}\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "656666656374",
+    "stderr_hex": "",
+    "static_error": {"code": "V0401", "at": [8, 6]}
+  },
+  {
+    "name": "output_guard_warn_itself_effect",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> array<string>\nbegin\nwarn.itself(print(\"effect\")) {print(\"block\")}\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "656666656374",
+    "stderr_hex": "",
+    "static_error": {"code": "V0404", "at": [8, 6]}
+  },
+  {
+    "name": "string_surface_clear_block",
+    "source": "def run(input: any) -> array<bool | string>\ns=\" a1 b2 \";r=s.clear {7};[r == nil,\"#{r}\"]\nend\n",
+    "static_error": {"code": "V0401", "at": [2, 17]}
+  },
+  {
+    "name": "string_surface_clear_keyword",
+    "source": "def run(input: any) -> array<bool | string>\ns=\" a1 b2 \";r=s.clear(extra:1);[r == nil,\"#{r}\"]\nend\n",
+    "static_error": {"code": "V0401", "at": [2, 17]}
+  },
+  {
+    "name": "string_surface_clear_regex_keyword",
+    "source": "def run(input: any) -> array<bool | string>\ns=\" a1 b2 \";r=s.clear(regex:true);[r == nil,\"#{r}\"]\nend\n",
+    "static_error": {"code": "V0401", "at": [2, 17]}
+  },
+  {
+    "name": "introspection_edge_contracts_instance_of?_240",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.new.instance_of?\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 7]}
+  },
+  {
+    "name": "introspection_edge_contracts_instance_of?_241",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.new.instance_of?\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 7]}
+  },
+  {
+    "name": "introspection_edge_contracts_instance_of?_243",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.new.instance_of?(1,2,3)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 7]}
+  },
+  {
+    "name": "introspection_edge_contracts_instance_of?_244",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.new.instance_of?(x:1)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 7]}
+  },
+  {
+    "name": "introspection_edge_contracts_instance_of?_245",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.new.instance_of?(1) {raise \"entered\"}\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 7]}
+  },
+  {
+    "name": "introspection_edge_contracts_is_a?_108",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.new.is_a?\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 7]}
+  },
+  {
+    "name": "introspection_edge_contracts_is_a?_109",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.new.is_a?\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 7]}
+  },
+  {
+    "name": "introspection_edge_contracts_is_a?_111",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.new.is_a?(1,2,3)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 7]}
+  },
+  {
+    "name": "introspection_edge_contracts_is_a?_112",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.new.is_a?(x:1)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 7]}
+  },
+  {
+    "name": "introspection_edge_contracts_is_a?_113",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.new.is_a?(1) {raise \"entered\"}\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 7]}
+  },
+  {
+    "name": "introspection_edge_contracts_kind_of?_174",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.new.kind_of?\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 7]}
+  },
+  {
+    "name": "introspection_edge_contracts_kind_of?_175",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.new.kind_of?\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 7]}
+  },
+  {
+    "name": "introspection_edge_contracts_kind_of?_177",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.new.kind_of?(1,2,3)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 7]}
+  },
+  {
+    "name": "introspection_edge_contracts_kind_of?_178",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.new.kind_of?(x:1)\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 7]}
+  },
+  {
+    "name": "introspection_edge_contracts_kind_of?_179",
+    "source": "class C\nend\nmodule M\nend\n\ndef run(input: any) -> array<string>\nbegin\nC.new.kind_of?(1) {raise \"entered\"}\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [8, 7]}
+  },
+  {
+    "name": "introspection_wrapping_class_direct",
+    "source": "class C\nend\ndef run(input: any) -> array<string> | bool\nbegin\n(C.new.is_a?)(C)\nrescue=>e\n[e.class,e.message]\nend\nend\n",
+    "function": "run",
+    "args": [null],
+    "accounting": true,
+    "static_error": {"code": "V0401", "at": [5, 8]}
+  },
+  {
+    "name": "lifecycle_instance_freeze_argument",
+    "source": "class C\nend\ndef run(input: any) -> string\nbegin\nC.new.freeze(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [5, 7]}
+  },
+  {
+    "name": "lifecycle_instance_freeze_block",
+    "source": "class C\nend\ndef run(input: any) -> string\nbegin\nC.new.freeze {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [5, 7]}
+  },
+  {
+    "name": "lifecycle_instance_freeze_keywords",
+    "source": "class C\nend\ndef run(input: any) -> string\nbegin\nC.new.freeze(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [5, 7]}
+  },
+  {
+    "name": "lifecycle_instance_frozen?_argument",
+    "source": "class C\nend\ndef run(input: any) -> string\nbegin\nC.new.frozen?(1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [5, 7]}
+  },
+  {
+    "name": "lifecycle_instance_frozen?_block",
+    "source": "class C\nend\ndef run(input: any) -> string\nbegin\nC.new.frozen? {1}\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [5, 7]}
+  },
+  {
+    "name": "lifecycle_instance_frozen?_keywords",
+    "source": "class C\nend\ndef run(input: any) -> string\nbegin\nC.new.frozen?(a:1)\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {"code": "V0401", "at": [5, 7]}
+  },
+  {
+    "name": "output_guard_p_freeze_safe",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any)\nbegin\np&.freeze(print(\"effect\"))\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "static_error": {"code": "V0401", "at": [8, 4]}
+  },
+  {
+    "name": "output_guard_p_freeze_safe_uncaught",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> nil\np&.freeze(print(\"effect\"))\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "static_error": {"code": "V0401", "at": [7, 4]}
+  },
+  {
+    "name": "output_guard_p_itself_safe",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any)\nbegin\np&.itself(print(\"effect\"))\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "static_error": {"code": "V0404", "at": [8, 4]}
+  },
+  {
+    "name": "output_guard_p_itself_safe_uncaught",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> nil\np&.itself(print(\"effect\"))\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "static_error": {"code": "V0404", "at": [7, 4]}
+  },
+  {
+    "name": "output_guard_print_freeze_safe",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any)\nbegin\nprint&.freeze(print(\"effect\"))\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "static_error": {"code": "V0401", "at": [8, 8]}
+  },
+  {
+    "name": "output_guard_print_freeze_safe_uncaught",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> nil\nprint&.freeze(print(\"effect\"))\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "static_error": {"code": "V0401", "at": [7, 8]}
+  },
+  {
+    "name": "output_guard_print_itself_safe",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any)\nbegin\nprint&.itself(print(\"effect\"))\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "static_error": {"code": "V0404", "at": [8, 8]}
+  },
+  {
+    "name": "output_guard_print_itself_safe_uncaught",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> nil\nprint&.itself(print(\"effect\"))\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "static_error": {"code": "V0404", "at": [7, 8]}
+  },
+  {
+    "name": "output_guard_puts_freeze_safe",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any)\nbegin\nputs&.freeze(print(\"effect\"))\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "0a",
+    "stderr_hex": "",
+    "static_error": {"code": "V0401", "at": [8, 7]}
+  },
+  {
+    "name": "output_guard_puts_freeze_safe_uncaught",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> nil\nputs&.freeze(print(\"effect\"))\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "0a",
+    "stderr_hex": "",
+    "static_error": {"code": "V0401", "at": [7, 7]}
+  },
+  {
+    "name": "output_guard_puts_itself_safe",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any)\nbegin\nputs&.itself(print(\"effect\"))\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "0a",
+    "stderr_hex": "",
+    "static_error": {"code": "V0404", "at": [8, 7]}
+  },
+  {
+    "name": "output_guard_puts_itself_safe_uncaught",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> nil\nputs&.itself(print(\"effect\"))\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "0a",
+    "stderr_hex": "",
+    "static_error": {"code": "V0404", "at": [7, 7]}
+  },
+  {
+    "name": "output_guard_warn_freeze_safe",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any)\nbegin\nwarn&.freeze(print(\"effect\"))\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "static_error": {"code": "V0401", "at": [8, 7]}
+  },
+  {
+    "name": "output_guard_warn_freeze_safe_uncaught",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> nil\nwarn&.freeze(print(\"effect\"))\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "static_error": {"code": "V0401", "at": [7, 7]}
+  },
+  {
+    "name": "output_guard_warn_itself_safe",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any)\nbegin\nwarn&.itself(print(\"effect\"))\nrescue RuntimeError=>e\n[e.class,e.message]\nend\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "static_error": {"code": "V0404", "at": [8, 7]}
+  },
+  {
+    "name": "output_guard_warn_itself_safe_uncaught",
+    "source": "class C\ndef to_s -> string\n\"custom\"\nend\nend\ndef run(input: any) -> nil\nwarn&.itself(print(\"effect\"))\nend\n",
+    "stdout": true,
+    "stderr": true,
+    "stdout_hex": "",
+    "stderr_hex": "",
+    "static_error": {"code": "V0404", "at": [7, 7]}
   }
 ]

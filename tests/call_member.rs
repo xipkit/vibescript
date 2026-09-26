@@ -43,7 +43,6 @@ fn invalid_call_members_stop_before_arguments_and_blocks() {
         ("[]", "V0203"),
         ("7", "V0203"),
         ("Math[\"sqrt\"]", "V0112"),
-        ("Regexp[\"last_match\"]", "V0106"),
     ] {
         for suffix in [
             ".call(mark(1))",

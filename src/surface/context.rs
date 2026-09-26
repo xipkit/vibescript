@@ -107,9 +107,6 @@ pub struct Surface<'a> {
     pub operator_rewrites: HashSet<Span>,
     /// The offsets of every `&&` and `||`, where they test their left operand.
     pub short_circuits: HashSet<usize>,
-    /// How many computed callees enclose the walk: `(x.m rescue y)()` calls
-    /// what `x.m` evaluates to, so its call forms stay exactly as written.
-    pub frozen: usize,
     /// The source range of every function.
     pub def_ranges: Vec<std::ops::Range<usize>>,
     /// Each removed spelling the walk rewrote, whose edits form a group.
@@ -132,7 +129,6 @@ impl<'a> Surface<'a> {
             scopes: Vec::new(),
             operator_rewrites: HashSet::new(),
             short_circuits: HashSet::new(),
-            frozen: 0,
             def_ranges: Vec::new(),
             rewrites: Vec::new(),
             words: HashMap::new(),

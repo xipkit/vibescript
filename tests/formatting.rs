@@ -191,7 +191,7 @@ fn formatting_helpers_cannot_escape_through_member_calls() {
     engine.register("effect", |_, _| panic!("effect ran"));
     for (tail, expected) in [
         (".call(effect())", &["V0301", "V0203"][..]),
-        (".itself(effect())", &["V0301"]),
+        (".itself(effect())", &["V0301", "V0404"]),
         (".send(:itself,effect())", &["V0301", "V0405"]),
         ("&.public_send(:dup,effect())", &["V0301", "V0405"]),
     ] {

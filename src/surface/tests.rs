@@ -866,3 +866,39 @@ fn the_rules_parser_reads_safe_reads_in_selectors_and_receivers() {
         super::parse::parse(source).unwrap_or_else(|error| panic!("{source}: {error:?}"));
     }
 }
+
+#[test]
+fn removed_spellings_are_reported_however_they_are_written() {
+    for (source, code) in [
+        ("x = \"a\".itself(1)\n", Code::IDENTITY_CALL),
+        ("x = [1].frozen?(1)\n", Code::REMOVED_NAME),
+        (
+            "x = Status.itself(*[])\nenum Status\n  A\nend\n",
+            Code::IDENTITY_CALL,
+        ),
+        ("x = Math.nil?\n", Code::NIL_PREDICATE),
+        ("x = (1.eql?)(1)\n", Code::IDENTITY_EQUALITY),
+        ("x = (\"abc\".itself rescue 1)()\n", Code::IDENTITY_CALL),
+        ("x = sprintf\n", Code::REMOVED_NAME),
+        ("x = (sprintf).to_s\n", Code::REMOVED_NAME),
+        ("x = Regexp\n", Code::REMOVED_NAME),
+        ("x = Hash\n", Code::HASH_NEW),
+        ("class C\nend\nx = C.new.is_a?\n", Code::REMOVED_NAME),
+        ("r = /a/\nx = \"#{r.nil? { 7 }}\"\n", Code::NIL_PREDICATE),
+    ] {
+        let found = checked(source, code);
+        assert_eq!(found.len(), 1, "{source:?}: {found:?}");
+    }
+    // A class's own method of a removed name is its own.
+    let source = "class C\n  def is_a? -> bool\n    true\n  end\nend\nx = C.new.is_a?\n";
+    assert!(checked(source, Code::REMOVED_NAME).is_empty());
+    // Their canonical spellings are left alone.
+    for source in [
+        "x = Time.now\n",
+        "r = Regex.new(\"a\")\n",
+        "x = format(\"%d\", 1)\n",
+    ] {
+        let diagnostics = Engine::new().type_check(source).unwrap().diagnostics;
+        assert!(diagnostics.is_empty(), "{source:?}: {diagnostics:?}");
+    }
+}

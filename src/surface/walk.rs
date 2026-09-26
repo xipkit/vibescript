@@ -4,7 +4,7 @@
 use super::{
     Access, Rule,
     checker::Checker,
-    context::{Place, Scope, collect_expr, collect_locals, collect_rescued},
+    context::{Place, Scope, collect_expr, collect_locals, collect_rescued, namespace_name},
     syntax::*,
 };
 
@@ -89,11 +89,9 @@ impl<'a> Checker<'a> {
                 }
                 ExprKind::Call(call) => {
                     if let Some(receiver) = &call.receiver {
-                        self.expr(receiver, Place::Tight);
+                        self.walk_receiver(receiver);
                     }
-                    if self.frozen == 0 {
-                        self.field_access(expr, call, access);
-                    }
+                    self.field_access(expr, call, access);
                 }
                 _ => (),
             },
@@ -312,9 +310,7 @@ impl<'a> Checker<'a> {
             }
             ExprKind::Call(call) => self.call(expr, call, place),
             ExprKind::Computed(callee, args) => {
-                self.frozen += 1;
                 self.expr(callee, Place::Tight);
-                self.frozen -= 1;
                 self.args(args);
             }
             ExprKind::BlockCall(callee, block) => {
@@ -383,7 +379,7 @@ impl<'a> Checker<'a> {
     /// Walks a named call, then applies the call rules to it.
     pub(super) fn call(&mut self, expr: &'a Expr, call: &'a Call, place: Place) {
         if let Some(receiver) = &call.receiver {
-            self.expr(receiver, Place::Tight);
+            self.walk_receiver(receiver);
         }
         if let Some(args) = &call.args {
             self.args(args);
@@ -409,9 +405,6 @@ impl<'a> Checker<'a> {
                 .unwrap_or(self.token_span(call.name_tok).end);
             self.block(block, Some(call), end);
         }
-        if self.frozen > 0 {
-            return;
-        }
         if self.field_access(expr, call, Access::Read) || self.rename(expr, call, place) {
             return;
         }
@@ -420,6 +413,17 @@ impl<'a> Checker<'a> {
         self.dispatch(expr, call);
         self.hash_new(expr, call, place);
         self.require(call);
+    }
+
+    /// Walks a call's receiver. A builtin namespace, such as `Regexp` in
+    /// `Regexp.new`, is left to the rules for its member.
+    pub(super) fn walk_receiver(&mut self, receiver: &'a Expr) {
+        if let ExprKind::Name(name) = &receiver.kind
+            && namespace_name(name)
+        {
+            return;
+        }
+        self.expr(receiver, Place::Tight);
     }
 
     /// Walks a block, then converts it to braces when written `do ... end`.

@@ -204,7 +204,7 @@
         "Hash.new is a method and cannot be used as a value; call it directly"
       ],
       "static_error": {
-        "code": "V0106",
+        "code": "V0411",
         "at": [
           4,
           8

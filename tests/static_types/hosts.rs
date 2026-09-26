@@ -73,8 +73,12 @@ fn an_undeclared_bare_name_is_an_error() {
         "V0201",
         "declares no global",
     );
-    // A removed namespace is left to its removed-spelling diagnostics.
-    super::support::clean("def run -> any\n  Regexp\nend\n");
+    // A removed namespace is reported as removed.
+    error(
+        "def run -> any\n  Regexp\nend\n",
+        "V0401",
+        "`Regexp` was removed",
+    );
 }
 
 #[test]
