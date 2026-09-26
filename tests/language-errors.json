@@ -55,7 +55,14 @@
   {
     "name": "hash_to_s",
     "source": "def run(input: any) -> string\n{}.to_s\nend\n",
-    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)"
+    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        2,
+        4
+      ]
+    }
   },
   {
     "name": "array_to_a",
@@ -72,7 +79,14 @@
   {
     "name": "string_bracket_selector",
     "source": "def run(input: any) -> string?\n\"abc\"[\"a\"]\nend\n",
-    "go_error": "index must be integer"
+    "go_error": "index must be integer",
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        2,
+        7
+      ]
+    }
   },
   {
     "name": "negative_take",
@@ -11080,7 +11094,14 @@
   {
     "name": "builtins_lookup_8",
     "source": "def run(input: any) -> string\nMath.to_s\nend\n",
-    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)"
+    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        2,
+        6
+      ]
+    }
   },
   {
     "name": "builtins_lookup_9",
@@ -11147,7 +11168,14 @@
   {
     "name": "builtins_lookup_31",
     "source": "def run(input: any) -> string\nJSON.to_s\nend\n",
-    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)"
+    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        2,
+        6
+      ]
+    }
   },
   {
     "name": "builtins_lookup_33",
@@ -11186,7 +11214,13 @@
     "name": "builtins_lookup_47",
     "source": "def value_to_encode(input: any) -> hash<string, any>\nMath ||= 7;Math\nend\ndef run(input: nil?) -> string\nJSON.stringify(value_to_encode(input))\nend\n",
     "go_error": "JSON.stringify key \"acos\": JSON.stringify unsupported value type builtin",
-    "static_error": {"code": "V0104", "at": [2, 1]}
+    "static_error": {
+      "code": "V0102",
+      "at": [
+        2,
+        1
+      ]
+    }
   },
   {
     "name": "builtins_lookup_53",
@@ -11228,7 +11262,13 @@
     "name": "builtins_lookup_62",
     "source": "def value_to_encode(input: any) -> { parse: any, parse_as: any, stringify: any }\nJSON ||= 7;JSON\nend\ndef run(input: nil?) -> string\nJSON.stringify(value_to_encode(input))\nend\n",
     "go_error": "JSON.stringify key \"parse\": JSON.stringify unsupported value type builtin",
-    "static_error": {"code": "V0104", "at": [2, 1]}
+    "static_error": {
+      "code": "V0102",
+      "at": [
+        2,
+        1
+      ]
+    }
   },
   {
     "name": "builtins_lookup_68",
@@ -11312,7 +11352,13 @@
     "name": "builtins_lookup_115",
     "source": "def run(input: any) -> array<int>\n[1].each {Math ||= 7;Math.PI}\nend\n",
     "go_error": "unknown int method PI",
-    "static_error": {"code": "V0104", "at": [2, 11]}
+    "static_error": {
+      "code": "V0102",
+      "at": [
+        2,
+        11
+      ]
+    }
   },
   {
     "name": "builtins_lookup_118",
@@ -22224,7 +22270,14 @@
   {
     "name": "duration_members_4490",
     "source": "def run(input: any) -> string\nd=Duration.build(seconds: 0);v=d.parts;v.to_s\nend\n",
-    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)"
+    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        2,
+        42
+      ]
+    }
   },
   {
     "name": "duration_members_4492",
@@ -22841,7 +22894,14 @@
   {
     "name": "duration_members_4645",
     "source": "def run(input: any) -> string\nd=Duration.build(seconds: 1);v=d.parts;v.to_s\nend\n",
-    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)"
+    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        2,
+        42
+      ]
+    }
   },
   {
     "name": "duration_members_4647",
@@ -23452,7 +23512,14 @@
   {
     "name": "duration_members_4800",
     "source": "def run(input: any) -> string\nd=Duration.build(seconds: -1);v=d.parts;v.to_s\nend\n",
-    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)"
+    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        2,
+        43
+      ]
+    }
   },
   {
     "name": "duration_members_4802",
@@ -24063,7 +24130,14 @@
   {
     "name": "duration_members_4955",
     "source": "def run(input: any) -> string\nd=Duration.build(seconds: 90061);v=d.parts;v.to_s\nend\n",
-    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)"
+    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        2,
+        46
+      ]
+    }
   },
   {
     "name": "duration_members_4957",
@@ -24674,7 +24748,14 @@
   {
     "name": "duration_members_5110",
     "source": "def run(input: any) -> string\nd=Duration.build(seconds: -90061);v=d.parts;v.to_s\nend\n",
-    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)"
+    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        2,
+        47
+      ]
+    }
   },
   {
     "name": "duration_members_5112",
@@ -25285,7 +25366,14 @@
   {
     "name": "duration_members_5265",
     "source": "def run(input: any) -> string\nd=Duration.build(seconds: 9223372036854775807);v=d.parts;v.to_s\nend\n",
-    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)"
+    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        2,
+        60
+      ]
+    }
   },
   {
     "name": "duration_members_5267",
@@ -25896,7 +25984,14 @@
   {
     "name": "duration_members_5420",
     "source": "def run(input: any) -> string\nd=Duration.build(seconds: -9223372036854775808);v=d.parts;v.to_s\nend\n",
-    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)"
+    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        2,
+        61
+      ]
+    }
   },
   {
     "name": "duration_members_5422",
@@ -71710,7 +71805,14 @@
   {
     "name": "enums_call_4",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nStatus::Draft::name\nend\n",
-    "go_error": "scoped member access is only supported on enums and namespaces"
+    "go_error": "scoped member access is only supported on enums and namespaces",
+    "static_error": {
+      "code": "V0416",
+      "at": [
+        10,
+        14
+      ]
+    }
   },
   {
     "name": "enums_call_5",
@@ -71738,7 +71840,14 @@
   {
     "name": "enums_call_9",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nStatus::Draft::name()\nend\n",
-    "go_error": "scoped member access is only supported on enums and namespaces"
+    "go_error": "scoped member access is only supported on enums and namespaces",
+    "static_error": {
+      "code": "V0416",
+      "at": [
+        10,
+        14
+      ]
+    }
   },
   {
     "name": "enums_call_10",
@@ -71768,7 +71877,13 @@
     "name": "enums_call_14",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nStatus::Draft::name(1)\nend\n",
     "go_error": "scoped member access is only supported on enums and namespaces",
-    "static_error": {"code": "V0301", "at": [10, 16]}
+    "static_error": {
+      "code": "V0416",
+      "at": [
+        10,
+        14
+      ]
+    }
   },
   {
     "name": "enums_call_15",
@@ -71798,7 +71913,13 @@
     "name": "enums_call_19",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nStatus::Draft::name(bad:1)\nend\n",
     "go_error": "scoped member access is only supported on enums and namespaces",
-    "static_error": {"code": "V0302", "at": [10, 21]}
+    "static_error": {
+      "code": "V0416",
+      "at": [
+        10,
+        14
+      ]
+    }
   },
   {
     "name": "enums_call_22",
@@ -71815,7 +71936,14 @@
   {
     "name": "enums_call_24",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nStatus::Draft::name\nend\n",
-    "go_error": "scoped member access is only supported on enums and namespaces"
+    "go_error": "scoped member access is only supported on enums and namespaces",
+    "static_error": {
+      "code": "V0416",
+      "at": [
+        10,
+        14
+      ]
+    }
   },
   {
     "name": "enums_call_25",
@@ -71845,7 +71973,13 @@
     "name": "enums_call_29",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nStatus::Draft::name(1//0)\nend\n",
     "go_error": "scoped member access is only supported on enums and namespaces",
-    "static_error": {"code": "V0301", "at": [10, 16]}
+    "static_error": {
+      "code": "V0416",
+      "at": [
+        10,
+        14
+      ]
+    }
   },
   {
     "name": "enums_call_30",
@@ -71875,7 +72009,13 @@
     "name": "enums_call_34",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nStatus::Draft::name(1//0){0}\nend\n",
     "go_error": "scoped member access is only supported on enums and namespaces",
-    "static_error": {"code": "V0301", "at": [10, 16]}
+    "static_error": {
+      "code": "V0416",
+      "at": [
+        10,
+        14
+      ]
+    }
   },
   {
     "name": "enums_call_35",
@@ -71903,7 +72043,14 @@
   {
     "name": "enums_call_39",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nStatus::Draft::name(*[])\nend\n",
-    "go_error": "scoped member access is only supported on enums and namespaces"
+    "go_error": "scoped member access is only supported on enums and namespaces",
+    "static_error": {
+      "code": "V0416",
+      "at": [
+        10,
+        14
+      ]
+    }
   },
   {
     "name": "enums_call_40",
@@ -71931,7 +72078,14 @@
   {
     "name": "enums_call_44",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nStatus::Draft::name(**{})\nend\n",
-    "go_error": "scoped member access is only supported on enums and namespaces"
+    "go_error": "scoped member access is only supported on enums and namespaces",
+    "static_error": {
+      "code": "V0416",
+      "at": [
+        10,
+        14
+      ]
+    }
   },
   {
     "name": "enums_binding_2",
@@ -89541,12 +89695,26 @@
   {
     "name": "shapes_methods_0",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={name:string};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        36
+      ]
+    }
   },
   {
     "name": "shapes_methods_1",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={name:string};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        36
+      ]
+    }
   },
   {
     "name": "shapes_methods_2",
@@ -89586,12 +89754,26 @@
   {
     "name": "shapes_methods_8",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={age:int,name:string};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        44
+      ]
+    }
   },
   {
     "name": "shapes_methods_9",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={age:int,name:string};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        44
+      ]
+    }
   },
   {
     "name": "shapes_methods_10",
@@ -89631,12 +89813,26 @@
   {
     "name": "shapes_methods_16",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={name:string,age:int};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        44
+      ]
+    }
   },
   {
     "name": "shapes_methods_17",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={name:string,age:int};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        44
+      ]
+    }
   },
   {
     "name": "shapes_methods_18",
@@ -89676,12 +89872,26 @@
   {
     "name": "shapes_methods_24",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={name?:string};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        37
+      ]
+    }
   },
   {
     "name": "shapes_methods_25",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={name?:string};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        37
+      ]
+    }
   },
   {
     "name": "shapes_methods_26",
@@ -89721,12 +89931,26 @@
   {
     "name": "shapes_methods_32",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={\"name?\":string};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        39
+      ]
+    }
   },
   {
     "name": "shapes_methods_33",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={\"name?\":string};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        39
+      ]
+    }
   },
   {
     "name": "shapes_methods_34",
@@ -89766,12 +89990,26 @@
   {
     "name": "shapes_methods_40",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:int | string};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        39
+      ]
+    }
   },
   {
     "name": "shapes_methods_41",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:int | string};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        39
+      ]
+    }
   },
   {
     "name": "shapes_methods_42",
@@ -89811,12 +90049,26 @@
   {
     "name": "shapes_methods_48",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:string | int};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        39
+      ]
+    }
   },
   {
     "name": "shapes_methods_49",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:string | int};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        39
+      ]
+    }
   },
   {
     "name": "shapes_methods_50",
@@ -89856,12 +90108,26 @@
   {
     "name": "shapes_methods_56",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:hash<string,int>};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        43
+      ]
+    }
   },
   {
     "name": "shapes_methods_57",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:hash<string,int>};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        43
+      ]
+    }
   },
   {
     "name": "shapes_methods_58",
@@ -89901,12 +90167,26 @@
   {
     "name": "shapes_methods_64",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:object<string,int>};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        45
+      ]
+    }
   },
   {
     "name": "shapes_methods_65",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:object<string,int>};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        45
+      ]
+    }
   },
   {
     "name": "shapes_methods_66",
@@ -89946,12 +90226,26 @@
   {
     "name": "shapes_methods_72",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={...};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        28
+      ]
+    }
   },
   {
     "name": "shapes_methods_73",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={...};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        28
+      ]
+    }
   },
   {
     "name": "shapes_methods_74",
@@ -89991,12 +90285,26 @@
   {
     "name": "shapes_methods_80",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:nil,...};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        34
+      ]
+    }
   },
   {
     "name": "shapes_methods_81",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:nil,...};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        34
+      ]
+    }
   },
   {
     "name": "shapes_methods_82",
@@ -90036,12 +90344,26 @@
   {
     "name": "shapes_methods_88",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:{},...};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        33
+      ]
+    }
   },
   {
     "name": "shapes_methods_89",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:{},...};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        33
+      ]
+    }
   },
   {
     "name": "shapes_methods_90",
@@ -90081,12 +90403,26 @@
   {
     "name": "shapes_methods_96",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:{...}};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        32
+      ]
+    }
   },
   {
     "name": "shapes_methods_97",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:{...}};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        32
+      ]
+    }
   },
   {
     "name": "shapes_methods_98",
@@ -90126,12 +90462,26 @@
   {
     "name": "shapes_methods_104",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:INT};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        30
+      ]
+    }
   },
   {
     "name": "shapes_methods_105",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:INT};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        30
+      ]
+    }
   },
   {
     "name": "shapes_methods_106",
@@ -90171,12 +90521,26 @@
   {
     "name": "shapes_methods_112",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:int?};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        31
+      ]
+    }
   },
   {
     "name": "shapes_methods_113",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:int?};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        31
+      ]
+    }
   },
   {
     "name": "shapes_methods_114",
@@ -90216,12 +90580,26 @@
   {
     "name": "shapes_methods_120",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:int ?};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        32
+      ]
+    }
   },
   {
     "name": "shapes_methods_121",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:int ?};render(schema.to_s)\nend\n",
-    "go_error": "unsupported member access on shape"
+    "go_error": "unsupported member access on shape",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        32
+      ]
+    }
   },
   {
     "name": "shapes_methods_122",
@@ -90261,7 +90639,14 @@
   {
     "name": "shapes_methods_128",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x: :int};render(schema.to_s)\nend\n",
-    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)"
+    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        32
+      ]
+    }
   },
   {
     "name": "shapes_method_arguments_65",
@@ -90361,12 +90746,26 @@
   {
     "name": "shapes_methods_144",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:money};render(schema.to_s)\nend\n",
-    "go_error": "money is a method and cannot be used as a value; call it with money(...)"
+    "go_error": "money is a method and cannot be used as a value; call it with money(...)",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        32
+      ]
+    }
   },
   {
     "name": "shapes_methods_145",
     "source": "def render(x: string) -> string\n\"#{x}\"\nend\ndef identity(x: any) -> any\nx\nend\n\ndef run(input: any) -> string\nschema={x:money};render(schema.to_s)\nend\n",
-    "go_error": "money is a method and cannot be used as a value; call it with money(...)"
+    "go_error": "money is a method and cannot be used as a value; call it with money(...)",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        9,
+        32
+      ]
+    }
   },
   {
     "name": "shapes_methods_146",
@@ -104301,7 +104700,14 @@
   {
     "name": "regex_value_value_contract_24",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.to_s}\"\nend\n",
-    "go_error": "unknown regex method to_s"
+    "go_error": "unknown regex method to_s",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        2,
+        12
+      ]
+    }
   },
   {
     "name": "regex_value_value_contract_25",
@@ -104312,7 +104718,14 @@
   {
     "name": "regex_value_value_contract_26",
     "source": "def run(input: any) -> string\nr=/a/mi;\"#{r.to_s()}\"\nend\n",
-    "go_error": "unknown regex method to_s"
+    "go_error": "unknown regex method to_s",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        2,
+        12
+      ]
+    }
   },
   {
     "name": "regex_value_value_contract_27",
@@ -120843,7 +121256,14 @@
   {
     "name": "module_surface_12",
     "source": "module M\n A=[0]\n C=2\n @@x: int=1\n def self.f(x: int =3) -> int\n x+C\n end\nend\ndef run(input: any) -> string\nM.to_s\nend\n",
-    "go_error": "unknown class member to_s"
+    "go_error": "unknown class member to_s",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        10,
+        3
+      ]
+    }
   },
   {
     "name": "module_surface_13",
@@ -121034,7 +121454,13 @@
     "name": "module_binding_1",
     "source": "module M\n C=1\n A=[0]\n @@a: array<int> = [0]\n def self.f -> any\n C()\n end\nend\ndef run(input: any) -> any\n[M.f,M.C,M.A]\nend\n",
     "go_error": "attempted to call non-callable value",
-    "static_error": {"code": "V0201", "at": [6, 2]}
+    "static_error": {
+      "code": "V0310",
+      "at": [
+        6,
+        2
+      ]
+    }
   },
   {
     "name": "module_binding_9",
@@ -121045,7 +121471,13 @@
     "name": "module_binding_14",
     "source": "module M\n C=1\n A=[0]\n @@a: array<int> = [0]\n def self.f -> any\n D&&=3;D\n end\nend\ndef run(input: any) -> any\n[M.f,M.C,M.A]\nend\n",
     "go_error": "unknown class member D (did you mean \"A\", \"C\", or \"a\"?)",
-    "static_error": {"code": "V0201", "at": [6, 2]}
+    "static_error": {
+      "code": "V0102",
+      "at": [
+        6,
+        2
+      ]
+    }
   },
   {
     "name": "module_directive_7",
@@ -121167,13 +121599,25 @@
     "name": "module_saved_21",
     "source": "module M\n C=1\n def self.f -> int;2;end\nend\ndef run(input: any) -> M\nM.dup(1)\nend\n",
     "go_error": "dup does not take arguments",
-    "static_error": {"code": "V0301", "at": [6, 3]}
+    "static_error": {
+      "code": "V0116",
+      "at": [
+        5,
+        24
+      ]
+    }
   },
   {
     "name": "module_saved_22",
     "source": "module M\n C=1\n def self.f -> int;2;end\nend\ndef run(input: any) -> M\nM.dup{1}\nend\n",
     "go_error": "dup does not accept blocks",
-    "static_error": {"code": "V0305", "at": [6, 6]}
+    "static_error": {
+      "code": "V0116",
+      "at": [
+        5,
+        24
+      ]
+    }
   },
   {
     "name": "module_saved_31",
@@ -121668,7 +122112,14 @@
   {
     "name": "module_first_14",
     "source": "module M\nend\ndef run(input: any) -> array<string>\n[M.to_s,M.inspect]\nend\n",
-    "go_error": "unknown class member to_s"
+    "go_error": "unknown class member to_s",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        4,
+        4
+      ]
+    }
   },
   {
     "name": "module_first_21",
@@ -121744,7 +122195,13 @@
     "name": "module_ivar_parameter_4",
     "source": "module M\n def self.f(@x: int) -> any;@x;end\nend\ndef run(input: any) -> any\nM.f(3)\nend\n",
     "go_error": "no instance context for ivar",
-    "static_error": {"code": "V0204", "at": [2, 2]}
+    "static_error": {
+      "code": "V0204",
+      "at": [
+        2,
+        13
+      ]
+    }
   },
   {
     "name": "class_surface_12",
@@ -122168,7 +122625,13 @@
     "name": "class_accessors_73",
     "source": "class C\nproperty x: int\ndef initialize(@x: nil);end\nend\ndef run(input: any) -> int\na=C.new(nil);a.x\nend\n",
     "go_error": "instance variable @x expected int, got nil",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_75",
@@ -122186,7 +122649,13 @@
     "name": "class_accessors_81",
     "source": "class C\nproperty x: int\ndef initialize(@x: string);end\nend\ndef run(input: any) -> int\na=C.new(\"bad\");a.x\nend\n",
     "go_error": "instance variable @x expected int, got string",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_83",
@@ -122204,7 +122673,13 @@
     "name": "class_accessors_85",
     "source": "class C\nproperty x: int\ndef initialize(@x: array<int>);end\nend\ndef run(input: any) -> int\na=C.new([1,2]);a.x\nend\n",
     "go_error": "instance variable @x expected int, got array<int>",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_87",
@@ -122222,7 +122697,13 @@
     "name": "class_accessors_89",
     "source": "class C\nproperty x: int\ndef initialize(@x: array<int | string>);end\nend\ndef run(input: any) -> int\na=C.new([1,\"bad\"]);a.x\nend\n",
     "go_error": "instance variable @x expected int, got array<int | string>",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_91",
@@ -122240,7 +122721,13 @@
     "name": "class_accessors_93",
     "source": "class C\nproperty x: int\ndef initialize(@x: { a: int });end\nend\ndef run(input: any) -> int\na=C.new({a:1});a.x\nend\n",
     "go_error": "instance variable @x expected int, got { a: int }",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_95",
@@ -122258,7 +122745,13 @@
     "name": "class_accessors_97",
     "source": "class C\ngetter x: int\ndef initialize(@x: nil);end\nend\ndef run(input: any) -> int\na=C.new(nil);a.x\nend\n",
     "go_error": "instance variable @x expected int, got nil",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_99",
@@ -122276,7 +122769,13 @@
     "name": "class_accessors_105",
     "source": "class C\ngetter x: int\ndef initialize(@x: string);end\nend\ndef run(input: any) -> int\na=C.new(\"bad\");a.x\nend\n",
     "go_error": "instance variable @x expected int, got string",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_107",
@@ -122294,7 +122793,13 @@
     "name": "class_accessors_109",
     "source": "class C\ngetter x: int\ndef initialize(@x: array<int>);end\nend\ndef run(input: any) -> int\na=C.new([1,2]);a.x\nend\n",
     "go_error": "instance variable @x expected int, got array<int>",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_111",
@@ -122312,7 +122817,13 @@
     "name": "class_accessors_113",
     "source": "class C\ngetter x: int\ndef initialize(@x: array<int | string>);end\nend\ndef run(input: any) -> int\na=C.new([1,\"bad\"]);a.x\nend\n",
     "go_error": "instance variable @x expected int, got array<int | string>",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_115",
@@ -122330,7 +122841,13 @@
     "name": "class_accessors_117",
     "source": "class C\ngetter x: int\ndef initialize(@x: { a: int });end\nend\ndef run(input: any) -> int\na=C.new({a:1});a.x\nend\n",
     "go_error": "instance variable @x expected int, got { a: int }",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_119",
@@ -122348,7 +122865,13 @@
     "name": "class_accessors_121",
     "source": "class C\nsetter x: int\ndef initialize(@x: nil);end\nend\ndef run(input: any) -> any\na=C.new(nil);a.x\nend\n",
     "go_error": "instance variable @x expected int, got nil",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_123",
@@ -122366,7 +122889,13 @@
     "name": "class_accessors_129",
     "source": "class C\nsetter x: int\ndef initialize(@x: string);end\nend\ndef run(input: any) -> any\na=C.new(\"bad\");a.x\nend\n",
     "go_error": "instance variable @x expected int, got string",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_131",
@@ -122384,7 +122913,13 @@
     "name": "class_accessors_133",
     "source": "class C\nsetter x: int\ndef initialize(@x: array<int>);end\nend\ndef run(input: any) -> any\na=C.new([1,2]);a.x\nend\n",
     "go_error": "instance variable @x expected int, got array<int>",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_135",
@@ -122402,7 +122937,13 @@
     "name": "class_accessors_137",
     "source": "class C\nsetter x: int\ndef initialize(@x: array<int | string>);end\nend\ndef run(input: any) -> any\na=C.new([1,\"bad\"]);a.x\nend\n",
     "go_error": "instance variable @x expected int, got array<int | string>",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_139",
@@ -122420,7 +122961,13 @@
     "name": "class_accessors_141",
     "source": "class C\nsetter x: int\ndef initialize(@x: { a: int });end\nend\ndef run(input: any) -> any\na=C.new({a:1});a.x\nend\n",
     "go_error": "instance variable @x expected int, got { a: int }",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_143",
@@ -122438,7 +122985,13 @@
     "name": "class_accessors_153",
     "source": "class C\nproperty x: int?\ndef initialize(@x: string);end\nend\ndef run(input: any) -> int?\na=C.new(\"bad\");a.x\nend\n",
     "go_error": "instance variable @x expected int?, got string",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_155",
@@ -122456,7 +123009,13 @@
     "name": "class_accessors_157",
     "source": "class C\nproperty x: int?\ndef initialize(@x: array<int>);end\nend\ndef run(input: any) -> int?\na=C.new([1,2]);a.x\nend\n",
     "go_error": "instance variable @x expected int?, got array<int>",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_159",
@@ -122474,7 +123033,13 @@
     "name": "class_accessors_161",
     "source": "class C\nproperty x: int?\ndef initialize(@x: array<int | string>);end\nend\ndef run(input: any) -> int?\na=C.new([1,\"bad\"]);a.x\nend\n",
     "go_error": "instance variable @x expected int?, got array<int | string>",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_163",
@@ -122492,7 +123057,13 @@
     "name": "class_accessors_165",
     "source": "class C\nproperty x: int?\ndef initialize(@x: { a: int });end\nend\ndef run(input: any) -> int?\na=C.new({a:1});a.x\nend\n",
     "go_error": "instance variable @x expected int?, got { a: int }",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_167",
@@ -122510,7 +123081,13 @@
     "name": "class_accessors_169",
     "source": "class C\nproperty x: array<int>\ndef initialize(@x: nil);end\nend\ndef run(input: any) -> array<int>\na=C.new(nil);a.x\nend\n",
     "go_error": "instance variable @x expected array<int>, got nil",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_171",
@@ -122528,7 +123105,13 @@
     "name": "class_accessors_173",
     "source": "class C\nproperty x: array<int>\ndef initialize(@x: int);end\nend\ndef run(input: any) -> array<int>\na=C.new(7);a.x\nend\n",
     "go_error": "instance variable @x expected array<int>, got int",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_175",
@@ -122546,7 +123129,13 @@
     "name": "class_accessors_177",
     "source": "class C\nproperty x: array<int>\ndef initialize(@x: string);end\nend\ndef run(input: any) -> array<int>\na=C.new(\"bad\");a.x\nend\n",
     "go_error": "instance variable @x expected array<int>, got string",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_179",
@@ -122564,7 +123153,13 @@
     "name": "class_accessors_185",
     "source": "class C\nproperty x: array<int>\ndef initialize(@x: array<int | string>);end\nend\ndef run(input: any) -> array<int>\na=C.new([1,\"bad\"]);a.x\nend\n",
     "go_error": "instance variable @x expected array<int>, got array<int | string>",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_187",
@@ -122582,7 +123177,13 @@
     "name": "class_accessors_189",
     "source": "class C\nproperty x: array<int>\ndef initialize(@x: { a: int });end\nend\ndef run(input: any) -> array<int>\na=C.new({a:1});a.x\nend\n",
     "go_error": "instance variable @x expected array<int>, got { a: int }",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_191",
@@ -122600,7 +123201,13 @@
     "name": "class_accessors_193",
     "source": "class C\nproperty x: hash<string,int>\ndef initialize(@x: nil);end\nend\ndef run(input: any) -> hash<string, int>\na=C.new(nil);a.x\nend\n",
     "go_error": "instance variable @x expected hash<string, int>, got nil",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_195",
@@ -122618,7 +123225,13 @@
     "name": "class_accessors_197",
     "source": "class C\nproperty x: hash<string,int>\ndef initialize(@x: int);end\nend\ndef run(input: any) -> hash<string, int>\na=C.new(7);a.x\nend\n",
     "go_error": "instance variable @x expected hash<string, int>, got int",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_199",
@@ -122636,7 +123249,13 @@
     "name": "class_accessors_201",
     "source": "class C\nproperty x: hash<string,int>\ndef initialize(@x: string);end\nend\ndef run(input: any) -> hash<string, int>\na=C.new(\"bad\");a.x\nend\n",
     "go_error": "instance variable @x expected hash<string, int>, got string",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_203",
@@ -122654,7 +123273,13 @@
     "name": "class_accessors_205",
     "source": "class C\nproperty x: hash<string,int>\ndef initialize(@x: array<int>);end\nend\ndef run(input: any) -> hash<string, int>\na=C.new([1,2]);a.x\nend\n",
     "go_error": "instance variable @x expected hash<string, int>, got array<int>",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_207",
@@ -122672,7 +123297,13 @@
     "name": "class_accessors_209",
     "source": "class C\nproperty x: hash<string,int>\ndef initialize(@x: array<int | string>);end\nend\ndef run(input: any) -> hash<string, int>\na=C.new([1,\"bad\"]);a.x\nend\n",
     "go_error": "instance variable @x expected hash<string, int>, got array<int | string>",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_211",
@@ -122690,7 +123321,13 @@
     "name": "class_accessors_217",
     "source": "class C\nproperty x: int, y: string\ndef initialize(@x: nil);end\nend\ndef run(input: any) -> int\na=C.new(nil);a.x\nend\n",
     "go_error": "instance variable @x expected int, got nil",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0205",
+      "at": [
+        3,
+        1
+      ]
+    }
   },
   {
     "name": "class_accessors_219",
@@ -122708,7 +123345,13 @@
     "name": "class_accessors_225",
     "source": "class C\nproperty x: int, y: string\ndef initialize(@x: string);end\nend\ndef run(input: any) -> int\na=C.new(\"bad\");a.x\nend\n",
     "go_error": "instance variable @x expected int, got string",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0205",
+      "at": [
+        3,
+        1
+      ]
+    }
   },
   {
     "name": "class_accessors_227",
@@ -122726,7 +123369,13 @@
     "name": "class_accessors_229",
     "source": "class C\nproperty x: int, y: string\ndef initialize(@x: array<int>);end\nend\ndef run(input: any) -> int\na=C.new([1,2]);a.x\nend\n",
     "go_error": "instance variable @x expected int, got array<int>",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0205",
+      "at": [
+        3,
+        1
+      ]
+    }
   },
   {
     "name": "class_accessors_231",
@@ -122744,7 +123393,13 @@
     "name": "class_accessors_233",
     "source": "class C\nproperty x: int, y: string\ndef initialize(@x: array<int | string>);end\nend\ndef run(input: any) -> int\na=C.new([1,\"bad\"]);a.x\nend\n",
     "go_error": "instance variable @x expected int, got array<int | string>",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0205",
+      "at": [
+        3,
+        1
+      ]
+    }
   },
   {
     "name": "class_accessors_235",
@@ -122762,7 +123417,13 @@
     "name": "class_accessors_237",
     "source": "class C\nproperty x: int, y: string\ndef initialize(@x: { a: int });end\nend\ndef run(input: any) -> int\na=C.new({a:1});a.x\nend\n",
     "go_error": "instance variable @x expected int, got { a: int }",
-    "static_error": {"code": "V0101", "at": [3, 1]}
+    "static_error": {
+      "code": "V0205",
+      "at": [
+        3,
+        1
+      ]
+    }
   },
   {
     "name": "class_accessors_239",
@@ -122780,7 +123441,13 @@
     "name": "class_accessors_241",
     "source": "class C\nproperty x: int\ndef x=(v: any);@x=v.as(int);end\ndef initialize(@x: nil);end\nend\ndef run(input: any) -> int\na=C.new(nil);a.x\nend\n",
     "go_error": "return value for x expected int, got nil",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_243",
@@ -122798,7 +123465,13 @@
     "name": "class_accessors_249",
     "source": "class C\nproperty x: int\ndef x=(v: any);@x=v.as(int);end\ndef initialize(@x: string);end\nend\ndef run(input: any) -> int\na=C.new(\"bad\");a.x\nend\n",
     "go_error": "return value for x expected int, got string",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_251",
@@ -122816,7 +123489,13 @@
     "name": "class_accessors_253",
     "source": "class C\nproperty x: int\ndef x=(v: any);@x=v.as(int);end\ndef initialize(@x: array<int>);end\nend\ndef run(input: any) -> int\na=C.new([1,2]);a.x\nend\n",
     "go_error": "return value for x expected int, got array<int>",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_255",
@@ -122834,7 +123513,13 @@
     "name": "class_accessors_257",
     "source": "class C\nproperty x: int\ndef x=(v: any);@x=v.as(int);end\ndef initialize(@x: array<int | string>);end\nend\ndef run(input: any) -> int\na=C.new([1,\"bad\"]);a.x\nend\n",
     "go_error": "return value for x expected int, got array<int | string>",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_259",
@@ -122852,7 +123537,13 @@
     "name": "class_accessors_261",
     "source": "class C\nproperty x: int\ndef x=(v: any);@x=v.as(int);end\ndef initialize(@x: { a: int });end\nend\ndef run(input: any) -> int\na=C.new({a:1});a.x\nend\n",
     "go_error": "return value for x expected int, got { a: int }",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_263",
@@ -122870,7 +123561,13 @@
     "name": "class_accessors_265",
     "source": "class C\ngetter x: int\ndef x=(v: any);@x=v.as(int);end\ndef initialize(@x: nil);end\nend\ndef run(input: any) -> int\na=C.new(nil);a.x\nend\n",
     "go_error": "return value for x expected int, got nil",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_267",
@@ -122888,7 +123585,13 @@
     "name": "class_accessors_273",
     "source": "class C\ngetter x: int\ndef x=(v: any);@x=v.as(int);end\ndef initialize(@x: string);end\nend\ndef run(input: any) -> int\na=C.new(\"bad\");a.x\nend\n",
     "go_error": "return value for x expected int, got string",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_275",
@@ -122906,7 +123609,13 @@
     "name": "class_accessors_277",
     "source": "class C\ngetter x: int\ndef x=(v: any);@x=v.as(int);end\ndef initialize(@x: array<int>);end\nend\ndef run(input: any) -> int\na=C.new([1,2]);a.x\nend\n",
     "go_error": "return value for x expected int, got array<int>",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_279",
@@ -122924,7 +123633,13 @@
     "name": "class_accessors_281",
     "source": "class C\ngetter x: int\ndef x=(v: any);@x=v.as(int);end\ndef initialize(@x: array<int | string>);end\nend\ndef run(input: any) -> int\na=C.new([1,\"bad\"]);a.x\nend\n",
     "go_error": "return value for x expected int, got array<int | string>",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_283",
@@ -122942,7 +123657,13 @@
     "name": "class_accessors_285",
     "source": "class C\ngetter x: int\ndef x=(v: any);@x=v.as(int);end\ndef initialize(@x: { a: int });end\nend\ndef run(input: any) -> int\na=C.new({a:1});a.x\nend\n",
     "go_error": "return value for x expected int, got { a: int }",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_287",
@@ -122960,7 +123681,13 @@
     "name": "class_accessors_289",
     "source": "class C\nproperty x: int\nsetter x: nil\ndef initialize(@x: nil);end\nend\ndef run(input: any) -> int\na=C.new(nil);a.x\nend\n",
     "go_error": "return value for x expected int, got nil",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_291",
@@ -122978,7 +123705,13 @@
     "name": "class_accessors_297",
     "source": "class C\nproperty x: int\nsetter x: string\ndef initialize(@x: string);end\nend\ndef run(input: any) -> int\na=C.new(\"bad\");a.x\nend\n",
     "go_error": "return value for x expected int, got string",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_299",
@@ -122996,7 +123729,13 @@
     "name": "class_accessors_301",
     "source": "class C\nproperty x: int\nsetter x: array<int>\ndef initialize(@x: array<int>);end\nend\ndef run(input: any) -> int\na=C.new([1,2]);a.x\nend\n",
     "go_error": "return value for x expected int, got array<int>",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_303",
@@ -123014,7 +123753,13 @@
     "name": "class_accessors_305",
     "source": "class C\nproperty x: int\nsetter x: array<int | string>\ndef initialize(@x: array<int | string>);end\nend\ndef run(input: any) -> int\na=C.new([1,\"bad\"]);a.x\nend\n",
     "go_error": "return value for x expected int, got array<int | string>",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_307",
@@ -123032,7 +123777,13 @@
     "name": "class_accessors_309",
     "source": "class C\nproperty x: int\nsetter x: { a: int }\ndef initialize(@x: { a: int });end\nend\ndef run(input: any) -> int\na=C.new({a:1});a.x\nend\n",
     "go_error": "return value for x expected int, got { a: int }",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_311",
@@ -123050,7 +123801,13 @@
     "name": "class_accessors_313",
     "source": "class C\nproperty x: nil\ngetter x: int\ndef initialize(@x: nil);end\nend\ndef run(input: any) -> int\na=C.new(nil);a.x\nend\n",
     "go_error": "return value for x expected int, got nil",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_315",
@@ -123068,7 +123825,13 @@
     "name": "class_accessors_321",
     "source": "class C\nproperty x: string\ngetter x: int\ndef initialize(@x: string);end\nend\ndef run(input: any) -> int\na=C.new(\"bad\");a.x\nend\n",
     "go_error": "return value for x expected int, got string",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_323",
@@ -123086,7 +123849,13 @@
     "name": "class_accessors_325",
     "source": "class C\nproperty x: array<int>\ngetter x: int\ndef initialize(@x: array<int>);end\nend\ndef run(input: any) -> int\na=C.new([1,2]);a.x\nend\n",
     "go_error": "return value for x expected int, got array<int>",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_327",
@@ -123104,7 +123873,13 @@
     "name": "class_accessors_329",
     "source": "class C\nproperty x: array<int | string>\ngetter x: int\ndef initialize(@x: array<int | string>);end\nend\ndef run(input: any) -> int\na=C.new([1,\"bad\"]);a.x\nend\n",
     "go_error": "return value for x expected int, got array<int | string>",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_331",
@@ -123122,7 +123897,13 @@
     "name": "class_accessors_333",
     "source": "class C\nproperty x: { a: int }\ngetter x: int\ndef initialize(@x: { a: int });end\nend\ndef run(input: any) -> int\na=C.new({a:1});a.x\nend\n",
     "go_error": "return value for x expected int, got { a: int }",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_335",
@@ -123140,7 +123921,13 @@
     "name": "class_accessors_337",
     "source": "class C\nproperty x: int\nproperty x: string\ndef initialize(@x: nil);end\nend\ndef run(input: any) -> string\na=C.new(nil);a.x\nend\n",
     "go_error": "instance variable @x expected string, got nil",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_339",
@@ -123158,7 +123945,13 @@
     "name": "class_accessors_341",
     "source": "class C\nproperty x: int\nproperty x: string\ndef initialize(@x: int);end\nend\ndef run(input: any) -> string\na=C.new(7);a.x\nend\n",
     "go_error": "instance variable @x expected string, got int",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_343",
@@ -123176,7 +123969,13 @@
     "name": "class_accessors_349",
     "source": "class C\nproperty x: int\nproperty x: string\ndef initialize(@x: array<int>);end\nend\ndef run(input: any) -> string\na=C.new([1,2]);a.x\nend\n",
     "go_error": "instance variable @x expected string, got array<int>",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_351",
@@ -123194,7 +123993,13 @@
     "name": "class_accessors_353",
     "source": "class C\nproperty x: int\nproperty x: string\ndef initialize(@x: array<int | string>);end\nend\ndef run(input: any) -> string\na=C.new([1,\"bad\"]);a.x\nend\n",
     "go_error": "instance variable @x expected string, got array<int | string>",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_355",
@@ -123212,7 +124017,13 @@
     "name": "class_accessors_357",
     "source": "class C\nproperty x: int\nproperty x: string\ndef initialize(@x: { a: int });end\nend\ndef run(input: any) -> string\na=C.new({a:1});a.x\nend\n",
     "go_error": "instance variable @x expected string, got { a: int }",
-    "static_error": {"code": "V0101", "at": [4, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        4,
+        16
+      ]
+    }
   },
   {
     "name": "class_accessors_359",
@@ -124192,7 +125003,14 @@
   {
     "name": "class_variables_4",
     "source": "class C\n  @x: int\nK=2\n@@n: int=3\ndef initialize;@x=4;end\ndef f -> int;K+=1;K;end\nend\ndef run(input: any) -> int\nC.new.f\nend\n",
-    "go_error": "unsupported addition operands"
+    "go_error": "unsupported addition operands",
+    "static_error": {
+      "code": "V0102",
+      "at": [
+        6,
+        14
+      ]
+    }
   },
   {
     "name": "class_variables_17",
@@ -124260,7 +125078,13 @@
     "name": "class_initial_26",
     "source": "class C\n property n: int\n def initialize(@n: string); end\nend\ndef run(input: any) -> int\nC.new(\"x\").n\nend\n",
     "go_error": "instance variable @n expected int, got string",
-    "static_error": {"code": "V0101", "at": [3, 2]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        3,
+        17
+      ]
+    }
   },
   {
     "name": "operator_signature_0",
@@ -127733,22 +128557,50 @@
   {
     "name": "safe_values_124",
     "source": "\ndef run(input: any) -> string\nvalue={a:1};value.to_s\nend\n",
-    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)"
+    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        3,
+        19
+      ]
+    }
   },
   {
     "name": "safe_values_125",
     "source": "\ndef run(input: any) -> string?\nvalue={a:1};value&.to_s\nend\n",
-    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)"
+    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        3,
+        20
+      ]
+    }
   },
   {
     "name": "safe_values_136",
     "source": "\ndef run(input: any) -> string\nvalue: hash<string, any> ={};value.to_s\nend\n",
-    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)"
+    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        3,
+        36
+      ]
+    }
   },
   {
     "name": "safe_values_137",
     "source": "\ndef run(input: any) -> string?\nvalue: hash<string, any> ={};value&.to_s\nend\n",
-    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)"
+    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)",
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        3,
+        37
+      ]
+    }
   },
   {
     "name": "safe_values_150",
@@ -132096,7 +132948,13 @@
     "go_error": "instance variable @payload expected int, got string",
     "stdout": true,
     "stderr": true,
-    "static_error": {"code": "V0101", "at": [14, 1]}
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        14,
+        11
+      ]
+    }
   },
   {
     "name": "type_diagnostics_context_block_uncaught",
@@ -138090,7 +138948,13 @@
   {
     "name": "builtins_lookup_117",
     "source": "def run(input: any) -> array<int>\n[1].each {Math &&= 7;Math}\nend\n",
-    "static_error": {"code": "V0104", "at": [2, 11]}
+    "static_error": {
+      "code": "V0102",
+      "at": [
+        2,
+        11
+      ]
+    }
   },
   {
     "name": "builtins_lookup_119",
@@ -138969,12 +139833,24 @@
   {
     "name": "enums_binding_6",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nStatus ||= 1;Status.to_s\nend\n",
-    "static_error": {"code": "V0104", "at": [10, 1]}
+    "static_error": {
+      "code": "V0102",
+      "at": [
+        10,
+        1
+      ]
+    }
   },
   {
     "name": "enums_binding_7",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> int\nStatus &&= 1;Status\nend\n",
-    "static_error": {"code": "V0104", "at": [10, 1]}
+    "static_error": {
+      "code": "V0102",
+      "at": [
+        10,
+        1
+      ]
+    }
   },
   {
     "name": "enums_names_1",
@@ -141822,7 +142698,13 @@
   {
     "name": "module_binding_3",
     "source": "module M\n C=1\n A=[0]\n @@a: array<int> = [0]\n def self.f -> int\n C||=3;C\n end\nend\ndef run(input: any) -> array<int | array<int>>\n[M.f,M.C,M.A]\nend\n",
-    "static_error": {"code": "V0104", "at": [6, 2]}
+    "static_error": {
+      "code": "V0102",
+      "at": [
+        6,
+        2
+      ]
+    }
   },
   {
     "name": "module_binding_8",
@@ -141832,7 +142714,13 @@
   {
     "name": "module_binding_13",
     "source": "module M\n C=1\n A=[0]\n @@a: array<int> = [0]\n def self.f -> int\n D||=3;D\n end\nend\ndef run(input: any) -> array<int | array<int>>\n[M.f,M.C,M.A]\nend\n",
-    "static_error": {"code": "V0201", "at": [6, 2]}
+    "static_error": {
+      "code": "V0102",
+      "at": [
+        6,
+        2
+      ]
+    }
   },
   {
     "name": "module_body_0",
@@ -142005,7 +142893,13 @@
   {
     "name": "module_shadow_14",
     "source": "module M\nend\ndef run(input: any) -> M | int\nM.dup=3;M::dup\nend\n",
-    "static_error": {"code": "V0203", "at": [4, 3]}
+    "static_error": {
+      "code": "V0116",
+      "at": [
+        3,
+        24
+      ]
+    }
   },
   {
     "name": "module_shadow_18",
@@ -142087,22 +142981,46 @@
   {
     "name": "module_edge_6",
     "source": "module M\n def self.f(@x: any) -> int;1;end\nend\ndef run(input: any) -> int;1;end\n",
-    "static_error": {"code": "V0204", "at": [2, 2]}
+    "static_error": {
+      "code": "V0204",
+      "at": [
+        2,
+        13
+      ]
+    }
   },
   {
     "name": "module_ivar_parameter_0",
     "source": "module M\n def self.f(@x: int) -> int;x;end\nend\ndef run(input: any) -> int\nM.f(3)\nend\n",
-    "static_error": {"code": "V0204", "at": [2, 2]}
+    "static_error": {
+      "code": "V0204",
+      "at": [
+        2,
+        13
+      ]
+    }
   },
   {
     "name": "module_ivar_parameter_1",
     "source": "module M\n def self.f(@x: int =3) -> int;x;end\nend\ndef run(input: any) -> int\nM.f\nend\n",
-    "static_error": {"code": "V0204", "at": [2, 2]}
+    "static_error": {
+      "code": "V0204",
+      "at": [
+        2,
+        13
+      ]
+    }
   },
   {
     "name": "module_ivar_parameter_2",
     "source": "module M\n def self.f(@x: int) -> int;x;end\nend\ndef run(input: any) -> int\nM.f(3)\nend\n",
-    "static_error": {"code": "V0204", "at": [2, 2]}
+    "static_error": {
+      "code": "V0204",
+      "at": [
+        2,
+        13
+      ]
+    }
   },
   {
     "name": "class_surface_2",
@@ -142427,12 +143345,24 @@
   {
     "name": "class_variables_6",
     "source": "class C\n  @x: int\nK=2\n@@n: int=3\ndef initialize;@x=4;end\ndef f -> int;K||=8;K;end\nend\ndef run(input: any) -> int\nC.new.f\nend\n",
-    "static_error": {"code": "V0104", "at": [6, 14]}
+    "static_error": {
+      "code": "V0102",
+      "at": [
+        6,
+        14
+      ]
+    }
   },
   {
     "name": "class_variables_7",
     "source": "class C\n  @x: any\nK=2\n@@n: int=3\ndef initialize;@x=4;end\ndef self.f -> int;K||=8;K;end\nend\ndef run(input: any) -> int\nC.f\nend\n",
-    "static_error": {"code": "V0104", "at": [6, 19]}
+    "static_error": {
+      "code": "V0102",
+      "at": [
+        6,
+        19
+      ]
+    }
   },
   {
     "name": "class_variables_14",
@@ -142447,22 +143377,46 @@
   {
     "name": "class_local_constants_2",
     "source": "module M;end\nclass C\nK=2\ndef f -> int;K||=8;K;end\nend\ndef run(input: any) -> array<int>\nresult=C.new.f;[result,C.K]\nend\n",
-    "static_error": {"code": "V0104", "at": [4, 14]}
+    "static_error": {
+      "code": "V0102",
+      "at": [
+        4,
+        14
+      ]
+    }
   },
   {
     "name": "class_local_constants_3",
     "source": "module M;end\nclass C\nK=2\ndef f;K&&=8;K;end\nend\ndef run(input: any) -> array<int?>\nresult=C.new.f;[result,C.K]\nend\n",
-    "static_error": {"code": "V0104", "at": [4, 7]}
+    "static_error": {
+      "code": "V0102",
+      "at": [
+        4,
+        7
+      ]
+    }
   },
   {
     "name": "class_local_constants_9",
     "source": "module M;end\nclass C\nK=2\ndef self.f -> int;K||=8;K;end\nend\ndef run(input: any) -> array<int>\nresult=C.f;[result,C.K]\nend\n",
-    "static_error": {"code": "V0104", "at": [4, 19]}
+    "static_error": {
+      "code": "V0102",
+      "at": [
+        4,
+        19
+      ]
+    }
   },
   {
     "name": "class_local_constants_10",
     "source": "module M;end\nclass C\nK=2\ndef self.f -> int;K&&=8;K;end\nend\ndef run(input: any) -> array<int>\nresult=C.f;[result,C.K]\nend\n",
-    "static_error": {"code": "V0104", "at": [4, 19]}
+    "static_error": {
+      "code": "V0102",
+      "at": [
+        4,
+        19
+      ]
+    }
   },
   {
     "name": "class_initial_4",
@@ -142751,19 +143705,8 @@
     "static_error": {
       "code": "V0102",
       "at": [
-        6,
-        9
-      ]
-    }
-  },
-  {
-    "name": "error_handling_109_binding_implicit_it",
-    "source": "\ndef run(input: any) -> array<string>\nbegin\n[1].map {\nbegin\nraise \"x\"\nrescue=>it\nit.message\nend\n}\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
-    "static_error": {
-      "code": "V0102",
-      "at": [
         7,
-        9
+        3
       ]
     }
   },
@@ -142771,9 +143714,9 @@
     "name": "error_handling_110_binding_outer_it",
     "source": "\ndef run(input: any) -> array<array<int | string> | string>\nbegin\n[1].map {\na=it;begin\nraise \"x\"\nrescue=>it\nx=it.message\nend;[it,x]\n}\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
     "static_error": {
-      "code": "V0102",
+      "code": "V0201",
       "at": [
-        7,
+        9,
         9
       ]
     }
@@ -142827,10 +143770,10 @@
     "name": "error_handling_167_binding_numbered",
     "source": "\ndef run(input: any) -> array<array<int | string> | string>\nbegin\n[1].map {\na=_1;begin\nraise \"x\"\nrescue=>_1\nx=_1.message\nend;[a,x,_1]\n}\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
     "static_error": {
-      "code": "V0102",
+      "code": "V0201",
       "at": [
-        7,
-        9
+        9,
+        8
       ]
     }
   },
@@ -143183,7 +144126,13 @@
   {
     "name": "computed_call_wrapped_to_s",
     "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | int\nbegin\n({}.to_s rescue good)()\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
-    "static_error": {"code": "V0310", "at": [12, 10]}
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        12,
+        5
+      ]
+    }
   },
   {
     "name": "computed_call_wrapped_inspect",
@@ -143303,7 +144252,13 @@
   {
     "name": "computed_call_wrapped_a_to_s",
     "source": "def good(x: int =42) -> int\nx\nend\ndef bad(x: int =0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input: any) -> array<string> | int\nbegin\n(/a/.to_s rescue good)()\nrescue RuntimeError => outer\n[\"escaped\",outer.class,outer.message]\nend\nend\n",
-    "static_error": {"code": "V0310", "at": [12, 11]}
+    "static_error": {
+      "code": "V0203",
+      "at": [
+        12,
+        6
+      ]
+    }
   },
   {
     "name": "computed_call_wrapped_a_inspect",
@@ -153188,7 +154143,13 @@
   {
     "name": "type_diagnostics_context_ivar_parameter",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:int\ndef typed(@payload: string)\nend\nend\n\ndef run(input: any) -> array<string>?\nbegin\nT.new.typed(\"x\")\nrescue RuntimeError | LimitError=>e\n[e.class,e.message]\nend\nend\n",
-    "static_error": {"code": "V0101", "at": [14, 1]},
+    "static_error": {
+      "code": "V0101",
+      "at": [
+        14,
+        11
+      ]
+    },
     "stdout": true,
     "stderr": true,
     "stdout_hex": "",
@@ -168794,10 +169755,10 @@
     "name": "lifecycle_enum_member_clone_scope",
     "source": "enum Status\nDraft\nend\ndef run(input: any) -> bool | string\nbegin\n(Status::Draft::clone) == nil\nrescue=>e\ne.class\nend\nend\n",
     "static_error": {
-      "code": "V0401",
+      "code": "V0416",
       "at": [
         6,
-        17
+        15
       ]
     }
   },
@@ -177853,5 +178814,313 @@
     "stdout_hex": "",
     "stderr_hex": "",
     "static_error": {"code": "V0404", "at": [7, 7]}
+  },
+  {
+    "name": "module_binding_2",
+    "source": "module M\n C=1\n A=[0]\n @@a: array<int> = [0]\n def self.f -> int\n C+=1;C\n end\nend\ndef run(input: any) -> array<int | array<int>>\n[M.f,M.C,M.A]\nend\n",
+    "static_error": {
+      "code": "V0102",
+      "at": [
+        6,
+        2
+      ]
+    }
+  },
+  {
+    "name": "class_variables_5",
+    "source": "class C\n  @x: any\nK=2\n@@n: int=3\ndef initialize;@x=4;end\ndef self.f -> int;K+=1;K;end\nend\ndef run(input: any) -> int\nC.f\nend\n",
+    "static_error": {
+      "code": "V0102",
+      "at": [
+        6,
+        19
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_nil_freeze_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n(nil::freeze) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        7
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_nil_frozen?_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n(nil::frozen?) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        7
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_bool_freeze_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n(true::freeze) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        8
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_bool_frozen?_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n(true::frozen?) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        8
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_int_freeze_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n(7::freeze) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        5
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_int_frozen?_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n(7::frozen?) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        5
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_big_freeze_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n(9223372036854775808::freeze) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        23
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_big_frozen?_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n(9223372036854775808::frozen?) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        23
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_float_freeze_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n(7.5::freeze) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        7
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_float_frozen?_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n(7.5::frozen?) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        7
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_string_freeze_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n(\"abc\"::freeze) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        9
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_string_frozen?_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n(\"abc\"::frozen?) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        9
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_symbol_freeze_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n(:s::freeze) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        6
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_symbol_frozen?_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n(:s::frozen?) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        6
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_regex_freeze_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n(/a/::freeze) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        7
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_regex_frozen?_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n(/a/::frozen?) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        7
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_range_freeze_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n((1..3)::freeze) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        10
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_range_frozen?_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n((1..3)::frozen?) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        10
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_array_freeze_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n([[1],2]::freeze) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        11
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_array_frozen?_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n([[1],2]::frozen?) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        11
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_hash_freeze_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n({a:[1]}::freeze) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        11
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_hash_frozen?_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n({a:[1]}::frozen?) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        11
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_enum_member_freeze_scope",
+    "source": "enum Status\nDraft\nend\ndef run(input: any) -> bool | string\nbegin\n(Status::Draft::freeze) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0416",
+      "at": [
+        6,
+        15
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_enum_member_frozen?_scope",
+    "source": "enum Status\nDraft\nend\ndef run(input: any) -> bool | string\nbegin\n(Status::Draft::frozen?) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0416",
+      "at": [
+        6,
+        15
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_shape_freeze_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n({a: String}::freeze) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        15
+      ]
+    }
+  },
+  {
+    "name": "lifecycle_shape_frozen?_scope",
+    "source": "\ndef run(input: any) -> bool | string\nbegin\n({a: String}::frozen?) == nil\nrescue=>e\ne.class\nend\nend\n",
+    "static_error": {
+      "code": "V0401",
+      "at": [
+        4,
+        15
+      ]
+    }
   }
 ]
