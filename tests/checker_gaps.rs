@@ -2,8 +2,10 @@
 //! the documentation found, each with programs the checker accepts, programs
 //! it rejects, and what the runtime does with them.
 
+mod common;
+
 use vibescript::{
-    CallOptions, Engine, Value,
+    CallOptions, Engine, ModuleConfig, Value,
     diagnostic::{Applicability, Code, Diagnostic},
 };
 
@@ -620,5 +622,138 @@ mod parse_as_enums {
             run(source).unwrap_err().message,
             "JSON.parse_as value expected Box, got {}"
         );
+    }
+}
+
+mod required_types {
+    use super::*;
+
+    const STATES: &str = "enum State
+  Open
+  Closed
+end
+
+class Door
+  getter state: State
+
+  def initialize(@state: State)
+  end
+
+  def open? -> bool
+    @state == State::Open
+  end
+
+  private def hinge -> int
+    1
+  end
+end
+
+def closed -> State
+  State::Closed
+end
+
+def door -> Door
+  Door.new(:open)
+end
+";
+
+    /// An engine whose module path, a directory for `test`, holds
+    /// `states.vibe`, with static types on, and the directory to remove.
+    fn engine(test: &str) -> (Engine, std::path::PathBuf) {
+        // WASI has no temporary directory, so fixtures live under the repository.
+        let directory = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join(".cache/tmp")
+            .join(format!("checker-gaps-{test}-{}", common::process_id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::write(directory.join("states.vibe"), STATES).unwrap();
+        let mut engine = Engine::new();
+        engine
+            .set_module_config(ModuleConfig {
+                paths: vec![directory.clone()],
+                ..ModuleConfig::default()
+            })
+            .unwrap();
+        engine.set_static_types(true);
+        (engine, directory)
+    }
+
+    #[test]
+    fn a_required_files_enums_and_instances_are_typed() {
+        let (engine, directory) = engine("typed");
+        let source = "def run -> array<any>
+  states = require(\"states\")
+  require(\"states\", as: \"k\")
+  shut: State = closed
+  same = shut == State::Closed
+  from_exports = states.State::Open == k.State::Open
+  entry = door
+  label = case entry.state
+          when State::Open then \"open\"
+          when State::Closed then \"closed\"
+          end
+  [same, from_exports, entry.open?, label, pick(:closed)]
+end
+
+def pick(state: State) -> bool
+  state == State::Closed
+end
+";
+        codes_with(&engine, source, &[]);
+        let value = engine
+            .compile(source)
+            .unwrap()
+            .call("run", &[], CallOptions::default())
+            .unwrap()
+            .value;
+        assert_eq!(value.to_string(), "[true, true, true, open, true]");
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn their_types_are_checked() {
+        let (engine, directory) = engine("checked");
+        let prelude = "require(\"states\")\n";
+        for (line, code) in [
+            ("n: int = closed", Code::TYPE_MISMATCH),
+            ("x = door.state.length", Code::UNKNOWN_MEMBER),
+            ("x = State::Ajar", Code::UNKNOWN_ENUM_MEMBER),
+            ("x = door.hinge", Code::VISIBILITY),
+            // A class stays private to its file, as it does at runtime.
+            ("x = Door.new(:open)", Code::UNDEFINED_NAME),
+        ] {
+            let found = codes_with(&engine, &format!("{prelude}{line}\n"), &[code]);
+            if code == Code::TYPE_MISMATCH {
+                assert_eq!(found[0].found.as_deref(), Some("State"));
+            }
+        }
+        codes_with(
+            &engine,
+            &format!("{prelude}def open(d: Door) -> bool\n  d.open?\nend\n"),
+            &[Code::UNKNOWN_TYPE],
+        );
+        let mut plain = Engine::new();
+        plain
+            .set_module_config(ModuleConfig {
+                paths: vec![directory.clone()],
+                ..ModuleConfig::default()
+            })
+            .unwrap();
+        let error = plain
+            .compile("def run -> any\n  require(\"states\")\n  Door.new(:open)\nend\n")
+            .unwrap()
+            .call("run", &[], CallOptions::default())
+            .unwrap_err();
+        assert_eq!(error.message, "undefined variable Door");
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn a_local_declaration_keeps_its_name() {
+        let (engine, directory) = engine("local");
+        // The requiring script's own enum wins, as the runtime binds it.
+        let source = "enum State\n  Draft\nend\nrequire(\"states\")\nmine = State::Draft\nshut: State = closed\n";
+        let found = codes_with(&engine, source, &[Code::TYPE_MISMATCH]);
+        assert_eq!(found[0].expected.as_deref(), Some("State"));
+        std::fs::remove_dir_all(directory).unwrap();
     }
 }

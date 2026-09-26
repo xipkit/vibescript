@@ -473,11 +473,16 @@ impl<'a> Checker<'a> {
             Kind::Namespace(ns) => self.namespace_member(call, ns, ty),
             Kind::Exports(id) => match self.exported(id, call.name) {
                 Some(sig) => self.call_sigs(call, &[(sig, Vec::new())]),
-                None => {
-                    self.unknown_export(id, call.name, call.name_span);
-                    self.loose_args(call);
-                    Ty::ERROR
-                }
+                None => match self.exported_enum(id, call.name) {
+                    Some(enumeration) if call.args.is_empty() && call.block.is_none() => {
+                        self.types.intern(Kind::EnumType(enumeration))
+                    }
+                    _ => {
+                        self.unknown_export(id, call.name, call.name_span);
+                        self.loose_args(call);
+                        Ty::ERROR
+                    }
+                },
             },
             Kind::Builtin(index) => self.builtin_member(call, index, ty),
             Kind::Host(index) => self.host_member(call, index, ty),
@@ -871,15 +876,16 @@ impl<'a> Checker<'a> {
                 format!("only `{class}`'s own methods can call it"),
             ),
         };
-        let declared = self.spans.token(self.program.fns[id].def.offset as usize);
-        self.report(
-            Diagnostic::error(
-                Code::VISIBILITY,
-                span,
-                format!("`{name}` is {word} in `{class}`: {rule}"),
-            )
-            .with_label(declared, format!("declared {word} here")),
+        let mut diagnostic = Diagnostic::error(
+            Code::VISIBILITY,
+            span,
+            format!("`{name}` is {word} in `{class}`: {rule}"),
         );
+        if let Some(def) = self.program.fns[id].def {
+            let declared = self.spans.token(def.offset as usize);
+            diagnostic = diagnostic.with_label(declared, format!("declared {word} here"));
+        }
+        self.report(diagnostic);
     }
 
     /// Restores an enclosing memo, keeping what the inner one recorded when

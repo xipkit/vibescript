@@ -3,24 +3,81 @@
 
 use super::{
     Checker, Input, Modules,
-    program::FnId,
-    sigs::{ParamKind, Sig},
-    ty::{Kind, Ty, Types},
+    program::{Enum, FnDecl, Namespace, NsId},
+    sigs::{BlockSig, Param, Sig},
+    ty::{Field, Kind, Ty, Types},
 };
 use crate::{
     capability::Registered,
     diagnostic::{Code, Diagnostic},
-    syntax::{Declarations, Expr, Node, Statement, Stmt},
+    syntax::{Declarations, Expr, Node, Statement, Stmt, modules::Visibility},
 };
-use std::{collections::HashMap, rc::Rc, sync::Arc};
+use std::{collections::HashMap, fmt, rc::Rc, sync::Arc};
 
 /// Files `require` may nest before the checker stops following them.
 const DEPTH: usize = 16;
 
-/// The functions a required file exports.
+/// The functions and enums a required file exports.
 pub(crate) struct Exports {
     pub path: String,
     pub functions: HashMap<String, Rc<Sig>>,
+    pub enums: HashMap<String, u32>,
+}
+
+/// What a required file exports, typed by its declarations in the file's
+/// own type table, which a requiring check imports into its own.
+pub(crate) struct Exported {
+    types: Types,
+    /// Its public top-level functions.
+    functions: Vec<(String, Sig)>,
+    /// Its enums: name, members and each member's symbol.
+    enums: Vec<Enum>,
+    /// Its classes, which are not exported by name, but whose instances
+    /// are values its functions may return.
+    classes: Vec<ExportedClass>,
+}
+
+/// A class a required file declares.
+struct ExportedClass {
+    /// Its id in the file.
+    id: NsId,
+    name: String,
+    /// Its instance methods, by name, with their visibility.
+    methods: Vec<(String, Sig, Visibility)>,
+}
+
+impl fmt::Debug for Exported {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Exported")
+            .field(
+                "functions",
+                &self
+                    .functions
+                    .iter()
+                    .map(|(name, _)| name)
+                    .collect::<Vec<_>>(),
+            )
+            .field(
+                "enums",
+                &self.enums.iter().map(|e| &e.name).collect::<Vec<_>>(),
+            )
+            .field(
+                "classes",
+                &self
+                    .classes
+                    .iter()
+                    .map(|class| &class.name)
+                    .collect::<Vec<_>>(),
+            )
+            .finish()
+    }
+}
+
+/// How the ids of a required file's enums and classes map to the ids its
+/// importer gave them.
+struct Imports {
+    enums: Vec<u32>,
+    classes: HashMap<NsId, NsId>,
 }
 
 /// What the program requires.
@@ -113,50 +170,234 @@ impl<'a> Checker<'a> {
                 .or_else(|| Some(Arc::clone(&filename)));
             self.report(diagnostic.in_file(file));
         }
-        let mut functions = HashMap::new();
-        for declaration in &checked.exports {
-            let Ok(table) = crate::signatures::Table::parse(declaration) else {
-                continue;
-            };
-            let functions_in = table.items.iter().filter_map(|item| match item {
-                crate::signatures::Item::Function(function) => Some(function),
-                _ => None,
-            });
-            for function in functions_in {
-                let mut sig = self
-                    .converter
-                    .convert_owned(&mut self.types, function, None);
-                sig.checks_break = true;
-                let sig = Rc::new(sig);
-                self.modules
-                    .published
-                    .entry(function.name.clone())
-                    .or_insert_with(|| sig.clone());
-                functions.insert(function.name.clone(), sig);
-            }
+        let (functions, enums) = match &checked.exported {
+            Some(exported) => self.import(exported),
+            None => (HashMap::new(), HashMap::new()),
+        };
+        for (name, sig) in &functions {
+            self.modules
+                .published
+                .entry(name.clone())
+                .or_insert_with(|| sig.clone());
         }
         let id = self.modules.loaded.len() as u32;
         self.modules.loaded.push(Exports {
             path: path.to_owned(),
             functions,
+            enums,
         });
         self.modules.by_path.insert(path.to_owned(), Some(id));
         Some(id)
     }
 
-    /// The public top-level functions of a required file, as signature
-    /// declarations another check can read.
-    pub(super) fn export_declarations(&self) -> Vec<String> {
-        let mut exports = Vec::new();
-        for (&name, &id) in &self.program.functions {
-            let decl: &super::program::FnDecl<'_> = &self.program.fns[id as FnId];
-            if decl.def.private {
+    /// What this check's file exports: its public functions, its enums and
+    /// its classes, with its type table, which the check gives up.
+    pub(super) fn export(&mut self) -> Exported {
+        let mut functions: Vec<(String, Sig)> = self
+            .program
+            .functions
+            .iter()
+            .filter(|(_, id)| self.program.fns[**id].def.is_some_and(|def| !def.private))
+            .map(|(name, id)| ((*name).to_owned(), (*self.program.fns[*id].sig).clone()))
+            .collect();
+        functions.sort_by(|a, b| a.0.cmp(&b.0));
+        // The file's own enums come first; imported ones follow.
+        let enums = self.program.enums[..self.parsed.enums.len()].to_vec();
+        let mut classes = Vec::new();
+        for (ns, namespace) in self.program.namespaces.iter().enumerate() {
+            if namespace.module.is_none() || !namespace.is_class {
                 continue;
             }
-            exports.push(declaration(&self.types, name, &decl.sig));
+            let mut methods: Vec<(String, Sig, Visibility)> = namespace
+                .methods
+                .iter()
+                .filter(|(name, _)| name.as_str() != "initialize")
+                .map(|(name, &id)| {
+                    let decl = &self.program.fns[id];
+                    (name.clone(), (*decl.sig).clone(), decl.visibility)
+                })
+                .collect();
+            methods.sort_by(|a, b| a.0.cmp(&b.0));
+            classes.push(ExportedClass {
+                id: ns as NsId,
+                name: namespace.name.clone(),
+                methods,
+            });
         }
-        exports.sort();
-        exports
+        Exported {
+            types: std::mem::replace(&mut self.types, Types::new()),
+            functions,
+            enums,
+            classes,
+        }
+    }
+
+    /// Imports what a required file exports: its enums, bound by name
+    /// where the name is free, as the runtime binds them; its classes,
+    /// whose instances its functions may return but whose names stay
+    /// private to it; and its functions, typed in this check's types.
+    fn import(&mut self, exported: &Exported) -> (HashMap<String, Rc<Sig>>, HashMap<String, u32>) {
+        let mut imports = Imports {
+            enums: Vec::new(),
+            classes: HashMap::new(),
+        };
+        let mut enums = HashMap::new();
+        for declared in &exported.enums {
+            self.steps += 1;
+            let id = self.program.enums.len() as u32;
+            self.program.enums.push(declared.clone());
+            self.types.names.enums.push(declared.name.clone());
+            let free = !self.program.enum_names.contains_key(&declared.name)
+                && !self.program.roots.contains_key(declared.name.as_str());
+            if free {
+                self.program.enum_names.insert(declared.name.clone(), id);
+            }
+            enums.insert(declared.name.clone(), id);
+            imports.enums.push(id);
+        }
+        for class in &exported.classes {
+            let id = self.program.namespaces.len() as NsId;
+            self.types.names.namespaces.push(class.name.clone());
+            self.program.namespaces.push(Namespace {
+                module: None,
+                name: class.name.clone(),
+                parent: None,
+                is_class: true,
+                methods: HashMap::new(),
+                statics: HashMap::new(),
+                ivars: HashMap::new(),
+                children: HashMap::new(),
+            });
+            imports.classes.insert(class.id, id);
+        }
+        for class in &exported.classes {
+            let owner = imports.classes[&class.id];
+            for (name, sig, visibility) in &class.methods {
+                let sig = self.import_sig(&exported.types, sig, &imports);
+                let id = self.program.fns.len();
+                self.program.fns.push(FnDecl {
+                    def: None,
+                    owner: Some(owner),
+                    instance: true,
+                    sig: Rc::new(sig),
+                    main: false,
+                    visibility: *visibility,
+                });
+                self.program.namespaces[owner as usize]
+                    .methods
+                    .insert(name.clone(), id);
+            }
+        }
+        let functions = exported
+            .functions
+            .iter()
+            .map(|(name, sig)| {
+                let sig = self.import_sig(&exported.types, sig, &imports);
+                (name.clone(), Rc::new(sig))
+            })
+            .collect();
+        (functions, enums)
+    }
+
+    /// A required file's signature in this check's types.
+    fn import_sig(&mut self, from: &Types, sig: &Sig, imports: &Imports) -> Sig {
+        let params = sig
+            .params
+            .iter()
+            .map(|param| Param {
+                ty: self.import_ty(from, param.ty, imports),
+                ..param.clone()
+            })
+            .collect();
+        let block = sig.block.as_ref().map(|block| BlockSig {
+            params: block
+                .params
+                .iter()
+                .map(|&ty| self.import_ty(from, ty, imports))
+                .collect(),
+            rest: block.rest.map(|ty| self.import_ty(from, ty, imports)),
+            result: block.result.map(|ty| self.import_ty(from, ty, imports)),
+            optional: block.optional,
+        });
+        Sig {
+            name: sig.name.clone(),
+            params,
+            result: sig.result.map(|ty| self.import_ty(from, ty, imports)),
+            block,
+            vars: Vec::new(),
+            checks_break: sig.checks_break,
+        }
+    }
+
+    /// A type of a required file's table in this check's: its enums and
+    /// classes become the ones imported from it, and a type the file could
+    /// not resolve, or one of a file it requires in turn, becomes `any`.
+    fn import_ty(&mut self, from: &Types, ty: Ty, imports: &Imports) -> Ty {
+        self.steps += 1;
+        match from.kind(ty).clone() {
+            Kind::Error | Kind::Namespace(_) | Kind::Exports(_) => Ty::ANY,
+            Kind::Array(element) => {
+                let element = self.import_ty(from, element, imports);
+                self.types.array(element)
+            }
+            Kind::Hash(value) => {
+                let value = self.import_ty(from, value, imports);
+                self.types.hash(value)
+            }
+            Kind::Shape(fields, open) => {
+                let fields = fields
+                    .iter()
+                    .map(|field| Field {
+                        name: field.name.clone(),
+                        ty: self.import_ty(from, field.ty, imports),
+                        optional: field.optional,
+                    })
+                    .collect();
+                self.types.shape(fields, open)
+            }
+            Kind::Tuple(items) => {
+                let items = items
+                    .iter()
+                    .map(|&item| self.import_ty(from, item, imports))
+                    .collect();
+                self.types.tuple(items)
+            }
+            Kind::Union(items) => {
+                let items: Vec<Ty> = items
+                    .iter()
+                    .map(|&item| self.import_ty(from, item, imports))
+                    .collect();
+                self.types.union(&items)
+            }
+            Kind::TypeLit(described) => {
+                let described = self.import_ty(from, described, imports);
+                self.types.type_lit(described)
+            }
+            Kind::Instance(ns) => match imports.classes.get(&ns) {
+                Some(&id) => self.types.intern(Kind::Instance(id)),
+                None => Ty::ANY,
+            },
+            Kind::EnumValue(id) | Kind::EnumType(id) => {
+                let Some(&imported) = imports.enums.get(id as usize) else {
+                    return Ty::ANY;
+                };
+                let kind = match from.kind(ty) {
+                    Kind::EnumValue(_) => Kind::EnumValue(imported),
+                    _ => Kind::EnumType(imported),
+                };
+                self.types.intern(kind)
+            }
+            Kind::Host(id) => {
+                let name = &from.names.hosts[id as usize];
+                match self.types.names.hosts.iter().position(|host| host == name) {
+                    Some(index) => self.types.intern(Kind::Host(index as u32)),
+                    None => Ty::ANY,
+                }
+            }
+            // Scalars, builtin namespaces, type variables and symbols mean
+            // the same in both tables.
+            kind => self.types.intern(kind),
+        }
     }
 
     /// `receiver.name(...)` on the object `require` returned.
@@ -165,6 +406,11 @@ impl<'a> Checker<'a> {
             .functions
             .get(name)
             .cloned()
+    }
+
+    /// `receiver.Name` on the object `require` returned, for an enum.
+    pub(super) fn exported_enum(&self, id: u32, name: &str) -> Option<u32> {
+        self.modules.loaded[id as usize].enums.get(name).copied()
     }
 
     /// Reports an unknown export.
@@ -181,53 +427,6 @@ impl<'a> Checker<'a> {
     pub(super) fn exports_type(&mut self, id: u32) -> Ty {
         self.types.intern(Kind::Exports(id))
     }
-}
-
-/// A signature as the signature table writes it.
-fn declaration(types: &Types, name: &str, sig: &Sig) -> String {
-    let ty = |ty: Ty| {
-        let text = types.display(ty);
-        if text.contains("unknown") {
-            "any".to_owned()
-        } else {
-            text
-        }
-    };
-    let mut params = Vec::new();
-    let star = sig.keyword_star();
-    for (index, param) in sig.params.iter().enumerate() {
-        if star == Some(index) {
-            params.push("*".to_owned());
-        }
-        params.push(match param.kind {
-            ParamKind::Positional | ParamKind::Keyword if param.optional => {
-                format!("{}?: {}", param.name, ty(param.ty))
-            }
-            ParamKind::Positional | ParamKind::Keyword => {
-                format!("{}: {}", param.name, ty(param.ty))
-            }
-            ParamKind::Rest => format!("*{}: {}", param.name, ty(param.ty)),
-            ParamKind::KeywordRest => format!("**{}: {}", param.name, ty(param.ty)),
-        });
-    }
-    if let Some(block) = &sig.block {
-        let args: Vec<String> = block.params.iter().map(|&p| ty(p)).collect();
-        let args = match args.len() {
-            1 => args[0].clone(),
-            _ => format!("({})", args.join(", ")),
-        };
-        let result = block
-            .result
-            .map(|r| format!(" -> {}", ty(r)))
-            .unwrap_or_default();
-        let optional = if block.optional { "?" } else { "" };
-        params.push(format!("&block{optional}: {args}{result}"));
-    }
-    let result = sig
-        .result
-        .map(|r| format!(" -> {}", ty(r)))
-        .unwrap_or_default();
-    format!("def {name}({}){result}\n", params.join(", "))
 }
 
 /// The literal paths, and aliases, of the `require` calls in statements.

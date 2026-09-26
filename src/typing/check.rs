@@ -166,7 +166,9 @@ impl<'a> Checker<'a> {
     }
 
     fn check_namespace_body(&mut self, ns: NsId) {
-        let module = self.program.namespaces[ns as usize].module;
+        let Some(module) = self.program.namespaces[ns as usize].module else {
+            return;
+        };
         let name = self.program.namespaces[ns as usize].name.clone();
         let mut frame = Frame::new(Some(ns), false, None, name);
         frame.namespace_body = true;
@@ -192,7 +194,9 @@ impl<'a> Checker<'a> {
 
     fn check_function(&mut self, id: FnId) {
         let decl = &self.program.fns[id];
-        let def = decl.def;
+        let Some(def) = decl.def else {
+            return;
+        };
         let sig = decl.sig.clone();
         let owner = decl.owner;
         let instance = decl.instance;
@@ -1509,16 +1513,15 @@ impl<'a> Checker<'a> {
     /// directly in the body of namespace `ns`, where a declaration can
     /// replace it.
     fn class_body_assignment(&self, ns: NsId, target: &Expr) -> bool {
-        self.program.namespaces[ns as usize]
-            .module
-            .body
-            .iter()
-            .any(|stmt| match &stmt.node {
-                Statement::Assign(Target::Value(assigned), "=", _) => {
-                    assigned.offset == target.offset && stmt.offset == target.offset
-                }
-                _ => false,
-            })
+        let Some(module) = self.program.namespaces[ns as usize].module else {
+            return false;
+        };
+        module.body.iter().any(|stmt| match &stmt.node {
+            Statement::Assign(Target::Value(assigned), "=", _) => {
+                assigned.offset == target.offset && stmt.offset == target.offset
+            }
+            _ => false,
+        })
     }
 
     pub(super) fn mark_ivar_assigned(&mut self, name: &str) {
@@ -1780,11 +1783,9 @@ impl<'a> Checker<'a> {
                 if let Some(&id) = self.program.enum_names.get(base) {
                     self.types.intern(Kind::EnumValue(id))
                 } else {
-                    let ns = self
-                        .program
-                        .namespaces
-                        .iter()
-                        .position(|ns| ns.is_class && ns.module.name.as_str() == base)?;
+                    let ns = self.program.namespaces.iter().position(|ns| {
+                        ns.is_class && ns.module.is_some_and(|module| module.name == base)
+                    })?;
                     self.types.intern(Kind::Instance(ns as NsId))
                 }
             }

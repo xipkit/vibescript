@@ -73,9 +73,9 @@ pub struct Checked {
     /// A deterministic count of the checker's work, which grows linearly
     /// with the program; compilation charges it to the step quota.
     pub steps: u64,
-    /// The signatures of the functions a required file exports, as
-    /// signature declarations.
-    pub(crate) exports: Vec<String>,
+    /// What a required file exports, with the types its declarations give
+    /// them.
+    pub(crate) exported: Option<std::sync::Arc<modules::Exported>>,
 }
 
 /// The static type of the receiver at each member call, keyed by the byte
@@ -217,23 +217,18 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
     }
     checker.declare_hosts(input.declared);
     checker.declare_program(input.parsed);
-    checker.require_modules(input.parsed);
     checker.check_all();
-    let exports = if input.file {
-        checker.export_declarations()
-    } else {
-        Vec::new()
-    };
+    let steps =
+        checker.steps + checker.frame.flow.steps + checker.types.steps + checker.spans.steps.get();
+    let exported = input.file.then(|| std::sync::Arc::new(checker.export()));
     let mut diagnostics = checker.diagnostics;
     diagnostics.sort_by_key(|d| (d.span.start, d.span.end));
     diagnostics.dedup_by(|a, b| a.code == b.code && a.span == b.span && a.message == b.message);
-    let steps =
-        checker.steps + checker.frame.flow.steps + checker.types.steps + checker.spans.steps.get();
     let mut checked = Checked {
         diagnostics,
         calls: CallTypes::from_entries(checker.calls),
         steps,
-        exports,
+        exported,
     };
     // Removed spellings of the canonical surface are compile errors too.
     crate::surface::add_to(&mut checked, input.source, input.tokens);

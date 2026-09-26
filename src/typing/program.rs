@@ -23,7 +23,9 @@ pub(crate) type NsId = u32;
 
 /// A script function or method.
 pub(crate) struct FnDecl<'a> {
-    pub def: &'a Definition,
+    /// Its definition, or none for a method of a class a required file
+    /// declares.
+    pub def: Option<&'a Definition>,
     /// The class or module that declares it.
     pub owner: Option<NsId>,
     /// Whether it is an instance method, rather than a top-level function or
@@ -45,17 +47,19 @@ pub(crate) struct Ivar {
 
 /// A script class or module.
 pub(crate) struct Namespace<'a> {
-    pub module: &'a Module,
+    /// Its declaration, or none for a class a required file declares.
+    pub module: Option<&'a Module>,
     pub name: String,
     pub parent: Option<NsId>,
     pub is_class: bool,
-    pub methods: HashMap<&'a str, FnId>,
-    pub statics: HashMap<&'a str, FnId>,
+    pub methods: HashMap<String, FnId>,
+    pub statics: HashMap<String, FnId>,
     pub ivars: HashMap<String, Ivar>,
     pub children: HashMap<&'a str, NsId>,
 }
 
 /// A script enum.
+#[derive(Clone)]
 pub(crate) struct Enum {
     pub name: String,
     pub members: Vec<String>,
@@ -146,6 +150,8 @@ impl<'a> Checker<'a> {
             debug_assert_eq!(self.types.names.builtins.len(), index);
             self.types.names.builtins.push((*name).to_owned());
         }
+        // Required files' enums are types in annotations too.
+        self.require_modules(parsed);
         // Signatures after every name is known, so annotations resolve.
         for (index, def) in parsed.functions.iter().enumerate() {
             let main = index == 0;
@@ -156,20 +162,22 @@ impl<'a> Checker<'a> {
             }
         }
         for ns in 0..self.program.namespaces.len() {
-            let module = self.program.namespaces[ns].module;
+            let Some(module) = self.program.namespaces[ns].module else {
+                continue;
+            };
             for (def, visibility) in &module.instance_methods {
                 let block = block_param(parsed, def.offset);
                 let id = self.function(def, Some(ns as NsId), true, block, false, *visibility);
                 self.program.namespaces[ns]
                     .methods
-                    .insert(def.name.as_str(), id);
+                    .insert(def.name.to_string(), id);
             }
             for (def, visibility) in &module.methods {
                 let block = block_param(parsed, def.offset);
                 let id = self.function(def, Some(ns as NsId), false, block, false, *visibility);
                 self.program.namespaces[ns]
                     .statics
-                    .insert(def.name.as_str(), id);
+                    .insert(def.name.to_string(), id);
             }
         }
         for (class, ivar) in &parsed.additions.ivars {
@@ -197,7 +205,9 @@ impl<'a> Checker<'a> {
         }
         // Properties declare their instance variables and their types.
         for ns in 0..self.program.namespaces.len() {
-            let module = self.program.namespaces[ns].module;
+            let Some(module) = self.program.namespaces[ns].module else {
+                continue;
+            };
             for (def, _) in &module.instance_methods {
                 let Some((name, setter)) = &def.accessor else {
                     continue;
@@ -245,7 +255,7 @@ impl<'a> Checker<'a> {
         };
         self.types.names.namespaces.push(name.clone());
         self.program.namespaces.push(Namespace {
-            module,
+            module: Some(module),
             name,
             parent,
             is_class: module.is_class,
@@ -368,7 +378,7 @@ impl<'a> Checker<'a> {
             checks_break: true,
         });
         self.program.fns.push(FnDecl {
-            def,
+            def: Some(def),
             owner,
             instance,
             sig,
@@ -384,7 +394,9 @@ impl<'a> Checker<'a> {
         let Some(&id) = self.program.functions.get(function) else {
             return;
         };
-        let def = self.program.fns[id].def;
+        let Some(def) = self.program.fns[id].def else {
+            return;
+        };
         let sig = self.program.fns[id].sig.clone();
         let strings = self.types.array(Ty::STRING);
         let mut index = 0;

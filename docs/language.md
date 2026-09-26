@@ -417,6 +417,33 @@ report.cents(5)                          # "0.05"
 cents(99)                                # "0.99"
 ```
 
+A file's enums are exported the same way, as types too. Its classes stay private to it, but an instance one of its functions returns has the class's type, and its methods are checked:
+
+```vibe module=tickets.vibe
+enum State
+  Open
+  Closed
+end
+
+class Ticket
+  getter state: State
+
+  def initialize(@state: State)
+  end
+end
+
+def opened -> Ticket
+  Ticket.new(:open)
+end
+```
+
+```vibe
+tickets = require("tickets")
+ticket = opened
+closed = ticket.state == State::Closed   # false
+state: State = tickets.State::Open
+```
+
 ## Host values
 
 A script reaches the host only through what the host declares. Arguments to the function a host calls are checked against its parameter types when the call starts. Globals and capabilities are declared by the host (`Engine::declare_global`, `Engine::declare_capability`) and appear in `Engine::prelude` with their types; a bare name that is neither in scope nor declared is a compile error (V0201). A global declared as `customer: { name: string, tier: string }` is used like any other typed value:
