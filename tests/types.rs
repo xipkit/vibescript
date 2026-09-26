@@ -200,36 +200,15 @@ fn return_annotations_apply_to_all_function_exit_paths() {
         "def typed->Status\nreturn :draft\nend\ntyped.name",
         "def typed->Status\n[1].each{return (:draft)}\n:done\nend\ntyped.name",
         "def typed(&block: () -> Status)->Status\nyield\nend\ntyped{break (:draft)}.name",
-        "def typed(x:Status=([1].map{return (:draft)}))->Status\nx\nend\ntyped().name",
+        "def typed(x:Status=(loop{return (:draft)}))->Status\nx\nend\ntyped().name",
     ] {
-        let value = if source.contains("x:Status=") {
-            let result = common::runtime_engine()
-                .compile(&format!("{ENUMS}{source}"))
-                .unwrap()
-                .run(CallOptions::default())
-                .unwrap();
-            serde_json::Value::String(result.value.to_string())
-        } else {
-            evaluate(source)
-        };
-        assert_eq!(value, serde_json::json!("Draft"), "{source}");
+        assert_eq!(evaluate(source), serde_json::json!("Draft"), "{source}");
         let missing = source.replace(":draft", ":missing");
-        // Preserve the runtime boundary test for a default whose block
-        // may return before producing a value for the parameter.
-        if source.contains("x:Status=") {
-            let error = common::runtime_engine()
-                .compile(&format!("{ENUMS}{missing}"))
-                .unwrap()
-                .run(CallOptions::default())
-                .unwrap_err();
-            assert_eq!(error.kind, ErrorKind::Type, "{missing}");
-        } else {
-            assert_eq!(
-                refused(&missing),
-                [at(&missing, "V0206", ":missing")],
-                "{missing}"
-            );
-        }
+        assert_eq!(
+            refused(&missing),
+            [at(&missing, "V0206", ":missing")],
+            "{missing}"
+        );
     }
 }
 
@@ -300,7 +279,7 @@ fn named_types_use_definition_scopes_and_nominal_host_identity() {
 fn invalid_typed_values_stop_later_defaults_and_host_effects() {
     let calls = Arc::new(AtomicUsize::new(0));
     let seen = calls.clone();
-    let mut engine = common::runtime_engine();
+    let mut engine = Engine::new();
     engine.register("effect", move |_, _| {
         seen.fetch_add(1, Ordering::SeqCst);
         Ok(Value::int(1))
@@ -313,19 +292,14 @@ fn invalid_typed_values_stop_later_defaults_and_host_effects() {
         .unwrap_err();
     assert_eq!(error.kind, ErrorKind::Type);
     assert_eq!(calls.load(Ordering::SeqCst), 0);
-    // A default of the wrong type fails when it is used, before the later
-    // defaults run; the checker does not check defaults yet.
-    let error = engine
-        .compile("def typed(x:int=\"bad\",y:int=effect().as(int))\neffect()\nend\ntyped()")
-        .unwrap()
-        .run(CallOptions::default())
-        .unwrap_err();
-    assert_eq!(error.kind, ErrorKind::Type);
-    assert_eq!(calls.load(Ordering::SeqCst), 0);
     // Inside a program, the others are refused before anything runs.
     let mut engine = vibescript::Engine::new();
     engine.register("effect", |_, _| panic!("effect ran"));
     for (source, texts) in [
+        (
+            "def typed(x:int=\"bad\",y:int=effect().as(int))\neffect()\nend\ntyped()",
+            vec!["\"bad\","],
+        ),
         (
             "def typed(x:int,y:int=effect().as(int))\neffect()\nend\ntyped(\"bad\")",
             vec!["\"bad\")"],
