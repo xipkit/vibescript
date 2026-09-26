@@ -283,7 +283,7 @@ fn value_templates_keep_call_forms_attachment_and_repeated_grants() {
     for (source, code, at) in [
         ("sms[\"deliver\"](1, 2)", "V0112", "sms["),
         ("sms[\"deliver\"]", "V0112", "sms["),
-        ("a=sms::deliver; a(1)", "V0310", "a(1)"),
+        ("a=sms::deliver; a(1)", "V0416", "::"),
         ("[sms[\"deliver\"]]", "V0112", "sms["),
         ("identity(sms[\"deliver\"])", "V0112", "sms["),
     ] {

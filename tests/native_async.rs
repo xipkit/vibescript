@@ -316,7 +316,7 @@ async fn async_capabilities_keep_contracts_grants_and_attachment_rules() {
     for (expression, codes) in [
         ("typed.echo('bad')", &["V0101"][..]),
         ("typed[:echo]", &["V0112", "V0409"]),
-        ("f=typed::echo;f(7)", &["V0301", "V0310"]),
+        ("f=typed::echo;f(7)", &["V0416", "V0301", "V0310"]),
     ] {
         let mut engine = declaring();
         engine.set_static_types(true);

@@ -289,10 +289,13 @@ fn aliases_parse_and_exhaustion_stops_before_host_effects() {
     for (source, expected) in [
         (
             "f=Time::parse;f(\"1970-01-01\") {effect()}",
-            &["V0301", "V0310"][..],
+            &["V0416", "V0301", "V0310"][..],
         ),
         ("ns=Time;ns.parse(\"1970-01-01\") {effect()}", &["V0305"]),
-        ("Time::parse(\"1970-01-01\") {effect()}", &["V0305"]),
+        (
+            "Time::parse(\"1970-01-01\") {effect()}",
+            &["V0416", "V0305"],
+        ),
         ("Time.parse(nil);effect()", &["V0101"]),
         ("Time.parse(1);effect()", &["V0101"]),
         ("Time.parse(true);effect()", &["V0101"]),

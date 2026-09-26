@@ -142,8 +142,8 @@ fn typed_capability_methods_cover_every_immediate_dispatch_form() {
     let method = echo("int");
     for (source, codes, at) in [
         ("typed.echo", &["V0301"][..], "echo"),
-        ("typed::echo", &["V0301"], "echo"),
-        ("{f: typed::echo}", &["V0301"], "echo"),
+        ("typed::echo", &["V0416", "V0301"], "::"),
+        ("{f: typed::echo}", &["V0416", "V0301"], "::"),
         ("typed[:echo]", &["V0112", "V0409"], "typed"),
         ("typed[:echo](7)", &["V0112", "V0409"], "typed"),
         (

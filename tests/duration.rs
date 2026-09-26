@@ -258,7 +258,7 @@ fn duration_builders_take_keywords_and_refuse_blocks() {
         ),
         (
             "f=Duration::build;f(hours:1,minutes:2) {effect()}",
-            &["V0310"],
+            &["V0416", "V0310"],
         ),
         (
             "Duration.parse(\"PT1H2M\",ignored:1) {effect()}",

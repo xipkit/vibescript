@@ -314,7 +314,6 @@ fn blocks_and_clock_aliases_follow_the_call_contracts() {
     checked.register("unexpected", |_, _| panic!("ignored block executed"));
     for (source, code) in [
         ("Time.utc(2024) {unexpected()}", "V0305"),
-        ("f=Time::gm;f(2024) {unexpected()}", "V0310"),
         ("Time.at(0,in:\"UTC\").round {unexpected()}", "V0305"),
         ("Time.utc(2024).iso8601 {unexpected()}", "V0305"),
         (
@@ -322,12 +321,19 @@ fn blocks_and_clock_aliases_follow_the_call_contracts() {
             "V0403",
         ),
         ("Time.now()", "V0412"),
-        ("f=Time::now;f()", "V0201"),
         ("now", "V0401"),
         ("now()", "V0401"),
     ] {
         let error = checked.compile(source).err().unwrap();
         assert_eq!(common::codes(&error), [code], "{source}");
+    }
+    // A clock function named with `::` is a removed spelling first.
+    for (source, codes) in [
+        ("f=Time::gm;f(2024) {unexpected()}", &["V0416", "V0310"][..]),
+        ("f=Time::now;f()", &["V0416", "V0201"]),
+    ] {
+        let error = checked.compile(source).err().unwrap();
+        assert_eq!(common::codes(&error), codes, "{source}");
     }
     for source in [
         "Time.now",

@@ -47,7 +47,7 @@ fn computed_targets_support_nested_calls_keywords_splats_and_blocks() {
 fn begin_expressions_are_called_after_selection_and_cleanup() {
     refused(
         "events: array<int> = [];x=(begin\nevents.push(1);JSON::parse\nend)(begin\nevents.push(2);\"[8]\"\nend);[x,events]",
-        &["V0106", "V0301"],
+        &["V0106", "V0416", "V0301"],
         "begin",
     );
 }
@@ -55,7 +55,7 @@ fn begin_expressions_are_called_after_selection_and_cleanup() {
 #[test]
 fn missing_namespace_members_are_catchable_at_lookup() {
     refused("JSON.nope rescue 7", &["V0203"], "nope");
-    refused("JSON::nope rescue 7", &["V0203"], "nope");
+    refused("JSON::nope rescue 7", &["V0416", "V0203"], "::");
     refused(
         "def good(x: int = 42) -> int\nx\nend\nbegin\n(JSON.nope rescue good)(8)\nrescue RuntimeError\n99\nend",
         &["V0203"],

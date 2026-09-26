@@ -136,11 +136,15 @@ fn call_targets_are_selected_before_arguments_mutate_callable_fields() {
     // so a callable field is refused before anything runs.
     let source = "h={call:Math::sqrt};value=h.call(h.clear.length);[value,h]";
     let error = common::static_engine().compile(source).err().unwrap();
-    assert_eq!(common::codes(&error), ["V0301", "V0203"]);
+    assert_eq!(common::codes(&error), ["V0416", "V0301", "V0203"]);
     let spans: Vec<usize> = error.diagnostics().iter().map(|d| d.span.start).collect();
     assert_eq!(
         spans,
-        [source.find("sqrt").unwrap(), source.find("call(").unwrap()]
+        [
+            source.find("::").unwrap(),
+            source.find("sqrt").unwrap(),
+            source.find("call(").unwrap()
+        ]
     );
 }
 

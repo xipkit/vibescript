@@ -1136,7 +1136,7 @@ fn member_access_refusals_name_the_receiver() {
     for (body, code, text) in [
         ("[1]..[2]", "V0101", "[1]"),
         ("{a: 7}::a", "V0203", "a"),
-        ("f = JSON::parse\nf.foo", "V0301", "parse"),
+        ("f = JSON::parse\nf.foo", "V0416", "::"),
         ("a = [1]\na.length = 2", "V0203", "length"),
         ("x: int? = nil\nx.y = 1", "V0203", "y"),
         ("for n in 3\n  n\nend", "V0101", "3"),

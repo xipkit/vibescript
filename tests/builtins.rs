@@ -37,7 +37,10 @@ fn json_parse_requires_strings_through_every_call_form() {
     // removed.
     for (source, expected) in [
         ("JSON.parse(:\"7\")", vec![("V0101", ":\"7")]),
-        ("JSON::parse(:\"7\")", vec![("V0101", ":\"7")]),
+        (
+            "JSON::parse(:\"7\")",
+            vec![("V0416", "::"), ("V0101", ":\"7")],
+        ),
         ("(JSON.parse)(:\"7\")", vec![("V0101", ":\"7")]),
         (
             "JSON[:parse](:\"7\")",
@@ -189,7 +192,7 @@ fn host_and_parameter_bindings_override_builtins_and_blocks_capture_parameters()
     for (source, expected) in [
         (
             "f=Math::sqrt;f(9)",
-            vec![("V0301", "sqrt"), ("V0310", "f(9)")],
+            vec![("V0416", "::"), ("V0301", "sqrt"), ("V0310", "f(9)")],
         ),
         (
             "Math[\"map\"]=Math[\"sqrt\"];Math.map(9)",
@@ -201,7 +204,7 @@ fn host_and_parameter_bindings_override_builtins_and_blocks_capture_parameters()
         ),
         (
             "to_int=Math::sqrt;to_int(9)",
-            vec![("V0301", "sqrt"), ("V0310", "to_int(9)")],
+            vec![("V0416", "::"), ("V0301", "sqrt"), ("V0310", "to_int(9)")],
         ),
     ] {
         assert_eq!(refused(source), at(source, &expected), "{source}");
@@ -381,7 +384,7 @@ fn invalid_builtin_calls_fail_before_later_effects_and_do_not_invoke_blocks() {
     for (expression, code, text) in [
         ("to_float(:one)", "V0101", ":one"),
         ("Math.sqrt(9,x:1)", "V0302", "x:"),
-        ("Math::sqrt(9,2)", "V0301", "sqrt"),
+        ("Math.sqrt(9,2)", "V0301", "sqrt"),
         ("Math.sqrt", "V0301", "sqrt"),
         ("{a:1}::a", "V0203", "::a"),
         ("Math.sqrt(9) {effect()}", "V0305", "{effect"),

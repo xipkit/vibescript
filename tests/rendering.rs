@@ -117,7 +117,7 @@ fn templates_resolve_data_paths_and_serialize_scalars() {
     // A namespace is not a context, and a method is not a value.
     for (source, code) in [
         ("\"{{length}}\".template(JSON)", "V0101"),
-        ("\"{{x}}\".template({x:JSON::parse})", "V0301"),
+        ("\"{{x}}\".template({x:JSON.parse})", "V0301"),
         ("\"{{utc}}\".template(Time)", "V0101"),
     ] {
         let error = common::static_engine().compile(source).err().unwrap();

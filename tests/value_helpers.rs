@@ -97,13 +97,13 @@ fn builtins_are_not_values_to_copy() {
     // called later.
     let source = "cb=JSON::parse.dup;cb(\"[8]\")";
     let error = common::static_engine().compile(source).err().unwrap();
-    assert_eq!(common::codes(&error), ["V0301", "V0106", "V0310"]);
+    assert_eq!(common::codes(&error), ["V0416", "V0301", "V0106", "V0310"]);
     assert_eq!(
         error.diagnostics()[0].span.start,
-        source.find("parse").unwrap()
+        source.find("::").unwrap()
     );
     assert_eq!(
-        error.diagnostics()[2].span.start,
+        error.diagnostics()[3].span.start,
         source.find("cb(").unwrap()
     );
 }

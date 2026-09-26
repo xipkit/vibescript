@@ -397,7 +397,7 @@ fn capability_methods_cannot_escape_through_reads_containers_or_host_arguments()
     // result is `any`, so the other escapes do not compile.
     for (source, code, at) in [
         ("sms[\"deliver\"]", "V0112", "sms["),
-        ("a=sms::deliver; a(1)", "V0310", "a(1)"),
+        ("a=sms::deliver; a(1)", "V0416", "::"),
         ("a=sms[\"deliver\"]; a(1)", "V0112", "sms["),
         ("[sms[\"deliver\"]]", "V0112", "sms["),
         ("{f: sms[\"deliver\"]}", "V0112", "sms["),
