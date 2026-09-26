@@ -164,6 +164,20 @@ fn call_entry_rejects_undeclared_globals_before_running_script() {
             .unwrap_err();
         assert_eq!(error.kind, vibescript::ErrorKind::Argument);
         assert!(error.message.contains(&format!("undeclared global {name}")));
+        let error = script
+            .run(vibescript::CallOptions {
+                capabilities: vec![Capability::new(name, |_| {
+                    panic!("an undeclared capability factory must not run")
+                })],
+                ..Default::default()
+            })
+            .unwrap_err();
+        assert_eq!(error.kind, vibescript::ErrorKind::Argument);
+        assert!(
+            error
+                .message
+                .contains(&format!("undeclared capability {name}"))
+        );
     }
     assert_eq!(
         script.run(Default::default()).unwrap().value.as_int(),

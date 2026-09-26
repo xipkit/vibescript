@@ -275,6 +275,7 @@ fn check(ctx: &mut CallContext, shape: &Shape, subject: &str, value: &Value) -> 
 /// as they are bound, by [`check_capability`].
 pub(crate) fn check_globals(ctx: &mut CallContext, declared: &Declarations) -> Result<()> {
     let globals = std::mem::take(&mut ctx.options.globals);
+    let capabilities = std::mem::take(&mut ctx.options.capabilities);
     let result = (|| {
         for name in globals.keys() {
             ctx.work_bytes(name.len())?;
@@ -285,16 +286,26 @@ pub(crate) fn check_globals(ctx: &mut CallContext, declared: &Declarations) -> R
                 ));
             }
         }
+        for capability in &capabilities {
+            ctx.work_bytes(capability.name.len())?;
+            if !declared.contains_key(&capability.name) {
+                return Err(Error::new(
+                    ErrorKind::Argument,
+                    format!(
+                        "undeclared capability {}; declare it on the engine before compiling",
+                        capability.name
+                    ),
+                ));
+            }
+        }
         for (name, declaration) in declared {
             ctx.work_bytes(name.len())?;
             if let Some(value) = globals.get(name) {
                 declaration.check(ctx, &format!("global {name}"), value)?;
                 continue;
             }
-            ctx.charge(ctx.options.capabilities.len() as u64)?;
-            let granted = ctx
-                .options
-                .capabilities
+            ctx.charge(capabilities.len() as u64)?;
+            let granted = capabilities
                 .iter()
                 .any(|capability| capability.name == *name);
             if !granted {
@@ -312,6 +323,7 @@ pub(crate) fn check_globals(ctx: &mut CallContext, declared: &Declarations) -> R
         Ok(())
     })();
     ctx.options.globals = globals;
+    ctx.options.capabilities = capabilities;
     result
 }
 

@@ -378,14 +378,18 @@ fn saved_namespaces_cannot_reuse_grants_in_later_calls_even_with_unlimited_memor
         let regranted = Capability::from_value("saved", saved);
         let mut receiver = Engine::new();
         receiver.declare_capability(&regranted).unwrap();
-        let user = receiver
-            .compile("def use -> any; saved.deliver(); end")
-            .unwrap();
         for mut receiving in [CallOptions::default(), opts] {
             if unlimited {
                 receiving.limits.memory_bytes = None;
             }
             receiving.capabilities.push(regranted.clone());
+            let mut receiver = receiver.clone();
+            for capability in &receiving.capabilities {
+                receiver.declare_capability(capability).unwrap();
+            }
+            let user = receiver
+                .compile("def use -> any; saved.deliver(); end")
+                .unwrap();
             let error = user.call("use", &[], receiving).unwrap_err();
             assert!(
                 error.message.contains("was not granted to this call"),
@@ -660,6 +664,7 @@ fn binding_is_guarded_before_and_after_host_code_and_precedes_initialization() {
     let effects = Arc::new(AtomicUsize::new(0));
     let observed = effects.clone();
     let mut engine = Engine::new();
+    engine.declare_global("sms", "any").unwrap();
     engine.register("effect", move |_, _| {
         observed.fetch_add(1, Ordering::Relaxed);
         Ok(Value::nil())
