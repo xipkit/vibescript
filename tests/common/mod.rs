@@ -50,6 +50,14 @@ impl<T> Finished<T> {
     }
 }
 
+/// An engine for runtime rejection and legacy behavior tests whose programs
+/// intentionally fail static checking.
+pub fn runtime_engine() -> vibescript::Engine {
+    let mut engine = vibescript::Engine::new();
+    engine.set_static_types(false);
+    engine
+}
+
 /// An engine for tests of the gradual checker (`Script::check` and its
 /// relatives), which reads the ADR-004 language until it is removed, so it
 /// does not type check statically even when the build forces static types.

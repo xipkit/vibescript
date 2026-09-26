@@ -3,6 +3,30 @@
 use super::support::{clean, codes};
 
 #[test]
+fn removed_names_keep_their_diagnostic_and_fix_with_invalid_arguments() {
+    clean("1.seconds.to_s\n[1].length\n");
+    for source in [
+        "1.seconds.string { 1 }\n",
+        "1.seconds.string(k: 1)\n",
+        "[1].count(*[])\n",
+    ] {
+        let found = codes(source, &["V0401"]);
+        assert!(found[0].applicable_fix().is_some(), "{source}");
+    }
+    let source = "x: string = [1].size\n";
+    let found = codes(source, &["V0101", "V0401"]);
+    assert!(
+        found
+            .iter()
+            .find(|d| d.code.to_string() == "V0401")
+            .unwrap()
+            .applicable_fix()
+            .is_some()
+    );
+    codes("\"ab\".replace\n", &["V0401"]);
+}
+
+#[test]
 fn defaults_match_parameter_types_in_declaration_order() {
     clean("def f(a: int = 1, b: int = a + 1, *, c: string = \"x\")\nend\n");
     codes("def f(a: int = \"x\")\nend\n", &["V0101"]);

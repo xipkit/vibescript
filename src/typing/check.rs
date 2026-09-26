@@ -1681,7 +1681,7 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::UNDECLARED_IVAR,
                 self.spans.expr(target),
-                format!("class variable `{name}` cannot be assigned outside a class"),
+                format!("class variable `{name}` is outside a class"),
             ));
             return;
         };

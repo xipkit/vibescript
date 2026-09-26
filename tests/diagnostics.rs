@@ -7,7 +7,7 @@ use vibescript::{CallOptions, Diagnostic, Engine, Error, ErrorKind, Position, St
 mod common;
 
 fn failure(source: &str) -> Error {
-    Engine::new()
+    common::runtime_engine()
         .compile(source)
         .unwrap()
         .call("run", &[Value::nil()], CallOptions::default())
@@ -104,7 +104,7 @@ fn writes_and_their_compound_operators_point_at_the_target() {
     for (body, expected) in [
         (
             "arr = [1, [2]]\n  arr[1].first = 3",
-            vec![("V0203", "first =")],
+            vec![("V0203", "first ="), ("V0203", "first =")],
         ),
         ("arr = [1]\n  arr[5] += 2", vec![("V0107", "arr[5]")]),
         ("h = {a: [1]}\n  h.a.first -= 1", vec![("V0415", ".a")]),
@@ -124,8 +124,8 @@ fn class_variable_reads_outside_a_class_have_no_class_context() {
         let source = format!("def run(input: any)\n  {body}\nend");
         assert_eq!(refused(&source), at(&source, &[("V0204", "@@x")]), "{body}");
     }
-    // The checker does not report a write, which fails when it runs.
     let source = "def run(input: any)\n  @@x = 3\nend";
+    assert_eq!(refused(source), at(source, &[("V0204", "@@x")]));
     assert_eq!(failure(source).message, "no class context for class var");
 }
 

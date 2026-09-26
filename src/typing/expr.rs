@@ -243,9 +243,11 @@ impl<'a> Checker<'a> {
             self.report(Diagnostic::error(
                 Code::UNDECLARED_IVAR,
                 span,
-                format!(
+                if self.frame.owner.is_none() {
+                    format!("class variable `{name}` is outside a class")
+                } else { format!(
                     "class variable `{name}` is not declared; declare it in the class body, as in `{name}: T = value`"
-                ),
+                ) },
             ));
             return Ty::ERROR;
         }

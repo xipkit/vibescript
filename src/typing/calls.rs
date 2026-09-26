@@ -34,6 +34,20 @@ pub(super) struct Call<'a, 'n> {
 type Candidate = (Rc<Sig>, Vec<Option<Ty>>);
 
 impl<'a> Call<'a, '_> {
+    fn empty(&self) -> bool {
+        self.block.is_none()
+            && self.extra.is_none()
+            && self.selectors.is_empty()
+            && self
+                .args
+                .iter()
+                .all(|arg| match (&arg.kind, &arg.value.node) {
+                    (ArgumentKind::Splat, Node::Array(items)) => items.is_empty(),
+                    (ArgumentKind::KeywordSplat, Node::Hash(items)) => items.is_empty(),
+                    _ => false,
+                })
+    }
+
     fn positional(&self) -> usize {
         self.args
             .iter()
@@ -542,6 +556,9 @@ impl<'a> Checker<'a> {
             }
         }
         if candidates.is_empty() {
+            if sigs::declares(&self.types, ty, call.name) {
+                return self.table_member(call, ty);
+            }
             self.report(Diagnostic::error(
                 Code::UNKNOWN_MEMBER,
                 call.name_span,
@@ -646,7 +663,11 @@ impl<'a> Checker<'a> {
                         name: canonical,
                         ..*call
                     };
-                    return self.builtin_member(&renamed, index, ty);
+                    self.mute += 1;
+                    let result = self.builtin_member(&renamed, index, ty);
+                    self.mute -= 1;
+                    self.removed_rename(call, canonical);
+                    return result;
                 }
                 self.loose_args(call);
                 return Ty::ERROR;
@@ -658,6 +679,25 @@ impl<'a> Checker<'a> {
 
     /// A member from the signature table's classes.
     fn table_member(&mut self, call: &Call<'a, '_>, ty: Ty) -> Ty {
+        if call.empty() {
+            for base in sigs::bases(&self.types, ty) {
+                if let Some(rename) = sigs::index().renames.get(&(*base, call.name)) {
+                    if !rename.pattern.contains('(') {
+                        if let Some((None, canonical)) = rename.canonical() {
+                            if canonical != call.name {
+                                let renamed = Call {
+                                    name: canonical,
+                                    ..*call
+                                };
+                                let result = self.table_member(&renamed, ty);
+                                self.removed_rename(call, canonical);
+                                return result;
+                            }
+                        }
+                    }
+                }
+            }
+        }
         let found = sigs::members(&mut self.types, ty, call.name);
         if !found.is_empty() {
             let candidates: Vec<Candidate> = found
@@ -690,8 +730,19 @@ impl<'a> Checker<'a> {
                             name: canonical,
                             ..*call
                         };
-                        return self.table_member(&renamed, ty);
+                        self.mute += 1;
+                        let result = self.table_member(&renamed, ty);
+                        self.mute -= 1;
+                        self.removed_rename(call, canonical);
+                        return result;
                     }
+                }
+                if *base == "string" && call.name == "replace" {
+                    self.report(Diagnostic::error(
+                        Code::REMOVED_NAME,
+                        call.name_span,
+                        "`string.replace` was removed; assign the replacement string directly",
+                    ));
                 }
                 self.loose_args(call);
                 return Ty::ERROR;
@@ -705,6 +756,18 @@ impl<'a> Checker<'a> {
         ));
         self.loose_args(call);
         Ty::ERROR
+    }
+
+    fn removed_rename(&mut self, call: &Call<'a, '_>, canonical: &str) {
+        let advice = format!("use `{canonical}`");
+        self.report(
+            Diagnostic::error(
+                Code::REMOVED_NAME,
+                call.name_span,
+                format!("`{}` was removed; {advice}", call.name),
+            )
+            .with_fix(Fix::replace(advice, call.name_span, canonical)),
+        );
     }
 
     /// `value.as(T)`: a checked cast of `any` or a union to `T`.
@@ -1460,16 +1523,16 @@ impl<'a> Checker<'a> {
         }
         self.unify(param, ty, bindings);
         let expected = self.types.close(param, bindings);
-        if !self.types.assignable(ty, expected) {
-            let span = self.spans.expr(value);
-            self.mismatch(span, expected, ty, purpose);
-        } else if takes_type
+        if takes_type
             && !matches!(
                 self.types.kind(ty),
                 Kind::TypeLit(_) | Kind::Error | Kind::Never | Kind::Any
             )
         {
             self.not_a_type(value, ty, purpose);
+        } else if !self.types.assignable(ty, expected) {
+            let span = self.spans.expr(value);
+            self.mismatch(span, expected, ty, purpose);
         }
         ty
     }
