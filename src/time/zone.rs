@@ -1023,7 +1023,10 @@ mod tests {
         assert_eq!(second.stats().retained_memory_bytes, 0);
         let mut unmetered = crate::integer::unlimited_context();
         let shared = Zone::local(&mut unmetered).unwrap();
-        assert!(Arc::ptr_eq(&shared, LOCAL.get().unwrap()));
+        assert_eq!(storage(&shared), storage(LOCAL.get().unwrap()));
+        assert_eq!(unmetered.stats().retained_memory_bytes, charged);
+        assert_eq!(unmetered.stats().steps, 0);
+        drop(shared);
         assert_eq!(unmetered.stats().retained_memory_bytes, 0);
     }
 

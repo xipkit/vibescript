@@ -380,7 +380,9 @@ mod tests {
         for value in 0..32usize {
             buffer.push(&work, value).unwrap();
         }
-        assert!(buffer.charge.is_none());
-        assert_eq!(work.0.borrow().stats().peak_memory_bytes, 0);
+        assert!(buffer.charge.is_some());
+        assert!(work.0.borrow().stats().peak_memory_bytes >= 32 * size_of::<usize>());
+        drop(buffer);
+        assert_eq!(work.0.borrow().stats().retained_memory_bytes, 0);
     }
 }
