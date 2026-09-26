@@ -34,7 +34,7 @@ fn seed_sequences_reset_and_entropy_functions_do_not_advance_them() {
     let script = engine
         .compile(
             r#"
-def run()
+def run() -> array<bool | int | nil>
  srand(42)
  expected=[rand,rand(100),rand(-9223372036854775808..9223372036854775807)]
  old=srand(42)
@@ -61,11 +61,11 @@ fn seeded_state_is_isolated_between_calls_and_threads_and_released_on_return() {
     let script = engine
         .compile(
             r#"
-def seeded
+def seeded -> array<int | float>
  srand(7)
  [rand,rand(10),rand(-9223372036854775808..9223372036854775807)]
 end
-def unseeded
+def unseeded -> array<int | float | nil>
  [rand,srand(1),rand(1)]
 end
 def discard
