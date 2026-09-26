@@ -88,6 +88,7 @@ pub(crate) struct Program<'a> {
     pub by_offset: HashMap<u32, NsId>,
     /// Host functions registered on the engine.
     pub hosts: HashMap<String, Rc<Sig>>,
+    pub declared_calls: std::collections::HashSet<String>,
     /// Globals and capabilities the host declares, as values, by name.
     pub declared: HashMap<String, Ty>,
     /// Capabilities the host declares with members, by `Kind::Host` index.
@@ -162,10 +163,8 @@ impl<'a> Checker<'a> {
                     let sig = self
                         .converter
                         .convert_owned(&mut self.types, function, None);
-                    self.program
-                        .hosts
-                        .entry(name.clone())
-                        .or_insert_with(|| Rc::new(sig));
+                    self.program.declared_calls.insert(name.clone());
+                    self.program.hosts.insert(name.clone(), Rc::new(sig));
                 }
                 _ => (),
             }

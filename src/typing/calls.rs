@@ -133,6 +133,39 @@ impl<'a> Checker<'a> {
             _ => (),
         }
         if let Some(ns) = self.frame.owner {
+            if name.chars().next().is_some_and(char::is_uppercase) {
+                if let Some(&ty) = self.constants.get(&(Some(ns), name.to_owned())) {
+                    if bare {
+                        return ty;
+                    }
+                    self.report(Diagnostic::error(
+                        Code::NOT_CALLABLE,
+                        call.name_span,
+                        format!("`{name}` is a namespace constant, not a function"),
+                    ));
+                    self.loose_args(&call);
+                    return Ty::ERROR;
+                }
+            }
+        }
+        if let Some(&ty) = self.program.declared.get(name) {
+            if bare {
+                return ty;
+            }
+            let found = self.types.display(ty);
+            self.report(Diagnostic::error(
+                Code::NOT_CALLABLE,
+                call.name_span,
+                format!("`{name}` is a {found} the host declares, not a function"),
+            ));
+            self.loose_args(&call);
+            return Ty::ERROR;
+        }
+        if self.program.declared_calls.contains(name) {
+            let sig = self.program.hosts[name].clone();
+            return self.call_sigs(&call, &[(sig, Vec::new())]);
+        }
+        if let Some(ns) = self.frame.owner {
             if name == "new"
                 && !self.frame.instance
                 && self.program.namespaces[ns as usize].is_class
@@ -158,19 +191,6 @@ impl<'a> Checker<'a> {
         }
         if let Some(sig) = self.program.hosts.get(name).cloned() {
             return self.call_sigs(&call, &[(sig, Vec::new())]);
-        }
-        if let Some(&ty) = self.program.declared.get(name) {
-            if bare {
-                return ty;
-            }
-            let found = self.types.display(ty);
-            self.report(Diagnostic::error(
-                Code::NOT_CALLABLE,
-                call.name_span,
-                format!("`{name}` is a {found} the host declares, not a function"),
-            ));
-            self.loose_args(&call);
-            return Ty::ERROR;
         }
         if let Some(sig) = self.modules.published.get(name).cloned() {
             return self.call_sigs(&call, &[(sig, Vec::new())]);
@@ -1030,7 +1050,7 @@ impl<'a> Checker<'a> {
                 if let Some(&child) = self.program.namespaces[ns as usize].children.get(name) {
                     return self.types.intern(Kind::Namespace(child));
                 }
-                if super::check::is_constant(name)
+                if name.chars().next().is_some_and(char::is_uppercase)
                     && self.program.namespaces[ns as usize]
                         .statics
                         .contains_key(name)

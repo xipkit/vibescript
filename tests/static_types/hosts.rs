@@ -458,3 +458,27 @@ fn capability_data_writes_keep_the_declared_type() {
     codes_with(&engine, "Cap.send = 1", &["V0203"]);
     codes_with(&engine, "Cap.n += 's'", &["V0108"]);
 }
+
+#[test]
+fn declared_call_targets_precede_script_and_registered_functions() {
+    let mut engine = Engine::new();
+    engine.register_method("f", signed("f", &[], "int"));
+    let supplied = Capability::from_value("f", signed("f", &[], "string").value());
+    engine.declare_capability(&supplied).unwrap();
+    let source = "def f -> int; 1; end; x: string = f; x";
+    assert!(errors_with(&engine, source).is_empty());
+    let script = engine.compile(source).unwrap();
+    let result = script
+        .run(vibescript::CallOptions {
+            capabilities: vec![supplied],
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(result.value.as_bytes(), Some(b"ok".as_slice()));
+    codes_with(&engine, "def f -> int; 1; end; x: int = f", &["V0101"]);
+    codes_with(
+        &engine,
+        "module M; F = 1; def self.run; F(2); end; end",
+        &["V0310"],
+    );
+}
