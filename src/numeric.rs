@@ -43,7 +43,7 @@ pub(crate) fn call(
                 _ => Value::nil(),
             }
         }
-        "next" | "succ" | "pred" if receiver.is_integer() => {
+        "succ" | "pred" if receiver.is_integer() => {
             nullary()?;
             calculate(
                 ctx,
@@ -53,7 +53,7 @@ pub(crate) fn call(
             )?
         }
         "round" | "floor" | "ceil" => round(ctx, receiver, args, &format!("{kind}.{name}"))?,
-        "div" | "divmod" | "fdiv" | "remainder" | "modulo" => {
+        "div" | "divmod" | "fdiv" | "remainder" => {
             let method = format!("{kind}.{name}");
             if args.len() != 1 {
                 return Err(Error::new(
@@ -101,7 +101,6 @@ fn division(ctx: &mut CallContext, method: &str, a: &Value, b: &Value) -> Result
     if a.is_integer() && b.is_integer() {
         return match name {
             "div" => calculate(ctx, "//", a, b),
-            "modulo" => calculate(ctx, "%", a, b),
             "remainder" => match (a.as_int(), b.as_int()) {
                 (Some(a), Some(b)) => Ok(Value::int(a.checked_rem(b).unwrap_or(0))),
                 _ => integer::binary(ctx, "remainder", a, b),
@@ -141,9 +140,6 @@ fn division(ctx: &mut CallContext, method: &str, a: &Value, b: &Value) -> Result
     } else {
         remainder
     };
-    if name == "modulo" {
-        return Ok(Value::float(modulo));
-    }
     let quotient = if b.is_infinite() && a.is_finite() {
         Value::int(if a != 0.0 && (a < 0.0) != (b < 0.0) {
             -1

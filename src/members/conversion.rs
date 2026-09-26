@@ -12,8 +12,8 @@ pub(super) fn call(
         return Ok(None);
     }
     let supported = match receiver.0 {
-        Kind::Symbol(_) => matches!(name, "id2name" | "to_s" | "string" | "to_sym"),
-        Kind::Nil | Kind::Bool(_) | Kind::Range(_) => matches!(name, "to_s" | "string"),
+        Kind::Symbol(_) => matches!(name, "to_s" | "to_sym"),
+        Kind::Nil | Kind::Bool(_) | Kind::Range(_) => name == "to_s",
         _ => false,
     };
     if !supported {
@@ -41,7 +41,7 @@ mod tests {
 
     #[test]
     fn symbol_aliases_share_accounted_storage_and_release_the_last_owner() {
-        for name in ["id2name", "to_s", "string", "to_sym"] {
+        for name in ["to_s", "to_sym"] {
             let mut ctx = CallContext::new(CallOptions::default());
             let source = ctx.import(&Value::symbol(vec![0xff; 131072])).unwrap();
             let before = ctx.stats();
@@ -102,7 +102,7 @@ mod tests {
                 parenthesized: false,
                 scope: false,
             };
-            let error = call(&mut ctx, site, "id2name", &source, &[], (false, false)).unwrap_err();
+            let error = call(&mut ctx, site, "to_s", &source, &[], (false, false)).unwrap_err();
             assert_eq!(error, latched);
             assert_eq!(ctx.checkpoint().unwrap_err(), error);
             drop(source);

@@ -281,13 +281,15 @@ pub(crate) fn binary(op: &str, left: &Value, right: &Value) -> Result<Value> {
     Ok(Value::duration(seconds))
 }
 
+/// The seconds in the unit an int converts to a duration with, such as
+/// `minutes`.
 fn unit(name: &str) -> Option<i64> {
     match name {
-        "second" | "seconds" => Some(1),
-        "minute" | "minutes" => Some(60),
-        "hour" | "hours" => Some(3600),
-        "day" | "days" => Some(86400),
-        "week" | "weeks" => Some(604800),
+        "seconds" => Some(1),
+        "minutes" => Some(60),
+        "hours" => Some(3600),
+        "days" => Some(86400),
+        "weeks" => Some(604800),
         _ => None,
     }
 }
@@ -330,9 +332,11 @@ pub(crate) fn member(
         return Ok(None);
     };
     let value = match name {
-        "after" | "since" | "from_now" | "ago" | "before" | "until" => {
-            // `ago` and `from_now` count from now, so they take no arguments.
-            if site.auto && !block && !matches!(name, "ago" | "from_now") {
+        "after" | "from_now" | "ago" | "before" => {
+            // `ago` and `from_now` count from now, so they take no arguments;
+            // `after` and `before` count from the time they are given.
+            let from_now = matches!(name, "ago" | "from_now");
+            if site.auto && !block && !from_now {
                 return Err(Error::new(
                     ErrorKind::Type,
                     format!(
@@ -343,25 +347,36 @@ pub(crate) fn member(
             if keywords {
                 return Err(Error::new(
                     ErrorKind::Argument,
-                    if matches!(name, "ago" | "before" | "until") {
+                    if matches!(name, "ago" | "before") {
                         "duration.before does not accept keyword arguments"
                     } else {
                         "duration.after does not accept keyword arguments"
                     },
                 ));
             }
-            crate::time::anchor(
-                ctx,
-                seconds,
-                args,
-                matches!(name, "ago" | "before" | "until"),
-            )?
+            let start = match (from_now, args) {
+                (true, []) => None,
+                (false, [start]) => Some(start),
+                (true, _) => {
+                    return Err(Error::new(
+                        ErrorKind::Argument,
+                        format!("duration.{name} does not take arguments"),
+                    ));
+                }
+                (false, _) => {
+                    return Err(Error::new(
+                        ErrorKind::Argument,
+                        format!("duration.{name} expects a time"),
+                    ));
+                }
+            };
+            crate::time::anchor(ctx, seconds, start, matches!(name, "ago" | "before"))?
         }
         "dup" => {
             crate::members::dup_shape(args.len(), keywords, block)?;
             return Ok(Some(receiver.clone()));
         }
-        "to_s" | "string" | "inspect" => {
+        "to_s" | "inspect" => {
             crate::arguments::nullary(&format!("duration.{name}"), args, keywords, block)?;
             text(ctx, seconds)?
         }
@@ -378,7 +393,9 @@ pub(crate) fn member(
         }
         _ => {
             property(site, keywords, block)?;
-            if let Some(factor) = unit(name) {
+            // A duration's parts are whole minutes and longer; `to_i` gives
+            // its seconds.
+            if let Some(factor) = unit(name).filter(|&factor| factor > 1) {
                 Value::int(seconds / factor)
             } else {
                 match name {
@@ -392,7 +409,6 @@ pub(crate) fn member(
                     "to_i" => Value::int(seconds),
                     "iso8601" => iso8601(ctx, seconds)?,
                     "parts" => parts(ctx, seconds)?,
-                    "format" => text(ctx, seconds)?,
                     _ => return Ok(None),
                 }
             }

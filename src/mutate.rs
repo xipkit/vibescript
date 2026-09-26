@@ -125,14 +125,6 @@ pub(crate) fn call(
             args[0].hash_key_for("hash.delete key is an")?;
             receiver.delete_hash(ctx, &args[0])
         }
-        (Kind::Hash(_), Store) => {
-            if args.len() != 2 {
-                return Err(argument("hash.store expects a key and a value"));
-            }
-            args[0].hash_key_for("hash.store key is an")?;
-            let value = ops::set_index(ctx, receiver, args[0].clone(), args[1].clone())?;
-            Ok((value, args[1].clone()))
-        }
         (Kind::Hash(original), Replace) => {
             if args.len() != 1 || !matches!(args[0].0, Kind::Hash(_)) {
                 return Err(argument("hash.replace expects a single hash argument"));
@@ -312,19 +304,6 @@ fn string(
         Ok(())
     };
     match method {
-        Method::Clear => {
-            if !args.is_empty() {
-                return Err(argument("string.clear does not take arguments"));
-            }
-            ctx.bytes(b"")
-        }
-        Method::Replace => {
-            if args.len() != 1 {
-                return Err(argument("string.replace expects exactly one replacement"));
-            }
-            strict(&args[0], "string.replace replacement must be string")?;
-            Ok(args[0].clone())
-        }
         Method::Prepend => {
             let mut length = bytes.len();
             for arg in args {

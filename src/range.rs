@@ -211,13 +211,13 @@ pub(crate) fn method(
     let argument =
         |problem: &str| Error::new(ErrorKind::Argument, format!("range.{name} {problem}"));
     match method {
-        Include | Cover | Member => {
+        Include => {
             if args.len() != 1 {
                 return Err(argument("expects one argument"));
             }
             Ok(Value::boolean(range.contains(&args[0])))
         }
-        Length | Size | ToArray => {
+        Length | ToArray => {
             if !args.is_empty() {
                 return Err(argument("does not take arguments"));
             }
@@ -233,7 +233,7 @@ pub(crate) fn method(
                     ));
                 }
             };
-            if matches!(method, Length | Size) {
+            if matches!(method, Length) {
                 Ok(Value::int(n))
             } else {
                 range.materialize(ctx, n, false)

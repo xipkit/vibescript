@@ -62,8 +62,9 @@ impl Receiver {
                 Transpose => return Some("array.transpose does not take arguments".to_owned()),
                 Reverse | Compact | Clear | ToString | Uniq | ToHash => arguments == 0,
                 Shift => arguments <= 1,
-                First | Last | At | Slice | ValuesAt | Push | Prepend | Pop | Delete | Insert
-                | Fill | Sum => true,
+                First | Last | ValuesAt | Push | Prepend | Pop | Delete | Insert | Fill | Sum => {
+                    true
+                }
                 _ => {
                     return self
                         .rejects_keywords(method)
@@ -75,7 +76,7 @@ impl Receiver {
         if self == Self::Hash {
             let (refused, wording) = match method? {
                 ToArray | Clear => (arguments == 0, "does not take keyword arguments"),
-                Flatten | Store | Delete | Replace | ValuesAt => {
+                Flatten | Delete | Replace | ValuesAt => {
                     (true, "does not accept keyword arguments")
                 }
                 _ => {
@@ -88,8 +89,8 @@ impl Receiver {
         }
         if self == Self::Range {
             let refused = match method? {
-                Cover | Include | Member => arguments == 1,
-                Length | Size | ExcludeEnd | ToArray => arguments == 0,
+                Include => arguments == 1,
+                Length | ExcludeEnd | ToArray => arguments == 0,
                 First | Last => true,
                 _ => {
                     return self
@@ -123,8 +124,6 @@ impl Receiver {
                     method,
                     First
                         | Last
-                        | At
-                        | Slice
                         | ValuesAt
                         | Reverse
                         | Compact
@@ -143,7 +142,7 @@ impl Receiver {
                 ),
                 Self::Hash => matches!(
                     method,
-                    ToArray | Flatten | Store | Delete | Replace | Clear | ValuesAt
+                    ToArray | Flatten | Delete | Replace | Clear | ValuesAt
                 ),
                 Self::Bytes => matches!(
                     method,
@@ -162,7 +161,6 @@ impl Receiver {
         self,
         method: Option<crate::bytecode::Method>,
         arguments: bool,
-        name: &str,
     ) -> Option<&'static str> {
         use crate::bytecode::Method::*;
         match (self, method?) {
@@ -172,11 +170,7 @@ impl Receiver {
             (Self::Array, Clear) if !arguments => Some("array.clear does not accept a block"),
             (Self::Array, Compact) if !arguments => Some("array.compact does not accept a block"),
             (Self::Array, Reverse) if !arguments => Some("array.reverse does not accept a block"),
-            (Self::Array, ToString) if !arguments => Some(if name == "string" {
-                "array.string does not take a block"
-            } else {
-                "array.to_s does not take a block"
-            }),
+            (Self::Array, ToString) if !arguments => Some("array.to_s does not take a block"),
             (Self::Hash, Clear) if !arguments => Some("hash.clear does not accept a block"),
             _ => None,
         }
@@ -187,8 +181,7 @@ impl Receiver {
             Self::Bytes
                 if matches!(
                     name,
-                    "size"
-                        | "length"
+                    "length"
                         | "bytesize"
                         | "ord"
                         | "chr"
@@ -197,11 +190,9 @@ impl Receiver {
                         | "hex"
                         | "oct"
                         | "empty?"
-                        | "clear"
                         | "concat"
                         | "prepend"
                         | "insert"
-                        | "replace"
                         | "start_with?"
                         | "end_with?"
                         | "include?"
@@ -269,9 +260,7 @@ impl Receiver {
                         | "clamp"
                         | "inspect"
                         | "to_sym"
-                        | "intern"
                         | "to_s"
-                        | "string"
                         | "to_i"
                         | "to_f"
                 ) =>
@@ -281,8 +270,7 @@ impl Receiver {
             Self::Array
                 if matches!(
                     name,
-                    "size"
-                        | "length"
+                    "length"
                         | "empty?"
                         | "each"
                         | "each_with_index"
@@ -293,18 +281,14 @@ impl Receiver {
                         | "map"
                         | "map_with_index"
                         | "flat_map"
-                        | "collect_concat"
                         | "filter_map"
                         | "select"
                         | "reject"
                         | "find"
-                        | "find_index"
                         | "reduce"
                         | "include?"
                         | "index"
                         | "rindex"
-                        | "at"
-                        | "slice"
                         | "fetch"
                         | "values_at"
                         | "dig"
@@ -320,9 +304,7 @@ impl Receiver {
                         | "slice_when"
                         | "chunk_while"
                         | "push"
-                        | "append"
                         | "prepend"
-                        | "unshift"
                         | "pop"
                         | "shift"
                         | "delete"
@@ -342,7 +324,6 @@ impl Receiver {
                         | "join"
                         | "reverse"
                         | "to_h"
-                        | "take"
                         | "drop"
                         | "zip"
                         | "transpose"
@@ -369,7 +350,6 @@ impl Receiver {
                         | "max_by"
                         | "inspect"
                         | "to_s"
-                        | "string"
                 ) =>
             {
                 Some("array")
@@ -377,15 +357,10 @@ impl Receiver {
             Self::Hash
                 if matches!(
                     name,
-                    "size"
-                        | "length"
+                    "length"
                         | "empty?"
                         | "key?"
-                        | "has_key?"
-                        | "member?"
-                        | "include?"
                         | "value?"
-                        | "has_value?"
                         | "keys"
                         | "values"
                         | "values_at"
@@ -399,7 +374,6 @@ impl Receiver {
                         | "to_a"
                         | "merge"
                         | "replace"
-                        | "store"
                         | "delete"
                         | "clear"
                         | "delete_if"
@@ -437,7 +411,6 @@ impl Receiver {
                         | "positive?"
                         | "negative?"
                         | "nonzero?"
-                        | "next"
                         | "succ"
                         | "pred"
                         | "round"
@@ -447,9 +420,7 @@ impl Receiver {
                         | "divmod"
                         | "fdiv"
                         | "remainder"
-                        | "modulo"
                         | "to_s"
-                        | "string"
                         | "to_i"
                         | "to_f"
                         | "inspect"
@@ -477,9 +448,7 @@ impl Receiver {
                         | "divmod"
                         | "fdiv"
                         | "remainder"
-                        | "modulo"
                         | "to_s"
-                        | "string"
                         | "to_i"
                         | "to_f"
                         | "inspect"
@@ -487,26 +456,19 @@ impl Receiver {
             {
                 Some("float")
             }
-            Self::Bool if matches!(name, "inspect" | "to_s" | "string") => Some("bool"),
-            Self::Nil if matches!(name, "inspect" | "to_s" | "string") => Some("nil"),
-            Self::Symbol
-                if matches!(name, "inspect" | "id2name" | "to_s" | "string" | "to_sym") =>
-            {
-                Some("symbol")
-            }
+            Self::Bool if matches!(name, "inspect" | "to_s") => Some("bool"),
+            Self::Nil if matches!(name, "inspect" | "to_s") => Some("nil"),
+            Self::Symbol if matches!(name, "inspect" | "to_s" | "to_sym") => Some("symbol"),
             Self::Regex if matches!(name, "match" | "match?" | "source" | "flags" | "inspect") => {
                 Some("regex")
             }
             Self::Range
                 if matches!(
                     name,
-                    "cover?"
-                        | "include?"
-                        | "member?"
+                    "include?"
                         | "first"
                         | "last"
                         | "length"
-                        | "size"
                         | "exclude_end?"
                         | "to_a"
                         | "each"
@@ -521,13 +483,12 @@ impl Receiver {
                         | "min"
                         | "max"
                         | "to_s"
-                        | "string"
                         | "inspect"
                 ) =>
             {
                 Some("range")
             }
-            Self::Money if matches!(name, "format" | "between?") => Some("money"),
+            Self::Money if name == "between?" => Some("money"),
             _ => None,
         }
     }
@@ -559,60 +520,45 @@ impl Receiver {
         if self.typed(name).is_some() || self.temporal_method(name) {
             return true;
         }
-        let unit = duration_unit(name);
         match self {
-            Self::Int => unit,
-            Self::Money => matches!(name, "currency" | "cents" | "amount"),
+            Self::Int => matches!(name, "seconds") || duration_part(name),
+            Self::Money => matches!(name, "currency" | "cents"),
             Self::Duration => {
-                unit || matches!(
-                    name,
-                    "in_seconds"
-                        | "in_minutes"
-                        | "in_hours"
-                        | "in_days"
-                        | "in_weeks"
-                        | "in_months"
-                        | "in_years"
-                        | "to_i"
-                        | "iso8601"
-                        | "parts"
-                        | "format"
-                )
+                duration_part(name)
+                    || matches!(
+                        name,
+                        "in_seconds"
+                            | "in_minutes"
+                            | "in_hours"
+                            | "in_days"
+                            | "in_weeks"
+                            | "in_months"
+                            | "in_years"
+                            | "to_i"
+                            | "iso8601"
+                            | "parts"
+                    )
             }
             Self::Time | Self::Zoned => matches!(
                 name,
-                "getutc"
-                    | "getgm"
-                    | "utc"
-                    | "gmtime"
+                "utc"
                     | "nsec"
-                    | "tv_nsec"
                     | "usec"
-                    | "tv_usec"
                     | "subsec"
-                    | "hash"
                     | "to_i"
-                    | "tv_sec"
                     | "to_f"
-                    | "to_r"
                     | "year"
                     | "month"
-                    | "mon"
                     | "day"
-                    | "mday"
                     | "hour"
                     | "min"
                     | "sec"
                     | "wday"
                     | "yday"
                     | "utc_offset"
-                    | "gmt_offset"
-                    | "gmtoff"
                     | "zone"
                     | "utc?"
-                    | "gmt?"
                     | "dst?"
-                    | "isdst"
                     | "sunday?"
                     | "monday?"
                     | "tuesday?"
@@ -622,49 +568,29 @@ impl Receiver {
                     | "saturday?"
                     | "to_a"
             ),
-            Self::Enum => matches!(name, "name" | "to_s" | "string" | "inspect"),
-            Self::EnumMember => matches!(
-                name,
-                "name" | "symbol" | "enum" | "to_s" | "string" | "inspect"
-            ),
+            Self::Enum => matches!(name, "name" | "to_s" | "inspect"),
+            Self::EnumMember => matches!(name, "name" | "symbol" | "enum" | "to_s" | "inspect"),
             _ => false,
         }
     }
 
     pub(crate) fn temporal_method(self, name: &str) -> bool {
         match self {
-            Self::Money => matches!(name, "to_s" | "string" | "inspect"),
+            Self::Money => matches!(name, "to_s" | "inspect"),
             Self::Duration => matches!(
                 name,
-                "to_s"
-                    | "string"
-                    | "inspect"
-                    | "eql?"
-                    | "between?"
-                    | "after"
-                    | "since"
-                    | "from_now"
-                    | "ago"
-                    | "before"
-                    | "until"
+                "to_s" | "inspect" | "between?" | "after" | "from_now" | "ago" | "before"
             ),
             Self::Time | Self::Zoned => matches!(
                 name,
-                "<=>"
-                    | "eql?"
-                    | "between?"
+                "between?"
                     | "to_s"
-                    | "string"
                     | "inspect"
                     | "iso8601"
-                    | "xmlschema"
-                    | "rfc3339"
                     | "httpdate"
                     | "rfc2822"
-                    | "rfc822"
                     | "format"
                     | "strftime"
-                    | "getlocal"
                     | "localtime"
                     | "round"
                     | "ceil"
@@ -1152,51 +1078,93 @@ pub(crate) fn universal(name: &str) -> bool {
     )
 }
 
-fn duration_unit(name: &str) -> bool {
-    matches!(
-        name,
-        "second"
-            | "seconds"
-            | "minute"
-            | "minutes"
-            | "hour"
-            | "hours"
-            | "day"
-            | "days"
-            | "week"
-            | "weeks"
-    )
+/// A duration's whole minutes, hours, days or weeks, which an int also
+/// converts to a duration.
+fn duration_part(name: &str) -> bool {
+    matches!(name, "minutes" | "hours" | "days" | "weeks")
 }
 
 #[cfg(test)]
 mod tests {
     use super::{Receiver, candidates::*, universal};
 
-    #[test]
-    fn suggestion_candidates_resolve_on_their_receiver() {
-        for (receiver, names) in [
-            (Receiver::Array, ARRAY),
-            (Receiver::Bytes, STRING),
-            (Receiver::Int, INT),
-            (Receiver::Float, FLOAT),
-            (Receiver::Money, MONEY),
-            (Receiver::Duration, DURATION),
-            (Receiver::Time, TIME),
-            (Receiver::Range, RANGE),
-            (Receiver::Regex, REGEX),
-            (Receiver::Symbol, SYMBOL),
-            (Receiver::Nil, NIL),
-            (Receiver::Bool, BOOL),
-            (Receiver::Enum, ENUM),
-            (Receiver::EnumMember, ENUM_MEMBER),
-        ] {
-            for name in names {
-                assert!(receiver.available(name), "{name}");
-            }
-            assert!(receiver.unknown().is_some());
+    /// The receiver kind of a class in the signature table.
+    fn receiver(class: &str) -> Option<Receiver> {
+        Some(match class {
+            "string" => Receiver::Bytes,
+            "symbol" => Receiver::Symbol,
+            "array" => Receiver::Array,
+            "hash" => Receiver::Hash,
+            "int" => Receiver::Int,
+            "float" => Receiver::Float,
+            "money" => Receiver::Money,
+            "duration" => Receiver::Duration,
+            "time" => Receiver::Time,
+            "range" => Receiver::Range,
+            "regex" => Receiver::Regex,
+            "nil" => Receiver::Nil,
+            "bool" => Receiver::Bool,
+            "enum_type" => Receiver::Enum,
+            "enum_value" => Receiver::EnumMember,
+            _ => return None,
+        })
+    }
+
+    fn served(kind: Receiver, name: &str) -> bool {
+        if kind == Receiver::Hash {
+            kind.typed(name) == Some("hash")
+        } else {
+            kind.available(name)
         }
-        for name in HASH {
-            assert!(Receiver::Hash.typed(name) == Some("hash"), "{name}");
+    }
+
+    #[test]
+    fn canonical_members_resolve_on_their_receiver() {
+        for item in &crate::signatures::table().items {
+            let crate::signatures::Item::Class(class) = item else {
+                continue;
+            };
+            let Some(kind) = receiver(class.base()) else {
+                continue;
+            };
+            for member in &class.members {
+                let name = member.name();
+                assert!(served(kind, name), "{}.{name}", class.base());
+            }
+        }
+    }
+
+    /// The suggestion lists keep the spellings ADR-008 removed, which the
+    /// surface rules read; every other name resolves on its receiver.
+    #[test]
+    fn suggestion_candidates_are_members_or_removed_spellings() {
+        let removed = |class: &str, name: &str| {
+            crate::signatures::renames().iter().any(|rename| {
+                (rename.receiver == class || rename.receiver == "T") && rename.name == name
+            })
+        };
+        for (class, names) in [
+            ("array", ARRAY),
+            ("string", STRING),
+            ("hash", HASH),
+            ("int", INT),
+            ("float", FLOAT),
+            ("money", MONEY),
+            ("duration", DURATION),
+            ("time", TIME),
+            ("range", RANGE),
+            ("regex", REGEX),
+            ("symbol", SYMBOL),
+            ("nil", NIL),
+            ("bool", BOOL),
+            ("enum_type", ENUM),
+            ("enum_value", ENUM_MEMBER),
+        ] {
+            let kind = receiver(class).unwrap();
+            for name in names {
+                assert!(served(kind, name) || removed(class, name), "{class}.{name}");
+            }
+            assert!(kind == Receiver::Hash || kind.unknown().is_some());
         }
         for name in UNIVERSAL {
             assert!(universal(name), "{name}");

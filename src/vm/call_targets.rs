@@ -113,7 +113,7 @@ pub(super) fn member(
         if !site.scope && names::universal(name) {
             return Ok(Target::Member(Value::nil(), site.name));
         }
-        if !site.scope && matches!(name.as_str(), "to_s" | "string" | "inspect") {
+        if !site.scope && matches!(name.as_str(), "to_s" | "inspect") {
             return Ok(Target::Member(Value::nil(), site.name));
         }
         if let Some(value) = crate::enums::call(
@@ -135,9 +135,7 @@ pub(super) fn member(
             return Err(hash.tag.mutation_error(name));
         }
     }
-    if matches!(receiver.0, Kind::Range(_))
-        && matches!(name.as_str(), "to_s" | "string" | "inspect")
-    {
+    if matches!(receiver.0, Kind::Range(_)) && matches!(name.as_str(), "to_s" | "inspect") {
         return Ok(Target::Member(Value::nil(), site.name));
     }
     if let Some(kind) = names::typed(&receiver, name) {
@@ -152,16 +150,7 @@ pub(super) fn member(
     if matches!(receiver.0, Kind::Int(_) | Kind::Big(_))
         && matches!(
             name.as_str(),
-            "seconds"
-                | "second"
-                | "minutes"
-                | "minute"
-                | "hours"
-                | "hour"
-                | "days"
-                | "day"
-                | "weeks"
-                | "week"
+            "seconds" | "minutes" | "hours" | "days" | "weeks"
         )
     {
         let (_, value) = members::call(ctx, CallSite { auto: true, ..site }, name, receiver, &[])?;
@@ -172,7 +161,7 @@ pub(super) fn member(
         Kind::Money(_) | Kind::Duration(_) | Kind::Time(_) | Kind::Zoned(_)
     ) {
         if names::temporal_method(&receiver, name) {
-            if matches!(name.as_str(), "to_s" | "string" | "inspect" | "between?") {
+            if matches!(name.as_str(), "to_s" | "inspect" | "between?") {
                 return Ok(Target::Member(Value::nil(), site.name));
             }
             return Ok(Target::Member(receiver, site.name));

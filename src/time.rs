@@ -488,17 +488,19 @@ impl Constructor {
     }
 }
 
+/// The time `seconds` after `start`, or before it when `before` is set;
+/// without a start, counted from now.
 pub(crate) fn anchor(
     ctx: &mut CallContext,
     seconds: i64,
-    args: &[Value],
+    start: Option<&Value>,
     before: bool,
 ) -> Result<Value> {
     ctx.checkpoint()?;
     let name = if before { "before" } else { "after" };
-    let start = match args {
-        [] => Stamp::now(),
-        [input] => match &input.0 {
+    let start = match start {
+        None => Stamp::now(),
+        Some(input) => match &input.0 {
             Kind::Bytes(bytes) => {
                 parse::rfc3339(ctx, &bytes.data).map_err(|error| match parse::rfc3339_rejection(
                     &bytes.data,
@@ -516,12 +518,6 @@ pub(crate) fn anchor(
                 )
             })?,
         },
-        _ => {
-            return Err(Error::new(
-                ErrorKind::Argument,
-                format!("{name} expects at most one time argument"),
-            ));
-        }
     };
     // Duration anchors retain Go's wrapping nanosecond conversion, unlike Time arithmetic.
     let delta = seconds.wrapping_mul(NANOS);
@@ -714,7 +710,7 @@ pub(crate) fn member(
                 ),
             )
         }
-        "to_s" | "string" | "inspect" => {
+        "to_s" | "inspect" => {
             crate::arguments::nullary(&format!("time.{name}"), args, keywords, block)?;
             text(ctx, receiver, None)?
         }
@@ -745,7 +741,7 @@ pub(crate) fn member(
                 strftime::format(ctx, receiver, &layout.data)?
             }
         }
-        "iso8601" | "xmlschema" | "rfc3339" => {
+        "iso8601" => {
             let precision = precision(&format!("time.{name}"), args, keywords)?;
             if precision > 100 {
                 return ctx.guard(
@@ -755,7 +751,7 @@ pub(crate) fn member(
             }
             text(ctx, receiver, Some(precision as usize))?
         }
-        "httpdate" | "rfc2822" | "rfc822" => {
+        "httpdate" | "rfc2822" => {
             if keywords {
                 return Err(argument(format!(
                     "time.{name} does not accept keyword arguments"
@@ -766,7 +762,7 @@ pub(crate) fn member(
             }
             mail_date(ctx, receiver, name == "httpdate")?
         }
-        "getlocal" | "localtime" => {
+        "localtime" => {
             if keywords {
                 return Err(argument(format!(
                     "{name} does not take keyword arguments; pass the offset positionally"
@@ -815,17 +811,12 @@ pub(crate) fn member(
                 ));
             }
             match name {
-                "getutc" | "getgm" | "utc" | "gmtime" => Value(Kind::Time(time)),
-                "nsec" | "tv_nsec" => Value::int(i64::from(time.nanos())),
-                "usec" | "tv_usec" => Value::int(i64::from(time.nanos() / 1000)),
+                "utc" => Value(Kind::Time(time)),
+                "nsec" => Value::int(i64::from(time.nanos())),
+                "usec" => Value::int(i64::from(time.nanos() / 1000)),
                 "subsec" => Value::float(f64::from(time.nanos()) / NANOS as f64),
-                "hash" => Value::int(
-                    time.seconds()
-                        .wrapping_mul(NANOS)
-                        .wrapping_add(i64::from(time.nanos())),
-                ),
-                "to_i" | "tv_sec" => Value::int(time.seconds()),
-                "to_f" | "to_r" => {
+                "to_i" => Value::int(time.seconds()),
+                "to_f" => {
                     Value::float(time.seconds() as f64 + f64::from(time.nanos()) / NANOS as f64)
                 }
                 _ => {
@@ -833,19 +824,17 @@ pub(crate) fn member(
                     let date = calendar::civil(time.seconds(), offset.seconds);
                     match name {
                         "year" => Value::int(date.year),
-                        "month" | "mon" => Value::int(date.month),
-                        "day" | "mday" => Value::int(date.day),
+                        "month" => Value::int(date.month),
+                        "day" => Value::int(date.day),
                         "hour" => Value::int(date.hour),
                         "min" => Value::int(date.minute),
                         "sec" => Value::int(date.second),
                         "wday" => Value::int(date.weekday),
                         "yday" => Value::int(date.yearday),
-                        "utc_offset" | "gmt_offset" | "gmtoff" => {
-                            Value::int(i64::from(offset.seconds))
-                        }
+                        "utc_offset" => Value::int(i64::from(offset.seconds)),
                         "zone" => ctx.bytes(offset.name)?,
-                        "utc?" | "gmt?" => Value::boolean(offset.seconds / 60 == 0),
-                        "dst?" | "isdst" => Value::boolean(offset.dst),
+                        "utc?" => Value::boolean(offset.seconds / 60 == 0),
+                        "dst?" => Value::boolean(offset.dst),
                         "sunday?" | "monday?" | "tuesday?" | "wednesday?" | "thursday?"
                         | "friday?" | "saturday?" => Value::boolean(
                             [

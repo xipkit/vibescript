@@ -39,9 +39,6 @@ pub(super) fn check(
                 return refuse("does not take arguments");
             }
             no_keywords()?;
-            if method == Count {
-                return Ok(());
-            }
             needs_block()
         }
         Find => {

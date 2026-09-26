@@ -244,12 +244,7 @@ fn dispatch_keywords(
     }
     // A protected record refuses its mutators before the call's shape.
     if let Kind::Hash(hash) = &receiver.0 {
-        if hash.tag.protected()
-            && matches!(
-                site.method,
-                Some(Method::Store | Method::Replace | Method::Clear)
-            )
-        {
+        if hash.tag.protected() && matches!(site.method, Some(Method::Replace | Method::Clear)) {
             return Err(hash.tag.mutation_error(name));
         }
     }
@@ -266,11 +261,8 @@ fn dispatch_keywords(
     // Resolve stored-field overrides before rejecting a native block, and
     // reject before `call` can mutate the receiver.
     if args.block.is_some() {
-        let rejection = names::Receiver::of(&receiver).rejects_block(
-            site.method,
-            !args.positional.data.is_empty(),
-            name,
-        );
+        let rejection = names::Receiver::of(&receiver)
+            .rejects_block(site.method, !args.positional.data.is_empty());
         if let Some(message) = rejection {
             return Err(Error::new(ErrorKind::Argument, message));
         }
@@ -296,9 +288,9 @@ fn dispatch(
     receiver: Value,
     args: &[Value],
 ) -> Result<(Value, Value)> {
-    // No probe below serves a string's or array's length or size, and each
-    // declines them without charging, so they go straight to the builtin.
-    if let Some(method @ (Method::Length | Method::Size)) = site.method {
+    // No probe below serves a string's or array's length, and each declines
+    // it without charging, so it goes straight to the builtin.
+    if let Some(method @ Method::Length) = site.method {
         if !site.scope && args.is_empty() && matches!(receiver.0, Kind::Bytes(_) | Kind::Array(_)) {
             let result = ops::method(ctx, method, name, receiver.clone(), args)?;
             return Ok((receiver, result));
@@ -374,12 +366,6 @@ fn dispatch(
     if let Some(value) = crate::iteration::without_block(ctx, name, &receiver, args)? {
         return Ok((receiver, value));
     }
-    if matches!(receiver.0, Kind::Bytes(_)) && matches!(name, "unshift" | "append" | "find_index") {
-        return Err(Error::new(
-            ErrorKind::Name,
-            format!("unknown string method {name}"),
-        ));
-    }
     if let Kind::Hash(hash) = &receiver.0 {
         if !hash_builtin(name) {
             if let Some(index) = hash.find(ctx, name.as_bytes())? {
@@ -402,8 +388,7 @@ fn dispatch(
         // The reference serves these hash members as plain methods, so a bare
         // read names them instead of calling them. A protected record refuses
         // the mutators before that.
-        let plain = matches!(method, Method::Store | Method::Delete | Method::Replace)
-            && !hash.tag.protected()
+        let plain = matches!(method, Method::Delete | Method::Replace) && !hash.tag.protected()
             || matches!(method, Method::RemapKeys);
         if site.auto && args.is_empty() && plain {
             return Err(Error::new(
@@ -424,7 +409,6 @@ fn dispatch(
             | Method::Insert
             | Method::Clear
             | Method::Fill
-            | Method::Store
             | Method::Replace
     ) {
         return crate::mutate::call(ctx, method, name, receiver, args);

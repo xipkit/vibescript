@@ -910,7 +910,7 @@ pub(crate) fn method(
     }
     match method {
         Dup | ToString => unreachable!(),
-        Prepend | Pop | Shift | Delete | Insert | Clear | Fill | Store | Replace => {
+        Prepend | Pop | Shift | Delete | Insert | Clear | Fill | Replace => {
             crate::mutate::call(ctx, method, name, value, args).map(|(_, result)| result)
         }
         Empty => {
@@ -945,18 +945,18 @@ pub(crate) fn method(
         Ord | Chr | Bytes | Chars | Lines | Codepoints | StartWith | EndWith => {
             crate::text::method(ctx, method, name, value, args)
         }
-        Reverse | Take | Drop | Compact | Uniq | Flatten | Chunk | Window | Zip | Transpose
-        | ToHash | Fetch | ValuesAt | Dig | Key | HasValue | Member | RemapKeys | Except => {
+        Reverse | Drop | Compact | Uniq | Flatten | Chunk | Window | Zip | Transpose | ToHash
+        | Fetch | ValuesAt | Dig | Key | HasValue | RemapKeys | Except => {
             crate::collections::method(ctx, method, name, value, args)
         }
         Slice if matches!(value.0, Kind::Hash(_)) => {
             crate::collections::method(ctx, method, name, value, args)
         }
-        At | Slice | ByteSlice | GetByte | First | Last | ToArray => {
+        Slice | ByteSlice | GetByte | First | Last | ToArray => {
             crate::sequence::method(ctx, method, value, args)
         }
-        Cover | ExcludeEnd => Err(type_error()),
-        Length | Size => {
+        ExcludeEnd => Err(type_error()),
+        Length => {
             member_arity(&value, name, args)?;
             let n = match &value.0 {
                 Kind::Bytes(h) => runes(ctx, &h.data)?.0,
@@ -971,9 +971,6 @@ pub(crate) fn method(
             Ok(Value::int(value.require_bytes()?.len() as i64))
         }
         Include | Index | Rindex => {
-            if matches!(method, Include) && matches!(value.0, Kind::Hash(_)) {
-                return crate::collections::method(ctx, Key, name, value, args);
-            }
             let found = if let Some(array) = value.as_array() {
                 if matches!(method, Include) {
                     if args.len() != 1 {

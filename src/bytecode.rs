@@ -254,19 +254,15 @@ pub(crate) enum Selection {
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Method {
     Length,
-    Size,
-    At,
     Slice,
     ByteSlice,
     GetByte,
     First,
     Last,
     ToArray,
-    Cover,
     ExcludeEnd,
     Empty,
     Reverse,
-    Take,
     Drop,
     Compact,
     Uniq,
@@ -283,7 +279,6 @@ pub(crate) enum Method {
     HasValue,
     RemapKeys,
     Except,
-    Member,
     Abs,
     Even,
     Odd,
@@ -309,7 +304,6 @@ pub(crate) enum Method {
     Insert,
     Clear,
     Fill,
-    Store,
     Replace,
     Dup,
     Sum,
@@ -323,20 +317,15 @@ impl Method {
     pub(crate) fn parse(name: &str) -> Option<Self> {
         Some(match name {
             "length" => Self::Length,
-            "size" => Self::Size,
-            "at" => Self::At,
             "slice" => Self::Slice,
             "byteslice" => Self::ByteSlice,
             "getbyte" => Self::GetByte,
             "first" => Self::First,
             "last" => Self::Last,
             "to_a" => Self::ToArray,
-            "cover?" => Self::Cover,
-            "member?" => Self::Member,
             "exclude_end?" => Self::ExcludeEnd,
             "empty?" => Self::Empty,
             "reverse" => Self::Reverse,
-            "take" => Self::Take,
             "drop" => Self::Drop,
             "compact" => Self::Compact,
             "uniq" => Self::Uniq,
@@ -349,8 +338,8 @@ impl Method {
             "fetch" => Self::Fetch,
             "values_at" => Self::ValuesAt,
             "dig" => Self::Dig,
-            "key?" | "has_key?" => Self::Key,
-            "value?" | "has_value?" => Self::HasValue,
+            "key?" => Self::Key,
+            "value?" => Self::HasValue,
             "remap_keys" => Self::RemapKeys,
             "except" => Self::Except,
             "abs" => Self::Abs,
@@ -366,25 +355,24 @@ impl Method {
             "end_with?" => Self::EndWith,
             "bytesize" => Self::ByteSize,
             "include?" => Self::Include,
-            "index" | "find_index" => Self::Index,
+            "index" => Self::Index,
             "rindex" => Self::Rindex,
             "split" => Self::Split,
             "join" => Self::Join,
-            "push" | "append" => Self::Push,
-            "prepend" | "unshift" => Self::Prepend,
+            "push" => Self::Push,
+            "prepend" => Self::Prepend,
             "pop" => Self::Pop,
             "shift" => Self::Shift,
             "delete" => Self::Delete,
             "insert" => Self::Insert,
             "clear" => Self::Clear,
             "fill" => Self::Fill,
-            "store" => Self::Store,
             "replace" => Self::Replace,
             "dup" => Self::Dup,
             "sum" => Self::Sum,
             "keys" => Self::Keys,
             "values" => Self::Values,
-            "to_s" | "string" => Self::ToString,
+            "to_s" => Self::ToString,
             "to_i" => Self::ToInt,
             "to_f" => Self::ToFloat,
             _ => return None,
@@ -3225,9 +3213,7 @@ pub(crate) fn mutating_member(name: &str) -> bool {
     matches!(
         name,
         "push"
-            | "append"
             | "prepend"
-            | "unshift"
             | "pop"
             | "shift"
             | "delete"
@@ -3236,7 +3222,6 @@ pub(crate) fn mutating_member(name: &str) -> bool {
             | "insert"
             | "clear"
             | "fill"
-            | "store"
             | "replace"
     )
 }

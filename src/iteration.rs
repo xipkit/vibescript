@@ -84,7 +84,7 @@ impl MethodKind {
             "cycle" => Self::Cycle,
             "map" => Self::Map,
             "map_with_index" => Self::MapIndex,
-            "flat_map" | "collect_concat" => Self::FlatMap,
+            "flat_map" => Self::FlatMap,
             "filter_map" => Self::FilterMap,
             "select" => Self::Select,
             "reject" => Self::Reject,
@@ -93,7 +93,7 @@ impl MethodKind {
             "slice_when" => Self::SliceWhen,
             "chunk_while" => Self::ChunkWhile,
             "find" => Self::Find,
-            "index" | "find_index" => Self::Index,
+            "index" => Self::Index,
             "rindex" => Self::Rindex,
             "reduce" => Self::Reduce,
             "count" => Self::Count,
@@ -636,11 +636,6 @@ pub(crate) fn start(
             state.inputs.push(ctx, args[0].clone())?;
             state.length = 1;
         }
-    }
-    if method == Count && !has_block && args.is_empty() {
-        // Only a range can hold more elements than a count reaches.
-        state.count = i64::try_from(state.length).map_err(|_| argument("range.count overflow"))?;
-        state.length = 0;
     }
     Ok(Some(Iteration::Loop(state)))
 }

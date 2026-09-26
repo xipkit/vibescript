@@ -44,37 +44,26 @@ fn arguments(
     keywords: &[(Value, Value)],
     block: bool,
 ) -> Result<Spec> {
-    let mut regex = false;
     let method = format!("string.{name}");
     if !keywords.is_empty() {
-        if keywords.len() != 1 || keywords[0].0.as_bytes() != Some(b"regex") {
-            return Err(argument(format!("{method} supports only regex keyword")));
-        }
-        let Kind::Bool(enabled) = keywords[0].1.0 else {
-            return Err(argument(format!("{method} regex keyword must be bool")));
-        };
-        regex = enabled;
+        return Err(argument(format!(
+            "{method} does not accept keyword arguments"
+        )));
     }
     let Some(pattern) = args.first() else {
         return Err(argument(format!("{method} expects a pattern")));
     };
-    match pattern.0 {
-        Kind::Bytes(_) => (),
-        Kind::Regex(_) => {
-            if !keywords.is_empty() {
-                return Err(argument(format!(
-                    "{method} does not take the regex keyword with a regex pattern"
-                )));
-            }
-            regex = true;
-        }
+    // A string pattern matches literally.
+    let regex = match pattern.0 {
+        Kind::Bytes(_) => false,
+        Kind::Regex(_) => true,
         _ => {
             return Err(Error::new(
                 ErrorKind::Type,
                 format!("{method} pattern must be string or regex"),
             ));
         }
-    }
+    };
     if block && args.len() != 1 {
         return Err(argument(format!(
             "{method} cannot take both a replacement argument and a block"
@@ -92,9 +81,6 @@ fn arguments(
         ));
     }
     if regex {
-        if matches!(&pattern.0, Kind::Bytes(bytes) if bytes.data.len() > super::MAX_PATTERN) {
-            return super::pattern_limit(ctx, &method);
-        }
         super::text_limit(ctx, receiver.require_bytes()?, &method, "text")?;
         if !block {
             super::text_limit(ctx, args[1].require_bytes()?, &method, "replacement")?;
@@ -600,15 +586,10 @@ mod tests {
         for regex in [false, true] {
             let mut ctx = CallContext::new(CallOptions::default());
             let subject = ctx.bytes(&vec![b'a'; 65536]).unwrap();
-            let pattern = Value::bytes(if regex {
-                b"(a|aa)*z".as_slice()
+            let pattern = if regex {
+                Value::regex(b"(a|aa)*z", "").unwrap()
             } else {
-                b"aaaaab".as_slice()
-            });
-            let keywords = if regex {
-                vec![(Value::symbol(b"regex"), Value::boolean(true))]
-            } else {
-                vec![]
+                Value::bytes(b"aaaaab")
             };
             let baseline = ctx.stats().retained_memory_bytes;
             ctx.options.limits.steps = Some(ctx.stats().steps + 512);
@@ -617,7 +598,7 @@ mod tests {
                 "sub",
                 &subject,
                 &[pattern, Value::bytes(b"x")],
-                &keywords,
+                &[],
             )
             .unwrap_err();
             assert_eq!(error.kind, ErrorKind::Steps);

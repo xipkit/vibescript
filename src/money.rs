@@ -223,21 +223,20 @@ pub(crate) fn member(
             crate::members::dup_shape(args.len(), keywords, block)?;
             return Ok(Some(receiver.clone()));
         }
-        "currency" | "cents" | "amount" => {
+        "currency" | "cents" => {
             if !site.auto || keywords || block {
                 return Err(Error::new(
                     ErrorKind::Type,
                     "attempted to call non-callable value",
                 ));
             }
-            match name {
-                "currency" => ctx.bytes(money.currency().as_bytes())?,
-                "cents" => Value::int(money.cents()),
-                _ => money.text(ctx)?,
+            if name == "currency" {
+                ctx.bytes(money.currency().as_bytes())?
+            } else {
+                Value::int(money.cents())
             }
         }
-        "format" => money.text(ctx)?,
-        "to_s" | "string" | "inspect" => {
+        "to_s" | "inspect" => {
             crate::arguments::nullary(&format!("money.{name}"), args, keywords, block)?;
             money.text(ctx)?
         }

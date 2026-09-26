@@ -46,19 +46,14 @@ pub(crate) fn call(
             | "clamp"
             | "between?"
             | "to_sym"
-            | "intern"
             | "to_s"
-            | "string"
             | "to_i"
             | "to_f"
     ) {
         return Ok(None);
     }
     ctx.checkpoint()?;
-    if matches!(
-        name,
-        "to_sym" | "intern" | "to_s" | "string" | "to_i" | "to_f"
-    ) {
+    if matches!(name, "to_sym" | "to_s" | "to_i" | "to_f") {
         nullary(name, args, keywords, block)?;
     }
     if name == "clamp" && (keywords || block) {
@@ -94,8 +89,8 @@ pub(crate) fn call(
         _ => {
             ops::arity(args, 0)?;
             match name {
-                "to_sym" | "intern" => Value(Kind::Symbol(bytes.clone())),
-                "to_s" | "string" => receiver.clone(),
+                "to_sym" => Value(Kind::Symbol(bytes.clone())),
+                "to_s" => receiver.clone(),
                 "to_i" => crate::conversion::integer(ctx, &bytes.data, "string.to_i")?,
                 "to_f" => Value::float(crate::conversion::float(ctx, &bytes.data, "string.to_f")?),
                 _ => unreachable!(),

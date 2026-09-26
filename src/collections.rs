@@ -206,7 +206,7 @@ pub(crate) fn method(
             }
             Ok(current)
         }
-        Key | Member => {
+        Key => {
             if args.len() != 1 {
                 return Err(argument(&format!("hash.{name} expects exactly one key")));
             }
@@ -406,34 +406,23 @@ fn array_method(
             }
             Value::from_array(ctx, out)
         }
-        Take | Drop => {
-            let member = if matches!(method, Take) {
-                "take"
-            } else {
-                "drop"
-            };
+        Drop => {
             if args.len() != 1 {
-                return Err(argument(&format!(
-                    "array.{member} expects exactly one count"
-                )));
+                return Err(argument("array.drop expects exactly one count"));
             }
-            let negative = || format!("array.{member} attempted with negative size");
+            let negative = "array.drop attempted with negative size";
             let n = integer(&args[0]).map_err(|error| {
                 error.with_message(if matches!(&args[0].0, Kind::Big(n) if n.negative) {
-                    negative()
+                    negative.to_owned()
                 } else {
-                    format!("array.{member} count must be integer")
+                    "array.drop count must be integer".to_owned()
                 })
             })?;
             if n < 0 {
-                return Err(argument(&negative()));
+                return Err(argument(negative));
             }
             let n = usize::try_from(n).unwrap_or(usize::MAX).min(array.len());
-            ctx.array(if matches!(method, Take) {
-                &array[..n]
-            } else {
-                &array[n..]
-            })
+            ctx.array(&array[n..])
         }
         Compact => {
             no_arguments("compact", args)?;

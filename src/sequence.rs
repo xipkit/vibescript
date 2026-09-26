@@ -36,14 +36,6 @@ pub(crate) struct Selectors {
     length: &'static str,
 }
 
-/// Selector messages for `array.slice`.
-const ARRAY_SLICE: Selectors = Selectors {
-    arity: "array.slice expects an index, a start and length, or a range",
-    index: "array.slice index must be integer",
-    start: "array.slice index must be integer",
-    length: "array.slice length must be integer",
-};
-
 /// Selector messages for `string.slice`.
 const STRING_SLICE: Selectors = Selectors {
     arity: "string.slice expects an index, range, or substring with optional length",
@@ -203,28 +195,13 @@ pub(crate) fn method(
 ) -> Result<Value> {
     use Method::*;
     match method {
-        Slice | ByteSlice => {
-            let member = match (&value.0, method) {
-                (Kind::Array(_), _) => Some(&ARRAY_SLICE),
-                (Kind::Bytes(_), ByteSlice) => Some(&STRING_BYTESLICE),
-                (Kind::Bytes(_), _) => Some(&STRING_SLICE),
-                _ => None,
+        Slice | ByteSlice if matches!(value.0, Kind::Bytes(_)) => {
+            let member = if matches!(method, ByteSlice) {
+                &STRING_BYTESLICE
+            } else {
+                &STRING_SLICE
             };
-            slice(ctx, &value, args, matches!(method, ByteSlice), member)
-        }
-        At => {
-            if args.len() != 1 {
-                return Err(Error::new(
-                    ErrorKind::Argument,
-                    "array.at expects exactly one index",
-                ));
-            }
-            if value.as_array().is_none() {
-                return Err(Error::new(ErrorKind::Type, "at requires an array"));
-            }
-            let index = integer(&args[0])
-                .map_err(|error| error.with_message("array.at index must be integer".to_owned()))?;
-            ops::index(ctx, &value, &Value::int(index))
+            slice(ctx, &value, args, matches!(method, ByteSlice), Some(member))
         }
         GetByte => {
             if args.len() != 1 {

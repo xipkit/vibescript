@@ -115,6 +115,9 @@ pub(super) fn check(
             if args.len() > 1 {
                 return refuse("accepts at most one value argument");
             }
+            if args.is_empty() {
+                return needs_block();
+            }
             Ok(())
         }
         Any | All | NoneMatch => {
