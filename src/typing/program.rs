@@ -301,7 +301,23 @@ impl<'a> Checker<'a> {
         ));
     }
 
+    /// Declares `module` and the namespaces nested in it, each before its
+    /// children, and returns its id. The walk keeps its place on the heap,
+    /// since namespaces nest as deep as the parser allows.
     fn namespace(&mut self, module: &'a Module, parent: Option<NsId>) -> NsId {
+        let first = self.program.namespaces.len() as NsId;
+        let mut pending = vec![(module, parent)];
+        while let Some((module, parent)) = pending.pop() {
+            let id = self.declare_namespace(module, parent);
+            // Pushed in reverse, so declared in source order.
+            for nested in module.modules.iter().chain(&module.inner).rev() {
+                pending.push((nested, Some(id)));
+            }
+        }
+        first
+    }
+
+    fn declare_namespace(&mut self, module: &'a Module, parent: Option<NsId>) -> NsId {
         let id = self.program.namespaces.len() as NsId;
         let name = match parent {
             Some(parent) => format!(
@@ -332,9 +348,6 @@ impl<'a> Checker<'a> {
             None => {
                 self.program.roots.insert(module.name.as_str(), id);
             }
-        }
-        for nested in module.modules.iter().chain(&module.inner) {
-            self.namespace(nested, Some(id));
         }
         id
     }

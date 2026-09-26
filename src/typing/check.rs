@@ -172,20 +172,39 @@ impl<'a> Checker<'a> {
         }
     }
 
+    /// Checks the body of namespace `ns` once, after those of the
+    /// namespaces nested in it. The walk keeps its place on the heap, since
+    /// namespaces nest as deep as the parser allows.
     fn check_namespace_body(&mut self, ns: NsId) {
-        if self.program.namespaces[ns as usize].checked {
+        let mut pending = Vec::new();
+        self.enter_namespace(ns, &mut pending);
+        while let Some((ns, children)) = pending.last_mut() {
+            let ns = *ns;
+            match children.pop() {
+                Some(child) => self.enter_namespace(child, &mut pending),
+                None => {
+                    pending.pop();
+                    self.namespace_body(ns);
+                }
+            }
+        }
+    }
+
+    /// Marks `ns` checked and queues it with its children, unless it was
+    /// checked already.
+    fn enter_namespace(&mut self, ns: NsId, pending: &mut Vec<(NsId, Vec<NsId>)>) {
+        let namespace = &mut self.program.namespaces[ns as usize];
+        if namespace.checked {
             return;
         }
-        self.program.namespaces[ns as usize].checked = true;
-        let mut children: Vec<NsId> = self.program.namespaces[ns as usize]
-            .children
-            .values()
-            .copied()
-            .collect();
-        children.sort_unstable();
-        for child in children {
-            self.check_namespace_body(child);
-        }
+        namespace.checked = true;
+        let mut children: Vec<NsId> = namespace.children.values().copied().collect();
+        // Popped from the end, so checked in ascending order.
+        children.sort_unstable_by(|a, b| b.cmp(a));
+        pending.push((ns, children));
+    }
+
+    fn namespace_body(&mut self, ns: NsId) {
         let Some(module) = self.program.namespaces[ns as usize].module else {
             return;
         };
