@@ -347,6 +347,18 @@ impl<'a> Spans<'a> {
     pub fn operator(&self, offset: usize) -> Span {
         self.token(offset)
     }
+
+    /// The span of the whole token containing `offset`, such as a binary
+    /// operator's, which is located at its last character.
+    pub fn containing(&self, offset: usize) -> Span {
+        let index = self.token_from(offset + 1).checked_sub(1);
+        match index.map(|index| &self.tokens[index].span) {
+            Some(span) if span.start <= offset && offset < span.end => {
+                Span::new(span.start, span.end)
+            }
+            _ => self.token(offset),
+        }
+    }
 }
 
 /// The start of an expression's first token. Binary operators, ranges,

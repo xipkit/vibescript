@@ -604,6 +604,9 @@ impl<'a> Checker<'a> {
             "==" | "!=" | "===" => {
                 let lt = self.expr(left, None);
                 let rt = self.expr(right, None);
+                if op != "===" {
+                    self.equality_visibility(expr, op, lt);
+                }
                 // The runtime never finds an enum member equal to a symbol.
                 for (member, other, value) in [(lt, rt, right), (rt, lt, left)] {
                     if let (Kind::EnumValue(id), true, Node::Literal(v)) = (
@@ -631,6 +634,23 @@ impl<'a> Checker<'a> {
                 let span = self.spans.operator(expr.offset as usize);
                 self.binary_types(op, lt, rt, span, Some((Some(left), right)))
             }
+        }
+    }
+
+    /// Reports `==` or `!=` on an instance whose class hides the method the
+    /// runtime calls: its own, or for `!=` without one, `==`.
+    fn equality_visibility(&mut self, expr: &'a Expr, op: &str, left: Ty) {
+        let Kind::Instance(ns) = self.types.kind(left).clone() else {
+            return;
+        };
+        let methods = &self.program.namespaces[ns as usize].methods;
+        let (name, method) = match methods.get(op) {
+            None if op == "!=" => ("==", methods.get("==")),
+            method => (op, method),
+        };
+        if let Some(&id) = method {
+            let span = self.spans.containing(expr.offset as usize);
+            self.visibility(name, span, id, ns, true);
         }
     }
 
@@ -720,7 +740,7 @@ impl<'a> Checker<'a> {
             ));
             return Ty::ERROR;
         };
-        self.visibility(op, span, id, ns, true);
+        self.visibility(op, self.spans.containing(span.start), id, ns, true);
         let sig = self.program.fns[id].sig.clone();
         if let Some(param) = sig.params.first() {
             // A rest parameter collects the operand into its array.

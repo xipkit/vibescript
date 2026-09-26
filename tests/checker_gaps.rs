@@ -266,6 +266,18 @@ end
         let found = codes(source, &[Code::VISIBILITY, Code::VISIBILITY]);
         assert!(found[0].message.starts_with("`+` is private"));
         assert!(found[1].message.starts_with("`cents=` is private"));
+        // Without a `!=` of its own, `!=` calls `==`.
+        let source = "class Coin\n  private def ==(other: any) -> bool\n    true\n  end\nend\nsame = Coin.new != 1\n";
+        let found = codes(source, &[Code::VISIBILITY]);
+        assert!(found[0].message.starts_with("`==` is private"));
+        let span = found[0].span;
+        assert_eq!(&source[span.start..span.end], "!=");
+        let error = unchecked()
+            .compile(source)
+            .unwrap()
+            .run(CallOptions::default())
+            .unwrap_err();
+        assert_eq!(error.message, "private method ==");
     }
 }
 
