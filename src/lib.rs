@@ -66,7 +66,7 @@ mod signature;
 pub mod signatures;
 mod sort;
 mod source;
-pub mod surface;
+mod surface;
 mod syntax;
 mod text;
 mod time;

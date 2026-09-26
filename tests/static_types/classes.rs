@@ -205,11 +205,8 @@ fn nested_classes_are_named_through_their_scope() {
         &["V0116"],
     );
     // The canonical surface's rules read the annotation too.
-    let source = format!("{nested}def keep(x: Outer::Inner) -> int\n  [1].size\nend\n");
-    assert_eq!(
-        vibescript::surface::check(&source).unwrap()[0]
-            .code
-            .to_string(),
-        "V0401"
+    codes(
+        &format!("{nested}def keep(x: Outer::Inner) -> int\n  [1].size\nend\n"),
+        &["V0401"],
     );
 }

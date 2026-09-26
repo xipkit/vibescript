@@ -3,15 +3,14 @@
 //! is not safe where the construct stands.
 
 use super::{
-    Access, Finding, Reason, Rule,
+    Access, Finding, Rule,
+    checker::Checker,
     context::{
-        Place, namespace_member_takes_no_arguments, namespace_name, simple, string_literal,
-        symbol_literal,
+        Place, literal_type, namespace_member_takes_no_arguments, namespace_name, simple,
+        string_literal, symbol_literal,
     },
     edits::Piece,
-    hooks::{Hooks, Test},
     patterns::{ArgPattern, Callee, Change, KeywordValue, Pattern, TemplatePiece, patterns},
-    probe::{member_without_parens, namespace_without_parens},
     syntax::*,
 };
 use crate::tooling::TokenKind;
@@ -26,10 +25,10 @@ pub struct Captures {
     pub rest: Vec<Span>,
 }
 
-/// The canonical surface's rules, for every [`Hooks`] implementor.
-pub trait Rules<'a>: Hooks<'a> {
+/// The canonical surface's rules.
+impl<'a> Checker<'a> {
     /// A global function renamed without parentheses, such as `now`.
-    fn bare_name(&mut self, expr: &'a Expr, name: &str, place: Place) {
+    pub(super) fn bare_name(&mut self, expr: &'a Expr, name: &str, place: Place) {
         if self.local(name) || self.declared.methods.contains(name) || self.known_type(name) {
             return;
         }
@@ -55,7 +54,7 @@ pub trait Rules<'a>: Hooks<'a> {
     }
 
     /// Rewrites a percent literal as an array literal.
-    fn words(&mut self, expr: &'a Expr, place: Place) {
+    pub(super) fn words(&mut self, expr: &'a Expr, place: Place) {
         let tok = self.token_at(expr.span.start);
         let TokenKind::Words { symbols, entries } = &self.tokens[tok].kind else {
             return;
@@ -64,17 +63,12 @@ pub trait Rules<'a>: Hooks<'a> {
         let mut items = Vec::new();
         for entry in entries {
             let Some(bytes) = entry else {
-                let finding = Finding::new(
-                    Reason::Syntax,
-                    expr.span,
-                    "an interpolated percent literal needs rewriting as an array literal by hand",
-                )
-                .spelling(
+                self.report(Finding::new(
                     Rule::PercentLiteral,
+                    expr.span,
                     removed,
                     "write an array literal, interpolating in its strings",
-                );
-                self.report(finding);
+                ));
                 return;
             };
             let Some(item) = (if *symbols {
@@ -82,13 +76,12 @@ pub trait Rules<'a>: Hooks<'a> {
             } else {
                 string_literal(bytes)
             }) else {
-                let finding = Finding::new(
-                    Reason::Syntax,
+                self.report(Finding::new(
+                    Rule::PercentLiteral,
                     expr.span,
-                    "a percent literal entry has bytes a string literal cannot spell",
-                )
-                .spelling(Rule::PercentLiteral, removed, "write an array literal");
-                self.report(finding);
+                    removed,
+                    "write an array literal",
+                ));
                 return;
             };
             items.push(item);
@@ -110,25 +103,18 @@ pub trait Rules<'a>: Hooks<'a> {
     }
 
     /// Rewrites `h[:name]` as `h["name"]` when the receiver is a hash.
-    fn symbol_keys(&mut self, expr: &'a Expr, selectors: &'a [Expr]) {
+    pub(super) fn symbol_keys(&mut self, expr: &'a Expr, selectors: &'a [Expr]) {
         let [selector] = selectors else {
             return;
         };
         if !matches!(selector.kind, ExprKind::Symbol) {
             return;
         }
-        let ExprKind::Index(_, open, ..) = &expr.kind else {
+        if !matches!(expr.kind, ExprKind::Index(..))
+            || self.declared.methods.contains("[]")
+            || self.declared.methods.contains("[]=")
+        {
             return;
-        };
-        let offset = self.tokens[*open].start;
-        match self.index_is_hash(offset) {
-            Some(false) => return,
-            None if self.declared.methods.contains("[]")
-                || self.declared.methods.contains("[]=") =>
-            {
-                return;
-            }
-            _ => (),
         }
         let TokenKind::Symbol { name, .. } = &self.tokens[self.token_at(selector.span.start)].kind
         else {
@@ -142,21 +128,18 @@ pub trait Rules<'a>: Hooks<'a> {
                 self.edits.text(selector.span, literal);
                 self.leave(previous);
             }
-            None => {
-                let finding = Finding::removed(
-                    Rule::SymbolKey,
-                    selector.span,
-                    removed,
-                    "hash keys are strings",
-                );
-                self.report(finding);
-            }
+            None => self.report(Finding::new(
+                Rule::SymbolKey,
+                selector.span,
+                removed,
+                "hash keys are strings",
+            )),
         }
     }
 
     /// Whether `x.name()` and `x.name` do the same: a hash receiver may hold
     /// a function under the name, which only the parentheses call.
-    fn parens_optional(&self, expr: &'a Expr, call: &'a Call) -> bool {
+    pub(super) fn parens_optional(&self, expr: &'a Expr, call: &'a Call) -> bool {
         let Some(receiver) = &call.receiver else {
             return true;
         };
@@ -166,66 +149,8 @@ pub trait Rules<'a>: Hooks<'a> {
         self.receiver_plain(expr, call)
     }
 
-    /// Whether a replacement written without parentheses calls, where the
-    /// call had no arguments: `x.after()` must not become a bare `x.from_now`
-    /// that reads a method, and a namespace member read bare must stay a
-    /// read of one on both sides.
-    fn bare_replacement_works(&self, pattern: &Pattern, call: Option<&'a Call>) -> bool {
-        let Some(call) = call else {
-            return true;
-        };
-        if call.argument_count() > 0 || call.block.is_some() {
-            return true;
-        }
-        let Change::Template(pieces) = &pattern.rewrite else {
-            return true;
-        };
-        let text: String = pieces
-            .iter()
-            .map(|piece| match piece {
-                TemplatePiece::Text(text) => text.as_str(),
-                _ => "",
-            })
-            .collect();
-        if text.contains('(') || text.contains(' ') {
-            return true;
-        }
-        match &pattern.callee {
-            Callee::Member => pattern
-                .target_member()
-                .is_none_or(|member| member_without_parens(&pattern.receiver, member)),
-            Callee::Namespace(namespace) => {
-                let Some((target_namespace, member)) = text.split_once('.') else {
-                    return true;
-                };
-                let parenthesized = call.args.is_some();
-                parenthesized
-                    || (namespace_without_parens(namespace, &pattern.name)
-                        && namespace_without_parens(target_namespace, member))
-            }
-            Callee::Global => true,
-        }
-    }
-
-    /// Whether today's runtime calls a member written without parentheses
-    /// for every receiver type observed.
-    fn bare_call_works(&self, expr: &'a Expr, call: &'a Call) -> bool {
-        let Some(receiver) = &call.receiver else {
-            return true;
-        };
-        if let Some(kind) = self.static_kind(receiver) {
-            return namespace_name(&kind) || member_without_parens(&kind, &call.name);
-        }
-        let Some(kinds) = self.bare_call_kinds(expr, call) else {
-            return false;
-        };
-        kinds
-            .iter()
-            .all(|kind| member_without_parens(kind, &call.name))
-    }
-
     /// Drops the parentheses of a call without arguments.
-    fn empty_parens(&mut self, expr: &'a Expr, call: &'a Call) {
+    pub(super) fn empty_parens(&mut self, expr: &'a Expr, call: &'a Call) {
         let Some(Args {
             parens: Some((open, close)),
             items,
@@ -245,7 +170,7 @@ pub trait Rules<'a>: Hooks<'a> {
             // A bare name calls a function only when it takes no parameters.
             let allowed = if let Some(def) = self.declared.functions.get(name) {
                 def.params.is_empty()
-            } else if self.new_syntax() {
+            } else {
                 matches!(
                     name,
                     "now"
@@ -258,8 +183,6 @@ pub trait Rules<'a>: Hooks<'a> {
                         | "uuid"
                         | "warn"
                 )
-            } else {
-                matches!(name, "now" | "rand" | "uuid")
             };
             if !allowed {
                 return;
@@ -270,18 +193,10 @@ pub trait Rules<'a>: Hooks<'a> {
             && !self.local(namespace)
             && !self.declared.classes.contains_key(namespace.as_str())
         {
-            if !namespace_member_takes_no_arguments(namespace, &call.name)
-                || (!self.new_syntax() && !namespace_without_parens(namespace, &call.name))
-            {
+            if !namespace_member_takes_no_arguments(namespace, &call.name) {
                 return;
             }
         } else if !self.parens_optional(expr, call) {
-            return;
-        }
-        if !self.call_returned(expr, call) {
-            return;
-        }
-        if !self.new_syntax() && !self.bare_call_works(expr, call) {
             return;
         }
         let span = Span {
@@ -302,7 +217,7 @@ pub trait Rules<'a>: Hooks<'a> {
     }
 
     /// Replaces `send(:name, ...)` and `public_send(:name, ...)` with a direct call.
-    fn dispatch(&mut self, expr: &'a Expr, call: &'a Call) {
+    pub(super) fn dispatch(&mut self, expr: &'a Expr, call: &'a Call) {
         if !matches!(call.name.as_str(), "send" | "public_send" | "respond_to?") {
             return;
         }
@@ -320,21 +235,16 @@ pub trait Rules<'a>: Hooks<'a> {
         let span = self.token_span(call.name_tok);
         let direct = "call the member directly, or use `case` over the name";
         if call.name == "respond_to?" {
-            let finding = Finding::new(
-                Reason::Dispatch,
-                span,
-                "respond_to? is removed; use case over the name or is_type?",
-            )
-            .spelling(
+            self.report(Finding::new(
                 Rule::Dispatch,
+                span,
                 "respond_to?",
                 "use `case` over the name, or `is_type?`",
-            );
-            self.report(finding);
+            ));
             return;
         }
         let Some(args) = &call.args else {
-            self.report(Finding::removed(Rule::Dispatch, span, &call.name, direct));
+            self.report(Finding::new(Rule::Dispatch, span, &call.name, direct));
             return;
         };
         let first = args.items.first();
@@ -355,63 +265,28 @@ pub trait Rules<'a>: Hooks<'a> {
                 && !matches!(name.as_str(), "send" | "public_send" | "respond_to?")
         };
         let Some(name) = symbol.filter(dispatch_name) else {
-            if observed.is_some() || first.is_some_and(|arg| arg.kind == ArgKind::Positional) {
-                let finding = Finding::new(
-                    Reason::Dispatch,
-                    span,
-                    format!(
-                        "{} with a name known only at runtime is removed; call the member, or use case over the name",
-                        call.name
-                    ),
-                )
-                .spelling(Rule::Dispatch, &call.name, direct);
-                self.report(finding);
-            } else {
-                self.report(Finding::removed(Rule::Dispatch, span, &call.name, direct));
-            }
+            self.report(Finding::new(Rule::Dispatch, span, &call.name, direct));
             return;
         };
         let call_directly = format!("call `{name}` directly");
-        if !self.call_returned(expr, call) {
-            let finding = Finding::new(
-                Reason::Dispatch,
-                span,
-                format!(
-                    "{} raised in a recorded run, and a direct call can report the error differently; call {name} directly by hand",
-                    call.name
-                ),
-            )
-            .spelling(Rule::Dispatch, &call.name, call_directly);
-            self.report(finding);
-            return;
-        }
         if self.declared.private_methods.contains(&name) {
-            let finding = Finding::new(
-                Reason::Dispatch,
-                span,
-                format!(
-                    "{} reaches the private method {name}; call it from inside its class",
-                    call.name
-                ),
-            )
-            .spelling(
+            self.report(Finding::new(
                 Rule::Dispatch,
+                span,
                 &call.name,
                 format!("{name} is private; call it from inside its class"),
-            );
-            self.report(finding);
+            ));
             return;
         }
         let rest: Vec<&Arg> = args.items.iter().skip(1).collect();
         if rest.iter().any(|arg| arg.kind != ArgKind::Positional) {
             // Dispatch passes keywords as an options hash, and a direct call does not.
-            let finding = Finding::new(
-                Reason::Dispatch,
+            self.report(Finding::new(
+                Rule::Dispatch,
                 span,
-                format!("{} with keyword or splat arguments binds them differently from a direct call; call {name} by hand", call.name),
-            )
-            .spelling(Rule::Dispatch, &call.name, call_directly);
-            self.report(finding);
+                &call.name,
+                call_directly,
+            ));
             return;
         }
         let mut pieces = vec![
@@ -458,7 +333,7 @@ pub trait Rules<'a>: Hooks<'a> {
     }
 
     /// Rewrites `Hash.new` as `{}`.
-    fn hash_new(&mut self, expr: &'a Expr, call: &'a Call, place: Place) {
+    pub(super) fn hash_new(&mut self, expr: &'a Expr, call: &'a Call, place: Place) {
         let Some(receiver) = &call.receiver else {
             return;
         };
@@ -471,31 +346,17 @@ pub trait Rules<'a>: Hooks<'a> {
         }
         let advice = "write `{}` with a declared type, such as `counts: hash<string, int> = {}`";
         if call.argument_count() > 0 || call.block.is_some() {
-            let finding = Finding::new(
-                Reason::HashNew,
-                expr.span,
-                "Hash.new with a default is removed; write {} with a declared type and handle missing keys with fetch",
-            )
-            .spelling(
+            self.report(Finding::new(
                 Rule::HashNew,
+                expr.span,
                 "Hash.new",
                 "write `{}` with a declared type, and read missing keys with `fetch`",
-            );
-            self.report(finding);
+            ));
             return;
         }
         // Without parentheses, `Hash.new` as a receiver is not a call.
         if place == Place::Tight && call.args.is_none() {
-            self.report(Finding::removed(
-                Rule::HashNew,
-                expr.span,
-                "Hash.new",
-                advice,
-            ));
-            return;
-        }
-        // `Hash.new` may read a field a script stored on the namespace.
-        if self.namespace_field(expr) {
+            self.report(Finding::new(Rule::HashNew, expr.span, "Hash.new", advice));
             return;
         }
         let text = if place == Place::Tight { "({})" } else { "{}" };
@@ -507,7 +368,7 @@ pub trait Rules<'a>: Hooks<'a> {
     /// Rewrites a call written with `::`, such as `JSON::parse(x)` or
     /// `Pricing::with_tax(1)`, with a dot: `::` names only constants,
     /// nested types and enum members, which take no arguments.
-    fn scoped_call(&mut self, call: &'a Call) {
+    pub(super) fn scoped_call(&mut self, call: &'a Call) {
         let (Some(receiver), Some(operator)) = (&call.receiver, call.operator) else {
             return;
         };
@@ -545,7 +406,7 @@ pub trait Rules<'a>: Hooks<'a> {
     /// is a builtin namespace, a class or module the source declares, or a
     /// local or call that may hold one, but not an enum, which may be
     /// lowercase, a type the source does not declare or a literal.
-    fn scopes_functions(&self, receiver: &'a Expr) -> bool {
+    pub(super) fn scopes_functions(&self, receiver: &'a Expr) -> bool {
         let capitalized = |name: &str| name.chars().next().is_some_and(char::is_uppercase);
         match &receiver.kind {
             ExprKind::Name(name) if capitalized(name) => {
@@ -559,14 +420,13 @@ pub trait Rules<'a>: Hooks<'a> {
 
     /// Rewrites symbols naming a required module as strings, and reports a
     /// `require` whose names are not literals.
-    fn require(&mut self, call: &'a Call) {
+    pub(super) fn require(&mut self, call: &'a Call) {
         if call.receiver.is_some() || call.name != "require" {
             return;
         }
         let Some(args) = &call.args else {
             return;
         };
-        let span = self.token_span(call.name_tok);
         for arg in &args.items {
             if matches!(arg.value.kind, ExprKind::Symbol)
                 && let TokenKind::Symbol { name, .. } =
@@ -584,18 +444,12 @@ pub trait Rules<'a>: Hooks<'a> {
                 self.leave(previous);
                 continue;
             }
+            // The checker reports any other name that is not a literal.
             let literal = matches!(arg.value.kind, ExprKind::Str);
             match &arg.kind {
                 ArgKind::Positional | ArgKind::Keyword(_) if literal => (),
                 ArgKind::Keyword(name) if name != "as" => (),
-                _ => {
-                    self.report(Finding::new(
-                        Reason::Require,
-                        span,
-                        "require takes string literals; write the module name and alias as literals",
-                    ));
-                    return;
-                }
+                _ => return,
             }
         }
     }
@@ -606,7 +460,7 @@ pub trait Rules<'a>: Hooks<'a> {
     /// hash method and every hash held data under it; a write, which always
     /// sets a field, wherever the receiver is a hash. Returns whether it
     /// reported the access.
-    fn field_access(&mut self, expr: &'a Expr, call: &'a Call, access: Access) -> bool {
+    pub(super) fn field_access(&mut self, expr: &'a Expr, call: &'a Call, access: Access) -> bool {
         let (Some(receiver), Some(operator)) = (&call.receiver, call.operator) else {
             return false;
         };
@@ -669,42 +523,21 @@ pub trait Rules<'a>: Hooks<'a> {
         );
         let multiline_group = (wrap || matches!(receiver.kind, ExprKind::Group(..)))
             && self.text(receiver.span).contains('\n');
-        let by_hand = if hashes < kinds.len() {
-            Some(format!(
-                "{removed} reaches a hash field on a value that is not always a hash; index the field by hand where it is one"
-            ))
-        } else if call.safe(self.tokens) {
-            Some(format!(
-                "{removed} reaches a hash field through `&.`; test for nil and index the field by hand"
-            ))
-        } else if access == Access::Destructure {
-            Some(format!(
-                "{removed} is destructured into, which an index cannot be; assign the field by hand"
-            ))
-        } else if multiline_group {
-            Some(format!(
-                "{removed} follows a receiver that spans lines, after which `[` starts a new expression; index the field by hand"
-            ))
-        } else if between.contains('#') {
-            Some(format!(
-                "a comment parts {removed} from its receiver; index the field by hand"
-            ))
-        } else if reads && !self.field_holds_data(expr, call) {
-            // A dot read raises at a missing field and calls a function,
-            // where the index reads nil or the function.
-            Some(format!(
-                "{removed} read a missing field or a function in a recorded run, which the index reads differently; index the field by hand"
-            ))
-        } else {
-            None
-        };
-        if let Some(message) = by_hand {
-            let finding = Finding::new(Reason::Receiver, span, message).spelling(
+        // A value that is not always a hash, `&.`, destructuring, a receiver
+        // spanning lines, after which `[` starts a new expression, and a
+        // comment between the receiver and the dot leave it to a person.
+        if hashes < kinds.len()
+            || call.safe(self.tokens)
+            || access == Access::Destructure
+            || multiline_group
+            || between.contains('#')
+        {
+            self.report(Finding::new(
                 Rule::FieldAccess,
+                span,
                 removed,
                 format!("hash fields are indexed, as in {indexed}, once the value is a hash"),
-            );
-            self.report(finding);
+            ));
             return true;
         }
         let advice = format!("hash fields are indexed: {indexed}");
@@ -725,12 +558,9 @@ pub trait Rules<'a>: Hooks<'a> {
 
     /// Moves keyword parameters declared in a removed form after a bare
     /// `*`: `retries: 3` becomes `*, retries: int = 3`, `name:` becomes
-    /// `*, name: T` and `name: T:` becomes `*, name: T`, with the type the
-    /// hooks give for an untyped one.
-    fn keyword_params(&mut self, def: &'a Def) {
-        if !self.new_syntax() {
-            return;
-        }
+    /// `*, name: T` and `name: T:` becomes `*, name: T`, declaring an
+    /// untyped one with the type of its literal default, if it has one.
+    pub(super) fn keyword_params(&mut self, def: &'a Def) {
         let old: Vec<&'a Param> = def
             .params
             .iter()
@@ -745,9 +575,9 @@ pub trait Rules<'a>: Hooks<'a> {
         };
         let types: Vec<Option<String>> = old
             .iter()
-            .map(|param| match param.ty {
-                Some(_) => None,
-                None => self.keyword_type(def, param),
+            .map(|param| match (&param.ty, &param.default) {
+                (None, Some(default)) => literal_type(self, default).map(str::to_owned),
+                _ => None,
             })
             .collect();
         let index = def
@@ -817,49 +647,8 @@ pub trait Rules<'a>: Hooks<'a> {
         self.leave(previous);
     }
 
-    /// Lowercases builtin type names and spells `object` as `hash`, unless
-    /// a check of the annotation failed in a recorded run, whose error
-    /// message quotes its spelling.
-    fn type_names_checked(&mut self, ty: &'a TypeExpr, passed: bool) {
-        if passed {
-            self.type_names(ty);
-        } else if self.spelled_differently(ty) {
-            let finding = Finding::new(
-                Reason::Rename,
-                ty.span,
-                "this annotation failed a check in a recorded run, and its error quotes the old type spelling; respell it by hand",
-            )
-            .spelling(
-                Rule::TypeName,
-                self.text(ty.span),
-                "type names are lowercase, and `object` is `hash`",
-            );
-            self.report(finding);
-        }
-    }
-
-    /// Whether a builtin type name in the annotation is spelled other than
-    /// canonically.
-    fn spelled_differently(&self, ty: &TypeExpr) -> bool {
-        match &ty.kind {
-            TypeKind::Named(tok, args) => {
-                let written = self.token_text(*tok).trim_end_matches('?');
-                let lower = written.to_ascii_lowercase();
-                (super::parse::respelled_type(&lower) && (lower != written || lower == "object"))
-                    || args.iter().any(|arg| self.spelled_differently(arg))
-            }
-            TypeKind::Shape(fields, _) => fields
-                .iter()
-                .any(|(_, field)| self.spelled_differently(field)),
-            TypeKind::Union(options) | TypeKind::Tuple(options) => options
-                .iter()
-                .any(|option| self.spelled_differently(option)),
-            TypeKind::Qualified(_) => false,
-        }
-    }
-
     /// Lowercases builtin type names and spells `object` as `hash`.
-    fn type_names(&mut self, ty: &'a TypeExpr) {
+    pub(super) fn type_names(&mut self, ty: &'a TypeExpr) {
         match &ty.kind {
             TypeKind::Named(tok, args) => {
                 let written = self.token_text(*tok);
@@ -870,18 +659,12 @@ pub trait Rules<'a>: Hooks<'a> {
                 let lower = name.to_ascii_lowercase();
                 // `name: nil` would declare a keyword default.
                 if lower == "nil" && name != "nil" {
-                    let span = self.token_span(*tok);
-                    let finding = Finding::new(
-                        Reason::Rename,
-                        span,
-                        format!("type names are lowercase, but {name} as `nil` would read as a keyword default here; respell it by hand"),
-                    )
-                    .spelling(
+                    self.report(Finding::new(
                         Rule::TypeName,
+                        self.token_span(*tok),
                         name,
                         "type names are lowercase; `nil` here would read as a keyword default",
-                    );
-                    self.report(finding);
+                    ));
                 }
                 if super::parse::respelled_type(&lower) && lower != "nil" {
                     let canonical = if lower == "object" { "hash" } else { &lower };
@@ -917,7 +700,7 @@ pub trait Rules<'a>: Hooks<'a> {
 
     /// The kinds a receiver's values have, as the rename table names them:
     /// from the syntax when it decides, and otherwise from the hooks.
-    fn kinds_of(&self, expr: &'a Expr, call: &'a Call) -> Option<Vec<String>> {
+    pub(super) fn kinds_of(&self, expr: &'a Expr, call: &'a Call) -> Option<Vec<String>> {
         let receiver = call.receiver.as_ref()?;
         if let Some(kind) = self.static_kind(receiver) {
             return Some(vec![kind]);
@@ -926,21 +709,14 @@ pub trait Rules<'a>: Hooks<'a> {
     }
 
     /// Applies the rename table to a call; returns whether it rewrote it.
-    fn rename(&mut self, expr: &'a Expr, call: &'a Call, place: Place) -> bool {
+    pub(super) fn rename(&mut self, expr: &'a Expr, call: &'a Call, place: Place) -> bool {
         if matches!(call.name.as_str(), "eql?" | "equal?")
             && let Some(receiver) = &call.receiver
         {
             let span = self.token_span(call.name_tok);
             let mut finding = Finding::new(
-                Reason::Rename,
-                span,
-                format!(
-                    "{} is removed; == compares values, which differs where {} compared types or identity, so choose by hand",
-                    call.name, call.name
-                ),
-            )
-            .spelling(
                 Rule::Equality,
+                span,
                 &call.name,
                 "use `==`, which compares values; check that no comparison of types or identity was meant",
             );
@@ -1032,9 +808,6 @@ pub trait Rules<'a>: Hooks<'a> {
             else {
                 return false;
             };
-            if !self.call_returned(expr, call) {
-                return false;
-            }
             return self.apply_pattern(expr, Some(call), pattern, &captures, place);
         }
         let members: Vec<&Pattern> = candidates
@@ -1051,21 +824,6 @@ pub trait Rules<'a>: Hooks<'a> {
                 .filter(|p| p.receiver == kind || p.receiver == "T")
                 .find_map(|p| rules.match_args(call, p).map(|c| (p, c)))
         };
-        // A hash field of the member's name answers the call instead. A
-        // rescued error's fields are its members.
-        let error = self.static_kind(receiver).as_deref() == Some("error");
-        if !error && self.receiver_field(expr, call) {
-            let finding = Finding::new(
-                Reason::Receiver,
-                span,
-                format!(
-                    "{} reads a hash field of that name here; rewrite it by hand",
-                    call.name
-                ),
-            );
-            self.report(finding);
-            return false;
-        }
         let kinds = self.kinds_of(expr, call);
         let decision = match &kinds {
             Some(kinds) if !kinds.is_empty() => {
@@ -1122,24 +880,15 @@ pub trait Rules<'a>: Hooks<'a> {
                 }
                 if mixed {
                     if chosen.is_some() {
-                        let finding = Finding::new(
-                            Reason::Receiver,
-                            span,
-                            format!(
-                                "{} is renamed for some of its receivers' types ({}) but not others; rewrite it by hand",
-                                call.name,
-                                kinds.join(", ")
-                            ),
-                        )
-                        .spelling(
+                        self.report(Finding::new(
                             Rule::Name,
+                            span,
                             &call.name,
                             format!(
                                 "it is removed for some of the receiver's types ({}) but not others; call a member every type has",
                                 kinds.join(", ")
                             ),
-                        );
-                        self.report(finding);
+                        ));
                     }
                     return false;
                 }
@@ -1168,23 +917,16 @@ pub trait Rules<'a>: Hooks<'a> {
                     return false;
                 }
                 if !same {
-                    let receivers: Vec<&str> =
-                        matched.iter().map(|(p, _)| p.receiver.as_str()).collect();
                     let choices: Vec<String> = matched
                         .iter()
                         .map(|(p, _)| format!("{} on {}", p.advice(), p.receiver))
                         .collect();
-                    let finding = Finding::new(
-                        Reason::Receiver,
+                    self.report(Finding::new(
+                        Rule::Name,
                         span,
-                        format!(
-                            "{} is renamed depending on its receiver's type ({}), which no recorded run observed; rewrite it by hand",
-                            call.name,
-                            receivers.join(", ")
-                        ),
-                    )
-                    .spelling(Rule::Name, &call.name, choices.join(", "));
-                    self.report(finding);
+                        &call.name,
+                        choices.join(", "),
+                    ));
                     return false;
                 }
                 Some(matched.into_iter().next().unwrap())
@@ -1193,24 +935,11 @@ pub trait Rules<'a>: Hooks<'a> {
         let Some((pattern, captures)) = decision else {
             return false;
         };
-        if !self.call_returned(expr, call) && matches!(pattern.rewrite, Change::Template(_)) {
-            let finding = Finding::new(
-                Reason::Rename,
-                span,
-                format!(
-                    "{} is removed, and it raised in a recorded run, where its replacement would report a different error; rewrite it by hand",
-                    call.name
-                ),
-            )
-            .spelling(rule_of(pattern), &call.name, pattern.advice());
-            self.report(finding);
-            return false;
-        }
         self.apply_pattern(expr, Some(call), pattern, &captures, place)
     }
 
     /// The arguments of `call` that `pattern` captures, if it matches.
-    fn match_args(&self, call: &'a Call, pattern: &Pattern) -> Option<Captures> {
+    pub(super) fn match_args(&self, call: &'a Call, pattern: &Pattern) -> Option<Captures> {
         let mut captures = Captures::default();
         let (positional, keywords, splats): (Vec<&Arg>, Vec<&Arg>, bool) = match &call.args {
             None => (Vec::new(), Vec::new(), false),
@@ -1307,28 +1036,20 @@ pub trait Rules<'a>: Hooks<'a> {
     /// Reports a removed spelling that no rewrite takes as it is called,
     /// with arguments or a block its replacement has no place for, or on
     /// the implicit `self` of a method, leaving the rewrite to a person.
-    fn unmatched(&mut self, call: &'a Call, pattern: &Pattern) {
+    pub(super) fn unmatched(&mut self, call: &'a Call, pattern: &Pattern) {
         let span = self.token_span(call.name_tok);
         self.unmatched_at(span, &call.name, pattern);
     }
 
     /// Reports removed spelling `name` at `span`, as [`Self::unmatched`] does.
-    fn unmatched_at(&mut self, span: Span, name: &str, pattern: &Pattern) {
-        let finding = Finding::new(
-            Reason::Rename,
-            span,
-            format!(
-                "{name} is removed, and no rewrite takes it as it is called here; rewrite it by hand"
-            ),
-        )
-        .spelling(rule_of(pattern), name, pattern.advice());
-        self.report(finding);
+    pub(super) fn unmatched_at(&mut self, span: Span, name: &str, pattern: &Pattern) {
+        self.report(Finding::new(rule_of(pattern), span, name, pattern.advice()));
     }
 
     /// Whether a call rewrites to an index its arguments can fill, as
     /// `$x[...]` does `slice(i)`: an index takes one or more plain values,
     /// and no block, splat or keyword.
-    fn index_rewrites(
+    pub(super) fn index_rewrites(
         &self,
         pieces: &[TemplatePiece],
         call: Option<&'a Call>,
@@ -1348,7 +1069,7 @@ pub trait Rules<'a>: Hooks<'a> {
     }
 
     /// Replaces a call with a rename's template; returns whether it did.
-    fn apply_pattern(
+    pub(super) fn apply_pattern(
         &mut self,
         expr: &'a Expr,
         call: Option<&'a Call>,
@@ -1361,13 +1082,7 @@ pub trait Rules<'a>: Hooks<'a> {
         let advice = pattern.advice();
         let pieces = match &pattern.rewrite {
             Change::Manual(hint) => {
-                let finding = Finding::new(
-                    Reason::Rename,
-                    span,
-                    format!("{} is removed; {hint}", pattern.name),
-                )
-                .spelling(rule, &pattern.name, hint);
-                self.report(finding);
+                self.report(Finding::new(rule, span, &pattern.name, hint));
                 return false;
             }
             Change::Template(pieces) => pieces,
@@ -1391,61 +1106,30 @@ pub trait Rules<'a>: Hooks<'a> {
                 _ => false,
             });
         if !exact || !assignable {
-            let finding = Finding::new(
-                Reason::Rename,
-                span,
-                format!(
-                    "{} is removed, and its replacement differs here; rewrite it by hand",
-                    pattern.name
-                ),
-            )
-            .spelling(
+            self.report(Finding::new(
                 rule,
+                span,
                 &pattern.name,
                 format!("{advice}, where it behaves the same"),
-            );
-            self.report(finding);
+            ));
             return false;
         }
         if !self.index_rewrites(pieces, call, captures) {
-            let finding = Finding::new(
-                Reason::Rename,
-                span,
-                format!(
-                    "{} is removed, and an index cannot take these arguments; rewrite it by hand",
-                    pattern.name
-                ),
-            )
-            .spelling(
+            self.report(Finding::new(
                 rule,
+                span,
                 &pattern.name,
                 format!("{advice} with an index, a start and a length, or a range"),
-            );
-            self.report(finding);
+            ));
             return false;
         }
         if pattern.receiver_uses() > 1 && !receiver.is_some_and(simple) {
-            let finding = Finding::new(
-                Reason::Rename,
-                span,
-                format!(
-                    "{} is removed; its replacement repeats the receiver, so bind it to a local first",
-                    pattern.name
-                ),
-            )
-            .spelling(
+            self.report(Finding::new(
                 rule,
+                span,
                 &pattern.name,
                 format!("{advice}, binding the receiver to a local first"),
-            );
-            self.report(finding);
-            return false;
-        }
-        if !self.accepts_rewrite(pattern, call) {
-            return false;
-        }
-        if !self.bare_replacement_works(pattern, call) {
-            self.report(Finding::removed(rule, span, &pattern.name, advice));
+            ));
             return false;
         }
         // An index takes no block, and dropping `itself` or `freeze` from a
@@ -1457,20 +1141,19 @@ pub trait Rules<'a>: Hooks<'a> {
         let identity =
             matches!(pattern.name.as_str(), "itself" | "freeze") && place == Place::Tight;
         if blocked || identity {
-            let finding = Finding::new(
-                Reason::Rename,
+            self.report(Finding::new(
+                rule,
                 span,
-                format!("{} is removed, and here its replacement would behave differently; rewrite it by hand", pattern.name),
-            )
-            .spelling(rule, &pattern.name, format!("{advice}, where it behaves the same"));
-            self.report(finding);
+                &pattern.name,
+                format!("{advice}, where it behaves the same"),
+            ));
             return false;
         }
         let safe = call.is_some_and(|call| call.safe(self.tokens));
         let plain_member = matches!(pieces.as_slice(), [TemplatePiece::Receiver, TemplatePiece::Text(text), ..] if text.starts_with('.'));
         if safe && !plain_member {
             // `x&.m` skips nil, which an operator replacement would not.
-            self.report(Finding::removed(rule, span, &pattern.name, advice));
+            self.report(Finding::new(rule, span, &pattern.name, advice));
             return false;
         }
         if pattern.name == "is_a?" || pattern.name == "kind_of?" || pattern.name == "instance_of?" {
@@ -1481,20 +1164,12 @@ pub trait Rules<'a>: Hooks<'a> {
             if !text.chars().next().is_some_and(char::is_uppercase)
                 || !text.chars().all(|c| c.is_alphanumeric() || c == '_')
             {
-                let finding = Finding::new(
-                    Reason::Rename,
-                    span,
-                    format!(
-                        "{} is removed; use is_type? with the type's name as a symbol",
-                        pattern.name
-                    ),
-                )
-                .spelling(
+                self.report(Finding::new(
                     rule,
+                    span,
                     &pattern.name,
                     "use `is_type?` with the type's name as a symbol",
-                );
-                self.report(finding);
+                ));
                 return false;
             }
         }
@@ -1594,7 +1269,7 @@ pub trait Rules<'a>: Hooks<'a> {
     }
 
     /// Converts a `do ... end` block to braces, keeping the call it attaches to.
-    fn braces(&mut self, block: &'a Block, owner: Option<&'a Call>, callee_end: usize) {
+    pub(super) fn braces(&mut self, block: &'a Block, owner: Option<&'a Call>, callee_end: usize) {
         if block.brace {
             return;
         }
@@ -1611,17 +1286,12 @@ pub trait Rules<'a>: Hooks<'a> {
                 .iter()
                 .any(|arg| matches!(arg.kind, ArgKind::Keyword(_) | ArgKind::KeywordSplat))
         {
-            let finding = Finding::new(
-                Reason::Syntax,
-                open_span,
-                "this do block's call passes bare keywords, which parentheses would bind differently; convert it to braces by hand",
-            )
-            .spelling(
+            self.report(Finding::new(
                 Rule::DoBlock,
+                open_span,
                 "do ... end",
                 "write the block with braces, giving its call parentheses; its bare keywords then bind as keyword arguments",
-            );
-            self.report(finding);
+            ));
             return;
         }
         let previous_group = self.enter(Rule::DoBlock, open_span, "do ... end", advice);
@@ -1704,7 +1374,7 @@ pub trait Rules<'a>: Hooks<'a> {
     }
 
     /// Negates a boolean condition: flips a comparison, drops a `!`, or adds one.
-    fn negate_bool(&mut self, expr: &'a Expr) {
+    pub(super) fn negate_bool(&mut self, expr: &'a Expr) {
         if let ExprKind::Call(call) = &expr.kind
             && call.name == "nil?"
             && self.operator_rewrites.contains(&expr.span)
@@ -1751,87 +1421,16 @@ pub trait Rules<'a>: Hooks<'a> {
         }
     }
 
-    /// Appends a comparison, such as ` != nil`, to a condition.
-    fn compare(&mut self, expr: &'a Expr, tight: bool, suffix: &str) {
-        // `x != nil? 1 : 2` would lex `nil?` as a name.
-        let glued = self.source[expr.span.end..]
-            .chars()
-            .next()
-            .is_some_and(|c| c.is_alphanumeric() || matches!(c, '_' | '?' | '!'));
-        let suffix = if glued {
-            format!("{suffix} ")
-        } else {
-            suffix.to_owned()
-        };
-        if tight {
-            self.edits.wrap(expr.span, "(", &format!("){suffix}"));
-        } else {
-            self.edits.wrap(expr.span, "", &suffix);
-        }
-    }
-
-    /// Makes a condition test a `bool`, negating it for `unless` and
-    /// `until` into the rewrite of their keyword.
-    fn apply_test(&mut self, expr: &'a Expr, test: Test, negate: bool) {
-        let tight = !self.primary(expr);
-        let previous = negate.then(|| {
-            let group = self.negation;
-            self.edits.enter(group)
-        });
-        match (test, negate) {
-            (Test::Bool, false) => (),
-            (Test::Bool, true) => self.negate_bool(expr),
-            (Test::Present, false) => self.compare(expr, tight, " != nil"),
-            (Test::Present, true) => self.compare(expr, tight, " == nil"),
-            (Test::True, false) => self.compare(expr, tight, " == true"),
-            (Test::True, true) => self.compare(expr, tight, " != true"),
-            (Test::Unknown(why), _) => {
-                self.report(Finding::new(
-                    Reason::Condition,
-                    expr.span,
-                    format!("this condition must be a bool, and {why}; compare it explicitly"),
-                ));
-                if negate {
-                    self.negate_bool(expr);
-                }
-            }
-        }
-        if let Some(previous) = previous {
-            self.edits.enter(previous);
-        }
-    }
-
-    /// `!x` on a value that is not a bool.
-    fn negation(&mut self, expr: &'a Expr, operand: &'a Expr, test: Test) {
-        let tight = !self.primary(operand);
-        let replace = |rules: &mut Self, suffix: &str| {
-            let mut pieces = Vec::new();
-            if tight {
-                pieces.push(Piece::Text("(".into()));
-            }
-            pieces.push(Piece::Source(operand.span));
-            if tight {
-                pieces.push(Piece::Text(")".into()));
-            }
-            pieces.push(Piece::Text(suffix.into()));
-            rules.edits.replace(expr.span, pieces);
-        };
-        match test {
-            Test::Bool => (),
-            Test::Present => replace(self, " == nil"),
-            Test::True => replace(self, " != true"),
-            Test::Unknown(why) => self.report(Finding::new(
-                Reason::Condition,
-                expr.span,
-                format!("! takes a bool, and {why}; compare the value explicitly"),
-            )),
-        }
+    /// Negates the condition of `unless` or `until` into the rewrite of
+    /// their keyword.
+    pub(super) fn negate_condition(&mut self, expr: &'a Expr) {
+        let group = self.negation;
+        let previous = self.edits.enter(group);
+        self.negate_bool(expr);
+        self.edits.enter(previous);
     }
 }
 
-impl<'a, T: Hooks<'a> + ?Sized> Rules<'a> for T {}
-
-/// The rule a rename pattern's removed spelling belongs to.
 /// Whether the signature table declares member `name` on values of `kind`,
 /// or on every value.
 fn declares(kind: &str, name: &str) -> bool {
@@ -1846,6 +1445,7 @@ fn declares(kind: &str, name: &str) -> bool {
         })
 }
 
+/// The rule a rename pattern's removed spelling belongs to.
 fn rule_of(pattern: &Pattern) -> Rule {
     match pattern.name.as_str() {
         "nil?" => Rule::NilPredicate,

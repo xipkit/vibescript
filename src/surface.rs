@@ -1,54 +1,30 @@
 //! The canonical surface of ADR-008: every removed spelling, how to find it
 //! in a source, and how to rewrite it.
 //!
-//! One set of rules serves two callers. The compiler reports each removed
-//! spelling as a `V04xx` [`Diagnostic`](crate::diagnostic::Diagnostic) when
-//! static types are on ([`check`]), and `vibes migrate` applies the same
-//! rewrites to old-language sources, deciding with the types it observed
-//! when the static ones are unknown. Both walk a [`syntax::Tree`] that keeps
-//! every construct's span, through the [`Walk`] trait: its provided methods
-//! traverse the tree and apply each rule, and the [`Hooks`] an implementor
-//! supplies say what it knows about the program's types and add rules of
-//! its own.
+//! The compiler reports each removed spelling as a `V04xx`
+//! [`Diagnostic`](crate::diagnostic::Diagnostic) whose fix is its rewrite
+//! ([`add_to`]). The rules walk a [`syntax::Tree`] that keeps every
+//! construct's span, and the static checker's receiver types decide the
+//! renames that depend on the receiver.
 //!
-//! A rewrite records its edits as one group ([`Rewrite`]), so the compiler
-//! can offer it as a fix on its own while the migration renders every
-//! group at once, nested edits inside one another. A removed spelling the
-//! rules cannot rewrite safely where it stands is a [`Finding`] instead.
-//!
-//! ```
-//! let diagnostics = vibescript::surface::check("items = [1]\nn = items.size\n")?;
-//! assert_eq!(diagnostics[0].code.to_string(), "V0401");
-//! assert_eq!(diagnostics[0].message, "`size` was removed; use `length`");
-//! let fixed = diagnostics[0].fixes[0].apply("items = [1]\nn = items.size\n");
-//! assert_eq!(fixed.as_deref(), Some("items = [1]\nn = items.length\n"));
-//! # Ok::<(), vibescript::Error>(())
-//! ```
+//! A rewrite records its edits as one group ([`Rewrite`]), so each is offered
+//! as a fix on its own. A removed spelling the rules cannot rewrite safely
+//! where it stands is a [`Finding`] instead.
 
 mod checker;
 mod context;
-pub mod edits;
-mod hooks;
-pub mod parse;
-pub mod patterns;
-mod probe;
+mod edits;
+mod parse;
+mod patterns;
 mod rules;
-pub mod syntax;
+mod syntax;
 #[cfg(test)]
 mod tests;
 mod walk;
 
 pub(crate) use checker::add_to;
-pub use checker::{check, check_tokens};
-pub use context::{
-    Declared, Place, Scope, Surface, collect_expr, collect_locals, collect_rescued, literal_type,
-    method_name, namespace_member_takes_no_arguments, namespace_name, primary, simple,
-    string_literal, symbol_literal,
-};
-pub use hooks::{Annotation, Hooks, Probe, Test};
-pub use probe::{member_without_parens, namespace_without_parens};
-pub use rules::{Captures, Rules};
-pub use walk::Walk;
+#[cfg(test)]
+use checker::check;
 
 use crate::diagnostic::Code;
 use syntax::Span;
@@ -96,8 +72,8 @@ pub enum Rule {
 
 impl Rule {
     /// The diagnostic code the compiler reports the rule's spellings with.
-    pub fn code(self) -> Option<Code> {
-        Some(match self {
+    pub fn code(self) -> Code {
+        match self {
             Self::Name => Code::REMOVED_NAME,
             Self::NilPredicate => Code::NIL_PREDICATE,
             Self::Equality => Code::IDENTITY_EQUALITY,
@@ -115,7 +91,7 @@ impl Rule {
             Self::KeywordParameter => Code::KEYWORD_PARAMETER,
             Self::FieldAccess => Code::FIELD_ACCESS,
             Self::ScopedCall => Code::SCOPED_CALL,
-        })
+        }
     }
 }
 
@@ -132,26 +108,6 @@ pub enum Access {
     Destructure,
 }
 
-/// Why a migration leaves a finding to a person.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[non_exhaustive]
-pub enum Reason {
-    /// A removed spelling whose replacement needs a person.
-    Rename,
-    /// A removed spelling whose receiver type is unknown or mixed.
-    Receiver,
-    /// Dispatch by a name known only at runtime.
-    Dispatch,
-    /// A `require` whose path or alias is not a string literal.
-    Require,
-    /// `Hash.new` with a default or a block.
-    HashNew,
-    /// A condition on a value that is not always a `bool`.
-    Condition,
-    /// A rewrite that needs syntax the target does not accept.
-    Syntax,
-}
-
 /// A removed spelling that the walk rewrote. Its edits are the group of
 /// the same index in [`edits::Edits`].
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -165,22 +121,15 @@ pub struct Rewrite {
     pub advice: String,
 }
 
-/// A removed spelling that the walk could not rewrite where it stands, or
-/// something else a migration must leave to a person.
+/// A removed spelling that the walk could not rewrite where it stands.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Finding {
-    /// The removed spelling's rule, or none for a finding outside the
-    /// canonical surface, such as a condition on a value that is not a `bool`.
-    pub rule: Option<Rule>,
-    /// Why a migration reports it, or none when only the compiler does.
-    pub reason: Option<Reason>,
-    /// Where it is; a migration reports the start.
+    pub rule: Rule,
+    /// Where it is.
     pub span: Span,
-    /// What a migration report says.
-    pub message: String,
-    /// The removed spelling, for the compiler's message.
+    /// The removed spelling, for the message.
     pub removed: String,
-    /// What to write instead, for the compiler's message.
+    /// What to write instead, for the message.
     pub advice: String,
     /// Edits a person may apply after checking them, as replacement text
     /// for each span.
@@ -188,49 +137,19 @@ pub struct Finding {
 }
 
 impl Finding {
-    /// A finding that a migration reports for `reason`, outside the
-    /// canonical surface.
-    pub fn new(reason: Reason, span: Span, message: impl Into<String>) -> Self {
-        Self {
-            rule: None,
-            reason: Some(reason),
-            span,
-            message: message.into(),
-            removed: String::new(),
-            advice: String::new(),
-            suggestion: Vec::new(),
-        }
-    }
-
-    /// A removed spelling that only the compiler reports, since a migration
-    /// has a reason of its own to leave it.
-    pub fn removed(
+    /// A removed spelling of `rule` at `span`, with what to write instead.
+    pub fn new(
         rule: Rule,
         span: Span,
         removed: impl Into<String>,
         advice: impl Into<String>,
     ) -> Self {
         Self {
-            rule: Some(rule),
-            reason: None,
+            rule,
             span,
-            message: String::new(),
             removed: removed.into(),
             advice: advice.into(),
             suggestion: Vec::new(),
         }
-    }
-
-    /// Makes a finding also concern the removed spelling `removed` of `rule`.
-    pub fn spelling(
-        mut self,
-        rule: Rule,
-        removed: impl Into<String>,
-        advice: impl Into<String>,
-    ) -> Self {
-        self.rule = Some(rule);
-        self.removed = removed.into();
-        self.advice = advice.into();
-        self
     }
 }

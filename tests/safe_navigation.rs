@@ -178,15 +178,6 @@ fn safe_assignment_targets_are_rejected_but_selectors_can_use_safe_reads() {
             "{source}"
         );
     }
-    // The grammar accepts a safe read in a selector or a call's receiver.
-    for source in [
-        "hash = {}; hash[nil&.missing] = 1",
-        "hash = {}; hash[nil&.missing] += 1",
-        "make(nil&.missing).field = 1",
-    ] {
-        vibescript::surface::parse::parse(source)
-            .unwrap_or_else(|error| panic!("{source}: {error:?}"));
-    }
 }
 
 #[test]

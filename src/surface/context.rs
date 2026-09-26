@@ -375,33 +375,6 @@ impl<'a> Surface<'a> {
             .find(|value| value.span == span)
     }
 
-    /// The offset the compiler attributes an expression to, as observation
-    /// events report it.
-    pub fn compiler_offset(&self, expr: &Expr) -> usize {
-        match &expr.kind {
-            ExprKind::Binary(op, ..) | ExprKind::Range(Some(_), op, _) => self.operator_offset(*op),
-            ExprKind::Index(_, open, ..) => self.tokens[*open].start,
-            ExprKind::Ternary(_, question, ..) => self.tokens[*question].start,
-            ExprKind::Rescue(_, keyword, _) => self.tokens[*keyword].start,
-            ExprKind::Group(_, inner, _) => self.compiler_offset(inner),
-            ExprKind::Call(call) => match &call.receiver {
-                Some(receiver) => self.compiler_offset(receiver),
-                None => expr.span.start,
-            },
-            ExprKind::Computed(callee, _) | ExprKind::BlockCall(callee, _) => {
-                self.compiler_offset(callee)
-            }
-            ExprKind::Unary(op, operand)
-                if self.token_text(*op) == "-"
-                    && matches!(operand.kind, ExprKind::Integer | ExprKind::Float)
-                    && self.tokens[*op].end == operand.span.start =>
-            {
-                operand.span.start
-            }
-            _ => expr.span.start,
-        }
-    }
-
     /// Where the compiler reports an operator: its last character, except
     /// for `<=>` and `===`.
     pub fn operator_offset(&self, op: Tok) -> usize {
@@ -416,15 +389,6 @@ impl<'a> Surface<'a> {
     /// the rewrites made to it.
     pub fn primary(&self, expr: &Expr) -> bool {
         primary(expr) && !self.operator_rewrites.contains(&expr.span)
-    }
-
-    /// The whitespace that indents the line `offset` is on.
-    pub fn indentation(&self, offset: usize) -> String {
-        let line_start = self.source[..offset].rfind('\n').map_or(0, |i| i + 1);
-        self.source[line_start..]
-            .chars()
-            .take_while(|c| *c == ' ' || *c == '\t')
-            .collect()
     }
 }
 

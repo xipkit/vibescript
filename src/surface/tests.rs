@@ -855,3 +855,14 @@ fn removed_spellings_are_reported_where_no_rewrite_takes_them() {
         );
     }
 }
+
+#[test]
+fn the_rules_parser_reads_safe_reads_in_selectors_and_receivers() {
+    for source in [
+        "hash = {}; hash[nil&.missing] = 1",
+        "hash = {}; hash[nil&.missing] += 1",
+        "make(nil&.missing).field = 1",
+    ] {
+        super::parse::parse(source).unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    }
+}

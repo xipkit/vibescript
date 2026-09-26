@@ -11,8 +11,9 @@ use super::syntax::*;
 use crate::tooling::{self, TokenKind};
 use std::collections::HashSet;
 
-/// Why a source could not be parsed.
+/// Why a source could not be parsed, which a test's failure shows.
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Fail {
     pub offset: usize,
     pub message: String,
@@ -21,6 +22,7 @@ pub struct Fail {
 type Result<T> = std::result::Result<T, Fail>;
 
 /// Parses `source`, which must already compile.
+#[cfg(test)]
 pub fn parse(source: &str) -> Result<Tree> {
     let tokens = lex(source, 0).map_err(|error| Fail {
         offset: 0,

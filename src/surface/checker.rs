@@ -1,7 +1,7 @@
 //! The compiler's use of the rules: every removed spelling in a source as
 //! a `V04xx` diagnostic, with the rewrite as its fix.
 
-use super::{Finding, Rule, context::Surface, hooks::Hooks, parse, syntax, walk::Walk};
+use super::{Finding, Rule, context::Surface, parse, syntax};
 use crate::{
     diagnostic::{Code, Diagnostic, Edit, Fix, Span},
     tooling,
@@ -20,27 +20,19 @@ const NESTING: usize = 48;
 const DEEP_STACK: usize = 256 << 20;
 
 /// Reports every removed spelling in `source` as a diagnostic, deciding
-/// receiver types from the syntax alone.
-///
-/// A source that does not parse fails with its syntax error.
+/// receiver types from the syntax alone. A source that does not parse
+/// fails with its syntax error, and one the rules' parser cannot read has
+/// none.
+#[cfg(test)]
 pub fn check(source: &str) -> crate::Result<Vec<Diagnostic>> {
     let tokens = tooling::tokens(source)?;
-    Ok(check_tokens(source, &tokens, &CallTypes::default()))
+    Ok(walk(source, &tokens, &CallTypes::default()).unwrap_or_default())
 }
 
-/// Reports every removed spelling in `source`, whose tokens the compiler
-/// read, as a diagnostic. `calls` gives the static checker's receiver
-/// types, which decide the rename of a member whose replacement depends on
-/// its receiver.
-///
-/// Diagnostics are in source order. A source the rules' parser cannot
-/// read has none.
-pub fn check_tokens(source: &str, tokens: &[tooling::Token], calls: &CallTypes) -> Vec<Diagnostic> {
-    walk(source, tokens, calls).unwrap_or_default()
-}
-
-/// The removed spellings in `source`, or `None` when the rules' parser
-/// cannot read it.
+/// The removed spellings in `source`, whose tokens the compiler read, in
+/// source order, or `None` when the rules' parser cannot read it. `calls`
+/// gives the static checker's receiver types, which decide the rename of a
+/// member whose replacement depends on its receiver.
 fn walk(source: &str, tokens: &[tooling::Token], calls: &CallTypes) -> Option<Vec<Diagnostic>> {
     match parse::parse_tokens(source, tokens, NESTING) {
         Ok(tree) => Some(diagnostics(source, &tree, calls)),
@@ -121,9 +113,7 @@ fn diagnostics(source: &str, tree: &syntax::Tree, calls: &CallTypes) -> Vec<Diag
     checker.program(&tree.body);
     let mut diagnostics = Vec::new();
     for (group, rewrite) in checker.surface.rewrites.iter().enumerate() {
-        let Some(code) = rewrite.rule.code() else {
-            continue;
-        };
+        let code = rewrite.rule.code();
         let edits: Vec<Edit> = checker
             .surface
             .edits
@@ -150,9 +140,7 @@ fn diagnostics(source: &str, tree: &syntax::Tree, calls: &CallTypes) -> Vec<Diag
         diagnostics.push(diagnostic);
     }
     for finding in &checker.findings {
-        let Some(code) = finding.rule.and_then(Rule::code) else {
-            continue;
-        };
+        let code = finding.rule.code();
         let message = format!("`{}` was removed; {}", finding.removed, finding.advice);
         let mut diagnostic = Diagnostic::error(code, span(finding.span), message);
         if !finding.suggestion.is_empty() {
@@ -181,7 +169,7 @@ fn span(span: syntax::Span) -> Span {
 }
 
 /// The compiler's walk: receiver types come from the static checker.
-struct Checker<'a> {
+pub(super) struct Checker<'a> {
     surface: Surface<'a>,
     calls: &'a CallTypes,
     findings: Vec<Finding>,
@@ -207,14 +195,20 @@ impl<'a> Checker<'a> {
         self.calls
             .receiver_at(self.surface.tokens[call.name_tok].start)
     }
-}
 
-impl<'a> Hooks<'a> for Checker<'a> {
-    fn report(&mut self, finding: Finding) {
+    /// Takes a finding the rules could not turn into a rewrite.
+    pub(super) fn report(&mut self, finding: Finding) {
         self.findings.push(finding);
     }
 
-    fn receiver_kinds(&self, _: &'a syntax::Expr, call: &'a syntax::Call) -> Option<Vec<String>> {
+    /// The kinds of value a member call's receiver has, as the rename table
+    /// names them (`string`, `array`, `hash`, `nil`, `class Name`, `enum`,
+    /// `any` and so on), when the static checker knows them.
+    pub(super) fn receiver_kinds(
+        &self,
+        _: &'a syntax::Expr,
+        call: &'a syntax::Call,
+    ) -> Option<Vec<String>> {
         let receiver = self.receiver(call)?;
         // An `any` receiver is as unknown as an untyped one, and a declared
         // capability's methods are the host's, whatever their names.
@@ -244,7 +238,10 @@ impl<'a> Hooks<'a> for Checker<'a> {
         )
     }
 
-    fn receiver_plain(&self, _: &'a syntax::Expr, call: &'a syntax::Call) -> bool {
+    /// Whether the receiver is known to be a value whose member of the
+    /// call's name is called the same with or without parentheses: not a
+    /// hash, which may hold a function under the name, and not `nil`.
+    pub(super) fn receiver_plain(&self, _: &'a syntax::Expr, call: &'a syntax::Call) -> bool {
         self.receiver(call).is_some_and(|receiver| {
             !receiver.bases().is_empty()
                 && !receiver
@@ -254,7 +251,14 @@ impl<'a> Hooks<'a> for Checker<'a> {
         })
     }
 
-    fn receiver_dynamic(&self, _: &'a syntax::Expr, call: &'a syntax::Call) -> Option<bool> {
+    /// Whether the receiver is known to be a host value, such as a
+    /// capability, whose own methods may be named like removed ones: some
+    /// when the receiver's types are known, none when not.
+    pub(super) fn receiver_dynamic(
+        &self,
+        _: &'a syntax::Expr,
+        call: &'a syntax::Call,
+    ) -> Option<bool> {
         if let Some(receiver) = self.receiver(call) {
             return Some(
                 receiver
@@ -267,7 +271,8 @@ impl<'a> Hooks<'a> for Checker<'a> {
         self.host_rooted(receiver).then_some(true)
     }
 
-    fn receiver_owns_method(&self, _: &'a syntax::Expr, call: &'a syntax::Call) -> bool {
+    /// Whether every receiver alternative resolves this call to a user method.
+    pub(super) fn receiver_owns_method(&self, _: &'a syntax::Expr, call: &'a syntax::Call) -> bool {
         self.calls
             .user_method_at(self.surface.tokens[call.name_tok].start)
     }

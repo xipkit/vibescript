@@ -41,11 +41,6 @@ pub struct Edits {
 }
 
 impl Edits {
-    /// Whether no edit was made.
-    pub fn is_empty(&self) -> bool {
-        self.edits.is_empty()
-    }
-
     /// Makes later edits belong to `group`, returning the group they
     /// belonged to before.
     pub fn enter(&mut self, group: Option<usize>) -> Option<usize> {

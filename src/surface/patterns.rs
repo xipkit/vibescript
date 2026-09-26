@@ -69,23 +69,6 @@ pub struct Pattern {
 }
 
 impl Pattern {
-    /// The member a plain rename calls instead, such as `length` for `size`.
-    pub fn target_member(&self) -> Option<&str> {
-        let Change::Template(pieces) = &self.rewrite else {
-            return None;
-        };
-        match pieces.as_slice() {
-            [TemplatePiece::Receiver, TemplatePiece::Text(text), ..] => {
-                let name = text.strip_prefix('.')?;
-                let end = name
-                    .find(|c: char| !(c.is_ascii_alphanumeric() || matches!(c, '_' | '?' | '!')))
-                    .unwrap_or(name.len());
-                Some(&name[..end])
-            }
-            _ => None,
-        }
-    }
-
     /// Whether the replacement is an operator expression, which may need
     /// parentheses where the call stood.
     pub fn operator(&self) -> bool {
@@ -245,7 +228,7 @@ mod tests {
             .unwrap();
         assert_eq!(size.callee, Callee::Member);
         assert_eq!(size.args, None);
-        assert_eq!(size.target_member(), Some("length"));
+        assert_eq!(size.advice(), "use `length`");
         let sub = patterns
             .iter()
             .find(|p| p.receiver == "string" && p.name == "sub")

@@ -3,17 +3,15 @@
 
 use super::{
     Access, Rule,
+    checker::Checker,
     context::{Place, Scope, collect_expr, collect_locals, collect_rescued},
-    hooks::{Annotation, Probe},
-    rules::Rules,
     syntax::*,
 };
 
-/// Walks a tree, applying every canonical-surface rule and the
-/// implementor's own [`Hooks`](super::Hooks) at each construct.
-pub trait Walk<'a>: Rules<'a> {
+/// Walks a tree, applying every canonical-surface rule at each construct.
+impl<'a> Checker<'a> {
     /// Walks a whole program.
-    fn program(&mut self, body: &'a [Stmt]) {
+    pub(super) fn program(&mut self, body: &'a [Stmt]) {
         let mut scope = Scope::default();
         collect_locals(body, &mut scope);
         self.scopes.push(scope);
@@ -22,25 +20,25 @@ pub trait Walk<'a>: Rules<'a> {
     }
 
     /// Walks each statement of a body.
-    fn statements(&mut self, body: &'a [Stmt]) {
+    pub(super) fn statements(&mut self, body: &'a [Stmt]) {
         for stmt in body {
             self.stmt(stmt);
         }
     }
 
     /// Walks one statement.
-    fn stmt(&mut self, stmt: &'a Stmt) {
+    pub(super) fn stmt(&mut self, stmt: &'a Stmt) {
         match &stmt.kind {
             StmtKind::Expr(expr) => self.expr(expr, Place::Statement),
-            StmtKind::Assign(assign) => self.assign(stmt, assign),
-            StmtKind::If(node) => self.if_node(node, self.tokens[node.keyword].start),
+            StmtKind::Assign(assign) => self.assign(assign),
+            StmtKind::If(node) => self.if_node(node),
             StmtKind::While(node) => self.while_node(node),
             StmtKind::For(node) => {
                 self.target(&node.target);
                 self.expr(&node.iterable, Place::Loose);
                 self.statements(&node.body);
             }
-            StmtKind::Modifier(node) => self.modifier(stmt, node),
+            StmtKind::Modifier(node) => self.modifier(node),
             StmtKind::Flow(_, value) => {
                 if let Some(value) = value {
                     self.expr(value, Place::Loose);
@@ -58,7 +56,7 @@ pub trait Walk<'a>: Rules<'a> {
     }
 
     /// Walks an assignment's targets and values.
-    fn assign(&mut self, stmt: &'a Stmt, assign: &'a Assign) {
+    pub(super) fn assign(&mut self, assign: &'a Assign) {
         let access = match (assign.targets.len(), self.token_text(assign.op)) {
             (1, "=") => Access::Write,
             (1, _) => Access::Update,
@@ -70,17 +68,16 @@ pub trait Walk<'a>: Rules<'a> {
         for value in &assign.values {
             self.expr(value, Place::Loose);
         }
-        self.after_assign(stmt, assign);
     }
 
     /// Walks what a destructured target reads, such as an indexed receiver.
-    fn target(&mut self, target: &'a Target) {
+    pub(super) fn target(&mut self, target: &'a Target) {
         self.target_with(target, Access::Destructure);
     }
 
     /// Walks what an assignment target reads, where a field it names with a
     /// dot is reached as `access` says.
-    fn target_with(&mut self, target: &'a Target, access: Access) {
+    pub(super) fn target_with(&mut self, target: &'a Target, access: Access) {
         match target {
             Target::Expr(expr) => match &expr.kind {
                 ExprKind::Index(receiver, _, selectors, _) => {
@@ -103,10 +100,7 @@ pub trait Walk<'a>: Rules<'a> {
             Target::Splat(_, Some(inner)) => self.target(inner),
             Target::Typed(inner, ty) => {
                 self.target(inner);
-                // A block parameter's check is not observed, so a failure
-                // quoting the old spelling cannot be ruled out.
-                let passed = self.annotation_passed(Annotation::BlockParameter);
-                self.type_names_checked(ty, passed);
+                self.type_names(ty);
             }
             Target::Group(_, parts) => {
                 for part in parts {
@@ -119,13 +113,13 @@ pub trait Walk<'a>: Rules<'a> {
 
     /// Walks an `if` or `unless`, rewriting `unless` as `if` with the
     /// negated condition.
-    fn if_node(&mut self, node: &'a If, report: usize) {
+    pub(super) fn if_node(&mut self, node: &'a If) {
         if node.unless {
             let (condition, _) = &node.branches[0];
-            self.negated(Rule::Unless, node.keyword, "if", condition, report);
+            self.negated(Rule::Unless, node.keyword, "if", condition);
         } else {
             for (condition, _) in &node.branches {
-                self.condition(condition, report);
+                self.condition(condition);
             }
         }
         for (_, body) in &node.branches {
@@ -138,40 +132,37 @@ pub trait Walk<'a>: Rules<'a> {
 
     /// Walks a `while` or `until`, rewriting `until` as `while` with the
     /// negated condition.
-    fn while_node(&mut self, node: &'a While) {
-        let report = self.tokens[node.keyword].start;
+    pub(super) fn while_node(&mut self, node: &'a While) {
         if node.until {
-            self.negated(Rule::Until, node.keyword, "while", &node.condition, report);
+            self.negated(Rule::Until, node.keyword, "while", &node.condition);
         } else {
-            self.condition(&node.condition, report);
+            self.condition(&node.condition);
         }
         self.statements(&node.body);
     }
 
     /// Walks a statement with an `if`, `unless`, `while` or `until` modifier.
-    fn modifier(&mut self, stmt: &'a Stmt, node: &'a Modifier) {
+    pub(super) fn modifier(&mut self, node: &'a Modifier) {
         self.stmt(&node.body);
-        let report = stmt.span.start;
         match node.kind {
-            ModifierKind::If | ModifierKind::While => self.condition(&node.condition, report),
+            ModifierKind::If | ModifierKind::While => self.condition(&node.condition),
             ModifierKind::Unless => {
-                self.negated(Rule::Unless, node.keyword, "if", &node.condition, report);
+                self.negated(Rule::Unless, node.keyword, "if", &node.condition);
             }
             ModifierKind::Until => {
-                self.negated(Rule::Until, node.keyword, "while", &node.condition, report);
+                self.negated(Rule::Until, node.keyword, "while", &node.condition);
             }
         }
     }
 
     /// Replaces the `unless` or `until` keyword `keyword` with `positive`
     /// and negates its condition, as one rewrite.
-    fn negated(
+    pub(super) fn negated(
         &mut self,
         rule: Rule,
         keyword: Tok,
         positive: &str,
         condition: &'a Expr,
-        report: usize,
     ) {
         let span = self.token_span(keyword);
         let removed = self.token_text(keyword);
@@ -181,13 +172,13 @@ pub trait Walk<'a>: Rules<'a> {
         self.edits.text(span, positive);
         self.leave(previous);
         let outer = self.negation.replace(group);
-        self.condition_with(condition, report, true);
+        self.condition_with(condition, true);
         self.negation = outer;
     }
 
     /// Walks a function: its parameters' annotations and defaults, then
     /// its body.
-    fn def(&mut self, def: &'a Def, class: Option<&'a Class>) {
+    pub(super) fn def(&mut self, def: &'a Def, class: Option<&'a Class>) {
         let mut scope = Scope {
             def: Some(def),
             class,
@@ -205,20 +196,17 @@ pub trait Walk<'a>: Rules<'a> {
         }
         self.scopes.push(scope);
         self.keyword_params(def);
-        let bound = self.annotation_passed(Annotation::Parameter(def));
         for param in &def.params {
             if let Some(ty) = &param.ty {
-                self.type_names_checked(ty, bound);
+                self.type_names(ty);
             }
             if let Some(default) = &param.default {
                 self.expr(default, Place::Loose);
             }
         }
         if let Some((_, ty)) = &def.result {
-            let returned = self.annotation_passed(Annotation::Result(def, ty));
-            self.type_names_checked(ty, returned);
+            self.type_names(ty);
         }
-        self.before_body(def, class);
         self.statements(&def.body);
         if let Some(rescued) = &def.rescue {
             self.rescued(rescued);
@@ -227,7 +215,7 @@ pub trait Walk<'a>: Rules<'a> {
     }
 
     /// Walks rescue, else and ensure clauses.
-    fn rescued(&mut self, rescued: &'a Rescued) {
+    pub(super) fn rescued(&mut self, rescued: &'a Rescued) {
         for clause in &rescued.rescues {
             self.statements(&clause.body);
         }
@@ -238,23 +226,18 @@ pub trait Walk<'a>: Rules<'a> {
 
     /// Walks a class or module and its members; `prefix` is the dotted name
     /// of the enclosing one.
-    fn class(&mut self, class: &'a Class, prefix: &str) {
+    pub(super) fn class(&mut self, class: &'a Class, prefix: &str) {
         let name = if prefix.is_empty() {
             class.name.clone()
         } else {
             format!("{prefix}.{}", class.name)
         };
-        self.before_class(class, &name);
         for member in &class.members {
             match member {
                 Member::Def(def) => self.def(def, Some(class)),
                 Member::Property(property) => {
-                    for (tok, ty) in &property.names {
-                        if let Some(ty) = ty {
-                            let passed =
-                                self.annotation_passed(Annotation::Property(&name, *tok, ty));
-                            self.type_names_checked(ty, passed);
-                        }
+                    for ty in property.names.iter().filter_map(|(_, ty)| ty.as_ref()) {
+                        self.type_names(ty);
                     }
                 }
                 Member::Class(inner) => self.class(inner, &name),
@@ -280,7 +263,7 @@ pub trait Walk<'a>: Rules<'a> {
     }
 
     /// Walks an expression standing at `place`.
-    fn expr(&mut self, expr: &'a Expr, place: Place) {
+    pub(super) fn expr(&mut self, expr: &'a Expr, place: Place) {
         match &expr.kind {
             ExprKind::Nil
             | ExprKind::True
@@ -312,20 +295,18 @@ pub trait Walk<'a>: Rules<'a> {
                     }
                 }
             }
-            ExprKind::Unary(op, operand) => self.unary(expr, *op, operand),
-            ExprKind::Binary(op, left, right) => {
+            ExprKind::Unary(_, operand) => self.expr(operand, Place::Tight),
+            ExprKind::Binary(_, left, right) => {
                 self.expr(left, Place::Tight);
                 self.expr(right, Place::Tight);
-                self.after_binary(expr, *op, left, right, place);
             }
             ExprKind::Range(left, _, right) => {
                 for operand in left.iter().chain(right) {
                     self.expr(operand, Place::Tight);
                 }
             }
-            ExprKind::Ternary(condition, question, yes, no) => {
-                let report = self.tokens[*question].start;
-                self.condition(condition, report);
+            ExprKind::Ternary(condition, _, yes, no) => {
+                self.condition(condition);
                 self.expr(yes, Place::Loose);
                 self.expr(no, Place::Loose);
             }
@@ -353,7 +334,7 @@ pub trait Walk<'a>: Rules<'a> {
                 }
             }
             ExprKind::Group(_, inner, _) => self.expr(inner, Place::Loose),
-            ExprKind::If(node) => self.if_node(node, self.tokens[node.keyword].start),
+            ExprKind::If(node) => self.if_node(node),
             ExprKind::Case(node) => self.case(node),
             ExprKind::Loop(stmt) => self.stmt(stmt),
             ExprKind::Begin(node) => {
@@ -367,18 +348,8 @@ pub trait Walk<'a>: Rules<'a> {
         }
     }
 
-    /// `!x` outside a condition.
-    fn unary(&mut self, expr: &'a Expr, op: Tok, operand: &'a Expr) {
-        self.expr(operand, Place::Tight);
-        if self.token_text(op) != "!" {
-            return;
-        }
-        let test = self.test(operand, Probe::Negation(self.tokens[op].start));
-        self.negation(expr, operand, test);
-    }
-
     /// Walks a `case`.
-    fn case(&mut self, node: &'a Case) {
+    pub(super) fn case(&mut self, node: &'a Case) {
         if let Some(subject) = &node.subject {
             self.expr(subject, Place::Loose);
         }
@@ -391,11 +362,10 @@ pub trait Walk<'a>: Rules<'a> {
         if let Some((_, alternate)) = &node.alternate {
             self.expr(alternate, Place::Loose);
         }
-        self.after_case(node);
     }
 
     /// Walks a call's arguments.
-    fn args(&mut self, args: &'a Args) {
+    pub(super) fn args(&mut self, args: &'a Args) {
         let command = args.parens.is_none();
         for (index, arg) in args.items.iter().enumerate() {
             let place = if command && index == 0 {
@@ -411,7 +381,7 @@ pub trait Walk<'a>: Rules<'a> {
     }
 
     /// Walks a named call, then applies the call rules to it.
-    fn call(&mut self, expr: &'a Expr, call: &'a Call, place: Place) {
+    pub(super) fn call(&mut self, expr: &'a Expr, call: &'a Call, place: Place) {
         if let Some(receiver) = &call.receiver {
             self.expr(receiver, Place::Tight);
         }
@@ -453,7 +423,7 @@ pub trait Walk<'a>: Rules<'a> {
     }
 
     /// Walks a block, then converts it to braces when written `do ... end`.
-    fn block(&mut self, block: &'a Block, owner: Option<&'a Call>, callee_end: usize) {
+    pub(super) fn block(&mut self, block: &'a Block, owner: Option<&'a Call>, callee_end: usize) {
         let mut scope = Scope {
             def: self.scope().def,
             class: self.scope().class,
@@ -474,38 +444,28 @@ pub trait Walk<'a>: Rules<'a> {
         self.braces(block, owner, callee_end);
     }
 
-    /// Walks a condition and makes it test a `bool`.
-    fn condition(&mut self, expr: &'a Expr, report: usize) {
-        self.condition_with(expr, report, false);
+    /// Walks a condition.
+    pub(super) fn condition(&mut self, expr: &'a Expr) {
+        self.condition_with(expr, false);
     }
 
-    /// Walks a condition, making it test a `bool` and, for `unless` and
-    /// `until`, negating it.
-    fn condition_with(&mut self, expr: &'a Expr, report: usize, negate: bool) {
+    /// Walks a condition, negating it for `unless` and `until`.
+    pub(super) fn condition_with(&mut self, expr: &'a Expr, negate: bool) {
         match &expr.kind {
-            ExprKind::Group(_, inner, _) if !negate => {
-                self.condition_with(inner, report, false);
-                return;
-            }
+            ExprKind::Group(_, inner, _) if !negate => self.condition_with(inner, false),
             ExprKind::Binary(op, left, right) if matches!(self.token_text(*op), "&&" | "||") => {
-                let inner = self.operator_offset(*op);
-                self.condition_with(left, inner, false);
+                self.condition_with(left, false);
                 if negate {
-                    // The compiler negates the whole test, so the negation
-                    // saw the right operand's values, or the left's.
-                    let test = self.test(right, Probe::Negation(inner));
-                    self.condition_typed(right, test);
+                    self.expr(right, Place::Loose);
                     let group = self.negation;
                     let previous = self.edits.enter(group);
                     self.edits.wrap(expr.span, "!(", ")");
                     self.edits.enter(previous);
                 } else {
-                    self.condition_with(right, report, false);
+                    self.condition_with(right, false);
                 }
-                return;
             }
             ExprKind::Unary(op, operand) if self.token_text(*op) == "!" => {
-                let test = self.test(operand, Probe::Negation(self.tokens[*op].start));
                 if negate {
                     // `unless !x` tests `x`.
                     let span = Span {
@@ -516,32 +476,17 @@ pub trait Walk<'a>: Rules<'a> {
                     let previous = self.edits.enter(group);
                     self.edits.text(span, "");
                     self.edits.enter(previous);
-                    self.condition_typed(operand, test);
+                    self.expr(operand, Place::Loose);
                 } else {
                     self.expr(operand, Place::Tight);
-                    self.negation(expr, operand, test);
                 }
-                return;
             }
-            _ => (),
+            _ => {
+                self.expr(expr, Place::Loose);
+                if negate {
+                    self.negate_condition(expr);
+                }
+            }
         }
-        // For `unless` and `until`, the compiler tests the negation, and the
-        // negated value is what `!` saw.
-        let probe = if negate {
-            Probe::Negation(self.compiler_offset(expr))
-        } else {
-            Probe::Condition(report)
-        };
-        let test = self.test(expr, probe);
-        self.expr(expr, Place::Loose);
-        self.apply_test(expr, test, negate);
-    }
-
-    /// Walks a condition whose test is already known.
-    fn condition_typed(&mut self, expr: &'a Expr, test: super::hooks::Test) {
-        self.expr(expr, Place::Loose);
-        self.apply_test(expr, test, false);
     }
 }
-
-impl<'a, T: Rules<'a> + ?Sized> Walk<'a> for T {}
