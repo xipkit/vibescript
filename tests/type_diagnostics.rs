@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use vibescript::{CallOptions, Engine, Error, ErrorKind, Limits, Value, stringify_json};
 
 fn fail(source: &str) -> Error {
-    common::runtime_engine()
+    Engine::new()
         .compile(source)
         .unwrap()
         .run(CallOptions::default())
@@ -87,10 +87,15 @@ fn parameter_defaults_captures_and_returns_name_the_failed_boundary() {
         assert_eq!(error.kind, ErrorKind::Type, "{function}");
         assert_eq!(error.message, expected, "{function}");
     }
-    // A default is checked when it is used.
-    let error = fail("def typed(payload:int=\"x\")\ntrue\nend\ntyped()");
-    assert_eq!(error.kind, ErrorKind::Type);
-    assert_eq!(error.message, "argument payload expected int, got string");
+    // A default is checked against its parameter before the program runs.
+    assert_eq!(
+        refused("def typed(payload:int=\"x\")\ntrue\nend\ntyped()"),
+        [(
+            "V0101".to_owned(),
+            "\"x\"",
+            "`payload` is int, found string".to_owned()
+        )]
+    );
     // Results are checked before the program runs.
     for (source, text, message) in [
         (
