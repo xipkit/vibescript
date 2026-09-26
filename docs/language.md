@@ -536,7 +536,7 @@ What remains at runtime: `fetch`, `as` and `JSON.parse_as` raise when the value 
 Every compile error has a stable code, a span and, where they apply, the expected and found types. Codes are grouped by area: `V00xx` syntax, `V01xx` types, `V02xx` names, `V03xx` calls and `V04xx` removed spellings. See [diagnostics](diagnostics.md).
 
 ```sh
-vibes check --static script.vibe   # human-readable diagnostics
+vibes check script.vibe           # human-readable diagnostics
 vibes check --json script.vibe     # one JSON object per diagnostic
 vibes fix script.vibe              # apply every machine-applicable fix
 vibes prelude                      # every builtin signature

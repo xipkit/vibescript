@@ -1,14 +1,14 @@
 //! The flat form: `vibes [OPTIONS] FILE` and `vibes [OPTIONS] -e SOURCE`.
 //!
 //! This is the command line that predates the Go-compatible commands. It
-//! prints results as JSON, takes JSON call arguments, and checks exact calls
-//! with `--check` and `--checked`. The dispatcher selects it when the first
-//! argument is one of its options or names a script file; see `vibes help flat`.
+//! prints results as JSON and takes JSON call arguments. The dispatcher
+//! selects it when the first argument is one of its options or names a
+//! script file; see `vibes help flat`.
 //!
 //! The library owns every semantic decision. This module validates the whole
 //! command line before reading the source, routes inputs through the public
-//! call and check APIs, and renders reports with the input filename or the
-//! `<eval>` label of inline source.
+//! call API, and renders failures with the input filename or the `<eval>`
+//! label of inline source.
 
 use std::{
     borrow::Cow,
@@ -20,8 +20,8 @@ use std::{
     time::{Duration, Instant},
 };
 use vibescript::{
-    CallOptions, CheckDiagnostic, CheckReport, CheckedOutcome, Engine, Error, ErrorKind,
-    ModuleConfig, Outcome, Script, Stats, Value, parse_json, stringify_json,
+    CallOptions, Engine, Error, ErrorKind, ModuleConfig, Outcome, Script, Stats, Value, parse_json,
+    stringify_json,
 };
 
 /// The usage text printed by `vibes help flat` and by `--help` in the flat form.
@@ -30,13 +30,13 @@ Usage: vibes [OPTIONS] FILE
        vibes [OPTIONS] -e SOURCE
        vibes [OPTIONS] --function NAME [--arg JSON]... [--kwarg NAME=JSON]... FILE
 
-The flat form runs the top-level statements of FILE or of the inline SOURCE,
-or calls one of its functions with JSON arguments, and prints the final value
-as JSON on stdout. Script output from puts, print and p goes to stdout; warn
-goes to stderr. It applies when the first argument is one of the options below
-or names a script file: an existing file, or a path containing a separator or
-ending in .vibe. A first argument that names a command, such as run or check,
-always selects that command instead.
+The flat form type checks FILE or the inline SOURCE, runs its top-level
+statements or calls one of its functions with JSON arguments, and prints the
+final value as JSON on stdout. Script output from puts, print and p goes to
+stdout; warn goes to stderr. It applies when the first argument is one of the
+options below or names a script file: an existing file, or a path containing a
+separator or ending in .vibe. A first argument that names a command, such as
+run or check, always selects that command instead.
 
 Options:
   -e, --eval SOURCE  Use the inline SOURCE instead of FILE, exactly once and
@@ -49,34 +49,20 @@ Options:
   --arg JSON         Append a positional argument. Requires --function.
   --kwarg NAME=JSON  Add a keyword argument. A repeated NAME binds its last
                      value; every value is still checked. Requires --function.
-  --check            Analyze the call selected by --function, --arg and --kwarg
-                     without executing any script or host code. Success prints
-                     nothing. Known errors and incomplete analysis are printed
-                     on stderr and exit with status 1. With -e and no
-                     --function, checks the whole snippet instead, exactly as
-                     vibes check -e SOURCE does; a FILE requires --function.
-  --checked          Run the same exact-call analysis, then execute the call
-                     only when it is clean. A rejected call prints the report
-                     instead of a result. Requires --function.
   --steps N          Step quota; 0 disables it (default 1000000).
   --memory N         Memory quota in bytes; 0 disables it (default 16777216).
   --recursion N      Maximum call depth (default 256).
   --timeout-ms N     Deadline in milliseconds, measured from option parsing.
-  --stats            Print counters on stderr: analysis counters after --check
-                     or a rejected --checked call, execution counters otherwise.
+  --stats            Print execution counters on stderr.
   --                 Treat the remaining argument as FILE.
   -h, --help         Print this help.
 
 Options may appear anywhere around FILE and their values are taken verbatim.
---check with --function and --checked cover exactly one call: the named
-function with the supplied values, and whatever that call reaches. They do not
-check unused functions or the file as a whole; use vibes check for that.
-Selecting __main__ checks the top-level statements; other named calls omit
-them. No clean result proves that the script is type safe, and analysis that
-the checker cannot finish is reported as incomplete rather than assumed clean.
+A source with type errors does not run; its diagnostics are printed on stderr.
+Use vibes check to report them without running anything.
 
-Exit status: 0 on success or a clean check, 1 when reading, parsing, checking
-or execution fails, 2 for usage errors.
+Exit status: 0 on success, 1 when reading, compiling or execution fails, 2 for
+usage errors.
 ";
 
 /// The name reports use for inline source supplied by `-e` or `--eval`.
@@ -87,29 +73,8 @@ pub const EVAL_LABEL: &str = "<eval>";
 pub enum Command {
     /// Print the flat form's usage text on stdout.
     Help,
-    /// Read, compile and run or check one call or the top-level statements.
+    /// Read, compile and run one call or the top-level statements.
     Run(Box<Invocation>),
-}
-
-/// How the selected call is treated after compilation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Mode {
-    /// Execute the top-level statements or the named call without analysis.
-    Execute,
-    /// Analyze without executing and print only the report.
-    Check,
-    /// Analyze the named call, then execute it only when the report is clean.
-    Checked,
-}
-
-impl Mode {
-    fn flag(self) -> &'static str {
-        match self {
-            Self::Execute => "",
-            Self::Check => "--check",
-            Self::Checked => "--checked",
-        }
-    }
 }
 
 /// Where the main source comes from.
@@ -155,34 +120,15 @@ pub struct Invocation {
     /// Keyword arguments in command-line order, including repeated names.
     pub keywords: Vec<(String, Value)>,
     pub options: CallOptions,
-    pub mode: Mode,
     pub stats: bool,
-}
-
-/// What a report describes, for its summary line.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Scope<'a> {
-    /// One concrete call of the named function with the supplied values.
-    Call(&'a str),
-    /// The top-level statements and every declaration in an inline snippet.
-    Snippet,
-}
-
-impl fmt::Display for Scope<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Call(name) => write!(f, "check of {name}"),
-            Self::Snippet => f.write_str("check of the whole snippet"),
-        }
-    }
 }
 
 /// A failure message and the exit status it maps to.
 #[derive(Debug)]
 pub enum Failure {
-    /// The command line was malformed; nothing was read, checked or executed.
+    /// The command line was malformed; nothing was read or executed.
     Usage(String),
-    /// Reading, compiling, checking or executing the script failed.
+    /// Reading, compiling or executing the script failed.
     Failed(String),
 }
 
@@ -238,7 +184,6 @@ pub fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Command, Failur
     let mut arguments = Vec::new();
     let mut keywords = Vec::new();
     let mut options = CallOptions::default();
-    let mut mode = Mode::Execute;
     let mut stats = false;
     let mut only_files = false;
     while let Some(arg) = args.next() {
@@ -285,8 +230,6 @@ pub fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Command, Failur
                 );
             }
             "--stats" => stats = true,
-            "--check" => mode = select_mode(mode, Mode::Check)?,
-            "--checked" => mode = select_mode(mode, Mode::Checked)?,
             _ => return Err(usage(format!("unknown option {text}"))),
         }
     }
@@ -296,12 +239,6 @@ pub fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Command, Failur
         ));
     };
     if function.is_none() {
-        // Only an inline snippet may be checked as a whole through --check;
-        // a file keeps requiring --function, as vibes check FILE covers it.
-        let whole_snippet = mode == Mode::Check && matches!(input, Input::Inline(_));
-        if mode != Mode::Execute && !whole_snippet {
-            return Err(usage(format!("{} requires --function", mode.flag())));
-        }
         if !arguments.is_empty() {
             return Err(usage("--arg requires --function"));
         }
@@ -316,7 +253,6 @@ pub fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Command, Failur
         arguments,
         keywords,
         options,
-        mode,
         stats,
     })))
 }
@@ -334,13 +270,6 @@ fn select_input(current: &mut Option<Input>, requested: Input) -> Result<(), Fai
     }
     *current = Some(requested);
     Ok(())
-}
-
-fn select_mode(current: Mode, requested: Mode) -> Result<Mode, Failure> {
-    if current == Mode::Execute || current == requested {
-        return Ok(requested);
-    }
-    Err(usage("--check and --checked are mutually exclusive"))
 }
 
 fn value(
@@ -381,14 +310,13 @@ fn keyword(raw: &str) -> Result<(String, Value), Failure> {
     Ok((name.to_owned(), json(&format!("--kwarg {name}"), text)?))
 }
 
-/// Compiles the input, then executes or checks it as requested.
+/// Compiles the input, then executes the named call or the top-level
+/// statements.
 ///
 /// Output writers are attached before compilation so that `puts`, `print`,
-/// `p` and `warn` reach the process streams during execution; analysis never
-/// invokes them. Results are printed as JSON on stdout. Reports, counters and
-/// errors go to stderr through the returned [`Failure`] or `--stats` line.
-/// Without `--function`, `--check` covers an inline snippet as a whole, the
-/// same scope as `vibes check -e SOURCE`.
+/// `p` and `warn` reach the process streams during execution. Results are
+/// printed as JSON on stdout. Diagnostics, counters and errors go to stderr
+/// through the returned [`Failure`] or `--stats` line.
 pub fn run(invocation: Invocation) -> Result<(), Failure> {
     let Invocation {
         input,
@@ -397,50 +325,24 @@ pub fn run(invocation: Invocation) -> Result<(), Failure> {
         arguments,
         keywords,
         options,
-        mode,
         stats,
     } = invocation;
     let options = CallOptions {
         cancellation: crate::signal::token(),
         ..options
     };
-    let script = load(&input, &module_paths, mode)?;
-    let label = input.label();
-    let Some(name) = function else {
-        return match mode {
-            Mode::Execute => print_outcome(&script.run(options)?, stats),
-            Mode::Check => {
-                let report = script.check(&options)?;
-                accept(&label, Scope::Snippet, &report, mode, stats)
-            }
-            Mode::Checked => Err(usage("--checked requires --function")),
-        };
+    let script = load(&input, &module_paths)?;
+    let outcome = match function {
+        Some(name) => script.call_with_keywords(&name, &arguments, &keywords, options)?,
+        None => script.run(options)?,
     };
-    let scope = Scope::Call(&name);
-    match mode {
-        Mode::Execute => print_outcome(
-            &script.call_with_keywords(&name, &arguments, &keywords, options)?,
-            stats,
-        ),
-        Mode::Check => {
-            let report = script.check_call_with_keywords(&name, &arguments, &keywords, &options)?;
-            accept(&label, scope, &report, mode, stats)
-        }
-        Mode::Checked => {
-            match script.checked_call_with_keywords(&name, &arguments, &keywords, options)? {
-                CheckedOutcome::Executed(outcome) => print_outcome(&outcome, stats),
-                CheckedOutcome::Rejected(report) => {
-                    Err(rejection(&label, scope, &report, mode, stats))
-                }
-            }
-        }
-    }
+    print_outcome(&outcome, stats)
 }
 
 /// Reads a file or takes the inline source, and compiles it with the process
 /// streams attached. Inline source never touches the file system except
 /// through the configured module roots.
-fn load(input: &Input, extra_paths: &[PathBuf], mode: Mode) -> Result<Script, Failure> {
+fn load(input: &Input, extra_paths: &[PathBuf]) -> Result<Script, Failure> {
     let source = match input {
         Input::File(file) => Cow::Owned(fs::read_to_string(file).map_err(|error| {
             Failure::Failed(format!("cannot read {}: {error}", file.display()))
@@ -448,10 +350,6 @@ fn load(input: &Input, extra_paths: &[PathBuf], mode: Mode) -> Result<Script, Fa
         Input::Inline(source) => Cow::Borrowed(source.as_str()),
     };
     let mut engine = Engine::new();
-    // The gradual checker reads the ADR-004 language.
-    if mode != Mode::Execute {
-        engine.set_static_types(false);
-    }
     engine.set_module_config(ModuleConfig {
         paths: module_paths(implicit_root(input), extra_paths)?,
         ..ModuleConfig::default()
@@ -460,7 +358,7 @@ fn load(input: &Input, extra_paths: &[PathBuf], mode: Mode) -> Result<Script, Fa
     engine.set_error_writer(|_, bytes| forward(io::stderr().lock(), bytes));
     engine
         .compile(&source)
-        .map_err(|error| Failure::Failed(compile_failure(&input.label(), &error)))
+        .map_err(|error| Failure::Failed(compile_failure(&input.label(), &source, &error)))
 }
 
 /// The input's own module root. A WASI guest has a working directory only when
@@ -537,108 +435,10 @@ fn stats_line(stats: &Stats) -> String {
     )
 }
 
-/// Finishes an analysis-only mode: a clean report prints at most its counters.
-fn accept(
-    label: &str,
-    scope: Scope<'_>,
-    report: &CheckReport,
-    mode: Mode,
-    stats: bool,
-) -> Result<(), Failure> {
-    if !report.is_clean() {
-        return Err(rejection(label, scope, report, mode, stats));
-    }
-    if stats {
-        eprintln!("{}", stats_line(&report.stats));
-    }
-    Ok(())
-}
-
-fn rejection(
-    label: &str,
-    scope: Scope<'_>,
-    report: &CheckReport,
-    mode: Mode,
-    stats: bool,
-) -> Failure {
-    let mut text = render_report(label, scope, report, mode);
-    if stats {
-        text.push('\n');
-        text.push_str(&stats_line(&report.stats));
-    }
-    Failure::Failed(text)
-}
-
-/// Renders a rejected report followed by a one-line summary.
-///
-/// Known contradictions are rendered as `error` entries and unfinished
-/// analysis as `incomplete` entries, in the report's source order. Each entry
-/// names the input label: the file, `<eval>` for inline source, or the
-/// required module that owns the diagnostic. It then gives the one-based line
-/// and column, the containing function, the message and the library's code
-/// frame. The summary names the checked [`Scope`], counts both kinds
-/// separately and, in [`Mode::Checked`], states that nothing was executed.
-pub fn render_report(label: &str, scope: Scope<'_>, report: &CheckReport, mode: Mode) -> String {
-    let mut text = String::new();
-    for diagnostic in &report.diagnostics {
-        entry(&mut text, label, "error", diagnostic);
-    }
-    for diagnostic in &report.incomplete {
-        entry(&mut text, label, "incomplete", diagnostic);
-    }
-    text.push_str(&format!("{label}: {scope} found "));
-    let errors = report.diagnostics.len();
-    let incomplete = report.incomplete.len();
-    if errors > 0 {
-        text.push_str(&count(errors, "error", "errors"));
-    }
-    if errors > 0 && incomplete > 0 {
-        text.push_str(" and ");
-    }
-    if incomplete > 0 {
-        text.push_str(&count(incomplete, "incomplete path", "incomplete paths"));
-    }
-    if mode == Mode::Checked {
-        text.push_str("; nothing was executed");
-    }
-    text
-}
-
-fn entry(text: &mut String, label: &str, kind: &str, diagnostic: &CheckDiagnostic) {
-    match &diagnostic.filename {
-        Some(name) => text.push_str(&module_filename(name)),
-        None => text.push_str(label),
-    }
-    text.push_str(&format!(
-        ":{}:{}: {kind} in {}: {}\n{}\n",
-        diagnostic.position.line,
-        diagnostic.position.column,
-        diagnostic.function,
-        diagnostic.message,
-        diagnostic.code_frame
-    ));
-}
-
-/// Renders module filenames with control-character escapes and lossy UTF-8 replacement.
-fn module_filename(name: &[u8]) -> String {
-    let mut text = String::new();
-    for ch in String::from_utf8_lossy(name).chars() {
-        if ch.is_control() || ch == '\\' {
-            text.extend(ch.escape_default());
-        } else {
-            text.push(ch);
-        }
-    }
-    text
-}
-
-fn count(n: usize, singular: &str, plural: &str) -> String {
-    format!("{n} {}", if n == 1 { singular } else { plural })
-}
-
 /// Renders a compile failure with the input label. Located parse errors use
-/// the library's position and code frame; other failures keep their display.
-fn compile_failure(label: &str, error: &Error) -> String {
+/// the library's position and code frame, type errors list every static
+/// diagnostic, and other failures keep their display.
+fn compile_failure(label: &str, source: &str, error: &Error) -> String {
     match &error.diagnostic {
         Some(diagnostic) if error.kind == ErrorKind::Syntax => format!(
             "{label}:{}:{}: parse error: {}\n{}",
@@ -647,6 +447,9 @@ fn compile_failure(label: &str, error: &Error) -> String {
             error.message,
             diagnostic.code_frame
         ),
+        _ if !error.diagnostics().is_empty() => {
+            crate::run::compile_failure(error, source, label, None)
+        }
         _ => format!("{label}: {error}"),
     }
 }
@@ -708,7 +511,6 @@ mod tests {
             "-1",
             "--kwarg",
             "x=9",
-            "--checked",
             "--stats",
         ]);
         assert_eq!(invocation.input, Input::File(PathBuf::from("f.vibe")));
@@ -721,7 +523,6 @@ mod tests {
             .map(|(name, value)| (name.as_str(), value.as_int()))
             .collect();
         assert_eq!(keywords, [("b", Some(3)), ("b", Some(5)), ("x", Some(9))]);
-        assert_eq!(invocation.mode, Mode::Checked);
         assert!(invocation.stats);
         assert_eq!(invocation.options.limits.steps, Some(1_000_000));
         assert_eq!(invocation.options.limits.memory_bytes, Some(16 << 20));
@@ -744,8 +545,10 @@ mod tests {
         assert_eq!(invocation.options.limits.steps, None);
         assert_eq!(invocation.options.limits.memory_bytes, None);
         assert_eq!(invocation.options.limits.recursion, 3);
-        assert_eq!(invocation.mode, Mode::Execute);
         assert_eq!(usage_error(&["f", "-x"]), "unknown option -x");
+        // The gradual checker's modes are gone from the command line.
+        assert_eq!(usage_error(&["f", "--check"]), "unknown option --check");
+        assert_eq!(usage_error(&["f", "--checked"]), "unknown option --checked");
         assert_eq!(usage_error(&["--", "a", "b"]), "expected one source file");
         assert!(matches!(
             parsed(&["--bogus", "--help"]),
@@ -770,14 +573,8 @@ mod tests {
                 "expected source file or -e SOURCE; use vibes help flat",
             ),
             (&["f", "--function"], "--function requires NAME"),
-            (&["f", "--check"], "--check requires --function"),
-            (&["f", "--checked"], "--checked requires --function"),
             (&["f", "--arg", "1"], "--arg requires --function"),
             (&["f", "--kwarg", "x=1"], "--kwarg requires --function"),
-            (
-                &["f", "--function", "run", "--check", "--checked"],
-                "--check and --checked are mutually exclusive",
-            ),
             (
                 &["f", "--kwarg", "x"],
                 "--kwarg requires NAME=JSON, got \"x\"",
@@ -792,25 +589,19 @@ mod tests {
         assert!(usage_error(&["f", "--arg", "{"]).starts_with("invalid JSON for --arg: "));
         assert!(usage_error(&["f", "--kwarg", "k={"]).starts_with("invalid JSON for --kwarg k: "));
         assert!(usage_error(&["f", "--steps", "x"]).starts_with("invalid --steps value \"x\": "));
-        assert!(matches!(
-            parsed(&["f", "--function", "run", "--check", "--check"]),
-            Ok(Command::Run(_))
-        ));
     }
 
     #[test]
     fn inline_source_replaces_the_file() {
         let inline = invocation(&["-e", "-7", "--stats"]);
         assert_eq!(inline.input, Input::Inline("-7".to_owned()));
-        assert_eq!(inline.mode, Mode::Execute);
         assert!(inline.stats);
-        let inline = invocation(&["--function", "run", "--eval", "--check", "--check"]);
-        assert_eq!(inline.input, Input::Inline("--check".to_owned()));
-        assert_eq!(inline.mode, Mode::Check);
-        let whole = invocation(&["-e", "", "--check"]);
+        let inline = invocation(&["--function", "run", "--eval", "--stats"]);
+        assert_eq!(inline.input, Input::Inline("--stats".to_owned()));
+        assert!(!inline.stats);
+        let whole = invocation(&["-e", ""]);
         assert_eq!(whole.input, Input::Inline(String::new()));
         assert_eq!(whole.function, None);
-        assert_eq!(whole.mode, Mode::Check);
         assert_eq!(
             invocation(&["--stats", "--", "-e"]).input,
             Input::File(PathBuf::from("-e"))
@@ -836,16 +627,10 @@ mod tests {
                 &["-e", "1", "--", "-e"],
                 "expected FILE or -e SOURCE, not both",
             ),
-            (&["-e", "1", "--checked"], "--checked requires --function"),
             (&["-e", "1", "--arg", "1"], "--arg requires --function"),
             (
                 &["-e", "1", "--kwarg", "x=1"],
                 "--kwarg requires --function",
-            ),
-            (&["f", "--check"], "--check requires --function"),
-            (
-                &["-e", "1", "--function", "run", "--check", "--checked"],
-                "--check and --checked are mutually exclusive",
             ),
         ] {
             assert_eq!(usage_error(args), message, "{args:?}");
@@ -868,31 +653,13 @@ mod tests {
     }
 
     #[test]
-    fn reports_render_errors_and_incomplete_paths_with_the_input_filename() {
-        let mut engine = Engine::new();
-        engine.set_static_types(false);
-        let script = engine.compile("def run() -> int\n  \"é\"\nend").unwrap();
-        let report = script
-            .check_call("run", &[], &CallOptions::default())
-            .unwrap();
-        let text = render_report("dir/x.vibe", Scope::Call("run"), &report, Mode::Checked);
-        assert_eq!(
-            text,
-            "dir/x.vibe:2:3: error in run: Return value: expected int, got string\n  \
-             --> line 2, column 3\n 2 |   \"é\"\n   |   ^\n\
-             dir/x.vibe: check of run found 1 error; nothing was executed"
-        );
-        let report = script.check(&CallOptions::default()).unwrap();
-        let text = render_report(EVAL_LABEL, Scope::Snippet, &report, Mode::Check);
-        assert!(text.starts_with("<eval>:2:3: error in run: "), "{text}");
+    fn type_errors_list_every_diagnostic_with_the_input_label() {
+        let source = "def run -> int\n  \"é\"\nend\n";
+        let error = Engine::new().compile(source).err().unwrap();
+        let text = compile_failure("dir/x.vibe", source, &error);
         assert!(
-            text.ends_with("\n<eval>: check of the whole snippet found 1 error"),
+            text.starts_with("compile failed with 1 diagnostic(s)\ndir/x.vibe:2:3: error[V0101]: "),
             "{text}"
-        );
-        assert_eq!(count(2, "error", "errors"), "2 errors");
-        assert_eq!(
-            module_filename(b"pkg/a\n\\\xff.vibe"),
-            "pkg/a\\n\\\\\u{fffd}.vibe"
         );
     }
 }

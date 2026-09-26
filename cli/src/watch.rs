@@ -188,8 +188,6 @@ mod tests {
         run::Invocation {
             script: script.to_owned(),
             function: Some("run".to_owned()),
-            check: false,
-            static_types: false,
             module_dirs: vec![dir.to_owned()],
             arguments: Vec::new(),
             limits: crate::profiles::limits(-1, -1, 10_000),

@@ -1,7 +1,7 @@
 //! `vibes run`: execute a script file or an inline snippet.
 
 use crate::{
-    check, compat,
+    compat,
     flags::{self, Flag, Kind, Outcome, Spec},
     output::Sink,
     profiles, render, signal, source, watch,
@@ -13,21 +13,11 @@ use std::{
 use vibescript::tooling::{self, ItemKind};
 use vibescript::{CallOptions, Engine, Error, ErrorKind, Limits, ModuleConfig, Script, Value};
 
-const FLAGS: [Flag; 10] = [
+const FLAGS: [Flag; 8] = [
     Flag::new(
         &["function"],
         Kind::String,
         "function to invoke; without it, top-level statements run when present, otherwise run",
-    ),
-    Flag::new(
-        &["check"],
-        Kind::Bool,
-        "compile and validate static contracts without executing",
-    ),
-    Flag::new(
-        &["static"],
-        Kind::Bool,
-        "type check statically (ADR-007) and refuse a script with type errors",
     ),
     Flag::new(
         &["e"],
@@ -72,9 +62,6 @@ pub struct Invocation {
     pub script: PathBuf,
     /// The `-function` value, if given.
     pub function: Option<String>,
-    pub check: bool,
-    /// Whether to type check statically before running (`--static`).
-    pub static_types: bool,
     pub module_dirs: Vec<PathBuf>,
     pub arguments: Vec<Value>,
     pub limits: Limits,
@@ -88,9 +75,6 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
     };
     let limits = profiles::resolve(&flags).map_err(|error| format!("vibes run: {error}"))?;
     let module_paths = flags.strings("module-path");
-    let check = flags.bool("check");
-    // The gradual checker of `--check` reads the ADR-004 language.
-    let static_types = flags.bool("static") || (vibescript::STATIC_TYPES_BY_DEFAULT && !check);
     if let Some(snippet) = flags.value("e") {
         if flags.bool("watch") {
             return Err("vibes run: -e cannot be combined with -watch".to_owned());
@@ -102,7 +86,7 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
             return Err("vibes run: -e does not accept positional arguments".to_owned());
         }
         let snippet = String::from_utf8_lossy(&compat::bytes(snippet)).into_owned();
-        return evaluate(&snippet, &module_paths, limits, check, static_types);
+        return evaluate(&snippet, &module_paths, limits);
     }
     let Some((script, arguments)) = flags.positionals.split_first() else {
         return Err("vibes run: script path required".to_owned());
@@ -115,8 +99,6 @@ pub fn command(args: &[OsString]) -> Result<(), String> {
     let invocation = Invocation {
         script,
         function: flags.string("function"),
-        check,
-        static_types,
         module_dirs,
         arguments: arguments
             .iter()
@@ -159,8 +141,7 @@ fn forward(sink: &Sink, bytes: &[u8]) -> vibescript::Result<()> {
 
 /// Compiles and runs, or checks, one script file.
 pub fn execute(invocation: &Invocation, out: &Sink, err: &Sink) -> Result<(), String> {
-    let mut engine = engine(&invocation.module_dirs, out, err)?;
-    engine.set_static_types(invocation.static_types);
+    let engine = engine(&invocation.module_dirs, out, err)?;
     let source =
         source::read(&invocation.script).map_err(|error| format!("read script: {error}"))?;
     let script = engine.compile(&source).map_err(|error| {
@@ -177,7 +158,7 @@ pub fn execute(invocation: &Invocation, out: &Sink, err: &Sink) -> Result<(), St
         None if has_top_level_statements(&script)? => "__main__",
         None => "run",
     };
-    if invocation.static_types && function != "__main__" {
+    if function != "__main__" {
         let found = engine
             .check_entry_arguments(&source, function, invocation.arguments.len())
             .map_err(|error| format!("compile failed: {}", render::error(&error, None)))?;
@@ -193,9 +174,6 @@ pub fn execute(invocation: &Invocation, out: &Sink, err: &Sink) -> Result<(), St
         }
     }
     let options = options(invocation.limits.clone());
-    if invocation.check {
-        return check::call(&script, function, &invocation.arguments, &options);
-    }
     let outcome = script
         .call(function, &invocation.arguments, options)
         .map_err(|error| format!("execution failed: {}", render::error(&error, None)))?;
@@ -242,13 +220,7 @@ pub fn options(limits: Limits) -> CallOptions {
 
 /// Evaluates `-e`: a snippet whose top-level statements run, with the
 /// working directory as its first module root.
-fn evaluate(
-    snippet: &str,
-    module_paths: &[OsString],
-    limits: Limits,
-    check: bool,
-    static_types: bool,
-) -> Result<(), String> {
+fn evaluate(snippet: &str, module_paths: &[OsString], limits: Limits) -> Result<(), String> {
     if compat::trim_space(snippet).is_empty() {
         return Err("vibes run: -e requires a non-empty snippet".to_owned());
     }
@@ -256,15 +228,11 @@ fn evaluate(
         .map_err(|error| format!("resolve working directory: {}", compat::reason(&error)))?;
     let module_dirs = source::module_paths(&directory, module_paths)
         .map_err(|error| format!("compute module paths: {error}"))?;
-    let mut engine = engine(&module_dirs, &Sink::Stdout, &Sink::Stderr)?;
-    engine.set_static_types(static_types);
+    let engine = engine(&module_dirs, &Sink::Stdout, &Sink::Stderr)?;
     let script = engine
         .compile(snippet)
         .map_err(|error| compile_failure(&error, snippet, "<eval>", Some(snippet)))?;
     let options = options(limits);
-    if check {
-        return check::snippet(&script, &options);
-    }
     let outcome = script
         .run(options)
         .map_err(|error| format!("execution failed: {}", render::error(&error, Some(snippet))))?;

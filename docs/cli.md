@@ -16,12 +16,14 @@
 | `vibes migrate [options] <file or directory>...` | Rewrite scripts into the statically typed, canonical language. |
 | `vibes fix [--dry-run] <file or directory>...` | Apply the machine-applicable fixes of the static language's diagnostics. |
 
-It also keeps the flat form that predates these commands, `vibes [OPTIONS] FILE` and `vibes [OPTIONS] -e SOURCE`, which prints results as JSON and checks exact calls (see [the flat form](#the-flat-form)), and it prints its version with `vibes --version`.
+It also keeps the flat form that predates these commands, `vibes [OPTIONS] FILE` and `vibes [OPTIONS] -e SOURCE`, which prints results as JSON (see [the flat form](#the-flat-form)), and it prints its version with `vibes --version`.
+
+Every command that compiles a script type checks it (ADR-007): a script with type errors does not run, and the command prints its diagnostics instead.
 
 The formatter, analyzer, migrator, fixer, test runner, REPL session and language server are also libraries in the `vibescript-tools` crate (`vibescript_tools::format`, `::analyze`, `::migrate`, `::fix`, `::test_runner`, `::repl` and `::lsp`), so other programs can embed them; the CLI is a front end that parses arguments, finds and writes files, and renders results.
 
 ```sh
-./scripts/cargo run --release -p vibes -- check --static examples/total.vibe
+./scripts/cargo run --release -p vibes -- check examples/total.vibe
 ./scripts/cargo run --release -p vibes -- test ./tests
 ```
 
@@ -32,7 +34,7 @@ The first argument alone decides what runs, in this order:
 1. `-h` or `--help` prints the root help. A first argument the reference rejects outright, `--`, one with leading or trailing whitespace, `-help`, `--h` or a help flag with a value such as `--help=false`, prints the root help and `unknown command "..."` on stderr.
 2. A command name (`run`, `check`, `fmt`, `analyze`, `test`, `lsp`, `repl`, `prelude`, `migrate`, `fix`, `help` or `h`) runs that command. A file named after a command therefore needs `vibes run check`, or a flat-form option before it.
 3. `--version` prints `vibescript.rs VERSION`.
-4. A flat-form option (`-e`, `--eval`, `--function`, `--module-path`, `--arg`, `--kwarg`, `--check`, `--checked`, `--steps`, `--memory`, `--recursion`, `--timeout-ms` or `--stats`), or a script path, runs the flat form. A script path is an existing file, or a spelling that contains a path separator or ends in `.vibe`.
+4. A flat-form option (`-e`, `--eval`, `--function`, `--module-path`, `--arg`, `--kwarg`, `--steps`, `--memory`, `--recursion`, `--timeout-ms` or `--stats`), or a script path, runs the flat form. A script path is an existing file, or a spelling that contains a path separator or ends in `.vibe`.
 5. Anything else fails as in the reference: `vibes` alone reports `command required` after the root help, a flag such as `-x` or `--bogus` reports `flag provided but not defined: -x`, and any other word reports `unknown command "word"` after the root help.
 
 As in the reference, `--` does not escape command selection: `vibes -- run` is an unknown command. Use `vibes run -- FILE`, or a flat-form option such as `vibes --stats -- FILE`, for a file whose name starts with `-`.
@@ -61,13 +63,13 @@ vibes run [options] <script> [args...]
 vibes run [options] -e SNIPPET
 ```
 
-`-static` compiles the script with static types (ADR-007) and refuses it, with its diagnostics, when it has type errors; until the switchover this is opt-in. Without `-function`, `run` executes the script's top-level statements when it has any, and otherwise calls its `run` function. A top-level statement is anything other than a function, class, module or enum declaration or an alias. `-function NAME` calls another function, and `-function '<script>'` selects the top-level statements explicitly. Every argument after the script path is passed to the function as a string, so with static types the called function's parameters must accept `string`, or a rest parameter `array<string>`. The script's directory is the first module root, and repeatable `-module-path DIR` options add more; the paths are made absolute and deduplicated by spelling, and a missing path or a file fails with the reference's message.
+`run` compiles the script with static types and refuses it, with its diagnostics, when it has type errors. Without `-function`, `run` executes the script's top-level statements when it has any, and otherwise calls its `run` function. A top-level statement is anything other than a function, class, module or enum declaration or an alias. `-function NAME` calls another function, and `-function '<script>'` selects the top-level statements explicitly. Every argument after the script path is passed to the function as a string, so the called function's parameters must accept `string`, or a rest parameter `array<string>`; otherwise the script is refused before it runs. The script's directory is the first module root, and repeatable `-module-path DIR` options add more; the paths are made absolute and deduplicated by spelling, and a missing path or a file fails with the reference's message.
 
 A non-nil result prints on stdout in the reference's string form: strings and symbols without quotes, `nil` as nothing, floats in Go's shortest form (`2`, `1e+20`, `Infinity`), arrays as `[a, b]` and hashes as `{key: value}`. A rendering over 1 MiB fails with `result rendering exceeds 1048576 bytes; reduce the returned value or stream it from the script`. `puts`, `print` and `p` write to stdout and `warn` to stderr.
 
 A script larger than 1 MiB is refused before it is read with `source exceeds maximum size (SIZE > 1048576 bytes)`, as are directories and other non-regular files. Invalid UTF-8 in a script is decoded with replacement characters, as the reference's lexer does. Failures are prefixed by their stage: `read script:`, `compile failed:` and `execution failed:`.
 
-`-check` checks the invocation `run` would make, with the same function and arguments, without executing anything, using the gradual checker described [below](#vibes-check). A clean check prints nothing; issues fail with `check failed: LINE:COLUMN: MESSAGE (FUNCTION)`, or `check failed with N issue(s):` followed by one indented line per issue. `-e SNIPPET` evaluates inline source with the working directory as its first module root; `-check -e` checks the whole snippet, including unused declarations, and sorts its issues by position. `-e` cannot be combined with `-watch`, `-function` or positional arguments, and an empty snippet is an error. Frames of the snippet's top-level code are named `<snippet>`, and a parse error at the end of the snippet reads `unexpected end of snippet`.
+`-e SNIPPET` evaluates inline source with the working directory as its first module root. `-e` cannot be combined with `-watch`, `-function` or positional arguments, and an empty snippet is an error. Frames of the snippet's top-level code are named `<snippet>`, and a parse error at the end of the snippet reads `unexpected end of snippet`.
 
 An interrupt (ctrl-c) cancels the running script, which then fails; a second interrupt terminates the process.
 
@@ -96,22 +98,14 @@ Changes are found by the reference's polling method: every 300 ms the size and m
 vibes check [options] <script>
 ```
 
-With `-static`, `check` compiles the script with static types and prints every diagnostic with its code, source line and fixes, then fails with `check failed with N error(s)`; a script without errors prints its warnings, if any, or `No issues found`. `-json` prints each diagnostic as one JSON object per line instead. The [type checker](checker.md) lists the codes. Static types become the default at the switchover.
-
-Without `-static` or `-json`, `check` runs the gradual checker of ADR-004, which remains until it is deleted: it analyzes the top-level statements in source order, then every function and method declaration, including unused ones, for its declared parameter types and defaults. It prints one issue per line on stdout, `PATH:LINE:COLUMN: MESSAGE (FUNCTION)`, then fails with `check failed with N issue(s)`; a clean check prints `No issues found`. PATH is the absolute script path, or the resolved path of the required module that owns the issue. Analysis the checker cannot finish is an issue too, marked `incomplete:`, and is never reported as clean.
+`check` compiles the script with static types without running anything and prints every diagnostic with its code, source line and fixes, then fails with `check failed with N error(s)`; a script without errors prints its warnings, if any, or `No issues found`. The [type checker](checker.md) lists the codes. Unused declarations are checked like the rest of the script, and required files are resolved and checked too.
 
 `-module-path DIR` adds module search roots, as for `run`. These flags extend the reference's:
 
 | Flag | Meaning |
 | --- | --- |
-| `-static` | Type check with static types (ADR-007) instead of running the gradual checker. |
-| `-function NAME` | With the gradual checker, check one declaration instead of the whole file: a function, `Class#method`, `Namespace.method`, `Class.new` or `__main__`, for its declared parameter types and defaults. |
-| `-e SOURCE`, `-eval SOURCE` | Check inline source instead of a file; issues name it `<eval>`, and the working directory is the first module root. |
-| `-steps N`, `-memory N` | Analysis step and memory quotas; 0 disables one. Like the reference, analysis has neither by default. |
-| `-recursion N` | The call-depth setting, 256 by default. |
-| `-timeout-ms N` | An analysis deadline. |
-| `-stats` | Print `steps=N peak_bytes=N retained_bytes=N` on stderr. |
-| `-json` | Check with static types and print each diagnostic as one JSON object per line (`Diagnostic::to_json`): its code, name, severity, spans with byte offsets and one-based lines and columns, message, expected and found types, labels and fixes. A syntax error is a `V0001` diagnostic, or `V0002` for a hash literal passed to a call without parentheses, which has a fix. A script that compiles prints its warnings, if any, and succeeds. |
+| `-e SOURCE`, `-eval SOURCE` | Check inline source instead of a file; diagnostics name it `<eval>`, and the working directory is the first module root. |
+| `-json` | Print each diagnostic as one JSON object per line (`Diagnostic::to_json`): its code, name, severity, spans with byte offsets and one-based lines and columns, message, expected and found types, labels and fixes. A syntax error is a `V0001` diagnostic, or `V0002` for a hash literal passed to a call without parentheses, which has a fix. A script that compiles prints its warnings, if any, and succeeds. |
 
 ## `vibes fmt`
 
@@ -262,21 +256,13 @@ The Go REPL wraps each input in a function, so it keeps only the variables of a 
 
 ## The flat form
 
-`vibes FILE` compiles one source file, runs its top-level statements and prints the final value as JSON on stdout. `puts`, `print` and `p` write to stdout and `warn` writes to stderr before that value. `--function NAME` calls one function instead, with `--arg JSON` positional values in order and `--kwarg NAME=JSON` keyword values. Options may appear anywhere around FILE, option values are taken verbatim, and `--` ends option parsing so a file name may start with `-`. `vibes help flat` prints this form's usage.
+`vibes FILE` compiles one source file with static types, runs its top-level statements and prints the final value as JSON on stdout; a file with type errors prints its diagnostics on stderr instead, as `vibes run` does. `puts`, `print` and `p` write to stdout and `warn` writes to stderr before that value. `--function NAME` calls one function instead, with `--arg JSON` positional values in order and `--kwarg NAME=JSON` keyword values. Options may appear anywhere around FILE, option values are taken verbatim, and `--` ends option parsing so a file name may start with `-`. `vibes help flat` prints this form's usage.
 
 ```sh
 ./scripts/cargo run --release -p vibes -- examples/total.vibe --function total --arg '[10,20,30]' --stats
 ```
 
 Keyword values follow `Script::call_with_keywords`: they bind by name rather than forming a trailing options hash, and a repeated name binds its last value. Every command-line value is parsed and validated before the file is read, so malformed JSON, numbers or option combinations never execute anything.
-
-| Invocation | Library entry | Scope | Executes |
-| --- | --- | --- | --- |
-| `vibes FILE --function NAME [--arg JSON]... --check` | `Script::check_call_with_keywords` | One concrete call with the supplied values and whatever it reaches. | Nothing. |
-| `vibes FILE --function NAME [--arg JSON]... --checked` | `Script::checked_call_with_keywords` | The same concrete call. | The call, only when its check is clean. |
-| `vibes -e SOURCE --check` | `Script::check` | The whole inline snippet, like `vibes check -e SOURCE`. | Nothing. |
-
-Analysis never executes script code, host callbacks, defaults or initializers. A clean `--check` prints nothing unless `--stats` is requested and exits with status 0; a clean `--checked` proceeds to execution and prints its result. Unsupported analysis is reported as `incomplete`. Dynamic values retain their runtime contracts, so a clean report can still be followed by an execution error.
 
 ### Inline source
 
@@ -286,10 +272,10 @@ Analysis never executes script code, host callbacks, defaults or initializers. A
 vibes -e 'x = 2
 y = 3
 x * y'                                                  # 6
-vibes -e 'def run(x:int) -> int; x + 1; end' --function run --arg 41 --checked
+vibes -e 'def run(x: int) -> int; x + 1; end' --function run --arg 41   # 42
 ```
 
-Reports and parse errors name inline source `<eval>`; diagnostics from required modules keep their own filenames. A whole-snippet summary reads `check of the whole snippet`. `--function NAME` with `--check` or `--checked` keeps its exact-call meaning. Without `--function`, `vibes -e SOURCE --check` checks the whole snippet, so unused functions and methods are covered as ADR-004 of the reference implementation requires for snippets; `vibes FILE --check` still requires `--function`, because `vibes check FILE` covers the whole file. `--checked` requires `--function` in every case.
+Diagnostics and parse errors name inline source `<eval>`; diagnostics from required modules keep their own filenames.
 
 ### Required modules
 
@@ -297,45 +283,25 @@ The flat form searches the input file's directory first for calls such as `requi
 
 ```sh
 vibes --module-path shared --module-path vendor app/main.vibe
-vibes app/main.vibe --module-path shared --function run --checked
+vibes app/main.vibe --module-path shared --function run
 ```
 
-All execution and checking modes use the same configured roots and the engine's directory-handle confinement. Required files can make relative imports within their root, such as `require('./helpers')`; a relative import from the main script still requires a module caller, as in the Go reference. Checking reads and analyzes resolved modules without executing their initializers or output helpers.
+Compilation and execution use the same configured roots and the engine's directory-handle confinement. Required files can make relative imports within their root, such as `require("./helpers")`; a relative import from the main script still requires a module caller, as in the Go reference. Type checking reads and checks resolved modules without executing their initializers or output helpers.
 
 Under WASI, `vibes.wasm` sees only the directories its host preopens, and every path is a guest path. Duplicate module paths are collapsed by their absolute spelling, because WASI cannot canonicalize a path beneath a preopen whose ancestors are hidden; the engine still resolves links when it opens each root. Inline source runs without the working-directory root when the host exposes no working directory. See [platform support](platforms.md) for an example.
 
-### Exact-call checking
-
-`--check` analyzes the call selected by `--function`, `--arg` and `--kwarg` through `Script::check_call_with_keywords` without executing script code, host callbacks, defaults or initializers. `--checked` runs the same analysis through `Script::checked_call_with_keywords` and executes the call only when the report is clean; a rejected call prints the report instead of a result and runs no script code. Both modes require `--function` and exclude each other, because they cover one concrete call rather than a file.
-
-The scope is exactly one call: the named function, the supplied values and whatever that call reaches. Selecting `__main__` checks the top-level entrypoint in source order. Other named calls omit ordinary top-level statements, and unused functions and methods are outside either scope. Use `vibes check` for the file as a whole or `vibes check -function NAME` for a declaration without supplied values. Method and constructor selectors such as `C#read` belong to `vibes check`; the flat form rejects them as unknown functions. See the [checker notes](checker.md) for the analysis itself.
-
-### Reports
-
-Each flat-form report entry names the input file, the one-based line and column, the containing function and the library's code frame. Diagnostics that belong to a required module name that module instead. Known contradictions are rendered as `error` entries and analysis the checker cannot finish as `incomplete` entries, followed by a summary that names the checked scope and counts both kinds separately:
-
-```text
-add.vibe:1:1: error in run: "run": argument "x": expected int, got string
-  --> line 1, column 1
- 1 | def run(x:int) -> int
-   | ^
-add.vibe: check of run found 1 error; nothing was executed
-```
-
-The summary reads `check of the whole snippet` for a whole `-e` check and `check of NAME` for an exact call; a rejected `--checked` call adds `; nothing was executed`. Both kinds exit with status 1.
-
 ### Limits and counters
 
-`--steps N` and `--memory N` set the step and tracked-memory quotas (zero disables one), `--recursion N` sets the execution call-depth limit and `--timeout-ms N` sets an absolute deadline measured from option parsing. The defaults are one million steps, 16 MiB and 256 frames, the reference's `low` profile. Checking summarizes recursive calls under the step and memory limits; it does not create execution frames or enforce the execution call-depth limit. Exhausted quotas, deadlines, unknown functions, read failures and parse errors print their message on stderr and exit with status 1.
+`--steps N` and `--memory N` set the step and tracked-memory quotas (zero disables one), `--recursion N` sets the execution call-depth limit and `--timeout-ms N` sets an absolute deadline measured from option parsing. The defaults are one million steps, 16 MiB and 256 frames, the reference's `low` profile. Exhausted quotas, deadlines, unknown functions, read failures and parse errors print their message on stderr and exit with status 1.
 
-`--stats` prints `steps=N peak_bytes=N retained_bytes=N` on stderr: analysis counters after `--check` or a rejected `--checked` call, and execution counters after ordinary or accepted execution.
+`--stats` prints the execution counters `steps=N peak_bytes=N retained_bytes=N` on stderr.
 
 ## Exit status
 
 | Status | Meaning |
 | --- | --- |
 | 0 | The command succeeded, the check was clean, or watch mode stopped after an interrupt. |
-| 1 | Any failure of the Go-style commands, including usage errors; in the flat form, reading, parsing, checking or execution failed. |
+| 1 | Any failure of the Go-style commands, including usage errors; in the flat form, reading, compiling or execution failed. |
 | 2 | A flat-form usage error; nothing was read or executed. |
 
 ## Differences from the Go reference
@@ -343,9 +309,9 @@ The summary reads `check of the whole snippet` for a whole `-e` check and `check
 `scripts/compare-cli.py` needs Go: it builds the reference CLI and compares exit status, stdout and stderr on the help and error paths, `fmt` over every `.vibe` file in both trees plus generated whitespace cases, `run` and `analyze` over the script corpus, and a `test` suite; all of them are identical. The analyzer was also compared on about 430,000 sources from the fixtures and generated programs with injected terminators; only three differ, where the two parsers disagree about a call on a parenthesized `begin` block. The `cli` [golden corpus](../tests/golden/README.md) records this CLI's results on the same kinds of invocations and needs no Go. These differences are intentional:
 
 - `vibes --version` prints the version; the reference reports an undefined flag.
-- The flat form, `vibes help flat` and the `check` flags `-function`, `-e`/`-eval`, `-steps`, `-memory`, `-recursion`, `-timeout-ms` and `-stats` are extensions, and `vibes check --help` lists them. Each applies only where the reference reports an error.
+- The flat form, `vibes help flat` and the `check` flags `-e`/`-eval` and `-json` are extensions, and `vibes check --help` lists them. Each applies only where the reference reports an error.
 - `vibes lsp` adds this library's checker findings to its diagnostics and reports only the first parse error; its other differences are listed [with the language server](lsp.md#differences-from-the-reference). The REPL's own differences are listed [with the REPL](#differences-from-the-go-repl).
-- `check -static`, `run -static` and `fix` check the static language, which the reference does not have. Without `-static`, `check` and `run -check` report the gradual checker's findings, marking unfinished analysis `incomplete:`; their wording, positions and scope names (`bad` rather than the reference's `helpers.bad`) differ from the reference's checker, which also accepts some scripts this checker rejects.
+- Every command compiles the static language, which the reference does not have: `check` reports the static type checker's diagnostics rather than the reference checker's findings, and the reference's `run -check`, which checked one invocation, is gone with that checker.
 - Engine messages are the library's: the `require` not-found message, step accounting under small quotas, and stack traces, which omit the reference's final frame for the entry function of a script.
 - Watch mode always polls, as the reference does when file notifications are unavailable, so a new module file that nothing edits is noticed by the periodic scan within five seconds rather than immediately.
 - Under WASI, interrupts are not observed, and `fmt` opens files by path within the host's preopened directories instead of through root handles.

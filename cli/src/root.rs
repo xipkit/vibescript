@@ -62,15 +62,13 @@ const COMMANDS: [&Spec; 11] = [
 ];
 
 /// Options that select the flat form when they come first.
-const FLAT_OPTIONS: [&str; 13] = [
+const FLAT_OPTIONS: [&str; 11] = [
     "-e",
     "--eval",
     "--function",
     "--module-path",
     "--arg",
     "--kwarg",
-    "--check",
-    "--checked",
     "--steps",
     "--memory",
     "--recursion",

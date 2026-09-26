@@ -16,8 +16,6 @@ pub enum Kind {
     String,
     /// A signed 64-bit integer in Go syntax.
     Int,
-    /// An unsigned 64-bit integer in Go syntax.
-    Uint,
     /// A repeatable string.
     Strings,
 }
@@ -148,13 +146,10 @@ pub fn parse(spec: &Spec, args: &[OsString]) -> Result<Outcome, String> {
                 next.clone()
             }
         };
-        if matches!(flag.kind, Kind::Int | Kind::Uint) {
+        if flag.kind == Kind::Int {
             let bytes = compat::bytes(&value);
             let text = std::str::from_utf8(&bytes).map_err(|_| IntError::Syntax);
-            let checked = match flag.kind {
-                Kind::Int => text.and_then(compat::parse_int).map(drop),
-                _ => text.and_then(compat::parse_uint).map(drop),
-            };
+            let checked = text.and_then(compat::parse_int).map(drop);
             if let Err(error) = checked {
                 return Err(format!(
                     "invalid value {} for flag -{name_text}: {}",
@@ -213,13 +208,6 @@ impl Parsed {
             .and_then(|value| value.to_str())
             .and_then(|value| compat::parse_int(value).ok())
     }
-
-    /// The last value of an unsigned integer flag, already validated by [`parse`].
-    pub fn uint(&self, name: &str) -> Option<u64> {
-        self.value(name)
-            .and_then(|value| value.to_str())
-            .and_then(|value| compat::parse_uint(value).ok())
-    }
 }
 
 /// Renders a command's help as the reference's `urfave/cli` template does.
@@ -262,7 +250,6 @@ fn flag_names(flag: &Flag) -> String {
         Kind::Bool => "",
         Kind::String | Kind::Strings => " string",
         Kind::Int => " int",
-        Kind::Uint => " uint",
     };
     let spell = |name: &str| {
         let dashes = if name.chars().count() == 1 { "-" } else { "--" };
