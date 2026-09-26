@@ -11,7 +11,8 @@ use std::{
 pub const VIBES: &str = env!("CARGO_BIN_EXE_vibes");
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
-/// The root help: the Go reference's, byte for byte, plus `prelude`, `migrate` and `fix`.
+/// The root help: the Go reference's, with `check` as the type check, plus
+/// `prelude`, `migrate` and `fix`.
 pub const ROOT_HELP: &str = "NAME:
    vibes - run Vibescript programs and development tools
 
@@ -20,7 +21,7 @@ USAGE:
 
 COMMANDS:
    run      execute a script file or inline snippet
-   check    statically check a script without executing it
+   check    type check a script without executing it
    fmt      canonically format Vibescript source files
    analyze  analyze a script for lint issues
    test     discover and run Vibescript tests
@@ -35,7 +36,7 @@ GLOBAL OPTIONS:
    --help, -h  show help
 ";
 
-/// The Go reference's `vibes run` help, byte for byte.
+/// The Go reference's `vibes run` help without its `-check` flag.
 pub const RUN_HELP: &str = "NAME:
    vibes run - execute a script file or inline snippet
 
@@ -45,8 +46,6 @@ USAGE:
 
 OPTIONS:
    --function string                              function to invoke; without it, top-level statements run when present, otherwise run
-   --check                                        compile and validate static contracts without executing
-   --static                                       type check statically (ADR-007) and refuse a script with type errors
    -e string                                      evaluate an inline snippet instead of a script file
    --watch                                        re-run whenever the script or its modules change
    --module-path string [ --module-path string ]  add a module search directory (repeatable)

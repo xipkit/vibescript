@@ -112,8 +112,7 @@ fn every_command_has_help() {
             "lsp",
             "NAME:\n   vibes lsp - start the language server over stdio\n\n\
              USAGE:\n   vibes lsp [options]\n\n\
-             OPTIONS:\n   --static    check documents in the static language (ADR-007), offering quick fixes\n   \
-             --help, -h  show help\n",
+             OPTIONS:\n   --help, -h  show help\n",
         ),
     ] {
         vibes(&["help", name]).expect(0, text, "");
@@ -153,8 +152,8 @@ fn subcommand_flag_errors_use_the_reference_wording() {
         (&["run", "--help=1"], "help flag does not accept a value"),
         (&["run", "-x", "-h"], "flag provided but not defined: -x"),
         (
-            &["run", "-check=yes", "-e", "1"],
-            "invalid boolean value \"yes\" for -check: parse error",
+            &["run", "-watch=yes", "-e", "1"],
+            "invalid boolean value \"yes\" for -watch: parse error",
         ),
     ] {
         vibes(args).fails(message);
@@ -344,7 +343,7 @@ fn empty_values_are_rejected_with_the_reference_wording() {
     vibes(&["run", "-e="]).fails("vibes run: -e requires a non-empty snippet");
     let files = Files::new();
     let script = files.write("script.vibe", "1\n");
-    vibes(&["run", "-check=", &script]).fails("invalid boolean value \"\" for -check: parse error");
+    vibes(&["run", "-watch=", &script]).fails("invalid boolean value \"\" for -watch: parse error");
 }
 
 #[test]
@@ -352,11 +351,11 @@ fn run_defaults_to_top_level_statements_then_run() {
     let files = Files::new();
     let both = files.write(
         "both.vibe",
-        "def run\n  \"function\"\nend\n\n\"top-level\"\n",
+        "def run -> string\n  \"function\"\nend\n\n\"top-level\"\n",
     );
     vibes(&["run", &both]).expect(0, "top-level\n", "");
     vibes(&["run", "-function=run", &both]).expect(0, "function\n", "");
-    let only = files.write("only.vibe", "def run\n  \"ok\"\nend\n");
+    let only = files.write("only.vibe", "def run -> string\n  \"ok\"\nend\n");
     vibes(&["run", &only]).expect(0, "ok\n", "");
 }
 
