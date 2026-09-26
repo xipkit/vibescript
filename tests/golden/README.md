@@ -47,7 +47,13 @@ Accounting counters are separate, in `<corpus>.counters.jsonl.gz`: `[id, steps, 
 
 ## Static types
 
-Every source in these corpora is written in the language of [ADR-007](../../docs/adr/007-static-types.md) and [ADR-008](../../docs/adr/008-canonical-surface-for-ai-authors.md). `golden.py --static` compiles every engine case with the static checker, declaring the globals and capabilities the case supplies by their values' types, as a statically typed host would, and checks it against the same goldens: a case must compile and do what its golden records. A case whose purpose is to fail with static types carries `static_error`, the checker's first error as `{"code", "at"}`, and is checked against that instead; its golden still records what it does without static types, which is what the goldens check until the switchover makes static types the default.
+Every source in these corpora is written in the language of [ADR-007](../../docs/adr/007-static-types.md) and [ADR-008](../../docs/adr/008-canonical-surface-for-ai-authors.md). `golden.py --static` compiles every semantic engine case with the static checker, declaring the globals and capabilities the case supplies by their values' types, as a statically typed host would, and checks it against the same goldens: a case must compile and do what its golden records. A case whose purpose is to fail with static types carries `static_error`, the checker's first error as `{"code", "at"}`, and is checked against that instead; its golden still records what it does without static types, which is what the goldens check until the switchover makes static types the default.
+
+The `parse` corpus always runs without static types, including under `--static`.
+Its token mutations deliberately produce malformed or partially valid programs;
+it records parser acceptance and syntax errors, not semantic validity. Static
+rejections belong in the semantic corpora, where their first diagnostic is
+recorded explicitly.
 
 The migration's non-mechanical decisions are in [migration-decisions.jsonl](migration-decisions.jsonl), one per case, sorted by corpus and id, each with a short reason:
 

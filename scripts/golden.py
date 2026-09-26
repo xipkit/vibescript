@@ -975,7 +975,7 @@ def check_corpus(corpus, args, overrides, report):
     """Runs one corpus and reports how it compares with its goldens, or records them."""
     started = time.monotonic()
     cases = corpus.cases()
-    if args.static and corpus.kind == "engine":
+    if args.static and corpus.kind == "engine" and corpus.name != "parse":
         for case in cases:
             case["static_types"] = True
     if corpus.name in overrides:
