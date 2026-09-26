@@ -100,23 +100,16 @@ fn extreme_duration_anchors_preserve_wrapping_conversion() {
 
 #[test]
 fn clock_defaults_count_from_now_and_refuse_other_forms() {
-    let engine = common::runtime_engine();
-    // `ago` and `from_now` count from now, so they need no parentheses.
-    // Legacy aliases still count from now at runtime, including empty splats;
-    // static tests below check their canonical replacements.
+    let engine = Engine::new();
+    // `ago` and `from_now` count from now, so they need no parentheses,
+    // and empty splats leave them unchanged.
     for (source, before) in [
         ("5.minutes.from_now", false),
         ("5.minutes.ago", true),
-        ("5.minutes.after(*[])", false),
-        ("5.minutes.since(*[])", false),
-        ("5.minutes.since(**{})", false),
         ("5.minutes.from_now(*[])", false),
         ("5.minutes.from_now(**{})", false),
         ("5.minutes.ago(*[])", true),
         ("5.minutes.ago(**{})", true),
-        ("5.minutes.before(*[])", true),
-        ("5.minutes.until(*[])", true),
-        ("5.minutes.until(**{})", true),
     ] {
         let script = engine.compile(source).unwrap();
         let lower = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
@@ -134,11 +127,17 @@ fn clock_defaults_count_from_now_and_refuse_other_forms() {
         assert_eq!(result.stats.retained_memory_bytes, 0);
     }
     // The other clock-default forms, parentheses and blocks are refused
-    // before anything runs.
+    // before anything runs, with or without empty splats.
     let mut checked = vibescript::Engine::new();
     checked.register("unexpected", |_, _| panic!("ignored anchor block executed"));
     for (source, expected) in [
-        ("5.minutes.after", &["V0401"][..]),
+        ("5.minutes.after(*[])", &["V0401"][..]),
+        ("5.minutes.since(*[])", &["V0401"]),
+        ("5.minutes.since(**{})", &["V0401"]),
+        ("5.minutes.before(*[])", &["V0401"]),
+        ("5.minutes.until(*[])", &["V0401"]),
+        ("5.minutes.until(**{})", &["V0401"]),
+        ("5.minutes.after", &["V0401"]),
         ("5.minutes.after()", &["V0401"]),
         ("5.minutes.after(**{})", &["V0401"]),
         ("5.minutes.after {unexpected()}", &["V0301", "V0305"]),
