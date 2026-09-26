@@ -19,11 +19,13 @@ pub(super) enum Declared {
 }
 
 /// A top-level declaration in source order, for Go's compile checks.
+/// A top-level declaration in source order; a function's and an alias's
+/// carry the offset of the name they declare.
 enum Order {
-    Function(Name),
+    Function(Name, usize),
     Module(usize),
     Enum(usize),
-    Alias(Name, Name, bool),
+    Alias(Name, Name, bool, usize),
 }
 
 impl Parsing<'_> {
@@ -229,7 +231,8 @@ impl Parsing<'_> {
                             end,
                         },
                     )?;
-                    order.push(Order::Function(definition.name.clone()));
+                    let at = p.tokens[p.significant(first + 1)].offset;
+                    order.push(Order::Function(definition.name.clone(), at));
                     let index = defs.len();
                     def_names.insert(work, definition.name.clone(), index)?;
                     defs.push(work, definition)?;
@@ -261,7 +264,8 @@ impl Parsing<'_> {
                             end,
                         },
                     )?;
-                    order.push(Order::Alias(name, target, found));
+                    let at = p.tokens[p.significant(first + 1)].offset;
+                    order.push(Order::Alias(name, target, found, at));
                 }
                 Declared::Class(module) => {
                     let kind = if module.is_class {
@@ -691,6 +695,28 @@ impl Parser<'_> {
     }
 }
 
+/// Locates Go's error for a function or alias whose name is taken, at the
+/// name, with its code: V0209 for a name the program defines twice, or
+/// V0210 for a reserved one.
+fn duplicate_name(
+    error: crate::Error,
+    name: &Name,
+    at: usize,
+    work: &dyn crate::compilation::Work,
+) -> crate::Error {
+    if error.kind != crate::ErrorKind::Syntax {
+        return error;
+    }
+    let span = crate::diagnostic::Span::new(at, at + name.len());
+    let code = if error.message.contains("reserved") {
+        crate::diagnostic::Code::RESERVED_NAME
+    } else {
+        crate::diagnostic::Code::DUPLICATE_NAME
+    };
+    let diagnostic = crate::diagnostic::Diagnostic::error(code, span, &error.message);
+    crate::Error::syntax(work, at, &error.message).with_diagnostic(diagnostic)
+}
+
 /// Reports Go's first compile error for the top-level declarations.
 fn compile_checks(
     order: &[Order],
@@ -704,7 +730,7 @@ fn compile_checks(
         for item in order {
             work.charge(1)?;
             match item {
-                Order::Function(name) | Order::Alias(name, ..) => {
+                Order::Function(name, _) | Order::Alias(name, ..) => {
                     functions.insert(work, name.clone(), ())?;
                 }
                 _ => (),
@@ -717,14 +743,20 @@ fn compile_checks(
     for item in order {
         work.charge(1)?;
         match item {
-            Order::Function(name) => registry.function(name, work)?,
+            Order::Function(name, at) => {
+                registry
+                    .function(name, work)
+                    .map_err(|error| duplicate_name(error, name, *at, work))?;
+            }
             Order::Module(index) => registry.module(&modules[*index], work)?,
             Order::Enum(index) => {
                 let (name, members) = &enums[*index];
                 registry.enumeration(name, members, work)?;
             }
-            Order::Alias(name, target, found) => {
-                registry.function(name, work)?;
+            Order::Alias(name, target, found, at) => {
+                registry
+                    .function(name, work)
+                    .map_err(|error| duplicate_name(error, name, *at, work))?;
                 if !found {
                     return Err(super::unsupported(
                         work,

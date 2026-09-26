@@ -106,6 +106,7 @@ impl Parser<'_> {
             .instance_methods
             .push(self.work, (definition, visibility))?;
         let index = class.instance_methods.len() - 1;
+        class.aliases.push(self.work, (index, offset))?;
         self.note(|record| {
             record.aliases.push(super::record::ClassAlias {
                 class: class.offset,

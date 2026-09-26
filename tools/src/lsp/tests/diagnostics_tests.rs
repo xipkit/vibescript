@@ -71,13 +71,12 @@ fn diagnostics_use_utf16_character_offsets() {
 }
 
 #[test]
-fn duplicate_functions_are_reported_at_the_document_start() {
-    // Like the reference, which reports this after parsing and without a
-    // source position.
+fn duplicate_functions_are_reported_at_the_second_name() {
     let diagnostics = diagnostics("def run()\n  1\nend\n\ndef run()\n  2\nend\n");
     assert_eq!(diagnostics.len(), 1);
-    assert_eq!(range(&diagnostics[0]), (0, 0, 0, 1));
+    assert_eq!(range(&diagnostics[0]), (4, 4, 4, 7));
     assert_eq!(diagnostics[0]["message"], "duplicate function run");
+    assert_eq!(diagnostics[0]["code"], "V0209");
 }
 
 #[test]

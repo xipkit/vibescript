@@ -242,6 +242,60 @@ impl<'a> Checker<'a> {
                     .or_insert(Ivar { ty, default: false });
             }
         }
+        self.check_names(parsed);
+    }
+
+    /// Reports a class alias that takes the name of a method the class
+    /// already defines, which would replace it, and a function named
+    /// `require`, which would shadow the `require` the compiler resolves.
+    /// A method may take the name, since a receiver calls it.
+    fn check_names(&mut self, parsed: &'a Declarations) {
+        for item in &parsed.outline {
+            if item.kind == crate::DeclarationKind::Function && item.name == "require" {
+                let span = self.spans.word_after(item.start, "require");
+                self.reserved(span);
+            }
+        }
+        for ns in 0..self.program.namespaces.len() {
+            let Some(module) = self.program.namespaces[ns].module else {
+                continue;
+            };
+            let at = |index: usize, def: &crate::syntax::Definition| {
+                module
+                    .aliases
+                    .iter()
+                    .find(|(alias, _)| *alias == index)
+                    .map_or(def.offset, |(_, offset)| *offset) as usize
+            };
+            for (index, (def, _)) in module.instance_methods.iter().enumerate() {
+                if def.accessor.is_some() {
+                    continue;
+                }
+                let alias = module.aliases.iter().any(|(alias, _)| *alias == index);
+                let earlier = module.instance_methods[..index]
+                    .iter()
+                    .any(|(other, _)| other.name == def.name);
+                if alias && earlier {
+                    let span = self.spans.word_after(at(index, def), &def.name);
+                    self.report(Diagnostic::error(
+                        Code::DUPLICATE_NAME,
+                        span,
+                        format!(
+                            "`{}` is already a method of `{}`; an alias takes a new name",
+                            def.name, module.name
+                        ),
+                    ));
+                }
+            }
+        }
+    }
+
+    fn reserved(&mut self, span: crate::diagnostic::Span) {
+        self.report(Diagnostic::error(
+            Code::RESERVED_NAME,
+            span,
+            "`require` is reserved: the compiler resolves it statically, so a function cannot take its name",
+        ));
     }
 
     fn namespace(&mut self, module: &'a Module, parent: Option<NsId>) -> NsId {

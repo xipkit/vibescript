@@ -77,6 +77,9 @@ Two diagnostics are warnings, which do not stop compilation: `V0121`, a nil test
 | `V0205` | `uninitialized-ivar` | An instance variable without a default is not assigned on every path through `initialize`. |
 | `V0206` | `unknown-enum-member` | A symbol or constant does not name a member of the enum. |
 | `V0207` | `block-not-value` | A block parameter is used as a value. |
+| `V0208` | `visibility` | A private method is called with a receiver, or a protected one from outside its class's own methods. |
+| `V0209` | `duplicate-name` | A function, method or alias takes a name its scope already defines. |
+| `V0210` | `reserved-name` | A function or alias takes a reserved name: `require`, which the compiler resolves statically, or `__main__`. |
 | `V0301` | `no-overload` | No signature accepts the call's positional arguments, keywords and block. |
 | `V0302` | `unknown-keyword` | A call passes a keyword the signature does not declare. |
 | `V0303` | `missing-keyword` | A call omits a required keyword argument. |
@@ -102,6 +105,7 @@ Two diagnostics are warnings, which do not stop compilation: `V0121`, a nil test
 | `V0413` | `type-name` | A builtin type name is spelled other than in lowercase, or as `object` for `hash`. |
 | `V0414` | `keyword-parameter` | A keyword parameter is declared as `name:`, `name: default` or `name: T:`; keyword parameters follow a bare `*`. |
 | `V0415` | `field-access` | A hash or shape field is read or written with a dot; dot calls methods, and a field is indexed as `h["name"]`. |
+| `V0416` | `scoped-call` | A function or method is called with `::`, as in `JSON::parse(x)`; `::` names only constants, nested types and enum members, and a dot calls. |
 
 `vibescript::diagnostic::codes()` returns this registry, and `Diagnostic::to_json` gives the JSON form `vibes check --json` prints:
 

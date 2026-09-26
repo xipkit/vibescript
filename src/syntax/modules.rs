@@ -29,6 +29,9 @@ pub(crate) struct Module {
     pub missing: Option<Text>,
     /// Classes declared in the body, whose directives Go also checks.
     pub inner: Buffer<Module>,
+    /// Each alias's index in `instance_methods` and the offset of its
+    /// statement; an alias's definition copies its target's, offset included.
+    pub aliases: Buffer<(usize, u32)>,
     pub(super) depth: u32,
 }
 
@@ -421,6 +424,7 @@ impl Parsing<'_> {
                 directives: Buffer::new(),
                 missing: None,
                 inner: Buffer::new(),
+                aliases: Buffer::new(),
                 depth: 1,
             };
             (class, outer_locals, outer_it, outer_class)

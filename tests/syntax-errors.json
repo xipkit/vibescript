@@ -1728,7 +1728,8 @@
   {
     "name": "enums_collision_10",
     "source": "enum State\nA\nend\ndef State\n1\nend\ndef run(input: any)\n7\nend",
-    "go_error": "duplicate top-level name State"
+    "go_error": "duplicate top-level name State",
+    "error": "parse error at 4:5: duplicate top-level name State"
   },
   {
     "name": "enums_syntax_1",
@@ -13237,7 +13238,8 @@
   {
     "name": "top_level_alias_cannot_replace_a_function",
     "source": "def name\n  1\nend\ndef other\n  2\nend\nalias other name\ndef run(input: any)\n  other\nend",
-    "go_error": "duplicate function other"
+    "go_error": "duplicate function other",
+    "error": "parse error at 7:7: duplicate function other"
   },
   {
     "name": "assignment_parenthesized_index",
@@ -13678,7 +13680,8 @@
   {
     "name": "sweep_duplicate_function",
     "source": "def collect_until(limit: any)\n  while !(n >= limit)\n  end\nend\ndef \n  collect_until(5)\nend",
-    "go_error": "duplicate function collect_until"
+    "go_error": "duplicate function collect_until",
+    "error": "parse error at 6:3: duplicate function collect_until"
   },
   {
     "name": "sweep_enum_without_members",

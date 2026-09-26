@@ -577,3 +577,46 @@ fn operator_diagnostics_span_the_whole_operator() {
         );
     }
 }
+
+#[test]
+fn duplicate_and_reserved_function_names_are_coded() {
+    // A second top-level definition, or an alias over a function, is
+    // refused with or without static types, at its name.
+    for source in [
+        "def g -> int\n  1\nend\ndef g -> int\n  2\nend\n",
+        "def f -> int\n  1\nend\ndef g -> int\n  2\nend\nalias g f\n",
+    ] {
+        for static_types in [false, true] {
+            let mut engine = Engine::new();
+            engine.set_static_types(static_types);
+            let error = engine.compile(source).err().unwrap();
+            assert_eq!(error.message, "duplicate function g", "{source}");
+            assert_eq!(common::codes(&error), ["V0209"], "{source}");
+            let span = error.diagnostics()[0].span;
+            assert_eq!(span.start, source.rfind('g').unwrap(), "{source}");
+            assert_eq!(&source[span.start..span.end], "g");
+        }
+    }
+    // A class alias over a method the class defines replaces it at runtime;
+    // the checker refuses it.
+    let source =
+        "class C\n  def f -> int\n    1\n  end\n  def g -> int\n    2\n  end\n  alias g f\nend\n";
+    assert_eq!(
+        refused(source),
+        [("V0209".to_owned(), source.rfind(" g ").unwrap() + 1)]
+    );
+    // `require` is resolved statically, so a function cannot take its name;
+    // a method, which a receiver calls, can.
+    for (source, at) in [
+        ("def require(path: string) -> int\n  1\nend\n", "require"),
+        ("def f -> int\n  1\nend\nalias require f\n", "require f"),
+    ] {
+        assert_eq!(
+            refused(source),
+            [("V0210".to_owned(), source.find(at).unwrap())]
+        );
+    }
+    common::static_engine()
+        .compile("class C\n  def require(path: string) -> int\n    1\n  end\nend\n")
+        .unwrap_or_else(|error| panic!("{error}"));
+}
