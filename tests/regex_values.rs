@@ -135,7 +135,7 @@ fn scans_preserve_match_shapes_and_refuse_blocks() {
         "\"ab\".match(/a/) {|m| m.to_s+\"!\"}",
         "\"ab\".match(/z/) {17}",
     ] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), ["V0305"], "{source}");
     }
 }
@@ -153,7 +153,7 @@ fn match_accessors_are_calls_and_small_matches_detach() {
             &["V0310", "V0310"],
         ),
     ] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), expected, "{source}");
     }
     let script = Engine::new()
@@ -228,7 +228,7 @@ fn protected_fields_and_bad_accessors_stop_later_host_effects() {
     assert_eq!(calls.load(Ordering::SeqCst), 0);
     // Writes through match data, hash members it lacks and bad accessor
     // calls are refused before anything runs.
-    let mut checked = common::static_engine();
+    let mut checked = vibescript::Engine::new();
     checked.register("effect", |_, _| panic!("effect ran"));
     for (operation, expected) in [
         ("m[\"to_s\"]=7", &["V0112"][..]),
@@ -311,9 +311,10 @@ fn selected_regex_policies_preserve_anchors_and_match_data_identity() {
         }
         let source = case["source"].as_str().unwrap();
         let name = case["name"].as_str().unwrap();
-        let script = common::fixture_engine(case.get("static_error"), source, name)
-            .compile(source)
-            .unwrap();
+        let Some(engine) = common::fixture_engine(case.get("static_error"), source, name) else {
+            continue;
+        };
+        let script = engine.compile(source).unwrap();
         let result = script.call("run", &[Value::nil()], CallOptions::default());
         if case.get("expected_error").is_some() {
             assert_eq!(

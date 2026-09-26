@@ -17,7 +17,7 @@ fn file(engine: &Engine, source: &str) -> Script {
 }
 
 fn witness(source: &str, expected: i64) {
-    let script = file(&Engine::new(), source);
+    let script = file(&Engine::legacy_unchecked(), source);
     let outcome = script
         .run(CallOptions::default())
         .unwrap_or_else(|error| panic!("{source}: {error:?}"));
@@ -50,7 +50,10 @@ fn private_file_bindings_survive_calls_and_parameter_shadowing() {
 
 #[test]
 fn private_file_return_errors_are_visible_without_running_the_file() {
-    let script = file(&Engine::new(), "x=false;def read->int;x;end;read()");
+    let script = file(
+        &Engine::legacy_unchecked(),
+        "x=false;def read->int;x;end;read()",
+    );
     let report = script
         .check_call("__main__", &[], &CallOptions::default())
         .unwrap();
@@ -61,7 +64,10 @@ fn private_file_return_errors_are_visible_without_running_the_file() {
 
 #[test]
 fn file_local_writes_do_not_replace_supplied_roots() {
-    let script = file(&Engine::new(), "count+=1;def read->int;count;end;read()");
+    let script = file(
+        &Engine::legacy_unchecked(),
+        "count+=1;def read->int;count;end;read()",
+    );
     let options = CallOptions {
         globals: [("count".into(), Value::int(7))].into(),
         ..CallOptions::default()
@@ -118,7 +124,7 @@ fn file_binding_presence_keeps_function_fallbacks_and_call_rejections() {
         let source = format!(
             "def helper->int;9;end;def run(flag:bool)->int;if flag;helper=7;end;{tail};end"
         );
-        let script = file(&Engine::new(), &source);
+        let script = file(&Engine::legacy_unchecked(), &source);
         let report = script
             .check_function("run", &CallOptions::default())
             .unwrap();
@@ -140,7 +146,7 @@ fn file_binding_presence_keeps_function_fallbacks_and_call_rejections() {
 
 #[test]
 fn file_declarations_and_calls_do_not_materialize_shadowed_roots() {
-    let foreign = Engine::new()
+    let foreign = Engine::legacy_unchecked()
         .compile("class Foreign;end;Foreign")
         .unwrap()
         .run(CallOptions::default())
@@ -153,7 +159,7 @@ fn file_declarations_and_calls_do_not_materialize_shadowed_roots() {
         ("class C;def value;7;end;end;C.new.value", "C"),
         ("class C;end;def accept(x:C)->C;x;end;accept(C.new)", "C"),
     ] {
-        let script = file(&Engine::new(), source);
+        let script = file(&Engine::legacy_unchecked(), source);
         let options = CallOptions {
             globals: [(name.into(), foreign.clone())].into(),
             ..CallOptions::default()
@@ -171,7 +177,7 @@ fn file_variables_remain_private_to_their_lexical_owner() {
         "[1].each{fresh=7};fresh",
         "x=7;def read->int;x;end",
     ] {
-        let script = file(&Engine::new(), source);
+        let script = file(&Engine::legacy_unchecked(), source);
         let function = if source.ends_with("end") {
             "read"
         } else {
@@ -220,7 +226,7 @@ fn file_type_aliases_follow_private_state_at_source_and_host_boundaries() {
             accepts_block: false,
         })
         .unwrap();
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register_method("echo", method);
     for source in [
         "enum E;A;end;Alias=E;def accept(x:Alias)->Alias;x;end;accept(E::A)",
@@ -280,7 +286,7 @@ fn file_namespace_constants_parameters_and_initializer_blocks_keep_their_scopes(
         witness(source, expected);
     }
     let source = "module M;[1].each{x=7};def self.read;x;end;end;M.read";
-    let script = file(&Engine::new(), source);
+    let script = file(&Engine::legacy_unchecked(), source);
     assert!(script.run(CallOptions::default()).is_err());
     let report = script
         .check_call("__main__", &[], &CallOptions::default())
@@ -291,7 +297,7 @@ fn file_namespace_constants_parameters_and_initializer_blocks_keep_their_scopes(
 
 #[test]
 fn file_whole_and_named_checks_use_their_own_initialization_scope() {
-    let script = file(&Engine::new(), "x=7;def read->int;x;end");
+    let script = file(&Engine::legacy_unchecked(), "x=7;def read->int;x;end");
     let whole = script.check(&CallOptions::default()).unwrap();
     assert!(whole.is_clean(), "{whole:?}");
     let named = script
@@ -299,7 +305,10 @@ fn file_whole_and_named_checks_use_their_own_initialization_scope() {
         .unwrap();
     assert!(named.incomplete.is_empty(), "{named:?}");
     assert!(!named.diagnostics.is_empty(), "{named:?}");
-    let script = file(&Engine::new(), "x=false;def unused->int;x;end;7");
+    let script = file(
+        &Engine::legacy_unchecked(),
+        "x=false;def unused->int;x;end;7",
+    );
     let exact = script
         .check_call("__main__", &[], &CallOptions::default())
         .unwrap();
@@ -328,7 +337,7 @@ fn checking_private_state_never_runs_host_callbacks_and_checked_calls_stay_isola
         accepts_block: true,
     })
     .unwrap();
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register_method("visit", method);
     let script = file(
         &engine,
@@ -360,7 +369,7 @@ fn private_type_aliases_observe_rebinding_and_ambiguous_names() {
         "enum E;A;end;def replace;E=7;end;def accept(x:E);x;end;replace();accept(:a)",
         "class C;end;def replace;C=7;end;def accept(x:C);x;end;replace();accept(nil)",
     ] {
-        let script = file(&Engine::new(), source);
+        let script = file(&Engine::legacy_unchecked(), source);
         assert!(script.run(CallOptions::default()).is_err(), "{source}");
         let report = script
             .check_call("__main__", &[], &CallOptions::default())
@@ -385,7 +394,7 @@ fn file_analysis_obeys_exact_and_interrupted_limits_and_reclaims_scratch() {
         "enum E;A;end;Alias=E;def accept(x:Alias);x;end;[E::A].map{|x:Alias|accept(x)}".to_owned(),
         format!("{long}=1;def read;{long}+1;end;read()"),
     ] {
-        let script = file(&Engine::new(), &source);
+        let script = file(&Engine::legacy_unchecked(), &source);
         let check = |ctx: &mut CallContext, options: &CallOptions| {
             entry::check(
                 ctx,
@@ -483,7 +492,7 @@ fn conditional_file_builtins_keep_present_and_absent_paths() {
             true,
         ),
     ] {
-        let script = file(&Engine::new(), source);
+        let script = file(&Engine::legacy_unchecked(), source);
         for flag in [true, false] {
             let result = script.call("run", &[Value::boolean(flag)], CallOptions::default());
             assert_eq!(
@@ -507,7 +516,7 @@ fn conditional_file_builtins_keep_present_and_absent_paths() {
 
 #[test]
 fn missing_required_files_are_diagnosed_and_captured_foreign_bindings_are_analyzed() {
-    let script = file(&Engine::new(), "require('dependency')");
+    let script = file(&Engine::legacy_unchecked(), "require('dependency')");
     let report = script
         .check_call("__main__", &[], &CallOptions::default())
         .unwrap();
@@ -519,11 +528,14 @@ fn missing_required_files_are_diagnosed_and_captured_foreign_bindings_are_analyz
             .any(|d| d.message.contains("module paths not configured")),
         "{report:?}"
     );
-    let foreign = file(&Engine::new(), "x=7;module M;def self.read;x;end;end;M")
-        .run(CallOptions::default())
-        .unwrap()
-        .value;
-    let script = file(&Engine::new(), "foreign.read");
+    let foreign = file(
+        &Engine::legacy_unchecked(),
+        "x=7;module M;def self.read;x;end;end;M",
+    )
+    .run(CallOptions::default())
+    .unwrap()
+    .value;
+    let script = file(&Engine::legacy_unchecked(), "foreign.read");
     let options = CallOptions {
         globals: [("foreign".into(), foreign)].into(),
         ..CallOptions::default()
@@ -539,7 +551,7 @@ fn equivalent_file_compilations_keep_the_same_analysis_budget() {
         "enum Zebra;A;end;enum Medium;B;end;enum S;C;end;def run(value:Zebra)->Zebra;value;end";
     let mut expected = None;
     for _ in 0..16 {
-        let script = file(&Engine::new(), source);
+        let script = file(&Engine::legacy_unchecked(), source);
         let report = script
             .check_function("run", &CallOptions::default())
             .unwrap();

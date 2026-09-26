@@ -17,7 +17,7 @@ fn builtin_assignment_fallbacks_are_registered_before_initialization_and_type_lo
             "State::Ready",
         ),
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = Engine::legacy_unchecked().compile(source).unwrap();
         witness(&script, &[], &CallOptions::default(), expected, false);
         let report = script
             .check_function("run", &CallOptions::default())
@@ -47,7 +47,7 @@ fn initializer_fields_and_class_variables_follow_runtime_state() {
             ("begin;C=3;ensure;C+=1;end", "M::C", "4"),
         ] {
             let source = format!("{kind} M;{body};end;def run;{call};end");
-            let script = Engine::new()
+            let script = Engine::legacy_unchecked()
                 .compile(&source)
                 .unwrap_or_else(|error| panic!("{source}: {error}"));
             witness(&script, &[], &CallOptions::default(), expected, false);
@@ -65,7 +65,7 @@ fn namespace_aliases_calls_blocks_and_rescues_share_fields() {
         ("begin;M.bad;rescue;M::C;end", "[6]", true),
         ("copy=M::C;copy.push(9);M::C", "[1]", false),
     ] {
-        let script = Engine::new().compile(&format!("module M;C=[1];def self.apply;yield;end;def self.fail;C[0]=5;raise(\"stop\");end;def self.bad;C[0]=6;1-\"bad\";end;end;def run;{body};end")).unwrap();
+        let script = Engine::legacy_unchecked().compile(&format!("module M;C=[1];def self.apply;yield;end;def self.fail;C[0]=5;raise(\"stop\");end;def self.bad;C[0]=6;1-\"bad\";end;end;def run;{body};end")).unwrap();
         witness(&script, &[], &CallOptions::default(), expected, issues);
     }
 }
@@ -109,7 +109,7 @@ fn namespace_initialization_precedes_defaults_and_does_not_repeat_nested_bodies(
     );
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register("tick", move |_, _| {
         count.fetch_add(1, Ordering::Relaxed);
         Ok(Value::int(7))
@@ -157,7 +157,7 @@ fn missing_namespace_variables_and_partial_initializers_keep_error_state() {
             "99",
         ),
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = Engine::legacy_unchecked().compile(source).unwrap();
         witness(&script, &[], &CallOptions::default(), expected, true);
     }
 }
@@ -202,7 +202,7 @@ fn namespace_setters_keep_assignment_results_and_evaluation_order() {
         "private def self.value=(x);@@v=x;end",
         "def self.value=(x:int);@@v=x;end",
     ] {
-        let script = Engine::new().compile(&format!("module M;{setter};end;def run;a=[];begin;M.value=a.push(1);rescue RuntimeError;nil;end;a;end")).unwrap();
+        let script = Engine::legacy_unchecked().compile(&format!("module M;{setter};end;def run;a=[];begin;M.value=a.push(1);rescue RuntimeError;nil;end;a;end")).unwrap();
         witness(&script, &[], &CallOptions::default(), "[1]", true);
     }
 }
@@ -223,7 +223,7 @@ fn conditional_constants_preserve_missing_fields_and_root_precedence() {
                 true,
             ),
         ] {
-            let mut engine = Engine::new();
+            let mut engine = Engine::legacy_unchecked();
             engine.register("flag", move |_, _| Ok(Value::boolean(flag)));
             let mut options = CallOptions::default();
             if body == "C" {
@@ -244,7 +244,7 @@ fn conditional_constants_preserve_missing_fields_and_root_precedence() {
         deep = Value::array(vec![deep]);
     }
     for call in ["C()", "(C rescue missing)()"] {
-        let script = Engine::new()
+        let script = Engine::legacy_unchecked()
             .compile(&format!(
                 "module M;C=7;def self.answer;{call};end;end;def run;M.answer;end"
             ))
@@ -267,7 +267,7 @@ fn conditional_constants_preserve_missing_fields_and_root_precedence() {
 fn initializer_failures_precede_entry_shapes_defaults_and_handlers() {
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register("effect", move |_, _| {
         count.fetch_add(1, Ordering::Relaxed);
         Ok(Value::int(7))
@@ -322,7 +322,7 @@ fn namespace_state_survives_ignored_host_control_transfers_without_replaying_blo
     .unwrap();
     let driver = Value::object(vec![(b"visit".to_vec(), method.value())]);
     for (transfer, expected) in [("break 7", "[7, 1]"), ("return 9", "[9, 1]")] {
-        let script = Engine::new().compile(&format!("module M;@@n=0;def self.go(driver);driver.visit{{@@n+=1;{transfer}}};end;end;def run(driver);[M.go(driver),M.n];end")).unwrap();
+        let script = Engine::legacy_unchecked().compile(&format!("module M;@@n=0;def self.go(driver);driver.visit{{@@n+=1;{transfer}}};end;end;def run(driver);[M.go(driver),M.n];end")).unwrap();
         witness(
             &script,
             std::slice::from_ref(&driver),
@@ -331,7 +331,7 @@ fn namespace_state_survives_ignored_host_control_transfers_without_replaying_blo
             false,
         );
     }
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("module M;@@n=0;driver.visit{@@n+=1;return 7};@@n=99;end;def run;M.n;end")
         .unwrap();
     let options = CallOptions {

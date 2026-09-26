@@ -21,7 +21,7 @@ fn evaluate(source: &str) -> serde_json::Value {
 /// The code and offset in `source` of each static diagnostic that refuses
 /// `source` after the enums.
 fn refused(source: &str) -> Vec<(String, usize)> {
-    let error = common::static_engine()
+    let error = vibescript::Engine::new()
         .compile(&format!("{ENUMS}{source}"))
         .err()
         .unwrap_or_else(|| panic!("{source} compiled"));
@@ -323,7 +323,7 @@ fn invalid_typed_values_stop_later_defaults_and_host_effects() {
     assert_eq!(error.kind, ErrorKind::Type);
     assert_eq!(calls.load(Ordering::SeqCst), 0);
     // Inside a program, the others are refused before anything runs.
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine.register("effect", |_, _| panic!("effect ran"));
     for (source, texts) in [
         (

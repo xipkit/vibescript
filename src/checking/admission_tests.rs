@@ -16,7 +16,7 @@ use std::sync::{
 };
 
 fn produced(source: &str) -> Value {
-    Engine::new()
+    Engine::legacy_unchecked()
         .compile(source)
         .unwrap()
         .call("run", &[], CallOptions::default())
@@ -25,7 +25,7 @@ fn produced(source: &str) -> Value {
 }
 
 fn witness(input: &Value, expression: &str, expected: &str, rejected: bool) {
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile(&format!("def run; {expression}; end"))
         .unwrap();
     let program = &script.inner.code.program;
@@ -268,7 +268,7 @@ fn admitted_type_literals_preserve_contracts_and_flag_unresolved_names() {
 fn unresolved_nominal_values_stay_explicit_without_running_initializers() {
     let calls = Arc::new(AtomicUsize::new(0));
     let invoked = calls.clone();
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register("mark", move |_, _| {
         invoked.fetch_add(1, Ordering::Relaxed);
         Ok(Value::nil())

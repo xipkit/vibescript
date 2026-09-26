@@ -85,7 +85,7 @@ fn witness(script: &Script, args: &[Value], options: &CallOptions, expected: &st
 
 #[track_caller]
 fn run(source: &str, expected: &str) {
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     witness(&script, &[], &CallOptions::default(), expected, false);
 }
 
@@ -170,10 +170,10 @@ fn implicit_calls_and_lexical_blocks_keep_namespace_visibility() {
         let source = format!(
             "module M;private def self.hidden;7;end;protected def self.visible;8;end;public def self.answer;self.hidden;end;end;def run;begin;{call};rescue RuntimeError;9;end;end"
         );
-        let script = Engine::new().compile(&source).unwrap();
+        let script = Engine::legacy_unchecked().compile(&source).unwrap();
         witness(&script, &[], &CallOptions::default(), "9", true);
     }
-    let script = Engine::new().compile("module A;protected def self.hidden;7;end;end;module B;def self.answer;A.hidden;end;end;def run;begin;B.answer;rescue RuntimeError;9;end;end").unwrap();
+    let script = Engine::legacy_unchecked().compile("module A;protected def self.hidden;7;end;end;module B;def self.answer;A.hidden;end;end;def run;begin;B.answer;rescue RuntimeError;9;end;end").unwrap();
     witness(&script, &[], &CallOptions::default(), "9", true);
 }
 
@@ -192,7 +192,7 @@ fn aliases_arguments_and_returned_namespace_values_preserve_dispatch_identity() 
         "7",
     );
     for flag in [false, true] {
-        let mut engine = Engine::new();
+        let mut engine = Engine::legacy_unchecked();
         engine.register("choose", move |_, _| Ok(Value::boolean(flag)));
         let script = engine.compile("module A;def self.answer(x);x+1;end;end;class B;def self.answer(x);x+2;end;end;def run;m=if choose();A;else;B;end;m.answer(3);end").unwrap();
         witness(
@@ -208,7 +208,7 @@ fn aliases_arguments_and_returned_namespace_values_preserve_dispatch_identity() 
 #[test]
 fn static_calls_preserve_global_effects_and_block_control() {
     let source = "module M;def self.change;count+=1;yield(count);end;end;def run;M.change{|n|count+=2;break n};count;end";
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     let options = CallOptions {
         globals: [("count".into(), Value::int(1))].into(),
         ..CallOptions::default()
@@ -232,7 +232,7 @@ fn source_and_host_roots_precede_implicit_methods() {
         "def answer;9;end;module M;def self.answer;7;end;def self.check;[answer,answer()];end;end;def run;M.check;end",
         "[9, 9]",
     );
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("module M;def self.answer;7;end;def self.check;answer;end;end;def run;M.check;end")
         .unwrap();
     let options = CallOptions {
@@ -240,7 +240,7 @@ fn source_and_host_roots_precede_implicit_methods() {
         ..CallOptions::default()
     };
     witness(&script, &[], &options, "11", false);
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("module M;def self.answer;7;end;end;def run;M.answer;end")
         .unwrap();
     let options = CallOptions {
@@ -264,7 +264,7 @@ fn nested_namespaces_use_declaration_identity_and_constant_precedence() {
             "7",
         );
     }
-    let script = Engine::new().compile("module M;module N;def self.answer;7;end;end;def self.check;N.answer;end;end;def run;M.check;end").unwrap();
+    let script = Engine::legacy_unchecked().compile("module M;module N;def self.answer;7;end;end;def self.check;N.answer;end;end;def run;M.check;end").unwrap();
     let options = CallOptions {
         globals: [("N".into(), Value::int(99))].into(),
         ..CallOptions::default()
@@ -275,7 +275,7 @@ fn nested_namespaces_use_declaration_identity_and_constant_precedence() {
         deep = Value::array(vec![deep]);
     }
     for call in ["N()", "(N rescue missing)()"] {
-        let script = Engine::new()
+        let script = Engine::legacy_unchecked()
             .compile(&format!(
                 "module M;module N;end;def self.check;{call};end;end;def run;M.check;end"
             ))
@@ -310,7 +310,7 @@ fn namespace_host_blocks_preserve_ignored_break_and_return() {
     .unwrap();
     let driver = Value::object(vec![(b"visit".to_vec(), method.value())]);
     for (transfer, expected) in [("break 7", "[7, [1]]"), ("return 9", "9")] {
-        let script = Engine::new().compile(&format!("module M;def self.check(driver);a=[];n=driver.visit{{a.push(1);{transfer}}};[n,a];end;end;def run(driver);M.check(driver);end")).unwrap();
+        let script = Engine::legacy_unchecked().compile(&format!("module M;def self.check(driver);a=[];n=driver.visit{{a.push(1);{transfer}}};[n,a];end;end;def run(driver);M.check(driver);end")).unwrap();
         witness(
             &script,
             std::slice::from_ref(&driver),
@@ -341,7 +341,7 @@ fn method_shape_type_and_return_errors_have_runtime_witnesses() {
         ("def self.answer;7;end", "M.new", ErrorKind::Argument),
     ] {
         let source = format!("module M;{method};end;def run;{call};end");
-        let script = Engine::new().compile(&source).unwrap();
+        let script = Engine::legacy_unchecked().compile(&source).unwrap();
         let report = script
             .check_call("run", &[], &CallOptions::default())
             .unwrap();
@@ -366,11 +366,11 @@ fn computed_lookup_fails_before_arguments_and_errors_stay_catchable() {
         ("(M.hidden)(a.push(1))", "[1]"),
         ("M.hidden(a.push(1))", "[1]"),
     ] {
-        let script = Engine::new().compile(&format!("module M;private def self.hidden(x);x;end;end;def run;a=[];begin;{call};rescue RuntimeError;nil;end;a;end")).unwrap();
+        let script = Engine::legacy_unchecked().compile(&format!("module M;private def self.hidden(x);x;end;end;def run;a=[];begin;{call};rescue RuntimeError;nil;end;a;end")).unwrap();
         witness(&script, &[], &CallOptions::default(), expected, true);
     }
     for call in ["new(a.push(1))", "(new rescue missing)(a.push(1))"] {
-        let script = Engine::new().compile(&format!("module M;def self.check;a=[];begin;{call};rescue RuntimeError;[7,a];end;end;end;def run;M.check;end")).unwrap();
+        let script = Engine::legacy_unchecked().compile(&format!("module M;def self.check;a=[];begin;{call};rescue RuntimeError;[7,a];end;end;end;def run;M.check;end")).unwrap();
         witness(&script, &[], &CallOptions::default(), "[7, []]", true);
     }
 }
@@ -379,7 +379,7 @@ fn computed_lookup_fails_before_arguments_and_errors_stay_catchable() {
 fn checks_never_execute_method_bodies_or_host_callbacks() {
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register("effect", move |_, _| {
         count.fetch_add(1, Ordering::Relaxed);
         Ok(Value::int(7))
@@ -408,13 +408,15 @@ fn checks_never_execute_method_bodies_or_host_callbacks() {
 #[test]
 fn source_queries_and_foreign_namespaces_are_analyzed() {
     run("module M;end;def run;M.respond_to?(:missing);end", "false");
-    let foreign = Engine::new()
+    let foreign = Engine::legacy_unchecked()
         .compile("module M;def self.answer;7;end;end;M")
         .unwrap()
         .run(CallOptions::default())
         .unwrap()
         .value;
-    let script = Engine::new().compile("def run(m);m.answer;end").unwrap();
+    let script = Engine::legacy_unchecked()
+        .compile("def run(m);m.answer;end")
+        .unwrap();
     assert!(
         script
             .check_call("run", &[foreign], &CallOptions::default())
@@ -430,7 +432,7 @@ fn static_dispatch_is_metered_interruptible_and_releases_facts() {
 }
 
 pub(super) fn metered(source: &str) {
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     metered_script(&script);
 }
 

@@ -239,7 +239,7 @@ end
             vec![("V0203", "initialize")],
         ),
     ] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         let found: Vec<(String, usize)> = error
             .diagnostics()
             .iter()
@@ -307,7 +307,7 @@ end
     assert_eq!(effects.load(Ordering::Relaxed), 0);
     // A value of the wrong type is refused before running.
     let source = "class Record\n  getter count: int\n  def initialize\n    @count = 1\n  end\n  def bad(value: string)\n    @count = value\n  end\nend";
-    let error = common::static_engine().compile(source).err().unwrap();
+    let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0101"]);
     assert_eq!(
         error.diagnostics()[0].span.start,
@@ -363,7 +363,7 @@ end
         let source = format!(
             "class Node\n  property link: Node?\n  def initialize(@link: Node? = nil)\n  end\nend\nclass Other\nend\ndef identity(value: Node) -> Node\n  value\nend\n{call}"
         );
-        let error = common::static_engine().compile(&source).err().unwrap();
+        let error = vibescript::Engine::new().compile(&source).err().unwrap();
         assert_eq!(common::codes(&error), ["V0101"], "{call}");
         assert_eq!(
             error.diagnostics()[0].span.start,
@@ -394,7 +394,7 @@ fn negative_property_paths_preserve_parent_growth_and_enforce_nested_types() {
     );
     // An element of the wrong type is refused before running.
     let bad = source("\"bad\"");
-    let error = common::static_engine().compile(&bad).err().unwrap();
+    let error = vibescript::Engine::new().compile(&bad).err().unwrap();
     assert_eq!(common::codes(&error), ["V0101"]);
     assert_eq!(
         error.diagnostics()[0].span.start,
@@ -445,7 +445,7 @@ end
     assert_eq!(json(&result.value), serde_json::json!([1]));
     // A value of the wrong type is refused before running.
     let source = "class Holder\n  getter values: array<int>\n  def initialize\n    @values = [1]\n  end\n  def bad\n    @values.push(\"wrong\")\n  end\nend";
-    let error = common::static_engine().compile(source).err().unwrap();
+    let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0101"]);
     assert_eq!(
         error.diagnostics()[0].span.start,

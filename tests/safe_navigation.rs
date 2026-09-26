@@ -60,7 +60,7 @@ end
     );
     // The access after an unguarded dot reads the possibly nil result.
     let source = "user: string? = nil\nuser&.upcase.length";
-    let error = common::static_engine().compile(source).err().unwrap();
+    let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0203"]);
     assert_eq!(
         error.diagnostics()[0].span.start,
@@ -410,7 +410,7 @@ end
     );
     // A hash field is indexed, not dotted.
     let source = "row = {name: \"x\"}\nrow.\n  name = \"Ada\"";
-    let error = common::static_engine().compile(source).err().unwrap();
+    let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0415"]);
     assert_eq!(
         error.diagnostics()[0].span.start,
@@ -491,7 +491,7 @@ end
     );
     // Symbols are not numbers, so a range of them is refused.
     for source in [":&..:&", ":&...:&"] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), ["V0101", "V0101"], "{source}");
         assert_eq!(error.diagnostics()[0].span.start, 0, "{source}");
     }

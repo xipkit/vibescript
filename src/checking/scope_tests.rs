@@ -6,7 +6,7 @@ use std::sync::{
 };
 
 fn general(source: &str, clean: bool) {
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     let report = script
         .check_function("run", &CallOptions::default())
         .unwrap();
@@ -81,7 +81,9 @@ fn named_contracts_resolve_after_initializers_and_keep_nominal_identity() {
     ] {
         general(source, clean);
     }
-    let script = Engine::new().compile("def run(x:Missing);x;end").unwrap();
+    let script = Engine::legacy_unchecked()
+        .compile("def run(x:Missing);x;end")
+        .unwrap();
     let report = script
         .check_function("run", &CallOptions::default())
         .unwrap();
@@ -118,7 +120,7 @@ fn general_checks_follow_callees_but_keep_unrelated_code_outside_the_scope() {
     );
     general("def run(n:int);[1,2].each{|i| n+=i};n;end", true);
     general("def run(n:int);[1].each{|i| n=false};n;end", false);
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("def run(flag:bool)->int;if flag;7;else;false;end;end")
         .unwrap();
     assert!(
@@ -133,7 +135,9 @@ fn general_checks_follow_callees_but_keep_unrelated_code_outside_the_scope() {
             .unwrap()
             .is_clean()
     );
-    let script = Engine::new().compile("def run(x:int=false);x;end").unwrap();
+    let script = Engine::legacy_unchecked()
+        .compile("def run(x:int=false);x;end")
+        .unwrap();
     assert!(
         script
             .check_call("run", &[Value::int(7)], &CallOptions::default())
@@ -156,7 +160,7 @@ fn general_checks_model_arrays_instances_and_loop_allocations() {
         true,
     );
     let source = "class C;end;def run(n:int);for i in 1..n;C.new;end;end";
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     let report = script
         .check_function("run", &CallOptions::default())
         .unwrap();
@@ -177,7 +181,7 @@ fn general_analysis_never_executes_defaults_initializers_callbacks_or_writers() 
         accepts_block: false,
     })
     .unwrap();
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register_method("tick", method);
     let count = effects.clone();
     engine.set_output_writer(move |_, _| {
@@ -204,7 +208,7 @@ fn general_analysis_never_executes_defaults_initializers_callbacks_or_writers() 
 }
 
 pub(super) fn top(source: &str, expected: &str, issues: bool) {
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     let options = CallOptions::default();
     let mut ctx = CallContext::new(options.clone());
     let mut checked = entry::check(
@@ -294,7 +298,7 @@ fn top_level_namespaces_initialize_in_source_order() {
 #[test]
 fn named_calls_keep_their_preinitialization_and_entry_shape_order() {
     let source = "M.value+1;module M;@@n=7;def self.value;@@n;end;end;def run;M.value+1;end";
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     let report = script
         .check_call("__main__", &[], &CallOptions::default())
         .unwrap();
@@ -315,7 +319,9 @@ fn named_calls_keep_their_preinitialization_and_entry_shape_order() {
             .as_int(),
         Some(8)
     );
-    let script = Engine::new().compile("module M;false+true;end").unwrap();
+    let script = Engine::legacy_unchecked()
+        .compile("module M;false+true;end")
+        .unwrap();
     let report = script
         .check_call("__main__", &[Value::int(7)], &CallOptions::default())
         .unwrap();
@@ -332,7 +338,7 @@ fn named_calls_keep_their_preinitialization_and_entry_shape_order() {
 
 #[test]
 fn general_analysis_is_metered_interruptible_and_releases_temporary_state() {
-    let script=Engine::new().compile("enum E;a;b;end;module M;Math.store(:State,E);end;def run(xs:array<Math.State>,n:int=2)->array<E>;if n>0;run(xs,n-1);else;xs;end;end").unwrap();
+    let script=Engine::legacy_unchecked().compile("enum E;a;b;end;module M;Math.store(:State,E);end;def run(xs:array<Math.State>,n:int=2)->array<E>;if n>0;run(xs,n-1);else;xs;end;end").unwrap();
     let options = CallOptions::default();
     let mut ctx = CallContext::new(options.clone());
     let checked = entry::check_function(&mut ctx, &script, "run", &options).unwrap();

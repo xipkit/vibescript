@@ -59,12 +59,10 @@ pub fn runtime_engine() -> vibescript::Engine {
 }
 
 /// An engine for tests of the gradual checker (`Script::check` and its
-/// relatives), which reads the ADR-004 language until it is removed, so it
-/// does not type check statically even when the build forces static types.
+/// relatives), which reads the ADR-004 language until it is removed with
+/// the escape hatch it needs.
 pub fn gradual_engine() -> vibescript::Engine {
-    let mut engine = vibescript::Engine::new();
-    engine.set_static_types(false);
-    engine
+    vibescript::Engine::legacy_unchecked()
 }
 
 /// An engine that type checks statically whatever the build's default, for
@@ -85,29 +83,26 @@ pub fn codes(error: &vibescript::Error) -> Vec<String> {
         .collect()
 }
 
-/// An engine for a fixture case. When the case records the static
-/// diagnostic its program draws, this checks that the program is refused
-/// with that code and returns an engine without static types, so the case's
-/// runtime result can still be compared; otherwise it returns the default
-/// engine.
+/// An engine for a fixture case, or `None` for a case whose program must
+/// fail to compile with the static diagnostic it records, which this checks.
 pub fn fixture_engine(
     static_error: Option<&serde_json::Value>,
     source: &str,
     name: &str,
-) -> vibescript::Engine {
-    let mut engine = vibescript::Engine::new();
-    if let Some(expected) = static_error {
-        let error = static_engine()
-            .compile(source)
-            .err()
-            .unwrap_or_else(|| panic!("{name}: compiled with static types"));
-        let first = error
-            .diagnostics()
-            .iter()
-            .find(|diagnostic| diagnostic.is_error())
-            .unwrap_or_else(|| panic!("{name}: {error}"));
-        assert_eq!(first.code.to_string(), expected["code"], "{name}");
-        engine.set_static_types(false);
-    }
-    engine
+) -> Option<vibescript::Engine> {
+    let engine = vibescript::Engine::new();
+    let Some(expected) = static_error else {
+        return Some(engine);
+    };
+    let error = engine
+        .compile(source)
+        .err()
+        .unwrap_or_else(|| panic!("{name}: compiled with static types"));
+    let first = error
+        .diagnostics()
+        .iter()
+        .find(|diagnostic| diagnostic.is_error())
+        .unwrap_or_else(|| panic!("{name}: {error}"));
+    assert_eq!(first.code.to_string(), expected["code"], "{name}");
+    None
 }

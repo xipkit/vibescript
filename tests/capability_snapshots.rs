@@ -102,7 +102,7 @@ const SOURCE: &str = "
 
 #[test]
 fn static_types_refuse_calling_the_capability_data() {
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine.declare_capability(&capability(capture())).unwrap();
     let source = "snapshots=cap.capture { cap.data[\"node\"].bump }";
     let error = engine.compile(source).err().unwrap();

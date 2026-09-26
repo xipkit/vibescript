@@ -15,7 +15,7 @@ fn check(ctx: &mut CallContext, script: &Script, options: &CallOptions, all: boo
 
 #[test]
 fn foreign_input_domains_and_constructor_jobs_obey_limits_and_release_storage() {
-    let source = Engine::new()
+    let source = Engine::legacy_unchecked()
         .compile("class Box;property n:int;def initialize(n:int=7);@n=n;end;def answer;7;end;end;def klass;Box;end")
         .unwrap();
     let class = source
@@ -26,7 +26,7 @@ fn foreign_input_domains_and_constructor_jobs_obey_limits_and_release_storage() 
         globals: [("Foreign".into(), class)].into(),
         ..Default::default()
     };
-    let receiver = Engine::new().compile("def run(x:Foreign,others:array<Foreign>)->array<int>;x.n=7;others.map{|item|item.n=7;item.answer};end").unwrap();
+    let receiver = Engine::legacy_unchecked().compile("def run(x:Foreign,others:array<Foreign>)->array<int>;x.n=7;others.map{|item|item.n=7;item.answer};end").unwrap();
     for all in [false, true] {
         let mut ctx = CallContext::new(options.clone());
         check(&mut ctx, &receiver, &options, all).unwrap();

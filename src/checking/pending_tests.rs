@@ -292,7 +292,7 @@ fn pending_callback_analysis_keeps_cancellation_and_deadlines_latched() {
 
 #[test]
 fn callback_address_facts_cover_parent_mutation_routes() {
-    let engine = crate::Engine::new();
+    let engine = crate::Engine::legacy_unchecked();
     let mut cases = 0;
     for root in ["[[1],[2]]", "[[1],[1]]", "[[],[1]]"] {
         for selected in ["0", "1", "-1"] {

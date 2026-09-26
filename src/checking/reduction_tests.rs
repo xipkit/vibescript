@@ -336,7 +336,7 @@ fn range_predicates_and_deep_reducers_stay_bounded_on_the_default_stack() {
     assert_eq!(result.returns, facts.integer(&mut ctx, 0).unwrap());
     drop((result, facts));
     assert_eq!(ctx.stats().retained_memory_bytes, 0);
-    let error = crate::Engine::new()
+    let error = crate::Engine::legacy_unchecked()
         .compile(source)
         .unwrap()
         .call(

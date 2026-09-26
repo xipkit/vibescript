@@ -164,7 +164,7 @@ const RUNTIME: u8 = 1 << crate::ErrorClass::Runtime as u8;
 /// belong to `throws`, and each predicted path must be reached by some input.
 fn lookup_paths(source: &str, inputs: &[Vec<Value>], throws: u8, returns: bool) {
     use super::relation::Relation;
-    let script = crate::Engine::new()
+    let script = crate::Engine::legacy_unchecked()
         .compile(source)
         .unwrap_or_else(|e| panic!("{source}: {e}"));
     let mut ctx = CallContext::new(CallOptions::default());

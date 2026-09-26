@@ -16,7 +16,7 @@ fn budget() -> CallOptions {
 
 /// Checks a whole file within the budget and requires complete analysis.
 fn converged(source: &str) -> CheckReport {
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile(source)
         .unwrap_or_else(|error| panic!("{source}: {error}"));
     let report = script
@@ -30,7 +30,7 @@ fn converged(source: &str) -> CheckReport {
 fn witnessed(source: &str, clean: bool) {
     let report = converged(source);
     assert_eq!(report.is_clean(), clean, "{source}: {report:?}");
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     let executed = script.call("run", &[Value::int(3)], CallOptions::default());
     assert_eq!(executed.is_ok(), clean, "{source}: {executed:?}");
 }
@@ -474,7 +474,7 @@ fn growing_facts_converge_in_loops_blocks_and_recursion() {
                 context.replace("INIT", init).replace("STEP", step)
             );
             converged(&source);
-            let script = Engine::new().compile(&source).unwrap();
+            let script = Engine::legacy_unchecked().compile(&source).unwrap();
             let executed = script.call("run", &[Value::int(3)], CallOptions::default());
             assert!(executed.is_ok(), "{source}: {executed:?}");
         }

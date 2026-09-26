@@ -10,7 +10,7 @@ fn witness(source: &str, args: &[Value], expected: &str) {
 }
 
 fn witness_checked(source: &str, args: &[Value], expected: &str, rejected: bool) {
-    let actual = Engine::new()
+    let actual = Engine::legacy_unchecked()
         .compile(source)
         .unwrap_or_else(|error| panic!("{source}: {error}"))
         .call("run", args, CallOptions::default())
@@ -278,7 +278,7 @@ fn escaping_error_summaries_retain_runtime_classes_after_cleanup() {
             ErrorClass::Limit,
         ),
     ] {
-        let error = Engine::new()
+        let error = Engine::legacy_unchecked()
             .compile(source)
             .unwrap()
             .call("run", &[], CallOptions::default())
@@ -331,7 +331,7 @@ fn nested_error_and_control_combinations_include_runtime_values() {
                 let source = format!(
                     "def run; trace=[]; result=begin; for n in [1]; begin; trace.push(1); {body}; rescue {filter}; trace.push(2); 8; ensure; trace.push(3); {cleanup}; end; end; rescue RuntimeError => e; [e.type,trace]; end; [result,trace]; end"
                 );
-                let actual = Engine::new()
+                let actual = Engine::legacy_unchecked()
                     .compile(&source)
                     .unwrap()
                     .call("run", &[], CallOptions::default())
@@ -449,7 +449,7 @@ fn host_failure_paths_are_analyzed_without_running_callbacks_or_validators() {
             accepts_block: false,
         })
         .unwrap();
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register_method("host", method.clone());
     let script = engine.compile("def run -> int; begin; host(); rescue RuntimeError => e; if e.type == \"TypeError\"; 7; else; 9; end; ensure; 1; end; end").unwrap();
     let program = &script.inner.code.program;

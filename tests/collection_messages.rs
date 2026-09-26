@@ -35,7 +35,7 @@ fn runtime_message(body: &str) -> String {
 /// The code of the first diagnostic that refuses `source` at compile time,
 /// and the text it points at.
 fn refusal(source: &str) -> (String, String) {
-    let error = common::static_engine()
+    let error = vibescript::Engine::new()
         .compile(source)
         .err()
         .unwrap_or_else(|| panic!("{source} compiled"));

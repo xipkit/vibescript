@@ -11,7 +11,10 @@ fn typed_results_preserve_exact_data_and_type_distinctions() {
     let cases: Vec<Json> = serde_json::from_str(include_str!("encoding-cases.json")).unwrap();
     for case in cases {
         let source = case["source"].as_str().unwrap();
-        let result = common::fixture_engine(case.get("static_error"), source, source)
+        let Some(engine) = common::fixture_engine(case.get("static_error"), source, source) else {
+            continue;
+        };
+        let result = engine
             .compile(source)
             .unwrap_or_else(|error| panic!("{source}: {error}"))
             .call("run", &[Value::nil()], CallOptions::default())
@@ -88,7 +91,7 @@ fn notification_previews_use_explicit_grants_and_validate_inputs() {
             ("false, false", two_booleans),
             ("a: 1", &["V0301", "V0302"]),
         ] {
-            let mut engine = common::static_engine();
+            let mut engine = vibescript::Engine::new();
             engine
                 .declare_capability(&support::notification(name).unwrap())
                 .unwrap();

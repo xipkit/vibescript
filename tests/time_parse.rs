@@ -287,7 +287,7 @@ fn aliases_parse_and_exhaustion_stops_before_host_effects() {
     assert_eq!(effects.load(Ordering::SeqCst), 0);
     // The parser read as a value, a block it never takes and arguments of
     // the wrong type are refused before anything runs.
-    let mut checked = common::static_engine();
+    let mut checked = vibescript::Engine::new();
     checked.register("effect", |_, _| panic!("effect ran"));
     for (source, expected) in [
         (

@@ -7,7 +7,7 @@ use crate::{CallContext, CallOptions, Engine, ErrorKind, Limits, Result, Value, 
 #[test]
 fn uncertain_replacement_sources_do_not_lose_possible_protection() {
     let source = "def sample; /(a)/.match(\"a\"); end; def run(input:hash); Math.replace(input); begin; Math.clear; 7; rescue; 9; end; end";
-    let protected = Engine::new()
+    let protected = Engine::legacy_unchecked()
         .compile(source)
         .unwrap()
         .call("sample", &[], CallOptions::default())

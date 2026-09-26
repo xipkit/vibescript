@@ -30,7 +30,7 @@ fn equality_receiver_uncertainty_does_not_become_native_identity() {
         .choice(&mut ctx, &[instance, Atom::Any.fact()])
         .unwrap();
     assert!(matches!(facts.node(choice), Node::Choice(_)));
-    let enumeration = crate::Engine::new()
+    let enumeration = crate::Engine::legacy_unchecked()
         .compile("enum E; A; end; E")
         .unwrap()
         .run(CallOptions::default())
@@ -568,7 +568,7 @@ fn flow_reference_decisions_keep_documented_control_semantics() {
             assert!(!case["difference"].as_str().unwrap().is_empty());
             let calls = case["calls"].as_array().unwrap();
             assert!(!calls.is_empty());
-            let script = crate::Engine::new().compile(source).unwrap();
+            let script = crate::Engine::legacy_unchecked().compile(source).unwrap();
             for call in calls {
                 let args: Vec<_> = call["args"]
                     .as_array()

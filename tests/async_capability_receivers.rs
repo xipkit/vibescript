@@ -89,8 +89,8 @@ fn declaring() -> Engine {
 /// type: indexing the capability or writing its data, `send`, and methods
 /// of an inner object, which the declaration types as plain data.
 fn untyped() -> Engine {
-    let mut engine = Engine::new();
-    engine.set_static_types(false);
+    let mut engine = Engine::legacy_unchecked();
+
     engine
 }
 

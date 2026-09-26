@@ -166,7 +166,7 @@ fn absent_declaring_bindings_stay_local_and_named_calls_skip_top_level_state() {
         "[7, 7]",
         false,
     );
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("x=7;module M;Result=x;end;def run;M::Result;end")
         .unwrap();
     assert!(
@@ -226,7 +226,7 @@ fn ambient_host_blocks_keep_sticky_breaks_without_analysis_effects() {
     })
     .unwrap();
     let driver = Value::object(vec![(b"visit".to_vec(), method.value())]);
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile(
             "items=[];module M;Result=driver.visit{items.push(1);break 7};end;[items,M::Result]",
         )
@@ -269,7 +269,7 @@ fn ambient_views_keep_supplied_roots_lazy_and_isolated() {
         },
         ..CallOptions::default()
     };
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("y=7;module M;x.push(y);end;x")
         .unwrap();
     for _ in 0..2 {
@@ -291,7 +291,7 @@ fn ambient_capture_analysis_obeys_quotas_cancellation_and_cleanup() {
         "x=1;module M;begin;x=7;raise 'x';rescue;x+=1;ensure;x+=2;end;end;x",
         "x=[1];module M;Result=x+x.push(2);end;[x,M::Result]",
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = Engine::legacy_unchecked().compile(source).unwrap();
         let options = CallOptions::default();
         let mut ctx = CallContext::new(options.clone());
         let checked = check(&mut ctx, &script, &options).unwrap();

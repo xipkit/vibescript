@@ -8,7 +8,7 @@ use vibescript::{CallOptions, Engine, ErrorKind, HostMethod, Limits, Signature, 
 
 /// The code and offset of each static diagnostic that refuses `source`.
 fn refused(source: &str) -> Vec<(String, usize)> {
-    let error = common::static_engine()
+    let error = vibescript::Engine::new()
         .compile(source)
         .err()
         .unwrap_or_else(|| panic!("{source} compiled"));
@@ -387,7 +387,7 @@ fn invalid_builtin_calls_fail_before_later_effects_and_do_not_invoke_blocks() {
         assert_eq!(effects.load(Ordering::SeqCst), 0, "{expression}");
     }
     // Calls whose shape is wrong are refused before anything runs.
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine.register("effect", |_, _| panic!("effect ran"));
     for (expression, code, text) in [
         ("to_float(:one)", "V0101", ":one"),

@@ -171,7 +171,7 @@ fn global_effects_preserve_conditional_paths() {
 fn global_contexts_distinguish_call_inputs_and_reset_between_invocations() {
     let source = "def add; Math+=1; end; def run; Math=1; first=add; Math=10; second=add; [first,second,Math]; end";
     witness(source, &[], "[2, 11, 11]", false);
-    let script = crate::Engine::new().compile(source).unwrap();
+    let script = crate::Engine::legacy_unchecked().compile(source).unwrap();
     for _ in 0..3 {
         assert_eq!(
             script

@@ -7,7 +7,7 @@ use crate::{CallContext, CallOptions, Engine};
 use std::sync::Arc;
 
 fn witness(source: &str, warnings: bool) {
-    let actual = Engine::new()
+    let actual = Engine::legacy_unchecked()
         .compile(source)
         .unwrap_or_else(|e| panic!("{source}: {e}"))
         .call("run", &[], CallOptions::default());
@@ -356,7 +356,7 @@ fn direct_capture_writes_and_exit_values_remain_exact() {
         "def once; begin; yield; ensure; return 9; end; end; def run; x=0; result=once {x=7; return 2}; [x,result]; end",
         "def once; yield; end; def run; a=[1]; a.push(once {a; 7}); a; end",
     ] {
-        let actual = Engine::new()
+        let actual = Engine::legacy_unchecked()
             .compile(source)
             .unwrap()
             .call("run", &[], CallOptions::default())

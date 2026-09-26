@@ -285,7 +285,7 @@ fn checked_expression(expression: &str) {
     let source = format!(
         "{SOURCE} def run; begin; value=({expression}); value.nil?; \"ok\"; rescue; \"error\"; end; end"
     );
-    let actual = Engine::new()
+    let actual = Engine::legacy_unchecked()
         .compile(&source)
         .unwrap_or_else(|e| panic!("{source}: {e}"))
         .call("run", &[], CallOptions::default())
@@ -451,7 +451,7 @@ fn resolved_enum_contracts_keep_members_across_script_boundaries() {
             "{SOURCE} def echo(x:{ty}) -> {ty}; x; end; def run; echo(Status::Draft).symbol; end"
         );
         let program = bytecode::compile(&source, Vec::new(), &()).unwrap();
-        let actual = Engine::new()
+        let actual = Engine::legacy_unchecked()
             .compile(&source)
             .unwrap()
             .call("run", &[], CallOptions::default())

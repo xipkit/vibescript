@@ -52,7 +52,7 @@ fn static_types_refuse_dynamic_namespace_access() {
             "f;end",
         ),
     ] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error)[0], code, "{source}");
         assert_eq!(
             error.diagnostics()[0].span.start,

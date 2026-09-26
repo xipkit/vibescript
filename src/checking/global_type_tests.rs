@@ -293,7 +293,7 @@ fn live_resolution_preserves_the_owner_of_source_class_contracts() {
         "def once(x); yield(x); end; def run(x:Widget); once(x) {|item:Widget| item}; end",
     ] {
         let source = format!("class Widget; end; {body}");
-        let script = Engine::new().compile(&source).unwrap();
+        let script = Engine::legacy_unchecked().compile(&source).unwrap();
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
         let owner = facts
@@ -367,7 +367,7 @@ fn uncertain_namespace_provenance_does_not_invent_a_qualified_type() {
             vec![(Value::hash(vec![(b"State".to_vec(), Value::nil())]), "99")],
         ),
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = Engine::legacy_unchecked().compile(source).unwrap();
         for (input, expected) in examples {
             let value = script
                 .call("run", &[input], CallOptions::default())

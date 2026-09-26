@@ -110,7 +110,7 @@ fn writers_are_required_even_for_empty_calls_and_validation_precedes_rendering()
                 },
             ),
         ] {
-            let mut engine = common::static_engine();
+            let mut engine = vibescript::Engine::new();
             engine.register("argument", |_, _| panic!("argument ran"));
             let source = format!(
                 "class C\ndef to_s -> string\nraise \"render ran\"\nend\nend\n{method}{tail}"
@@ -174,7 +174,7 @@ fn output_helpers_read_without_arguments_write_at_once_and_cannot_escape() {
                 "send",
             ),
         ] {
-            let mut engine = common::static_engine();
+            let mut engine = vibescript::Engine::new();
             engine.register("effect", |_, _| panic!("effect ran"));
             let error = engine.compile(&source).err().unwrap();
             assert_eq!(common::codes(&error), codes, "{source}");
@@ -211,7 +211,7 @@ end",
     assert!(bytes(&stderr).is_empty());
     // A helper takes no block, so one is refused before anything runs.
     for (source, code) in [("puts { 1 }", "V0305"), ("p {\n}", "V0301")] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), [code], "{source}");
     }
     let error = Engine::new()

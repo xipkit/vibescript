@@ -29,7 +29,7 @@ fn rejects(cases: &[(&str, ErrorClass, &str)]) {
 /// diagnostic having the code and pointing at the text given.
 fn refuses(cases: &[(&str, &str, &str)]) {
     for (source, code, text) in cases {
-        let error = common::static_engine()
+        let error = vibescript::Engine::new()
             .compile(source)
             .err()
             .unwrap_or_else(|| panic!("{source} compiled"));

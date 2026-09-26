@@ -31,7 +31,7 @@ fn check(source: &str, rejected: bool) {
 }
 
 pub(super) fn inferred_runtime(source: &str, args: &[Value], rejected: bool) -> Value {
-    let actual = crate::Engine::new()
+    let actual = crate::Engine::legacy_unchecked()
         .compile(source)
         .unwrap()
         .call("run", args, CallOptions::default())
@@ -636,11 +636,14 @@ fn iteration_reference_decisions_and_syntax_differences_keep_runtime_witnesses()
             CallOptions::default(),
         )
         .unwrap();
-        let actual = crate::Engine::new().compile(source).unwrap().call(
-            "run",
-            args.value.as_array().unwrap(),
-            CallOptions::default(),
-        );
+        let actual = crate::Engine::legacy_unchecked()
+            .compile(source)
+            .unwrap()
+            .call(
+                "run",
+                args.value.as_array().unwrap(),
+                CallOptions::default(),
+            );
         if let Some(error) = case["runtime"]["error"].as_str() {
             assert_eq!(error, "type");
             assert_eq!(actual.unwrap_err().kind, ErrorKind::Type, "{source}");

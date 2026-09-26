@@ -15,7 +15,7 @@ use std::sync::{
 };
 
 fn value(source: &str) -> Value {
-    Engine::new()
+    Engine::legacy_unchecked()
         .compile(source)
         .unwrap()
         .run(CallOptions::default())
@@ -98,7 +98,7 @@ fn deep() -> Value {
 fn unused_and_overwritten_large_globals_keep_lazy_accounting() {
     let huge = Value::array(vec![Value::bytes(vec![b'x'; 1024]); 512]);
     for strict in [false, true] {
-        let mut engine = Engine::new();
+        let mut engine = Engine::legacy_unchecked();
         engine.set_strict_effects(strict);
         for body in [
             "7",
@@ -133,7 +133,9 @@ fn unused_and_overwritten_large_globals_keep_lazy_accounting() {
 
 #[test]
 fn a_reachable_large_global_read_still_exhausts_memory() {
-    let script = Engine::new().compile("def run;big;end").unwrap();
+    let script = Engine::legacy_unchecked()
+        .compile("def run;big;end")
+        .unwrap();
     let mut options = options("big", Value::bytes(vec![b'x'; 128 << 10]));
     options.limits.memory_bytes = Some(48 << 10);
     let mut ctx = CallContext::new(options.clone());
@@ -160,7 +162,7 @@ fn a_reachable_large_global_read_still_exhausts_memory() {
 #[test]
 fn strict_validation_rejects_unused_effectful_values_before_any_effect() {
     let calls = Arc::new(AtomicUsize::new(0));
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.set_strict_effects(true);
     let count = calls.clone();
     engine.register("effect", move |_, _| {
@@ -215,7 +217,7 @@ fn strict_validation_rejects_unused_effectful_values_before_any_effect() {
 
 #[test]
 fn strict_data_values_and_maximum_depth_shared_graphs_are_accepted() {
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.set_strict_effects(true);
     let script = engine.compile("def run;7;end").unwrap();
     let mut shared = Value::int(1);
@@ -252,7 +254,7 @@ fn unused_invalid_inputs_stay_unread_and_import_errors_are_catchable() {
     let namespace = value("class C;end;C");
     for input in [deep(), namespace] {
         for body in ["7", "unused=7;unused", "if false;unused;end;7"] {
-            let script = Engine::new()
+            let script = Engine::legacy_unchecked()
                 .compile(&format!("def run;{body};end"))
                 .unwrap();
             witness(
@@ -269,7 +271,7 @@ fn unused_invalid_inputs_stay_unread_and_import_errors_are_catchable() {
         "begin;unused;rescue LimitError;9;end",
         "begin;unused.length;rescue LimitError;9;end",
     ] {
-        let script = Engine::new()
+        let script = Engine::legacy_unchecked()
             .compile(&format!("def run;{body};end"))
             .unwrap();
         witness(&script, &options("unused", deep()), &[], false, "9", false);
@@ -285,7 +287,7 @@ fn root_import_keeps_attached_method_guards_on_the_read_path() {
         ("data=7;data", false),
         ("begin;data;rescue RuntimeError;7;end", true),
     ] {
-        let script = Engine::new()
+        let script = Engine::legacy_unchecked()
             .compile(&format!("def run;{body};end"))
             .unwrap();
         witness(
@@ -307,7 +309,7 @@ fn conditional_writes_preserve_unread_roots_across_calls() {
         "def run(flag);[1].each { if flag;items=[2,3];end };items.length;end",
         "def change(flag);if flag;items=[2,3];end;raise(\"stop\");end;def run(flag);begin;change(flag);rescue;nil;end;items.length;end",
     ] {
-        let script = Engine::new().compile(body).unwrap();
+        let script = Engine::legacy_unchecked().compile(body).unwrap();
         let supplied = options("items", Value::array(vec![Value::int(1)]));
         for (flag, expected) in [(false, "1"), (true, "2")] {
             witness(
@@ -330,7 +332,7 @@ fn blocks_and_pending_addresses_keep_loaded_roots_and_original_elements() {
         ("items[-1] += (begin;items.push(3);2;end);items", "[3, 3]"),
         ("copy=items;items.push(2);[copy,items]", "[[1], [1, 2]]"),
     ] {
-        let script = Engine::new()
+        let script = Engine::legacy_unchecked()
             .compile(&format!("def run;{body};end"))
             .unwrap();
         witness(
@@ -354,7 +356,7 @@ fn lazy_host_targets_are_selected_before_argument_rebinding() {
     })
     .with_signature(signature(Some(("int", false)), "int", false))
     .unwrap();
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("def run;send(begin;send=nil;7;end);end")
         .unwrap();
     witness(
@@ -381,7 +383,7 @@ fn script_contracts_load_only_the_selected_type_roots() {
         ),
         ("enum State;Ready;end;", "State", "state", deep()),
     ] {
-        let script = Engine::new()
+        let script = Engine::legacy_unchecked()
             .compile(&format!(
                 "{declarations}def pick(x:{ty})->{ty};x;end;def run;pick(:ready).name;end"
             ))
@@ -395,7 +397,7 @@ fn script_contracts_load_only_the_selected_type_roots() {
 #[test]
 fn host_contracts_resolve_lazy_aliases_and_skip_unused_optional_types() {
     let enumeration = value("enum State;Ready;end;State");
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register_method(
         "echo",
         HostMethod::new("echo", |_, args, _| Ok(args[0].clone()))
@@ -418,7 +420,7 @@ fn host_contracts_resolve_lazy_aliases_and_skip_unused_optional_types() {
 
 #[test]
 fn type_root_import_failures_reach_the_correct_rescue() {
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register_method(
         "echo",
         HostMethod::new("echo", |_, _, _| {
@@ -449,7 +451,7 @@ fn type_root_import_failures_reach_the_correct_rescue() {
 
 #[test]
 fn the_first_type_binding_error_precedes_later_input_imports() {
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register_method(
         "echo",
         HostMethod::new("echo", |_, _, _| panic!("invalid type reached callback"))
@@ -475,7 +477,7 @@ fn stale_host_grants_fail_before_lazy_named_type_loading() {
     drop(old);
     let mut supplied = options("send", bound);
     supplied.globals.insert("Alias".into(), deep());
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("def run;begin;send(1);rescue RuntimeError;9;end;end")
         .unwrap();
     witness(&script, &supplied, &[], false, "9", true);
@@ -493,7 +495,7 @@ fn accounting_work(ctx: &mut CallContext, script: &Script, options: &CallOptions
 
 #[test]
 fn deferred_type_and_value_loading_obey_exact_and_sampled_quotas() {
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.set_strict_effects(true);
     engine.register_method(
         "echo",
@@ -573,7 +575,7 @@ fn deferred_type_and_value_loading_obey_exact_and_sampled_quotas() {
 #[test]
 fn strict_preparation_and_lazy_reads_preserve_cancellation_and_deadlines() {
     for strict in [false, true] {
-        let mut engine = Engine::new();
+        let mut engine = Engine::legacy_unchecked();
         engine.set_strict_effects(strict);
         let script = engine.compile("def run;items.length;end").unwrap();
         let supplied = options("items", Value::array(vec![Value::int(1)]));

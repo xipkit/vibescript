@@ -52,7 +52,7 @@ fn reusable_literals_validate_json_and_preserve_collection_values() {
     // Empty braces are a hash, not a shape: the checker refuses them as a
     // schema (V0101), and without static types so does the runtime.
     let source = "JSON.parse_as(\"invalid\",{})";
-    let error = common::static_engine().compile(source).err().unwrap();
+    let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0101"]);
     let error = common::gradual_engine()
         .compile(source)
@@ -70,7 +70,7 @@ fn reusable_literals_validate_json_and_preserve_collection_values() {
         ErrorKind::Json
     );
     // The text must be a string, which is checked before running now.
-    let error = common::static_engine()
+    let error = vibescript::Engine::new()
         .compile("JSON.parse_as(:invalid,int)")
         .err()
         .unwrap();
@@ -123,7 +123,7 @@ fn literal_fallback_uses_bound_names_and_current_lexical_scopes() {
     // A local assigned on one path only cannot be read, so it no longer
     // falls back to the type.
     let source = format!("{IDENTITY}if false;int=7;end;\"#{{identity(int)}}\"");
-    let error = common::static_engine().compile(&source).err().unwrap();
+    let error = vibescript::Engine::new().compile(&source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0202"]);
     assert_eq!(
         error.diagnostics()[0].span.start,
@@ -272,7 +272,7 @@ fn hosts_can_retain_import_and_reuse_types_after_the_script_is_dropped() {
 fn identity_method_blocks_are_rejected_before_host_effects() {
     let calls = Arc::new(AtomicUsize::new(0));
     let counter = calls.clone();
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine.register("mark", move |_, _| {
         counter.fetch_add(1, Ordering::Relaxed);
         Ok(Value::nil())

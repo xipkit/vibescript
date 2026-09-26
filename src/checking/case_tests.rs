@@ -33,7 +33,7 @@ fn check(source: &str, rejected: bool) {
 }
 
 fn witness(source: &str, args: &[Value], expected: &str) {
-    let actual = crate::Engine::new()
+    let actual = crate::Engine::legacy_unchecked()
         .compile(source)
         .unwrap()
         .call("run", args, CallOptions::default())
@@ -678,11 +678,14 @@ fn case_reference_decisions_keep_runtime_witnesses_and_precision_limits() {
             CallOptions::default(),
         )
         .unwrap();
-        let actual = crate::Engine::new().compile(source).unwrap().call(
-            "run",
-            args.value.as_array().unwrap(),
-            CallOptions::default(),
-        );
+        let actual = crate::Engine::legacy_unchecked()
+            .compile(source)
+            .unwrap()
+            .call(
+                "run",
+                args.value.as_array().unwrap(),
+                CallOptions::default(),
+            );
         if let Some(error) = case["runtime"]["error"].as_str() {
             assert_eq!(
                 actual.unwrap_err().kind,

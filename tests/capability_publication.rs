@@ -139,7 +139,7 @@ fn published_fields_are_visible_to_later_script_reads() {
 
 #[test]
 fn static_programs_see_publications_through_capability_methods() {
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine
         .declare_capability(&Capability::from_value("cap", Value::object(fields())))
         .unwrap();

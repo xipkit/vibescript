@@ -843,7 +843,7 @@ fn compiler_bindings_preserve_shadowing_calls_and_internal_slot_names() {
             "[3]",
         ),
     ] {
-        run(crate::test_engine(), source, expected);
+        run(crate::Engine::new(), source, expected);
     }
     // A rescue binding that shadows a parameter, and locals named like the
     // functions they call, have no static types: the checker types the
@@ -858,8 +858,8 @@ fn compiler_bindings_preserve_shadowing_calls_and_internal_slot_names() {
             "[8,8]",
         ),
     ] {
-        let mut engine = crate::Engine::new();
-        engine.set_static_types(false);
+        let mut engine = crate::Engine::legacy_unchecked();
+
         run(engine, source, expected);
     }
 }

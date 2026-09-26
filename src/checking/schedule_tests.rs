@@ -427,7 +427,7 @@ fn large_counts_converge_and_impossible_windows_do_not_allocate_their_width() {
         "def run; [7].cycle {}; missing; end",
         "def run; 9223372036854775807.times {}; missing; end",
     ] {
-        let error = crate::Engine::new()
+        let error = crate::Engine::legacy_unchecked()
             .compile(source)
             .unwrap()
             .call(

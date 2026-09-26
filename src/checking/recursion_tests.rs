@@ -22,11 +22,10 @@ fn check(source: &str, rejected: bool) {
         result.contexts
     );
     if !rejected {
-        let actual =
-            crate::Engine::new()
-                .compile(source)
-                .unwrap()
-                .call("run", &[], CallOptions::default());
+        let actual = crate::Engine::legacy_unchecked()
+            .compile(source)
+            .unwrap()
+            .call("run", &[], CallOptions::default());
         match actual {
             Ok(actual) => {
                 let actual = literal_fact(&mut ctx, &mut facts, &actual.value);
@@ -103,7 +102,7 @@ fn shared_cached_contexts_close_recursive_return_cycles() {
         "recursive contexts did not stay bounded: {}",
         result.contexts
     );
-    let script = crate::Engine::new().compile(source).unwrap();
+    let script = crate::Engine::legacy_unchecked().compile(source).unwrap();
     for choose in [false, true] {
         let actual = script
             .call(
@@ -141,7 +140,7 @@ fn long_recursive_call_paths_use_metered_iterative_graph_search() {
     assert!(result.issues.data.is_empty(), "{result:?}");
     assert!(result.incomplete.data.is_empty());
     assert_eq!(result.contexts, 201);
-    let actual = crate::Engine::new()
+    let actual = crate::Engine::legacy_unchecked()
         .compile(&source)
         .unwrap()
         .call("run", &[], CallOptions::default())
@@ -222,7 +221,7 @@ fn recursive_returns_keep_known_bad_arms_and_unreachable_tails_separate() {
         drop((result, facts));
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
         assert_eq!(
-            crate::Engine::new()
+            crate::Engine::legacy_unchecked()
                 .compile(source)
                 .unwrap()
                 .call("run", &[], CallOptions::default())
@@ -366,11 +365,10 @@ fn recursive_reference_decisions_and_unresolved_cases_keep_runtime_witnesses() {
             .flatten()
             .map(|value| crate::Value::int(value.as_i64().unwrap()))
             .collect();
-        let actual = crate::Engine::new().compile(source).unwrap().call(
-            "run",
-            &args,
-            CallOptions::default(),
-        );
+        let actual = crate::Engine::legacy_unchecked()
+            .compile(source)
+            .unwrap()
+            .call("run", &args, CallOptions::default());
         if let Some(error) = case["runtime"]["error"].as_str() {
             assert_eq!(
                 actual.unwrap_err().kind,

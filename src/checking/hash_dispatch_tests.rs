@@ -36,7 +36,7 @@ fn check(source: &str, rejected: bool) {
 }
 
 fn runtime_error(source: &str, args: &[Value]) -> String {
-    Engine::new()
+    Engine::legacy_unchecked()
         .compile(source)
         .unwrap()
         .call("run", args, CallOptions::default())
@@ -292,7 +292,7 @@ fn known_collisions_and_misses_remain_diagnostics() {
     );
     // The scope provenance split is exact: a matching object namespace passes.
     check("def run(h:{a:int})->int;h::a;end", true);
-    let outcome = Engine::new()
+    let outcome = Engine::legacy_unchecked()
         .compile("def run(h:{a:int})->int;h::a;end")
         .unwrap()
         .call("run", &[object()], CallOptions::default())
@@ -374,7 +374,7 @@ fn general_hash_members_keep_the_declared_value_type_when_present() {
             let error = runtime_error(source, std::slice::from_ref(input));
             assert!(error.contains("expected string"), "{source}: {error}");
         }
-        let script = Engine::new().compile(source).unwrap();
+        let script = Engine::legacy_unchecked().compile(source).unwrap();
         let missing = both();
         for (input, absent) in present
             .iter()
@@ -474,7 +474,7 @@ fn callable_overrides_are_analyzed_without_executing_callbacks() {
         ] {
             let counter = Arc::new(AtomicUsize::new(0));
             let input = counting_object(&counter, rounds);
-            let script = Engine::new().compile(source).unwrap();
+            let script = Engine::legacy_unchecked().compile(source).unwrap();
             let options = CallOptions::default();
             let exact = script
                 .check_call("run", std::slice::from_ref(&input), &options)

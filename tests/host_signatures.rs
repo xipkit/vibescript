@@ -56,7 +56,7 @@ fn engine(method: &HostMethod) -> Engine {
 /// the `typed` capability's `echo` is `method`.
 #[track_caller]
 fn refused(method: &HostMethod, source: &str, codes: &[&str], at: &str) {
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine.declare_capability(&capability(method)).unwrap();
     let error = engine.compile(source).err().unwrap();
     assert_eq!(common::codes(&error), codes, "{source}");
@@ -401,7 +401,7 @@ fn registered_methods_keep_compiled_snapshots_and_call_resolution() {
         Some(7)
     );
     // The new signature refuses the old call before it runs.
-    let mut checked = common::static_engine();
+    let mut checked = vibescript::Engine::new();
     checked.register_method("echo", echo("string"));
     let error = checked.compile("echo(7)").err().unwrap();
     assert_eq!(common::codes(&error), ["V0101"]);
@@ -464,7 +464,7 @@ fn typed_methods_work_in_globals_without_regranting_saved_capabilities() {
     // A method value has no static type, so a global holding one cannot be
     // called, and a capability saved from one call cannot be used by name
     // in another: calling a member of an any value is refused.
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine.declare_global("echo", "").unwrap();
     let error = engine.compile("echo(7)").err().unwrap();
     assert_eq!(common::codes(&error), ["V0310"]);

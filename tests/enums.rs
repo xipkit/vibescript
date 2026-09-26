@@ -28,7 +28,7 @@ fn nominal_values_support_reflection_collections_and_serialization() {
     );
     // A member never equals a symbol, so comparing them is refused.
     let source = format!("{DECLARATIONS}Status::Draft==:draft");
-    let error = common::static_engine().compile(&source).err().unwrap();
+    let error = vibescript::Engine::new().compile(&source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0101"]);
     assert_eq!(
         error.diagnostics()[0].span.start,
@@ -99,7 +99,7 @@ fn declarations_preserve_forward_lookup_shadowing_and_identifier_boundaries() {
         ("Status ||= 1\n", &["V0104"], "Status ||="),
     ] {
         let source = format!("{DECLARATIONS}{body}");
-        let error = common::static_engine().compile(&source).err().unwrap();
+        let error = vibescript::Engine::new().compile(&source).err().unwrap();
         assert_eq!(common::codes(&error), codes, "{body}");
         assert_eq!(
             error.diagnostics()[0].span.start,
@@ -253,7 +253,7 @@ fn unused_declarations_are_lazy_and_repeated_member_storage_is_reclaimed() {
 
 #[test]
 fn calls_of_enums_and_blocks_for_their_members_are_refused() {
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine.register("mark", |_, _| panic!("mark ran"));
     for (expression, code, at) in [
         ("Status(mark())", "V0201", 0),
@@ -368,19 +368,15 @@ fn any_enum_and_its_members_are_annotation_types() {
          mixed: any = [Status::Draft]\n\
          [member(Status::Done), kind(Review), held.length, mixed.as(array<enum_value>).length]"
     );
-    for static_types in [false, true] {
-        let mut engine = Engine::new();
-        engine.set_static_types(static_types);
-        let output = engine
-            .compile(&source)
-            .unwrap_or_else(|error| panic!("{error}"))
-            .run(CallOptions::default())
-            .unwrap();
-        let json = stringify_json(&output.value, CallOptions::default()).unwrap();
-        let value: serde_json::Value =
-            serde_json::from_slice(json.value.as_bytes().unwrap()).unwrap();
-        assert_eq!(value, serde_json::json!(["Done", "Review", 2, 1]));
-    }
+    let mut engine = Engine::new();
+    let output = engine
+        .compile(&source)
+        .unwrap_or_else(|error| panic!("{error}"))
+        .run(CallOptions::default())
+        .unwrap();
+    let json = stringify_json(&output.value, CallOptions::default()).unwrap();
+    let value: serde_json::Value = serde_json::from_slice(json.value.as_bytes().unwrap()).unwrap();
+    assert_eq!(value, serde_json::json!(["Done", "Review", 2, 1]));
     // A host or unchecked caller that passes something else is refused.
     let script = Engine::new()
         .compile(&format!(

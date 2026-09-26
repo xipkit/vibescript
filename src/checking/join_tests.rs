@@ -245,7 +245,7 @@ fn forking_exact_iterations_stay_linear_and_contain_runtime_results() {
                 assert!(steps < previous * 3, "{source}: {previous} then {steps}");
             }
             previous = steps;
-            let actual = crate::Engine::new()
+            let actual = crate::Engine::legacy_unchecked()
                 .compile(&source)
                 .unwrap()
                 .call("run", &[], CallOptions::default())
@@ -274,7 +274,7 @@ fn ordinary_exact_iterations_keep_literal_results() {
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let result = analyze(&mut ctx, &mut facts, &program).unwrap();
-    let actual = crate::Engine::new()
+    let actual = crate::Engine::legacy_unchecked()
         .compile(&source)
         .unwrap()
         .call("run", &[], CallOptions::default())

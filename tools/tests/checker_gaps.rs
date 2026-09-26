@@ -25,7 +25,6 @@ fn fixed(source: &str) -> String {
 /// The value of `run` in `source`, compiled with static types.
 fn run(source: &str) -> String {
     let mut engine = Engine::new();
-    engine.set_static_types(true);
     engine
         .compile(source)
         .unwrap_or_else(|error| panic!("{source}\n{error}"))

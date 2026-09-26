@@ -167,7 +167,7 @@ end
              def []=(row: int, col: int, value: int)\n  end\nend\n\
              grid = Grid.new\ngrid[3, 4] {operator} 7\n"
         );
-        let error = common::static_engine().compile(&source).err().unwrap();
+        let error = vibescript::Engine::new().compile(&source).err().unwrap();
         assert_eq!(common::codes(&error), ["V0104"], "{operator}");
     }
 }

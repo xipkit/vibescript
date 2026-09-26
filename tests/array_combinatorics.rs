@@ -206,7 +206,7 @@ fn float_counts_and_missing_arrays_are_refused() {
         ("[1,2].product", "V0301", "product"),
         ("[].product", "V0301", "product"),
     ] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), [code], "{source}");
         let span = error.diagnostics()[0].span;
         assert_eq!(&source[span.start..span.end], text, "{source}");
@@ -369,7 +369,6 @@ fn invalid_calls_fail_before_entropy_block_or_host_effects() {
     // Keywords, blocks, argument counts and argument types no signature
     // takes are refused before anything runs.
     let (mut strict, reads) = fixed_entropy_engine(0);
-    strict.set_static_types(true);
     strict.register("effect", |_, _| panic!("effect ran"));
     for (expression, expected) in [
         ("[1].sample(k:1)", &["V0301"][..]),

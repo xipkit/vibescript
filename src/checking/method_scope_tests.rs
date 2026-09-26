@@ -2,7 +2,7 @@ use super::entry;
 use crate::{CallContext, CallOptions, Engine, ErrorKind, Limits, Value};
 
 fn check(source: &str, name: &str, clean: bool) {
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     let report = script
         .check_function(name, &CallOptions::default())
         .unwrap();
@@ -77,7 +77,7 @@ fn general_class_parameters_keep_method_results_and_argument_contracts() {
 fn unknown_effects_leave_namespace_constants_bound_or_absent() {
     let source = "class Limit\nend\nclass Holder\n  def self.pick(receiver)\n    receiver.install\n    Limit\n  end\nend\nclass Setter\n  def install\n    Holder.Limit = 5\n  end\nend\nclass Noop\n  def install\n    1\n  end\nend\ndef set\n  Holder.pick(Setter.new)\nend\ndef keep\n  Holder.pick(Noop.new)\nend";
     check(source, "Holder.pick", true);
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     for (name, expected) in [("set", "5"), ("keep", "<Class Limit>")] {
         let result = script.call(name, &[], CallOptions::default()).unwrap();
         assert_eq!(result.value.to_string(), expected, "{name}");
@@ -90,7 +90,7 @@ fn module_types_admit_no_values() {
     for name in ["run", "count"] {
         check(source, name, true);
     }
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     let module = script
         .call("module", &[], CallOptions::default())
         .unwrap()
@@ -111,7 +111,7 @@ fn symbolic_receivers_read_untyped_fields_gradually() {
     for name in ["Bucket#report", "Bucket#via_self", "Bucket#poke"] {
         check(source, name, true);
     }
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     let result = script
         .call("run", &[Value::int(5)], CallOptions::default())
         .unwrap();
@@ -277,7 +277,7 @@ fn general_method_selection_uses_effective_definitions_and_namespace_identity() 
         "C#<initialize>",
         "M.new",
     ] {
-        let script = Engine::new()
+        let script = Engine::legacy_unchecked()
             .compile("module M;end;class C;def value;7;end;end")
             .unwrap();
         assert_eq!(
@@ -371,7 +371,7 @@ fn field_targets_preserve_reentrant_alias_writes_and_replacements() {
 
 #[test]
 fn runtime_witnesses_confirm_general_alias_contradictions() {
-    let script = Engine::new().compile("class C;property n;end;def run(a:C,b:C)->int;a.n=7;b.n='bad';a.n;end;def witness(same);a=C.new;b=if same;a;else;C.new;end;run(a,b);end").unwrap();
+    let script = Engine::legacy_unchecked().compile("class C;property n;end;def run(a:C,b:C)->int;a.n=7;b.n='bad';a.n;end;def witness(same);a=C.new;b=if same;a;else;C.new;end;run(a,b);end").unwrap();
     let report = script
         .check_function("run", &CallOptions::default())
         .unwrap();
@@ -392,7 +392,7 @@ fn runtime_witnesses_confirm_general_alias_contradictions() {
             .as_int(),
         Some(7)
     );
-    let script = Engine::new().compile("class C;property n;end;def run(a:array<C>)->array<int>;a.map{|x|x.n=7;a.each{|y|y.n='bad'};x.n};end;def witness;run([C.new]);end").unwrap();
+    let script = Engine::legacy_unchecked().compile("class C;property n;end;def run(a:array<C>)->array<int>;a.map{|x|x.n=7;a.each{|y|y.n='bad'};x.n};end;def witness;run([C.new]);end").unwrap();
     let report = script
         .check_function("run", &CallOptions::default())
         .unwrap();
@@ -419,7 +419,7 @@ fn method_and_object_domains_are_metered_interruptible_and_reclaimed() {
             "run",
         ),
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = Engine::legacy_unchecked().compile(source).unwrap();
         let options = CallOptions::default();
         let mut ctx = CallContext::new(options.clone());
         let checked = entry::check_function(&mut ctx, &script, name, &options).unwrap();

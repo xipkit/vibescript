@@ -240,7 +240,7 @@ fn invalid_signatures_stop_before_entropy_or_followup_host_effects() {
     assert_eq!(effects.load(Ordering::SeqCst), 1);
     assert_eq!(reads.load(Ordering::SeqCst), 0);
     // Other wrong signatures are refused before anything runs.
-    let mut checked = common::static_engine();
+    let mut checked = vibescript::Engine::new();
     checked.register("effect", |_, _| panic!("effect ran"));
     for (source, code) in [
         ("rand(1.0)", "V0101"),
@@ -526,7 +526,7 @@ end
     assert_eq!(value[3], 16);
     assert_eq!(value[4], 16);
     for source in ["srand { 1 }", "random_id { 1 }"] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), ["V0305"], "{source}");
     }
 }

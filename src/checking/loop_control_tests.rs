@@ -2,7 +2,7 @@ use crate::{CallOptions, Engine, ErrorClass};
 
 /// Checks the whole file and returns its diagnostic messages.
 fn diagnostics(source: &str) -> Vec<String> {
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     let report = script.check(&CallOptions::default()).unwrap();
     assert!(report.incomplete.is_empty(), "{source}: {report:?}");
     report
@@ -14,7 +14,7 @@ fn diagnostics(source: &str) -> Vec<String> {
 
 /// Runs `run`, or the top-level statements when the script declares no `run`.
 fn witness(source: &str) -> Result<String, (Option<ErrorClass>, String)> {
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     let result = if source.contains("def run") {
         script.call("run", &[], CallOptions::default())
     } else {

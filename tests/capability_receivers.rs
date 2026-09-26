@@ -143,7 +143,6 @@ fn member_calls_keep_their_receiver_on_static_routes() {
         assert_eq!(result.value.to_string(), expected, "{body}");
     }
     // A namespace is not indexed, so the callee is never computed.
-    engine.set_static_types(true);
     let source = "def run -> any\ncap[\"read\"]()\nend";
     let error = engine.compile(source).err().unwrap();
     assert_eq!(common::codes(&error)[0], "V0112");

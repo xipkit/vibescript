@@ -101,7 +101,7 @@ fn replacing_a_global_detaches_an_earlier_mutation_target() {
             "def run(input: array<int>) -> array<array<int>>\nMath=input\n\
              Math.push(begin;Math {operator} [9];2;end)\n[Math,input]\nend"
         );
-        let error = common::static_engine().compile(&source).err().unwrap();
+        let error = vibescript::Engine::new().compile(&source).err().unwrap();
         assert_eq!(common::codes(&error), ["V0102", "V0104"], "{operator}");
         assert_eq!(
             error.diagnostics()[1].span.start,
@@ -146,7 +146,7 @@ def read -> float
  Math.PI
 end
 "#;
-    let error = common::static_engine().compile(source).err().unwrap();
+    let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error)[..2], ["V0112", "V0112"]);
     assert_eq!(
         error.diagnostics()[0].span.start,
@@ -182,7 +182,7 @@ def run(first: bool) -> array<bool>
  [accepted,rejected]
 end
 "#;
-    let error = common::static_engine().compile(source).err().unwrap();
+    let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error)[0], "V0116");
     assert_eq!(
         error.diagnostics()[0].span.start,

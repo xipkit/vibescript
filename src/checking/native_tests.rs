@@ -12,7 +12,7 @@ use crate::{
 use std::sync::Arc;
 
 fn engine() -> Engine {
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.set_output_writer(|_, _| Ok(()));
     engine.set_error_writer(|_, _| Ok(()));
     engine.set_random_source(|_, bytes| {

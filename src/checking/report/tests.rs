@@ -55,7 +55,7 @@ fn report_sorting_and_allocation_failures_release_all_temporary_storage() {
         source.push_str(&format!("begin;{i}-\"bad\";rescue;nil;end\n"));
     }
     source.push_str("end");
-    let script = Engine::new().compile(&source).unwrap();
+    let script = Engine::legacy_unchecked().compile(&source).unwrap();
     let mut ctx = CallContext::new(CallOptions::default());
     let report = work(&mut ctx, &script).unwrap();
     assert_eq!(report.diagnostics.len(), 48);
@@ -433,7 +433,7 @@ fn cross_source_host_messages_release_callback_owners_without_invoking_them() {
     let calls = Arc::new(AtomicUsize::new(0));
     let weak = Arc::downgrade(&calls);
     let callback = calls.clone();
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register("foreign_host", move |_, _| {
         callback.fetch_add(1, Ordering::Relaxed);
         Ok(crate::Value::nil())

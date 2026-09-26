@@ -88,7 +88,7 @@ fn addressed_mutations_check_receivers_results_and_value_snapshots() {
 
 #[test]
 fn pending_address_facts_include_runtime_results_through_parent_mutations() {
-    let engine = crate::Engine::new();
+    let engine = crate::Engine::legacy_unchecked();
     let mut cases = 0;
     for root in ["[[1],[2]]", "[[1],[1]]", "[[],[1]]"] {
         for selected in ["0", "1", "-1"] {
@@ -214,7 +214,7 @@ fn plain_begin_preserves_binding_timing_call_targets_and_outer_addresses() {
 
 #[test]
 fn address_branches_and_assignment_results_keep_runtime_value_boundaries() {
-    let engine = crate::Engine::new();
+    let engine = crate::Engine::legacy_unchecked();
     for source in [
         "def run; a=[nil]; result=(begin; a[0]=a; end).push(2); [a,result]; end",
         "def run; a=[1]; a.push(begin; a=a.push(2); 3; end); a; end",
@@ -241,7 +241,7 @@ fn addressed_flow_reference_differences_have_runtime_witnesses() {
     let cases = fixtures["cases"].as_array().unwrap();
     assert_eq!(cases.len(), 66);
     let mut differences = 0;
-    let engine = crate::Engine::new();
+    let engine = crate::Engine::legacy_unchecked();
     for case in cases {
         let source = case["source"].as_str().unwrap();
         check(source, case["rust_rejected"].as_bool().unwrap());
@@ -394,7 +394,7 @@ fn pending_writes_follow_selected_positions_and_detach_fresh_replacements() {
         ),
     ] {
         check(source, false);
-        let result = crate::Engine::new()
+        let result = crate::Engine::legacy_unchecked()
             .compile(source)
             .unwrap()
             .call("run", &[], CallOptions::default())

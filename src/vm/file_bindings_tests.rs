@@ -26,8 +26,8 @@ fn json(value: &Value) -> serde_json::Value {
 /// script cannot name the module type of a file compiled apart from it, so
 /// these receivers compile without static types.
 fn invoke(source: &str, values: &[Value]) -> Result<crate::Outcome> {
-    let mut engine = Engine::new();
-    engine.set_static_types(false);
+    let mut engine = Engine::legacy_unchecked();
+
     engine
         .compile(source)
         .unwrap()
@@ -370,8 +370,8 @@ Bridge
     );
     let value = script.run(CallOptions::default()).unwrap().value;
     // The caller receives the file's module, whose type it cannot name.
-    let mut caller = Engine::new();
-    caller.set_static_types(false);
+    let mut caller = Engine::legacy_unchecked();
+
     let caller = caller
         .compile("def run(m);m.change;end\ndef stop(m);begin;m.stop;rescue;7;end;end")
         .unwrap();

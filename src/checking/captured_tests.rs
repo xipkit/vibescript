@@ -10,22 +10,22 @@ use crate::{
 use std::sync::Arc;
 
 fn fixture() -> (Script, Value) {
-    let producer = Engine::new().compile("class Node;property n:int;property links;def initialize;@n=1;@links=[];end;end;def make;a=Node.new;b=Node.new;a.links=[{next:b,again:b}];b.links=[a];a;end").unwrap();
+    let producer = Engine::legacy_unchecked().compile("class Node;property n:int;property links;def initialize;@n=1;@links=[];end;end;def make;a=Node.new;b=Node.new;a.links=[{next:b,again:b}];b.links=[a];a;end").unwrap();
     let value = producer
         .call("make", &[], CallOptions::default())
         .unwrap()
         .value;
-    let receiver = Engine::new().compile("def run(a,b)->int;a.links[0][:next].links[0].n=7;c=a.class.new;if b.n==7 && c.n==1 && a.links[0][:next]==a.links[0][:again];7;else;false;end;end").unwrap();
+    let receiver = Engine::legacy_unchecked().compile("def run(a,b)->int;a.links[0][:next].links[0].n=7;c=a.class.new;if b.n==7 && c.n==1 && a.links[0][:next]==a.links[0][:again];7;else;false;end;end").unwrap();
     (receiver, value)
 }
 
 fn direct_fixture() -> (Script, Value) {
-    let producer = Engine::new().compile("class Node;property n:int;property link;def initialize;@n=1;end;end;def make;a=Node.new;b=Node.new;a.link=b;b.link=a;a;end").unwrap();
+    let producer = Engine::legacy_unchecked().compile("class Node;property n:int;property link;def initialize;@n=1;end;end;def make;a=Node.new;b=Node.new;a.link=b;b.link=a;a;end").unwrap();
     let value = producer
         .call("make", &[], CallOptions::default())
         .unwrap()
         .value;
-    let receiver = Engine::new().compile("def run(a,b)->int;a.link.link.n=7;c=a.class.new;if b.n==7 && c.n==1 && a.link.link==a;7;else;false;end;end").unwrap();
+    let receiver = Engine::legacy_unchecked().compile("def run(a,b)->int;a.link.link.n=7;c=a.class.new;if b.n==7 && c.n==1 && a.link.link==a;7;else;false;end;end").unwrap();
     (receiver, value)
 }
 
@@ -69,7 +69,7 @@ fn captured_graphs_obey_limits_and_release_every_interrupted_snapshot() {
         } else {
             "link.link"
         };
-        let lazy = Engine::new()
+        let lazy = Engine::legacy_unchecked()
             .compile(&format!("def run->int;input.{path}.n=7;input.n;end"))
             .unwrap();
         for (script, deferred) in [(&eager, false), (&lazy, true)] {
@@ -161,7 +161,9 @@ fn captured_facts_release_runtime_objects_before_analysis_metadata() {
 
 #[test]
 fn shared_container_admission_does_not_expand_the_logical_tree() {
-    let script = Engine::new().compile("def run(value);7;end").unwrap();
+    let script = Engine::legacy_unchecked()
+        .compile("def run(value);7;end")
+        .unwrap();
     let mut value = Value::int(1);
     for _ in 0..crate::budget::MAX_VALUE_DEPTH {
         value = Value::array(vec![value.clone(), value]);
@@ -176,7 +178,7 @@ fn shared_container_admission_does_not_expand_the_logical_tree() {
 fn deferred_type_fixture() -> (Engine, CallOptions) {
     use crate::{HostMethod, Signature};
     let child = |marker| {
-        Engine::new()
+        Engine::legacy_unchecked()
             .compile(&format!(
                 "class Child;trace.push({marker});end;def make;Child;end"
             ))
@@ -192,7 +194,7 @@ fn deferred_type_fixture() -> (Engine, CallOptions) {
             .unwrap()
             .value
     };
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register_method(
         "choose",
         HostMethod::new("choose", |_, _, _| Ok(Value::boolean(true)))
@@ -221,7 +223,7 @@ fn deferred_type_fixture() -> (Engine, CallOptions) {
 #[test]
 fn deferred_branch_continuations_release_storage_at_every_interrupted_boundary() {
     let (_, options) = deferred_type_fixture();
-    let script = Engine::new().compile("def take(x:C?=nil)->C?;nil;end;def run->int;take(nil);take();C.value;if trace.length==1;7;else;false;end;end").unwrap();
+    let script = Engine::legacy_unchecked().compile("def take(x:C?=nil)->C?;nil;end;def run->int;take(nil);take();C.value;if trace.length==1;7;else;false;end;end").unwrap();
     let work = |ctx: &mut CallContext| -> Result<()> {
         let checked = entry::check(
             ctx,
@@ -302,9 +304,9 @@ fn deferred_property_and_predicate_continuations_release_interrupted_storage() {
         ("begin;@items.push(1);rescue RuntimeError;nil;end", true),
     ] {
         let (_, options) = deferred_type_fixture();
-        let producer = Engine::new().compile(&format!("class Holder;property item:C?;property items:array<C?>;def initialize;@items=[nil];end;def bind(@item);end;def work;{body};7;end;end;def make;Holder.new;end")).unwrap();
+        let producer = Engine::legacy_unchecked().compile(&format!("class Holder;property item:C?;property items:array<C?>;def initialize;@items=[nil];end;def bind(@item);end;def work;{body};7;end;end;def make;Holder.new;end")).unwrap();
         let holder = producer.call("make", &[], options.clone()).unwrap().value;
-        let receiver = Engine::new()
+        let receiver = Engine::legacy_unchecked()
             .compile("def run(box)->int;box.work;end")
             .unwrap();
         metered_deferred_analysis(|ctx| {

@@ -361,7 +361,7 @@ fn fixed_limit_supplied(source: &str, input: Value, exact: bool) -> (Value, u64)
 }
 
 fn supplied_options(source: &str, input: Value, exact: bool, options: CallOptions) -> (Value, u64) {
-    let actual = Engine::new()
+    let actual = Engine::legacy_unchecked()
         .compile(source)
         .unwrap()
         .call("run", std::slice::from_ref(&input), options.clone())
@@ -540,7 +540,7 @@ fn work_exhaustion_cannot_be_rescued_as_an_output_limit() {
     for call in ["text.sub(\"z\") {7}", "text.sub(text) {7}"] {
         let source = format!("def run(text); begin; {call}; rescue LimitError; 9; end; end");
         let input = Value::bytes(vec![b'a'; crate::regex::MAX_TEXT + 1]);
-        let error = Engine::new()
+        let error = Engine::legacy_unchecked()
             .compile(&source)
             .unwrap()
             .call(

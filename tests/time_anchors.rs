@@ -33,7 +33,7 @@ fn anchors_preserve_inputs_and_return_inline_utc_instants() {
             assert!(result.value.to_string().ends_with('Z'));
         }
         // An anchor takes a time, not a timestamp string.
-        let error = common::static_engine()
+        let error = vibescript::Engine::new()
             .compile(&format!(
                 "def run(input: string) -> time\n5.minutes.{name}(input)\nend"
             ))
@@ -45,7 +45,7 @@ fn anchors_preserve_inputs_and_return_inline_utc_instants() {
     // from now only.
     for name in ["since", "from_now", "ago", "until"] {
         let source = format!("def run(input: time) -> time\n5.minutes.{name}(input)\nend");
-        let error = common::static_engine().compile(&source).err().unwrap();
+        let error = vibescript::Engine::new().compile(&source).err().unwrap();
         assert_eq!(common::codes(&error), ["V0401"], "{name}");
     }
     let result = Engine::new()
@@ -135,7 +135,7 @@ fn clock_defaults_count_from_now_and_refuse_other_forms() {
     }
     // The other clock-default forms, parentheses and blocks are refused
     // before anything runs.
-    let mut checked = common::static_engine();
+    let mut checked = vibescript::Engine::new();
     checked.register("unexpected", |_, _| panic!("ignored anchor block executed"));
     for (source, expected) in [
         ("5.minutes.after", &["V0401"][..]),
@@ -200,7 +200,7 @@ fn invalid_and_cancelled_anchors_stop_before_later_host_effects() {
     assert_eq!(effects.load(Ordering::SeqCst), 0);
     // Anchors of the wrong type or count, and keywords, are refused before
     // anything runs.
-    let mut checked = common::static_engine();
+    let mut checked = vibescript::Engine::new();
     checked.register("effect", |_, _| panic!("effect ran"));
     for (source, expected) in [
         ("1.seconds.after(nil)", &["V0101"][..]),

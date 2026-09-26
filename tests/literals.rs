@@ -44,7 +44,7 @@ fn interpolated_symbols_keep_their_kind_and_do_not_change_host_inputs() {
     }
     assert_eq!(input.as_bytes(), Some(&b"\xffa"[..]));
     // Percent literals were removed for array literals.
-    let error = common::static_engine()
+    let error = vibescript::Engine::new()
         .compile("def run(input: string) -> array<symbol>\n%I[pre#{1}post #{nil} #{input}]\nend")
         .err()
         .unwrap();
@@ -327,7 +327,7 @@ fn numbers_may_abut_keywords_but_not_identifiers() {
     }
     // unless was removed for `if !`.
     for source in ["x = 5unless false", "1E-2unless false"] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), ["V0407"], "{source}");
     }
     for source in [

@@ -418,7 +418,7 @@ fn specimens() -> Vec<crate::Value> {
     ]
     .into_iter()
     .map(|source| {
-        crate::Engine::new()
+        crate::Engine::legacy_unchecked()
             .compile(source)
             .unwrap()
             .call("run", &[], crate::CallOptions::default())

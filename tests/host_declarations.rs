@@ -45,33 +45,30 @@ fn globals(entries: Vec<(&str, Value)>) -> CallOptions {
 
 #[test]
 fn declared_globals_are_checked_when_a_call_starts() {
-    for static_types in [false, true] {
-        let mut engine = Engine::new();
-        engine.set_static_types(static_types);
-        engine.declare_global("limit", "int").unwrap();
-        let script = engine
-            .compile("def doubled -> int\n  limit * 2\nend\n")
-            .unwrap();
-        let outcome = script
-            .call("doubled", &[], globals(vec![("limit", Value::int(21))]))
-            .unwrap();
-        assert_eq!(outcome.value.as_int(), Some(42));
+    let mut engine = Engine::new();
+    engine.declare_global("limit", "int").unwrap();
+    let script = engine
+        .compile("def doubled -> int\n  limit * 2\nend\n")
+        .unwrap();
+    let outcome = script
+        .call("doubled", &[], globals(vec![("limit", Value::int(21))]))
+        .unwrap();
+    assert_eq!(outcome.value.as_int(), Some(42));
 
-        let error = script
-            .call("doubled", &[], CallOptions::default())
-            .unwrap_err();
-        assert_eq!(error.kind, ErrorKind::Argument);
-        assert_eq!(
-            error.message,
-            "missing global limit, which the host declares"
-        );
+    let error = script
+        .call("doubled", &[], CallOptions::default())
+        .unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Argument);
+    assert_eq!(
+        error.message,
+        "missing global limit, which the host declares"
+    );
 
-        let error = script
-            .call("doubled", &[], globals(vec![("limit", Value::bytes("21"))]))
-            .unwrap_err();
-        assert_eq!(error.kind, ErrorKind::Type);
-        assert_eq!(error.message, "global limit expected int, got string");
-    }
+    let error = script
+        .call("doubled", &[], globals(vec![("limit", Value::bytes("21"))]))
+        .unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Type);
+    assert_eq!(error.message, "global limit expected int, got string");
 }
 
 #[test]
@@ -111,7 +108,6 @@ fn declared_capabilities_must_provide_their_members() {
     let send = signed("SMS.send", "string");
     let declared = sms(&send, Value::bytes("eu"));
     let mut engine = Engine::new();
-    engine.set_static_types(true);
     engine.declare_capability(&declared).unwrap();
     let script = engine
         .compile("def notify -> string\n  SMS.send(SMS.region)\nend\n")
@@ -261,7 +257,6 @@ fn declarations_refuse_types_a_host_cannot_supply() {
 #[test]
 fn a_later_declaration_replaces_an_earlier_one() {
     let mut engine = Engine::new();
-    engine.set_static_types(true);
     engine.declare_global("limit", "string").unwrap();
     engine.declare_global("limit", "int").unwrap();
     assert!(engine.compile("def run -> int\n  limit + 1\nend\n").is_ok());

@@ -54,7 +54,7 @@ fn imported_host_callbacks_retire_after_object_collection_unlocks() {
                 cancellation: cancel_on_drop.then(|| cancellation.clone()),
             };
             let namespace = {
-                let mut producer = crate::test_engine();
+                let mut producer = crate::Engine::new();
                 producer.register("host", move |_, _| {
                     let _ = &retired;
                     Ok(Value::nil())
@@ -69,7 +69,7 @@ fn imported_host_callbacks_retire_after_object_collection_unlocks() {
             let incoming = Mutex::new(Some(namespace));
             let retained = Arc::new(Mutex::new(None));
             let held = retained.clone();
-            let mut receiver = crate::test_engine();
+            let mut receiver = crate::Engine::new();
             receiver.register("take_foreign", move |ctx, _| {
                 *heap.lock().unwrap() = Arc::downgrade(ctx.objects.as_ref().unwrap());
                 let value = incoming.lock().unwrap().take().unwrap();
@@ -142,7 +142,7 @@ fn imported_capability_callbacks_retire_after_object_collection_unlocks() {
         let observation = observed.clone();
         let retained = Arc::new(Mutex::new(None));
         let held = retained.clone();
-        let mut receiver = crate::test_engine();
+        let mut receiver = crate::Engine::new();
         receiver.register("take_capability", move |ctx, _| {
             *heap.lock().unwrap() = Arc::downgrade(ctx.objects.as_ref().unwrap());
             let retired = RetiredCode {

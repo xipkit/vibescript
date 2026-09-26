@@ -14,7 +14,7 @@ fn method(result: &str) -> HostMethod {
 }
 
 fn script(hosts: usize) -> Script {
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     for index in 0..hosts {
         engine.register_method(format!("registered{index}"), method("bool"));
     }
@@ -42,7 +42,7 @@ fn owned_environments_survive_caller_handles_without_retaining_writers() {
         let weak_callback = Arc::downgrade(&callback);
         let writer = Arc::new(());
         let weak_writer = Arc::downgrade(&writer);
-        let mut engine = Engine::new();
+        let mut engine = Engine::legacy_unchecked();
         engine.register_method(
             "echo",
             HostMethod::new("echo", move |_, _, _| {
@@ -395,7 +395,9 @@ fn public_reports_release_owned_inputs_and_code_in_every_check_scope() {
             panic!()
         };
         let weak_descriptor = Arc::downgrade(descriptor);
-        let script = Engine::new().compile("def run;tool.deliver();end").unwrap();
+        let script = Engine::legacy_unchecked()
+            .compile("def run;tool.deliver();end")
+            .unwrap();
         let weak_code = Arc::downgrade(&script.inner.code);
         let options = CallOptions {
             globals: [(

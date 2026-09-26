@@ -369,7 +369,7 @@ fn host_type_replacements_stay_dynamic_without_running_capability_factories() {
         Arc,
         atomic::{AtomicUsize, Ordering},
     };
-    let script = Engine::new().compile("enum Status; Draft; end; enum Review; Draft; end; def run; [:draft].map { |x:Status| x.enum.name }; end").unwrap();
+    let script = Engine::legacy_unchecked().compile("enum Status; Draft; end; enum Review; Draft; end; def run; [:draft].map { |x:Status| x.enum.name }; end").unwrap();
     let program = &script.inner.code.program;
     let review = program
         .declarations

@@ -423,7 +423,7 @@ mod tests {
     #[test]
     fn reports_values_at_their_compiler_offsets() {
         let log = Arc::new(Log::default());
-        let mut engine = crate::test_engine();
+        let mut engine = crate::Engine::new();
         engine.set_observer(log.clone());
         let source = "def half(n: int) -> int?\n  x = n // 2\n  x if n > 0\nend\n";
         let script = engine.compile(source).unwrap();
@@ -448,10 +448,10 @@ mod tests {
     fn leaves_results_and_accounting_unchanged() {
         let source = "def run(items: array<int>) -> int\n  items.map { |x| x * 2 }.sum\nend\n";
         let args = [Value::array(vec![Value::int(1), Value::int(2)])];
-        let plain = crate::test_engine().compile(source).unwrap();
+        let plain = crate::Engine::new().compile(source).unwrap();
         let expected = plain.call("run", &args, CallOptions::default()).unwrap();
         let log = Arc::new(Log::default());
-        let mut engine = crate::test_engine();
+        let mut engine = crate::Engine::new();
         engine.set_observer(log.clone());
         let observed = engine.compile(source).unwrap();
         let outcome = observed.call("run", &args, CallOptions::default()).unwrap();

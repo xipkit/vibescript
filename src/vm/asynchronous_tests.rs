@@ -15,7 +15,7 @@ async fn abandoned_async_invocations_release_unreachable_cycles() {
         let heap = Arc::new(Mutex::new(Weak::new()));
         let entered = Arc::new(Notify::new());
         let (saved_memory, saved_heap, ready) = (memory.clone(), heap.clone(), entered.clone());
-        let mut engine = crate::test_engine();
+        let mut engine = crate::Engine::new();
         engine.register_method(
             "pause",
             HostMethod::new_async("pause", move |call, _, _| {
@@ -73,7 +73,7 @@ async fn async_panic_paths_release_cycles_and_accounting() {
         for construction in [false, true] {
             let memory: Memory = Arc::new(Mutex::new(Weak::new()));
             let observed = memory.clone();
-            let mut engine = crate::test_engine();
+            let mut engine = crate::Engine::new();
             engine.register_method(
                 "fail",
                 HostMethod::new_async("fail", move |call, _, _| {
@@ -120,7 +120,7 @@ async fn objects_retained_by_async_hosts_outlive_cancelled_invocations() {
     let retained = Arc::new(Mutex::new(None));
     let entered = Arc::new(Notify::new());
     let (observed, saved, ready) = (memory.clone(), retained.clone(), entered.clone());
-    let mut engine = crate::test_engine();
+    let mut engine = crate::Engine::new();
     engine.register_method(
         "hold",
         HostMethod::new_async("hold", move |call, args, _| {
@@ -149,8 +149,8 @@ async fn objects_retained_by_async_hosts_outlive_cancelled_invocations() {
     let value = retained.lock().unwrap().take().unwrap();
     // The reader cannot name the instance's class, which another script
     // declares, so it reads the instance without static types.
-    let mut reader = Engine::new();
-    reader.set_static_types(false);
+    let mut reader = Engine::legacy_unchecked();
+
     let reader = reader.compile("def read(b);[b.n,b.link==b];end").unwrap();
     let result = reader
         .call("read", std::slice::from_ref(&value), CallOptions::default())

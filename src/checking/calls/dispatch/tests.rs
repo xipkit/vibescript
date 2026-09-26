@@ -163,7 +163,7 @@ fn prepared_foreign_functions_use_their_parameters_defaults_and_return_contracts
         ("begin;lib.remote(false);rescue;19;end", "19", true),
         ("begin;fn=lib[:remote];fn(4);rescue;21;end", "21", true),
     ] {
-        let caller = Engine::new()
+        let caller = Engine::legacy_unchecked()
             .compile(&format!("def other(x,y,z);false;end;def run;{body};end"))
             .unwrap();
         let callee = Code::compile_file(
@@ -182,7 +182,7 @@ fn foreign_auto_calls_use_the_defining_arity_and_keep_methods_attached() {
         ("lib[:remote]()", "7", false),
         ("begin;fn=lib[:remote];7;rescue;9;end", "9", true),
     ] {
-        let caller = Engine::new()
+        let caller = Engine::legacy_unchecked()
             .compile(&format!("def run;{body};end;def misleading(a,b,c);nil;end"))
             .unwrap();
         let callee = Code::compile_file("def remote;7;end", &Default::default()).unwrap();
@@ -200,7 +200,7 @@ fn foreign_yields_preserve_captures_pending_mutations_and_control_transfers() {
         ("a=[1];lib.remote(4) {|n| a.map {|x| x+n}}", "[5]"),
         ("r=lib.remote(4) {|n| lib.remote(n+1) {|x| x*2}};r", "10"),
     ] {
-        let caller = Engine::new()
+        let caller = Engine::legacy_unchecked()
             .compile(&format!("def padding;nil;end;def run;{body};end"))
             .unwrap();
         let callee = Code::compile_file(
@@ -234,7 +234,7 @@ fn foreign_recursion_and_errors_keep_source_identity() {
             true,
         ),
     ] {
-        let caller = Engine::new().compile(caller_source).unwrap();
+        let caller = Engine::legacy_unchecked().compile(caller_source).unwrap();
         let callee = Code::compile_file(callee_source, &Default::default()).unwrap();
         check(&caller, &callee, expected, rejected);
         if rejected {
@@ -331,7 +331,7 @@ fn imported_functions_use_receiving_roots_and_preserve_private_rebindings() {
             false,
         ),
     ] {
-        let caller = Engine::new().compile(caller_source).unwrap();
+        let caller = Engine::legacy_unchecked().compile(caller_source).unwrap();
         let callee = Code::compile_file(callee_source, &Default::default()).unwrap();
         check(&caller, &callee, expected, rejected);
     }
@@ -349,14 +349,14 @@ fn receiving_shadows_never_fall_through_to_builtins() {
             true,
         ),
     ] {
-        let caller = Engine::new()
+        let caller = Engine::legacy_unchecked()
             .compile(&format!("enum JSON;One;end;def run;{caller_body};end"))
             .unwrap();
         let callee =
             Code::compile_file(&format!("def remote;{body};end"), &Default::default()).unwrap();
         check(&caller, &callee, expected, rejected);
     }
-    let caller = Engine::new()
+    let caller = Engine::legacy_unchecked()
         .compile("def JSON;7;end;def run;begin;lib.remote();rescue;9;end;end")
         .unwrap();
     let callee =
@@ -466,10 +466,10 @@ fn foreign_host_metadata_uses_the_callers_named_contracts() {
         accepts_block: false,
     })
     .unwrap();
-    let mut provider = Engine::new();
+    let mut provider = Engine::legacy_unchecked();
     provider.register_method("remote", method.clone());
     let callee = provider.compile("enum Choice;Other;end;nil").unwrap();
-    let mut receiver = Engine::new();
+    let mut receiver = Engine::legacy_unchecked();
     receiver.register("wrong", |_, _| panic!("checker invoked the wrong callback"));
     for (body, expected, rejected) in [
         ("lib.remote(Choice::One)", "7", false),
@@ -505,7 +505,7 @@ fn foreign_host_blocks_keep_sticky_break_and_return() {
         accepts_block: true,
     })
     .unwrap();
-    let mut provider = Engine::new();
+    let mut provider = Engine::legacy_unchecked();
     provider.register_method("remote", method.clone());
     let callee = provider.compile("nil").unwrap();
     for (body, expected, rejected) in [
@@ -514,7 +514,7 @@ fn foreign_host_blocks_keep_sticky_break_and_return() {
         ("begin;lib.remote {break false};rescue;17;end", "17", true),
     ] {
         let before = calls.load(Ordering::Relaxed);
-        let caller = Engine::new()
+        let caller = Engine::legacy_unchecked()
             .compile(&format!("def run;{body};end"))
             .unwrap();
         check_host(&caller, &callee, &method, expected, rejected);
@@ -553,10 +553,10 @@ fn closure(function: CallableId) -> blocks::Closure {
 
 #[test]
 fn foreign_initializers_and_methods_use_the_defining_namespace_state() {
-    let caller = Engine::new()
+    let caller = Engine::legacy_unchecked()
         .compile("module M;X=99;end;def run;nil;end")
         .unwrap();
-    let callee = Engine::new()
+    let callee = Engine::legacy_unchecked()
         .compile("module M;X=7;def self.read;X;end;end")
         .unwrap();
     let mut ctx = CallContext::new(CallOptions::default());
@@ -673,8 +673,8 @@ fn foreign_initializers_and_methods_use_the_defining_namespace_state() {
 
 #[test]
 fn prepared_dispatch_never_reassigns_an_independent_receiving_environment() {
-    let a = Engine::new().compile("def run;1;end").unwrap();
-    let b = Engine::new().compile("def run;2;end").unwrap();
+    let a = Engine::legacy_unchecked().compile("def run;1;end").unwrap();
+    let b = Engine::legacy_unchecked().compile("def run;2;end").unwrap();
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let mut state = Scheduler::new(crate::checking::inputs::Values::new(), false);
@@ -717,8 +717,8 @@ fn prepared_foreign_dispatch_fast_paths_keep_cancellation_deadlines_and_failures
         ErrorKind::Cancelled,
         ErrorKind::Deadline,
     ] {
-        let script = Engine::new().compile("def run;1;end").unwrap();
-        let other = Engine::new().compile("def run;2;end").unwrap();
+        let script = Engine::legacy_unchecked().compile("def run;1;end").unwrap();
+        let other = Engine::legacy_unchecked().compile("def run;2;end").unwrap();
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
         let mut state = Scheduler::new(crate::checking::inputs::Values::new(), false);

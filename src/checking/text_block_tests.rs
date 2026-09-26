@@ -508,7 +508,7 @@ fn text_callbacks_preserve_nested_pending_mutation_addresses() {
 }
 
 fn supplied_text(source: &str, text: &[u8], expected: Option<&str>) -> u64 {
-    let actual = Engine::new()
+    let actual = Engine::legacy_unchecked()
         .compile(source)
         .unwrap()
         .call("run", &[Value::bytes(text)], CallOptions::default())

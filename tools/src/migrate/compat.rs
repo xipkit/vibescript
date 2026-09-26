@@ -29,11 +29,9 @@ pub(crate) fn regex_type() -> bool {
     compiles("def f(a: regex)\nend\n")
 }
 
-/// An engine that compiles without static types, since a migration
-/// compiles and runs sources written for the ADR-004 language and partial
-/// migrations of them, which need not type check.
+/// An engine for the ADR-004 language, since a migration compiles and runs
+/// sources written for it and partial migrations of them, which need not
+/// type check. This is the one use of [`Engine::legacy_unchecked`].
 pub(crate) fn engine() -> Engine {
-    let mut engine = Engine::new();
-    engine.set_static_types(false);
-    engine
+    Engine::legacy_unchecked()
 }

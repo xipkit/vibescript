@@ -327,7 +327,7 @@ fn registered_host_contracts_are_read_without_running_callbacks_or_validators() 
         ("host(value: 7)", "string", true),
         ("host(7)", "int", true),
     ] {
-        let mut engine = crate::Engine::new();
+        let mut engine = crate::Engine::legacy_unchecked();
         engine.register_method("host", method.clone());
         let source = format!("def run -> {target}; {body}; end");
         let script = engine.compile(&source).unwrap();
@@ -676,11 +676,10 @@ fn known_bad_defaults_are_checked_only_on_paths_that_evaluate_them() {
     for (call, fails) in [("f(7)", false), ("f()", true)] {
         let source = format!("def f(x: int = \"bad\"); x; end; def run -> int; {call}; end");
         check(&source, fails);
-        let result =
-            crate::Engine::new()
-                .compile(&source)
-                .unwrap()
-                .call("run", &[], CallOptions::default());
+        let result = crate::Engine::legacy_unchecked()
+            .compile(&source)
+            .unwrap()
+            .call("run", &[], CallOptions::default());
         if fails {
             assert_eq!(result.unwrap_err().kind, ErrorKind::Type);
         } else {
@@ -772,11 +771,10 @@ fn call_reference_decisions_have_runtime_witnesses_for_each_difference() {
         if case["go_rejected"] != case["rust_rejected"] {
             differences += 1;
             assert!(!case["difference"].as_str().unwrap().is_empty());
-            let result = crate::Engine::new().compile(source).unwrap().call(
-                "run",
-                &[],
-                CallOptions::default(),
-            );
+            let result = crate::Engine::legacy_unchecked()
+                .compile(source)
+                .unwrap()
+                .call("run", &[], CallOptions::default());
             if let Some(value) = case["runtime"]["value"].as_i64() {
                 assert_eq!(result.unwrap().value.as_int(), Some(value), "{source}");
             } else {
@@ -814,7 +812,7 @@ fn missing_callees_fail_before_argument_analysis() {
             },
             "{source}"
         );
-        let script = crate::Engine::new().compile(&source).unwrap();
+        let script = crate::Engine::legacy_unchecked().compile(&source).unwrap();
         assert_eq!(
             script
                 .call("run", &[], CallOptions::default())
@@ -829,7 +827,7 @@ fn missing_callees_fail_before_argument_analysis() {
 #[test]
 fn bare_function_reads_distinguish_attached_methods_from_opaque_roots() {
     let source = "def f -> int; 7; end; def run; f; end";
-    let script = crate::Engine::new().compile(source).unwrap();
+    let script = crate::Engine::legacy_unchecked().compile(source).unwrap();
     let program = &script.inner.code.program;
     for (value, target) in [
         (Value::int(7), Target::NonCallable),
@@ -916,7 +914,7 @@ fn missing_host_signature_types_produce_catchable_diagnostics() {
             accepts_block: false,
         })
         .unwrap();
-        let mut engine = crate::Engine::new();
+        let mut engine = crate::Engine::legacy_unchecked();
         engine.register_method("host", method.clone());
         let script = engine
             .compile("def run; begin; host(7); rescue; 99; end; end")
@@ -998,7 +996,7 @@ fn rescued_member_call_targets_detach_typed_native_methods() {
         ("def run -> int; (1.abs)(); end", false, Ok("1")),
     ] {
         check(source, rejected);
-        let script = crate::Engine::new().compile(source).unwrap();
+        let script = crate::Engine::legacy_unchecked().compile(source).unwrap();
         let result = script
             .call("run", &[], CallOptions::default())
             .map(|outcome| outcome.value.to_string())

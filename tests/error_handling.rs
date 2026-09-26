@@ -55,7 +55,7 @@ fn rescue_values_classes_bindings_and_expression_forms() {
     assert_eq!(output.value.to_string(), "[7, x]");
     // A local assigned only in a handler that did not run cannot be read.
     let source = "begin\n7\nrescue\nx=3\nend;x";
-    let error = common::static_engine().compile(source).err().unwrap();
+    let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0201"]);
     assert_eq!(error.diagnostics()[0].span.start, source.len() - 1);
 }
@@ -195,7 +195,7 @@ fn nested_rescued_values_remain_protected_and_errors_preserve_their_class() {
     // Writing a field or clearing an error is refused before it runs.
     for (write, at) in [("e.message=7", "message"), ("e.dup.clear", "clear")] {
         let source = format!("begin\nraise \"bad\"\nrescue => e\n{write}\nend");
-        let error = common::static_engine().compile(&source).err().unwrap();
+        let error = vibescript::Engine::new().compile(&source).err().unwrap();
         assert_eq!(common::codes(&error), ["V0203"], "{write}");
         assert_eq!(error.diagnostics()[0].span.start, source.find(at).unwrap());
     }
@@ -474,7 +474,7 @@ fn rescued_error_fields_iterate_in_sorted_order() {
             "map",
         ),
     ] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), ["V0203"], "{source}");
         assert_eq!(error.diagnostics()[0].span.start, source.find(at).unwrap());
     }

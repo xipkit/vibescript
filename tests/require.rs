@@ -1129,7 +1129,6 @@ fn required_binding_defaults_and_blocks_keep_their_expression_origins() {
     // compile, and the diagnostic names that file.
     files.write("returns.vibe", "def returned -> int;\"bad\";end");
     let mut engine = files.engine();
-    engine.set_static_types(true);
     let error = engine
         .compile("def run -> any\n m=require(\"returns\")\n m.returned\nend")
         .err()
@@ -1370,7 +1369,6 @@ fn exported_functions_cannot_be_extracted_stored_passed_or_returned() {
     // Static types never index, enumerate or splat a module, so each of those
     // escapes is refused at compile time.
     let mut refusing = files.engine();
-    refusing.set_static_types(true);
     refusing.register("effect", |_, _| panic!("effect ran"));
     for expression in [
         "m[\"fn\"]",
@@ -1531,7 +1529,7 @@ fn host_transfers_cannot_admit_detached_exported_functions() {
     }
     // Static types never call a host's result, so calling the detached
     // function is refused at compile time.
-    let mut refusing = common::static_engine();
+    let mut refusing = vibescript::Engine::new();
     refusing.register("detached", |_, _| panic!("detached ran"));
     refusing.register("effect", |_, _| panic!("effect ran"));
     let error = refusing.compile("detached()(1);effect()").err().unwrap();

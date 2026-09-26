@@ -30,7 +30,7 @@ fn failure(declarations: &str, body: &str) -> Error {
 /// that each points into the body.
 fn refused(declarations: &str, body: &str) -> Vec<String> {
     let source = program(declarations, body);
-    let error = common::static_engine().compile(&source).err().unwrap();
+    let error = vibescript::Engine::new().compile(&source).err().unwrap();
     let start = source.find(&format!("\n{body}\nend")).unwrap() + 1;
     for diagnostic in error.diagnostics() {
         assert!(
@@ -161,7 +161,7 @@ fn script_binding_has_argument_errors_before_defaults_or_type_checks() {
     // A result of the wrong type and a splat of a non-array are refused
     // before a program runs.
     let source = "def target -> int\n \"x\"\nend";
-    let error = common::static_engine().compile(source).err().unwrap();
+    let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0101"]);
     assert_eq!(error.diagnostics()[0].span.start, source.find('"').unwrap());
     assert_eq!(

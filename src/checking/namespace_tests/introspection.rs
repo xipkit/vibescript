@@ -26,7 +26,7 @@ fn predicate_overrides_and_lifecycle_helpers_keep_namespace_identity() {
         "module M;def self.respond_to?(name);7;end;end;def run;[M.respond_to?(:missing),M.dup==M];end",
         "[7, true]",
     );
-    let script=Engine::new().compile("class C;private def respond_to?(name,all=false);7;end;end;def run;begin;C.new.respond_to?(:hidden,true);rescue;99;end;end").unwrap();
+    let script=Engine::legacy_unchecked().compile("class C;private def respond_to?(name,all=false);7;end;end;def run;begin;C.new.respond_to?(:hidden,true);rescue;99;end;end").unwrap();
     witness(&script, &[], &CallOptions::default(), "99", true);
 }
 
@@ -40,7 +40,7 @@ fn membership_predicates_compare_class_identity_and_validate_arguments() {
             "[true, false, false, false, false, false]",
         );
         for arg in ["1", "C.new", "JSON", ":C"] {
-            let script = Engine::new()
+            let script = Engine::legacy_unchecked()
                 .compile(&format!(
                     "class C;end;def run;begin;C.new.{method}({arg});rescue RuntimeError;99;end;end"
                 ))
@@ -61,7 +61,7 @@ fn namespace_predicates_reject_call_shapes_before_running_blocks() {
             "is_type?",
         ] {
             for args in ["", "1,2,3", "extra:1"] {
-                let script=Engine::new().compile(&format!("class C;end;def run;seen=[];begin;{receiver}.{method}({args}){{seen.push(1);return 999}};rescue RuntimeError;[99,seen];end;end")).unwrap();
+                let script=Engine::legacy_unchecked().compile(&format!("class C;end;def run;seen=[];begin;{receiver}.{method}({args}){{seen.push(1);return 999}};rescue RuntimeError;[99,seen];end;end")).unwrap();
                 witness(&script, &[], &CallOptions::default(), "[99, []]", true);
             }
         }
@@ -72,7 +72,7 @@ fn namespace_predicates_reject_call_shapes_before_running_blocks() {
         "C.is_type?(1)",
         "C.is_type?('int[]')",
     ] {
-        let script = Engine::new()
+        let script = Engine::legacy_unchecked()
             .compile(&format!(
                 "class C;end;def run;begin;{expression};rescue;99;end;end"
             ))
@@ -159,12 +159,12 @@ fn declaration_rebinding_crosses_calls_blocks_and_error_cleanup() {
         "class C;end;def run;C=JSON::parse;(begin;C;end)('[7]')[0];end",
         "7",
     );
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("class C;end;def run;C=JSON::parse;begin;C('[7]');rescue;99;end;end")
         .unwrap();
     witness(&script, &[], &CallOptions::default(), "99", true);
     for choose in [false, true] {
-        let mut engine = Engine::new();
+        let mut engine = Engine::legacy_unchecked();
         engine.register("choose", move |_, _| Ok(Value::boolean(choose)));
         let script = engine.compile("class C;def self.n;1;end;end;class D;def self.n;2;end;end;def run;if choose();C=D;end;C.n;end").unwrap();
         witness(
@@ -197,14 +197,14 @@ fn qualified_type_predicates_resolve_enum_exports_without_calling_them() {
         "[true, true, false]",
     );
     for atom in ["JSON.Missing", "JSON.Missing?"] {
-        let script = Engine::new()
+        let script = Engine::legacy_unchecked()
             .compile(&format!(
                 "def run;begin;nil.is_type?('{atom}');rescue;99;end;end"
             ))
             .unwrap();
         witness(&script, &[], &CallOptions::default(), "99", true);
     }
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("class C;end;def run;JSON[:C]=C;begin;C.new.is_type?('JSON.C');rescue;99;end;end")
         .unwrap();
     witness(&script, &[], &CallOptions::default(), "99", true);
@@ -217,7 +217,7 @@ fn forwarding_preserves_nested_visibility_and_script_overrides() {
         "[3, 4, true, false]",
     );
     for call in ["c.public_send(:hidden,2)", "c.send(:public_send,:hidden,2)"] {
-        let script=Engine::new().compile(&format!("class C;private def hidden(x);x;end;end;def run;c=C.new;begin;{call};rescue;99;end;end")).unwrap();
+        let script=Engine::legacy_unchecked().compile(&format!("class C;private def hidden(x);x;end;end;def run;c=C.new;begin;{call};rescue;99;end;end")).unwrap();
         witness(&script, &[], &CallOptions::default(), "99", true);
     }
     run(
@@ -245,10 +245,10 @@ fn forwarded_calls_and_constructors_use_options_hashes_while_members_are_strict(
         "7",
     );
     for call in ["c.configure(n:7)", "(c.configure)(n:7)"] {
-        let script=Engine::new().compile(&format!("class C;def configure(options);options[:n];end;end;def run;c=C.new;begin;{call};rescue;99;end;end")).unwrap();
+        let script=Engine::legacy_unchecked().compile(&format!("class C;def configure(options);options[:n];end;end;def run;c=C.new;begin;{call};rescue;99;end;end")).unwrap();
         witness(&script, &[], &CallOptions::default(), "99", true);
     }
-    let script=Engine::new().compile("module M;def self.configure(options);options[:n];end;end;def run;begin;M.configure(n:7);rescue;99;end;end").unwrap();
+    let script=Engine::legacy_unchecked().compile("module M;def self.configure(options);options[:n];end;end;def run;begin;M.configure(n:7);rescue;99;end;end").unwrap();
     witness(&script, &[], &CallOptions::default(), "99", true);
     for (kind, prefix, receiver) in [
         ("class", "", "C.new"),
@@ -261,7 +261,7 @@ fn forwarded_calls_and_constructors_use_options_hashes_while_members_are_strict(
             "(missing rescue configure)(n:7)",
             "[1].map{configure(n:7)}",
         ] {
-            let script=Engine::new().compile(&format!("{kind} C;def {prefix}configure(options);options[:n];end;def {prefix}check;{call};end;end;def run;begin;{receiver}.check;rescue;99;end;end")).unwrap();
+            let script=Engine::legacy_unchecked().compile(&format!("{kind} C;def {prefix}configure(options);options[:n];end;def {prefix}check;{call};end;end;def run;begin;{receiver}.check;rescue;99;end;end")).unwrap();
             witness(&script, &[], &CallOptions::default(), "99", true);
         }
         for call in ["configure n:7", "send(:configure,n:7)"] {
@@ -274,7 +274,7 @@ fn forwarded_calls_and_constructors_use_options_hashes_while_members_are_strict(
         }
     }
     for method in ["call", "send", "public_send"] {
-        let script=Engine::new().compile(&format!("class C;def {method}(options);options[:n];end;end;def run;begin;C.new.{method}(n:7);rescue;99;end;end")).unwrap();
+        let script=Engine::legacy_unchecked().compile(&format!("class C;def {method}(options);options[:n];end;end;def run;begin;C.new.{method}(n:7);rescue;99;end;end")).unwrap();
         witness(&script, &[], &CallOptions::default(), "99", true);
         let forward = if method == "send" {
             "public_send"
@@ -296,13 +296,13 @@ fn forwarded_methods_keep_property_guards_copies_and_assignment_results() {
         "class C;getter xs:array<int>;def initialize;@xs=[1];end;def add(x);@xs.push(x);end;end;def run;c=C.new;c.send(:add,2);c.send(:xs).push(3);c.xs;end",
         "[1, 2]",
     );
-    let script=Engine::new().compile("class C;getter xs:array<int>;def initialize;@xs=[1];end;def add(x);@xs.push(x);end;end;def run;c=C.new;begin;c.send(:add,false);rescue;nil;end;c.xs;end").unwrap();
+    let script=Engine::legacy_unchecked().compile("class C;getter xs:array<int>;def initialize;@xs=[1];end;def add(x);@xs.push(x);end;end;def run;c=C.new;begin;c.send(:add,false);rescue;nil;end;c.xs;end").unwrap();
     witness(&script, &[], &CallOptions::default(), "[1]", true);
     run(
         "class C;property n;end;def run;c=C.new;c.send(:'n=',7);c.n;end",
         "7",
     );
-    let script=Engine::new().compile("class C;def value(x);x;end;end;def run;c=C.new;n=0;begin;c.send(:missing,begin;n+=1;end);rescue;n;end;end").unwrap();
+    let script=Engine::legacy_unchecked().compile("class C;def value(x);x;end;end;def run;c=C.new;n=0;begin;c.send(:missing,begin;n+=1;end);rescue;n;end;end").unwrap();
     witness(&script, &[], &CallOptions::default(), "1", true);
 }
 
@@ -325,7 +325,7 @@ fn universal_blocks_and_symbolic_reductions_keep_instance_state() {
 #[test]
 fn introspection_preserves_unknown_visibility_flags_and_method_name_alternatives() {
     for flag in [false, true] {
-        let mut engine = Engine::new();
+        let mut engine = Engine::legacy_unchecked();
         engine.register("choose", move |_, _| Ok(Value::boolean(flag)));
         let script=engine.compile("class C;private def hidden;raise 'invoked';end;end;def run;c=C.new;[c.respond_to?(:hidden,choose()),c.respond_to?(if choose();:class;else;:missing;end)];end").unwrap();
         witness(
@@ -357,7 +357,7 @@ fn forwarded_calls_preserve_ignored_host_control_transfers_and_cleanup() {
     .unwrap();
     let driver = Value::object(vec![(b"visit".to_vec(), method.value())]);
     for (transfer, expected) in [("break 7", "[7, 3]"), ("return 9", "[9, 3]")] {
-        let script=Engine::new().compile(&format!("class C;property n;def initialize;@n=0;end;def go(driver);driver.visit{{@n+=1;{transfer}}};ensure;@n+=2;end;end;def run(driver);c=C.new;[c.send(:go,driver),c.n];end")).unwrap();
+        let script=Engine::legacy_unchecked().compile(&format!("class C;property n;def initialize;@n=0;end;def go(driver);driver.visit{{@n+=1;{transfer}}};ensure;@n+=2;end;end;def run(driver);c=C.new;[c.send(:go,driver),c.n];end")).unwrap();
         witness(
             &script,
             std::slice::from_ref(&driver),

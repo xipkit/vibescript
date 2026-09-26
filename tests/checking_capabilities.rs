@@ -273,7 +273,6 @@ fn value_templates_keep_call_forms_attachment_and_repeated_grants() {
     // A namespace is not indexed and a local is never called, so the other
     // forms do not compile.
     let mut refusing = Engine::new();
-    refusing.set_static_types(true);
     refusing
         .declare_capability(&deliverer().capabilities[0])
         .unwrap();

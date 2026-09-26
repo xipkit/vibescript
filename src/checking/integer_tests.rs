@@ -6,7 +6,7 @@ use std::sync::{
 };
 
 fn clean(source: &str, expected: i64) {
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     let report = script
         .check_call("run", &[], &CallOptions::default())
         .unwrap();
@@ -21,7 +21,7 @@ fn clean(source: &str, expected: i64) {
 }
 
 fn rejected(source: &str) {
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     let report = script
         .check_call("run", &[], &CallOptions::default())
         .unwrap();
@@ -70,7 +70,7 @@ fn integer_guards_refine_unknown_host_results_without_executing_them() {
                 accepts_block: false,
             })
             .unwrap();
-            let mut engine = Engine::new();
+            let mut engine = Engine::legacy_unchecked();
             engine.register_method("choose", method);
             let source =
                 format!("def run;a=[10,20,30];i=choose();if {guard};a[i]+1;else;0;end;end");
@@ -163,7 +163,7 @@ fn bounded_integers_remain_valid_native_receivers_and_lookup_keys() {
             accepts_block: false,
         })
         .unwrap();
-        let mut engine = Engine::new();
+        let mut engine = Engine::legacy_unchecked();
         engine.register_method("choose", method);
         let source = format!("def run;i=choose();if i>=0 && i<3;{body};else;0;end;end");
         let script = engine.compile(&source).unwrap();
@@ -187,7 +187,7 @@ fn bounded_integers_remain_valid_native_receivers_and_lookup_keys() {
 
 #[test]
 fn integer_case_bounds_preserve_possible_float_matches() {
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register_method(
         "unknown",
         HostMethod::new("unknown", |_, _, _| Ok(Value::float(1.0))),

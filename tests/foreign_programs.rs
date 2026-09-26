@@ -793,7 +793,7 @@ fn foreign_initialization_preserves_argument_and_graph_discovery_order() {
 fn static_types_refuse_calls_on_foreign_code() {
     // A foreign namespace or instance is `any` to the receiving script.
     let source = "def run(m: any) -> any\n  m.bump(2)\nend";
-    let error = common::static_engine().compile(source).err().unwrap();
+    let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0106"]);
     assert_eq!(
         error.diagnostics()[0].span.start,

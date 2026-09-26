@@ -10,14 +10,14 @@ use std::{
 };
 
 fn script(source: &str, calls: &Arc<AtomicUsize>) -> Script {
-    script_in(crate::test_engine(), source, calls)
+    script_in(crate::Engine::new(), source, calls)
 }
 
 /// A script that compiles without static types: compound assignment to an
 /// array element reads the element as optional, which they refuse.
 fn untyped_script(source: &str, calls: &Arc<AtomicUsize>) -> Script {
-    let mut engine = Engine::new();
-    engine.set_static_types(false);
+    let mut engine = Engine::legacy_unchecked();
+
     script_in(engine, source, calls)
 }
 
@@ -256,7 +256,7 @@ fn abandoned_execution_releases_cycles_without_running_ensure() {
 fn abandoned_execution_keeps_objects_retained_by_the_host() {
     let retained = Arc::new(Mutex::new(None));
     let held = retained.clone();
-    let mut engine = crate::test_engine();
+    let mut engine = crate::Engine::new();
     engine.register("hold", move |_, args| {
         *held.lock().unwrap() = Some(args[0].clone());
         Ok(Value::nil())
@@ -282,8 +282,8 @@ fn abandoned_execution_keeps_objects_retained_by_the_host() {
     assert!(memory.upgrade().is_some());
     // The reader cannot name the instance's class, which another script
     // declares, so it reads the instance without static types.
-    let mut reader = Engine::new();
-    reader.set_static_types(false);
+    let mut reader = Engine::legacy_unchecked();
+
     let reader = reader.compile("def read(b);[b.n,b.link==b];end").unwrap();
     let result = reader
         .call("read", std::slice::from_ref(&value), CallOptions::default())
@@ -341,7 +341,7 @@ fn host_panics_release_the_invocation_heap_and_accounting() {
             assert!(ctx.objects.is_some());
             panic!("host callback panic");
         };
-        let mut engine = crate::test_engine();
+        let mut engine = crate::Engine::new();
         if framed {
             engine.register_method(
                 "fail",
@@ -371,7 +371,7 @@ fn host_panics_release_the_invocation_heap_and_accounting() {
 #[cfg_attr(not(panic = "unwind"), ignore = "catching a panic requires unwinding")]
 fn failed_or_panicked_preparation_releases_imported_cycles() {
     for panicked in [false, true] {
-        let foreign = crate::test_engine()
+        let foreign = crate::Engine::new()
             .compile("class Box;property link: Box?;end;b=Box.new;b.link=b;b")
             .unwrap()
             .run(CallOptions::default())
@@ -390,7 +390,7 @@ fn failed_or_panicked_preparation_releases_imported_cycles() {
             })],
             ..CallOptions::default()
         };
-        let script = crate::test_engine().compile("def run;nil;end").unwrap();
+        let script = crate::Engine::new().compile("def run;nil;end").unwrap();
         let result = catch_unwind(AssertUnwindSafe(|| script.call("run", &[], options)));
         if panicked {
             assert!(result.is_err());

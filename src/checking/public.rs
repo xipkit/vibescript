@@ -68,7 +68,7 @@ impl Script {
     ///
     /// ```
     /// use vibescript::{CallOptions, Engine};
-    /// let script = Engine::new().compile("7;def unused -> int;false;end")?;
+    /// let script = Engine::legacy_unchecked().compile("7;def unused -> int;false;end")?;
     /// assert!(!script.check(&CallOptions::default())?.is_clean());
     /// assert!(script.check_call("__main__", &[], &CallOptions::default())?.is_clean());
     /// # Ok::<(), vibescript::Error>(())
@@ -186,7 +186,7 @@ impl Script {
     ///
     /// ```
     /// use vibescript::{CallOptions, CheckedOutcome, Engine, Value};
-    /// let script = Engine::new().compile("def add(n:int)->int;n+1;end")?;
+    /// let script = Engine::legacy_unchecked().compile("def add(n:int)->int;n+1;end")?;
     /// let args = [Value::int(41)];
     /// assert!(script.check_call("add", &args, &CallOptions::default())?.is_clean());
     /// match script.checked_call("add", &args, CallOptions::default())? {

@@ -115,7 +115,6 @@ fn chunk_groups_consecutive_equal_keys_in_order() {
 #[test]
 fn the_block_form_is_typed_by_its_keys() {
     let mut engine = Engine::new();
-    engine.set_static_types(true);
     for source in [
         "def f(xs: array<int>) -> array<[bool, array<int>]>\n  xs.chunk { |n| n.even? }\nend\n",
         "def f(xs: array<string>) -> array<[symbol?, array<string>]>\n  xs.chunk { |s| s.empty? ? nil : :word }\nend\n",

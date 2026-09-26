@@ -43,7 +43,7 @@ fn array_concatenation_preserves_general_boundaries_and_recursive_growth() {
         ),
         ("def run(a:array<int>,b:any)->array<int>;a+b;end", false),
     ] {
-        let report = Engine::new()
+        let report = Engine::legacy_unchecked()
             .compile(source)
             .unwrap()
             .check_function("run", &CallOptions::default())
@@ -55,7 +55,7 @@ fn array_concatenation_preserves_general_boundaries_and_recursive_growth() {
             "{source}: {report:?}"
         );
     }
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("def run(n:int,a=[])->array<int>;if n>0;run(n-1,a+[n]);else;a;end;end")
         .unwrap();
     let args = [Value::int(3)];
@@ -681,11 +681,10 @@ fn collection_reference_differences_have_runtime_witnesses() {
                 }
             })
             .collect();
-        let actual = crate::Engine::new().compile(source).unwrap().call(
-            "run",
-            &args,
-            CallOptions::default(),
-        );
+        let actual = crate::Engine::legacy_unchecked()
+            .compile(source)
+            .unwrap()
+            .call("run", &args, CallOptions::default());
         if let Some(value) = case["runtime"]["value"].as_i64() {
             assert_eq!(actual.unwrap().value.as_int(), Some(value), "{source}");
         } else {
@@ -710,7 +709,7 @@ fn structural_hash_inputs_can_have_match_data_indexing() {
     assert!(result.incomplete.data.is_empty());
     assert!(result.issues.data.is_empty());
     assert_ne!(result.throws, 0);
-    let script = crate::Engine::new().compile(source).unwrap();
+    let script = crate::Engine::legacy_unchecked().compile(source).unwrap();
     let matched = script
         .call("make", &[], CallOptions::default())
         .unwrap()

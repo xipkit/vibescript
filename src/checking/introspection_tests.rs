@@ -329,7 +329,7 @@ fn native_introspection_contracts_contain_runtime_results_and_errors() {
     let mut owner = CallContext::new(CallOptions::default());
     let regex = crate::regex::value::Regex::compile(&mut owner, Value::bytes("a"), 0, "Regexp.new")
         .unwrap();
-    let big = crate::Engine::new()
+    let big = crate::Engine::legacy_unchecked()
         .compile("10**30")
         .unwrap()
         .run(CallOptions::default())

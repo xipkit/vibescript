@@ -70,7 +70,7 @@ fn loop_results_binding_and_nested_control_follow_the_language_contract() {
             "missing",
         ),
     ] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), codes, "{source}");
         assert_eq!(error.diagnostics()[0].span.start, source.find(at).unwrap());
     }
@@ -78,7 +78,7 @@ fn loop_results_binding_and_nested_control_follow_the_language_contract() {
 
 #[test]
 fn invalid_loop_calls_are_refused_before_their_arguments_run() {
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine.register("mark", |_, _| panic!("mark ran"));
     for (source, expected) in [
         ("loop()", &[("V0304", 0)][..]),
@@ -309,7 +309,7 @@ fn loop_cancellation_and_exhaustion_cannot_run_rescue_or_ensure_effects() {
         assert!(events.lock().unwrap().is_empty(), "{source}");
     }
     // Arguments to loop are refused before anything runs.
-    let mut checked = common::static_engine();
+    let mut checked = vibescript::Engine::new();
     checked.register("cancel", |_, _| panic!("cancel ran"));
     checked.register("mark", |_, _| panic!("mark ran"));
     let error = checked

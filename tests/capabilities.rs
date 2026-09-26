@@ -37,7 +37,6 @@ fn engine() -> Engine {
 /// occurrence of `at`.
 #[track_caller]
 fn refused(engine: &mut Engine, source: &str, code: &str, at: &str) {
-    engine.set_static_types(true);
     let error = engine.compile(source).err().unwrap();
     assert_eq!(common::codes(&error)[0], code, "{source}");
     assert_eq!(

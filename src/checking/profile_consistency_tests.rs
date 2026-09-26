@@ -17,7 +17,7 @@ use crate::{CallContext, CallOptions, Engine, Value, bytecode, hash::Tag, syntax
 const RETURN_VIOLATION: &str = "return value for run expected int, got string";
 
 fn runtime(source: &str, input: &Value) -> std::result::Result<String, String> {
-    Engine::new()
+    Engine::legacy_unchecked()
         .compile(source)
         .unwrap_or_else(|error| panic!("{source}: {error}"))
         .call("run", std::slice::from_ref(input), CallOptions::default())
@@ -26,7 +26,7 @@ fn runtime(source: &str, input: &Value) -> std::result::Result<String, String> {
 }
 
 fn produced(body: &str) -> Value {
-    Engine::new()
+    Engine::legacy_unchecked()
         .compile(&format!("def make; {body}; end"))
         .unwrap()
         .call("make", &[], CallOptions::default())

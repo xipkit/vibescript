@@ -114,7 +114,7 @@ fn invalid_calls_do_not_evaluate_defaults_or_enter_host_callbacks() {
             "unknown",
         ),
     ] {
-        let mut engine = common::static_engine();
+        let mut engine = vibescript::Engine::new();
         engine.register("tick", |_, _| panic!("tick ran"));
         let error = engine.compile(source).err().unwrap();
         assert_eq!(common::codes(&error), [code], "{source}");
@@ -167,7 +167,7 @@ fn bare_callable_names_execute_optional_defaults() {
         Some(9)
     );
     calls.store(0, Ordering::SeqCst);
-    let mut checked = common::static_engine();
+    let mut checked = vibescript::Engine::new();
     checked.register("tick", |_, _| panic!("tick ran"));
     let source = "def f(a: any) -> any\ntick()\nend\nf";
     let error = checked.compile(source).err().unwrap();
@@ -265,7 +265,7 @@ fn unbound_callees_and_receivers_fail_before_argument_evaluation() {
         "missing[0] += tick().as(int)\nmissing: array<int> = []",
         "missing[0] = tick().as(int)\nmissing: array<int> = []",
     ] {
-        let mut engine = common::static_engine();
+        let mut engine = vibescript::Engine::new();
         engine.register("tick", |_, _| panic!("tick ran"));
         let error = engine.compile(source).err().unwrap();
         assert_eq!(common::codes(&error), ["V0201"], "{source}");

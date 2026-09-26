@@ -921,8 +921,8 @@ const RUNTIME_REJECTION_PROGRAMS: [&str; 9] = [
 fn compile(engine: &Engine, path: &str) -> Script {
     let untyped;
     let engine = if RUNTIME_REJECTION_PROGRAMS.contains(&path) {
-        let mut plain = Engine::new();
-        plain.set_static_types(false);
+        let mut plain = Engine::legacy_unchecked();
+
         untyped = plain;
         &untyped
     } else {

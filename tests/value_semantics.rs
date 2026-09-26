@@ -27,7 +27,11 @@ fn documented_values_remain_stable_with_and_without_an_unused_alias() {
         };
         for source in [source, &with_alias] {
             let name = case["name"].as_str().unwrap();
-            let result = common::fixture_engine(case.get("static_error"), source, name)
+            let Some(engine) = common::fixture_engine(case.get("static_error"), source, name)
+            else {
+                continue;
+            };
+            let result = engine
                 .compile(source)
                 .unwrap()
                 .call("run", &[vibescript::Value::nil()], CallOptions::default())
@@ -112,7 +116,7 @@ fn bare_field_names_are_not_in_scope() {
   rows[0]=9
  end
 end";
-    let error = common::static_engine().compile(body).err().unwrap();
+    let error = vibescript::Engine::new().compile(body).err().unwrap();
     assert_eq!(common::codes(&error), ["V0201"]);
     assert_eq!(
         error.diagnostics()[0].span.start,

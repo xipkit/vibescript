@@ -26,7 +26,7 @@ fn actual(value: Value) -> Error {
 /// The code, the source text under the span, and the message of each
 /// diagnostic that refuses `source`.
 fn refused(source: &str) -> Vec<(String, &str, String)> {
-    let error = common::static_engine()
+    let error = vibescript::Engine::new()
         .compile(source)
         .err()
         .unwrap_or_else(|| panic!("{source} compiled"));

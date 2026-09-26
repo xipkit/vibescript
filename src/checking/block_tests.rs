@@ -37,7 +37,7 @@ fn witness(
         if given { "run {7}" } else { "run()" }
     ));
     let observed = Arc::new(Mutex::new(Observed::default()));
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     let recorded = observed.clone();
     engine.register("record_normal", move |_, args| {
         recorded.lock().unwrap().normal = Some(args[0].clone());

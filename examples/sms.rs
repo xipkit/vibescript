@@ -82,7 +82,6 @@ fn main() -> Result<()> {
     }))?;
     let mut engine = Engine::new();
     engine.set_strict_effects(true);
-    engine.set_static_types(true);
     engine.declare_capability(&sms)?;
     let script = engine.compile(
         "def delivery_update(phone: string, order_id: string) -> string\n  sms.send(phone, \"Order #{order_id} is on its way.\")\nend",
@@ -116,8 +115,8 @@ mod tests {
         // The capability's contract checks arguments at runtime, which is
         // reachable only without static types; with them, main shows the
         // declared capability instead.
-        let mut engine = Engine::new();
-        engine.set_static_types(false);
+        let mut engine = Engine::legacy_unchecked();
+
         engine.set_strict_effects(true);
         let options = CallOptions {
             capabilities: vec![sms],
@@ -145,8 +144,8 @@ mod tests {
         let script = engine.compile("sms.send(\"phone\",\"body\")").unwrap();
         options.cancellation.cancel();
         assert_eq!(script.run(options).unwrap_err().kind, ErrorKind::Cancelled);
-        let mut undeclared = Engine::new();
-        undeclared.set_static_types(false);
+        let mut undeclared = Engine::legacy_unchecked();
+
         assert_eq!(
             undeclared
                 .compile("sms.send(\"phone\",\"body\")")

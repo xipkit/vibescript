@@ -516,7 +516,7 @@ fn mutating_callbacks_preserve_error_classes_retry_and_lexical_returns() {
 
 #[test]
 fn mutating_callbacks_cover_nested_parent_replacement_routes() {
-    let engine = crate::Engine::new();
+    let engine = crate::Engine::legacy_unchecked();
     let mut count = 0;
     for selected in ["0", "1", "-1"] {
         for method in ["fill", "delete_if", "keep_if", "delete(9)"] {

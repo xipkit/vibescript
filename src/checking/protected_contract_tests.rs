@@ -20,7 +20,7 @@ use crate::{
 };
 
 fn runtime(source: &str, input: &Value) -> std::result::Result<String, String> {
-    Engine::new()
+    Engine::legacy_unchecked()
         .compile(source)
         .unwrap_or_else(|error| panic!("{source}: {error}"))
         .call("run", std::slice::from_ref(input), CallOptions::default())
@@ -29,7 +29,7 @@ fn runtime(source: &str, input: &Value) -> std::result::Result<String, String> {
 }
 
 fn produced(body: &str) -> Value {
-    Engine::new()
+    Engine::legacy_unchecked()
         .compile(&format!("def make; {body}; end"))
         .unwrap()
         .call("make", &[], CallOptions::default())
@@ -81,7 +81,7 @@ fn both_paths(source: &str, cases: &[(Value, &str)]) {
     assert!(report.issues.data.is_empty(), "{source}: {report:?}");
     for (input, expected) in cases {
         assert_eq!(runtime(source, input).as_deref(), Ok(*expected), "{source}");
-        let actual = Engine::new()
+        let actual = Engine::legacy_unchecked()
             .compile(source)
             .unwrap()
             .call("run", std::slice::from_ref(input), CallOptions::default())
@@ -253,7 +253,7 @@ fn unsplit_possibly_protected_receivers_keep_both_continuations() {
 #[test]
 fn resolved_class_fields_exclude_protected_objects_while_unresolved_names_stay_gradual() {
     let source = "class C;end;def make;{to_s:C.new};end;def run(h:{to_s:C,...})->int;begin;h[:x]=1;0;rescue RuntimeError;'bad';end;end";
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     let input = script
         .call("make", &[], CallOptions::default())
         .unwrap()
@@ -760,7 +760,7 @@ fn enum_contracts_exclude_string_metadata_without_implicit_conversion() {
             .unwrap_err()
             .starts_with("argument h expected")
     );
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     let input = script
         .call("plain", &[], CallOptions::default())
         .unwrap()

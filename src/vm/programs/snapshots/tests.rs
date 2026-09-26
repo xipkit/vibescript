@@ -64,8 +64,8 @@ fn probe(limit: Limit) -> (crate::Result<crate::Outcome>, Observation) {
     });
     // The program stores a module in the capability object it is granted,
     // which static types refuse, so it compiles without them.
-    let mut engine = Engine::new();
-    engine.set_static_types(false);
+    let mut engine = Engine::legacy_unchecked();
+
     let result = engine
         .compile(
             "module Data

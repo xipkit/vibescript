@@ -43,7 +43,7 @@ fn rendering_calls_eligible_methods_once_and_ignores_visibility() {
     );
     let method = HostMethod::new("to_s", |_, _, _| panic!("converted a host object"));
     let object = Value::object(vec![(b"to_s".to_vec(), method.value())]);
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile(r##"def run(object);"#{object}";end"##)
         .unwrap();
     witness(
@@ -109,9 +109,9 @@ fn template_cleanup_preserves_loop_and_nonlocal_block_transfers() {
 
 #[test]
 fn rendering_keeps_property_guards_and_method_return_contracts() {
-    let script=Engine::new().compile(r##"class C;property n:int;def initialize;@n=1;end;def to_s;@n=false;'bad';end;end;def run;c=C.new;begin;"#{c}";rescue;nil;end;c.n;end"##).unwrap();
+    let script=Engine::legacy_unchecked().compile(r##"class C;property n:int;def initialize;@n=1;end;def to_s;@n=false;'bad';end;end;def run;c=C.new;begin;"#{c}";rescue;nil;end;c.n;end"##).unwrap();
     witness(&script, &[], &CallOptions::default(), "1", true);
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile(
             r##"class C;def to_s -> int;'bad';end;end;def run;begin;"#{C.new}";rescue;99;end;end"##,
         )
@@ -133,7 +133,7 @@ fn rendering_preserves_ignored_host_block_returns_and_cleanup() {
     })
     .unwrap();
     let driver = Value::object(vec![(b"visit".to_vec(), method.value())]);
-    let script=Engine::new().compile(r##"class C;property n;def initialize(driver);@driver=driver;@n=0;end;def to_s;@driver.visit{@n+=1;return 'ok'};'bad';ensure;@n+=2;end;end;def run(driver);c=C.new(driver);["#{c}",c.n];end"##).unwrap();
+    let script=Engine::legacy_unchecked().compile(r##"class C;property n;def initialize(driver);@driver=driver;@n=0;end;def to_s;@driver.visit{@n+=1;return 'ok'};'bad';ensure;@n+=2;end;end;def run(driver);c=C.new(driver);["#{c}",c.n];end"##).unwrap();
     witness(
         &script,
         &[driver],
@@ -145,7 +145,7 @@ fn rendering_preserves_ignored_host_block_returns_and_cleanup() {
 
 #[test]
 fn rendering_is_metered_interruptible_and_releases_all_pending_text() {
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.set_output_writer(|_, _| panic!("checker invoked output writer"));
     for source in [
         r##"def run;"a#{"b#{7}"}c";end"##,
@@ -173,7 +173,7 @@ fn format_converts_direct_instances_in_order_before_pattern_errors() {
         "2",
     );
     for helper in ["format", "sprintf"] {
-        let script=Engine::new().compile(&format!("class C;property n;def initialize;@n=0;end;def to_s;@n+=1;'x';end;end;def run;c=C.new;begin;{helper}(7,c);rescue;nil;end;c.n;end")).unwrap();
+        let script=Engine::legacy_unchecked().compile(&format!("class C;property n;def initialize;@n=0;end;def to_s;@n+=1;'x';end;end;def run;c=C.new;begin;{helper}(7,c);rescue;nil;end;c.n;end")).unwrap();
         witness(&script, &[], &CallOptions::default(), "0", true);
     }
     metered(
@@ -185,7 +185,7 @@ fn format_converts_direct_instances_in_order_before_pattern_errors() {
 fn output_converts_each_direct_operand_and_inspection_preserves_values() {
     let writes = Arc::new(AtomicUsize::new(0));
     let count = writes.clone();
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.set_output_writer(move |_, _| {
         count.fetch_add(1, Ordering::Relaxed);
         Ok(())
@@ -224,7 +224,7 @@ fn output_errors_preserve_conversion_effects_and_skip_later_operands() {
         "7",
     );
     for missing in ["puts", "warn"] {
-        let mut engine = Engine::new();
+        let mut engine = Engine::legacy_unchecked();
         if missing == "puts" {
             engine.set_error_writer(|_, _| panic!("used the wrong writer"));
         } else {
@@ -237,7 +237,7 @@ fn output_errors_preserve_conversion_effects_and_skip_later_operands() {
     }
     let writes = Arc::new(AtomicUsize::new(0));
     let count = writes.clone();
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.set_output_writer(move |_, _| {
         count.fetch_add(1, Ordering::Relaxed);
         Err(crate::Error::new(ErrorKind::Runtime, "writer failed"))
@@ -253,7 +253,7 @@ fn output_errors_preserve_conversion_effects_and_skip_later_operands() {
 
 #[test]
 fn rendering_rejects_keywords_and_blocks_before_conversions_or_writes() {
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.set_output_writer(|_, _| panic!("invalid call reached writer"));
     engine.set_error_writer(|_, _| panic!("invalid call reached writer"));
     for call in [

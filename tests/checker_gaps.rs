@@ -63,8 +63,8 @@ fn fixed(source: &str, diagnostic: &Diagnostic) -> String {
 /// An engine without static types, for what the runtime does with a
 /// program the checker rejects.
 fn unchecked() -> Engine {
-    let mut engine = Engine::new();
-    engine.set_static_types(false);
+    let mut engine = Engine::legacy_unchecked();
+
     engine
 }
 
@@ -72,7 +72,6 @@ fn unchecked() -> Engine {
 #[track_caller]
 fn run(source: &str) -> Result<Value, vibescript::Error> {
     let mut engine = Engine::new();
-    engine.set_static_types(true);
     let script = engine
         .compile(source)
         .unwrap_or_else(|error| panic!("{source}\ndoes not compile: {error}"));
@@ -747,7 +746,6 @@ end
                 ..ModuleConfig::default()
             })
             .unwrap();
-        engine.set_static_types(true);
         (engine, directory)
     }
 

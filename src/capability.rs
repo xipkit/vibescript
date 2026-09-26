@@ -113,10 +113,11 @@ impl Capability {
     ///         accepts_block: false,
     ///     })?;
     /// let sms = Capability::from_value("SMS", Value::object(vec![(b"send".to_vec(), send.value())]));
+    /// let mut engine = Engine::new();
+    /// engine.declare_capability(&sms)?;
+    /// let script = engine.compile("def run -> string\n  SMS.send(\"hello\")\nend\n")?;
+    /// assert!(engine.compile("def run -> string\n  SMS.send(1)\nend\n").is_err());
     /// let options = CallOptions { capabilities: vec![sms], ..CallOptions::default() };
-    /// let script = Engine::new().compile("def run -> string; SMS.send(\"hello\"); end")?;
-    /// assert!(script.check_call("run", &[], &options)?.is_clean());
-    /// assert!(!Engine::new().compile("def run; SMS.send(1); end")?.check_call("run", &[], &options)?.is_clean());
     /// assert_eq!(script.call("run", &[], options)?.value.as_bytes(), Some(b"queued".as_slice()));
     /// # Ok::<(), vibescript::Error>(())
     /// ```

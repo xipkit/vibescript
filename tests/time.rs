@@ -286,7 +286,7 @@ fn invalid_time_operations_and_cancellation_prevent_later_host_effects() {
     assert_eq!(effects.load(Ordering::SeqCst), 0);
     // Arguments of the wrong type, parentheses on an attribute, a block
     // and an unknown keyword are refused before anything runs.
-    let mut checked = common::static_engine();
+    let mut checked = vibescript::Engine::new();
     checked.register("effect", |_, _| panic!("effect ran"));
     checked.register("exhaust", |_, _| panic!("exhaust ran"));
     for (source, code) in [
@@ -310,7 +310,7 @@ fn blocks_and_clock_aliases_follow_the_call_contracts() {
     engine.register("unexpected", |_, _| panic!("ignored block executed"));
     // A block on a time builtin, a removed alias and a local called as a
     // function are refused before anything runs.
-    let mut checked = common::static_engine();
+    let mut checked = vibescript::Engine::new();
     checked.register("unexpected", |_, _| panic!("ignored block executed"));
     for (source, code) in [
         ("Time.utc(2024) {unexpected()}", "V0305"),

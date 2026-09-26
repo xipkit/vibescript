@@ -1,9 +1,9 @@
 //! The static type checker of ADR-007.
 //!
 //! The checker reads a parsed program and reports every type error as a
-//! [`Diagnostic`], through [`crate::Engine::set_static_types`] and
-//! [`crate::Engine::type_check`]. It checks each function once, from its own signature and
-//! the signatures of what it calls, never from a callee's body, so its work
+//! [`Diagnostic`], through [`crate::Engine::compile`] and
+//! [`crate::Engine::type_check`]. It checks each function once, from its own
+//! signature and the signatures of what it calls, never from a callee's body, so its work
 //! is linear in the program. Besides diagnostics it records the static type of
 //! every member call's receiver in [`CallTypes`], which rules that depend on
 //! the receiver's type, such as typed renames of removed spellings, consult.

@@ -16,7 +16,7 @@ fn failure(source: &str) -> Error {
 
 /// The code and offset of each static diagnostic that refuses `source`.
 fn refused(source: &str) -> Vec<(String, usize)> {
-    let error = common::static_engine()
+    let error = vibescript::Engine::new()
         .compile(source)
         .err()
         .unwrap_or_else(|| panic!("{source} compiled"));
@@ -567,7 +567,7 @@ fn operator_diagnostics_span_the_whole_operator() {
         ("x = \"a\" - 1", "-"),
     ] {
         let source = format!("def run(input: any)\n  {body}\nend");
-        let error = common::static_engine().compile(&source).err().unwrap();
+        let error = vibescript::Engine::new().compile(&source).err().unwrap();
         let diagnostic = &error.diagnostics()[0];
         assert_eq!(diagnostic.code.to_string(), "V0108", "{body}");
         assert_eq!(
@@ -586,16 +586,13 @@ fn duplicate_and_reserved_function_names_are_coded() {
         "def g -> int\n  1\nend\ndef g -> int\n  2\nend\n",
         "def f -> int\n  1\nend\ndef g -> int\n  2\nend\nalias g f\n",
     ] {
-        for static_types in [false, true] {
-            let mut engine = Engine::new();
-            engine.set_static_types(static_types);
-            let error = engine.compile(source).err().unwrap();
-            assert_eq!(error.message, "duplicate function g", "{source}");
-            assert_eq!(common::codes(&error), ["V0209"], "{source}");
-            let span = error.diagnostics()[0].span;
-            assert_eq!(span.start, source.rfind('g').unwrap(), "{source}");
-            assert_eq!(&source[span.start..span.end], "g");
-        }
+        let mut engine = Engine::new();
+        let error = engine.compile(source).err().unwrap();
+        assert_eq!(error.message, "duplicate function g", "{source}");
+        assert_eq!(common::codes(&error), ["V0209"], "{source}");
+        let span = error.diagnostics()[0].span;
+        assert_eq!(span.start, source.rfind('g').unwrap(), "{source}");
+        assert_eq!(&source[span.start..span.end], "g");
     }
     // A class alias over a method the class defines replaces it at runtime;
     // the checker refuses it.
@@ -616,7 +613,7 @@ fn duplicate_and_reserved_function_names_are_coded() {
             [("V0210".to_owned(), source.find(at).unwrap())]
         );
     }
-    common::static_engine()
+    vibescript::Engine::new()
         .compile("class C\n  def require(path: string) -> int\n    1\n  end\nend\n")
         .unwrap_or_else(|error| panic!("{error}"));
 }
@@ -626,11 +623,11 @@ fn a_scoped_call_takes_parenless_arguments() {
     // `Math::sqrt 9` is one call, reported for its `::` alone, and its fix
     // keeps the argument with the call.
     let source = "def run(input: any) -> float\n  Math::sqrt 9\nend\n";
-    let error = common::static_engine().compile(source).err().unwrap();
+    let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0416"]);
     let fixed = error.diagnostics()[0].fixes[0].apply(source).unwrap();
     assert_eq!(fixed, "def run(input: any) -> float\n  Math.sqrt 9\nend\n");
-    let result = common::static_engine()
+    let result = vibescript::Engine::new()
         .compile(&fixed)
         .unwrap()
         .call("run", &[Value::nil()], CallOptions::default())

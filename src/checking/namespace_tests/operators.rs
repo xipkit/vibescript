@@ -49,7 +49,7 @@ fn inequality_uses_exact_override_before_negating_equality_truthiness() {
 #[test]
 fn operators_respect_visibility_and_argument_return_contracts() {
     for expression in ["c[0]", "c<<1"] {
-        let script = Engine::new().compile(&format!("class C;end;def run;c=C.new;begin;{expression};rescue TypeError;1;rescue RuntimeError;2;end;end")).unwrap();
+        let script = Engine::legacy_unchecked().compile(&format!("class C;end;def run;c=C.new;begin;{expression};rescue TypeError;1;rescue RuntimeError;2;end;end")).unwrap();
         witness(&script, &[], &CallOptions::default(), "2", true);
     }
     for (definition, expression, expected) in [
@@ -67,14 +67,14 @@ fn operators_respect_visibility_and_argument_return_contracts() {
         let source = format!(
             "class C;{definition};end;def run;c=C.new;begin;{expression};rescue;99;end;end"
         );
-        let script = Engine::new().compile(&source).unwrap();
+        let script = Engine::legacy_unchecked().compile(&source).unwrap();
         witness(&script, &[], &CallOptions::default(), expected, true);
     }
     run(
         "class C;def use(other);other+1;end;protected;def +(x);7;end;end;def run;C.new.use(C.new);end",
         "7",
     );
-    let script = Engine::new().compile("class C;def self.use(other);other+1;end;protected;def +(x);7;end;end;def run;begin;C.use(C.new);rescue;99;end;end").unwrap();
+    let script = Engine::legacy_unchecked().compile("class C;def self.use(other);other+1;end;protected;def +(x);7;end;end;def run;begin;C.use(C.new);rescue;99;end;end").unwrap();
     witness(&script, &[], &CallOptions::default(), "99", true);
 }
 
@@ -148,7 +148,7 @@ fn operator_property_guards_and_ensure_preserve_partial_state() {
         ),
         ("def <<(v);@xs.fill{v};ensure;@n+=1;end", "c<<false"),
     ] {
-        let script = Engine::new().compile(&format!("class C;getter xs:array<int>;property n;def initialize;@xs=[1];@n=0;end;{definition};end;def run;c=C.new;begin;{expression};rescue;nil;end;[c.xs,c.n];end")).unwrap();
+        let script = Engine::legacy_unchecked().compile(&format!("class C;getter xs:array<int>;property n;def initialize;@xs=[1];@n=0;end;{definition};end;def run;c=C.new;begin;{expression};rescue;nil;end;[c.xs,c.n];end")).unwrap();
         witness(&script, &[], &CallOptions::default(), "[[1], 1]", true);
     }
     run(
@@ -160,7 +160,7 @@ fn operator_property_guards_and_ensure_preserve_partial_state() {
 #[test]
 fn operator_receiver_unions_include_native_and_instance_paths() {
     for choose in [false, true] {
-        let mut engine = Engine::new();
+        let mut engine = Engine::legacy_unchecked();
         engine.register("choose", move |_, _| Ok(Value::boolean(choose)));
         for (source, yes, no) in [
             (
@@ -212,7 +212,7 @@ fn operator_calls_preserve_ignored_host_block_transfers() {
     let driver = Value::object(vec![(b"visit".to_vec(), method.value())]);
     for (operator, expression) in [("+", "c+driver"), ("[]", "c[driver]"), ("<<", "c<<driver")] {
         for (transfer, expected) in [("break 7", "[7, 3]"), ("return 9", "[9, 3]")] {
-            let script = Engine::new().compile(&format!("class C;property n;def initialize;@n=0;end;def {operator}(driver);driver.visit{{@n+=1;{transfer}}};ensure;@n+=2;end;end;def run(driver);c=C.new;v={expression};[v,c.n];end")).unwrap();
+            let script = Engine::legacy_unchecked().compile(&format!("class C;property n;def initialize;@n=0;end;def {operator}(driver);driver.visit{{@n+=1;{transfer}}};ensure;@n+=2;end;end;def run(driver);c=C.new;v={expression};[v,c.n];end")).unwrap();
             witness(
                 &script,
                 std::slice::from_ref(&driver),
@@ -245,7 +245,7 @@ fn operator_results_retain_exact_facts_at_known_call_sites() {
         "class C;def []=(i,v);false;end;end;def run;c=C.new;c[0]=7;end",
         "class C;def <<(v);7;end;end;def run;C.new<<2;end",
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = Engine::legacy_unchecked().compile(source).unwrap();
         let mut ctx = CallContext::new(CallOptions::default());
         let mut checked = check(&mut ctx, &script, &[], &CallOptions::default()).unwrap();
         assert!(

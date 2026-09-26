@@ -83,7 +83,7 @@ fn optional_host_method_reads_call_only_at_runtime_when_not_shadowed() {
     };
     let count = Arc::new(AtomicUsize::new(0));
     let observed = count.clone();
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register_method(
         "host",
         HostMethod::new("host", move |_, _, _| {
@@ -221,7 +221,7 @@ fn optional_global_replacements_flow_into_captures() {
         ),
     ] {
         let source = format!("def once; yield; end; def run(flag:bool); {body}; end");
-        let script = crate::Engine::new().compile(&source).unwrap();
+        let script = crate::Engine::legacy_unchecked().compile(&source).unwrap();
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
         let report = analyze(&mut ctx, &mut facts, &script.inner.code.program).unwrap();

@@ -85,7 +85,7 @@ impl Fixture {
             || method.clone(),
             |signature| method.clone().with_signature(signature).unwrap(),
         );
-        let mut engine = Engine::new();
+        let mut engine = Engine::legacy_unchecked();
         engine.register_method("visit", method.clone());
         let script = engine
             .compile(&format!(

@@ -1,7 +1,7 @@
 use crate::{CallContext, CallOptions, Engine, ErrorKind, Limits, Value};
 
 fn check(source: &str, clean: bool) {
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     let report = script.check(&CallOptions::default()).unwrap();
     assert!(report.incomplete.is_empty(), "{source}: {report:?}");
     assert_eq!(report.is_clean(), clean, "{source}: {report:?}");
@@ -64,7 +64,7 @@ fn declaration_blocks_keep_lexical_yield_and_error_cleanup() {
 #[test]
 fn whole_scope_keeps_declaration_diagnostics_after_failing_top_level_and_initializers() {
     let source = "1+false\nmodule M\n2+false\nend\ndef later->int\nfalse\nend\n";
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     let report = script.check(&CallOptions::default()).unwrap();
     assert!(report.incomplete.is_empty(), "{report:?}");
     for line in [1, 3, 6] {
@@ -79,7 +79,7 @@ fn whole_scope_keeps_declaration_diagnostics_after_failing_top_level_and_initial
 fn declarations_keep_instances_from_each_failing_top_level_history() {
     // Error exits after different allocations reach the declarations as separate states.
     let source = "class Order\n  def initialize()\n  end\nend\nclass Holder\n  def initialize()\n  end\n  def check(u: Order)\n    raise \"x\"\n  end\nend\ndef takes_order(value: Order) -> Order\n  value\nend\ndef later -> int\n  false\nend\n[Holder][0].new.check(Order.new)";
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     let report = script.check(&CallOptions::default()).unwrap();
     assert!(report.incomplete.is_empty(), "{report:?}");
     assert_eq!(report.diagnostics.len(), 1, "{report:?}");
@@ -155,7 +155,7 @@ fn whole_scope_uses_top_level_namespace_state_and_checks_later_bodies() {
         check(source, clean);
     }
     let source = "module A\n1+false\nend\nmodule B\n2+false\nend\ndef later->int\nfalse\nend\n";
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     let report = script.check(&CallOptions::default()).unwrap();
     assert!(report.incomplete.is_empty(), "{report:?}");
     for line in [2, 5, 8] {
@@ -194,7 +194,7 @@ fn constructor_fields_follow_branches_helpers_and_cleanup() {
 
 #[test]
 fn constructor_facts_preserve_runtime_witnesses_and_symbolic_parameters() {
-    let script = Engine::new().compile("class C;property n:int;def initialize(set:bool);if set;@n=7;end;end;def value->int;@n;end;end;def read(c:C)->int;c.value;end;def witness(set:bool);read(C.new(set));end").unwrap();
+    let script = Engine::legacy_unchecked().compile("class C;property n:int;def initialize(set:bool);if set;@n=7;end;end;def value->int;@n;end;end;def read(c:C)->int;c.value;end;def witness(set:bool);read(C.new(set));end").unwrap();
     let report = script.check(&CallOptions::default()).unwrap();
     assert!(report.incomplete.is_empty(), "{report:?}");
     assert!(!report.diagnostics.is_empty(), "{report:?}");
@@ -256,7 +256,7 @@ fn whole_scope_metering_spans_all_declarations_and_releases_temporary_state() {
         "1+false;module M;2+false;end;def bad->int;false;end;def block;yield;end",
         "class C;property n:int;def initialize(@n: int);end;def value->int;if block_given?;yield;end;@n;end;end;def read(c:C)->int;c.n;end",
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = Engine::legacy_unchecked().compile(source).unwrap();
         let options = CallOptions::default();
         let mut ctx = CallContext::new(options.clone());
         let report = super::whole::check(&mut ctx, &script, &options).unwrap();
@@ -308,7 +308,7 @@ fn whole_scope_metering_spans_all_declarations_and_releases_temporary_state() {
 
 #[test]
 fn declaration_state_uses_successful_top_level_exits_when_available() {
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register("input", |_, _| Ok(Value::int(7)));
     let script = engine
         .compile("module M;K=input();def self.value->int;K;end;end;M.value")
@@ -335,7 +335,7 @@ fn constructor_class_inputs_do_not_invent_uninitialized_fields() {
         "class C;property n:int;def initialize(other:C?=nil);if other;@n=other.n;else;@n=7;end;end;def value->int;@n;end;end;def witness;a=C.new;C.new(a).value;end",
         "class D;property n:int;def initialize;@n=7;end;end;class C;property n:int;def initialize(other:D);@n=other.n;end;def value->int;@n;end;end;def witness;C.new(D.new).value;end",
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = Engine::legacy_unchecked().compile(source).unwrap();
         let report = script.check(&CallOptions::default()).unwrap();
         assert!(report.is_clean(), "{source}: {report:?}");
         assert_eq!(

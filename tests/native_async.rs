@@ -319,7 +319,6 @@ async fn async_capabilities_keep_contracts_grants_and_attachment_rules() {
         ("f=typed::echo;f(7)", &["V0416", "V0301", "V0310"]),
     ] {
         let mut engine = declaring();
-        engine.set_static_types(true);
         let error = engine
             .compile(&format!("def run -> any;{expression};end"))
             .err()

@@ -36,7 +36,7 @@ fn invalid_call_members_stop_before_arguments_and_blocks() {
     }
     // Every other receiver has no `call` member, and `P#call` takes no
     // keywords or block, so the rest are refused before anything runs.
-    let mut checked = common::static_engine();
+    let mut checked = vibescript::Engine::new();
     checked.register("mark", |_, _| panic!("mark ran"));
     for (receiver, code) in [
         ("{}", "V0203"),
@@ -128,7 +128,7 @@ end
         ("D.new.send(:call,flag:3)", "V0405", "send"),
     ] {
         let source = format!("{declaration}{call}");
-        let error = common::static_engine().compile(&source).err().unwrap();
+        let error = vibescript::Engine::new().compile(&source).err().unwrap();
         assert_eq!(common::codes(&error), [code], "{call}");
         assert_eq!(error.diagnostics()[0].span.start, source.rfind(at).unwrap());
     }
@@ -139,7 +139,7 @@ fn call_targets_are_selected_before_arguments_mutate_callable_fields() {
     // A builtin function is not a value and a hash field is not a member,
     // so a callable field is refused before anything runs.
     let source = "h={call:Math::sqrt};value=h.call(h.clear.length);[value,h]";
-    let error = common::static_engine().compile(source).err().unwrap();
+    let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0416", "V0301", "V0203"]);
     let spans: Vec<usize> = error.diagnostics().iter().map(|d| d.span.start).collect();
     assert_eq!(
@@ -220,7 +220,11 @@ fn unknown_call_members_use_the_reference_wording() {
                     case["body"].as_str().unwrap()
                 )
             });
-        let error = common::fixture_engine(case.get("static_error"), &source, name)
+        let Some(engine) = common::fixture_engine(case.get("static_error"), &source, name) else {
+            checked += 1;
+            continue;
+        };
+        let error = engine
             .compile(&source)
             .unwrap()
             .call("run", &[Value::nil()], CallOptions::default())
@@ -243,7 +247,11 @@ fn bare_names_receiving_call_follow_the_reference_rules() {
             continue;
         }
         let source = case["source"].as_str().unwrap();
-        let error = common::fixture_engine(case.get("static_error"), source, name)
+        let Some(engine) = common::fixture_engine(case.get("static_error"), source, name) else {
+            checked += 1;
+            continue;
+        };
+        let error = engine
             .compile(source)
             .unwrap()
             .call("run", &[Value::nil()], CallOptions::default())
@@ -254,7 +262,7 @@ fn bare_names_receiving_call_follow_the_reference_rules() {
     assert_eq!(checked, 17);
     // A function's result has no `call` member.
     let source = "def helper -> int\n1\nend\nx = 1\n(helper.call)()";
-    let error = common::static_engine().compile(source).err().unwrap();
+    let error = vibescript::Engine::new().compile(source).err().unwrap();
     assert_eq!(common::codes(&error), ["V0203"]);
     assert_eq!(
         error.diagnostics()[0].span.start,

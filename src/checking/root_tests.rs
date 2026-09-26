@@ -76,7 +76,7 @@ fn witness(
     expected: &str,
     rejected: bool,
 ) {
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     let program = &script.inner.code.program;
     let globals: Vec<_> = globals
         .iter()
@@ -129,7 +129,7 @@ fn array() -> Value {
 }
 
 fn descriptor(source: &str) -> Value {
-    Engine::new()
+    Engine::legacy_unchecked()
         .compile(source)
         .unwrap()
         .run(CallOptions::default())
@@ -419,7 +419,7 @@ fn root_analysis_never_executes_shadowed_host_callbacks() {
     };
     let calls = Arc::new(AtomicUsize::new(0));
     let counter = calls.clone();
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register("host", move |_, _| {
         counter.fetch_add(1, Ordering::Relaxed);
         Ok(Value::int(9))
@@ -600,7 +600,7 @@ fn declared_host_reads_observe_supplied_values_or_call_methods() {
     };
     let count = Arc::new(AtomicUsize::new(0));
     let observed_calls = count.clone();
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register("host", move |_, _| {
         observed_calls.fetch_add(1, Ordering::SeqCst);
         Ok(Value::int(3))

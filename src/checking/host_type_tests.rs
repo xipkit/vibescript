@@ -58,7 +58,7 @@ impl Fixture {
             accepts_block,
         })
         .unwrap();
-        let mut engine = Engine::new();
+        let mut engine = Engine::legacy_unchecked();
         engine.register_method("echo", method.clone());
         let script = engine.compile(&format!("{SOURCE} {source}")).unwrap();
         let program = &script.inner.code.program;

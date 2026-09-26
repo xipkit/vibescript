@@ -337,7 +337,7 @@ fn named_reducers_use_detached_native_dispatch() {
 }
 
 fn supplied(source: &str, input: Value, exact: bool, rejected: bool) -> Value {
-    let actual = Engine::new()
+    let actual = Engine::legacy_unchecked()
         .compile(source)
         .unwrap()
         .call("run", std::slice::from_ref(&input), CallOptions::default())

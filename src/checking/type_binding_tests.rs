@@ -500,7 +500,7 @@ fn source_annotations_enable_nominal_script_argument_and_return_contracts() {
         ),
     ] {
         let source = format!("{SOURCE}{body}");
-        let script = Engine::new().compile(&source).unwrap();
+        let script = Engine::legacy_unchecked().compile(&source).unwrap();
         let program = &script.inner.code.program;
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
@@ -578,7 +578,7 @@ fn resolved_host_contracts_validate_nominal_arguments_without_running_the_host()
             accepts_block: false,
         })
         .unwrap();
-        let mut engine = Engine::new();
+        let mut engine = Engine::legacy_unchecked();
         engine.register_method("echo", method.clone());
         let source = format!("{SOURCE} def run; echo({argument}); end");
         let script = engine.compile(&source).unwrap();
@@ -874,7 +874,7 @@ fn named_binding_results_match_executed_host_signature_resolution() {
                 accepts_block: false,
             })
             .unwrap();
-            let mut engine = Engine::new();
+            let mut engine = Engine::legacy_unchecked();
             engine.register_method("probe", method.clone());
             let script = engine
                 .compile(&format!("{SOURCE} def run; probe(); end"))

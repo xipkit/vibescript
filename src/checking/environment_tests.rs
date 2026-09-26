@@ -19,7 +19,9 @@ use std::sync::{
 
 #[test]
 fn source_identity_hashing_has_repeatable_work_with_multiple_live_arenas() {
-    let script = Engine::new().compile("class C;end;def run;7;end").unwrap();
+    let script = Engine::legacy_unchecked()
+        .compile("class C;end;def run;7;end")
+        .unwrap();
     let mut arenas = Vec::new();
     let mut baseline = None;
     for _ in 0..32 {
@@ -91,7 +93,7 @@ fn witness(script: &Script, options: &CallOptions, expected: &str, rejected: boo
 fn compiled_legacy_callbacks_ignore_attached_blocks() {
     let calls = Arc::new(AtomicUsize::new(0));
     let count = calls.clone();
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register("echo", move |_, _| {
         count.fetch_add(1, Ordering::Relaxed);
         Ok(Value::int(7))
@@ -126,7 +128,7 @@ fn compiled_legacy_callbacks_ignore_attached_blocks() {
 #[test]
 fn signed_plain_methods_keep_signature_guards_and_ignore_allowed_blocks() {
     for allowed in [false, true] {
-        let mut engine = Engine::new();
+        let mut engine = Engine::legacy_unchecked();
         engine.register_method(
             "echo",
             HostMethod::new("echo", |_, _, _| Ok(Value::int(7)))
@@ -163,7 +165,7 @@ fn unsigned_plain_methods_reject_blocks_before_validators() {
         },
         |_, _| Ok(()),
     );
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register_method("echo", method);
     let script = engine
         .compile("def run; begin; echo { missing }; rescue ArgumentError; 9; end; end")
@@ -175,7 +177,7 @@ fn unsigned_plain_methods_reject_blocks_before_validators() {
 #[test]
 fn registered_block_drivers_keep_sticky_transfers() {
     for transfer in ["break 7", "return 9"] {
-        let mut engine = Engine::new();
+        let mut engine = Engine::legacy_unchecked();
         engine.register_method(
             "visit",
             HostMethod::new_with_block("visit", |call, _, _| {
@@ -207,7 +209,7 @@ fn registered_block_drivers_keep_sticky_transfers() {
 fn registered_named_contracts_resolve_live_source_and_root_types() {
     let calls = Arc::new(AtomicUsize::new(0));
     let count = calls.clone();
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register_method(
         "echo",
         HostMethod::new("echo", move |_, args, _| {
@@ -233,7 +235,7 @@ fn registered_named_contracts_resolve_live_source_and_root_types() {
 
 #[test]
 fn supplied_roots_preserve_precedence_and_live_mutations() {
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register("answer", |_, _| Ok(Value::int(22)));
     let script = engine
         .compile("def answer; 11; end; def run; answer; end")
@@ -264,7 +266,9 @@ fn repeated_method_descriptors_share_metadata_but_keep_distinct_grants() {
         (b"a".to_vec(), method.value()),
         (b"b".to_vec(), method.value()),
     ]);
-    let producer = Engine::new().compile("def run; object; end").unwrap();
+    let producer = Engine::legacy_unchecked()
+        .compile("def run; object; end")
+        .unwrap();
     let stale = producer
         .call(
             "run",
@@ -276,7 +280,7 @@ fn repeated_method_descriptors_share_metadata_but_keep_distinct_grants() {
         )
         .unwrap()
         .value;
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("def run; [fresh.a(), (begin; stale.a(); rescue; 9; end)]; end")
         .unwrap();
     let options = CallOptions {
@@ -331,7 +335,9 @@ fn stale_grants_fail_before_signature_resolution_and_validators() {
     )
     .with_signature(signature(Some("Missing"), "Missing", false))
     .unwrap();
-    let producer = Engine::new().compile("def run; object; end").unwrap();
+    let producer = Engine::legacy_unchecked()
+        .compile("def run; object; end")
+        .unwrap();
     let stale = producer
         .call(
             "run",
@@ -347,7 +353,7 @@ fn stale_grants_fail_before_signature_resolution_and_validators() {
         )
         .unwrap()
         .value;
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("def run; begin; object.deliver(7); rescue; 9; end; end")
         .unwrap();
     let options = CallOptions {
@@ -400,7 +406,9 @@ fn opaque_factories_remain_pending_even_when_an_explicit_global_overrides_them()
         capabilities,
         ..CallOptions::default()
     };
-    let script = Engine::new().compile("def run; value; end").unwrap();
+    let script = Engine::legacy_unchecked()
+        .compile("def run; value; end")
+        .unwrap();
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let environment = Environment::new(&mut ctx, &mut facts, &script, &options).unwrap();
@@ -455,7 +463,7 @@ fn value_templates_bind_as_deferred_inputs_and_keep_factories_incomplete() {
     .with_signature(signature(Some("string"), "string", false))
     .unwrap();
     let template = Value::object(vec![(b"send".to_vec(), send.value())]);
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.set_strict_effects(true);
     let script = engine.compile("def run; SMS.send(\"hi\"); end").unwrap();
     let options = CallOptions {
@@ -559,12 +567,14 @@ fn value_templates_keep_expired_grants_revoked_without_running_validators() {
         capabilities: vec![Capability::from_value("SMS", template)],
         ..CallOptions::default()
     };
-    let producer = Engine::new().compile("def run; SMS; end").unwrap();
+    let producer = Engine::legacy_unchecked()
+        .compile("def run; SMS; end")
+        .unwrap();
     let expired = producer
         .call("run", &[], grant(fresh.clone()))
         .unwrap()
         .value;
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("def run; begin; SMS.send(); rescue; 9; end; end")
         .unwrap();
     witness(&script, &grant(fresh), "7", false);
@@ -599,7 +609,7 @@ fn template_script() -> (Script, CallOptions) {
     let send = HostMethod::new("SMS.send", |_, _, _| panic!("checker ran a callback"))
         .with_signature(signature(Some("array<Status>"), "Status", false))
         .unwrap();
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.set_strict_effects(true);
     let script = engine
         .compile("enum Status; Draft; Sent; end; def run; SMS.send([:draft]).name; end")
@@ -720,7 +730,7 @@ fn value_template_preparation_and_analysis_preserve_cancellation_and_deadlines()
 
 #[test]
 fn initializers_are_analyzed_in_local_and_foreign_sources() {
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register("mark", |_, _| panic!("initializer executed"));
     let script = engine
         .compile("class Widget; mark(); end; def run; 7; end")
@@ -740,7 +750,9 @@ fn initializers_are_analyzed_in_local_and_foreign_sources() {
         .unwrap();
     assert!(report.incomplete.data.is_empty(), "{report:?}");
     let namespace = script.inner.code.program.declarations[0].clone();
-    let consumer = Engine::new().compile("def run; Widget; end").unwrap();
+    let consumer = Engine::legacy_unchecked()
+        .compile("def run; Widget; end")
+        .unwrap();
     let globals = CallOptions {
         globals: [("Widget".into(), namespace)].into(),
         ..CallOptions::default()
@@ -778,7 +790,7 @@ fn initializers_are_analyzed_in_local_and_foreign_sources() {
 
 #[test]
 fn admitted_classes_and_instances_share_source_declaration_identities() {
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("enum Status; Ready; end; class First; end; class Second; end; module Outer; module Inner; end; end; def run; 7; end")
         .unwrap();
     let mut producer = CallContext::new(CallOptions::default());
@@ -846,8 +858,12 @@ fn admitted_classes_and_instances_share_source_declaration_identities() {
 
 #[test]
 fn source_owners_distinguish_code_and_captured_scopes_without_retaining_heaps() {
-    let first = Engine::new().compile("def run; 7; end").unwrap();
-    let second = Engine::new().compile("def run; 7; end").unwrap();
+    let first = Engine::legacy_unchecked()
+        .compile("def run; 7; end")
+        .unwrap();
+    let second = Engine::legacy_unchecked()
+        .compile("def run; 7; end")
+        .unwrap();
     let mut producer = CallContext::new(CallOptions::default());
     let a = crate::objects::environment(&mut producer).unwrap();
     let b = crate::objects::environment(&mut producer).unwrap();
@@ -931,7 +947,7 @@ fn source_owners_distinguish_code_and_captured_scopes_without_retaining_heaps() 
 
 #[test]
 fn captured_functions_keep_distinct_owners_and_resolve_in_their_source() {
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("def helper; 99; end; def run; foreign.helper(); end")
         .unwrap();
     let code = crate::code::Code::compile_file("def helper; 7; end", &Default::default()).unwrap();
@@ -999,7 +1015,7 @@ fn captured_functions_keep_distinct_owners_and_resolve_in_their_source() {
 }
 
 fn accounting_script() -> (Script, CallOptions) {
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register_method(
         "echo",
         HostMethod::new("echo", |_, _, _| panic!("callback executed"))

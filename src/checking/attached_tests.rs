@@ -70,7 +70,7 @@ fn witness(body: &str, expected: &str, rejected: bool) {
         (b"number".to_vec(), Value::int(7)),
     ]);
     let source = format!("def run; {body}; end");
-    let script = Engine::new().compile(&source).unwrap();
+    let script = Engine::legacy_unchecked().compile(&source).unwrap();
     let program = &script.inner.code.program;
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
@@ -362,7 +362,7 @@ fn invalid_global_data_fails_before_mutators_and_can_be_overwritten_without_read
     ] {
         let counter = Arc::new(AtomicUsize::new(0));
         let bad = Value::array(vec![method(&counter).value()]);
-        let script = Engine::new()
+        let script = Engine::legacy_unchecked()
             .compile(&format!("def run; {body}; end"))
             .unwrap();
         verify_script(&script, &[("bad", bad)], expected, rejected);
@@ -383,7 +383,7 @@ fn root_host_methods_allow_calls_but_keep_ordinary_reads_attached() {
         ),
     ] {
         let counter = Arc::new(AtomicUsize::new(0));
-        let script = Engine::new()
+        let script = Engine::legacy_unchecked()
             .compile(&format!("def run; {body}; end"))
             .unwrap();
         verify_script(
@@ -416,7 +416,7 @@ fn attached_source_methods_support_calls_and_optional_automatic_reads() {
         let source = format!(
             "def echo(value); value; end; def answer; 7; end; def items; [1]; end; def fallback(value=7); value; end; def run; {body}; end"
         );
-        let script = Engine::new().compile(&source).unwrap();
+        let script = Engine::legacy_unchecked().compile(&source).unwrap();
         let mut admission = CallContext::new(CallOptions::default());
         let environment = crate::objects::environment(&mut admission).unwrap();
         let methods = ["echo", "answer", "items", "fallback"]
@@ -465,7 +465,7 @@ fn conditional_method_fields_keep_valid_calls_and_detachment_errors() {
     for flag in [false, true] {
         let counter = Arc::new(AtomicUsize::new(0));
         let object = Value::object(vec![(b"deliver".to_vec(), method(&counter).value())]);
-        let script = Engine::new().compile("def run(flag:bool); sms[:deliver]=9 if flag; begin; sms[:deliver](7); rescue; 9; end; end").unwrap();
+        let script = Engine::legacy_unchecked().compile("def run(flag:bool); sms[:deliver]=9 if flag; begin; sms[:deliver](7); rescue; 9; end; end").unwrap();
         verify_script_args(
             &script,
             &[("sms", object.clone())],
@@ -473,7 +473,7 @@ fn conditional_method_fields_keep_valid_calls_and_detachment_errors() {
             if flag { "9" } else { "7" },
             true,
         );
-        let script = Engine::new().compile("def run(flag:bool); sms[:deliver]=9 if flag; begin; sms[:deliver]; rescue; 7; end; end").unwrap();
+        let script = Engine::legacy_unchecked().compile("def run(flag:bool); sms[:deliver]=9 if flag; begin; sms[:deliver]; rescue; 7; end; end").unwrap();
         verify_script_args(
             &script,
             &[("sms", object)],
@@ -497,7 +497,7 @@ fn source_method_reads_preserve_root_writes_and_block_control_transfers() {
             "8",
         ),
     ] {
-        let script = Engine::new()
+        let script = Engine::legacy_unchecked()
             .compile(&format!(
                 "def answer; count+=1; count; end; def apply; yield 7; end; def run; {body}; end"
             ))
@@ -684,7 +684,9 @@ fn attached_method_analysis_keeps_cancellation_and_deadlines_latched() {
 
 #[test]
 fn supplied_arguments_reject_nested_methods_before_an_unused_parameter_body_runs() {
-    let script = Engine::new().compile("def run(value); 7; end").unwrap();
+    let script = Engine::legacy_unchecked()
+        .compile("def run(value); 7; end")
+        .unwrap();
     let program = &script.inner.code.program;
     let counter = Arc::new(AtomicUsize::new(0));
     for value in [

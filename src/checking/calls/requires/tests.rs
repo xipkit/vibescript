@@ -74,7 +74,7 @@ fn import_discovery_publication_and_retries_share_exact_limits_and_release_scrat
         "class Box;property value:int;def initialize(n:int=3);@value=n;end;def +(n:int)->int;@value+n;end;end;def box_class;Box;end;def receiving(x:Local)->int;x.value;end",
     )
     .unwrap();
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine
         .set_module_config(ModuleConfig {
             paths: vec![directory.0.clone()],

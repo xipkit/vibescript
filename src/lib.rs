@@ -103,6 +103,7 @@ type HostCallback =
     Arc<dyn Fn(&mut CallContext, &[Value], &[(Value, Value)]) -> Result<Value> + Send + Sync>;
 
 /// A compiler configured with explicitly registered host capabilities.
+#[derive(Default)]
 pub struct Engine {
     hosts: BTreeMap<String, capability::Registered>,
     /// Hosts registered with [`Self::register`], which refuse keywords.
@@ -111,7 +112,9 @@ pub struct Engine {
     declared: Arc<declared::Declarations>,
     loader: Arc<loading::Loader>,
     strict_effects: bool,
-    static_types: bool,
+    /// Whether compilation skips static types and keeps the ADR-004
+    /// language, as [`Engine::legacy_unchecked`] engines do.
+    legacy: bool,
     random_source: Option<random::Source>,
     output_writer: Option<output::Writer>,
     error_writer: Option<output::Writer>,
@@ -119,44 +122,17 @@ pub struct Engine {
     observer: Option<Arc<dyn observe::Observer>>,
 }
 
-/// Whether engines type check statically unless told otherwise. Building
-/// with the `VIBESCRIPT_STATIC_TYPES` environment variable set turns it on,
-/// so the test suite can run as it will once static types are the only
-/// mode. This crate's own unit tests opt in through `test_engine`, since
-/// the gradual checker's tests keep running the ADR-004 language until
-/// that checker is removed.
+/// Transitional: every engine type checks now. Removed once no test reads
+/// it.
 #[doc(hidden)]
-pub const STATIC_TYPES_BY_DEFAULT: bool = option_env!("VIBESCRIPT_STATIC_TYPES").is_some();
-
-/// An engine for this crate's unit tests that follows
-/// [`STATIC_TYPES_BY_DEFAULT`].
-#[cfg(test)]
-pub(crate) fn test_engine() -> Engine {
-    let mut engine = Engine::new();
-    engine.set_static_types(STATIC_TYPES_BY_DEFAULT);
-    engine
-}
-
-impl Default for Engine {
-    fn default() -> Self {
-        Self {
-            hosts: BTreeMap::new(),
-            keywordless: BTreeSet::new(),
-            declared: Arc::default(),
-            loader: Arc::default(),
-            strict_effects: false,
-            static_types: STATIC_TYPES_BY_DEFAULT && !cfg!(test),
-            random_source: None,
-            output_writer: None,
-            error_writer: None,
-            #[cfg(feature = "observe")]
-            observer: None,
-        }
-    }
-}
+pub const STATIC_TYPES_BY_DEFAULT: bool = true;
 
 impl Engine {
-    /// Creates an engine with core builtins and no external capabilities.
+    /// Creates an engine with core builtins and no external capabilities,
+    /// which type checks every script it compiles and the files they
+    /// require (ADR-007). A program with type errors does not compile: the
+    /// error's [`Error::diagnostics`] lists every one with its code, spans,
+    /// expected and found types and fixes.
     pub fn new() -> Self {
         Self::default()
     }
@@ -169,25 +145,29 @@ impl Engine {
     pub fn set_strict_effects(&mut self, enabled: bool) {
         self.strict_effects = enabled;
     }
-    /// Type checks subsequently compiled scripts and the files they require
-    /// statically (ADR-007).
+    /// Creates an engine that compiles the ADR-004 language: without static
+    /// types and accepting the removed spellings of ADR-008.
     ///
-    /// When enabled, a program with type errors does not compile: the error's
-    /// [`Error::diagnostics`] lists every type error with its code, spans,
-    /// expected and found types and fixes. Disabled by default until the
-    /// static checker replaces the gradual one; the setting then goes away.
-    ///
-    /// ```
-    /// let mut engine = vibescript::Engine::new();
-    /// engine.set_static_types(true);
-    /// let script = engine.compile("def add(a: int, b: int) -> int\n  a + b\nend\n")?;
-    /// # Ok::<(), vibescript::Error>(())
-    /// ```
+    /// This exists only so that `vibes migrate` can compile, run and observe
+    /// scripts written before static types became the language (ADR-007).
+    /// Until they are removed with it, the gradual checker's own tests use it
+    /// too; nothing else may.
+    #[doc(hidden)]
+    pub fn legacy_unchecked() -> Self {
+        Self {
+            legacy: true,
+            ..Self::default()
+        }
+    }
+    /// Transitional: `false` makes this engine compile as
+    /// [`Self::legacy_unchecked`] does. Removed once the tests pinned to the
+    /// mode without static types are converted.
+    #[doc(hidden)]
     pub fn set_static_types(&mut self, enabled: bool) {
-        self.static_types = enabled;
+        self.legacy = !enabled;
         self.loader = Arc::new(self.loader.fresh());
     }
-    /// Type checks `source` without compiling it, as [`Self::set_static_types`]
+    /// Type checks `source` without compiling it, as [`Self::compile`]
     /// does, returning every diagnostic and the static receiver type of each
     /// member call. Only a syntax error fails.
     ///
@@ -371,7 +351,6 @@ impl Engine {
     /// ```
     /// use vibescript::{CallOptions, Engine, ErrorKind, Value};
     /// let mut engine = Engine::new();
-    /// engine.set_static_types(true);
     /// engine.declare_global("limit", "int")?;
     /// let script = engine.compile("def doubled -> int\n  limit * 2\nend\n")?;
     /// let options = |value| CallOptions {
@@ -419,7 +398,6 @@ impl Engine {
     ///     })?;
     /// let sms = Capability::from_value("SMS", Value::object(vec![(b"send".to_vec(), send.value())]));
     /// let mut engine = Engine::new();
-    /// engine.set_static_types(true);
     /// engine.declare_capability(&sms)?;
     /// let script = engine.compile("def notify -> string\n  SMS.send(\"hello\")\nend\n")?;
     /// assert!(engine.compile("def notify -> string\n  SMS.send(1)\nend\n").is_err());
@@ -474,7 +452,7 @@ impl Engine {
             &self.hosts,
             &self.declared,
             &(),
-            self.static_types.then_some(&*self.loader),
+            (!self.legacy).then_some(&*self.loader),
         )?;
         Ok(self.script(code))
     }
@@ -513,7 +491,7 @@ impl Engine {
             &self.hosts,
             &self.declared,
             &compilation::Meter(std::cell::RefCell::new(&mut ctx)),
-            self.static_types.then_some(&*self.loader),
+            (!self.legacy).then_some(&*self.loader),
         )?;
         ctx.checkpoint()?;
         Ok(self.script(code))

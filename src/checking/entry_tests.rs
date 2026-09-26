@@ -16,7 +16,7 @@ use std::sync::{
 };
 
 fn value(source: &str) -> Value {
-    Engine::new()
+    Engine::legacy_unchecked()
         .compile(source)
         .unwrap()
         .run(CallOptions::default())
@@ -124,7 +124,7 @@ fn deep() -> Value {
 
 #[test]
 fn concrete_positionals_defaults_and_rest_bind_like_execution() {
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("def run(a:int,b=2,*rest);[a,b,rest];end")
         .unwrap();
     for (arguments, expected) in [
@@ -153,7 +153,7 @@ fn concrete_positionals_defaults_and_rest_bind_like_execution() {
 
 #[test]
 fn host_keywords_bind_by_name_with_duplicates_and_keyword_rest() {
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("def run(a,b:,c:3,**rest);[a,b,c,rest[:x],rest[:z],rest.keys];end")
         .unwrap();
     let keywords = [
@@ -170,7 +170,7 @@ fn host_keywords_bind_by_name_with_duplicates_and_keyword_rest() {
         &CallOptions::default(),
         &value("[1,5,4,6,7,[\"x\",\"z\"]]"),
     );
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("def run(a,**rest);[a,rest[:a]];end")
         .unwrap();
     success(
@@ -180,7 +180,9 @@ fn host_keywords_bind_by_name_with_duplicates_and_keyword_rest() {
         &CallOptions::default(),
         &value("[1,2]"),
     );
-    let script = Engine::new().compile("def run(a=7);a;end").unwrap();
+    let script = Engine::legacy_unchecked()
+        .compile("def run(a=7);a;end")
+        .unwrap();
     success(
         &script,
         &[],
@@ -192,7 +194,7 @@ fn host_keywords_bind_by_name_with_duplicates_and_keyword_rest() {
 
 #[test]
 fn host_keywords_never_become_a_positional_options_hash() {
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("def run(options);options;end")
         .unwrap();
     rejected(
@@ -202,7 +204,7 @@ fn host_keywords_never_become_a_positional_options_hash() {
         &CallOptions::default(),
         ErrorKind::Argument,
     );
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("def accept(options);options[:different];end;def run;accept(different:7);end")
         .unwrap();
     success(&script, &[], &[], &CallOptions::default(), &Value::int(7));
@@ -212,7 +214,7 @@ fn host_keywords_never_become_a_positional_options_hash() {
 fn shape_failures_precede_defaults_parameter_types_and_body_effects() {
     let calls = Arc::new(AtomicUsize::new(0));
     let count = calls.clone();
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register("tick", move |_, _| {
         count.fetch_add(1, Ordering::Relaxed);
         Ok(Value::int(7))
@@ -269,7 +271,7 @@ fn shape_failures_precede_defaults_parameter_types_and_body_effects() {
 
 #[test]
 fn defaults_and_reachable_functions_follow_the_supplied_call() {
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile(
             "def bad->int;\"bad\";end;def run(flag=false,x=7)->int;if flag;bad();else;x;end;end",
         )
@@ -289,7 +291,9 @@ fn defaults_and_reachable_functions_follow_the_supplied_call() {
         &CallOptions::default(),
         ErrorKind::Type,
     );
-    let script = Engine::new().compile("def run(x=missing);x;end").unwrap();
+    let script = Engine::legacy_unchecked()
+        .compile("def run(x=missing);x;end")
+        .unwrap();
     success(
         &script,
         &[Value::int(7)],
@@ -324,11 +328,11 @@ fn scalar_collection_and_protected_arguments_keep_their_facts() {
             Value::boolean(true),
         ),
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = Engine::legacy_unchecked().compile(source).unwrap();
         success(&script, &[input], &[], &CallOptions::default(), &expected);
     }
     let input = value("\"abc\".match(\"(b)\")");
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("def run(m);begin;m.captures.push(\"bad\");rescue;nil;end;m[0];end")
         .unwrap();
     // Protected mutation is a known diagnostic even when the script rescues it.
@@ -356,7 +360,7 @@ fn scalar_collection_and_protected_arguments_keep_their_facts() {
 #[test]
 fn arguments_keywords_and_globals_keep_independent_value_copies() {
     let original = Value::array(vec![Value::int(1)]);
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("def run(a,b:);a.push(2);b.push(3);shared.push(4);[a,b,shared];end")
         .unwrap();
     let options = CallOptions {
@@ -378,7 +382,7 @@ fn arguments_keywords_and_globals_keep_independent_value_copies() {
 
 #[test]
 fn enum_inputs_rebind_to_their_compiled_source_and_normalize_symbols() {
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile(
             "enum State;Ready;end;def produce;State::Ready;end;def run(x:State)->string;x.name;end",
         )
@@ -425,7 +429,7 @@ fn capability_arguments_share_metadata_with_lazily_loaded_globals() {
         .with_signature(signature(Some("int"), "int", false))
         .unwrap();
         let capability = Value::object(vec![(b"send".to_vec(), method.value())]);
-        let mut engine = Engine::new();
+        let mut engine = Engine::legacy_unchecked();
         engine.set_strict_effects(strict);
         engine.register("unused", |_, _| panic!("unused registration called"));
         let source = if strict {
@@ -481,7 +485,7 @@ fn block_drivers_supplied_as_arguments_preserve_control_transfers() {
     .unwrap();
     let capability = Value::object(vec![(b"visit".to_vec(), method.value())]);
     for (transfer, expected) in [("break 7", "[7,1]"), ("return 9", "9")] {
-        let script=Engine::new().compile(&format!("def run(driver);count=0;result=driver.visit{{count+=1;{transfer}}};[result,count];end")).unwrap();
+        let script=Engine::legacy_unchecked().compile(&format!("def run(driver);count=0;result=driver.visit{{count+=1;{transfer}}};[result,count];end")).unwrap();
         success(
             &script,
             std::slice::from_ref(&capability),
@@ -496,12 +500,14 @@ fn block_drivers_supplied_as_arguments_preserve_control_transfers() {
 fn old_capability_arguments_keep_their_expired_grants() {
     let method = HostMethod::new("send", |_, _, _| panic!("old grant revived"));
     let fresh = Value::object(vec![(b"send".to_vec(), method.value())]);
-    let producer = Engine::new().compile("def run(x);x;end").unwrap();
+    let producer = Engine::legacy_unchecked()
+        .compile("def run(x);x;end")
+        .unwrap();
     let old = producer
         .call("run", &[fresh], CallOptions::default())
         .unwrap()
         .value;
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("def run(driver);begin;driver.send();rescue RuntimeError;9;end;end")
         .unwrap();
     let mut ctx = CallContext::new(CallOptions::default());
@@ -529,7 +535,7 @@ fn old_capability_arguments_keep_their_expired_grants() {
 fn detached_arguments_fail_before_later_inputs_and_initializers() {
     let calls = Arc::new(AtomicUsize::new(0));
     let count = calls.clone();
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register("tick", move |_, _| {
         count.fetch_add(1, Ordering::Relaxed);
         Ok(Value::nil())
@@ -570,7 +576,9 @@ fn required_function_arguments_stay_attached_to_their_module() {
     let function = Value(crate::value::Kind::Function(
         crate::exports::Function::new(&mut producer, code, environment, index).unwrap(),
     ));
-    let script = Engine::new().compile("def run(x);7;end").unwrap();
+    let script = Engine::legacy_unchecked()
+        .compile("def run(x);7;end")
+        .unwrap();
     for input in [function.clone(), Value::array(vec![function.clone()])] {
         let mut ctx = CallContext::new(CallOptions::default());
         let checked = check(
@@ -595,7 +603,7 @@ fn required_function_arguments_stay_attached_to_their_module() {
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
     let module = Value::object(vec![(b"helper".to_vec(), function)]);
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("def run(lib);lib.helper();end")
         .unwrap();
     let mut ctx = CallContext::new(CallOptions::default());
@@ -627,7 +635,9 @@ fn required_function_arguments_stay_attached_to_their_module() {
 
 #[test]
 fn duplicate_keyword_values_are_imported_before_replacement() {
-    let script = Engine::new().compile("def run(item:);item;end").unwrap();
+    let script = Engine::legacy_unchecked()
+        .compile("def run(item:);item;end")
+        .unwrap();
     let method = HostMethod::new("send", |_, _, _| panic!("keyword callback called"));
     let keywords = [
         ("item".into(), method.value()),
@@ -670,7 +680,7 @@ fn all_host_arguments_are_eager_even_when_unused_or_excess() {
         ("def run;7;end", false),
         ("def run;7;end", true),
     ] {
-        let script = Engine::new().compile(source).unwrap();
+        let script = Engine::legacy_unchecked().compile(source).unwrap();
         let options = CallOptions {
             limits: Limits {
                 memory_bytes: Some(48 << 10),
@@ -701,7 +711,7 @@ fn all_host_arguments_are_eager_even_when_unused_or_excess() {
             ErrorKind::Memory
         );
     }
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("def run(x);begin;x;rescue LimitError;9;end;end")
         .unwrap();
     let mut ctx = CallContext::new(CallOptions::default());
@@ -724,7 +734,7 @@ fn all_host_arguments_are_eager_even_when_unused_or_excess() {
 
 #[test]
 fn function_lookup_and_strict_validation_precede_argument_imports() {
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.set_strict_effects(true);
     let script = engine.compile("def run(x);x;end").unwrap();
     let poison = HostMethod::new("send", |_, _, _| panic!("poison called")).value();
@@ -783,7 +793,7 @@ fn function_lookup_and_strict_validation_precede_argument_imports() {
 fn opaque_factories_remain_explicit_while_nominal_arguments_are_analyzed() {
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register("tick", move |_, _| {
         count.fetch_add(1, Ordering::Relaxed);
         Ok(Value::nil())
@@ -858,7 +868,7 @@ fn concrete_entry_and_descriptor_tables_obey_exact_and_sampled_quotas() {
         globals: [("Alias".into(), value("enum State;Ready;end;State"))].into(),
         ..CallOptions::default()
     };
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("def run(sms,items:,extra:7);sms.send(items).name;end")
         .unwrap();
     let mut ctx = CallContext::new(CallOptions::default());
@@ -925,7 +935,9 @@ fn concrete_entry_and_descriptor_tables_obey_exact_and_sampled_quotas() {
 
 #[test]
 fn exact_call_entry_preserves_cancelled_and_expired_budgets() {
-    let script = Engine::new().compile("def run(x);x;end").unwrap();
+    let script = Engine::legacy_unchecked()
+        .compile("def run(x);x;end")
+        .unwrap();
     for name in ["run", "unknown"] {
         for deadline in [false, true] {
             let mut options = CallOptions::default();

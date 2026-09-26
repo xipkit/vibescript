@@ -102,7 +102,7 @@ const CALLS: [&str; 32] = [
 ];
 
 fn engine() -> Engine {
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     let host = HostMethod::new("host", |_, _, _| Ok(Value::bytes(b"ok")))
         .with_signature(Signature {
             params: vec![

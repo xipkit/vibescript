@@ -51,8 +51,8 @@ fn captured(script: &Script, name: &str) -> Value {
 /// scripts as values and reassign module constants. A script cannot name
 /// another script's module type, so they compile without static types.
 fn untyped() -> Engine {
-    let mut engine = Engine::new();
-    engine.set_static_types(false);
+    let mut engine = Engine::legacy_unchecked();
+
     engine
 }
 

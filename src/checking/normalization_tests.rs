@@ -136,7 +136,7 @@ pub(super) fn observed(
 
 pub(super) fn witness(body: &str, args: &[Value], expected: &str, rejected: bool) {
     let source = format!("{SOURCE} {body}");
-    let script = Engine::new().compile(&source).unwrap();
+    let script = Engine::legacy_unchecked().compile(&source).unwrap();
     let program = &script.inner.code.program;
     let actual = script
         .call("run", args, CallOptions::default())
@@ -620,7 +620,7 @@ fn host_return_contracts_produce_enum_values_without_executing_callbacks() {
             accepts_block: false,
         })
         .unwrap();
-        let mut engine = Engine::new();
+        let mut engine = Engine::legacy_unchecked();
         engine.register_method("host", method.clone());
         let script = engine
             .compile(&format!("{SOURCE} def run; {expression}; end"))

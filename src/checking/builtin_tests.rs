@@ -6,7 +6,7 @@ use super::{
 use crate::{CallContext, CallOptions, Engine, Value};
 
 fn witness(source: &str, args: &[Value], expected: &str, rejected: bool) {
-    let actual = Engine::new()
+    let actual = Engine::legacy_unchecked()
         .compile(source)
         .unwrap_or_else(|error| panic!("{source}: {error}"))
         .call("run", args, CallOptions::default())
@@ -283,7 +283,7 @@ fn registered_builtin_overrides_use_signatures_without_executing_host_code() {
             accepts_block: false,
         })
         .unwrap();
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register_method("to_int", method.clone());
     let script = engine
         .compile("def run -> string; to_int(\"7\"); end")

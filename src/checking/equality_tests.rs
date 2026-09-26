@@ -130,7 +130,7 @@ fn structural_equality_matches_runtime_numeric_keys_and_container_kinds() {
 fn structural_equality_keeps_abstract_values_and_hash_kinds_uncertain() {
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
-    let enumeration = crate::Engine::new()
+    let enumeration = crate::Engine::legacy_unchecked()
         .compile("enum E; A; B; end; E")
         .unwrap()
         .run(CallOptions::default())
@@ -566,7 +566,7 @@ fn helper_equality_rejects_known_runtime_type_mismatches_at_typed_positions() {
     let symbolic = facts
         .instance_kind(&mut ctx, class, 2, InstanceKind::Symbolic)
         .unwrap();
-    let enumeration = crate::Engine::new()
+    let enumeration = crate::Engine::legacy_unchecked()
         .compile("enum E; A; B; end; E")
         .unwrap()
         .run(CallOptions::default())

@@ -48,7 +48,6 @@ fn round_trip(source: &str, code: Code, at: &str, expected: &str) {
 fn assert_clean(source: &str, code: Code) {
     assert!(with_code(source, code).is_empty(), "{source:?}");
     let mut engine = Engine::new();
-    engine.set_static_types(true);
     if let Err(error) = engine.compile(source) {
         assert!(
             error.diagnostics().iter().all(|d| d.code != code),
@@ -290,7 +289,6 @@ fn dispatch_by_name_preserves_resolved_user_methods() {
             ),
         ] {
             let mut engine = Engine::new();
-            engine.set_static_types(true);
             let checked = engine.type_check(&source).unwrap();
             assert!(
                 checked.diagnostics.is_empty(),
@@ -522,7 +520,6 @@ fn keyword_parameters_move_after_a_bare_star() {
     );
     assert_eq!(fixed, "def f(a: int, *, name, label = [])\nend\n");
     let mut engine = Engine::new();
-    engine.set_static_types(true);
     let codes: Vec<Code> = engine
         .compile(&fixed)
         .err()
@@ -703,7 +700,6 @@ fn static_compilation_reports_removed_spellings() {
     let source = "names = %w[a b]\nn = names.size\n";
     let mut engine = Engine::new();
     assert!(engine.compile(source).is_ok());
-    engine.set_static_types(true);
     let error = engine.compile(source).err().expect("a compile error");
     let codes: Vec<String> = error
         .diagnostics()
@@ -731,7 +727,6 @@ fn removed_spellings_in_required_files_are_reported_at_compile_time() {
             ..crate::ModuleConfig::default()
         })
         .unwrap();
-    engine.set_static_types(true);
     let source = "def run -> int\n  h = require(\"helpers\")\n  h.count_of([1])\nend\n";
     let error = engine.compile(source).err().expect("a compile error");
     let found: Vec<(String, Option<String>)> = error

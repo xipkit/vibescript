@@ -6,7 +6,7 @@ use super::{
 use crate::{CallContext, CallOptions, Engine};
 
 pub(super) fn witness(source: &str, exact: bool, warnings: bool) {
-    let actual = Engine::new()
+    let actual = Engine::legacy_unchecked()
         .compile(source)
         .unwrap_or_else(|e| panic!("{source}: {e}"))
         .call("run", &[], CallOptions::default())

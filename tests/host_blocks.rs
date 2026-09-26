@@ -145,7 +145,7 @@ fn host_blocks_support_dispatch_binding_captures_and_repeated_calls() {
     }
     // What the host passes is any, so a block cannot declare a narrower
     // parameter type.
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine
         .declare_capability(&options(&Trace::default()).capabilities[0])
         .unwrap();
@@ -162,7 +162,7 @@ fn host_blocks_support_dispatch_binding_captures_and_repeated_calls() {
         "host[:once](3) { |n| n.as(int)+1 }",
         "(host[:once])(3) { |n| n.as(int)+1 }",
     ] {
-        let mut engine = common::static_engine();
+        let mut engine = vibescript::Engine::new();
         engine
             .declare_capability(&options(&Trace::default()).capabilities[0])
             .unwrap();
@@ -279,7 +279,7 @@ fn block_presence_and_absorbed_breaks_obey_host_contracts() {
         assert_eq!(*events.lock().unwrap(), events_want, "{body}");
     }
     // A return of the wrong type is refused before it runs.
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine.declare_capability(&opts.capabilities[0]).unwrap();
     let source = "def run() -> int; checked { return \"wrong\" }; end";
     let error = engine.compile(source).err().unwrap();
@@ -658,7 +658,7 @@ fn block_capability_methods_cannot_be_detached_or_regranted() {
     }
     // A capability is not indexed by name, and a saved capability has no
     // static type, so its methods cannot be called.
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine
         .declare_capability(&options(&Trace::default()).capabilities[0])
         .unwrap();
@@ -727,7 +727,7 @@ fn host_frames_return_to_pending_reads_writes_reductions_and_initializers() {
         );
     }
     // Reducing by a method name is removed.
-    let mut engine = common::static_engine();
+    let mut engine = vibescript::Engine::new();
     engine.declare_capability(&opts.capabilities[0]).unwrap();
     let source = "[host,7].reduce(:pick)";
     let error = engine.compile(source).err().unwrap();

@@ -337,7 +337,7 @@ fn deep_frames_preserve_results_and_analysis_limits_without_native_recursion() {
                 assert_eq!(ctx.checkpoint().unwrap_err().kind, error.kind);
             }
         }
-        let actual = crate::Engine::new()
+        let actual = crate::Engine::legacy_unchecked()
             .compile(source)
             .unwrap()
             .call("run", &[value], CallOptions::default())

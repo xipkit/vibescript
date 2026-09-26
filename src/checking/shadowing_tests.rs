@@ -2,7 +2,7 @@ use crate::{CallOptions, Engine};
 
 /// Checks the whole file, then runs `run`, or the top-level statements without one.
 fn witness(source: &str) -> (Vec<String>, Result<String, String>) {
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     let report = script.check(&CallOptions::default()).unwrap();
     assert!(report.incomplete.is_empty(), "{source}: {report:?}");
     let diagnostics = report

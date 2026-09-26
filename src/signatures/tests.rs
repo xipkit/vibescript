@@ -260,8 +260,8 @@ fn runtime_members() -> BTreeMap<&'static str, BTreeSet<String>> {
         ),
     ] {
         // The fields are runtime members the static table does not declare.
-        let mut engine = Engine::new();
-        engine.set_static_types(false);
+        let mut engine = Engine::legacy_unchecked();
+
         let script = engine.compile(source).unwrap();
         let keys = script.run(CallOptions::default()).unwrap().value;
         let keys = keys.as_array().unwrap().iter().map(text);

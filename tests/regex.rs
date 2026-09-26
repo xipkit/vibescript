@@ -188,7 +188,7 @@ fn argument_pattern_and_expansion_failures_prevent_host_effects() {
         ("\"a\".match?(\"a\",-1){effect()}", "V0305"),
         ("\"a\".match?(\"a\"){effect()}", "V0305"),
     ] {
-        let mut checked = common::static_engine();
+        let mut checked = vibescript::Engine::new();
         checked.register("effect", |_, _| panic!("effect ran"));
         let error = checked.compile(source).err().unwrap();
         assert_eq!(common::codes(&error), [code], "{source}");
@@ -339,7 +339,7 @@ fn regex_serves_the_regexp_constructors_under_their_canonical_names() {
         ("Regex.union { }", "V0305"),
         ("Regex.union(a: 1)", "V0302"),
     ] {
-        let error = common::static_engine().compile(source).err().unwrap();
+        let error = vibescript::Engine::new().compile(source).err().unwrap();
         assert_eq!(common::codes(&error), [code], "{source}");
     }
 }

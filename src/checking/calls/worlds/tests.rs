@@ -9,7 +9,7 @@ fn fixtures() -> Vec<(Script, CallOptions)> {
         (false, "int", Value::int(7)),
         (true, "bool", Value::boolean(false)),
     ] {
-        let mut engine = Engine::new();
+        let mut engine = Engine::legacy_unchecked();
         if extra {
             engine.register("aaa", |_, _| panic!("checker invoked a callback"));
         }
@@ -70,7 +70,7 @@ fn interleaved_files_keep_private_writes_namespaces_and_builtin_indexes() {
         let source = format!(
             "{prefix}module M;X={constant};def self.read;X;end;end;x=[1];def change;x.push(2);3;end;x[-1]+=change();M.read*100+x[0]*10+x[1]+root"
         );
-        let script = file(&Engine::new(), &source);
+        let script = file(&Engine::legacy_unchecked(), &source);
         let options = CallOptions {
             globals: [("root".into(), Value::int(root))].into(),
             ..CallOptions::default()
@@ -112,7 +112,7 @@ fn interleaved_files_keep_private_writes_namespaces_and_builtin_indexes() {
 fn host_named_contracts_use_the_calling_sources_mapped_declarations() {
     let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let counted = calls.clone();
-    let mut engine = Engine::new();
+    let mut engine = Engine::legacy_unchecked();
     engine.register_method(
         "accept",
         HostMethod::new("accept", move |_, _, _| {
@@ -318,7 +318,9 @@ fn an_active_owned_view_survives_registry_growth() {
         let before = active.resolve(&mut ctx, "run").unwrap();
         let mut weak_codes = Vec::new();
         for _ in 0..24 {
-            let script = Engine::new().compile("def extra;nil;end").unwrap();
+            let script = Engine::legacy_unchecked()
+                .compile("def extra;nil;end")
+                .unwrap();
             weak_codes.push(Arc::downgrade(&script.inner.code));
             register(
                 &mut ctx,
@@ -517,7 +519,7 @@ fn prepared_source_fast_paths_preserve_cancellation_and_latched_failures() {
 
 #[test]
 fn incomplete_environment_preparation_does_not_invoke_factories() {
-    let script = Engine::new().compile("7").unwrap();
+    let script = Engine::legacy_unchecked().compile("7").unwrap();
     let options = CallOptions {
         capabilities: vec![crate::Capability::new("pending", |_| {
             panic!("checker invoked a factory")

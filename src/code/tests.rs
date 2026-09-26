@@ -195,7 +195,7 @@ impl Drop for Retired {
 
 fn engine(retired: &Arc<AtomicUsize>) -> Engine {
     let guard = Retired(retired.clone());
-    let mut engine = crate::test_engine();
+    let mut engine = crate::Engine::new();
     engine.register("host", move |_, _| {
         let _ = &guard;
         Ok(Value::int(11))
@@ -382,7 +382,7 @@ fn failed_namespace_imports_release_partial_accounting_and_code_references() {
 
 #[test]
 fn metered_compilation_stops_at_limits_and_matches_unmetered_results() {
-    let engine = crate::test_engine();
+    let engine = crate::Engine::new();
     let mut source = String::new();
     for index in 0..300 {
         source.push_str(&format!(

@@ -59,10 +59,10 @@ fn instance_property_types_guard_all_field_stores() {
         let source = format!(
             "class C;property items:array<int>;def initialize;@items=[1];end;def bad;{mutation};end;end;def run;c=C.new;begin;c.bad;rescue RuntimeError;nil;end;c.items;end"
         );
-        let script = Engine::new().compile(&source).unwrap();
+        let script = Engine::legacy_unchecked().compile(&source).unwrap();
         witness(&script, &[], &CallOptions::default(), "[1]", true);
     }
-    let script = Engine::new().compile("class C;getter n:int;def initialize;@n=1;end;def replace(@n);end;end;def run;c=C.new;begin;c.replace(\"bad\");rescue RuntimeError;nil;end;c.n;end").unwrap();
+    let script = Engine::legacy_unchecked().compile("class C;getter n:int;def initialize;@n=1;end;def replace(@n);end;end;def run;c=C.new;begin;c.replace(\"bad\");rescue RuntimeError;nil;end;c.n;end").unwrap();
     witness(&script, &[], &CallOptions::default(), "1", true);
     run(
         "enum E;a;b;end;class C;property e:E;def initialize;@e=:a;end;end;def run;c=C.new;c.e=:b;c.e;end",
@@ -116,7 +116,7 @@ fn instance_helpers_preserve_identity_and_user_method_priority() {
             "4",
         );
     }
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile("class C;end;def run;begin;C.new.dup(3);rescue RuntimeError;7;end;end")
         .unwrap();
     witness(&script, &[], &CallOptions::default(), "7", true);
@@ -135,7 +135,7 @@ fn instance_lookup_visibility_and_setters_match_runtime() {
         "c::anything",
         "c.readonly=3",
     ] {
-        let script = Engine::new().compile(&format!("class C;private def hidden;7;end;protected def visible;7;end;public def answer;self.hidden;end;getter readonly;end;def run;c=C.new;begin;{call};rescue RuntimeError;9;end;end")).unwrap();
+        let script = Engine::legacy_unchecked().compile(&format!("class C;private def hidden;7;end;protected def visible;7;end;public def answer;self.hidden;end;getter readonly;end;def run;c=C.new;begin;{call};rescue RuntimeError;9;end;end")).unwrap();
         witness(&script, &[], &CallOptions::default(), "9", true);
     }
     run(
@@ -146,7 +146,7 @@ fn instance_lookup_visibility_and_setters_match_runtime() {
         "class C;getter n;def initialize(@n);end;def n=(n);@n=n+1;99;end;end;def run;a=C.new(1);b=C.new(2);c=a;x=begin;c.n+=(begin;c=b;7;end);end;[a.n,b.n,x];end",
         "[9, 2, 8]",
     );
-    let script = Engine::new().compile("class C;protected def secret;1;end;def self.test(c);c.secret;end;end;def run;begin;C.test(C.new);rescue RuntimeError;9;end;end").unwrap();
+    let script = Engine::legacy_unchecked().compile("class C;protected def secret;1;end;def self.test(c);c.secret;end;end;def run;begin;C.test(C.new);rescue RuntimeError;9;end;end").unwrap();
     witness(&script, &[], &CallOptions::default(), "9", true);
 }
 
@@ -160,7 +160,7 @@ fn constructor_defaults_errors_and_ensure_keep_observable_state() {
         "class C;property n;def initialize;@@last=self;@n=1;raise \"stop\";ensure;@n+=2;end;def self.last;@@last;end;end;def run;begin;C.new;rescue RuntimeError;nil;end;C.last.n;end",
         "3",
     );
-    let script = Engine::new().compile("class C;def initialize(n:int);@@n=n;end;end;def run;begin;C.new(\"bad\");rescue RuntimeError;7;end;end").unwrap();
+    let script = Engine::legacy_unchecked().compile("class C;def initialize(n:int);@@n=n;end;end;def run;begin;C.new(\"bad\");rescue RuntimeError;7;end;end").unwrap();
     witness(&script, &[], &CallOptions::default(), "7", true);
     run(
         "class C;end;def run;n=0;c=C.new(begin;n+=1;end,extra:(begin;n+=2;end)){n+=99};n;end",
@@ -171,7 +171,7 @@ fn constructor_defaults_errors_and_ensure_keep_observable_state() {
 #[test]
 fn instance_fields_keep_global_effects_and_union_dispatch() {
     for flag in [false, true] {
-        let mut engine = Engine::new();
+        let mut engine = Engine::legacy_unchecked();
         engine.register("choose", move |_, _| Ok(Value::boolean(flag)));
         let script = engine.compile("class A;property n;def initialize;@n=1;end;def bump;@n+=2;end;end;class B;property n;def initialize;@n=10;end;def bump;@n+=3;end;end;def run;a=A.new;b=B.new;c=if choose();a;else;b;end;c.bump;[a.n,b.n];end").unwrap();
         witness(
@@ -203,7 +203,7 @@ fn ignored_host_transfers_from_instances_keep_constructor_and_method_homes() {
     .unwrap();
     let driver = Value::object(vec![(b"visit".to_vec(), method.value())]);
     for (transfer, expected) in [("break 7", "[7, 1]"), ("return 9", "[9, 1]")] {
-        let script = Engine::new().compile(&format!("class C;property n;def initialize;@n=0;end;def go(driver);driver.visit{{@n+=1;{transfer}}};end;end;def run(driver);c=C.new;[c.go(driver),c.n];end")).unwrap();
+        let script = Engine::legacy_unchecked().compile(&format!("class C;property n;def initialize;@n=0;end;def go(driver);driver.visit{{@n+=1;{transfer}}};end;end;def run(driver);c=C.new;[c.go(driver),c.n];end")).unwrap();
         witness(
             &script,
             std::slice::from_ref(&driver),
@@ -212,14 +212,14 @@ fn ignored_host_transfers_from_instances_keep_constructor_and_method_homes() {
             false,
         );
     }
-    let script = Engine::new().compile("class C;property n;def initialize(driver);@n=0;driver.visit{@n+=1;return 9};@n=99;ensure;@n+=2;end;end;def run(driver);C.new(driver).n;end").unwrap();
+    let script = Engine::legacy_unchecked().compile("class C;property n;def initialize(driver);@n=0;driver.visit{@n+=1;return 9};@n=99;ensure;@n+=2;end;end;def run(driver);C.new(driver).n;end").unwrap();
     witness(&script, &[driver], &CallOptions::default(), "3", false);
 }
 
 #[test]
 fn instance_analysis_summarizes_loop_allocations() {
     let source = "class C;end;def run(n:int);for i in 1..n;C.new;end;end";
-    let script = Engine::new().compile(source).unwrap();
+    let script = Engine::legacy_unchecked().compile(source).unwrap();
     let report = script
         .check_call("run", &[Value::int(5)], &CallOptions::default())
         .unwrap();

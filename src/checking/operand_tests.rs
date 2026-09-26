@@ -70,7 +70,7 @@ const OPERANDS: [&str; 23] = [
 #[track_caller]
 fn concrete(expression: &str) -> bool {
     let source = format!("{PRELUDE}\ndef run\n  {expression}\nend\n");
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile(&source)
         .unwrap_or_else(|error| panic!("{expression}: {error}"));
     let options = CallOptions::default();
@@ -130,7 +130,7 @@ fn concrete(expression: &str) -> bool {
 /// or `None` when the inferred result is not a single such value.
 fn exact(expression: &str) -> Option<Option<i64>> {
     let source = format!("{PRELUDE}\ndef run\n  {expression}\nend\n");
-    let script = Engine::new().compile(&source).unwrap();
+    let script = Engine::legacy_unchecked().compile(&source).unwrap();
     let options = CallOptions::default();
     let mut ctx = CallContext::new(options.clone());
     let checked = entry::check(
@@ -170,7 +170,7 @@ fn literal(value: &Value) -> bool {
 #[track_caller]
 fn gradual(expression: &str) -> bool {
     let source = format!("{PRELUDE}\ndef run(x)\n  {expression}\nend\n");
-    let script = Engine::new()
+    let script = Engine::legacy_unchecked()
         .compile(&source)
         .unwrap_or_else(|error| panic!("{expression}: {error}"));
     let options = CallOptions::default();
