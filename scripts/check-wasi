@@ -31,19 +31,19 @@ def fixtures(base, guest):
     (allowed / "sub").mkdir(parents=True)
     (allowed / "folder.vibe").mkdir()
     for name, source in {
-        "numbers.vibe": "def run; 7; end",
-        "counter.vibe": "n=0; def increment; n+=1; end",
-        "changed.vibe": "def run; 3; end",
-        "sub/relative.vibe": "def run; require('../numbers').run(); end",
+        "numbers.vibe": "def run -> int\n  7\nend",
+        "counter.vibe": "n = 0\ndef increment -> int\n  n += 1\nend",
+        "changed.vibe": "def run -> int\n  3\nend",
+        "sub/relative.vibe": "def run -> int\n  require('../numbers').run\nend",
     }.items():
         (allowed / name).write_text(source + "\n")
     long = allowed.joinpath(*(["long-directory-component-012345678901234567890123456789"] * 12))
     long.mkdir(parents=True)
-    (long / "numbers.vibe").write_text("def run; 7; end\n")
-    (base / "outside.vibe").write_text("def run; 999; end\n")
+    (long / "numbers.vibe").write_text("def run -> int\n  7\nend\n")
+    (base / "outside.vibe").write_text("def run -> int\n  999\nend\n")
     for directory, value in [("allowed2", 999), ("moving", 7), ("replacement", 999), ("accounting", 7)]:
         (base / directory).mkdir()
-        (base / directory / "numbers.vibe").write_text(f"def run; {value}; end\n")
+        (base / directory / "numbers.vibe").write_text(f"def run -> int\n  {value}\nend\n")
     for name, target in {
         "alias.vibe": "numbers.vibe",
         "absolute.vibe": guest + "/allowed/numbers.vibe",
@@ -67,9 +67,9 @@ def overlap_fixtures(base):
     root, other = base / "root", base / "other"
     (root / "real/sub").mkdir(parents=True)
     other.mkdir()
-    (root / "real/numbers.vibe").write_text("def run; 7; end\n")
-    (other / "numbers.vibe").write_text("def run; 999; end\n")
-    (other / "only_other.vibe").write_text("def run; require('./numbers').run(); end\n")
+    (root / "real/numbers.vibe").write_text("def run -> int\n  7\nend\n")
+    (other / "numbers.vibe").write_text("def run -> int\n  999\nend\n")
+    (other / "only_other.vibe").write_text("def run -> int\n  require('./numbers').run\nend\n")
     (root / "alias").symlink_to("real", target_is_directory=True)
     return root, other
 
@@ -162,12 +162,12 @@ def main():
     vibes = binaries / "vibes.wasm"
     app = out / "cli"
     (app / "lib").mkdir(parents=True)
-    (app / "main.vibe").write_text("def run; require('helper').value; end\n")
-    (app / "lib/helper.vibe").write_text("def value; 41 + 1; end\n")
+    (app / "main.vibe").write_text("def run -> int\n  require('helper').value\nend\n")
+    (app / "lib/helper.vibe").write_text("def value -> int\n  41 + 1\nend\n")
     for arguments in [
         ["-e", "1 + 2"],
         ["--module-path", "/app/lib", "--function", "run", "/app/main.vibe"],
-        ["check", "--module-path", "/app/lib", "--function", "run", "/app/main.vibe"],
+        ["check", "--module-path", "/app/lib", "/app/main.vibe"],
     ]:
         result = guest("wasmtime", [(app, "/app")], vibes, arguments, capture_output=True, text=True)
         print(result.stdout, end="")

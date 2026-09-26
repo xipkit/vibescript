@@ -13,6 +13,19 @@ fn engine(path: &str) -> Engine {
     engine
 }
 
+/// Asserts that a script requiring a module the root does not supply, or
+/// may not read, fails to compile: the compiler resolves every `require`.
+fn unresolved(compiled: vibescript::Result<vibescript::Script>) {
+    let error = compiled.err().expect("the require resolved");
+    assert!(
+        error
+            .diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.message.starts_with("cannot statically resolve")),
+        "{error}"
+    );
+}
+
 fn result(engine: &Engine, source: &str) -> Value {
     engine
         .compile(source)
@@ -27,7 +40,7 @@ fn overlapping_preopens() {
     // nested preopen's path selects that preopen.
     for path in ["/sandbox/real", "/sandbox/alias"] {
         assert_eq!(
-            result(&engine(path), "require('numbers').run()").as_int(),
+            result(&engine(path), "require('numbers').run").as_int(),
             Some(999),
             "{path}"
         );
@@ -48,7 +61,7 @@ fn overlapping_preopens() {
         ("only_other", 999),
     ] {
         assert_eq!(
-            result(&combined, &format!("require('{name}').run()")).as_int(),
+            result(&combined, &format!("require('{name}').run")).as_int(),
             Some(expected),
             "{name}"
         );
@@ -64,7 +77,7 @@ fn module_guards(root: &str, path_based_directories: bool) {
     let mut restricted = Engine::new();
     restricted.set_strict_effects(true);
     restricted.set_module_config(config.clone()).unwrap();
-    let script = restricted.compile("require('numbers').run()").unwrap();
+    let script = restricted.compile("require('numbers').run").unwrap();
     let error = script.run(CallOptions::default()).unwrap_err();
     assert!(error.message.starts_with("strict effects: "), "{error}");
     assert_eq!(
@@ -96,26 +109,20 @@ fn module_guards(root: &str, path_based_directories: bool) {
     ] {
         let mut engine = Engine::new();
         engine.set_module_config(config).unwrap();
-        assert!(
-            engine
-                .compile("require('numbers').run()")
-                .unwrap()
-                .run(CallOptions::default())
-                .is_err()
-        );
+        unresolved(engine.compile("require('numbers').run"));
     }
     let prefix = root.rsplit_once('/').unwrap().0;
     let moved = engine(&format!("{prefix}/moving"));
     std::fs::rename(format!("{prefix}/moving"), format!("{prefix}/moved")).unwrap();
     std::fs::rename(format!("{prefix}/replacement"), format!("{prefix}/moving")).unwrap();
     assert_eq!(
-        result(&moved, "require('numbers').run()").as_int(),
+        result(&moved, "require('numbers').run").as_int(),
         Some(if path_based_directories { 999 } else { 7 })
     );
     assert_eq!(
         result(
             &engine(&format!("{prefix}/moving")),
-            "require('numbers').run()"
+            "require('numbers').run"
         )
         .as_int(),
         Some(999)
@@ -126,7 +133,7 @@ fn cwd_roots(prefix: &str) {
     std::env::set_current_dir(prefix).unwrap();
     for path in ["allowed", "allowed/sub/..", "directory_alias/.."] {
         assert_eq!(
-            result(&engine(path), "require('numbers').run()").as_int(),
+            result(&engine(path), "require('numbers').run").as_int(),
             Some(7)
         );
     }
@@ -143,7 +150,7 @@ fn cwd_roots(prefix: &str) {
         "long-directory-component-012345678901234567890123456789/".repeat(12)
     );
     assert_eq!(
-        result(&engine(&long), "require('numbers').run()").as_int(),
+        result(&engine(&long), "require('numbers').run").as_int(),
         Some(7)
     );
 }
@@ -168,7 +175,11 @@ fn main() {
     );
     assert_eq!(result(&engine, "(1..100).sum").as_int(), Some(5050));
     assert_eq!(
-        result(&engine, "JSON.parse('{\"value\":7}').value").as_int(),
+        result(
+            &engine,
+            "JSON.parse_as('{\"value\":7}', { value: int })[\"value\"]"
+        )
+        .as_int(),
         Some(7)
     );
     assert_eq!(
@@ -176,28 +187,22 @@ fn main() {
         Some(b"2024-02-29".as_slice())
     );
     assert!(result(&engine, "Time.now.to_i").as_int().unwrap() > 1_700_000_000);
-    assert_eq!(result(&engine, "uuid().length").as_int(), Some(36));
-    assert_eq!(
-        result(&engine, "require('numbers').run()").as_int(),
-        Some(7)
-    );
+    assert_eq!(result(&engine, "uuid.length").as_int(), Some(36));
+    assert_eq!(result(&engine, "require('numbers').run").as_int(), Some(7));
     for name in ["alias", "sub/relative"] {
         assert_eq!(
-            result(&engine, &format!("require('{name}').run()")).as_int(),
+            result(&engine, &format!("require('{name}').run")).as_int(),
             Some(7)
         );
     }
     let absolute = |engine: &Engine| {
-        let result = engine
-            .compile("require('absolute').run()")
-            .unwrap()
-            .run(CallOptions::default());
+        let compiled = engine.compile("require('absolute').run");
         if absolute_links {
+            let result = compiled.unwrap().run(CallOptions::default());
             assert_eq!(result.unwrap().value.as_int(), Some(7));
         } else {
-            let error = result.unwrap_err();
-            assert_eq!(error.kind, ErrorKind::Runtime);
-            assert!(error.message.contains("reading module symlink"), "{error}");
+            // The compiler cannot read the link, so the module never loads.
+            unresolved(compiled);
         }
     };
     absolute(&engine);
@@ -210,36 +215,27 @@ fn main() {
         "Numbers",
         "folder",
     ] {
-        let source = format!("require('{name}')");
-        assert!(
-            engine
-                .compile(&source)
-                .unwrap()
-                .run(CallOptions::default())
-                .is_err(),
-            "{name}"
-        );
+        unresolved(engine.compile(&format!("require('{name}')")));
     }
     // Wasmtime rejects names that are not UTF-8; like native targets, the
-    // engine reports them missing rather than as a filesystem failure.
-    let error = engine
-        .compile("require(\"\\xff\")")
-        .unwrap()
-        .run(CallOptions::default())
-        .unwrap_err();
-    assert!(error.message.contains("module not found"), "{error}");
+    // compiler reports them unresolved rather than failing.
+    unresolved(engine.compile("require(\"\\xff\")"));
     for _ in 0..2 {
         assert_eq!(
-            result(&engine, "require('counter').increment()").as_int(),
+            result(&engine, "require('counter').increment").as_int(),
             Some(1)
         );
     }
-    let fresh = engine.compile("require('changed').run()").unwrap();
+    let fresh = engine.compile("require('changed').run").unwrap();
     assert_eq!(
         fresh.run(CallOptions::default()).unwrap().value.as_int(),
         Some(3)
     );
-    std::fs::write(format!("{root}/changed.vibe"), "def run; 2222; end").unwrap();
+    std::fs::write(
+        format!("{root}/changed.vibe"),
+        "def run -> int\n  2222\nend\n",
+    )
+    .unwrap();
     assert_eq!(
         fresh.run(CallOptions::default()).unwrap().value.as_int(),
         Some(2222)
@@ -255,13 +251,13 @@ fn main() {
         root.trim_start_matches('/').to_owned(),
     ] {
         assert_eq!(
-            result(&self::engine(&path), "require('numbers').run()").as_int(),
+            result(&self::engine(&path), "require('numbers').run").as_int(),
             Some(7),
             "{path}"
         );
     }
     assert_eq!(
-        result(&self::engine(prefix), "require('allowed/numbers').run()").as_int(),
+        result(&self::engine(prefix), "require('allowed/numbers').run").as_int(),
         Some(7)
     );
     for path in [
@@ -319,7 +315,7 @@ fn main() {
     );
     module_guards(&root, path_based_directories);
     let counted = self::engine(&format!("{prefix}/accounting"))
-        .compile("require('numbers').run()")
+        .compile("require('numbers').run")
         .unwrap()
         .run(CallOptions::default())
         .unwrap();
