@@ -161,7 +161,15 @@ pub(crate) fn analyze(uri: &str, source: &str, options: &Options) -> Analysis {
                 [] => vec![compile_diagnostic(source, &error)],
                 coded_errors => coded_errors
                     .iter()
-                    .map(|found| coded(source, found))
+                    .map(|found| {
+                        if found.code == vibescript::diagnostic::Code::SYNTAX {
+                            let mut diagnostic = compile_diagnostic(source, &error);
+                            diagnostic.code = Some(found.code.to_string());
+                            diagnostic
+                        } else {
+                            coded(source, found)
+                        }
+                    })
                     .collect(),
             };
             return Analysis {

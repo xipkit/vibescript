@@ -29,6 +29,7 @@ fn parse_errors_are_errors_from_the_server() {
     let diagnostics = diagnostics("def run(\n  1\nend\n");
     assert!(!diagnostics.is_empty());
     assert_eq!(diagnostics[0]["severity"], 1);
+    assert_eq!(diagnostics[0]["code"], "V0001");
     assert_eq!(diagnostics[0]["source"], "vibes-lsp");
     assert!(!diagnostics[0]["message"].as_str().unwrap().is_empty());
 }
@@ -215,7 +216,7 @@ fn required_files_resolve_from_the_document_directory() {
     assert_eq!(missing.len(), 1);
     assert_eq!(
         missing[0]["message"],
-        "cannot statically resolve required module \"helpers\""
+        "cannot statically resolve required module \"helpers\": require: module paths not configured"
     );
     // Hosts can name the directories themselves.
     let mut server = Server::with_options(Options {
