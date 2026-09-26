@@ -59,28 +59,24 @@ fn capability_methods_support_named_scoped_computed_and_forwarded_calls() {
     for source in [
         "sms.deliver(1, 2)",
         "sms.deliver 1, 2",
-        "sms::deliver(1, 2)",
         "sms.deliver(*[1], last: 2)",
         "sms.deliver(1, **{last: 2})",
         "local = sms; local.deliver(1, 2)",
         "sms.dup.deliver(1, 2)",
         "[sms].fetch(0).deliver(1, 2)",
     ] {
-        let mut engine = engine();
-        // `::` is refused with static types (V0416) but still runs without.
-        if source.contains("::") {
-            engine.set_static_types(false);
-        }
-        let script = engine.compile(source).unwrap();
+        let script = engine().compile(source).unwrap();
         let output = script
             .run(granted(echo()))
             .unwrap_or_else(|error| panic!("{source}: {error}"));
         assert_eq!(output.value.to_string(), "[1, 2]", "{source}");
     }
-    // A namespace is not indexed, so a member is never computed.
+    // A namespace is not indexed, so a member is never computed, and a
+    // method is called with a dot.
     for source in ["sms[\"deliver\"](1, 2)", "(sms[\"deliver\"])(1, 2)"] {
         refused(&mut engine(), source, "V0112", "sms[");
     }
+    refused(&mut engine(), "sms::deliver(1, 2)", "V0416", "::");
 }
 
 #[test]
@@ -308,6 +304,7 @@ fn contracts_follow_method_identity_including_factory_results() {
             },
             |_, _| Ok(()),
         );
+    let guarded = protected.clone();
     let factory = HostMethod::new("factory.make", move |_, _, _| {
         Ok(Value::object(vec![(
             b"deliver".to_vec(),
@@ -323,19 +320,18 @@ fn contracts_follow_method_identity_including_factory_results() {
             Capability::new("other", move |_| {
                 Ok(Value::object(vec![(b"deliver".to_vec(), other.value())]))
             }),
+            Capability::new("guarded", move |_| {
+                Ok(Value::object(vec![(b"deliver".to_vec(), guarded.value())]))
+            }),
         ],
         ..CallOptions::default()
     };
-    // A host result is `any`, which static types never call, so only a
-    // program without them reaches the returned method.
-    let source = "result=begin; factory.make().deliver(); rescue TypeError; 7; end; [result, other.deliver(), {a: 1}.merge({b: 2})]";
-    let script = common::gradual_engine().compile(source).unwrap();
-    assert_eq!(
-        script.run(opts).unwrap().value.to_string(),
-        "[7, 42, {a: 1, b: 2}]"
-    );
     let mut engine = Engine::new();
-    for (name, member) in [("factory", "make"), ("other", "deliver")] {
+    for (name, member) in [
+        ("factory", "make"),
+        ("other", "deliver"),
+        ("guarded", "deliver"),
+    ] {
         let method = HostMethod::new(format!("{name}.{member}"), |_, _, _| Ok(Value::nil()));
         engine
             .declare_capability(&Capability::from_value(
@@ -344,35 +340,53 @@ fn contracts_follow_method_identity_including_factory_results() {
             ))
             .unwrap();
     }
+    // A host result is `any`, which static types never call, so the method
+    // a factory returns is not reached; a granted one keeps its contract.
+    let source = "result=begin; guarded.deliver(); rescue TypeError; 7; end; [result, other.deliver(), {a: 1}.merge({b: 2})]";
+    assert_eq!(
+        engine
+            .compile(source)
+            .unwrap()
+            .run(opts)
+            .unwrap()
+            .value
+            .to_string(),
+        "[7, 42, {a: 1, b: 2}]"
+    );
+    let source = "result=begin; factory.make().deliver(); rescue TypeError; 7; end; [result, other.deliver(), {a: 1}.merge({b: 2})]";
     refused(&mut engine, source, "V0106", "deliver(); rescue");
 }
 
 #[test]
 fn saved_namespaces_cannot_reuse_grants_in_later_calls_even_with_unlimited_memory() {
-    // A saved namespace is `any` to static types, which never call it, so
-    // only a program without them reaches the revoked grant.
+    // A saved namespace is `any` to static types, which never call it.
     refused(
         &mut engine(),
         "def save -> any; sms; end; def use(saved: any) -> any; saved.deliver(); end",
         "V0106",
         "deliver()",
     );
-    let script = common::gradual_engine()
-        .compile("def save; sms; end; def use(saved); saved.deliver(); end")
-        .unwrap();
+    // It can re-enter a later call only as a capability template, whose
+    // methods keep the grant of the call that saved it.
+    let script = engine().compile("def save -> any; sms; end").unwrap();
     for unlimited in [false, true] {
         let mut opts = granted(echo());
         if unlimited {
             opts.limits.memory_bytes = None;
         }
         let saved = script.call("save", &[], opts.clone()).unwrap().value;
+        let regranted = Capability::from_value("saved", saved);
+        let mut receiver = Engine::new();
+        receiver.declare_capability(&regranted).unwrap();
+        let user = receiver
+            .compile("def use -> any; saved.deliver(); end")
+            .unwrap();
         for mut receiving in [CallOptions::default(), opts] {
             if unlimited {
                 receiving.limits.memory_bytes = None;
             }
-            let error = script
-                .call("use", std::slice::from_ref(&saved), receiving)
-                .unwrap_err();
+            receiving.capabilities.push(regranted.clone());
+            let error = user.call("use", &[], receiving).unwrap_err();
             assert!(
                 error.message.contains("was not granted to this call"),
                 "{error}"
@@ -383,23 +397,19 @@ fn saved_namespaces_cannot_reuse_grants_in_later_calls_even_with_unlimited_memor
 
 #[test]
 fn bare_capability_methods_run_and_method_values_cannot_escape() {
-    for source in ["sms.deliver", "sms::deliver"] {
-        let mut engine = engine();
-        if source.contains("::") {
-            engine.set_static_types(false);
-        }
-        engine.register("identity", |_, _| panic!("detached method reached host"));
-        let result = engine
-            .compile(source)
-            .unwrap()
-            .run(granted(echo()))
-            .unwrap();
-        assert_eq!(result.value.to_string(), "[]", "{source}");
-    }
+    let mut bare = engine();
+    bare.register("identity", |_, _| panic!("detached method reached host"));
+    let result = bare
+        .compile("sms.deliver")
+        .unwrap()
+        .run(granted(echo()))
+        .unwrap();
+    assert_eq!(result.value.to_string(), "[]");
     // A namespace is not indexed, a local is never called and a method's
     // result is `any`, so the other escapes do not compile.
     for (source, code, at) in [
         ("sms[\"deliver\"]", "V0112", "sms["),
+        ("sms::deliver", "V0416", "::"),
         ("a=sms::deliver; a(1)", "V0416", "::"),
         ("a=sms[\"deliver\"]; a(1)", "V0112", "sms["),
         ("[sms[\"deliver\"]]", "V0112", "sms["),
@@ -542,15 +552,33 @@ fn host_returns_are_isolated_and_can_admit_foreign_script_programs() {
         .unwrap()
         .value;
     let method = HostMethod::new("sms.deliver", move |_, _, _| Ok(foreign.clone()));
-    // A host result is `any`, which static types never call, so only a
-    // program without them reaches the foreign module.
+    // A host result is `any`, and no program can name another program's
+    // module, so the foreign module is admitted but its methods are never
+    // called.
     let source = "m=sms.deliver(); [m.bump(), m.bump()]";
     refused(&mut engine(), source, "V0106", "bump");
-    let script = common::gradual_engine().compile(source).unwrap();
+    let script = engine()
+        .compile("def run -> any; sms.deliver(); end")
+        .unwrap();
+    assert_eq!(
+        script
+            .call("run", &[], granted(method))
+            .unwrap()
+            .value
+            .to_string(),
+        "<Class M>"
+    );
+    // A program's own instance from an earlier call narrows to its class, and
+    // each call imports a fresh copy of what the host returns.
+    let script = engine()
+        .compile("class Counter; @n: int = 0; def bump -> int; @n += 1; end; end; def make -> any; Counter.new; end; def run -> array<int>; m=sms.deliver().as(Counter); [m.bump, m.bump]; end")
+        .unwrap();
+    let instance = script.call("make", &[], granted(echo())).unwrap().value;
+    let method = HostMethod::new("sms.deliver", move |_, _, _| Ok(instance.clone()));
     for _ in 0..3 {
         assert_eq!(
             script
-                .run(granted(method.clone()))
+                .call("run", &[], granted(method.clone()))
                 .unwrap()
                 .value
                 .to_string(),
@@ -676,30 +704,17 @@ fn binding_is_guarded_before_and_after_host_code_and_precedes_initialization() {
 
 #[test]
 fn expired_grants_stay_revoked_inside_foreign_instance_graphs() {
-    // A saved namespace is `any` to static types, which never call it, so
-    // only a program without them reaches the revoked grant.
+    // A saved namespace is `any` to static types, which never call it, so an
+    // instance graph cannot carry a grant into another call. A re-granted
+    // namespace stays revoked, as
+    // `saved_namespaces_cannot_reuse_grants_in_later_calls_even_with_unlimited_memory`
+    // shows.
     refused(
         &mut engine(),
         "class Box; @saved: any; def initialize(cap: any); @saved=cap; end; def read -> any; @saved.deliver(); end; end",
         "V0106",
         "deliver()",
     );
-    let script = common::gradual_engine().compile(
-        "class Box; def initialize(cap); @saved=cap; @next=self; end; def next_node; @next; end; def read; @saved.deliver(); end; end; def make; Box.new(sms); end"
-    ).unwrap();
-    let saved = script.call("make", &[], granted(echo())).unwrap().value;
-    let consumer = common::gradual_engine()
-        .compile("def run(box); box.next_node.read; end")
-        .unwrap();
-    for opts in [CallOptions::default(), granted(echo())] {
-        let error = consumer
-            .call("run", std::slice::from_ref(&saved), opts)
-            .unwrap_err();
-        assert!(
-            error.message.contains("was not granted to this call"),
-            "{error}"
-        );
-    }
 }
 
 #[test]
