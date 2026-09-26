@@ -465,6 +465,11 @@ impl<'a> Checker<'a> {
             self.mark_write_chain(receiver);
         }
         let ty = self.expr(receiver, None);
+        if ty != Ty::ERROR && block.is_none() {
+            let called = if safe { self.types.without_nil(ty) } else { ty };
+            let base = crate::members::direct::Base::of(&self.types.bases(called));
+            self.receivers.record(expr, base);
+        }
         let name_span = self.spans.member(receiver, name);
         if let Some(span) = name_span {
             if ty != Ty::ERROR {

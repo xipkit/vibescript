@@ -6,6 +6,7 @@ use crate::{
 };
 
 mod conversion;
+pub(crate) mod direct;
 pub(crate) mod introspection;
 pub(crate) mod names;
 pub(crate) mod suggest;

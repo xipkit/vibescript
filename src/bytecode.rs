@@ -119,6 +119,10 @@ pub(crate) enum Op {
     Host(usize, usize),
     HostValue(usize, Receiving),
     Method(CallSite, usize),
+    /// Calls a builtin member the checker bound to the receiver's static
+    /// base type ([`crate::members::direct`]), dispatching dynamically when
+    /// the receiver's runtime kind is another.
+    Direct(CallSite, usize),
     Arguments,
     RootCall(usize, bool),
     ResolveCall(usize, usize),
@@ -474,16 +478,25 @@ fn compile_mode(
     file: bool,
     work: &dyn crate::compilation::Work,
 ) -> Result<Program> {
-    compile_parsed(source, syntax::parse(source, work)?, hosts, file, work)
+    let receivers = crate::typing::Receivers::default();
+    compile_parsed(
+        source,
+        syntax::parse(source, work)?,
+        hosts,
+        file,
+        &receivers,
+        work,
+    )
 }
 
 /// Compiles parsed declarations of `source`, which the static type checker
-/// has already read.
+/// has already read, finding the `receivers` of member calls in them.
 pub(crate) fn compile_parsed(
     source: &str,
     parsed: syntax::Declarations,
     hosts: Vec<String>,
     file: bool,
+    receivers: &crate::typing::Receivers,
     work: &dyn crate::compilation::Work,
 ) -> Result<Program> {
     let mut outline = Vec::with_capacity(parsed.outline.len());
@@ -571,6 +584,7 @@ pub(crate) fn compile_parsed(
         let plain = !binds_parameters && def.params.iter().all(|p| p.kind == ParamKind::Positional);
         let compiling = Compiling::new(Compiler {
             work,
+            receivers,
             aliases: &typing.aliases,
             namespace: contexts[index].0,
             instance: contexts[index].2,
@@ -672,6 +686,8 @@ fn expanded(args: &[Argument]) -> bool {
 
 struct Compiler<'a> {
     work: &'a dyn crate::compilation::Work,
+    /// The static base of member call receivers, from the checker.
+    receivers: &'a crate::typing::Receivers,
     aliases: &'a aliases::Aliases,
     instance: bool,
     namespace: Option<usize>,
@@ -1574,9 +1590,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     param.kind == ParamKind::Positional
                         && param.default.is_none()
                         && !(c.instance && param.ivar.is_some())
-                        && compiled
-                            .ty
-                            .is_none_or(|ty| !c.program.types[ty].unproven())
+                        && compiled.ty.is_none_or(|ty| !c.program.types[ty].unproven())
                 });
             self.proven.set(direct.then_some(c.code.len()));
             c.declare(&def.body)?;
@@ -2299,6 +2313,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
             }
             Node::Call(name, args, _) => self.named_call(name, args).await?,
             Node::Member(recv, name) | Node::SafeMember(recv, name) => {
+                let direct = self.c().receivers.base(e);
                 (self.member_call(
                     recv,
                     name,
@@ -2306,6 +2321,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     CallForm::Auto,
                     None,
                     matches!(e.node, Node::SafeMember(..)),
+                    direct,
                 ))
                 .await?;
             }
@@ -2313,6 +2329,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 Box::pin(self.scoped_call(recv, name, args.as_deref(), None)).await?
             }
             Node::Method(recv, name, args, form) | Node::SafeMethod(recv, name, args, form) => {
+                let direct = self.c().receivers.base(e);
                 (self.member_call(
                     recv,
                     name,
@@ -2320,6 +2337,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     *form,
                     None,
                     matches!(e.node, Node::SafeMethod(..)),
+                    direct,
                 ))
                 .await?;
             }
@@ -2433,6 +2451,10 @@ impl<'a, 'x> Compiling<'a, 'x> {
     }
 
     #[allow(clippy::too_many_arguments)]
+    /// Calls member `name` of `receiver`. A call whose receiver the checker
+    /// proved to have the one base type `direct` becomes a direct builtin
+    /// call when that base serves the member.
+    #[allow(clippy::too_many_arguments)]
     async fn member_call(
         &self,
         receiver: &'x Expr,
@@ -2441,6 +2463,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
         form: CallForm,
         block: Option<usize>,
         safe: bool,
+        direct: Option<crate::members::direct::Base>,
     ) -> Result<()> {
         self.c().work.charge(1)?;
         let mutating = mutating_member(name);
@@ -2450,7 +2473,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
         } else {
             self.member_receiver(receiver, receiving).await?;
         }
-        let (skip, site) = {
+        let (skip, site, direct) = {
             let mut c = self.c();
             let skip = safe.then(|| {
                 c.emit(if mutating {
@@ -2460,11 +2483,34 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 })
             });
             let site = c.call_site(name, form == CallForm::Auto);
-            if name != "call" && (mutating || form != CallForm::Auto) {
+            let direct = direct.filter(|&base| {
+                !mutating
+                    && name != "call"
+                    && block.is_none()
+                    && !expanded(args)
+                    && site.method.is_some_and(|method| {
+                        crate::members::direct::serves(base, method, args.len())
+                    })
+            });
+            // Preparing a member reads fields only of a hash receiver.
+            let prepared = direct.is_none_or(|base| base == crate::members::direct::Base::Hash);
+            if name != "call" && (mutating || form != CallForm::Auto) && prepared {
                 c.emit(Op::PrepareMember(site, mutating));
             }
-            (skip, site)
+            (skip, site, direct)
         };
+        if direct.is_some() {
+            for arg in args {
+                self.expr(&arg.value).await?;
+            }
+            let mut c = self.c();
+            c.emit(Op::Direct(site, args.len()));
+            if let Some(skip) = skip {
+                let end = c.code.len();
+                c.patch(skip, end);
+            }
+            return Ok(());
+        }
         if name == "call" && form != CallForm::Auto {
             {
                 let mut c = self.c();
@@ -2608,6 +2654,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                         CallForm::Bare,
                         Some(function),
                         matches!(call.node, Node::SafeMember(..)),
+                        None,
                     )
                     .await;
             }
@@ -2621,6 +2668,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                         *form,
                         Some(function),
                         matches!(call.node, Node::SafeMethod(..)),
+                        None,
                     )
                     .await;
             }

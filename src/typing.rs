@@ -101,6 +101,38 @@ pub struct Checked {
     /// `Script::run` returns, written the same way; `None` for a required
     /// file.
     pub result: Option<String>,
+    /// The static base of member call receivers, which the compiler binds
+    /// builtins to.
+    pub(crate) receivers: Receivers,
+}
+
+/// The one static base type of each member call's receiver that has one the
+/// runtime binds builtins to, by the call's syntax node. The compiler reads
+/// it for the same nodes it compiles.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Receivers {
+    /// `None` where checking the call more than once found different bases.
+    bases: HashMap<usize, Option<crate::members::direct::Base>>,
+}
+
+impl Receivers {
+    fn record(&mut self, call: &crate::syntax::Expr, base: Option<crate::members::direct::Base>) {
+        let recorded = self
+            .bases
+            .entry(std::ptr::from_ref(call) as usize)
+            .or_insert(base);
+        if *recorded != base {
+            *recorded = None;
+        }
+    }
+
+    /// The base the receiver of `call` always has, if one was recorded.
+    pub(crate) fn base(&self, call: &crate::syntax::Expr) -> Option<crate::members::direct::Base> {
+        self.bases
+            .get(&(std::ptr::from_ref(call) as usize))
+            .copied()
+            .flatten()
+    }
 }
 
 /// What checking the top-level statements of a host script found, for
@@ -249,6 +281,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         write_chain: HashSet::new(),
         session: None,
         too_deep: false,
+        receivers: Receivers::default(),
     };
     for (name, host) in &input.hosts {
         let function = crate::signatures::host::function(name, host);
@@ -291,6 +324,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         exported,
         locals,
         result,
+        receivers: checker.receivers,
     };
     // Removed spellings of the canonical surface are compile errors too,
     // unless the source is too tall to walk.
@@ -323,6 +357,7 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
         write_chain: HashSet::new(),
         session: None,
         too_deep: false,
+        receivers: Receivers::default(),
     };
     checker.declare_hosts(input.declared);
     checker.declare_program(input.parsed);
@@ -367,6 +402,8 @@ pub(crate) struct Checker<'a> {
     session: Option<Session>,
     /// Whether some syntax was too tall to check ([`HEIGHT`]).
     too_deep: bool,
+    /// The static base of member call receivers.
+    receivers: Receivers,
 }
 
 /// Expression types by node, recorded or replayed.

@@ -2907,122 +2907,71 @@ impl Run {
                     stack.data.truncate(base);
                     value.finish(program, ctx, frames, storage, stack, ReturnTo::Stack)?;
                 }
-                Op::Method(site, n) => {
+                Op::Method(site, n) => method(
+                    program,
+                    ctx,
+                    frames,
+                    storage,
+                    stack,
+                    site,
+                    n,
+                    (namespace, caller_instance),
+                )?,
+                Op::Direct(site, n) => {
                     let base = stack.data.len() - n - 1;
-                    let root = std::mem::take(&mut stack.data[base]);
-                    if let Some(method) =
-                        capabilities::member(ctx, site, &program.members[site.name], &root)?
-                    {
-                        let value = capabilities::call_on(
-                            ctx,
-                            storage,
-                            &method,
-                            Some(&root),
-                            &stack.data[base + 1..],
-                            &[],
-                            None,
-                            site.auto,
-                        )?;
-                        stack.data.truncate(base);
-                        value.finish(program, ctx, frames, storage, stack, ReturnTo::Stack)?;
-                        continue;
+                    let name = &program.members[site.name];
+                    // A member that can iterate took its arguments through a
+                    // list, whose checks the direct call makes too.
+                    let listed = iteration::method(name);
+                    if listed {
+                        for arg in &stack.data[base + 1..] {
+                            crate::exports::check(ctx, arg)?;
+                        }
                     }
-                    if dispatch::is_parse_as(ctx, site, &program.members[site.name], &root)? {
-                        let value = dispatch::parse_as(
+                    let direct = members::direct::call(
+                        ctx,
+                        site.method.unwrap(),
+                        name,
+                        &stack.data[base],
+                        &stack.data[base + 1..],
+                    )?;
+                    if let Some(value) = direct {
+                        stack.data.truncate(base);
+                        stack.push(ctx, value)?;
+                    } else if listed {
+                        let args = Arguments::from_values(ctx, &stack.data[base + 1..])?;
+                        stack.data.truncate(base + 1);
+                        dispatch::member(
                             program,
                             ctx,
                             frames,
                             storage,
-                            &stack.data[base + 1..],
-                        )?;
-                        stack.data.truncate(base);
-                        stack.push(ctx, value)?;
-                        continue;
-                    }
-                    if matches!(root.0, Kind::Hash(_)) {
-                        if let Some(Value(Kind::Function(function))) =
-                            members::field(ctx, site, &program.members[site.name], &root)?
-                        {
-                            if site.auto && site.scope {
-                                return Err(function.value_error());
-                            }
-                            let args = Arguments::from_values(ctx, &stack.data[base + 1..])?;
-                            stack.data.truncate(base);
-                            requires::invoke(
-                                ctx, frames, storage, &function, args, site.auto, base,
-                            )?;
-                            continue;
-                        }
-                    }
-                    if matches!(root.0, Kind::Namespace(_) | Kind::Instance(_)) {
-                        let receiver = &root;
-                        let name = &program.members[site.name];
-                        match namespaces::member(
-                            ctx,
-                            storage,
-                            receiver,
-                            site,
-                            name,
-                            namespaces::Access {
-                                program: program.index,
-                                caller: namespace,
-                                implicit: false,
-                                instance: caller_instance,
+                            stack,
+                            dispatch::Call {
+                                site,
+                                name,
+                                mutating: false,
+                                args,
+                                access: namespaces::Access {
+                                    program: program.index,
+                                    caller: namespace,
+                                    implicit: false,
+                                    instance: caller_instance,
+                                },
                             },
-                        )? {
-                            namespaces::Member::Function(function) => {
-                                let args = Arguments::from_values(ctx, &stack.data[base + 1..])?;
-                                enter_arguments(
-                                    program, ctx, frames, storage, function, args, base,
-                                )?;
-                                stack.data.truncate(base);
-                                continue;
-                            }
-                            namespaces::Member::Value(value) => {
-                                let value = capabilities::field_on(
-                                    ctx,
-                                    storage,
-                                    site,
-                                    Some(receiver),
-                                    value,
-                                    &stack.data[base + 1..],
-                                    &[],
-                                    None,
-                                )?;
-                                stack.data.truncate(base);
-                                value.finish(
-                                    program,
-                                    ctx,
-                                    frames,
-                                    storage,
-                                    stack,
-                                    ReturnTo::Stack,
-                                )?;
-                                continue;
-                            }
-                            namespaces::Member::IsType(module) => {
-                                let args = Arguments::from_values(ctx, &stack.data[base + 1..])?;
-                                let value = dispatch::type_predicate(
-                                    program, ctx, frames, storage, &module, &args,
-                                )?;
-                                stack.data.truncate(base);
-                                stack.push(ctx, value)?;
-                                continue;
-                            }
-                            namespaces::Member::Missing => {
-                                namespaces::fallback(storage, receiver, name, false)?
-                            }
-                        }
+                        )?;
+                    } else {
+                        method(
+                            program,
+                            ctx,
+                            frames,
+                            storage,
+                            stack,
+                            site,
+                            n,
+                            (namespace, caller_instance),
+                        )?;
                     }
-                    let (_, value) = members::call(
-                        ctx,
-                        site,
-                        &program.members[site.name],
-                        root,
-                        &stack.data[base + 1..],
-                    )?;
-                    stack.data.truncate(base);
-                    stack.push(ctx, value)?;
                 }
                 Op::JumpNil(target) => {
                     if matches!(stack.data.last().unwrap().0, Kind::Nil) {
@@ -3059,6 +3008,7 @@ impl Run {
                     op,
                     Op::Index(_)
                         | Op::Method(..)
+                        | Op::Direct(..)
                         | Op::Mutate(..)
                         | Op::Invoke(_)
                         | Op::InvokeRoot(_)
@@ -3082,6 +3032,115 @@ impl Run {
             }
         }
     }
+}
+
+/// Calls a member with the `count` arguments on top of the stack, above its
+/// receiver, dispatching by name at runtime.
+#[allow(clippy::too_many_arguments)]
+fn method(
+    program: &Program,
+    ctx: &mut CallContext,
+    frames: &mut Buffer<Frame>,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+    site: crate::bytecode::CallSite,
+    n: usize,
+    (namespace, caller_instance): (Option<usize>, bool),
+) -> Result<()> {
+    let base = stack.data.len() - n - 1;
+    let root = std::mem::take(&mut stack.data[base]);
+    if let Some(method) = capabilities::member(ctx, site, &program.members[site.name], &root)? {
+        let value = capabilities::call_on(
+            ctx,
+            storage,
+            &method,
+            Some(&root),
+            &stack.data[base + 1..],
+            &[],
+            None,
+            site.auto,
+        )?;
+        stack.data.truncate(base);
+        value.finish(program, ctx, frames, storage, stack, ReturnTo::Stack)?;
+        return Ok(());
+    }
+    if dispatch::is_parse_as(ctx, site, &program.members[site.name], &root)? {
+        let value = dispatch::parse_as(program, ctx, frames, storage, &stack.data[base + 1..])?;
+        stack.data.truncate(base);
+        stack.push(ctx, value)?;
+        return Ok(());
+    }
+    if matches!(root.0, Kind::Hash(_)) {
+        if let Some(Value(Kind::Function(function))) =
+            members::field(ctx, site, &program.members[site.name], &root)?
+        {
+            if site.auto && site.scope {
+                return Err(function.value_error());
+            }
+            let args = Arguments::from_values(ctx, &stack.data[base + 1..])?;
+            stack.data.truncate(base);
+            requires::invoke(ctx, frames, storage, &function, args, site.auto, base)?;
+            return Ok(());
+        }
+    }
+    if matches!(root.0, Kind::Namespace(_) | Kind::Instance(_)) {
+        let receiver = &root;
+        let name = &program.members[site.name];
+        match namespaces::member(
+            ctx,
+            storage,
+            receiver,
+            site,
+            name,
+            namespaces::Access {
+                program: program.index,
+                caller: namespace,
+                implicit: false,
+                instance: caller_instance,
+            },
+        )? {
+            namespaces::Member::Function(function) => {
+                let args = Arguments::from_values(ctx, &stack.data[base + 1..])?;
+                enter_arguments(program, ctx, frames, storage, function, args, base)?;
+                stack.data.truncate(base);
+                return Ok(());
+            }
+            namespaces::Member::Value(value) => {
+                let value = capabilities::field_on(
+                    ctx,
+                    storage,
+                    site,
+                    Some(receiver),
+                    value,
+                    &stack.data[base + 1..],
+                    &[],
+                    None,
+                )?;
+                stack.data.truncate(base);
+                value.finish(program, ctx, frames, storage, stack, ReturnTo::Stack)?;
+                return Ok(());
+            }
+            namespaces::Member::IsType(module) => {
+                let args = Arguments::from_values(ctx, &stack.data[base + 1..])?;
+                let value =
+                    dispatch::type_predicate(program, ctx, frames, storage, &module, &args)?;
+                stack.data.truncate(base);
+                stack.push(ctx, value)?;
+                return Ok(());
+            }
+            namespaces::Member::Missing => namespaces::fallback(storage, receiver, name, false)?,
+        }
+    }
+    let (_, value) = members::call(
+        ctx,
+        site,
+        &program.members[site.name],
+        root,
+        &stack.data[base + 1..],
+    )?;
+    stack.data.truncate(base);
+    stack.push(ctx, value)?;
+    Ok(())
 }
 
 fn frame_offset(frame: &Frame) -> Option<(&crate::bytecode::Program, u32)> {
@@ -4125,8 +4184,7 @@ fn enter_checked(
             "instance method requires its instance receiver",
         ));
     }
-    if (fun.plain || fun.proven.is_some() && !checked)
-        && arguments.keywords.buffer.data.is_empty()
+    if (fun.plain || fun.proven.is_some() && !checked) && arguments.keywords.buffer.data.is_empty()
     {
         enter(
             program,

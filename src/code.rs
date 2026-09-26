@@ -167,8 +167,9 @@ impl Code {
                 &text,
             ));
         }
-        let mut program = crate::bytecode::compile_parsed(source, parsed, names, file, work)
-            .map_err(parse_error)?;
+        let mut program =
+            crate::bytecode::compile_parsed(source, parsed, names, file, &checked.receivers, work)
+                .map_err(parse_error)?;
         program.source.filename = filename;
         let mut hosts = Vec::new();
         for (name, host) in registered {
