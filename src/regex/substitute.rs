@@ -430,26 +430,6 @@ pub(crate) struct Driver {
     pub waiting: bool,
 }
 
-pub(crate) struct CallbackPattern(Matcher);
-
-impl CallbackPattern {
-    pub fn new(ctx: &mut CallContext, pattern: Value, regex: bool) -> Result<Self> {
-        let spec = Spec {
-            pattern,
-            regex,
-            all: true,
-            bang: false,
-        };
-        Matcher::new(ctx, &spec, false).map(Self)
-    }
-
-    pub fn next(&mut self, ctx: &mut CallContext, text: &[u8]) -> Result<Option<[usize; 2]>> {
-        self.0
-            .next(ctx, text)
-            .map(|location| location.map(|location| location.whole))
-    }
-}
-
 impl Driver {
     pub fn new(
         ctx: &mut CallContext,

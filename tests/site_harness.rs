@@ -1,7 +1,7 @@
 mod common;
 
 use serde_json::{Value as Json, json};
-use vibescript::{CallOptions, CheckedOutcome, Engine, ErrorKind, HostMethod, Value};
+use vibescript::{CallOptions, Engine, ErrorKind, HostMethod, Value};
 
 #[path = "../examples/support/mod.rs"]
 mod support;
@@ -103,7 +103,7 @@ fn notification_previews_use_explicit_grants_and_validate_inputs() {
 }
 
 #[test]
-fn unchanged_notification_examples_run_through_checked_template_grants() {
+fn unchanged_notification_examples_run_through_declared_template_grants() {
     for (name, source, expected) in [
         (
             "sms",
@@ -116,19 +116,16 @@ fn unchanged_notification_examples_run_through_checked_template_grants() {
             json!({"status":"preview", "to":"alex@example.com", "subject":"Welcome, Alex!", "body":"Hi Alex,\n\nYour account is ready. Thanks for joining us."}),
         ),
     ] {
-        let mut engine = common::gradual_engine();
+        let capability = support::notification(name).unwrap();
+        let mut engine = Engine::new();
         engine.set_strict_effects(true);
+        engine.declare_capability(&capability).unwrap();
         let script = engine.compile(source).unwrap();
         let options = CallOptions {
-            capabilities: vec![support::notification(name).unwrap()],
+            capabilities: vec![capability],
             ..CallOptions::default()
         };
-        let report = script.check_call("run", &[], &options).unwrap();
-        assert!(report.is_clean(), "{name}: {report:?}");
-        let CheckedOutcome::Executed(output) = script.checked_call("run", &[], options).unwrap()
-        else {
-            panic!("{name}: checked notification preview was rejected");
-        };
+        let output = script.call("run", &[], options).unwrap();
         let encoded = support::encode(&output.value, "json", CallOptions::default()).unwrap();
         assert_eq!(serde_json::from_slice::<Json>(&encoded).unwrap(), expected);
     }

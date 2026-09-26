@@ -546,9 +546,6 @@ mod tests {
         assert_eq!(invocation.options.limits.memory_bytes, None);
         assert_eq!(invocation.options.limits.recursion, 3);
         assert_eq!(usage_error(&["f", "-x"]), "unknown option -x");
-        // The gradual checker's modes are gone from the command line.
-        assert_eq!(usage_error(&["f", "--check"]), "unknown option --check");
-        assert_eq!(usage_error(&["f", "--checked"]), "unknown option --checked");
         assert_eq!(usage_error(&["--", "a", "b"]), "expected one source file");
         assert!(matches!(
             parsed(&["--bogus", "--help"]),

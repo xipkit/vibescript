@@ -50,13 +50,6 @@ impl<T> Finished<T> {
     }
 }
 
-/// An engine for tests of the gradual checker (`Script::check` and its
-/// relatives), which reads the ADR-004 language until it is removed with
-/// the escape hatch it needs.
-pub fn gradual_engine() -> vibescript::Engine {
-    vibescript::Engine::legacy_unchecked()
-}
-
 /// Whether `error` is the type checker's refusal, on WASI, of syntax taller
 /// than it descends into there: WASI's default stack cannot hold its
 /// recursion to the parser's full depth. Elsewhere it is never refused.

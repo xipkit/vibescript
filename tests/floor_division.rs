@@ -278,39 +278,6 @@ fn floor_division_errors_point_at_the_operator() {
 }
 
 #[test]
-fn the_checker_types_floor_division() {
-    let check = |source: &str| {
-        common::gradual_engine()
-            .compile(source)
-            .unwrap()
-            .check(&CallOptions::default())
-            .unwrap()
-    };
-    for source in [
-        "def half(n: int) -> int\n  n // 2\nend\n",
-        "def ratio(a: float, b: int) -> float\n  a // b\nend\n",
-        "def mixed(a: int, b: float) -> float\n  a // b\nend\n",
-        "def big -> int\n  (2 ** 70) // 3\nend\n",
-    ] {
-        let report = check(source);
-        assert!(report.is_clean(), "{source}: {report:?}");
-    }
-    let report = check("def ratio(a: float) -> int\n  a // 2\nend\n");
-    assert_eq!(report.diagnostics.len(), 1, "{report:?}");
-    assert!(
-        report.diagnostics[0].message.contains("got float"),
-        "{}",
-        report.diagnostics[0].message
-    );
-    let report = check("def bad(d: duration)\n  d // 2\nend\n");
-    assert_eq!(report.diagnostics.len(), 1, "{report:?}");
-    assert_eq!(
-        report.diagnostics[0].message,
-        "Operator \"//\" does not accept duration and int"
-    );
-}
-
-#[test]
 fn compound_floor_division_assigns_the_floored_value() {
     for (body, expected) in [
         ("a = 7\n  a //= 2\n  a", "3"),

@@ -1,23 +1,7 @@
 mod common;
 
 use std::sync::{Arc, Mutex};
-use vibescript::{CallOptions, Capability, Engine, HostMethod, Signature, SignatureParam, Value};
-
-/// The ADR-004 state the gradual checker's test reads.
-const STATE: &str = "
-    class Node
-      def initialize; @value=1; @next=self; end
-      def value; @value; end
-      def bump; @value+=1; end
-      def next_node; @next; end
-    end
-    module Counter
-      @@value=1
-      def self.value; @@value; end
-      def self.bump; @@value+=1; end
-    end
-    node=Node.new
-";
+use vibescript::{CallOptions, Capability, Engine, HostMethod, Value};
 
 /// A module value has no static type, so the class state that crosses the
 /// boundary belongs to a class whose instance carries it.
@@ -285,65 +269,6 @@ fn host_boundaries_preserve_the_full_documented_value_depth() {
         cursor = &cursor.as_array().unwrap()[0];
     }
     assert_eq!(cursor.as_int(), Some(9));
-}
-
-#[test]
-fn snapshots_preserve_declared_types_without_sharing_mutable_state() {
-    let echo = HostMethod::new("cap.echo", |_, args, _| Ok(args[0].clone()))
-        .with_signature(Signature {
-            params: vec![SignatureParam {
-                name: "node".into(),
-                ty: "Node".into(),
-                optional: false,
-            }],
-            result: "Node".into(),
-            accepts_block: false,
-        })
-        .unwrap();
-    let state = STATE.replace(
-        "def initialize;",
-        "@@shared=1; def shared; @@shared; end; def bump_shared; @@shared+=1; end; def initialize;",
-    );
-    let script = common::gradual_engine()
-        .compile(&format!(
-            "{state}
-             class Holder; property item:Node; end
-             def accept(value:Node)->Node; value; end
-             def read(value:Node)->int; value.value; end
-             def make; cap.echo(Node.new); end
-             def run
-               node=Node.new
-               copy=cap.echo(node)
-               copy.bump
-               copy.bump_shared
-               holder=Holder.new
-               holder.item=copy
-               [accept(copy).value,node.value,copy.is_a?(Node),copy.is_type?(:Node),holder.item.value,
-                copy.shared,node.shared]
-             end"
-        ))
-        .unwrap();
-    let output = script
-        .call("run", &[], options(&[("echo", echo.clone())]))
-        .unwrap();
-    assert_eq!(output.value.to_string(), "[2, 1, true, true, 2, 2, 1]");
-    let saved = script
-        .call("make", &[], options(&[("echo", echo)]))
-        .unwrap()
-        .value;
-    let report = script
-        .check_call(
-            "read",
-            std::slice::from_ref(&saved),
-            &CallOptions::default(),
-        )
-        .unwrap();
-    assert!(report.diagnostics.is_empty(), "{report:?}");
-    assert!(report.incomplete.is_empty(), "{report:?}");
-    let output = script
-        .call("read", &[saved], CallOptions::default())
-        .unwrap();
-    assert_eq!(output.value.as_int(), Some(1));
 }
 
 #[cfg(feature = "tokio")]

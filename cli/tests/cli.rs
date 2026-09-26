@@ -487,12 +487,6 @@ fn usage_errors_exit_with_status_two_without_reading_the_file() {
             vec![file.as_str(), "--kwarg", "x=1"],
             "--kwarg requires --function",
         ),
-        // The gradual checker's modes are gone.
-        (vec![file.as_str(), "--check"], "unknown option --check"),
-        (
-            vec![file.as_str(), "--function", "run", "--checked"],
-            "unknown option --checked",
-        ),
         (
             vec![file.as_str(), "--function", "run", "--kwarg", "x"],
             "--kwarg requires NAME=JSON, got \"x\"",

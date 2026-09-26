@@ -150,11 +150,6 @@ impl std::fmt::Debug for Instance {
 }
 
 impl Instance {
-    /// Supplies stable scope identity without retaining the mutable instance heap.
-    pub(crate) fn checking_id(&self) -> u64 {
-        self.identity.id
-    }
-
     /// Identifies a type scope independently of copies of its mutable state.
     pub(crate) fn nominal_scope(&self) -> u64 {
         self.identity.nominal_scope

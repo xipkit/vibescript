@@ -675,39 +675,6 @@ fn newer_type_names_validate_their_values() {
 }
 
 #[test]
-fn the_gradual_checker_accepts_the_new_declarations() {
-    let source = format!(
-        "type Reward = {{ id: string, points: int }}
-class Counter
-  @count: int = 0
-  def bump -> int
-    @count += 1
-  end
-end
-{KEEP}def run -> int
-  rewards: array<Reward> = [{{ id: \"a\", points: 2 }}]
-  pair: [int, string] = [1, \"a\"]
-  kept = keep([1, 2]) {{ |i| i > 1 }}
-  rewards[0][\"points\"] + pair[0] + kept.length + Counter.new.bump
-end
-"
-    );
-    let script = common::gradual_engine().compile(&source).unwrap();
-    let report = script
-        .check_call("run", &[], &CallOptions::default())
-        .unwrap_or_else(|error| panic!("{error}"));
-    assert!(report.is_clean(), "{report:?}");
-    assert_eq!(
-        script
-            .call("run", &[], CallOptions::default())
-            .unwrap()
-            .value
-            .as_int(),
-        Some(5)
-    );
-}
-
-#[test]
 fn a_value_may_follow_type_arguments_without_a_space() {
     let source = "class C\n  @@all: array<int>=[1]\n  @some: hash<string, int>={}\n  \
                   def self.all -> array<int>\n    @@all\n  end\n  def some -> hash<string, int>\n    @some\n  end\nend\n\

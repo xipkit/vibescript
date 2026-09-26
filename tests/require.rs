@@ -45,12 +45,6 @@ impl Files {
         self.configure(Engine::new())
     }
 
-    /// An engine for tests of the gradual checker, which reads the ADR-004
-    /// language until it is removed.
-    fn gradual_engine(&self) -> Engine {
-        self.configure(common::gradual_engine())
-    }
-
     fn configure(&self, mut engine: Engine) -> Engine {
         engine
             .set_module_config(ModuleConfig {
@@ -74,77 +68,6 @@ impl Drop for Files {
 fn json(value: &Value) -> serde_json::Value {
     let encoded = stringify_json(value, CallOptions::default()).unwrap();
     serde_json::from_slice(encoded.value.as_bytes().unwrap()).unwrap()
-}
-
-#[test]
-fn require_argument_and_alias_errors_have_the_reference_runtime_class() {
-    let files = Files::new();
-    files.write("module.vibe", "effect(); def value; 7; end");
-    let effects = Arc::new(AtomicUsize::new(0));
-    for strict in [false, true] {
-        let mut engine = files.gradual_engine();
-        engine.set_strict_effects(strict);
-        let captured = effects.clone();
-        engine.register("effect", move |_, _| {
-            captured.fetch_add(1, Ordering::SeqCst);
-            Ok(Value::nil())
-        });
-        let options = CallOptions {
-            allow_require: true,
-            ..CallOptions::default()
-        };
-        for source in [
-            "require()",
-            "require(nil)",
-            "require(1)",
-            "require(:module, :extra)",
-            "require(:module) { 1 }",
-            "require(:module, unknown: true)",
-            "require(:module, as: nil)",
-            "require(:module, as: true)",
-            "require(:module, as: 'bad-name')",
-            "require(:module, as: '')",
-            "require(:module, as: \"\\xFF\")",
-            "require(:module, as: :Math)",
-            "Taken=1; require(:module, as: :Taken)",
-        ] {
-            let error = engine
-                .compile(source)
-                .unwrap()
-                .run(options.clone())
-                .unwrap_err();
-            assert_eq!(error.kind, ErrorKind::Argument, "{source}: {error:?}");
-            assert_eq!(
-                error.class(),
-                Some(ErrorClass::Runtime),
-                "{source}: {error:?}"
-            );
-
-            let source = format!(
-                "def run -> int; begin; {source}; 0; rescue ArgumentError; 'wrong handler'; rescue RuntimeError; 7; end; end"
-            );
-            let script = engine.compile(&source).unwrap();
-            for report in [
-                script.check_call("run", &[], &options).unwrap(),
-                script.check_function("run", &options).unwrap(),
-            ] {
-                // The rejected require call remains a diagnostic. Its rescue
-                // path must not also produce a false return-type diagnostic.
-                assert!(report.incomplete.is_empty(), "{source}: {report:?}");
-                assert_eq!(report.diagnostics.len(), 1, "{source}: {report:?}");
-                assert!(report.diagnostics[0].message.contains("require"));
-            }
-            let vibescript::CheckedOutcome::Rejected(report) =
-                script.checked_call("run", &[], options.clone()).unwrap()
-            else {
-                panic!("checked call ignored the known require failure: {source}");
-            };
-            assert_eq!(report.diagnostics.len(), 1, "{source}: {report:?}");
-            let outcome = script.call("run", &[], options.clone()).unwrap();
-            assert_eq!(outcome.value.as_int(), Some(7), "{source}");
-            assert_eq!(effects.load(Ordering::SeqCst), 0, "{source}");
-        }
-    }
 }
 
 #[test]

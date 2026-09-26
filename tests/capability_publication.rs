@@ -430,41 +430,6 @@ fn publications_before_a_host_error_remain() {
 }
 
 #[test]
-fn checking_allows_fields_a_host_method_may_publish() {
-    let install = HostMethod::new_with_block("cfg.install", |call, _, _| {
-        call.set_receiver_field(b"limit", &Value::int(10))?;
-        Ok(Value::nil())
-    });
-    let options = CallOptions {
-        capabilities: vec![Capability::from_value(
-            "cfg",
-            Value::object(vec![
-                (b"install".to_vec(), install.value()),
-                (b"name".to_vec(), Value::bytes("base")),
-            ]),
-        )],
-        ..CallOptions::default()
-    };
-    for body in [
-        "cfg.install()\ncfg.limit + 1",
-        "cfg.install()\ncfg[:limit] + 1",
-        "cfg.install()\ncfg.fetch(:limit) + 1",
-        "cfg.install()\n[cfg.name, cfg[:limit]]",
-    ] {
-        let script = common::gradual_engine()
-            .compile(&format!("def run\n{body}\nend"))
-            .unwrap();
-        let report = script.check_call("run", &[], &options).unwrap();
-        assert!(report.is_clean(), "{body}: {report:?}");
-        let checked = script.checked_call("run", &[], options.clone()).unwrap();
-        assert!(
-            matches!(checked, vibescript::CheckedOutcome::Executed(_)),
-            "{body}"
-        );
-    }
-}
-
-#[test]
 fn publication_cannot_replace_a_method_field() {
     let error = run("cap.put(\"get\", 1)", options()).unwrap_err();
     assert_eq!(error.kind, ErrorKind::Type);
@@ -500,24 +465,4 @@ fn later_publications_in_a_call_land_at_the_same_binding_path() {
         "cap.inner.around { cap.put(\"inner\", {x: 9}) }\ninner = cap.get(\"inner\").as(hash<string, any>)\n[inner[\"a\"], inner[\"c\"], inner[\"x\"]]",
         "[nil, 3, 9]",
     )]);
-}
-
-#[test]
-fn host_globals_holding_methods_are_live_like_capabilities() {
-    let install = HostMethod::new_with_block("g.install", |call, _, _| {
-        Ok(Value::boolean(
-            call.set_receiver_field(b"limit", &Value::int(10))?,
-        ))
-    });
-    let mut options = CallOptions::default();
-    options.globals.insert(
-        "g".into(),
-        Value::object(vec![(b"install".to_vec(), install.value())]),
-    );
-    let script = common::gradual_engine()
-        .compile("def run\npublished = g.install()\n[published, g[:limit] + 1]\nend")
-        .unwrap();
-    assert!(script.check_call("run", &[], &options).unwrap().is_clean());
-    let result = script.call("run", &[], options).unwrap();
-    assert_eq!(result.value.to_string(), "[true, 11]");
 }

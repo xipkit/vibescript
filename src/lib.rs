@@ -22,7 +22,6 @@ mod builtin;
 mod bytecode;
 mod capability;
 mod casing;
-mod checking;
 mod code;
 mod collections;
 mod combinatorics;
@@ -81,7 +80,6 @@ mod vm;
 
 pub use budget::{CallContext, CallOptions, CancellationToken, Limits, Stats};
 pub use capability::{Capability, HostMethod};
-pub use checking::{CheckDiagnostic, CheckReport, CheckedOutcome};
 pub use error::{Diagnostic, Error, ErrorClass, ErrorKind, Position, Result, StackFrame};
 pub use host_call::HostCall;
 pub use signature::{Signature, SignatureParam};

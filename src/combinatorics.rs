@@ -56,11 +56,6 @@ impl Member {
     }
 }
 
-/// Reports whether `name` is one of the natively materialized array members.
-pub(crate) fn method(name: &str) -> bool {
-    Member::parse(name).is_some()
-}
-
 fn argument(message: String) -> Error {
     Error::new(ErrorKind::Argument, message)
 }

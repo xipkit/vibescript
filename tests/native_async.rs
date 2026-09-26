@@ -576,40 +576,6 @@ async fn async_storage_has_exact_limits_and_releases_ephemeral_charges() {
     }
 }
 
-#[test]
-fn checking_async_signatures_never_constructs_or_polls_host_futures() {
-    let called = Arc::new(AtomicUsize::new(0));
-    let observed = called.clone();
-    let mut engine = common::gradual_engine();
-    engine.register_method(
-        "later",
-        HostMethod::new_async("later", move |_, _, _| {
-            observed.fetch_add(1, Ordering::SeqCst);
-            Box::pin(async { panic!("checker polled host future") })
-        })
-        .with_signature(Signature {
-            params: vec![SignatureParam {
-                name: "n".into(),
-                ty: "int".into(),
-                optional: false,
-            }],
-            result: "int".into(),
-            accepts_block: false,
-        })
-        .unwrap(),
-    );
-    for (source, clean) in [
-        ("def run;later(7);end", true),
-        ("def run;later('bad');end", false),
-        ("def run -> string;later(7);end", false),
-    ] {
-        let script = engine.compile(source).unwrap();
-        let checked = script.check(&CallOptions::default()).unwrap();
-        assert_eq!(checked.is_clean(), clean, "{source}: {checked:?}");
-    }
-    assert_eq!(called.load(Ordering::SeqCst), 0);
-}
-
 #[tokio::test]
 async fn worker_panics_unwind_async_parent_callbacks_without_resuming_them() {
     let continued = Arc::new(AtomicBool::new(false));

@@ -114,7 +114,3 @@ Two diagnostics are warnings, which do not stop compilation: `V0121`, a nil test
 ```
 
 A deliberately invalid example in this documentation is fenced as ```` ```vibe error=V0107 ````, and `tests/docs.rs` checks that it fails with exactly those codes while every other example compiles cleanly.
-
-## The gradual checker
-
-The checker of [ADR-004](adr/004-static-checking-for-typed-boundaries.md) is no longer part of the language or the command line. Its library entry points, `Script::check`, `check_function`, `check_call`, their keyword variants and `checked_call`, remain only for scripts in the ADR-004 language that `vibes migrate` compiles, and are removed with it; the history of its design is in git and in the [language completion plan](language-port.md).

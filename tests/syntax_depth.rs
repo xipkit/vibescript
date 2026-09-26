@@ -67,14 +67,13 @@ fn assert_too_deep(source: &str, name: &str) {
 }
 
 #[test]
-fn every_form_reaches_the_reference_syntax_depth_on_the_default_stack() {
+fn every_form_reaches_the_reference_syntax_depth() {
     for &(name, prefix, inner, suffix, depth) in FORMS {
-        let script = common::gradual_engine()
-            .compile(&nested(prefix, inner, suffix, depth))
+        // Most shapes do not type check, but every one parses and none may
+        // exhaust the checker's stack.
+        Engine::new()
+            .type_check(&nested(prefix, inner, suffix, depth))
             .unwrap_or_else(|error| panic!("{name}: {error}"));
-        // Some shapes fail at runtime, but none may exhaust the native stack.
-        let _ = script.call("run", &[], CallOptions::default());
-        let _ = script.check_call("run", &[], &CallOptions::default());
         assert_too_deep(&nested(prefix, inner, suffix, depth + 1), name);
     }
 }

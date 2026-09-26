@@ -325,16 +325,6 @@ impl HostMethod {
             .map(|signature| &signature.source)
     }
 
-    /// Supplies immutable compiled contracts to the internal checker.
-    pub(crate) fn compiled_signature(&self) -> Option<Arc<crate::signature::Compiled>> {
-        self.definition.signature.clone()
-    }
-
-    /// Reports whether this method can invoke an attached script block.
-    pub(crate) fn supports_block(&self) -> bool {
-        self.definition.supports_block()
-    }
-
     /// Creates a host-owned descriptor for a capability binding or object.
     ///
     /// Importing this descriptor grants it to that invocation. A descriptor already
@@ -404,11 +394,6 @@ pub(crate) struct Root {
 }
 
 impl BoundMethod {
-    /// Reports whether a descriptor can grant a method to a new invocation.
-    pub(crate) fn fresh_grant(&self) -> bool {
-        self.owner.is_none()
-    }
-
     pub fn name(&self) -> &str {
         &self.definition.name
     }
@@ -477,11 +462,6 @@ impl BoundMethod {
 
     pub fn signature(&self) -> Option<&crate::signature::Compiled> {
         self.definition.signature.as_deref()
-    }
-
-    /// Retains compiled checker metadata without retaining the callback or its grant.
-    pub fn compiled_signature(&self) -> Option<Arc<crate::signature::Compiled>> {
-        self.definition.signature.clone()
     }
 
     pub fn invoke(
