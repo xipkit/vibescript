@@ -73,7 +73,7 @@ fn native_waits_release_the_only_worker_for_another_call() {
                 })
             }),
         );
-        let script = engine.compile("def run;wait(7);end").unwrap();
+        let script = engine.compile("def run -> any;wait(7);end").unwrap();
         let runner = Runner::new(1).unwrap();
         let background = runner.clone();
         let first = tokio::spawn(async move {
@@ -83,7 +83,7 @@ fn native_waits_release_the_only_worker_for_another_call() {
         });
         entered.notified().await;
         assert_eq!(runner.available_slots(), 1);
-        let fast = Engine::new().compile("def run;42;end").unwrap();
+        let fast = Engine::new().compile("def run -> int;42;end").unwrap();
         assert_eq!(
             runner
                 .call(fast, "run".into(), vec![], CallOptions::default())
@@ -137,53 +137,27 @@ fn mixed_blocks_preserve_mutations_handlers_initialization_and_control() {
             engine
         };
         let engine = register(methods());
-        // Compound assignment to an array element reads the element as
-        // optional, which static types refuse.
-        let mut untyped = methods();
-        untyped.set_static_types(false);
-        let untyped = register(untyped);
         let runner = Runner::new(1).unwrap();
-        for (engine, source, expected) in [
+        for (source, expected) in [
+            ("def run -> any;sync(){later(){sync(){later(7)}}};end", "7"),
+            // A write through an element keeps its pending path while the
+            // block grows the array.
             (
-                &engine,
-                "def run -> any;sync(){later(){sync(){later(7)}}};end",
-                "7",
+                "def run -> array<array<int>>;a=[[1]];a[-1]<<later(){a.push([2]);3}.as(int);a;end",
+                "[[1, 3], [2]]",
             ),
+            ("module M;N=later(7);end;def run -> any;M::N;end", "7"),
             (
-                &untyped,
-                "def run;a=[1];a[-1]+=later(){a.push(2);3};a;end",
-                "[4, 2]",
-            ),
-            (
-                &engine,
-                "module M;N=later(7);end;def run -> any;M::N;end",
-                "7",
-            ),
-            (
-                &engine,
                 "def run -> int;n=1;begin;later(){sync(){raise 'stop'}};rescue;n+=2;ensure;n+=later(4).as(int);end;n;end",
                 "7",
             ),
+            ("def run -> any;swallow(){later();return 7};false;end", "7"),
+            ("def run -> any;swallow(){later();break 7};end", "7"),
             (
-                &engine,
-                "def run -> any;swallow(){later();return 7};false;end",
-                "7",
-            ),
-            (
-                &engine,
-                "def run -> any;swallow(){later();break 7};end",
-                "7",
-            ),
-            (
-                &engine,
                 "def run -> any;swallow_async(){sync(){later();return 7}};false;end",
                 "7",
             ),
-            (
-                &engine,
-                "def run -> any;swallow_async(){later();break 7};end",
-                "7",
-            ),
+            ("def run -> any;swallow_async(){later();break 7};end", "7"),
         ] {
             let result = runner
                 .call(
@@ -219,7 +193,7 @@ fn synchronous_bridges_do_not_deadlock_queued_calls_in_a_single_thread_pool() {
                 })
             }),
         );
-        let script = engine.compile("def run;sync(){wait()};end").unwrap();
+        let script = engine.compile("def run -> any;sync(){wait()};end").unwrap();
         let runner = Runner::new(1).unwrap();
         let background = runner.clone();
         let first = tokio::spawn(async move {
@@ -231,7 +205,7 @@ fn synchronous_bridges_do_not_deadlock_queued_calls_in_a_single_thread_pool() {
         assert_eq!(runner.available_slots(), 0);
         let background = runner.clone();
         let second = tokio::spawn(async move {
-            let script = Engine::new().compile("def run;9;end").unwrap();
+            let script = Engine::new().compile("def run -> int;9;end").unwrap();
             background
                 .call(script, "run".into(), vec![], CallOptions::default())
                 .await
@@ -284,21 +258,8 @@ async fn async_capabilities_keep_contracts_grants_and_attachment_rules() {
         engine
     };
     let runner = Runner::new(1).unwrap();
-    for (typed, expression) in [
-        (true, "typed.echo(7)"),
-        (true, "typed&.echo(7)"),
-        (true, "typed.dup.echo(7)"),
-        // A call written with `::`, indexing the capability and dispatch by
-        // name compile only without static types.
-        (false, "typed::echo(7)"),
-        (false, "typed[:echo](7)"),
-        (false, "typed.send(:echo,7)"),
-        (false, "typed.public_send(:echo,7)"),
-    ] {
+    for expression in ["typed.echo(7)", "typed&.echo(7)", "typed.dup.echo(7)"] {
         let mut engine = declaring();
-        if !typed {
-            engine.set_static_types(false);
-        }
         engine.set_strict_effects(true);
         let script = engine
             .compile(&format!("def run -> any;{expression};end"))
@@ -310,13 +271,18 @@ async fn async_capabilities_keep_contracts_grants_and_attachment_rules() {
         assert_eq!(value.value.as_int(), Some(7), "{expression}");
         assert_eq!(value.stats.retained_memory_bytes, 0);
     }
-    assert_eq!(calls.load(Ordering::Relaxed), 7);
+    assert_eq!(calls.load(Ordering::Relaxed), 3);
     // Calls that do not match the declared method are refused before
-    // anything runs.
+    // anything runs, and so are a call written with `::`, indexing the
+    // capability and dispatch by name.
     for (expression, codes) in [
         ("typed.echo('bad')", &["V0101"][..]),
         ("typed[:echo]", &["V0112", "V0409"]),
         ("f=typed::echo;f(7)", &["V0416", "V0301", "V0310"]),
+        ("typed::echo(7)", &["V0416"]),
+        ("typed[:echo](7)", &["V0112", "V0409"]),
+        ("typed.send(:echo,7)", &["V0203"]),
+        ("typed.public_send(:echo,7)", &["V0203"]),
     ] {
         let mut engine = declaring();
         let error = engine
@@ -330,7 +296,7 @@ async fn async_capabilities_keep_contracts_grants_and_attachment_rules() {
             .collect();
         assert_eq!(found, codes, "{expression}");
     }
-    assert_eq!(calls.load(Ordering::Relaxed), 7);
+    assert_eq!(calls.load(Ordering::Relaxed), 3);
     let script = declaring()
         .compile("def run -> int;begin;typed.echo(7);rescue;42;end;end")
         .unwrap();
@@ -338,7 +304,7 @@ async fn async_capabilities_keep_contracts_grants_and_attachment_rules() {
         script.call("run", &[], options()).unwrap().value.as_int(),
         Some(42)
     );
-    assert_eq!(calls.load(Ordering::Relaxed), 7);
+    assert_eq!(calls.load(Ordering::Relaxed), 3);
 }
 
 #[tokio::test]
@@ -420,7 +386,9 @@ async fn unpolled_block_futures_are_inert_and_abandoned_polled_blocks_retire_the
         }),
     );
     let runner = Runner::new(1).unwrap();
-    let script = engine.compile("def run;unused(){touch()};end").unwrap();
+    let script = engine
+        .compile("def run -> any;unused(){touch()};end")
+        .unwrap();
     assert_eq!(
         runner
             .call(script, "run".into(), vec![], CallOptions::default())
@@ -557,19 +525,12 @@ fn native_and_mixed_recursion_reach_the_default_limit() {
 #[tokio::test]
 async fn async_storage_has_exact_limits_and_releases_ephemeral_charges() {
     let engine = methods();
-    // Compound assignment to an array element reads the element as
-    // optional, which static types refuse.
-    let mut untyped = methods();
-    untyped.set_static_types(false);
     let runner = Runner::new(1).unwrap();
-    for (engine, source) in [
-        (&engine, "def run -> any;later(7);end"),
-        (&engine, "def run -> any;later(){sync(){later(7)}};end"),
-        (&untyped, "def run;a=[1];a[-1]+=later(){a.push(2);3};a;end"),
-        (
-            &engine,
-            "def run -> any;begin;later(){raise 'ordinary'};rescue;later(7);end;end",
-        ),
+    for source in [
+        "def run -> any;later(7);end",
+        "def run -> any;later(){sync(){later(7)}};end",
+        "def run -> array<array<int>>;a=[[1]];a[-1]<<later(){a.push([2]);3}.as(int);a;end",
+        "def run -> any;begin;later(){raise 'ordinary'};rescue;later(7);end;end",
     ] {
         let script = engine.compile(source).unwrap();
         let baseline = runner
@@ -724,7 +685,7 @@ async fn abandoning_a_block_queued_for_a_busy_worker_preserves_the_other_call() 
     let first = engine
         .compile("def run;abandon(){raise 'block must not run'};end")
         .unwrap();
-    let second = engine.compile("def run;busy();end").unwrap();
+    let second = engine.compile("def run -> any;busy();end").unwrap();
     let runner = Runner::new(1).unwrap();
     let first_runner = runner.clone();
     let first_task = tokio::spawn(async move {
