@@ -86,7 +86,9 @@ struct Frame {
     parent: Option<usize>,
     home: Option<usize>,
     block: Option<Block>,
-    block_args: Buffer<Value>,
+    /// How many arguments a block frame received; they sit on the operand
+    /// stack from `base`, below the block's own values.
+    block_args: usize,
 }
 
 /// A binding that an assignment is filling, which same-name calls in its value skip.
@@ -471,14 +473,10 @@ impl Run {
                                 crate::exports::check(ctx, value)?;
                             }
                             let block = frames.data[current].block.unwrap();
-                            enter_block(
-                                ctx,
-                                frames,
-                                storage,
-                                block,
-                                &args[..count],
-                                stack.data.len(),
-                            )?;
+                            for value in args.into_iter().take(count) {
+                                stack.push(ctx, value)?;
+                            }
+                            enter_block(ctx, frames, storage, stack, block, count)?;
                         }
                         Progress::Done(mut value) => {
                             let mutation = iteration.take_mutation();
@@ -519,9 +517,10 @@ impl Run {
             let current = frames.data.len() - 1;
             let program = &**active;
             let hosts = &program.code.hosts;
-            let frame = &mut frames.data[current];
+            let (outer, rest) = frames.data.split_at_mut(current);
+            let frame = &mut rest[0];
             let function = &program.functions[frame.function.unwrap()];
-            simple::run(ctx, program, function, frame, storage, stack)?;
+            simple::run(ctx, program, function, outer, frame, storage, stack)?;
             let op = function.code[frame.ip];
             let frame = &mut frames.data[current];
             frame.ip += 1;
@@ -1504,13 +1503,8 @@ impl Run {
                     storage.locals.data[frame.local_base + slot] = Some(Value::nil())
                 }
                 Op::BlockArg(index, autosplat) => {
-                    let args = &frame.block_args.data;
-                    let args = if autosplat && args.len() == 1 {
-                        args[0].as_array().unwrap_or(args)
-                    } else {
-                        args.as_slice()
-                    };
-                    stack.push(ctx, args.get(index).cloned().unwrap_or_default())?;
+                    let value = block_arg(frame, stack, index, autosplat).cloned();
+                    stack.push(ctx, value.unwrap_or_default())?;
                 }
                 Op::Attach(function) => {
                     frame.arguments.data.last_mut().unwrap().block = Some(Block {
@@ -1538,9 +1532,7 @@ impl Run {
                 }
                 Op::Yield(n) => {
                     let block = frame.block.unwrap();
-                    let base = stack.data.len() - n;
-                    enter_block(ctx, frames, storage, block, &stack.data[base..], base)?;
-                    stack.data.truncate(base);
+                    enter_block(ctx, frames, storage, stack, block, n)?;
                 }
                 Op::Store(n) => {
                     let value = stack.data.last().unwrap();
@@ -3082,7 +3074,7 @@ impl Run {
                         .get(frame.ip),
                     Some(Op::CallValue)
                 );
-                if let Some(value) = stack.data.last() {
+                if let Some(value) = visible_top(&frames.data, stack) {
                     if !target || !matches!(value.0, Kind::Function(_) | Kind::Host(_)) {
                         crate::exports::check(ctx, value)?;
                     }
@@ -4259,7 +4251,7 @@ impl Frame {
             parent: None,
             home: None,
             block: None,
-            block_args: Buffer::empty(),
+            block_args: 0,
         }
     }
 }
@@ -4360,26 +4352,64 @@ fn resolve_slot(
     }
 }
 
+/// Enters a block with the `count` arguments on top of the operand stack,
+/// which stay there for its prologue to read and leave with its frame.
 fn enter_block(
     ctx: &mut CallContext,
     frames: &mut Buffer<Frame>,
     storage: &mut Storage,
+    stack: &Buffer<Value>,
     block: Block,
-    args: &[Value],
-    base: usize,
+    count: usize,
 ) -> Result<()> {
     ctx.charge(1)?;
     if frames.data.len() >= ctx.options.limits.recursion {
         return recursion_exceeded(ctx);
     }
-    let program = frames.data[block.parent].program.clone();
+    let base = stack.data.len() - count;
+    let parent = &frames.data[block.parent];
+    let (receiver, home, outer) = (parent.receiver.clone(), parent.home, parent.block);
+    let program = parent.program.clone();
     let mut frame = new_frame(ctx, &program, storage, Some(block.function), base)?;
-    frame.receiver = frames.data[block.parent].receiver.clone();
+    frame.receiver = receiver;
     frame.parent = Some(block.parent);
-    frame.home = frames.data[block.parent].home;
-    frame.block = frames.data[block.parent].block;
-    frame.block_args.extend(ctx, args)?;
+    frame.home = home;
+    frame.block = outer;
+    frame.block_args = count;
+    // Charges the work of copying the arguments, as a separate list did.
+    for chunk in stack.data[base..].chunks(crate::budget::CHUNK / std::mem::size_of::<Value>()) {
+        ctx.work_bytes(std::mem::size_of_val(chunk))?;
+    }
     frames.push(ctx, frame)
+}
+
+/// The top of the operand stack below the arguments that block frames keep
+/// there, which a frame's own values would otherwise sit directly on.
+fn visible_top<'a>(frames: &[Frame], stack: &'a Buffer<Value>) -> Option<&'a Value> {
+    let mut length = stack.data.len();
+    for frame in frames.iter().rev() {
+        if length != frame.base + frame.block_args {
+            break;
+        }
+        length = frame.base;
+    }
+    length.checked_sub(1).map(|top| &stack.data[top])
+}
+
+/// The argument a block's prologue reads at `index`: from the one argument
+/// when it is an array and the block names several.
+fn block_arg<'a>(
+    frame: &Frame,
+    stack: &'a Buffer<Value>,
+    index: usize,
+    autosplat: bool,
+) -> Option<&'a Value> {
+    let args = &stack.data[frame.base..frame.base + frame.block_args];
+    let args = match args {
+        [single] if autosplat => single.as_array().unwrap_or(args),
+        _ => args,
+    };
+    args.get(index)
 }
 
 fn unwind(

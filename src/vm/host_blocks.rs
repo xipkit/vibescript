@@ -203,13 +203,16 @@ impl Run {
             args.data.push(value);
         }
         ctx.snapshot_values(&mut args.data)?;
+        for value in &args.data {
+            self.stack.push(ctx, value.clone())?;
+        }
         enter_block(
             ctx,
             &mut self.frames,
             &mut self.storage,
+            &self.stack,
             block,
-            &args.data,
-            self.stack.data.len(),
+            args.data.len(),
         )?;
         for value in &args.data {
             programs::imported(ctx, &mut self.storage, value)?;

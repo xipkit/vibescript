@@ -14,6 +14,7 @@ pub(super) fn run(
     ctx: &mut CallContext,
     program: &Program,
     function: &Function,
+    outer: &[Frame],
     frame: &mut Frame,
     storage: &mut Storage,
     stack: &mut Buffer<Value>,
@@ -43,10 +44,9 @@ pub(super) fn run(
                 push(ctx, stack, value)?;
             }
             Op::Load(n) => {
-                let Some(slot) = own(function, frame, storage, n) else {
+                let Some(slot) = local(ctx, outer, function, frame, storage, n)? else {
                     return Ok(());
                 };
-                step(ctx, frame)?;
                 let mut value = storage.locals.data[slot]
                     .as_ref()
                     .map_or_else(Value::nil, copy);
@@ -59,10 +59,17 @@ pub(super) fn run(
                 push(ctx, stack, value)?;
             }
             Op::LoadOptional(n, _, _) => {
-                let Some(value) = storage.locals.data[frame.local_base + n].as_ref() else {
-                    return Ok(());
+                let own = frame.local_base + n;
+                let slot = if storage.locals.data[own].is_some() {
+                    step(ctx, frame)?;
+                    own
+                } else {
+                    match bound(ctx, outer, function, frame, storage, n)? {
+                        Some(slot) => slot,
+                        None => return Ok(()),
+                    }
                 };
-                step(ctx, frame)?;
+                let value = storage.locals.data[slot].as_ref().unwrap();
                 if let Kind::Offset(offset) = &value.0 {
                     return Err(offset.value_error());
                 }
@@ -83,27 +90,26 @@ pub(super) fn run(
                 frame.ip = next;
             }
             Op::Declare(n) => {
-                let Some(slot) = own(function, frame, storage, n) else {
+                let Some(slot) = local(ctx, outer, function, frame, storage, n)? else {
                     return Ok(());
                 };
-                step(ctx, frame)?;
                 storage.locals.data[slot].get_or_insert_with(Value::nil);
             }
             Op::Store(n) => {
-                let Some(slot) = own(function, frame, storage, n) else {
+                let Some(slot) = local(ctx, outer, function, frame, storage, n)? else {
                     return Ok(());
                 };
-                step(ctx, frame)?;
                 let value = stack.data.last().unwrap();
                 address::refresh(ctx, slot, value, &mut storage.addresses.data, &[])?;
                 store(storage, slot, copy(value));
             }
             Op::AddStore(n) => {
-                let Some(slot) = own(function, frame, storage, n).filter(|_| plain_operand(stack))
-                else {
+                if !plain_operand(stack) {
+                    return Ok(());
+                }
+                let Some(slot) = local(ctx, outer, function, frame, storage, n)? else {
                     return Ok(());
                 };
-                step(ctx, frame)?;
                 let b = stack.data.pop().unwrap();
                 let a = stack.data.pop().unwrap();
                 let value = match ops::immediate(ctx, "+", &a, &b)? {
@@ -153,6 +159,19 @@ pub(super) fn run(
             Op::Array(n) => {
                 step(ctx, frame)?;
                 array(ctx, stack, n)?;
+            }
+            Op::Shadow(slot) => {
+                step(ctx, frame)?;
+                store(storage, frame.local_base + slot, Value::nil());
+            }
+            Op::BlockArg(index, autosplat) => {
+                // Exported values need their depth checked when read.
+                if ctx.has_exports {
+                    return Ok(());
+                }
+                step(ctx, frame)?;
+                let value = block_arg(frame, stack, index, autosplat).map_or_else(Value::nil, copy);
+                push(ctx, stack, value)?;
             }
             Op::IterNext => {
                 step(ctx, frame)?;
@@ -286,14 +305,120 @@ fn step(ctx: &mut CallContext, frame: &mut Frame) -> Result<()> {
     ctx.charge(1)
 }
 
-/// Returns the slot a local names when it resolves to the executing frame's
-/// own slot without a scope walk, as it does once bound or when the function
-/// neither captures it nor initializes a namespace.
-fn own(function: &Function, frame: &Frame, storage: &Storage, local: usize) -> Option<usize> {
-    let slot = frame.local_base + local;
-    (storage.locals.data[slot].is_some()
-        || (!function.initializer && function.captures.get(local).copied().flatten().is_none()))
-    .then_some(slot)
+/// Moves past a local instruction and charges it, then charges each
+/// enclosing frame its lookup walked through, as [`resolve_slot`] does,
+/// returning the slot the local names; none, uncharged, when the lookup
+/// needs more than slots, as in a namespace initializer.
+#[inline(always)]
+fn local(
+    ctx: &mut CallContext,
+    outer: &[Frame],
+    function: &Function,
+    frame: &mut Frame,
+    storage: &Storage,
+    local: usize,
+) -> Result<Option<usize>> {
+    let own = frame.local_base + local;
+    if storage.locals.data[own].is_some() {
+        step(ctx, frame)?;
+        return Ok(Some(own));
+    }
+    unbound(ctx, outer, function, frame, storage, local)
+}
+
+/// [`local`] for a local its own slot does not bind yet.
+#[inline(never)]
+fn unbound(
+    ctx: &mut CallContext,
+    outer: &[Frame],
+    function: &Function,
+    frame: &mut Frame,
+    storage: &Storage,
+    local: usize,
+) -> Result<Option<usize>> {
+    let Some((slot, hops)) = target(outer, function, frame, storage, local) else {
+        return Ok(None);
+    };
+    step(ctx, frame)?;
+    ctx.charge_each(hops)?;
+    Ok(Some(slot))
+}
+
+/// [`local`] for a read that falls back to other names when no slot binds
+/// the local: declines, uncharged, unless a capturing frame's slot does.
+#[inline(never)]
+fn bound(
+    ctx: &mut CallContext,
+    outer: &[Frame],
+    function: &Function,
+    frame: &mut Frame,
+    storage: &Storage,
+    local: usize,
+) -> Result<Option<usize>> {
+    let Some((slot, hops)) = target(outer, function, frame, storage, local)
+        .filter(|&(slot, _)| storage.locals.data[slot].is_some())
+    else {
+        return Ok(None);
+    };
+    step(ctx, frame)?;
+    ctx.charge_each(hops)?;
+    Ok(Some(slot))
+}
+
+/// Finds the slot a local of the executing frame names, and how many
+/// enclosing frames [`resolve_slot`] walks through to reach it: its own slot
+/// once bound or when nothing captures it, or else the capturing frame's.
+/// Returns none in a namespace initializer, whose unbound locals can name
+/// the declaring frame's.
+#[inline(always)]
+fn target(
+    outer: &[Frame],
+    function: &Function,
+    frame: &Frame,
+    storage: &Storage,
+    local: usize,
+) -> Option<(usize, u64)> {
+    let own = frame.local_base + local;
+    if storage.locals.data[own].is_some() {
+        return Some((own, 0));
+    }
+    if function.initializer {
+        return None;
+    }
+    match function.captures.get(local).copied().flatten() {
+        None => Some((own, 0)),
+        Some(capture) => Some(captured(outer, frame, storage, own, capture)),
+    }
+}
+
+/// Follows a captured local out through the frames that enclose the
+/// executing one, as [`resolve_slot`] does: to the first binding slot, or
+/// back to the executing frame's own slot when none binds it.
+#[inline(never)]
+fn captured(
+    outer: &[Frame],
+    frame: &Frame,
+    storage: &Storage,
+    own: usize,
+    mut capture: crate::bytecode::Capture,
+) -> (usize, u64) {
+    let mut hops = 0;
+    let mut current = frame;
+    loop {
+        for _ in 0..=capture.depth {
+            hops += 1;
+            current = &outer[current.parent.unwrap()];
+        }
+        let slot = current.local_base + capture.slot;
+        if storage.locals.data[slot].is_some() {
+            return (slot, hops);
+        }
+        let function = &current.program.functions[current.function.unwrap()];
+        match function.captures.get(capture.slot).copied().flatten() {
+            Some(next) => capture = next,
+            None => return (own, hops),
+        }
+    }
 }
 
 /// Clones a value, copying nil, booleans and numbers inline rather than
