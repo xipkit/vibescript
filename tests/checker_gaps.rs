@@ -63,7 +63,7 @@ fn fixed(source: &str, diagnostic: &Diagnostic) -> String {
 /// Runs `source` with static types on and returns the value of `run`.
 #[track_caller]
 fn run(source: &str) -> Result<Value, vibescript::Error> {
-    let mut engine = Engine::new();
+    let engine = Engine::new();
     let script = engine
         .compile(source)
         .unwrap_or_else(|error| panic!("{source}\ndoes not compile: {error}"));
