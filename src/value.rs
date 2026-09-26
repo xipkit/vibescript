@@ -611,15 +611,32 @@ impl Value {
         self.as_bytes()
             .ok_or_else(|| Error::new(ErrorKind::Type, "expected string or symbol"))
     }
-    /// Returns the entry name a hash key addresses. Strings and symbols share one
-    /// keyspace; every other kind is rejected, naming what a key must be.
+    /// Returns the entry name a hash key addresses. A key is a string; every
+    /// other kind is rejected, naming what a key must be.
     pub(crate) fn hash_key(&self) -> Result<&[u8]> {
-        self.as_bytes()
-            .ok_or_else(|| Error::new(ErrorKind::Type, UnsupportedKey(self).to_string()))
+        match &self.0 {
+            Kind::Bytes(bytes) => Ok(&bytes.data),
+            _ => Err(Error::new(
+                ErrorKind::Type,
+                UnsupportedKey(self).to_string(),
+            )),
+        }
     }
     /// Like [`Self::hash_key`], naming the member input that supplied the key, as
     /// in `hash.fetch key is an`. The site is rendered only on failure.
     pub(crate) fn hash_key_for(&self, site: impl fmt::Display) -> Result<&[u8]> {
+        match &self.0 {
+            Kind::Bytes(bytes) => Ok(&bytes.data),
+            _ => Err(Error::new(
+                ErrorKind::Type,
+                format!("{site} unsupported hash key: {}", UnsupportedKey(self)),
+            )),
+        }
+    }
+    /// Returns the name of the key a string or symbol becomes, where a member
+    /// such as `group_by` or `to_h` builds keys from either. `site` names the
+    /// input on failure.
+    pub(crate) fn key_name_for(&self, site: impl fmt::Display) -> Result<&[u8]> {
         self.as_bytes().ok_or_else(|| {
             Error::new(
                 ErrorKind::Type,
@@ -696,14 +713,20 @@ impl fmt::Display for Value {
     }
 }
 
-/// The reason a value cannot key a hash, naming its kind.
+/// The reason a value cannot key a hash, naming its kind. A symbol becomes a
+/// key only where a member builds keys, so a lookup refuses it.
 struct UnsupportedKey<'a>(&'a Value);
 
 impl fmt::Display for UnsupportedKey<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let allowed = if matches!(self.0.0, Kind::Symbol(_)) {
+            "strings"
+        } else {
+            "strings or symbols"
+        };
         write!(
             f,
-            "unsupported hash key type {}: hash keys must be strings or symbols; convert the key with to_s",
+            "unsupported hash key type {}: hash keys must be {allowed}; convert the key with to_s",
             self.0.type_name()
         )
     }

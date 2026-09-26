@@ -186,7 +186,7 @@ impl Deep {
     fn advance(&mut self, ctx: &mut CallContext, returned: Option<Value>) -> Result<Progress> {
         if let Some(value) = returned {
             self.waiting = false;
-            let key = value.hash_key_for("hash.deep_transform_keys block returned an")?;
+            let key = value.key_name_for("hash.deep_transform_keys block returned an")?;
             let key = ctx.bytes(key)?;
             self.frames.data.last_mut().unwrap().key = Some(key);
         }

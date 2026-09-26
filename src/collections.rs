@@ -31,8 +31,7 @@ pub(crate) fn range_out_of_range(member: &str, range: &crate::range::Range) -> E
     ))
 }
 
-/// Reports a key `member` did not find, rendering a symbol as `:name` and any
-/// other key quoted, as the reference does.
+/// Reports a key `member` did not find, quoted as the reference renders it.
 pub(crate) fn missing_key(ctx: &mut CallContext, member: &str, key: &Value) -> Result<Error> {
     use crate::shapes::TypeWriter;
     struct Message<'a> {
@@ -55,12 +54,7 @@ pub(crate) fn missing_key(ctx: &mut CallContext, member: &str, key: &Value) -> R
     };
     message.write(member.as_bytes())?;
     message.write(b" key not found: ")?;
-    if matches!(key.0, Kind::Symbol(_)) {
-        message.write(b":")?;
-        message.write(name)?;
-    } else {
-        crate::shapes::quoted(name, &mut message)?;
-    }
+    crate::shapes::quoted(name, &mut message)?;
     let mut error = Error::from_bytes(message.ctx, &message.bytes.data)?;
     error.kind = ErrorKind::Argument;
     Ok(error)
@@ -295,7 +289,7 @@ pub(crate) fn method(
                 ctx.charge(1)?;
                 let key = if let Some(index) = mapping.find(ctx, key.require_bytes()?)? {
                     let mapped = &mapping.buffer.data[index].1;
-                    ctx.bytes(mapped.hash_key_for("hash.remap_keys mapping value is an")?)?
+                    ctx.bytes(mapped.key_name_for("hash.remap_keys mapping value is an")?)?
                 } else {
                     key.clone()
                 };
@@ -563,7 +557,7 @@ fn array_method(
                 if pair.len() != 2 {
                     return Err(argument("array.to_h pair must have exactly two elements"));
                 }
-                let key = ctx.bytes(pair[0].hash_key_for("array.to_h pair key is an")?)?;
+                let key = ctx.bytes(pair[0].key_name_for("array.to_h pair key is an")?)?;
                 out.insert(ctx, key, pair[1].clone())?;
             }
             Value::from_hash(ctx, out)

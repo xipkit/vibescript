@@ -815,11 +815,6 @@ pub(crate) fn set_index(
             root.set_array_index(ctx, n, value)
         }
         Kind::Hash(_) => {
-            let key = if matches!(key.0, Kind::Symbol(_)) {
-                ctx.bytes(key.hash_key()?)?
-            } else {
-                key
-            };
             key.hash_key()?;
             root.set_hash_index(ctx, key, value)
         }

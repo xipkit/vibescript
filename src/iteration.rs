@@ -911,14 +911,14 @@ impl Loop {
                 if pair.len() != 2 {
                     return Err(argument("array.to_h pair must have exactly two elements"));
                 }
-                let key = ctx.bytes(pair[0].hash_key_for("array.to_h pair key is an")?)?;
+                let key = ctx.bytes(pair[0].key_name_for("array.to_h pair key is an")?)?;
                 self.hash.insert(ctx, key, pair[1].clone())?;
             }
             TransformKeys | TransformValues => {
                 let (key, original) =
                     &self.receiver.as_hash().unwrap()[self.pending_index as usize];
                 let (key, value) = if self.method == TransformKeys {
-                    let key = value.hash_key_for("hash.transform_keys block returned an")?;
+                    let key = value.key_name_for("hash.transform_keys block returned an")?;
                     (ctx.bytes(key)?, original.clone())
                 } else {
                     (key.clone(), value)
@@ -931,7 +931,7 @@ impl Loop {
                     GroupStable => "array.group_by_stable block returned an",
                     _ => "array.tally value is an",
                 };
-                let existing = self.hash.find(ctx, value.hash_key_for(site)?)?;
+                let existing = self.hash.find(ctx, value.key_name_for(site)?)?;
                 let (key, group) = if let Some(index) = existing {
                     let (key, group) = &mut self.hash.buffer.data[index];
                     (key.clone(), std::mem::take(group))
@@ -940,7 +940,7 @@ impl Loop {
                         self.other.push(ctx, value.clone())?;
                     }
                     (
-                        ctx.bytes(value.hash_key()?)?,
+                        ctx.bytes(value.key_name_for(site)?)?,
                         if self.method == Tally {
                             Value::int(0)
                         } else {
