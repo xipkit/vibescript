@@ -45,14 +45,14 @@ fn rescue_values_classes_bindings_and_expression_forms() {
         assert_eq!(result(source), expected, "{source}");
     }
     // A rescue binding shadows a local only while its handler runs. The
-    // checker types the name as the outer local, so this keeps the ADR-004
-    // language until the checker scopes the binding.
-    let output = common::gradual_engine()
-        .compile("e=7; begin\nraise \"x\"\nrescue => e\nx=e.message\nend;[e,x]")
+    // checker types the name as the outer local, so the outer local is an
+    // error too.
+    let output = Engine::new()
+        .compile("e=begin\nraise \"outer\"\nrescue => first\nfirst\nend\nx=\"\"\nbegin\nraise \"x\"\nrescue => e\nx=e.message\nend;[e.message,x]")
         .unwrap()
         .run(CallOptions::default())
         .unwrap();
-    assert_eq!(output.value.to_string(), "[7, x]");
+    assert_eq!(output.value.to_string(), "[outer, x]");
     // A local assigned only in a handler that did not run cannot be read.
     let source = "begin\n7\nrescue\nx=3\nend;x";
     let error = vibescript::Engine::new().compile(source).err().unwrap();
@@ -383,23 +383,21 @@ fn rescued_error_protection_and_rendering_survive_host_transfer() {
 
 #[test]
 fn invalid_loop_transfers_become_rescuable_only_after_callee_cleanup() {
+    // A loop transfer outside a loop or block is refused before anything
+    // runs, so no cleanup or rescue is left to order.
     for jump in ["break", "next", "break 9", "next 9"] {
-        let events = Arc::new(Mutex::new(Vec::new()));
-        let recorded = events.clone();
-        let mut engine = common::runtime_engine();
-        engine.register("record", move |_, args| {
-            recorded.lock().unwrap().push(args[0].as_int().unwrap());
-            Ok(Value::nil())
-        });
+        let mut engine = Engine::new();
+        engine.register("record", |_, _| panic!("record ran"));
         let source = format!(
             "def f\nbegin\n{jump}\nrescue RuntimeError\nrecord(1)\nensure\nrecord(2)\nend\nend\nbegin\n[1].each {{f}}\nrescue LocalJumpError\nrecord(3)\nend"
         );
-        engine
-            .compile(&source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap();
-        assert_eq!(*events.lock().unwrap(), vec![2, 3], "{jump}");
+        let error = engine.compile(&source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0001"], "{jump}");
+        assert_eq!(
+            error.diagnostics()[0].span.start,
+            source.find(jump).unwrap(),
+            "{jump}"
+        );
     }
 }
 
@@ -409,9 +407,11 @@ fn invalid_loop_transfers_reject_before_evaluating_values() {
         let source = format!(
             "events: array<int> =[];begin\n{jump} events.push(1)\nrescue RuntimeError\nevents.push(2)\nend;events"
         );
+        let error = Engine::new().compile(&source).err().unwrap();
+        assert_eq!(common::codes(&error), ["V0001"], "{jump}");
         assert_eq!(
-            result_with(common::runtime_engine(), &source),
-            serde_json::json!([2]),
+            error.diagnostics()[0].span.start,
+            source.find(jump).unwrap(),
             "{jump}"
         );
     }
