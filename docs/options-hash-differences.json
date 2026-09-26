@@ -9,10 +9,10 @@
       "go": "scoped member access is only supported on enums and namespaces",
       "rust": "scoped member access requires a namespace",
       "static_error": {
-        "code": "V0301",
+        "code": "V0416",
         "at": [
           41,
-          8
+          6
         ]
       }
     },
@@ -23,10 +23,10 @@
       "go": "scoped member access is only supported on enums and namespaces",
       "rust": "scoped member access requires a namespace",
       "static_error": {
-        "code": "V0301",
+        "code": "V0416",
         "at": [
           41,
-          8
+          6
         ]
       }
     },
@@ -37,10 +37,10 @@
       "go": "unknown constant C::take",
       "rust": "unknown class constant",
       "static_error": {
-        "code": "V0301",
+        "code": "V0416",
         "at": [
           41,
-          4
+          2
         ]
       }
     },
@@ -51,10 +51,10 @@
       "go": "unknown constant C::call",
       "rust": "unknown class constant",
       "static_error": {
-        "code": "V0301",
+        "code": "V0416",
         "at": [
           41,
-          4
+          2
         ]
       }
     },
@@ -65,10 +65,10 @@
       "go": "unknown constant M::take",
       "rust": "unknown class constant",
       "static_error": {
-        "code": "V0301",
+        "code": "V0416",
         "at": [
           41,
-          4
+          2
         ]
       }
     },
@@ -79,10 +79,10 @@
       "go": "unknown constant M::call",
       "rust": "unknown class constant",
       "static_error": {
-        "code": "V0301",
+        "code": "V0416",
         "at": [
           41,
-          4
+          2
         ]
       }
     },
@@ -93,10 +93,10 @@
       "go": "scoped member access is only supported on enums and namespaces",
       "rust": "scoped member access requires a namespace",
       "static_error": {
-        "code": "V0301",
+        "code": "V0416",
         "at": [
           41,
-          8
+          6
         ]
       }
     },
@@ -107,10 +107,10 @@
       "go": "scoped member access is only supported on enums and namespaces",
       "rust": "scoped member access requires a namespace",
       "static_error": {
-        "code": "V0301",
+        "code": "V0416",
         "at": [
           41,
-          8
+          6
         ]
       }
     },
