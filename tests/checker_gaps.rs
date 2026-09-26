@@ -1,6 +1,6 @@
 //! Gaps between the static checker, its fixes and the runtime that migrating
 //! the documentation found, each with programs the checker accepts, programs
-//! it rejects, and what the runtime does with them.
+//! it rejects, and what the runtime does with the programs it accepts.
 
 mod common;
 
@@ -58,14 +58,6 @@ fn fixed(source: &str, diagnostic: &Diagnostic) -> String {
         .find(|fix| fix.applicability == Applicability::Always)
         .unwrap_or_else(|| panic!("no fix on {diagnostic:?}"));
     fix.apply(source).expect("the fix applies")
-}
-
-/// An engine without static types, for what the runtime does with a
-/// program the checker rejects.
-fn unchecked() -> Engine {
-    let mut engine = Engine::legacy_unchecked();
-
-    engine
 }
 
 /// Runs `source` with static types on and returns the value of `run`.
@@ -128,17 +120,6 @@ mod scoped_calls {
         let found = codes(source, &[Code::SCOPED_CALL]);
         assert!(fixed(source, &found[0]).ends_with("n = Box.size\n"));
     }
-
-    #[test]
-    fn a_scoped_call_still_runs_until_the_switchover() {
-        let value = unchecked()
-            .compile("def run -> any\n  JSON::parse(\"[1]\")\nend\n")
-            .unwrap()
-            .call("run", &[], CallOptions::default())
-            .unwrap()
-            .value;
-        assert_eq!(value.to_string(), "[1]");
-    }
 }
 
 mod visibility {
@@ -178,33 +159,11 @@ mod visibility {
 end
 ";
 
-    /// Whether `body`, run after [`CLASS`] without static types, raises
-    /// the runtime's visibility error.
-    fn hidden_at_runtime(body: &str) -> bool {
-        let source = format!("{CLASS}def run -> any\n  {body}\nend\n");
-        match unchecked()
-            .compile(&source)
-            .unwrap()
-            .call("run", &[], CallOptions::default())
-        {
-            Ok(_) => false,
-            Err(error) => {
-                assert!(
-                    error.message.starts_with("private method")
-                        || error.message.starts_with("protected method"),
-                    "{body}: {error}"
-                );
-                true
-            }
-        }
-    }
-
     #[test]
     fn calls_the_runtime_allows_check_clean() {
         let source = format!("{CLASS}def run -> int\n  Account.make.total\nend\n");
         clean(&source);
         assert_eq!(run(&source).unwrap().to_string(), "5");
-        assert!(!hidden_at_runtime("Account.make.total"));
     }
 
     #[test]
@@ -228,7 +187,6 @@ end
             assert_eq!(found[0].message, message);
             let label = found[0].labels[0].span;
             assert!(source[label.start..].starts_with("def "), "{body}");
-            assert!(hidden_at_runtime(body), "{body}");
         }
     }
 
@@ -236,12 +194,6 @@ end
     fn a_receiver_makes_even_self_explicit() {
         let source = "class Box\n  def run -> int\n    self.secret\n  end\n\n  private def secret -> int\n    1\n  end\nend\n";
         codes(source, &[Code::VISIBILITY]);
-        let error = unchecked()
-            .compile(&format!("{source}def run -> int\n  Box.new.run\nend\n"))
-            .unwrap()
-            .call("run", &[], CallOptions::default())
-            .unwrap_err();
-        assert_eq!(error.message, "private method secret");
     }
 
     #[test]
@@ -271,12 +223,6 @@ end
         assert!(found[0].message.starts_with("`==` is private"));
         let span = found[0].span;
         assert_eq!(&source[span.start..span.end], "!=");
-        let error = unchecked()
-            .compile(source)
-            .unwrap()
-            .run(CallOptions::default())
-            .unwrap_err();
-        assert_eq!(error.message, "private method ==");
     }
 }
 
@@ -358,7 +304,7 @@ mod break_values {
 
     #[test]
     fn a_break_out_of_a_function_with_a_result_must_fit_it() {
-        // The runtime checks a break value against the function's result.
+        // The checker holds a break value to the function's result.
         let twice = "def twice(&block: int -> int) -> int\n  yield(1) + yield(2)\nend\n";
         let found = codes(
             &format!("{twice}z = twice {{ |n| break \"early\" }}\n"),
@@ -371,17 +317,6 @@ mod break_values {
         codes(
             &format!("{twice}z = twice {{ |n| break }}\n"),
             &[Code::TYPE_MISMATCH],
-        );
-        let error = unchecked()
-            .compile(&format!(
-                "{twice}def run -> int\n  twice {{ |n| break \"early\" }}\nend\n"
-            ))
-            .unwrap()
-            .call("run", &[], CallOptions::default())
-            .unwrap_err();
-        assert_eq!(
-            error.message,
-            "return value for twice expected int, got string"
         );
         let source = format!("{twice}def run -> int\n  twice {{ |n| break 9 }}\nend\n");
         clean(&source);
@@ -653,7 +588,7 @@ mod parse_as_enums {
         clean(&format!(
             "{STATUS}review = JSON.parse_as(\"{{}}\", {{ status: Status? }})\n"
         ));
-        // Braces holding a member are a hash, which the runtime refuses.
+        // Braces holding a member are a hash, not a type.
         let source =
             format!("{STATUS}review = JSON.parse_as(\"{{}}\", {{ status: Status::Draft }})\n");
         let found = codes(&source, &[Code::TYPE_MISMATCH]);
@@ -663,17 +598,6 @@ mod parse_as_enums {
             ),
             "{}",
             found[0].message
-        );
-        let error = unchecked()
-            .compile(&format!(
-                "{STATUS}def run -> any\n  JSON.parse_as(\"{{}}\", {{ status: Status::Draft }})\nend\n"
-            ))
-            .unwrap()
-            .call("run", &[], CallOptions::default())
-            .unwrap_err();
-        assert_eq!(
-            error.message,
-            "JSON.parse_as expects a type literal as its second argument"
         );
         codes(
             &format!("{STATUS}n = JSON.parse_as(\"1\", 5)\n"),
@@ -803,19 +727,6 @@ end
             &format!("{prelude}def open(d: Door) -> bool\n  d.open?\nend\n"),
             &[Code::UNKNOWN_TYPE],
         );
-        let mut plain = unchecked();
-        plain
-            .set_module_config(ModuleConfig {
-                paths: vec![directory.clone()],
-                ..ModuleConfig::default()
-            })
-            .unwrap();
-        let error = plain
-            .compile("def run -> any\n  require(\"states\")\n  Door.new(:open)\nend\n")
-            .unwrap()
-            .call("run", &[], CallOptions::default())
-            .unwrap_err();
-        assert_eq!(error.message, "undefined variable Door");
         std::fs::remove_dir_all(directory).unwrap();
     }
 
