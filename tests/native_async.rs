@@ -284,7 +284,7 @@ async fn async_capabilities_keep_contracts_grants_and_attachment_rules() {
         ("typed.send(:echo,7)", &["V0203"]),
         ("typed.public_send(:echo,7)", &["V0203"]),
     ] {
-        let mut engine = declaring();
+        let engine = declaring();
         let error = engine
             .compile(&format!("def run -> any;{expression};end"))
             .err()
