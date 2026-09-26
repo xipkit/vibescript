@@ -7,7 +7,7 @@ use vibescript::{CallOptions, Diagnostic, Engine, Error, ErrorKind, Position, St
 mod common;
 
 fn failure(source: &str) -> Error {
-    common::runtime_engine()
+    Engine::new()
         .compile(source)
         .unwrap()
         .call("run", &[Value::nil()], CallOptions::default())
@@ -126,7 +126,6 @@ fn class_variable_reads_outside_a_class_have_no_class_context() {
     }
     let source = "def run(input: any)\n  @@x = 3\nend";
     assert_eq!(refused(source), at(source, &[("V0204", "@@x")]));
-    assert_eq!(failure(source).message, "no class context for class var");
 }
 
 #[test]
@@ -192,32 +191,21 @@ fn interpolation_and_unicode_use_the_original_source() {
 
 #[test]
 fn argument_and_return_checks_point_to_the_calling_expression() {
-    // What the checker cannot see is checked when it runs, at the call.
-    for (declaration, call) in [
-        ("def target(a: int = \"x\")\n a\nend", "target()"),
+    // A default is checked against its parameter before running.
+    for (declaration, expected) in [
+        (
+            "def target(a: int = \"x\")\n a\nend",
+            &[("V0101", "\"x\"")][..],
+        ),
         (
             "def target(a: int = [1].each { return \"x\" }) -> int\n a\nend",
-            "target()",
+            &[("V0101", "[1].each"), ("V0101", "\"x\"")],
         ),
     ] {
-        let source = format!("{declaration}\ndef run(input: any)\n  {call}\nend");
-        let error = failure(&source);
-        assert_eq!(error.kind, ErrorKind::Type, "{source}: {error}");
-        check_position(&error, &source, source.rfind(call).unwrap());
-        assert_eq!(
-            error
-                .diagnostic
-                .as_ref()
-                .unwrap()
-                .frames
-                .iter()
-                .map(|f| &*f.function)
-                .collect::<Vec<_>>(),
-            ["run", "run"],
-            "{source}: {error}"
-        );
+        let source = format!("{declaration}\ndef run(input: any)\n  target()\nend");
+        assert_eq!(refused(&source), at(&source, expected), "{source}");
     }
-    // The rest are refused before running, at the value.
+    // So are arguments and results, at the value.
     for (declaration, call, text) in [
         ("def target(a:int)\n a\nend", "target(\"x\")", "\"x\")"),
         ("def target -> int\n \"x\"\nend", "target", "\"x\""),
@@ -581,12 +569,12 @@ fn operator_diagnostics_span_the_whole_operator() {
 #[test]
 fn duplicate_and_reserved_function_names_are_coded() {
     // A second top-level definition, or an alias over a function, is
-    // refused with or without static types, at its name.
+    // refused at its name.
     for source in [
         "def g -> int\n  1\nend\ndef g -> int\n  2\nend\n",
         "def f -> int\n  1\nend\ndef g -> int\n  2\nend\nalias g f\n",
     ] {
-        let mut engine = Engine::new();
+        let engine = Engine::new();
         let error = engine.compile(source).err().unwrap();
         assert_eq!(error.message, "duplicate function g", "{source}");
         assert_eq!(common::codes(&error), ["V0209"], "{source}");
