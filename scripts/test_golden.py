@@ -10,6 +10,19 @@ import golden
 
 
 class RecordingTests(unittest.TestCase):
+    def test_compile_failures_are_never_quota_drift(self):
+        quota = {"error": {"phase": "call", "kind": "Steps"}}
+        compile_error = {"error": {"phase": "compile", "kind": "Type"}}
+        for expected, got in [(quota, compile_error), (compile_error, quota)]:
+            differences = []
+            golden.compare_case({"id": "case", "_quota": True}, expected, got, None, None,
+                                lambda *entry: differences.append(entry))
+            self.assertEqual(differences[0][0], "observable differences")
+        differences = []
+        golden.compare_case({"id": "case", "_quota": True}, quota, {"ok": ["int", "1"]}, None, None,
+                            lambda *entry: differences.append(entry))
+        self.assertEqual(differences[0][0], "quota outcomes that followed accounting drift")
+
     def test_selected_recording_preserves_other_observations_and_counters(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

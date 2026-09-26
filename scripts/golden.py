@@ -988,7 +988,10 @@ def compare_case(case, expected, got, varies, table, add):
     if expected == got:
         return
     category = "observable differences"
-    quota = case.get("_quota") and any(r.get("error", {}).get("kind") in QUOTA_KINDS for r in (expected, got))
+    observations = (expected, got)
+    compile_failure = any(r.get("error", {}).get("phase") == "compile" for r in observations)
+    quota = (case.get("_quota") and not compile_failure
+             and any(r.get("error", {}).get("kind") in QUOTA_KINDS for r in observations))
     if quota:
         category = "quota outcomes that followed accounting drift"
     if table is not None and "replies" in expected and "replies" in got:
