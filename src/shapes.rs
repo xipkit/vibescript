@@ -151,6 +151,8 @@ pub(crate) fn format(
             Scalar::Regex => b"regex",
             Scalar::MatchData => b"match_data",
             Scalar::Error => b"error",
+            Scalar::EnumValue => b"enum_value",
+            Scalar::EnumType => b"enum_type",
         })?,
         View::Named => out.write(ty.name().as_bytes())?,
         View::Array(element) => {

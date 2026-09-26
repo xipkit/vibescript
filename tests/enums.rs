@@ -353,3 +353,40 @@ fn long_metadata_and_lookup_respect_limits_cancellation_and_latched_failures() {
     );
     assert_eq!(calls.load(Ordering::Relaxed), 0);
 }
+
+#[test]
+fn any_enum_and_its_members_are_annotation_types() {
+    let source = format!(
+        "{DECLARATIONS}def member(value: enum_value) -> string\n  value.name\nend\n\
+         def kind(value: enum_type) -> string\n  value.name\nend\n\
+         held: array<enum_value> = [Status::Done, Review::Draft]\n\
+         mixed: any = [Status::Draft]\n\
+         [member(Status::Done), kind(Review), held.length, mixed.as(array<enum_value>).length]"
+    );
+    for static_types in [false, true] {
+        let mut engine = Engine::new();
+        engine.set_static_types(static_types);
+        let output = engine
+            .compile(&source)
+            .unwrap_or_else(|error| panic!("{error}"))
+            .run(CallOptions::default())
+            .unwrap();
+        let json = stringify_json(&output.value, CallOptions::default()).unwrap();
+        let value: serde_json::Value =
+            serde_json::from_slice(json.value.as_bytes().unwrap()).unwrap();
+        assert_eq!(value, serde_json::json!(["Done", "Review", 2, 1]));
+    }
+    // A host or unchecked caller that passes something else is refused.
+    let script = Engine::new()
+        .compile(&format!(
+            "{DECLARATIONS}def member(value: enum_value) -> string\n  value.name\nend\n"
+        ))
+        .unwrap();
+    for argument in [Value::int(1), Value::symbol("draft")] {
+        let error = script
+            .call("member", &[argument], CallOptions::default())
+            .unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Type);
+        assert!(error.message.contains("enum_value"), "{}", error.message);
+    }
+}

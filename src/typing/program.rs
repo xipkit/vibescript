@@ -458,6 +458,8 @@ impl<'a> Checker<'a> {
                 Scalar::Regex => Ty::REGEX,
                 Scalar::MatchData => Ty::MATCH_DATA,
                 Scalar::Error => Ty::ERROR_VALUE,
+                Scalar::EnumValue => Ty::ANY_ENUM,
+                Scalar::EnumType => Ty::ANY_ENUM_TYPE,
             },
             TypeKind::Array(element) => {
                 let element = match element {

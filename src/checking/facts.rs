@@ -1414,7 +1414,7 @@ fn scalar_atom(scalar: Scalar) -> Atom {
         Scalar::Range => Atom::Range,
         Scalar::Regex => Atom::Regex,
         // The gradual checker does not model these records; ADR-007's checker will.
-        Scalar::MatchData | Scalar::Error => Atom::Any,
+        Scalar::MatchData | Scalar::Error | Scalar::EnumValue | Scalar::EnumType => Atom::Any,
         Scalar::Number => unreachable!(),
     }
 }

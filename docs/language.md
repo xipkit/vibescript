@@ -64,6 +64,7 @@ Strings are immutable byte strings, usually UTF-8, and character positions count
 | --- | --- |
 | `int`, `float`, `string`, `symbol`, `bool`, `nil` | Scalars. `number` is `int \| float`. |
 | `duration`, `time`, `money`, `range`, `regex` | Built-in value types. |
+| `enum_value`, `enum_type` | A member of any enum, and any enum. |
 | `T?` | `T` or `nil`. |
 | `A \| B` | Either type. |
 | `array<T>` | An array whose elements are `T`. |

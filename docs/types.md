@@ -10,6 +10,7 @@ Every expression has a static type, and a program that does not type check does 
 | `number` | `int \| float` |
 | `duration`, `time`, `money`, `range` | Built-in value types. |
 | `regex`, `match_data`, `error` | A compiled pattern, a successful match, and what `rescue => error` binds. |
+| `enum_value`, `enum_type` | A member of any enum, and any enum itself, with the members every enum has, such as `name`. |
 | `any` | A value whose type is not known statically; it must be narrowed before use. |
 | `T?` | `T` or `nil`. |
 | `A \| B` | Either type. |

@@ -243,6 +243,8 @@ pub(crate) fn annotation(ty: &crate::types::Type) -> Type {
             Scalar::Regex => "regex",
             Scalar::MatchData => "match_data",
             Scalar::Error => "error",
+            Scalar::EnumValue => "enum_value",
+            Scalar::EnumType => "enum_type",
         }),
         TypeKind::Array(element) => Type::Name(
             "array".into(),

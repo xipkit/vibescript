@@ -157,8 +157,10 @@ impl Parser<'_> {
         // type, such as `money`, is the type, since a function is not a value.
         let (local, function) = match &self.tokens[start].token {
             Token::Word(name) if end == start + 1 => {
-                let newer = matches!(name.as_str(), "regex" | "match_data" | "error")
-                    || crate::signatures::alias_type(name).is_some();
+                let newer = matches!(
+                    name.as_str(),
+                    "regex" | "match_data" | "error" | "enum_value" | "enum_type"
+                ) || crate::signatures::alias_type(name).is_some();
                 (
                     newer && self.locals.contains(self.work, name.as_str())?,
                     types

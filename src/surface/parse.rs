@@ -3951,6 +3951,8 @@ pub fn builtin_type(name: &str) -> bool {
             | "regex"
             | "match_data"
             | "error"
+            | "enum_value"
+            | "enum_type"
             | "type"
             | "comparable"
     )

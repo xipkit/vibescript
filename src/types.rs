@@ -40,6 +40,10 @@ pub(crate) enum Scalar {
     MatchData,
     /// What `rescue => error` binds.
     Error,
+    /// A member of any enum, as a value from another script can be.
+    EnumValue,
+    /// Any enum itself.
+    EnumType,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -59,6 +63,8 @@ pub(crate) fn builtin_name(name: &str) -> Option<BuiltinName> {
         "regex" => return Some(BuiltinName::Scalar(Scalar::Regex)),
         "match_data" => return Some(BuiltinName::Scalar(Scalar::MatchData)),
         "error" => return Some(BuiltinName::Scalar(Scalar::Error)),
+        "enum_value" => return Some(BuiltinName::Scalar(Scalar::EnumValue)),
+        "enum_type" => return Some(BuiltinName::Scalar(Scalar::EnumType)),
         "type" => return Some(BuiltinName::Type),
         _ => (),
     }
@@ -319,6 +325,8 @@ fn visit(
                 Scalar::Error => {
                     matches!(&value.0, Kind::Hash(hash) if hash.tag == crate::hash::Tag::Error)
                 }
+                Scalar::EnumValue => matches!(value.0, Kind::EnumMember(_)),
+                Scalar::EnumType => matches!(value.0, Kind::Enum(_)),
             };
             Ok(matches.then_some((value, false)))
         }
