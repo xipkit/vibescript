@@ -37,7 +37,7 @@ The runner fixes what a result could otherwise take from the host. Scripts draw 
 
 `language` keeps its goldens where they already were: the expected values and output in `tests/language.json`. Cases that carry an independent expectation, in `tests/language.json` or a fixture generator, are also checked against it, and `--record` refuses a build that misses one or crashes.
 
-Accounting counters are separate, in `<corpus>.counters.jsonl.gz`: `[id, steps, peak bytes, retained bytes]` for each case that returned, or `[id]` when they varied. Changes are reported as counter drift and fail only with `--strict-counters`, since removing proven runtime checks will change step counts. Counters also differ slightly between platforms: on Linux x86_64 about 4,800 cases report drift, most of them eight bytes of peak memory. A `replay` case recorded under Go's tight quota whose runtime outcome changes to or from a step or memory quota error is reported as accounting drift too, and fails only with `--strict-quota`. A compile failure is always an observable difference, even when the other outcome is a quota error.
+Accounting counters are separate, in `<corpus>.counters.jsonl.gz`: `[id, steps, peak bytes, retained bytes]` for each case that returned, or `[id]` when they varied. Changes are reported as counter drift and fail only with `--strict-counters`. A change that alters accounting on purpose, such as removing a runtime check the checker proves, re-records the counters of the affected corpora with `--record` and keeps every observation; its commit says why the counters moved, and [the counter log](#counter-log) lists it. Counters also differ slightly between platforms: on Linux x86_64 about 4,800 cases report drift, most of them eight bytes of peak memory. A `replay` case recorded under Go's tight quota whose runtime outcome changes to or from a step or memory quota error is reported as accounting drift too, and fails only with `--strict-quota`. A compile failure is always an observable difference, even when the other outcome is a quota error.
 
 ## The replay corpus
 
@@ -51,7 +51,7 @@ The `parse` corpus records only whether each source parses: its token mutations 
 
 ## History
 
-The corpora were validated against Go v0.70.0 until the Rust implementation became the reference, and moved to the static language when static types became the only mode (2026-09-26). The migration rewrote their sources, turned the cases that tested removed features into static rejections and recorded each non-mechanical decision, one per case, in `migration-decisions.jsonl`; that file and the migration tooling are in the repository's history. Until the ADR-004 escape hatch and the runtime support for removed spellings were deleted, a static rejection's golden kept the outcome it had in the ADR-004 language; those goldens now record the compile error, and 611 more cases whose removed spellings the checker had missed became static rejections. Accounting counters were not re-recorded with either change, so they drift as described above.
+The corpora were validated against Go v0.70.0 until the Rust implementation became the reference, and moved to the static language when static types became the only mode (2026-09-26). The migration rewrote their sources, turned the cases that tested removed features into static rejections and recorded each non-mechanical decision, one per case, in `migration-decisions.jsonl`; that file and the migration tooling are in the repository's history. Until the ADR-004 escape hatch and the runtime support for removed spellings were deleted, a static rejection's golden kept the outcome it had in the ADR-004 language; those goldens now record the compile error, and 611 more cases whose removed spellings the checker had missed became static rejections. Accounting counters were not re-recorded with either change; they were brought up to date afterwards, as the counter log records.
 
 
 ## Soundness audit after legacy deletion
@@ -97,3 +97,9 @@ All 216 LSP sessions retain their reply indexes; 615 shared replies change:
 `flat_map` accepting scalar or array block results. Compatibility and parse
 observations are unchanged. Only affected cases were recorded; accounting
 counters were kept.
+
+## Counter log
+
+Each re-recording of the counters, and why. Observations stay as recorded, including the `replay` outcomes that follow accounting drift into or out of a quota error.
+
+- Re-recorded all engine corpora on macOS arm64 at the start of the typed VM work, so that later changes show only their own drift. The static-language migration had rewritten the sources without re-recording their counters. 322 `replay` cases keep their recorded quota outcomes.
