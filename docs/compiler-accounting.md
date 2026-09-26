@@ -30,4 +30,4 @@ The compiler storage and generation tests exercise exact and insufficient memory
 
 Host-registration regressions check names and callback identities in a non-sorted input order, cancellation and deadlines during both metadata passes, release of partially copied callbacks, and compiled output outliving the compiling context. Nested required files exercise ordinary callbacks and block-capable methods through cold and cached loads while preserving each script's original registrations. Invalid UTF-8 is checked for accounted rejection, exact quotas and successful retry after replacement. Builtin namespace regressions check every member name, ordering, builtin identity, numeric constant, object flag and depth.
 
-These checks support the compiler accounting boundary. They do not establish completion of the language port: remaining checker analysis, complete reference conformance, and native/browser platform validation are tracked in [the port requirements](language-port.md).
+These checks support the compiler accounting boundary.
