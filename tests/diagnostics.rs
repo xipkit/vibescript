@@ -143,10 +143,10 @@ fn binary_operators_are_located_where_the_reference_lexer_stamps_them() {
     assert_eq!(error.message, "float exponentiation result is not finite");
     check_position(&error, source, source.find("* -1").unwrap());
     // Operands the operator does not take and unknown members are refused
-    // before running.
+    // before running; an operator's diagnostic spans all of it.
     for (body, expected) in [
         ("x = 2 ** nil", vec![("V0107", "nil")]),
-        ("x = 1 << -1", vec![("V0108", "< -1")]),
+        ("x = 1 << -1", vec![("V0108", "<< -1")]),
         ("x = 1 >= nil", vec![("V0107", "nil")]),
         ("x = (1..2).foo", vec![("V0203", "foo")]),
         ("x = (1...2).foo", vec![("V0203", "foo")]),
@@ -555,4 +555,25 @@ fn recursion_keeps_structured_frames_and_shortens_only_the_rendering() {
     assert_eq!(error.to_string().matches("\n  at ").count(), 16);
     assert!(error.to_string().contains("17 frames omitted"));
     assert!(Arc::ptr_eq(&frames[0].function, &frames[1].function));
+}
+
+#[test]
+fn operator_diagnostics_span_the_whole_operator() {
+    for (body, operator) in [
+        ("x = 1 <=> \"a\"", "<=>"),
+        ("x = true ** 2", "**"),
+        ("x = \"a\" <= 3", "<="),
+        ("x = 7 // \"a\"", "//"),
+        ("x = \"a\" - 1", "-"),
+    ] {
+        let source = format!("def run(input: any)\n  {body}\nend");
+        let error = common::static_engine().compile(&source).err().unwrap();
+        let diagnostic = &error.diagnostics()[0];
+        assert_eq!(diagnostic.code.to_string(), "V0108", "{body}");
+        assert_eq!(
+            &source[diagnostic.span.start..diagnostic.span.end],
+            operator,
+            "{body}"
+        );
+    }
 }

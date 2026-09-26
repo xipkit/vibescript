@@ -343,7 +343,7 @@ end
         ),
         (
             "class C\n  @items: array<int> = []\n  def add\n    @items << \"x\"\n  end\nend\nC.new.add".into(),
-            (4, 13),
+            (4, 12),
         ),
         (
             "class C\n  @name: string\n  def initialize\n    @name = 1\n  end\nend\nC.new".into(),

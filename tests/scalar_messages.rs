@@ -157,9 +157,9 @@ fn operators_name_the_operation_they_refuse() {
         ),
         ("def run -> any\n  nil / 2\nend", "V0107", "nil"),
         ("def run -> any\n  1.seconds % 2\nend", "V0108", "%"),
-        ("def run -> any\n  1.seconds ** 2\nend", "V0108", "*"),
-        ("def run -> any\n  x = 1\n  x << 2\nend", "V0108", "<"),
-        ("def run -> any\n  1 << 2\nend", "V0108", "<"),
+        ("def run -> any\n  1.seconds ** 2\nend", "V0108", "**"),
+        ("def run -> any\n  x = 1\n  x << 2\nend", "V0108", "<<"),
+        ("def run -> any\n  1 << 2\nend", "V0108", "<<"),
         ("def run -> any\n  [1] & 1\nend", "V0108", "&"),
         ("def run -> any\n  1 < \"a\"\nend", "V0108", "<"),
         ("def run -> any\n  -\"a\"\nend", "V0108", "-\"a\""),
@@ -982,7 +982,7 @@ fn regex_errors_quote_go_syntax_errors_and_name_the_operation() {
         ),
     ]);
     refuses(&[
-        ("def run -> any\n  /a/ =~ /a/\nend", "V0108", "~"),
+        ("def run -> any\n  /a/ =~ /a/\nend", "V0108", "=~"),
         (
             "def run -> any\n  Regex.match(\"a\")\nend",
             "V0301",

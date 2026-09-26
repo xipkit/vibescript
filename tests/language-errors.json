@@ -15903,13 +15903,13 @@
     "name": "money_types_2279",
     "source": "def run(input: any) -> any\n(money_cents(100,\"USD\") ** (2.0)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 26]}
+    "static_error": {"code": "V0108", "at": [2, 25]}
   },
   {
     "name": "money_types_2280",
     "source": "def run(input: any) -> any\n((2.0) ** money_cents(100,\"USD\")).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 9]}
+    "static_error": {"code": "V0108", "at": [2, 8]}
   },
   {
     "name": "money_types_2281",
@@ -15975,13 +15975,13 @@
     "name": "money_types_2291",
     "source": "def run(input: any) -> any\n(money_cents(100,\"USD\") ** (-1.5)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 26]}
+    "static_error": {"code": "V0108", "at": [2, 25]}
   },
   {
     "name": "money_types_2292",
     "source": "def run(input: any) -> any\n((-1.5) ** money_cents(100,\"USD\")).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 10]}
+    "static_error": {"code": "V0108", "at": [2, 9]}
   },
   {
     "name": "money_types_2293",
@@ -16044,13 +16044,13 @@
     "name": "money_types_2303",
     "source": "def run(input: any) -> any\n(money_cents(100,\"USD\") ** (2**100)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 26]}
+    "static_error": {"code": "V0108", "at": [2, 25]}
   },
   {
     "name": "money_types_2304",
     "source": "def run(input: any) -> any\n((2**100) ** money_cents(100,\"USD\")).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 12]}
+    "static_error": {"code": "V0108", "at": [2, 11]}
   },
   {
     "name": "money_types_2305",
@@ -16188,13 +16188,13 @@
     "name": "money_types_2327",
     "source": "def run(input: any) -> any\n(money_cents(100,\"USD\") ** (true)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 26]}
+    "static_error": {"code": "V0108", "at": [2, 25]}
   },
   {
     "name": "money_types_2328",
     "source": "def run(input: any) -> any\n((true) ** money_cents(100,\"USD\")).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 10]}
+    "static_error": {"code": "V0108", "at": [2, 9]}
   },
   {
     "name": "money_types_2329",
@@ -16260,13 +16260,13 @@
     "name": "money_types_2339",
     "source": "def run(input: any) -> any\n(money_cents(100,\"USD\") ** ([])).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 26]}
+    "static_error": {"code": "V0108", "at": [2, 25]}
   },
   {
     "name": "money_types_2340",
     "source": "def run(input: any) -> any\n(([]) ** money_cents(100,\"USD\")).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 8]}
+    "static_error": {"code": "V0108", "at": [2, 7]}
   },
   {
     "name": "money_types_2341",
@@ -16332,13 +16332,13 @@
     "name": "money_types_2351",
     "source": "def run(input: any) -> any\n(money_cents(100,\"USD\") ** (:USD)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 26]}
+    "static_error": {"code": "V0108", "at": [2, 25]}
   },
   {
     "name": "money_types_2352",
     "source": "def run(input: any) -> any\n((:USD) ** money_cents(100,\"USD\")).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 10]}
+    "static_error": {"code": "V0108", "at": [2, 9]}
   },
   {
     "name": "money_member_2355",
@@ -20621,13 +20621,13 @@
     "name": "duration_types_4278",
     "source": "def run(input: any) -> any\n(Duration.build(seconds: -3) ** (0.9)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 31]}
+    "static_error": {"code": "V0108", "at": [2, 30]}
   },
   {
     "name": "duration_types_4279",
     "source": "def run(input: any) -> any\n((0.9) ** Duration.build(seconds: -3)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 9]}
+    "static_error": {"code": "V0108", "at": [2, 8]}
   },
   {
     "name": "duration_types_4283",
@@ -20657,13 +20657,13 @@
     "name": "duration_types_4290",
     "source": "def run(input: any) -> any\n(Duration.build(seconds: -3) ** (-0.9)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 31]}
+    "static_error": {"code": "V0108", "at": [2, 30]}
   },
   {
     "name": "duration_types_4291",
     "source": "def run(input: any) -> any\n((-0.9) ** Duration.build(seconds: -3)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 10]}
+    "static_error": {"code": "V0108", "at": [2, 9]}
   },
   {
     "name": "duration_types_4295",
@@ -20693,13 +20693,13 @@
     "name": "duration_types_4302",
     "source": "def run(input: any) -> any\n(Duration.build(seconds: -3) ** (1.9)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 31]}
+    "static_error": {"code": "V0108", "at": [2, 30]}
   },
   {
     "name": "duration_types_4303",
     "source": "def run(input: any) -> any\n((1.9) ** Duration.build(seconds: -3)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 9]}
+    "static_error": {"code": "V0108", "at": [2, 8]}
   },
   {
     "name": "duration_types_4307",
@@ -20729,13 +20729,13 @@
     "name": "duration_types_4314",
     "source": "def run(input: any) -> any\n(Duration.build(seconds: -3) ** (-1.9)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 31]}
+    "static_error": {"code": "V0108", "at": [2, 30]}
   },
   {
     "name": "duration_types_4315",
     "source": "def run(input: any) -> any\n((-1.9) ** Duration.build(seconds: -3)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 10]}
+    "static_error": {"code": "V0108", "at": [2, 9]}
   },
   {
     "name": "duration_types_4316",
@@ -20795,13 +20795,13 @@
     "name": "duration_types_4326",
     "source": "def run(input: any) -> any\n(Duration.build(seconds: -3) ** (1e309)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 31]}
+    "static_error": {"code": "V0108", "at": [2, 30]}
   },
   {
     "name": "duration_types_4327",
     "source": "def run(input: any) -> any\n((1e309) ** Duration.build(seconds: -3)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 11]}
+    "static_error": {"code": "V0108", "at": [2, 10]}
   },
   {
     "name": "duration_types_4328",
@@ -20861,13 +20861,13 @@
     "name": "duration_types_4338",
     "source": "def run(input: any) -> any\n(Duration.build(seconds: -3) ** (0.0/0.0)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 31]}
+    "static_error": {"code": "V0108", "at": [2, 30]}
   },
   {
     "name": "duration_types_4339",
     "source": "def run(input: any) -> any\n((0.0/0.0) ** Duration.build(seconds: -3)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 13]}
+    "static_error": {"code": "V0108", "at": [2, 12]}
   },
   {
     "name": "duration_types_4340",
@@ -20927,13 +20927,13 @@
     "name": "duration_types_4350",
     "source": "def run(input: any) -> any\n(Duration.build(seconds: -3) ** (2**100)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 31]}
+    "static_error": {"code": "V0108", "at": [2, 30]}
   },
   {
     "name": "duration_types_4351",
     "source": "def run(input: any) -> any\n((2**100) ** Duration.build(seconds: -3)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 12]}
+    "static_error": {"code": "V0108", "at": [2, 11]}
   },
   {
     "name": "duration_types_4352",
@@ -21071,13 +21071,13 @@
     "name": "duration_types_4374",
     "source": "def run(input: any) -> any\n(Duration.build(seconds: -3) ** (true)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 31]}
+    "static_error": {"code": "V0108", "at": [2, 30]}
   },
   {
     "name": "duration_types_4375",
     "source": "def run(input: any) -> any\n((true) ** Duration.build(seconds: -3)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 10]}
+    "static_error": {"code": "V0108", "at": [2, 9]}
   },
   {
     "name": "duration_types_4376",
@@ -21143,13 +21143,13 @@
     "name": "duration_types_4386",
     "source": "def run(input: any) -> any\n(Duration.build(seconds: -3) ** ([])).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 31]}
+    "static_error": {"code": "V0108", "at": [2, 30]}
   },
   {
     "name": "duration_types_4387",
     "source": "def run(input: any) -> any\n(([]) ** Duration.build(seconds: -3)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 8]}
+    "static_error": {"code": "V0108", "at": [2, 7]}
   },
   {
     "name": "duration_types_4388",
@@ -21215,13 +21215,13 @@
     "name": "duration_types_4398",
     "source": "def run(input: any) -> any\n(Duration.build(seconds: -3) ** (:one)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 31]}
+    "static_error": {"code": "V0108", "at": [2, 30]}
   },
   {
     "name": "duration_types_4399",
     "source": "def run(input: any) -> any\n((:one) ** Duration.build(seconds: -3)).to_s\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [2, 10]}
+    "static_error": {"code": "V0108", "at": [2, 9]}
   },
   {
     "name": "duration_members_4401",
@@ -67924,13 +67924,13 @@
     "name": "array_set_terminators_37",
     "source": "def run(input: any) -> any\n1 <<\n 1\nend\n",
     "go_error": "unsupported shovel operands",
-    "static_error": {"code": "V0108", "at": [2, 4]}
+    "static_error": {"code": "V0108", "at": [2, 3]}
   },
   {
     "name": "array_set_terminators_38",
     "source": "def run(input: any) -> any\n1 <<\n 1\nend\n",
     "go_error": "unsupported shovel operands",
-    "static_error": {"code": "V0108", "at": [2, 4]}
+    "static_error": {"code": "V0108", "at": [2, 3]}
   },
   {
     "name": "hash_shorthand_names_0",
@@ -68764,43 +68764,43 @@
     "name": "enums_operators_40",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status <= Status)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 24]}
+    "static_error": {"code": "V0108", "at": [10, 23]}
   },
   {
     "name": "enums_operators_41",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status <= Status::Draft)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 24]}
+    "static_error": {"code": "V0108", "at": [10, 23]}
   },
   {
     "name": "enums_operators_42",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status <= Status::Done)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 24]}
+    "static_error": {"code": "V0108", "at": [10, 23]}
   },
   {
     "name": "enums_operators_43",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status <= Review::Draft)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 24]}
+    "static_error": {"code": "V0108", "at": [10, 23]}
   },
   {
     "name": "enums_operators_44",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status <= :draft)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 24]}
+    "static_error": {"code": "V0108", "at": [10, 23]}
   },
   {
     "name": "enums_operators_45",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status <= \"draft\")\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 24]}
+    "static_error": {"code": "V0108", "at": [10, 23]}
   },
   {
     "name": "enums_operators_46",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status <= 1)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 24]}
+    "static_error": {"code": "V0108", "at": [10, 23]}
   },
   {
     "name": "enums_operators_47",
@@ -68860,43 +68860,43 @@
     "name": "enums_operators_56",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status >= Status)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 24]}
+    "static_error": {"code": "V0108", "at": [10, 23]}
   },
   {
     "name": "enums_operators_57",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status >= Status::Draft)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 24]}
+    "static_error": {"code": "V0108", "at": [10, 23]}
   },
   {
     "name": "enums_operators_58",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status >= Status::Done)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 24]}
+    "static_error": {"code": "V0108", "at": [10, 23]}
   },
   {
     "name": "enums_operators_59",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status >= Review::Draft)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 24]}
+    "static_error": {"code": "V0108", "at": [10, 23]}
   },
   {
     "name": "enums_operators_60",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status >= :draft)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 24]}
+    "static_error": {"code": "V0108", "at": [10, 23]}
   },
   {
     "name": "enums_operators_61",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status >= \"draft\")\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 24]}
+    "static_error": {"code": "V0108", "at": [10, 23]}
   },
   {
     "name": "enums_operators_62",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status >= 1)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 24]}
+    "static_error": {"code": "V0108", "at": [10, 23]}
   },
   {
     "name": "enums_operators_63",
@@ -69572,43 +69572,43 @@
     "name": "enums_operators_144",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status::Draft <= Status)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 31]}
+    "static_error": {"code": "V0108", "at": [10, 30]}
   },
   {
     "name": "enums_operators_145",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status::Draft <= Status::Draft)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 31]}
+    "static_error": {"code": "V0108", "at": [10, 30]}
   },
   {
     "name": "enums_operators_146",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status::Draft <= Status::Done)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 31]}
+    "static_error": {"code": "V0108", "at": [10, 30]}
   },
   {
     "name": "enums_operators_147",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status::Draft <= Review::Draft)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 31]}
+    "static_error": {"code": "V0108", "at": [10, 30]}
   },
   {
     "name": "enums_operators_148",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status::Draft <= :draft)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 31]}
+    "static_error": {"code": "V0108", "at": [10, 30]}
   },
   {
     "name": "enums_operators_149",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status::Draft <= \"draft\")\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 31]}
+    "static_error": {"code": "V0108", "at": [10, 30]}
   },
   {
     "name": "enums_operators_150",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status::Draft <= 1)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 31]}
+    "static_error": {"code": "V0108", "at": [10, 30]}
   },
   {
     "name": "enums_operators_151",
@@ -69668,43 +69668,43 @@
     "name": "enums_operators_160",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status::Draft >= Status)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 31]}
+    "static_error": {"code": "V0108", "at": [10, 30]}
   },
   {
     "name": "enums_operators_161",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status::Draft >= Status::Draft)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 31]}
+    "static_error": {"code": "V0108", "at": [10, 30]}
   },
   {
     "name": "enums_operators_162",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status::Draft >= Status::Done)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 31]}
+    "static_error": {"code": "V0108", "at": [10, 30]}
   },
   {
     "name": "enums_operators_163",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status::Draft >= Review::Draft)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 31]}
+    "static_error": {"code": "V0108", "at": [10, 30]}
   },
   {
     "name": "enums_operators_164",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status::Draft >= :draft)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 31]}
+    "static_error": {"code": "V0108", "at": [10, 30]}
   },
   {
     "name": "enums_operators_165",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status::Draft >= \"draft\")\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 31]}
+    "static_error": {"code": "V0108", "at": [10, 30]}
   },
   {
     "name": "enums_operators_166",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> string\nJSON.stringify(Status::Draft >= 1)\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [10, 31]}
+    "static_error": {"code": "V0108", "at": [10, 30]}
   },
   {
     "name": "enums_operators_167",
@@ -121812,7 +121812,7 @@
     "name": "operator_signature_63",
     "source": "class C\ndef **(**opts: hash<string, any>) -> int;7;end\nend\ndef run(input: any) -> int\nC.new ** 3\nend\n",
     "go_error": "unexpected positional arguments",
-    "static_error": {"code": "V0101", "at": [5, 8]}
+    "static_error": {"code": "V0101", "at": [5, 7]}
   },
   {
     "name": "operator_visibility_80",
@@ -121914,7 +121914,7 @@
     "name": "operator_signature_74",
     "source": "class C\ndef <<(**opts: hash<string, any>) -> int;7;end\nend\ndef run(input: any) -> int\nC.new << 3\nend\n",
     "go_error": "unexpected positional arguments",
-    "static_error": {"code": "V0101", "at": [5, 8]}
+    "static_error": {"code": "V0101", "at": [5, 7]}
   },
   {
     "name": "operator_visibility_95",
@@ -122422,7 +122422,7 @@
     "name": "operator_signature_129",
     "source": "class C\ndef <=(**opts: hash<string, any>);7;end\nend\ndef run(input: any) -> any\nC.new <= 3\nend\n",
     "go_error": "unexpected positional arguments",
-    "static_error": {"code": "V0101", "at": [5, 8]}
+    "static_error": {"code": "V0101", "at": [5, 7]}
   },
   {
     "name": "operator_visibility_170",
@@ -122626,7 +122626,7 @@
     "name": "operator_signature_151",
     "source": "class C\ndef >=(**opts: hash<string, any>);7;end\nend\ndef run(input: any) -> any\nC.new >= 3\nend\n",
     "go_error": "unexpected positional arguments",
-    "static_error": {"code": "V0101", "at": [5, 8]}
+    "static_error": {"code": "V0101", "at": [5, 7]}
   },
   {
     "name": "operator_visibility_200",
@@ -122840,13 +122840,13 @@
     "name": "operator_left_receiver_35",
     "source": "class C\ndef **(other: any) -> int;7;end\nend\nclass D\ndef **(other: any) -> int;9;end\nend\ndef run(input: any) -> any\n1 ** C.new\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [8, 4]}
+    "static_error": {"code": "V0108", "at": [8, 3]}
   },
   {
     "name": "operator_left_receiver_36",
     "source": "class C\ndef <<(other: any) -> int;7;end\nend\nclass D\ndef <<(other: any) -> int;9;end\nend\ndef run(input: any) -> any\n1 << C.new\nend\n",
     "go_error": "unsupported shovel operands",
-    "static_error": {"code": "V0108", "at": [8, 4]}
+    "static_error": {"code": "V0108", "at": [8, 3]}
   },
   {
     "name": "operator_left_receiver_37",
@@ -122864,7 +122864,7 @@
     "name": "operator_left_receiver_41",
     "source": "class C\ndef <=(other: any);7;end\nend\nclass D\ndef <=(other: any);9;end\nend\ndef run(input: any) -> any\n1 <= C.new\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [8, 4]}
+    "static_error": {"code": "V0108", "at": [8, 3]}
   },
   {
     "name": "operator_left_receiver_42",
@@ -122876,7 +122876,7 @@
     "name": "operator_left_receiver_43",
     "source": "class C\ndef >=(other: any);7;end\nend\nclass D\ndef >=(other: any);9;end\nend\ndef run(input: any) -> any\n1 >= C.new\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [8, 4]}
+    "static_error": {"code": "V0108", "at": [8, 3]}
   },
   {
     "name": "operator_left_receiver_45",
@@ -122984,7 +122984,7 @@
     "name": "operator_left_receiver_65",
     "source": "class C\ndef **(other: any) -> int;7;end\nend\nclass D\ndef **(other: any) -> int;9;end\nend\ndef run(input: any) -> any\n[] ** C.new\nend\n",
     "go_error": "unsupported exponentiation operands",
-    "static_error": {"code": "V0108", "at": [8, 5]}
+    "static_error": {"code": "V0108", "at": [8, 4]}
   },
   {
     "name": "operator_left_receiver_67",
@@ -123002,7 +123002,7 @@
     "name": "operator_left_receiver_71",
     "source": "class C\ndef <=(other: any);7;end\nend\nclass D\ndef <=(other: any);9;end\nend\ndef run(input: any) -> any\n[] <= C.new\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [8, 5]}
+    "static_error": {"code": "V0108", "at": [8, 4]}
   },
   {
     "name": "operator_left_receiver_72",
@@ -123014,7 +123014,7 @@
     "name": "operator_left_receiver_73",
     "source": "class C\ndef >=(other: any);7;end\nend\nclass D\ndef >=(other: any);9;end\nend\ndef run(input: any) -> any\n[] >= C.new\nend\n",
     "go_error": "unsupported comparison operands",
-    "static_error": {"code": "V0108", "at": [8, 5]}
+    "static_error": {"code": "V0108", "at": [8, 4]}
   },
   {
     "name": "operator_aliases_1",
@@ -123992,19 +123992,19 @@
     "name": "operator_shovel_nonarray_1",
     "source": "\ndef run(input: any) -> any\n1 << 4\nend\n",
     "go_error": "unsupported shovel operands",
-    "static_error": {"code": "V0108", "at": [3, 4]}
+    "static_error": {"code": "V0108", "at": [3, 3]}
   },
   {
     "name": "operator_shovel_nonarray_2",
     "source": "\ndef run(input: any) -> any\n\"x\" << 4\nend\n",
     "go_error": "unsupported shovel operands",
-    "static_error": {"code": "V0108", "at": [3, 6]}
+    "static_error": {"code": "V0108", "at": [3, 5]}
   },
   {
     "name": "operator_shovel_nonarray_3",
     "source": "\ndef run(input: any) -> any\n{} << 4\nend\n",
     "go_error": "unsupported shovel operands",
-    "static_error": {"code": "V0108", "at": [3, 5]}
+    "static_error": {"code": "V0108", "at": [3, 4]}
   },
   {
     "name": "operator_shovel_nonarray_4",
@@ -124016,7 +124016,7 @@
     "name": "operator_shovel_nonarray_5",
     "source": "\ndef run(input: any) -> any\nMath << 4\nend\n",
     "go_error": "unsupported shovel operands",
-    "static_error": {"code": "V0108", "at": [3, 7]}
+    "static_error": {"code": "V0108", "at": [3, 6]}
   },
   {
     "name": "safe_values_6",

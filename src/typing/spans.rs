@@ -342,10 +342,10 @@ impl<'a> Spans<'a> {
         at
     }
 
-    /// The offset of the operator token of a binary expression starting at
-    /// `offset`.
+    /// The operator token of a binary expression located at `offset`, all
+    /// of it, although two-character operators are located at their last.
     pub fn operator(&self, offset: usize) -> Span {
-        self.token(offset)
+        self.containing(offset)
     }
 
     /// The span of the whole token containing `offset`, such as a binary
