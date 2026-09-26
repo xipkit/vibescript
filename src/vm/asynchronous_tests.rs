@@ -1,4 +1,4 @@
-use crate::{CallOptions, Engine, ErrorKind, HostMethod, Value, asynchronous::Runner};
+use crate::{CallOptions, ErrorKind, HostMethod, Value, asynchronous::Runner};
 use std::{
     future::pending,
     sync::{Arc, Mutex, Weak},
@@ -133,7 +133,8 @@ async fn objects_retained_by_async_hosts_outlive_cancelled_invocations() {
             })
         }),
     );
-    let script=engine.compile("class Box;property n: int?;property link: Box?;end;def run;b=Box.new;b.n=3;b.link=b;hold(b);b.n=4;end").unwrap();
+    let script=engine.compile("class Box;property n: int?;property link: Box?;end;def run;b=Box.new;b.n=3;b.link=b;hold(b);b.n=4;end\ndef read(b: Box) -> array<int | bool | nil>;[b.n,b.link==b];end").unwrap();
+    let reader = script.clone();
     let runner = Runner::new(1).unwrap();
     let task = tokio::spawn(async move {
         runner
@@ -147,11 +148,8 @@ async fn objects_retained_by_async_hosts_outlive_cancelled_invocations() {
     assert!(task.await.unwrap_err().is_cancelled());
     assert!(memory.lock().unwrap().upgrade().is_some());
     let value = retained.lock().unwrap().take().unwrap();
-    // The reader cannot name the instance's class, which another script
-    // declares, so it reads the instance without static types.
-    let mut reader = Engine::legacy_unchecked();
-
-    let reader = reader.compile("def read(b);[b.n,b.link==b];end").unwrap();
+    // The instance returns to a later call of the script that declares its
+    // class.
     let result = reader
         .call("read", std::slice::from_ref(&value), CallOptions::default())
         .unwrap();
