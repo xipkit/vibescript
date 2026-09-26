@@ -134,6 +134,13 @@ fn steps(source: &str) -> u64 {
 #[test]
 fn doubling_a_program_at_most_doubles_the_checking_work() {
     for (name, count, shape) in SHAPES {
+        // WASI checks syntax at most 128 levels tall, which the nesting
+        // shapes exceed at full size.
+        let count = if cfg!(target_os = "wasi") {
+            count / 8
+        } else {
+            count
+        };
         let small = steps(&shape(count));
         let large = steps(&shape(2 * count));
         assert!(

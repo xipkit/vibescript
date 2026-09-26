@@ -36,7 +36,9 @@ The target aborts on panic instead of unwinding. A panicking host callback there
 
 ### Stack use
 
-Parsing and code generation run on a heap task stack, and syntax trees are dropped iteratively. Every form at the syntax nesting limit compiles, checks, runs and drops, and every value at the 10,000-container limit is built, compared, rendered, encoded, imported and dropped, within Rust's default 1 MiB linear stack and Wasmtime's default 512 KiB WebAssembly stack in a debug build. Node's default stack also suffices.
+Parsing and code generation run on a heap task stack, and syntax trees are dropped iteratively. Every form at the syntax nesting limit parses, generates code, runs and drops, and every value at the 10,000-container limit is built, compared, rendered, encoded, imported and dropped, within Rust's default 1 MiB linear stack and Wasmtime's default 512 KiB WebAssembly stack in a debug build. Node's default stack also suffices.
+
+The type checker is the exception. It recurses once per level of syntax, which native targets give a thread with a 64 MiB stack, and a debug build's costliest forms exhaust WASI's default stacks from about 220 levels. WASI has no threads, so there the checker refuses syntax more than 128 levels tall: such a source fails to compile with `V0001`, `syntax nesting too deep to type check`, where native targets accept the parser's 1,024. Nested class and module declarations are walked on the heap, and a top-level declaration taller than the limit is refused the same way.
 
 Host callbacks that re-enter the script through `HostCall::call_block` nest on the native stack, as they do natively, because the host's own frames sit between the two calls. `Limits::recursion`, 256 frames by default, bounds that nesting. A debug build fits about 316 nested re-entries in the default stack. An embedder that raises the limit for deeply re-entrant host blocks should link a larger stack, for example with `-C link-arg=-zstack-size=4194304`.
 

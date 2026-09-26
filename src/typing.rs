@@ -66,6 +66,18 @@ const SHALLOW: usize = 1024;
 #[cfg(not(target_os = "wasi"))]
 const STACK: usize = 64 << 20;
 
+/// The tallest syntax the checker descends into on WASI. WASI has no
+/// threads, so the checker and the surface walk recurse on the host's stack,
+/// whose default size holds only about 220 levels of a debug build's
+/// costliest recursion; taller syntax is refused there instead of exhausting
+/// it. Elsewhere the parser's bound of 1,024 applies.
+const HEIGHT: u32 = 128;
+
+/// Whether syntax of this height is too tall to check on this platform.
+fn too_tall(height: u32) -> bool {
+    cfg!(target_os = "wasi") && height > HEIGHT
+}
+
 /// The result of checking one source.
 #[derive(Clone, Debug, Default)]
 pub struct Checked {
@@ -236,6 +248,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         memo: None,
         write_chain: HashSet::new(),
         session: None,
+        too_deep: false,
     };
     for (name, host) in &input.hosts {
         let function = crate::signatures::host::function(name, host);
@@ -266,6 +279,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         None => (Vec::new(), None),
     };
     locals.sort();
+    let too_deep = checker.too_deep;
     let mut diagnostics = checker.diagnostics;
     diagnostics.sort_by_key(|d| (d.span.start, d.span.end));
     diagnostics.dedup_by(|a, b| a.code == b.code && a.span == b.span && a.message == b.message);
@@ -277,8 +291,11 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         locals,
         result,
     };
-    // Removed spellings of the canonical surface are compile errors too.
-    crate::surface::add_to(&mut checked, input.source, input.tokens);
+    // Removed spellings of the canonical surface are compile errors too,
+    // unless the source is too tall to walk.
+    if !too_deep {
+        crate::surface::add_to(&mut checked, input.source, input.tokens);
+    }
     checked
 }
 
@@ -304,6 +321,7 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
         memo: None,
         write_chain: HashSet::new(),
         session: None,
+        too_deep: false,
     };
     checker.declare_hosts(input.declared);
     checker.declare_program(input.parsed);
@@ -345,6 +363,8 @@ pub(crate) struct Checker<'a> {
     write_chain: HashSet<usize>,
     /// The top-level statements' locals and result, once checked.
     session: Option<Session>,
+    /// Whether some syntax was too tall to check ([`HEIGHT`]).
+    too_deep: bool,
 }
 
 /// Expression types by node, recorded or replayed.

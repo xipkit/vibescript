@@ -446,6 +446,10 @@ Decisions the ADRs left open:
   every input begins by binding the earlier variables as typed locals, cast
   from one declared global. A variable whose class an input declares again
   is bound as `any`, since its value belongs to the replaced class.
+- On WASI, which has no threads to give the checker the 64 MiB stack it
+  runs on natively, a source whose syntax is more than 128 levels tall
+  fails to compile with `V0001` rather than exhausting the default stack;
+  native targets keep the parser's limit of 1,024.
 - The golden cases whose purpose is a static rejection keep the outcome
   their goldens recorded in the ADR-004 language; they are checked against
   their `static_error` only.

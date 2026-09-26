@@ -157,6 +157,20 @@ impl<'a> Checker<'a> {
         self.diagnostics.push(diagnostic);
     }
 
+    /// Refuses syntax taller than [`super::HEIGHT`], which the checker does
+    /// not descend into.
+    pub(super) fn too_deep(&mut self, span: Span) {
+        self.too_deep = true;
+        self.report(Diagnostic::error(
+            Code::SYNTAX,
+            span,
+            format!(
+                "syntax nesting too deep to type check: on WASI the checker allows {} levels",
+                super::HEIGHT
+            ),
+        ));
+    }
+
     /// Checks every function and namespace body.
     pub(super) fn check_all(&mut self) {
         if let Some(main) = self.program.fns.iter().position(|decl| decl.main) {
@@ -201,6 +215,13 @@ impl<'a> Checker<'a> {
         let mut children: Vec<NsId> = namespace.children.values().copied().collect();
         // Popped from the end, so checked in ascending order.
         children.sort_unstable_by(|a, b| b.cmp(a));
+        let tallest = namespace
+            .module
+            .filter(|module| namespace.parent.is_none() && super::too_tall(module.height()));
+        if let Some(module) = tallest {
+            let span = self.spans.token(module.offset as usize);
+            self.too_deep(span);
+        }
         pending.push((ns, children));
     }
 
@@ -598,6 +619,12 @@ impl<'a> Checker<'a> {
 
     pub(super) fn stmt(&mut self, stmt: &'a Stmt, want: Want) -> Ty {
         self.steps += 1;
+        if super::too_tall(stmt.height()) {
+            // The statement's first token: its whole span is as deep as it.
+            let span = self.spans.token(stmt.offset as usize);
+            self.too_deep(span);
+            return Ty::ANY;
+        }
         if !self.frame.flow.live {
             // Unreachable code is still checked, from a live state.
             self.frame.flow.live = true;

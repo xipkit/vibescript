@@ -47,6 +47,16 @@ fn nested(prefix: &str, inner: &str, suffix: &str, depth: usize) -> String {
     format!("{DECLARATIONS}def run\n{body}\nend\n")
 }
 
+/// Compiles a source nested as deep as the parser allows, or returns `None`
+/// on WASI when the type checker refuses syntax that tall there.
+fn compile_deep(source: &str, name: &str) -> Option<vibescript::Script> {
+    match Engine::new().compile(source) {
+        Ok(script) => Some(script),
+        Err(error) if common::too_tall_for_wasi(&error) => None,
+        Err(error) => panic!("{name}: {error}"),
+    }
+}
+
 fn assert_too_deep(source: &str, name: &str) {
     let error = Engine::new().compile(source).err().unwrap();
     assert_eq!(error.kind, ErrorKind::Syntax, "{name}: {error}");
@@ -76,9 +86,7 @@ fn nested_declarations_and_destructuring_reach_the_reference_depth() {
         ("modules", "module A\n", "end\n", 1023),
     ] {
         let source = |depth: usize| format!("{}{}", prefix.repeat(depth), suffix.repeat(depth));
-        Engine::new()
-            .compile(&source(depth))
-            .unwrap_or_else(|error| panic!("{name}: {error}"));
+        compile_deep(&source(depth), name);
         assert_too_deep(&source(depth + 1), name);
     }
     let destructure = |depth: usize| {
@@ -88,8 +96,9 @@ fn nested_declarations_and_destructuring_reach_the_reference_depth() {
             ")".repeat(depth)
         )
     };
-    let script = Engine::new().compile(&destructure(1020)).unwrap();
-    script.call("run", &[], CallOptions::default()).unwrap();
+    if let Some(script) = compile_deep(&destructure(1020), "destructuring") {
+        script.call("run", &[], CallOptions::default()).unwrap();
+    }
     assert_too_deep(&destructure(1021), "destructuring");
 }
 
@@ -135,10 +144,12 @@ fn elsif_chains_and_deep_aliases_do_not_nest() {
     let source = format!(
         "class Box\ndef original\n{body}\nend\nalias copied original\nend\ndef run\nBox.new.copied\nend"
     );
-    let script = Engine::new().compile(&source).unwrap();
-    script.call("run", &[], CallOptions::default()).unwrap();
+    if let Some(script) = compile_deep(&source, "method alias") {
+        script.call("run", &[], CallOptions::default()).unwrap();
+    }
     let body = format!("{}1{}", "[".repeat(1018), "]".repeat(1018));
     let source = format!("def original\n{body}\nend\nalias copied original\ndef run\ncopied\nend");
-    let script = Engine::new().compile(&source).unwrap();
-    script.call("run", &[], CallOptions::default()).unwrap();
+    if let Some(script) = compile_deep(&source, "function alias") {
+        script.call("run", &[], CallOptions::default()).unwrap();
+    }
 }

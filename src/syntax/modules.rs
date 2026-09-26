@@ -35,6 +35,13 @@ pub(crate) struct Module {
     pub(super) depth: u32,
 }
 
+impl Module {
+    /// The height of the declaration's syntax tree, which the parser bounds.
+    pub(crate) fn height(&self) -> u32 {
+        self.depth
+    }
+}
+
 /// How a visibility word applies, as Go's `parseVisibilityMember` reads it.
 enum Directive {
     /// It applies to the declaration that follows on its line.

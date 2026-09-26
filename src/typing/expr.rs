@@ -93,6 +93,11 @@ impl<'a> Checker<'a> {
 
     pub(super) fn expr_want(&mut self, expr: &'a Expr, want: Want) -> Ty {
         self.steps += 1;
+        if super::too_tall(expr.height()) {
+            let span = self.spans.expr(expr);
+            self.too_deep(span);
+            return Ty::ANY;
+        }
         let key = std::ptr::from_ref(expr) as usize;
         if let Some(memo) = &self.memo {
             if memo.replay {

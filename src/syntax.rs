@@ -66,6 +66,11 @@ pub(crate) enum Node {
     Index(Boxed<Expr>, Buffer<Expr>),
 }
 impl Expr {
+    /// The height of the expression's syntax tree, which the parser bounds.
+    pub(crate) fn height(&self) -> u32 {
+        self.depth
+    }
+
     /// Moves the node out of an expression, which cannot be destructured
     /// because it drops its subtree without recursion.
     fn into_node(mut self) -> Node {
@@ -273,6 +278,12 @@ pub(crate) enum Statement {
     Return(Option<Expr>),
     Break(Option<Expr>),
     Next(Option<Expr>),
+}
+impl Stmt {
+    /// The height of the statement's syntax tree, which the parser bounds.
+    pub(crate) fn height(&self) -> u32 {
+        self.depth
+    }
 }
 impl Statement {
     fn at(self, offset: u32) -> Stmt {

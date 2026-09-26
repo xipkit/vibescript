@@ -62,9 +62,11 @@ fn language_conformance() {
             .map(str::to_owned)
             .unwrap_or_else(|| format!("def run(input)\n{}\nend", case["body"].as_str().unwrap()));
         let (engine, output) = engine(case);
-        let script = engine
-            .compile(&source)
-            .unwrap_or_else(|e| panic!("{name}: {e}"));
+        let script = match engine.compile(&source) {
+            Ok(script) => script,
+            Err(error) if common::too_tall_for_wasi(&error) => continue,
+            Err(error) => panic!("{name}: {error}"),
+        };
         let mut options = CallOptions::default();
         if let Some(steps) = case["steps"].as_u64() {
             options.limits.steps = Some(steps);

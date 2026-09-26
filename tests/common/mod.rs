@@ -57,6 +57,18 @@ pub fn gradual_engine() -> vibescript::Engine {
     vibescript::Engine::legacy_unchecked()
 }
 
+/// Whether `error` is the type checker's refusal, on WASI, of syntax taller
+/// than it descends into there: WASI's default stack cannot hold its
+/// recursion to the parser's full depth. Elsewhere it is never refused.
+pub fn too_tall_for_wasi(error: &vibescript::Error) -> bool {
+    cfg!(target_os = "wasi")
+        && error.diagnostics().iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .starts_with("syntax nesting too deep to type check")
+        })
+}
+
 /// The codes of the static diagnostics a failed compilation reports, such
 /// as `V0201`, in source order.
 pub fn codes(error: &vibescript::Error) -> Vec<String> {
