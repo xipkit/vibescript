@@ -309,11 +309,17 @@ pub(super) fn receive_root(
     };
     let member = &program.members[member];
     match binding {
-        RootBinding::Value(Value(Kind::Function(function))) => Err(callable_member_error(
-            "function",
-            &function.code.program.functions[function.index].name,
-            member,
-        )),
+        RootBinding::Value(Value(Kind::Function(function)))
+            if !receiving.runs_static(Some(
+                function.code.program.functions[function.index].params.len(),
+            )) =>
+        {
+            Err(callable_member_error(
+                "function",
+                &function.code.program.functions[function.index].name,
+                member,
+            ))
+        }
         RootBinding::Value(value @ Value(Kind::Builtin(_))) => stack.push(ctx, value),
         RootBinding::Function(owner, function)
             if !receiving.runs_static(Some(owner.functions[function].params.len())) =>

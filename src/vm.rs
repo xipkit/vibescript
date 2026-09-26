@@ -4034,8 +4034,7 @@ fn callable_member_error(kind: &str, name: &str, member: &str) -> Error {
     )
 }
 
-/// Reads a function for `receiving`. A required file binds its own functions
-/// dynamically, so they never run as receivers; a script's functions are static.
+/// Reads a function for `receiving`, calling it before selecting a result member.
 fn receive_function(
     program: &Program,
     ctx: &mut CallContext,
@@ -4046,11 +4045,7 @@ fn receive_function(
     receiving: Receiving,
 ) -> Result<()> {
     let fun = &program.functions[function];
-    let runs = if program.file {
-        receiving.runs_dynamic()
-    } else {
-        receiving.runs_static(Some(fun.params.len()))
-    };
+    let runs = receiving.runs_static(Some(fun.params.len()));
     if runs {
         return enter_auto(program, ctx, frames, storage, function, base);
     }

@@ -24,6 +24,30 @@ fn optional_script_parameters_are_bound_by_a_bare_call() {
 }
 
 #[test]
+fn required_file_bare_calls_can_receive_a_member_call() {
+    let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join(".cache/tmp")
+        .join(format!("bare-calls-{}", common::process_id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("worker.vibe"),
+        "def value(x: int = 7) -> int\n x\nend\ndef label -> string\n value.to_s\nend\n",
+    )
+    .unwrap();
+    let mut engine = common::static_engine();
+    engine
+        .set_module_config(vibescript::ModuleConfig {
+            paths: vec![dir.clone()],
+            ..Default::default()
+        })
+        .unwrap();
+    let script = engine.compile("require(\"worker\").label\n").unwrap();
+    let result = script.run(CallOptions::default());
+    std::fs::remove_dir_all(dir).unwrap();
+    assert_eq!(result.unwrap().value.as_bytes(), Some(b"7".as_slice()));
+}
+
+#[test]
 fn host_functions_and_capability_methods_run_without_parentheses() {
     let tick = HostMethod::new("tick", |_, _, _| Ok(Value::int(7)))
         .with_signature(Signature {
