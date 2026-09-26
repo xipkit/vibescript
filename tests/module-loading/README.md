@@ -2,13 +2,13 @@
 
 The fixtures contain 8,852 results from Go 1.27.1's `path.Match` and 1,004 module-policy observations from Vibescript v0.70.0: 988 runtime checks and 16 invalid configurations. Byte strings are encoded as hexadecimal so malformed UTF-8 remains reproducible.
 
-The generator in `reference/` pins the Vibescript dependency and verifies the Go toolchain version. It tests real module loads through both allow and deny rules. A retained runner supplies the module origin for explicit relative requests; the receiving engine applies the selected policy. Temporary modules stay in the repository's `.cache/tmp` directory.
+The generator in `reference/` is a Go test, so regenerating needs the Go 1.27.1 toolchain; it pins the Vibescript dependency and verifies the toolchain version. It tests real module loads through both allow and deny rules. A retained runner supplies the module origin for explicit relative requests; the receiving engine applies the selected policy. Temporary modules stay in the repository's `.cache/tmp` directory.
 
 From the repository root, generate fresh output without replacing the checked-in fixtures:
 
 ```sh
 mkdir -p .cache/language-modules/policy-reproduced
-VIBE_POLICY_FIXTURES="$PWD/.cache/language-modules/policy-reproduced" ./scripts/go -C tests/module-loading/reference test -v -count=1 -timeout=30s
+VIBE_POLICY_FIXTURES="$PWD/.cache/language-modules/policy-reproduced" go -C tests/module-loading/reference test -v -count=1 -timeout=30s
 ```
 
 Expected SHA-256 digests:
@@ -24,4 +24,4 @@ Configured roots retain open directory handles. A component walk opens directori
 
 The compiled-entry cache preserves held versions through source changes and clearing. It bounds entry count, publishes the first concurrent compilation, invalidates only the observed stale entry, and prevents pre-clear work from refilling a cleared generation. Retired callback payloads are released outside its lock.
 
-These helpers are connected to script `require` calls, including request-cache bounds, per-call version pinning, attached exports and retained file environments. Native integration tests are in `tests/require.rs`; `scripts/module_fixtures.py` adds Go/Rust execution comparisons for required files. Native filesystem tests currently run on macOS; Linux and Windows behavior remain pending native platform verification.
+These helpers are connected to script `require` calls, including request-cache bounds, per-call version pinning, attached exports and retained file environments. Native integration tests are in `tests/require.rs`; `scripts/module_fixtures.py` adds required-file execution cases to the golden corpora. Native filesystem tests currently run on macOS; Linux and Windows behavior remain pending native platform verification.

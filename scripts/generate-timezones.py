@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Copy the pinned timezone database and generate Windows abbreviation mappings."""
+"""Copy the pinned timezone database and generate Windows abbreviation mappings.
+
+Regenerating needs the Go 1.27.1 toolchain, whose GOROOT holds the database
+and the Windows mappings.
+"""
 import hashlib
 import json
 import re
@@ -8,7 +12,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-GOROOT = Path(subprocess.check_output([str(ROOT / 'scripts/go'), 'env', 'GOROOT'], text=True).strip())
+GOROOT = Path(subprocess.check_output(['go', 'env', 'GOROOT'], text=True).strip())
 archive = GOROOT / 'lib/time/zoneinfo.zip'
 expected = 'b2d18a7c8fa8142097a48c99609fb3c92db5ee98bc740294e57eab8ae9f94779'
 raw = archive.read_bytes()

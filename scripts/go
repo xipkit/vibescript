@@ -1,8 +1,0 @@
-#!/bin/sh
-set -eu
-repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
-export GOMODCACHE="$repo/.cache/gomod"
-export GOCACHE="$repo/.cache/gobuild"
-export GOTMPDIR="$repo/.cache/gotmp"
-mkdir -p "$GOTMPDIR"
-exec go "$@"

@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
-"""Generate simple case mappings from the pinned Go Unicode tables."""
+"""Generate simple case mappings from the pinned Go Unicode tables.
+
+Regenerating needs the Go 1.27.1 toolchain, whose GOROOT holds the Unicode
+17.0.0 tables.
+"""
 import json
 import re
 import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-goroot = Path(subprocess.check_output([str(ROOT / 'scripts/go'), 'env', 'GOROOT'], text=True).strip())
+goroot = Path(subprocess.check_output(['go', 'env', 'GOROOT'], text=True).strip())
 source = (goroot / 'src/unicode/tables.go').read_text()
 version = re.search(r'const Version = "([^"]+)"', source).group(1)
 assert version == '17.0.0', version

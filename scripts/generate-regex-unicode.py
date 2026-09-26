@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Generate RE2 Unicode categories, scripts, aliases and simple-fold orbits."""
+"""Generate RE2 Unicode categories, scripts, aliases and simple-fold orbits.
+
+Regenerating or checking needs the Go 1.27.1 toolchain, whose GOROOT holds
+the Unicode 17.0.0 tables.
+"""
 import argparse
 import hashlib
 from pathlib import Path
@@ -10,7 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def generate():
-    goroot = Path(subprocess.check_output([str(ROOT / 'scripts/go'), 'env', 'GOROOT'], text=True).strip())
+    goroot = Path(subprocess.check_output(['go', 'env', 'GOROOT'], text=True).strip())
     source = (goroot / 'src/unicode/tables.go').read_bytes()
     text = source.decode()
     assert 'const Version = "17.0.0"' in text

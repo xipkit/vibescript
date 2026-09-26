@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Generate Go's Unicode printability table for quoted shape field names."""
+"""Generate Go's Unicode printability table for quoted shape field names.
+
+Regenerating or checking needs the Go 1.27.1 toolchain, whose GOROOT holds
+strconv's tables.
+"""
 import argparse
 import hashlib
 from pathlib import Path
@@ -9,7 +13,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parent.parent
 
 def generate():
-    goroot = Path(subprocess.check_output([str(ROOT / 'scripts/go'), 'env', 'GOROOT'], text=True).strip())
+    goroot = Path(subprocess.check_output(['go', 'env', 'GOROOT'], text=True).strip())
     source = (goroot / 'src/strconv/isprint.go').read_bytes()
     tables = {}
     for name in ['isPrint16', 'isNotPrint16', 'isPrint32', 'isNotPrint32']:
