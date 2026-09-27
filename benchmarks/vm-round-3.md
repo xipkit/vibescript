@@ -32,6 +32,15 @@ The Counter log records iterator storage, declared slots and literal indexing. O
 
 The JSON writer and text implementation were not changed in this branch. These remaining regressions need a coordinated check after those agents' changes; they must not be hidden by the faster glue averages. The external artifact directory also retains focused confirmation runs when available.
 
+A separate eight-round M4 confirmation used the same binaries, five selected workloads, both modes/builds and a 500 ms target (the harness caps tiny cases at 100,000 calls). It did not reproduce the greeting slowdown. It confirmed a smaller uppercase slowdown and exposed a borderline unlimited-call result. Numeric controls stayed within the limit. These measurements leave the strict performance criterion open rather than establishing complete layout stability. Full confirmation data is in `.cache/vm-round-3/vinci-confirmation/`.
+
+| Focused M4 case | Build | Time, µs | Change |
+| --- | --- | ---: | ---: |
+| upcase_65536/metered | simd | 5.620 → 5.812 | +3.41% |
+| upcase_65536/unlimited | simd | 5.555 → 5.720 | +2.98% |
+| upstream_greeting/metered | simd | 1.012 → 0.998 | -1.40% |
+| function_calls/unlimited | simd | 53.789 → 55.622 | +3.41% |
+
 ## Profiles
 
 Samply captures cover `glue_orders` and `glue_orders_cap`, before and after. Final captures run 25,000 metered calls each. Percentages below are inclusive sample shares, not elapsed-time speedups. Member-call wrappers include the JSON work they invoke.
