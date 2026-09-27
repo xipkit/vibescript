@@ -136,7 +136,7 @@ pub(super) struct Parser<'a> {
     scanner: super::scan::Scanner,
     // Arrays amortize indexing and key sharing across repeated records.
     indexed: bool,
-    keys: Option<[Value; 64]>,
+    keys: Option<[[Value; 2]; 32]>,
     pub typed: super::typed::Stream<'a>,
 }
 
@@ -468,15 +468,14 @@ impl<'a> Parser<'a> {
                         .iter()
                         .fold(0usize, |hash, &b| hash.wrapping_mul(33) ^ usize::from(b))
                         & 31;
-                    let slot = slot * 2;
                     if self.keys.is_none() {
-                        self.keys = Some([const { Value::nil() }; 64]);
+                        self.keys = Some([const { [Value::nil(), Value::nil()] }; 32]);
                     }
-                    let keys = self.keys.as_mut().unwrap();
-                    let hit = if keys[slot].as_bytes() == Some(bytes) {
-                        Some(slot)
-                    } else if keys[slot + 1].as_bytes() == Some(bytes) {
-                        Some(slot + 1)
+                    let keys = &mut self.keys.as_mut().unwrap()[slot];
+                    let hit = if keys[0].as_bytes() == Some(bytes) {
+                        Some(&keys[0])
+                    } else if keys[1].as_bytes() == Some(bytes) {
+                        Some(&keys[1])
                     } else {
                         None
                     };
@@ -484,10 +483,10 @@ impl<'a> Parser<'a> {
                         // Sharing an existing key replaces its materialization,
                         // with the same logical work as copying the bytes.
                         self.ctx.work_bytes(bytes.len())?;
-                        keys[hit].clone()
+                        hit.clone()
                     } else {
                         let value = self.ctx.bytes(bytes)?;
-                        keys[slot + 1] = std::mem::replace(&mut keys[slot], value.clone());
+                        keys[1] = std::mem::replace(&mut keys[0], value.clone());
                         value
                     }
                 } else {

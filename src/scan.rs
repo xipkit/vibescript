@@ -28,10 +28,20 @@ pub(crate) fn prefix(s: &[u8], class: Class) -> usize {
     }
     let mut i = 0;
     #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
-    while s.len() - i >= 16 {
+    if matches!(class, Class::Ascii) {
+        for chunk in s.chunks_exact(64) {
+            // SAFETY: all four vector loads are within this complete chunk.
+            if !unsafe { vector_ascii64(chunk) } {
+                break;
+            }
+            i += 64;
+        }
+    }
+    #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
+    for chunk in s[i..].chunks_exact(16) {
         // SAFETY: each unaligned vector load stays within this 16-byte slice;
         // NEON and SSE2 are baseline features of the respective target architectures.
-        if !unsafe { vector_clean(&s[i..i + 16], class) } {
+        if !unsafe { vector_clean(chunk, class) } {
             break;
         }
         i += 16;
@@ -160,26 +170,53 @@ pub(crate) fn unicode_span(s: &[u8]) -> TextSpan {
 }
 
 pub(crate) fn ascii_case(s: &mut [u8], upper: bool) {
-    #[cfg_attr(
-        not(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64"))),
-        allow(unused_mut)
-    )]
-    let mut i = 0;
     #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
-    while s.len() - i >= 16 {
-        // SAFETY: the exclusive slice contains all 16 bytes loaded and stored;
-        // the instructions are baseline features of the target architecture.
-        unsafe {
-            vector_case(&mut s[i..i + 16], upper);
+    let tail = {
+        let mut chunks = s.chunks_exact_mut(16);
+        for chunk in &mut chunks {
+            // SAFETY: the exclusive chunk contains all 16 bytes loaded and
+            // stored; the instructions are baseline target features.
+            unsafe {
+                vector_case(chunk, upper);
+            }
         }
-        i += 16;
-    }
-    for b in &mut s[i..] {
+        chunks.into_remainder()
+    };
+    #[cfg(not(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64"))))]
+    let tail = s;
+    for b in tail {
         *b = if upper {
             b.to_ascii_uppercase()
         } else {
             b.to_ascii_lowercase()
         };
+    }
+}
+
+#[cfg(all(feature = "simd", target_arch = "aarch64"))]
+unsafe fn vector_ascii64(s: &[u8]) -> bool {
+    use std::arch::aarch64::*;
+    // SAFETY: caller supplies 64 bytes on a baseline NEON target.
+    unsafe {
+        let p = s.as_ptr();
+        let a = vorrq_u8(vld1q_u8(p), vld1q_u8(p.add(16)));
+        let b = vorrq_u8(vld1q_u8(p.add(32)), vld1q_u8(p.add(48)));
+        vmaxvq_u8(vorrq_u8(a, b)) < 128
+    }
+}
+
+#[cfg(all(feature = "simd", target_arch = "x86_64"))]
+unsafe fn vector_ascii64(s: &[u8]) -> bool {
+    use std::arch::x86_64::*;
+    // SAFETY: caller supplies 64 bytes; SSE2 is baseline on x86_64.
+    unsafe {
+        let p = s.as_ptr();
+        let a = _mm_or_si128(_mm_loadu_si128(p.cast()), _mm_loadu_si128(p.add(16).cast()));
+        let b = _mm_or_si128(
+            _mm_loadu_si128(p.add(32).cast()),
+            _mm_loadu_si128(p.add(48).cast()),
+        );
+        _mm_movemask_epi8(_mm_or_si128(a, b)) == 0
     }
 }
 
@@ -578,7 +615,7 @@ mod tests {
     #[test]
     fn classifiers_match_scalar_at_every_lane() {
         for class in [Class::Ascii, Class::JsonParse, Class::JsonStringify] {
-            for len in [0, 1, 15, 16, 17, 31, 32, 33, 127] {
+            for len in [0, 1, 15, 16, 17, 31, 32, 33, 63, 64, 65, 127] {
                 for pos in 0..len {
                     for byte in 0..=255 {
                         let mut data = vec![b'a'; len];
