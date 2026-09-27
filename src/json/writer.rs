@@ -136,12 +136,22 @@ enum Site {
 ///
 /// Nesting is bounded by the frame count rather than the native stack, and a
 /// container is rejected at entry once `MAX_VALUE_DEPTH` containers are open.
-pub(super) fn write_value<'a>(
+pub(super) fn write_value(ctx: &mut CallContext, root: &Value, out: &mut Output) -> Result<()> {
+    write_value_with::<true>(ctx, root, out)
+}
+
+fn write_value_with<const BATCH: bool>(
     ctx: &mut CallContext,
-    root: &'a Value,
+    root: &Value,
     out: &mut Output,
 ) -> Result<()> {
-    let mut frames: Buffer<Frame<'a>> = Buffer::empty();
+    let mut budget = super::accounting::Steps::new(ctx, CHUNK);
+    #[cfg(test)]
+    {
+        budget.unbatched = !BATCH;
+    }
+    let ctx = &mut budget;
+    let mut frames: Buffer<Frame<'_>> = Buffer::empty();
     let mut current = root;
     let (error, site) = 'failed: loop {
         match start(ctx, current, out, frames.data.len()) {
@@ -158,7 +168,7 @@ pub(super) fn write_value<'a>(
             };
             match frame {
                 Frame::Array { items, next } => {
-                    let items: &'a [Value] = items;
+                    let items: &[Value] = items;
                     if let Some(item) = items.get(*next) {
                         if *next > 0 {
                             if let Err(error) = out.push(ctx, b',') {
@@ -175,7 +185,7 @@ pub(super) fn write_value<'a>(
                     frames.data.pop();
                 }
                 Frame::Hash { entries, next } => {
-                    let entries: &'a [(Value, Value)] = entries;
+                    let entries: &[(Value, Value)] = entries;
                     if let Some((key, value)) = entries.get(*next) {
                         if *next > 0 {
                             if let Err(error) = out.push(ctx, b',') {
@@ -278,7 +288,7 @@ impl std::fmt::Display for Path<'_, '_> {
 /// Writes a scalar completely, or opens a container and returns its frame.
 /// `open` is the number of containers currently open around `value`.
 fn start<'a>(
-    ctx: &mut CallContext,
+    ctx: &mut super::accounting::Steps<'_>,
     value: &'a Value,
     out: &mut Output,
     open: usize,
@@ -487,6 +497,54 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
 mod tests {
     use super::*;
     use crate::{CallOptions, Limits};
+
+    #[test]
+    fn every_writer_quota_boundary_matches_unbatched_accounting() {
+        let value = Value::array(vec![
+            Value::int(7),
+            Value::hash(vec![(b"a".to_vec(), Value::bytes(b"x\ny"))]),
+            Value::nil(),
+        ]);
+        let run = |batched, steps, memory| {
+            let mut ctx = CallContext::new(CallOptions {
+                limits: Limits {
+                    steps,
+                    memory_bytes: memory,
+                    ..Limits::default()
+                },
+                ..CallOptions::default()
+            });
+            let mut out = Output::new(Some(1024), true);
+            let result = if batched {
+                write_value_with::<true>(&mut ctx, &value, &mut out)
+            } else {
+                write_value_with::<false>(&mut ctx, &value, &mut out)
+            };
+            let stats = ctx.stats();
+            let bytes = out.buffer.data.clone();
+            drop(out);
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+            (
+                result,
+                bytes,
+                stats.steps,
+                stats.peak_memory_bytes,
+                stats.retained_memory_bytes,
+                ctx.checkpoint(),
+            )
+        };
+        let baseline = run(false, None, None);
+        assert_eq!(run(true, None, None), baseline);
+        for steps in 0..=baseline.2 + 1 {
+            for memory in 0..=baseline.3 + 1 {
+                assert_eq!(
+                    run(true, Some(steps), Some(memory)),
+                    run(false, Some(steps), Some(memory)),
+                    "steps {steps}, memory {memory}"
+                );
+            }
+        }
+    }
 
     /// The per-span and per-escape writer this module batches, kept as the
     /// accounting oracle.

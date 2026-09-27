@@ -132,6 +132,18 @@ impl Charge {
         self.bytes
     }
 
+    /// Live usage excluding a reservation's unused tail. Its owner settles
+    /// the peak and releases that tail before any other reserve or return.
+    pub(crate) fn reserved_usage(&self, unused: usize) -> usize {
+        debug_assert!(unused <= self.bytes);
+        self.memory.used.load(Ordering::Relaxed) - unused
+    }
+
+    /// Publishes a peak accumulated by an exclusive, non-reentrant builder.
+    pub(crate) fn publish_peak(&self, peak: usize) {
+        self.memory.peak.fetch_max(peak, Ordering::Relaxed);
+    }
+
     pub(crate) fn release(&mut self, bytes: usize) {
         assert!(bytes <= self.bytes);
         self.bytes -= bytes;
@@ -277,6 +289,30 @@ impl CallContext {
             0 => Ok(()),
             steps => self.charge(steps),
         }
+    }
+
+    /// Work that can be deferred without passing a quota or a periodic
+    /// checkpoint. The borrower must settle it before using this context.
+    #[inline]
+    pub(crate) fn step_allowance(&self, maximum: u64) -> u64 {
+        if self.steps == 0 || self.exhausted.is_some() {
+            return 0;
+        }
+        maximum.min(15 - self.steps % 16).min(
+            self.options
+                .limits
+                .steps
+                .unwrap_or(u64::MAX)
+                .saturating_sub(self.steps),
+        )
+    }
+
+    /// Settles an allowance before its exclusive borrower uses the context
+    /// again. The allowance excluded every quota and checkpoint boundary.
+    #[inline]
+    pub(crate) fn settle_step_allowance(&mut self, steps: u64) {
+        debug_assert!(steps <= self.step_allowance(steps));
+        self.steps += steps;
     }
 
     /// Fails with latched step exhaustion when `steps` further units cannot fit
@@ -449,6 +485,20 @@ impl CallContext {
             memory: self.memory.clone(),
             bytes,
         }))
+    }
+
+    /// Claims available headroom without failing or publishing a speculative
+    /// peak. The caller checks interruption at each original consumption point
+    /// and releases unused bytes before calling another allocator or returning.
+    pub(crate) fn reserve_available(&mut self, maximum: usize) -> Charge {
+        let used = self.memory.used.load(Ordering::Relaxed);
+        let limit = self.options.limits.memory_bytes.unwrap_or(usize::MAX);
+        let bytes = maximum.min(limit.saturating_sub(used));
+        self.memory.used.fetch_add(bytes, Ordering::Relaxed);
+        Charge {
+            memory: self.memory.clone(),
+            bytes,
+        }
     }
 
     pub(crate) fn owns(&self, charge: &Option<Charge>) -> bool {

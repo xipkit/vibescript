@@ -2,6 +2,27 @@ use super::*;
 use crate::{CallOptions, Limits, budget::MAX_VALUE_DEPTH};
 
 #[test]
+fn repeated_short_strings_share_values_without_retaining_the_document() {
+    let input = format!("[{}]", vec![r#""api""#; 256].join(","));
+    let mut ctx = CallContext::new(CallOptions::default());
+    let parsed = parse(&mut ctx, input.as_bytes()).unwrap();
+    let values = parsed.as_array().unwrap();
+    let crate::value::Kind::Bytes(first) = &values[0].0 else {
+        panic!("string")
+    };
+    for value in values {
+        let crate::value::Kind::Bytes(bytes) = &value.0 else {
+            panic!("string")
+        };
+        assert!(std::sync::Arc::ptr_eq(first, bytes));
+        assert_eq!(bytes.data.as_slice(), b"api");
+        assert_eq!(bytes.data.capacity(), 3);
+    }
+    drop(parsed);
+    assert_eq!(ctx.stats().retained_memory_bytes, 0);
+}
+
+#[test]
 fn colliding_record_keys_share_storage_without_changing_values() {
     let record = r#"{"name":"Ada","city":"Paris","name":"Grace"}"#;
     let input = format!("[{}]", vec![record; 32].join(","));

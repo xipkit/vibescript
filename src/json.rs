@@ -1,9 +1,11 @@
 use crate::{CallContext, Error, ErrorKind, Result, Value, budget::CHUNK};
 use std::fmt::{self, Write};
 
+mod accounting;
 #[cfg(test)]
 mod differential;
 mod parser;
+mod records;
 mod scan;
 mod typed;
 mod writer;
@@ -57,6 +59,7 @@ pub(crate) fn parse_typed(
         }
         Err(error) => error,
     };
+    p.clear_strings();
     match failure {
         Some(failure)
             if error.kind == ErrorKind::Json
@@ -69,7 +72,8 @@ pub(crate) fn parse_typed(
                 }
             }
             let rendered = Rendered(failure, name, input);
-            let (message, _charge) = crate::source::formatted(ctx, format_args!("{rendered}"))?;
+            let (message, _charge) =
+                crate::source::formatted(&mut p.ctx, format_args!("{rendered}"))?;
             Err(error.with_message(message))
         }
         _ => Err(error),

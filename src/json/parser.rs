@@ -125,7 +125,7 @@ fn quote_byte(byte: u8, out: &mut impl std::fmt::Write) -> std::fmt::Result {
 }
 
 pub(super) struct Parser<'a> {
-    ctx: &'a mut CallContext,
+    pub(super) ctx: super::accounting::Steps<'a>,
     input: &'a [u8],
     pos: usize,
     /// The reference's reason for the most recent syntax failure.
@@ -136,7 +136,11 @@ pub(super) struct Parser<'a> {
     scanner: super::scan::Scanner,
     // Arrays amortize indexing and key sharing across repeated records.
     indexed: bool,
-    keys: Option<[[Value; 2]; 32]>,
+    keys: Option<[[Value; 2]; 64]>,
+    records: Option<super::records::Records<'a>>,
+    record_depth: usize,
+    #[cfg(test)]
+    pub unbatched: bool,
     pub typed: super::typed::Stream<'a>,
 }
 
@@ -148,7 +152,7 @@ impl<'a> Parser<'a> {
 
     pub fn new(ctx: &'a mut CallContext, input: &'a [u8]) -> Self {
         Self {
-            ctx,
+            ctx: super::accounting::Steps::new(ctx, input.len()),
             input,
             pos: 0,
             failure: None,
@@ -157,11 +161,24 @@ impl<'a> Parser<'a> {
             indexed: false,
             keys: None,
             typed: super::typed::Stream::default(),
+            records: None,
+            record_depth: 0,
+            #[cfg(test)]
+            unbatched: false,
         }
     }
 
     pub fn finished(&self) -> bool {
         self.pos == self.input.len()
+    }
+
+    /// Releases scalar cache entries after replacement or a failed document.
+    pub fn clear_strings(&mut self) {
+        if let Some(keys) = &mut self.keys {
+            for values in &mut keys[32..] {
+                *values = [Value::nil(), Value::nil()];
+            }
+        }
     }
 
     /// Fails with the host message `msg` and records the reference's reason.
@@ -231,6 +248,10 @@ impl<'a> Parser<'a> {
     /// frame count rather than the native stack. Any error drops the frames,
     /// releasing every partially built container and completed sibling.
     pub fn value(&mut self) -> Result<Value> {
+        #[cfg(test)]
+        {
+            self.ctx.unbatched = self.unbatched;
+        }
         // Sample object prefixes so large string payloads do not pay for a
         // document-wide search. A later array still uses the ordinary parser.
         let indexed = self.input.len() >= 512
@@ -251,7 +272,11 @@ impl<'a> Parser<'a> {
         }
     }
 
+    #[inline(never)]
     fn value_with<const INDEX: bool, const TYPED: bool>(&mut self) -> Result<Value> {
+        if TYPED {
+            self.records = Some(super::records::Records::default());
+        }
         let mut frames: Buffer<Frame> = Buffer::empty();
         loop {
             let Some(mut value) = self.start::<INDEX, TYPED>(&mut frames)? else {
@@ -263,18 +288,19 @@ impl<'a> Parser<'a> {
                 if TYPED {
                     self.typed.complete(frames.data.len(), &value);
                 }
+                let open = frames.data.len();
                 let Some(frame) = frames.data.last_mut() else {
                     return Ok(value);
                 };
                 match frame {
                     Frame::Array(out) => {
-                        out.push(self.ctx, value)?;
+                        out.push(&mut self.ctx, value)?;
                         self.space_with::<INDEX>()?;
                         if self.take::<INDEX>(b']') {
                             let Some(Frame::Array(out)) = frames.data.pop() else {
                                 return self.err("expected closing bracket", Failure::End);
                             };
-                            value = Value::from_array(self.ctx, out)?;
+                            value = Value::from_array(&mut self.ctx, out)?;
                             continue;
                         }
                         if !self.take::<INDEX>(b',') {
@@ -284,19 +310,47 @@ impl<'a> Parser<'a> {
                         break;
                     }
                     Frame::Hash { out, key } => {
-                        out.insert(self.ctx, std::mem::take(key), value)?;
+                        let capacity = if TYPED && out.buffer.data.is_empty() {
+                            self.records.as_ref().unwrap().capacity(open - 1)
+                        } else {
+                            None
+                        };
+                        if let Some(capacity) = capacity.filter(|&n| n > 0) {
+                            // The first insertion has no comparisons or index. Reserve
+                            // at its usual allocation point, after its logical step.
+                            self.ctx.charge(1)?;
+                            let depth = value.depth() + 1;
+                            if depth > MAX_VALUE_DEPTH {
+                                return self
+                                    .ctx
+                                    .guard(ErrorKind::Recursion, "value nesting too deep");
+                            }
+                            out.buffer.ensure(&mut self.ctx, capacity)?;
+                            out.buffer.data.push((std::mem::take(key), value));
+                            out.depth = depth;
+                        } else {
+                            let previous = out.buffer.data.len();
+                            out.insert(&mut self.ctx, std::mem::take(key), value)?;
+                            if INDEX && out.buffer.data.len() == previous {
+                                // A duplicate can release a whole subtree. Drop
+                                // cached scalar references before the next charge
+                                // so sharing cannot retain discarded values.
+                                self.clear_strings();
+                            }
+                        }
                         self.space_with::<INDEX>()?;
                         if self.take::<INDEX>(b'}') {
                             let Some(Frame::Hash { out, .. }) = frames.data.pop() else {
                                 return self.err("expected closing brace", Failure::End);
                             };
-                            value = Value::from_hash(self.ctx, out)?;
+                            value = Value::from_hash(&mut self.ctx, out)?;
                             continue;
                         }
                         if !self.take::<INDEX>(b',') {
                             let failure = self.found(Failure::AfterValue);
                             return self.err("expected comma or closing brace", failure);
                         }
+                        self.record_depth = open - 1;
                         *key = self.key::<INDEX>()?;
                         break;
                     }
@@ -319,6 +373,16 @@ impl<'a> Parser<'a> {
                 Some(Frame::Hash { key, .. }) => key.as_bytes(),
                 _ => None,
             };
+            let index = match frames.data.last() {
+                Some(Frame::Array(out)) => out.data.len(),
+                _ => 0,
+            };
+            if matches!(self.input.get(self.pos), Some(b'[' | b'{')) {
+                self.records
+                    .as_mut()
+                    .unwrap()
+                    .start(self.typed.ty, frames.data.len(), key, index);
+            }
             self.typed.start(
                 frames.data.len(),
                 key,
@@ -336,9 +400,9 @@ impl<'a> Parser<'a> {
                 self.pos += 1;
                 self.space_with::<INDEX>()?;
                 if self.take::<INDEX>(b']') {
-                    return Value::from_array(self.ctx, Buffer::empty()).map(Some);
+                    return Value::from_array(&mut self.ctx, Buffer::empty()).map(Some);
                 }
-                frames.push(self.ctx, Frame::Array(Buffer::empty()))?;
+                frames.push(&mut self.ctx, Frame::Array(Buffer::empty()))?;
                 Ok(None)
             }
             Some(b'{') => {
@@ -346,11 +410,12 @@ impl<'a> Parser<'a> {
                 self.pos += 1;
                 self.space_with::<INDEX>()?;
                 if self.take::<INDEX>(b'}') {
-                    return Value::from_hash(self.ctx, Hash::empty()).map(Some);
+                    return Value::from_hash(&mut self.ctx, Hash::empty()).map(Some);
                 }
+                self.record_depth = frames.data.len();
                 let key = self.key::<INDEX>()?;
                 frames.push(
-                    self.ctx,
+                    &mut self.ctx,
                     Frame::Hash {
                         out: Hash::empty(),
                         key,
@@ -433,7 +498,7 @@ impl<'a> Parser<'a> {
                         self.ctx.charge(1)?;
                     }
                     self.pos += len;
-                    let value = self.ctx.bytes(&self.input[start..self.pos])?;
+                    let value = self.copy_string(start, key)?;
                     self.pos += 1;
                     return Ok(value);
                 }
@@ -460,38 +525,7 @@ impl<'a> Parser<'a> {
                 continue;
             }
             if self.input[self.pos] == b'"' {
-                let bytes = &self.input[start..self.pos];
-                let value = if key && INDEX && self.indexed && bytes.len() <= 64 {
-                    // Two ways retain common colliding keys across records
-                    // without enlarging the bounded cache.
-                    let slot = bytes
-                        .iter()
-                        .fold(0usize, |hash, &b| hash.wrapping_mul(33) ^ usize::from(b))
-                        & 31;
-                    if self.keys.is_none() {
-                        self.keys = Some([const { [Value::nil(), Value::nil()] }; 32]);
-                    }
-                    let keys = &mut self.keys.as_mut().unwrap()[slot];
-                    let hit = if keys[0].as_bytes() == Some(bytes) {
-                        Some(&keys[0])
-                    } else if keys[1].as_bytes() == Some(bytes) {
-                        Some(&keys[1])
-                    } else {
-                        None
-                    };
-                    if let Some(hit) = hit {
-                        // Sharing an existing key replaces its materialization,
-                        // with the same logical work as copying the bytes.
-                        self.ctx.work_bytes(bytes.len())?;
-                        hit.clone()
-                    } else {
-                        let value = self.ctx.bytes(bytes)?;
-                        keys[1] = std::mem::replace(&mut keys[0], value.clone());
-                        value
-                    }
-                } else {
-                    self.ctx.bytes(bytes)?
-                };
+                let value = self.copy_string(start, key)?;
                 self.pos += 1;
                 if INDEX && self.indexed {
                     self.scanner.end_string(self.pos);
@@ -500,8 +534,8 @@ impl<'a> Parser<'a> {
             }
             break;
         }
-        let mut out = Buffer::with_capacity(self.ctx, self.pos - start)?;
-        out.extend(self.ctx, &self.input[start..self.pos])?;
+        let mut out = Buffer::with_capacity(&mut self.ctx, self.pos - start)?;
+        out.extend(self.ctx.settled(), &self.input[start..self.pos])?;
         // Steps are charged as when each span was appended with `extend` and
         // each escape charged on its own, but settled in batches: before the
         // buffer grows or anything fails, and after each chunk of input.
@@ -539,7 +573,7 @@ impl<'a> Parser<'a> {
                     pending += span.steps;
                 }
                 let bytes = &self.input[self.pos..self.pos + span.len];
-                out.extend_deferred(self.ctx, bytes, &mut pending)?;
+                out.extend_deferred(self.ctx.settled(), bytes, &mut pending)?;
                 self.pos += span.len;
                 continue;
             }
@@ -561,7 +595,7 @@ impl<'a> Parser<'a> {
             };
             if let Some(byte) = byte {
                 self.pos += 1;
-                out.push_deferred(self.ctx, byte, &mut pending)?;
+                out.push_deferred(self.ctx.settled(), byte, &mut pending)?;
                 continue;
             }
             if b >= 128 {
@@ -570,7 +604,11 @@ impl<'a> Parser<'a> {
                 let (ch, n, _) = scan::rune(&self.input[self.pos..]);
                 self.pos += n;
                 let mut buf = [0; 4];
-                out.extend_deferred(self.ctx, ch.encode_utf8(&mut buf).as_bytes(), &mut pending)?;
+                out.extend_deferred(
+                    self.ctx.settled(),
+                    ch.encode_utf8(&mut buf).as_bytes(),
+                    &mut pending,
+                )?;
                 continue;
             }
             self.ctx.charge_pending(&mut pending)?;
@@ -579,7 +617,49 @@ impl<'a> Parser<'a> {
                     if INDEX && self.indexed {
                         self.scanner.end_string(self.pos);
                     }
-                    return Value::from_bytes(self.ctx, out);
+                    let value = Value::from_bytes(self.ctx.settled(), out)?;
+                    if key && self.typed.ty.is_some() {
+                        if let Some(slot) = self.records.as_mut().unwrap().slot(
+                            self.ctx.settled(),
+                            self.record_depth,
+                            value.as_bytes().unwrap(),
+                        )? {
+                            let name = value.as_bytes().unwrap();
+                            let cached = self.keys.as_ref().and_then(|keys| {
+                                if name.len() > 64 {
+                                    return None;
+                                }
+                                let index = name.iter().fold(0usize, |hash, &b| {
+                                    hash.wrapping_mul(33) ^ usize::from(b)
+                                }) & 31;
+                                keys[index].iter().find(|key| key.as_bytes() == Some(name))
+                            });
+                            if let Some(shared) = self
+                                .records
+                                .as_ref()
+                                .unwrap()
+                                .get(slot)
+                                .or_else(|| {
+                                    self.records.as_ref().unwrap().shared(name, Some(slot.0))
+                                })
+                                .or(cached)
+                            {
+                                let shared = shared.clone();
+                                self.records.as_mut().unwrap().remember(
+                                    self.record_depth,
+                                    slot,
+                                    &shared,
+                                );
+                                return Ok(shared);
+                            }
+                            self.records.as_mut().unwrap().remember(
+                                self.record_depth,
+                                slot,
+                                &value,
+                            );
+                        }
+                    }
+                    return Ok(value);
                 }
                 b'\\' => {
                     let Some(&b) = self.input.get(self.pos) else {
@@ -612,7 +692,7 @@ impl<'a> Parser<'a> {
                             };
                             let ch = char::from_u32(cp).unwrap();
                             let mut buf = [0; 4];
-                            out.extend(self.ctx, ch.encode_utf8(&mut buf).as_bytes())?;
+                            out.extend(self.ctx.settled(), ch.encode_utf8(&mut buf).as_bytes())?;
                         }
                         _ => return self.err("invalid JSON escape", Failure::Escape(b)),
                     }
@@ -622,6 +702,104 @@ impl<'a> Parser<'a> {
                 }
             }
         }
+    }
+
+    fn copy_string(&mut self, start: usize, key: bool) -> Result<Value> {
+        let bytes = &self.input[start..self.pos];
+        // Numbered identifiers rarely repeat and would only churn the value cache.
+        let cache = if self.indexed
+            && bytes.len() <= 64
+            && (key || !bytes.iter().any(u8::is_ascii_digit))
+        {
+            let slot = bytes
+                .iter()
+                .fold(0usize, |hash, &b| hash.wrapping_mul(33) ^ usize::from(b))
+                & 31
+                | (usize::from(!key) << 5);
+            if self.keys.is_none() {
+                self.keys = Some([const { [Value::nil(), Value::nil()] }; 64]);
+            }
+            let keys = &self.keys.as_ref().unwrap()[slot];
+            if let Some(hit) = keys.iter().find(|value| value.as_bytes() == Some(bytes)) {
+                if !key {
+                    self.ctx.checkpoint()?;
+                }
+                self.ctx.work_bytes(bytes.len())?;
+                if !key {
+                    self.ctx.checkpoint()?;
+                }
+                if key
+                    && self.typed.ty.is_some()
+                    && !self.records.as_ref().unwrap().ready(self.record_depth)
+                {
+                    if let Some(slot) = self.records.as_mut().unwrap().slot(
+                        &mut self.ctx,
+                        self.record_depth,
+                        bytes,
+                    )? {
+                        self.records
+                            .as_mut()
+                            .unwrap()
+                            .remember(self.record_depth, slot, hit);
+                    }
+                }
+                return Ok(hit.clone());
+            }
+            Some(slot)
+        } else {
+            None
+        };
+        let slot = if key && self.typed.ty.is_some() {
+            self.records
+                .as_mut()
+                .unwrap()
+                .slot(&mut self.ctx, self.record_depth, bytes)?
+        } else {
+            None
+        };
+        let shared = if key && self.typed.ty.is_some() {
+            slot.and_then(|slot| self.records.as_ref().unwrap().get(slot))
+                .or_else(|| {
+                    self.records
+                        .as_ref()
+                        .unwrap()
+                        .shared(bytes, slot.map(|slot| slot.0))
+                })
+        } else {
+            None
+        };
+        let value = if let Some(shared) = shared {
+            self.ctx.checkpoint()?;
+            for chunk in bytes.chunks(CHUNK) {
+                self.ctx.work_bytes(chunk.len())?;
+            }
+            self.ctx.checkpoint()?;
+            shared.clone()
+        } else {
+            self.copy_bytes(bytes)?
+        };
+        if let Some(slot) = slot {
+            self.records
+                .as_mut()
+                .unwrap()
+                .remember(self.record_depth, slot, &value);
+        }
+        if let Some(slot) = cache {
+            let keys = &mut self.keys.as_mut().unwrap()[slot];
+            keys[1] = std::mem::replace(&mut keys[0], value.clone());
+        }
+        Ok(value)
+    }
+
+    fn copy_bytes(&mut self, bytes: &[u8]) -> Result<Value> {
+        if !self.indexed {
+            return self.ctx.bytes(bytes);
+        }
+        #[cfg(test)]
+        if self.unbatched {
+            return self.ctx.bytes(bytes);
+        }
+        super::accounting::copy_bytes(&mut self.ctx, bytes)
     }
 
     fn hex(&mut self) -> Result<u16> {
@@ -689,7 +867,7 @@ impl<'a> Parser<'a> {
         let text = &self.input[start..self.pos];
         self.ctx.work_bytes(text.len())?;
         if float {
-            let n = super::parse_float(self.ctx, text)?;
+            let n = super::parse_float(&mut self.ctx, text)?;
             if !n.is_finite() {
                 return self.err(
                     "JSON number outside finite f64 range",
@@ -700,7 +878,7 @@ impl<'a> Parser<'a> {
         } else if let Some(n) = integer(text) {
             Ok(Value::int(n))
         } else {
-            crate::integer::parse_digits(self.ctx, text, 10)
+            crate::integer::parse_digits(&mut self.ctx, text, 10)
         }
     }
 
@@ -757,6 +935,124 @@ impl<'a> Parser<'a> {
 mod tests {
     use super::*;
     use crate::{CallOptions, Limits};
+
+    #[test]
+    fn string_cache_releases_overwritten_subtrees_before_further_allocation() {
+        let input = format!(
+            r#"[{{"a":{{"k":"discarded"}},"a":{{"k":"replacement"}},"tail":"{}"}}]"#,
+            "x".repeat(600)
+        );
+        let run = |indexed| {
+            let mut ctx = CallContext::new(CallOptions::default());
+            let mut parser = Parser::new(&mut ctx, input.as_bytes());
+            let value = if indexed {
+                parser.value_with::<true, false>()
+            } else {
+                parser.value_with::<false, false>()
+            }
+            .unwrap();
+            drop(parser);
+            let stats = ctx.stats();
+            let mut encoder = CallContext::new(CallOptions::default());
+            let encoded = crate::json::stringify(&mut encoder, &value)
+                .unwrap()
+                .as_bytes()
+                .unwrap()
+                .to_vec();
+            drop(value);
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+            (
+                encoded,
+                stats.steps,
+                stats.peak_memory_bytes,
+                stats.retained_memory_bytes,
+            )
+        };
+        let baseline = run(false);
+        let shared = run(true);
+        assert_eq!((&shared.0, shared.1), (&baseline.0, baseline.1));
+        assert!(shared.2 <= baseline.2);
+        assert!(shared.3 <= baseline.3);
+    }
+
+    #[test]
+    fn every_document_quota_boundary_matches_unbatched_accounting() {
+        for input in [
+            br#"["a",{"b":"cd","b":3},false]"#.as_slice(),
+            br#"["a",{"b":"cd"},?]"#,
+            br#"["", "ab\ncd", 123.5, "tail"] trailing"#,
+        ] {
+            for padding in [0, 512] {
+                let padded = [vec![b' '; padding], input.to_vec()].concat();
+                let input = padded.as_slice();
+                let ty = crate::types::Type {
+                    name: "array".into(),
+                    nullable: false,
+                    kind: crate::types::TypeKind::Array(Some(Box::new(crate::types::Type {
+                        name: String::new(),
+                        nullable: false,
+                        kind: crate::types::TypeKind::Shape(
+                            vec![crate::types::Field {
+                                name: b"b".to_vec(),
+                                ty: crate::types::Type::named("any".into()),
+                                optional: false,
+                            }],
+                            false,
+                        ),
+                    }))),
+                };
+                for typed in [false, true] {
+                    let run = |unbatched, steps, memory| {
+                        let mut ctx = CallContext::new(CallOptions {
+                            limits: Limits {
+                                steps,
+                                memory_bytes: memory,
+                                ..Limits::default()
+                            },
+                            ..CallOptions::default()
+                        });
+                        let mut parser = Parser::new(&mut ctx, input);
+                        parser.unbatched = unbatched;
+                        parser.typed.ty = typed.then_some(&ty);
+                        let result = super::super::document(&mut parser);
+                        let position = parser.pos;
+                        let failure = parser.failure;
+                        drop(parser);
+                        let stats = ctx.stats();
+                        let outcome = result.map(|value| {
+                            let mut encoder = CallContext::new(CallOptions::default());
+                            crate::json::stringify(&mut encoder, &value)
+                                .unwrap()
+                                .as_bytes()
+                                .unwrap()
+                                .to_vec()
+                        });
+                        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+                        (
+                            outcome,
+                            position,
+                            failure,
+                            stats.steps,
+                            stats.peak_memory_bytes,
+                            stats.retained_memory_bytes,
+                            ctx.checkpoint(),
+                        )
+                    };
+                    let baseline = run(true, None, None);
+                    assert_eq!(run(false, None, None), baseline);
+                    for steps in 0..=baseline.3 + 1 {
+                        for memory in 0..=baseline.4 + 1 {
+                            assert_eq!(
+                                run(false, Some(steps), Some(memory)),
+                                run(true, Some(steps), Some(memory)),
+                                "{input:?}, steps {steps}, memory {memory}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn object_prefix_sampling_preserves_results_errors_and_steps() {
@@ -824,8 +1120,8 @@ mod tests {
             }
             break;
         }
-        let mut out = Buffer::with_capacity(this.ctx, this.pos - start)?;
-        out.extend(this.ctx, &this.input[start..this.pos])?;
+        let mut out = Buffer::with_capacity(&mut this.ctx, this.pos - start)?;
+        out.extend(&mut this.ctx, &this.input[start..this.pos])?;
         loop {
             if this.pos >= this.input.len() {
                 return this.err("unterminated JSON string", Failure::End);
@@ -836,7 +1132,7 @@ mod tests {
                 if span.runes != span.len {
                     this.ctx.charge(span.steps)?;
                 }
-                out.extend(this.ctx, &this.input[this.pos..this.pos + span.len])?;
+                out.extend(&mut this.ctx, &this.input[this.pos..this.pos + span.len])?;
                 this.pos += span.len;
                 continue;
             }
@@ -844,19 +1140,19 @@ mod tests {
             let b = this.input[this.pos];
             this.pos += 1;
             match b {
-                b'"' => return Value::from_bytes(this.ctx, out),
+                b'"' => return Value::from_bytes(&mut this.ctx, out),
                 b'\\' => {
                     let Some(&b) = this.input.get(this.pos) else {
                         return this.err("incomplete JSON escape", Failure::End);
                     };
                     this.pos += 1;
                     match b {
-                        b'"' | b'\\' | b'/' => out.push(this.ctx, b)?,
-                        b'b' => out.push(this.ctx, 8)?,
-                        b'f' => out.push(this.ctx, 12)?,
-                        b'n' => out.push(this.ctx, b'\n')?,
-                        b'r' => out.push(this.ctx, b'\r')?,
-                        b't' => out.push(this.ctx, b'\t')?,
+                        b'"' | b'\\' | b'/' => out.push(&mut this.ctx, b)?,
+                        b'b' => out.push(&mut this.ctx, 8)?,
+                        b'f' => out.push(&mut this.ctx, 12)?,
+                        b'n' => out.push(&mut this.ctx, b'\n')?,
+                        b'r' => out.push(&mut this.ctx, b'\r')?,
+                        b't' => out.push(&mut this.ctx, b'\t')?,
                         b'u' => {
                             let high = this.hex()?;
                             let cp = if (0xd800..=0xdbff).contains(&high) {
@@ -882,7 +1178,7 @@ mod tests {
                             };
                             let ch = char::from_u32(cp).unwrap();
                             let mut buf = [0; 4];
-                            out.extend(this.ctx, ch.encode_utf8(&mut buf).as_bytes())?;
+                            out.extend(&mut this.ctx, ch.encode_utf8(&mut buf).as_bytes())?;
                         }
                         _ => return this.err("invalid JSON escape", Failure::Escape(b)),
                     }
@@ -895,7 +1191,7 @@ mod tests {
                     let (ch, n, _) = scan::rune(&this.input[this.pos..]);
                     this.pos += n;
                     let mut buf = [0; 4];
-                    out.extend(this.ctx, ch.encode_utf8(&mut buf).as_bytes())?;
+                    out.extend(&mut this.ctx, ch.encode_utf8(&mut buf).as_bytes())?;
                 }
             }
         }
@@ -1003,6 +1299,7 @@ mod tests {
                         .map(|value| value.as_bytes().unwrap().to_vec())
                         .map_err(|error| (error.kind, error.message));
                     let (pos, failure) = (parser.pos, parser.failure);
+                    drop(parser);
                     let stats = ctx.stats();
                     // Only an exhausted step quota may stop at a different
                     // count and position, since pending steps are charged

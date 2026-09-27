@@ -279,15 +279,19 @@ mod tests {
                 })();
                 let stats = ctx.stats();
                 let result = result
-                    .map(|v| format!("{v:?}"))
+                    .map(|v| {
+                        let mut encoder = CallContext::new(CallOptions::default());
+                        crate::json::stringify(&mut encoder, &v)
+                            .unwrap()
+                            .as_bytes()
+                            .unwrap()
+                            .to_vec()
+                    })
                     .map_err(|e: crate::Error| (e.kind, e.message));
                 assert_eq!(ctx.stats().retained_memory_bytes, 0);
-                (
-                    result,
-                    stats.steps,
-                    stats.peak_memory_bytes,
-                    stats.retained_memory_bytes,
-                )
+                // Record storage is deliberately smaller; proof work and every
+                // step-quota outcome must still match ordinary normalization.
+                (result, stats.steps)
             };
             let baseline = run(false, None);
             assert_eq!(run(true, None), baseline, "{text}");

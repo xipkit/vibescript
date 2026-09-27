@@ -72,7 +72,7 @@ Literal string reads use `IndexLiteral`: a plain hash borrows the key's compiled
 
 Records a host passes in share their keys as well. An import keeps the keys it copies from small hashes, under 16 entries, in a table of 64 slots by a hash of their bytes, and the records after the first reuse them; a JSON-shaped argument of 256 records of four fields held 1,024 key copies, half of the call's tracked memory. Dictionaries do not use the table, since their keys do not repeat.
 
-`records::Fields` is the hook for building records outside the VM. `JSON.parse_as(raw, shape)` can import the shape's field names once per parse and key every object it builds with them, instead of copying each key of each object; that follow-up belongs to the JSON implementation.
+`records::Fields` is the hook for building records outside the VM. `JSON.parse_as(raw, shape)` imports names lazily at their first occurrence and shares them across records, including nested shapes and `array<shape>`. Small name tables stay inline. Required closed shapes reserve their declared field count at the first insertion; optional fields and open-shape extras keep ordinary hash growth. The type selects storage and shared names, never field positions: source order, duplicate replacement, equality, iteration, printing and JSON serialization use the ordinary hash implementation.
 
 ## Fixed memory
 
