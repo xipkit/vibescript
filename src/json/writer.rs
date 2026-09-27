@@ -104,7 +104,7 @@ impl Output {
         let spare = &mut self.buffer.data.spare_capacity_mut()[..2];
         spare[0].write(b'\\');
         spare[1].write(code);
-        // The checked spare slice covers both newly initialized bytes.
+        // SAFETY: The checked spare slice covers both newly initialized bytes.
         unsafe { self.buffer.data.set_len(len + 2) };
         *pending += 1;
         Ok(())
