@@ -70,6 +70,16 @@ pub(crate) struct Namespace {
 }
 
 impl Namespace {
+    /// The compiled slot layout; internal environments have no declaring program.
+    pub fn field_layout(&self) -> Option<&[String]> {
+        self.owner
+            .as_ref()?
+            .program
+            .field_layouts
+            .get(&self.definition.index)
+            .map(Vec::as_slice)
+    }
+
     pub fn untracked(definition: Arc<Definition>) -> Arc<Self> {
         Arc::new(Self {
             definition,

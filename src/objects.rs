@@ -10,6 +10,9 @@ use std::sync::{
     atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
 };
 
+mod fields;
+use fields::Fields;
+
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 
 pub(crate) struct Heap {
@@ -109,7 +112,7 @@ impl<'a> MapFrame<'a> {
 
 struct Entry {
     internal: Arc<Instance>,
-    fields: Hash,
+    fields: Fields,
 }
 
 struct Identity {
@@ -327,13 +330,8 @@ fn new_scoped(
         owner: Owner::External(heap.clone()),
         _header: external_header,
     });
-    data.entries.push(
-        ctx,
-        Entry {
-            internal,
-            fields: Hash::empty(),
-        },
-    )?;
+    let fields = Fields::new(internal.class());
+    data.entries.push(ctx, Entry { internal, fields })?;
     data.allocations += 1;
     Ok(external)
 }
@@ -490,11 +488,49 @@ pub(crate) fn field(
     let heap = instance.heap()?;
     let mut data = heap.data.lock().unwrap();
     let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
-    let Some(index) = fields.find(ctx, name.as_bytes())? else {
+    let Some(index) = fields.find(ctx, instance.class(), name)? else {
         return Ok(None);
     };
-    let value = fields.buffer.data[index].1.clone();
+    let value = fields.get(index).unwrap().clone();
     Ok(Some(data.map(ctx, &heap, &value, false)?.unwrap_or(value)))
+}
+
+/// Reads a compiler-selected field without looking up its name.
+pub(crate) fn get_slot(
+    ctx: &mut CallContext,
+    instance: &Arc<Instance>,
+    slot: usize,
+) -> Result<Value> {
+    let heap = instance.heap()?;
+    let mut data = heap.data.lock().unwrap();
+    let Some(value) = data.entries.data[instance.identity.slot.load(Ordering::Relaxed)]
+        .fields
+        .get(slot)
+        .cloned()
+    else {
+        return Ok(Value::nil());
+    };
+    Ok(data.map(ctx, &heap, &value, false)?.unwrap_or(value))
+}
+
+/// Addresses a compiler-selected field, preserving first-write order.
+pub(crate) fn address_slot(
+    ctx: &mut CallContext,
+    instance: &Arc<Instance>,
+    slot: usize,
+) -> Result<crate::address::Address> {
+    let heap = instance.writable_heap(ctx)?;
+    let mut data = heap.data.lock().unwrap();
+    let instance = data
+        .instance(ctx, &heap, instance, false)?
+        .unwrap_or_else(|| instance.clone());
+    let fields = &mut data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+    if fields.get(slot).is_none() {
+        fields.set_slot(ctx, slot, Value::nil())?;
+    }
+    let value = fields.get(slot).unwrap().clone();
+    let value = data.map(ctx, &heap, &value, false)?.unwrap_or(value);
+    Ok(crate::address::Address::object(instance, slot, value))
 }
 
 /// Renders with the instance's field names, as for a lookup-failure suggestion.
@@ -505,13 +541,7 @@ pub(crate) fn with_field_names<R>(
     let heap = instance.heap()?;
     let data = heap.data.lock().unwrap();
     let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
-    Ok(render(
-        &mut fields
-            .buffer
-            .data
-            .iter()
-            .filter_map(|(key, _)| key.as_bytes()),
-    ))
+    Ok(render(&mut fields.names(instance.class())))
 }
 
 pub(crate) fn children(
@@ -526,7 +556,7 @@ pub(crate) fn children(
         values.push(ctx, Value(Kind::Instance(environment.clone())))?;
     }
     let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
-    for (_, value) in fields.buffer.data.iter().rev() {
+    for (_, value) in fields.iter().rev() {
         ctx.charge(1)?;
         values.push(ctx, value.clone())?;
     }
@@ -540,8 +570,7 @@ pub(crate) fn bindings(
     let heap = instance.heap()?;
     let mut data = heap.data.lock().unwrap();
     let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
-    let mut values = Buffer::with_capacity(ctx, fields.buffer.data.len())?;
-    values.extend(ctx, &fields.buffer.data)?;
+    let mut values = fields.bindings(ctx, instance.class())?;
     for (_, value) in &mut values.data {
         ctx.charge(1)?;
         if let Some(mapped) = data.map(ctx, &heap, value, false)? {
@@ -564,7 +593,7 @@ pub(crate) fn set(
     data.reserve_scratch(ctx, value.depth())?;
     data.entries.data[instance.identity.slot.load(Ordering::Relaxed)]
         .fields
-        .insert_named_field(ctx, name.as_bytes(), value)
+        .set(ctx, instance.class(), name, value)
 }
 
 pub(crate) fn address(
@@ -578,22 +607,14 @@ pub(crate) fn address(
         .instance(ctx, &heap, instance, false)?
         .unwrap_or_else(|| instance.clone());
     let object = instance.identity.slot.load(Ordering::Relaxed);
-    let field = if let Some(field) = data.entries.data[object]
-        .fields
-        .find(ctx, name.as_bytes())?
-    {
+    let fields = &mut data.entries.data[object].fields;
+    let field = if let Some(field) = fields.find(ctx, instance.class(), name)? {
         field
     } else {
-        let key = ctx.bytes(name.as_bytes())?;
-        let field = data.entries.data[object].fields.buffer.data.len();
-        data.entries.data[object]
-            .fields
-            .insert_field(ctx, key, Value::nil())?;
-        field
+        fields.set(ctx, instance.class(), name, Value::nil())?;
+        fields.find(ctx, instance.class(), name)?.unwrap()
     };
-    let value = data.entries.data[object].fields.buffer.data[field]
-        .1
-        .clone();
+    let value = fields.get(field).unwrap().clone();
     let value = data.map(ctx, &heap, &value, false)?.unwrap_or(value);
     Ok(crate::address::Address::object(
         instance.clone(),
@@ -602,17 +623,31 @@ pub(crate) fn address(
     ))
 }
 
-pub(crate) fn field_name(instance: &Arc<Instance>, field: usize) -> Result<Value> {
+pub(crate) enum FieldName {
+    Declared(Arc<Namespace>, usize),
+    Named(Value),
+}
+
+impl FieldName {
+    pub fn as_bytes(&self) -> Option<&[u8]> {
+        Some(match self {
+            Self::Declared(class, slot) => class.field_layout().unwrap()[*slot].as_bytes(),
+            Self::Named(value) => value.as_bytes().unwrap(),
+        })
+    }
+}
+
+pub(crate) fn field_name(instance: &Arc<Instance>, field: usize) -> Result<FieldName> {
+    if instance.class().field_layout().is_some() {
+        return Ok(FieldName::Declared(instance.class().clone(), field));
+    }
     let heap = instance.heap()?;
     let data = heap.data.lock().unwrap();
-    Ok(
-        data.entries.data[instance.identity.slot.load(Ordering::Relaxed)]
-            .fields
-            .buffer
-            .data[field]
-            .0
-            .clone(),
-    )
+    let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+    let Fields::Named(named) = fields else {
+        unreachable!()
+    };
+    Ok(FieldName::Named(named.buffer.data[field].0.clone()))
 }
 
 pub(crate) fn field_slot(
@@ -624,7 +659,7 @@ pub(crate) fn field_slot(
     let data = heap.data.lock().unwrap();
     data.entries.data[instance.identity.slot.load(Ordering::Relaxed)]
         .fields
-        .find(ctx, name.as_bytes())
+        .find(ctx, instance.class(), name)
 }
 
 pub(crate) fn set_slot(
@@ -639,8 +674,7 @@ pub(crate) fn set_slot(
     let value = data.map(ctx, &heap, &value, true)?.unwrap_or(value);
     data.reserve_scratch(ctx, value.depth())?;
     let fields = &mut data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
-    let name = fields.buffer.data[field].0.clone();
-    fields.insert_field(ctx, name, value)
+    fields.set_slot(ctx, field, value)
 }
 
 fn import_root(ctx: &mut CallContext, instance: &Arc<Instance>) -> Result<Arc<Instance>> {
@@ -850,7 +884,7 @@ fn reclaim(data: &mut Data, tick: &mut impl FnMut() -> Result<()>) -> Result<usi
             tick()?;
             mark_instance(environment, &mut data.pending.data);
         }
-        for (_, value) in &data.entries.data[slot].fields.buffer.data {
+        for (_, value) in data.entries.data[slot].fields.iter() {
             depth = depth.max(value.depth());
             mark_references(value, &mut data.pending.data, &mut data.scratch.data, tick)?;
         }

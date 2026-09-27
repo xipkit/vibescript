@@ -86,6 +86,7 @@ impl Program {
         } = frame;
         let index = self.namespaces.len();
         let (ivars, defaults) = typing.class(module.offset);
+        let mut fields: Vec<String> = ivars.iter().map(|ivar| ivar.name.to_string()).collect();
         if !ivars.is_empty() {
             let mut declared = Vec::with_capacity(ivars.len());
             for ivar in ivars {
@@ -119,6 +120,18 @@ impl Program {
         }
         let mut instance_methods = Vec::<namespace::Method>::new();
         for (mut method, visibility) in module.instance_methods {
+            if let Some((field, _)) = &method.accessor
+                && !fields.iter().any(|name| name == field.as_str())
+            {
+                fields.push(field.to_string());
+            }
+            for param in &method.params {
+                if let Some(field) = param.ivar.as_deref()
+                    && !fields.iter().any(|name| name == field)
+                {
+                    fields.push(field.to_owned());
+                }
+            }
             work.bytes(name.len() + method.name.len())?;
             work.charge(instance_methods.len())?;
             let short = method.name.clone();
@@ -197,6 +210,9 @@ impl Program {
             nested,
             body,
         );
+        if module.is_class {
+            self.field_layouts.insert(index, fields);
+        }
         self.namespaces.push(definition.clone());
         self.declaration_names
             .insert(name.into_string(), self.declarations.len());

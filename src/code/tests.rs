@@ -297,7 +297,12 @@ fn imported_namespace_releases_the_source_budget_and_retains_code() {
 #[test]
 fn imported_instance_cycle_releases_original_heap_and_code() {
     let retired = Arc::new(AtomicUsize::new(0));
-    let script = engine(&retired).compile(SOURCE).unwrap();
+    let script = engine(&retired)
+        .compile(&SOURCE.replace(
+            "property link: Node?",
+            "property link: Node?\n  property namespace: any",
+        ))
+        .unwrap();
     let code = Arc::downgrade(&script.inner.code);
     let namespace = Namespace::untracked(script.inner.code.program.namespaces[2].clone());
     let mut source = CallContext::new(CallOptions::default());

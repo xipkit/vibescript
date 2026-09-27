@@ -828,6 +828,56 @@ impl Run {
                     )?;
                     storage.locals.data[slot] = Some(value);
                 }
+                Op::InstanceField(slot) => {
+                    let Some(Value(Kind::Instance(instance))) = &frame.receiver else {
+                        return Err(Error::new(ErrorKind::Name, "no instance context for ivar"));
+                    };
+                    let value = crate::objects::get_slot(ctx, instance, slot as usize)?;
+                    stack.push(ctx, value)?;
+                }
+                Op::InstanceAddress(slot) => {
+                    let Some(Value(Kind::Instance(instance))) = &frame.receiver else {
+                        return Err(Error::new(ErrorKind::Name, "no instance context for ivar"));
+                    };
+                    let mut address = crate::objects::address_slot(ctx, instance, slot as usize)?;
+                    address.proven = function.proven_ivars.contains(frame.ip - 1);
+                    storage.addresses.push(ctx, address)?;
+                }
+                Op::InstanceStore(slot) | Op::BindField(slot, _) => {
+                    let Some(Value(Kind::Instance(instance))) = frame.receiver.clone() else {
+                        return Err(Error::new(ErrorKind::Name, "no instance context for ivar"));
+                    };
+                    let local = if let Op::BindField(_, local) = op {
+                        Some(frame.local_base() + local as usize)
+                    } else {
+                        None
+                    };
+                    let value = local
+                        .map_or_else(
+                            || stack.data.last().unwrap(),
+                            |local| storage.locals.data[local].as_ref().unwrap(),
+                        )
+                        .clone();
+                    let value = if function.proven_ivars.contains(frame.ip - 1) {
+                        value
+                    } else {
+                        let name = &instance.class().field_layout().unwrap()[slot as usize];
+                        normalize_ivar(ctx, frames, storage, &instance, name, value)?
+                    };
+                    address::refresh(
+                        ctx,
+                        address::Root::Object(instance.clone(), slot as usize),
+                        &value,
+                        &mut storage.addresses.data,
+                        &[],
+                    )?;
+                    crate::objects::set_slot(ctx, &instance, slot as usize, value.clone())?;
+                    if let Some(local) = local {
+                        storage.locals.data[local] = Some(value);
+                    } else {
+                        *stack.data.last_mut().unwrap() = value;
+                    }
+                }
                 Op::InitNamespace(module) => {
                     let state = namespaces::state(program, ctx, storage, module as usize)?;
                     if !storage.namespaces.data[state].initialized {
@@ -3408,7 +3458,7 @@ fn diagnostic_site<'a>(
         if (!frame.binding && !frame.checked)
             || !matches!(
                 op,
-                Some(Op::Bind(..) | Op::Normalize(..) | Op::BindIvar(..))
+                Some(Op::Bind(..) | Op::Normalize(..) | Op::BindIvar(..) | Op::BindField(..))
             )
         {
             break;

@@ -35,6 +35,10 @@ pub(crate) enum Op {
     /// Refuses a nested function declaration when it runs, as Go does.
     Unsupported,
     BindIvar(u32, u32),
+    BindField(u32, u32),
+    InstanceField(u32),
+    InstanceStore(u32),
+    InstanceAddress(u32),
     NamespaceSelf(u32),
     NamespaceConstant(u32, u32),
     NamespaceConstantAddress(u32, u32),
@@ -533,6 +537,8 @@ pub(crate) struct Program {
     /// The instance variables each class declares, with their types, by
     /// namespace index.
     pub ivars: HashMap<usize, Vec<(String, usize)>>,
+    /// Field names by fixed slot, including declared variables and accessors.
+    pub field_layouts: HashMap<usize, Vec<String>>,
     pub declarations: Vec<Value>,
     pub enum_definitions: std::sync::Arc<[std::sync::Arc<crate::enums::Definition>]>,
     pub declaration_names: HashMap<String, usize>,
@@ -663,6 +669,7 @@ pub(crate) fn compile_parsed(
         type_guards: Vec::new(),
         types: Vec::new(),
         ivars: HashMap::new(),
+        field_layouts: HashMap::new(),
         declarations,
         enum_definitions,
         declaration_names,
@@ -820,6 +827,35 @@ impl Program {
                 }
             }
             self.functions[index].proven_ivars = proven;
+            let layout = &self.field_layouts[&class];
+            for op in &mut self.functions[index].code {
+                let name = match *op {
+                    Op::BindIvar(name, _) => self.members[name as usize].as_str(),
+                    Op::NamespaceVariable(name, _)
+                    | Op::NamespaceStore(name)
+                    | Op::NamespaceAddress(name, _) => {
+                        let raw = &self.members[name as usize];
+                        if !raw.starts_with('@') || raw.starts_with("@@") {
+                            continue;
+                        }
+                        &raw[1..]
+                    }
+                    _ => continue,
+                };
+                let slot = narrow(
+                    layout
+                        .iter()
+                        .position(|field| field == name)
+                        .expect("declared field"),
+                );
+                *op = match *op {
+                    Op::BindIvar(_, local) => Op::BindField(slot, local),
+                    Op::NamespaceVariable(..) => Op::InstanceField(slot),
+                    Op::NamespaceStore(..) => Op::InstanceStore(slot),
+                    Op::NamespaceAddress(..) => Op::InstanceAddress(slot),
+                    _ => unreachable!(),
+                };
+            }
         }
         Ok(())
     }
