@@ -5,6 +5,100 @@ pub(crate) enum Class {
     JsonStringify,
 }
 
+/// Skips ASCII bytes unequal to `needle`, stopping before any non-ASCII byte.
+#[cfg(any(all(feature = "simd", target_arch = "x86_64"), test))]
+#[inline(never)]
+pub(crate) fn ascii_mismatch(bytes: &[u8], needle: u8) -> usize {
+    let mut position = 0;
+    #[cfg(all(feature = "simd", target_arch = "x86_64"))]
+    let bytes = {
+        let mut chunks = bytes.chunks_exact(16);
+        for chunk in chunks.by_ref() {
+            // SAFETY: each load stays within a complete vector on a baseline target.
+            let found = unsafe { vector_ascii_mismatch(chunk, needle) };
+            if found < 16 {
+                return position + found;
+            }
+            position += 16;
+        }
+        chunks.remainder()
+    };
+    const LOW: u64 = 0x7f7f_7f7f_7f7f_7f7f;
+    const HIGH: u64 = 0x8080_8080_8080_8080;
+    let mut chunks = bytes.chunks_exact(8);
+    for chunk in chunks.by_ref() {
+        let word = u64::from_le_bytes(chunk.try_into().unwrap());
+        let diff = word ^ (u64::from(needle) * 0x0101_0101_0101_0101);
+        let found = (!(((diff & LOW) + LOW) | diff) | word) & HIGH;
+        if found != 0 {
+            return position + found.trailing_zeros() as usize / 8;
+        }
+        position += 8;
+    }
+    let bytes = chunks.remainder();
+    position
+        + bytes
+            .iter()
+            .position(|&byte| byte == needle || !byte.is_ascii())
+            .unwrap_or(bytes.len())
+}
+
+#[cfg(test)]
+mod byte_search_tests {
+    use super::*;
+
+    #[test]
+    fn ascii_search_stops_before_utf8_at_every_lane_and_alignment() {
+        for offset in 0..16 {
+            for position in 0..64 {
+                for byte in 128..=255 {
+                    let mut bytes = [b'a'; 80];
+                    bytes[offset + position] = byte;
+                    assert_eq!(ascii_mismatch(&bytes[offset..], b'z'), position);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn byte_search_matches_scalar_at_every_lane_and_alignment() {
+        for len in [0, 1, 7, 8, 9, 15, 16, 17, 31, 32, 33, 127] {
+            for offset in 0..16 {
+                for needle in 0..=255u8 {
+                    let mut bytes = vec![needle.wrapping_add(1); len + offset];
+                    for position in 0..=len {
+                        if position < len {
+                            bytes[offset + position] = needle;
+                        }
+                        let input = &bytes[offset..];
+                        assert_eq!(
+                            ascii_mismatch(input, needle),
+                            input
+                                .iter()
+                                .position(|&b| b == needle || b >= 128)
+                                .unwrap_or(len)
+                        );
+                        if position < len {
+                            bytes[offset + position] = needle.wrapping_add(1);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[cfg(all(feature = "simd", target_arch = "x86_64"))]
+unsafe fn vector_ascii_mismatch(bytes: &[u8], needle: u8) -> usize {
+    use std::arch::x86_64::*;
+    // SAFETY: the caller provides sixteen readable bytes; SSE2 is baseline.
+    unsafe {
+        let input = _mm_loadu_si128(bytes.as_ptr().cast());
+        let mask = _mm_or_si128(_mm_cmpeq_epi8(input, _mm_set1_epi8(needle as i8)), input);
+        (_mm_movemask_epi8(mask) as u32 | 1 << 16).trailing_zeros() as usize
+    }
+}
+
 pub(crate) fn ordinary(b: u8, class: Class) -> bool {
     match class {
         Class::Ascii => b < 128,
