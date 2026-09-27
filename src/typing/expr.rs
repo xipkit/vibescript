@@ -251,6 +251,7 @@ impl<'a> Checker<'a> {
 
     fn variable(&mut self, expr: &'a Expr, name: &str) -> Ty {
         if name == "self" {
+            self.self_escapes();
             return self.self_type();
         }
         if name.starts_with("@@") {
@@ -276,6 +277,7 @@ impl<'a> Checker<'a> {
                 // Namespace state is not typed; it keeps its runtime checks.
                 return Ty::ANY;
             }
+            self.read_ivar(ivar);
             return self.ivar_type(ivar, span).unwrap_or(Ty::ERROR);
         }
         if let Some(id) = self.local(name) {

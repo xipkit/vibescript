@@ -27,6 +27,7 @@ use std::{
 
 mod calls;
 mod check;
+mod construction;
 mod expr;
 mod flow;
 mod modules;
@@ -124,6 +125,11 @@ pub(crate) struct Facts {
     /// class this source declares, and whose member is that class's method,
     /// the class's qualified name; `None` where checks disagreed.
     classes: HashMap<usize, Option<String>>,
+    /// The instance methods whose result the checker proves, by the offset
+    /// of their definition: no method of their class can read an instance
+    /// variable before it is assigned ([`construction`]). The compiler moves
+    /// definitions, so their offset names them.
+    results: std::collections::HashSet<u32>,
 }
 
 impl Facts {
@@ -152,6 +158,10 @@ impl Facts {
         }
     }
 
+    fn record_result(&mut self, def: &crate::syntax::Definition) {
+        self.results.insert(def.offset);
+    }
+
     fn record_block(&mut self, block: &crate::syntax::Block, plain: bool) {
         *self.blocks.entry(key(block)).or_insert(plain) &= plain;
     }
@@ -169,6 +179,11 @@ impl Facts {
     /// The class whose method `call` always calls, if one was recorded.
     pub(crate) fn class(&self, call: &crate::syntax::Expr) -> Option<&str> {
         self.classes.get(&key(call))?.as_deref()
+    }
+
+    /// Whether the checker proves the result of instance method `def`.
+    pub(crate) fn proven_result(&self, def: &crate::syntax::Definition) -> bool {
+        self.results.contains(&def.offset)
     }
 
     /// Whether every parameter of `block` is plain.
@@ -329,6 +344,8 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         session: None,
         too_deep: false,
         facts: Facts::default(),
+        construction: construction::Construction::default(),
+        self_receiver: false,
     };
     for (name, host) in &input.hosts {
         let function = crate::signatures::host::function(name, host);
@@ -405,6 +422,8 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
         session: None,
         too_deep: false,
         facts: Facts::default(),
+        construction: construction::Construction::default(),
+        self_receiver: false,
     };
     checker.declare_hosts(input.declared);
     checker.declare_program(input.parsed);
@@ -451,6 +470,11 @@ pub(crate) struct Checker<'a> {
     too_deep: bool,
     /// What the checker proved for the compiler.
     facts: Facts,
+    /// Instance variable reads, to prove each is assigned first.
+    construction: construction::Construction,
+    /// Whether the `self` being checked is a method call's receiver, which
+    /// [`construction`] records as the call instead.
+    self_receiver: bool,
 }
 
 /// Expression types by node, recorded or replayed.

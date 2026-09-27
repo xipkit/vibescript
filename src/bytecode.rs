@@ -743,10 +743,11 @@ pub(crate) fn compile_parsed(
             .map(|ty| c.annotation(ty))
             .transpose()?;
         // A method may return an instance variable its class never assigned,
-        // which reads as nil whatever its declared type, so methods keep
-        // their result check.
-        let return_check =
-            return_type.filter(|&ty| contexts[index].2 || c.program.types[ty].unproven());
+        // which reads as nil whatever its declared type, so a method keeps
+        // its result check unless the checker proves its class assigns every
+        // variable before any method can read it.
+        let unassigned = contexts[index].2 && !facts.proven_result(&def);
+        let return_check = return_type.filter(|&ty| unassigned || c.program.types[ty].unproven());
         debug_assert_eq!(c.code.len(), c.locations.len());
         let function = Function {
             offset: def.offset,

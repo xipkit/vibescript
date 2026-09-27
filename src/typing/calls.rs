@@ -183,6 +183,9 @@ impl<'a> Checker<'a> {
                 namespace.statics.get(name).copied()
             };
             if let Some(id) = found {
+                if self.frame.instance {
+                    self.call_on_self(id);
+                }
                 let sig = self.program.fns[id].sig.clone();
                 return self.call_sigs(&call, &[(sig, Vec::new())]);
             }
@@ -464,7 +467,7 @@ impl<'a> Checker<'a> {
         if !safe && crate::bytecode::mutating_member(name) {
             self.mark_write_chain(receiver);
         }
-        let ty = self.expr(receiver, None);
+        let ty = self.member_receiver(receiver, name);
         if ty != Ty::ERROR && block.is_none() {
             let called = if safe { self.types.without_nil(ty) } else { ty };
             let base = crate::members::direct::Base::of(&self.types.bases(called));
@@ -1119,7 +1122,7 @@ impl<'a> Checker<'a> {
     ) -> Ty {
         let setter = format!("{name}=");
         let setter = setter.as_str();
-        let ty = self.expr(receiver, None);
+        let ty = self.member_receiver(receiver, setter);
         let name_span = self.spans.member(receiver, name);
         if let (Some(span), false) = (name_span, ty == Ty::ERROR) {
             let receiver_type = ReceiverType::new(self.types.display(ty), self.types.bases(ty));

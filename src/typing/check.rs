@@ -89,6 +89,10 @@ pub(crate) struct Frame {
     pub block_given: Option<LocalId>,
     /// In `initialize`: pseudo-locals for the instance variables it must assign.
     pub initialize: Vec<(String, LocalId)>,
+    /// The function being checked.
+    pub function: Option<FnId>,
+    /// In an instance variable's default: the variables not assigned yet.
+    pub building: Option<Vec<String>>,
     pub locals: Vec<Local>,
     pub names: HashMap<String, LocalId>,
     pub ambient: Vec<LocalId>,
@@ -112,6 +116,8 @@ impl Frame {
             block: None,
             block_given: None,
             initialize: Vec::new(),
+            function: None,
+            building: None,
             locals: Vec::new(),
             names: HashMap::new(),
             ambient: Vec::new(),
@@ -186,6 +192,7 @@ impl<'a> Checker<'a> {
                 self.check_function(id);
             }
         }
+        self.finish_construction();
     }
 
     /// Checks the body of namespace `ns` once, after those of the
@@ -272,8 +279,31 @@ impl<'a> Checker<'a> {
             .collect();
         let name = self.frame.name.clone();
         let body = self.enter_frame(Frame::new(Some(ns), true, None, name));
-        for stmt in defaults {
+        // A default may read only the variables whose defaults precede it.
+        let mut unassigned: Vec<String> = Vec::new();
+        for (name, ivar) in &self.program.namespaces[ns as usize].ivars {
+            if !self.types.assignable(Ty::NIL, ivar.ty) {
+                unassigned.push(name.clone());
+            }
+        }
+        unassigned.sort();
+        let assigned: Vec<Option<String>> = defaults
+            .iter()
+            .map(|stmt| {
+                self.parsed
+                    .additions
+                    .ivars
+                    .iter()
+                    .find(|(class, ivar)| *class == module.offset && ivar.offset == stmt.offset)
+                    .map(|(_, ivar)| ivar.name.to_string())
+            })
+            .collect();
+        for (stmt, assigned) in defaults.into_iter().zip(assigned) {
+            self.frame.building = Some(unassigned.clone());
             self.stmt(stmt, Want::Discard);
+            if let Some(name) = assigned {
+                unassigned.retain(|unassigned| *unassigned != name);
+            }
         }
         self.leave_frame(body);
         self.leave_frame(previous);
@@ -296,6 +326,7 @@ impl<'a> Checker<'a> {
         let accessor = def.accessor.is_some();
         let mut frame = Frame::new(owner, instance, sig.result, sig.name.clone());
         frame.main = main;
+        frame.function = Some(id);
         frame.block = sig.block.clone();
         let previous = self.enter_frame(frame);
         if self.program.file && !main {
@@ -342,6 +373,9 @@ impl<'a> Checker<'a> {
         }
         if accessor {
             // Properties read and write their declared instance variable.
+            if let Some((name, false)) = &def.accessor {
+                self.read_ivar(name);
+            }
             self.leave_frame(previous);
             return;
         }

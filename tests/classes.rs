@@ -761,3 +761,98 @@ fn partial_namespace_snapshots_never_read_missing_class_variables_as_nil() {
         );
     }
 }
+
+/// Steps a call of `run` takes.
+fn steps(source: &str) -> u64 {
+    Engine::new()
+        .compile(source)
+        .unwrap_or_else(|error| panic!("{source}\ndoes not compile: {error}"))
+        .call("run", &[], CallOptions::default())
+        .unwrap_or_else(|error| panic!("{source}\nfails: {error}"))
+        .stats
+        .steps
+}
+
+/// The steps one more call of `value` adds to `run` in a program declaring
+/// `class`.
+fn steps_per_call(class: &str, construct: &str) -> u64 {
+    let run = |calls: usize| {
+        let reads = vec!["c.value"; calls].join(" + ");
+        format!("{class}\ndef run -> int\n  c = {construct}\n  {reads}\nend\n")
+    };
+    steps(&run(2)) - steps(&run(1))
+}
+
+#[test]
+fn methods_of_classes_that_assign_every_field_first_skip_their_result_check() {
+    let method = "  def value -> int\n    @count\n  end\n";
+    // `initialize` assigns `@count` before any method can read it.
+    let proven = steps_per_call(
+        &format!(
+            "class Counter\n  property count: int\n  def initialize\n    @count = 1\n  end\n{method}end"
+        ),
+        "Counter.new",
+    );
+    // Without `initialize`, a method may read `@count` before a setter
+    // assigns it, so the runtime keeps checking the result.
+    let unproven = steps_per_call(
+        &format!("class Counter\n  property count: int\n{method}end"),
+        "Counter.new\n  c.count = 1",
+    );
+    assert!(proven < unproven, "{proven} >= {unproven}");
+    // So does a class whose `initialize` calls a method on `self` that may
+    // read a field it has not assigned yet, on a path this call skips.
+    let early = steps_per_call(
+        &format!(
+            "class Counter\n  @count: int\n  def initialize\n    @count = pick(false)\n  end\n  def pick(read: bool) -> int\n    if read\n      value\n    else\n      1\n    end\n  end\n{method}end"
+        ),
+        "Counter.new",
+    );
+    assert_eq!(early, unproven);
+}
+
+#[test]
+fn a_field_read_before_it_is_assigned_still_fails_where_a_method_returns_it() {
+    for (source, method) in [
+        // No `initialize` assigns the field.
+        (
+            "class C\n  @x: int\n  def x -> int\n    @x\n  end\nend",
+            "x",
+        ),
+        // `initialize` reads it through a method before assigning it.
+        (
+            "class C\n  @x: int\n  def initialize\n    @x = peek\n  end\n  def peek -> int\n    @x\n  end\n  def x -> int\n    @x\n  end\nend",
+            "peek",
+        ),
+        // It reads it directly, and a method returns the copy.
+        (
+            "class C\n  @x: int\n  @y: int\n  def initialize\n    @y = @x\n    @x = 1\n  end\n  def x -> int\n    @y\n  end\nend",
+            "x",
+        ),
+        // It passes `self` on before assigning it.
+        (
+            "def show(c: C) -> int\n  c.x\nend\nclass C\n  getter x: int\n  def initialize\n    @x = show(self)\n  end\nend",
+            "x",
+        ),
+        // A default calls a method that reads a field declared after it.
+        (
+            "class C\n  @y: int = peek\n  @x: int = 1\n  def peek -> int\n    @x\n  end\n  def x -> int\n    @y\n  end\nend",
+            "peek",
+        ),
+    ] {
+        let source = format!("{source}\ndef run -> int\n  C.new.x\nend\n");
+        let error = Engine::new()
+            .compile(&source)
+            .unwrap_or_else(|error| panic!("{source}\ndoes not compile: {error}"))
+            .call("run", &[], CallOptions::default())
+            .unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Type, "{source}");
+        assert!(
+            error
+                .message
+                .contains(&format!("return value for {method} expected int, got nil")),
+            "{source}\n{}",
+            error.message
+        );
+    }
+}
