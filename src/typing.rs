@@ -112,6 +112,10 @@ pub struct Checked {
 /// only what every check proved.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Facts {
+    /// Whether the compiler keeps the runtime type checks the checker
+    /// proves, which differential tests of the checker compare against
+    /// ([`crate::Engine::set_keep_type_checks`]); not a checker fact.
+    pub keep_type_checks: bool,
     /// The one static base type of each member call's receiver that has one
     /// the runtime binds builtins to; `None` where checks disagreed.
     bases: HashMap<usize, Option<crate::members::direct::Base>>,

@@ -138,7 +138,7 @@ impl Code {
         let resolve = |path: &str, origin: Option<&crate::loading::Origin>| {
             loader.unwrap().source(path, origin)
         };
-        let checked = crate::typing::check(&crate::typing::Input {
+        let mut checked = crate::typing::check(&crate::typing::Input {
             source,
             parsed: &parsed,
             tokens: &tokens,
@@ -167,6 +167,7 @@ impl Code {
                 &text,
             ));
         }
+        checked.facts.keep_type_checks = loader.is_some_and(|loader| loader.keep_type_checks);
         let mut program =
             crate::bytecode::compile_parsed(source, parsed, names, file, &checked.facts, work)
                 .map_err(parse_error)?;

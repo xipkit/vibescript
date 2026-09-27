@@ -132,6 +132,22 @@ impl Engine {
     pub fn set_strict_effects(&mut self, enabled: bool) {
         self.strict_effects = enabled;
     }
+    /// Keeps the runtime type check at every typed boundary the checker
+    /// proves, which compilation otherwise leaves out (see `docs/vm.md`):
+    /// parameters, results, typed locals, defaults, destructuring, `yield`
+    /// arguments, block results and instance variable writes.
+    ///
+    /// For differential tests of the checker, in the spirit of
+    /// `debug_assert!`: a program that compiles must behave the same with
+    /// and without the checks, apart from their work, which changes
+    /// counters. Required files use the same mode, with a separate
+    /// compilation cache, and a later [`Self::set_module_config`] keeps it.
+    #[doc(hidden)]
+    pub fn set_keep_type_checks(&mut self, enabled: bool) {
+        let mut loader = self.loader.fresh();
+        loader.keep_type_checks = enabled;
+        self.loader = Arc::new(loader);
+    }
     /// Type checks `source` without compiling it, as [`Self::compile`]
     /// does, returning every diagnostic and the static receiver type of each
     /// member call. Only a syntax error fails.
@@ -211,7 +227,9 @@ impl Engine {
     /// Configured roots are opened immediately. Earlier scripts retain their previous
     /// loader; calls share compiled source but keep independent initialized state.
     pub fn set_module_config(&mut self, config: ModuleConfig) -> Result<()> {
-        self.loader = Arc::new(loading::Loader::new(config)?);
+        let mut loader = loading::Loader::new(config)?;
+        loader.keep_type_checks = self.loader.keep_type_checks;
+        self.loader = Arc::new(loader);
         Ok(())
     }
     /// Clears this configuration's compiled module cache without changing active calls.

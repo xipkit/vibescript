@@ -799,7 +799,8 @@ pub(crate) fn compile_parsed(
         // its result check unless the checker proves its class assigns every
         // variable before any method can read it.
         let unassigned = contexts[index].2 && !facts.proven_result(&def);
-        let return_check = return_type.filter(|&ty| unassigned || c.program.types[ty].unproven());
+        let return_check = return_type
+            .filter(|&ty| facts.keep_type_checks || unassigned || c.program.types[ty].unproven());
         debug_assert_eq!(c.code.len(), c.locations.len());
         let function = Function {
             offset: def.offset,
@@ -834,6 +835,11 @@ pub(crate) fn compile_parsed(
     program.shared_slots = HashMap::new();
     loops::discarded(&mut program.functions);
     program.prove_instance_variables(work)?;
+    if facts.keep_type_checks {
+        for function in &mut program.functions {
+            function.proven_ivars = Bits::default();
+        }
+    }
     work.checkpoint()?;
     Ok(program)
 }
@@ -1631,7 +1637,7 @@ impl Compiler<'_> {
     /// `subject`, unless the checker proves the check (see
     /// [`crate::types::Type::unproven`]).
     fn check(&mut self, ty: usize, subject: usize) {
-        if self.program.types[ty].unproven() {
+        if self.facts.keep_type_checks || self.program.types[ty].unproven() {
             self.emit(Op::Check(narrow(ty), narrow(subject)));
         }
     }
@@ -1911,7 +1917,9 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 self.c().declare_expr(value)?;
                 self.expr(value).await?;
                 // The checker proves most defaults' types.
-                if let Some(ty) = ty.filter(|&ty| self.c().program.types[ty].unproven()) {
+                if let Some(ty) = ty.filter(|&ty| {
+                    self.c().facts.keep_type_checks || self.c().program.types[ty].unproven()
+                }) {
                     let mut c = self.c();
                     let label = c.program.constants.len();
                     c.program
@@ -1958,6 +1966,16 @@ impl<'a, 'x> Compiling<'a, 'x> {
                         && compiled.ty.is_none_or(|ty| !c.program.types[ty].unproven())
                 });
             self.proven.set(direct.then_some(c.code.len()));
+            if c.facts.keep_type_checks {
+                for param in &params {
+                    if let Some(ty) = param.ty {
+                        let subject = c.subject(&["parameter ", &param.name])?;
+                        c.emit(Op::Load(narrow(param.slot)));
+                        c.check(ty, subject);
+                        c.emit(Op::Pop);
+                    }
+                }
+            }
             c.declare(&def.body)?;
         }
         *self.params.borrow_mut() = params;
@@ -2466,7 +2484,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     if text.is_empty() {
                         text.extend_from_slice(work, b"destructured value")?;
                     }
-                    if c.program.types[ty].unproven() {
+                    if c.facts.keep_type_checks || c.program.types[ty].unproven() {
                         let label = c.program.constants.len();
                         c.program.constants.push(Value::bytes(&*text));
                         c.emit(Op::Normalize(narrow(ty), narrow(label)));

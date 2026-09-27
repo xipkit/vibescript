@@ -39,6 +39,9 @@ impl Default for ModuleConfig {
 }
 
 pub(crate) struct Loader {
+    /// Whether scripts and the files they require keep every runtime type
+    /// check ([`crate::Engine::set_keep_type_checks`]).
+    pub keep_type_checks: bool,
     resolver: Arc<resolver::Resolver>,
     cache: cache::Cache<Arc<crate::code::Code>>,
     cache_limit: usize,
@@ -66,6 +69,7 @@ impl Loader {
             config.cache_limit
         };
         Ok(Self {
+            keep_type_checks: false,
             resolver: Arc::new(resolver::Resolver::new(
                 &config.paths,
                 &config.allow,
@@ -84,6 +88,7 @@ impl Loader {
 
     pub fn fresh(&self) -> Self {
         Self {
+            keep_type_checks: self.keep_type_checks,
             resolver: self.resolver.clone(),
             cache: cache::Cache::new(self.cache_limit),
             cache_limit: self.cache_limit,
