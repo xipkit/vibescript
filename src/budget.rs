@@ -723,6 +723,232 @@ impl<T: Clone> Buffer<T> {
 }
 
 #[cfg(test)]
+mod accounting_tests {
+    use super::*;
+    use std::sync::Mutex;
+    #[cfg(not(target_os = "wasi"))]
+    use std::sync::mpsc;
+
+    fn counters(ctx: &CallContext) -> (u64, usize, usize) {
+        let stats = ctx.stats();
+        (
+            stats.steps,
+            stats.peak_memory_bytes,
+            stats.retained_memory_bytes,
+        )
+    }
+
+    #[test]
+    #[cfg(not(target_os = "wasi"))]
+    fn remote_releases_restore_exact_headroom_and_preserve_exhaustion() {
+        let mut ctx = CallContext::new(CallOptions {
+            limits: Limits {
+                memory_bytes: Some(100),
+                ..Limits::default()
+            },
+            ..CallOptions::default()
+        });
+        let mut first = ctx.reserve(60).unwrap().unwrap();
+        let (sent, received) = mpsc::channel();
+        let (resume, resumed) = mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            first.release(20);
+            sent.send(()).unwrap();
+            resumed.recv().unwrap();
+            drop(first);
+        });
+        received.recv().unwrap();
+        assert_eq!(counters(&ctx), (0, 60, 40));
+        let second = ctx.reserve(60).unwrap();
+        assert_eq!(counters(&ctx), (0, 100, 100));
+        let error = ctx.reserve(1).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Memory);
+        assert_eq!(error.message, "memory quota exceeded (100 bytes)");
+        resume.send(()).unwrap();
+        worker.join().unwrap();
+        drop(second);
+        assert_eq!(counters(&ctx), (0, 100, 0));
+        assert_eq!(ctx.reserve(0).unwrap_err(), error);
+        assert_eq!(ctx.charge(1).unwrap_err(), error);
+        assert_eq!(counters(&ctx), (0, 100, 0));
+    }
+
+    #[test]
+    fn retained_result_releases_after_call_and_last_clone_on_another_thread() {
+        let observed = Arc::new(Mutex::new(None));
+        let saved = observed.clone();
+        let mut engine = crate::Engine::new();
+        engine.register("retain", move |ctx, _| {
+            *saved.lock().unwrap() = Some(ctx.identity());
+            ctx.bytes(b"retained result")
+        });
+        let result = engine
+            .compile("def run -> any; retain; end")
+            .unwrap()
+            .call("run", &[], CallOptions::default())
+            .unwrap();
+        let memory = observed.lock().unwrap().take().unwrap();
+        let retained = result.stats.retained_memory_bytes;
+        assert!(retained > 0);
+        assert_eq!(memory.used.load(Ordering::Relaxed), retained);
+        let clone = result.value.clone();
+        drop(result);
+        assert_eq!(memory.used.load(Ordering::Relaxed), retained);
+        #[cfg(not(target_os = "wasi"))]
+        std::thread::spawn(move || drop(clone)).join().unwrap();
+        #[cfg(target_os = "wasi")]
+        drop(clone);
+        assert_eq!(memory.used.load(Ordering::Relaxed), 0);
+        let weak = Arc::downgrade(&memory);
+        drop(memory);
+        assert!(weak.upgrade().is_none());
+    }
+
+    #[test]
+    fn reservation_peak_and_cleanup_share_the_same_account() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let mut buffer = Buffer::<u8>::with_capacity(&mut ctx, 100).unwrap();
+        buffer.data.extend_from_slice(b"0123456789");
+        let mut available = ctx.reserve_available(1000);
+        assert_eq!(available.reserved_usage(900), 200);
+        available.publish_peak(200);
+        available.release(900);
+        assert_eq!(counters(&ctx), (0, 200, 200));
+        let temporary = ctx.reserve(1).unwrap();
+        assert_eq!(counters(&ctx), (0, 201, 201));
+        drop(temporary);
+        let error = ctx.charge(u64::MAX).unwrap_err();
+        buffer.shrink_after_failure(None);
+        assert_eq!(counters(&ctx), (u64::MAX, 210, 110));
+        assert_eq!(ctx.checkpoint().unwrap_err(), error);
+        drop(buffer);
+        drop(available);
+        assert_eq!(counters(&ctx), (u64::MAX, 210, 0));
+    }
+
+    #[test]
+    fn cumulative_reservations_may_wrap_without_wrapping_live_usage() {
+        let mut ctx = CallContext::new(CallOptions {
+            limits: Limits {
+                memory_bytes: None,
+                ..Limits::default()
+            },
+            ..CallOptions::default()
+        });
+        let first = ctx.reserve(usize::MAX - 8).unwrap();
+        assert_eq!(counters(&ctx), (0, usize::MAX - 8, usize::MAX - 8));
+        drop(first);
+        let second = ctx.reserve(16).unwrap();
+        assert_eq!(counters(&ctx), (0, usize::MAX - 8, 16));
+        drop(second);
+        let full = ctx.reserve(usize::MAX).unwrap();
+        assert_eq!(counters(&ctx), (0, usize::MAX, usize::MAX));
+        assert_eq!(ctx.reserve(1).unwrap_err().message, "memory size overflow");
+        drop(full);
+        assert_eq!(counters(&ctx), (0, usize::MAX, 0));
+    }
+
+    #[test]
+    #[cfg(not(target_os = "wasi"))]
+    fn concurrent_drops_do_not_lose_reservations() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let (send, receive) = mpsc::sync_channel(32);
+        let worker = std::thread::spawn(move || {
+            while let Ok(charge) = receive.recv() {
+                drop(charge);
+            }
+        });
+        let retained = ctx.reserve(7).unwrap();
+        for _ in 0..10_000 {
+            send.send(ctx.reserve(13).unwrap()).unwrap();
+            let temporary = ctx.reserve(11).unwrap();
+            drop(temporary);
+        }
+        drop(send);
+        worker.join().unwrap();
+        assert_eq!(ctx.stats().retained_memory_bytes, 7);
+        assert!((20..=7 + 34 * 13 + 11).contains(&ctx.stats().peak_memory_bytes));
+        drop(retained);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+
+    #[test]
+    fn ignored_host_quota_errors_cannot_be_rescued_by_script() {
+        for steps in [true, false] {
+            let observed = Arc::new(Mutex::new(None));
+            let saved = observed.clone();
+            let mut engine = crate::Engine::new();
+            engine.register("exhaust", move |ctx, _| {
+                let error = if steps {
+                    ctx.charge(1_000_000).unwrap_err()
+                } else {
+                    ctx.reserve(16 << 20).unwrap_err()
+                };
+                *saved.lock().unwrap() = Some((error, counters(ctx), ctx.identity()));
+                Ok(Value::nil())
+            });
+            let error = engine
+                .compile("def run -> int\n begin\n exhaust\n 1\n rescue\n 2\n end\nend")
+                .unwrap()
+                .call("run", &[], CallOptions::default())
+                .unwrap_err();
+            let (original, stats, memory) = observed.lock().unwrap().take().unwrap();
+            assert_eq!(
+                (error.kind, error.message),
+                (original.kind, original.message)
+            );
+            assert_eq!(memory.peak.load(Ordering::Relaxed), stats.1);
+            assert_eq!(memory.used.load(Ordering::Relaxed), 0);
+        }
+    }
+
+    #[cfg(feature = "tokio")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn async_resumption_and_task_drops_keep_exact_accounting() {
+        let observed = Arc::new(Mutex::new(None));
+        let saved = observed.clone();
+        let mut engine = crate::Engine::new();
+        engine.register_method(
+            "transfer",
+            crate::HostMethod::new_async("transfer", move |call, _, _| {
+                let saved = saved.clone();
+                Box::pin(async move {
+                    let (temporary, before, allocated) = {
+                        let ctx = call.context()?;
+                        *saved.lock().unwrap() = Some(ctx.identity());
+                        let before = counters(&ctx);
+                        let value = ctx.bytes(&[b'x'; 512])?;
+                        let allocated = counters(&ctx);
+                        (value, before, allocated)
+                    };
+                    tokio::spawn(async move { drop(temporary) }).await.unwrap();
+                    tokio::task::yield_now().await;
+                    let ctx = call.context()?;
+                    assert_eq!(counters(&ctx), (allocated.0, allocated.1, before.2));
+                    ctx.bytes(b"async retained result")
+                })
+            }),
+        );
+        let script = engine.compile("def run -> any; transfer; end").unwrap();
+        let result = crate::asynchronous::Runner::new(1)
+            .unwrap()
+            .call(script, "run".into(), vec![], CallOptions::default())
+            .await
+            .unwrap();
+        let memory = observed.lock().unwrap().take().unwrap();
+        assert_eq!(
+            memory.used.load(Ordering::Relaxed),
+            result.stats.retained_memory_bytes
+        );
+        assert!(result.stats.retained_memory_bytes > 0);
+        tokio::task::spawn_blocking(move || drop(result))
+            .await
+            .unwrap();
+        assert_eq!(memory.used.load(Ordering::Relaxed), 0);
+    }
+}
+
+#[cfg(test)]
 mod limit_tests {
     use super::*;
     use crate::{ErrorClass, json, regex};
