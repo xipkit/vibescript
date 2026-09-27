@@ -1,8 +1,8 @@
 # The typed VM
 
-Static types are always on (ADR-007), so the compiler knows the type of every value, and the VM uses that knowledge: it skips runtime checks the checker has proven, binds builtin members to receivers whose type is known, runs blocks without allocating, and shares the keys of records. Behavior is unchanged in every case: the golden corpora record the same observations before and after. Step counts drop only where the VM no longer executes an instruction or a check, and each such change re-recorded the counters (see [the counter log](../tests/golden/README.md#counter-log)).
+Static types are always on (ADR-007), so the compiler knows the type of every value, and the VM uses that knowledge: it skips runtime checks the checker has proven, binds builtin members and script methods to receivers whose type is known, runs blocks without allocating, and shares the keys of records. Behavior is unchanged in every case: the golden corpora record the same observations before and after. Step counts drop only where the VM no longer executes an instruction or a check, and each such change re-recorded the counters (see [the counter log](../tests/golden/README.md#counter-log)).
 
-This page describes the design. The implementation is in `src/bytecode.rs`, `src/vm.rs`, `src/vm/simple.rs`, `src/members/direct.rs` and `src/records.rs`.
+This page describes the design. The implementation is in `src/bytecode.rs`, `src/vm.rs`, `src/vm/simple.rs`, `src/members/direct.rs`, `src/records.rs` and `src/value/import.rs`, with the checker's side in `src/typing.rs` (`Facts`) and `src/typing/construction.rs`.
 
 ## Proven checks
 
@@ -21,7 +21,15 @@ The runtime keeps a check where it does more than the checker proves (`Type::unp
 - **Hash key types.** The checker admits a hash type whose key type no string satisfies, such as `hash<int, any>`, which only the runtime rejects.
 - **Instance method results, in some classes.** A property that is not assigned yet reads as `nil` whatever its declared type. The checker proves a class safe when `initialize` assigns every property without a default before any method can read it: no call on `self` while a property is unassigned reaches a method that reads it, directly or through the methods it calls on `self`, and `self` is not passed on until they are all assigned (`src/typing/construction.rs`). The checker does not report the other classes, such as one with no `initialize` whose properties a setter assigns; their instance methods and accessors keep the result check, which turns the `nil` into a type error where it surfaces.
 
-Instance variable writes and property setters keep their checks.
+An instance variable write is proven too when the class declares the variable's type, as the runtime would find it, and the type names no class or enum (`Program::prove_instance_variables`); the runtime then neither looks the type up by scanning the class's methods nor checks the value. Property setters keep their parameter check.
+
+## Capabilities
+
+A glue service binds capabilities on every call, and a value that holds a host method or an exported function must not escape as data. With a capability or required module bound, the VM scanned every index, member and function call result, argument, block parameter, `for` element, iterated element and return value for them, walking the whole value each time: reading a record of a JSON document scanned the record, iterating an array scanned each element, and returning a document scanned it again.
+
+Only a value whose static type involves `any`, a capability or a required module can hold one. The checker records per expression and per block whether the type is *plain* (`Facts::plain`), and the compiler marks the instructions whose value is (`Function::plain_values`, `Function::plain_inputs`), so the VM skips their scan. The scan stays at host entry, on capability results and wherever the type could hold a callable.
+
+Binding a capability also creates the call's root bindings, which can stand for a local no slot binds. The simple loop used to decline every instruction once any existed; it now declines only a local whose resolved slot is unbound while bindings or host globals exist, the one case they can affect.
 
 ## Direct builtin calls
 
@@ -31,7 +39,11 @@ The checker records the static base type of each member call's receiver when it 
 
 `Op::Direct` checks the receiver's runtime kind first. A big integer, a host object, whose fields take precedence over hash members, or a rescued error or match data takes the dynamic path exactly as before. A unit test compares every direct member with dynamic dispatch on well-typed arguments, including the steps and bytes each charges.
 
-Receivers typed `any` or a union keep the dynamic path, and so do calls of script methods: their resolution by name also enforces visibility and nominal receivers, and it is not yet a measured cost.
+Receivers typed `any` or a union keep the dynamic path.
+
+Array updates, `push`, `pop`, `shift`, `prepend`, `insert` and `<<`, go straight to the update (`members::direct::update`) instead of probing every member table by name, and the simple loop runs them, with index stores, for arrays and hashes whose root needs no type guard.
+
+A call of a script method whose receiver the checker proves is always an instance of one class the program declares compiles to `Op::MethodOf` ahead of the dynamic call. It checks that the receiver is an instance of that class, as every method call does, and calls the method without looking it up by name; any other receiver falls through to the dynamic call, which also enforces visibility.
 
 ## Calls and blocks
 
@@ -50,15 +62,23 @@ A shape's runtime value, a record, is an ordinary hash. It keeps insertion order
 
 Field positions are not fixed at compile time. Shape types are structural and order-free, so the checker interns their fields sorted by name, while a record's insertion order is observable and depends on how it was built: a literal's order, a JSON document's, or a host's. A lookup with a literal key compares the record's keys in order, and with shared keys the comparisons are short.
 
+Records a host passes in share their keys as well. An import keeps the keys it copies from small hashes, under 16 entries, in a table of 64 slots by a hash of their bytes, and the records after the first reuse them; a JSON-shaped argument of 256 records of four fields held 1,024 key copies, half of the call's tracked memory. Dictionaries do not use the table, since their keys do not repeat.
+
 `records::Fields` is the hook for building records outside the VM. `JSON.parse_as(raw, shape)` can import the shape's field names once per parse and key every object it builds with them, instead of copying each key of each object; that follow-up belongs to the JSON implementation.
 
 ## Fixed memory
 
-A call's fixed memory was mostly the VM's control stacks, since a buffer's first growth reserves eight elements: 2,496 bytes of frames, 1,664 of pending argument lists and 4,352 for a first iteration. A buffer of elements over 128 bytes now starts at four, which covers almost every call; a trivial call peaks at about 1,700 bytes instead of 3,000.
+A call's fixed memory was mostly the VM's control stacks, since a buffer's first growth reserves eight elements: 2,496 bytes of frames, 1,664 of pending argument lists and 4,352 for a first iteration. A buffer of elements over 128 bytes now starts at four, which covers almost every call.
+
+A frame was 312 bytes and carried three buffers of its own: its loops, its pending calls' arguments and its parameter binding. They are now stacks shared by the call (`Storage::loops`, `Storage::arguments`, `Storage::parameters`), and a frame records where its part starts; its indexes and enclosing frames are 32 bits. A frame is 136 bytes, so a call's four reserved frames take 544 bytes, and a trivial call peaks at 968 bytes instead of about 1,700.
+
+A compiled script keeps its instructions between calls. An instruction is 16 bytes instead of 40: sources are at most 8 MiB, so every slot, jump target and table index fits in 32 bits, an operator is a byte naming its spelling, a receiver rule packs into its member's name index, and the rare `raise` class and destructuring selections sit in tables on the program. A script such as the `glue_orders` benchmark keeps about 11 KB after compiling instead of 14 KB. The first compilation in a process also builds the builtin signature tables, about 470 KB that every later compilation shares.
+
+A trivial call's memory is now mostly its four frames, and a call that iterates adds 2,176 bytes for its first iteration state, which holds every builtin iterator's fields.
 
 ## Typed arithmetic
 
-The simple loop already applies arithmetic and comparisons to two compact integers or two floats inline, checking their tags, and falls back to the general operator for big integers, instances and other operands; integer overflow promotes to a big integer there. Measurement found no cost left to remove: carrying the operator as an enum instead of its spelling made the numeric loops 5 to 10 percent slower on an Apple M4, and the tag checks cost less than the dispatch around them. Inlining the operand stack's push in the simple loop made them 6 to 15 percent faster.
+The simple loop already applies arithmetic and comparisons to two compact integers or two floats inline, checking their tags, and falls back to the general operator for big integers, instances and other operands; integer overflow promotes to a big integer there. Measurement found no cost left to remove: matching on the operator as an enum instead of its spelling made the numeric loops 5 to 10 percent slower on an Apple M4, and the tag checks cost less than the dispatch around them. Inlining the operand stack's push in the simple loop made them 6 to 15 percent faster.
 
 ## Accounting
 
@@ -66,6 +86,7 @@ Steps and tracked bytes stay exact and deterministic, and the portable and SIMD 
 
 - Removed checks no longer charge their work, and removed instructions (argument lists, prologue checks, receiver preparation of non-hash receivers) and copies (field names) no longer charge their steps.
 - Frames are smaller, control stacks start at four elements and calls build fewer argument lists, so peak bytes drop.
+- Records a host passes in share their keys, so peak and retained bytes drop where an argument holds several.
 - Shared literals lower peak and retained bytes wherever a literal is evaluated more than once, and add 16 bytes per distinct literal.
 
 The golden README's counter log records each re-recording.

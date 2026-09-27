@@ -517,16 +517,20 @@ declarations.
 
 The runtime uses the static types (see [the typed VM](../vm.md)). A call
 from script code no longer checks its arguments or its result, and typed
-locals, `yield` arguments and block results are not checked again. Four
+locals, `yield` arguments and block results are not checked again. A few
 checks inside a program stay, because they do more than the checker
 proves: a type naming a class or enum, which resolves at runtime and turns
 a symbol into an enum member; a hash key type that no string satisfies,
-such as `hash<int, any>`, which the checker admits; the result of an
-instance method, since a class property that no path assigns reads as
-`nil`, a gap in the checker; and instance variable writes. Member calls on
-a receiver whose static base type is `hash`, `array`, `string`, `int` or
-`float` call common builtins directly, checking only the receiver's runtime
-kind. Records stay ordinary hashes whose keys the literals of a program
+such as `hash<int, any>`, which the checker admits; and the result of an
+instance method of a class whose methods may read a property before it is
+assigned, which reads as `nil`. The checker proves the rest of the
+classes, and most instance variable writes, without refusing any program
+it accepted before. Values whose static type holds no `any`, capability or
+module skip the scan for host methods and exported functions that a bound
+capability requires. Member calls on a receiver whose static base type is
+`hash`, `array`, `string`, `int` or `float` call common builtins directly,
+checking only the receiver's runtime kind, and calls of a class's methods
+on a receiver the checker proves is its instance skip the lookup by name. Records stay ordinary hashes whose keys the literals of a program
 share, one string per distinct text per call; field positions are not
 fixed at compile time, because shape types are order-free while insertion
 order is observable. Step counts dropped by the removed checks and
