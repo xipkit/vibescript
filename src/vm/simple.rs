@@ -6,7 +6,7 @@
 //! these same ones whenever their conditions here do not hold.
 
 use super::*;
-use crate::bytecode::Function;
+use crate::bytecode::{Function, Method};
 
 /// Runs the executing frame's simple instructions, stopping before the first
 /// one it declines. A declined instruction is left unexecuted and uncharged.
@@ -179,6 +179,100 @@ pub(super) fn run(
                     return Ok(());
                 }
             }
+            Op::AddressBound(n, next) => {
+                let own = frame.local_base + n;
+                let slot = if storage.locals.data[own].is_some() {
+                    step(ctx, frame)?;
+                    own
+                } else {
+                    match bound(ctx, outer, function, frame, storage, n)? {
+                        Some(slot) => slot,
+                        None => return Ok(()),
+                    }
+                };
+                let value = storage.locals.data[slot].as_ref().unwrap().clone();
+                storage
+                    .addresses
+                    .push(ctx, Address::new(Some(slot), value))?;
+                frame.ip = next;
+            }
+            Op::PrepareMember(_, mutating) => {
+                // A hash's fields can take a member's place.
+                let receiver = if mutating {
+                    storage.addresses.data.last().map(|address| &address.value)
+                } else {
+                    stack.data.last()
+                };
+                if matches!(receiver.unwrap().0, Kind::Hash(_)) {
+                    return Ok(());
+                }
+                step(ctx, frame)?;
+                if mutating {
+                    storage.addresses.data.last().unwrap().check_present(ctx)?;
+                }
+            }
+            Op::Mutate(site, n) => {
+                // Only direct array updates, which need no scan of their
+                // result, run here.
+                let direct = !(ctx.has_exports && !function.plain_values.contains(frame.ip))
+                    && updatable(storage.addresses.data.last().unwrap(), site, false);
+                if !direct {
+                    return Ok(());
+                }
+                step(ctx, frame)?;
+                let address = storage.addresses.data.pop().unwrap();
+                let base = stack.data.len() - n;
+                let name = &program.members[site.name];
+                let value = update(ctx, storage, address, site, name, &stack.data[base..])?;
+                stack.data.truncate(base);
+                push(ctx, stack, value)?;
+            }
+            Op::Shovel(site) => {
+                if !updatable(storage.addresses.data.last().unwrap(), site, true) {
+                    return Ok(());
+                }
+                step(ctx, frame)?;
+                let value = stack.data.pop().unwrap();
+                let address = storage.addresses.data.pop().unwrap();
+                let args = std::slice::from_ref(&value);
+                let result = update(ctx, storage, address, site, "push", args)?;
+                push(ctx, stack, result)?;
+            }
+            Op::AddressTarget(n, read) => {
+                // An instance reads its element through its own `[]`.
+                let address = storage.addresses.data.last_mut().unwrap();
+                if read && matches!(address.value.0, Kind::Instance(_)) {
+                    return Ok(());
+                }
+                step(ctx, frame)?;
+                address.check_present(ctx)?;
+                address.selectors.ensure(ctx, n)?;
+                let base = stack.data.len() - n;
+                for value in stack.data.drain(base..) {
+                    ctx.charge(1)?;
+                    address.selectors.data.push(value);
+                }
+                if read {
+                    let value = address.read_target(ctx)?;
+                    push(ctx, stack, value)?;
+                }
+            }
+            Op::AddressStore => {
+                // Members, instances and typed instance variables are stored
+                // through setters and guards.
+                let address = storage.addresses.data.last().unwrap();
+                if address.member_target
+                    || matches!(address.value.0, Kind::Instance(_))
+                    || address.object_binding().is_some()
+                {
+                    return Ok(());
+                }
+                step(ctx, frame)?;
+                let address = storage.addresses.data.pop().unwrap();
+                let value = stack.data.pop().unwrap();
+                let value = assign(ctx, storage, address, value)?;
+                push(ctx, stack, value)?;
+            }
             Op::Shadow(slot) => {
                 step(ctx, frame)?;
                 store(storage, frame.local_base + slot, Value::nil());
@@ -316,6 +410,74 @@ fn direct(
     stack.data.truncate(base);
     stack.push(ctx, value)?;
     Ok(true)
+}
+
+/// Whether an update through `address` is a direct array update the simple
+/// loop runs: of an array reached by a present path whose root needs no
+/// type guard, by a member [`members::direct::update`] serves, or by `<<`
+/// when `shovel`.
+fn updatable(address: &Address, site: crate::bytecode::CallSite, shovel: bool) -> bool {
+    matches!(address.value.0, Kind::Array(_))
+        && address.capability.is_none()
+        && address.exported.is_none()
+        && address.object_binding().is_none()
+        && !address.is_missing()
+        && (shovel
+            || matches!(
+                site.method,
+                Some(Method::Push | Method::Pop | Method::Shift | Method::Prepend | Method::Insert)
+            ))
+}
+
+/// Updates the array `address` reaches by `name` with `args`, as the general
+/// loop's update does, returning the call's result.
+#[inline(never)]
+fn update(
+    ctx: &mut CallContext,
+    storage: &mut Storage,
+    address: Address,
+    site: crate::bytecode::CallSite,
+    name: &str,
+    args: &[Value],
+) -> Result<Value> {
+    address.apply(
+        ctx,
+        address::Bindings {
+            recover: !storage.handlers.data.is_empty(),
+            guard: None,
+            locals: &mut storage.locals.data,
+            globals: &mut storage.globals.data,
+            namespaces: &mut storage.namespaces.data,
+        },
+        &mut storage.addresses.data,
+        |ctx, receiver| match members::direct::update(ctx, site.method, name, receiver, args) {
+            Ok(result) => result,
+            Err(_) => unreachable!("the simple loop updates only arrays it serves"),
+        },
+    )
+}
+
+/// Assigns `value` through `address`, as the general loop's store does for
+/// a root that needs no type guard.
+#[inline(never)]
+fn assign(
+    ctx: &mut CallContext,
+    storage: &mut Storage,
+    address: Address,
+    value: Value,
+) -> Result<Value> {
+    address.assign(
+        ctx,
+        address::Bindings {
+            recover: !storage.handlers.data.is_empty(),
+            guard: None,
+            locals: &mut storage.locals.data,
+            globals: &mut storage.globals.data,
+            namespaces: &mut storage.namespaces.data,
+        },
+        &mut storage.addresses.data,
+        value,
+    )
 }
 
 /// Collects the `count` topmost values into an array literal.

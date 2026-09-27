@@ -187,6 +187,11 @@ impl Address {
 
     /// Fails when an index on the way to this address found its element
     /// missing, which a write through the address cannot create.
+    /// Whether [`Self::check_present`] would fail.
+    pub fn is_missing(&self) -> bool {
+        self.missing && !self.path.data.is_empty()
+    }
+
     pub fn check_present(&self, ctx: &mut CallContext) -> Result<()> {
         match self.path.data.last() {
             Some(hop) if self.missing => Err(hop.missing(ctx)?),
