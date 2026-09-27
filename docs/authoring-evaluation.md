@@ -134,6 +134,40 @@ its examples as historical; compatibility records and ADRs retain their history.
 There is no evidence here to justify changing condition truthiness, collection
 value semantics, enum exhaustiveness, or canonical spellings.
 
+## Blind replication with a second model
+
+GLM 5.3 wrote the same 40 programs blind, at `4b8c9aef`.
+- **What it had:** only `README.md`, the user guides in `docs/` (without this
+  report, `vm.md`, `compiler-accounting.md`, `language-port.md` and
+  `compatibility.md`), the `vibes prelude` output, and each task's
+  `*_test.vibe` as its acceptance test.
+- **What it couldn't do:** run or check code, or see the implementation, the
+  corpus or these solutions. An audit of its file accesses confirmed it read
+  nothing outside the trial directory.
+- **Result:** all 40 programs passed `vibes check` for both program and test,
+  and passed `vibes test --profile low`, on the single attempt. No diagnostics.
+- **Scoring check:** the scorer was confirmed to fail both a behavioural change
+  and a type error, and no solution hard-codes an asserted output.
+- **Caveat:** the guides it read include the recipes this study added. The
+  replication shows those guides suffice for a model that has never seen the
+  language; it isn't an independent measure of the original docs.
+
+The model's notes name the places where it had to guess, all of which it
+guessed right:
+- float rendering in `format`;
+- `Duration#iso8601` and `Time#iso8601` (trailing `Z`) output;
+- the `strftime` directives;
+- the money rounding mode;
+- CSV quoting;
+- the type of a `begin` expression whose `rescue` ends in `retry`;
+- zero-argument block types (`&block: () -> any`);
+- `...` inside a nested shape field;
+- `sort` with a two-parameter comparator.
+
+Each of these deserves an explicit example in the guides. The prompt, the
+solutions, the model's notes and the scores are under `.cache/blind-trial/` on
+the external volume.
+
 ## Evidence and reproduction
 
 [The JSON Lines dataset](../corpus/glue/evaluation.jsonl) contains every source
