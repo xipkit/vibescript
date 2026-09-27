@@ -60,6 +60,13 @@ enum ReturnTo {
     Format,
 }
 
+#[derive(Clone, Copy)]
+enum FrameCode {
+    Function(u32),
+    Iteration,
+    PooledIteration,
+}
+
 struct Frame {
     program: Arc<Program>,
     host: bool,
@@ -76,7 +83,7 @@ struct Frame {
     receiver: Option<Value>,
     constructor: bool,
     return_to: ReturnTo,
-    function: Option<u32>,
+    function: FrameCode,
     mutating: bool,
     ip: usize,
     iteration_base: u32,
@@ -102,6 +109,9 @@ struct Frame {
     block_args: u32,
 }
 
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(size_of::<Frame>() == 136);
+
 /// A binding that an assignment is filling, which same-name calls in its value skip.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Bypass {
@@ -125,6 +135,7 @@ struct Storage {
     declarations: Buffer<((usize, usize), Value)>,
     texts: Buffer<Buffer<u8>>,
     iterations: Buffer<Iteration>,
+    iteration_pool: iteration::Pool,
     globals: Buffer<Option<Value>>,
     ambient_globals: Buffer<(Global, usize)>,
     locals: Buffer<Option<Value>>,
@@ -290,6 +301,7 @@ impl Run {
             declarations: Buffer::empty(),
             texts: Buffer::empty(),
             iterations: Buffer::empty(),
+            iteration_pool: Buffer::empty(),
             globals: Buffer::empty(),
             ambient_globals: Buffer::empty(),
             locals: Buffer::empty(),
@@ -484,14 +496,29 @@ impl Run {
                 }
                 if frames.data[current].function().is_none() {
                     ctx.charge(1)?;
-                    let iteration =
-                        &mut storage.iterations.data[frames.data[current].iteration_base()];
-                    let returned = if iteration.waiting() {
+                    let pooled = frames.data[current].pooled_iteration();
+                    let waiting = if pooled {
+                        storage.iteration_pool.data.last().unwrap().waiting
+                    } else {
+                        storage.iterations.data[frames.data[current].iteration_base()].waiting()
+                    };
+                    let returned = if waiting {
                         Some(stack.data.pop().unwrap())
                     } else {
                         None
                     };
-                    match iteration.advance(ctx, returned)? {
+                    let progress = if pooled {
+                        storage
+                            .iteration_pool
+                            .data
+                            .last_mut()
+                            .unwrap()
+                            .advance(ctx, returned)?
+                    } else {
+                        storage.iterations.data[frames.data[current].iteration_base()]
+                            .advance(ctx, returned)?
+                    };
+                    match progress {
                         Progress::Yield(args, count) => {
                             if !frames.data[current].plain_yields {
                                 for value in &args[..count] {
@@ -505,7 +532,12 @@ impl Run {
                             enter_block(ctx, frames, storage, stack, block, count)?;
                         }
                         Progress::Done(mut value) => {
-                            let mutation = iteration.take_mutation();
+                            let mutation = if pooled {
+                                None
+                            } else {
+                                storage.iterations.data[frames.data[current].iteration_base()]
+                                    .take_mutation()
+                            };
                             if frames.data[current].mutating {
                                 let address = storage.addresses.data.pop().unwrap();
                                 if let Some(mutation) = mutation {
@@ -4680,7 +4712,11 @@ fn enter_iteration(
     let mut frame = new_frame(ctx, program, storage, None, base)?;
     frame.block = args.block;
     storage.arguments.push(ctx, args)?;
-    storage.iterations.push(ctx, iteration)?;
+    if matches!(iteration, Iteration::Pooled) {
+        frame.function = FrameCode::PooledIteration;
+    } else {
+        storage.iterations.push(ctx, iteration)?;
+    }
     frames.push(ctx, frame)
 }
 
@@ -4720,7 +4756,10 @@ impl Frame {
     // The frame keeps its indexes in 32 bits to stay small; these widen them.
 
     fn function(&self) -> Option<usize> {
-        self.function.map(|index| index as usize)
+        match self.function {
+            FrameCode::Function(index) => Some(index as usize),
+            FrameCode::Iteration | FrameCode::PooledIteration => None,
+        }
     }
 
     fn parent(&self) -> Option<usize> {
@@ -4737,6 +4776,10 @@ impl Frame {
 
     fn local_base(&self) -> usize {
         self.local_base as usize
+    }
+
+    fn pooled_iteration(&self) -> bool {
+        matches!(self.function, FrameCode::PooledIteration)
     }
 
     fn iteration_base(&self) -> usize {
@@ -4786,7 +4829,9 @@ impl Frame {
             receiver: None,
             constructor: false,
             return_to: ReturnTo::Stack,
-            function: function.map(narrow),
+            function: function.map_or(FrameCode::Iteration, |index| {
+                FrameCode::Function(narrow(index))
+            }),
             mutating: false,
             ip: 0,
             iteration_base: narrow(storage.iterations.data.len()),
@@ -5017,6 +5062,17 @@ fn unwind(
     stack.data.truncate(frame.base());
     storage.locals.data.truncate(frame.local_base());
     storage.iterations.data.truncate(frame.iteration_base());
+    let pooled = frames.data[target..]
+        .iter()
+        .filter(|frame| frame.pooled_iteration())
+        .count();
+    if pooled != 0 {
+        let remaining = storage.iteration_pool.data.len() - pooled;
+        storage.iteration_pool.data.truncate(remaining);
+        if remaining == 0 {
+            storage.iteration_pool = Buffer::empty();
+        }
+    }
     storage.addresses.data.truncate(frame.address_base());
     storage.bypasses.data.truncate(frame.bypass_base());
     storage.texts.data.truncate(frame.text_base());

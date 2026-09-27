@@ -220,13 +220,14 @@ fn invoke(
     let driver = if members::exported(ctx, site, name, receiver)? {
         None
     } else {
-        iteration::start(
+        iteration::start_pooled(
             ctx,
             name,
             receiver,
             &args.positional.data,
             &args.keywords.buffer.data,
             arity,
+            Some(&mut storage.iteration_pool),
         )?
     };
     if let Some(iteration) = driver {

@@ -107,6 +107,9 @@ fn discarded_results_and_nonlocal_exits_release_iteration_roots() {
         "[1,2].partition {allocate();break 7}",
         "{a:1}.transform_values {allocate();return 7}",
         "[1].map {next allocate()};7",
+        "[1,2].each { [3,4].each { [5,6].map {allocate();return 7} } };7",
+        "[1,2].each { [3,4].map {allocate();break 7} };7",
+        "[1,2].each { begin; [3,4].map {allocate();raise \"stop\"}; rescue; nil; end };7",
     ] {
         let source =
             format!("def work() -> any\n{body}\nend\ndef run() -> int\n200.times {{work}}\n7\nend");

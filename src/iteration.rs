@@ -10,8 +10,11 @@ use crate::{
 
 mod array;
 mod bounds;
+mod common;
 mod hash;
 mod range;
+
+pub(crate) use common::Pool;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum MethodKind {
@@ -169,6 +172,8 @@ impl Mutation {
 }
 
 pub(crate) enum Iteration {
+    Common(Box<State<common::Driver>>),
+    Pooled,
     Loop(Box<State<Loop>>),
     Forever { waiting: bool },
     Order(Box<State<ordering::Driver>>),
@@ -208,6 +213,8 @@ fn boxed<T>(ctx: &mut CallContext, value: T) -> Result<Box<State<T>>> {
 impl Iteration {
     pub fn waiting(&self) -> bool {
         match self {
+            Self::Pooled => unreachable!(),
+            Self::Common(state) => state.waiting,
             Self::Loop(state) => state.waiting,
             Self::Forever { waiting } => *waiting,
             Self::Order(state) => state.waiting,
@@ -221,7 +228,9 @@ impl Iteration {
     pub fn take_mutation(&mut self) -> Option<Mutation> {
         match self {
             Self::Loop(state) => state.mutation.take(),
-            Self::Forever { .. }
+            Self::Pooled
+            | Self::Common(_)
+            | Self::Forever { .. }
             | Self::Order(_)
             | Self::Hash(_)
             | Self::Text(_)
@@ -232,6 +241,8 @@ impl Iteration {
 
     pub fn advance(&mut self, ctx: &mut CallContext, returned: Option<Value>) -> Result<Progress> {
         match self {
+            Self::Pooled => unreachable!(),
+            Self::Common(state) => state.advance(ctx, returned),
             Self::Loop(state) => state.advance(ctx, returned),
             Self::Forever { waiting } => {
                 drop(returned);
@@ -307,6 +318,18 @@ pub(crate) fn start(
     args: &[Value],
     keywords: &[(Value, Value)],
     block_arity: Option<usize>,
+) -> Result<Option<Iteration>> {
+    start_pooled(ctx, name, receiver, args, keywords, block_arity, None)
+}
+
+pub(crate) fn start_pooled(
+    ctx: &mut CallContext,
+    name: &str,
+    receiver: &Value,
+    args: &[Value],
+    keywords: &[(Value, Value)],
+    block_arity: Option<usize>,
+    pool: Option<&mut Pool>,
 ) -> Result<Option<Iteration>> {
     use MethodKind::*;
     if crate::regex::substitute::method(name) {
@@ -683,7 +706,18 @@ pub(crate) fn start(
             state.length = 1;
         }
     }
-    Ok(Some(Iteration::Loop(boxed(ctx, state)?)))
+    if common::Driver::supports(&state) {
+        let driver = common::Driver::from(state);
+        if let Some(pool) = pool.filter(|pool| pool.data.len() < 2) {
+            pool.ensure(ctx, 2)?;
+            pool.data.push(driver);
+            Ok(Some(Iteration::Pooled))
+        } else {
+            Ok(Some(Iteration::Common(boxed(ctx, driver)?)))
+        }
+    } else {
+        Ok(Some(Iteration::Loop(boxed(ctx, state)?)))
+    }
 }
 
 impl Loop {
@@ -1250,10 +1284,13 @@ mod tests {
         let state = start(&mut ctx, "times", &Value::int(1), &[], &[], Some(0))
             .unwrap()
             .unwrap();
-        assert_eq!(ctx.stats().retained_memory_bytes, size_of::<State<Loop>>());
+        assert_eq!(
+            ctx.stats().retained_memory_bytes,
+            size_of::<State<common::Driver>>()
+        );
         drop(state);
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
-        ctx.options.limits.memory_bytes = Some(size_of::<State<Loop>>() - 1);
+        ctx.options.limits.memory_bytes = Some(size_of::<State<common::Driver>>() - 1);
         assert!(
             matches!(start(&mut ctx, "times", &Value::int(1), &[], &[], Some(0)), Err(error) if error.kind == ErrorKind::Memory)
         );
