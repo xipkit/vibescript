@@ -55,6 +55,9 @@ serde_json = { version = "1", features = ["arbitrary_precision"] }
 [target.'cfg(not(target_os = "wasi"))'.dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
 
+[profile.dev]
+debug = "line-tables-only"
+
 [profile.release]
 lto = "thin"
 codegen-units = 1

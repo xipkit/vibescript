@@ -124,6 +124,8 @@ This implementation is the reference. [The golden corpora](tests/golden/README.m
 
 Integration suites share `tests/all.rs` so each build links the interpreter fewer times. Run one suite with `./scripts/cargo test --offline --test all require::`. Register new root test files as modules there, or as explicit `[[test]]` targets; a test checks that none are omitted. The allocation-sensitive `footprint` suite keeps its own process.
 
+Debug builds retain line numbers and backtraces without full variable and type information. Set `CARGO_PROFILE_DEV_DEBUG=2` when you need to inspect locals in a debugger. The release profile is unchanged.
+
 ## History
 
 This implementation began in 2026 as a port of Go Vibescript v0.70.0, which was its compatibility reference: shared fixtures, a replay of Go's whole test suite and differential comparisons held it to Go's results, apart from [deliberate differences](docs/compatibility.md) where Go contradicted Vibescript's documented value semantics or behaved inconsistently. [The port history](docs/language-port.md) summarizes that work. On 2026-09-24 the Rust implementation became the reference and the language moved to static types and a canonical surface (ADR-007 and ADR-008); the Go implementation is deprecated and keeps the earlier, dynamically typed language.
