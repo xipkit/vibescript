@@ -85,9 +85,15 @@ struct Frame {
     address_base: usize,
     bypass_base: usize,
     text_base: usize,
-    loops: Buffer<LoopState>,
-    arguments: Buffer<Arguments>,
-    binding: Buffer<Binding>,
+    /// Where the frame's loops start in [`Storage::loops`]; they end where
+    /// the next frame's start, or at the end for the executing frame.
+    loop_base: usize,
+    /// Where the frame's pending calls' arguments start in
+    /// [`Storage::arguments`].
+    argument_base: usize,
+    /// Whether the frame is binding its parameters, through the last of
+    /// [`Storage::parameters`].
+    binding: bool,
     parent: Option<usize>,
     home: Option<usize>,
     block: Option<Block>,
@@ -127,6 +133,12 @@ struct Storage {
     /// The entry frame's assigned local slots and values, captured as it
     /// returns when the host asked for the run's root bindings.
     root_locals: Option<Buffer<(usize, Value)>>,
+    /// Every frame's active loops, innermost last.
+    loops: Buffer<LoopState>,
+    /// Every frame's pending calls' arguments, innermost last.
+    arguments: Buffer<Arguments>,
+    /// The parameter bindings of frames still binding their parameters.
+    parameters: Buffer<Binding>,
     /// The shared literals ([`Op::Shared`]) this call imported, each
     /// program's from the base its entry records.
     shared: Buffer<Option<Value>>,
@@ -284,6 +296,9 @@ impl Run {
             addresses: Buffer::empty(),
             bypasses: Buffer::empty(),
             root_locals: None,
+            loops: Buffer::empty(),
+            arguments: Buffer::empty(),
+            parameters: Buffer::empty(),
             shared: Buffer::empty(),
         };
         // Without enum declarations, arguments have nothing to rebind to.
@@ -661,7 +676,7 @@ impl Run {
             | Op::NonCallable(count) = op
             {
                 if !ctx.options.globals.is_empty() || !ctx.capability_names.data.is_empty() {
-                    let target = frames.data[current].arguments.data.pop().unwrap().target;
+                    let target = storage.arguments.data.pop().unwrap().target;
                     if let Some(target) = target {
                         let base = stack.data.len() - count;
                         let mut args = Arguments::from_values(ctx, &stack.data[base..])?;
@@ -673,7 +688,7 @@ impl Run {
                             });
                         }
                         stack.data.truncate(base);
-                        frames.data[current].arguments.push(ctx, args)?;
+                        storage.arguments.push(ctx, args)?;
                         op = Op::Invoke(Invocation::Resolved);
                     }
                 }
@@ -730,13 +745,13 @@ impl Run {
                     let frame = &mut frames.data[current];
                     let mut args = Arguments::empty();
                     args.target = Some(crate::arguments::Target::Raise(class, Value::nil()));
-                    frame.arguments.push(ctx, args)?;
+                    storage.arguments.push(ctx, args)?;
                     if class.is_some() {
                         frame.ip = target;
                     }
                 }
                 Op::RaiseValue => {
-                    let args = frame.arguments.data.last_mut().unwrap();
+                    let args = storage.arguments.data.last_mut().unwrap();
                     args.target = Some(crate::arguments::Target::Raise(
                         None,
                         stack.data.pop().unwrap(),
@@ -753,7 +768,7 @@ impl Run {
                     if count == 1 {
                         return Err(handlers::raise(ctx, None, message, false)?);
                     }
-                    let target = frame.arguments.data.pop().unwrap().target.unwrap();
+                    let target = storage.arguments.data.pop().unwrap().target.unwrap();
                     let crate::arguments::Target::Raise(class, value) = target else {
                         unreachable!()
                     };
@@ -1411,7 +1426,7 @@ impl Run {
                     let value = global_value(program, ctx, storage, index)?;
                     let mut arguments = Arguments::empty();
                     arguments.target = Some(value_invocation(&value));
-                    frame.arguments.push(ctx, arguments)?;
+                    storage.arguments.push(ctx, arguments)?;
                 }
                 Op::AddressGlobal(index) => {
                     if program.file
@@ -1457,7 +1472,9 @@ impl Run {
                     ));
                 }
                 Op::Bind(param, next) => {
-                    if let Some(value) = frame.binding.data[0].value(ctx, param)? {
+                    if let Some(value) =
+                        storage.parameters.data.last().unwrap().value(ctx, param)?
+                    {
                         let param = &program.functions[frame.function.unwrap()].params[param];
                         let slot = frame.local_base + param.slot;
                         let ty = param
@@ -1516,7 +1533,10 @@ impl Run {
                     )?;
                     stack.push(ctx, value)?;
                 }
-                Op::BindEnd => frame.binding = Buffer::empty(),
+                Op::BindEnd => {
+                    frame.binding = false;
+                    storage.parameters.data.pop();
+                }
                 Op::Declare(slot) => {
                     if let Some(name) = file_local {
                         file_bindings::declare(program, ctx, storage, name)?;
@@ -1547,7 +1567,7 @@ impl Run {
                     stack.push(ctx, value.unwrap_or_default())?;
                 }
                 Op::Attach(function) => {
-                    frame.arguments.data.last_mut().unwrap().block = Some(Block {
+                    storage.arguments.data.last_mut().unwrap().block = Some(Block {
                         function,
                         parent: current,
                     });
@@ -1790,8 +1810,8 @@ impl Run {
                         // `receiver[:name](...)` selects its callee here, before the
                         // arguments run; CallValue keeps the root only for host methods.
                         let receiver = root.clone();
-                        if let Some(pending) = frame.arguments.data.last_mut() {
-                            pending.receiver = Some(receiver);
+                        if storage.arguments.data.len() > frame.argument_base {
+                            storage.arguments.data.last_mut().unwrap().receiver = Some(receiver);
                         }
                     }
                     stack.data.truncate(base);
@@ -2447,13 +2467,13 @@ impl Run {
                     } else {
                         0
                     };
-                    frame.loops.push(
+                    storage.loops.push(
                         ctx,
                         LoopState {
                             base: stack.data.len(),
                             address_base: storage.addresses.data.len(),
                             bypass_base: storage.bypasses.data.len(),
-                            argument_base: frame.arguments.data.len(),
+                            argument_base: storage.arguments.data.len(),
                             text_base: storage.texts.data.len(),
                             next,
                             end,
@@ -2469,12 +2489,12 @@ impl Run {
                 }
                 Op::LoopTest => {
                     if !stack.data.pop().unwrap().truthy() {
-                        frame.ip = frame.loops.data.last().unwrap().end;
+                        frame.ip = storage.loops.data.last().unwrap().end;
                     }
                 }
                 Op::IterNext => {
                     let plain = !ctx.has_exports || function.plain_values.contains(frame.ip - 1);
-                    let state = frame.loops.data.last_mut().unwrap();
+                    let state = storage.loops.data.last_mut().unwrap();
                     if let Some(value) = state.next_value(ctx)? {
                         if !plain {
                             crate::exports::check(ctx, &value)?;
@@ -2485,29 +2505,29 @@ impl Run {
                     }
                 }
                 Op::LoopBody => {
-                    let state = frame.loops.data.last_mut().unwrap();
+                    let state = storage.loops.data.last_mut().unwrap();
                     state.last = stack.data.pop().unwrap();
                     stack.data.truncate(state.base);
                     storage.addresses.data.truncate(state.address_base);
                     storage.bypasses.data.truncate(state.bypass_base);
                     storage.texts.data.truncate(state.text_base);
-                    frame.arguments.data.truncate(state.argument_base);
+                    storage.arguments.data.truncate(state.argument_base);
                     frame.ip = state.next;
                 }
                 Op::LoopEnd => {
-                    let state = frame.loops.data.pop().unwrap();
+                    let state = storage.loops.data.pop().unwrap();
                     stack.data.truncate(state.base);
                     storage.addresses.data.truncate(state.address_base);
                     storage.bypasses.data.truncate(state.bypass_base);
                     storage.texts.data.truncate(state.text_base);
-                    frame.arguments.data.truncate(state.argument_base);
+                    storage.arguments.data.truncate(state.argument_base);
                     stack.push(ctx, state.result())?;
                 }
-                Op::LoopGuard(breaking) => handlers::guard_loop(ctx, frames, breaking)?,
+                Op::LoopGuard(breaking) => handlers::guard_loop(ctx, frames, storage, breaking)?,
                 Op::Break(has_value) | Op::Next(has_value) => {
                     let value = has_value.then(|| stack.data.pop().unwrap());
                     let control =
-                        handlers::loop_control(frames, matches!(op, Op::Break(_)), value)?;
+                        handlers::loop_control(frames, storage, matches!(op, Op::Break(_)), value)?;
                     return Ok(Event::Control(control));
                 }
                 Op::Call(function, n) => {
@@ -2580,24 +2600,19 @@ impl Run {
                         if let Some(value) = globals::get(ctx, storage, &program.members[name])? {
                             args.target = Some(value_invocation(&value));
                         }
-                        frame.arguments.push(ctx, args)?;
+                        storage.arguments.push(ctx, args)?;
                     }
                 }
-                Op::Arguments => frame.arguments.push(ctx, Arguments::empty())?,
+                Op::Arguments => storage.arguments.push(ctx, Arguments::empty())?,
                 Op::CallName(slot, name) => {
                     let target = call_targets::identifier(
                         program, ctx, frames, storage, current, slot, name,
                     )?;
-                    frames.data[current]
-                        .arguments
-                        .data
-                        .last_mut()
-                        .unwrap()
-                        .resolve(target);
+                    storage.arguments.data.last_mut().unwrap().resolve(target);
                 }
                 Op::CallValue => {
                     let value = stack.data.pop().unwrap();
-                    let args = frame.arguments.data.last_mut().unwrap();
+                    let args = storage.arguments.data.last_mut().unwrap();
                     // An immediate `receiver[:name](...)` left its root here.
                     let pending = args.receiver.take();
                     args.resolve(value_invocation(&value));
@@ -2615,7 +2630,7 @@ impl Run {
                         namespace,
                         frame.receiver.is_some(),
                     )?;
-                    let args = frame.arguments.data.last_mut().unwrap();
+                    let args = storage.arguments.data.last_mut().unwrap();
                     args.resolve(target);
                     args.keep_receiver(Some(selected));
                 }
@@ -2693,7 +2708,7 @@ impl Run {
                     };
                     let mut arguments = Arguments::empty();
                     arguments.resolve(target);
-                    frames.data[current].arguments.push(ctx, arguments)?;
+                    storage.arguments.push(ctx, arguments)?;
                 }
                 Op::Argument(op) => {
                     let value = stack.data.pop().unwrap();
@@ -2703,7 +2718,7 @@ impl Run {
                         ""
                     };
                     let plain = !ctx.has_exports || function.plain_values.contains(frame.ip - 1);
-                    frame
+                    storage
                         .arguments
                         .data
                         .last_mut()
@@ -2711,7 +2726,7 @@ impl Run {
                         .push(ctx, op, name, value, plain)?;
                 }
                 Op::Invoke(target) | Op::InvokeRoot(target) => {
-                    let mut args = frame.arguments.data.pop().unwrap();
+                    let mut args = storage.arguments.data.pop().unwrap();
                     let target = if matches!(op, Op::InvokeRoot(_))
                         || matches!(target, Invocation::Resolved)
                     {
@@ -3256,7 +3271,7 @@ fn diagnostic_site<'a>(
             .get(frame.ip.saturating_sub(1));
         // A frame binding its parameters, or checking the host's arguments
         // to them, reports a mismatch where it was called.
-        if (frame.binding.data.is_empty() && !frame.checked)
+        if (!frame.binding && !frame.checked)
             || !matches!(
                 op,
                 Some(Op::Bind(..) | Op::Normalize(..) | Op::BindIvar(..))
@@ -3284,7 +3299,7 @@ fn trace_entries<'a>(
     let name = frames
         .iter()
         .rev()
-        .filter(|frame| frame.binding.data.is_empty())
+        .filter(|frame| !frame.binding)
         .filter_map(|frame| frame.function.map(|index| &frame.program.functions[index]))
         .find(|function| function.name != "<block>" && !function.initializer)
         .filter(|function| function.name != "__main__")
@@ -3300,7 +3315,7 @@ fn trace_entries<'a>(
                 if function.name == "<block>"
                     || function.name == "__main__"
                     || function.initializer
-                    || !frame.binding.data.is_empty()
+                    || frame.binding
                 {
                     return None;
                 }
@@ -4430,8 +4445,12 @@ fn bind(
     frame.receiver = call.receiver;
     frame.constructor = call.constructor;
     if fun.binds_parameters {
-        frame.binding = Buffer::with_capacity(ctx, 1)?;
-        frame.binding.data.push(binding);
+        // Bindings nest only through calls in default values, so grow the
+        // stack one binding at a time.
+        let parameters = &mut storage.parameters;
+        parameters.ensure(ctx, parameters.data.len() + 1)?;
+        parameters.data.push(binding);
+        frame.binding = true;
     } else {
         for (i, param) in fun.params.iter().enumerate() {
             storage.locals.data[frame.local_base + param.slot] = binding.value(ctx, i)?;
@@ -4455,7 +4474,7 @@ fn enter_iteration(
     }
     let mut frame = new_frame(ctx, program, storage, None, base)?;
     frame.block = args.block;
-    frame.arguments.push(ctx, args)?;
+    storage.arguments.push(ctx, args)?;
     storage.iterations.push(ctx, iteration)?;
     frames.push(ctx, frame)
 }
@@ -4521,9 +4540,9 @@ impl Frame {
             address_base: storage.addresses.data.len(),
             bypass_base: storage.bypasses.data.len(),
             text_base: storage.texts.data.len(),
-            loops: Buffer::empty(),
-            arguments: Buffer::empty(),
-            binding: Buffer::empty(),
+            loop_base: storage.loops.data.len(),
+            argument_base: storage.arguments.data.len(),
+            binding: false,
             parent: None,
             home: None,
             block: None,
@@ -4731,7 +4750,15 @@ fn unwind(
         }
         programs::defer_release(storage, frame.program.index);
     }
+    let binding = frames.data[target..]
+        .iter()
+        .filter(|frame| frame.binding)
+        .count();
+    let parameters = storage.parameters.data.len() - binding;
+    storage.parameters.data.truncate(parameters);
     let frame = &frames.data[target];
+    storage.loops.data.truncate(frame.loop_base);
+    storage.arguments.data.truncate(frame.argument_base);
     stack.data.truncate(frame.base);
     storage.locals.data.truncate(frame.local_base);
     storage.iterations.data.truncate(frame.iteration_base);

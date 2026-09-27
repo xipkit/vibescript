@@ -163,7 +163,7 @@ pub(super) fn run(
                     return Ok(());
                 }
                 step(ctx, frame)?;
-                index(ctx, function, frame, stack, n)?;
+                index(ctx, function, frame, storage, stack, n)?;
             }
             Op::Array(n) => {
                 step(ctx, frame)?;
@@ -290,7 +290,7 @@ pub(super) fn run(
             Op::IterNext => {
                 let plain = !ctx.has_exports || function.plain_values.contains(frame.ip);
                 step(ctx, frame)?;
-                iterate(ctx, frame, stack, plain)?;
+                iterate(ctx, frame, storage, stack, plain)?;
             }
             Op::Jump(target) => {
                 step(ctx, frame)?;
@@ -317,12 +317,12 @@ pub(super) fn run(
             Op::LoopTest => {
                 step(ctx, frame)?;
                 if !truthy(stack.data.pop().unwrap()) {
-                    frame.ip = frame.loops.data.last().unwrap().end;
+                    frame.ip = storage.loops.data.last().unwrap().end;
                 }
             }
             Op::LoopBody => {
                 step(ctx, frame)?;
-                let state = frame.loops.data.last_mut().unwrap();
+                let state = storage.loops.data.last_mut().unwrap();
                 discard(std::mem::replace(
                     &mut state.last,
                     stack.data.pop().unwrap(),
@@ -331,7 +331,7 @@ pub(super) fn run(
                 storage.addresses.data.truncate(state.address_base);
                 storage.bypasses.data.truncate(state.bypass_base);
                 storage.texts.data.truncate(state.text_base);
-                frame.arguments.data.truncate(state.argument_base);
+                storage.arguments.data.truncate(state.argument_base);
                 frame.ip = state.next;
             }
             Op::RootCall(_, expanded) => {
@@ -355,6 +355,7 @@ fn index(
     ctx: &mut CallContext,
     function: &Function,
     frame: &mut Frame,
+    storage: &mut Storage,
     stack: &mut Buffer<Value>,
     count: usize,
 ) -> Result<()> {
@@ -372,8 +373,8 @@ fn index(
     {
         // `receiver[:name](...)` keeps its root for the host method.
         let receiver = root.clone();
-        if let Some(pending) = frame.arguments.data.last_mut() {
-            pending.receiver = Some(receiver);
+        if storage.arguments.data.len() > frame.argument_base {
+            storage.arguments.data.last_mut().unwrap().receiver = Some(receiver);
         }
     }
     stack.data.truncate(base);
@@ -499,10 +500,11 @@ fn array(ctx: &mut CallContext, stack: &mut Buffer<Value>, count: usize) -> Resu
 fn iterate(
     ctx: &mut CallContext,
     frame: &mut Frame,
+    storage: &mut Storage,
     stack: &mut Buffer<Value>,
     plain: bool,
 ) -> Result<()> {
-    let state = frame.loops.data.last_mut().unwrap();
+    let state = storage.loops.data.last_mut().unwrap();
     if let Some(value) = state.next_value(ctx)? {
         if !plain {
             crate::exports::check(ctx, &value)?;

@@ -30,7 +30,7 @@ impl Call {
                 frame.host = true;
                 frame.block = args.block;
                 frame.return_to = return_to;
-                frame.arguments.push(ctx, args)?;
+                storage.arguments.push(ctx, args)?;
                 frames.push(ctx, frame)
             }
         }

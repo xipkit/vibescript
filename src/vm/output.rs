@@ -20,7 +20,7 @@ pub(super) fn start(
         return stack.push(ctx, Value::nil());
     }
     args.target = Some(Target::Output(kind, 0));
-    frames.data.last_mut().unwrap().arguments.push(ctx, args)?;
+    storage.arguments.push(ctx, args)?;
     resume(program, ctx, frames, storage, stack, None)
 }
 
@@ -33,26 +33,12 @@ pub(super) fn resume(
     mut returned: Option<Value>,
 ) -> Result<()> {
     loop {
-        let args = frames
-            .data
-            .last_mut()
-            .unwrap()
-            .arguments
-            .data
-            .last_mut()
-            .unwrap();
+        let args = storage.arguments.data.last_mut().unwrap();
         let Some(Target::Output(kind, index)) = args.target else {
             unreachable!()
         };
         if index == args.positional.data.len() {
-            let args = frames
-                .data
-                .last_mut()
-                .unwrap()
-                .arguments
-                .data
-                .pop()
-                .unwrap();
+            let args = storage.arguments.data.pop().unwrap();
             let value = if kind != Output::Inspect {
                 Value::nil()
             } else if args.positional.data.len() == 1 {
@@ -89,14 +75,6 @@ pub(super) fn resume(
             }
             kind.write(ctx, &original)?;
         }
-        frames
-            .data
-            .last_mut()
-            .unwrap()
-            .arguments
-            .data
-            .last_mut()
-            .unwrap()
-            .target = Some(Target::Output(kind, index + 1));
+        storage.arguments.data.last_mut().unwrap().target = Some(Target::Output(kind, index + 1));
     }
 }

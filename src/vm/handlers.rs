@@ -283,7 +283,6 @@ struct Snapshot {
     bypasses: usize,
     texts: usize,
     arguments: usize,
-    bindings: usize,
     loops: usize,
     iterations: usize,
 }
@@ -345,15 +344,13 @@ fn restore(
     if frames.data.len() > owner + 1 {
         unwind(frames, storage, stack, owner + 1);
     }
-    let frame = &mut frames.data[owner];
     stack.data.truncate(state.stack);
     storage.addresses.data.truncate(state.addresses);
     storage.bypasses.data.truncate(state.bypasses);
     storage.texts.data.truncate(state.texts);
     storage.iterations.data.truncate(state.iterations);
-    frame.arguments.data.truncate(state.arguments);
-    frame.binding.data.truncate(state.bindings);
-    frame.loops.data.truncate(state.loops);
+    storage.arguments.data.truncate(state.arguments);
+    storage.loops.data.truncate(state.loops);
 }
 
 fn clear_binding(storage: &mut Storage, handler: usize) {
@@ -371,15 +368,13 @@ pub(super) fn begin(
     spec: usize,
 ) -> Result<()> {
     let owner = frames.data.len() - 1;
-    let frame = &frames.data[owner];
     let snapshot = Snapshot {
         stack: stack.data.len(),
         addresses: storage.addresses.data.len(),
         bypasses: storage.bypasses.data.len(),
         texts: storage.texts.data.len(),
-        arguments: frame.arguments.data.len(),
-        bindings: frame.binding.data.len(),
-        loops: frame.loops.data.len(),
+        arguments: storage.arguments.data.len(),
+        loops: storage.loops.data.len(),
         iterations: storage.iterations.data.len(),
     };
     storage.handlers.push(
@@ -705,14 +700,30 @@ pub(super) fn raise(
     Ok(Error::from_bytes(ctx, &bytes.data)?.with_class(class.unwrap_or(ErrorClass::Runtime)))
 }
 
+/// Whether frame `index` has an active loop. A frame's loops end where the
+/// next frame's start, since only the executing frame starts or ends one.
+pub(super) fn has_loops(frames: &Buffer<Frame>, storage: &Storage, index: usize) -> bool {
+    loop_count(frames, storage, index) > 0
+}
+
+/// How many loops frame `index` has active.
+fn loop_count(frames: &Buffer<Frame>, storage: &Storage, index: usize) -> usize {
+    let end = frames
+        .data
+        .get(index + 1)
+        .map_or(storage.loops.data.len(), |next| next.loop_base);
+    end - frames.data[index].loop_base
+}
+
 pub(super) fn guard_loop(
     ctx: &mut CallContext,
     frames: &Buffer<Frame>,
+    storage: &Storage,
     breaking: bool,
 ) -> Result<()> {
-    for frame in frames.data.iter().rev() {
+    for (index, frame) in frames.data.iter().enumerate().rev() {
         ctx.charge(1)?;
-        if !frame.loops.data.is_empty()
+        if has_loops(frames, storage, index)
             || frame
                 .function
                 .is_none_or(|i| frame.program.functions[i].name == "<block>")
@@ -732,12 +743,13 @@ pub(super) fn guard_loop(
 
 fn invalid_loop_control(
     frames: &Buffer<Frame>,
+    storage: &Storage,
     breaking: bool,
     value: Option<Value>,
 ) -> Result<Control> {
     let frame = frames.data.len() - 1;
-    if frames.data[..frame].iter().any(|f| {
-        !f.loops.data.is_empty()
+    if frames.data[..frame].iter().enumerate().any(|(index, f)| {
+        has_loops(frames, storage, index)
             || f.function
                 .is_none_or(|i| f.program.functions[i].name == "<block>")
     }) {
@@ -760,12 +772,15 @@ fn invalid_loop_control(
 
 pub(super) fn loop_control(
     frames: &Buffer<Frame>,
+    storage: &Storage,
     breaking: bool,
     value: Option<Value>,
 ) -> Result<Control> {
     let current = frames.data.len() - 1;
     let frame = &frames.data[current];
-    if let Some(loop_index) = frame.loops.data.len().checked_sub(1) {
+    // Loop indexes are positions in the shared loop stack.
+    if has_loops(frames, storage, current) {
+        let loop_index = storage.loops.data.len() - 1;
         return Ok(if breaking {
             Control::Break {
                 target: current,
@@ -784,7 +799,7 @@ pub(super) fn loop_control(
         .function
         .is_some_and(|index| frame.program.functions[index].initializer);
     if frame.parent.is_none() || initializer {
-        return invalid_loop_control(frames, breaking, value);
+        return invalid_loop_control(frames, storage, breaking, value);
     }
     if !breaking {
         return Ok(Control::Return {
@@ -795,9 +810,10 @@ pub(super) fn loop_control(
     }
     let target = (0..current)
         .rev()
-        .find(|&i| !frames.data[i].loops.data.is_empty() || frames.data[i].parent.is_none())
+        .find(|&i| has_loops(frames, storage, i) || frames.data[i].parent.is_none())
         .unwrap();
-    if let Some(loop_index) = frames.data[target].loops.data.len().checked_sub(1) {
+    if has_loops(frames, storage, target) {
+        let loop_index = frames.data[target].loop_base + loop_count(frames, storage, target) - 1;
         return Ok(Control::Break {
             target,
             loop_index,
@@ -805,7 +821,7 @@ pub(super) fn loop_control(
         });
     }
     if frames.data[target].block.is_none() {
-        return invalid_loop_control(frames, true, value);
+        return invalid_loop_control(frames, storage, true, value);
     }
     Ok(Control::Return {
         target,
@@ -838,15 +854,15 @@ pub(super) fn apply_control(
                 unwind(frames, storage, stack, target + 1);
             }
             let frame = &mut frames.data[target];
-            frame.loops.data.truncate(loop_index + 1);
-            let state = &mut frame.loops.data[loop_index];
+            storage.loops.data.truncate(loop_index + 1);
+            let state = &mut storage.loops.data[loop_index];
             state.broken = true;
             state.break_value = value;
             stack.data.truncate(state.base);
             storage.addresses.data.truncate(state.address_base);
             storage.bypasses.data.truncate(state.bypass_base);
             storage.texts.data.truncate(state.text_base);
-            frame.arguments.data.truncate(state.argument_base);
+            storage.arguments.data.truncate(state.argument_base);
             frame.ip = state.end;
         }
         Control::Next { target, loop_index } => {
@@ -854,13 +870,13 @@ pub(super) fn apply_control(
                 unwind(frames, storage, stack, target + 1);
             }
             let frame = &mut frames.data[target];
-            frame.loops.data.truncate(loop_index + 1);
-            let state = &frame.loops.data[loop_index];
+            storage.loops.data.truncate(loop_index + 1);
+            let state = &storage.loops.data[loop_index];
             stack.data.truncate(state.base);
             storage.addresses.data.truncate(state.address_base);
             storage.bypasses.data.truncate(state.bypass_base);
             storage.texts.data.truncate(state.text_base);
-            frame.arguments.data.truncate(state.argument_base);
+            storage.arguments.data.truncate(state.argument_base);
             frame.ip = state.next;
         }
         Control::Return {
