@@ -76,30 +76,30 @@ struct Frame {
     receiver: Option<Value>,
     constructor: bool,
     return_to: ReturnTo,
-    function: Option<usize>,
+    function: Option<u32>,
     mutating: bool,
     ip: usize,
-    iteration_base: usize,
-    base: usize,
-    local_base: usize,
-    address_base: usize,
-    bypass_base: usize,
-    text_base: usize,
+    iteration_base: u32,
+    base: u32,
+    local_base: u32,
+    address_base: u32,
+    bypass_base: u32,
+    text_base: u32,
     /// Where the frame's loops start in [`Storage::loops`]; they end where
     /// the next frame's start, or at the end for the executing frame.
-    loop_base: usize,
+    loop_base: u32,
     /// Where the frame's pending calls' arguments start in
     /// [`Storage::arguments`].
-    argument_base: usize,
+    argument_base: u32,
     /// Whether the frame is binding its parameters, through the last of
     /// [`Storage::parameters`].
     binding: bool,
-    parent: Option<usize>,
-    home: Option<usize>,
+    parent: Option<u32>,
+    home: Option<u32>,
     block: Option<Block>,
     /// How many arguments a block frame received; they sit on the operand
     /// stack from `base`, below the block's own values.
-    block_args: usize,
+    block_args: u32,
 }
 
 /// A binding that an assignment is filling, which same-name calls in its value skip.
@@ -482,10 +482,10 @@ impl Run {
                 if frames.data[current].host {
                     return Ok(Event::Host);
                 }
-                if frames.data[current].function.is_none() {
+                if frames.data[current].function().is_none() {
                     ctx.charge(1)?;
                     let iteration =
-                        &mut storage.iterations.data[frames.data[current].iteration_base];
+                        &mut storage.iterations.data[frames.data[current].iteration_base()];
                     let returned = if iteration.waiting() {
                         Some(stack.data.pop().unwrap())
                     } else {
@@ -548,7 +548,7 @@ impl Run {
             let hosts = &program.code.hosts;
             let (outer, rest) = frames.data.split_at_mut(current);
             let frame = &mut rest[0];
-            let function = &program.functions[frame.function.unwrap()];
+            let function = &program.functions[frame.function().unwrap()];
             simple::run(ctx, program, function, outer, frame, storage, stack)?;
             let op = function.code[frame.ip];
             let frame = &mut frames.data[current];
@@ -590,10 +590,10 @@ impl Run {
                         crate::exports::check(ctx, &value)?;
                     }
                     let target = if matches!(op, Op::Return)
-                        && frame.parent.is_some()
+                        && frame.parent().is_some()
                         && !function.initializer
                     {
-                        let Some(home) = frame.home else {
+                        let Some(home) = frame.home() else {
                             return Ok(Event::Control(Control::Invalid {
                                 frame: current,
                                 jump: handlers::Jump::Return,
@@ -629,7 +629,7 @@ impl Run {
                 }
                 _ => (),
             }
-            let local_base = frame.local_base;
+            let local_base = frame.local_base();
             let namespace = function.namespace;
             let caller_instance = matches!(frame.receiver, Some(Value(Kind::Instance(_))));
             ctx.charge(1)?;
@@ -682,10 +682,7 @@ impl Run {
                         let mut args = Arguments::from_values(ctx, &stack.data[base..])?;
                         args.target = Some(target);
                         if let Op::CallBlock(_, _, function) = op {
-                            args.block = Some(Block {
-                                function,
-                                parent: current,
-                            });
+                            args.block = Some(Block::new(function, current));
                         }
                         stack.data.truncate(base);
                         storage.arguments.push(ctx, args)?;
@@ -792,7 +789,7 @@ impl Run {
                         ));
                     };
                     let instance = instance.clone();
-                    let slot = frame.local_base + local;
+                    let slot = frame.local_base() + local;
                     let value = storage.locals.data[slot].as_ref().unwrap().clone();
                     let value = if function.proven_ivars.contains(frame.ip - 1) {
                         value
@@ -822,7 +819,7 @@ impl Run {
                             Arguments::empty(),
                             stack.data.len(),
                         )?;
-                        frames.data.last_mut().unwrap().parent = Some(current);
+                        frames.data.last_mut().unwrap().parent = Some(narrow(current));
                     }
                 }
                 Op::AmbientValue(name, next) | Op::AmbientAddress(name, next) => {
@@ -1475,8 +1472,8 @@ impl Run {
                     if let Some(value) =
                         storage.parameters.data.last().unwrap().value(ctx, param)?
                     {
-                        let param = &program.functions[frame.function.unwrap()].params[param];
-                        let slot = frame.local_base + param.slot;
+                        let param = &program.functions[frame.function().unwrap()].params[param];
+                        let slot = frame.local_base() + param.slot;
                         let ty = param
                             .ty
                             .filter(|&ty| frame.checked || program.types[ty].unproven());
@@ -1547,7 +1544,7 @@ impl Run {
                 Op::Bypass(slot) => {
                     let bypass = match (file_local, local) {
                         (Some(_), Some((relative, _))) => {
-                            Bypass::File(program.index, frame.function.unwrap(), relative)
+                            Bypass::File(program.index, frame.function().unwrap(), relative)
                         }
                         _ => Bypass::Local(slot),
                     };
@@ -1560,17 +1557,15 @@ impl Run {
                         .truncate(storage.bypasses.data.len() - n);
                 }
                 Op::Shadow(slot) => {
-                    storage.locals.data[frame.local_base + slot] = Some(Value::nil())
+                    storage.locals.data[frame.local_base() + slot] = Some(Value::nil())
                 }
                 Op::BlockArg(index, autosplat) => {
                     let value = block_arg(frame, stack, index, autosplat).cloned();
                     stack.push(ctx, value.unwrap_or_default())?;
                 }
                 Op::Attach(function) => {
-                    storage.arguments.data.last_mut().unwrap().block = Some(Block {
-                        function,
-                        parent: current,
-                    });
+                    storage.arguments.data.last_mut().unwrap().block =
+                        Some(Block::new(function, current));
                 }
                 Op::BlockGiven(arguments, block) => {
                     if arguments || block {
@@ -1801,7 +1796,7 @@ impl Run {
                     if matches!(value.0, Kind::Host(_))
                         && matches!(root.0, Kind::Hash(_))
                         && matches!(
-                            program.functions[frame.function.unwrap()]
+                            program.functions[frame.function().unwrap()]
                                 .code
                                 .get(frame.ip),
                             Some(Op::CallValue)
@@ -1810,7 +1805,7 @@ impl Run {
                         // `receiver[:name](...)` selects its callee here, before the
                         // arguments run; CallValue keeps the root only for host methods.
                         let receiver = root.clone();
-                        if storage.arguments.data.len() > frame.argument_base {
+                        if storage.arguments.data.len() > frame.argument_base() {
                             storage.arguments.data.last_mut().unwrap().receiver = Some(receiver);
                         }
                     }
@@ -3116,7 +3111,7 @@ impl Run {
             {
                 let frame = &frames.data[current];
                 let target = matches!(
-                    frame.program.functions[frame.function.unwrap()]
+                    frame.program.functions[frame.function().unwrap()]
                         .code
                         .get(frame.ip),
                     Some(Op::CallValue)
@@ -3242,7 +3237,7 @@ fn method(
 
 fn frame_offset(frame: &Frame) -> Option<(&crate::bytecode::Program, u32)> {
     let program = &frame.program.code.program;
-    let function = &program.functions[frame.function?];
+    let function = &program.functions[frame.function()?];
     Some((
         program,
         function
@@ -3262,9 +3257,9 @@ fn diagnostic_site<'a>(
         .iter()
         .enumerate()
         .rev()
-        .find(|(_, frame)| frame.function.is_some())
+        .find(|(_, frame)| frame.function().is_some())
     {
-        let function = frame.function.unwrap();
+        let function = frame.function().unwrap();
         let owner = &frame.program.code.program;
         let op = owner.functions[function]
             .code
@@ -3300,7 +3295,11 @@ fn trace_entries<'a>(
         .iter()
         .rev()
         .filter(|frame| !frame.binding)
-        .filter_map(|frame| frame.function.map(|index| &frame.program.functions[index]))
+        .filter_map(|frame| {
+            frame
+                .function()
+                .map(|index| &frame.program.functions[index])
+        })
         .find(|function| function.name != "<block>" && !function.initializer)
         .filter(|function| function.name != "__main__")
         .map(|function| &function.trace_name);
@@ -3311,7 +3310,7 @@ fn trace_entries<'a>(
             .rev()
             .filter_map(move |(index, frame)| {
                 let owner = &frame.program.code.program;
-                let function = &owner.functions[frame.function?];
+                let function = &owner.functions[frame.function()?];
                 if function.name == "<block>"
                     || function.name == "__main__"
                     || function.initializer
@@ -3367,7 +3366,7 @@ fn normalize_return(
     if frames.data[frame].constructor {
         return Ok(frames.data[frame].receiver.as_ref().unwrap().clone());
     }
-    let Some(function) = frames.data[frame].function else {
+    let Some(function) = frames.data[frame].function() else {
         return Ok(value);
     };
     let Some(ty) = program.functions[function].return_check else {
@@ -3401,14 +3400,14 @@ fn runtime_bound(
     while let Some(index) = scope {
         ctx.charge(1)?;
         let frame = &frames.data[index];
-        if let Some(function) = frame.function {
+        if let Some(function) = frame.function() {
             for (slot, candidate) in frame.program.functions[function]
                 .local_names
                 .iter()
                 .enumerate()
             {
                 ctx.charge(1)?;
-                if storage.locals.data[frame.local_base + slot].is_some()
+                if storage.locals.data[frame.local_base() + slot].is_some()
                     && crate::enums::compare_names(ctx, candidate.as_bytes(), name.as_bytes())?
                         == std::cmp::Ordering::Equal
                 {
@@ -3416,7 +3415,7 @@ fn runtime_bound(
                 }
             }
         }
-        scope = frame.parent;
+        scope = frame.parent();
     }
     if crate::builtin::Global::parse(name).is_some()
         || program.names.contains_key(name)
@@ -3580,7 +3579,7 @@ fn normalize_type(
     annotation: (usize, crate::types::Context<'_>),
     value: Value,
 ) -> Result<Value> {
-    let lexical = frames.data[frame].parent;
+    let lexical = frames.data[frame].parent();
     prepare_type(program, ctx, frames, storage, lexical, annotation)?.normalize_with(
         ctx,
         value,
@@ -3613,11 +3612,11 @@ fn resolve_type(
         while let Some(index) = scope {
             ctx.charge(1)?;
             let frame = &frames.data[index];
-            let function = &frame.program.functions[frame.function.unwrap()];
+            let function = &frame.program.functions[frame.function().unwrap()];
             let mut found = None;
             for (slot, candidate) in function.local_names.iter().enumerate() {
                 ctx.charge(1)?;
-                if let Some(value) = &storage.locals.data[frame.local_base + slot] {
+                if let Some(value) = &storage.locals.data[frame.local_base() + slot] {
                     if let Some(value) =
                         type_candidate(ctx, candidate, value, binding, member, fold, enum_only)?
                     {
@@ -3628,7 +3627,7 @@ fn resolve_type(
             if let Some(value) = found {
                 return Ok(value);
             }
-            scope = frame.parent;
+            scope = frame.parent();
         }
         let mut found = None;
         let mut declaration = None;
@@ -3993,14 +3992,14 @@ fn undefined(
     let lexical = std::iter::successors(Some(current), |&index| {
         let frame = &frames.data[index];
         let block = frame
-            .function
+            .function()
             .is_some_and(|function| frame.program.functions[function].name == "<block>");
-        block.then_some(frame.parent).flatten()
+        block.then_some(frame.parent()).flatten()
     });
     let locals = lexical.flat_map(|index| {
         let frame = &frames.data[index];
         frame
-            .function
+            .function()
             .map(|function| frame.program.functions[function].local_names.as_slice())
             .unwrap_or_default()
             .iter()
@@ -4009,7 +4008,7 @@ fn undefined(
                 storage
                     .locals
                     .data
-                    .get(frame.local_base + slot)
+                    .get(frame.local_base() + slot)
                     .is_some_and(Option::is_some)
             })
             .map(|(_, local)| local.as_bytes())
@@ -4224,7 +4223,7 @@ fn enter(
     frames.push(
         ctx,
         Frame {
-            home: (function != 0 && !fun.initializer).then_some(frames.data.len()),
+            home: (function != 0 && !fun.initializer).then_some(narrow(frames.data.len())),
             ip: start,
             ..Frame::new(pinned, storage, Some(function), base, local_base)
         },
@@ -4300,14 +4299,14 @@ fn check_entry(
     let current = frames.data.len() - 1;
     let start = frames.data[current].ip;
     frames.data[current].checked = true;
-    let function = &program.functions[frames.data[current].function.unwrap()];
+    let function = &program.functions[frames.data[current].function().unwrap()];
     for (index, param) in function.params.iter().enumerate() {
         let Some(ty) = param.ty else {
             continue;
         };
         // The parameter's `Bind` is instruction `index` of the prologue.
         frames.data[current].ip = index + 1;
-        let slot = frames.data[current].local_base + param.slot;
+        let slot = frames.data[current].local_base() + param.slot;
         let value = storage.locals.data[slot].take().unwrap();
         let context = crate::types::Context::Argument(param.name.as_bytes());
         let value = normalize_type(program, ctx, frames, storage, current, (ty, context), value)?;
@@ -4339,10 +4338,7 @@ fn call_block(
         &stack.data[base..],
         base,
     )?;
-    frames.data.last_mut().unwrap().block = Some(Block {
-        function: block,
-        parent,
-    });
+    frames.data.last_mut().unwrap().block = Some(Block::new(block, parent));
     stack.data.truncate(base);
     Ok(())
 }
@@ -4439,7 +4435,7 @@ fn bind(
     let block = arguments.block;
     let binding = Binding::new(ctx, &fun.params, arguments)?;
     let mut frame = new_frame(ctx, program, storage, Some(function), base)?;
-    frame.home = (function != 0 && !fun.initializer).then_some(frames.data.len());
+    frame.home = (function != 0 && !fun.initializer).then_some(narrow(frames.data.len()));
     frame.checked = checked;
     frame.block = block;
     frame.receiver = call.receiver;
@@ -4453,7 +4449,7 @@ fn bind(
         frame.binding = true;
     } else {
         for (i, param) in fun.params.iter().enumerate() {
-            storage.locals.data[frame.local_base + param.slot] = binding.value(ctx, i)?;
+            storage.locals.data[frame.local_base() + param.slot] = binding.value(ctx, i)?;
         }
     }
     frames.push(ctx, frame)
@@ -4511,7 +4507,65 @@ fn open_locals(
     Ok(local_base)
 }
 
+/// Narrows an index into the VM's stacks for a [`Frame`], which keeps them
+/// in 32 bits: no stack holds four billion entries within memory.
+#[inline]
+fn narrow(index: usize) -> u32 {
+    debug_assert!(u32::try_from(index).is_ok());
+    index as u32
+}
+
 impl Frame {
+    // The frame keeps its indexes in 32 bits to stay small; these widen them.
+
+    fn function(&self) -> Option<usize> {
+        self.function.map(|index| index as usize)
+    }
+
+    fn parent(&self) -> Option<usize> {
+        self.parent.map(|index| index as usize)
+    }
+
+    fn home(&self) -> Option<usize> {
+        self.home.map(|index| index as usize)
+    }
+
+    fn base(&self) -> usize {
+        self.base as usize
+    }
+
+    fn local_base(&self) -> usize {
+        self.local_base as usize
+    }
+
+    fn iteration_base(&self) -> usize {
+        self.iteration_base as usize
+    }
+
+    fn address_base(&self) -> usize {
+        self.address_base as usize
+    }
+
+    fn bypass_base(&self) -> usize {
+        self.bypass_base as usize
+    }
+
+    fn text_base(&self) -> usize {
+        self.text_base as usize
+    }
+
+    fn loop_base(&self) -> usize {
+        self.loop_base as usize
+    }
+
+    fn argument_base(&self) -> usize {
+        self.argument_base as usize
+    }
+
+    fn block_args(&self) -> usize {
+        self.block_args as usize
+    }
+
     /// A frame starting `function` over the current extent of storage.
     #[inline]
     fn new(
@@ -4531,17 +4585,17 @@ impl Frame {
             receiver: None,
             constructor: false,
             return_to: ReturnTo::Stack,
-            function,
+            function: function.map(narrow),
             mutating: false,
             ip: 0,
-            iteration_base: storage.iterations.data.len(),
-            base,
-            local_base,
-            address_base: storage.addresses.data.len(),
-            bypass_base: storage.bypasses.data.len(),
-            text_base: storage.texts.data.len(),
-            loop_base: storage.loops.data.len(),
-            argument_base: storage.arguments.data.len(),
+            iteration_base: narrow(storage.iterations.data.len()),
+            base: narrow(base),
+            local_base: narrow(local_base),
+            address_base: narrow(storage.addresses.data.len()),
+            bypass_base: narrow(storage.bypasses.data.len()),
+            text_base: narrow(storage.texts.data.len()),
+            loop_base: narrow(storage.loops.data.len()),
+            argument_base: narrow(storage.arguments.data.len()),
             binding: false,
             parent: None,
             home: None,
@@ -4607,8 +4661,8 @@ fn resolve_slot(
     mut slot: usize,
     skip: bool,
 ) -> Result<usize> {
-    let own = frames.data[frame].local_base + slot;
-    let function = &frames.data[frame].program.functions[frames.data[frame].function.unwrap()];
+    let own = frames.data[frame].local_base() + slot;
+    let function = &frames.data[frame].program.functions[frames.data[frame].function().unwrap()];
     if function.initializer && storage.locals.data[own].is_none() {
         if let Some(slot) =
             namespaces::ambient_slot(ctx, frames, storage, frame, &function.local_names[slot])?
@@ -4621,7 +4675,7 @@ fn resolve_slot(
         }
     }
     loop {
-        let local = frames.data[frame].local_base + slot;
+        let local = frames.data[frame].local_base() + slot;
         if storage.locals.data[local].is_some() {
             if !skip {
                 return Ok(local);
@@ -4632,7 +4686,7 @@ fn resolve_slot(
             }
         }
         let Some(capture) = frames.data[frame].program.functions
-            [frames.data[frame].function.unwrap()]
+            [frames.data[frame].function().unwrap()]
         .captures
         .get(slot)
         .copied()
@@ -4641,7 +4695,7 @@ fn resolve_slot(
         };
         for _ in 0..=capture.depth {
             ctx.charge(1)?;
-            frame = frames.data[frame].parent.unwrap();
+            frame = frames.data[frame].parent().unwrap();
         }
         slot = capture.slot;
     }
@@ -4662,15 +4716,15 @@ fn enter_block(
         return recursion_exceeded(ctx);
     }
     let base = stack.data.len() - count;
-    let parent = &frames.data[block.parent];
+    let parent = &frames.data[block.parent()];
     let (receiver, home, outer) = (parent.receiver.clone(), parent.home, parent.block);
     let program = parent.program.clone();
-    let mut frame = new_frame(ctx, &program, storage, Some(block.function), base)?;
+    let mut frame = new_frame(ctx, &program, storage, Some(block.function()), base)?;
     frame.receiver = receiver;
-    frame.parent = Some(block.parent);
+    frame.parent = Some(narrow(block.parent()));
     frame.home = home;
     frame.block = outer;
-    frame.block_args = count;
+    frame.block_args = narrow(count);
     // Charges the work of copying the arguments, as a separate list did.
     for chunk in stack.data[base..].chunks(crate::budget::CHUNK / std::mem::size_of::<Value>()) {
         ctx.work_bytes(std::mem::size_of_val(chunk))?;
@@ -4714,10 +4768,10 @@ fn shared(
 fn visible_top<'a>(frames: &[Frame], stack: &'a Buffer<Value>) -> Option<&'a Value> {
     let mut length = stack.data.len();
     for frame in frames.iter().rev() {
-        if length != frame.base + frame.block_args {
+        if length != frame.base() + frame.block_args() {
             break;
         }
-        length = frame.base;
+        length = frame.base();
     }
     length.checked_sub(1).map(|top| &stack.data[top])
 }
@@ -4730,7 +4784,7 @@ fn block_arg<'a>(
     index: usize,
     autosplat: bool,
 ) -> Option<&'a Value> {
-    let args = &stack.data[frame.base..frame.base + frame.block_args];
+    let args = &stack.data[frame.base()..frame.base() + frame.block_args()];
     let args = match args {
         [single] if autosplat => single.as_array().unwrap_or(args),
         _ => args,
@@ -4757,13 +4811,13 @@ fn unwind(
     let parameters = storage.parameters.data.len() - binding;
     storage.parameters.data.truncate(parameters);
     let frame = &frames.data[target];
-    storage.loops.data.truncate(frame.loop_base);
-    storage.arguments.data.truncate(frame.argument_base);
-    stack.data.truncate(frame.base);
-    storage.locals.data.truncate(frame.local_base);
-    storage.iterations.data.truncate(frame.iteration_base);
-    storage.addresses.data.truncate(frame.address_base);
-    storage.bypasses.data.truncate(frame.bypass_base);
-    storage.texts.data.truncate(frame.text_base);
+    storage.loops.data.truncate(frame.loop_base());
+    storage.arguments.data.truncate(frame.argument_base());
+    stack.data.truncate(frame.base());
+    storage.locals.data.truncate(frame.local_base());
+    storage.iterations.data.truncate(frame.iteration_base());
+    storage.addresses.data.truncate(frame.address_base());
+    storage.bypasses.data.truncate(frame.bypass_base());
+    storage.texts.data.truncate(frame.text_base());
     frames.data.truncate(target);
 }

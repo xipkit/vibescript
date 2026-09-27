@@ -219,14 +219,14 @@ pub(super) fn capture_root_locals(
     frame: &Frame,
     storage: &mut Storage,
 ) -> Result<()> {
-    let function = &frame.program.functions[frame.function.unwrap()];
+    let function = &frame.program.functions[frame.function().unwrap()];
     let mut captured = Buffer::empty();
     for (slot, name) in function.local_names.iter().enumerate() {
         ctx.charge(1)?;
         if name.is_empty() || name.starts_with('\0') {
             continue;
         }
-        if let Some(value) = &storage.locals.data[frame.local_base + slot] {
+        if let Some(value) = &storage.locals.data[frame.local_base() + slot] {
             crate::exports::check(ctx, value)?;
             captured.push(ctx, (slot, value.clone()))?;
         }

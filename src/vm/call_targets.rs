@@ -17,7 +17,7 @@ pub(super) fn identifier(
     let name = &program.members[index];
     let frame = &frames.data[current];
     let namespace = frame
-        .function
+        .function()
         .and_then(|f| frame.program.functions[f].namespace);
     if let Some(Some(value)) = storage.locals.data.get(slot) {
         return Ok(value_invocation(value));

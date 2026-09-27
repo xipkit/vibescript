@@ -216,7 +216,7 @@ fn invoke(
     }
     let arity = args
         .block
-        .map(|block| frames.data[block.parent].program.functions[block.function].block_arity);
+        .map(|block| frames.data[block.parent()].program.functions[block.function()].block_arity);
     let driver = if members::exported(ctx, site, name, receiver)? {
         None
     } else {
@@ -421,7 +421,7 @@ pub(super) fn lexical_scope(
 ) -> Result<Option<usize>> {
     for (index, frame) in frames.data.iter().enumerate().rev() {
         ctx.charge(1)?;
-        if frame.function.is_some() {
+        if frame.function().is_some() {
             return Ok(Some(index));
         }
     }

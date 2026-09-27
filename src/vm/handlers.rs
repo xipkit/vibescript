@@ -324,7 +324,7 @@ fn declare(
         let owner = &frames.data[frame];
         let program = &owner.program;
         if file_bindings::local(program, ctx, frames, storage, frame, slot, resolved)? {
-            let name = &program.functions[owner.function.unwrap()].local_names[slot];
+            let name = &program.functions[owner.function().unwrap()].local_names[slot];
             file_bindings::declare(program, ctx, storage, name)?;
         } else if !requires::local(ctx, frames, storage, frame, slot, resolved)? {
             storage.locals.data[resolved].get_or_insert_with(Value::nil);
@@ -537,7 +537,7 @@ pub(super) fn error(
                     h.error = Some(error.clone());
                     frames.data[owner].ip = clause.start;
                     if let Some(slot) = clause.binding {
-                        let slot = frames.data[owner].local_base + slot;
+                        let slot = frames.data[owner].local_base() + slot;
                         let value = error.value(ctx)?;
                         storage.locals.data[slot] = Some(value);
                         storage.handlers.data[index].binding = Some(slot);
@@ -664,7 +664,7 @@ pub(super) fn class_constant_bound(
 ) -> Result<bool> {
     let program = &frames.data[current].program;
     let module = frames.data[current]
-        .function
+        .function()
         .and_then(|f| program.functions[f].namespace);
     if let Some(module) = module {
         return namespaces::field(program, ctx, storage, module, name).map(|value| value.is_some());
@@ -711,8 +711,8 @@ fn loop_count(frames: &Buffer<Frame>, storage: &Storage, index: usize) -> usize 
     let end = frames
         .data
         .get(index + 1)
-        .map_or(storage.loops.data.len(), |next| next.loop_base);
-    end - frames.data[index].loop_base
+        .map_or(storage.loops.data.len(), |next| next.loop_base());
+    end - frames.data[index].loop_base()
 }
 
 pub(super) fn guard_loop(
@@ -725,7 +725,7 @@ pub(super) fn guard_loop(
         ctx.charge(1)?;
         if has_loops(frames, storage, index)
             || frame
-                .function
+                .function()
                 .is_none_or(|i| frame.program.functions[i].name == "<block>")
         {
             return Ok(());
@@ -750,7 +750,7 @@ fn invalid_loop_control(
     let frame = frames.data.len() - 1;
     if frames.data[..frame].iter().enumerate().any(|(index, f)| {
         has_loops(frames, storage, index)
-            || f.function
+            || f.function()
                 .is_none_or(|i| f.program.functions[i].name == "<block>")
     }) {
         Ok(Control::Invalid {
@@ -796,9 +796,9 @@ pub(super) fn loop_control(
     }
     // A namespace body keeps its declaring frame as a parent, but it is not a block.
     let initializer = frame
-        .function
+        .function()
         .is_some_and(|index| frame.program.functions[index].initializer);
-    if frame.parent.is_none() || initializer {
+    if frame.parent().is_none() || initializer {
         return invalid_loop_control(frames, storage, breaking, value);
     }
     if !breaking {
@@ -810,10 +810,10 @@ pub(super) fn loop_control(
     }
     let target = (0..current)
         .rev()
-        .find(|&i| has_loops(frames, storage, i) || frames.data[i].parent.is_none())
+        .find(|&i| has_loops(frames, storage, i) || frames.data[i].parent().is_none())
         .unwrap();
     if has_loops(frames, storage, target) {
-        let loop_index = frames.data[target].loop_base + loop_count(frames, storage, target) - 1;
+        let loop_index = frames.data[target].loop_base() + loop_count(frames, storage, target) - 1;
         return Ok(Control::Break {
             target,
             loop_index,
@@ -890,7 +890,7 @@ pub(super) fn apply_control(
                 value
             };
             let return_to = std::mem::take(&mut frames.data[target].return_to);
-            let initialized = frames.data[target].function.and_then(|function| {
+            let initialized = frames.data[target].function().and_then(|function| {
                 frames.data[target].program.functions[function]
                     .initializer
                     .then(|| {

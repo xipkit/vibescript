@@ -111,7 +111,7 @@ fn unbound_local(
     storage: &Storage,
     relative: usize,
 ) -> Result<bool> {
-    let function = &frame.program.functions[frame.function.unwrap()];
+    let function = &frame.program.functions[frame.function().unwrap()];
     for param in &function.params {
         ctx.charge(1)?;
         if param.slot == relative {
@@ -132,7 +132,7 @@ pub(super) fn address(
     if !contains(ctx, storage, name)? || file_bindings::get(program, ctx, name)?.is_some() {
         return Ok(None);
     }
-    let function = &program.functions[frames.data[current].function.unwrap()];
+    let function = &program.functions[frames.data[current].function().unwrap()];
     if namespaces::constant(program, ctx, storage, function.namespace, name)?.is_some()
         || namespaces::ambient_slot(ctx, frames, storage, current, name)?.is_some()
     {
@@ -229,7 +229,7 @@ fn check_alias(
         ));
     }
     if let Some(frame) = frames.data.last() {
-        let function = &frame.program.functions[frame.function.unwrap()];
+        let function = &frame.program.functions[frame.function().unwrap()];
         if let Some(slot) = function.local_names.iter().position(|n| n == name) {
             let slot = resolve_slot(ctx, frames, storage, frames.data.len() - 1, slot, false)?;
             if let Some(value) = &storage.locals.data[slot] {

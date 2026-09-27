@@ -67,7 +67,7 @@ pub(super) fn local(
         return Ok(false);
     };
     let frame = &frames.data[current];
-    let function = &program.functions[frame.function.unwrap()];
+    let function = &program.functions[frame.function().unwrap()];
     let name = &function.local_names[relative];
     if name.starts_with('\0') || storage.locals.data[absolute].is_some() {
         return Ok(false);
@@ -78,22 +78,22 @@ pub(super) fn local(
             return Ok(false);
         }
     }
-    if frame.function == Some(0) {
+    if frame.function() == Some(0) {
         return Ok(true);
     }
     if function.name == "<block>" {
-        let mut parent = frame.parent;
+        let mut parent = frame.parent();
         while let Some(index) = parent {
             ctx.charge(1)?;
             let parent_frame = &frames.data[index];
-            let parent_function = &parent_frame.program.functions[parent_frame.function.unwrap()];
+            let parent_function = &parent_frame.program.functions[parent_frame.function().unwrap()];
             if parent_function.initializer {
                 return Ok(false);
             }
             if parent_function.name != "<block>" {
                 break;
             }
-            parent = parent_frame.parent;
+            parent = parent_frame.parent();
         }
     }
     Ok(
@@ -112,7 +112,7 @@ pub(super) fn unshadowed(
     current: usize,
     name: &str,
 ) -> Result<bool> {
-    let function = &program.functions[frames.data[current].function.unwrap()];
+    let function = &program.functions[frames.data[current].function().unwrap()];
     for (relative, candidate) in function.local_names.iter().enumerate() {
         ctx.charge(1)?;
         if candidate == name {

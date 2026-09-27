@@ -633,7 +633,7 @@ pub(super) fn ambient_slot(
     mut current: usize,
     name: &str,
 ) -> Result<Option<usize>> {
-    if !frames.data[current].function.is_some_and(|f| {
+    if !frames.data[current].function().is_some_and(|f| {
         frames.data[current].program.functions[f]
             .namespace
             .is_some()
@@ -644,17 +644,17 @@ pub(super) fn ambient_slot(
         ctx.charge(1)?;
         let frame = &frames.data[current];
         if frame
-            .function
+            .function()
             .is_some_and(|f| frame.program.functions[f].initializer)
         {
-            let Some(parent) = frame.parent else {
+            let Some(parent) = frame.parent() else {
                 return Ok(None);
             };
             let parent = &frames.data[parent];
             if parent.program.index != frame.program.index {
                 return Ok(None);
             }
-            let Some(function) = parent.function else {
+            let Some(function) = parent.function() else {
                 return Ok(None);
             };
             for (slot, candidate) in parent.program.functions[function]
@@ -664,14 +664,14 @@ pub(super) fn ambient_slot(
             {
                 ctx.charge(1)?;
                 ctx.work_bytes(name.len().max(candidate.len()))?;
-                let slot = parent.local_base + slot;
+                let slot = parent.local_base() + slot;
                 if name == candidate && storage.locals.data[slot].is_some() {
                     return Ok(Some(slot));
                 }
             }
             return Ok(None);
         }
-        let Some(parent) = frame.parent else {
+        let Some(parent) = frame.parent() else {
             return Ok(None);
         };
         current = parent;

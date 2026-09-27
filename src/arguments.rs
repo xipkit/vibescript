@@ -66,10 +66,30 @@ pub(crate) struct Arguments {
     pub receiver: Option<Value>,
 }
 
+/// A block passed to a call: its function, and the frame it closes over.
+/// Both are kept in 32 bits, as a frame's indexes are.
 #[derive(Clone, Copy)]
 pub(crate) struct Block {
-    pub function: usize,
-    pub parent: usize,
+    function: u32,
+    parent: u32,
+}
+
+impl Block {
+    pub fn new(function: usize, parent: usize) -> Self {
+        debug_assert!(u32::try_from(function).is_ok() && u32::try_from(parent).is_ok());
+        Self {
+            function: function as u32,
+            parent: parent as u32,
+        }
+    }
+
+    pub fn function(self) -> usize {
+        self.function as usize
+    }
+
+    pub fn parent(self) -> usize {
+        self.parent as usize
+    }
 }
 
 impl Arguments {

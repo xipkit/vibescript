@@ -67,7 +67,7 @@ pub(super) fn run(
                 push(ctx, stack, value)?;
             }
             Op::LoadOptional(n, _, _) => {
-                let own = frame.local_base + n;
+                let own = frame.local_base() + n;
                 let slot = if storage.locals.data[own].is_some() {
                     step(ctx, frame)?;
                     own
@@ -89,7 +89,7 @@ pub(super) fn run(
                 push(ctx, stack, value)?;
             }
             Op::ReceiverBound(n, next) => {
-                let Some(value) = storage.locals.data[frame.local_base + n].as_ref() else {
+                let Some(value) = storage.locals.data[frame.local_base() + n].as_ref() else {
                     return Ok(());
                 };
                 step(ctx, frame)?;
@@ -180,7 +180,7 @@ pub(super) fn run(
                 }
             }
             Op::AddressBound(n, next) => {
-                let own = frame.local_base + n;
+                let own = frame.local_base() + n;
                 let slot = if storage.locals.data[own].is_some() {
                     step(ctx, frame)?;
                     own
@@ -275,7 +275,7 @@ pub(super) fn run(
             }
             Op::Shadow(slot) => {
                 step(ctx, frame)?;
-                store(storage, frame.local_base + slot, Value::nil());
+                store(storage, frame.local_base() + slot, Value::nil());
             }
             Op::BlockArg(index, autosplat) => {
                 // Exported values need their depth checked when read, unless
@@ -373,7 +373,7 @@ fn index(
     {
         // `receiver[:name](...)` keeps its root for the host method.
         let receiver = root.clone();
-        if storage.arguments.data.len() > frame.argument_base {
+        if storage.arguments.data.len() > frame.argument_base() {
             storage.arguments.data.last_mut().unwrap().receiver = Some(receiver);
         }
     }
@@ -547,7 +547,7 @@ fn local(
     local: usize,
     shadowed: bool,
 ) -> Result<Option<usize>> {
-    let own = frame.local_base + local;
+    let own = frame.local_base() + local;
     if storage.locals.data[own].is_some() {
         step(ctx, frame)?;
         return Ok(Some(own));
@@ -612,7 +612,7 @@ fn target(
     storage: &Storage,
     local: usize,
 ) -> Option<(usize, u64)> {
-    let own = frame.local_base + local;
+    let own = frame.local_base() + local;
     if storage.locals.data[own].is_some() {
         return Some((own, 0));
     }
@@ -641,13 +641,13 @@ fn captured(
     loop {
         for _ in 0..=capture.depth {
             hops += 1;
-            current = &outer[current.parent.unwrap()];
+            current = &outer[current.parent().unwrap()];
         }
-        let slot = current.local_base + capture.slot;
+        let slot = current.local_base() + capture.slot;
         if storage.locals.data[slot].is_some() {
             return (slot, hops);
         }
-        let function = &current.program.functions[current.function.unwrap()];
+        let function = &current.program.functions[current.function().unwrap()];
         match function.captures.get(capture.slot).copied().flatten() {
             Some(next) => capture = next,
             None => return (own, hops),
