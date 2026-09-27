@@ -8,8 +8,8 @@ use crate::{
 use std::fmt::Write;
 
 // Zero means ordinary ASCII, one a six-byte escape, otherwise its short code.
-const ASCII_ESCAPES: [u8; 128] = {
-    let mut escapes = [0; 128];
+const ASCII_ESCAPES: [u8; 256] = {
+    let mut escapes = [0; 256];
     let mut byte = 0;
     while byte < 32 {
         escapes[byte] = 1;
@@ -407,86 +407,86 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output, open: usi
     // or grow the buffer, so failures and growth follow the same charges, and
     // after each chunk of input, so cancellation stays responsive.
     let mut pending = 0;
-    let mut settled = 0;
     let mut i = 0;
     while i < input.len() {
-        if i - settled >= CHUNK {
+        let checkpoint = input.len().min(i.saturating_add(CHUNK));
+        while i < checkpoint {
+            let b = input[i];
+            let escape = ASCII_ESCAPES[usize::from(b)];
+            if escape != 0 {
+                pending += 1;
+                i += 1;
+                // Go reserves room for the longest escape before any ASCII escape.
+                let reserved = out.buffer.data.len().saturating_add(6);
+                if out.limit.is_some_and(|limit| reserved > limit) {
+                    ctx.charge_pending(&mut pending)?;
+                    out.check(ctx, reserved)?;
+                }
+                if escape != 1 {
+                    out.put(ctx, &[b'\\', escape], &mut pending)?;
+                } else {
+                    let hex = b"0123456789abcdef";
+                    let unicode = [
+                        b'\\',
+                        b'u',
+                        b'0',
+                        b'0',
+                        hex[(b >> 4) as usize],
+                        hex[(b & 15) as usize],
+                    ];
+                    out.put(ctx, &unicode, &mut pending)?;
+                }
+                continue;
+            }
+            let window = &input[i..input.len().min(i + CHUNK)];
+            if b < 128 {
+                // A one-byte run between ASCII escapes needs no vector/SWAR mask.
+                if window
+                    .get(1)
+                    .is_some_and(|&next| ASCII_ESCAPES[usize::from(next)] != 0)
+                {
+                    out.put(ctx, &window[..1], &mut pending)?;
+                    i += 1;
+                    continue;
+                }
+                // An ordinary run ending at an escape or the window is exactly
+                // the span `text_span` would find, so it skips the rune scan.
+                let n = scan::prefix(window, Class::JsonStringify);
+                if window.get(n).is_none_or(|&next| next < 128) {
+                    out.put(ctx, &window[..n], &mut pending)?;
+                    i += n;
+                    continue;
+                }
+            }
+            let span = scan::text_span(window, Class::JsonStringify);
+            if span.len > 0 {
+                if span.runes != span.len {
+                    pending += span.steps;
+                }
+                out.put(ctx, &window[..span.len], &mut pending)?;
+                i += span.len;
+                continue;
+            }
+            // A rune the span stopped at: invalid, a line or paragraph separator,
+            // or cut by the end of the chunk.
+            pending += 1;
+            let (ch, n, valid) = scan::rune(&input[i..]);
+            let replacement: &[u8] = if ch == '\u{2028}' {
+                b"\\u2028"
+            } else if ch == '\u{2029}' {
+                b"\\u2029"
+            } else if !valid {
+                b"\\ufffd"
+            } else {
+                &input[i..i + n]
+            };
+            i += n;
+            out.put(ctx, replacement, &mut pending)?;
+        }
+        if i < input.len() {
             ctx.charge_pending(&mut pending)?;
             ctx.checkpoint()?;
-            settled = i;
         }
-        let b = input[i];
-        let escape = ASCII_ESCAPES.get(usize::from(b)).copied().unwrap_or(0);
-        if escape != 0 {
-            pending += 1;
-            i += 1;
-            // Go reserves room for the longest escape before any ASCII escape.
-            let reserved = out.buffer.data.len().saturating_add(6);
-            if out.limit.is_some_and(|limit| reserved > limit) {
-                ctx.charge_pending(&mut pending)?;
-                out.check(ctx, reserved)?;
-            }
-            if escape != 1 {
-                out.put(ctx, &[b'\\', escape], &mut pending)?;
-            } else {
-                let hex = b"0123456789abcdef";
-                let unicode = [
-                    b'\\',
-                    b'u',
-                    b'0',
-                    b'0',
-                    hex[(b >> 4) as usize],
-                    hex[(b & 15) as usize],
-                ];
-                out.put(ctx, &unicode, &mut pending)?;
-            }
-            continue;
-        }
-        let window = &input[i..input.len().min(i + CHUNK)];
-        if b < 128 {
-            // A one-byte run between ASCII escapes needs no vector/SWAR mask.
-            if window.get(1).is_some_and(|&next| {
-                ASCII_ESCAPES
-                    .get(usize::from(next))
-                    .is_some_and(|&e| e != 0)
-            }) {
-                out.put(ctx, &window[..1], &mut pending)?;
-                i += 1;
-                continue;
-            }
-            // An ordinary run ending at an escape or the window is exactly
-            // the span `text_span` would find, so it skips the rune scan.
-            let n = scan::prefix(window, Class::JsonStringify);
-            if window.get(n).is_none_or(|&next| next < 128) {
-                out.put(ctx, &window[..n], &mut pending)?;
-                i += n;
-                continue;
-            }
-        }
-        let span = scan::text_span(window, Class::JsonStringify);
-        if span.len > 0 {
-            if span.runes != span.len {
-                pending += span.steps;
-            }
-            out.put(ctx, &window[..span.len], &mut pending)?;
-            i += span.len;
-            continue;
-        }
-        // A rune the span stopped at: invalid, a line or paragraph separator,
-        // or cut by the end of the chunk.
-        pending += 1;
-        let (ch, n, valid) = scan::rune(&input[i..]);
-        let replacement: &[u8] = if ch == '\u{2028}' {
-            b"\\u2028"
-        } else if ch == '\u{2029}' {
-            b"\\u2029"
-        } else if !valid {
-            b"\\ufffd"
-        } else {
-            &input[i..i + n]
-        };
-        i += n;
-        out.put(ctx, replacement, &mut pending)?;
     }
     ctx.charge_pending(&mut pending)?;
     out.push(ctx, b'"')?;
