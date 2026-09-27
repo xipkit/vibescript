@@ -1,4 +1,3 @@
-#[cfg(any(all(feature = "simd", target_arch = "x86_64"), test))]
 use crate::budget::CHUNK;
 use crate::{
     CallContext, Error, ErrorKind, Result, Value, budget::Buffer, ops, scan, sequence, value::Kind,
@@ -47,10 +46,7 @@ pub(super) fn call(
     if !reverse {
         string(&args[0], member)?;
     }
-    #[cfg(all(feature = "simd", target_arch = "x86_64"))]
     let (length, valid) = ops::runes(ctx, text)?;
-    #[cfg(not(all(feature = "simd", target_arch = "x86_64")))]
-    let length = ops::runes(ctx, text)?.0;
     let offset = if offset < 0 {
         length as i128 + i128::from(offset)
     } else {
@@ -106,7 +102,6 @@ pub(super) fn call(
         length
     };
     position = sequence::rune_offset(ctx, text, start)?;
-    #[cfg(all(feature = "simd", target_arch = "x86_64"))]
     if valid && length == text.len() && end - start >= 16 && pattern.data[0].is_ascii() {
         let found = search_ascii(
             ctx,
@@ -146,7 +141,6 @@ pub(super) fn call(
 }
 
 // Keep the verified ASCII bounds visible at the call site.
-#[cfg(all(feature = "simd", target_arch = "x86_64"))]
 #[inline(always)]
 fn search_ascii(
     ctx: &mut CallContext,

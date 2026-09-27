@@ -6,11 +6,10 @@ pub(crate) enum Class {
 }
 
 /// Skips ASCII bytes unequal to `needle`, stopping before any non-ASCII byte.
-#[cfg(any(all(feature = "simd", target_arch = "x86_64"), test))]
 #[inline(never)]
 pub(crate) fn ascii_mismatch(bytes: &[u8], needle: u8) -> usize {
     let mut position = 0;
-    #[cfg(all(feature = "simd", target_arch = "x86_64"))]
+    #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
     let bytes = {
         let mut chunks = bytes.chunks_exact(16);
         for chunk in chunks.by_ref() {
@@ -84,6 +83,27 @@ mod byte_search_tests {
                     }
                 }
             }
+        }
+    }
+}
+
+#[cfg(all(feature = "simd", target_arch = "aarch64"))]
+unsafe fn vector_ascii_mismatch(bytes: &[u8], needle: u8) -> usize {
+    use std::arch::aarch64::*;
+    // SAFETY: the caller provides sixteen readable bytes; NEON is baseline.
+    unsafe {
+        let input = vld1q_u8(bytes.as_ptr());
+        let mask = vorrq_u8(vceqq_u8(input, vdupq_n_u8(needle)), input);
+        if vmaxvq_u8(mask) < 128 {
+            return 16;
+        }
+        let lanes = vreinterpretq_u64_u8(mask);
+        let low = u64::from_le(vgetq_lane_u64::<0>(lanes)) & 0x8080_8080_8080_8080;
+        if low != 0 {
+            low.trailing_zeros() as usize / 8
+        } else {
+            let high = u64::from_le(vgetq_lane_u64::<1>(lanes)) & 0x8080_8080_8080_8080;
+            8 + high.trailing_zeros() as usize / 8
         }
     }
 }
