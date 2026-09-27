@@ -49,9 +49,18 @@ def build(out):
     print("Built portable and SIMD timing, allocation-instrumented and golden binaries",flush=True)
 
 
+def executable(variant,out):
+    # A fixed entry path keeps argv and the initial process stack comparable.
+    runner=out/"compare-runner"
+    runner.unlink(missing_ok=True)
+    runner.symlink_to(BINS/variant)
+    return runner
+
+
 def invoke(variant,fixtures,n,mode,path):
+    runner=executable(variant,path.parent)
     with path.open("w") as output:
-        run([BINS/variant,fixtures,n,mode],cwd=ROOT,stdout=output)
+        run([runner,fixtures,n,mode],cwd=ROOT,stdout=output)
     return [json.loads(line) for line in path.read_text().splitlines()]
 
 
@@ -143,7 +152,7 @@ def measure(out,rounds,target_ms,expected,suite):
             rss_input.write_text(json.dumps([case],ensure_ascii=False)+"\n")
             rss_file=out/f"rss-{variant}-{index}.txt"
             with rss_file.open("w") as err,(out/f"rss-{variant}-{index}.jsonl").open("w") as output:
-                run([sys.executable,ROOT/"scripts/rss.py",BINS/variant,rss_input,20,"timing"],cwd=ROOT,stdout=output,stderr=err)
+                run([sys.executable,ROOT/"scripts/rss.py",executable(variant,out),rss_input,20,"timing"],cwd=ROOT,stdout=output,stderr=err)
             line=next(line for line in rss_file.read_text().splitlines() if "maximum resident set size" in line.lower())
             rss[variant][case["name"]]=int(line.split()[0])
     summary={"rounds":rounds,"order":order,"peak_rss_bytes":rss,"cases":{}}
@@ -189,6 +198,10 @@ def main():
     if not args.skip_build: build(out)
     metadata={"platform":platform.platform(),"machine":platform.machine(),"cpu":cpu_name(),"rustc":run(["rustc","-Vv"],capture_output=True).stdout,"source_revision":run(["git","rev-parse","HEAD"],cwd=ROOT,capture_output=True).stdout.strip(),"dirty":run(["git","status","--porcelain"],cwd=ROOT,capture_output=True).stdout,"binary_sha256":{name:hashlib.sha256((BINS/name).read_bytes()).hexdigest() for name in VARIANTS},"RUSTFLAGS":os.environ.get("RUSTFLAGS",""),"target_ms":args.target_ms,"command":sys.argv}
     metadata["baseline_source_revision"]=baseline_revision
+    metadata["execution_path"]=str(out/"compare-runner")
+    if sys.platform.startswith("linux"):
+        metadata["personality"]=Path("/proc/self/personality").read_text().strip()
+        metadata["cpu_affinity"]=sorted(os.sched_getaffinity(0))
     metadata["allocation_binary_sha256"]={name+"-alloc":hashlib.sha256((BINS/(name+"-alloc")).read_bytes()).hexdigest() for name in VARIANTS}
     (out/"environment.json").write_text(json.dumps(metadata,indent=2)+"\n")
     expected=validate(out)

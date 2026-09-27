@@ -226,6 +226,12 @@ def text_benchmark_cases():
         ("index", 'input.index(":done")', 8200, "int?"),
     ]:
         add(name, expression, "request:"+"x"*8192+":done", expected, returns)
+    add("index_short_hit", 'input.index(":")', "request:ok", 7, "int?")
+    add("index_short_miss", 'input.index("missing")', "request:ok", None, "int?")
+    add("index_unicode", 'input.index(":done")', "é界🙂"*2048+":done", 6144, "int?")
+    add("index_overlap", 'input.index("aaaaab")', "a"*8192+"b", 8187, "int?")
+    repeated="request:"+"x"*8192+":done"+"x"*8192+":done"
+    add("rindex", 'input.rindex(":done")', repeated, repeated.rindex(":done"), "int?")
     add("format", 'format("user=%s id=%08d ratio=%.2f", input, 42, 1.25)', "ada", "user=ada id=00000042 ratio=1.25")
     add("interpolation", '"user=#{input} id=#{42} ok=#{true} ratio=#{1.25} tags=#{[1, 2]}"', "ada", "user=ada id=42 ok=true ratio=1.25 tags=[1, 2]")
     add("concat_loop", 's=""; i=0; while i<input; s+="item-"; i+=1; end; s', 256, "item-"*256, param="int")
