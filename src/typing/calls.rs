@@ -468,7 +468,7 @@ impl<'a> Checker<'a> {
         if ty != Ty::ERROR && block.is_none() {
             let called = if safe { self.types.without_nil(ty) } else { ty };
             let base = crate::members::direct::Base::of(&self.types.bases(called));
-            self.receivers.record(expr, base);
+            self.facts.record_base(expr, base);
         }
         let name_span = self.spans.member(receiver, name);
         if let Some(span) = name_span {
@@ -2063,6 +2063,11 @@ impl<'a> Checker<'a> {
         want: Want,
         break_to: Option<(Ty, String)>,
     ) -> (Ty, Vec<Ty>) {
+        let plain = params
+            .iter()
+            .chain(rest.as_ref())
+            .all(|&ty| self.types.plain(ty));
+        self.facts.record_block(block, plain);
         // Union receivers supply different block parameter types on each pass.
         let outer_memo = self.memo.take();
         self.open_scope();

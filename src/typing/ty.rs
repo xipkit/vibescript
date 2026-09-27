@@ -115,6 +115,8 @@ pub(crate) struct Types {
     kinds: Vec<Kind>,
     ids: HashMap<Kind, Ty>,
     assignable: HashMap<(Ty, Ty), bool>,
+    /// [`Self::plain`] of each type asked about.
+    plain: HashMap<Ty, bool>,
     pub names: Names,
     /// Work done, for [`super::Checked::steps`].
     pub steps: u64,
@@ -126,6 +128,7 @@ impl Types {
             kinds: Vec::new(),
             ids: HashMap::new(),
             assignable: HashMap::new(),
+            plain: HashMap::new(),
             names: Names::default(),
             steps: 0,
         };
@@ -617,6 +620,24 @@ impl Types {
     }
 
     /// The base type name of each alternative, for [`super::ReceiverType`].
+    /// Whether a value of type `ty` is plain: it can hold no host method or
+    /// exported function. Only `any`, capabilities and required modules can,
+    /// and so can a type the checker could not determine.
+    pub fn plain(&mut self, ty: Ty) -> bool {
+        if let Some(&plain) = self.plain.get(&ty) {
+            return plain;
+        }
+        let plain = match self.kind(ty).clone() {
+            Kind::Any | Kind::Error | Kind::Var(_) | Kind::Exports(_) | Kind::Host(_) => false,
+            Kind::Array(element) | Kind::Hash(element) => self.plain(element),
+            Kind::Shape(fields, _) => fields.iter().all(|field| self.plain(field.ty)),
+            Kind::Tuple(items) | Kind::Union(items) => items.iter().all(|&item| self.plain(item)),
+            _ => true,
+        };
+        self.plain.insert(ty, plain);
+        plain
+    }
+
     pub fn bases(&self, ty: Ty) -> Vec<String> {
         let mut bases: Vec<String> = self
             .members(ty)

@@ -67,6 +67,11 @@ struct Frame {
     /// checked against the parameter types; the checker proves the
     /// arguments of every other call.
     checked: bool,
+    /// For an iterating call's frame, whether the checker proved plain what
+    /// it yields to its block, because its receiver and arguments are, and
+    /// its result: neither then needs a scan for host methods.
+    plain_yields: bool,
+    plain_result: bool,
     activation: bool,
     receiver: Option<Value>,
     constructor: bool,
@@ -473,8 +478,10 @@ impl Run {
                     };
                     match iteration.advance(ctx, returned)? {
                         Progress::Yield(args, count) => {
-                            for value in &args[..count] {
-                                crate::exports::check(ctx, value)?;
+                            if !frames.data[current].plain_yields {
+                                for value in &args[..count] {
+                                    crate::exports::check(ctx, value)?;
+                                }
                             }
                             let block = frames.data[current].block.unwrap();
                             for value in args.into_iter().take(count) {
@@ -509,8 +516,11 @@ impl Run {
                                     )?;
                                 }
                             }
+                            let plain = frames.data[current].plain_result;
                             unwind(frames, storage, stack, current);
-                            crate::exports::check(ctx, &value)?;
+                            if !plain {
+                                crate::exports::check(ctx, &value)?;
+                            }
                             stack.push(ctx, value)?;
                         }
                     }
@@ -561,7 +571,9 @@ impl Run {
                     if function.returns_nil && matches!(op, Op::Finish) {
                         value = Value::nil();
                     }
-                    crate::exports::check(ctx, &value)?;
+                    if ctx.has_exports && !function.plain_values.contains(frame.ip - 1) {
+                        crate::exports::check(ctx, &value)?;
+                    }
                     let target = if matches!(op, Op::Return)
                         && frame.parent.is_some()
                         && !function.initializer
@@ -2452,9 +2464,12 @@ impl Run {
                     }
                 }
                 Op::IterNext => {
+                    let plain = !ctx.has_exports || function.plain_values.contains(frame.ip - 1);
                     let state = frame.loops.data.last_mut().unwrap();
                     if let Some(value) = state.next_value(ctx)? {
-                        crate::exports::check(ctx, &value)?;
+                        if !plain {
+                            crate::exports::check(ctx, &value)?;
+                        }
                         stack.push(ctx, value)?;
                     } else {
                         frame.ip = state.end;
@@ -2678,12 +2693,13 @@ impl Run {
                     } else {
                         ""
                     };
+                    let plain = !ctx.has_exports || function.plain_values.contains(frame.ip - 1);
                     frame
                         .arguments
                         .data
                         .last_mut()
                         .unwrap()
-                        .push(ctx, op, name, value)?;
+                        .push(ctx, op, name, value, plain)?;
                 }
                 Op::Invoke(target) | Op::InvokeRoot(target) => {
                     let mut args = frame.arguments.data.pop().unwrap();
@@ -2891,6 +2907,7 @@ impl Run {
                             value.finish(program, ctx, frames, storage, stack, ReturnTo::Stack)?;
                         }
                         Invocation::Member(site, mutating) => {
+                            let ip = frames.data[current].ip - 1;
                             dispatch::member(
                                 program,
                                 ctx,
@@ -2908,6 +2925,8 @@ impl Run {
                                         implicit: false,
                                         instance: caller_instance,
                                     },
+                                    plain_yields: function.plain_inputs.contains(ip),
+                                    plain_result: function.plain_values.contains(ip),
                                 },
                             )?;
                         }
@@ -2948,10 +2967,12 @@ impl Run {
                 Op::Direct(site, n) => {
                     let base = stack.data.len() - n - 1;
                     let name = &program.members[site.name];
+                    let ip = frames.data[current].ip - 1;
                     // A member that can iterate took its arguments through a
-                    // list, whose checks the direct call makes too.
+                    // list, whose checks the direct call makes too unless
+                    // the checker proved them plain.
                     let listed = iteration::method(name);
-                    if listed {
+                    if listed && !function.plain_inputs.contains(ip) {
                         for arg in &stack.data[base + 1..] {
                             crate::exports::check(ctx, arg)?;
                         }
@@ -2986,6 +3007,8 @@ impl Run {
                                     implicit: false,
                                     instance: caller_instance,
                                 },
+                                plain_yields: false,
+                                plain_result: function.plain_values.contains(ip),
                             },
                         )?;
                     } else {
@@ -3044,6 +3067,10 @@ impl Run {
                         | Op::Extract(_)
                         | Op::BlockArg(..)
                 )
+                // A value the checker proved plain needs no scan. A call that
+                // entered a frame left no value yet.
+                && !(frames.data.len() == current + 1
+                    && function.plain_values.contains(frames.data[current].ip - 1))
             {
                 let frame = &frames.data[current];
                 let target = matches!(
@@ -4452,6 +4479,8 @@ impl Frame {
             program,
             host: false,
             checked: false,
+            plain_yields: false,
+            plain_result: false,
             activation: false,
             receiver: None,
             constructor: false,

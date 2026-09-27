@@ -391,6 +391,28 @@ impl Method {
     }
 }
 
+/// A set of a function's instruction indices.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Bits(Vec<u64>);
+
+impl Bits {
+    fn insert(&mut self, index: usize) {
+        let word = index / 64;
+        if self.0.len() <= word {
+            self.0.resize(word + 1, 0);
+        }
+        self.0[word] |= 1 << (index % 64);
+    }
+
+    /// Whether the set holds instruction `index`.
+    #[inline]
+    pub(crate) fn contains(&self, index: usize) -> bool {
+        self.0
+            .get(index / 64)
+            .is_some_and(|word| word & (1 << (index % 64)) != 0)
+    }
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct Function {
     pub offset: u32,
@@ -413,6 +435,15 @@ pub(crate) struct Function {
     pub proven: Option<usize>,
     pub locals: usize,
     pub code: Vec<Op>,
+    /// Instructions whose value the checker proves plain (see
+    /// [`crate::typing::Facts`]), so the scan for host methods and exported
+    /// functions that would follow them is skipped: indexes, member and
+    /// function calls, arguments, block parameters, `for` elements and
+    /// returns.
+    pub plain_values: Bits,
+    /// Iterating member calls whose receiver and arguments are plain, so
+    /// the values they give their block need no scan either.
+    pub plain_inputs: Bits,
     pub captures: Vec<Option<Capture>>,
     pub block_arity: usize,
     pub local_names: Vec<String>,
@@ -492,25 +523,25 @@ fn compile_mode(
     file: bool,
     work: &dyn crate::compilation::Work,
 ) -> Result<Program> {
-    let receivers = crate::typing::Receivers::default();
+    let facts = crate::typing::Facts::default();
     compile_parsed(
         source,
         syntax::parse(source, work)?,
         hosts,
         file,
-        &receivers,
+        &facts,
         work,
     )
 }
 
 /// Compiles parsed declarations of `source`, which the static type checker
-/// has already read, finding the `receivers` of member calls in them.
+/// has already read, with the `facts` it proved about them.
 pub(crate) fn compile_parsed(
     source: &str,
     parsed: syntax::Declarations,
     hosts: Vec<String>,
     file: bool,
-    receivers: &crate::typing::Receivers,
+    facts: &crate::typing::Facts,
     work: &dyn crate::compilation::Work,
 ) -> Result<Program> {
     let mut outline = Vec::with_capacity(parsed.outline.len());
@@ -600,7 +631,7 @@ pub(crate) fn compile_parsed(
         let plain = !binds_parameters && def.params.iter().all(|p| p.kind == ParamKind::Positional);
         let compiling = Compiling::new(Compiler {
             work,
-            receivers,
+            facts,
             aliases: &typing.aliases,
             namespace: contexts[index].0,
             instance: contexts[index].2,
@@ -611,6 +642,8 @@ pub(crate) fn compile_parsed(
             locals: Table::new(),
             slots: 0,
             code: Vec::new(),
+            plain_values: Bits::default(),
+            plain_inputs: Bits::default(),
             locations: Vec::new(),
             offset: def.offset,
             parameters: Table::new(),
@@ -633,6 +666,12 @@ pub(crate) fn compile_parsed(
         let mut c = compiling.compiler.into_inner();
         let finish = c.emit(Op::Finish);
         c.locations[finish] = def.body.last().map_or(def.offset, |stmt| stmt.offset);
+        // The top level, a namespace body and an accessor keep their
+        // value; a getter returns it explicitly anyway.
+        let returns_nil =
+            index != 0 && def.return_type.is_none() && def.accessor.is_none() && !contexts[index].1;
+        let plain_finish = returns_nil || c.plain_result(&def.body);
+        c.mark_plain(finish, plain_finish);
         let return_type = def
             .return_type
             .as_ref()
@@ -644,7 +683,6 @@ pub(crate) fn compile_parsed(
         let return_check =
             return_type.filter(|&ty| contexts[index].2 || c.program.types[ty].unproven());
         debug_assert_eq!(c.code.len(), c.locations.len());
-        let def_accessor = def.accessor.as_ref().map(|(_, setter)| *setter);
         let function = Function {
             offset: def.offset,
             private: def.private,
@@ -664,14 +702,11 @@ pub(crate) fn compile_parsed(
             locals: c.slots,
             local_names: local_names(&c.locals, c.slots, work)?,
             code: c.code,
+            plain_values: c.plain_values,
+            plain_inputs: c.plain_inputs,
             captures: Vec::new(),
             block_arity: 0,
-            // The top level, a namespace body and an accessor keep their
-            // value; a getter returns it explicitly anyway.
-            returns_nil: index != 0
-                && return_type.is_none()
-                && def_accessor.is_none()
-                && !contexts[index].1,
+            returns_nil,
             return_type,
             return_check,
         };
@@ -703,8 +738,8 @@ fn expanded(args: &[Argument]) -> bool {
 
 struct Compiler<'a> {
     work: &'a dyn crate::compilation::Work,
-    /// The static base of member call receivers, from the checker.
-    receivers: &'a crate::typing::Receivers,
+    /// What the checker proved about the syntax being compiled.
+    facts: &'a crate::typing::Facts,
     aliases: &'a aliases::Aliases,
     instance: bool,
     namespace: Option<usize>,
@@ -719,6 +754,10 @@ struct Compiler<'a> {
     locals: Table<usize>,
     slots: usize,
     code: Vec<Op>,
+    /// The generated code's [`Function::plain_values`].
+    plain_values: Bits,
+    /// The generated code's [`Function::plain_inputs`].
+    plain_inputs: Bits,
     locations: Vec<u32>,
     offset: u32,
     parameters: Table<()>,
@@ -743,6 +782,10 @@ struct Scope {
     locals: Table<usize>,
     slots: usize,
     code: Vec<Op>,
+    /// The generated code's [`Function::plain_values`].
+    plain_values: Bits,
+    /// The generated code's [`Function::plain_inputs`].
+    plain_inputs: Bits,
     locations: Vec<u32>,
     offset: u32,
     parameters: Table<()>,
@@ -1306,6 +1349,23 @@ impl Compiler<'_> {
             None => None,
         })
     }
+    /// Records that the value instruction `ip` leaves is plain.
+    fn mark_plain(&mut self, ip: usize, plain: bool) {
+        if plain {
+            self.plain_values.insert(ip);
+        }
+    }
+    /// Whether the value `body`'s statements leave is plain, as far as the
+    /// checker proved it for the last one.
+    fn plain_result(&self, body: &[Stmt]) -> bool {
+        match body.last().map(|stmt| &stmt.node) {
+            None => true,
+            Some(Statement::Expr(value) | Statement::Assign(_, "=", value)) => {
+                self.facts.plain(value)
+            }
+            Some(_) => false,
+        }
+    }
     /// Checks the value on top of the stack against `ty`, naming it by
     /// `subject`, unless the checker proves the check (see
     /// [`crate::types::Type::unproven`]).
@@ -1387,6 +1447,8 @@ impl Compiler<'_> {
             locals: Table::new(),
             slots: 0,
             code: Vec::new(),
+            plain_values: Bits::default(),
+            plain_inputs: Bits::default(),
             locations: Vec::new(),
             offset: self.offset,
             parameters: Table::new(),
@@ -1402,6 +1464,8 @@ impl Compiler<'_> {
         std::mem::swap(&mut self.locals, &mut scope.locals);
         std::mem::swap(&mut self.slots, &mut scope.slots);
         std::mem::swap(&mut self.code, &mut scope.code);
+        std::mem::swap(&mut self.plain_values, &mut scope.plain_values);
+        std::mem::swap(&mut self.plain_inputs, &mut scope.plain_inputs);
         std::mem::swap(&mut self.locations, &mut scope.locations);
         std::mem::swap(&mut self.offset, &mut scope.offset);
         std::mem::swap(&mut self.parameters, &mut scope.parameters);
@@ -1433,6 +1497,8 @@ impl Compiler<'_> {
             locals: child.slots,
             local_names,
             code: child.code,
+            plain_values: child.plain_values,
+            plain_inputs: child.plain_inputs,
             captures,
             block_arity,
             ..Function::default()
@@ -1848,7 +1914,13 @@ impl<'a, 'x> Compiling<'a, 'x> {
                         end: 0,
                     })
                 };
-                let next = self.c().emit(Op::IterNext);
+                let next = {
+                    let mut c = self.c();
+                    let next = c.emit(Op::IterNext);
+                    let plain = c.facts.plain(iterable);
+                    c.mark_plain(next, plain);
+                    next
+                };
                 self.assign_value(target).await?;
                 self.c().emit(Op::Pop);
                 self.loop_body(body).await?;
@@ -1868,7 +1940,10 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 } else {
                     self.c().emit(Op::Nil);
                 }
-                self.c().emit(Op::Return);
+                let mut c = self.c();
+                let ip = c.emit(Op::Return);
+                let plain = value.as_ref().is_none_or(|e| c.facts.plain(e));
+                c.mark_plain(ip, plain);
             }
             Statement::Break(value) => {
                 if let Some(value) = value {
@@ -2345,13 +2420,13 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     None => (),
                 }
             }
-            Node::BlockCall(call, block) => Box::pin(self.block_call(call, block)).await?,
+            Node::BlockCall(call, block) => Box::pin(self.block_call(e, call, block)).await?,
             Node::ComputedCall(call, args) => {
                 Box::pin(self.computed_call(call, args, None)).await?
             }
-            Node::Call(name, args, _) => self.named_call(name, args).await?,
+            Node::Call(name, args, _) => self.named_call(e, name, args).await?,
             Node::Member(recv, name) | Node::SafeMember(recv, name) => {
-                let direct = self.c().receivers.base(e);
+                let direct = self.c().facts.base(e);
                 (self.member_call(
                     recv,
                     name,
@@ -2360,6 +2435,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     None,
                     matches!(e.node, Node::SafeMember(..)),
                     direct,
+                    e,
                 ))
                 .await?;
             }
@@ -2367,7 +2443,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 Box::pin(self.scoped_call(recv, name, args.as_deref(), None)).await?
             }
             Node::Method(recv, name, args, form) | Node::SafeMethod(recv, name, args, form) => {
-                let direct = self.c().receivers.base(e);
+                let direct = self.c().facts.base(e);
                 (self.member_call(
                     recv,
                     name,
@@ -2376,6 +2452,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     None,
                     matches!(e.node, Node::SafeMethod(..)),
                     direct,
+                    e,
                 ))
                 .await?;
             }
@@ -2384,7 +2461,10 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 for index in index {
                     self.expr(index).await?;
                 }
-                self.c().emit(Op::Index(index.len()));
+                let mut c = self.c();
+                let ip = c.emit(Op::Index(index.len()));
+                let plain = c.facts.plain(e);
+                c.mark_plain(ip, plain);
             }
             Node::Regex(..)
             | Node::Integer(_)
@@ -2489,9 +2569,9 @@ impl<'a, 'x> Compiling<'a, 'x> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    /// Calls member `name` of `receiver`. A call whose receiver the checker
-    /// proved to have the one base type `direct` becomes a direct builtin
-    /// call when that base serves the member.
+    /// Calls member `name` of `receiver`, as the expression `whole`. A call
+    /// whose receiver the checker proved to have the one base type `direct`
+    /// becomes a direct builtin call when that base serves the member.
     #[allow(clippy::too_many_arguments)]
     async fn member_call(
         &self,
@@ -2502,6 +2582,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
         block: Option<usize>,
         safe: bool,
         direct: Option<crate::members::direct::Base>,
+        whole: &'x Expr,
     ) -> Result<()> {
         self.c().work.charge(1)?;
         let mutating = mutating_member(name);
@@ -2537,12 +2618,21 @@ impl<'a, 'x> Compiling<'a, 'x> {
             }
             (skip, site, direct)
         };
+        let (plain, plain_args) = {
+            let c = self.c();
+            let plain_args = args.iter().all(|arg| c.facts.plain(&arg.value));
+            (c.facts.plain(whole), plain_args)
+        };
         if direct.is_some() {
             for arg in args {
                 self.expr(&arg.value).await?;
             }
             let mut c = self.c();
-            c.emit(Op::Direct(site, args.len()));
+            let ip = c.emit(Op::Direct(site, args.len()));
+            c.mark_plain(ip, plain);
+            if plain_args {
+                c.plain_inputs.insert(ip);
+            }
             if let Some(skip) = skip {
                 let end = c.code.len();
                 c.patch(skip, end);
@@ -2578,16 +2668,22 @@ impl<'a, 'x> Compiling<'a, 'x> {
             if let Some(block) = block {
                 c.emit(Op::Attach(block));
             }
-            c.emit(Op::Invoke(Invocation::Member(site, mutating)));
+            let ip = c.emit(Op::Invoke(Invocation::Member(site, mutating)));
+            c.mark_plain(ip, plain);
+            if plain_args && c.facts.plain(receiver) {
+                c.plain_inputs.insert(ip);
+            }
         } else {
             for arg in args {
                 self.expr(&arg.value).await?;
             }
-            self.c().emit(if mutating {
+            let mut c = self.c();
+            let ip = c.emit(if mutating {
                 Op::Mutate(site, args.len())
             } else {
                 Op::Method(site, args.len())
             });
+            c.mark_plain(ip, plain);
         }
         if let Some(skip) = skip {
             let mut c = self.c();
@@ -2677,7 +2773,8 @@ impl<'a, 'x> Compiling<'a, 'x> {
         Ok(())
     }
 
-    async fn block_call(&self, call: &'x Expr, block: &'x Block) -> Result<()> {
+    /// Calls `call` with `block`, as the expression `whole`.
+    async fn block_call(&self, whole: &'x Expr, call: &'x Expr, block: &'x Block) -> Result<()> {
         self.c().work.charge(1)?;
         let function = self.compile_block(block).await?;
         let (name, args) = match &call.node {
@@ -2693,6 +2790,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                         Some(function),
                         matches!(call.node, Node::SafeMember(..)),
                         None,
+                        whole,
                     )
                     .await;
             }
@@ -2707,6 +2805,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                         Some(function),
                         matches!(call.node, Node::SafeMethod(..)),
                         None,
+                        whole,
                     )
                     .await;
             }
@@ -2742,7 +2841,9 @@ impl<'a, 'x> Compiling<'a, 'x> {
             self.argument_values(args).await?;
             let mut c = self.c();
             c.emit(Op::Attach(function));
-            c.emit(Op::Invoke(Invocation::Resolved));
+            let ip = c.emit(Op::Invoke(Invocation::Resolved));
+            let plain = c.facts.plain(whole);
+            c.mark_plain(ip, plain);
             return Ok(());
         }
         let target = {
@@ -2786,10 +2887,12 @@ impl<'a, 'x> Compiling<'a, 'x> {
         self.argument_values(args).await?;
         let mut c = self.c();
         c.emit(Op::Attach(function));
-        match target {
+        let ip = match target {
             Some(Invocation::Resolved) | None => c.emit(Op::Invoke(Invocation::Resolved)),
             Some(target) => c.emit(Op::InvokeRoot(target)),
         };
+        let plain = c.facts.plain(whole);
+        c.mark_plain(ip, plain);
         Ok(())
     }
 
@@ -2824,8 +2927,13 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 }
             }
         }
+        let plain_params = self.c().facts.plain_block(block);
         for (index, target) in block.params.iter().enumerate() {
-            self.c().emit(Op::BlockArg(index, block.params.len() > 1));
+            {
+                let mut c = self.c();
+                let ip = c.emit(Op::BlockArg(index, block.params.len() > 1));
+                c.mark_plain(ip, plain_params);
+            }
             self.assign_value(target).await?;
             self.c().emit(Op::Pop);
         }
@@ -2844,7 +2952,8 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     let slot = c.slot(&name)?;
                     c.parameters.insert(work, name, ())?;
                     c.emit(Op::Shadow(slot));
-                    c.emit(Op::BlockArg(index, false));
+                    let ip = c.emit(Op::BlockArg(index, false));
+                    c.mark_plain(ip, plain_params);
                     c.emit(Op::Store(slot));
                     c.emit(Op::Pop);
                 }
@@ -2853,6 +2962,8 @@ impl<'a, 'x> Compiling<'a, 'x> {
         self.block(&block.body).await?;
         let mut c = self.c();
         let finish = c.emit(Op::Finish);
+        let plain = c.plain_result(&block.body);
+        c.mark_plain(finish, plain);
         let parent_offset = c.offset;
         c.locations[finish] = block.body.last().map_or(parent_offset, |stmt| stmt.offset);
         debug_assert_eq!(c.code.len(), c.locations.len());
@@ -2879,7 +2990,9 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 ArgumentKind::Keyword(name) => ArgumentOp::Keyword(c.call_site(name, false).name),
                 ArgumentKind::KeywordSplat => ArgumentOp::KeywordSplat,
             };
-            c.emit(Op::Argument(kind));
+            let ip = c.emit(Op::Argument(kind));
+            let plain = c.facts.plain(&arg.value);
+            c.mark_plain(ip, plain);
         }
         Ok(())
     }

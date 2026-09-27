@@ -752,3 +752,88 @@ fn host_retention_keeps_charges_and_a_new_call_accounts_its_own_namespace() {
         ErrorKind::Memory
     );
 }
+
+/// Runs `source`'s `run` on `rows` records, with the `sms` capability bound
+/// when `bound`, returning the result and its step count.
+fn rows_run(source: &str, rows: usize, bound: bool) -> (String, u64) {
+    let engine = if bound { engine() } else { Engine::new() };
+    let script = engine.compile(source).unwrap();
+    let records = (0..rows)
+        .map(|index| {
+            Value::hash(vec![
+                (b"id".to_vec(), Value::int(index as i64)),
+                (b"tags".to_vec(), Value::array(vec![Value::bytes("a")])),
+            ])
+        })
+        .collect();
+    let options = if bound {
+        granted(echo())
+    } else {
+        CallOptions::default()
+    };
+    let output = script
+        .call("run", &[Value::array(records)], options)
+        .unwrap();
+    (output.value.to_string(), output.stats.steps)
+}
+
+#[test]
+fn a_bound_capability_adds_no_work_per_plain_record() {
+    // Reads, calls, arguments, blocks and results of plain types need no
+    // scan for methods, so binding a capability costs no scan however many
+    // records the script walks.
+    let source = "\
+def tags(row: { id: int, tags: array<string> }) -> array<string>
+  row[\"tags\"]
+end
+def run(rows: array<{ id: int, tags: array<string> }>) -> array<{ id: int, count: int }>
+  out: array<{ id: int, count: int }> = []
+  rows.each { |row| out << { id: row[\"id\"], count: tags(row).length + rows.fetch(0)[\"tags\"].length } }
+  for row in rows
+    out << { id: row[\"id\"], count: 0 }
+  end
+  out.map { |row| row }
+end";
+    // The host's own arguments are still scanned at entry, which a script
+    // that ignores them measures.
+    let entry = "\
+def run(rows: array<{ id: int, tags: array<string> }>) -> array<{ id: int, count: int }>
+  []
+end";
+    let cost = |source: &str, rows: usize| {
+        let (plain, plain_steps) = rows_run(source, rows, false);
+        let (bound, bound_steps) = rows_run(source, rows, true);
+        assert_eq!(plain, bound);
+        (plain, bound_steps - plain_steps)
+    };
+    let (few, few_cost) = cost(source, 4);
+    let (many, many_cost) = cost(source, 64);
+    assert!(few.starts_with("[{id: 0, count: 2}"), "{few}");
+    assert!(many.len() > few.len());
+    let (_, few_entry) = cost(entry, 4);
+    let (_, many_entry) = cost(entry, 64);
+    // Each call of a function by name checks that no capability of the same
+    // name takes its place, a step per record here.
+    assert_eq!(many_cost - many_entry - 64, few_cost - few_entry - 4);
+}
+
+#[test]
+fn values_a_capability_returns_untyped_are_still_scanned_for_methods() {
+    let leak = HostMethod::new("sms.leak", |_, _, _| Ok(Value::array(vec![echo().value()])));
+    let mut engine = Engine::new();
+    engine
+        .declare_capability(&Capability::from_value(
+            "sms",
+            Value::object(vec![(b"deliver".to_vec(), leak.value())]),
+        ))
+        .unwrap();
+    let script = engine
+        .compile("def run -> any\n  found = sms.deliver\n  [found]\nend")
+        .unwrap();
+    let error = script.call("run", &[], granted(leak)).unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Type, "{error}");
+    assert!(
+        error.message.contains("cannot be used as a value"),
+        "{error}"
+    );
+}

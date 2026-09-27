@@ -7,6 +7,10 @@ pub(super) struct Call<'a> {
     pub mutating: bool,
     pub args: Arguments,
     pub access: namespaces::Access,
+    /// Whether the checker proved plain what an iterating call yields to
+    /// its block, and its result (see [`Frame::plain_yields`]).
+    pub plain_yields: bool,
+    pub plain_result: bool,
 }
 
 pub(super) fn member(
@@ -52,6 +56,8 @@ fn invoke(
         mutating,
         args,
         access: _,
+        plain_yields,
+        plain_result,
     } = call;
     if name == "as"
         && !site.scope
@@ -236,6 +242,9 @@ fn invoke(
             args,
             iteration,
         )?;
+        let frame = frames.data.last_mut().unwrap();
+        frame.plain_yields = plain_yields;
+        frame.plain_result = plain_result;
         if mutating {
             let frame = frames.data.last_mut().unwrap();
             frame.mutating = true;

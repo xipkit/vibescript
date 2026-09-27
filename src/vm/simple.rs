@@ -155,9 +155,10 @@ pub(super) fn run(
                 push(ctx, stack, value)?;
             }
             Op::Index(n) => {
-                // Exported values need their depth checked after indexing.
+                // Exported values need their depth checked after indexing,
+                // unless the checker proved the result plain.
                 if matches!(stack.data[stack.data.len() - n - 1].0, Kind::Instance(_))
-                    || ctx.has_exports
+                    || (ctx.has_exports && !function.plain_values.contains(frame.ip))
                 {
                     return Ok(());
                 }
@@ -169,8 +170,12 @@ pub(super) fn run(
                 array(ctx, stack, n)?;
             }
             Op::Direct(site, n) => {
-                // Exported values need their arguments and result checked.
-                if ctx.has_exports || !direct(ctx, program, frame, stack, site, n)? {
+                // Exported values need their arguments and result checked,
+                // unless the checker proved them plain.
+                let checked = ctx.has_exports
+                    && !(function.plain_values.contains(frame.ip)
+                        && function.plain_inputs.contains(frame.ip));
+                if checked || !direct(ctx, program, frame, stack, site, n)? {
                     return Ok(());
                 }
             }
@@ -179,8 +184,9 @@ pub(super) fn run(
                 store(storage, frame.local_base + slot, Value::nil());
             }
             Op::BlockArg(index, autosplat) => {
-                // Exported values need their depth checked when read.
-                if ctx.has_exports {
+                // Exported values need their depth checked when read, unless
+                // the checker proved the block's parameters plain.
+                if ctx.has_exports && !function.plain_values.contains(frame.ip) {
                     return Ok(());
                 }
                 step(ctx, frame)?;
@@ -188,8 +194,9 @@ pub(super) fn run(
                 push(ctx, stack, value)?;
             }
             Op::IterNext => {
+                let plain = !ctx.has_exports || function.plain_values.contains(frame.ip);
                 step(ctx, frame)?;
-                iterate(ctx, frame, stack)?;
+                iterate(ctx, frame, stack, plain)?;
             }
             Op::Jump(target) => {
                 step(ctx, frame)?;
@@ -324,12 +331,20 @@ fn array(ctx: &mut CallContext, stack: &mut Buffer<Value>, count: usize) -> Resu
     stack.push(ctx, value)
 }
 
-/// Pushes the innermost loop's next element, or leaves the loop.
+/// Pushes the innermost loop's next element, or leaves the loop. Unless the
+/// checker proved the elements `plain`, each is scanned for host methods.
 #[inline(never)]
-fn iterate(ctx: &mut CallContext, frame: &mut Frame, stack: &mut Buffer<Value>) -> Result<()> {
+fn iterate(
+    ctx: &mut CallContext,
+    frame: &mut Frame,
+    stack: &mut Buffer<Value>,
+    plain: bool,
+) -> Result<()> {
     let state = frame.loops.data.last_mut().unwrap();
     if let Some(value) = state.next_value(ctx)? {
-        crate::exports::check(ctx, &value)?;
+        if !plain {
+            crate::exports::check(ctx, &value)?;
+        }
         stack.push(ctx, value)?;
     } else {
         frame.ip = state.end;

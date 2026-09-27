@@ -101,38 +101,66 @@ pub struct Checked {
     /// `Script::run` returns, written the same way; `None` for a required
     /// file.
     pub result: Option<String>,
-    /// The static base of member call receivers, which the compiler binds
-    /// builtins to.
-    pub(crate) receivers: Receivers,
+    /// What the checker proved about expressions, which the compiler uses.
+    pub(crate) facts: Facts,
 }
 
-/// The one static base type of each member call's receiver that has one the
-/// runtime binds builtins to, by the call's syntax node. The compiler reads
-/// it for the same nodes it compiles.
+/// What the checker proved about expressions and blocks, by syntax node, for
+/// the compiler to read for the same nodes it compiles. A node checked more
+/// than once, such as a call on each alternative of a union receiver, keeps
+/// only what every check proved.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct Receivers {
-    /// `None` where checking the call more than once found different bases.
+pub(crate) struct Facts {
+    /// The one static base type of each member call's receiver that has one
+    /// the runtime binds builtins to; `None` where checks disagreed.
     bases: HashMap<usize, Option<crate::members::direct::Base>>,
+    /// Whether each expression's value is plain: it can hold no host method
+    /// or exported function, which only values of type `any`, capabilities
+    /// and required modules can. The runtime skips its scan for them.
+    plain: HashMap<usize, bool>,
+    /// Whether every parameter of each block is plain.
+    blocks: HashMap<usize, bool>,
 }
 
-impl Receivers {
-    fn record(&mut self, call: &crate::syntax::Expr, base: Option<crate::members::direct::Base>) {
-        let recorded = self
-            .bases
-            .entry(std::ptr::from_ref(call) as usize)
-            .or_insert(base);
+impl Facts {
+    fn record_base(
+        &mut self,
+        call: &crate::syntax::Expr,
+        base: Option<crate::members::direct::Base>,
+    ) {
+        let recorded = self.bases.entry(key(call)).or_insert(base);
         if *recorded != base {
             *recorded = None;
         }
     }
 
+    fn record_plain(&mut self, expr: &crate::syntax::Expr, plain: bool) {
+        *self.plain.entry(key(expr)).or_insert(plain) &= plain;
+    }
+
+    fn record_block(&mut self, block: &crate::syntax::Block, plain: bool) {
+        *self.blocks.entry(key(block)).or_insert(plain) &= plain;
+    }
+
     /// The base the receiver of `call` always has, if one was recorded.
     pub(crate) fn base(&self, call: &crate::syntax::Expr) -> Option<crate::members::direct::Base> {
-        self.bases
-            .get(&(std::ptr::from_ref(call) as usize))
-            .copied()
-            .flatten()
+        self.bases.get(&key(call)).copied().flatten()
     }
+
+    /// Whether `expr`'s value is plain; not when the checker did not see it.
+    pub(crate) fn plain(&self, expr: &crate::syntax::Expr) -> bool {
+        self.plain.get(&key(expr)).copied().unwrap_or(false)
+    }
+
+    /// Whether every parameter of `block` is plain.
+    pub(crate) fn plain_block(&self, block: &crate::syntax::Block) -> bool {
+        self.blocks.get(&key(block)).copied().unwrap_or(false)
+    }
+}
+
+/// A syntax node's identity, which is stable from checking to compiling.
+fn key<T>(node: &T) -> usize {
+    std::ptr::from_ref(node) as usize
 }
 
 /// What checking the top-level statements of a host script found, for
@@ -281,7 +309,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         write_chain: HashSet::new(),
         session: None,
         too_deep: false,
-        receivers: Receivers::default(),
+        facts: Facts::default(),
     };
     for (name, host) in &input.hosts {
         let function = crate::signatures::host::function(name, host);
@@ -324,7 +352,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         exported,
         locals,
         result,
-        receivers: checker.receivers,
+        facts: checker.facts,
     };
     // Removed spellings of the canonical surface are compile errors too,
     // unless the source is too tall to walk.
@@ -357,7 +385,7 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
         write_chain: HashSet::new(),
         session: None,
         too_deep: false,
-        receivers: Receivers::default(),
+        facts: Facts::default(),
     };
     checker.declare_hosts(input.declared);
     checker.declare_program(input.parsed);
@@ -402,8 +430,8 @@ pub(crate) struct Checker<'a> {
     session: Option<Session>,
     /// Whether some syntax was too tall to check ([`HEIGHT`]).
     too_deep: bool,
-    /// The static base of member call receivers.
-    receivers: Receivers,
+    /// What the checker proved for the compiler.
+    facts: Facts,
 }
 
 /// Expression types by node, recorded or replayed.

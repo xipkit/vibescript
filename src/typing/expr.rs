@@ -112,6 +112,20 @@ impl<'a> Checker<'a> {
                 memo.types.insert(key, ty);
             }
         }
+        // A discarded compound form reports no value, although it has one.
+        let reported = !matches!(want, Want::Discard)
+            || !matches!(
+                expr.node,
+                Node::Compound(_)
+                    | Node::Try(_)
+                    | Node::Conditional(..)
+                    | Node::Case(..)
+                    | Node::Yield(_)
+            );
+        if reported {
+            let plain = self.types.plain(ty);
+            self.facts.record_plain(expr, plain);
+        }
         ty
     }
 

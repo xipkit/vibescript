@@ -1,7 +1,13 @@
 use super::*;
 
 impl<'x> Compiling<'_, 'x> {
-    pub(super) async fn named_call(&self, name: &str, args: &'x [Argument]) -> Result<()> {
+    /// Calls the function or host function `name`, as the expression `whole`.
+    pub(super) async fn named_call(
+        &self,
+        whole: &'x Expr,
+        name: &str,
+        args: &'x [Argument],
+    ) -> Result<()> {
         let target = {
             let mut c = self.c();
             let work = c.work;
@@ -33,7 +39,10 @@ impl<'x> Compiling<'_, 'x> {
         };
         let Some(target) = target else {
             self.argument_values(args).await?;
-            self.c().emit(Op::Invoke(Invocation::Resolved));
+            let mut c = self.c();
+            let ip = c.emit(Op::Invoke(Invocation::Resolved));
+            let plain = c.facts.plain(whole);
+            c.mark_plain(ip, plain);
             return Ok(());
         };
         {
@@ -41,9 +50,9 @@ impl<'x> Compiling<'_, 'x> {
             let name = c.call_site(name, false).name;
             c.emit(Op::RootCall(name, expanded(args)));
         }
-        if expanded(args) {
+        let ip = if expanded(args) {
             self.argument_values(args).await?;
-            self.c().emit(Op::InvokeRoot(target));
+            self.c().emit(Op::InvokeRoot(target))
         } else {
             for arg in args {
                 self.expr(&arg.value).await?;
@@ -53,8 +62,11 @@ impl<'x> Compiling<'_, 'x> {
                 Invocation::Host(host) => Op::Host(host, args.len()),
                 Invocation::NonCallable => Op::NonCallable(args.len()),
                 _ => unreachable!(),
-            });
-        }
+            })
+        };
+        let mut c = self.c();
+        let plain = c.facts.plain(whole);
+        c.mark_plain(ip, plain);
         Ok(())
     }
 

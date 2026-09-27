@@ -168,7 +168,7 @@ impl Code {
             ));
         }
         let mut program =
-            crate::bytecode::compile_parsed(source, parsed, names, file, &checked.receivers, work)
+            crate::bytecode::compile_parsed(source, parsed, names, file, &checked.facts, work)
                 .map_err(parse_error)?;
         program.source.filename = filename;
         let mut hosts = Vec::new();

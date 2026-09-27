@@ -105,14 +105,19 @@ impl Arguments {
         };
     }
 
+    /// Adds an argument. Unless the checker proved the value `plain`, it is
+    /// scanned for host methods and exported functions.
     pub fn push(
         &mut self,
         ctx: &mut CallContext,
         op: ArgumentOp,
         name: &str,
         value: Value,
+        plain: bool,
     ) -> Result<()> {
-        crate::exports::check(ctx, &value)?;
+        if !plain {
+            crate::exports::check(ctx, &value)?;
+        }
         match op {
             ArgumentOp::Positional => self.positional.push(ctx, value),
             ArgumentOp::Splat => {
@@ -147,7 +152,9 @@ impl Arguments {
                     ));
                 };
                 for (key, value) in &hash.buffer.data {
-                    crate::exports::check(ctx, value)?;
+                    if !plain {
+                        crate::exports::check(ctx, value)?;
+                    }
                     self.keywords.insert(ctx, key.clone(), value.clone())?;
                 }
                 Ok(())
