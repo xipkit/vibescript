@@ -74,6 +74,8 @@ saved mappings.
 
 The [bootstrap service footprint report](footprint.md) records arm64 and x86_64
 measurements, implementation tradeoffs, and the rejected trials.
+The [startup parser report](startup-parser.md) revisits borrowed signature tokens
+and compact positions with paired measurements and controls for runtime outliers.
 
 ## History
 
