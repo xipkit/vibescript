@@ -830,14 +830,14 @@ impl Run {
                 }
                 Op::InstanceField(slot) => {
                     let Some(Value(Kind::Instance(instance))) = &frame.receiver else {
-                        return Err(Error::new(ErrorKind::Name, "no instance context for ivar"));
+                        return Err(instance_context_error());
                     };
                     let value = crate::objects::get_slot(ctx, instance, slot as usize)?;
                     stack.push(ctx, value)?;
                 }
                 Op::InstanceAddress(slot) => {
                     let Some(Value(Kind::Instance(instance))) = &frame.receiver else {
-                        return Err(Error::new(ErrorKind::Name, "no instance context for ivar"));
+                        return Err(instance_context_error());
                     };
                     let mut address = crate::objects::address_slot(ctx, instance, slot as usize)?;
                     address.proven = function.proven_ivars.contains(frame.ip - 1);
@@ -845,7 +845,7 @@ impl Run {
                 }
                 Op::InstanceStore(slot) | Op::BindField(slot, _) => {
                     let Some(Value(Kind::Instance(instance))) = frame.receiver.clone() else {
-                        return Err(Error::new(ErrorKind::Name, "no instance context for ivar"));
+                        return Err(instance_context_error());
                     };
                     let local = if let Op::BindField(_, local) = op {
                         Some(frame.local_base() + local as usize)
@@ -4404,17 +4404,13 @@ fn enter(
         return recursion_exceeded(ctx);
     }
     if args.len() != fun.params.len() {
-        // Go names the first parameter left without an argument.
-        return Err(Error::argument(match fun.params.get(args.len()) {
-            Some(param) => format!("missing argument {}", param.name),
-            None => "unexpected positional arguments".to_owned(),
-        }));
+        return Err(call_arity_error(fun, args.len()));
     }
     let local_base = open_locals(ctx, program, storage, Some(function))?;
     let pinned = programs::pin(ctx, storage, program.index)?;
     for (param, arg) in fun.params.iter().zip(args) {
         ctx.charge(1)?;
-        storage.locals.data[local_base + param.slot] = Some(simple::copy(arg));
+        storage.locals.data[local_base + param.slot] = Some(arg.clone());
     }
     // Built within the push, which spares the frame an intermediate copy.
     frames.push(
@@ -4425,6 +4421,22 @@ fn enter(
             ..Frame::new(pinned, storage, Some(function), base, local_base)
         },
     )
+}
+
+#[cold]
+#[inline(never)]
+fn instance_context_error() -> Error {
+    Error::new(ErrorKind::Name, "no instance context for ivar")
+}
+
+#[cold]
+#[inline(never)]
+fn call_arity_error(function: &crate::bytecode::Function, arguments: usize) -> Error {
+    // Go names the first parameter left without an argument.
+    Error::argument(match function.params.get(arguments) {
+        Some(param) => format!("missing argument {}", param.name),
+        None => "unexpected positional arguments".to_owned(),
+    })
 }
 
 fn enter_arguments(
