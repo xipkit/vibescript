@@ -237,6 +237,10 @@ impl CallContext {
         }
     }
 
+    // Both the frame opener and the record key table import scalars; kept
+    // inline in each, since an outlined call made every dictionary entry's
+    // import slower.
+    #[inline(always)]
     fn import_scalar(&mut self, value: &Value) -> Result<Value> {
         match &value.0 {
             Kind::Host(method) => Ok(Value(Kind::Host(crate::capability::BoundMethod::import(
