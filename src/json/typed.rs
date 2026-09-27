@@ -39,16 +39,7 @@ fn visit(
     let mut steps = 1;
     match &ty.kind {
         TypeKind::Scalar(scalar) => {
-            let valid = match scalar {
-                Scalar::Any => true,
-                Scalar::Int => matches!(value.0, Kind::Int(_) | Kind::Big(_)),
-                Scalar::Float => matches!(value.0, Kind::Float(_)),
-                Scalar::Number => matches!(value.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_)),
-                Scalar::String => matches!(value.0, Kind::Bytes(_)),
-                Scalar::Bool => matches!(value.0, Kind::Bool(_)),
-                Scalar::Nil => matches!(value.0, Kind::Nil),
-                _ => false,
-            };
+            let valid = scalar_matches(scalar, value);
             if !valid {
                 return None;
             }
@@ -131,12 +122,92 @@ fn visit(
     Some(steps)
 }
 
+fn scalar_matches(scalar: &Scalar, value: &Value) -> bool {
+    match scalar {
+        Scalar::Any => true,
+        Scalar::Int => matches!(value.0, Kind::Int(_) | Kind::Big(_)),
+        Scalar::Float => matches!(value.0, Kind::Float(_)),
+        Scalar::Number => matches!(value.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_)),
+        Scalar::String => matches!(value.0, Kind::Bytes(_)),
+        Scalar::Bool => matches!(value.0, Kind::Bool(_)),
+        Scalar::Nil => matches!(value.0, Kind::Nil),
+        _ => false,
+    }
+}
+
+struct RecordProof<'a> {
+    ty: &'a Type,
+    order: [u8; 15],
+    depth: usize,
+    steps: u64,
+}
+
+impl<'a> RecordProof<'a> {
+    fn new(ty: &'a Type, value: &Value, depth: usize, steps: u64) -> Option<Self> {
+        let (TypeKind::Shape(fields, false), Kind::Hash(hash)) = (&ty.kind, &value.0) else {
+            return None;
+        };
+        if fields.len() > 15
+            || fields.len() != hash.buffer.data.len()
+            || fields
+                .iter()
+                .any(|field| field.optional || !matches!(field.ty.kind, TypeKind::Scalar(_)))
+        {
+            return None;
+        }
+        let mut order = [0; 15];
+        for ((key, _), slot) in hash.buffer.data.iter().zip(&mut order) {
+            let name = key.as_bytes()?;
+            *slot = fields
+                .binary_search_by(|field| field.name.as_slice().cmp(name))
+                .ok()? as u8;
+        }
+        Some(Self {
+            ty,
+            order,
+            depth,
+            steps,
+        })
+    }
+
+    fn check(&self, ty: &Type, value: &Value, depth: usize) -> Option<u64> {
+        if !std::ptr::eq(ty, self.ty) || depth != self.depth {
+            return None;
+        }
+        let (TypeKind::Shape(fields, false), Kind::Hash(hash)) = (&ty.kind, &value.0) else {
+            return None;
+        };
+        if fields.len() != hash.buffer.data.len() {
+            return None;
+        }
+        for ((key, value), &index) in hash.buffer.data.iter().zip(&self.order) {
+            let field = &fields[usize::from(index)];
+            if key.as_bytes()? != field.name {
+                return None;
+            }
+            let TypeKind::Scalar(scalar) = &field.ty.kind else {
+                return None;
+            };
+            if !(field.ty.nullable && matches!(value.0, Kind::Nil))
+                && !scalar_matches(scalar, value)
+            {
+                return None;
+            }
+        }
+        // Matching keys in the same order reproduce every name-comparison
+        // charge; scalar normalization always costs one step. The first full
+        // proof also established the depth and bounded-work checks.
+        Some(self.steps)
+    }
+}
+
 #[derive(Default)]
 pub(super) struct Stream<'a> {
     pub ty: Option<&'a Type>,
     array: Option<(&'a Type, usize)>,
     steps: Option<u64>,
     saved: Option<(&'a Type, u64)>,
+    record: Option<RecordProof<'a>>,
 }
 
 impl<'a> Stream<'a> {
@@ -174,9 +245,18 @@ impl<'a> Stream<'a> {
             let TypeKind::Array(Some(element)) = &ty.kind else {
                 unreachable!();
             };
-            self.steps = self
-                .steps
-                .and_then(|steps| check(element, value, depth, None).map(|n| steps + n));
+            self.steps = self.steps.and_then(|steps| {
+                let cached = self
+                    .record
+                    .as_ref()
+                    .and_then(|record| record.check(element, value, depth));
+                let checked = cached.or_else(|| {
+                    let checked = check(element, value, depth, None)?;
+                    self.record = RecordProof::new(element, value, depth, checked);
+                    Some(checked)
+                });
+                checked.map(|n| steps + n)
+            });
         } else if depth + 1 == array_depth {
             self.saved = self.steps.map(|steps| (ty, steps));
             self.array = None;
@@ -229,7 +309,57 @@ mod tests {
             false,
         );
         let packet = shape(vec![field("rows", array(record.clone()), false)], false);
+        let mut nullable_string = Type::named("string".into());
+        nullable_string.nullable = true;
+        let cached = array(shape(
+            vec![
+                field("active", Type::named("bool".into()), false),
+                field("id", Type::named("int".into()), false),
+                field("name", nullable_string, false),
+            ],
+            false,
+        ));
+        let cached_packet = shape(vec![field("rows", cached.clone(), false)], false);
+        let cached_any = array(shape(
+            vec![
+                field("data", Type::named("any".into()), false),
+                field("n", Type::named("number".into()), false),
+            ],
+            false,
+        ));
         let tests = [
+            (
+                cached_any,
+                r#"[{"data":1,"n":2},{"data":{"deep":[true,null]},"n":1.5}]"#,
+            ),
+            (
+                cached_packet,
+                r#"{"rows":[{"active":true,"id":1,"name":"a"}],"rows":[{"name":null,"id":2,"active":false},{"name":"b","id":3,"active":true}]}"#,
+            ),
+            (
+                cached.clone(),
+                r#"[{"active":true,"id":1,"name":"a"},{"active":false,"id":2,"name":null}]"#,
+            ),
+            (
+                cached.clone(),
+                r#"[{"active":true,"id":1,"name":"a"},{"name":"b","id":2,"active":false}]"#,
+            ),
+            (
+                cached.clone(),
+                r#"[{"active":true,"id":1,"name":"a"},{"active":true,"id":"bad","name":"b"}]"#,
+            ),
+            (
+                cached.clone(),
+                r#"[{"active":true,"id":1,"name":"a"},{"active":true,"id":2}]"#,
+            ),
+            (
+                cached.clone(),
+                r#"[{"active":true,"id":1,"name":"a"},{"active":true,"id":2,"name":"b","extra":0}]"#,
+            ),
+            (
+                cached,
+                r#"[{"active":true,"id":1,"name":"a"},{"active":false,"i\u0064":2,"name":"old","name":null}]"#,
+            ),
             (
                 array(record.clone()),
                 r#"[{"id":1,"name":"ok"},{"id":2},{"id":"bad","id":3}]"#,
