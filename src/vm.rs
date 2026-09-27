@@ -4705,19 +4705,27 @@ fn enter_iteration(
     args: Arguments,
     iteration: Iteration,
 ) -> Result<()> {
-    ctx.charge(1)?;
-    if frames.data.len() >= ctx.options.limits.recursion {
-        return recursion_exceeded(ctx);
+    let pooled = matches!(iteration, Iteration::Pooled);
+    let result = (|| {
+        ctx.charge(1)?;
+        if frames.data.len() >= ctx.options.limits.recursion {
+            return recursion_exceeded(ctx);
+        }
+        let mut frame = new_frame(ctx, program, storage, None, base)?;
+        frame.block = args.block;
+        storage.arguments.push(ctx, args)?;
+        if pooled {
+            frame.function = FrameCode::PooledIteration;
+        } else {
+            storage.iterations.push(ctx, iteration)?;
+        }
+        frames.push(ctx, frame)
+    })();
+    // Recursion guards can be rescued before the new frame exists to unwind.
+    if pooled && result.is_err() {
+        release_iteration_pool(storage, 1);
     }
-    let mut frame = new_frame(ctx, program, storage, None, base)?;
-    frame.block = args.block;
-    storage.arguments.push(ctx, args)?;
-    if matches!(iteration, Iteration::Pooled) {
-        frame.function = FrameCode::PooledIteration;
-    } else {
-        storage.iterations.push(ctx, iteration)?;
-    }
-    frames.push(ctx, frame)
+    result
 }
 
 fn new_frame(
@@ -5066,6 +5074,14 @@ fn unwind(
         .iter()
         .filter(|frame| frame.pooled_iteration())
         .count();
+    release_iteration_pool(storage, pooled);
+    storage.addresses.data.truncate(frame.address_base());
+    storage.bypasses.data.truncate(frame.bypass_base());
+    storage.texts.data.truncate(frame.text_base());
+    frames.data.truncate(target);
+}
+
+fn release_iteration_pool(storage: &mut Storage, pooled: usize) {
     if pooled != 0 {
         let remaining = storage.iteration_pool.data.len() - pooled;
         storage.iteration_pool.data.truncate(remaining);
@@ -5073,8 +5089,4 @@ fn unwind(
             storage.iteration_pool = Buffer::empty();
         }
     }
-    storage.addresses.data.truncate(frame.address_base());
-    storage.bypasses.data.truncate(frame.bypass_base());
-    storage.texts.data.truncate(frame.text_base());
-    frames.data.truncate(target);
 }

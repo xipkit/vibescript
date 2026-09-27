@@ -190,6 +190,43 @@ fn nested_builtin_blocks_use_the_vm_recursion_limit() {
 }
 
 #[test]
+fn rescued_iteration_entry_failure_leaves_the_parent_driver_intact() {
+    let script = Engine::new()
+        .compile(
+            "def run -> int\n\
+             total=0\n\
+             [1,2,3].each { |n|\n\
+               begin\n\
+                 [9].each {total+=100}\n\
+               rescue LimitError\n\
+                 total+=n\n\
+               end\n\
+             }\n\
+             total\n\
+             end",
+        )
+        .unwrap();
+    for recursion in [3, 4] {
+        let result = script
+            .call(
+                "run",
+                &[],
+                CallOptions {
+                    limits: Limits {
+                        recursion,
+                        steps: Some(1000),
+                        ..Limits::default()
+                    },
+                    ..CallOptions::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(result.value.as_int(), Some(6));
+        assert_eq!(result.stats.retained_memory_bytes, 0);
+    }
+}
+
+#[test]
 fn an_unrepresentable_output_stops_before_the_next_block() {
     let mut value = Value::int(1);
     for _ in 0..10_000 {
