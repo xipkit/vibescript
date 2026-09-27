@@ -8,6 +8,6 @@ Width, precision and projected output have fixed 1 MiB guards. These guards are 
 
 Separate [boundary cases](formatting-boundaries.json) cover output limits, precision on shared collections and pointer syntax. They run with a larger work budget so script construction of multi-megabyte input does not hide the formatter's fixed guard. Native tests separately exercise finite memory and work quotas, retention across reentrant conversions, cancellation, helper-value restrictions and fresh-call cleanup.
 
-Nested protected values and duplicates keep their own rendering, and `format("%.2s", 10**30)` keeps the requested prefix, `"10"`. Go v0.70.0 differed in both; the port's [difference records](formatting-differences.json) keep these cases.
+Nested protected values and duplicates keep their own rendering, and `format("%.2s", 10**30)` keeps the requested prefix, `"10"`.
 
 `%T` renders runtime type labels such as `int64`, `float64` and `*big.Int`. `%p` on a big integer renders its address, so pointer values differ across processes; separate cases verify their syntax, flags and padding.

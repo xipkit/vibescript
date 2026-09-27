@@ -1,6 +1,8 @@
 # Differences from Go v0.70.0
 
-This implementation began as a port of Go Vibescript v0.70.0 (`5cba216c33bea8890787d64efb2ab926a761fb1b`) and matched it except for the differences below, each selected deliberately where Go contradicted Vibescript's documented value semantics or behaved inconsistently. Since 2026-09-24 this implementation is the reference: the language moved to the static types of [ADR-007](adr/007-static-types.md) and the canonical surface of [ADR-008](adr/008-canonical-surface-for-ai-authors.md), and the Go implementation is deprecated and keeps the ADR-004 language. The runtime rules below still hold. The `compatibility` [golden corpus](../tests/golden/README.md) records them, from [compatibility-cases.json](compatibility-cases.json), the fixture generators' policy cases and the difference records next to the topic pages.
+This page records historical port decisions. Its examples include earlier spellings and dynamic call forms that the current checker rejects; use the [language guide](language.md) when writing new scripts.
+
+This implementation began as a port of Go Vibescript v0.70.0 (`5cba216c33bea8890787d64efb2ab926a761fb1b`) and matched it except for the differences below, each selected deliberately where Go contradicted Vibescript's documented value semantics or behaved inconsistently. Since 2026-09-24 this implementation is the reference: the language moved to the static types of [ADR-007](adr/007-static-types.md) and the canonical surface of [ADR-008](adr/008-canonical-surface-for-ai-authors.md), and the Go implementation is deprecated and keeps the ADR-004 language. The `compatibility` [golden corpus](../tests/golden/README.md) retains the recorded cases, including their current static rejections, from [compatibility-cases.json](compatibility-cases.json), the fixture generators' policy cases and the difference records next to the topic pages.
 
 ## Documented value semantics take precedence
 

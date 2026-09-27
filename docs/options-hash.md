@@ -32,5 +32,3 @@ Server.new.configure(retries: 3)
 ```
 
 A call must pass every required keyword (V0303) and no keyword the signature does not declare (V0302). Argument expressions run before binding, in source order; an invalid binding cannot execute defaults, the method body or its block. Safe navigation skips arguments and blocks for a nil receiver. Cancellation and exhausted budgets remain uncatchable, and abandoned argument and receiver storage is reclaimed.
-
-Keywords never fold into a trailing positional hash: the options-hash rule the ADR-004 language inherited is gone. The focused comparison of that rule with Go has [recorded wording differences](options-hash-differences.json) that remain part of the `compatibility` golden corpus.

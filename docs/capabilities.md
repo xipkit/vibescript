@@ -64,7 +64,7 @@ Without a published block parameter type, a yielded value has type `any`; the ex
 
 A block's `next` returns to the driver. Its `break` terminates the receiving call and sends the break value through the host return contract. A nonlocal `return` validates at the defining script method. Inner rescue and ensure handlers run before ordinary failures reach the host; outer script handlers wait until the callback returns. The host may handle ordinary block errors and invoke the block again. Cancellation and exhausted step or memory quotas remain latched and prohibit later script effects, including rescue and ensure.
 
-The explicitly selected control-flow policy preserves a pending `break` or `return` even if a host callback ignores `ErrorKind::ControlFlow`. Further block calls cannot execute script after that transfer; see [the differences from Go](compatibility.md#attached-capability-methods-and-host-blocks).
+A pending `break` or `return` survives even if a host callback ignores `ErrorKind::ControlFlow`. Further block calls cannot execute script after that transfer.
 
 ## Publishing into the receiver
 

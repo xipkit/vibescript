@@ -103,7 +103,8 @@ corrected examples pass. The CLI guide describes the current commands rather
 than comparing each to the retired Go implementation. Computed calls and
 callable hash fields are no longer described as supported. Required files are
 checked before execution; runtime loading failures are described separately.
-Historical compatibility records and ADRs retain their history.
+Topic guides describe current behavior. The compatibility page explicitly marks
+its examples as historical; compatibility records and ADRs retain their history.
 
 ## Proposals, not language changes
 

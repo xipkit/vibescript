@@ -26,7 +26,7 @@ Module bodies run once per invocation, with nested bodies initialized before the
 
 `@@name` accesses a module variable, declared with a value as `@@count: int = 0`. Uppercase assignments within a module create its constants, and `NAMES: array<string> = []` declares one's type. `M.name = value` writes a field or calls its setter. Nested indexed assignment through `M::ARRAY` updates that field; `M.ARRAY` is an evaluated getter result.
 
-Module aliases, including `dup`, share identity and state within a call. Collections stored in fields retain value semantics: assigning an array to a field does not let later field mutations change the original local, and a returned array keeps its earlier value. The [compatibility notes](compatibility.md) record how this differs from Go.
+Module aliases, including `dup`, share identity and state within a call. Collections stored in fields retain value semantics: assigning an array to a field does not let later field mutations change the original local, and a returned array keeps its earlier value.
 
 Module fields, namespace metadata, imported values, call frames and pending writes use the invocation's memory budget. Lookups, initialization and method execution consume steps and observe cancellation. State is released on completion or failure, including references from a module field back to the same module.
 

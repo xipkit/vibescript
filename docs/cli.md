@@ -40,7 +40,7 @@ The first argument alone decides what runs, in this order:
 
 ## Command syntax
 
-After a command name, flags take one or two leading hyphens, `-name` and `--name` alike. A value follows as `-name value` or `-name=value`; boolean flags accept `-name`, or `-name=` with `1`, `t`, `T`, `TRUE`, `true`, `True` or their false counterparts. Integers use Go syntax, so `0x10`, `0o17`, `1_000` and `-1` are valid. A repeated flag keeps its last value, except `-module-path`, which accumulates.
+After a command name, flags take one or two leading hyphens, `-name` and `--name` alike. A value follows as `-name value` or `-name=value`; boolean flags accept `-name`, or `-name=` with `1`, `t`, `T`, `TRUE`, `true`, `True` or their false counterparts. Integer flags accept forms such as `0x10`, `0o17`, `1_000` and `-1`. A repeated flag keeps its last value, except `-module-path`, which accumulates.
 
 Flags must come before the first positional argument; every later token is an argument, even when it starts with `-`. `--` ends flags explicitly, and a `--` after the first positional argument is itself an argument. `-h` or `--help` prints the command's help and ignores later tokens, but earlier flag errors are still reported.
 
@@ -132,7 +132,7 @@ vibes test [-run REGEXP] [-module-path DIR]... [quota flags] [path...]
 
 `test` finds `*_test.vibe` files under the paths, `.` by default, recursively and without following linked directories; an explicit file must follow the naming convention. A test is a top-level function whose name starts with `test_`; it passes when it returns and fails when it raises, including a failed `assert`, and it must not require arguments. Tests run in name order, each as its own call, under the quota profile flags described for `run`. Each file's directory is its first module root. Test files may only declare functions, classes, modules, enums and aliases; other top-level statements are rejected.
 
-The report goes to stdout, with the tests' own output interleaved: `--- FAIL: FILE :: NAME` and the indented failure for each failing test, or a pseudo-test such as `(compile)` when a file cannot run, then `ok   FILE (N test(s))` for a clean file, and finally `N test(s) across N file(s): N passed, N failed`. A failure exits with `vibes test: N test(s) failed`. `-run` selects tests whose names match a regular expression in the engine's Go-compatible syntax; an invalid pattern fails before execution.
+The report goes to stdout, with the tests' own output interleaved: `--- FAIL: FILE :: NAME` and the indented failure for each failing test, or a pseudo-test such as `(compile)` when a file cannot run, then `ok   FILE (N test(s))` for a clean file, and finally `N test(s) across N file(s): N passed, N failed`. A failure exits with `vibes test: N test(s) failed`. `-run` selects tests whose names match a regular expression in the engine's [regex syntax](regex.md); an invalid pattern fails before execution.
 
 ## `vibes lsp`
 

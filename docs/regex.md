@@ -72,7 +72,7 @@ def elapsed_ms(line: string) -> int?
 end
 ```
 
-`begin(group)` and `end(group)` return character offsets or nil for absent groups and reject out-of-range indices. `to_s` and interpolation render the whole match. Match data stays protected through nested writes and duplicates; captures copied to a separate variable can be changed independently. This is an explicitly selected difference from Go's inconsistent mutation and clone behavior.
+`begin(group)` and `end(group)` return character offsets or nil for absent groups and reject out-of-range indices. `to_s` and interpolation render the whole match. Match data stays protected through nested writes and duplicates; captures copied to a separate variable can be changed independently.
 
 ## Scanning
 
@@ -140,6 +140,6 @@ Regex substitutions enforce the 16 KiB pattern and 1 MiB subject, replacement an
 
 Templates measure complete expansion before allocating output, then replay matching into exact capacity. Block output grows incrementally within the cap. Conversion measures nested replacement values before copying, rejects provably oversized integers before decimal conversion, and accounts conversion scratch. Search state, output and discarded block values are reclaimed on normal and nonlocal exits. All scans, conversions and copies observe work limits, cancellation and deadlines.
 
-Regex assertions are honored everywhere, including in the namespace helpers, where Go v0.70.0's shortcuts skipped them; see the [compatibility notes](compatibility.md#regex-namespace-anchors).
+Regex assertions are honored everywhere, including in the namespace helpers.
 
 Match-data protection also applies to nested writes through temporary results and duplicates, such as `m.dup.captures.push(...)`. Block mutators reject these writes before invoking their callbacks. An explicit copy of the capture array itself, `m.captures.dup`, is an independent mutable value.
