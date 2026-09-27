@@ -188,6 +188,53 @@ def benchmark_cases():
     return out
 
 
+def text_benchmark_cases():
+    """Validation, extraction and message building typical of service glue."""
+    cases=[]
+
+    def add(name, body, argument, expected, returns="string", param="string"):
+        cases.append(dict(name="text/"+name, source=function(body, returns, param), args=[argument], expected=expected))
+
+    emails=["ada@example.com", "first.last+tag@service.example", "bad address", "missing@", "@example.com"]*16
+    add("regex_email", r'input.map { |s| s.match?(/\A[A-Za-z0-9._+%-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\z/) }', emails, [True,True,False,False,False]*16, "array<bool>", "array<string>")
+    ids=["ID-12345678", "ID-00000000", "id-12345678", "ID-123", "ID-123456789"]*16
+    add("regex_id", r'input.map { |s| s.match?(/\AID-[0-9]{8}\z/) }', ids, [True,True,False,False,False]*16, "array<bool>", "array<string>")
+    fields="user=ada id=123 status=ready"
+    add("regex_captures", r'm=input.match(/user=(?<user>[a-z]+) id=([0-9]+) status=([a-z]+)/); m == nil ? [] : m.captures', fields, ["ada","123","ready"], "array<string?>")
+    for anchored,pattern in [("anchored", r"\AID-[0-9]+\z"),("unanchored", "ID-[0-9]+")]:
+        for outcome,subject,expected in [("hit", "ID-12345678", True),("miss", "x"*16384, False)]:
+            add(f"regex_{anchored}_{outcome}", f"input.match?(/{pattern}/)", subject, expected, "bool")
+    add("regex_literal_miss", 'input.match?(/request-id/)', "x"*16384, False, "bool")
+    add("regex_dynamic", 'input.match?("ID-[0-9]+")', "prefix ID-123 suffix", True, "bool")
+    rows=" ".join(f"ID-{i}" for i in range(64))
+    for method in ["sub", "gsub"]:
+        expected=rows.replace("ID-", "id-", 1 if method=="sub" else -1)
+        add(f"regex_{method}_string", f'input.{method}(/ID-([0-9]+)/, "id-\\\\1")', rows, expected)
+        add(f"regex_{method}_block", f'input.{method}(/ID-[0-9]+/) {{ |s| s.downcase }}', rows, expected)
+    add("regex_scan", 'input.scan(/ID-([0-9]+)/)', rows, [[str(i)] for i in range(64)], "array<string | array<string?>>")
+    parts=[f"field-{i}" for i in range(64)]
+    add("split", 'input.split(",")', ",".join(parts), parts, "array<string>")
+    add("join", 'input.join(", ")', parts, ", ".join(parts), param="array<string>")
+    add("strip", "input.strip", " \t"+"message "*1024+"\r\n", ("message "*1024).strip())
+    ascii_text="aBcD9_! "*2048
+    for method in ["upcase", "downcase"]:
+        add(method, "input."+method, ascii_text, ascii_text.upper() if method=="upcase" else ascii_text.lower())
+    for name,expression,expected,returns in [
+        ("start_with", 'input.start_with?("request:")', True, "bool"),
+        ("end_with", 'input.end_with?(":done")', True, "bool"),
+        ("include", 'input.include?("missing")', False, "bool"),
+        ("index", 'input.index(":done")', 8200, "int?"),
+    ]:
+        add(name, expression, "request:"+"x"*8192+":done", expected, returns)
+    add("format", 'format("user=%s id=%08d ratio=%.2f", input, 42, 1.25)', "ada", "user=ada id=00000042 ratio=1.25")
+    add("interpolation", '"user=#{input} id=#{42} ok=#{true} ratio=#{1.25} tags=#{[1, 2]}"', "ada", "user=ada id=42 ok=true ratio=1.25 tags=[1, 2]")
+    add("concat_loop", 's=""; i=0; while i<input; s+="item-"; i+=1; end; s', 256, "item-"*256, param="int")
+    add("length_unicode", "input.length", "é界🙂"*8192, 24576, "int")
+    add("length_mixed", "input.length", "abé界🙂cd"*4096, 28672, "int")
+    return [{**case, "name":case["name"]+("/metered" if accounting else "/unlimited"), "accounting":accounting, "iterations":100}
+            for case in cases for accounting in [True,False]]
+
+
 def host_global_cases():
     cases=[]
 
