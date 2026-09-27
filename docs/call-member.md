@@ -1,11 +1,22 @@
 # Calls to a member named call
 
-With static types, `.call(...)` is an ordinary method call: a class may define a `call` method, while a function or builtin name is never a value, so `helper.call(1)` is a compile error. The rules below describe how the runtime selects the target.
+`.call(...)` is an ordinary method call on a typed receiver. A class may define it with the same parameter, keyword, result and block rules as any other method:
 
-An explicit `.call(...)` resolves its member before evaluating arguments. Missing and inaccessible members stop positional arguments, keyword arguments, splats and attached blocks from running. Safe navigation on nil skips the whole call. An existing non-callable data field keeps ordinary argument evaluation before the invocation error.
+```vibe
+class Prefix
+  @prefix: string
 
-A bare name receiving `call` follows the auto-invocation rules. `helper.call`, `helper&.call` and, for a zero-parameter function, `helper.call()` or `helper.call { }` keep the function as a value and fail with `a function has no member call; call helper(...) directly`; `helper.call(1)` runs the function first. Builtins and implicit methods behave alike, so `puts.call` reports `a method has no member call; call puts(...) directly` and a method `helper` of class `K` reports `K#helper`.
+  def initialize(@prefix: string)
+  end
 
-Script-defined `call` methods retain positional and keyword binding, method options rules and block control flow. Callable hash fields are selected before argument mutations: `h={call:Math::sqrt}; h.call(h.clear.length)` invokes the selected square-root helper with zero. The selected target remains accounted for until invocation finishes or unwinds.
+  def call(text: string) -> string
+    "#{@prefix}: #{text}"
+  end
+end
 
-A value without a `call` member reports the lookup failure for its kind, such as `unknown int method call`, and a method kept as a value reports `a method has no member call; call Math.sqrt(...) directly`. Four native tests cover callback order, binding, nonlocal block exits, repeated cleanup, memory exhaustion and cancellation.
+Prefix.new("notice").call("ready") # "notice: ready"
+```
+
+Functions and builtins are not values: call `helper(1)` directly, rather than trying to obtain a function object and invoke `.call`. Hash fields cannot hold callable values. The checker rejects unknown members and non-callable data before execution.
+
+Safe navigation on a nil receiver skips arguments and the block. A script-defined `call` retains ordinary visibility, argument binding, block control flow and resource accounting. See [computed calls](computed-calls.md) and [host capabilities](capabilities.md).

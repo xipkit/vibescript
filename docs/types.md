@@ -78,7 +78,20 @@ Unchanged arrays and hashes retain their storage. Enum coercions copy changed co
 
 ## Type mismatch diagnostics
 
-Type mismatches found at runtime identify the boundary, expected annotation and actual value type. They are rescuable runtime errors, exposed to Rust hosts as `ErrorKind::Type`.
+Type mismatches found at runtime identify the boundary, expected annotation and actual value type. Rust's `ErrorKind` and the script exception class are separate: a `JSON.parse_as` mismatch has kind `Type` but script class `RuntimeError`; a checked `.as(T)` mismatch raises `TypeError`. Invalid JSON also raises `RuntimeError`. Rescue the class for the operation you are calling, rather than inferring it from the Rust error kind.
+
+```vibe
+def valid_webhook(raw: string) -> bool
+  begin
+    event = JSON.parse_as(raw, { id: string, amount: int })
+    !event["id"].empty? && event["amount"] > 0
+  rescue RuntimeError
+    false
+  end
+end
+```
+
+Keep the protected region small: `RuntimeError` matches every script exception class, including unrelated application errors. Quota exhaustion and cancellation remain uncatchable.
 
 ```text
 argument payload expected int, got string

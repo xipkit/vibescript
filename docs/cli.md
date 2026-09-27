@@ -1,6 +1,6 @@
 # Command line
 
-`vibes` provides these commands. Their syntax, output, error texts and exit codes began as those of the Go CLI's; the [differences](#differences-from-the-go-reference) are listed at the end.
+`vibes` checks and executes the statically typed language. These are its commands:
 
 | Command | Purpose |
 | --- | --- |
@@ -30,13 +30,13 @@ The formatter, analyzer, fixer, test runner, REPL session and language server ar
 
 The first argument alone decides what runs, in this order:
 
-1. `-h` or `--help` prints the root help. A first argument the reference rejects outright, `--`, one with leading or trailing whitespace, `-help`, `--h` or a help flag with a value such as `--help=false`, prints the root help and `unknown command "..."` on stderr.
+1. `-h` or `--help` prints the root help. A first argument such as `--`, one with leading or trailing whitespace, `-help`, `--h` or a help flag with a value such as `--help=false`, prints the root help and `unknown command "..."` on stderr.
 2. A command name (`run`, `check`, `fmt`, `analyze`, `test`, `lsp`, `repl`, `prelude`, `fix`, `help` or `h`) runs that command. A file named after a command therefore needs `vibes run check`, or a flat-form option before it.
 3. `--version` prints `vibescript.rs VERSION`.
 4. A flat-form option (`-e`, `--eval`, `--function`, `--module-path`, `--arg`, `--kwarg`, `--steps`, `--memory`, `--recursion`, `--timeout-ms` or `--stats`), or a script path, runs the flat form. A script path is an existing file, or a spelling that contains a path separator or ends in `.vibe`.
-5. Anything else fails as in the reference: `vibes` alone reports `command required` after the root help, a flag such as `-x` or `--bogus` reports `flag provided but not defined: -x`, and any other word reports `unknown command "word"` after the root help.
+5. Anything else fails: `vibes` alone reports `command required` after the root help, a flag such as `-x` or `--bogus` reports `flag provided but not defined: -x`, and any other word reports `unknown command "word"` after the root help.
 
-As in the reference, `--` does not escape command selection: `vibes -- run` is an unknown command. Use `vibes run -- FILE`, or a flat-form option such as `vibes --stats -- FILE`, for a file whose name starts with `-`.
+`--` does not escape command selection: `vibes -- run` is an unknown command. Use `vibes run -- FILE`, or a flat-form option such as `vibes --stats -- FILE`, for a file whose name starts with `-`.
 
 ## Command syntax
 
@@ -44,7 +44,7 @@ After a command name, flags take one or two leading hyphens, `-name` and `--name
 
 Flags must come before the first positional argument; every later token is an argument, even when it starts with `-`. `--` ends flags explicitly, and a `--` after the first positional argument is itself an argument. `-h` or `--help` prints the command's help and ignores later tokens, but earlier flag errors are still reported.
 
-Errors print one line on stderr and exit with status 1, with the reference's wording:
+Errors print one line on stderr and exit with status 1, for example:
 
 ```text
 flag provided but not defined: -unknown
@@ -62,11 +62,11 @@ vibes run [options] <script> [args...]
 vibes run [options] -e SNIPPET
 ```
 
-`run` compiles the script with static types and refuses it, with its diagnostics, when it has type errors. Without `-function`, `run` executes the script's top-level statements when it has any, and otherwise calls its `run` function. A top-level statement is anything other than a function, class, module or enum declaration or an alias. `-function NAME` calls another function, and `-function '<script>'` selects the top-level statements explicitly. Every argument after the script path is passed to the function as a string, so the called function's parameters must accept `string`, or a rest parameter `array<string>`; otherwise the script is refused before it runs. The script's directory is the first module root, and repeatable `-module-path DIR` options add more; the paths are made absolute and deduplicated by spelling, and a missing path or a file fails with the reference's message.
+`run` compiles the script with static types and refuses it, with its diagnostics, when it has type errors. Without `-function`, `run` executes the script's top-level statements when it has any, and otherwise calls its `run` function. A top-level statement is anything other than a function, class, module or enum declaration or an alias. `-function NAME` calls another function, and `-function '<script>'` selects the top-level statements explicitly. Every argument after the script path is passed to the function as a string, so the called function's parameters must accept `string`, or a rest parameter `array<string>`; otherwise the script is refused before it runs. The script's directory is the first module root, and repeatable `-module-path DIR` options add more; the paths are made absolute and deduplicated by spelling, and a missing path or a file fails before execution.
 
-A non-nil result prints on stdout in the reference's string form: strings and symbols without quotes, `nil` as nothing, floats in Go's shortest form (`2`, `1e+20`, `Infinity`), arrays as `[a, b]` and hashes as `{key: value}`. A rendering over 1 MiB fails with `result rendering exceeds 1048576 bytes; reduce the returned value or stream it from the script`. `puts`, `print` and `p` write to stdout and `warn` to stderr.
+A non-nil result prints on stdout as text: strings and symbols without quotes, `nil` as nothing, floats in shortest form (`2`, `1e+20`, `Infinity`), arrays as `[a, b]` and hashes as `{key: value}`. A rendering over 1 MiB fails with `result rendering exceeds 1048576 bytes; reduce the returned value or stream it from the script`. `puts`, `print` and `p` write to stdout and `warn` to stderr.
 
-A script larger than 1 MiB is refused before it is read with `source exceeds maximum size (SIZE > 1048576 bytes)`, as are directories and other non-regular files. Invalid UTF-8 in a script is decoded with replacement characters, as the reference's lexer does. Failures are prefixed by their stage: `read script:`, `compile failed:` and `execution failed:`.
+A script larger than 1 MiB is refused before it is read with `source exceeds maximum size (SIZE > 1048576 bytes)`, as are directories and other non-regular files. Invalid UTF-8 in a script is decoded with replacement characters. Failures are prefixed by their stage: `read script:`, `compile failed:` and `execution failed:`.
 
 `-e SNIPPET` evaluates inline source with the working directory as its first module root. `-e` cannot be combined with `-watch`, `-function` or positional arguments, and an empty snippet is an error. Frames of the snippet's top-level code are named `<snippet>`, and a parse error at the end of the snippet reads `unexpected end of snippet`.
 
@@ -74,7 +74,7 @@ An interrupt (ctrl-c) cancels the running script, which then fails; a second int
 
 ### Quota profiles
 
-`run`, `test` and `repl` run under one of the reference's quota profiles, selected with `-profile` (case and surrounding spaces are ignored):
+`run`, `test` and `repl` run under one of these quota profiles, selected with `-profile` (case and surrounding spaces are ignored):
 
 | Profile | Step quota | Memory quota | Recursion limit |
 | --- | --- | --- | --- |
@@ -89,7 +89,7 @@ An interrupt (ctrl-c) cancels the running script, which then fails; a second int
 
 `vibes run -watch SCRIPT` runs the script, then runs it again whenever the script or a `.vibe` file under its module roots changes, with a fresh engine so modules load again. Status lines go to stderr: `watching N file(s); press ctrl-c to stop`, `change detected, re-running NAME` and, after an interrupt, `watch stopped`, which exits with status 0. Compile and runtime errors are printed without ending the watch.
 
-Changes are found by the reference's polling method: every 300 ms the size and modification time of every known file are compared, and every 5 seconds the module roots are walked again for added and deleted files. Linked directories are not descended; linked files are followed, so a dangling link whose target appears counts as a change.
+Changes are found by polling: every 300 ms the size and modification time of every known file are compared, and every 5 seconds the module roots are walked again for added and deleted files. Linked directories are not descended; linked files are followed, so a dangling link whose target appears counts as a change.
 
 ## `vibes check`
 
@@ -99,7 +99,7 @@ vibes check [options] <script>
 
 `check` compiles the script with static types without running anything and prints every diagnostic with its code, source line and fixes, then fails with `check failed with N error(s)`; a script without errors prints its warnings, if any, or `No issues found`. The [type checker](checker.md) lists the codes. Unused declarations are checked like the rest of the script, and required files are resolved and checked too.
 
-`-module-path DIR` adds module search roots, as for `run`. These flags extend the reference's:
+`-module-path DIR` adds module search roots, as for `run`. Additional flags:
 
 | Flag | Meaning |
 | --- | --- |
@@ -122,7 +122,7 @@ Directory operands are walked recursively without following links: only regular 
 vibes analyze <script>
 ```
 
-`analyze` reports statements that can never run because an earlier statement in the same body always leaves it: `return`, `raise`, `break`, `next`, `retry`, or a compound statement whose every path ends in one. Each finding prints as `PATH:LINE:COLUMN: unreachable statement (SCOPE)`, then the command fails with `analysis found N issue(s)`; a clean script prints `No issues found`. SCOPE is a function name, `<script>` for top-level code, `Class#method`, `Class.method` or `Class.<class body>`, with ` block at LINE:COLUMN` for each enclosing block. Scopes, positions and ordering match the reference's linter, including its conventions for operators, modifiers and positions inside string interpolation. A compile error fails with `analysis compile failed:`.
+`analyze` reports statements that can never run because an earlier statement in the same body always leaves it: `return`, `raise`, `break`, `next`, `retry`, or a compound statement whose every path ends in one. Each finding prints as `PATH:LINE:COLUMN: unreachable statement (SCOPE)`, then the command fails with `analysis found N issue(s)`; a clean script prints `No issues found`. SCOPE is a function name, `<script>` for top-level code, `Class#method`, `Class.method` or `Class.<class body>`, with ` block at LINE:COLUMN` for each enclosing block. Findings include operators, modifiers and statements inside string interpolation. A compile error fails with `analysis compile failed:`.
 
 ## `vibes test`
 
@@ -130,9 +130,9 @@ vibes analyze <script>
 vibes test [-run REGEXP] [-module-path DIR]... [quota flags] [path...]
 ```
 
-`test` finds `*_test.vibe` files under the paths, `.` by default, recursively and without following linked directories; an explicit file must follow the naming convention. A test is a top-level function whose name starts with `test_`; it passes when it returns and fails when it raises, including a failed `assert`, and it must not require arguments. Tests run in name order, each as its own call, under the quota profile flags described for `run`. Each file's directory is its first module root. Test files may only declare functions, classes, modules, enums and aliases, as in the reference, whose compiler rejects other top-level statements.
+`test` finds `*_test.vibe` files under the paths, `.` by default, recursively and without following linked directories; an explicit file must follow the naming convention. A test is a top-level function whose name starts with `test_`; it passes when it returns and fails when it raises, including a failed `assert`, and it must not require arguments. Tests run in name order, each as its own call, under the quota profile flags described for `run`. Each file's directory is its first module root. Test files may only declare functions, classes, modules, enums and aliases; other top-level statements are rejected.
 
-The report goes to stdout, with the tests' own output interleaved: `--- FAIL: FILE :: NAME` and the indented failure for each failing test, or a pseudo-test such as `(compile)` when a file cannot run, then `ok   FILE (N test(s))` for a clean file, and finally `N test(s) across N file(s): N passed, N failed`. A failure exits with `vibes test: N test(s) failed`. `-run` selects tests whose names match a regular expression in the engine's Go-compatible syntax; an invalid pattern fails with the reference's message.
+The report goes to stdout, with the tests' own output interleaved: `--- FAIL: FILE :: NAME` and the indented failure for each failing test, or a pseudo-test such as `(compile)` when a file cannot run, then `ok   FILE (N test(s))` for a clean file, and finally `N test(s) across N file(s): N passed, N failed`. A failure exits with `vibes test: N test(s) failed`. `-run` selects tests whose names match a regular expression in the engine's Go-compatible syntax; an invalid pattern fails before execution.
 
 ## `vibes lsp`
 
@@ -140,9 +140,9 @@ The report goes to stdout, with the tests' own output interleaved: `--- FAIL: FI
 vibes lsp
 ```
 
-`vibes lsp` starts the language server that editors launch for `*.vibe` files, speaking the Language Server Protocol over stdin and stdout, as the reference's does. It takes no positional arguments; as with the other commands, `-h` prints its help and an argument fails with `vibes lsp: does not accept positional arguments` and status 1. It exits with status 0 after the client sends `exit` or closes its input, or after an interrupt, and with status 1 when the input's framing is corrupt.
+`vibes lsp` starts the language server that editors launch for `*.vibe` files, speaking the Language Server Protocol over stdin and stdout. It takes no positional arguments; as with the other commands, `-h` prints its help and an argument fails with `vibes lsp: does not accept positional arguments` and status 1. It exits with status 0 after the client sends `exit` or closes its input, or after an interrupt, and with status 1 when the input's framing is corrupt.
 
-It checks every document with static types as it changes and answers hover, completion, signature help, definition, document symbol and formatting requests as the reference does. Its diagnostics carry their codes, their fixes are offered as quick fixes, and required files resolve from the document's directory as `vibes check` resolves them from the script's. See [the language server](lsp.md) for its features, limits and differences from the reference.
+It checks every document with static types as it changes and answers hover, completion, signature help, definition, document symbol and formatting requests. Its diagnostics carry their codes, their fixes are offered as quick fixes, and required files resolve from the document's directory as `vibes check` resolves them from the script's. See [the language server](lsp.md) for its features and limits.
 
 ## `vibes prelude`
 
@@ -168,7 +168,7 @@ Each applied fix prints on stdout as `path:line:column: fixed V0401: message`, a
 vibes repl [options]
 ```
 
-`vibes repl` starts the interactive REPL, a port of the Go CLI's. It takes no positional arguments and accepts the [quota profile flags](#quota-profiles) described for `vibes run`, with the same syntax and defaults: `xhigh`, unlimited steps and memory with a 10,000-frame recursion cap, because it runs your own code on your own machine. An unknown profile, flag or positional argument prints a message on stderr and exits with status 1 before any input is read, and `-h` prints the usage. A runaway loop under a finite profile fails with `step quota exceeded` instead of freezing the session.
+`vibes repl` starts the interactive REPL. It takes no positional arguments and accepts the [quota profile flags](#quota-profiles) described for `vibes run`, with the same syntax and defaults: `xhigh`, unlimited steps and memory with a 10,000-frame recursion cap, because it runs your own code on your own machine. An unknown profile, flag or positional argument prints a message on stderr and exits with status 1 before any input is read, and `-h` prints the usage. A runaway loop under a finite profile fails with `step quota exceeded` instead of freezing the session.
 
 ```sh
 vibes repl
@@ -182,7 +182,7 @@ Each complete input runs as a top-level snippet. Top-level variables it assigns,
 
 An input that ends inside an unfinished construct continues on the next line under a `...>` prompt: a `def`, `class` or block without its `end`, an open bracket, a trailing operator or an unterminated string. Blank lines inside it are kept. Ctrl-C discards the unfinished input.
 
-The result shows anything the input printed with `puts`, `print`, `p` or `warn`, then the result unless it is nil; a nil result with no output shows `nil`. Values are rendered as the Go REPL renders them: strings and symbols without quotes, nil inside a collection as an empty string, floats in Go's shortest form (`1e+21`, `Infinity`) and collections as `[1, 2]` and `{a: 1}`. Failures start with `compile error:` or `runtime error:` and carry the library's code frame and call trace. Positions refer to the text as typed: frames in the input are named `<repl>`, a parse error at the end of the input reads `unexpected end of snippet`, and an error inside a carried function points at the line where that function was typed.
+The result shows anything the input printed with `puts`, `print`, `p` or `warn`, then the result unless it is nil; a nil result with no output shows `nil`. Values render as text: strings and symbols without quotes, nil inside a collection as an empty string, floats in shortest form (`1e+21`, `Infinity`) and collections as `[1, 2]` and `{a: 1}`. Failures start with `compile error:` or `runtime error:` and carry the library's code frame and call trace. Positions refer to the text as typed: frames in the input are named `<repl>`, a parse error at the end of the input reads `unexpected end of snippet`, and an error inside a carried function points at the line where that function was typed.
 
 ### Commands and keys
 
@@ -198,7 +198,7 @@ The result shows anything the input printed with `puts`, `print`, `p` or `warn`,
 | `:last_error`, `:le` | Show the most recent error. |
 | `:quit`, `:q` | Exit. |
 
-With a terminal on both stdin and stdout, the REPL runs full screen in the alternate screen, with the Go REPL's layout and colors: a header, the transcript of inputs (`›`), results (`→`) and failures (`✗`), the panels, the input line and a key hint footer. Older transcript lines scroll away so the input stays visible. Colors follow the terminal: true color when `COLORTERM` says so, 256 or 16 colors otherwise, and none under `NO_COLOR` or a dumb terminal.
+With a terminal on both stdin and stdout, the REPL runs full screen in the alternate screen: a header, the transcript of inputs (`›`), results (`→`) and failures (`✗`), the panels, the input line and a key hint footer. Older transcript lines scroll away so the input stays visible. Colors follow the terminal: true color when `COLORTERM` says so, 256 or 16 colors otherwise, and none under `NO_COLOR` or a dumb terminal.
 
 | Key | Effect |
 | --- | --- |
@@ -235,10 +235,6 @@ $ printf 'def sq(n: int) -> int\n  n * n\nend\nsq(7)\n' | vibes repl
 
 The session is the `vibescript_tools::repl::ReplSession` library type; the CLI only adds the terminal. `feed_line` takes one line and reports whether it needs more input, ran as an evaluation with its rendered output and its value or structured error, or ran a command. The session also offers completion, the transcript and history navigation, and is built on the library's `Script::run_bindings`, `Script::declarations` and `vibescript::builtins` (see [interactive sessions](sessions.md)).
 
-### Differences from the Go REPL
-
-The Go REPL wraps each input in a function, so it keeps only the variables of a single assignment statement and cannot define functions, classes, modules or enums; this REPL keeps every top-level variable, including changes made through methods such as `push`, and carries declarations. Go's input line is single-line; this REPL continues unfinished input. Go shows an input's call frames twice (`at <repl> (1:1)` for both the function and its call) and reports some parse errors differently because of its wrapper; here each frame appears once and a lone `end` is `unexpected token 'end'`, as in a Go script. `:functions` omits `proc`, `lambda` and `Proc`, which the Rust library removed. With piped input, Go's program reads the pipe as keystrokes, requires carriage returns, renders nothing when stdout is not a terminal and waits forever at the end of input; this REPL's line mode prints the transcript and exits. Ctrl-C interrupts a running evaluation instead of waiting for it, a long transcript scrolls by lines so the input line never leaves the screen, the terminal's own cursor replaces the Go input's blinking block, and the header shows this package's version.
-
 ## The flat form
 
 `vibes FILE` compiles one source file with static types, runs its top-level statements and prints the final value as JSON on stdout; a file with type errors prints its diagnostics on stderr instead, as `vibes run` does. `puts`, `print` and `p` write to stdout and `warn` writes to stderr before that value. `--function NAME` calls one function instead, with `--arg JSON` positional values in order and `--kwarg NAME=JSON` keyword values. Options may appear anywhere around FILE, option values are taken verbatim, and `--` ends option parsing so a file name may start with `-`. `vibes help flat` prints this form's usage.
@@ -271,13 +267,13 @@ vibes --module-path shared --module-path vendor app/main.vibe
 vibes app/main.vibe --module-path shared --function run
 ```
 
-Compilation and execution use the same configured roots and the engine's directory-handle confinement. Required files can make relative imports within their root, such as `require("./helpers")`; a relative import from the main script still requires a module caller, as in the Go reference. Type checking reads and checks resolved modules without executing their initializers or output helpers.
+Compilation and execution use the same configured roots and the engine's directory-handle confinement. Required files can make relative imports within their root, such as `require("./helpers")`; a relative import from the main script still requires a module caller. Type checking reads and checks resolved modules without executing their initializers or output helpers.
 
 Under WASI, `vibes.wasm` sees only the directories its host preopens, and every path is a guest path. Duplicate module paths are collapsed by their absolute spelling, because WASI cannot canonicalize a path beneath a preopen whose ancestors are hidden; the engine still resolves links when it opens each root. Inline source runs without the working-directory root when the host exposes no working directory. See [platform support](platforms.md) for an example.
 
 ### Limits and counters
 
-`--steps N` and `--memory N` set the step and tracked-memory quotas (zero disables one), `--recursion N` sets the execution call-depth limit and `--timeout-ms N` sets an absolute deadline measured from option parsing. The defaults are one million steps, 16 MiB and 256 frames, the reference's `low` profile. Exhausted quotas, deadlines, unknown functions, read failures and parse errors print their message on stderr and exit with status 1.
+`--steps N` and `--memory N` set the step and tracked-memory quotas (zero disables one), `--recursion N` sets the execution call-depth limit and `--timeout-ms N` sets an absolute deadline measured from option parsing. The defaults are one million steps, 16 MiB and 256 frames, the `low` profile. Exhausted quotas, deadlines, unknown functions, read failures and parse errors print their message on stderr and exit with status 1.
 
 `--stats` prints the execution counters `steps=N peak_bytes=N retained_bytes=N` on stderr.
 
@@ -286,18 +282,5 @@ Under WASI, `vibes.wasm` sees only the directories its host preopens, and every 
 | Status | Meaning |
 | --- | --- |
 | 0 | The command succeeded, the check was clean, or watch mode stopped after an interrupt. |
-| 1 | Any failure of the Go-style commands, including usage errors; in the flat form, reading, compiling or execution failed. |
+| 1 | Any failure of a command, including usage errors; in the flat form, reading, compiling or execution failed. |
 | 2 | A flat-form usage error; nothing was read or executed. |
-
-## Differences from the Go reference
-
-Before the Rust implementation became the reference, a comparison script ran the Go CLI and this one on the help and error paths, `fmt` over every `.vibe` file in both trees plus generated whitespace cases, `run` and `analyze` over the script corpus, and a `test` suite, and all of them were identical. The analyzer was also compared on about 430,000 sources from the fixtures and generated programs with injected terminators; only three differed, where the two parsers disagree about a call on a parenthesized `begin` block. The `cli` [golden corpus](../tests/golden/README.md) records this CLI's results on the same kinds of invocations. These differences are intentional:
-
-- `vibes --version` prints the version; the reference reports an undefined flag.
-- The flat form, `vibes help flat` and the `check` flags `-e`/`-eval` and `-json` are extensions, and `vibes check --help` lists them. Each applies only where the reference reports an error.
-- `vibes lsp` adds this library's checker findings to its diagnostics and reports only the first parse error; its other differences are listed [with the language server](lsp.md#differences-from-the-reference). The REPL's own differences are listed [with the REPL](#differences-from-the-go-repl).
-- Every command compiles the static language, which the reference does not have: `check` reports the static type checker's diagnostics rather than the reference checker's findings, and the reference's `run -check`, which checked one invocation, is gone with that checker.
-- Engine messages are the library's: the `require` not-found message, step accounting under small quotas, and stack traces, which omit the reference's final frame for the entry function of a script.
-- Watch mode always polls, as the reference does when file notifications are unavailable, so a new module file that nothing edits is noticed by the periodic scan within five seconds rather than immediately.
-- Under WASI, interrupts are not observed, and `fmt` opens files by path within the host's preopened directories instead of through root handles.
-- Quoted values in error messages treat a few rare Unicode format characters as printable where Go escapes them.

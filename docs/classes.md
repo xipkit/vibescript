@@ -30,6 +30,8 @@ This returns `[13, true]`. Constructors forward positional arguments, keywords a
 
 `@name` reads or writes an instance variable, and every instance variable is declared: in the class body as `@count: int = 0`, which gives each instance that default before `initialize` runs; as `@name: string` without a default, which `initialize` must assign on every path (V0205); or by a `property`, `getter` or `setter`. Reading or assigning an undeclared instance variable is a compile error (V0204). The `@name: T` parameter shorthand assigns the bound argument to that declared field.
 
+The `@name: T` initializer parameter shorthand assigns a field; it does not replace the class-body declaration or accessor declaration.
+
 `property` generates a getter and setter; `getter` and `setter` generate one half. A member assignment such as `counter.count = 3` calls the setter, and one without a setter is a compile error. Arrays or hashes returned by a generated getter are collection values: updating that result does not write through the getter. Methods update the backing field directly.
 
 ```vibe

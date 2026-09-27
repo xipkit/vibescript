@@ -3,6 +3,25 @@
 # Every builtin function, namespace and member of every value type, each under
 # its one canonical name.
 #
+# Quick lookup for glue scripts
+#   JSON.parse_as(raw, { id: string, ... })   validate an API record; ... allows extra keys
+#   JSON.stringify(record)                  serialize records and arrays
+#   items.length                            collection length (also strings and hashes)
+#   items.select { |item| condition }        filter an array with a bool block
+#   items.include?(value)                    test array membership (strings: substring)
+#   text.strip.downcase                     trim and lowercase text
+#   format("%d", count)                      format a value
+#   Time.parse(text) + Duration.parse("5m")  compute a deadline
+#   money_cents(1250, "USD")                 make exact money from integer cents
+#
+# Records use record["field"]. Array/dictionary reads and regex captures can
+# return nil: bind the read to a local and test it with != nil. Array/hash
+# fetch raises for a missing entry; strings and match_data have no fetch.
+# JSON syntax/schema mismatches raise RuntimeError; failed as casts raise TypeError.
+# Narrow a JSON.parse result (any) before using its members or operators.
+# This is a signature reference: generic declarations and name?: T parameters
+# below are builtin notation, not declarations to paste into a script.
+#
 # Declarations
 #   def name(params) -> R        a function or member; without `-> R` it returns nil
 #   NAME: T                      a namespace constant
@@ -103,6 +122,7 @@ end
 module JSON
   def parse(text: string) -> any
   # Parses and checks the result against a type literal, such as `{ name: string }`.
+  # Shapes are exact unless they end in ...; syntax/schema mismatches raise RuntimeError.
   def parse_as<T>(text: string, schema: type<T>) -> T
   def stringify(value: any) -> string
 end
@@ -635,7 +655,8 @@ class regex
   def source -> string
 end
 
-# The result of a successful regex match.
+# The result of a successful regex match. Read captures with match[1] or
+# match["name"]; each may be nil even when the overall match succeeded.
 class match_data
   def begin(group: int) -> int?
   def captures -> array<string?>

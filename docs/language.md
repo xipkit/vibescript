@@ -345,7 +345,9 @@ def describe(value: int | string) -> string
 end
 ```
 
-`is_type?(:atom)` in a condition narrows a local or parameter of type `any` or a union. `value.as(T)` and `JSON.parse_as(text, T)` validate at runtime against any type an annotation can name, raise the typed boundary error on a mismatch, and have type `T`. Prefer `JSON.parse_as` for input with a known structure.
+`is_type?(:atom)` in a condition narrows a local or parameter of type `any` or a union. `value.as(T)` and `JSON.parse_as(text, T)` validate at runtime and have type `T`. Prefer `JSON.parse_as` for input with a known structure. Shapes reject extra keys unless they end in `...`, as in `{ id: string, ... }`.
+
+Malformed JSON and a `JSON.parse_as` schema mismatch raise `RuntimeError`; a checked `.as(T)` mismatch raises `TypeError`. See the [webhook validation example](types.md#type-mismatch-diagnostics) before writing a rescue clause.
 
 ## Classes and enums
 
@@ -394,7 +396,7 @@ label = case post.status
         end
 ```
 
-- Every instance variable is declared: in the class body (`@views: int = 0`, or `@name: string` assigned by `initialize`), or by `getter`, `setter` or `property`. Reading an undeclared one is an error (V0204), and one without a default must be assigned on every path through `initialize` (V0205). `@title: string` in a parameter list assigns that field.
+- Every instance variable is declared: in the class body (`@views: int = 0`, or `@name: string` assigned by `initialize`), or by `getter`, `setter` or `property`. Reading an undeclared one is an error (V0204), and one without a default must be assigned on every path through `initialize` (V0205). `@title: string` in a parameter list assigns an already declared field; it does not declare the field.
 - Class variables are declared with a value, `@@count: int = 0`. Class methods are `def self.name`. Uppercase assignments in the body, such as `LIMIT = 3`, are constants, read as `Post::LIMIT` outside. A constant may declare its type, `TAGS: array<string> = []`, which its value and every later assignment keep.
 - Classes have no inheritance, and instances have identity: two names for the same instance see the same changes. Classes can define operators, `==`, `to_s`, `[]` and `[]=`. See [classes](classes.md).
 - An enum is a type. A symbol literal naming a member, such as `:draft`, is accepted wherever that enum is expected; otherwise write `Status::Draft`. Members have `name`, `symbol` and `to_s`.

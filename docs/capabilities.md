@@ -2,42 +2,7 @@
 
 `CallOptions.capabilities` grants host services to one invocation. A `Capability` factory receives that invocation's `CallContext` and returns a binding, usually an object containing `HostMethod` descriptors. The engine runs factories in order before script initializers and defaults. Each factory can create fresh callback state; cloning a capability shares the factory rather than its per-call state.
 
-```rust
-use vibescript::{CallOptions, Capability, Engine, Error, ErrorKind, HostMethod, Value};
-
-let sms = Capability::new("SMS", |_| {
-    let send = HostMethod::new("SMS.send", |ctx, args, _| {
-        ctx.charge(1)?;
-        // A real adapter calls its SMS service here and returns the receipt.
-        ctx.bytes(args[0].as_bytes().unwrap())
-    }).with_contract(
-        |_, args, keywords| {
-            if args.len() != 1 || args[0].as_bytes().is_none() || !keywords.is_empty() {
-                return Err(Error::new(ErrorKind::Argument, "SMS.send expects a message string"));
-            }
-            Ok(())
-        },
-        |_, result| {
-            if result.as_bytes().is_none() {
-                return Err(Error::new(ErrorKind::Type, "SMS.send must return a receipt string"));
-            }
-            Ok(())
-        },
-    );
-    Ok(Value::object(vec![(b"send".to_vec(), send.value())]))
-});
-
-let mut engine = Engine::new();
-engine.set_strict_effects(true);
-let script = engine.compile("SMS.send(\"hello\")")?;
-let result = script.run(CallOptions {
-    capabilities: vec![sms],
-    ..CallOptions::default()
-})?;
-# Ok::<(), vibescript::Error>(())
-```
-
-`Capability::from_value` grants an immutable binding template instead of a factory. Every invocation imports that same value, so its methods still receive the receiving call's fresh grant, while its data and published signatures can be read by the static checker without executing host code. Factories stay opaque to checking because inspecting their binding would require running them; keep `Capability::new` for callbacks that need fresh per-call state.
+`Capability::from_value` grants an immutable binding template instead of a factory. Every invocation imports that same value, so its methods still receive the receiving call's fresh grant, while its data and published signatures can be read by the static checker without executing host code. Factories stay opaque to checking because inspecting their binding would require running them. Use a declared `Capability::from_value` template with published method signatures for statically callable services. Declaring a factory gives its name type `any`, which does not permit member calls; a factory is not a substitute for publishing a typed service contract.
 
 `Engine::declare_capability(&capability)` declares a capability that every call grants, typed by its template: host methods by their published signatures, or `any` arguments and result without one, and data by the types its values show. A factory declares its name as `any`. The static checker types the name as a namespace of those members, `Engine::prelude` lists it, and each call must grant a capability, or supply a global, of the name whose value has the declared members, with the same signatures and data types, before any script code runs. With static types, a capability the host does not declare is an undefined name (V0201).
 
@@ -80,19 +45,20 @@ Imported containers, descriptor names and metadata, binding storage, traversal w
 Use `HostMethod::new_with_block` for a synchronous block driver. Its callback receives a scoped `HostCall` with `block_given()`, `call_block(args)` and `context()`. The handle borrows the active invocation and cannot escape the callback or move to another thread; this enforces retirement without an executable script value. Repeated calls within the callback are allowed. `HostMethod::new` rejects attached blocks unless its published signature explicitly permits them; it does not expose a block handle.
 
 ```rust
-use vibescript::{CallOptions, Capability, Engine, HostMethod};
+use vibescript::{CallOptions, Engine, HostMethod};
 
 let visit = HostMethod::new_with_block("visit", |call, args, _| {
     call.call_block(args)
 });
-let script = Engine::new().compile("visit(20) { |n| n+1 }")?;
-let result = script.run(CallOptions {
-    capabilities: vec![Capability::new("visit", move |_| Ok(visit.value()))],
-    ..CallOptions::default()
-})?;
+let mut engine = Engine::new();
+engine.register_method("visit", visit);
+let script = engine.compile("visit(20) { |n| n.as(int) + 1 }")?;
+let result = script.run(CallOptions::default())?;
 assert_eq!(result.value.as_int(), Some(21));
 # Ok::<(), vibescript::Error>(())
 ```
+
+Without a published block parameter type, a yielded value has type `any`; the example narrows it with `.as(int)`. A registered host function is available to every script compiled by that engine; a declared capability must also be granted by each call.
 
 `with_block_contract` also gives the argument validator a block-presence flag. Missing blocks are permitted unless the contract or callback requires one. Calling a missing block raises `RuntimeError` with `block required`. Yielded values are imported into the receiving budget and keep their source program and type information. Block parameters, captured variables, repeated calls and returned values follow ordinary value semantics. Values and ordinary errors retained by the callback keep their accounting reservations; dropping them releases those reservations.
 
@@ -111,11 +77,15 @@ let install = HostMethod::new_with_block("config.install", |call, _, _| {
     call.set_receiver_field(b"limit", &Value::int(10))?;
     call.call_block(&[])
 });
-let script = Engine::new().compile("config.install { config[\"limit\"] }")?;
+let config = Capability::from_value("config", Value::object(vec![
+    (b"install".to_vec(), install.value()),
+    (b"limit".to_vec(), Value::int(0)),
+]));
+let mut engine = Engine::new();
+engine.declare_capability(&config)?;
+let script = engine.compile("config.install { config.limit }")?;
 let result = script.run(CallOptions {
-    capabilities: vec![Capability::new("config", move |_| {
-        Ok(Value::object(vec![(b"install".to_vec(), install.value())]))
-    })],
+    capabilities: vec![config],
     ..CallOptions::default()
 })?;
 assert_eq!(result.value.as_int(), Some(10));
@@ -151,7 +121,7 @@ engine.register_method("visit", HostMethod::new_async("visit", |call, args, _| {
         call.call_block(args.to_vec()).await
     })
 }));
-let script = engine.compile("def run -> any\n  visit(20) { |n| n + 1 }\nend")?;
+let script = engine.compile("def run -> any\n  visit(20) { |n| n.as(int) + 1 }\nend")?;
 let runtime = tokio::runtime::Builder::new_current_thread().enable_time().build().unwrap();
 let result = runtime.block_on(async {
     Runner::new(1)?.call(script, "run".into(), vec![], CallOptions::default()).await

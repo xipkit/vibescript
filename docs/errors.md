@@ -18,6 +18,8 @@ This returns `["TypeError", "wrong value", "wrong value"]`. The rescued value ha
 
 Clauses match in source order. Filters accept canonical exception names, the `Error` alias, unions such as `TypeError | ArgumentError`, and parenthesized or nullable forms. An omitted filter uses `StandardError`, which excludes `LimitError`. `RuntimeError` matches every script exception class. An empty matching clause consumes selection and propagates the original error after ensure.
 
+`JSON.parse_as` raises `RuntimeError` for malformed JSON or a schema mismatch; `.as(T)` raises `TypeError` for a failed cast. A Rust `ErrorKind::Type` alone does not tell you which script class to rescue. A capability adapter can publish its failure class with `Error::with_class`; consult the host's contract. See [typed input validation](types.md#type-mismatch-diagnostics).
+
 The binding after `=>` shadows an outer local only inside that clause. Other assignments in the body belong to the surrounding scope, but a local the protected body assigns is read after the `begin` only when every rescue clause assigns it too (V0202); otherwise assign it before, or use the `begin` expression's value.
 
 A same-line rescue modifier supplies a fallback for an expression or a call without parentheses:

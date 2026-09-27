@@ -60,6 +60,18 @@ end
 
 The result is `["ID-12", "12", 2, 7, "é ", ""]`. Group zero is the whole match; numbered and named indices read captures. Negative group indices count backward, missing captures and out-of-range value indices return nil, and duplicate names select the last participating group. `captures` omits group zero; `named_captures` is a hash. Public field names take precedence over named captures.
 
+A successful match does not prove that a capture participated. Match data has no `fetch` member. Bind the capture to a local and narrow that local before calling string methods:
+
+```vibe
+def elapsed_ms(line: string) -> int?
+  match = line.match(/ms=([0-9]+)/)
+  return nil if match == nil
+  digits = match[1]
+  return nil if digits == nil
+  digits.to_i
+end
+```
+
 `begin(group)` and `end(group)` return character offsets or nil for absent groups and reject out-of-range indices. `to_s` and interpolation render the whole match. Match data stays protected through nested writes and duplicates; captures copied to a separate variable can be changed independently. This is an explicitly selected difference from Go's inconsistent mutation and clone behavior.
 
 ## Scanning
