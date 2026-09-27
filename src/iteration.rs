@@ -720,8 +720,14 @@ impl Loop {
                 continue;
             }
             let (args, count) = self.arguments(ctx)?;
-            self.pending = args.clone();
             use MethodKind::*;
+            // These array methods consume only the block result; the receiver
+            // already owns their inputs throughout the iteration.
+            if !matches!(self.method, Each | Map | MapIndex)
+                || !matches!(self.receiver.0, Kind::Array(_))
+            {
+                self.pending = args.clone();
+            }
             if self.method == Reduce && self.accumulator.is_none() {
                 self.accumulator = Some(args[0].clone());
                 continue;

@@ -4414,7 +4414,7 @@ fn enter(
     let pinned = programs::pin(ctx, storage, program.index)?;
     for (param, arg) in fun.params.iter().zip(args) {
         ctx.charge(1)?;
-        storage.locals.data[local_base + param.slot] = Some(arg.clone());
+        storage.locals.data[local_base + param.slot] = Some(simple::copy(arg));
     }
     // Built within the push, which spares the frame an intermediate copy.
     frames.push(

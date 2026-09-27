@@ -702,7 +702,7 @@ fn captured(
 /// Clones a value, copying nil, booleans and numbers inline rather than
 /// through the general clone.
 #[inline(always)]
-fn copy(value: &Value) -> Value {
+pub(super) fn copy(value: &Value) -> Value {
     match value.0 {
         Kind::Nil => Value::nil(),
         Kind::Bool(value) => Value::boolean(value),
