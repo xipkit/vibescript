@@ -469,6 +469,17 @@ impl<'a> Checker<'a> {
             let called = if safe { self.types.without_nil(ty) } else { ty };
             let base = crate::members::direct::Base::of(&self.types.bases(called));
             self.facts.record_base(expr, base);
+            let class = match self.types.kind(called) {
+                Kind::Instance(ns) => {
+                    let namespace = &self.program.namespaces[*ns as usize];
+                    (namespace.module.is_some()
+                        && !matches!(name, "initialize" | "class")
+                        && namespace.methods.contains_key(name))
+                    .then(|| namespace.name.clone())
+                }
+                _ => None,
+            };
+            self.facts.record_class(expr, class);
         }
         let name_span = self.spans.member(receiver, name);
         if let Some(span) = name_span {

@@ -2973,6 +2973,24 @@ impl Run {
                     n,
                     (namespace, caller_instance),
                 )?,
+                Op::MethodOf(function, class, n) => {
+                    let base = stack.data.len() - n - 1;
+                    if let Kind::Instance(instance) = &stack.data[base].0 {
+                        if program.namespace_matches(class, instance.class()) {
+                            let call = crate::namespace::Call {
+                                function,
+                                receiver: Some(std::mem::take(&mut stack.data[base])),
+                                constructor: false,
+                                ignore_arguments: false,
+                            };
+                            // The dynamic call that follows is for other receivers.
+                            frames.data[current].ip += 1;
+                            let args = &stack.data[base + 1..];
+                            enter_values(program, ctx, frames, storage, call, args, base)?;
+                            stack.data.truncate(base);
+                        }
+                    }
+                }
                 Op::Direct(site, n) => {
                     let base = stack.data.len() - n - 1;
                     let name = &program.members[site.name];

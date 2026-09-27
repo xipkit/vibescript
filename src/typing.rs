@@ -120,6 +120,10 @@ pub(crate) struct Facts {
     plain: HashMap<usize, bool>,
     /// Whether every parameter of each block is plain.
     blocks: HashMap<usize, bool>,
+    /// For each member call whose receiver is always an instance of one
+    /// class this source declares, and whose member is that class's method,
+    /// the class's qualified name; `None` where checks disagreed.
+    classes: HashMap<usize, Option<String>>,
 }
 
 impl Facts {
@@ -138,6 +142,16 @@ impl Facts {
         *self.plain.entry(key(expr)).or_insert(plain) &= plain;
     }
 
+    fn record_class(&mut self, call: &crate::syntax::Expr, class: Option<String>) {
+        let recorded = self
+            .classes
+            .entry(key(call))
+            .or_insert_with(|| class.clone());
+        if *recorded != class {
+            *recorded = None;
+        }
+    }
+
     fn record_block(&mut self, block: &crate::syntax::Block, plain: bool) {
         *self.blocks.entry(key(block)).or_insert(plain) &= plain;
     }
@@ -150,6 +164,11 @@ impl Facts {
     /// Whether `expr`'s value is plain; not when the checker did not see it.
     pub(crate) fn plain(&self, expr: &crate::syntax::Expr) -> bool {
         self.plain.get(&key(expr)).copied().unwrap_or(false)
+    }
+
+    /// The class whose method `call` always calls, if one was recorded.
+    pub(crate) fn class(&self, call: &crate::syntax::Expr) -> Option<&str> {
+        self.classes.get(&key(call))?.as_deref()
     }
 
     /// Whether every parameter of `block` is plain.

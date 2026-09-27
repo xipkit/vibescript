@@ -127,6 +127,11 @@ pub(crate) enum Op {
     Host(usize, usize),
     HostValue(usize, Receiving),
     Method(CallSite, usize),
+    /// Calls instance method `.0` of class `.1` with the `.2` arguments on
+    /// top of the stack when the receiver under them is an instance of that
+    /// class, as the checker proves it is, and then skips the dynamic call
+    /// that follows it for any other receiver.
+    MethodOf(usize, usize, usize),
     /// Calls a builtin member the checker bound to the receiver's static
     /// base type ([`crate::members::direct`]), dispatching dynamically when
     /// the receiver's runtime kind is another.
@@ -1434,6 +1439,22 @@ impl Compiler<'_> {
             Some(typed) => typed.get(self.work, name)?.copied(),
             None => None,
         })
+    }
+    /// The instance method `name` and its class, when the checker proved
+    /// that `call` always calls it on an instance of a class this program
+    /// declares.
+    fn method_of(&self, call: &Expr, name: &str) -> Option<(usize, usize)> {
+        let class = self.facts.class(call)?;
+        let index = self
+            .program
+            .namespaces
+            .iter()
+            .position(|definition| definition.name == class)?;
+        let method = self.program.namespaces[index]
+            .instance_methods
+            .iter()
+            .find(|method| method.name == name)?;
+        Some((method.function, index))
     }
     /// Records that the value instruction `ip` leaves is plain.
     fn mark_plain(&mut self, ip: usize, plain: bool) {
@@ -2764,6 +2785,11 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 self.expr(&arg.value).await?;
             }
             let mut c = self.c();
+            if !mutating {
+                if let Some((function, class)) = c.method_of(whole, name) {
+                    c.emit(Op::MethodOf(function, class, args.len()));
+                }
+            }
             let ip = c.emit(if mutating {
                 Op::Mutate(site, args.len())
             } else {
