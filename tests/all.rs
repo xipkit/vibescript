@@ -40,6 +40,8 @@ mod capability_publication;
 mod capability_receivers;
 #[path = "capability_snapshots.rs"]
 mod capability_snapshots;
+#[path = "checker_diff.rs"]
+mod checker_diff;
 #[path = "checker_gaps.rs"]
 mod checker_gaps;
 #[path = "classes.rs"]
