@@ -4,7 +4,7 @@ use crate::{
     arguments::{Arguments, Binding, Block},
     budget::Buffer,
     builtin::Global,
-    bytecode::{ArgumentOp, Invocation, NO_SLOT, Op, Receiving, Selection, narrow},
+    bytecode::{ArgumentOp, Invocation, NO_SLOT, Op, Operator, Receiving, Selection, narrow},
     hash::Hash,
     iteration::{self, Iteration, Progress},
     members, ops,
@@ -1755,13 +1755,13 @@ impl Run {
                     stack.push(ctx, result)?;
                 }
                 Op::Binary(op) => {
-                    let op = op.name();
                     let b = stack.data.pop().unwrap();
                     let a = stack.data.pop().unwrap();
                     if let Some(value) = ops::immediate(ctx, op, &a, &b)? {
                         stack.push(ctx, value)?;
                         continue;
                     }
+                    let op = op.name();
                     if let Some(resolved) =
                         operators::resolve(program, ctx, &a, op, (namespace, caller_instance))?
                     {
@@ -1788,7 +1788,7 @@ impl Run {
                     let a = stack.data.pop().unwrap();
                     // An immediate sum cannot fail part way, so the slot is written once.
                     if root_local.is_none() {
-                        if let Some(value) = ops::immediate(ctx, "+", &a, &b)? {
+                        if let Some(value) = ops::immediate(ctx, Operator::Add, &a, &b)? {
                             if !storage.addresses.data.is_empty() {
                                 address::refresh(
                                     ctx,

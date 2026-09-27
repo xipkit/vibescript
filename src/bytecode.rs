@@ -185,28 +185,65 @@ pub(crate) fn narrow(index: usize) -> u32 {
 /// a local slot, or whose local an assignment skips.
 pub(crate) const NO_SLOT: u32 = u32::MAX;
 
-/// A unary or binary operator, by its position in [`Operator::NAMES`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Operator(u8);
+macro_rules! operators {
+    ($($variant:ident => $name:literal),+ $(,)?) => {
+        /// A unary or binary operator, kept as a code through scalar execution.
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        pub(crate) enum Operator {
+            $($variant),+
+        }
 
-impl Operator {
-    const NAMES: [&'static str; 25] = [
-        "+", "-", "*", "/", "//", "%", "**", "==", "!=", "===", "=~", "!~", "<", "<=", ">", ">=",
-        "<=>", "&", "|", "^", "<<", ">>", "&&", "||", "!",
-    ];
+        impl Operator {
+            /// The operator spelled `name`, if it is one.
+            pub fn new(name: &str) -> Option<Self> {
+                match name {
+                    $($name => Some(Self::$variant),)+
+                    _ => None,
+                }
+            }
 
-    /// The operator spelled `name`, if it is one.
-    pub fn new(name: &str) -> Option<Self> {
-        Self::NAMES
-            .iter()
-            .position(|&known| known == name)
-            .map(|index| Self(index as u8))
-    }
+            /// The operator's spelling for overloads and non-scalar operations.
+            pub fn name(self) -> &'static str {
+                match self {
+                    $(Self::$variant => $name),+
+                }
+            }
+        }
 
-    /// The operator's spelling.
-    pub fn name(self) -> &'static str {
-        Self::NAMES[self.0 as usize]
-    }
+        impl std::fmt::Debug for Operator {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.debug_tuple("Operator").field(&(*self as u8)).finish()
+            }
+        }
+    };
+}
+
+operators! {
+    Add => "+",
+    Subtract => "-",
+    Multiply => "*",
+    Divide => "/",
+    FloorDivide => "//",
+    Modulo => "%",
+    Power => "**",
+    Equal => "==",
+    NotEqual => "!=",
+    CaseEqual => "===",
+    Match => "=~",
+    NotMatch => "!~",
+    Less => "<",
+    LessEqual => "<=",
+    Greater => ">",
+    GreaterEqual => ">=",
+    Compare => "<=>",
+    BitAnd => "&",
+    BitOr => "|",
+    BitXor => "^",
+    ShiftLeft => "<<",
+    ShiftRight => ">>",
+    And => "&&",
+    Or => "||",
+    Not => "!",
 }
 
 /// How a read of a bare name treats executable code the name resolves to. Go

@@ -1,7 +1,7 @@
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK, MAX_VALUE_DEPTH},
-    bytecode::Method,
+    bytecode::{Method, Operator},
     hash::Hash,
     json,
     scan::{self, Class},
@@ -84,46 +84,50 @@ pub(crate) fn unary(ctx: &mut CallContext, op: &str, value: Value) -> Result<Val
 #[inline(always)]
 pub(crate) fn immediate(
     ctx: &mut CallContext,
-    op: &str,
+    op: Operator,
     a: &Value,
     b: &Value,
 ) -> Result<Option<Value>> {
     let value = match (&a.0, &b.0) {
         (Kind::Int(a), Kind::Int(b)) => match op {
-            "+" => a.checked_add(*b).map(Value::int),
-            "-" => a.checked_sub(*b).map(Value::int),
-            "*" => a.checked_mul(*b).map(Value::int),
+            Operator::Add => a.checked_add(*b).map(Value::int),
+            Operator::Subtract => a.checked_sub(*b).map(Value::int),
+            Operator::Multiply => a.checked_mul(*b).map(Value::int),
             // Integers up to 2^53 convert exactly, so one float division
             // rounds their quotient correctly.
-            "/" if *b != 0 && a.unsigned_abs() <= EXACT && b.unsigned_abs() <= EXACT => {
+            Operator::Divide
+                if *b != 0 && a.unsigned_abs() <= EXACT && b.unsigned_abs() <= EXACT =>
+            {
                 Some(Value::float(*a as f64 / *b as f64))
             }
-            "//" | "%" if *b != 0 => floor_divide(op, *a, *b).map(Value::int),
-            "<" => Some(Value::boolean(a < b)),
-            "<=" => Some(Value::boolean(a <= b)),
-            ">" => Some(Value::boolean(a > b)),
-            ">=" => Some(Value::boolean(a >= b)),
-            "==" | "!=" => {
+            Operator::FloorDivide | Operator::Modulo if *b != 0 => {
+                floor_divide(op.name(), *a, *b).map(Value::int)
+            }
+            Operator::Less => Some(Value::boolean(a < b)),
+            Operator::LessEqual => Some(Value::boolean(a <= b)),
+            Operator::Greater => Some(Value::boolean(a > b)),
+            Operator::GreaterEqual => Some(Value::boolean(a >= b)),
+            Operator::Equal | Operator::NotEqual => {
                 // Equality charges one step per compared pair.
                 ctx.charge(1)?;
-                Some(Value::boolean((a == b) == (op == "==")))
+                Some(Value::boolean((a == b) == (op == Operator::Equal)))
             }
             _ => None,
         },
         (Kind::Float(a), Kind::Float(b)) => match op {
-            "+" => Some(Value::float(a + b)),
-            "-" => Some(Value::float(a - b)),
-            "*" => Some(Value::float(a * b)),
-            "/" => Some(Value::float(a / b)),
-            "//" => Some(Value::float((a / b).floor())),
-            "%" => Some(Value::float(float_modulo(*a, *b))),
-            "<" => Some(Value::boolean(a < b)),
-            "<=" => Some(Value::boolean(a <= b)),
-            ">" => Some(Value::boolean(a > b)),
-            ">=" => Some(Value::boolean(a >= b)),
-            "==" | "!=" => {
+            Operator::Add => Some(Value::float(a + b)),
+            Operator::Subtract => Some(Value::float(a - b)),
+            Operator::Multiply => Some(Value::float(a * b)),
+            Operator::Divide => Some(Value::float(a / b)),
+            Operator::FloorDivide => Some(Value::float((a / b).floor())),
+            Operator::Modulo => Some(Value::float(float_modulo(*a, *b))),
+            Operator::Less => Some(Value::boolean(a < b)),
+            Operator::LessEqual => Some(Value::boolean(a <= b)),
+            Operator::Greater => Some(Value::boolean(a > b)),
+            Operator::GreaterEqual => Some(Value::boolean(a >= b)),
+            Operator::Equal | Operator::NotEqual => {
                 ctx.charge(1)?;
-                Some(Value::boolean((a == b) == (op == "==")))
+                Some(Value::boolean((a == b) == (op == Operator::Equal)))
             }
             _ => None,
         },

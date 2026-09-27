@@ -6,7 +6,7 @@
 //! these same ones whenever their conditions here do not hold.
 
 use super::*;
-use crate::bytecode::{Function, Method};
+use crate::bytecode::{Function, Method, Operator};
 
 /// Runs the executing frame's simple instructions, stopping before the first
 /// one it declines. A declined instruction is left unexecuted and uncharged.
@@ -125,7 +125,7 @@ pub(super) fn run(
                 };
                 let b = stack.data.pop().unwrap();
                 let a = stack.data.pop().unwrap();
-                let value = match ops::immediate(ctx, "+", &a, &b)? {
+                let value = match ops::immediate(ctx, Operator::Add, &a, &b)? {
                     Some(value) => {
                         discard(a);
                         discard(b);
@@ -147,7 +147,6 @@ pub(super) fn run(
                     return Ok(());
                 }
                 step(ctx, frame)?;
-                let op = op.name();
                 let b = stack.data.pop().unwrap();
                 let a = stack.data.pop().unwrap();
                 let value = match ops::immediate(ctx, op, &a, &b)? {
@@ -156,7 +155,7 @@ pub(super) fn run(
                         discard(b);
                         value
                     }
-                    None => ops::binary(ctx, op, a, b)?,
+                    None => ops::binary(ctx, op.name(), a, b)?,
                 };
                 push(ctx, stack, value)?;
             }
