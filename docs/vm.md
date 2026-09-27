@@ -51,7 +51,13 @@ Calls pass their arguments without temporary lists wherever the callee binds the
 
 A block's arguments stay on the operand stack, below its own values, instead of in a list the block's frame owned; `BlockArg` reads them there. The simple loop runs block prologues (`Shadow`, `BlockArg`) and follows captured locals out to the frame that binds them, charging each frame it passes as the general path does. Frames are 32 bytes smaller as a result.
 
-Instance and class variable writes copy the variable's name into a field key only when the variable is new.
+Class variable and internal environment writes copy the variable's name into a field key only when the variable is new.
+
+## Instance field slots
+
+Each class has a compiled slot layout (`Program::field_layouts`) covering typed instance variables, properties, getters, setters and instance parameters. `InstanceField`, `InstanceStore`, `InstanceAddress` and `BindField` carry slot numbers. Reads, writes and addressed collection updates use those slots directly; named types and setters retain their existing boundary checks.
+
+An instance stores values in a metered slot buffer. Its slots also link the fields in first-write order: declaration order does not determine export or traversal order. An unassigned slot is distinct from an assigned `nil`, reads as `nil`, and stays absent from dynamic field enumeration. Replacing a value leaves its position unchanged. Imports, snapshots, equality, printing and inspection retain their previous behavior, and GC follows the same ordered field values. Internal environment objects continue to use ordinary named fields. The class layout stays with compiled code, alongside its existing field types.
 
 ## Records
 
@@ -61,6 +67,8 @@ A shape's runtime value, a record, is an ordinary hash. It keeps insertion order
 - A record `{ id: i, name: "row", active: b }` built in a loop took about 630 bytes, most of them copies of its keys; it now takes about 225. Records hold no per-record hash table below 16 fields, as before.
 
 Field positions are not fixed at compile time. Shape types are structural and order-free, so the checker interns their fields sorted by name, while a record's insertion order is observable and depends on how it was built: a literal's order, a JSON document's, or a host's. A lookup with a literal key compares the record's keys in order, and with shared keys the comparisons are short.
+
+Literal string reads use `IndexLiteral`: a plain hash borrows the key's compiled bytes, avoiding the shared-literal import, temporary operand and separate instruction. Lookup still respects the actual record's order. Instances, tagged hashes and host objects keep general indexing, and results whose types can contain callables keep the export check.
 
 Records a host passes in share their keys as well. An import keeps the keys it copies from small hashes, under 16 entries, in a table of 64 slots by a hash of their bytes, and the records after the first reuse them; a JSON-shaped argument of 256 records of four fields held 1,024 key copies, half of the call's tracked memory. Dictionaries do not use the table, since their keys do not repeat.
 
@@ -74,7 +82,9 @@ A frame was 312 bytes and carried three buffers of its own: its loops, its pendi
 
 A compiled script keeps its instructions between calls. An instruction is 16 bytes instead of 40: sources are at most 8 MiB, so every slot, jump target and table index fits in 32 bits, an operator is a byte naming its spelling, a receiver rule packs into its member's name index, and the rare `raise` class and destructuring selections sit in tables on the program. A script such as the `glue_orders` benchmark keeps about 11 KB after compiling instead of 14 KB. The first compilation in a process also builds the builtin signature tables, about 470 KB that every later compilation shares.
 
-A trivial call's memory is now mostly its four frames, and a call that iterates adds 2,176 bytes for its first iteration state, which holds every builtin iterator's fields.
+A trivial call's memory is now mostly its four frames. Iteration previously reserved four 544-byte states, or 2,176 bytes, regardless of which driver was active. Drivers now sit in individually charged boxes; the iteration stack reserves eight 16-byte handles. The common collection/range driver uses 480 bytes including its charge, so its first iteration adds 608 bytes. Text, sorting, hash and regex drivers reserve their own sizes, and `loop` needs only its inline waiting flag. Each reservation precedes allocation and is released when that driver finishes or unwinds.
+
+The common driver keeps endpoints and strides in 64 bits, but computes range lengths and stepping arithmetic in 128 bits, preserving the full integer range. Pattern matching and aggregation share one value slot because no method uses both.
 
 ## Typed arithmetic
 
@@ -88,5 +98,8 @@ Steps and tracked bytes stay exact and deterministic, and the portable and SIMD 
 - Frames are smaller, control stacks start at four elements and calls build fewer argument lists, so peak bytes drop.
 - Records a host passes in share their keys, so peak and retained bytes drop where an argument holds several.
 - Shared literals lower peak and retained bytes wherever a literal is evaluated more than once, and add 16 bytes per distinct literal.
+- Active iteration drivers replace capacity reserved for inactive drivers; nested collection iteration also uses less memory.
+- Declared instance fields skip name searches and per-instance key copies. Slot links preserve first-write order and distinguish absent fields from assigned nil.
+- Literal record reads remove the key-push instruction and its import work, with no change to lookup order or dynamic-boundary checks.
 
 The golden README's counter log records each re-recording.
