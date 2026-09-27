@@ -103,11 +103,16 @@ impl Fields {
                 ctx.charge(1)?;
                 if slot >= values.data.len() {
                     values.ensure(ctx, slot + 1)?;
-                    values.data.resize_with(slot + 1, || Slot {
-                        value: Value::nil(),
-                        previous: ABSENT,
-                        next: ABSENT,
-                    });
+                    while values.data.len() <= slot {
+                        let end = (slot + 1)
+                            .min(values.data.len() + crate::budget::CHUNK / size_of::<Slot>());
+                        ctx.work_bytes((end - values.data.len()) * size_of::<Slot>())?;
+                        values.data.resize_with(end, || Slot {
+                            value: Value::nil(),
+                            previous: ABSENT,
+                            next: ABSENT,
+                        });
+                    }
                 }
                 if values.data[slot].next == ABSENT {
                     if *last == END {
@@ -239,6 +244,25 @@ impl DoubleEndedIterator for Iter<'_> {
 mod tests {
     use super::*;
     use crate::{CallOptions, Engine};
+
+    #[test]
+    fn sparse_slot_initialization_observes_work_limits_before_publication() {
+        let mut options = CallOptions::default();
+        options.limits.steps = Some(3);
+        let mut ctx = CallContext::new(options);
+        let mut fields = Fields::Slots {
+            values: Buffer::empty(),
+            first: END,
+            last: END,
+        };
+        let error = fields.set_slot(&mut ctx, 4096, Value::int(1)).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Steps);
+        assert!(fields.get(4096).is_none());
+        assert!(fields.iter().next().is_none());
+        assert!(ctx.stats().retained_memory_bytes > 0);
+        drop(fields);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
 
     #[test]
     fn slots_preserve_assignment_order_and_missing_fields_across_imports() {
