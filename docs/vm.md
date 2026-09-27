@@ -103,6 +103,17 @@ Dynamic string patterns keep their existing compilation path. They would need a
 separate bounded cache with operation-specific errors and capacity charges;
 literal caching introduces no global pattern cache.
 
+## Array loop tails
+
+When a loop result is discarded, or a loop expression returns its iterable,
+its last body result cannot be observed. A tail append can consume that previous
+result when it aliases the array being updated. Other aliases, including saved
+snapshots and recovery state, keep their normal copy-on-write behavior.
+The append retains the exact-capacity growth the copy used, so returned arrays
+do not acquire spare capacity. Only the removed element-copy work and array
+header allocation disappear; the append and loop instructions keep their charges.
+Loops whose last result is returned keep that result and the original update.
+
 ## Typed arithmetic
 
 The simple loop applies arithmetic and comparisons to two compact integers or two floats inline, checking their tags, and falls back to the general operator for big integers, instances and other operands; integer overflow promotes to a big integer there. Scalar operations keep the bytecode operator code through execution, and only overloads and general operations recover its spelling. Operand pushes stay inline, while literal hashing and rare argument/context errors stay outside instruction dispatch. These choices reduce dispatch work, but do not guarantee that unrelated changes leave the interpreter's machine-code layout or timing unchanged.

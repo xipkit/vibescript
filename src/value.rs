@@ -497,6 +497,16 @@ impl Value {
         Ok(Self(Kind::Hash(hash)))
     }
     pub(crate) fn push(self, ctx: &mut CallContext, values: &[Value]) -> Result<Self> {
+        self.push_capacity(ctx, values, false)
+    }
+
+    /// Appends after dropping an unused alias, retaining the exact capacity
+    /// that copying that alias would have allocated.
+    pub(crate) fn push_exact(self, ctx: &mut CallContext, values: &[Value]) -> Result<Self> {
+        self.push_capacity(ctx, values, true)
+    }
+
+    fn push_capacity(self, ctx: &mut CallContext, values: &[Value], exact: bool) -> Result<Self> {
         let Kind::Array(mut heap) = self.0 else {
             return Err(Error::new(ErrorKind::Type, "expected array"));
         };
@@ -513,6 +523,15 @@ impl Value {
                 return ctx.fail(ErrorKind::Memory, "array size overflow");
             };
             let writable = Heap::make_mut(ctx, &mut heap, capacity)?;
+            if exact {
+                if writable.buffer.data.capacity() > capacity {
+                    let mut buffer = Buffer::with_capacity(ctx, capacity)?;
+                    buffer.extend(ctx, &writable.buffer.data)?;
+                    writable.buffer = buffer;
+                } else {
+                    writable.buffer.ensure(ctx, capacity)?;
+                }
+            }
             writable.buffer.extend(ctx, values)?;
             writable.depth = depth;
         }

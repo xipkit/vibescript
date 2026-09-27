@@ -12,6 +12,7 @@ use std::collections::HashMap;
 mod aliases;
 mod calls;
 mod errors;
+mod loops;
 mod namespaces;
 mod regex;
 mod typing;
@@ -93,7 +94,8 @@ pub(crate) enum Op {
     Dup,
     Unary(Operator),
     Binary(Operator),
-    Shovel(CallSite),
+    /// The flag marks an append whose enclosing loop result is unused.
+    Shovel(CallSite, bool),
     AddStore(u32),
     Array(u32),
     TextStart,
@@ -830,6 +832,7 @@ pub(crate) fn compile_parsed(
         program.functions[index] = function;
     }
     program.shared_slots = HashMap::new();
+    loops::discarded(&mut program.functions);
     program.prove_instance_variables(work)?;
     work.checkpoint()?;
     Ok(program)
@@ -2632,7 +2635,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 self.expr(b).await?;
                 let mut c = self.c();
                 let site = c.call_site("push", false);
-                c.emit(Op::Shovel(site));
+                c.emit(Op::Shovel(site, false));
             }
             Node::Binary(op, a, b) => {
                 self.expr(a).await?;

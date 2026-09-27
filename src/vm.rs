@@ -1865,7 +1865,7 @@ impl Run {
                     }
                     stack.push(ctx, value)?;
                 }
-                Op::Shovel(site) => {
+                Op::Shovel(site, last) => {
                     let value = stack.data.pop().unwrap();
                     let address = storage.addresses.data.pop().unwrap();
                     address.check_present(ctx)?;
@@ -1893,6 +1893,7 @@ impl Run {
                     if !matches!(address.value.0, Kind::Array(_)) {
                         return Err(ops::unsupported("<<"));
                     }
+                    let exact = last && take_loop_alias(storage, &address.value);
                     let guard_program = programs::address(ctx, storage, &address)?;
                     let guard =
                         address_guard(guard_program.as_deref(), ctx, frames, storage, &address)?;
@@ -1908,6 +1909,10 @@ impl Run {
                         &mut storage.addresses.data,
                         |ctx, receiver| {
                             let args = std::slice::from_ref(&value);
+                            if exact {
+                                let result = receiver.push_exact(ctx, args)?;
+                                return Ok((result.clone(), result));
+                            }
                             match members::direct::update(ctx, site.method, "push", receiver, args)
                             {
                                 Ok(result) => result,
@@ -4978,6 +4983,18 @@ fn enter_block(
         ctx.work_bytes(std::mem::size_of_val(chunk))?;
     }
     frames.push(ctx, frame)
+}
+
+/// Drops an unused loop-tail array alias before the next append to that array.
+fn take_loop_alias(storage: &mut Storage, receiver: &Value) -> bool {
+    let state = storage.loops.data.last_mut().unwrap();
+    if let (Kind::Array(last), Kind::Array(receiver)) = (&state.last.0, &receiver.0)
+        && Arc::ptr_eq(last, receiver)
+    {
+        state.last = Value::nil();
+        return true;
+    }
+    false
 }
 
 /// A program's shared literal by slot, imported on its first use in the

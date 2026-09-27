@@ -57,3 +57,42 @@ fn fused_loop_work_preserves_step_boundaries_and_numeric_semantics() {
         }
     }
 }
+
+#[test]
+fn array_loop_results_and_saved_snapshots_remain_values() {
+    for (source, expected) in [
+        (
+            "out: array<int> = []\nfor i in 1..4\nout << i\nend",
+            "[1,2,3,4]",
+        ),
+        (
+            "out: array<int> = []\nsaved: array<array<int>> = []\nfor i in 1..4\nsaved << out\nout << i\nend\n[saved,out]",
+            "[[[],[1],[1,2],[1,2,3]],[1,2,3,4]]",
+        ),
+        (
+            "out: array<int> = []\nfor i in 0...10\nnext if i==2\nbreak if i==5\nout << i\nend\nout",
+            "[0,1,3,4]",
+        ),
+        (
+            "out: array<int> = []\nresult=for i in [1,2,3]\nout << i\nend\n[result,out]",
+            "[[1,2,3],[1,2,3]]",
+        ),
+        (
+            "out: array<int> = []\nfor i in 1..4\nfor j in 1..2\nout << i*j\nend\nend\nout",
+            "[1,2,2,4,3,6,4,8]",
+        ),
+        (
+            "out: array<int> = []\nbegin\nfor i in 1..4\nraise \"stop\" if i==3\nout << i\nend\nrescue\nout << 9\nend\nout",
+            "[1,2,9]",
+        ),
+    ] {
+        let script = Engine::new().compile(source).unwrap();
+        let result = script.run(CallOptions::default()).unwrap();
+        let json = vibescript::stringify_json(&result.value, CallOptions::default()).unwrap();
+        assert_eq!(
+            json.value.as_bytes().unwrap(),
+            expected.as_bytes(),
+            "{source}"
+        );
+    }
+}

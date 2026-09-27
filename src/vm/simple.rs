@@ -265,7 +265,7 @@ pub(super) fn run(
                 stack.data.truncate(base);
                 push(ctx, stack, value)?;
             }
-            Op::Shovel(site) => {
+            Op::Shovel(site, last) => {
                 if !updatable(storage.addresses.data.last().unwrap(), site, true) {
                     return Ok(());
                 }
@@ -273,7 +273,11 @@ pub(super) fn run(
                 let value = stack.data.pop().unwrap();
                 let address = storage.addresses.data.pop().unwrap();
                 let args = std::slice::from_ref(&value);
-                let result = update(ctx, storage, address, site, "push", args)?;
+                let result = if last {
+                    append_loop_tail(ctx, storage, address, site, args)?
+                } else {
+                    update(ctx, storage, address, site, "push", args)?
+                };
                 push(ctx, stack, result)?;
             }
             Op::AddressTarget(n, read) => {
@@ -536,6 +540,35 @@ fn update(
         |ctx, receiver| match members::direct::update(ctx, site.method, name, receiver, args) {
             Ok(result) => result,
             Err(_) => unreachable!("the simple loop updates only arrays it serves"),
+        },
+    )
+}
+
+/// Keeps loop-tail update machinery out of instruction dispatch, like `update`.
+#[inline(never)]
+fn append_loop_tail(
+    ctx: &mut CallContext,
+    storage: &mut Storage,
+    address: Address,
+    site: crate::bytecode::CallSite,
+    args: &[Value],
+) -> Result<Value> {
+    if !take_loop_alias(storage, &address.value) {
+        return update(ctx, storage, address, site, "push", args);
+    }
+    address.apply(
+        ctx,
+        address::Bindings {
+            recover: !storage.handlers.data.is_empty(),
+            guard: None,
+            locals: &mut storage.locals.data,
+            globals: &mut storage.globals.data,
+            namespaces: &mut storage.namespaces.data,
+        },
+        &mut storage.addresses.data,
+        |ctx, receiver| {
+            let result = receiver.push_exact(ctx, args)?;
+            Ok((result.clone(), result))
         },
     )
 }
