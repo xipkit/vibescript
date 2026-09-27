@@ -622,7 +622,7 @@
   },
   {
     "name": "mutable_block_hash_filter_changes_noop",
-    "source": "def run(input: any) -> [{ a: int, b: int }, hash<string, int>]\na={a:1,b:2};r=a.keep_if {|k,v|a[\"b\"]=9;true};[a,r]\nend",
+    "source": "def run(input: any) -> [hash<string, int>, hash<string, int>]\na: hash<string, int> ={a:1,b:2};r=a.keep_if {|k,v|a[\"b\"]=9;true};[a,r]\nend",
     "go": [
       {
         "a": 1,
@@ -1055,7 +1055,7 @@
   },
   {
     "name": "collection_blocks_deep_mutation_3_False",
-    "source": "def run(input: any) -> [{ a: { b: int }, b: int }, hash<string, int | { b: int }>]\nh={a:{b:1},b:2};r=h.deep_transform_keys {|k|h[\"a\"][\"b\"]=9;k};[h,r]\nend",
+    "source": "def run(input: any) -> [{ a: hash<string, int>, b: int }, hash<string, int | hash<string, int>>]\nh={a:{b:1},b:2};r=h.deep_transform_keys {|k|h[\"a\"][\"b\"]=9;k};[h,r]\nend",
     "go": [
       {
         "a": {

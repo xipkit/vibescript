@@ -121388,7 +121388,8 @@
   {
     "name": "module_surface_13",
     "source": "module M\n A=[0]\n C=2\n @@x: int=1\n def self.f(x: int =3) -> int\n x+C\n end\nend\ndef run(input: any) -> string\nM.inspect\nend\n",
-    "go_error": "unknown class member inspect"
+    "go_error": "unknown class member inspect",
+    "static_error": {"code": "V0203", "at": [10, 3]}
   },
   {
     "name": "module_surface_14",
@@ -121798,7 +121799,8 @@
   {
     "name": "module_setters_19",
     "source": "module M\n @@x: int=0\n def self.value -> int;@@x;end\n private def self.value=(v: int);@@x=v+1;99;end\n public\n def self.inside -> int;M.value+=4;@@x;end\nend\ndef run(input: any) -> int\nM.value+=4;M.value\nend\n",
-    "go_error": "private method value="
+    "go_error": "private method value=",
+    "static_error": {"code": "V0208", "at": [6, 27]}
   },
   {
     "name": "module_setters_20",
@@ -121833,7 +121835,8 @@
   {
     "name": "module_setters_27",
     "source": "module M\n @@x: int=0\n def self.value -> int;@@x;end\n private def self.value=(v: int);@@x=v+1;99;end\n public\n def self.inside -> int;self.value+=4;@@x;end\nend\ndef run(input: any) -> int\nM.inside\nend\n",
-    "go_error": "private method value="
+    "go_error": "private method value=",
+    "static_error": {"code": "V0208", "at": [6, 30]}
   },
   {
     "name": "module_setters_28",
@@ -121868,7 +121871,8 @@
   {
     "name": "module_setters_35",
     "source": "module M\n @@x: int=0\n def self.value -> int;@@x;end\n protected def self.value=(v: int);@@x=v+1;99;end\n public\n def self.inside -> int;M.value+=4;@@x;end\nend\ndef run(input: any) -> int\nM.value+=4;M.value\nend\n",
-    "go_error": "protected method value="
+    "go_error": "protected method value=",
+    "static_error": {"code": "V0208", "at": [9, 3]}
   },
   {
     "name": "module_setters_36",
@@ -122368,7 +122372,8 @@
   {
     "name": "class_surface_24",
     "source": "class C\n A=[0]\n K=2\n @@n: int=3\n property x: int\n def initialize(@x: int =4);end\n def f(n: int =5) -> int;n+@x;end\n def self.f(n: int =6) -> int;n+@@n;end\nend\ndef run(input: any) -> string\nC.new.to_s\nend\n",
-    "go_error": "unknown member to_s"
+    "go_error": "unknown member to_s",
+    "static_error": {"code": "V0203", "at": [11, 7]}
   },
   {
     "name": "class_surface_25",
@@ -123795,241 +123800,181 @@
     "name": "class_accessors_288",
     "source": "class C\nproperty x: int\nsetter x: nil\ndef initialize;@x=nil;end\nend\ndef run(input: any) -> int\na=C.new; a.x\nend\n",
     "go_error": "return value for x expected int, got nil",
-    "static_error": {"code": "V0101", "at": [4, 19]}
+    "static_error": {"code": "V0101", "at": [3, 8]}
   },
   {
     "name": "class_accessors_289",
     "source": "class C\nproperty x: int\nsetter x: nil\ndef initialize(@x: nil);end\nend\ndef run(input: any) -> int\na=C.new(nil);a.x\nend\n",
     "go_error": "return value for x expected int, got nil",
-    "static_error": {
-      "code": "V0101",
-      "at": [
-        4,
-        16
-      ]
-    }
+    "static_error": {"code": "V0101", "at": [3, 8]}
   },
   {
     "name": "class_accessors_291",
     "source": "class C\nproperty x: int\nsetter x: nil\ndef set(v: nil?);@x=v;end\nend\ndef run(input: any) -> array<int?>\na=C.new;result=a.set(nil);[result,a.x]\nend\n",
     "go_error": "return value for x expected int, got nil",
-    "static_error": {"code": "V0101", "at": [4, 21]}
+    "static_error": {"code": "V0101", "at": [3, 8]}
   },
   {
     "name": "class_accessors_296",
     "source": "class C\nproperty x: int\nsetter x: string\ndef initialize;@x=\"bad\";end\nend\ndef run(input: any) -> int\na=C.new; a.x\nend\n",
     "go_error": "return value for x expected int, got string",
-    "static_error": {"code": "V0101", "at": [4, 19]}
+    "static_error": {"code": "V0101", "at": [3, 8]}
   },
   {
     "name": "class_accessors_297",
     "source": "class C\nproperty x: int\nsetter x: string\ndef initialize(@x: string);end\nend\ndef run(input: any) -> int\na=C.new(\"bad\");a.x\nend\n",
     "go_error": "return value for x expected int, got string",
-    "static_error": {
-      "code": "V0101",
-      "at": [
-        4,
-        16
-      ]
-    }
+    "static_error": {"code": "V0101", "at": [3, 8]}
   },
   {
     "name": "class_accessors_299",
     "source": "class C\nproperty x: int\nsetter x: string\ndef set(v: string) -> string;@x=v;end\nend\ndef run(input: any) -> array<int | string>\na=C.new;result=a.set(\"bad\");[result,a.x]\nend\n",
     "go_error": "return value for x expected int, got string",
-    "static_error": {"code": "V0101", "at": [4, 33]}
+    "static_error": {"code": "V0101", "at": [3, 8]}
   },
   {
     "name": "class_accessors_300",
     "source": "class C\nproperty x: int\nsetter x: array<int>\ndef initialize;@x=[1,2];end\nend\ndef run(input: any) -> int\na=C.new; a.x\nend\n",
     "go_error": "return value for x expected int, got array<int>",
-    "static_error": {"code": "V0101", "at": [4, 19]}
+    "static_error": {"code": "V0101", "at": [3, 8]}
   },
   {
     "name": "class_accessors_301",
     "source": "class C\nproperty x: int\nsetter x: array<int>\ndef initialize(@x: array<int>);end\nend\ndef run(input: any) -> int\na=C.new([1,2]);a.x\nend\n",
     "go_error": "return value for x expected int, got array<int>",
-    "static_error": {
-      "code": "V0101",
-      "at": [
-        4,
-        16
-      ]
-    }
+    "static_error": {"code": "V0101", "at": [3, 8]}
   },
   {
     "name": "class_accessors_303",
     "source": "class C\nproperty x: int\nsetter x: array<int>\ndef set(v: array<int>) -> array<int>;@x=v;end\nend\ndef run(input: any) -> array<array<int> | int>\na=C.new;result=a.set([1,2]);[result,a.x]\nend\n",
     "go_error": "return value for x expected int, got array<int>",
-    "static_error": {"code": "V0101", "at": [4, 41]}
+    "static_error": {"code": "V0101", "at": [3, 8]}
   },
   {
     "name": "class_accessors_304",
     "source": "class C\nproperty x: int\nsetter x: array<int | string>\ndef initialize;@x=[1,\"bad\"];end\nend\ndef run(input: any) -> int\na=C.new; a.x\nend\n",
     "go_error": "return value for x expected int, got array<int | string>",
-    "static_error": {"code": "V0101", "at": [4, 19]}
+    "static_error": {"code": "V0101", "at": [3, 8]}
   },
   {
     "name": "class_accessors_305",
     "source": "class C\nproperty x: int\nsetter x: array<int | string>\ndef initialize(@x: array<int | string>);end\nend\ndef run(input: any) -> int\na=C.new([1,\"bad\"]);a.x\nend\n",
     "go_error": "return value for x expected int, got array<int | string>",
-    "static_error": {
-      "code": "V0101",
-      "at": [
-        4,
-        16
-      ]
-    }
+    "static_error": {"code": "V0101", "at": [3, 8]}
   },
   {
     "name": "class_accessors_307",
     "source": "class C\nproperty x: int\nsetter x: array<int | string>\ndef set(v: array<int | string>) -> array<int | string>;@x=v;end\nend\ndef run(input: any) -> array<array<int | string> | int>\na=C.new;result=a.set([1,\"bad\"]);[result,a.x]\nend\n",
     "go_error": "return value for x expected int, got array<int | string>",
-    "static_error": {"code": "V0101", "at": [4, 59]}
+    "static_error": {"code": "V0101", "at": [3, 8]}
   },
   {
     "name": "class_accessors_308",
     "source": "class C\nproperty x: int\nsetter x: { a: int }\ndef initialize;@x={a:1};end\nend\ndef run(input: any) -> int\na=C.new; a.x\nend\n",
     "go_error": "return value for x expected int, got { a: int }",
-    "static_error": {"code": "V0101", "at": [4, 19]}
+    "static_error": {"code": "V0101", "at": [3, 8]}
   },
   {
     "name": "class_accessors_309",
     "source": "class C\nproperty x: int\nsetter x: { a: int }\ndef initialize(@x: { a: int });end\nend\ndef run(input: any) -> int\na=C.new({a:1});a.x\nend\n",
     "go_error": "return value for x expected int, got { a: int }",
-    "static_error": {
-      "code": "V0101",
-      "at": [
-        4,
-        16
-      ]
-    }
+    "static_error": {"code": "V0101", "at": [3, 8]}
   },
   {
     "name": "class_accessors_311",
     "source": "class C\nproperty x: int\nsetter x: { a: int }\ndef set(v: { a: int }) -> { a: int };@x=v;end\nend\ndef run(input: any) -> array<int | { a: int }>\na=C.new;result=a.set({a:1});[result,a.x]\nend\n",
     "go_error": "return value for x expected int, got { a: int }",
-    "static_error": {"code": "V0101", "at": [4, 41]}
+    "static_error": {"code": "V0101", "at": [3, 8]}
   },
   {
     "name": "class_accessors_312",
     "source": "class C\nproperty x: nil\ngetter x: int\ndef initialize;@x=nil;end\nend\ndef run(input: any) -> int\na=C.new; a.x\nend\n",
     "go_error": "return value for x expected int, got nil",
-    "static_error": {"code": "V0101", "at": [4, 19]}
+    "static_error": {"code": "V0101", "at": [2, 10]}
   },
   {
     "name": "class_accessors_313",
     "source": "class C\nproperty x: nil\ngetter x: int\ndef initialize(@x: nil);end\nend\ndef run(input: any) -> int\na=C.new(nil);a.x\nend\n",
     "go_error": "return value for x expected int, got nil",
-    "static_error": {
-      "code": "V0101",
-      "at": [
-        4,
-        16
-      ]
-    }
+    "static_error": {"code": "V0101", "at": [2, 10]}
   },
   {
     "name": "class_accessors_315",
     "source": "class C\nproperty x: nil\ngetter x: int\ndef set(v: nil?);@x=v;end\nend\ndef run(input: any) -> array<int?>\na=C.new;result=a.set(nil);[result,a.x]\nend\n",
     "go_error": "return value for x expected int, got nil",
-    "static_error": {"code": "V0101", "at": [4, 21]}
+    "static_error": {"code": "V0101", "at": [2, 10]}
   },
   {
     "name": "class_accessors_320",
     "source": "class C\nproperty x: string\ngetter x: int\ndef initialize;@x=\"bad\";end\nend\ndef run(input: any) -> int\na=C.new; a.x\nend\n",
     "go_error": "return value for x expected int, got string",
-    "static_error": {"code": "V0101", "at": [4, 19]}
+    "static_error": {"code": "V0101", "at": [2, 10]}
   },
   {
     "name": "class_accessors_321",
     "source": "class C\nproperty x: string\ngetter x: int\ndef initialize(@x: string);end\nend\ndef run(input: any) -> int\na=C.new(\"bad\");a.x\nend\n",
     "go_error": "return value for x expected int, got string",
-    "static_error": {
-      "code": "V0101",
-      "at": [
-        4,
-        16
-      ]
-    }
+    "static_error": {"code": "V0101", "at": [2, 10]}
   },
   {
     "name": "class_accessors_323",
     "source": "class C\nproperty x: string\ngetter x: int\ndef set(v: string) -> string;@x=v;end\nend\ndef run(input: any) -> array<int | string>\na=C.new;result=a.set(\"bad\");[result,a.x]\nend\n",
     "go_error": "return value for x expected int, got string",
-    "static_error": {"code": "V0101", "at": [4, 33]}
+    "static_error": {"code": "V0101", "at": [2, 10]}
   },
   {
     "name": "class_accessors_324",
     "source": "class C\nproperty x: array<int>\ngetter x: int\ndef initialize;@x=[1,2];end\nend\ndef run(input: any) -> int\na=C.new; a.x\nend\n",
     "go_error": "return value for x expected int, got array<int>",
-    "static_error": {"code": "V0101", "at": [4, 19]}
+    "static_error": {"code": "V0101", "at": [2, 10]}
   },
   {
     "name": "class_accessors_325",
     "source": "class C\nproperty x: array<int>\ngetter x: int\ndef initialize(@x: array<int>);end\nend\ndef run(input: any) -> int\na=C.new([1,2]);a.x\nend\n",
     "go_error": "return value for x expected int, got array<int>",
-    "static_error": {
-      "code": "V0101",
-      "at": [
-        4,
-        16
-      ]
-    }
+    "static_error": {"code": "V0101", "at": [2, 10]}
   },
   {
     "name": "class_accessors_327",
     "source": "class C\nproperty x: array<int>\ngetter x: int\ndef set(v: array<int>) -> array<int>;@x=v;end\nend\ndef run(input: any) -> array<array<int> | int>\na=C.new;result=a.set([1,2]);[result,a.x]\nend\n",
     "go_error": "return value for x expected int, got array<int>",
-    "static_error": {"code": "V0101", "at": [4, 41]}
+    "static_error": {"code": "V0101", "at": [2, 10]}
   },
   {
     "name": "class_accessors_328",
     "source": "class C\nproperty x: array<int | string>\ngetter x: int\ndef initialize;@x=[1,\"bad\"];end\nend\ndef run(input: any) -> int\na=C.new; a.x\nend\n",
     "go_error": "return value for x expected int, got array<int | string>",
-    "static_error": {"code": "V0101", "at": [4, 19]}
+    "static_error": {"code": "V0101", "at": [2, 10]}
   },
   {
     "name": "class_accessors_329",
     "source": "class C\nproperty x: array<int | string>\ngetter x: int\ndef initialize(@x: array<int | string>);end\nend\ndef run(input: any) -> int\na=C.new([1,\"bad\"]);a.x\nend\n",
     "go_error": "return value for x expected int, got array<int | string>",
-    "static_error": {
-      "code": "V0101",
-      "at": [
-        4,
-        16
-      ]
-    }
+    "static_error": {"code": "V0101", "at": [2, 10]}
   },
   {
     "name": "class_accessors_331",
     "source": "class C\nproperty x: array<int | string>\ngetter x: int\ndef set(v: array<int | string>) -> array<int | string>;@x=v;end\nend\ndef run(input: any) -> array<array<int | string> | int>\na=C.new;result=a.set([1,\"bad\"]);[result,a.x]\nend\n",
     "go_error": "return value for x expected int, got array<int | string>",
-    "static_error": {"code": "V0101", "at": [4, 59]}
+    "static_error": {"code": "V0101", "at": [2, 10]}
   },
   {
     "name": "class_accessors_332",
     "source": "class C\nproperty x: { a: int }\ngetter x: int\ndef initialize;@x={a:1};end\nend\ndef run(input: any) -> int\na=C.new; a.x\nend\n",
     "go_error": "return value for x expected int, got { a: int }",
-    "static_error": {"code": "V0101", "at": [4, 19]}
+    "static_error": {"code": "V0101", "at": [2, 10]}
   },
   {
     "name": "class_accessors_333",
     "source": "class C\nproperty x: { a: int }\ngetter x: int\ndef initialize(@x: { a: int });end\nend\ndef run(input: any) -> int\na=C.new({a:1});a.x\nend\n",
     "go_error": "return value for x expected int, got { a: int }",
-    "static_error": {
-      "code": "V0101",
-      "at": [
-        4,
-        16
-      ]
-    }
+    "static_error": {"code": "V0101", "at": [2, 10]}
   },
   {
     "name": "class_accessors_335",
     "source": "class C\nproperty x: { a: int }\ngetter x: int\ndef set(v: { a: int }) -> { a: int };@x=v;end\nend\ndef run(input: any) -> array<int | { a: int }>\na=C.new;result=a.set({a:1});[result,a.x]\nend\n",
     "go_error": "return value for x expected int, got { a: int }",
-    "static_error": {"code": "V0101", "at": [4, 41]}
+    "static_error": {"code": "V0101", "at": [2, 10]}
   },
   {
     "name": "class_accessors_336",
@@ -135120,7 +135065,7 @@
   {
     "name": "sum_initial",
     "source": "def run(input: any) -> array<int | string | array<int> | nil>\n[[1,2,3].sum(10),[].sum(nil),[\"a\",\"b\"].sum(\"\"),[[1],[2]].sum([])]\nend\n",
-    "static_error": {"code": "V0115", "at": [2, 40]}
+    "static_error": {"code": "V0115", "at": [2, 21]}
   },
   {
     "name": "string_affixes",
@@ -135197,11 +135142,6 @@
     "name": "control_logical_hash",
     "source": "def run(input: any) -> { x?: int }\nh: { x?: int } ={}\nh[\"x\"]||=3\nh[\"x\"]||=1//0\nh[\"y\"]&&=1//0\nh\nend\n",
     "static_error": {"code": "V0104", "at": [3, 1]}
-  },
-  {
-    "name": "control_called_function_own_loop",
-    "source": "def f() -> int\nfor n in [1,2]\nbreak 7\nend\nend\ndef run(input: any) -> array<int>\na: array<int> =[]\nfor n in [1,2]\na.push(f)\nend\na\nend\n",
-    "static_error": {"code": "V0101", "at": [2, 1]}
   },
   {
     "name": "address_nested_compound",
@@ -166323,11 +166263,6 @@
     "static_error": {"code": "V0310", "at": [10, 24]}
   },
   {
-    "name": "destructure_groups_each_bind_a_level",
-    "source": "def run(input: any) -> array<int?>\na, ((b, c)) = [1, [[2, 3]]]\nd, ((e, f)) = [1, [2, 3]]\ng, ((h)) = [1, [[2, 3]]]\n[a, b, c, d, e, f, g, h]\nend\n",
-    "static_error": {"code": "V0101", "at": [5, 5]}
-  },
-  {
     "name": "destructure_group_levels_in_blocks_and_loops",
     "source": "def run(input: any) -> array<array<array<array<int> | int | nil>>>\nout: array<array<int>> = []\nfor ((a, b)) in [[[1, 2]]]\n  out << [a, b]\nend\n[out, [[[3, 4]]].map { |((c, d))| [c, d] }, [[5, [6, 7]]].map { |e, ((f, g))| [e, f, g] }]\nend\n",
     "static_error": {"code": "V0101", "at": [4, 11]}
@@ -179242,5 +179177,20 @@
         15
       ]
     }
+  },
+  {
+    "name": "lifecycle_chained_dup_bare",
+    "source": "def run(input: any) -> array<array<any> | hash<string, array<any>> | string>\nh={\"dup\":[1]};begin\nr=h.dup.clear;[h,r]\nrescue=>e\n[h,e.class]\nend\nend\n",
+    "static_error": {"code": "V0415", "at": [3, 5]}
+  },
+  {
+    "name": "module_surface_39",
+    "source": "module M\n A=[0]\n C=2\n @@x: int=1\n def self.f(x: int =3) -> int\n x+C\n end\nend\ndef run(input: any) -> int\nM.C+=3;M.C\nend\n",
+    "static_error": {"code": "V0203", "at": [10, 3]}
+  },
+  {
+    "name": "module_binding_12",
+    "source": "module M\n C=1\n A=[0]\n @@a: array<int> = [0]\n def self.f -> int\n self.C+=1;self.C\n end\nend\ndef run(input: any) -> array<int | array<int>>\n[M.f,M.C,M.A]\nend\n",
+    "static_error": {"code": "V0203", "at": [6, 7]}
   }
 ]
