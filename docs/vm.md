@@ -57,7 +57,7 @@ Class variable and internal environment writes copy the variable's name into a f
 
 Each class has a compiled slot layout (`Program::field_layouts`) covering typed instance variables, properties, getters, setters and instance parameters. `InstanceField`, `InstanceStore`, `InstanceAddress` and `BindField` carry slot numbers. Reads, writes and addressed collection updates use those slots directly; named types and setters retain their existing boundary checks.
 
-An instance stores values in a metered slot buffer. Its slots also link the fields in first-write order: declaration order does not determine export or traversal order. An unassigned slot is distinct from an assigned `nil`, reads as `nil`, and stays absent from dynamic field enumeration. Replacing a value leaves its position unchanged. Imports, snapshots, equality, printing and inspection retain their previous behavior, and GC follows the same ordered field values. Internal environment objects continue to use ordinary named fields. The class layout stays with compiled code, alongside its existing field types.
+An instance stores values in a metered slot buffer that grows through its highest assigned slot; gaps are initialized in bounded, charged chunks. Its slots also link the fields in first-write order: declaration order does not determine export or traversal order. An unassigned slot is distinct from an assigned `nil`, reads as `nil`, and stays absent from dynamic field enumeration. Replacing a value leaves its position unchanged. Imports, snapshots, equality, printing and inspection retain their previous behavior, and GC follows the same ordered field values. Internal environment objects continue to use ordinary named fields. The class layout stays with compiled code, alongside its existing field types.
 
 ## Records
 
@@ -88,7 +88,7 @@ The common driver keeps endpoints and strides in 64 bits, but computes range len
 
 ## Typed arithmetic
 
-The simple loop already applies arithmetic and comparisons to two compact integers or two floats inline, checking their tags, and falls back to the general operator for big integers, instances and other operands; integer overflow promotes to a big integer there. Measurement found no cost left to remove: matching on the operator as an enum instead of its spelling made the numeric loops 5 to 10 percent slower on an Apple M4, and the tag checks cost less than the dispatch around them. Inlining the operand stack's push in the simple loop made them 6 to 15 percent faster.
+The simple loop applies arithmetic and comparisons to two compact integers or two floats inline, checking their tags, and falls back to the general operator for big integers, instances and other operands; integer overflow promotes to a big integer there. Scalar operations keep the bytecode operator code through execution, and only overloads and general operations recover its spelling. Operand pushes stay inline, while literal hashing and rare argument/context errors stay outside instruction dispatch. These choices reduce dispatch work, but do not guarantee that unrelated changes leave the interpreter's machine-code layout or timing unchanged.
 
 ## Accounting
 
