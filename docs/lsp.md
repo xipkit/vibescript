@@ -1,6 +1,6 @@
 # Language server
 
-`vibes lsp` speaks the Language Server Protocol over stdin and stdout. It is a port of the Go reference's `vibes lsp` and answers the same requests the same way; the [comparison](#comparison-with-the-reference) below records where the two differ. Editors launch it; it is not meant to be run by hand.
+`vibes lsp` speaks the Language Server Protocol over stdin and stdout. Editors launch it to check and navigate Vibescript documents, offer canonical builtin completions, and apply diagnostic fixes.
 
 ```sh
 vibes lsp
@@ -10,7 +10,7 @@ The server lives in the `vibescript-tools` crate as `vibescript_tools::lsp`, beh
 
 ## Editor setup
 
-The reference's Zed extension launches `vibes lsp` from the `PATH`, so it runs this server when this `vibes` is the one found. Other editors need only a generic client that starts `vibes lsp` for `*.vibe` files. In Neovim:
+Configure an editor client to start `vibes lsp` from `PATH` for `*.vibe` files. For example, in Neovim:
 
 ```lua
 vim.lsp.start({
@@ -24,7 +24,7 @@ vim.lsp.start({
 
 | Request or notification | Behavior |
 | --- | --- |
-| `initialize`, `initialized`, `shutdown`, `exit` | The reference's capabilities: full-text sync, hover, completion triggered by `.`, signature help triggered by `(` and `,`, definitions, document symbols and formatting. |
+| `initialize`, `initialized`, `shutdown`, `exit` | Full-text sync, hover, completion triggered by `.`, signature help triggered by `(` and `,`, definitions, document symbols and formatting. |
 | `textDocument/didOpen`, `didChange` | Analyze the full text and publish its diagnostics. Only the last change of a `didChange` counts, as full-text sync sends the whole document. |
 | `textDocument/didClose` | Forget the document and publish an empty diagnostics set. |
 | `textDocument/hover` | Documentation for the word at the position; see [hover](#hover). |
@@ -32,16 +32,16 @@ vim.lsp.start({
 | `textDocument/signatureHelp` | Parameter hints for the call around the position on its line, and for a paren-less `assert`. |
 | `textDocument/definition` | The declaring line of a top-level function, class, module, method, module constant, enum or enum member in the same document. |
 | `textDocument/documentSymbol` | Functions, classes and modules with their methods, constants and nested modules, and enums with their members. |
-| `textDocument/formatting` | One full-document edit from `vibescript_tools::format`, the formatter `vibes fmt` uses, which matches the reference's: it trims trailing spaces and tabs, drops trailing blank lines and ends the text with one newline. |
+| `textDocument/formatting` | One full-document edit from `vibescript_tools::format`, the formatter `vibes fmt` uses: it trims trailing spaces and tabs, drops trailing blank lines and ends the text with one newline. |
 | `textDocument/codeAction` | A `quickfix` action for each fix of each diagnostic whose range meets the requested range; see [diagnostics](#diagnostics). |
 
 Unknown requests fail with `-32601 method not found`, and requests whose parameters have the wrong shape with `-32602`. Unknown notifications, such as `$/setTrace`, are ignored.
 
 ### Diagnostics
 
-Every open and change compiles the document. A compile error is published in the reference's form: severity 1 (error), source `vibes-lsp`, the parser's bare message, and a range in UTF-16 units. The port's parser stops at its first error, where the reference's parser reports every error it recovers from; that first error has the reference's message and position. The reference spans the offending token; a port error carries only a position, so its range covers the identifier, number or keyword starting there, or one character. Errors without a position, such as an oversized source, are reported at the start of the document.
+Every open and change compiles the document. Syntax failures carry code V0001, severity 1 (error), source `vibes-lsp`, the parser's message, and a range in UTF-16 units. The parser stops at its first error. The range covers the identifier, number or keyword starting at the error, or one character. A hash argument mistaken for a block carries V0002 and a parenthesis fix. Errors without a position, such as an oversized source, are reported at the start of the document.
 
-Every other diagnostic comes from the [type checker](checker.md) of ADR-007 and ADR-008, which checks the whole document as `vibes check FILE` does, unused declarations included: errors when the document does not compile, and warnings when it does. Each carries its stable code, such as `V0401`, as the protocol's `code`, and its range covers the diagnostic's span. The reference's server reports compile errors only, so these findings are new. A check that stops at a limit publishes one warning (severity 2) at the start of the document, such as `compilation stopped: step quota exceeded (20000000)`.
+Other diagnostics come from the [type checker](checker.md) of ADR-007 and ADR-008, which checks the whole document as `vibes check FILE` does, unused declarations included. Each carries its stable code, such as `V0401`, and its range covers the diagnostic's span. Errors prevent compilation; warnings do not. A check stopped by a resource limit publishes one warning (severity 2) at the start of the document, such as `compilation stopped: step quota exceeded (20000000)`.
 
 Only diagnostics in the document itself are published. Required files resolve from the document's directory for `file:` URIs, as `vibes check FILE` resolves them from the script's directory; this is the only file system access the server makes, and it reads the files as saved. Without a directory, as for `untitled:` documents, a `require` is reported as `cannot statically resolve required module`.
 
@@ -49,9 +49,9 @@ The server advertises `codeActionProvider` with the `quickfix` kind and answers 
 
 ### Hover
 
-Hover follows the reference's lookup order. A word directly after a namespace receiver resolves to the qualified builtin (`JSON.parse_as`, `Math::PI`). A word reached through `.` on a value shows the member's documentation, merged across receiver kinds when several document it (`length`, or a removed spelling such as `size`), so `price.format` never shows the global `format`. Otherwise builtin, namespace and keyword documentation comes first, then the document's own declarations: a reconstructed signature such as `def add(a: int, b: int = …) -> int` followed by the comment block above the declaration, without `# vibe:` and `# uses:` directives. Duplicate names resolve to the declaration in scope, and a write such as `c.value = 3` prefers the setter. Any other word reads `Vibescript keyword`, `builtin` or `symbol`.
+A word directly after a namespace receiver resolves to the qualified builtin (`JSON.parse_as`, `Math::PI`). A word reached through `.` on a value shows the member's documentation, merged across receiver kinds when several document it (`length`, or a removed spelling such as `size`), so `price.format` never shows the global `format`. Otherwise builtin, namespace and keyword documentation comes first, then the document's own declarations: a reconstructed signature such as `def add(a: int, b: int = …) -> int` followed by the comment block above the declaration, without `# vibe:` and `# uses:` directives. Duplicate names resolve to the declaration in scope, and a write such as `c.value = 3` prefers the setter. Any other word reads `Vibescript keyword`, `builtin` or `symbol`.
 
-The documentation text is the builtin reference in `tools/src/lsp/reference/`: the builtin, stdlib, string, array, hash, time and duration guides, which began as copies of the Go reference's and now document the canonical names with the signature table's exact signatures. Removed member spellings are documented as removed, with their replacements, so a hover on one says what to write; they are never completed. Member completions list the signature table's members, `vibescript::signatures`, rendering each member's signatures as receiver-qualified lines. Tests check that every builtin the runtime registers is documented, that every documented member is a member of the table or a removed spelling of the rename table, and, in `tests/docs.rs`, that every example compiles with static types.
+The documentation text is the builtin reference in `tools/src/lsp/reference/`: the builtin, stdlib, string, array, hash, time and duration guides, which document the canonical names with the signature table's exact signatures. Removed member spellings are documented as removed, with their replacements, so a hover on one says what to write; they are never completed. Member completions list the signature table's members, `vibescript::signatures`, rendering each member's signatures as receiver-qualified lines. Tests check that every builtin the runtime registers is documented, that every documented member is a member of the table or a removed spelling of the rename table, and, in `tests/docs.rs`, that every example compiles with static types.
 
 ### Completion
 
@@ -61,13 +61,13 @@ Elsewhere the server offers keywords and builtins with their documentation, the 
 
 ## Documents that do not parse
 
-The reference's parser recovers from syntax errors, so its navigation still sees the declarations around a broken one. The port's parser stops at the first error. When a document does not parse, the server outlines each top-level section on its own, splitting before every unindented `def`, `class`, `module`, `enum` or `alias` and after every unindented `end`, and uses the declarations of the sections that parse. When no section parses, it keeps the last outline. Declarations from an older outline are re-anchored to the lines that still declare them, and members move with their class, module or enum; a declaration the text no longer contains is dropped. Completion and signature help keep the last compiled functions in the same way.
+The parser stops at the first error. When a document does not parse, the server outlines each top-level section on its own, splitting before every unindented `def`, `class`, `module`, `enum` or `alias` and after every unindented `end`, and uses the declarations of the sections that parse. When no section parses, it keeps the last outline. Declarations from an older outline are re-anchored to the lines that still declare them, and members move with their class, module or enum; a declaration the text no longer contains is dropped. Completion and signature help keep the last compiled functions in the same way.
 
 ## Limits
 
 Each analysis is bounded, so a large or pathological document cannot stall the editor:
 
-- Documents over 1 MiB, the reference's default source limit, are not analyzed. They get one diagnostic, `source exceeds maximum size (N > 1048576 bytes)`, and lose their navigation, as in the reference.
+- Documents over 1 MiB are not analyzed. They get one diagnostic, `source exceeds maximum size (N > 1048576 bytes)`, and lose their navigation.
 - Compilation and the check share a two-second deadline, measured from the start of each analysis. Compilation uses `Engine::compile_with_options`, which charges the compiler's work so the deadline and cancellation reach it; the check uses 20 million steps and 64 MiB. A stopped compilation publishes `compilation stopped: execution deadline exceeded` and keeps the last outline.
 - Message bodies over 8 MiB are skipped without being buffered.
 
@@ -75,13 +75,13 @@ Hosts can change these through `Options`.
 
 ## Protocol details
 
-- Messages use `Content-Length` framing; header names match without regard to case and other headers are ignored. A missing or malformed `Content-Length`, or a header block over 64 KiB, ends the server with exit status 1 and an error in the reference's words, such as `lsp read: missing Content-Length header`, since no later message boundary can be trusted. Input that ends between messages ends the server with status 0.
-- A body that is not a JSON-RPC object is skipped. Parameters decode as the reference's typed structs do: absent fields and `null` take zero values, keys match without regard to case when no exact key exists, and a value of the wrong type, such as a fractional line, rejects the request with `-32602`. Absent parameters are an error, while `null` parameters are empty. Request ids are echoed verbatim, and even an `initialize` without an id is answered, as in the reference.
-- Output uses the reference's JSON: its key order, and HTML-safe escapes for `<`, `>` and `&`.
+- Messages use `Content-Length` framing; header names match without regard to case and other headers are ignored. A missing or malformed `Content-Length`, or a header block over 64 KiB, ends the server with exit status 1 and an error such as `lsp read: missing Content-Length header`, since no later message boundary can be trusted. Input that ends between messages ends the server with status 0.
+- A body that is not a JSON-RPC object is skipped. When decoding parameters, absent fields and `null` take zero values, keys match without regard to case when no exact key exists, and a value of the wrong type, such as a fractional line, rejects the request with `-32602`. Absent parameters are an error, while `null` parameters are empty. Request ids are echoed verbatim, and even an `initialize` without an id is answered.
+- Output uses stable JSON key order and HTML-safe escapes for `<`, `>` and `&`.
 - Positions are UTF-16 code units. Lines end at `\n`, `\r\n` or a bare `\r`, as clients count them.
-- `exit` ends the server with status 0 whether or not `shutdown` came first, as in the reference.
+- `exit` ends the server with status 0 whether or not `shutdown` came first.
 
-The server reads input on a separate thread where threads exist. While it analyzes a document, a `didChange` or `didClose` for the same document cancels the analysis, whose diagnostics would be stale before they were published; a change queued directly behind another change to the same document replaces it unanalyzed; and a `$/cancelRequest` naming a request that is still queued answers it with `-32800 request cancelled`. A client that waits for each reply, as the comparison does, sees none of this. On WASI, which has no threads, messages are handled strictly in turn.
+The server reads input on a separate thread where threads exist. While it analyzes a document, a `didChange` or `didClose` for the same document cancels the analysis, whose diagnostics would be stale before they were published; a change queued directly behind another change to the same document replaces it unanalyzed; and a `$/cancelRequest` naming a request that is still queued answers it with `-32800 request cancelled`. A client that waits for each reply sees messages handled in order. On WASI, which has no threads, messages are handled strictly in turn.
 
 ## Embedding
 
@@ -101,23 +101,3 @@ assert!(hover.contains("Writes each value"));
 ```
 
 `Options` sets the check's limits and deadline, a cancellation token, the source size limit, and the directories required files resolve from, for hosts whose documents are not files. The library views the server builds on, declaration outlines and member tables, are described in [editor tooling views](tooling.md).
-
-## Comparison with the reference
-
-Until the Rust implementation became the reference, a transcript script drove the Go reference's server and this one in lockstep over the 203 site programs, the 35 reference examples and the documents in `tests/lsp`, in the sessions the `lsp` golden corpus still sends. Every hover, definition, completion, signature help, outline, formatting and `didClose` reply was identical; every difference was in diagnostics, from the port's checker findings and its parser reporting only the first of the reference's parse errors. The `lsp` [golden corpus](../tests/golden/README.md) records this server's replies to those sessions, which `scripts/lsp_sessions.py` generates, and `scripts/golden.py` checks them.
-
-## Differences from the reference
-
-Intentional:
-
-- Diagnostics include the type checker's findings with their codes and quick fixes, as described in [diagnostics](#diagnostics), and required files resolve from the document's directory for the check.
-- Hover, completion and signature help documentation comes from this repository's builtin reference, which documents the static language's canonical names and signatures, so its text differs from the reference's since the comparison above was recorded.
-- Parse errors follow the port's parser: one error per document, with the reference's message and position, and a range covering the word at the error position.
-- A body over 8 MiB is skipped and the server continues; the reference exits. The port also rejects header blocks over 64 KiB.
-- Queued requests can be cancelled, consecutive changes to one document are analyzed once, and a superseded analysis publishes nothing, where threads exist. The reference handles every message in turn.
-- The static check and compilation stop at a deadline and the check at its quotas; the reference has no deadline but checks nothing.
-
-Consequences of the port's parser, which stops at its first error:
-
-- A document that does not parse is outlined section by section. Where a broken section hides a declaration the reference's recovering parser still finds, such as a function whose body is cut off, the port does not list it; where a section no longer parses at all, the port keeps the last outline for it only if no section parses.
-

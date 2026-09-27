@@ -30,7 +30,7 @@ Outlining uses the compiler's parser with the same source-size and syntax-depth 
 
 ## Unreachable statements
 
-`unreachable(source)` reports every statement that can never run because an earlier statement in the same body always leaves it: a `return`, `raise`, `break`, `next` or `retry`, or a compound statement whose every path ends in one, such as an `if` whose branches all return. Scopes, positions and ordering follow the Go reference's `vibes analyze` linter: a scope is a function name, `<script>`, `Class#method`, `Class.method` or `Class.<class body>`, and each enclosing block appends ` block at LINE:COLUMN`. Positions inside a string interpolation count from the interpolation's first non-space character, as the reference's do.
+`unreachable(source)` reports every statement that can never run because an earlier statement in the same body always leaves it: a `return`, `raise`, `break`, `next` or `retry`, or a compound statement whose every path ends in one, such as an `if` whose branches all return. A scope is a function name, `<script>`, `Class#method`, `Class.method` or `Class.<class body>`, and each enclosing block appends ` block at LINE:COLUMN`. Positions inside a string interpolation count from the interpolation's first non-space character.
 
 ```rust
 let found = vibescript::tooling::unreachable("def run\n  [1].each { |x|\n    raise \"boom\"\n    x\n  }\nend\n")?;
