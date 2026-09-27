@@ -19,10 +19,13 @@ pub(super) fn run(
     storage: &mut Storage,
     stack: &mut Buffer<Value>,
 ) -> Result<()> {
-    // File programs, root bindings and host globals can shadow any local.
-    if program.file || storage.bindings.is_some() || !ctx.options.globals.is_empty() {
+    // A required file's own bindings live in its scope rather than in slots.
+    if program.file {
         return Ok(());
     }
+    // Root bindings, such as a capability's name, and host globals take the
+    // place of a local that no slot binds, which the general loop resolves.
+    let shadowed = storage.bindings.is_some() || !ctx.options.globals.is_empty();
     loop {
         match function.code[frame.ip] {
             Op::Nil => {
@@ -49,7 +52,7 @@ pub(super) fn run(
                 push(ctx, stack, value)?;
             }
             Op::Load(n) => {
-                let Some(slot) = local(ctx, outer, function, frame, storage, n)? else {
+                let Some(slot) = local(ctx, outer, function, frame, storage, n, shadowed)? else {
                     return Ok(());
                 };
                 let mut value = storage.locals.data[slot]
@@ -95,13 +98,13 @@ pub(super) fn run(
                 frame.ip = next;
             }
             Op::Declare(n) => {
-                let Some(slot) = local(ctx, outer, function, frame, storage, n)? else {
+                let Some(slot) = local(ctx, outer, function, frame, storage, n, shadowed)? else {
                     return Ok(());
                 };
                 storage.locals.data[slot].get_or_insert_with(Value::nil);
             }
             Op::Store(n) => {
-                let Some(slot) = local(ctx, outer, function, frame, storage, n)? else {
+                let Some(slot) = local(ctx, outer, function, frame, storage, n, shadowed)? else {
                     return Ok(());
                 };
                 let value = stack.data.last().unwrap();
@@ -112,7 +115,7 @@ pub(super) fn run(
                 if !plain_operand(stack) {
                     return Ok(());
                 }
-                let Some(slot) = local(ctx, outer, function, frame, storage, n)? else {
+                let Some(slot) = local(ctx, outer, function, frame, storage, n, shadowed)? else {
                     return Ok(());
                 };
                 let b = stack.data.pop().unwrap();
@@ -232,7 +235,10 @@ pub(super) fn run(
             }
             Op::RootCall(_, expanded) => {
                 // Without host bindings a resolved call needs no pending target.
-                if expanded || !ctx.capability_names.data.is_empty() {
+                if expanded
+                    || !ctx.capability_names.data.is_empty()
+                    || !ctx.options.globals.is_empty()
+                {
                     return Ok(());
                 }
                 step(ctx, frame)?;
@@ -360,16 +366,19 @@ fn local(
     frame: &mut Frame,
     storage: &Storage,
     local: usize,
+    shadowed: bool,
 ) -> Result<Option<usize>> {
     let own = frame.local_base + local;
     if storage.locals.data[own].is_some() {
         step(ctx, frame)?;
         return Ok(Some(own));
     }
-    unbound(ctx, outer, function, frame, storage, local)
+    unbound(ctx, outer, function, frame, storage, local, shadowed)
 }
 
-/// [`local`] for a local its own slot does not bind yet.
+/// [`local`] for a local its own slot does not bind yet. When root bindings
+/// or host globals can take its place, only a capturing frame's bound slot
+/// is found here.
 #[inline(never)]
 fn unbound(
     ctx: &mut CallContext,
@@ -378,8 +387,11 @@ fn unbound(
     frame: &mut Frame,
     storage: &Storage,
     local: usize,
+    shadowed: bool,
 ) -> Result<Option<usize>> {
-    let Some((slot, hops)) = target(outer, function, frame, storage, local) else {
+    let Some((slot, hops)) = target(outer, function, frame, storage, local)
+        .filter(|&(slot, _)| !shadowed || storage.locals.data[slot].is_some())
+    else {
         return Ok(None);
     };
     step(ctx, frame)?;
