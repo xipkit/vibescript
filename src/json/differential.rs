@@ -3,7 +3,7 @@ use crate::{CallOptions, Limits, budget::MAX_VALUE_DEPTH};
 
 #[test]
 fn repeated_short_strings_share_values_without_retaining_the_document() {
-    let input = format!("[{}]", vec![r#""api""#; 256].join(","));
+    let input = format!("[{}]", vec![r#""api""#; 2048].join(","));
     let mut ctx = CallContext::new(CallOptions::default());
     let parsed = parse(&mut ctx, input.as_bytes()).unwrap();
     let values = parsed.as_array().unwrap();

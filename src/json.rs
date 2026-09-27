@@ -16,7 +16,7 @@ pub(crate) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<Value> {
     ctx.checkpoint()?;
     let indexed = parser::indexed(input);
     if parser::batched(input, indexed) {
-        document(&mut parser::Parser::with_index(
+        indexed_document(&mut parser::Parser::with_index(
             accounting::Steps::new(ctx, input.len()),
             input,
             indexed,
@@ -26,13 +26,25 @@ pub(crate) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<Value> {
     }
 }
 
-fn document<C: accounting::Context>(p: &mut parser::Parser<'_, C>) -> Result<Value> {
-    let v = p.value()?;
+fn document<C: accounting::Context>(p: &mut parser::Parser<'_, '_, C>) -> Result<Value> {
+    let value = p.value()?;
+    finish_document(p, value)
+}
+
+fn indexed_document<C: accounting::Context>(p: &mut parser::Parser<'_, '_, C>) -> Result<Value> {
+    let value = p.value_indexed::<true>()?;
+    finish_document(p, value)
+}
+
+fn finish_document<C: accounting::Context>(
+    p: &mut parser::Parser<'_, '_, C>,
+    value: Value,
+) -> Result<Value> {
     p.space()?;
     if !p.finished() {
         return p.err("trailing JSON data", parser::Failure::Trailing);
     }
-    Ok(v)
+    Ok(value)
 }
 
 /// Parses script input for the builtin `name` (`JSON.parse` or
@@ -77,9 +89,43 @@ fn parse_typed_with<C: accounting::Context>(
     ty: Option<&crate::types::Type>,
     indexed: bool,
 ) -> Result<(Value, Option<u64>)> {
+    if ty.is_some() && input.len() >= parser::RECORD_MIN_BYTES {
+        parse_records(ctx, input, name, ty, indexed)
+    } else {
+        let mut p = parser::Parser::with_index(ctx, input, indexed);
+        typed_document(&mut p, input, name, ty)
+    }
+}
+
+// Keep the bounded schema table's stack frame off the small-document path.
+#[inline(never)]
+fn parse_records<C: accounting::Context>(
+    ctx: C,
+    input: &[u8],
+    name: &str,
+    ty: Option<&crate::types::Type>,
+    indexed: bool,
+) -> Result<(Value, Option<u64>)> {
+    // Settle the parser and release its caches before dropping shared fields.
+    let mut records = records::Records::default();
     let mut p = parser::Parser::with_index(ctx, input, indexed);
+    p.records = Some(&mut records);
+    typed_document(&mut p, input, name, ty)
+}
+
+fn typed_document<'a, C: accounting::Context>(
+    p: &mut parser::Parser<'a, '_, C>,
+    input: &'a [u8],
+    name: &str,
+    ty: Option<&'a crate::types::Type>,
+) -> Result<(Value, Option<u64>)> {
     p.typed.ty = ty;
-    let result = document(&mut p);
+    // Reserved accounting is selected only after the prefix chose indexing.
+    let result = if C::BATCHED {
+        indexed_document(p)
+    } else {
+        document(p)
+    };
     let failure = p.failure;
     let error = match result {
         Ok(value) => {
@@ -89,6 +135,17 @@ fn parse_typed_with<C: accounting::Context>(
         Err(error) => error,
     };
     p.clear_strings();
+    parse_error(&mut p.ctx, input, name, failure, error)
+}
+
+#[cold]
+fn parse_error<C: accounting::Context>(
+    ctx: &mut C,
+    input: &[u8],
+    name: &str,
+    failure: Option<parser::Failure>,
+    error: Error,
+) -> Result<(Value, Option<u64>)> {
     match failure {
         Some(failure)
             if error.kind == ErrorKind::Json
@@ -101,8 +158,7 @@ fn parse_typed_with<C: accounting::Context>(
                 }
             }
             let rendered = Rendered(failure, name, input);
-            let (message, _charge) =
-                crate::source::formatted(&mut p.ctx, format_args!("{rendered}"))?;
+            let (message, _charge) = crate::source::formatted(ctx, format_args!("{rendered}"))?;
             Err(error.with_message(message))
         }
         _ => Err(error),

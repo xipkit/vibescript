@@ -67,6 +67,7 @@ impl Scanner {
     }
 
     /// Returns the ASCII string prefix, stopping before escapes or UTF-8.
+    #[inline(always)]
     pub fn string(&mut self, input: &[u8], pos: usize, end: usize) -> usize {
         if end - pos >= 256 {
             self.block(input, pos);
