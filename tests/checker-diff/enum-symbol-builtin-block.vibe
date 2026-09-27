@@ -1,0 +1,7 @@
+# expect: rejected V0101
+enum E
+  Red
+  Blue
+end
+y = [E::Red].fetch(3) { |i| :blue }
+p(y.name)

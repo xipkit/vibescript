@@ -800,59 +800,65 @@ fn methods_of_classes_that_assign_every_field_first_skip_their_result_check() {
         "Counter.new\n  c.count = 1",
     );
     assert!(proven < unproven, "{proven} >= {unproven}");
-    // So does a class whose `initialize` calls a method on `self` that may
-    // read a field it has not assigned yet, on a path this call skips.
-    let early = steps_per_call(
-        &format!(
-            "class Counter\n  @count: int\n  def initialize\n    @count = pick(false)\n  end\n  def pick(read: bool) -> int\n    if read\n      value\n    else\n      1\n    end\n  end\n{method}end"
-        ),
-        "Counter.new",
+    // A class whose `initialize` calls a method on `self` that may read a
+    // field it has not assigned yet, even on a path this call skips, does
+    // not compile.
+    let early = format!(
+        "class Counter\n  @count: int\n  def initialize\n    @count = pick(false)\n  end\n  def pick(read: bool) -> int\n    if read\n      value\n    else\n      1\n    end\n  end\n{method}end"
     );
-    assert_eq!(early, unproven);
+    let error = Engine::new().compile(&early).err().unwrap();
+    assert_eq!(error.diagnostics()[0].code.to_string(), "V0205");
 }
 
 #[test]
-fn a_field_read_before_it_is_assigned_still_fails_where_a_method_returns_it() {
-    for (source, method) in [
-        // No `initialize` assigns the field.
-        (
-            "class C\n  @x: int\n  def x -> int\n    @x\n  end\nend",
-            "x",
-        ),
+fn a_field_of_a_class_without_initialize_fails_where_a_method_returns_it() {
+    // No `initialize` assigns the field, so its methods keep their result
+    // check.
+    let source =
+        "class C\n  @x: int\n  def x -> int\n    @x\n  end\nend\ndef run -> int\n  C.new.x\nend\n";
+    let error = Engine::new()
+        .compile(source)
+        .unwrap_or_else(|error| panic!("{source}\ndoes not compile: {error}"))
+        .call("run", &[], CallOptions::default())
+        .unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Type, "{source}");
+    assert!(
+        error
+            .message
+            .contains("return value for x expected int, got nil"),
+        "{source}\n{}",
+        error.message
+    );
+}
+
+#[test]
+fn a_field_read_before_initialize_assigns_it_does_not_compile() {
+    for (source, at) in [
         // `initialize` reads it through a method before assigning it.
         (
             "class C\n  @x: int\n  def initialize\n    @x = peek\n  end\n  def peek -> int\n    @x\n  end\n  def x -> int\n    @x\n  end\nend",
-            "peek",
+            "peek\n  end\n  def peek",
         ),
-        // It reads it directly, and a method returns the copy.
+        // It reads it directly.
         (
             "class C\n  @x: int\n  @y: int\n  def initialize\n    @y = @x\n    @x = 1\n  end\n  def x -> int\n    @y\n  end\nend",
-            "x",
+            "@x\n    @x = 1",
         ),
         // It passes `self` on before assigning it.
         (
             "def show(c: C) -> int\n  c.x\nend\nclass C\n  getter x: int\n  def initialize\n    @x = show(self)\n  end\nend",
-            "x",
+            "self)",
         ),
         // A default calls a method that reads a field declared after it.
         (
             "class C\n  @y: int = peek\n  @x: int = 1\n  def peek -> int\n    @x\n  end\n  def x -> int\n    @y\n  end\nend",
-            "peek",
+            "peek\n  @x",
         ),
     ] {
         let source = format!("{source}\ndef run -> int\n  C.new.x\nend\n");
-        let error = Engine::new()
-            .compile(&source)
-            .unwrap_or_else(|error| panic!("{source}\ndoes not compile: {error}"))
-            .call("run", &[], CallOptions::default())
-            .unwrap_err();
-        assert_eq!(error.kind, ErrorKind::Type, "{source}");
-        assert!(
-            error
-                .message
-                .contains(&format!("return value for {method} expected int, got nil")),
-            "{source}\n{}",
-            error.message
-        );
+        let error = Engine::new().compile(&source).err().unwrap();
+        let diagnostic = &error.diagnostics()[0];
+        assert_eq!(diagnostic.code.to_string(), "V0205", "{source}");
+        assert_eq!(diagnostic.span.start, source.find(at).unwrap(), "{source}");
     }
 }

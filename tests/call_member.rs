@@ -139,14 +139,16 @@ fn call_targets_are_selected_before_arguments_mutate_callable_fields() {
     // so a callable field is refused before anything runs.
     let source = "h={call:Math::sqrt};value=h.call(h.clear.length);[value,h]";
     let error = vibescript::Engine::new().compile(source).err().unwrap();
-    assert_eq!(common::codes(&error), ["V0416", "V0301", "V0203"]);
+    // Clearing the record would also remove its field (V0123).
+    assert_eq!(common::codes(&error), ["V0416", "V0301", "V0203", "V0123"]);
     let spans: Vec<usize> = error.diagnostics().iter().map(|d| d.span.start).collect();
     assert_eq!(
         spans,
         [
             source.find("::").unwrap(),
             source.find("sqrt").unwrap(),
-            source.find("call(").unwrap()
+            source.find("call(").unwrap(),
+            source.find("clear").unwrap()
         ]
     );
 }

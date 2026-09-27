@@ -1,0 +1,9 @@
+# expect: agreed
+class C0
+  @v0: int = 1
+  def to_s -> string
+    "C0(#{@v0})"
+  end
+end
+x: string = C0.new.to_s
+p(x, "#{C0.new}")

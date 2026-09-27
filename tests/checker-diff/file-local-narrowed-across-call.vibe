@@ -1,0 +1,18 @@
+# expect: rejected V0107
+# A required file's function narrowed a top-level local of the file, called
+# a function that assigns it nil, and returned it as an int.
+#@ file m.vibe
+limit: int? = 5
+def clear
+  limit = nil
+end
+def f -> int
+  if limit != nil
+    clear
+    return limit
+  end
+  0
+end
+#@ main
+m = require("m")
+p(m.f)

@@ -103,7 +103,10 @@ fn blockless_forms_still_work() {
         ("[].to_s", serde_json::json!("[]")),
         ("[1,2,3].chunk(2)", serde_json::json!([[1, 2], [3]])),
         ("a=[1,2]; a.clear; a", serde_json::json!([])),
-        ("h={a: 1}; h.clear; h", serde_json::json!({})),
+        (
+            "h: hash<string, int> = {a: 1}; h.clear; h",
+            serde_json::json!({}),
+        ),
     ] {
         let value = Engine::new()
             .compile(source)

@@ -327,7 +327,8 @@ mod break_values {
     #[test]
     fn a_break_out_of_a_nested_yield_ends_the_inner_loop_or_call() {
         // A function that yields inside a loop or a block keeps its own
-        // result: the break ends that loop or call.
+        // result: the break ends that loop or call with a value of the
+        // function's result type, which its own code sees there.
         let source = "def zero(&block: () -> any) -> any
   yield
 end
@@ -338,11 +339,11 @@ def pairs(&block: () -> any) -> array<any>
 end
 
 def run -> array<any>
-  pairs { break 7 }
+  pairs { break [7] }
 end
 ";
         clean(source);
-        assert_eq!(run(source).unwrap().to_string(), "[7, 99]");
+        assert_eq!(run(source).unwrap().to_string(), "[[7], 99]");
         let looping = "def upto(&block: int -> any) -> int
   i = 0
   while i < 3
@@ -352,10 +353,17 @@ end
   i
 end
 ";
-        assert_eq!(type_of(looping, "upto { |n| break \"s\" }"), "int");
-        let source = format!("{looping}def run -> int\n  upto {{ |n| break \"s\" }}\nend\n");
+        assert_eq!(type_of(looping, "upto { |n| break 5 }"), "int");
+        let source = format!("{looping}def run -> int\n  upto {{ |n| break 5 }}\nend\n");
         clean(&source);
         assert_eq!(run(&source).unwrap().to_string(), "0");
+        // A value of another type would reach code that does not expect it.
+        codes(
+            &format!("{looping}z = upto {{ |n| break \"s\" }}\n"),
+            &[Code::TYPE_MISMATCH],
+        );
+        let counted = "def count(&block: int -> bool) -> int\n  r: array<int> = [1, 2].select { |x| yield(x) }\n  r.length\nend\n";
+        codes(counted, &[Code::TYPE_MISMATCH]);
         // A function that never yields never sees a break.
         let source = "def given(&block?: int) -> bool\n  block_given?\nend\ndef run -> bool\n  given { |v| break 7 }\nend\n";
         clean(source);

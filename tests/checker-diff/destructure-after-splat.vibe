@@ -1,0 +1,16 @@
+# expect: agreed
+# Targets after a splat took the elements at their own positions, not the
+# last ones: `z` in `a, *m, y, z = [1, 2, 3]` was typed nil, and read as
+# unchecked while it held 3. A nested pattern destructures a nested literal
+# as a tuple.
+a, *m, y, z = [1, 2, 3]
+t: [int, array<int>, int, int] = [a, m, y, z]
+b, *n, w, v = [1]
+u: [int, array<int>, nil, nil] = [b, n, w, v]
+*r, (s, q) = [1, 2, [3, 4]]
+x: [array<int | array<int>>, int, int] = [r, s, q]
+c, *o, d, e = [1, 2]
+k: [int, array<int>, int, nil] = [c, o, d, e]
+f, *g, (h, j) = [1, 2, 3, [4, 5]]
+l: [int, array<int>, int, int] = [f, g, h, j]
+p(t, u, x, k, l)

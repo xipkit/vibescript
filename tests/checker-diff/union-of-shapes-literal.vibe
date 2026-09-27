@@ -1,0 +1,7 @@
+# expect: agreed
+# A record literal checked against a union of shapes was checked against
+# the first shape only, so the type the checker inferred for a local could
+# not declare it.
+x: { a: int } | { b: string } = { b: "s" }
+z: { k0: float } | { k0: float, k1: float } = { k0: 1.0, k1: 2.0 }
+p(x, z)

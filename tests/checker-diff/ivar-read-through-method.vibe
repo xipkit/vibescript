@@ -1,0 +1,15 @@
+# expect: rejected V0205
+# A method `initialize` called before assigning @v0 wrote the variable's
+# nil back, unchecked, into a variable declared `array<bool>`.
+class C0
+  @v0: array<bool>
+  def initialize(p0: array<bool>)
+    p(self.m0)
+    @v0 = p0
+  end
+  def m0 -> string
+    @v0 = @v0
+    "m0"
+  end
+end
+p(C0.new([]))

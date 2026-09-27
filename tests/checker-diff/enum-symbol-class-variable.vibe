@@ -1,0 +1,19 @@
+# expect: rejected V0101
+enum E
+  Red
+  Blue
+end
+class K
+  @@s: E = E::Red
+  def self.set
+    @@s = :blue
+  end
+  def self.get -> int
+    case @@s
+    when E::Red then 1
+    when E::Blue then 2
+    end
+  end
+end
+K.set
+p(K.get)

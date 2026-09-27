@@ -1,0 +1,9 @@
+# expect: agreed
+a: array<int> = for n in [2, 4]
+  n * 10
+end
+c: array<int> | int = for n in [2, 4]
+  break 7 if n == 4
+  n
+end
+p(a, c)

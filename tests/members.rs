@@ -40,7 +40,11 @@ fn shrinking_collections_release_removed_storage_and_excess_capacity() {
             "{}",
             1024,
         ),
-        ("h={payload:\"a\"*524288}\nh.clear\nh", "{}", 1024),
+        (
+            "h: hash<string, string> = {payload:\"a\"*524288}\nh.clear\nh",
+            "{}",
+            1024,
+        ),
     ] {
         let result = Engine::new()
             .compile(source)

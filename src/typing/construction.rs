@@ -1,26 +1,28 @@
-//! Proves that no method returns an instance variable its instance has not
-//! assigned yet, so the runtime need not check instance method results.
+//! Reports reads of instance variables their instance has not assigned yet,
+//! and proves the classes whose methods can never see one, so the runtime
+//! need not check their instance method results.
 //!
 //! A required instance variable, one without a default whose type admits no
 //! `nil`, reads as `nil` until `initialize` assigns it. While building an
 //! instance, in `initialize` and in the instance variables' defaults, the
 //! checker records each read of an unassigned variable, each call of one of
 //! the class's methods on `self` and each other use of `self`. Once every
-//! method is checked, a class is proven when none of these can read an
-//! unassigned variable: no call reaches a method that reads one, directly
-//! or through the methods it calls on `self`, and `self` is not used as a
-//! value while one is unassigned, since the value can then reach any
-//! method. A class with required variables and no `initialize` is not
-//! proven. The checker does not report these programs, which the runtime
-//! runs as it always has; the methods of a class it does not prove keep
-//! their result check.
+//! method is checked, each of these that can read an unassigned variable is
+//! reported (V0205): a direct read, a call that reaches a method reading
+//! one, directly or through the methods it calls on `self`, and a use of
+//! `self` as a value while one is unassigned, since the value can then
+//! reach any method. A class with required variables and no `initialize`
+//! is not proven, and not reported: its methods keep their result check.
 
 use super::{
     Checker,
     program::{FnId, NsId},
     ty::Ty,
 };
-use crate::syntax::{Expr, Node};
+use crate::{
+    diagnostic::{Code, Diagnostic, Span},
+    syntax::{Expr, Node},
+};
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 /// What the checker records about instance variable reads.
@@ -46,6 +48,7 @@ struct Site {
     class: NsId,
     kind: SiteKind,
     unassigned: Vec<String>,
+    span: Span,
 }
 
 enum SiteKind {
@@ -77,7 +80,7 @@ impl<'a> Checker<'a> {
         Some(self.construction.methods.entry(function).or_default())
     }
 
-    fn site(&mut self, kind: SiteKind) {
+    fn site(&mut self, kind: SiteKind, span: Span) {
         let Some(class) = self.frame.owner else {
             return;
         };
@@ -87,28 +90,32 @@ impl<'a> Checker<'a> {
                 class,
                 kind,
                 unassigned,
+                span,
             });
         }
     }
 
-    /// Records a read of instance variable `name` of `self`.
-    pub(super) fn read_ivar(&mut self, name: &str) {
+    /// Records a read of instance variable `name` of `self` at `span`.
+    pub(super) fn read_ivar(&mut self, name: &str, span: Span) {
         if let Some(uses) = self.uses() {
             uses.reads.insert(name.to_owned());
         }
-        self.site(SiteKind::Read(name.to_owned()));
+        self.site(SiteKind::Read(name.to_owned()), span);
     }
 
-    /// Records a call of method `callee` on `self`.
-    pub(super) fn call_on_self(&mut self, callee: FnId) {
+    /// Records a call of method `callee` on `self` at `span`.
+    pub(super) fn call_on_self(&mut self, callee: FnId, span: Span) {
         if let Some(uses) = self.uses() {
             uses.calls.insert(callee);
         }
-        self.site(SiteKind::Call(callee));
+        self.site(SiteKind::Call(callee), span);
     }
 
-    /// Records a use of `self` as a value.
-    pub(super) fn self_escapes(&mut self) {
+    /// Records a use of `self` as a value at `span`.
+    pub(super) fn self_escapes(&mut self, span: Span) {
+        // `@next = self` stores `self` in the variable it assigns, so it
+        // escapes only while the others are unassigned.
+        let stored = self.storing_self.take();
         if !self.frame.instance {
             return;
         }
@@ -119,7 +126,19 @@ impl<'a> Checker<'a> {
         if let Some(uses) = self.uses() {
             uses.escapes = true;
         }
-        self.site(SiteKind::Escape);
+        let Some(class) = self.frame.owner else {
+            return;
+        };
+        let mut unassigned = self.unassigned();
+        unassigned.retain(|name| stored.as_ref() != Some(name));
+        if !unassigned.is_empty() {
+            self.construction.sites.push(Site {
+                class,
+                kind: SiteKind::Escape,
+                unassigned,
+                span,
+            });
+        }
     }
 
     /// Checks `receiver` of a call of `member`. When it is `self` and the
@@ -140,7 +159,8 @@ impl<'a> Checker<'a> {
         let Some(callee) = callee else {
             return self.expr(receiver, None);
         };
-        self.call_on_self(callee);
+        let span = self.spans.expr(receiver);
+        self.call_on_self(callee, span);
         self.self_receiver = true;
         let ty = self.expr(receiver, None);
         self.self_receiver = false;
@@ -156,17 +176,28 @@ impl<'a> Checker<'a> {
         let reads = self.method_reads();
         for site in std::mem::take(&mut self.construction.sites) {
             self.steps += site.unassigned.len() as u64;
-            let observes = match &site.kind {
-                SiteKind::Read(name) => site.unassigned.contains(name),
+            let observed: Vec<String> = match &site.kind {
+                SiteKind::Read(name) => site
+                    .unassigned
+                    .iter()
+                    .filter(|ivar| *ivar == name)
+                    .cloned()
+                    .collect(),
                 SiteKind::Call(callee) => match reads.get(callee) {
-                    Some(Some(read)) => site.unassigned.iter().any(|ivar| read.contains(ivar)),
-                    Some(None) => true,
-                    None => false,
+                    Some(Some(read)) => site
+                        .unassigned
+                        .iter()
+                        .filter(|ivar| read.contains(*ivar))
+                        .cloned()
+                        .collect(),
+                    Some(None) => site.unassigned.clone(),
+                    None => Vec::new(),
                 },
-                SiteKind::Escape => true,
+                SiteKind::Escape => site.unassigned.clone(),
             };
-            if observes {
+            if !observed.is_empty() {
                 unproven.insert(site.class);
+                self.unassigned_read(&site, &observed);
             }
         }
         for decl in &self.program.fns {
@@ -176,6 +207,42 @@ impl<'a> Checker<'a> {
                 }
             }
         }
+    }
+
+    /// Reports a read of variables `ivars` of an instance being built
+    /// before they are assigned, which reads `nil` whatever their types.
+    fn unassigned_read(&mut self, site: &Site, ivars: &[String]) {
+        let names = ivars
+            .iter()
+            .map(|ivar| format!("@{ivar}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let (they, them, are, reads) = if ivars.len() == 1 {
+            ("it", "it", "is", "reads")
+        } else {
+            ("they", "them", "are", "read")
+        };
+        let message = match &site.kind {
+            SiteKind::Read(_) => format!(
+                "{names} {are} read before `initialize` assigns {them}, and {they} {reads} as nil; assign {them} first or give {them} a default in the class body"
+            ),
+            SiteKind::Call(callee) => {
+                let method = self.program.fns[*callee]
+                    .def
+                    .map_or_else(String::new, |def| def.name.to_string());
+                format!(
+                    "`{method}` reads {names} before `initialize` assigns {them}, and {they} {reads} as nil; assign {them} before this call or give {them} a default in the class body"
+                )
+            }
+            SiteKind::Escape => format!(
+                "`self` is used before `initialize` assigns {names}, and {they} {reads} as nil; assign {them} first or give {them} a default in the class body"
+            ),
+        };
+        self.report(Diagnostic::error(
+            Code::UNINITIALIZED_IVAR,
+            site.span,
+            message,
+        ));
     }
 
     /// Whether every instance of class `ns` has its required instance

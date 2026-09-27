@@ -1,0 +1,17 @@
+# expect: rejected V0107
+#@ file m.vibe
+limit: int? = 5
+def clear
+  limit = nil
+end
+if limit != nil
+  clear
+  y: int = limit
+  p(y)
+end
+def g -> int
+  1
+end
+#@ main
+m = require("m")
+p(m.g)

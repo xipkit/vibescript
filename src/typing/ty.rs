@@ -190,6 +190,41 @@ impl Types {
         self.intern(Kind::TypeLit(ty))
     }
 
+    /// The type a value of `ty` has once every hash in it has its keys
+    /// renamed, as `deep_transform_keys` renames them: each shape becomes a
+    /// dictionary of its fields' types.
+    pub fn rekeyed(&mut self, ty: Ty) -> Ty {
+        self.steps += 1;
+        match self.kind(ty).clone() {
+            Kind::Shape(fields, open) => {
+                let mut values: Vec<Ty> =
+                    fields.iter().map(|field| self.rekeyed(field.ty)).collect();
+                if open {
+                    values.push(Ty::ANY);
+                }
+                let value = self.union(&values);
+                self.hash(value)
+            }
+            Kind::Hash(value) => {
+                let value = self.rekeyed(value);
+                self.hash(value)
+            }
+            Kind::Array(element) => {
+                let element = self.rekeyed(element);
+                self.array(element)
+            }
+            Kind::Tuple(items) => {
+                let items = items.iter().map(|&item| self.rekeyed(item)).collect();
+                self.tuple(items)
+            }
+            Kind::Union(members) => {
+                let members: Vec<Ty> = members.iter().map(|&member| self.rekeyed(member)).collect();
+                self.union(&members)
+            }
+            _ => ty,
+        }
+    }
+
     /// A shape from fields in any order; a later field of the same name wins.
     pub fn shape(&mut self, mut fields: Vec<Field>, open: bool) -> Ty {
         fields.reverse();
@@ -402,11 +437,23 @@ impl Types {
     /// Replaces every type variable, bound or not: unbound ones become
     /// unknown, so they never cause a second error.
     pub fn close(&mut self, ty: Ty, bindings: &[Option<Ty>]) -> Ty {
+        self.close_as(ty, bindings, Ty::ERROR)
+    }
+
+    /// Replaces every type variable of a call's result. Nothing constrains
+    /// one left unbound, such as the element of an empty literal, so no
+    /// value has its type and it becomes `never`; unknown would accept
+    /// anything without a report.
+    pub fn close_result(&mut self, ty: Ty, bindings: &[Option<Ty>]) -> Ty {
+        self.close_as(ty, bindings, Ty::NEVER)
+    }
+
+    fn close_as(&mut self, ty: Ty, bindings: &[Option<Ty>], unbound: Ty) -> Ty {
         let ty = self.subst(ty, bindings);
         if !self.has_var(ty) {
             return ty;
         }
-        let unknown: Vec<Option<Ty>> = (0..64).map(|_| Some(Ty::ERROR)).collect();
+        let unknown: Vec<Option<Ty>> = (0..64).map(|_| Some(unbound)).collect();
         self.subst(ty, &unknown)
     }
 
@@ -416,7 +463,7 @@ impl Types {
             Kind::Array(element) => Some(element),
             Kind::Tuple(items) => Some(self.union(&items)),
             Kind::Range => Some(Ty::INT),
-            Kind::Error | Kind::Any => Some(ty),
+            Kind::Error | Kind::Any | Kind::Never => Some(ty),
             _ => None,
         }
     }

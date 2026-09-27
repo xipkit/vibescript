@@ -1,0 +1,14 @@
+# expect: rejected V0107
+# The same through a `while` loop, which a caller's `break` leaves at the
+# `yield`, before the assignment the checker saw on every way out of it.
+def f(&block: int) -> int
+  x: int? = nil
+  while true
+    yield 1
+    x = 5
+    break
+  end
+  y: int = x
+  y
+end
+p(f { |n| break })

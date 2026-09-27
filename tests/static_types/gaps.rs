@@ -90,7 +90,7 @@ fn array_union_literals_fit_a_whole_alternative() {
 
 #[test]
 fn every_instance_union_member_must_accept_the_call() {
-    let classes = "class A\n  def f(x: int) -> int\n    x\n  end\nend\nclass B\n  def f(x: string) -> int\n    x.length\n  end\nend\n";
+    let classes = "class A\n  def f(x: int) -> int\n    x\n  end\n  def to_s -> string\n    \"a\"\n  end\nend\nclass B\n  def f(x: string) -> int\n    x.length\n  end\n  def to_s -> string\n    \"b\"\n  end\nend\n";
     clean(&format!(
         "{classes}def g(v: A | B) -> string\n  v.to_s\nend\n"
     ));

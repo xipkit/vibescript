@@ -76,7 +76,11 @@ fn failures_point_at_operators_members_indices_and_nested_calls() {
         ("a = 1 + nil", vec![("V0107", "nil")]),
         (
             "row = {values:[1]}; row.values.push().missing",
-            vec![("V0412", "()"), ("V0203", "missing")],
+            vec![
+                ("V0415", "values.push"),
+                ("V0412", "()"),
+                ("V0203", "missing"),
+            ],
         ),
     ] {
         let source = format!("def run(input: any)\n  {body}\nend");

@@ -145,7 +145,7 @@ prices.each { |p|
 first_big = prices.find { |p| p > 5 }          # 8, an int?
 ```
 
-Block parameters take their types from the called function's signature; annotations such as `|p: int|` are optional and must match. `next value` ends one call of the block, and `break value` ends the whole call with that value, so the call's type includes the break value's: `[1, 2].each { |n| break "s" }` is `array<int> | string`, and a `break` without a value adds `nil`. A `break` out of the block of a function that declares `-> T` returns from it as a `T`, and `loop { ... }` has the type of its break values.
+Block parameters take their types from the called function's signature; annotations such as `|p: int|` are optional and must match. `next value` ends one call of the block, and `break value` ends the whole call with that value, so the call's type includes the break value's: `[1, 2].each { |n| break "s" }` is `array<int> | string`, and a `break` without a value adds `nil`. A `break` out of the block of a function that declares `-> T` returns from it as a `T`, and `loop { ... }` has the type of its break values. When that function's `yield` is inside a loop or block of its own, the `break` ends that loop or block instead, and the function uses the value there: it must still be a `T`, and the function must accept a `T` where its loop or block gives a value (V0101).
 
 A `{` starts a block when it follows a call on the same line: a function or method name (`loop {`, `items.each {`), a `)` (`reduce(0) {`), or the last argument of a call without parentheses (`each_slice 2 {`). Anywhere else it starts a hash literal. So a block's statements never read as hash entries, and a hash passed to a call needs the call's parentheses:
 
@@ -222,7 +222,7 @@ result = loop {
 }
 ```
 
-Conditions of `if`, `elsif`, `while`, the ternary and statement modifiers are `bool`, and so are the operands of `!`, `&&` and `||` (V0104, V0105). `if`, `case`, `while`, `for` and `begin` are expressions. There is no `unless` or `until`: write `if !cond` and `while !cond`.
+Conditions of `if`, `elsif`, `while`, the ternary and statement modifiers are `bool`, and so are the operands of `!`, `&&` and `||` (V0104, V0105). `if`, `case`, `while`, `for` and `begin` are expressions. A `while` loop gives `nil` and a `for` loop its iterable, unless a `break` gives a value. A loop that ends a body, as the last statement of a function, block, branch or loop, gives instead the value its body had last, or `nil` when no iteration reached the end of its body: a function `-> int` whose body is `for n in [2, 4]` with the body `n * 10` returns 40. There is no `unless` or `until`: write `if !cond` and `while !cond`.
 
 `case` compares its subject with each `when` value in order, using `==` for values, membership for ranges and matching for regexes. Each `when` has one expression, not a statement list; call a function or use `if` when a branch needs several statements. Without a subject, `case` takes the first `when` whose condition is true.
 
@@ -315,7 +315,7 @@ in_stock = stock.select { |fruit, n| n > 0 }.keys
 total = stock.values.sum
 ```
 
-A shape whose fields all have type `V` can be passed where `hash<string, V>` is expected. Keys are always strings: `{ apple: 3 }` has the key `"apple"`, symbols are not keys, and `h.name` never reads a field (V0415).
+A shape whose fields all have type `V` can be passed where `hash<string, V>` is expected. A record keeps the fields its shape declares, so members that could remove a required field, `delete` of one, `delete_if`, `keep_if` and `clear`, and `replace` with a record of another shape, are errors on a local, field or element typed as a shape (V0123); declare a dictionary to remove keys. `deep_transform_keys` renames keys, so its result is a dictionary. In front of a mutating member, `h.m` on a hash updates its field `m` when it has one, so it is an error there (V0415): index the field, or update a local holding the member's result. Keys are always strings: `{ apple: 3 }` has the key `"apple"`, symbols are not keys, and `h.name` never reads a field (V0415).
 
 Tuples give fixed-length arrays their element types: `divmod` returns `[int, int]`, `partition` returns `[array<T>, array<T>]`, and a hash's `to_a` returns `array<[string, V]>`. Indexing a tuple with an integer literal gives that element's type.
 
@@ -396,10 +396,10 @@ label = case post.status
         end
 ```
 
-- Every instance variable is declared: in the class body (`@views: int = 0`, or `@name: string` assigned by `initialize`), or by `getter`, `setter` or `property`. Reading an undeclared one is an error (V0204), and one without a default must be assigned on every path through `initialize` (V0205). `@title: string` in a parameter list assigns an already declared field; it does not declare the field.
+- Every instance variable is declared: in the class body (`@views: int = 0`, or `@name: string` assigned by `initialize`), or by `getter`, `setter` or `property`. Reading an undeclared one is an error (V0204), and one without a default must be assigned on every path through `initialize` (V0205). Until then it reads as `nil`, so `initialize` must not read it, call a method that reads it, or pass `self` on before assigning it (V0205). A `getter`, `setter` or `property` of a declared instance variable has its type (V0101). `@title: string` in a parameter list assigns an already declared field; it does not declare the field.
 - Class variables are declared with a value, `@@count: int = 0`. Class methods are `def self.name`. Uppercase assignments in the body, such as `LIMIT = 3`, are constants, read as `Post::LIMIT` outside. A constant may declare its type, `TAGS: array<string> = []`, which its value and every later assignment keep.
-- Classes have no inheritance, and instances have identity: two names for the same instance see the same changes. Classes can define operators, `==`, `to_s`, `[]` and `[]=`. See [classes](classes.md).
-- An enum is a type. A symbol literal naming a member, such as `:draft`, is accepted wherever that enum is expected; otherwise write `Status::Draft`. Members have `name`, `symbol` and `to_s`.
+- Classes have no inheritance, and instances have identity: two names for the same instance see the same changes. Classes can define operators, `==`, `to_s`, `[]` and `[]=`; an instance has `to_s` and `inspect` only when its class defines them, and interpolation, `p` and `puts` render any instance. `a.count += 1` reads with the getter and writes with the setter, so it needs both. See [classes](classes.md).
+- An enum is a type. A symbol literal naming a member, such as `:draft`, is accepted where the runtime checks the enum and so turns the symbol into the member: a typed local, a parameter of a function or method, a result, a field, a default, a constant, a `yield` argument or a block's result. Elsewhere, such as an argument of a builtin, an element written through an index or `<<`, a class variable, or a later assignment to a parameter or to a local without a declared type, it would stay a symbol, so write `Status::Draft` (V0101). Members have `name`, `symbol` and `to_s`.
 - `case` over an enum or a `bool` must handle every member or have an `else` (V0114), so adding a member shows every `case` that needs it. Its `when` values name members as `Status::Draft`.
 
 ## Modules and required files
@@ -433,6 +433,8 @@ require("reports/format", as: "report")
 report.cents(5)                          # "0.05"
 cents(99)                                # "0.99"
 ```
+
+A file's functions and methods share its top-level locals. A call in the file's body of one that reads a local the body has not assigned yet on every path is an error (V0202), and a call of one that assigns a local ends the local's narrowing.
 
 A file's enums are exported the same way, as types too. Its classes stay private to it, but an instance one of its functions returns has the class's type, and its methods are checked:
 

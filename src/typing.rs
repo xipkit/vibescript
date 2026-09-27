@@ -351,6 +351,8 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         facts: Facts::default(),
         construction: construction::Construction::default(),
         self_receiver: false,
+        symbols_stay: None,
+        storing_self: None,
     };
     for (name, host) in &input.hosts {
         let function = crate::signatures::host::function(name, host);
@@ -430,6 +432,8 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
         facts: Facts::default(),
         construction: construction::Construction::default(),
         self_receiver: false,
+        symbols_stay: None,
+        storing_self: None,
     };
     checker.declare_hosts(input.declared);
     checker.declare_program(input.parsed);
@@ -484,6 +488,13 @@ pub(crate) struct Checker<'a> {
     /// Whether the `self` being checked is a method call's receiver, which
     /// [`construction`] records as the call instead.
     self_receiver: bool,
+    /// Why a symbol literal checked now stays a symbol at runtime, when it
+    /// does: no typed boundary between it and where it is stored or used
+    /// turns it into the enum member its expected type names.
+    symbols_stay: Option<&'static str>,
+    /// The instance variable that `self` itself is being stored into, as in
+    /// `@next = self`, which the store assigns rather than lets escape.
+    storing_self: Option<String>,
 }
 
 /// Expression types by node, recorded or replayed.

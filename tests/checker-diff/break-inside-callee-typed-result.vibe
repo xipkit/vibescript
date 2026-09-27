@@ -1,0 +1,12 @@
+# expect: rejected V0101
+# A `yield` in the block of a script function whose result is typed lets a
+# caller's `break` return that function a value it does not declare.
+def zero(&block: () -> any) -> int
+  yield
+  0
+end
+def pairs(&block: () -> any) -> array<int>
+  first = zero { yield }
+  [first, 99]
+end
+p(pairs { break "s" })

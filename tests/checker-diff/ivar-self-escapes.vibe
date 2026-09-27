@@ -1,0 +1,14 @@
+# expect: rejected V0205
+# Interpolating `self` in `initialize` calls the class's `to_s`, which read
+# @name before it was assigned.
+class C
+  getter name: string
+  def initialize(n: string)
+    puts "#{self}"
+    @name = n
+  end
+  def to_s -> string
+    @name
+  end
+end
+p(C.new("a").name)

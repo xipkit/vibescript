@@ -1,0 +1,13 @@
+# expect: agreed
+class C
+  @x: int? = nil
+  getter x: int?
+  setter x: int
+  property y: int
+  def initialize
+    @y = 1
+  end
+end
+c = C.new
+c.x = 5
+p(c.x, c.y)

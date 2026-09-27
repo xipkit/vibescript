@@ -376,6 +376,8 @@ impl<'a> Checker<'a> {
             block,
             vars: Vec::new(),
             breaks: sig.breaks,
+            converts: sig.converts,
+            id: None,
         }
     }
 

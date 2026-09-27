@@ -1,0 +1,25 @@
+# expect: agreed
+# Narrowing a file local holds until code that may assign it runs, and a
+# local assigned before the file's first call is visible to its functions.
+#@ file m.vibe
+limit: int? = 5
+count = 0
+def bump -> int
+  count += 1
+  count
+end
+def clear
+  limit = nil
+end
+def f -> int
+  if limit != nil
+    n: int = limit
+    return n + bump
+  end
+  0
+end
+x = f
+clear
+#@ main
+m = require("m")
+p(m.f, m.bump)

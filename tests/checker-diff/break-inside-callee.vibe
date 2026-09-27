@@ -1,0 +1,10 @@
+# expect: rejected V0101
+# A `break` out of a block given to a function that yields inside a builtin
+# block ends that block inside the function, so the block call's value may
+# be anything the caller breaks with; the function typed it as an array and
+# its typed local held the caller's string.
+def f(&block: int) -> int
+  r: array<int> = [1, 2].each { |x| yield x }
+  r.length
+end
+p(f { |n| break "s" })

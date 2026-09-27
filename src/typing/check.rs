@@ -13,6 +13,25 @@ use crate::{
 };
 use std::collections::HashMap;
 
+/// Why a symbol literal passed to a builtin stays a symbol.
+pub(super) const BUILTIN_SYMBOL: &str = "a builtin receives it as a symbol";
+/// Why a symbol literal written through an index stays a symbol.
+pub(super) const INDEX_SYMBOL: &str = "a write through an index stores it as a symbol";
+/// Why a symbol literal assigned to a class variable stays a symbol.
+pub(super) const CLASS_SYMBOL: &str = "a class variable stores it as a symbol";
+/// Why a symbol literal assigned to a parameter or a local without a
+/// declared type stays a symbol.
+pub(super) const LOCAL_SYMBOL: &str =
+    "assigning a parameter, or a local without a declared type, stores it as a symbol";
+
+/// A call of a required file's own code in its body, with the top-level
+/// locals assigned where it runs.
+pub(crate) struct FileCall {
+    pub callee: FnId,
+    pub span: Span,
+    pub assigned: Vec<String>,
+}
+
 /// A local variable or parameter.
 pub(crate) struct Local {
     pub name: String,
@@ -21,6 +40,9 @@ pub(crate) struct Local {
     pub offset: usize,
     /// Whether an annotation fixed its type.
     pub annotated: bool,
+    /// Whether the runtime checks each value assigned to it: a local
+    /// declared with a type, but not a parameter.
+    pub checked: bool,
     /// The declaring hash literal's field types, when a fix may declare the
     /// local as a dictionary.
     pub dictionary: Option<Ty>,
@@ -37,6 +59,17 @@ pub(crate) struct Exits {
     pub values: Vec<Ty>,
 }
 
+/// The type a `break` value out of a script function's block must have:
+/// the function's result, which it returns through, or when the function
+/// yields `inside` a loop or a block, its block's result, which ends that
+/// loop or block.
+#[derive(Clone)]
+pub(crate) struct BreakTo {
+    pub ty: Ty,
+    pub function: String,
+    pub inside: bool,
+}
+
 /// An enclosing construct that `next` and `break` refer to.
 pub(crate) enum Context {
     Loop {
@@ -50,9 +83,9 @@ pub(crate) enum Context {
         result: Option<Ty>,
         /// Context for literals while inferring a generic block result.
         hint: Option<Ty>,
-        /// The declared result a `break` returns through, and the function
-        /// that declares it, when the runtime checks break values against it.
-        break_to: Option<(Ty, String)>,
+        /// Where a `break` value goes when a script function is called with
+        /// the block, and the type it must have.
+        break_to: Option<BreakTo>,
         /// Whether the block's value is used at all.
         used: bool,
         /// The values `next` and the tail gave, for inference.
@@ -103,6 +136,9 @@ pub(crate) struct Frame {
     /// Whether the body is a class or module body, whose capitalized
     /// assignments are constants.
     pub namespace_body: bool,
+    /// In a required file's function or method: the locals that are the
+    /// file's top-level locals.
+    pub shared: Vec<LocalId>,
 }
 
 impl Frame {
@@ -125,6 +161,7 @@ impl Frame {
             flow: Flow::new(),
             contexts: Vec::new(),
             namespace_body: false,
+            shared: Vec::new(),
         }
     }
 }
@@ -181,6 +218,28 @@ impl<'a> Checker<'a> {
 
     /// Checks every function and namespace body.
     pub(super) fn check_all(&mut self) {
+        if self.program.file {
+            // The file's own locals, which its functions and methods share.
+            let mut shared = Vec::new();
+            for decl in self.program.fns.iter().filter(|decl| decl.main) {
+                if let Some(def) = decl.def {
+                    assigned_names(&def.body, &mut shared);
+                }
+            }
+            let shared: std::collections::HashSet<String> = shared.into_iter().collect();
+            let mut written = Vec::new();
+            for decl in self.program.fns.iter().filter(|decl| !decl.main) {
+                let Some(def) = decl.def else { continue };
+                let mut names = Vec::new();
+                assigned_names(&def.body, &mut names);
+                names.retain(|name| {
+                    shared.contains(name) && !def.params.iter().any(|param| param.name == *name)
+                });
+                written.extend(names);
+            }
+            // Checking the bodies charges for these walks over them.
+            self.program.file_written = written.into_iter().collect();
+        }
         if let Some(main) = self.program.fns.iter().position(|decl| decl.main) {
             self.check_function(main);
         }
@@ -192,6 +251,7 @@ impl<'a> Checker<'a> {
                 self.check_function(id);
             }
         }
+        self.check_file_calls();
         self.finish_construction();
     }
 
@@ -335,6 +395,7 @@ impl<'a> Checker<'a> {
                 if !def.params.iter().any(|param| param.name == name) {
                     let id = self.declare(&name, ty, offset, true);
                     self.assign_local(id, ty);
+                    self.frame.shared.push(id);
                 }
             }
         }
@@ -344,11 +405,13 @@ impl<'a> Checker<'a> {
         for (param, declared) in def.params.iter().zip(&sig.params) {
             if let Some(default) = &param.default {
                 let mark = self.frame.flow.mark();
-                self.expr_against(
-                    default,
-                    declared.ty,
-                    &Purpose::Local(param.name.to_string()),
-                );
+                self.symbols(None, |this| {
+                    this.expr_against(
+                        default,
+                        declared.ty,
+                        &Purpose::Local(param.name.to_string()),
+                    )
+                });
                 let evaluated = self.frame.flow.rollback(mark);
                 self.join(vec![
                     evaluated,
@@ -374,7 +437,7 @@ impl<'a> Checker<'a> {
         if accessor {
             // Properties read and write their declared instance variable.
             if let Some((name, false)) = &def.accessor {
-                self.read_ivar(name);
+                self.read_ivar(name, Span::at(def.offset as usize));
             }
             self.leave_frame(previous);
             return;
@@ -489,6 +552,143 @@ impl<'a> Checker<'a> {
         ));
     }
 
+    /// Notes a call of script code, `callee` when it is one of this file's
+    /// functions or methods, at `span`. In a required file the code may
+    /// assign the file's top-level locals, so their narrowing ends; in the
+    /// file's body it may read them before the body assigns them, which
+    /// [`Self::check_file_calls`] reports once every function is checked.
+    pub(super) fn script_called(&mut self, callee: Option<FnId>, span: Span) {
+        if !self.program.file {
+            return;
+        }
+        let written: Vec<String> = self.program.file_written.iter().cloned().collect();
+        for name in &written {
+            self.steps += 1;
+            if let Some(id) = self.local(name) {
+                let state = self.frame.flow.get(id);
+                let declared = self.frame.locals[id as usize].declared;
+                self.frame.flow.set(
+                    id,
+                    VarState {
+                        ty: declared,
+                        ..state
+                    },
+                );
+            }
+        }
+        let Some(callee) = callee else {
+            return;
+        };
+        if self.frame.main {
+            if !self.frame.flow.live {
+                return;
+            }
+            let assigned: Vec<String> = self
+                .frame
+                .names
+                .iter()
+                .filter(|(_, id)| self.frame.flow.get(**id).assigned)
+                .map(|(name, _)| name.clone())
+                .collect();
+            self.steps += assigned.len() as u64;
+            self.program.file_calls.push(FileCall {
+                callee,
+                span,
+                assigned,
+            });
+        } else if let Some(caller) = self.frame.function {
+            self.program
+                .file_uses
+                .entry(caller)
+                .or_default()
+                .1
+                .push(callee);
+        }
+    }
+
+    /// Notes a read of local `id` in a required file's function or method,
+    /// when it is one of the file's top-level locals.
+    pub(super) fn shared_read(&mut self, id: LocalId, name: &str) {
+        if self.frame.shared.contains(&id) {
+            if let Some(function) = self.frame.function {
+                self.program
+                    .file_uses
+                    .entry(function)
+                    .or_default()
+                    .0
+                    .insert(name.to_owned());
+            }
+        }
+    }
+
+    /// Reports each call in a required file's body that runs code reading
+    /// a top-level local the body has not assigned yet, which reads nil or
+    /// is undefined.
+    fn check_file_calls(&mut self) {
+        let uses = std::mem::take(&mut self.program.file_uses);
+        let mut reads: HashMap<FnId, std::collections::BTreeSet<String>> = uses
+            .iter()
+            .map(|(&id, (read, _))| (id, read.clone()))
+            .collect();
+        // Checking each call charged for the first pass over the calls.
+        let mut again = false;
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for (&caller, (_, callees)) in &uses {
+                for callee in callees {
+                    self.steps += u64::from(again);
+                    let Some(read) = reads.get(callee).cloned() else {
+                        continue;
+                    };
+                    self.steps += read.len() as u64;
+                    let entry = reads.entry(caller).or_default();
+                    for name in read {
+                        changed |= entry.insert(name);
+                    }
+                }
+            }
+            again = true;
+        }
+        for call in std::mem::take(&mut self.program.file_calls) {
+            let Some(read) = reads.get(&call.callee) else {
+                continue;
+            };
+            self.steps += read.len() as u64;
+            let missing: Vec<&String> = read
+                .iter()
+                .filter(|name| !call.assigned.contains(name))
+                .collect();
+            let Some(first) = missing.first() else {
+                continue;
+            };
+            let callee = self.program.fns[call.callee]
+                .def
+                .map_or_else(String::new, |def| def.name.to_string());
+            self.report(Diagnostic::error(
+                Code::UNASSIGNED_LOCAL,
+                call.span,
+                format!(
+                    "`{callee}` reads `{first}`, which the file has not assigned on every path that reaches this call; assign it first"
+                ),
+            ));
+        }
+    }
+
+    /// Runs `check` with symbol literals made enum members where `stay` is
+    /// `None`, as at a typed boundary the runtime checks, and reported with
+    /// `stay`'s reason where the runtime keeps them symbols.
+    pub(super) fn symbols<T>(
+        &mut self,
+        stay: Option<&'static str>,
+        check: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        let outer = std::mem::replace(&mut self.symbols_stay, stay);
+        let result = check(self);
+        self.symbols_stay = outer;
+        result
+    }
+
     // Locals -----------------------------------------------------------
 
     /// Declares a local in the innermost scope.
@@ -506,6 +706,7 @@ impl<'a> Checker<'a> {
             declared,
             offset,
             annotated,
+            checked: false,
             dictionary: None,
         });
         let previous = self.frame.names.insert(name.to_owned(), id);
@@ -523,6 +724,7 @@ impl<'a> Checker<'a> {
             declared: Ty::BOOL,
             offset: 0,
             annotated: true,
+            checked: false,
             dictionary: None,
         });
         id
@@ -638,7 +840,7 @@ impl<'a> Checker<'a> {
         for stmt in rest {
             self.stmt(stmt, Want::Discard);
         }
-        self.stmt(last, want)
+        self.statement(last, want, true)
     }
 
     /// Makes `frame` current, keeping the work the replaced frame did.
@@ -657,6 +859,12 @@ impl<'a> Checker<'a> {
     }
 
     pub(super) fn stmt(&mut self, stmt: &'a Stmt, want: Want) -> Ty {
+        self.statement(stmt, want, false)
+    }
+
+    /// Checks a statement, `last` when it ends a body, where a loop gives
+    /// another value than as an expression.
+    fn statement(&mut self, stmt: &'a Stmt, want: Want, last: bool) -> Ty {
         self.steps += 1;
         if super::too_tall(stmt.height()) {
             // The statement's first token: its whole span is as deep as it.
@@ -689,12 +897,14 @@ impl<'a> Checker<'a> {
                 self.if_statement(stmt.offset as usize, branches, alternate, want)
             }
             Statement::While(condition, body, _) => {
-                let ty = self.while_loop(condition, body);
-                self.statement_value(stmt, ty, want)
+                let last = last && !matches!(want, Want::Discard);
+                let ty = self.while_loop(condition, body, last);
+                self.loop_value(stmt, ty, want, last)
             }
             Statement::For(target, iterable, body) => {
-                let ty = self.for_loop(target, iterable, body);
-                self.statement_value(stmt, ty, want)
+                let last = last && !matches!(want, Want::Discard);
+                let ty = self.for_loop(target, iterable, body, last);
+                self.loop_value(stmt, ty, want, last)
             }
             Statement::Return(value) => {
                 self.return_statement(stmt, value.as_ref());
@@ -791,9 +1001,47 @@ impl<'a> Checker<'a> {
         self.types.union(&results)
     }
 
+    /// Checks a loop's value against what is wanted of it, explaining the
+    /// value of one that ends a body.
+    fn loop_value(&mut self, stmt: &Stmt, ty: Ty, want: Want, last: bool) -> Ty {
+        let Want::Check(expected) = want else {
+            return ty;
+        };
+        if !last || !self.frame.flow.live || self.types.assignable(ty, expected) {
+            return self.statement_value(stmt, ty, want);
+        }
+        let span = self.spans.token(stmt.offset as usize);
+        let expected_text = self.types.display(expected);
+        let found = self.types.display(ty);
+        let purpose = self.purposes.last().cloned().unwrap_or(Purpose::Result);
+        let what = self.purpose_text(&purpose, &expected_text);
+        let without = self.types.without_nil(ty);
+        let (code, message) = if self.types.has_nil(ty)
+            && without != Ty::NEVER
+            && self.types.assignable(without, expected)
+        {
+            (
+                Code::OPTIONAL_USE,
+                format!(
+                    "{what}, but a loop that ends a body gives nil when no iteration reaches the end of its body; end the body with the value it should give"
+                ),
+            )
+        } else {
+            (
+                Code::TYPE_MISMATCH,
+                format!(
+                    "{what}, but a loop that ends a body gives the value its body had last, or nil when it never ran, so this one gives {found}; end the body with the value it should give"
+                ),
+            )
+        };
+        self.report(Diagnostic::error(code, span, message).with_types(expected_text, found));
+        ty
+    }
+
     /// Checks a `while` loop and returns its value: `nil`, or what `break`
-    /// gives.
-    fn while_loop(&mut self, condition: &'a Expr, body: &'a [Stmt]) -> Ty {
+    /// gives. A loop that ends a body, `last`, gives the value its body had
+    /// last instead of `nil`, as the runtime runs it.
+    fn while_loop(&mut self, condition: &'a Expr, body: &'a [Stmt], last: bool) -> Ty {
         self.widen_for_loop(body);
         let before = self.frame.flow.mark();
         let infinite =
@@ -804,13 +1052,27 @@ impl<'a> Checker<'a> {
             mark: before,
             exits: Exits::default(),
         });
-        self.stmts(body, Want::Discard);
+        let value = self.stmts(body, Self::body_want(last));
         let context = self.frame.contexts.pop().unwrap();
         let mut values = self.finish_loop(before, context, !infinite);
-        if !infinite {
+        // A `break` without a value leaves the loop's value as it was.
+        if !infinite || (last && values.contains(&Ty::NIL)) {
             values.push(Ty::NIL);
+            if last {
+                values.push(value);
+            }
         }
         self.types.union(&values)
+    }
+
+    /// What a loop's body gives: its value when the loop ends a body and
+    /// gives the value its body had last.
+    fn body_want(last: bool) -> Want {
+        if last {
+            Want::Infer(None)
+        } else {
+            Want::Discard
+        }
     }
 
     /// Joins the states a loop or block can be left with and returns the
@@ -838,7 +1100,17 @@ impl<'a> Checker<'a> {
         exits.values
     }
 
-    fn for_loop(&mut self, target: &'a Target, iterable: &'a Expr, body: &'a [Stmt]) -> Ty {
+    /// Checks a `for` loop and returns its value: the iterable, or what
+    /// `break` gives. A loop that ends a body, `last`, gives the value its
+    /// body had last instead, or `nil` when no iteration reached the end of
+    /// the body.
+    fn for_loop(
+        &mut self,
+        target: &'a Target,
+        iterable: &'a Expr,
+        body: &'a [Stmt],
+        last: bool,
+    ) -> Ty {
         let ty = self.expr(iterable, None);
         let element = self.iterated(ty, iterable);
         self.widen_for_loop(body);
@@ -851,10 +1123,26 @@ impl<'a> Checker<'a> {
             mark: before,
             exits: Exits::default(),
         });
-        self.stmts(body, Want::Discard);
-        let context = self.frame.contexts.pop().unwrap();
-        self.finish_loop(before, context, true);
-        ty
+        let value = self.stmts(body, Self::body_want(last));
+        let mut context = self.frame.contexts.pop().unwrap();
+        let skips = !context.exits().nexts.is_empty();
+        // A `break` gives the loop its value instead of the iterable.
+        let mut values = self.finish_loop(before, context, true);
+        if last {
+            // A literal with elements, or a record with fields, runs the
+            // body at least once.
+            let runs = nonempty
+                || matches!(self.types.kind(ty), Kind::Shape(fields, _) if fields.iter().any(|field| !field.optional));
+            if skips || !runs {
+                values.push(Ty::NIL);
+            }
+            values.push(value);
+        } else if values.is_empty() {
+            return ty;
+        } else {
+            values.push(ty);
+        }
+        self.types.union(&values)
     }
 
     fn declare_for_target(&mut self, target: &'a Target, element: Ty, nonempty: bool) {
@@ -874,12 +1162,13 @@ impl<'a> Checker<'a> {
                 }
             }
             Target::Tuple(parts) => {
+                let splat = parts.iter().position(|(_, rest)| *rest);
                 for (index, (part, rest)) in parts.iter().enumerate() {
                     if let Some(part) = part {
                         let ty = if *rest {
                             self.rest_of(element, index, parts.len())
                         } else {
-                            self.element_of(element, index)
+                            self.part_of(element, index, parts.len(), splat)
                         };
                         self.declare_for_target(part, ty, nonempty);
                     }
@@ -920,7 +1209,9 @@ impl<'a> Checker<'a> {
         }
         match (self.frame.result, value) {
             (Some(result), Some(value)) => {
-                self.expr_against(value, result, &Purpose::Result);
+                self.symbols(None, |this| {
+                    this.expr_against(value, result, &Purpose::Result)
+                });
             }
             (Some(result), None) => {
                 if !self.types.assignable(Ty::NIL, result) {
@@ -1009,14 +1300,20 @@ impl<'a> Checker<'a> {
             _ => None,
         };
         let ty = match (value, break_to) {
-            (Some(value), Some((result, function))) => {
-                self.expr_against(value, result, &Purpose::Break(function))
+            (Some(value), Some(to)) => {
+                let purpose = Purpose::Break(to.function, to.inside);
+                self.symbols(None, |this| this.expr_against(value, to.ty, &purpose))
             }
             (Some(value), None) => self.expr(value, None),
-            (None, Some((result, function))) => {
-                if self.frame.flow.live && !self.types.assignable(Ty::NIL, result) {
+            (None, Some(to)) => {
+                if self.frame.flow.live && !self.types.assignable(Ty::NIL, to.ty) {
                     let span = self.spans.stmt(stmt);
-                    self.mismatch(span, result, Ty::NIL, &Purpose::Break(function));
+                    self.mismatch(
+                        span,
+                        to.ty,
+                        Ty::NIL,
+                        &Purpose::Break(to.function, to.inside),
+                    );
                 }
                 Ty::NIL
             }
@@ -1029,6 +1326,54 @@ impl<'a> Checker<'a> {
         }
         self.exit_context(true);
         self.frame.flow.live = false;
+    }
+
+    /// Records that a `break` in the caller's block leaves from this
+    /// `yield`: it ends the innermost loop or block call around it with a
+    /// value of the function's result type, or of any type when it declares
+    /// none ([`super::sigs::Breaks::Inside`]), which the function's own code
+    /// must accept, as the block of a script function must.
+    pub(super) fn yield_breaks(&mut self, span: Span) {
+        if !self.frame.flow.live {
+            return;
+        }
+        let Some(context) = self.frame.contexts.last() else {
+            return;
+        };
+        let mark = context.mark();
+        let to = match context {
+            Context::Block { break_to, .. } => break_to.clone(),
+            Context::Loop { .. } => None,
+        };
+        let value = self.frame.result.unwrap_or(Ty::ANY);
+        if let Some(to) = to {
+            if !self.types.assignable(value, to.ty) {
+                let found = self.types.display(value);
+                let expected = self.types.display(to.ty);
+                let what = if to.inside {
+                    format!(
+                        "ends a loop or block inside `{}`, which takes {expected}",
+                        to.function
+                    )
+                } else {
+                    format!("returns from `{}`, which returns {expected}", to.function)
+                };
+                self.report(
+                    Diagnostic::error(
+                        Code::TYPE_MISMATCH,
+                        span,
+                        format!(
+                            "a `break` out of the caller's block, a value of {found}, leaves this `yield` and {what}; move the `yield` out of the block, or give the functions results that fit"
+                        ),
+                    )
+                    .with_types(expected, found),
+                );
+            }
+        }
+        let branch = self.frame.flow.peek(mark);
+        let exits = self.frame.contexts.last_mut().unwrap().exits();
+        exits.breaks.push(branch);
+        exits.values.push(value);
     }
 
     /// Records the state at a `break` or `next` for the enclosing loop or block.
@@ -1377,7 +1722,9 @@ impl<'a> Checker<'a> {
                     return ty;
                 };
                 let declared = self.annotation(annotation, self.frame.owner, *offset as usize);
-                let ty = self.expr_against(value, declared, &Purpose::Local(name.to_string()));
+                let ty = self.symbols(None, |this| {
+                    this.expr_against(value, declared, &Purpose::Local(name.to_string()))
+                });
                 if self.frame.namespace_body && is_constant(name) {
                     self.constants
                         .insert((self.frame.owner, name.to_string()), declared);
@@ -1404,7 +1751,11 @@ impl<'a> Checker<'a> {
                         }
                         id
                     }
-                    None => self.declare(name, declared, *offset as usize, true),
+                    None => {
+                        let id = self.declare(name, declared, *offset as usize, true);
+                        self.frame.locals[id as usize].checked = true;
+                        id
+                    }
                 };
                 self.assign_local(id, ty);
                 ty
@@ -1414,7 +1765,13 @@ impl<'a> Checker<'a> {
                     let key = (self.frame.owner, name.to_string());
                     match self.constants.get(&key).copied() {
                         Some(declared) if self.frame.owner.is_some() => {
-                            self.expr_against(value, declared, &Purpose::Ivar(name[1..].to_owned()))
+                            self.symbols(Some(CLASS_SYMBOL), |this| {
+                                this.expr_against(
+                                    value,
+                                    declared,
+                                    &Purpose::Ivar(name[1..].to_owned()),
+                                )
+                            })
                         }
                         _ => {
                             let ty = self.expr(value, None);
@@ -1427,10 +1784,13 @@ impl<'a> Checker<'a> {
                     let span = self.spans.expr(expr);
                     let ivar = &name[1..];
                     let expected = self.ivar_type(ivar, span);
+                    if matches!(&value.node, Node::Var(value) if value.as_str() == "self") {
+                        self.storing_self = Some(ivar.to_owned());
+                    }
                     let ty = match expected {
-                        Some(expected) => {
-                            self.expr_against(value, expected, &Purpose::Ivar(ivar.to_owned()))
-                        }
+                        Some(expected) => self.symbols(None, |this| {
+                            this.expr_against(value, expected, &Purpose::Ivar(ivar.to_owned()))
+                        }),
                         None => self.expr(value, None),
                     };
                     self.mark_ivar_assigned(ivar);
@@ -1438,15 +1798,15 @@ impl<'a> Checker<'a> {
                 }
                 Node::Var(name) if self.frame.namespace_body && is_constant(name) => {
                     if let Some(declared) = self.declared_constant(name) {
-                        return self.expr_against(
-                            value,
-                            declared,
-                            &Purpose::Local(name.to_string()),
-                        );
+                        return self.symbols(None, |this| {
+                            this.expr_against(value, declared, &Purpose::Local(name.to_string()))
+                        });
                     }
                     let key = (self.frame.owner, name.to_string());
                     if let Some(&declared) = self.constants.get(&key) {
-                        self.expr_against(value, declared, &Purpose::Local(name.to_string()))
+                        self.symbols(Some(LOCAL_SYMBOL), |this| {
+                            this.expr_against(value, declared, &Purpose::Local(name.to_string()))
+                        })
                     } else {
                         let ty = self.expr(value, None);
                         self.constants.insert(key, ty);
@@ -1459,8 +1819,11 @@ impl<'a> Checker<'a> {
                     }
                     match self.local(name) {
                         Some(id) => {
-                            let declared = self.frame.locals[id as usize].declared;
-                            let ty = self.expr(value, Some(declared));
+                            let local = &self.frame.locals[id as usize];
+                            let declared = local.declared;
+                            // The runtime checks what a declared local holds.
+                            let stay = (!local.checked).then_some(LOCAL_SYMBOL);
+                            let ty = self.symbols(stay, |this| this.expr(value, Some(declared)));
                             if !self.types.assignable(ty, declared) {
                                 let span = self.spans.expr(value);
                                 self.local_changed(id, span, ty);
@@ -1493,18 +1856,45 @@ impl<'a> Checker<'a> {
                 _ => self.expr(value, None),
             },
             Target::Tuple(_) => {
-                let ty = match &value.node {
-                    Node::Array(items) => {
-                        let types: Vec<Ty> =
-                            items.iter().map(|item| self.expr(item, None)).collect();
-                        self.types.tuple(types)
-                    }
-                    _ => self.expr(value, None),
-                };
+                let ty = self.destructured(target, value);
                 self.bind_target(target, ty, true);
                 ty
             }
         }
+    }
+
+    /// The type of a value destructured into `target`: an array literal is
+    /// a tuple of its items, and so is an item that a nested pattern
+    /// destructures in turn, as in `a, (b, c) = [1, [2, 3]]`.
+    fn destructured(&mut self, target: &'a Target, value: &'a Expr) -> Ty {
+        let (Target::Tuple(parts), Node::Array(items)) = (target, &value.node) else {
+            return self.expr(value, None);
+        };
+        let splat = parts.iter().position(|(_, rest)| *rest);
+        let after = splat.map_or(0, |splat| parts.len() - splat - 1);
+        let types: Vec<Ty> = items
+            .iter()
+            .enumerate()
+            .map(|(index, item)| {
+                // The part this item binds: before a splat by position, after
+                // it from the end.
+                let part = match splat {
+                    Some(splat) if index >= splat => {
+                        let from_end = items.len() - index;
+                        (from_end <= after).then(|| parts.len() - from_end)
+                    }
+                    _ => Some(index),
+                };
+                match part
+                    .and_then(|part| parts.get(part))
+                    .and_then(|(part, _)| part.as_ref())
+                {
+                    Some(nested @ Target::Tuple(_)) => self.destructured(nested, item),
+                    _ => self.expr(item, None),
+                }
+            })
+            .collect();
+        self.types.tuple(types)
     }
 
     /// The type a local first assigned a value of type `ty` gets; `nil`,
@@ -1608,14 +1998,10 @@ impl<'a> Checker<'a> {
                             }
                             id
                         }
-                        _ => {
-                            let declared = if assignment && self.needs_context(ty) {
-                                Ty::ERROR
-                            } else {
-                                ty
-                            };
-                            self.declare(name, declared, expr.offset as usize, false)
-                        }
+                        // A part such as the missing second element of
+                        // `a, b = [1]` is `nil`, and uses of it are checked
+                        // as any other type's.
+                        _ => self.declare(name, ty, expr.offset as usize, false),
                     };
                     self.assign_local(id, ty);
                 }
@@ -1627,6 +2013,21 @@ impl<'a> Checker<'a> {
                         }
                     }
                     self.mark_ivar_assigned(&name[1..]);
+                }
+                // A destructured element written through an index or a
+                // setter is checked as an assigned value is.
+                Node::Index(receiver, selectors) if assignment => {
+                    self.mark_write_chain(receiver);
+                    // As a compound assignment does, the read checks the
+                    // receiver and keys, and the write replays their types.
+                    let outer = self.memo.replace(super::Memo::default());
+                    self.expr(expr, None);
+                    self.memo.as_mut().unwrap().replay = true;
+                    self.index_write(expr, receiver, selectors, ty, expr, false);
+                    self.restore_memo(outer);
+                }
+                Node::Member(receiver, name) if assignment => {
+                    self.setter(expr, receiver, name, ty, expr, false);
                 }
                 _ => {
                     self.expr(expr, None);
@@ -1650,7 +2051,11 @@ impl<'a> Checker<'a> {
                     }) if !name.starts_with('@') => {
                         let id = match (assignment, self.local(name)) {
                             (true, Some(id)) => id,
-                            _ => self.declare(name, declared, *offset as usize, true),
+                            _ => {
+                                let id = self.declare(name, declared, *offset as usize, true);
+                                self.frame.locals[id as usize].checked = true;
+                                id
+                            }
                         };
                         self.assign_local(id, declared);
                     }
@@ -1659,6 +2064,7 @@ impl<'a> Checker<'a> {
             }
             Target::Tuple(parts) => {
                 let count = parts.len();
+                let splat = parts.iter().position(|(_, rest)| *rest);
                 for (index, (part, rest)) in parts.iter().enumerate() {
                     let Some(part) = part else {
                         continue;
@@ -1666,7 +2072,7 @@ impl<'a> Checker<'a> {
                     let element = if *rest {
                         self.rest_of(ty, index, count)
                     } else {
-                        self.element_of(ty, index)
+                        self.part_of(ty, index, count, splat)
                     };
                     self.bind_target(part, element, assignment);
                 }
@@ -1716,6 +2122,24 @@ impl<'a> Checker<'a> {
             Kind::Error | Kind::Any => ty,
             _ if index == 0 => ty,
             _ => Ty::NIL,
+        }
+    }
+
+    /// The type of target `index` of `count` when destructuring a value of
+    /// type `ty`, with a splat target at `splat`. A target after the splat
+    /// takes an element from the end, but never one a target before the
+    /// splat took: `a, *m, y = [1]` leaves `y` nil.
+    fn part_of(&mut self, ty: Ty, index: usize, count: usize, splat: Option<usize>) -> Ty {
+        match (splat, self.types.kind(ty)) {
+            (Some(splat), Kind::Tuple(items)) if index > splat => {
+                let after = count - splat - 1;
+                let start = splat.max(items.len().saturating_sub(after));
+                items
+                    .get(start + index - splat - 1)
+                    .copied()
+                    .unwrap_or(Ty::NIL)
+            }
+            _ => self.element_of(ty, index),
         }
     }
 
@@ -2308,8 +2732,9 @@ pub(crate) enum Purpose {
     Annotation,
     Yield(usize),
     Operand,
-    /// A `break` out of a block, which returns from this function.
-    Break(String),
+    /// A `break` out of a block, which returns from this function, or ends
+    /// a loop or block around its `yield`.
+    Break(String, bool),
 }
 
 impl<'a> Checker<'a> {
@@ -2338,8 +2763,11 @@ impl<'a> Checker<'a> {
             Purpose::Annotation => format!("the annotation says {expected_text}"),
             Purpose::Yield(index) => format!("block argument {} is {expected_text}", index + 1),
             Purpose::Operand => format!("the operand must be {expected_text}"),
-            Purpose::Break(function) => format!(
+            Purpose::Break(function, false) => format!(
                 "a `break` out of the block returns from `{function}`, which returns {expected_text}"
+            ),
+            Purpose::Break(function, true) => format!(
+                "a `break` value out of this block ends a loop or block inside `{function}`, which takes it as a value of its result type, {expected_text}"
             ),
         }
     }

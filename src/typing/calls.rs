@@ -15,6 +15,8 @@ use crate::{
 };
 use std::rc::Rc;
 
+pub(super) use super::check::BreakTo;
+
 /// One call site's arguments.
 #[derive(Clone, Copy)]
 pub(super) struct Call<'a, 'n> {
@@ -184,7 +186,7 @@ impl<'a> Checker<'a> {
             };
             if let Some(id) = found {
                 if self.frame.instance {
-                    self.call_on_self(id);
+                    self.call_on_self(id, call.name_span);
                 }
                 let sig = self.program.fns[id].sig.clone();
                 return self.call_sigs(&call, &[(sig, Vec::new())]);
@@ -467,7 +469,17 @@ impl<'a> Checker<'a> {
         if !safe && crate::bytecode::mutating_member(name) {
             self.mark_write_chain(receiver);
         }
+        // A mutating member's receiver chain is addressed, and records
+        // the types of its parts for [`Self::field_addresses`].
+        let addressed = crate::bytecode::mutating_member(name)
+            && matches!(receiver.node, Node::Member(..) | Node::SafeMember(..))
+            && !self.memo.as_ref().is_some_and(|memo| memo.replay);
+        let outer = addressed.then(|| self.memo.replace(super::Memo::default()));
         let ty = self.member_receiver(receiver, name);
+        if let Some(outer) = outer {
+            self.field_addresses(receiver, name);
+            self.restore_memo(outer);
+        }
         if ty != Ty::ERROR && block.is_none() {
             let called = if safe { self.types.without_nil(ty) } else { ty };
             let base = crate::members::direct::Base::of(&self.types.bases(called));
@@ -520,20 +532,109 @@ impl<'a> Checker<'a> {
             extra: None,
             selectors: &[],
         };
+        // A mutating member updates the place its receiver names, which a
+        // shape types; a temporary's update is not seen again.
+        let shapes = if crate::bytecode::mutating_member(name) && self.place(receiver) {
+            self.shapes(ty)
+        } else {
+            Vec::new()
+        };
+        if name == "replace" && !shapes.is_empty() {
+            return self.shape_replace(&call, receiver, ty, safe, &shapes);
+        }
+        let removes = shapes
+            .iter()
+            .any(|&shape| self.removes_required(shape, name, args));
+        let reported = self.diagnostics.len();
+        let result = self.checked_member(&call, receiver, ty, safe);
+        // A call that is wrong already is reported for that instead.
+        if removes && self.diagnostics.len() == reported {
+            self.shape_mutation(&call, receiver, "remove one it requires");
+        }
+        result
+    }
+
+    /// Checks a member call on a receiver of type `ty`, through `&.` when
+    /// `safe`.
+    fn checked_member(
+        &mut self,
+        call: &Call<'a, '_>,
+        receiver: &'a Expr,
+        ty: Ty,
+        safe: bool,
+    ) -> Ty {
         if safe {
             if ty == Ty::ERROR {
-                self.loose_args(&call);
+                self.loose_args(call);
                 return Ty::ERROR;
             }
             let without = self.types.without_nil(ty);
             if without == Ty::NEVER {
-                self.loose_args(&call);
+                self.loose_args(call);
                 return Ty::NIL;
             }
-            let result = self.dispatch(&call, receiver, without);
+            let result = self.dispatch(call, receiver, without);
             return self.types.optional(result);
         }
-        self.dispatch(&call, receiver, ty)
+        self.dispatch(call, receiver, ty)
+    }
+
+    /// Checks `receiver.replace(other)` on a record: `other` must be a
+    /// record of the receiver's shape, which `replace` otherwise could leave
+    /// without fields it requires or with fields it does not declare.
+    fn shape_replace(
+        &mut self,
+        call: &Call<'a, '_>,
+        receiver: &'a Expr,
+        ty: Ty,
+        safe: bool,
+        shapes: &[Ty],
+    ) -> Ty {
+        let argument = match call.args {
+            [
+                Argument {
+                    kind: ArgumentKind::Positional,
+                    value,
+                },
+            ] => Some(value),
+            _ => None,
+        };
+        // A record literal takes its fields' types from the shape it
+        // replaces; the call checks it against a dictionary.
+        let literal = argument
+            .filter(|value| matches!(value.node, Node::Hash(_)))
+            .map(|value| {
+                self.mute += 1;
+                let ty = self.expr(value, Some(shapes[0]));
+                self.mute -= 1;
+                ty
+            });
+        let outer = self.memo.replace(super::Memo::default());
+        let reported = self.diagnostics.len();
+        let result = self.checked_member(call, receiver, ty, safe);
+        let valid = self.diagnostics.len() == reported;
+        // Another argument's type, as the call just checked it.
+        self.memo.as_mut().unwrap().replay = true;
+        self.mute += 1;
+        let other = literal.or_else(|| argument.map(|value| self.expr(value, None)));
+        self.mute -= 1;
+        self.restore_memo(outer);
+        // A literal that the shape does not type is not one of its records.
+        let mismatched = match (literal, other) {
+            (Some(Ty::ERROR), _) => true,
+            (_, Some(other)) if other != Ty::ERROR => shapes
+                .iter()
+                .any(|&shape| !self.types.assignable(other, shape)),
+            _ => false,
+        };
+        if mismatched && valid {
+            self.shape_mutation(
+                call,
+                receiver,
+                "give it fields other than those it declares",
+            );
+        }
+        result
     }
 
     /// Checks `receiver.name` for a receiver type, one alternative at a time.
@@ -651,7 +752,9 @@ impl<'a> Checker<'a> {
                         let sig = self.program.fns[id].sig.clone();
                         self.call_sigs(call, &[(sig, Vec::new())])
                     }
-                    _ if call.name == "to_s" && call.args.is_empty() => Ty::STRING,
+                    _ if matches!(call.name, "to_s" | "inspect") => {
+                        self.no_rendering(call, ty, "an instance")
+                    }
                     _ => self.table_member(call, ty),
                 }
             }
@@ -673,6 +776,140 @@ impl<'a> Checker<'a> {
             Kind::Host(index) => self.host_member(call, index, ty),
             _ => self.table_member(call, ty),
         }
+    }
+
+    /// Whether an expression names a place a mutating member updates: a
+    /// local or instance variable, or an element of one. Any other value,
+    /// such as a property's, is a copy.
+    fn place(&self, expr: &Expr) -> bool {
+        match &expr.node {
+            Node::Var(name) => name.starts_with('@') || self.local(name).is_some(),
+            Node::Index(receiver, _) => self.place(receiver),
+            _ => false,
+        }
+    }
+
+    /// Reports each `.m` in the receiver chain of mutating member `name`
+    /// whose receiver may be a hash holding a field `m`: the runtime then
+    /// updates that field, which the checker types as the member's result.
+    fn field_addresses(&mut self, receiver: &Expr, name: &str) {
+        let mut node = receiver;
+        while let Node::Member(inner, member) | Node::SafeMember(inner, member) = &node.node {
+            let types = &self.memo.as_ref().unwrap().types;
+            let called = types.get(&(std::ptr::from_ref(node) as usize)).copied();
+            let Some(inner_ty) = types.get(&(std::ptr::from_ref(&**inner) as usize)).copied()
+            else {
+                return;
+            };
+            // An unknown member was reported already.
+            let fields =
+                called.is_some_and(|called| called != Ty::ERROR)
+                    && self.types.members(inner_ty).into_iter().any(|ty| {
+                        match self.types.kind(ty) {
+                            Kind::Shape(fields, open) => {
+                                *open || fields.iter().any(|field| *field.name == **member)
+                            }
+                            Kind::Hash(_) => true,
+                            _ => false,
+                        }
+                    });
+            if fields {
+                let span = self
+                    .spans
+                    .member(inner, member)
+                    .unwrap_or_else(|| self.spans.expr(node));
+                self.report(Diagnostic::error(
+                    Code::FIELD_ACCESS,
+                    span,
+                    format!(
+                        "`.{member}` in front of `{name}` updates the field `{member}` when the hash has one, not the result of `{member}`; index the field, `[\"{member}\"]`, or update a local holding the result"
+                    ),
+                ));
+                return;
+            }
+            node = inner;
+        }
+    }
+
+    /// The shapes among `ty`'s alternatives.
+    fn shapes(&self, ty: Ty) -> Vec<Ty> {
+        self.types
+            .members(ty)
+            .into_iter()
+            .filter(|&ty| matches!(self.types.kind(ty), Kind::Shape(..)))
+            .collect()
+    }
+
+    /// Whether `name`, a hash member that removes keys, could remove a field
+    /// the shape `ty` requires: `delete` of a string literal naming an
+    /// optional field, or of one it does not declare, removes none.
+    fn removes_required(&self, ty: Ty, name: &str, args: &[Argument]) -> bool {
+        let Kind::Shape(fields, _) = self.types.kind(ty) else {
+            return false;
+        };
+        if name == "delete" {
+            let key = match args.first() {
+                Some(Argument {
+                    kind: ArgumentKind::Positional,
+                    value,
+                }) => super::expr::string_literal(value),
+                _ => None,
+            };
+            if let Some(key) = key {
+                return fields
+                    .iter()
+                    .any(|field| !field.optional && *field.name == *key);
+            }
+        }
+        matches!(name, "delete" | "delete_if" | "keep_if" | "clear")
+            && fields.iter().any(|field| !field.optional)
+    }
+
+    /// Reports a hash member that could leave a record in `receiver`
+    /// without fields its shape requires, or with fields it does not
+    /// declare, offering to declare a local a dictionary when its fields
+    /// share a type.
+    fn shape_mutation(&mut self, call: &Call<'a, '_>, receiver: &Expr, what: &str) {
+        let mut diagnostic = Diagnostic::error(
+            Code::SHAPE_MUTATION,
+            call.name_span,
+            format!(
+                "a record keeps the fields its shape declares, but `{}` could {what}; assign it a new record, or declare a dictionary, `hash<string, V>`",
+                call.name
+            ),
+        );
+        if let Node::Var(name) = &receiver.node {
+            if let Some(id) = self.local(name) {
+                let local = &self.frame.locals[id as usize];
+                if let (Some(value), false) = (local.dictionary, local.annotated) {
+                    let value_text = self.types.display(value);
+                    let name_span = self.spans.token(local.offset);
+                    diagnostic = diagnostic.with_fix(Fix::insert(
+                        format!("declare `{name}: hash<string, {value_text}>`"),
+                        name_span.end,
+                        format!(": hash<string, {value_text}>"),
+                    ));
+                }
+            }
+        }
+        self.report(diagnostic);
+    }
+
+    /// Reports `to_s` or `inspect` called on an instance or a namespace that
+    /// does not define it: the runtime renders them only through
+    /// interpolation and the output helpers.
+    fn no_rendering(&mut self, call: &Call<'a, '_>, ty: Ty, what: &str) -> Ty {
+        let found = self.types.display(ty);
+        self.report(Diagnostic::error(
+            Code::UNKNOWN_MEMBER,
+            call.name_span,
+            format!(
+                "{found} has no member `{}`; {what} renders through interpolation, `p` and `puts`, or define `def {} -> string`",
+                call.name, call.name
+            ),
+        ));
+        self.loose_args(call);
+        Ty::ERROR
     }
 
     /// A member of a capability the host declares, such as `SMS.send`.
@@ -772,6 +1009,8 @@ impl<'a> Checker<'a> {
                     block: None,
                     vars: Vec::new(),
                     breaks: sigs::Breaks::Call,
+                    converts: true,
+                    id: None,
                 },
             };
             let (_, breaks) = self.call_sigs_parts(call, &[(Rc::new(sig), Vec::new())]);
@@ -789,6 +1028,9 @@ impl<'a> Checker<'a> {
             if let Some(&child) = namespace.children.get(call.name) {
                 return self.types.intern(Kind::Namespace(child));
             }
+        }
+        if call.name == "inspect" {
+            return self.no_rendering(call, ty, "a class or module");
         }
         self.table_member(call, ty)
     }
@@ -1192,17 +1434,41 @@ impl<'a> Checker<'a> {
             selectors: &[],
         };
         if !evaluate {
-            // A compound assignment checks the computed value against the setter.
-            if let Kind::Instance(ns) = self.types.kind(ty).clone() {
-                if let Some(&id) = self.program.namespaces[ns as usize].methods.get(setter) {
-                    let span = name_span.unwrap_or_else(|| self.spans.expr(expr));
-                    self.visibility(setter, span, id, ns, true);
-                    let sig = self.program.fns[id].sig.clone();
-                    if let Some(param) = sig.params.first() {
-                        if !self.types.assignable(value_ty, param.ty) {
-                            let span = self.spans.expr(value);
-                            self.mismatch(span, param.ty, value_ty, &Purpose::Operand);
-                        }
+            // A compound assignment checks the computed value against the
+            // setter, which must exist as it must for a plain assignment.
+            // Reading the member reported a `nil` receiver already.
+            for alternative in self.types.members(ty) {
+                if alternative == Ty::NIL {
+                    continue;
+                }
+                let method = match self.types.kind(alternative).clone() {
+                    Kind::Instance(ns) => self.program.namespaces[ns as usize]
+                        .methods
+                        .get(setter)
+                        .map(|&id| (ns, id, true)),
+                    Kind::Namespace(ns) => self.program.namespaces[ns as usize]
+                        .statics
+                        .get(setter)
+                        .map(|&id| (ns, id, false)),
+                    Kind::Error | Kind::Any | Kind::Never => continue,
+                    _ => None,
+                };
+                let Some((ns, id, instance)) = method else {
+                    let found = self.types.display(alternative);
+                    self.report(Diagnostic::error(
+                        Code::UNKNOWN_MEMBER,
+                        call.name_span,
+                        format!("{found} has no member `{setter}`"),
+                    ));
+                    break;
+                };
+                let span = name_span.unwrap_or_else(|| self.spans.expr(expr));
+                self.visibility(setter, span, id, ns, instance);
+                let sig = self.program.fns[id].sig.clone();
+                if let Some(param) = sig.params.first() {
+                    if !self.types.assignable(value_ty, param.ty) {
+                        let span = self.spans.expr(value);
+                        self.mismatch(span, param.ty, value_ty, &Purpose::Operand);
                     }
                 }
             }
@@ -1467,26 +1733,34 @@ impl<'a> Checker<'a> {
     ) -> (Ty, Vec<Ty>) {
         bindings.resize(sig.vars.len(), None);
         let function = sig.name.clone();
-        self.check_positional(call, sig, &mut bindings);
-        self.check_keywords(call, sig, &mut bindings);
+        let stay = (!sig.converts).then_some(super::check::BUILTIN_SYMBOL);
+        self.symbols(stay, |this| {
+            this.check_positional(call, sig, &mut bindings);
+            this.check_keywords(call, sig, &mut bindings);
+        });
         let mut breaks = Vec::new();
         match (&sig.block, call.block) {
             (Some(block_sig), Some(block)) => {
                 let block_sig = block_sig.clone();
                 // A script function returns a break value through its
-                // declared result, which the runtime checks.
+                // declared result, or, yielding inside a loop or a block,
+                // sees it there as a value of its result type.
                 let break_to = match (sig.breaks, sig.result) {
-                    (sigs::Breaks::Result, Some(result)) => {
-                        Some((self.types.close(result, &bindings), function.clone()))
-                    }
+                    (sigs::Breaks::Result | sigs::Breaks::Inside, Some(result)) => Some(BreakTo {
+                        ty: self.types.close(result, &bindings),
+                        function: function.clone(),
+                        inside: sig.breaks == sigs::Breaks::Inside,
+                    }),
                     _ => None,
                 };
                 let call_value = match sig.breaks {
                     sigs::Breaks::Call => true,
                     sigs::Breaks::Result => break_to.is_none(),
-                    sigs::Breaks::Inside => false,
+                    sigs::Breaks::Inside | sigs::Breaks::Never => false,
                 };
-                breaks = self.call_block(block, &block_sig, &mut bindings, break_to);
+                breaks = self.symbols(stay, |this| {
+                    this.call_block(block, &block_sig, &mut bindings, break_to)
+                });
                 if !call_value {
                     breaks.clear();
                 }
@@ -1511,9 +1785,14 @@ impl<'a> Checker<'a> {
             }
             (None, None) => (),
         }
-        self.bounds(call, sig, &bindings);
+        let held = self.bounds(call, sig, &bindings);
+        if sig.converts {
+            self.script_called(sig.id, call.name_span);
+        }
         let result = match sig.result {
-            Some(result) => self.types.close(result, &bindings),
+            // A call reported for its bounds gives no second error.
+            Some(_) if !held => Ty::ERROR,
+            Some(result) => self.types.close_result(result, &bindings),
             None => Ty::NIL,
         };
         (result, breaks)
@@ -1754,6 +2033,10 @@ impl<'a> Checker<'a> {
                 }
             }
         }
+        // Renaming nested keys leaves no shape inside with its fields.
+        if call.name == "deep_transform_keys" && result != Ty::ERROR {
+            return self.types.rekeyed(result);
+        }
         let exact = matches!(self.types.kind(receiver), Kind::Shape(..) | Kind::Tuple(_));
         let iterating = matches!(
             call.name,
@@ -1953,7 +2236,10 @@ impl<'a> Checker<'a> {
 
     /// Reports a type variable bound to a type outside its bound, such as
     /// `sort` on an array of a union.
-    fn bounds(&mut self, call: &Call<'a, '_>, sig: &Sig, bindings: &[Option<Ty>]) {
+    /// Reports each type variable of `sig` bound outside its bound, and
+    /// returns whether they all held.
+    fn bounds(&mut self, call: &Call<'a, '_>, sig: &Sig, bindings: &[Option<Ty>]) -> bool {
+        let mut held = true;
         for (index, var) in sig.vars.iter().enumerate() {
             let (Some(bound), Some(Some(ty))) = (var.bound, bindings.get(index)) else {
                 continue;
@@ -1991,7 +2277,9 @@ impl<'a> Checker<'a> {
                 diagnostic = self.sum_start(diagnostic, call, ty);
             }
             self.report(diagnostic);
+            held = false;
         }
+        held
     }
 
     /// Explains that `sum` without a starting value begins at the int 0,
@@ -2044,7 +2332,7 @@ impl<'a> Checker<'a> {
         block: &'a Block,
         block_sig: &BlockSig,
         bindings: &mut [Option<Ty>],
-        break_to: Option<(Ty, String)>,
+        break_to: Option<BreakTo>,
     ) -> Vec<Ty> {
         let params: Vec<Ty> = block_sig
             .params
@@ -2052,11 +2340,22 @@ impl<'a> Checker<'a> {
             .map(|&p| self.types.close(p, bindings))
             .collect();
         let rest = block_sig.rest.map(|r| self.types.close(r, bindings));
+        let mut widen = None;
         let (want, infer) = match block_sig.result {
             Some(result) => {
                 let expected = self.types.subst(result, bindings);
+                let empty = match self.types.kind(expected) {
+                    Kind::Array(element) => *element == Ty::NEVER,
+                    Kind::EmptyHash => true,
+                    _ => false,
+                };
                 if self.types.has_var(expected) {
                     (Want::Infer(Some(expected)), Some(result))
+                } else if let (Kind::Var(index), true) = (self.types.kind(result).clone(), empty) {
+                    // An empty literal bound the variable, and the block's
+                    // result may widen it: `reduce([]) { |all, x| all.push(x) }`.
+                    widen = Some((index as usize, expected));
+                    (Want::Infer(Some(expected)), None)
                 } else {
                     (Want::Check(expected), None)
                 }
@@ -2072,6 +2371,14 @@ impl<'a> Checker<'a> {
             self.unify(pattern, result, bindings);
             let expected = self.types.close(pattern, bindings);
             if !self.types.assignable(result, expected) {
+                let span = self.spans.token(block.offset as usize);
+                self.mismatch(span, expected, result, &Purpose::BlockResult);
+            }
+        }
+        if let Some((index, expected)) = widen {
+            if result != Ty::ERROR && self.types.assignable(expected, result) {
+                bindings[index] = Some(result);
+            } else if !self.types.assignable(result, expected) {
                 let span = self.spans.token(block.offset as usize);
                 self.mismatch(span, expected, result, &Purpose::BlockResult);
             }
@@ -2097,7 +2404,7 @@ impl<'a> Checker<'a> {
         params: &[Ty],
         rest: Option<Ty>,
         want: Want,
-        break_to: Option<(Ty, String)>,
+        break_to: Option<BreakTo>,
     ) -> (Ty, Vec<Ty>) {
         let plain = params
             .iter()
@@ -2252,7 +2559,9 @@ impl<'a> Checker<'a> {
         for (index, arg) in args.iter().enumerate() {
             match block.params.get(index) {
                 Some(&param) => {
-                    self.expr_against(arg, param, &Purpose::Yield(index));
+                    self.symbols(None, |this| {
+                        this.expr_against(arg, param, &Purpose::Yield(index))
+                    });
                 }
                 None => {
                     self.expr(arg, None);
@@ -2270,6 +2579,9 @@ impl<'a> Checker<'a> {
                 ),
             ));
         }
+        self.yield_breaks(span);
+        // The block may be the file's own, and assign its locals.
+        self.script_called(None, span);
         match block.result {
             Some(result) => result,
             None => {

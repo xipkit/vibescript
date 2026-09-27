@@ -1,0 +1,9 @@
+# expect: rejected V0101
+# `!=` without its own method negates the class's `==`, which received the
+# right operand unchecked: here nil for an int parameter.
+class C
+  def ==(other: int) -> bool
+    other > 0
+  end
+end
+p(C.new != nil)

@@ -1,0 +1,6 @@
+# expect: agreed
+h: hash<string, int> = { a: 1 }
+r: hash<string, int> = h.deep_transform_keys { |k| k + "x" }
+s = { a: { b: 1 } }.deep_transform_keys { |k| k.upcase }
+t: hash<string, hash<string, int>> = s
+p(r, t)

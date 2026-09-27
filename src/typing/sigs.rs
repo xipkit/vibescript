@@ -54,6 +54,13 @@ pub(crate) struct Sig {
     pub vars: Vec<Var>,
     /// Where a `break` out of the call's block goes.
     pub breaks: Breaks,
+    /// Whether the callee checks its arguments and its block's results
+    /// against their declared types at runtime, which makes a symbol
+    /// literal an enum member: a script function or method. A builtin or
+    /// host function receives a symbol as a symbol.
+    pub converts: bool,
+    /// The script function or method of this source, when it is one.
+    pub id: Option<super::program::FnId>,
 }
 
 /// Where a `break` out of the block a call passes goes.
@@ -66,9 +73,12 @@ pub(crate) enum Breaks {
     /// only outside loops and blocks.
     Result,
     /// It ends the loop or the call with a block around the function's
-    /// `yield`, so the call's value is the function's result; or the
-    /// function never yields, so nothing breaks.
+    /// `yield`, so the call's value is the function's result. The function
+    /// sees the break's value there, which has the function's result type,
+    /// as a value returned through its result would.
     Inside,
+    /// The function never yields, so nothing breaks.
+    Never,
 }
 
 impl Sig {
@@ -319,6 +329,8 @@ impl Converter {
             block,
             vars,
             breaks: Breaks::Call,
+            converts: false,
+            id: None,
         }
     }
 }
@@ -513,12 +525,11 @@ pub(crate) fn declares(types: &Types, receiver: Ty, name: &str) -> bool {
 fn bind_receiver(types: &mut Types, pattern: Ty, actual: Ty, bindings: &mut [Option<Ty>]) -> bool {
     match (types.kind(pattern).clone(), types.kind(actual).clone()) {
         (Kind::Var(index), _) => {
-            // An empty literal's elements are unknown, not impossible.
-            let actual = if actual == Ty::NEVER {
-                Ty::ERROR
-            } else {
-                actual
-            };
+            // An empty literal's elements are unknown, not impossible: the
+            // arguments and the block may bind the variable instead.
+            if actual == Ty::NEVER {
+                return true;
+            }
             let slot = &mut bindings[index as usize];
             match slot {
                 Some(bound) => *bound == actual,

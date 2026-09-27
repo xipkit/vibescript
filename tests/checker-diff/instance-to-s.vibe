@@ -1,0 +1,7 @@
+# expect: rejected V0203
+# The checker typed `to_s` on any instance as a string; the runtime answers
+# it only when the class defines it.
+class C0
+  @v0: int = 1
+end
+x: string = C0.new.to_s

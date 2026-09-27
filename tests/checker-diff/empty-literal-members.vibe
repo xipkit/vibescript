@@ -1,0 +1,6 @@
+# expect: agreed
+x: array<int> = [].select { |q| q > 1 }
+y = [].push(1)
+z: int = [].sum(0)
+w: float = (true ? [] : [1.5]).sum(0.0)
+p(x, y, z, w, [].first, [].map { |q| q })

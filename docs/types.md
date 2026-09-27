@@ -43,7 +43,7 @@ publish("a", note: "x")    # "a Draft x"
 tag_count("a", "b", c: 1)  # 3
 ```
 
-A symbol literal naming an enum member is accepted wherever that enum is expected, and becomes the member: `state: Status = :draft` above, or `states: array<Status> = [:draft, :done]`. A string such as `"draft"`, or a member of another enum, is not. Enum definitions retain their identity across calls to the same compiled script; a separate compilation creates distinct definitions.
+A symbol literal naming an enum member is accepted where the runtime checks that enum, and becomes the member: `state: Status = :draft` above, or `states: array<Status> = [:draft, :done]`, and a parameter, result, field, default or constant of the enum. Where no check converts it, such as a builtin's argument, a write through an index or `<<`, or a later assignment to an untyped local, it would stay a symbol, and the checker asks for the member, `Status::Draft`. A string such as `"draft"`, or a member of another enum, is not. Enum definitions retain their identity across calls to the same compiled script; a separate compilation creates distinct definitions.
 
 Block parameters take their types from the called function's signature. An annotation on a block parameter is optional and must match it.
 

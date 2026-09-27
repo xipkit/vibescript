@@ -1,0 +1,5 @@
+# expect: rejected V0101
+# Destructuring gave a missing element no type, so reads of it went
+# unchecked: `db` held nil where an int was declared.
+da, db = [1]
+t: int = db

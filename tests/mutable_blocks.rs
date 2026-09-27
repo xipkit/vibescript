@@ -198,7 +198,7 @@ fn cancellation_in_mutable_blocks_prevents_later_host_effects() {
     for source in [
         "[1,2].delete_if {cancel();effect().as(bool)}",
         "{a:1,b:2}.keep_if {cancel();effect().as(bool)}",
-        "[].delete(7) {cancel();effect()}",
+        "[].delete(7) {cancel();effect();7}",
     ] {
         let error = engine
             .compile(source)

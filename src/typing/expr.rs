@@ -243,6 +243,9 @@ impl<'a> Checker<'a> {
                         .iter()
                         .any(|s| s == name)
                     {
+                        if let Some(why) = self.symbols_stay {
+                            self.enum_symbol(expr, id, name, why);
+                        }
                         return alternative;
                     }
                     enums.push(id);
@@ -272,7 +275,8 @@ impl<'a> Checker<'a> {
 
     fn variable(&mut self, expr: &'a Expr, name: &str) -> Ty {
         if name == "self" {
-            self.self_escapes();
+            let span = self.spans.expr(expr);
+            self.self_escapes(span);
             return self.self_type();
         }
         if name.starts_with("@@") {
@@ -298,11 +302,12 @@ impl<'a> Checker<'a> {
                 // Namespace state is not typed; it keeps its runtime checks.
                 return Ty::ANY;
             }
-            self.read_ivar(ivar);
+            self.read_ivar(ivar, span);
             return self.ivar_type(ivar, span).unwrap_or(Ty::ERROR);
         }
         if let Some(id) = self.local(name) {
             let state = self.frame.flow.get(id);
+            self.shared_read(id, name);
             if !state.assigned && self.frame.flow.live {
                 let span = self.spans.expr(expr);
                 let declared = self.frame.locals[id as usize].offset;
@@ -487,11 +492,29 @@ impl<'a> Checker<'a> {
         entries: &'a [(crate::compilation::Bytes, Expr)],
         hint: Option<Ty>,
     ) -> Ty {
-        let hint = self.literal_hint(hint, |kind| {
-            matches!(
-                kind,
-                Kind::Hash(_) | Kind::Shape(..) | Kind::Any | Kind::EmptyHash
-            )
+        // Of several shapes, the one whose fields the literal's keys fit.
+        let fitting = hint.and_then(|hint| {
+            self.types.members(hint).into_iter().find(|&alternative| {
+                let Kind::Shape(fields, open) = self.types.kind(alternative) else {
+                    return false;
+                };
+                entries.iter().all(|(key, _)| {
+                    *open || fields.iter().any(|field| field.name.as_bytes() == &key[..])
+                }) && fields.iter().all(|field| {
+                    field.optional
+                        || entries
+                            .iter()
+                            .any(|(key, _)| field.name.as_bytes() == &key[..])
+                })
+            })
+        });
+        let hint = fitting.or_else(|| {
+            self.literal_hint(hint, |kind| {
+                matches!(
+                    kind,
+                    Kind::Hash(_) | Kind::Shape(..) | Kind::Any | Kind::EmptyHash
+                )
+            })
         });
         match hint.map(|hint| (hint, self.types.kind(hint).clone())) {
             Some((hint, Kind::Hash(value))) => {
@@ -714,7 +737,7 @@ impl<'a> Checker<'a> {
         match op {
             "&&" | "||" => self.condition_value(expr),
             "==" | "!=" | "===" => {
-                let lt = self.expr(left, None);
+                let lt = self.member_receiver(left, op);
                 let rt = self.expr(right, None);
                 if op != "===" {
                     self.equality_visibility(expr, op, lt);
@@ -736,11 +759,19 @@ impl<'a> Checker<'a> {
                 // negating `==` is a `bool`.
                 if op != "==="
                     && let Kind::Instance(ns) = self.types.kind(lt).clone()
-                    && let Some(&id) = self.program.namespaces[ns as usize].methods.get(op)
                 {
-                    let span = self.spans.operator(expr.offset as usize);
-                    self.operator_operand(id, rt, span);
-                    return self.program.fns[id].sig.result.unwrap_or(Ty::NIL);
+                    let methods = &self.program.namespaces[ns as usize].methods;
+                    if let Some(&id) = methods.get(op) {
+                        let span = self.spans.operator(expr.offset as usize);
+                        self.operator_operand(id, rt, span);
+                        return self.program.fns[id].sig.result.unwrap_or(Ty::NIL);
+                    }
+                    // The runtime answers `!=` by negating the class's `==`,
+                    // which takes the right operand.
+                    if let (Some(&id), "!=") = (methods.get("=="), op) {
+                        let span = self.spans.operator(expr.offset as usize);
+                        self.operator_operand(id, rt, span);
+                    }
                 }
                 Ty::BOOL
             }
@@ -748,12 +779,14 @@ impl<'a> Checker<'a> {
                 if op == "<<" {
                     self.mark_write_chain(left);
                 }
-                let lt = self.expr(left, None);
+                let lt = self.member_receiver(left, op);
                 let hint = match op {
                     "<<" => self.types.element(lt),
                     _ => None,
                 };
-                let rt = self.expr(right, hint);
+                // Appending to an array stores the value as it is.
+                let stay = hint.map(|_| super::check::BUILTIN_SYMBOL);
+                let rt = self.symbols(stay, |this| this.expr(right, hint));
                 let span = self.spans.operator(expr.offset as usize);
                 self.binary_types(op, lt, rt, span, Some((Some(left), right)))
             }
@@ -1059,7 +1092,7 @@ impl<'a> Checker<'a> {
     // Indexing ---------------------------------------------------------
 
     fn index(&mut self, expr: &'a Expr, receiver: &'a Expr, selectors: &'a [Expr]) -> Ty {
-        let ty = self.expr(receiver, None);
+        let ty = self.member_receiver(receiver, "[]");
         let read = self.index_type(expr, receiver, ty, selectors);
         if self.types.has_nil(read) {
             let recorded = self
@@ -1321,6 +1354,49 @@ impl<'a> Checker<'a> {
 
     /// Checks `receiver[selectors] = value`, or its compound form when
     /// `value_ty` already holds the computed value.
+    /// Checks a write of a computed value of type `value_ty` through the
+    /// `[]=` of an instance of class `ns`, as a compound assignment makes:
+    /// the method must take the selectors, whose types replay from the
+    /// read, and the value.
+    fn computed_index_write(
+        &mut self,
+        expr: &'a Expr,
+        ns: super::program::NsId,
+        selectors: &'a [Expr],
+        value_ty: Ty,
+        value: &'a Expr,
+    ) {
+        let span = self.spans.expr(expr);
+        let Some(&id) = self.program.namespaces[ns as usize].methods.get("[]=") else {
+            let found = self.program.namespaces[ns as usize].name.clone();
+            self.report(Diagnostic::error(
+                Code::UNKNOWN_MEMBER,
+                span,
+                format!("{found} has no member `[]=`"),
+            ));
+            return;
+        };
+        self.visibility("[]=", span, id, ns, true);
+        let sig = self.program.fns[id].sig.clone();
+        let mut values: Vec<(Ty, Span)> = selectors
+            .iter()
+            .map(|selector| (self.expr(selector, None), self.spans.expr(selector)))
+            .collect();
+        values.push((value_ty, self.spans.expr(value)));
+        for (index, (ty, span)) in values.into_iter().enumerate() {
+            if let Some(param) = sig.params.get(index) {
+                if !self.types.assignable(ty, param.ty) {
+                    let purpose = Purpose::Argument {
+                        index,
+                        name: param.name.clone(),
+                        function: "[]=".to_owned(),
+                    };
+                    self.mismatch(span, param.ty, ty, &purpose);
+                }
+            }
+        }
+    }
+
     pub(super) fn index_write(
         &mut self,
         expr: &'a Expr,
@@ -1331,7 +1407,7 @@ impl<'a> Checker<'a> {
         evaluate: bool,
     ) -> Ty {
         let ty = if evaluate {
-            self.expr(receiver, None)
+            self.member_receiver(receiver, "[]=")
         } else {
             self.mute += 1;
             let ty = self.expr(receiver, None);
@@ -1418,7 +1494,7 @@ impl<'a> Checker<'a> {
                     None
                 }
             },
-            (Kind::Instance(_), _) => {
+            (Kind::Instance(ns), _) => {
                 if evaluate {
                     let outer = self.memo.replace(super::Memo::default());
                     self.method_on(expr, ty, "[]=", None, selectors, Some(value));
@@ -1427,6 +1503,7 @@ impl<'a> Checker<'a> {
                     self.restore_memo(outer);
                     return assigned;
                 }
+                self.computed_index_write(expr, ns, selectors, value_ty, value);
                 None
             }
             _ => {
@@ -1448,7 +1525,9 @@ impl<'a> Checker<'a> {
         match element {
             Some(element) => {
                 if evaluate {
-                    self.expr_against(value, element, &Purpose::Element)
+                    self.symbols(Some(super::check::INDEX_SYMBOL), |this| {
+                        this.expr_against(value, element, &Purpose::Element)
+                    })
                 } else {
                     if !self.types.assignable(value_ty, element) {
                         let span = self.spans.expr(value);

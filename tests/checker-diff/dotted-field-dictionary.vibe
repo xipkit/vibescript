@@ -1,0 +1,6 @@
+# expect: rejected V0415
+# A dictionary may hold any key, so `d.keys` in front of `push` may be its
+# field `keys`.
+d: hash<string, array<int>> = { "keys": [1] }
+k = d.keys.push("x")
+p(d, k)

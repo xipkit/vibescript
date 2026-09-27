@@ -120,6 +120,7 @@ registry! {
     CAST = 120, "cast", "A checked cast or `is_type?` can never succeed for the value's type.";
     UNREACHABLE_NARROWING = 121, "unreachable-narrowing", "A nil test or type test on a value whose type already decides it.";
     TUPLE_MUTATION = 122, "tuple-mutation", "A mutation could change a tuple's length or positional element types.";
+    SHAPE_MUTATION = 123, "shape-mutation", "A mutation could remove a shape's fields or replace them.";
 
     UNDEFINED_NAME = 201, "undefined-name", "A name does not refer to a local, function, constant or type in scope.";
     UNASSIGNED_LOCAL = 202, "unassigned-local", "A local is read where it is not assigned on every path.";

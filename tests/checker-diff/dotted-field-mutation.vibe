@@ -1,0 +1,6 @@
+# expect: rejected V0415
+# A mutating member through `h.dup` updated the field `dup` when the hash
+# had one, and gave its result, where the checker typed a copy of `h`.
+h = { "dup": [1] }
+r: hash<string, array<int>> = h.dup.clear
+p(h, r)

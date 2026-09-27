@@ -72,7 +72,18 @@ pub(crate) struct Enum {
 #[derive(Default)]
 pub(crate) struct Program<'a> {
     pub file: bool,
+    /// A required file's top-level locals, which its functions and methods
+    /// see: each one's type and where it is declared.
     pub file_locals: HashMap<String, (Ty, usize)>,
+    /// The names a required file's functions and methods assign, which a
+    /// call of script code may change.
+    pub file_written: std::collections::HashSet<String>,
+    /// Each call of the file's own code in its body, which may run before
+    /// the file assigns the top-level locals that code reads.
+    pub file_calls: Vec<super::check::FileCall>,
+    /// The file's top-level locals each of its functions and methods
+    /// reads, and the others it calls.
+    pub file_uses: HashMap<FnId, (std::collections::BTreeSet<String>, Vec<FnId>)>,
     pub fns: Vec<FnDecl<'a>>,
     /// Top-level functions by name.
     pub functions: HashMap<&'a str, FnId>,
@@ -327,6 +338,45 @@ impl<'a> Checker<'a> {
                     sig.result
                 };
                 let ty = ty.unwrap_or(Ty::ANY);
+                // A getter's result must hold the variable's values, and a
+                // setter's parameter must be one of them, whichever
+                // declaration came first.
+                let existing = self.program.namespaces[ns]
+                    .ivars
+                    .get(name.as_str())
+                    .map(|ivar| ivar.ty);
+                // A method defined with the accessor's name replaces it,
+                // and its body's writes are checked as any method's are.
+                let replaced = !self.program.fns[id]
+                    .def
+                    .is_some_and(|method| std::ptr::eq(method, def));
+                if let (Some(declared), false) = (existing, replaced) {
+                    let fits = if *setter {
+                        self.types.assignable(ty, declared)
+                    } else {
+                        self.types.assignable(declared, ty)
+                    };
+                    if !fits && typed {
+                        let span = self.spans.word_after(def.offset as usize, name);
+                        let declared_text = self.types.display(declared);
+                        let found = self.types.display(ty);
+                        let (what, how) = if *setter {
+                            ("setter", "takes")
+                        } else {
+                            ("getter", "returns")
+                        };
+                        self.report(
+                            Diagnostic::error(
+                                Code::TYPE_MISMATCH,
+                                span,
+                                format!(
+                                    "the {what} `{name}` {how} {found}, but `@{name}` is {declared_text}; declare them with one type"
+                                ),
+                            )
+                            .with_types(declared_text, found),
+                        );
+                    }
+                }
                 self.program.namespaces[ns]
                     .ivars
                     .entry(name.to_string())
@@ -535,6 +585,8 @@ impl<'a> Checker<'a> {
             block: block_sig,
             vars: Vec::new(),
             breaks: yields(&def.body),
+            converts: true,
+            id: Some(self.program.fns.len()),
         });
         self.program.fns.push(FnDecl {
             def: Some(def),
@@ -904,7 +956,7 @@ fn yields(body: &[crate::syntax::Stmt]) -> sigs::Breaks {
             return if found {
                 sigs::Breaks::Result
             } else {
-                sigs::Breaks::Inside
+                sigs::Breaks::Never
             };
         };
         match &stmt.node {

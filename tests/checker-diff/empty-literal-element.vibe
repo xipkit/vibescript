@@ -1,0 +1,5 @@
+# expect: rejected V0101
+# A member of an empty literal bound its element type to `error`, which
+# accepts anything unreported, so `x` was assignable to an int.
+x = [].first
+y: int = x

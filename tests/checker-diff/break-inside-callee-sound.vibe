@@ -1,0 +1,22 @@
+# expect: agreed
+# A caller's `break` ends the loop or block call around a nested `yield`
+# with a value of the function's result type, which the function accepts.
+def zero(&block: () -> any) -> any
+  yield
+end
+def pairs(&block: () -> any) -> array<any>
+  first = zero { yield }
+  [first, 99]
+end
+def upto(&block: int -> any) -> int
+  i = 0
+  while i < 3
+    yield i
+    i += 1
+  end
+  i
+end
+def select_ready(records: array<int>, &block: int -> bool) -> array<int>
+  records.select { |record| yield(record) }
+end
+p(pairs { break [7] }, upto { |n| break 5 }, upto { |n| n }, select_ready([1, 2]) { |r| r > 1 })

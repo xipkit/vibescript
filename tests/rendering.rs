@@ -54,7 +54,7 @@ fn nested_literals_round_trip_and_inspection_keeps_hash_order() {
         serde_json::json!(text)
     );
     assert_eq!(
-        evaluate("h={inspect:7,b:2,a:1};h.delete(\"b\");h[\"b\"]=3;h.inspect"),
+        evaluate("h: hash<string, int> = {inspect:7,b:2,a:1};h.delete(\"b\");h[\"b\"]=3;h.inspect"),
         serde_json::json!("{inspect: 7, a: 1, b: 3}")
     );
     assert_eq!(

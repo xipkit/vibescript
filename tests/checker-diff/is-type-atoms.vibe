@@ -1,0 +1,9 @@
+# expect: agreed
+enum Status
+  Open
+end
+class Box
+  @v: int = 1
+end
+values: array<any> = [1, 2.5, "s", :s, nil, true, [1], { a: 1 }, (1..2), 5.minutes, Box.new, Status::Open]
+p(values.map { |v| [v.is_type?(:int), v.is_type?(:number), v.is_type?(:string?), v.is_type?(:Box), v.is_type?(:Status), v.is_type?(:Missing)] })

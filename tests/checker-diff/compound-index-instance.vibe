@@ -1,0 +1,18 @@
+# expect: rejected V0101
+# A compound assignment through an instance's index wrote with `[]=`
+# without checking its parameters: here an int index where it takes a float.
+class C
+  @value: array<int>
+  def initialize
+    @value = [1]
+  end
+  def [](index: int) -> array<int>
+    @value
+  end
+  def []=(index: float, value: array<int>)
+    @value = value
+  end
+end
+c = C.new
+c[0] += [2]
+p(c[0])
