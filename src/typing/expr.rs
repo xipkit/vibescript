@@ -486,29 +486,54 @@ impl<'a> Checker<'a> {
         }
     }
 
+    /// Of the shapes among `hint`'s alternatives, the one a literal with
+    /// `entries` is checked against: one whose fields its keys fit,
+    /// preferring one that declares no field the literal leaves out, and
+    /// then the widest, which accepts the values the others do.
+    fn fitting_shape(
+        &mut self,
+        entries: &[(crate::compilation::Bytes, Expr)],
+        hint: Option<Ty>,
+    ) -> Option<Ty> {
+        let mut exact = Vec::new();
+        let mut loose = Vec::new();
+        for alternative in self.types.members(hint?) {
+            let Kind::Shape(fields, open) = self.types.kind(alternative) else {
+                continue;
+            };
+            let has = |name: &str| entries.iter().any(|(key, _)| name.as_bytes() == &key[..]);
+            let keys_fit = entries.iter().all(|(key, _)| {
+                *open || fields.iter().any(|field| field.name.as_bytes() == &key[..])
+            });
+            if !keys_fit
+                || fields
+                    .iter()
+                    .any(|field| !field.optional && !has(&field.name))
+            {
+                continue;
+            }
+            if fields.iter().all(|field| has(&field.name)) {
+                exact.push(alternative);
+            } else {
+                loose.push(alternative);
+            }
+        }
+        let candidates = if exact.is_empty() { loose } else { exact };
+        let widest = candidates.iter().copied().find(|&wide| {
+            candidates
+                .iter()
+                .all(|&other| self.types.assignable(other, wide))
+        });
+        widest.or_else(|| candidates.first().copied())
+    }
+
     fn hash_literal(
         &mut self,
         expr: &'a Expr,
         entries: &'a [(crate::compilation::Bytes, Expr)],
         hint: Option<Ty>,
     ) -> Ty {
-        // Of several shapes, the one whose fields the literal's keys fit.
-        let fitting = hint.and_then(|hint| {
-            self.types.members(hint).into_iter().find(|&alternative| {
-                let Kind::Shape(fields, open) = self.types.kind(alternative) else {
-                    return false;
-                };
-                entries.iter().all(|(key, _)| {
-                    *open || fields.iter().any(|field| field.name.as_bytes() == &key[..])
-                }) && fields.iter().all(|field| {
-                    field.optional
-                        || entries
-                            .iter()
-                            .any(|(key, _)| field.name.as_bytes() == &key[..])
-                })
-            })
-        });
-        let hint = fitting.or_else(|| {
+        let hint = self.fitting_shape(entries, hint).or_else(|| {
             self.literal_hint(hint, |kind| {
                 matches!(
                     kind,
