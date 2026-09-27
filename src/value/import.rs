@@ -62,6 +62,73 @@ impl Frame {
     }
 }
 
+/// The hash keys one import has copied, which the rest of it shares: the
+/// records of a JSON-shaped document repeat the same few keys. Short keys
+/// of small hashes are kept in a small table by a hash of their bytes, so
+/// each lookup reads one slot, and a key another key displaced is simply
+/// copied again.
+struct Keys {
+    slots: Buffer<Option<Value>>,
+    /// How many records the import has started, up to two.
+    records: u8,
+}
+
+impl Keys {
+    /// Counts a record whose next key is its first when `first`, and reports
+    /// whether the table is in use: from the second record on, when keys
+    /// can repeat.
+    #[inline(never)]
+    fn records(&mut self, first: bool) -> bool {
+        if first && self.records < 2 {
+            self.records += 1;
+        }
+        self.records == 2
+    }
+
+    const SLOTS: usize = 64;
+    const LENGTH: usize = 64;
+    /// Hashes with fewer entries than this are records, whose keys the table
+    /// shares; larger ones are dictionaries, whose keys it does not look up.
+    const RECORD: usize = 16;
+
+    fn new() -> Self {
+        Self {
+            slots: Buffer::empty(),
+            records: 0,
+        }
+    }
+
+    /// Imports the hash key `key`, sharing an equal key imported before.
+    #[inline(never)]
+    fn import(&mut self, ctx: &mut CallContext, key: &Value) -> Result<Value> {
+        let Kind::Bytes(bytes) = &key.0 else {
+            return ctx.import_scalar(key);
+        };
+        if ctx.owns(&bytes.header) || bytes.data.len() > Self::LENGTH {
+            return ctx.import_scalar(key);
+        }
+        let slot = bytes
+            .data
+            .iter()
+            .fold(0xcbf2_9ce4_8422_2325_u64, |hash, &byte| {
+                (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
+            }) as usize
+            % Self::SLOTS;
+        if let Some(Some(imported)) = self.slots.data.get(slot) {
+            if imported.as_bytes() == Some(bytes.data.as_slice()) {
+                return Ok(imported.clone());
+            }
+        }
+        let imported = ctx.import_scalar(key)?;
+        if self.slots.data.is_empty() {
+            self.slots.ensure(ctx, Self::SLOTS)?;
+            self.slots.data.resize(Self::SLOTS, None);
+        }
+        self.slots.data[slot] = Some(imported.clone());
+        Ok(imported)
+    }
+}
+
 impl CallContext {
     pub(crate) fn import_value(&mut self, value: &Value, rooted: bool) -> Result<Value> {
         self.charge(1)?;
@@ -69,6 +136,7 @@ impl CallContext {
             return self.guard(ErrorKind::Recursion, "value nesting too deep");
         }
         let mut frames: Buffer<Frame> = Buffer::empty();
+        let mut keys = Keys::new();
         let mut produced = self.open(value, rooted, &mut frames)?;
         while let Some(frame) = frames.data.last_mut() {
             if let Some(value) = produced.take() {
@@ -101,10 +169,20 @@ impl CallContext {
                     continue;
                 }
             }
+            // Records, unlike dictionaries, repeat their keys.
+            let key = matches!(
+                frame,
+                Frame::Hash { key: None, source, out, .. }
+                    if source.buffer.data.len() < Keys::RECORD && keys.records(out.data.is_empty())
+            );
             match frame.next_child() {
                 Some(child) => {
                     self.charge(1)?;
-                    produced = self.open(&child, rooted, &mut frames)?;
+                    if key {
+                        produced = Some(keys.import(self, &child)?);
+                    } else {
+                        produced = self.open(&child, rooted, &mut frames)?;
+                    }
                 }
                 None => {
                     let frame = frames.data.pop().unwrap();
