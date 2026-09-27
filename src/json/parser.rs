@@ -387,11 +387,17 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                         } else {
                             let previous = out.buffer.data.len();
                             out.insert(&mut self.ctx, std::mem::take(key), value)?;
-                            if INDEX && out.buffer.data.len() == previous {
+                            if (INDEX || RECORDS) && out.buffer.data.len() == previous {
                                 // A duplicate can release a whole subtree. Drop
                                 // cached scalar references before the next charge
                                 // so sharing cannot retain discarded values.
                                 self.clear_strings();
+                                if RECORDS {
+                                    self.records
+                                        .as_mut()
+                                        .unwrap()
+                                        .discard_unused(self.keys.as_ref());
+                                }
                             }
                         }
                         self.space_with::<INDEX>()?;

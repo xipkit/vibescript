@@ -216,6 +216,59 @@ impl<'a> Records<'a> {
         let ty = record.ty;
         self.ready[depth] = self.complete(ty);
     }
+
+    /// Releases names from discarded subtrees while preserving surviving sharing.
+    #[cold]
+    pub fn discard_unused(&mut self, keys: Option<&[[Value; 2]; 32]>) {
+        use crate::value::Kind;
+        use std::sync::Arc;
+
+        // All values are still private to this parser. Count its bounded cache
+        // references before releasing any, so names shared across shapes are
+        // removed together only when no output container owns them.
+        let mut discard = [false; 128];
+        for (slot, record) in self.entries().enumerate() {
+            for field in 0..record.fields.len() {
+                let Some(Value(Kind::Bytes(name))) = record.fields.get(field) else {
+                    continue;
+                };
+                let same = |value: &Value| matches!(&value.0, Kind::Bytes(other) if Arc::ptr_eq(name, other));
+                let fields = self
+                    .entries()
+                    .flat_map(|record| {
+                        (0..record.fields.len()).filter_map(|i| record.fields.get(i))
+                    })
+                    .filter(|value| same(value))
+                    .count();
+                let cached = keys
+                    .into_iter()
+                    .flatten()
+                    .flatten()
+                    .filter(|value| same(value))
+                    .count();
+                discard[slot * FIELD_CHUNK + field] = Arc::strong_count(name) == fields + cached;
+            }
+        }
+        for (slot, record) in self
+            .records
+            .iter_mut()
+            .map_while(Option::as_mut)
+            .enumerate()
+        {
+            for field in 0..record.fields.len() {
+                if discard[slot * FIELD_CHUNK + field] {
+                    record.fields.forget(field);
+                }
+            }
+        }
+        self.ready.fill(false);
+        self.children.fill(None);
+    }
+
+    /// Releases all names before allocating a failed document's diagnostic.
+    pub fn clear(&mut self) {
+        self.records.fill_with(|| None);
+    }
 }
 
 fn name_bit(name: &[u8]) -> u64 {
@@ -253,6 +306,139 @@ mod tests {
                     .collect(),
                 open,
             ),
+        }
+    }
+
+    #[test]
+    fn discarded_records_release_long_names_before_the_next_allocation() {
+        for array in [false, true] {
+            let names: Vec<_> = (0..9)
+                .map(|i| format!("f_{i}_{}", "x".repeat(72)))
+                .collect();
+            let names: Vec<_> = names.iter().map(String::as_str).collect();
+            let mut ty = shape(&["padding", "rows"], false);
+            let TypeKind::Shape(fields, _) = &mut ty.kind else {
+                unreachable!()
+            };
+            let row = shape(&names, false);
+            fields[1].ty = if array {
+                Type {
+                    name: "array".into(),
+                    nullable: false,
+                    kind: TypeKind::Array(Some(Box::new(row))),
+                }
+            } else {
+                row
+            };
+            let row = format!(
+                "{{{}}}",
+                names
+                    .iter()
+                    .map(|name| format!("\"{name}\":1"))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
+            let (rows, empty) = if array {
+                (format!("[{row}]"), "[]")
+            } else {
+                (row, "{}")
+            };
+            let input = format!(
+                r#"{{"rows":{rows},"rows":{empty},"padding":"{}"}}"#,
+                "x".repeat(8192)
+            );
+            let mut ordinary = CallContext::new(CallOptions::default());
+            let expected = crate::json::parse(&mut ordinary, input.as_bytes()).unwrap();
+            let before = ordinary.stats();
+            for memory in [None, Some(before.peak_memory_bytes)] {
+                let mut ctx = CallContext::new(CallOptions {
+                    limits: crate::Limits {
+                        memory_bytes: memory,
+                        ..crate::Limits::default()
+                    },
+                    ..CallOptions::default()
+                });
+                let (value, _) = crate::json::parse_typed(
+                    &mut ctx,
+                    input.as_bytes(),
+                    "JSON.parse_as",
+                    Some(&ty),
+                )
+                .unwrap();
+                assert_eq!(ctx.stats().steps, before.steps);
+                assert!(ctx.stats().peak_memory_bytes <= before.peak_memory_bytes);
+                let mut encoder = CallContext::new(CallOptions::default());
+                assert_eq!(
+                    crate::json::stringify(&mut encoder, &value)
+                        .unwrap()
+                        .as_bytes(),
+                    crate::json::stringify(&mut encoder, &expected)
+                        .unwrap()
+                        .as_bytes()
+                );
+                drop(value);
+                assert_eq!(ctx.stats().retained_memory_bytes, 0);
+            }
+        }
+    }
+
+    #[test]
+    fn duplicate_fields_preserve_names_owned_by_surviving_records() {
+        let name = format!("field_{}", "x".repeat(72));
+        let ty = Type {
+            name: "array".into(),
+            nullable: false,
+            kind: TypeKind::Array(Some(Box::new(shape(&[&name], false)))),
+        };
+        let input = padded(format!(r#"[{{"{name}":1,"{name}":2}},{{"{name}":3}}]"#));
+        let mut ctx = CallContext::new(CallOptions::default());
+        let (value, _) =
+            crate::json::parse_typed(&mut ctx, &input, "JSON.parse_as", Some(&ty)).unwrap();
+        let rows = value.as_array().unwrap();
+        assert!(std::ptr::eq(
+            rows[0].as_hash().unwrap()[0].0.as_bytes().unwrap(),
+            rows[1].as_hash().unwrap()[0].0.as_bytes().unwrap()
+        ));
+    }
+
+    #[test]
+    fn failed_records_release_names_before_formatting_a_long_diagnostic() {
+        let name = format!("field_{}", "x".repeat(72));
+        let ty = Type {
+            name: "array".into(),
+            nullable: false,
+            kind: TypeKind::Array(Some(Box::new(shape(&[&name], false)))),
+        };
+        let input = format!(r#"[{{"{name}":1}},{}e9999]"#, "9".repeat(8192));
+        let mut ordinary = CallContext::new(CallOptions::default());
+        let expected =
+            crate::json::parse_typed(&mut ordinary, input.as_bytes(), "JSON.parse_as", None)
+                .unwrap_err();
+        let before = ordinary.stats();
+        for memory in before.peak_memory_bytes.saturating_sub(2)..=before.peak_memory_bytes + 2 {
+            let run = |ty| {
+                let mut ctx = CallContext::new(CallOptions {
+                    limits: crate::Limits {
+                        memory_bytes: Some(memory),
+                        ..crate::Limits::default()
+                    },
+                    ..CallOptions::default()
+                });
+                let error =
+                    crate::json::parse_typed(&mut ctx, input.as_bytes(), "JSON.parse_as", ty)
+                        .unwrap_err();
+                (error, ctx.stats())
+            };
+            let (untyped, untyped_stats) = run(None);
+            let (typed, typed_stats) = run(Some(&ty));
+            assert_eq!(typed.kind, untyped.kind);
+            assert_eq!(typed.message, untyped.message);
+            assert_eq!(typed_stats.steps, untyped_stats.steps);
+            assert!(typed_stats.peak_memory_bytes <= untyped_stats.peak_memory_bytes);
+            if memory >= before.peak_memory_bytes {
+                assert_eq!(typed.kind, expected.kind);
+                assert_eq!(typed.message, expected.message);
+            }
         }
     }
 

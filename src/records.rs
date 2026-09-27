@@ -102,6 +102,15 @@ impl Fields {
         }
     }
 
+    /// Releases a cached name that no completed record still owns.
+    pub(crate) fn forget(&mut self, index: usize) {
+        self.imported -= usize::from(self.get(index).is_some());
+        match &mut self.inline {
+            Some((keys, _)) => keys[index] = Value::nil(),
+            None => self.keys.data[index] = Value::nil(),
+        }
+    }
+
     /// Whether every declared name has been imported.
     pub(crate) fn complete(&self) -> bool {
         self.imported == self.len()

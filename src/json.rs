@@ -135,6 +135,9 @@ fn typed_document<'a, C: accounting::Context>(
         Err(error) => error,
     };
     p.clear_strings();
+    if let Some(records) = p.records.as_mut() {
+        records.clear();
+    }
     parse_error(&mut p.ctx, input, name, failure, error)
 }
 
