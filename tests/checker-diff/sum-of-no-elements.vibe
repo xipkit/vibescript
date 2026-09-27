@@ -1,0 +1,6 @@
+# expect: rejected V0101
+# `sum` of an array whose elements are `never`, such as `[nil].compact`, was
+# typed `never`, which any annotation accepts, but it is 0.
+x = [nil].compact.sum
+y: nil = [x].last
+p(y)

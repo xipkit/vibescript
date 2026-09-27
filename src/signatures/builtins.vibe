@@ -475,7 +475,7 @@ end
 
 class array<T: int>
   # Adds the elements, starting from 0.
-  def sum -> T
+  def sum -> int
 end
 
 class array<T: number | money | duration>
