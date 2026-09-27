@@ -144,6 +144,34 @@ fn reports_every_type_error_with_its_code() {
 const OLD: &str = "names = %w[ada grace]\nn = names.size\nputs n unless n == 0\n";
 
 #[test]
+fn foreign_name_notes_reach_text_and_json_diagnostics() {
+    let files = Files::new();
+    files.write(
+        "foreign.vibe",
+        "len([1])\nfmt.Sprintf(\"%d\", 1)\nstrings.ToLower(\"HI\")\n",
+    );
+    let text = vibes_in(Some(&files.0), &["check", "foreign.vibe"]);
+    assert_eq!(text.status, Some(1), "{text:?}");
+    for advice in ["x.length", "format(pattern, ...)", "text.downcase"] {
+        assert!(text.stdout.contains(advice), "{text:?}");
+    }
+    let json = vibes_in(Some(&files.0), &["check", "--json", "foreign.vibe"]);
+    let diagnostics: Vec<serde_json::Value> = json
+        .stdout
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(diagnostics.len(), 3, "{json:?}");
+    for diagnostic in &diagnostics {
+        assert_eq!(diagnostic["code"], "V0201");
+        assert_eq!(diagnostic["labels"].as_array().unwrap().len(), 1);
+    }
+    assert_eq!(diagnostics[0]["fixes"][0]["applicability"], "always");
+    assert!(diagnostics[1]["fixes"].as_array().unwrap().is_empty());
+    assert!(diagnostics[2]["fixes"].as_array().unwrap().is_empty());
+}
+
+#[test]
 fn check_json_prints_one_object_per_diagnostic() {
     let files = Files::new();
     files.write("names.vibe", OLD);

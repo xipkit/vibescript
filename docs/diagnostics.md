@@ -6,6 +6,8 @@ A fix includes a message, an applicability and a list of text edits. `always` me
 
 For V0107, bind an optional read to a local and test that local with `!= nil`. Arrays, dictionaries and regex match data can instead use `fetch` when absence should raise; strings have no `fetch`, and fetching a nullable collection element does not remove its nil possibility. V0114 names the qualified enum members needed in a `when`, such as `State::Closed`.
 
+V0201 adds a note for common Ruby, Python, JavaScript and Go names: `len(x)` uses `x.length`, `fmt.Sprintf(pattern, ...)` uses `format(pattern, ...)`, and `strings.ToLower(text)` uses `text.downcase`. These notes are related `labels` in JSON diagnostics. They apply only when the name is undefined; scripts and hosts may still declare these names. The curated table lives in `src/typing/foreign.rs`. Most entries offer advice only because argument conventions, conversion failures or formatting behavior can differ. `len` with one positional argument of a known array, tuple, dictionary or record type offers a machine-applicable `length` edit; strings get a note because character and byte counts differ between languages.
+
 ## Execution failures
 
 Compile and execution failures expose an `Error` with a category, a bare message, and optional source context. `offset` is a zero-based byte offset. `diagnostic.position` contains a one-based line and Unicode character column; `diagnostic.code_frame` is a bounded source snippet, and `diagnostic.frames` contains the complete script call trace. Required files set `diagnostic.filename` and each frame's `filename` to shared root-relative filename bytes. Sources compiled directly by the host have no filename. The bytes preserve filesystem spelling, including non-UTF-8 names.

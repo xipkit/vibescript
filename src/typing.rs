@@ -30,6 +30,7 @@ mod check;
 mod construction;
 mod expr;
 mod flow;
+mod foreign;
 mod modules;
 mod program;
 mod sigs;

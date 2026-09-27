@@ -58,6 +58,16 @@ fn fixes_required_regex_captures_and_runs_the_result() {
 }
 
 #[test]
+fn fixes_foreign_collection_length_and_runs_the_result() {
+    let files = Files::new();
+    files.write("length.vibe", "puts len([1, 2])\n");
+    let run = vibes_in(Some(&files.0), &["fix", "length.vibe"]);
+    assert_eq!(run.status, Some(0), "{run:?}");
+    assert!(run.stdout.contains("fixed V0201"), "{run:?}");
+    vibes_in(Some(&files.0), &["run", "length.vibe"]).expect(0, "2\n", "");
+}
+
+#[test]
 fn a_dry_run_prints_a_diff_and_writes_nothing() {
     let files = Files::new();
     files.write("names.vibe", OLD);

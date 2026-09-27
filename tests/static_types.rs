@@ -20,6 +20,8 @@ mod collections;
 mod conditions;
 #[path = "static_types/engine.rs"]
 mod engine;
+#[path = "static_types/foreign.rs"]
+mod foreign;
 #[path = "static_types/gaps.rs"]
 mod gaps;
 #[path = "static_types/hosts.rs"]

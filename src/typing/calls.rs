@@ -255,12 +255,8 @@ impl<'a> Checker<'a> {
         } else {
             format!("`{name}` is not a function, method or builtin in scope")
         };
-        self.report(Diagnostic::error(
-            Code::UNDEFINED_NAME,
-            call.name_span,
-            message,
-        ));
-        self.loose_args(&call);
+        let diagnostic = Diagnostic::error(Code::UNDEFINED_NAME, call.name_span, message);
+        self.foreign_call(expr, &call, diagnostic);
         Ty::ERROR
     }
 
@@ -479,6 +475,9 @@ impl<'a> Checker<'a> {
         if let Some(outer) = outer {
             self.field_addresses(receiver, name);
             self.restore_memo(outer);
+        }
+        if ty == Ty::ERROR {
+            self.foreign_namespace(receiver, name);
         }
         if ty != Ty::ERROR && block.is_none() {
             let called = if safe { self.types.without_nil(ty) } else { ty };
