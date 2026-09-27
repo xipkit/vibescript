@@ -140,6 +140,37 @@ def benchmark_cases():
     add("record_update",'acc={ count: 0, total: 0 }\ni=0\nwhile i<input\n acc["count"]+=1\n acc["total"]+=i\n i+=1\nend\nacc["total"]+acc["count"]',1000,499500+1000,returns="int",param="int")
     add("record_build",'rows: array<{ id: int, score: int, label: string }> = []\ni=0\nwhile i<input\n rows << { id: i, score: i*3, label: "r" }\n i+=1\nend\ntotal=0\nrows.each { |r| total+=r["score"] }\ntotal',1000,3*499500,returns="int",param="int")
     add("records_retained",'rows: array<{ id: int, name: string, active: bool }> = []\ni=0\nwhile i<input\n rows << { id: i, name: "row", active: i%2==0 }\n i+=1\nend\nrows',512,[{"id":i,"name":"row","active":i%2==0} for i in range(512)],returns="array<{ id: int, name: string, active: bool }>",param="int")
+    # Glue: an API response parsed into records, transformed and serialized.
+    orders=[{"id":i,"customer":{"name":f"customer-{i}","tier":"gold" if i%3==0 else "silver"},
+             "items":[{"sku":f"sku-{i}-{j}","qty":j+1,"price":100+i+j} for j in range(3)]} for i in range(64)]
+    raw=json.dumps(orders,separators=(",",":"))
+    order_type='array<{ id: int, customer: { name: string, tier: string }, items: array<{ sku: string, qty: int, price: int }> }>'
+    def glue(seq):
+        return ('orders=JSON.parse_as(input, '+order_type+')\n'
+                'out: array<{ id: int, name: string, total: int, seq: int }> = []\n'
+                'n=0\n'
+                'orders.each { |order|\n'
+                ' total=0\n'
+                ' order["items"].each { |item| total+=item["qty"]*item["price"] }\n'
+                ' if order["customer"]["tier"] == "gold"\n'
+                '  total=total*90//100\n'
+                ' end\n'
+                ' n+=1\n'
+                ' out << { id: order["id"], name: order["customer"]["name"], total: total, seq: '+seq+' }\n'
+                '}\n'
+                'JSON.stringify(out)')
+    def glue_total(order):
+        total=sum(item["qty"]*item["price"] for item in order["items"])
+        return total*90//100 if order["customer"]["tier"]=="gold" else total
+    glued=json.dumps([{"id":o["id"],"name":o["customer"]["name"],"total":glue_total(o),"seq":i+1} for i,o in enumerate(orders)],separators=(",",":"))
+    add("glue_orders",glue("n"),raw,glued,returns="string",param="string")
+    add("glue_orders_cap",glue("host.next.as(int)"),raw,glued,returns="string",param="string")
+    cases[-1]["capability_probe"]=True
+    # The JSON and record workloads again with a host capability bound, as
+    # glue services run them.
+    for base in ["json_transform","json_object_512","hash_lookup","member_calls","record_fields","record_build","records_retained"]:
+        case=next(case for case in cases if case["name"]==base)
+        cases.append({**case,"name":base+"_cap","capability_probe":True})
     for name,path,function_name,arg,expected in [
         ("upstream_fibonacci","examples/control_flow/recursion.vibe","fibonacci",12,144),
         ("upstream_countdown","examples/control_flow/while_loop.vibe","countdown",50,list(range(50,0,-1))),
