@@ -25,24 +25,23 @@ impl std::error::Error for ParseError {}
 
 type Result<T> = std::result::Result<T, ParseError>;
 
-#[derive(Clone, Debug, PartialEq)]
-enum Token {
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Token<'a> {
     /// An identifier, which may end in `?` or `!`.
-    Word(String),
+    Word(&'a str),
     /// A symbol literal without its colon.
-    Symbol(String),
+    Symbol(&'a str),
     /// A number, string, `nil`, `true` or `false` literal, as written.
-    Literal(String),
+    Literal(&'a str),
     Punct(&'static str),
-    Comment(String),
+    Comment(&'a str),
     Newline,
     End,
 }
 
-struct Lexed {
-    token: Token,
-    line: usize,
-    column: usize,
+struct Lexed<'a> {
+    token: Token<'a>,
+    offset: usize,
 }
 
 const PUNCTUATION: [&str; 19] = [
@@ -50,9 +49,16 @@ const PUNCTUATION: [&str; 19] = [
     ".",
 ];
 
-fn lex(source: &str) -> Result<Vec<Lexed>> {
+fn lex(source: &str) -> Result<Vec<Lexed<'_>>> {
     let mut tokens = Vec::new();
-    for (index, line) in source.lines().enumerate() {
+    let mut offset = 0;
+    for (index, raw) in source.split_inclusive('\n').enumerate() {
+        let line = match raw.strip_suffix('\n') {
+            Some(line) => line.strip_suffix('\r').unwrap_or(line),
+            None => raw,
+        };
+        let start = offset;
+        offset += raw.len();
         let mut rest = line;
         let column = |rest: &str| line.len() - rest.len() + 1;
         loop {
@@ -61,7 +67,7 @@ fn lex(source: &str) -> Result<Vec<Lexed>> {
                 None => break,
                 Some('#') => {
                     let text = rest[1..].strip_prefix(' ').unwrap_or(&rest[1..]);
-                    (Token::Comment(text.trim_end().to_owned()), "")
+                    (Token::Comment(text.trim_end()), "")
                 }
                 Some('"') => {
                     let end = string_end(rest).ok_or_else(|| ParseError {
@@ -69,13 +75,13 @@ fn lex(source: &str) -> Result<Vec<Lexed>> {
                         column: column(rest),
                         message: "unterminated string".to_owned(),
                     })?;
-                    (Token::Literal(rest[..end].to_owned()), &rest[end..])
+                    (Token::Literal(&rest[..end]), &rest[end..])
                 }
                 Some(':')
                     if rest[1..].starts_with(|c: char| c.is_ascii_alphabetic() || c == '_') =>
                 {
                     let end = 1 + word_end(&rest[1..]);
-                    (Token::Symbol(rest[1..end].to_owned()), &rest[end..])
+                    (Token::Symbol(&rest[1..end]), &rest[end..])
                 }
                 Some(c)
                     if c.is_ascii_digit()
@@ -84,15 +90,15 @@ fn lex(source: &str) -> Result<Vec<Lexed>> {
                     let end = 1 + rest[1..]
                         .find(|c: char| !c.is_ascii_digit() && c != '.' && c != '_')
                         .unwrap_or(rest.len() - 1);
-                    (Token::Literal(rest[..end].to_owned()), &rest[end..])
+                    (Token::Literal(&rest[..end]), &rest[end..])
                 }
                 Some(c) if c.is_ascii_alphabetic() || c == '_' => {
                     let end = word_end(rest);
                     let word = &rest[..end];
                     let token = if matches!(word, "nil" | "true" | "false") {
-                        Token::Literal(word.to_owned())
+                        Token::Literal(word)
                     } else {
-                        Token::Word(word.to_owned())
+                        Token::Word(word)
                     };
                     (token, &rest[end..])
                 }
@@ -112,22 +118,18 @@ fn lex(source: &str) -> Result<Vec<Lexed>> {
             };
             tokens.push(Lexed {
                 token,
-                line: index + 1,
-                column: column(rest),
+                offset: start + column(rest) - 1,
             });
             rest = remaining;
         }
         tokens.push(Lexed {
             token: Token::Newline,
-            line: index + 1,
-            column: line.len() + 1,
+            offset: start + line.len(),
         });
     }
-    let line = source.lines().count() + 1;
     tokens.push(Lexed {
         token: Token::End,
-        line,
-        column: 1,
+        offset: source.len(),
     });
     Ok(tokens)
 }
@@ -157,8 +159,9 @@ fn string_end(text: &str) -> Option<usize> {
     None
 }
 
-struct Parser {
-    tokens: Vec<Lexed>,
+struct Parser<'a> {
+    source: &'a str,
+    tokens: Vec<Lexed<'a>>,
     pos: usize,
     /// Type variables in scope, innermost last.
     vars: Vec<String>,
@@ -169,6 +172,7 @@ struct Parser {
 
 pub(super) fn table(source: &str) -> Result<Table> {
     let mut parser = Parser {
+        source,
         tokens: lex(source)?,
         pos: 0,
         vars: Vec::new(),
@@ -178,24 +182,22 @@ pub(super) fn table(source: &str) -> Result<Table> {
     let mut items = Vec::new();
     loop {
         let doc = parser.doc()?;
-        match parser.peek().clone() {
+        match *parser.peek() {
             Token::End => {
                 if !doc.is_empty() {
                     return parser.fail("a comment must precede a declaration");
                 }
                 break;
             }
-            Token::Word(word) if word == "def" => {
+            Token::Word("def") => {
                 let start = parser.pos;
                 let function = parser.function(doc)?;
                 parser.overload("", &function, start)?;
                 items.push(Item::Function(function));
             }
-            Token::Word(word) if word == "module" => {
-                items.push(Item::Module(parser.module(doc, "")?))
-            }
-            Token::Word(word) if word == "class" => items.push(Item::Class(parser.class(doc)?)),
-            Token::Word(word) if word == "type" => items.push(Item::Alias(parser.alias(doc)?)),
+            Token::Word("module") => items.push(Item::Module(parser.module(doc, "")?)),
+            Token::Word("class") => items.push(Item::Class(parser.class(doc)?)),
+            Token::Word("type") => items.push(Item::Alias(parser.alias(doc)?)),
             Token::Word(_) => items.push(Item::Constant(parser.constant(doc)?)),
             _ => return parser.fail("expected a declaration"),
         }
@@ -204,13 +206,13 @@ pub(super) fn table(source: &str) -> Result<Table> {
     Ok(Table { header, items })
 }
 
-impl Parser {
-    fn peek(&self) -> &Token {
+impl<'a> Parser<'a> {
+    fn peek(&self) -> &Token<'a> {
         &self.tokens[self.pos].token
     }
 
-    fn next(&mut self) -> Token {
-        let token = self.tokens[self.pos].token.clone();
+    fn next(&mut self) -> Token<'a> {
+        let token = self.tokens[self.pos].token;
         if token != Token::End {
             self.pos += 1;
         }
@@ -219,9 +221,20 @@ impl Parser {
 
     fn fail<T>(&self, message: impl Into<String>) -> Result<T> {
         let token = &self.tokens[self.pos];
+        let (line, column) = if token.token == Token::End {
+            (self.source.lines().count() + 1, 1)
+        } else {
+            let before = &self.source[..token.offset];
+            (
+                before.bytes().filter(|byte| *byte == b'\n').count() + 1,
+                before
+                    .rfind('\n')
+                    .map_or(token.offset + 1, |at| token.offset - at),
+            )
+        };
         Err(ParseError {
-            line: token.line,
-            column: token.column,
+            line,
+            column,
             message: message.into(),
         })
     }
@@ -259,7 +272,7 @@ impl Parser {
     fn word(&mut self, what: &str) -> Result<String> {
         match self.peek() {
             Token::Word(word) => {
-                let word = word.clone();
+                let word = (*word).to_owned();
                 self.pos += 1;
                 Ok(word)
             }
@@ -305,7 +318,7 @@ impl Parser {
     fn comments(&mut self) -> Vec<String> {
         let mut lines = Vec::new();
         while let Token::Comment(text) = self.peek() {
-            lines.push(text.clone());
+            lines.push((*text).to_owned());
             self.pos += 1;
             if *self.peek() == Token::Newline {
                 self.pos += 1;
@@ -371,15 +384,15 @@ impl Parser {
             self.expect("]")?;
             return Ok(Type::Tuple(elements));
         }
-        let word = match self.peek().clone() {
+        let word = match *self.peek() {
             Token::Word(word) => word,
-            Token::Literal(literal) if literal == "nil" => literal,
+            Token::Literal("nil") => "nil",
             _ => return self.fail("expected a receiver type"),
         };
         self.pos += 1;
         let (name, nullable) = match word.strip_suffix('?') {
             Some(name) => (name.to_owned(), true),
-            None => (word, false),
+            None => (word.to_owned(), false),
         };
         let ty = if variable(&name) {
             if vars.iter().any(|var| var.name == name) {
@@ -416,19 +429,17 @@ impl Parser {
         loop {
             let doc = self.doc()?;
             let start = self.pos;
-            let member = match self.peek().clone() {
-                Token::Word(word) if word == "end" && doc.is_empty() => {
+            let member = match *self.peek() {
+                Token::Word("end") if doc.is_empty() => {
                     self.pos += 1;
                     return Ok(members);
                 }
-                Token::Word(word) if word == "def" => {
+                Token::Word("def") => {
                     let function = self.function(doc)?;
                     self.overload(scope, &function, start)?;
                     Member::Function(function)
                 }
-                Token::Word(word) if word == "module" && !class => {
-                    Member::Module(self.module(doc, scope)?)
-                }
+                Token::Word("module") if !class => Member::Module(self.module(doc, scope)?),
                 Token::Word(_) if !class => Member::Constant(self.constant(doc)?),
                 _ => return self.fail("expected a member declaration or `end`"),
             };
@@ -615,7 +626,7 @@ impl Parser {
                 return self.fail("a parameter with a default is written `name: T = value`");
             }
             match self.next() {
-                Token::Literal(literal) => Some(literal),
+                Token::Literal(literal) => Some(literal.to_owned()),
                 Token::Symbol(symbol) => Some(format!(":{symbol}")),
                 _ => {
                     self.pos -= 1;
@@ -711,18 +722,18 @@ impl Parser {
                 self.expect("]")?;
                 Ok(Type::Tuple(elements))
             }
-            Token::Symbol(symbol) => Ok(Type::Symbol(symbol)),
-            Token::Literal(literal) if literal == "nil" => Ok(Type::name("nil")),
-            Token::Word(word) if self.vars.contains(&word) => Ok(Type::Var(word)),
+            Token::Symbol(symbol) => Ok(Type::Symbol(symbol.to_owned())),
+            Token::Literal("nil") => Ok(Type::name("nil")),
+            Token::Word(word) if self.vars.iter().any(|var| var == word) => {
+                Ok(Type::Var(word.to_owned()))
+            }
             Token::Word(word) => {
-                let mut name = word;
-                let mut ty_optional = false;
-                if let Some(stripped) = name.strip_suffix('?') {
-                    name = stripped.to_owned();
-                    ty_optional = true;
-                }
-                if self.vars.contains(&name) {
-                    return Ok(optional(Type::Var(name)));
+                let (name, ty_optional) = match word.strip_suffix('?') {
+                    Some(name) => (name, true),
+                    None => (word, false),
+                };
+                if self.vars.iter().any(|var| var == name) {
+                    return Ok(optional(Type::Var(name.to_owned())));
                 }
                 let mut args = Vec::new();
                 if !ty_optional && self.eat("<") {
@@ -734,7 +745,7 @@ impl Parser {
                     }
                     self.expect(">")?;
                 }
-                let ty = Type::Name(name, args);
+                let ty = Type::Name(name.to_owned(), args);
                 Ok(if ty_optional { optional(ty) } else { ty })
             }
             _ => {
@@ -757,7 +768,7 @@ impl Parser {
                 break;
             }
             let mut name = match self.next() {
-                Token::Word(word) => word,
+                Token::Word(word) => word.to_owned(),
                 Token::Literal(literal) if literal.starts_with('"') => {
                     unescape(&literal[1..literal.len() - 1])
                 }

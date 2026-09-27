@@ -563,3 +563,28 @@ fn the_engine_prelude_adds_host_declarations_after_the_builtins() {
     assert_eq!(table.to_string(), prelude);
     assert_eq!(Engine::new().prelude(&CallOptions::default()), builtins);
 }
+
+#[test]
+fn signature_errors_keep_byte_columns_and_synthetic_end_lines() {
+    for (source, line, column) in [
+        ("module Math\n  def bad(value: ) -> int\nend\n", 2, 18),
+        (
+            "module Math\n  # π\n  def bad(value: ) -> int\nend\n",
+            3,
+            18,
+        ),
+        ("def bad(x: string = \"π\", y: ) -> int\n", 1, 30),
+        ("module Math", 2, 1),
+        ("module Math\n", 2, 1),
+        ("module Math\n\n", 3, 1),
+        ("def bad(value:", 1, 15),
+        ("def bad(value:\n", 1, 15),
+    ] {
+        for source in [source.to_owned(), source.replace('\n', "\r\n")] {
+            let error = Table::parse(&source).unwrap_err();
+            assert_eq!((error.line, error.column), (line, column), "{source:?}");
+        }
+    }
+    let error = Table::parse("module Math\r").unwrap_err();
+    assert_eq!((error.line, error.column), (1, 12));
+}
