@@ -612,7 +612,7 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
         self.decode_string::<INDEX>(start)
     }
 
-    #[inline(always)]
+    #[inline(never)]
     fn decode_string<const INDEX: bool>(&mut self, start: usize) -> Result<Value> {
         self.decoded_start = start;
         let mut out = Buffer::with_capacity(&mut self.ctx, self.pos - start)?;
@@ -654,7 +654,12 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
                     pending += span.steps;
                 }
                 let bytes = &self.input[self.pos..self.pos + span.len];
-                out.extend_deferred(self.ctx.settled(), bytes, &mut pending)?;
+                if bytes.len() == 1 && out.data.len() < out.data.capacity() {
+                    out.data.push(bytes[0]);
+                    pending += 1;
+                } else {
+                    out.extend_deferred(self.ctx.settled(), bytes, &mut pending)?;
+                }
                 self.pos += span.len;
                 continue;
             }
@@ -676,7 +681,11 @@ impl<'a, 'r, C: super::accounting::Context> Parser<'a, 'r, C> {
             };
             if let Some(byte) = byte {
                 self.pos += 1;
-                out.push_deferred(self.ctx.settled(), byte, &mut pending)?;
+                if out.data.len() < out.data.capacity() {
+                    out.data.push(byte);
+                } else {
+                    out.push_deferred(self.ctx.settled(), byte, &mut pending)?;
+                }
                 continue;
             }
             if b >= 128 {
