@@ -444,6 +444,10 @@ pub(crate) struct Function {
     /// Iterating member calls whose receiver and arguments are plain, so
     /// the values they give their block need no scan either.
     pub plain_inputs: Bits,
+    /// Writes of an instance variable whose type the checker proves, so the
+    /// runtime does not check the value against it (see
+    /// [`Program::prove_instance_variables`]).
+    pub proven_ivars: Bits,
     pub captures: Vec<Option<Capture>>,
     pub block_arity: usize,
     pub local_names: Vec<String>,
@@ -704,6 +708,7 @@ pub(crate) fn compile_parsed(
             code: c.code,
             plain_values: c.plain_values,
             plain_inputs: c.plain_inputs,
+            proven_ivars: Bits::default(),
             captures: Vec::new(),
             block_arity: 0,
             returns_nil,
@@ -713,8 +718,89 @@ pub(crate) fn compile_parsed(
         program.functions[index] = function;
     }
     program.shared_slots = HashMap::new();
+    program.prove_instance_variables(work)?;
     work.checkpoint()?;
     Ok(program)
+}
+
+impl Program {
+    /// Marks the writes of instance variables in each class's methods whose
+    /// check the checker proves: an instance variable whose declared or
+    /// accessor type is absent, or is a type the checker proves (see
+    /// [`crate::types::Type::unproven`]). A method runs only on an instance
+    /// of its own class, so its writes reach that class's variables, typed
+    /// as the runtime would find them.
+    fn prove_instance_variables(&mut self, work: &dyn crate::compilation::Work) -> Result<()> {
+        for index in 0..self.functions.len() {
+            let function = &self.functions[index];
+            let (true, Some(class)) = (function.instance, function.namespace) else {
+                continue;
+            };
+            let mut proven = Bits::default();
+            for (ip, op) in function.code.iter().enumerate() {
+                work.charge(1)?;
+                let (Op::NamespaceStore(name)
+                | Op::NamespaceAddress(name, _)
+                | Op::BindIvar(name, _)) = *op
+                else {
+                    continue;
+                };
+                let raw = &self.members[name];
+                let field = raw.strip_prefix('@').unwrap_or(raw);
+                let checked = matches!(op, Op::BindIvar(..))
+                    || (raw.starts_with('@') && !raw.starts_with("@@"));
+                if checked
+                    && self
+                        .instance_variable_type(class, field)
+                        .is_none_or(|ty| !self.types[ty].unproven())
+                {
+                    proven.insert(ip);
+                }
+            }
+            self.functions[index].proven_ivars = proven;
+        }
+        Ok(())
+    }
+
+    /// The type an instance of `class` checks its variable `name` against,
+    /// as the runtime's `property_type` finds it: the declared type, or else
+    /// the type of a generated setter's value or getter's result.
+    fn instance_variable_type(&self, class: usize, name: &str) -> Option<usize> {
+        if let Some(&(_, ty)) = self
+            .ivars
+            .get(&class)
+            .and_then(|ivars| ivars.iter().find(|(field, _)| field == name))
+        {
+            return Some(ty);
+        }
+        let methods = &self.namespaces[class].instance_methods;
+        let mut getter = None;
+        let mut setter = None;
+        for method in methods {
+            if method.name.strip_suffix('=') == Some(name) {
+                setter = Some(method.function);
+            }
+            if method.name == name {
+                getter = Some(method.function);
+            }
+        }
+        if let Some(setter) = setter {
+            let function = &self.functions[setter];
+            return function
+                .accessor
+                .as_ref()
+                .filter(|(field, setter)| field == name && *setter)
+                .and_then(|_| function.params.first().and_then(|param| param.ty));
+        }
+        getter.and_then(|getter| {
+            let function = &self.functions[getter];
+            function
+                .accessor
+                .as_ref()
+                .filter(|(field, setter)| field == name && !setter)
+                .and(function.return_type)
+        })
+    }
 }
 
 fn local_names(

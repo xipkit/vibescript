@@ -779,14 +779,18 @@ impl Run {
                     let instance = instance.clone();
                     let slot = frame.local_base + local;
                     let value = storage.locals.data[slot].as_ref().unwrap().clone();
-                    let value = normalize_ivar(
-                        ctx,
-                        frames,
-                        storage,
-                        &instance,
-                        &program.members[name],
-                        value,
-                    )?;
+                    let value = if function.proven_ivars.contains(frame.ip - 1) {
+                        value
+                    } else {
+                        normalize_ivar(
+                            ctx,
+                            frames,
+                            storage,
+                            &instance,
+                            &program.members[name],
+                            value,
+                        )?
+                    };
                     set_ivar(ctx, storage, &instance, &program.members[name], &value)?;
                     storage.locals.data[slot] = Some(value);
                 }
@@ -1003,7 +1007,8 @@ impl Run {
                                 "no instance context for ivar",
                             ));
                         };
-                        let address = crate::objects::address(ctx, instance, &raw[1..])?;
+                        let mut address = crate::objects::address(ctx, instance, &raw[1..])?;
+                        address.proven = function.proven_ivars.contains(frame.ip - 1);
                         storage.addresses.push(ctx, address)?;
                         continue;
                     }
@@ -1049,14 +1054,12 @@ impl Run {
                                 "no instance context for ivar",
                             ));
                         };
-                        let value = normalize_ivar(
-                            ctx,
-                            frames,
-                            storage,
-                            instance,
-                            &raw[1..],
-                            stack.data.last().unwrap().clone(),
-                        )?;
+                        let value = stack.data.last().unwrap().clone();
+                        let value = if function.proven_ivars.contains(frame.ip - 1) {
+                            value
+                        } else {
+                            normalize_ivar(ctx, frames, storage, instance, &raw[1..], value)?
+                        };
                         set_ivar(ctx, storage, instance, &raw[1..], &value)?;
                         *stack.data.last_mut().unwrap() = value;
                         continue;
@@ -3520,7 +3523,7 @@ fn address_guard<'a>(
     storage: &mut Storage,
     address: &Address,
 ) -> Result<Option<crate::types::Prepared<'a>>> {
-    let Some((instance, field)) = address.object_binding() else {
+    let Some((instance, field)) = address.object_binding().filter(|_| !address.proven) else {
         return Ok(None);
     };
     let program = program.expect("object address has an owning program");

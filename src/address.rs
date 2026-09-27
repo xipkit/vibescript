@@ -76,6 +76,9 @@ pub(crate) struct Address {
     /// the value is nil and a write cannot reach its place. The address is
     /// then unrooted, and its path holds only that index.
     missing: bool,
+    /// Whether the checker proves every value stored through this address,
+    /// so an instance variable it reaches needs no type guard.
+    pub proven: bool,
 }
 
 impl Address {
@@ -100,6 +103,7 @@ impl Address {
             exported: None,
             capability: None,
             missing: false,
+            proven: false,
         }
     }
 
@@ -262,6 +266,7 @@ impl Address {
             exported: _,
             capability: _,
             missing: _,
+            proven: _,
         } = self;
         let Some(root) = root else {
             return action(ctx, value).map(|(_, result)| result);
