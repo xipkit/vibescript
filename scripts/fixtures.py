@@ -128,6 +128,39 @@ def benchmark_cases():
     add("array_each","total=0\ninput.each { |n| total+=n }\ntotal",list(range(1000)),499500,returns="int",param="array<int>")
     add("array_map_select","input.map { |n| n*3 }.select { |n| n%2==0 }.length",list(range(1000)),500,returns="int",param="array<int>")
     add("nested_blocks","total=0\ninput.each { |a|\n input.each { |b| total+=a*b }\n}\ntotal",list(range(32)),sum(range(32))**2,returns="int",param="array<int>")
+    # Service loops, with expectations computed independently of the script.
+    sales=[{"price":100+i*7,"qty":i%5+1,"active":i%7!=0,"bucket":f"region-{i%8}"} for i in range(256)]
+    sale_type="array<{ price: int, qty: int, active: bool, bucket: string }>"
+    active=[row for row in sales if row["active"]]
+    add("loop_record_totals",'total=0\nunits=0\ninput.each { |row|\n next if !row["active"]\n total+=row["price"]*row["qty"]\n units+=row["qty"]\n}\n[total,units]',sales,[sum(row["price"]*row["qty"] for row in active),sum(row["qty"] for row in active)],returns="[int, int]",param=sale_type)
+    counts={}
+    for row in active:
+        counts[row["bucket"]]=counts.get(row["bucket"],0)+1
+    add("loop_bucket_counts",'counts: hash<string, int> = {}\ninput.each { |row|\n next if !row["active"]\n key=row["bucket"]\n counts[key]=counts.fetch(key,0)+1\n}\ncounts',sales,counts,returns="hash<string, int>",param=sale_type)
+    nested_total=0
+    for a in range(32):
+        if a%3==0:
+            continue
+        for b in range(32):
+            if b>a+4:
+                break
+            if (a+b)%2==0:
+                continue
+            nested_total+=a*b
+    add("loop_nested_control","total=0\nfor a in 0...input\n next if a%3==0\n for b in 0...input\n  break if b>a+4\n  next if (a+b)%2==0\n  total+=a*b\n end\nend\ntotal",32,nested_total,returns="int",param="int")
+    add("block_nested_control","total=0\ninput.each { |a|\n next if a%3==0\n input.each { |b|\n  break if b>a+4\n  next if (a+b)%2==0\n  total+=a*b\n }\n}\ntotal",list(range(32)),nested_total,returns="int",param="array<int>")
+    add("loop_times","total=0\ninput.times { |i| total+=i*i%7 }\ntotal",1000,sum(i*i%7 for i in range(1000)),returns="int",param="int")
+    add("array_each_index","total=0\ninput.each_with_index { |n,i| total+=n*(i%5) }\ntotal",list(range(1000)),sum(n*(i%5) for i,n in enumerate(range(1000))),returns="int",param="array<int>")
+    for collection,argument,param in [("array",list(range(1000)),"array<int>"),("range",1000,"int")]:
+        receiver="input" if collection=="array" else "(0...input)"
+        if collection=="range":
+            add("range_each",f"total=0\n{receiver}.each {{ |n| total+=n }}\ntotal",argument,499500,returns="int",param=param)
+        add(collection+"_map",f"{receiver}.map {{ |n| n*3+1 }}",argument,[n*3+1 for n in range(1000)],returns="array<int>",param=param)
+        add(collection+"_select",f"{receiver}.select {{ |n| n%3==0 }}",argument,[n for n in range(1000) if n%3==0],returns="array<int>",param=param)
+        add(collection+"_reduce",f"{receiver}.reduce(0) {{ |total,n| total+n*n%7 }}",argument,sum(n*n%7 for n in range(1000)),returns="int",param=param)
+    add("loop_array_build","out: array<int> = []\nfor i in 0...input\n next if i%3==0\n out << i*2\nend\nout",1000,[i*2 for i in range(1000) if i%3!=0],returns="array<int>",param="int")
+    labels=[f"key-{i}" for i in range(256)]
+    add("loop_string_build",'out=""\ninput.each_with_index { |label,i|\n out+=label\n out+=":"\n out+="#{i}"\n out+=";"\n}\nout',labels,"".join(f"{label}:{i};" for i,label in enumerate(labels)),returns="string",param="array<string>")
     add("block_yield","",500,500000,source="def twice(n: int, &block: int -> int) -> int\n yield(n)+yield(n+1)\nend\n"+function("i=0\ntotal=0\nwhile i<input\n total+=twice(i) { |x| x*2 }\n i+=1\nend\ntotal","int","int"))
     add("method_calls","",500,124750,source="class Counter\n @count: int = 0\n def add(n: int) -> int\n  @count+=n\n  @count\n end\nend\n"+function("c=Counter.new\ni=0\nwhile i<input\n c.add(i)\n i+=1\nend\nc.add(0)","int","int"))
     words=[("a" if i%2==0 else "b")+f"word{i}" for i in range(256)]
