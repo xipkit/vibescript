@@ -157,6 +157,32 @@ pub(super) fn run(
                     }
                     None => ops::binary(ctx, op.name(), a, b)?,
                 };
+                if let Kind::Bool(value) = value.0 {
+                    match function.code[frame.ip] {
+                        Op::JumpFalse(target) => {
+                            step(ctx, frame)?;
+                            if !value {
+                                frame.ip = target as usize;
+                            }
+                            continue;
+                        }
+                        Op::JumpTrue(target) => {
+                            step(ctx, frame)?;
+                            if value {
+                                frame.ip = target as usize;
+                            }
+                            continue;
+                        }
+                        Op::LoopTest => {
+                            step(ctx, frame)?;
+                            if !value {
+                                frame.ip = storage.loops.data.last().unwrap().end;
+                            }
+                            continue;
+                        }
+                        _ => (),
+                    }
+                }
                 push(ctx, stack, value)?;
             }
             Op::Index(n) => {
@@ -298,6 +324,19 @@ pub(super) fn run(
                 step(ctx, frame)?;
                 let value = block_arg(frame, stack, index as usize, autosplat)
                     .map_or_else(Value::nil, copy);
+                // Plain block parameters already have their own shadowed slot.
+                // Keep each instruction's charge and location, while avoiding
+                // the temporary operand and the Store/Pop dispatches.
+                if let [Op::Store(slot), Op::Pop, ..] = &function.code[frame.ip..] {
+                    let slot = frame.local_base() + *slot as usize;
+                    if storage.locals.data[slot].is_some() {
+                        step(ctx, frame)?;
+                        address::refresh(ctx, slot, &value, &mut storage.addresses.data, &[])?;
+                        store(storage, slot, value);
+                        step(ctx, frame)?;
+                        continue;
+                    }
+                }
                 push(ctx, stack, value)?;
             }
             Op::IterNext => {
