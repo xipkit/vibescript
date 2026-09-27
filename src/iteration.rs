@@ -708,13 +708,8 @@ pub(crate) fn start_pooled(
     }
     if common::Driver::supports(&state) {
         let driver = common::Driver::from(state);
-        if let Some(pool) = pool.filter(|pool| pool.data.len() < 2) {
-            if pool.data.capacity() >= 2 {
-                // Reuse keeps the checkpoint the old per-driver reservation made.
-                ctx.checkpoint()?;
-            }
-            pool.ensure(ctx, 2)?;
-            pool.data.push(driver);
+        if let Some(pool) = pool.filter(|pool| pool.len() < 2) {
+            pool.push(ctx, driver)?;
             Ok(Some(Iteration::Pooled))
         } else {
             Ok(Some(Iteration::Common(boxed(ctx, driver)?)))

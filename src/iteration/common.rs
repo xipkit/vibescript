@@ -1,7 +1,67 @@
 use super::*;
 
 /// Two common nesting levels share one charged allocation until both finish.
-pub(crate) type Pool = Buffer<Driver>;
+pub(crate) struct Pool(Option<Box<State<Slots>>>);
+
+struct Slots {
+    drivers: [Option<Driver>; 2],
+    length: usize,
+}
+
+impl Pool {
+    /// Creates a pool without reserving driver storage.
+    pub(crate) fn empty() -> Self {
+        Self(None)
+    }
+
+    /// Returns the number of active drivers.
+    pub(crate) fn len(&self) -> usize {
+        self.0.as_ref().map_or(0, |slots| slots.length)
+    }
+
+    /// Returns the innermost active driver.
+    pub(crate) fn last(&self) -> Option<&Driver> {
+        let slots = self.0.as_ref()?;
+        slots.drivers.get(slots.length.checked_sub(1)?)?.as_ref()
+    }
+
+    /// Returns the innermost active driver for advancement.
+    pub(crate) fn last_mut(&mut self) -> Option<&mut Driver> {
+        let slots = self.0.as_mut()?;
+        let index = slots.length.checked_sub(1)?;
+        slots.drivers.get_mut(index)?.as_mut()
+    }
+
+    pub(super) fn push(&mut self, ctx: &mut CallContext, driver: Driver) -> Result<()> {
+        if let Some(slots) = self.0.as_mut() {
+            // Reuse keeps the checkpoint the old per-driver reservation made.
+            ctx.checkpoint()?;
+            let index = slots.length;
+            slots.drivers[index] = Some(driver);
+            slots.length += 1;
+        } else {
+            self.0 = Some(boxed(
+                ctx,
+                Slots {
+                    drivers: [Some(driver), None],
+                    length: 1,
+                },
+            )?);
+        }
+        Ok(())
+    }
+
+    /// Drops unwound drivers while retaining the charged allocation for reuse.
+    pub(crate) fn truncate(&mut self, length: usize) {
+        if let Some(slots) = self.0.as_mut() {
+            while slots.length > length {
+                slots.length -= 1;
+                let index = slots.length;
+                slots.drivers[index] = None;
+            }
+        }
+    }
+}
 
 /// State for array and numeric iteration, without hash, window or grouping buffers.
 pub(crate) struct Driver {
@@ -17,7 +77,8 @@ pub(crate) struct Driver {
     pub(crate) waiting: bool,
 }
 
-const _: () = assert!(2 * size_of::<State<Driver>>() <= size_of::<State<Loop>>());
+const _: () = assert!(size_of::<State<Slots>>() <= size_of::<State<Loop>>());
+const _: () = assert!(size_of::<Pool>() == size_of::<usize>());
 
 impl Driver {
     pub(super) fn supports(state: &Loop) -> bool {
@@ -142,15 +203,15 @@ mod tests {
         .unwrap()
         .unwrap();
         assert!(matches!(state, Iteration::Pooled));
-        let allocation = pool.data.as_ptr();
-        let driver = pool.data.last_mut().unwrap();
+        let allocation = std::ptr::from_ref(pool.0.as_deref().unwrap());
+        let driver = pool.last_mut().unwrap();
         driver.advance(&mut ctx, None).unwrap();
         let value = ctx.bytes(&[b'x'; 1024]).unwrap();
         driver.advance(&mut ctx, Some(value)).unwrap();
         drop(receiver);
-        pool.data.pop();
-        assert_eq!(ctx.stats().retained_memory_bytes, 2 * size_of::<Driver>());
-        ctx.options.limits.memory_bytes = Some(2 * size_of::<Driver>());
+        pool.truncate(0);
+        assert_eq!(ctx.stats().retained_memory_bytes, size_of::<State<Slots>>());
+        ctx.options.limits.memory_bytes = Some(size_of::<State<Slots>>());
         let next = start_pooled(
             &mut ctx,
             "times",
@@ -163,7 +224,7 @@ mod tests {
         .unwrap()
         .unwrap();
         assert!(matches!(next, Iteration::Pooled));
-        assert_eq!(allocation, pool.data.as_ptr());
+        assert_eq!(allocation, std::ptr::from_ref(pool.0.as_deref().unwrap()));
         drop(pool);
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
@@ -173,7 +234,17 @@ mod tests {
         for deadline in [false, true] {
             let mut ctx = CallContext::new(CallOptions::default());
             let mut pool = Pool::empty();
-            pool.ensure(&mut ctx, 2).unwrap();
+            start_pooled(
+                &mut ctx,
+                "times",
+                &Value::int(1),
+                &[],
+                &[],
+                Some(1),
+                Some(&mut pool),
+            )
+            .unwrap();
+            pool.truncate(0);
             if deadline {
                 ctx.options.deadline = Some(std::time::Instant::now());
             } else {
@@ -198,7 +269,7 @@ mod tests {
                     ErrorKind::Cancelled
                 },
             );
-            assert!(pool.data.is_empty());
+            assert_eq!(pool.len(), 0);
             drop(pool);
             assert_eq!(ctx.stats().retained_memory_bytes, 0);
         }

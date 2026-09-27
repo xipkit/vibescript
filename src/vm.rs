@@ -301,7 +301,7 @@ impl Run {
             declarations: Buffer::empty(),
             texts: Buffer::empty(),
             iterations: Buffer::empty(),
-            iteration_pool: Buffer::empty(),
+            iteration_pool: iteration::Pool::empty(),
             globals: Buffer::empty(),
             ambient_globals: Buffer::empty(),
             locals: Buffer::empty(),
@@ -498,7 +498,7 @@ impl Run {
                     ctx.charge(1)?;
                     let pooled = frames.data[current].pooled_iteration();
                     let waiting = if pooled {
-                        storage.iteration_pool.data.last().unwrap().waiting
+                        storage.iteration_pool.last().unwrap().waiting
                     } else {
                         storage.iterations.data[frames.data[current].iteration_base()].waiting()
                     };
@@ -510,7 +510,6 @@ impl Run {
                     let progress = if pooled {
                         storage
                             .iteration_pool
-                            .data
                             .last_mut()
                             .unwrap()
                             .advance(ctx, returned)?
@@ -5079,10 +5078,10 @@ fn unwind(
 
 fn release_iteration_pool(storage: &mut Storage, pooled: usize) {
     if pooled != 0 {
-        let remaining = storage.iteration_pool.data.len() - pooled;
-        storage.iteration_pool.data.truncate(remaining);
+        let remaining = storage.iteration_pool.len() - pooled;
+        storage.iteration_pool.truncate(remaining);
         if remaining == 0 {
-            storage.iteration_pool = Buffer::empty();
+            storage.iteration_pool = iteration::Pool::empty();
         }
     }
 }
