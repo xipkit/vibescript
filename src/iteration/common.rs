@@ -167,4 +167,40 @@ mod tests {
         drop(pool);
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
+
+    #[test]
+    fn reusing_a_slot_preserves_the_allocation_interruption_boundary() {
+        for deadline in [false, true] {
+            let mut ctx = CallContext::new(CallOptions::default());
+            let mut pool = Pool::empty();
+            pool.ensure(&mut ctx, 2).unwrap();
+            if deadline {
+                ctx.options.deadline = Some(std::time::Instant::now());
+            } else {
+                ctx.cancellation().cancel();
+            }
+            let error = start_pooled(
+                &mut ctx,
+                "times",
+                &Value::int(1),
+                &[],
+                &[],
+                Some(1),
+                Some(&mut pool),
+            )
+            .err()
+            .expect("cached storage must not bypass interruption");
+            assert_eq!(
+                error.kind,
+                if deadline {
+                    ErrorKind::Deadline
+                } else {
+                    ErrorKind::Cancelled
+                },
+            );
+            assert!(pool.data.is_empty());
+            drop(pool);
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        }
+    }
 }
