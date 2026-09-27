@@ -6,6 +6,9 @@ use crate::{
     scan,
 };
 
+/// Small documents use ordinary hashes instead of setting up schema tables.
+pub(super) const RECORD_MIN_BYTES: usize = 2048;
+
 /// A partially parsed container awaiting further elements.
 ///
 /// Hash frames hold the key of the element currently being parsed; a
@@ -264,22 +267,32 @@ impl<'a> Parser<'a> {
                 Some(b'{') => self.input[..512].contains(&b'['),
                 _ => false,
             };
-        match (indexed, self.typed.ty.is_some()) {
-            (false, false) => self.value_with::<false, false>(),
-            (false, true) => self.value_with::<false, true>(),
-            (true, false) => self.value_with::<true, false>(),
-            (true, true) => self.value_with::<true, true>(),
+        // Small messages cannot amortize the schema cursor and field tables.
+        // Keep their streaming proof, but use ordinary hash construction.
+        match (
+            indexed,
+            self.typed.ty.is_some(),
+            self.input.len() >= RECORD_MIN_BYTES,
+        ) {
+            (false, false, _) => self.value_with::<false, false, false>(),
+            (true, false, _) => self.value_with::<true, false, false>(),
+            (false, true, false) => self.value_with::<false, true, false>(),
+            (true, true, false) => self.value_with::<true, true, false>(),
+            (false, true, true) => self.value_with::<false, true, true>(),
+            (true, true, true) => self.value_with::<true, true, true>(),
         }
     }
 
     #[inline(never)]
-    fn value_with<const INDEX: bool, const TYPED: bool>(&mut self) -> Result<Value> {
-        if TYPED {
+    fn value_with<const INDEX: bool, const TYPED: bool, const RECORDS: bool>(
+        &mut self,
+    ) -> Result<Value> {
+        if RECORDS {
             self.records = Some(super::records::Records::default());
         }
         let mut frames: Buffer<Frame> = Buffer::empty();
         loop {
-            let Some(mut value) = self.start::<INDEX, TYPED>(&mut frames)? else {
+            let Some(mut value) = self.start::<INDEX, TYPED, RECORDS>(&mut frames)? else {
                 continue;
             };
             // Deliver the finished value to the innermost open container, then
@@ -310,7 +323,7 @@ impl<'a> Parser<'a> {
                         break;
                     }
                     Frame::Hash { out, key } => {
-                        let capacity = if TYPED && out.buffer.data.is_empty() {
+                        let capacity = if RECORDS && out.buffer.data.is_empty() {
                             self.records.as_ref().unwrap().capacity(open - 1)
                         } else {
                             None
@@ -362,7 +375,7 @@ impl<'a> Parser<'a> {
     /// Consumes the start of a value. Scalars and empty containers complete
     /// immediately; a non-empty container pushes a frame and returns `None` so
     /// the caller continues with its first element.
-    fn start<const INDEX: bool, const TYPED: bool>(
+    fn start<const INDEX: bool, const TYPED: bool, const RECORDS: bool>(
         &mut self,
         frames: &mut Buffer<Frame>,
     ) -> Result<Option<Value>> {
@@ -373,11 +386,11 @@ impl<'a> Parser<'a> {
                 Some(Frame::Hash { key, .. }) => key.as_bytes(),
                 _ => None,
             };
-            let index = match frames.data.last() {
-                Some(Frame::Array(out)) => out.data.len(),
-                _ => 0,
-            };
-            if matches!(self.input.get(self.pos), Some(b'[' | b'{')) {
+            if RECORDS && matches!(self.input.get(self.pos), Some(b'[' | b'{')) {
+                let index = match frames.data.last() {
+                    Some(Frame::Array(out)) => out.data.len(),
+                    _ => 0,
+                };
                 self.records
                     .as_mut()
                     .unwrap()
@@ -618,8 +631,8 @@ impl<'a> Parser<'a> {
                         self.scanner.end_string(self.pos);
                     }
                     let value = Value::from_bytes(self.ctx.settled(), out)?;
-                    if key && self.typed.ty.is_some() {
-                        if let Some(slot) = self.records.as_mut().unwrap().slot(
+                    if let Some(records) = self.records.as_mut().filter(|_| key) {
+                        if let Some(slot) = records.slot(
                             self.ctx.settled(),
                             self.record_depth,
                             value.as_bytes().unwrap(),
@@ -634,29 +647,16 @@ impl<'a> Parser<'a> {
                                 }) & 31;
                                 keys[index].iter().find(|key| key.as_bytes() == Some(name))
                             });
-                            if let Some(shared) = self
-                                .records
-                                .as_ref()
-                                .unwrap()
+                            if let Some(shared) = records
                                 .get(slot)
-                                .or_else(|| {
-                                    self.records.as_ref().unwrap().shared(name, Some(slot.0))
-                                })
+                                .or_else(|| records.shared(name, Some(slot.0)))
                                 .or(cached)
                             {
                                 let shared = shared.clone();
-                                self.records.as_mut().unwrap().remember(
-                                    self.record_depth,
-                                    slot,
-                                    &shared,
-                                );
+                                records.remember(self.record_depth, slot, &shared);
                                 return Ok(shared);
                             }
-                            self.records.as_mut().unwrap().remember(
-                                self.record_depth,
-                                slot,
-                                &value,
-                            );
+                            records.remember(self.record_depth, slot, &value);
                         }
                     }
                     return Ok(value);
@@ -728,19 +728,13 @@ impl<'a> Parser<'a> {
                 if !key {
                     self.ctx.checkpoint()?;
                 }
-                if key
-                    && self.typed.ty.is_some()
-                    && !self.records.as_ref().unwrap().ready(self.record_depth)
+                if let Some(records) = self
+                    .records
+                    .as_mut()
+                    .filter(|records| key && !records.ready(self.record_depth))
                 {
-                    if let Some(slot) = self.records.as_mut().unwrap().slot(
-                        &mut self.ctx,
-                        self.record_depth,
-                        bytes,
-                    )? {
-                        self.records
-                            .as_mut()
-                            .unwrap()
-                            .remember(self.record_depth, slot, hit);
+                    if let Some(slot) = records.slot(&mut self.ctx, self.record_depth, bytes)? {
+                        records.remember(self.record_depth, slot, hit);
                     }
                 }
                 return Ok(hit.clone());
@@ -749,25 +743,15 @@ impl<'a> Parser<'a> {
         } else {
             None
         };
-        let slot = if key && self.typed.ty.is_some() {
-            self.records
-                .as_mut()
-                .unwrap()
-                .slot(&mut self.ctx, self.record_depth, bytes)?
+        let slot = if let Some(records) = self.records.as_mut().filter(|_| key) {
+            records.slot(&mut self.ctx, self.record_depth, bytes)?
         } else {
             None
         };
-        let shared = if key && self.typed.ty.is_some() {
-            slot.and_then(|slot| self.records.as_ref().unwrap().get(slot))
-                .or_else(|| {
-                    self.records
-                        .as_ref()
-                        .unwrap()
-                        .shared(bytes, slot.map(|slot| slot.0))
-                })
-        } else {
-            None
-        };
+        let shared = self.records.as_ref().filter(|_| key).and_then(|records| {
+            slot.and_then(|slot| records.get(slot))
+                .or_else(|| records.shared(bytes, slot.map(|slot| slot.0)))
+        });
         let value = if let Some(shared) = shared {
             self.ctx.checkpoint()?;
             for chunk in bytes.chunks(CHUNK) {
@@ -937,6 +921,50 @@ mod tests {
     use crate::{CallOptions, Limits};
 
     #[test]
+    fn small_documents_skip_record_tables_at_the_size_boundary() {
+        use crate::types::{Field, Type, TypeKind};
+
+        let ty = Type {
+            name: "array".into(),
+            nullable: false,
+            kind: TypeKind::Array(Some(Box::new(Type {
+                name: String::new(),
+                nullable: false,
+                kind: TypeKind::Shape(
+                    [b"a", b"b"]
+                        .into_iter()
+                        .map(|name| Field {
+                            name: name.to_vec(),
+                            ty: Type::named("int".into()),
+                            optional: false,
+                        })
+                        .collect(),
+                    false,
+                ),
+            }))),
+        };
+        for length in [RECORD_MIN_BYTES - 1, RECORD_MIN_BYTES] {
+            let mut input = br#"[{"b":1,"a":2},{"a":3,"b":4}]"#.to_vec();
+            input.resize(length, b' ');
+            let mut ctx = CallContext::new(CallOptions::default());
+            let mut parser = Parser::new(&mut ctx, &input);
+            parser.typed.ty = Some(&ty);
+            let value = super::super::document(&mut parser).unwrap();
+            assert_eq!(parser.records.is_some(), length >= RECORD_MIN_BYTES);
+            drop(parser);
+            let mut ordinary = CallContext::new(CallOptions::default());
+            let expected = crate::json::parse(&mut ordinary, &input).unwrap();
+            assert_eq!(ctx.stats().steps, ordinary.stats().steps);
+            assert_eq!(
+                crate::json::stringify(&mut ctx, &value).unwrap().as_bytes(),
+                crate::json::stringify(&mut ordinary, &expected)
+                    .unwrap()
+                    .as_bytes()
+            );
+        }
+    }
+
+    #[test]
     fn string_cache_releases_overwritten_subtrees_before_further_allocation() {
         let input = format!(
             r#"[{{"a":{{"k":"discarded"}},"a":{{"k":"replacement"}},"tail":"{}"}}]"#,
@@ -946,9 +974,9 @@ mod tests {
             let mut ctx = CallContext::new(CallOptions::default());
             let mut parser = Parser::new(&mut ctx, input.as_bytes());
             let value = if indexed {
-                parser.value_with::<true, false>()
+                parser.value_with::<true, false, false>()
             } else {
-                parser.value_with::<false, false>()
+                parser.value_with::<false, false, false>()
             }
             .unwrap();
             drop(parser);
@@ -982,7 +1010,7 @@ mod tests {
             br#"["a",{"b":"cd"},?]"#,
             br#"["", "ab\ncd", 123.5, "tail"] trailing"#,
         ] {
-            for padding in [0, 512] {
+            for padding in [0, 512, RECORD_MIN_BYTES] {
                 let padded = [vec![b' '; padding], input.to_vec()].concat();
                 let input = padded.as_slice();
                 let ty = crate::types::Type {
@@ -1070,8 +1098,8 @@ mod tests {
                         });
                         let mut parser = Parser::new(&mut ctx, input.as_bytes());
                         let result = match indexed {
-                            Some(true) => parser.value_with::<true, false>(),
-                            Some(false) => parser.value_with::<false, false>(),
+                            Some(true) => parser.value_with::<true, false, false>(),
+                            Some(false) => parser.value_with::<false, false, false>(),
                             None => parser.value(),
                         };
                         let failure = parser.failure;

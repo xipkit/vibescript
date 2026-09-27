@@ -1,14 +1,16 @@
 use crate::{
     CallContext, Result, Value,
-    budget::Buffer,
     records::Fields,
     types::{Type, TypeKind},
 };
 
 struct Record<'a> {
     ty: &'a Type,
+    first: usize,
     fields: Fields,
 }
+
+const FIELD_CHUNK: usize = 8;
 
 #[derive(Clone, Copy)]
 struct Child<'a> {
@@ -27,7 +29,6 @@ pub(super) struct Records<'a> {
     children: [Option<Child<'a>>; 4],
     names: u64,
     records: [Option<Record<'a>>; 16],
-    overflow: Buffer<Record<'a>>,
 }
 
 impl Default for Records<'_> {
@@ -38,7 +39,6 @@ impl Default for Records<'_> {
             children: [None; 4],
             names: 0,
             records: [const { None }; 16],
-            overflow: Buffer::empty(),
         }
     }
 }
@@ -101,12 +101,7 @@ impl<'a> Records<'a> {
         }
         self.path[depth] = ty;
         self.ready[depth] = child.is_some_and(|(_, cached)| cached.ready)
-            || ty.is_none_or(|ty| {
-                !matches!(ty.kind, TypeKind::Shape(..))
-                    || self
-                        .entries()
-                        .any(|record| std::ptr::eq(record.ty, ty) && record.fields.complete())
-            });
+            || ty.is_none_or(|ty| !matches!(ty.kind, TypeKind::Shape(..)) || self.complete(ty));
         if let Some((slot, mut cached)) = child {
             cached.ready = self.ready[depth];
             self.children[slot] = Some(cached);
@@ -119,10 +114,18 @@ impl<'a> Records<'a> {
     }
 
     fn entries(&self) -> impl Iterator<Item = &Record<'a>> {
-        self.records
-            .iter()
-            .map_while(Option::as_ref)
-            .chain(&self.overflow.data)
+        self.records.iter().map_while(Option::as_ref)
+    }
+
+    fn complete(&self, ty: &Type) -> bool {
+        let TypeKind::Shape(fields, _) = &ty.kind else {
+            return true;
+        };
+        self.entries()
+            .filter(|record| std::ptr::eq(record.ty, ty) && record.fields.complete())
+            .map(|record| record.fields.len())
+            .sum::<usize>()
+            == fields.len()
     }
 
     /// The exact declared count for a required, closed shape.
@@ -157,40 +160,29 @@ impl<'a> Records<'a> {
         let Ok(field) = fields.binary_search_by(|field| field.name.as_slice().cmp(name)) else {
             return Ok(None);
         };
+        let first = field / FIELD_CHUNK * FIELD_CHUNK;
         for (index, record) in self.records.iter_mut().enumerate() {
             if let Some(record) = record {
-                if std::ptr::eq(record.ty, ty) {
-                    return Ok(Some((index, field)));
+                if std::ptr::eq(record.ty, ty) && record.first == first {
+                    return Ok(Some((index, field - first)));
                 }
             } else {
                 *record = Some(Record {
                     ty,
-                    fields: Fields::lazy(ctx, fields.len())?,
+                    first,
+                    fields: Fields::lazy(ctx, (fields.len() - first).min(FIELD_CHUNK))?,
                 });
-                return Ok(Some((index, field)));
+                return Ok(Some((index, field - first)));
             }
         }
-        if let Some(index) = self
-            .overflow
-            .data
-            .iter()
-            .position(|record| std::ptr::eq(record.ty, ty))
-        {
-            return Ok(Some((self.records.len() + index, field)));
-        }
-        let index = self.records.len() + self.overflow.data.len();
-        let fields = Fields::lazy(ctx, fields.len())?;
-        self.overflow.push(ctx, Record { ty, fields })?;
-        Ok(Some((index, field)))
+        // Sharing is an optimization: never allocate a table just to remember
+        // names the output already owns. The ordinary key cache handles overflow.
+        Ok(None)
     }
 
     /// Returns a previously imported name.
     pub fn get(&self, slot: (usize, usize)) -> Option<&Value> {
-        let record = if slot.0 < self.records.len() {
-            self.records[slot.0].as_ref().unwrap()
-        } else {
-            &self.overflow.data[slot.0 - self.records.len()]
-        };
+        let record = self.records[slot.0].as_ref().unwrap();
         record.fields.get(slot.1)
     }
 
@@ -209,20 +201,20 @@ impl<'a> Records<'a> {
             let index = fields
                 .binary_search_by(|field| field.name.as_slice().cmp(name))
                 .ok()?;
-            record.fields.get(index)
+            let local = index.checked_sub(record.first)?;
+            (local < record.fields.len())
+                .then(|| record.fields.get(local))
+                .flatten()
         })
     }
 
     /// Shares the builder's already charged key at its declared slot.
     pub fn remember(&mut self, depth: usize, slot: (usize, usize), key: &Value) {
         self.names |= name_bit(key.as_bytes().unwrap());
-        let record = if slot.0 < self.records.len() {
-            self.records[slot.0].as_mut().unwrap()
-        } else {
-            &mut self.overflow.data[slot.0 - self.records.len()]
-        };
+        let record = self.records[slot.0].as_mut().unwrap();
         record.fields.remember(slot.1, key);
-        self.ready[depth] = record.fields.complete();
+        let ty = record.ty;
+        self.ready[depth] = self.complete(ty);
     }
 }
 
@@ -236,6 +228,15 @@ fn name_bit(name: &[u8]) -> u64 {
 mod tests {
     use super::*;
     use crate::{CallOptions, types::Field, value::Kind};
+
+    fn padded(input: impl AsRef<[u8]>) -> Vec<u8> {
+        let mut input = input.as_ref().to_vec();
+        input.resize(
+            input.len().max(super::super::parser::RECORD_MIN_BYTES),
+            b' ',
+        );
+        input
+    }
 
     fn shape(names: &[&str], open: bool) -> Type {
         Type {
@@ -253,6 +254,37 @@ mod tests {
                 open,
             ),
         }
+    }
+
+    #[test]
+    fn field_tables_stop_at_128_names_without_tracked_allocations() {
+        let names: Vec<_> = (0..257).map(|i| format!("field_{i:03}")).collect();
+        let names: Vec<_> = names.iter().map(String::as_str).collect();
+        let ty = Type {
+            name: "array".into(),
+            nullable: false,
+            kind: TypeKind::Array(Some(Box::new(shape(&names, false)))),
+        };
+        let mut ctx = CallContext::new(CallOptions::default());
+        let mut records = Records::default();
+        records.start(Some(&ty), 0, None, 0);
+        records.start(Some(&ty), 1, None, 0);
+        for (index, name) in names.iter().enumerate() {
+            let before = ctx.stats();
+            let slot = records.slot(&mut ctx, 1, name.as_bytes()).unwrap();
+            let after = ctx.stats();
+            assert_eq!(before.steps, after.steps);
+            assert_eq!(before.peak_memory_bytes, after.peak_memory_bytes);
+            assert_eq!(before.retained_memory_bytes, after.retained_memory_bytes);
+            assert_eq!(slot.is_some(), index < 128);
+            if let Some(slot) = slot {
+                let key = ctx.bytes(name.as_bytes()).unwrap();
+                records.remember(1, slot, &key);
+                assert_eq!(records.get(slot).unwrap().as_bytes(), key.as_bytes());
+            }
+        }
+        drop(records);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
 
     #[test]
@@ -278,10 +310,11 @@ mod tests {
             nullable: false,
             kind: TypeKind::Tuple(vec![nested(&["a"]), nested(&["b", "c"])]),
         };
-        let input = br#"[{"items":[{"a":1},{"a":2}]},{"items":[{"b":3,"c":4},{"c":5,"b":6}]}]"#;
+        let input =
+            padded(br#"[{"items":[{"a":1},{"a":2}]},{"items":[{"b":3,"c":4},{"c":5,"b":6}]}]"#);
         let mut ctx = CallContext::new(CallOptions::default());
         let (value, _) =
-            crate::json::parse_typed(&mut ctx, input, "JSON.parse_as", Some(&ty)).unwrap();
+            crate::json::parse_typed(&mut ctx, &input, "JSON.parse_as", Some(&ty)).unwrap();
         for (index, parent) in value.as_array().unwrap().iter().enumerate() {
             for record in parent.as_hash().unwrap()[0].1.as_array().unwrap() {
                 let Kind::Hash(hash) = &record.0 else {
@@ -308,7 +341,7 @@ mod tests {
         };
         let input = format!(
             r#"[{{"x":{{"id":0}}}},{{"\u0069d":1}},{{"id":2}}]{}"#,
-            " ".repeat(512)
+            " ".repeat(super::super::parser::RECORD_MIN_BYTES)
         );
         let mut ctx = CallContext::new(CallOptions::default());
         let (value, _) =
@@ -329,7 +362,7 @@ mod tests {
     }
 
     #[test]
-    fn more_than_sixteen_shapes_share_keys_and_release_their_tables() {
+    fn more_than_sixteen_shapes_fall_back_to_shared_cached_keys() {
         let types = (0..20)
             .map(|_| Type {
                 name: "array".into(),
@@ -342,11 +375,10 @@ mod tests {
             nullable: false,
             kind: TypeKind::Tuple(types),
         };
-        let input = format!("[{}]", [r#"[{"id":1},{"id":2}]"#; 20].join(","));
+        let input = padded(format!("[{}]", [r#"[{"id":1},{"id":2}]"#; 20].join(",")));
         let mut ctx = CallContext::new(CallOptions::default());
         let (value, _) =
-            crate::json::parse_typed(&mut ctx, input.as_bytes(), "JSON.parse_as", Some(&ty))
-                .unwrap();
+            crate::json::parse_typed(&mut ctx, &input, "JSON.parse_as", Some(&ty)).unwrap();
         let mut first = None;
         for array in value.as_array().unwrap() {
             for row in array.as_array().unwrap() {
@@ -375,15 +407,14 @@ mod tests {
                 .enumerate()
                 .map(|(index, name)| format!("\"{name}\":{index}"))
                 .collect();
-            let input = format!(
+            let input = padded(format!(
                 "[{{{}}},{{{}}}]",
                 fields.join(","),
                 fields.iter().rev().cloned().collect::<Vec<_>>().join(",")
-            );
+            ));
             let mut ctx = CallContext::new(CallOptions::default());
             let (value, _) =
-                crate::json::parse_typed(&mut ctx, input.as_bytes(), "JSON.parse_as", Some(&ty))
-                    .unwrap();
+                crate::json::parse_typed(&mut ctx, &input, "JSON.parse_as", Some(&ty)).unwrap();
             let rows = value.as_array().unwrap();
             for row in rows {
                 let Kind::Hash(hash) = &row.0 else {
@@ -403,7 +434,7 @@ mod tests {
                 assert!(std::sync::Arc::ptr_eq(first, second));
             }
             let mut ordinary = CallContext::new(CallOptions::default());
-            let expected = crate::json::parse(&mut ordinary, input.as_bytes()).unwrap();
+            let expected = crate::json::parse(&mut ordinary, &input).unwrap();
             assert_eq!(ctx.stats().steps, ordinary.stats().steps);
             assert_eq!(
                 crate::json::stringify(&mut ctx, &value).unwrap().as_bytes(),
@@ -431,10 +462,10 @@ mod tests {
             nullable: false,
             kind: TypeKind::Array(Some(Box::new(record))),
         };
-        let input = br#"[{"b":1,"a":2,"long_name_over_sixty_four_bytes_abcdefghijklmnopqrstuvwxyz_0123456789":3},{"\u0061":4,"b":5,"a":6,"long_name_over_sixty_four_bytes_abcdefghijklmnopqrstuvwxyz_0123456789":7}]"#;
+        let input = padded(br#"[{"b":1,"a":2,"long_name_over_sixty_four_bytes_abcdefghijklmnopqrstuvwxyz_0123456789":3},{"\u0061":4,"b":5,"a":6,"long_name_over_sixty_four_bytes_abcdefghijklmnopqrstuvwxyz_0123456789":7}]"#);
         let mut ctx = CallContext::new(CallOptions::default());
         let (parsed, _) =
-            crate::json::parse_typed(&mut ctx, input, "JSON.parse_as", Some(&ty)).unwrap();
+            crate::json::parse_typed(&mut ctx, &input, "JSON.parse_as", Some(&ty)).unwrap();
         let rows = parsed.as_array().unwrap();
         for row in rows {
             let Kind::Hash(hash) = &row.0 else {
@@ -460,7 +491,7 @@ mod tests {
         assert_eq!(second[0].0.as_bytes(), Some(b"a".as_slice()));
         assert_eq!(second[0].1.as_int(), Some(6));
         let mut ordinary = CallContext::new(CallOptions::default());
-        let expected = crate::json::parse(&mut ordinary, input).unwrap();
+        let expected = crate::json::parse(&mut ordinary, &input).unwrap();
         assert_eq!(ctx.stats().steps, ordinary.stats().steps);
         assert_eq!(
             crate::json::stringify(&mut ctx, &parsed)
