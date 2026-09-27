@@ -1,0 +1,368 @@
+{
+  "samples": 38995,
+  "categories": {
+    "value_construction_and_release": {
+      "percent": 51.22451596358508,
+      "samples": 19975,
+      "top_functions": [
+        {
+          "function": "core::ptr::drop_glue::<vibescript::value::Kind>",
+          "percent": 14.273624823695345,
+          "samples": 5566
+        },
+        {
+          "function": "<vibescript::value::Kind as core::clone::Clone>::clone",
+          "percent": 12.419540966790613,
+          "samples": 4843
+        },
+        {
+          "function": "core::ptr::drop_glue::<vibescript::value::Heap<vibescript::value::Value>>",
+          "percent": 4.916014873701757,
+          "samples": 1917
+        },
+        {
+          "function": "<bool>::then_some::<(vibescript::value::Value, bool)>",
+          "percent": 2.4721118092063086,
+          "samples": 964
+        },
+        {
+          "function": "<core::result::Result<core::option::Option<(vibescript::value::Value, bool)>, vibescript::error::Error> as core::ops::try_trait::Try>::branch",
+          "percent": 2.4669829465316067,
+          "samples": 962
+        },
+        {
+          "function": "<alloc::vec::Vec<vibescript::value::Value>>::extend_trusted::<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<vibescript::value::Value>>>::{closure#0}",
+          "percent": 2.441338633158097,
+          "samples": 952
+        },
+        {
+          "function": "<core::slice::iter::Iter<vibescript::value::Value> as core::iter::traits::iterator::Iterator>::next",
+          "percent": 2.3644056930375688,
+          "samples": 922
+        },
+        {
+          "function": "core::iter::adapters::map::map_fold::<&vibescript::value::Value, usize, usize, <vibescript::value::Value>::from_array::{closure#0}, <usize as core::cmp::Ord>::max>::{closure#0}",
+          "percent": 2.184895499423003,
+          "samples": 852
+        }
+      ]
+    },
+    "type_validation": {
+      "percent": 25.66226439287088,
+      "samples": 10007,
+      "top_functions": [
+        {
+          "function": "vibescript::types::visit",
+          "percent": 25.487883061931015,
+          "samples": 9939
+        },
+        {
+          "function": "<core::result::Result<vibescript::types::Prepared, vibescript::error::Error> as core::ops::try_trait::Try>::branch",
+          "percent": 0.08206180279523016,
+          "samples": 32
+        },
+        {
+          "function": "vibescript::types::resolve_names::<vibescript::vm::prepare_type::{closure#0}>",
+          "percent": 0.051288626747018846,
+          "samples": 20
+        },
+        {
+          "function": "<vibescript::types::Prepared>::normalize_with",
+          "percent": 0.028208744710860368,
+          "samples": 11
+        },
+        {
+          "function": "<alloc::vec::Vec<vibescript::types::Type>>::as_slice",
+          "percent": 0.007693294012052827,
+          "samples": 3
+        },
+        {
+          "function": "vibescript::types::prepare::<vibescript::vm::prepare_type::{closure#0}>",
+          "percent": 0.005128862674701885,
+          "samples": 2
+        }
+      ]
+    },
+    "accounting": {
+      "percent": 14.083856904731375,
+      "samples": 5492,
+      "top_functions": [
+        {
+          "function": "<vibescript::budget::CallContext>::charge",
+          "percent": 12.673419669188357,
+          "samples": 4942
+        },
+        {
+          "function": "<vibescript::budget::CallContext>::charge_slowly",
+          "percent": 1.0385946916271316,
+          "samples": 405
+        },
+        {
+          "function": "<alloc::sync::Arc<vibescript::budget::Memory> as core::clone::Clone>::clone",
+          "percent": 0.07436850878317733,
+          "samples": 29
+        },
+        {
+          "function": "<alloc::sync::Arc<vibescript::budget::Memory> as core::ops::drop::Drop>::drop",
+          "percent": 0.06667521477112451,
+          "samples": 26
+        },
+        {
+          "function": "core::ptr::drop_glue::<core::option::Option<vibescript::budget::Charge>>",
+          "percent": 0.06667521477112451,
+          "samples": 26
+        },
+        {
+          "function": "<vibescript::budget::CallContext>::check_memory",
+          "percent": 0.056417489421720736,
+          "samples": 22
+        },
+        {
+          "function": "<vibescript::budget::CallContext>::reserve",
+          "percent": 0.051288626747018846,
+          "samples": 20
+        },
+        {
+          "function": "<vibescript::budget::Charge as core::ops::drop::Drop>::drop",
+          "percent": 0.023079882036158482,
+          "samples": 9
+        }
+      ]
+    },
+    "other_runtime": {
+      "percent": 6.098217720220541,
+      "samples": 2378,
+      "top_functions": [
+        {
+          "function": "vibescript::ops::method::{closure#4}::{closure#0}",
+          "percent": 1.382228490832158,
+          "samples": 539
+        },
+        {
+          "function": "vibescript::ops::method::{closure#4}",
+          "percent": 1.289908962687524,
+          "samples": 503
+        },
+        {
+          "function": "<vibescript::vm::Run>::advance",
+          "percent": 0.2615719964097961,
+          "samples": 102
+        },
+        {
+          "function": "<vibescript::vm::execution::Execution>::start",
+          "percent": 0.23849211437363765,
+          "samples": 93
+        },
+        {
+          "function": "<vibescript::budget::CancellationToken>::is_cancelled",
+          "percent": 0.1872034876266188,
+          "samples": 73
+        },
+        {
+          "function": "vibescript::vm::bind_entry",
+          "percent": 0.13847929221695088,
+          "samples": 54
+        },
+        {
+          "function": "<vibescript::budget::CallContext>::import_value::{closure#0}",
+          "percent": 0.11027054750609053,
+          "samples": 43
+        },
+        {
+          "function": "<core::option::Option<vibescript::error::Error>>::is_some",
+          "percent": 0.09231952814463393,
+          "samples": 36
+        }
+      ]
+    },
+    "allocation": {
+      "percent": 2.9183228619053723,
+      "samples": 1138,
+      "top_functions": [
+        {
+          "function": "libsystem_malloc.dylib+0x2b52f",
+          "percent": 0.36414924990383385,
+          "samples": 142
+        },
+        {
+          "function": "libsystem_malloc.dylib+0x2b277",
+          "percent": 0.2359276830362867,
+          "samples": 92
+        },
+        {
+          "function": "libsystem_malloc.dylib+0x2a15c",
+          "percent": 0.20771893832542634,
+          "samples": 81
+        },
+        {
+          "function": "libsystem_malloc.dylib+0x33e37",
+          "percent": 0.19233235030132068,
+          "samples": 75
+        },
+        {
+          "function": "<alloc::raw_vec::RawVecInner>::capacity",
+          "percent": 0.07180407744582638,
+          "samples": 28
+        },
+        {
+          "function": "libsystem_malloc.dylib+0x2b134",
+          "percent": 0.06923964610847544,
+          "samples": 27
+        },
+        {
+          "function": "alloc::raw_vec::layout_array",
+          "percent": 0.06923964610847544,
+          "samples": 27
+        },
+        {
+          "function": "libsystem_malloc.dylib+0x3acd0",
+          "percent": 0.058981920759071674,
+          "samples": 23
+        }
+      ]
+    },
+    "string_decoding": {
+      "percent": 0.012822156686754712,
+      "samples": 5,
+      "top_functions": [
+        {
+          "function": "core::ptr::drop_glue::<vibescript::budget::Buffer<vibescript::budget::Buffer<u8>>>",
+          "percent": 0.007693294012052827,
+          "samples": 3
+        },
+        {
+          "function": "core::ptr::drop_glue::<alloc::vec::Vec<vibescript::budget::Buffer<u8>>>",
+          "percent": 0.005128862674701885,
+          "samples": 2
+        }
+      ]
+    }
+  },
+  "top_leaf_functions": [
+    {
+      "function": "vibescript::types::visit",
+      "percent": 25.487883061931015,
+      "samples": 9939
+    },
+    {
+      "function": "core::ptr::drop_glue::<vibescript::value::Kind>",
+      "percent": 14.273624823695345,
+      "samples": 5566
+    },
+    {
+      "function": "<vibescript::budget::CallContext>::charge",
+      "percent": 12.668290806513655,
+      "samples": 4940
+    },
+    {
+      "function": "<vibescript::value::Kind as core::clone::Clone>::clone",
+      "percent": 12.419540966790613,
+      "samples": 4843
+    },
+    {
+      "function": "core::ptr::drop_glue::<vibescript::value::Heap<vibescript::value::Value>>",
+      "percent": 4.913450442364406,
+      "samples": 1916
+    },
+    {
+      "function": "<bool>::then_some::<(vibescript::value::Value, bool)>",
+      "percent": 2.4721118092063086,
+      "samples": 964
+    },
+    {
+      "function": "<core::result::Result<core::option::Option<(vibescript::value::Value, bool)>, vibescript::error::Error> as core::ops::try_trait::Try>::branch",
+      "percent": 2.4669829465316067,
+      "samples": 962
+    },
+    {
+      "function": "<alloc::vec::set_len_on_drop::SetLenOnDrop>::increment_len",
+      "percent": 2.441338633158097,
+      "samples": 952
+    },
+    {
+      "function": "<core::slice::iter::Iter<vibescript::value::Value> as core::iter::traits::iterator::Iterator>::next",
+      "percent": 2.3644056930375688,
+      "samples": 922
+    },
+    {
+      "function": "core::iter::adapters::map::map_fold::<&vibescript::value::Value, usize, usize, <vibescript::value::Value>::from_array::{closure#0}, <usize as core::cmp::Ord>::max>::{closure#0}",
+      "percent": 2.1233491473265804,
+      "samples": 828
+    },
+    {
+      "function": "<core::slice::iter::Iter<vibescript::value::Value> as core::iter::traits::iterator::Iterator>::fold::<usize, core::iter::adapters::map::map_fold<&vibescript::value::Value, usize, usize, <vibescript::value::Value>::from_array::{closure#0}, <usize as core::cmp::Ord>::max>::{closure#0}>",
+      "percent": 1.4591614309526861,
+      "samples": 569
+    },
+    {
+      "function": "<core::slice::iter::Iter<vibescript::value::Value> as core::iter::traits::iterator::Iterator>::try_fold::<usize, <core::iter::adapters::take::Take<_> as core::iter::traits::iterator::Iterator>::try_fold::check<&vibescript::value::Value, usize, core::ops::control_flow::ControlFlow<core::ops::try_trait::NeverShortCircuit<usize>, usize>, <core::iter::adapters::take_while::TakeWhile<_, _> as core::iter::traits::iterator::Iterator>::try_fold::check<&vibescript::value::Value, usize, core::ops::try_trait::NeverShortCircuit<usize>, vibescript::ops::method::{closure#4}, <core::ops::try_trait::NeverShortCircuit<usize>>::wrap_mut_2<usize, &vibescript::value::Value, <core::iter::adapters::take_while::TakeWhile<core::iter::adapters::take::Take<core::slice::iter::Iter<vibescript::value::Value>>, vibescript::ops::method::{closure#4}> as core::iter::traits::iterator::Iterator>::count::{closure#0}>::{closure#0}>::{closure#0}>::{closure#0}, core::ops::control_flow::ControlFlow<core::ops::control_flow::ControlFlow<core::ops::try_trait::NeverShortCircuit<usize>, usize>, usize>>",
+      "percent": 1.4232593922297732,
+      "samples": 555
+    },
+    {
+      "function": "vibescript::ops::method::{closure#4}::{closure#0}",
+      "percent": 1.382228490832158,
+      "samples": 539
+    },
+    {
+      "function": "vibescript::ops::method::{closure#4}",
+      "percent": 1.2617002179766637,
+      "samples": 492
+    },
+    {
+      "function": "<core::slice::iter::Iter<vibescript::value::Value> as core::iter::traits::iterator::Iterator>::try_fold::<usize, <core::iter::adapters::take::Take<_> as core::iter::traits::iterator::Iterator>::try_fold::check<&vibescript::value::Value, usize, core::ops::control_flow::ControlFlow<core::ops::try_trait::NeverShortCircuit<usize>, usize>, <core::iter::adapters::take_while::TakeWhile<_, _> as core::iter::traits::iterator::Iterator>::try_fold::check<&vibescript::value::Value, usize, core::ops::try_trait::NeverShortCircuit<usize>, <vibescript::budget::CallContext>::import_value::{closure#0}, <core::ops::try_trait::NeverShortCircuit<usize>>::wrap_mut_2<usize, &vibescript::value::Value, <core::iter::adapters::take_while::TakeWhile<core::iter::adapters::take::Take<core::slice::iter::Iter<vibescript::value::Value>>, <vibescript::budget::CallContext>::import_value::{closure#0}> as core::iter::traits::iterator::Iterator>::count::{closure#0}>::{closure#0}>::{closure#0}>::{closure#0}, core::ops::control_flow::ControlFlow<core::ops::control_flow::ControlFlow<core::ops::try_trait::NeverShortCircuit<usize>, usize>, usize>>",
+      "percent": 1.1822028465187844,
+      "samples": 461
+    },
+    {
+      "function": "<vibescript::value::Value>::depth",
+      "percent": 1.1437363764585202,
+      "samples": 446
+    },
+    {
+      "function": "<core::iter::adapters::take_while::TakeWhile<core::iter::adapters::take::Take<core::slice::iter::Iter<vibescript::value::Value>>, <vibescript::budget::CallContext>::import_value::{closure#0}> as core::iter::traits::iterator::Iterator>::count::{closure#0}",
+      "percent": 1.1411719451211695,
+      "samples": 445
+    },
+    {
+      "function": "<vibescript::budget::CallContext>::charge_slowly",
+      "percent": 1.0360302602897808,
+      "samples": 404
+    },
+    {
+      "function": "mach_absolute_time",
+      "percent": 0.5564816002051545,
+      "samples": 217
+    },
+    {
+      "function": "<vibescript::vm::Run>::advance",
+      "percent": 0.22566995768688294,
+      "samples": 88
+    },
+    {
+      "function": "_platform_memmove",
+      "percent": 0.22310552634953199,
+      "samples": 87
+    },
+    {
+      "function": "libsystem_malloc.dylib+0x2a15c",
+      "percent": 0.20771893832542634,
+      "samples": 81
+    },
+    {
+      "function": "<vibescript::budget::CancellationToken>::is_cancelled",
+      "percent": 0.1872034876266188,
+      "samples": 73
+    },
+    {
+      "function": "__bzero",
+      "percent": 0.1872034876266188,
+      "samples": 73
+    },
+    {
+      "function": "vibescript::vm::bind_entry",
+      "percent": 0.13847929221695088,
+      "samples": 54
+    }
+  ]
+}

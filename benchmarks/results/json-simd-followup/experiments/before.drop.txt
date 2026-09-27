@@ -1,0 +1,128 @@
+
+/tmp/json-followup-disassembly/before:	file format mach-o arm64
+
+Disassembly of section __TEXT,__text:
+
+0000000100089e34 <__RINvNtCsedRpiqSkYaQ_4core3ptr9drop_glueNtNtCsew826iyIHSR_10vibescript5value4KindEBF_>:
+100089e34: 39400008    	ldrb	w8, [x0]
+100089e38: 7100591f    	cmp	w8, #0x16
+100089e3c: 54000e28    	b.hi	0x10008a000 <__RINvNtCsedRpiqSkYaQ_4core3ptr9drop_glueNtNtCsew826iyIHSR_10vibescript5value4KindEBF_+0x1cc>
+100089e40: 900018a9    	adrp	x9, 0x10039d000 <_anon.8fc2c4d37da1d68bacf37a80f3191743.567+0x447>
+100089e44: 9120dd29    	add	x9, x9, #0x837
+100089e48: 1000008a    	adr	x10, 0x100089e58 <__RINvNtCsedRpiqSkYaQ_4core3ptr9drop_glueNtNtCsew826iyIHSR_10vibescript5value4KindEBF_+0x24>
+100089e4c: 3868692b    	ldrb	w11, [x9, x8]
+100089e50: 8b0b094a    	add	x10, x10, x11, lsl #2
+100089e54: d61f0140    	br	x10
+100089e58: d65f03c0    	ret
+100089e5c: f8408c08    	ldr	x8, [x0, #0x8]!
+100089e60: 92800009    	mov	x9, #-0x1               ; =-1
+100089e64: f8690108    	ldaddl	x9, x8, [x8]
+100089e68: f100051f    	cmp	x8, #0x1
+100089e6c: 54ffff61    	b.ne	0x100089e58 <__RINvNtCsedRpiqSkYaQ_4core3ptr9drop_glueNtNtCsew826iyIHSR_10vibescript5value4KindEBF_+0x24>
+100089e70: d50339bf    	dmb	ishld
+100089e74: 14075870    	b	0x100260034 <__RNvMsn_NtCs26gtQGs340n_5alloc4syncINtB5_3ArcNtNtNtCsew826iyIHSR_10vibescript5regex7matches6OffsetE9drop_slowBM_>
+100089e78: f8408c08    	ldr	x8, [x0, #0x8]!
+100089e7c: 92800009    	mov	x9, #-0x1               ; =-1
+100089e80: f8690108    	ldaddl	x9, x8, [x8]
+100089e84: f100051f    	cmp	x8, #0x1
+100089e88: 54fffe81    	b.ne	0x100089e58 <__RINvNtCsedRpiqSkYaQ_4core3ptr9drop_glueNtNtCsew826iyIHSR_10vibescript5value4KindEBF_+0x24>
+100089e8c: d50339bf    	dmb	ishld
+100089e90: 140752dd    	b	0x10025ea04 <__RNvMsn_NtCs26gtQGs340n_5alloc4syncINtB5_3ArcNtNtCsew826iyIHSR_10vibescript10capability11BoundMethodE9drop_slowBK_>
+100089e94: f8408c08    	ldr	x8, [x0, #0x8]!
+100089e98: 92800009    	mov	x9, #-0x1               ; =-1
+100089e9c: f8690108    	ldaddl	x9, x8, [x8]
+100089ea0: f100051f    	cmp	x8, #0x1
+100089ea4: 54fffda1    	b.ne	0x100089e58 <__RINvNtCsedRpiqSkYaQ_4core3ptr9drop_glueNtNtCsew826iyIHSR_10vibescript5value4KindEBF_+0x24>
+100089ea8: d50339bf    	dmb	ishld
+100089eac: 140753fa    	b	0x10025ee94 <__RNvMsn_NtCs26gtQGs340n_5alloc4syncINtB5_3ArcNtNtCsew826iyIHSR_10vibescript5enums11EnumerationE9drop_slowBK_>
+100089eb0: f8408c08    	ldr	x8, [x0, #0x8]!
+100089eb4: 92800009    	mov	x9, #-0x1               ; =-1
+100089eb8: f8690108    	ldaddl	x9, x8, [x8]
+100089ebc: f100051f    	cmp	x8, #0x1
+100089ec0: 54fffcc1    	b.ne	0x100089e58 <__RINvNtCsedRpiqSkYaQ_4core3ptr9drop_glueNtNtCsew826iyIHSR_10vibescript5value4KindEBF_+0x24>
+100089ec4: d50339bf    	dmb	ishld
+100089ec8: 140756de    	b	0x10025fa40 <__RNvMsn_NtCs26gtQGs340n_5alloc4syncINtB5_3ArcNtNtCsew826iyIHSR_10vibescript7objects8InstanceE9drop_slowBK_>
+100089ecc: f8408c08    	ldr	x8, [x0, #0x8]!
+100089ed0: 92800009    	mov	x9, #-0x1               ; =-1
+100089ed4: f8690108    	ldaddl	x9, x8, [x8]
+100089ed8: f100051f    	cmp	x8, #0x1
+100089edc: 54fffbe1    	b.ne	0x100089e58 <__RINvNtCsedRpiqSkYaQ_4core3ptr9drop_glueNtNtCsew826iyIHSR_10vibescript5value4KindEBF_+0x24>
+100089ee0: d50339bf    	dmb	ishld
+100089ee4: 14075832    	b	0x10025ffac <__RNvMsn_NtCs26gtQGs340n_5alloc4syncINtB5_3ArcNtNtNtCsew826iyIHSR_10vibescript5regex5value5RegexE9drop_slowBM_>
+100089ee8: f8408c08    	ldr	x8, [x0, #0x8]!
+100089eec: 92800009    	mov	x9, #-0x1               ; =-1
+100089ef0: f8690108    	ldaddl	x9, x8, [x8]
+100089ef4: f100051f    	cmp	x8, #0x1
+100089ef8: 54fffb01    	b.ne	0x100089e58 <__RINvNtCsedRpiqSkYaQ_4core3ptr9drop_glueNtNtCsew826iyIHSR_10vibescript5value4KindEBF_+0x24>
+100089efc: d50339bf    	dmb	ishld
+100089f00: 140755cf    	b	0x10025f63c <__RNvMsn_NtCs26gtQGs340n_5alloc4syncINtB5_3ArcNtNtCsew826iyIHSR_10vibescript7integer3BigE9drop_slowBK_>
+100089f04: f8408c08    	ldr	x8, [x0, #0x8]!
+100089f08: 92800009    	mov	x9, #-0x1               ; =-1
+100089f0c: f8690108    	ldaddl	x9, x8, [x8]
+100089f10: f100051f    	cmp	x8, #0x1
+100089f14: 54fffa21    	b.ne	0x100089e58 <__RINvNtCsedRpiqSkYaQ_4core3ptr9drop_glueNtNtCsew826iyIHSR_10vibescript5value4KindEBF_+0x24>
+100089f18: d50339bf    	dmb	ishld
+100089f1c: 140754a7    	b	0x10025f1b8 <__RNvMsn_NtCs26gtQGs340n_5alloc4syncINtB5_3ArcNtNtCsew826iyIHSR_10vibescript5value5BytesE9drop_slowBK_>
+100089f20: f8408c08    	ldr	x8, [x0, #0x8]!
+100089f24: 92800009    	mov	x9, #-0x1               ; =-1
+100089f28: f8690108    	ldaddl	x9, x8, [x8]
+100089f2c: f100051f    	cmp	x8, #0x1
+100089f30: 54fff941    	b.ne	0x100089e58 <__RINvNtCsedRpiqSkYaQ_4core3ptr9drop_glueNtNtCsew826iyIHSR_10vibescript5value4KindEBF_+0x24>
+100089f34: d50339bf    	dmb	ishld
+100089f38: 14075172    	b	0x10025e500 <__RNvMsn_NtCs26gtQGs340n_5alloc4syncINtB5_3ArcINtNtCsew826iyIHSR_10vibescript5value4HeapNtBJ_5ValueEE9drop_slowBL_>
+100089f3c: f8408c08    	ldr	x8, [x0, #0x8]!
+100089f40: 92800009    	mov	x9, #-0x1               ; =-1
+100089f44: f8690108    	ldaddl	x9, x8, [x8]
+100089f48: f100051f    	cmp	x8, #0x1
+100089f4c: 54fff861    	b.ne	0x100089e58 <__RINvNtCsedRpiqSkYaQ_4core3ptr9drop_glueNtNtCsew826iyIHSR_10vibescript5value4KindEBF_+0x24>
+100089f50: d50339bf    	dmb	ishld
+100089f54: 14075384    	b	0x10025ed64 <__RNvMsn_NtCs26gtQGs340n_5alloc4syncINtB5_3ArcNtNtCsew826iyIHSR_10vibescript4time5ZonedE9drop_slowBK_>
+100089f58: f8408c08    	ldr	x8, [x0, #0x8]!
+100089f5c: 92800009    	mov	x9, #-0x1               ; =-1
+100089f60: f8690108    	ldaddl	x9, x8, [x8]
+100089f64: f100051f    	cmp	x8, #0x1
+100089f68: 54fff781    	b.ne	0x100089e58 <__RINvNtCsedRpiqSkYaQ_4core3ptr9drop_glueNtNtCsew826iyIHSR_10vibescript5value4KindEBF_+0x24>
+100089f6c: d50339bf    	dmb	ishld
+100089f70: 1407556a    	b	0x10025f518 <__RNvMsn_NtCs26gtQGs340n_5alloc4syncINtB5_3ArcNtNtCsew826iyIHSR_10vibescript7exports8FunctionE9drop_slowBK_>
+100089f74: f8408c08    	ldr	x8, [x0, #0x8]!
+100089f78: 92800009    	mov	x9, #-0x1               ; =-1
+100089f7c: f8690108    	ldaddl	x9, x8, [x8]
+100089f80: f100051f    	cmp	x8, #0x1
+100089f84: 54fff6a1    	b.ne	0x100089e58 <__RINvNtCsedRpiqSkYaQ_4core3ptr9drop_glueNtNtCsew826iyIHSR_10vibescript5value4KindEBF_+0x24>
+100089f88: d50339bf    	dmb	ishld
+100089f8c: 140756f1    	b	0x10025fb50 <__RNvMsn_NtCs26gtQGs340n_5alloc4syncINtB5_3ArcNtNtCsew826iyIHSR_10vibescript9namespace9NamespaceE9drop_slowBK_>
+100089f90: f8408c08    	ldr	x8, [x0, #0x8]!
+100089f94: 92800009    	mov	x9, #-0x1               ; =-1
+100089f98: f8690108    	ldaddl	x9, x8, [x8]
+100089f9c: f100051f    	cmp	x8, #0x1
+100089fa0: 54fff5c1    	b.ne	0x100089e58 <__RINvNtCsedRpiqSkYaQ_4core3ptr9drop_glueNtNtCsew826iyIHSR_10vibescript5value4KindEBF_+0x24>
+100089fa4: d50339bf    	dmb	ishld
+100089fa8: 1407531c    	b	0x10025ec18 <__RNvMsn_NtCs26gtQGs340n_5alloc4syncINtB5_3ArcNtNtCsew826iyIHSR_10vibescript4hash4HashE9drop_slowBK_>
+100089fac: f8408c08    	ldr	x8, [x0, #0x8]!
+100089fb0: 92800009    	mov	x9, #-0x1               ; =-1
+100089fb4: f8690108    	ldaddl	x9, x8, [x8]
+100089fb8: f100051f    	cmp	x8, #0x1
+100089fbc: 54fff4e1    	b.ne	0x100089e58 <__RINvNtCsedRpiqSkYaQ_4core3ptr9drop_glueNtNtCsew826iyIHSR_10vibescript5value4KindEBF_+0x24>
+100089fc0: d50339bf    	dmb	ishld
+100089fc4: 14075533    	b	0x10025f490 <__RNvMsn_NtCs26gtQGs340n_5alloc4syncINtB5_3ArcNtNtCsew826iyIHSR_10vibescript6shapes5ShapeE9drop_slowBK_>
+100089fc8: f8408c08    	ldr	x8, [x0, #0x8]!
+100089fcc: 92800009    	mov	x9, #-0x1               ; =-1
+100089fd0: f8690108    	ldaddl	x9, x8, [x8]
+100089fd4: f100051f    	cmp	x8, #0x1
+100089fd8: 54fff401    	b.ne	0x100089e58 <__RINvNtCsedRpiqSkYaQ_4core3ptr9drop_glueNtNtCsew826iyIHSR_10vibescript5value4KindEBF_+0x24>
+100089fdc: d50339bf    	dmb	ishld
+100089fe0: 14075476    	b	0x10025f1b8 <__RNvMsn_NtCs26gtQGs340n_5alloc4syncINtB5_3ArcNtNtCsew826iyIHSR_10vibescript5value5BytesE9drop_slowBK_>
+100089fe4: f8408c08    	ldr	x8, [x0, #0x8]!
+100089fe8: 92800009    	mov	x9, #-0x1               ; =-1
+100089fec: f8690108    	ldaddl	x9, x8, [x8]
+100089ff0: f100051f    	cmp	x8, #0x1
+100089ff4: 54fff321    	b.ne	0x100089e58 <__RINvNtCsedRpiqSkYaQ_4core3ptr9drop_glueNtNtCsew826iyIHSR_10vibescript5value4KindEBF_+0x24>
+100089ff8: d50339bf    	dmb	ishld
+100089ffc: 140753eb    	b	0x10025efa8 <__RNvMsn_NtCs26gtQGs340n_5alloc4syncINtB5_3ArcNtNtCsew826iyIHSR_10vibescript5enums6MemberE9drop_slowBK_>
+10008a000: f8408c08    	ldr	x8, [x0, #0x8]!
+10008a004: 92800009    	mov	x9, #-0x1               ; =-1
+10008a008: f8690108    	ldaddl	x9, x8, [x8]
+10008a00c: f100051f    	cmp	x8, #0x1
+10008a010: 54fff241    	b.ne	0x100089e58 <__RINvNtCsedRpiqSkYaQ_4core3ptr9drop_glueNtNtCsew826iyIHSR_10vibescript5value4KindEBF_+0x24>
+10008a014: d50339bf    	dmb	ishld
+10008a018: 14075448    	b	0x10025f138 <__RNvMsn_NtCs26gtQGs340n_5alloc4syncINtB5_3ArcNtNtCsew826iyIHSR_10vibescript5range5RangeE9drop_slowBK_>

@@ -1,0 +1,14 @@
+{
+  "platform": "Linux-7.1.6-arch1-1-x86_64-with-glibc2.44",
+  "machine": "x86_64",
+  "after_runtime_revision": "d23014d85ce768f907a946a4ddbd2b01c9cec096",
+  "before_runtime_revision": "6de705b0f58e72d20eb7e7e15b66983c03ae9c59",
+  "calls_per_profile": 2000,
+  "nominal_hz": 1000,
+  "binaries": {
+    "before": "a5fec54bcbafb1c7adbac4dc611ad08927176d5dcc9ffc971f2ddca1b923420a",
+    "after": "5bed0273ba338bddbe6666e0f983835056ddc76f20502a2e070a1faa0c1d264e"
+  },
+  "input_bytes": 1048536,
+  "event": "perf cpu-clock:u, DWARF stack capture; imported by Samply"
+}

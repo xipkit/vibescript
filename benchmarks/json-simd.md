@@ -1,5 +1,7 @@
 # JSON SIMD and allocation report
 
+See the [follow-up report](json-simd-followup.md) for the regression fixes and CPU profiles that supersede these initial measurements.
+
 The implementation stays within JSON, its builtin entry point, and shared byte scanning; it does not change the VM or value representation. Measurements compare the implementation at `f697c7c` with the library at `52c9d8e` (baseline harness commit `bfe501d`). The environment files record `68accfa`, whose source tree is identical to `f697c7c`; only its commit message was amended to add the completed measurements. Subsequent changes record measurements, update documentation and relocate one misplaced doc comment and move the scanner test module below both architecture implementations to satisfy x86_64 Clippy. No measured runtime code changes.
 
 ## Design and decisions
