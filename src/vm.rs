@@ -1926,7 +1926,14 @@ impl Run {
                     let value = Value(Kind::Range(Range::new(ctx, start, end, exclusive)?));
                     stack.push(ctx, value)?;
                 }
-                Op::Index(n) => {
+                Op::Index(n) | Op::IndexLiteral(n) => {
+                    let n = if matches!(op, Op::IndexLiteral(_)) {
+                        let key = shared(ctx, program, storage, n as usize)?;
+                        stack.push(ctx, key)?;
+                        1
+                    } else {
+                        n
+                    };
                     let base = stack.data.len() - n as usize - 1;
                     let root = &stack.data[base];
                     let args = &stack.data[base + 1..];
@@ -3282,6 +3289,7 @@ impl Run {
                 && matches!(
                     op,
                     Op::Index(_)
+                        | Op::IndexLiteral(_)
                         | Op::Method(..)
                         | Op::Direct(..)
                         | Op::Mutate(..)

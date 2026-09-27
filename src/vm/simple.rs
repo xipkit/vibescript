@@ -173,6 +173,26 @@ pub(super) fn run(
                 step(ctx, frame)?;
                 index(ctx, function, frame, storage, stack, n as usize)?;
             }
+            Op::IndexLiteral(slot) => {
+                let Some(Value(Kind::Hash(hash))) = stack.data.last() else {
+                    return Ok(());
+                };
+                if hash.object
+                    || hash.tag != crate::hash::Tag::None
+                    || (ctx.has_exports && !function.plain_values.contains(frame.ip))
+                {
+                    return Ok(());
+                }
+                step(ctx, frame)?;
+                let key = program.constants[program.shared[slot as usize]]
+                    .as_bytes()
+                    .unwrap();
+                let value = hash
+                    .find(ctx, key)?
+                    .map(|i| hash.buffer.data[i].1.clone())
+                    .unwrap_or_default();
+                *stack.data.last_mut().unwrap() = value;
+            }
             Op::Array(n) => {
                 step(ctx, frame)?;
                 array(ctx, stack, n as usize)?;

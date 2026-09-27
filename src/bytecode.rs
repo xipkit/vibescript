@@ -102,6 +102,8 @@ pub(crate) enum Op {
     RangeStart,
     Range(bool, bool, bool),
     Index(u32),
+    /// Indexes by a literal string, borrowing its compiled bytes for plain hashes.
+    IndexLiteral(u32),
     AddressLocal(u32),
     AddressBound(u32, u32),
     AddressValue,
@@ -2675,6 +2677,25 @@ impl<'a, 'x> Compiling<'a, 'x> {
             }
             Node::Index(value, index) => {
                 self.expr(value).await?;
+                if let [
+                    Expr {
+                        node: Node::Literal(key),
+                        ..
+                    },
+                ] = index.as_slice()
+                    && key.as_bytes().is_some()
+                {
+                    let mut c = self.c();
+                    c.literal(key.clone());
+                    let ip = c.code.len() - 1;
+                    let Op::Shared(slot) = c.code[ip] else {
+                        unreachable!()
+                    };
+                    c.code[ip] = Op::IndexLiteral(slot);
+                    let plain = c.facts.plain(e);
+                    c.mark_plain(ip, plain);
+                    return Ok(());
+                }
                 for index in index {
                     self.expr(index).await?;
                 }
