@@ -91,6 +91,28 @@ pub(crate) fn call(
     ops::method(ctx, method, name, receiver.clone(), args).map(Some)
 }
 
+/// Updates an array by `method` as dynamic dispatch would, returning the
+/// updated array and the call's result, or gives the receiver back to leave
+/// the call to dynamic dispatch when it is not an array or the member is not
+/// one of the array updates served here.
+pub(crate) fn update(
+    ctx: &mut CallContext,
+    method: Option<Method>,
+    name: &str,
+    receiver: Value,
+    args: &[Value],
+) -> std::result::Result<Result<(Value, Value)>, Value> {
+    use Method::*;
+    match method {
+        Some(method @ (Push | Pop | Shift | Prepend | Insert))
+            if matches!(receiver.0, Kind::Array(_)) =>
+        {
+            Ok(crate::mutate::call(ctx, method, name, receiver, args))
+        }
+        _ => Err(receiver),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -244,5 +266,73 @@ mod tests {
             }
         }
         assert!(served > 100, "served {served}");
+    }
+
+    #[test]
+    fn direct_updates_match_dynamic_dispatch() {
+        let arrays = [
+            Value::array(vec![]),
+            Value::array(vec![Value::int(3), Value::int(1)]),
+            Value::array(vec![Value::bytes("a"), Value::array(vec![])]),
+        ];
+        let arguments = [
+            vec![],
+            vec![Value::int(7)],
+            vec![Value::int(1), Value::int(2)],
+            vec![Value::int(0), Value::bytes("x")],
+            vec![Value::int(-1), Value::int(4)],
+            vec![Value::int(9), Value::int(4)],
+            vec![Value::bytes("x")],
+        ];
+        let describe = |ctx: &CallContext, result: Result<(Value, Value)>| {
+            outcome(
+                ctx,
+                result.map(|(updated, result)| Value::array(vec![updated, result])),
+            )
+        };
+        for receiver in &arrays {
+            for (name, method) in [
+                ("push", Method::Push),
+                ("pop", Method::Pop),
+                ("shift", Method::Shift),
+                ("prepend", Method::Prepend),
+                ("insert", Method::Insert),
+            ] {
+                for args in &arguments {
+                    let mut direct = context();
+                    let Ok(result) =
+                        update(&mut direct, Some(method), name, receiver.clone(), args)
+                    else {
+                        panic!("{name} on an array is served");
+                    };
+                    let site = CallSite {
+                        name: 0,
+                        method: Some(method),
+                        auto: false,
+                        scope: false,
+                    };
+                    let mut dynamic = context();
+                    let expected =
+                        crate::members::call(&mut dynamic, site, name, receiver.clone(), args);
+                    assert_eq!(
+                        describe(&direct, result),
+                        describe(&dynamic, expected),
+                        "{name} on {receiver:?} with {args:?}"
+                    );
+                }
+            }
+        }
+        let mut ctx = context();
+        assert!(update(&mut ctx, Some(Method::Push), "push", Value::bytes("a"), &[]).is_err());
+        assert!(
+            update(
+                &mut ctx,
+                Some(Method::Clear),
+                "clear",
+                Value::array(vec![]),
+                &[]
+            )
+            .is_err()
+        );
     }
 }

@@ -1707,7 +1707,14 @@ impl Run {
                             namespaces: &mut storage.namespaces.data,
                         },
                         &mut storage.addresses.data,
-                        |ctx, receiver| members::call(ctx, site, "push", receiver, &[value]),
+                        |ctx, receiver| {
+                            let args = std::slice::from_ref(&value);
+                            match members::direct::update(ctx, site.method, "push", receiver, args)
+                            {
+                                Ok(result) => result,
+                                Err(receiver) => members::call(ctx, site, "push", receiver, args),
+                            }
+                        },
                     )?;
                     stack.push(ctx, result)?;
                 }
@@ -2363,13 +2370,12 @@ impl Run {
                         },
                         &mut storage.addresses.data,
                         |ctx, receiver| {
-                            members::call(
-                                ctx,
-                                site,
-                                &program.members[site.name],
-                                receiver,
-                                &stack.data[base..],
-                            )
+                            let name = &program.members[site.name];
+                            let args = &stack.data[base..];
+                            match members::direct::update(ctx, site.method, name, receiver, args) {
+                                Ok(result) => result,
+                                Err(receiver) => members::call(ctx, site, name, receiver, args),
+                            }
                         },
                     )?;
                     stack.data.truncate(base);
