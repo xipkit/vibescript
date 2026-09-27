@@ -1,5 +1,7 @@
 # JSON regression fixes and CPU profiles
 
+For measurements after integrating the typed VM, see the [rebase report](json-simd-rebase.md).
+
 This report supersedes the tradeoffs in the [initial report](json-simd.md). The comparison baseline is the runtime at `52c9d8e`, preserved in the `bfe501d` benchmark binaries. Both architectures use eight rotating rounds, both accounting modes, both scanner builds, separately instrumented allocation builds, and fresh-process RSS observations. Darwin is an Apple M4; shannon is an Intel Core Ultra 9 285H. Vinci is used only for the final gate.
 
 ## Changes

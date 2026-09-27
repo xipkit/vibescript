@@ -21,3 +21,5 @@ The JSON suite in `scripts/json_fixtures.py` covers roughly 1 KB, 16 KB, 256 KB 
 Until September 2026 these benchmarks also built Go Vibescript v0.70.0, then the compatibility reference, with and without Go's SIMD experiment. Three reports compared the builds on an Apple M4 while the Rust implementation still covered a subset of the language: the initial comparison, a first optimization pass (copy-on-write arrays, shared host strings, faster Unicode and JSON scans), and indexed hashes with the website corpus. The Rust core ran the integer loop about nine times faster than Go and parsed a 2,048-key JSON object in 0.34 ms against Go's 0.50 ms, while counting Unicode characters stayed about 1.5 times slower. The reports, their raw results and the Go harness remain in the repository history (`git log -- benchmarks/results`).
 
 The [JSON SIMD report](json-simd.md) records the initial results. Its [follow-up](json-simd-followup.md) covers regression fixes, complete paired arm64/x86_64 measurements, accounting changes and CPU profiles.
+
+The [typed-VM rebase report](json-simd-rebase.md) compares the integrated JSON implementation with upstream `6bad12f`.
