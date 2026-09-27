@@ -174,24 +174,9 @@ pub(super) fn run(
                 index(ctx, function, frame, storage, stack, n as usize)?;
             }
             Op::IndexLiteral(slot) => {
-                let Some(Value(Kind::Hash(hash))) = stack.data.last() else {
-                    return Ok(());
-                };
-                if hash.object
-                    || hash.tag != crate::hash::Tag::None
-                    || (ctx.has_exports && !function.plain_values.contains(frame.ip))
-                {
+                if !index_literal(ctx, program, function, frame, stack, slot as usize)? {
                     return Ok(());
                 }
-                step(ctx, frame)?;
-                let key = program.constants[program.shared[slot as usize]]
-                    .as_bytes()
-                    .unwrap();
-                let value = hash
-                    .find(ctx, key)?
-                    .map(|i| hash.buffer.data[i].1.clone())
-                    .unwrap_or_default();
-                *stack.data.last_mut().unwrap() = value;
             }
             Op::Array(n) => {
                 step(ctx, frame)?;
@@ -376,6 +361,36 @@ pub(super) fn run(
             _ => return Ok(()),
         }
     }
+}
+
+/// Borrows a compiled literal for a plain hash, leaving other receivers to
+/// the general loop. Keep hashing and value drops outside instruction dispatch.
+#[inline(never)]
+fn index_literal(
+    ctx: &mut CallContext,
+    program: &Program,
+    function: &Function,
+    frame: &mut Frame,
+    stack: &mut Buffer<Value>,
+    slot: usize,
+) -> Result<bool> {
+    let Some(Value(Kind::Hash(hash))) = stack.data.last() else {
+        return Ok(false);
+    };
+    if hash.object
+        || hash.tag != crate::hash::Tag::None
+        || (ctx.has_exports && !function.plain_values.contains(frame.ip))
+    {
+        return Ok(false);
+    }
+    step(ctx, frame)?;
+    let key = program.constants[program.shared[slot]].as_bytes().unwrap();
+    let value = hash
+        .find(ctx, key)?
+        .map(|i| hash.buffer.data[i].1.clone())
+        .unwrap_or_default();
+    *stack.data.last_mut().unwrap() = value;
+    Ok(true)
 }
 
 /// Indexes a value other than an instance by the `count` values above it.
