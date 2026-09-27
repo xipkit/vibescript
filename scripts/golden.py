@@ -1054,10 +1054,12 @@ def compact_replies(records, table):
 
 def build(args, corpora):
     kinds = {corpus.kind for corpus in corpora}
+    # Share workspace library features without unifying the example's
+    # serde_json dev-dependency features into the CLI build.
     if "engine" in kinds and args.harness == HARNESS:
-        subprocess.run([str(CARGO), "build", "--profile", "gate", "--locked", "--example", "golden"], cwd=ROOT, check=True)
+        subprocess.run([str(CARGO), "build", "--workspace", "--profile", "gate", "--locked", "--offline", "--example", "golden"], cwd=ROOT, check=True)
     if kinds & {"cli", "lsp"} and args.bin == VIBES:
-        subprocess.run([str(CARGO), "build", "--profile", "gate", "--locked", "-p", "vibes"], cwd=ROOT, check=True)
+        subprocess.run([str(CARGO), "build", "--workspace", "--profile", "gate", "--locked", "--offline", "--bin", "vibes"], cwd=ROOT, check=True)
 
 
 def main(argv=None):
