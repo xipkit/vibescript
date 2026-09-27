@@ -1,0 +1,11 @@
+def test_email_template
+  subject = require("email_template")
+  assert subject.render_notice("Ada", 2) == "Hello Ada, 2 jobs are ready."
+  rejected = false
+  begin
+    subject.missing_notice
+  rescue RuntimeError
+    rejected = true
+  end
+  assert rejected
+end

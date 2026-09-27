@@ -1,0 +1,12 @@
+type Stock = { available: int, warehouse: string }
+type Order = { sku: string, quantity: int }
+def fulfillable(orders: array<Order>, stock: hash<string, Stock>) -> array<string>
+  orders.filter_map { |order|
+    item = stock[order["sku"]]
+    if item != nil && item["available"] >= order["quantity"]
+      order["sku"]
+    else
+      nil
+    end
+  }
+end

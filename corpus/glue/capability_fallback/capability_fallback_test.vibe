@@ -1,0 +1,5 @@
+def test_capability_fallback
+  subject = require("capability_fallback")
+  assert subject.read_or("cached") { "fresh" } == "fresh"
+  assert subject.read_or("cached") { raise "offline" } == "cached (offline)"
+end

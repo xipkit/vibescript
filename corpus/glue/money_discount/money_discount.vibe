@@ -1,0 +1,4 @@
+def discounted(price: money, percent: int) -> money
+  raise ArgumentError, "percent outside 0..100" if percent < 0 || percent > 100
+  money_cents(price.cents * (100 - percent) // 100, price.currency)
+end

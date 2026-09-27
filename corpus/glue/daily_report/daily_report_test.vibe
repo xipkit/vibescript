@@ -1,0 +1,5 @@
+def test_daily_report
+  subject = require("daily_report")
+  assert subject.report(["ok", "error", "ok"]) == "error: 1\nok: 2"
+  assert subject.report([]) == ""
+end

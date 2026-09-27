@@ -1,0 +1,6 @@
+def test_time_windows
+  subject = require("time_windows")
+  result = subject.hourly_counts(["2026-09-01T12:01:00Z", "2026-09-01T14:30:00+02:00", "2026-09-01T13:00:00Z"])
+  assert result.fetch("2026-09-01T12:00Z") == 2
+  assert result.fetch("2026-09-01T13:00Z") == 1
+end

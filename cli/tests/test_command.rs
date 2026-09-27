@@ -7,6 +7,20 @@ mod support;
 use support::{Files, vibes, vibes_in};
 
 #[test]
+fn documented_glue_programs_pass_the_cli_test_runner() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let run = vibes_in(Some(&root), &["test", "--profile", "low", "corpus/glue"]);
+    assert_eq!(run.status, Some(0), "{}\n{}", run.stdout, run.stderr);
+    assert!(
+        run.stdout
+            .ends_with("40 test(s) across 40 file(s): 40 passed, 0 failed\n"),
+        "{}",
+        run.stdout
+    );
+    assert!(run.stderr.is_empty(), "{}", run.stderr);
+}
+
+#[test]
 fn reports_passing_and_failing_tests() {
     let files = Files::new();
     files.write(

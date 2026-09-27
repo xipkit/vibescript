@@ -1,0 +1,15 @@
+enum Event
+  Created
+  Updated
+  Deleted
+end
+type Payload = { event: Event, id: string }
+def action(raw: string) -> string
+  payload = JSON.parse_as(raw, Payload)
+  verb = case payload["event"]
+         when Event::Created then "insert"
+         when Event::Updated then "upsert"
+         when Event::Deleted then "remove"
+         end
+  "#{verb}:#{payload["id"]}"
+end

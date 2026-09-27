@@ -1,0 +1,12 @@
+def test_page_cursors
+  subject = require("page_cursors")
+  pages: hash<string, string> = { start: '{"values":["a"],"next":"p2"}', p2: '{"values":["b"],"next":null}' }
+  assert subject.collect_cursors(pages, 2) == ["a", "b"]
+  failed = false
+  begin
+    subject.collect_cursors(pages, 1)
+  rescue RuntimeError
+    failed = true
+  end
+  assert failed
+end

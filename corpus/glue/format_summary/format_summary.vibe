@@ -1,0 +1,4 @@
+def summary(done: int, total: int, cents: int) -> string
+  percent = total == 0 ? 0.0 : done * 100.0 / total
+  format("%d/%d (%.1f%%) USD %d.%02d", done, total, percent, cents // 100, cents % 100)
+end

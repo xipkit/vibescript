@@ -1,0 +1,5 @@
+def test_user_index
+  subject = require("user_index")
+  assert subject.names([{ id: "1", name: "Ada" }], ["1", "2"]) == ["Ada", "unknown"]
+  assert subject.names([], []) == []
+end

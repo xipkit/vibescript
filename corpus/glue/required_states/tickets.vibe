@@ -1,0 +1,15 @@
+enum State
+  Open
+  Closed
+end
+class Ticket
+  getter state: State
+  def initialize(@state: State)
+  end
+  def close
+    @state = State::Closed
+  end
+end
+export def opened -> Ticket
+  Ticket.new(:open)
+end

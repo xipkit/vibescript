@@ -1,0 +1,5 @@
+def test_flatten_response
+  subject = require("flatten_response")
+  assert subject.titles('[{"name":"api","issues":[{"number":3,"title":"Bug"}]},{"name":"cli","issues":[]}]') == ["api#3: Bug"]
+  assert subject.titles('[]') == []
+end

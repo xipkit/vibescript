@@ -1,0 +1,8 @@
+type User = { id: string, name: string }
+def names(users: array<User>, ids: array<string>) -> array<string>
+  index: hash<string, User> = users.to_h { |user| [user["id"], user] }
+  ids.map { |id|
+    user = index[id]
+    user == nil ? "unknown" : user["name"]
+  }
+end

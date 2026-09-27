@@ -1,0 +1,6 @@
+def test_slug
+  subject = require("slug")
+  assert subject.slug("  API / Webhooks!! ") == "api-webhooks"
+  assert subject.slug("Already-Fine") == "already-fine"
+  assert subject.slug("!!!") == ""
+end

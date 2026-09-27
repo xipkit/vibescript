@@ -1,0 +1,7 @@
+def test_regional_totals
+  subject = require("regional_totals")
+  result = subject.totals([{ region: "us", cents: 10 }, { region: "eu", cents: 20 }, { region: "us", cents: 5 }])
+  assert result.fetch("us") == 15
+  assert result.fetch("eu") == 20
+  assert subject.totals([]).empty?
+end

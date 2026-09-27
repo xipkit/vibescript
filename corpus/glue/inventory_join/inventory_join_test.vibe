@@ -1,0 +1,5 @@
+def test_inventory_join
+  subject = require("inventory_join")
+  stock: hash<string, { available: int, warehouse: string }> = { a: { available: 2, warehouse: "east" } }
+  assert subject.fulfillable([{ sku: "a", quantity: 2 }, { sku: "b", quantity: 1 }, { sku: "a", quantity: 3 }], stock) == ["a"]
+end

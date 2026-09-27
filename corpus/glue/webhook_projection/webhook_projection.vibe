@@ -1,0 +1,8 @@
+type Envelope = { event: string, data: { email: string, name?: string, ... }, ... }
+def notification(raw: string) -> string
+  event = JSON.parse_as(raw, Envelope)
+  data = event["data"]
+  name = data["name"]
+  label = name == nil ? data["email"] : name
+  "#{event["event"]}: #{label}"
+end

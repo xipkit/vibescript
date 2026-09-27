@@ -1,0 +1,33 @@
+enum State
+  Pending
+  Running
+  Done
+end
+class Job
+  getter state: State
+  @attempts: int = 0
+  def initialize
+    @state = State::Pending
+  end
+  def start
+    @state = State::Running
+    @attempts += 1
+  end
+  def finish
+    @state = State::Done
+  end
+  def summary -> string
+    label = case @state
+            when State::Pending then "pending"
+            when State::Running then "running"
+            when State::Done then "done"
+            end
+    "#{label}:#{@attempts}"
+  end
+end
+def execute -> string
+  job = Job.new
+  job.start
+  job.finish
+  job.summary
+end

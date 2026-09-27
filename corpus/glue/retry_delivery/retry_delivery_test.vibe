@@ -1,0 +1,18 @@
+def test_retry_delivery
+  subject = require("retry_delivery")
+  calls = 0
+  receipt = subject.deliver(3) { |attempt|
+    calls += 1
+    raise "temporary" if attempt < 3
+    "queued"
+  }
+  assert receipt == "queued"
+  assert calls == 3
+  failed = false
+  begin
+    subject.deliver(2) { |attempt| raise "offline #{attempt}" }
+  rescue RuntimeError
+    failed = true
+  end
+  assert failed
+end

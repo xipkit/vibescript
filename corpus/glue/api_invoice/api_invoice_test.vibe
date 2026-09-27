@@ -1,0 +1,5 @@
+def test_api_invoice
+  subject = require("api_invoice")
+  assert subject.export_invoice('{"id":"i1","customer":{"name":"Ada"},"lines":[{"sku":"a","cents":125,"quantity":3}]}') == '{"id":"i1","customer":"Ada","total_cents":375}'
+  assert subject.export_invoice('{"id":"i2","customer":{"name":"Bo"},"lines":[]}').include?('"total_cents":0')
+end

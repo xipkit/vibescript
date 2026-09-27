@@ -1,0 +1,3 @@
+def redact(line: string) -> string
+  Regex.replace_all(line, "([?&]token=)[^& ]+", "${1}[REDACTED]")
+end

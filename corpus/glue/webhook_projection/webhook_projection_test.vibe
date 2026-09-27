@@ -1,0 +1,5 @@
+def test_webhook_projection
+  subject = require("webhook_projection")
+  assert subject.notification('{"event":"joined","data":{"email":"a@b","name":"Ada","plan":"pro"},"version":2}') == 'joined: Ada'
+  assert subject.notification('{"event":"joined","data":{"email":"a@b"}}') == 'joined: a@b'
+end

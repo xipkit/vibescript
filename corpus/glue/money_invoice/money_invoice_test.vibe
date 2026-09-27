@@ -1,0 +1,5 @@
+def test_money_invoice
+  subject = require("money_invoice")
+  assert subject.invoice([{ unit: money("1.25 USD"), quantity: 3 }], "USD") == '{"cents":375,"currency":"USD","display":"3.75 USD"}'
+  assert subject.invoice([], "EUR").include?('"cents":0')
+end

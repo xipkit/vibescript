@@ -1,0 +1,9 @@
+def test_delivery_batch
+  subject = require("delivery_batch")
+  rows = subject.deliver_all(["ok", "bad"]) { |recipient|
+    raise "blocked" if recipient == "bad"
+    "receipt-#{recipient}"
+  }
+  assert rows.fetch(0)["ok"]
+  assert rows.fetch(1)["detail"] == "blocked"
+end

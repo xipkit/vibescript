@@ -1,0 +1,6 @@
+def test_rate_limiter
+  subject = require("rate_limiter")
+  result = subject.allowance(5, [2, 4, 3])
+  assert result[0] == [true, false, true]
+  assert result[1] == 0
+end

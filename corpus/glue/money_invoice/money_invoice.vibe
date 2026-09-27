@@ -1,0 +1,5 @@
+type Line = { unit: money, quantity: int }
+def invoice(lines: array<Line>, currency: string) -> string
+  total = lines.sum(money_cents(0, currency)) { |line| line["unit"] * line["quantity"] }
+  JSON.stringify({ cents: total.cents, currency: total.currency, display: total.to_s })
+end

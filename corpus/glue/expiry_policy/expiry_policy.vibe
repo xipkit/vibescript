@@ -1,0 +1,4 @@
+def expired?(issued: string, now: string, ttl: duration) -> bool
+  expiry = ttl.after(Time.parse(issued))
+  Time.parse(now) >= expiry
+end

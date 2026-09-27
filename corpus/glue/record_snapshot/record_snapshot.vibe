@@ -1,0 +1,6 @@
+type Project = { name: string, tags: array<string> }
+def tagged(project: Project, tag: string) -> Project
+  copy = project
+  copy["tags"].push(tag)
+  copy
+end

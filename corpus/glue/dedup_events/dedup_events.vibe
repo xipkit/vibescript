@@ -1,0 +1,4 @@
+type Event = { id: string, body: string }
+def unique_bodies(events: array<Event>) -> array<string>
+  events.uniq { |event| event["id"] }.map { |event| event["body"] }
+end

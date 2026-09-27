@@ -1,0 +1,7 @@
+def test_webhook_validation
+  subject = require("webhook_validation")
+  assert subject.accepted('{"id":"evt_1","amount":25}')
+  assert !subject.accepted('{"id":"evt_1","amount":"25"}')
+  assert !subject.accepted('{"id":"","amount":25}')
+  assert !subject.accepted('{"id":"evt_1","amount":-1}')
+end

@@ -4,6 +4,8 @@ Vibescript is a small, statically typed language for workflow scripts that a hos
 
 Start with the [language guide](docs/language.md), which covers the whole language with examples that compile. Together with `vibes prelude`, which prints every builtin signature, it is the context to give a model that writes Vibescript.
 
+The [glue corpus](corpus/glue/README.md) provides 40 tested workflows. The [AI authoring study](docs/authoring-evaluation.md) records their first drafts, diagnostics, repairs and before/after results.
+
 ```vibe
 def total(items: array<{ price: int, qty: int }>) -> int
   items.sum { |item| item["price"] * item["qty"] }

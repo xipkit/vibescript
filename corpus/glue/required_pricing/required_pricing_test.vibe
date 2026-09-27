@@ -1,0 +1,5 @@
+def test_required_pricing
+  subject = require("required_pricing")
+  assert subject.invoice_label(1000) == "USD 10.80"
+  assert subject.invoice_label(5) == "USD 0.05"
+end

@@ -1,0 +1,7 @@
+def read_or(cache: string, &operation: () -> string) -> string
+  begin
+    yield
+  rescue RuntimeError => error
+    "#{cache} (#{error.message})"
+  end
+end

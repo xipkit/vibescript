@@ -1,0 +1,6 @@
+def test_enum_routing
+  subject = require("enum_routing")
+  assert subject.queue(:low) == "batch"
+  assert subject.queue(:normal) == "default"
+  assert subject.queue(:urgent) == "alerts"
+end
