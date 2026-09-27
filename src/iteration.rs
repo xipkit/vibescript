@@ -1,6 +1,6 @@
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
-    budget::{Buffer, MAX_VALUE_DEPTH},
+    budget::{Buffer, Charge, MAX_VALUE_DEPTH},
     bytecode::Method,
     collections,
     hash::Hash,
@@ -169,13 +169,40 @@ impl Mutation {
 }
 
 pub(crate) enum Iteration {
-    Loop(Loop),
+    Loop(Box<State<Loop>>),
     Forever { waiting: bool },
-    Order(ordering::Driver),
-    Hash(hash_blocks::Driver),
-    Text(crate::text::iteration::Driver),
-    Regex(crate::regex::operations::Driver),
-    Substitute(crate::regex::substitute::Driver),
+    Order(Box<State<ordering::Driver>>),
+    Hash(Box<State<hash_blocks::Driver>>),
+    Text(Box<State<crate::text::iteration::Driver>>),
+    Regex(Box<State<crate::regex::operations::Driver>>),
+    Substitute(Box<State<crate::regex::substitute::Driver>>),
+}
+
+/// A suspended driver and the reservation for its allocation.
+pub(crate) struct State<T> {
+    value: T,
+    _charge: Option<Charge>,
+}
+
+impl<T> std::ops::Deref for State<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        &self.value
+    }
+}
+
+impl<T> std::ops::DerefMut for State<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.value
+    }
+}
+
+fn boxed<T>(ctx: &mut CallContext, value: T) -> Result<Box<State<T>>> {
+    let charge = ctx.reserve(size_of::<State<T>>())?;
+    Ok(Box::new(State {
+        value,
+        _charge: charge,
+    }))
 }
 
 impl Iteration {
@@ -228,18 +255,18 @@ pub(crate) struct Loop {
     receiver: Value,
     position: i128,
     length: i128,
-    start: i128,
-    stride: i128,
+    start: i64,
+    stride: i64,
     width: usize,
-    cycles: Option<i64>,
+    cycles: i64,
     block: bool,
     collapse_pair: bool,
     pub waiting: bool,
     pub mutation: Option<Mutation>,
     pending: [Value; 2],
-    pending_index: i128,
+    pending_index: u64,
+    // Aggregation state, or the pattern for grep/count/predicate methods.
     accumulator: Option<Value>,
-    pattern: Option<Value>,
     count: i64,
     dropping: bool,
     output: Buffer<Value>,
@@ -291,7 +318,11 @@ pub(crate) fn start(
             keywords,
             block_arity.is_some(),
         )
-        .map(|state| state.map(Iteration::Substitute));
+        .and_then(|state| {
+            state
+                .map(|state| boxed(ctx, state).map(Iteration::Substitute))
+                .transpose()
+        });
     }
     let keywords = !keywords.is_empty();
     if matches!(name, "match" | "scan") {
@@ -303,7 +334,11 @@ pub(crate) fn start(
             keywords,
             block_arity.is_some(),
         )
-        .map(|state| state.map(Iteration::Regex));
+        .and_then(|state| {
+            state
+                .map(|state| boxed(ctx, state).map(Iteration::Regex))
+                .transpose()
+        });
     }
     if crate::text::iteration::method(name) {
         return crate::text::iteration::Driver::new(
@@ -314,11 +349,20 @@ pub(crate) fn start(
             keywords,
             block_arity.is_some(),
         )
-        .map(|state| state.map(Iteration::Text));
+        .and_then(|state| {
+            state
+                .map(|state| boxed(ctx, state).map(Iteration::Text))
+                .transpose()
+        });
     }
     if ordering::method(name) && !matches!(receiver.0, Kind::Range(_)) {
-        return ordering::Driver::new(ctx, name, receiver, args, block_arity.is_some())
-            .map(|state| state.map(Iteration::Order));
+        return ordering::Driver::new(ctx, name, receiver, args, block_arity.is_some()).and_then(
+            |state| {
+                state
+                    .map(|state| boxed(ctx, state).map(Iteration::Order))
+                    .transpose()
+            },
+        );
     }
     if hash_blocks::method(name) {
         return hash_blocks::Driver::new(
@@ -329,7 +373,11 @@ pub(crate) fn start(
             keywords,
             block_arity.is_some(),
         )
-        .map(|state| state.map(Iteration::Hash));
+        .and_then(|state| {
+            state
+                .map(|state| boxed(ctx, state).map(Iteration::Hash))
+                .transpose()
+        });
     }
     if matches!(&receiver.0, Kind::Hash(hash) if hash.tag.protected())
         && matches!(name, "delete_if" | "keep_if" | "delete")
@@ -477,7 +525,7 @@ pub(crate) fn start(
         start: 0,
         stride: 1,
         width: 1,
-        cycles: Some(1),
+        cycles: 1,
         block: has_block,
         collapse_pair: block_arity == Some(1),
         waiting: false,
@@ -485,7 +533,6 @@ pub(crate) fn start(
         pending: [Value::nil(), Value::nil()],
         pending_index: 0,
         accumulator: None,
-        pattern: None,
         count: 0,
         dropping: method == DropWhile,
         output: Buffer::empty(),
@@ -510,13 +557,13 @@ pub(crate) fn start(
     }
     if method == Cycle {
         state.cycles = match args.first().filter(|v| !matches!(v.0, Kind::Nil)) {
-            Some(value) => Some(value.require_int()?.max(0)),
-            None => None,
+            Some(value) => value.require_int()?.max(0),
+            None => -1,
         };
     }
     if matches!(method, Grep | GrepV | Any | All | NoneMatch | Count) {
-        state.pattern = args.first().cloned();
-        if state.pattern.is_some() && !matches!(method, Grep | GrepV) {
+        state.accumulator = args.first().cloned();
+        if state.accumulator.is_some() && !matches!(method, Grep | GrepV) {
             state.block = false;
         }
     }
@@ -537,16 +584,14 @@ pub(crate) fn start(
         Kind::Array(array) => array.buffer.data.len() as i128,
         Kind::Hash(hash) => hash.buffer.data.len() as i128,
         Kind::Range(range) => {
-            state.start = i128::from(
-                range
-                    .start
-                    .ok_or_else(|| argument("cannot iterate a beginless range"))?,
-            );
+            state.start = range
+                .start
+                .ok_or_else(|| argument("cannot iterate a beginless range"))?;
             state.stride = if range.start > range.end { -1 } else { 1 };
             let length = range.length()?;
             if method == Step {
                 let stride = args[0].require_int()?;
-                state.stride *= i128::from(stride);
+                state.stride *= stride;
                 (length + i128::from(stride) - 1) / i128::from(stride)
             } else {
                 length
@@ -557,16 +602,17 @@ pub(crate) fn start(
                 i128::from((*n).max(0))
             } else {
                 let limit = i128::from(args[0].require_int()?);
-                state.start = i128::from(*n);
+                state.start = *n;
                 state.stride = if method == Downto { -1 } else { 1 };
                 if method == Step && args.len() == 2 {
-                    state.stride = i128::from(args[1].require_int()?);
+                    state.stride = args[1].require_int()?;
                 }
-                let distance = (limit - state.start) * state.stride.signum();
+                let distance =
+                    (limit - i128::from(state.start)) * i128::from(state.stride).signum();
                 if distance < 0 {
                     0
                 } else {
-                    distance / state.stride.abs() + 1
+                    distance / i128::from(state.stride).abs() + 1
                 }
             }
         }
@@ -578,7 +624,7 @@ pub(crate) fn start(
     if matches!(method, SliceWhen | ChunkWhile) && state.length != 0 {
         state.position = 1;
     }
-    if method == Cycle && state.cycles == Some(0) {
+    if method == Cycle && state.cycles == 0 {
         state.length = 0;
     }
     if method == Fetch {
@@ -609,7 +655,7 @@ pub(crate) fn start(
     if method == Fill {
         let original = receiver.as_array().unwrap().len();
         let (start, end, length) = mutate::fill_span(ctx, args, original)?;
-        state.start = start as i128;
+        state.start = start as i64;
         state.width = end;
         state.length = length as i128;
         if start == end && length == original {
@@ -637,7 +683,7 @@ pub(crate) fn start(
             state.length = 1;
         }
     }
-    Ok(Some(Iteration::Loop(state)))
+    Ok(Some(Iteration::Loop(boxed(ctx, state)?)))
 }
 
 impl Loop {
@@ -651,16 +697,16 @@ impl Loop {
         loop {
             ctx.charge(1)?;
             if self.position >= self.length {
-                if self.method != MethodKind::Cycle || self.length == 0 || self.cycles == Some(1) {
+                if self.method != MethodKind::Cycle || self.length == 0 || self.cycles == 1 {
                     return self.finish(ctx).map(Progress::Done);
                 }
-                if let Some(count) = &mut self.cycles {
-                    *count -= 1;
+                if self.cycles > 0 {
+                    self.cycles -= 1;
                 }
                 self.position = 0;
             }
             if self.method == MethodKind::Fill
-                && (self.position < self.start || self.position >= self.width as i128)
+                && (self.position < i128::from(self.start) || self.position >= self.width as i128)
             {
                 let value = self
                     .receiver
@@ -700,8 +746,12 @@ impl Loop {
                 }
             }
             if matches!(self.method, Grep | GrepV) {
-                let matched =
-                    ops::case_matches(ctx, Some(&args[0]), self.pattern.as_ref().unwrap(), false)?;
+                let matched = ops::case_matches(
+                    ctx,
+                    Some(&args[0]),
+                    self.accumulator.as_ref().unwrap(),
+                    false,
+                )?;
                 if matched != (self.method == Grep) {
                     continue;
                 }
@@ -716,10 +766,10 @@ impl Loop {
                 let [first, second] = args;
                 return Ok(Progress::Yield([first, second, Value::nil()], count));
             }
-            let value = if let (Count, Some(pattern)) = (self.method, self.pattern.as_ref()) {
+            let value = if let (Count, Some(pattern)) = (self.method, self.accumulator.as_ref()) {
                 Value::boolean(ops::equal(ctx, &args[0], pattern, 0)?)
             } else if let (Any | All | NoneMatch, Some(pattern)) =
-                (self.method, self.pattern.as_ref())
+                (self.method, self.accumulator.as_ref())
             {
                 Value::boolean(ops::case_matches(ctx, Some(&args[0]), pattern, false)?)
             } else {
@@ -741,7 +791,7 @@ impl Loop {
         } else {
             1
         };
-        self.pending_index = index;
+        self.pending_index = index as u64;
         if matches!(self.method, SliceWhen | ChunkWhile) {
             let array = self.receiver.as_array().unwrap();
             args = [
@@ -761,7 +811,7 @@ impl Loop {
                     } else {
                         index as usize
                     };
-                    self.pending_index = index as i128;
+                    self.pending_index = index as u64;
                     args[0] = if matches!(self.method, EachSlice | EachCons) {
                         let end = array
                             .buffer
@@ -797,7 +847,9 @@ impl Loop {
                     }
                 }
                 Kind::Range(_) | Kind::Int(_) => {
-                    args[0] = Value::int((self.start + index * self.stride) as i64)
+                    args[0] = Value::int(
+                        (i128::from(self.start) + index * i128::from(self.stride)) as i64,
+                    )
                 }
                 _ => unreachable!(),
             }
@@ -1087,7 +1139,7 @@ impl Loop {
             return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
         }
         self.output.push(ctx, part)?;
-        self.start = end as i128;
+        self.start = end as i64;
         Ok(())
     }
 
@@ -1185,6 +1237,22 @@ fn array_copy(ctx: &mut CallContext, values: &[Value]) -> Result<Value> {
 mod tests {
     use super::*;
     use crate::{CallOptions, Limits};
+
+    #[test]
+    fn suspended_driver_reservations_are_released_and_preflighted() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let state = start(&mut ctx, "times", &Value::int(1), &[], &[], Some(0))
+            .unwrap()
+            .unwrap();
+        assert_eq!(ctx.stats().retained_memory_bytes, size_of::<State<Loop>>());
+        drop(state);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        ctx.options.limits.memory_bytes = Some(size_of::<State<Loop>>() - 1);
+        assert!(
+            matches!(start(&mut ctx, "times", &Value::int(1), &[], &[], Some(0)), Err(error) if error.kind == ErrorKind::Memory)
+        );
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
 
     #[test]
     fn chunk_reserved_key_diagnostics_preflight_memory() {
