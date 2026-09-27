@@ -159,6 +159,11 @@ def benchmark_cases():
         add(collection+"_select",f"{receiver}.select {{ |n| n%3==0 }}",argument,[n for n in range(1000) if n%3==0],returns="array<int>",param=param)
         add(collection+"_reduce",f"{receiver}.reduce(0) {{ |total,n| total+n*n%7 }}",argument,sum(n*n%7 for n in range(1000)),returns="int",param=param)
     add("loop_array_build","out: array<int> = []\nfor i in 0...input\n next if i%3==0\n out << i*2\nend\nout",1000,[i*2 for i in range(1000) if i%3!=0],returns="array<int>",param="int")
+    logs=[f"user=user id={i} status={'ready' if i%3 else 'retry'}" if i%5 else "invalid line" for i in range(128)]
+    add("regex_log_lines",r'input.map { |line| m=line.match(/user=([a-z]+) id=([0-9]+) status=([a-z]+)/); m == nil ? [] : m.captures }',logs,[["user",str(i),"ready" if i%3 else "retry"] if i%5 else [] for i in range(128)],returns="array<array<string?>>",param="array<string>")
+    fields=[{"id":f"ID-{i:08}","email":f"user{i}@example.com" if i%4 else "invalid"} for i in range(128)]
+    add("regex_record_fields",r'input.map { |row| row["id"].match?(/\AID-[0-9]{8}\z/) && row["email"].match?(/\A[A-Za-z0-9._+%-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\z/) }',fields,[i%4!=0 for i in range(128)],returns="array<bool>",param="array<{ id: string, email: string }>")
+    add("regex_loop",'hits=0\nfor text in input\n hits+=1 if text.match?(/\\AID-[0-9]{8}\\z/)\nend\nhits',[row["id"] for row in fields],len(fields),returns="int",param="array<string>")
     labels=[f"key-{i}" for i in range(256)]
     add("loop_string_build",'out=""\ninput.each_with_index { |label,i|\n out+=label\n out+=":"\n out+="#{i}"\n out+=";"\n}\nout',labels,"".join(f"{label}:{i};" for i,label in enumerate(labels)),returns="string",param="array<string>")
     add("block_yield","",500,500000,source="def twice(n: int, &block: int -> int) -> int\n yield(n)+yield(n+1)\nend\n"+function("i=0\ntotal=0\nwhile i<input\n total+=twice(i) { |x| x*2 }\n i+=1\nend\ntotal","int","int"))
