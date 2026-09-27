@@ -13,6 +13,7 @@ mod aliases;
 mod calls;
 mod errors;
 mod namespaces;
+mod regex;
 mod typing;
 
 /// An instruction. Sources are at most [`crate::syntax::MAX_SOURCE`] bytes,
@@ -53,7 +54,7 @@ pub(crate) enum Op {
     RootAddress(u32, u32),
     PrepareMember(CallSite, bool),
     StoreDeclaration(u32),
-    Regex(u32, u8),
+    Regex(u32),
     TypeShadowed(u32, u32),
     Normalize(u32, u32),
     /// Validates the value on top of the stack against a type, naming it by
@@ -584,6 +585,8 @@ pub(crate) struct Program {
     pub globals: Vec<(Global, Value)>,
     pub functions: Vec<Function>,
     pub constants: Vec<Value>,
+    /// Compiled literal code, or a pattern error deferred until evaluation.
+    pub regexes: Vec<regex::Literal>,
     /// The constant index of each distinct string and symbol literal, which
     /// [`Op::Shared`] reads by slot.
     pub shared: Vec<usize>,
@@ -715,6 +718,7 @@ pub(crate) fn compile_parsed(
         globals: Vec::new(),
         functions: Vec::new(),
         constants: Vec::new(),
+        regexes: Vec::new(),
         shared: Vec::new(),
         shared_slots: HashMap::new(),
         names,
@@ -1508,9 +1512,12 @@ impl Compiler<'_> {
         match &e.node {
             Node::Regex(pattern, flags) => {
                 self.work.bytes(pattern.len())?;
-                let index = self.program.constants.len();
-                self.program.constants.push(pattern.compiler_constant());
-                self.emit(Op::Regex(narrow(index), *flags));
+                let index = self.program.regexes.len();
+                let compiled =
+                    regex::Literal::new(pattern.compiler_constant(), *flags, self.work.unmetered());
+                self.work.checkpoint()?;
+                self.program.regexes.push(compiled);
+                self.emit(Op::Regex(narrow(index)));
             }
             Node::Integer(n) => {
                 if let Ok(n) = i64::try_from(*n) {

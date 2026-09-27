@@ -17,6 +17,11 @@ pub(crate) use tasks::{Task, Tasks};
 pub(crate) use types::{Field, Type, TypeKind};
 
 pub(crate) trait Work {
+    /// Whether compilation runs outside an invocation's budget.
+    fn unmetered(&self) -> bool {
+        false
+    }
+
     fn charge(&self, steps: usize) -> Result<()>;
     fn bytes(&self, bytes: usize) -> Result<()>;
     fn checkpoint(&self) -> Result<()>;
@@ -58,6 +63,10 @@ pub(crate) trait Work {
 }
 
 impl Work for () {
+    fn unmetered(&self) -> bool {
+        true
+    }
+
     fn charge(&self, _: usize) -> Result<()> {
         Ok(())
     }

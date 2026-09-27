@@ -86,6 +86,23 @@ A trivial call's memory is now mostly its four frames. Iteration previously rese
 
 The common driver keeps endpoints and strides in 64 bits, but computes range lengths and stepping arithmetic in 128 bits, preserving the full integer range. Pattern matching and aggregation share one value slot because no method uses both.
 
+## Regex literals
+
+A regex literal keeps compiled immutable code with its script. Ordinary host
+compilation builds the literal once and records pattern errors without raising
+them; evaluation reports the same error at the literal's source location.
+Every evaluation imports a separately charged view of the source, expanded
+pattern, code header and full instruction/class/name capacities. The code is
+shared through `Arc`, and no cached value retains a call's memory budget.
+Compilation inside an invocation, such as a cold required file, defers this work
+until the literal is first evaluated under that invocation's limits. It then
+caches an uncharged view. Quota, deadline and cancellation failures are never
+cached, and a cache hit still checks interruption before importing its storage.
+
+Dynamic string patterns keep their existing compilation path. They would need a
+separate bounded cache with operation-specific errors and capacity charges;
+literal caching introduces no global pattern cache.
+
 ## Typed arithmetic
 
 The simple loop applies arithmetic and comparisons to two compact integers or two floats inline, checking their tags, and falls back to the general operator for big integers, instances and other operands; integer overflow promotes to a big integer there. Scalar operations keep the bytecode operator code through execution, and only overloads and general operations recover its spelling. Operand pushes stay inline, while literal hashing and rare argument/context errors stay outside instruction dispatch. These choices reduce dispatch work, but do not guarantee that unrelated changes leave the interpreter's machine-code layout or timing unchanged.

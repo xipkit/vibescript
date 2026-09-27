@@ -1253,13 +1253,8 @@ impl Run {
                     let value = crate::integer::parse(ctx, text, radix)?;
                     stack.push(ctx, value)?;
                 }
-                Op::Regex(n, flags) => {
-                    let v = crate::regex::value::Regex::compile(
-                        ctx,
-                        program.constants[n as usize].clone(),
-                        flags,
-                        "regex literal",
-                    )?;
+                Op::Regex(n) => {
+                    let v = program.regexes[n as usize].value(ctx)?;
                     stack.push(ctx, v)?;
                 }
                 Op::Constant(n) => {
