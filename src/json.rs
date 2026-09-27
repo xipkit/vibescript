@@ -14,11 +14,19 @@ const MAX_PAYLOAD: usize = 1 << 20;
 
 pub(crate) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<Value> {
     ctx.checkpoint()?;
-    let mut p = parser::Parser::new(ctx, input);
-    document(&mut p)
+    let indexed = parser::indexed(input);
+    if parser::batched(input, indexed) {
+        document(&mut parser::Parser::with_index(
+            accounting::Steps::new(ctx, input.len()),
+            input,
+            indexed,
+        ))
+    } else {
+        document(&mut parser::Parser::with_index(ctx, input, indexed))
+    }
 }
 
-fn document(p: &mut parser::Parser<'_>) -> Result<Value> {
+fn document<C: accounting::Context>(p: &mut parser::Parser<'_, C>) -> Result<Value> {
     let v = p.value()?;
     p.space()?;
     if !p.finished() {
@@ -48,7 +56,28 @@ pub(crate) fn parse_typed(
             &format!("{name} input exceeds limit {MAX_PAYLOAD} bytes"),
         );
     }
-    let mut p = parser::Parser::new(ctx, input);
+    let indexed = parser::indexed(input);
+    if parser::batched(input, indexed) {
+        parse_typed_with(
+            accounting::Steps::new(ctx, input.len()),
+            input,
+            name,
+            ty,
+            indexed,
+        )
+    } else {
+        parse_typed_with(ctx, input, name, ty, indexed)
+    }
+}
+
+fn parse_typed_with<C: accounting::Context>(
+    ctx: C,
+    input: &[u8],
+    name: &str,
+    ty: Option<&crate::types::Type>,
+    indexed: bool,
+) -> Result<(Value, Option<u64>)> {
+    let mut p = parser::Parser::with_index(ctx, input, indexed);
     p.typed.ty = ty;
     let result = document(&mut p);
     let failure = p.failure;

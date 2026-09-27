@@ -1,13 +1,35 @@
+#[cfg(test)]
+use crate::CallContext;
 use crate::scan::Class;
 use crate::{
-    CallContext, Error, ErrorKind, Result, Value,
+    Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK, MAX_VALUE_DEPTH},
     hash::Hash,
     scan,
 };
 
 /// Small documents use ordinary hashes instead of setting up schema tables.
-pub(super) const RECORD_MIN_BYTES: usize = 2048;
+pub(super) const RECORD_MIN_BYTES: usize = 2 * CHUNK;
+
+const RESERVATION_MIN_BYTES: usize = RECORD_MIN_BYTES;
+
+/// Selects structural indexing using the document's original prefix scan.
+pub(super) fn indexed(input: &[u8]) -> bool {
+    input.len() >= 512
+        && match input
+            .iter()
+            .find(|&&b| !matches!(b, b' ' | b'\n' | b'\r' | b'\t'))
+        {
+            Some(b'[') => true,
+            Some(b'{') => input[..512].contains(&b'['),
+            _ => false,
+        }
+}
+
+/// Flat and small documents cannot amortize reservations between allocations.
+pub(super) fn batched(input: &[u8], indexed: bool) -> bool {
+    input.len() >= RESERVATION_MIN_BYTES && indexed
+}
 
 /// A partially parsed container awaiting further elements.
 ///
@@ -127,8 +149,8 @@ fn quote_byte(byte: u8, out: &mut impl std::fmt::Write) -> std::fmt::Result {
     out.write_char('\'')
 }
 
-pub(super) struct Parser<'a> {
-    pub(super) ctx: super::accounting::Steps<'a>,
+pub(super) struct Parser<'a, C = super::accounting::Steps<'a>> {
+    pub(super) ctx: C,
     input: &'a [u8],
     pos: usize,
     /// The reference's reason for the most recent syntax failure.
@@ -142,30 +164,45 @@ pub(super) struct Parser<'a> {
     keys: Option<[[Value; 2]; 64]>,
     records: Option<super::records::Records<'a>>,
     record_depth: usize,
+    decoded_start: usize,
     #[cfg(test)]
     pub unbatched: bool,
     pub typed: super::typed::Stream<'a>,
 }
 
+#[cfg(test)]
 impl<'a> Parser<'a> {
+    pub fn new(ctx: &'a mut CallContext, input: &'a [u8]) -> Self {
+        Self::with_context(super::accounting::Steps::new(ctx, input.len()), input)
+    }
+}
+
+impl<'a, C: super::accounting::Context> Parser<'a, C> {
     #[cfg(test)]
     pub fn portable(&mut self) {
         self.scanner.portable = true;
     }
 
-    pub fn new(ctx: &'a mut CallContext, input: &'a [u8]) -> Self {
+    #[cfg(test)]
+    pub fn with_context(ctx: C, input: &'a [u8]) -> Self {
+        Self::with_index(ctx, input, indexed(input))
+    }
+
+    /// Constructs the parser with its original prefix decision already made.
+    pub fn with_index(ctx: C, input: &'a [u8], indexed: bool) -> Self {
         Self {
-            ctx: super::accounting::Steps::new(ctx, input.len()),
+            ctx,
             input,
             pos: 0,
             failure: None,
             zero: None,
             scanner: super::scan::Scanner::default(),
-            indexed: false,
+            indexed,
             keys: None,
             typed: super::typed::Stream::default(),
             records: None,
             record_depth: 0,
+            decoded_start: usize::MAX,
             #[cfg(test)]
             unbatched: false,
         }
@@ -253,20 +290,11 @@ impl<'a> Parser<'a> {
     pub fn value(&mut self) -> Result<Value> {
         #[cfg(test)]
         {
-            self.ctx.unbatched = self.unbatched;
+            self.ctx.set_unbatched(self.unbatched);
         }
         // Sample object prefixes so large string payloads do not pay for a
         // document-wide search. A later array still uses the ordinary parser.
-        let indexed = self.input.len() >= 512
-            && match self
-                .input
-                .iter()
-                .find(|&&b| !matches!(b, b' ' | b'\n' | b'\r' | b'\t'))
-            {
-                Some(b'[') => true,
-                Some(b'{') => self.input[..512].contains(&b'['),
-                _ => false,
-            };
+        let indexed = self.indexed;
         // Small messages cannot amortize the schema cursor and field tables.
         // Keep their streaming proof, but use ordinary hash construction.
         match (
@@ -477,7 +505,13 @@ impl<'a> Parser<'a> {
             let failure = self.found(Failure::KeyStart);
             return self.err("expected JSON object key", failure);
         }
+        let start = self.pos + 1;
         let key = self.read_string::<INDEX>(true)?;
+        let key = if self.decoded_start == start {
+            self.share_decoded_key(key)?
+        } else {
+            key
+        };
         self.space_with::<INDEX>()?;
         if !self.take::<INDEX>(b':') {
             let failure = self.found(Failure::AfterKey);
@@ -547,6 +581,7 @@ impl<'a> Parser<'a> {
             }
             break;
         }
+        self.decoded_start = start;
         let mut out = Buffer::with_capacity(&mut self.ctx, self.pos - start)?;
         out.extend(self.ctx.settled(), &self.input[start..self.pos])?;
         // Steps are charged as when each span was appended with `extend` and
@@ -630,36 +665,7 @@ impl<'a> Parser<'a> {
                     if INDEX && self.indexed {
                         self.scanner.end_string(self.pos);
                     }
-                    let value = Value::from_bytes(self.ctx.settled(), out)?;
-                    if let Some(records) = self.records.as_mut().filter(|_| key) {
-                        if let Some(slot) = records.slot(
-                            self.ctx.settled(),
-                            self.record_depth,
-                            value.as_bytes().unwrap(),
-                        )? {
-                            let name = value.as_bytes().unwrap();
-                            let cached = self.keys.as_ref().and_then(|keys| {
-                                if name.len() > 64 {
-                                    return None;
-                                }
-                                let index = name.iter().fold(0usize, |hash, &b| {
-                                    hash.wrapping_mul(33) ^ usize::from(b)
-                                }) & 31;
-                                keys[index].iter().find(|key| key.as_bytes() == Some(name))
-                            });
-                            if let Some(shared) = records
-                                .get(slot)
-                                .or_else(|| records.shared(name, Some(slot.0)))
-                                .or(cached)
-                            {
-                                let shared = shared.clone();
-                                records.remember(self.record_depth, slot, &shared);
-                                return Ok(shared);
-                            }
-                            records.remember(self.record_depth, slot, &value);
-                        }
-                    }
-                    return Ok(value);
+                    return Value::from_bytes(self.ctx.settled(), out);
                 }
                 b'\\' => {
                     let Some(&b) = self.input.get(self.pos) else {
@@ -704,34 +710,88 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // Keep decoded-key adoption outside the escape loop, so scalar strings do
+    // not carry key-sharing state through every decoded byte. The source offset
+    // distinguishes decoded keys without rescanning their input or resetting a
+    // flag for every unescaped key.
+    #[inline(never)]
+    fn share_decoded_key(&mut self, value: Value) -> Result<Value> {
+        let Some(records) = self.records.as_mut() else {
+            return Ok(value);
+        };
+        let name = value.as_bytes().unwrap();
+        let Some(slot) = records.slot(self.ctx.settled(), self.record_depth, name)? else {
+            return Ok(value);
+        };
+        let cached = self.keys.as_ref().and_then(|keys| {
+            if name.len() > 64 {
+                return None;
+            }
+            let index = name.iter().fold(0usize, |hash, &byte| {
+                hash.wrapping_mul(33) ^ usize::from(byte)
+            }) & 31;
+            keys[index].iter().find(|key| key.as_bytes() == Some(name))
+        });
+        if let Some(shared) = records
+            .get(slot)
+            .or_else(|| records.shared(name, Some(slot.0)))
+            .or(cached)
+        {
+            let shared = shared.clone();
+            records.remember(self.record_depth, slot, &shared);
+            return Ok(shared);
+        }
+        records.remember(self.record_depth, slot, &value);
+        Ok(value)
+    }
+
+    #[inline]
     fn copy_string(&mut self, start: usize, key: bool) -> Result<Value> {
+        if key {
+            self.copy_string_with::<true>(start)
+        } else {
+            self.copy_string_with::<false>(start)
+        }
+    }
+
+    fn copy_string_with<const KEY: bool>(&mut self, start: usize) -> Result<Value> {
         let bytes = &self.input[start..self.pos];
+        if !self.indexed && (!KEY || self.records.is_none()) {
+            return self.ctx.bytes(bytes);
+        }
         // Numbered identifiers rarely repeat and would only churn the value cache.
         let cache = if self.indexed
             && bytes.len() <= 64
-            && (key || !bytes.iter().any(u8::is_ascii_digit))
+            && (KEY || !bytes.iter().any(u8::is_ascii_digit))
         {
             let slot = bytes
                 .iter()
                 .fold(0usize, |hash, &b| hash.wrapping_mul(33) ^ usize::from(b))
                 & 31
-                | (usize::from(!key) << 5);
+                | (usize::from(!KEY) << 5);
             if self.keys.is_none() {
                 self.keys = Some([const { [Value::nil(), Value::nil()] }; 64]);
             }
             let keys = &self.keys.as_ref().unwrap()[slot];
-            if let Some(hit) = keys.iter().find(|value| value.as_bytes() == Some(bytes)) {
-                if !key {
+            let hit = if keys[0].as_bytes() == Some(bytes) {
+                Some(&keys[0])
+            } else if keys[1].as_bytes() == Some(bytes) {
+                Some(&keys[1])
+            } else {
+                None
+            };
+            if let Some(hit) = hit {
+                if !KEY {
                     self.ctx.checkpoint()?;
                 }
                 self.ctx.work_bytes(bytes.len())?;
-                if !key {
+                if !KEY {
                     self.ctx.checkpoint()?;
                 }
                 if let Some(records) = self
                     .records
                     .as_mut()
-                    .filter(|records| key && !records.ready(self.record_depth))
+                    .filter(|records| KEY && !records.ready(self.record_depth))
                 {
                     if let Some(slot) = records.slot(&mut self.ctx, self.record_depth, bytes)? {
                         records.remember(self.record_depth, slot, hit);
@@ -743,12 +803,12 @@ impl<'a> Parser<'a> {
         } else {
             None
         };
-        let slot = if let Some(records) = self.records.as_mut().filter(|_| key) {
+        let slot = if let Some(records) = self.records.as_mut().filter(|_| KEY) {
             records.slot(&mut self.ctx, self.record_depth, bytes)?
         } else {
             None
         };
-        let shared = self.records.as_ref().filter(|_| key).and_then(|records| {
+        let shared = self.records.as_ref().filter(|_| KEY).and_then(|records| {
             slot.and_then(|slot| records.get(slot))
                 .or_else(|| records.shared(bytes, slot.map(|slot| slot.0)))
         });
@@ -776,7 +836,7 @@ impl<'a> Parser<'a> {
     }
 
     fn copy_bytes(&mut self, bytes: &[u8]) -> Result<Value> {
-        if !self.indexed {
+        if !C::BATCHED || !self.indexed {
             return self.ctx.bytes(bytes);
         }
         #[cfg(test)]
@@ -1005,13 +1065,28 @@ mod tests {
 
     #[test]
     fn every_document_quota_boundary_matches_unbatched_accounting() {
+        fn read<C: super::super::accounting::Context>(
+            ctx: C,
+            input: &[u8],
+            ty: Option<&crate::types::Type>,
+        ) -> (Result<Value>, usize, Option<Failure>) {
+            let mut parser = Parser::with_context(ctx, input);
+            parser.typed.ty = ty;
+            let result = super::super::document(&mut parser);
+            (result, parser.pos, parser.failure)
+        }
+
         for input in [
             br#"["a",{"b":"cd","b":3},false]"#.as_slice(),
             br#"["a",{"b":"cd"},?]"#,
             br#"["", "ab\ncd", 123.5, "tail"] trailing"#,
         ] {
-            for padding in [0, 512, RECORD_MIN_BYTES] {
-                let padded = [vec![b' '; padding], input.to_vec()].concat();
+            for padding in [0, 512, 2048, RESERVATION_MIN_BYTES] {
+                let padded = if padding == RESERVATION_MIN_BYTES {
+                    [input.to_vec(), vec![b' '; padding]].concat()
+                } else {
+                    [vec![b' '; padding], input.to_vec()].concat()
+                };
                 let input = padded.as_slice();
                 let ty = crate::types::Type {
                     name: "array".into(),
@@ -1039,13 +1114,15 @@ mod tests {
                             },
                             ..CallOptions::default()
                         });
-                        let mut parser = Parser::new(&mut ctx, input);
-                        parser.unbatched = unbatched;
-                        parser.typed.ty = typed.then_some(&ty);
-                        let result = super::super::document(&mut parser);
-                        let position = parser.pos;
-                        let failure = parser.failure;
-                        drop(parser);
+                        let (result, position, failure) = if unbatched {
+                            read(&mut ctx, input, typed.then_some(&ty))
+                        } else {
+                            read(
+                                super::super::accounting::Steps::new(&mut ctx, input.len()),
+                                input,
+                                typed.then_some(&ty),
+                            )
+                        };
                         let stats = ctx.stats();
                         let outcome = result.map(|value| {
                             let mut encoder = CallContext::new(CallOptions::default());

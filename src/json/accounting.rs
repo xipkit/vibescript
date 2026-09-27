@@ -5,6 +5,38 @@ use crate::{
 };
 use std::ops::{Deref, DerefMut};
 
+/// Selects ordinary or reserved accounting without a per-operation branch.
+pub(super) trait Context: Deref<Target = CallContext> + DerefMut {
+    /// Whether token copies may reserve memory credit.
+    const BATCHED: bool;
+
+    /// Charges work at its original logical position.
+    fn charge(&mut self, steps: u64) -> Result<()>;
+    /// Borrows a phase that already settled any pending steps.
+    fn settled(&mut self) -> &mut CallContext;
+
+    #[cfg(test)]
+    /// Selects the original accounting operations for differential tests.
+    fn set_unbatched(&mut self, unbatched: bool);
+}
+
+impl Context for &mut CallContext {
+    const BATCHED: bool = false;
+
+    #[inline]
+    fn charge(&mut self, steps: u64) -> Result<()> {
+        CallContext::charge(self, steps)
+    }
+
+    #[inline]
+    fn settled(&mut self) -> &mut CallContext {
+        self
+    }
+
+    #[cfg(test)]
+    fn set_unbatched(&mut self, _: bool) {}
+}
+
 /// A bounded reservation of steps before the next quota/checkpoint boundary.
 /// Mutable `CallContext` calls settle first, including allocations, guards and
 /// explicit checkpoints. A draw that reaches a boundary uses `charge` itself,
@@ -68,6 +100,25 @@ impl<'a> Steps<'a> {
                 .settle_step_allowance(std::mem::take(&mut self.pending));
         }
         self.available = 0;
+    }
+}
+
+impl Context for Steps<'_> {
+    const BATCHED: bool = true;
+
+    #[inline]
+    fn charge(&mut self, steps: u64) -> Result<()> {
+        Steps::charge(self, steps)
+    }
+
+    #[inline]
+    fn settled(&mut self) -> &mut CallContext {
+        Steps::settled(self)
+    }
+
+    #[cfg(test)]
+    fn set_unbatched(&mut self, unbatched: bool) {
+        self.unbatched = unbatched;
     }
 }
 
