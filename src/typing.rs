@@ -341,6 +341,7 @@ fn check_nested(input: &Input<'_>, depth: usize) -> Checked {
         modules: modules::Required::new(input, depth),
         memo: None,
         write_chain: HashSet::new(),
+        fetch_receivers: HashMap::new(),
         session: None,
         too_deep: false,
         facts: Facts::default(),
@@ -419,6 +420,7 @@ pub(crate) fn entry_arguments(input: &Input<'_>, function: &str, count: usize) -
         modules: modules::Required::new(input, 0),
         memo: None,
         write_chain: HashSet::new(),
+        fetch_receivers: HashMap::new(),
         session: None,
         too_deep: false,
         facts: Facts::default(),
@@ -464,6 +466,9 @@ pub(crate) struct Checker<'a> {
     /// runtime raises when it is missing, and no fix rewrites one, since a
     /// write through a rewritten read would reach a copy.
     write_chain: HashSet<usize>,
+    /// Receiver types of optional indexed reads, for diagnostic fixes only.
+    /// None when repeated checks disagree about the receiver.
+    fetch_receivers: HashMap<usize, Option<ty::Ty>>,
     /// The top-level statements' locals and result, once checked.
     session: Option<Session>,
     /// Whether some syntax was too tall to check ([`HEIGHT`]).

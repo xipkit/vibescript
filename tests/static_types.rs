@@ -8,6 +8,8 @@ mod support;
 
 #[path = "static_types/any.rs"]
 mod any;
+#[path = "static_types/authoring.rs"]
+mod authoring;
 #[path = "static_types/calls.rs"]
 mod calls;
 #[path = "static_types/classes.rs"]

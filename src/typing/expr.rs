@@ -75,6 +75,27 @@ impl<'a> Checker<'a> {
         if selectors.len() != 1 || !self.types.has_nil(found) {
             return None;
         }
+        let receiver_ty = self
+            .fetch_receivers
+            .get(&super::key(expr))
+            .copied()
+            .flatten()?;
+        let fetched = match self.types.kind(receiver_ty) {
+            Kind::Array(element) | Kind::Hash(element) => *element,
+            Kind::Shape(fields, _) => {
+                let Node::Literal(key) = &selectors[0].node else {
+                    return None;
+                };
+                let key = key.as_bytes()?;
+                fields.iter().find(|field| field.name.as_bytes() == key)?.ty
+            }
+            _ => return None,
+        };
+        // String slices, regex captures and custom indexers have no builtin
+        // fetch; nullable elements stay nullable even when fetch finds them.
+        if !self.types.assignable(fetched, expected) {
+            return None;
+        }
         let without = self.types.without_nil(found);
         if without == Ty::NEVER || !self.types.assignable(without, expected) {
             return None;
@@ -1040,6 +1061,15 @@ impl<'a> Checker<'a> {
     fn index(&mut self, expr: &'a Expr, receiver: &'a Expr, selectors: &'a [Expr]) -> Ty {
         let ty = self.expr(receiver, None);
         let read = self.index_type(expr, receiver, ty, selectors);
+        if self.types.has_nil(read) {
+            let recorded = self
+                .fetch_receivers
+                .entry(super::key(expr))
+                .or_insert(Some(ty));
+            if *recorded != Some(ty) {
+                *recorded = None;
+            }
+        }
         if !self.in_write_chain(expr) {
             return read;
         }
@@ -1081,6 +1111,7 @@ impl<'a> Checker<'a> {
             (Kind::Array(element), [selector]) => {
                 let key = self.expr(selector, Some(Ty::INT));
                 if key == Ty::RANGE {
+                    self.fetch_receivers.insert(super::key(expr), None);
                     return self.types.optional(ty);
                 }
                 self.selector(selector, key, Ty::INT);
@@ -1649,8 +1680,12 @@ impl<'a> Checker<'a> {
                 .map(|m| {
                     if name == "bool" {
                         format!("`{m}`")
+                    } else if let Kind::EnumValue(id) = self.types.kind(subject) {
+                        let decl = &self.program.enums[*id as usize];
+                        let index = decl.symbols.iter().position(|symbol| symbol == *m).unwrap();
+                        format!("`{name}::{}`", decl.members[index])
                     } else {
-                        format!("`:{m}`")
+                        unreachable!()
                     }
                 })
                 .collect::<Vec<_>>()

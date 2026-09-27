@@ -83,7 +83,7 @@ fn case_over_an_enum_or_bool_is_exhaustive() {
     let source = format!(
         "{status}def f(s: Status) -> int?\n  case s\n  when Status::Draft then 1\n  end\nend\n"
     );
-    error(&source, "V0114", "does not handle `:live`");
+    error(&source, "V0114", "does not handle `Status::Live`");
     clean("def f(b: bool) -> int\n  case b\n  when true then 1\n  when false then 0\n  end\nend\n");
     codes(
         "def f(b: bool) -> int?\n  case b\n  when true then 1\n  end\nend\n",

@@ -573,6 +573,11 @@ impl<'a> Checker<'a> {
                 let without = self.types.without_nil(ty);
                 if let Some(fix) = self.fetch_fix(receiver, ty, without) {
                     diagnostic = diagnostic.with_fix(fix);
+                } else if matches!(receiver.node, Node::Index(..)) {
+                    diagnostic = diagnostic.with_label(
+                        self.spans.expr(receiver),
+                        "bind this indexed value to a local, then test that local with `!= nil`",
+                    );
                 }
                 self.report(diagnostic);
             }
@@ -904,11 +909,28 @@ impl<'a> Checker<'a> {
             }
         }
         let found = self.types.display(ty);
-        self.report(Diagnostic::error(
+        let mut diagnostic = Diagnostic::error(
             Code::UNKNOWN_MEMBER,
             call.name_span,
             format!("{found} has no member `{}`", call.name),
-        ));
+        );
+        let canonical = match (self.types.kind(ty), call.name) {
+            (Kind::Array(_), "filter") => Some("select"),
+            (Kind::String, "trim") => Some("strip"),
+            (Kind::Array(_) | Kind::String, "includes") => Some("include?"),
+            _ => None,
+        };
+        if let Some(canonical) = canonical {
+            diagnostic = diagnostic.with_fix(
+                Fix::replace(
+                    format!("the Vibescript member is `{canonical}`; check its arguments and block in `vibes prelude`"),
+                    call.name_span,
+                    canonical,
+                )
+                .suggestion(),
+            );
+        }
+        self.report(diagnostic);
         self.loose_args(call);
         Ty::ERROR
     }
