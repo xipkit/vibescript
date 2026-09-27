@@ -6,7 +6,6 @@ use vibescript::{Engine, diagnostic::Applicability};
 #[test]
 fn fetch_fixes_only_offer_a_non_nullable_collection_element() {
     for source in [
-        "def f(m: match_data) -> int; m[1].to_i; end",
         "def f(s: string) -> string; s[0].upcase; end",
         "def f(xs: array<int?>) -> int; xs[0] + 1; end",
         "def f(h: hash<string, int?>) -> int; h[\"a\"] + 1; end",
@@ -24,6 +23,8 @@ fn fetch_fixes_only_offer_a_non_nullable_collection_element() {
         "def f(h: hash<string, int>) -> int; h[\"a\"] + 1; end; f({ a: 41 })",
         "def f(h: { a?: int }) -> int; h[\"a\"] + 1; end; f({ a: 41 })",
         "def f(xs: array<array<int>>) -> int; xs.fetch(0)[0] + 1; end; f([[41]])",
+        "def f(m: match_data) -> int; m[1].to_i + 1; end; f(/(41)/.match(\"41\").as(match_data))",
+        "def f(m: match_data) -> int; m[\"n\"].to_i + 1; end; f(/(?<n>41)/.match(\"41\").as(match_data))",
     ] {
         let diagnostics = codes(source, &["V0107"]);
         let repaired = fixed(source, &diagnostics[0]);
@@ -35,6 +36,29 @@ fn fetch_fixes_only_offer_a_non_nullable_collection_element() {
             .unwrap();
         assert_eq!(result.value.as_int(), Some(42), "{repaired}");
     }
+}
+
+#[test]
+fn match_fetch_is_required_while_indexing_stays_optional() {
+    clean("def f(m: match_data, group: number | string) -> string; m.fetch(group); end");
+    clean("def f(m: match_data) -> string?; m[1]; end");
+    clean("def f(m: match_data) -> string?; m[\"name\"]; end");
+    codes("def f(m: match_data) -> string; m[1]; end", &["V0107"]);
+    codes("def f(m: match_data); m.fetch(:name); end", &["V0101"]);
+    codes("def f(m: match_data); m.fetch; end", &["V0301"]);
+    codes(
+        "def f(m: match_data); m.fetch(1, \"default\"); end",
+        &["V0301"],
+    );
+    let source = "m = /(?<n>42)/.match(\"42\").as(match_data); s: string = m[\"n\"]; s";
+    let diagnostics = codes(source, &["V0107"]);
+    let repaired = fixed(source, &diagnostics[0]);
+    let result = Engine::new()
+        .compile(&repaired)
+        .unwrap()
+        .run(Default::default())
+        .unwrap();
+    assert_eq!(result.value.as_bytes(), Some(b"42".as_slice()));
 }
 
 #[test]

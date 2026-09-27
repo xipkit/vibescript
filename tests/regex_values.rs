@@ -14,6 +14,89 @@ fn json(value: &Value) -> serde_json::Value {
 }
 
 #[test]
+fn match_fetch_selects_required_numbered_and_named_captures() {
+    let source = r#"
+m = /(?<x>a)(b)?(?<missing>z)?()/.match("ab").as(match_data)
+n = /(?<x>a)|(?<x>b)/.match("a").as(match_data)
+p = /(?<x>a)(?<x>b)/.match("ab").as(match_data)
+fields = /(?<captures>a)(?<to_s>b)(?<fetch>c)/.match("abc").as(match_data)
+name = "x"
+[m.fetch(0), m.fetch(1), m.fetch(-3), m.fetch(1.9), m.fetch("x"),
+ m.fetch(name), m.fetch(-1), n.fetch("x"), p.fetch("x"),
+ fields.fetch("captures"), fields.fetch("to_s"), fields.fetch("fetch"),
+ fields["captures"], fields["to_s"], m[3], m[99], m["missing"], m["unknown"]]
+"#;
+    let result = Engine::new()
+        .compile(source)
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap();
+    assert_eq!(
+        json(&result.value),
+        serde_json::json!([
+            "ab",
+            "a",
+            "b",
+            "a",
+            "a",
+            "a",
+            "",
+            "a",
+            "b",
+            "a",
+            "b",
+            "c",
+            ["a", "b", "c"],
+            "abc",
+            null,
+            null,
+            null,
+            null
+        ])
+    );
+}
+
+#[test]
+fn match_fetch_missing_captures_raise_like_collection_fetch() {
+    for (group, message) in [
+        (
+            "3",
+            "match_data.fetch index 3 outside of capture bounds: -3...3",
+        ),
+        (
+            "-4",
+            "match_data.fetch index -4 outside of capture bounds: -3...3",
+        ),
+        ("2", "match_data.fetch capture 2 did not participate"),
+        ("-1", "match_data.fetch capture -1 did not participate"),
+        ("\"missing\"", "match_data.fetch key not found: \"missing\""),
+        ("\"unknown\"", "match_data.fetch key not found: \"unknown\""),
+    ] {
+        let source = format!("/(?<x>a)(?<missing>b)?/.match(\"a\").as(match_data).fetch({group})");
+        let error = Engine::new()
+            .compile(&source)
+            .unwrap()
+            .run(CallOptions::default())
+            .unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Argument, "{group}");
+        assert_eq!(
+            error.class(),
+            Some(vibescript::ErrorClass::Runtime),
+            "{group}"
+        );
+        assert_eq!(error.message, message, "{group}");
+        let rescued = format!("begin; {source}; rescue RuntimeError => e; e.message; end");
+        let value = Engine::new()
+            .compile(&rescued)
+            .unwrap()
+            .run(CallOptions::default())
+            .unwrap()
+            .value;
+        assert_eq!(value.as_bytes(), Some(message.as_bytes()));
+    }
+}
+
+#[test]
 fn regex_values_preserve_flags_operators_and_literal_boundaries() {
     assert_eq!(size_of::<Value>(), 16);
     let host = Value::regex(b"a.b", "mi").unwrap();

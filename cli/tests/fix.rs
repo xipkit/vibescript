@@ -43,6 +43,21 @@ fn fixes_rewrite_whole_expressions() {
 }
 
 #[test]
+fn fixes_required_regex_captures_and_runs_the_result() {
+    let files = Files::new();
+    let source = "m = /(?<n>42)/.match(\"42\").as(match_data)\nputs m[\"n\"].to_i\n";
+    files.write("capture.vibe", source);
+    let run = vibes_in(Some(&files.0), &["fix", "capture.vibe"]);
+    assert_eq!(run.status, Some(0), "{run:?}");
+    assert!(run.stdout.contains("fixed V0107"), "{run:?}");
+    assert_eq!(
+        files.read("capture.vibe"),
+        source.replace("m[\"n\"]", "m.fetch(\"n\")")
+    );
+    vibes_in(Some(&files.0), &["run", "capture.vibe"]).expect(0, "42\n", "");
+}
+
+#[test]
 fn a_dry_run_prints_a_diff_and_writes_nothing() {
     let files = Files::new();
     files.write("names.vibe", OLD);

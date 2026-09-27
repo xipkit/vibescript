@@ -246,7 +246,7 @@ end
 
 ## Nil and optional values
 
-`T?` values come from declarations and from operations that can miss: `array[i]`, `hash[key]`, `find`, `first`, `index`, `match`, `x&.m`. Using one where `nil` is not accepted is an error (V0107). Handle it with a nil test or an early return, which narrow the local, with `fetch`, which raises instead, or with `&.`, which calls through `nil`:
+`T?` values come from declarations and from operations that can miss: `array[i]`, `hash[key]`, `match_data[group]`, `find`, `first`, `index`, `match`, `x&.m`. Using one where `nil` is not accepted is an error (V0107). Handle it with a nil test or an early return, which narrow the local, with `fetch`, which raises instead, or with `&.`, which calls through `nil`:
 
 ```vibe
 def initial(name: string?) -> string
@@ -275,6 +275,8 @@ if nick != nil
   puts nick.upcase
 end
 ```
+
+For [regex match data](regex.md#match-data), `fetch(group: number | string) -> string` returns a required capture. Group zero is the whole match, negative indices count backward, and names select the last participating group with that name. Numeric indices follow `[]`, including truncating floats. A missing or non-participating group raises `RuntimeError`, like array/hash `fetch`; an empty participating capture returns `""`. `fetch` reads captures only, even when their names match public fields, and takes no default or block. `[]` keeps its optional capture reads and existing public-field reads.
 
 ## Arrays
 

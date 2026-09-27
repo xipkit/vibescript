@@ -4,7 +4,7 @@ Compilation reports stable coded diagnostics before any script runs. Use `vibes 
 
 A fix includes a message, an applicability and a list of text edits. `always` means tools can apply it automatically; `suggestion` requires choosing a repair. `vibes fix` applies only `always` edits, rechecks and repeats. Read labels and suggestions as well as the primary message. Unknown names use V0201/V0203; V04xx specifically identifies removed Vibescript spellings, not every spelling borrowed from another language.
 
-For V0107, bind an optional read to a local and test that local with `!= nil`. Arrays and dictionaries can instead use `fetch` when absence should raise; strings and regex match data have no `fetch`, and fetching a nullable collection element does not remove its nil possibility. V0114 names the qualified enum members needed in a `when`, such as `State::Closed`.
+For V0107, bind an optional read to a local and test that local with `!= nil`. Arrays, dictionaries and regex match data can instead use `fetch` when absence should raise; strings have no `fetch`, and fetching a nullable collection element does not remove its nil possibility. V0114 names the qualified enum members needed in a `when`, such as `State::Closed`.
 
 ## Execution failures
 

@@ -279,6 +279,17 @@ models from other languages misread.
 
 Rejected. A literal `send` is a direct call written less clearly.
 
+## Addendum: required regex captures (2026-09-27)
+
+Accepted after the [AI authoring evaluation](../authoring-evaluation.md):
+`match_data.fetch(group: number | string) -> string` extends the existing
+required-read operation to captures. Missing and non-participating groups raise
+`RuntimeError` with `ErrorKind::Argument`, as array/hash `fetch` does; optional
+`[]` reads are unchanged. Numeric indices preserve `[]` semantics, including
+negative indices and truncated floats. Names select captures, including names
+that collide with public fields; no default or block is accepted. V0107 may
+therefore rewrite an optional capture read to `fetch` when a string is required.
+
 ## Links
 
 - [ADR-006: Slim the language for predictable sandboxing](006-slim-language-for-predictable-sandboxing.md)

@@ -209,6 +209,57 @@ pub(super) fn window_bytes(text: &[u8], start: usize, end: usize) -> usize {
     }
 }
 
+/// Reads a required capture, preserving numeric indexing and named-group selection.
+pub(super) fn fetch(
+    ctx: &mut CallContext,
+    hash: &Hash,
+    args: &[Value],
+    keywords: bool,
+    block: bool,
+) -> Result<Value> {
+    if args.len() != 1 || keywords || block {
+        return Err(Error::new(
+            ErrorKind::Argument,
+            "match_data.fetch expects one capture index or name, without keywords or a block",
+        ));
+    }
+    let group = &args[0];
+    if let Some(key) = group.as_bytes() {
+        let named = hash.find(ctx, b"named_captures")?.unwrap();
+        let Kind::Hash(named) = &hash.buffer.data[named].1.0 else {
+            unreachable!()
+        };
+        if let Some(found) = named.find(ctx, key)? {
+            let value = &named.buffer.data[found].1;
+            if !matches!(value.0, Kind::Nil) {
+                return Ok(value.clone());
+            }
+        }
+        return Err(crate::collections::missing_key(
+            ctx,
+            "match_data.fetch",
+            group,
+        )?);
+    }
+    let index = crate::sequence::integer(group)?;
+    if let Some(value) = self::index(ctx, hash, group)? {
+        if !matches!(value.0, Kind::Nil) {
+            return Ok(value);
+        }
+    }
+    let captures = hash.find(ctx, b"captures")?.unwrap();
+    let length = hash.buffer.data[captures].1.as_array().unwrap().len() as i128 + 1;
+    let message = if i128::from(index) < -length || i128::from(index) >= length {
+        format!(
+            "match_data.fetch index {index} outside of capture bounds: {}...{length}",
+            -length
+        )
+    } else {
+        format!("match_data.fetch capture {index} did not participate")
+    };
+    Err(Error::new(ErrorKind::Argument, message))
+}
+
 pub(crate) fn index(ctx: &mut CallContext, hash: &Hash, index: &Value) -> Result<Option<Value>> {
     if !hash.object {
         return Ok(None);

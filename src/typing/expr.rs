@@ -82,6 +82,7 @@ impl<'a> Checker<'a> {
             .flatten()?;
         let fetched = match self.types.kind(receiver_ty) {
             Kind::Array(element) | Kind::Hash(element) => *element,
+            Kind::MatchData => Ty::STRING,
             Kind::Shape(fields, _) => {
                 let Node::Literal(key) = &selectors[0].node else {
                     return None;
@@ -91,8 +92,7 @@ impl<'a> Checker<'a> {
             }
             _ => return None,
         };
-        // String slices, regex captures and custom indexers have no builtin
-        // fetch; nullable elements stay nullable even when fetch finds them.
+        // Nullable collection elements stay nullable even when fetch finds them.
         if !self.types.assignable(fetched, expected) {
             return None;
         }

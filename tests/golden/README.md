@@ -124,6 +124,17 @@ New static rejections:
 `control_called_function_own_loop` and `destructure_groups_each_bind_a_level` move from the rejections to the language corpus: a `for` loop over a literal with elements always runs its body, and a nested array literal destructured by a nested pattern is a tuple, so both now compile, and the differential tests confirm their values.
 
 Changed first errors: 30 `class_accessors_*` rejections report the setter whose type differs from its variable's at the declaration, `sum_initial` reports `[].sum(nil)`, and the replay expectations of `call2528`, `call3017`, `call41693`, `call41961`, `call54722`, `call54723`, `call54725`, `compile408`, `compile533` and `compile884` name the earlier error the checker now finds. Seven rejection messages say `array<never>` instead of `array<unknown>` for the result of a call whose block always breaks. Two LSP completion replies, which 197 sessions give, describe `array<T: int>.sum` as returning `int`.
+## Required captures and foreign-name advice
+
+The 2026-09-27 language changes add `match_data.fetch` and V0201 advice for
+familiar foreign names. Re-recorded `lsp.replies.jsonl.gz`: exactly three shared
+completion replies append `match_data.fetch(group: number | string) -> string`
+to the documentation for `fetch`. These replies occur 11,125 times across 197
+selected sessions. Every other reply field is unchanged. `lsp.jsonl.gz` keeps
+all 216 sessions and their reply indexes byte-for-byte; no engine, parser or CLI
+observation changed. No counters were re-recorded, so this adds no Counter log
+entry. The reply audit is in `.cache/language-1/lsp-audit.json` on the main
+checkout's external volume.
 
 ## Counter log
 

@@ -322,6 +322,13 @@ pub(crate) fn member(
     keywords: bool,
     block: bool,
 ) -> Result<Option<Value>> {
+    if name == "fetch" {
+        if let Kind::Hash(hash) = &receiver.0 {
+            if hash.tag == crate::hash::Tag::Match {
+                return super::matches::fetch(ctx, hash, args, keywords, block).map(Some);
+            }
+        }
+    }
     let Kind::Regex(regex) = &receiver.0 else {
         return Ok(None);
     };

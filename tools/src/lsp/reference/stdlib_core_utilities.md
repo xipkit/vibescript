@@ -1042,6 +1042,11 @@ match and `found[1]` for the first group, and it cannot be modified.
 - `captures -> array<string?>` – the groups, `nil` for one that did not take
   part.
 - `named_captures -> hash<string, string?>` – the named groups.
+- `fetch(group: number | string) -> string` – a required capture by index or
+  name; missing and non-participating groups raise `RuntimeError`, like
+  array/hash `fetch`. Negative indices count backward and floats truncate.
+  Names select captures even when they match public field names. No default
+  or block is accepted.
 - `pre_match -> string` / `post_match -> string` – the text before and after
   the match.
 - `begin(group: int) -> int?` / `end(group: int) -> int?` – the character

@@ -266,6 +266,11 @@ fn runtime_members() -> BTreeMap<&'static str, BTreeSet<String>> {
         let keys = record.as_hash().unwrap().iter().map(|(key, _)| text(key));
         members.insert(receiver, keys.collect());
     }
+    // Required capture access is a method, not a stored match-data field.
+    members
+        .get_mut("match_data")
+        .unwrap()
+        .insert("fetch".to_owned());
     members
 }
 

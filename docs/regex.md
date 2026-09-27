@@ -60,7 +60,16 @@ end
 
 The result is `["ID-12", "12", 2, 7, "é ", ""]`. Group zero is the whole match; numbered and named indices read captures. Negative group indices count backward, missing captures and out-of-range value indices return nil, and duplicate names select the last participating group. `captures` omits group zero; `named_captures` is a hash. Public field names take precedence over named captures.
 
-A successful match does not prove that a capture participated. Match data has no `fetch` member. Bind the capture to a local and narrow that local before calling string methods:
+A successful match does not prove that a capture participated. `fetch(group: number | string) -> string` returns a required capture and raises `RuntimeError` (Rust `ErrorKind::Argument`, like array/hash `fetch`) when it is missing or did not participate. It accepts the same numeric indices as `[]`, including negative indices and floats truncated toward zero, and named groups, including names computed at runtime. Duplicate names select the last participating group. An empty participating capture returns `""`. `fetch` selects captures only, so `fetch("captures")` selects that named group, while `["captures"]` still reads the public field. It takes no default or block.
+
+```vibe
+m = "ID-12".match(/ID-(?<number>[0-9]+)/)
+if m != nil
+  m.fetch("number").to_i                 # 12; raises if the capture is missing
+end
+```
+
+When a missing capture is expected, keep the optional `[]` read and narrow its local before calling string methods:
 
 ```vibe
 def elapsed_ms(line: string) -> int?

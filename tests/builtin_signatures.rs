@@ -598,6 +598,9 @@ const EXPECTED: &[(&str, &str)] = &[
     ("array.fetch", "outside of array bounds"),
     ("hash.fetch", "key not found"),
     ("hash.fetch_values", "key not found"),
+    ("match_data.fetch", "outside of capture bounds"),
+    ("match_data.fetch", "key not found"),
+    ("match_data.fetch", "did not participate"),
     // Content: the pattern's operands, the bounds' order, an index past the end.
     ("global.format", "references missing operand"),
     ("int.clamp", "min must be <= max"),

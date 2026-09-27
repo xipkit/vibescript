@@ -16,7 +16,8 @@
 #
 # Records use record["field"]. Array/dictionary reads and regex captures can
 # return nil: bind the read to a local and test it with != nil. Array/hash
-# fetch raises for a missing entry; strings and match_data have no fetch.
+# fetch raises for a missing entry; match_data.fetch raises for a missing capture.
+# Strings have no fetch.
 # JSON syntax/schema mismatches raise RuntimeError; failed as casts raise TypeError.
 # Narrow a JSON.parse result (any) before using its members or operators.
 # This is a signature reference: generic declarations and name?: T parameters
@@ -661,6 +662,7 @@ class match_data
   def begin(group: int) -> int?
   def captures -> array<string?>
   def end(group: int) -> int?
+  def fetch(group: number | string) -> string
   def named_captures -> hash<string, string?>
   def post_match -> string
   def pre_match -> string
