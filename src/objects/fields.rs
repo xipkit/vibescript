@@ -103,9 +103,9 @@ impl Fields {
                 ctx.charge(1)?;
                 if slot >= values.data.len() {
                     values.ensure(ctx, slot + 1)?;
-                    while values.data.len() <= slot {
-                        let end = (slot + 1)
-                            .min(values.data.len() + crate::budget::CHUNK / size_of::<Slot>());
+                    while values.data.len() < slot {
+                        let end =
+                            slot.min(values.data.len() + crate::budget::CHUNK / size_of::<Slot>());
                         ctx.work_bytes((end - values.data.len()) * size_of::<Slot>())?;
                         values.data.resize_with(end, || Slot {
                             value: Value::nil(),
@@ -113,6 +113,13 @@ impl Fields {
                             next: ABSENT,
                         });
                     }
+                    // The selected slot's write is charged above; only skipped
+                    // slots add initialization work.
+                    values.data.push(Slot {
+                        value: Value::nil(),
+                        previous: ABSENT,
+                        next: ABSENT,
+                    });
                 }
                 if values.data[slot].next == ABSENT {
                     if *last == END {
