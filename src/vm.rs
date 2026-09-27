@@ -5052,16 +5052,16 @@ fn unwind(
     stack: &mut Buffer<Value>,
     target: usize,
 ) {
+    let mut binding = 0;
+    let mut pooled = 0;
     for frame in &frames.data[target..] {
+        binding += usize::from(frame.binding);
+        pooled += usize::from(frame.pooled_iteration());
         if let ReturnTo::Require(index) = frame.return_to {
             requires::abandon(storage, index);
         }
         programs::defer_release(storage, frame.program.index);
     }
-    let binding = frames.data[target..]
-        .iter()
-        .filter(|frame| frame.binding)
-        .count();
     let parameters = storage.parameters.data.len() - binding;
     storage.parameters.data.truncate(parameters);
     let frame = &frames.data[target];
@@ -5070,10 +5070,6 @@ fn unwind(
     stack.data.truncate(frame.base());
     storage.locals.data.truncate(frame.local_base());
     storage.iterations.data.truncate(frame.iteration_base());
-    let pooled = frames.data[target..]
-        .iter()
-        .filter(|frame| frame.pooled_iteration())
-        .count();
     release_iteration_pool(storage, pooled);
     storage.addresses.data.truncate(frame.address_base());
     storage.bypasses.data.truncate(frame.bypass_base());
