@@ -17,6 +17,16 @@ rust-version = "1.85"
 description = "An experimental metered Vibescript interpreter in Rust"
 license = "MIT AND BSD-3-Clause"
 publish = false
+autotests = false
+
+[[test]]
+name = "all"
+path = "tests/all.rs"
+
+# Allocation snapshots must not include work from unrelated tests.
+[[test]]
+name = "footprint"
+path = "tests/footprint.rs"
 
 [features]
 default = ["simd"]
