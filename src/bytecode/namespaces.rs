@@ -1,4 +1,4 @@
-use super::{Call, Compiler, Compiling, Op, Program, syntax, typing::Typing};
+use super::{Call, Compiler, Compiling, Op, Program, narrow, syntax, typing::Typing};
 use crate::{Result, Value, compilation::Name, namespace, syntax::modules::Module, value::Kind};
 
 struct Frame {
@@ -242,7 +242,7 @@ impl<'x> Compiling<'_, 'x> {
                 for index in indices {
                     self.expr(index).await?;
                 }
-                self.c().emit(Op::AddressIndex(indices.len()));
+                self.c().emit(Op::AddressIndex(narrow(indices.len())));
             }
             syntax::Node::Member(root, name) => {
                 self.nested_assignment_address(root).await?;
@@ -319,7 +319,7 @@ impl<'x> Compiling<'_, 'x> {
         self.assignment_rhs(binding, &[rhs]).await?;
         let mut c = self.c();
         if let Some(op) = binary {
-            c.emit(Op::Binary(op));
+            c.binary(op)?;
         }
         // A typed constant checks every value it is given.
         c.check_local(name)?;
@@ -354,7 +354,9 @@ impl Compiler<'_> {
             let name = self.call_site(name, false).name;
             self.emit(Op::NamespaceStore(name));
         } else {
-            self.emit(Op::StoreDeclaration(self.program.declaration_names[name]));
+            self.emit(Op::StoreDeclaration(narrow(
+                self.program.declaration_names[name],
+            )));
         }
     }
 }

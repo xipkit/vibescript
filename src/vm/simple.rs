@@ -43,16 +43,17 @@ pub(super) fn run(
             }
             Op::Constant(n) => {
                 step(ctx, frame)?;
-                let value = ctx.import(&program.constants[n])?;
+                let value = ctx.import(&program.constants[n as usize])?;
                 push(ctx, stack, value)?;
             }
             Op::Shared(slot) => {
                 step(ctx, frame)?;
-                let value = shared(ctx, program, storage, slot)?;
+                let value = shared(ctx, program, storage, slot as usize)?;
                 push(ctx, stack, value)?;
             }
             Op::Load(n) => {
-                let Some(slot) = local(ctx, outer, function, frame, storage, n, shadowed)? else {
+                let Some(slot) = local(ctx, outer, function, frame, storage, n as usize, shadowed)?
+                else {
                     return Ok(());
                 };
                 let mut value = storage.locals.data[slot]
@@ -67,12 +68,12 @@ pub(super) fn run(
                 push(ctx, stack, value)?;
             }
             Op::LoadOptional(n, _, _) => {
-                let own = frame.local_base() + n;
+                let own = frame.local_base() + n as usize;
                 let slot = if storage.locals.data[own].is_some() {
                     step(ctx, frame)?;
                     own
                 } else {
-                    match bound(ctx, outer, function, frame, storage, n)? {
+                    match bound(ctx, outer, function, frame, storage, n as usize)? {
                         Some(slot) => slot,
                         None => return Ok(()),
                     }
@@ -89,22 +90,25 @@ pub(super) fn run(
                 push(ctx, stack, value)?;
             }
             Op::ReceiverBound(n, next) => {
-                let Some(value) = storage.locals.data[frame.local_base() + n].as_ref() else {
+                let Some(value) = storage.locals.data[frame.local_base() + n as usize].as_ref()
+                else {
                     return Ok(());
                 };
                 step(ctx, frame)?;
                 let value = copy(value);
                 push(ctx, stack, value)?;
-                frame.ip = next;
+                frame.ip = next as usize;
             }
             Op::Declare(n) => {
-                let Some(slot) = local(ctx, outer, function, frame, storage, n, shadowed)? else {
+                let Some(slot) = local(ctx, outer, function, frame, storage, n as usize, shadowed)?
+                else {
                     return Ok(());
                 };
                 storage.locals.data[slot].get_or_insert_with(Value::nil);
             }
             Op::Store(n) => {
-                let Some(slot) = local(ctx, outer, function, frame, storage, n, shadowed)? else {
+                let Some(slot) = local(ctx, outer, function, frame, storage, n as usize, shadowed)?
+                else {
                     return Ok(());
                 };
                 let value = stack.data.last().unwrap();
@@ -115,7 +119,8 @@ pub(super) fn run(
                 if !plain_operand(stack) {
                     return Ok(());
                 }
-                let Some(slot) = local(ctx, outer, function, frame, storage, n, shadowed)? else {
+                let Some(slot) = local(ctx, outer, function, frame, storage, n as usize, shadowed)?
+                else {
                     return Ok(());
                 };
                 let b = stack.data.pop().unwrap();
@@ -142,6 +147,7 @@ pub(super) fn run(
                     return Ok(());
                 }
                 step(ctx, frame)?;
+                let op = op.name();
                 let b = stack.data.pop().unwrap();
                 let a = stack.data.pop().unwrap();
                 let value = match ops::immediate(ctx, op, &a, &b)? {
@@ -157,17 +163,19 @@ pub(super) fn run(
             Op::Index(n) => {
                 // Exported values need their depth checked after indexing,
                 // unless the checker proved the result plain.
-                if matches!(stack.data[stack.data.len() - n - 1].0, Kind::Instance(_))
-                    || (ctx.has_exports && !function.plain_values.contains(frame.ip))
+                if matches!(
+                    stack.data[stack.data.len() - n as usize - 1].0,
+                    Kind::Instance(_)
+                ) || (ctx.has_exports && !function.plain_values.contains(frame.ip))
                 {
                     return Ok(());
                 }
                 step(ctx, frame)?;
-                index(ctx, function, frame, storage, stack, n)?;
+                index(ctx, function, frame, storage, stack, n as usize)?;
             }
             Op::Array(n) => {
                 step(ctx, frame)?;
-                array(ctx, stack, n)?;
+                array(ctx, stack, n as usize)?;
             }
             Op::Direct(site, n) => {
                 // Exported values need their arguments and result checked,
@@ -175,17 +183,17 @@ pub(super) fn run(
                 let checked = ctx.has_exports
                     && !(function.plain_values.contains(frame.ip)
                         && function.plain_inputs.contains(frame.ip));
-                if checked || !direct(ctx, program, frame, stack, site, n)? {
+                if checked || !direct(ctx, program, frame, stack, site, n as usize)? {
                     return Ok(());
                 }
             }
             Op::AddressBound(n, next) => {
-                let own = frame.local_base() + n;
+                let own = frame.local_base() + n as usize;
                 let slot = if storage.locals.data[own].is_some() {
                     step(ctx, frame)?;
                     own
                 } else {
-                    match bound(ctx, outer, function, frame, storage, n)? {
+                    match bound(ctx, outer, function, frame, storage, n as usize)? {
                         Some(slot) => slot,
                         None => return Ok(()),
                     }
@@ -194,7 +202,7 @@ pub(super) fn run(
                 storage
                     .addresses
                     .push(ctx, Address::new(Some(slot), value))?;
-                frame.ip = next;
+                frame.ip = next as usize;
             }
             Op::PrepareMember(_, mutating) => {
                 // A hash's fields can take a member's place.
@@ -221,8 +229,8 @@ pub(super) fn run(
                 }
                 step(ctx, frame)?;
                 let address = storage.addresses.data.pop().unwrap();
-                let base = stack.data.len() - n;
-                let name = &program.members[site.name];
+                let base = stack.data.len() - n as usize;
+                let name = &program.members[site.name as usize];
                 let value = update(ctx, storage, address, site, name, &stack.data[base..])?;
                 stack.data.truncate(base);
                 push(ctx, stack, value)?;
@@ -246,8 +254,8 @@ pub(super) fn run(
                 }
                 step(ctx, frame)?;
                 address.check_present(ctx)?;
-                address.selectors.ensure(ctx, n)?;
-                let base = stack.data.len() - n;
+                address.selectors.ensure(ctx, n as usize)?;
+                let base = stack.data.len() - n as usize;
                 for value in stack.data.drain(base..) {
                     ctx.charge(1)?;
                     address.selectors.data.push(value);
@@ -275,7 +283,7 @@ pub(super) fn run(
             }
             Op::Shadow(slot) => {
                 step(ctx, frame)?;
-                store(storage, frame.local_base() + slot, Value::nil());
+                store(storage, frame.local_base() + slot as usize, Value::nil());
             }
             Op::BlockArg(index, autosplat) => {
                 // Exported values need their depth checked when read, unless
@@ -284,7 +292,8 @@ pub(super) fn run(
                     return Ok(());
                 }
                 step(ctx, frame)?;
-                let value = block_arg(frame, stack, index, autosplat).map_or_else(Value::nil, copy);
+                let value = block_arg(frame, stack, index as usize, autosplat)
+                    .map_or_else(Value::nil, copy);
                 push(ctx, stack, value)?;
             }
             Op::IterNext => {
@@ -294,24 +303,24 @@ pub(super) fn run(
             }
             Op::Jump(target) => {
                 step(ctx, frame)?;
-                frame.ip = target;
+                frame.ip = target as usize;
             }
             Op::JumpFalse(target) => {
                 step(ctx, frame)?;
                 if !truthy(stack.data.pop().unwrap()) {
-                    frame.ip = target;
+                    frame.ip = target as usize;
                 }
             }
             Op::JumpTrue(target) => {
                 step(ctx, frame)?;
                 if truthy(stack.data.pop().unwrap()) {
-                    frame.ip = target;
+                    frame.ip = target as usize;
                 }
             }
             Op::JumpNil(target) => {
                 step(ctx, frame)?;
                 if matches!(stack.data.last().unwrap().0, Kind::Nil) {
-                    frame.ip = target;
+                    frame.ip = target as usize;
                 }
             }
             Op::LoopTest => {
@@ -399,7 +408,7 @@ fn direct(
         return Ok(false);
     }
     step(ctx, frame)?;
-    let name = &program.members[site.name];
+    let name = &program.members[site.name as usize];
     let value = members::direct::call(
         ctx,
         method,

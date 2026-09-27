@@ -14,26 +14,26 @@ impl<'x> Compiling<'_, 'x> {
             work.charge(1)?;
             c.global(name);
             if c.program.file || c.namespace.is_some() {
-                let slot = c.locals.get(work, name)?.copied().unwrap_or(usize::MAX);
+                let slot = c.locals.get(work, name)?.copied().map_or(NO_SLOT, narrow);
                 let name = c.call_site(name, false).name;
                 c.emit(Op::ResolveCall(slot, name));
                 None
             } else if let Some(&slot) = c.locals.get(work, name)? {
                 let name = c.call_site(name, false).name;
-                c.emit(Op::ResolveCall(slot, name));
+                c.emit(Op::ResolveCall(narrow(slot), name));
                 None
             } else if c.program.declaration_names.contains_key(name) {
                 Some(Invocation::NonCallable)
             } else if let Some(&fun) = c.program.names.get(name) {
-                Some(Invocation::Function(fun))
+                Some(Invocation::Function(narrow(fun)))
             } else if let Some(host) = c.host_position(name)? {
-                Some(Invocation::Host(host))
+                Some(Invocation::Host(narrow(host)))
             } else if let Some(global) = c.global(name) {
-                c.emit(Op::ResolveGlobalCall(global));
+                c.emit(Op::ResolveGlobalCall(narrow(global)));
                 None
             } else {
                 let site = c.call_site(name, false);
-                c.emit(Op::ResolveCall(usize::MAX, site.name));
+                c.emit(Op::ResolveCall(NO_SLOT, site.name));
                 None
             }
         };
@@ -58,9 +58,9 @@ impl<'x> Compiling<'_, 'x> {
                 self.expr(&arg.value).await?;
             }
             self.c().emit(match target {
-                Invocation::Function(fun) => Op::Call(fun, args.len()),
-                Invocation::Host(host) => Op::Host(host, args.len()),
-                Invocation::NonCallable => Op::NonCallable(args.len()),
+                Invocation::Function(fun) => Op::Call(fun, narrow(args.len())),
+                Invocation::Host(host) => Op::Host(host, narrow(args.len())),
+                Invocation::NonCallable => Op::NonCallable(narrow(args.len())),
                 _ => unreachable!(),
             })
         };
@@ -85,7 +85,7 @@ impl<'x> Compiling<'_, 'x> {
         self.argument_values(args).await?;
         let mut c = self.c();
         if let Some(block) = block {
-            c.emit(Op::Attach(block));
+            c.emit(Op::Attach(narrow(block)));
         }
         c.emit(Op::Invoke(Invocation::Resolved));
         Ok(())
@@ -118,7 +118,7 @@ impl<'x> Compiling<'_, 'x> {
                     .locals
                     .get(c.work, name.as_str())?
                     .copied()
-                    .unwrap_or(usize::MAX);
+                    .map_or(NO_SLOT, narrow);
                 let name = c.call_site(name, false).name;
                 c.emit(Op::CallName(slot, name));
             }
@@ -154,7 +154,7 @@ impl<'x> Compiling<'_, 'x> {
                     c.program
                         .type_guards
                         .push(names.iter().map(|name| name.as_str().to_owned()).collect());
-                    let guard = c.emit(Op::TypeShadowed(index, 0));
+                    let guard = c.emit(Op::TypeShadowed(narrow(index), 0));
                     let shape = crate::shapes::compile(ty.compile(c.work)?);
                     c.constant(shape);
                     c.emit(Op::CallValue);

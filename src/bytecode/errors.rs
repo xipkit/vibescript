@@ -33,7 +33,7 @@ impl<'x> Compiling<'_, 'x> {
             c.work.charge(1)?;
             let index = c.program.handlers.len();
             c.program.handlers.push(TrySpec::default());
-            c.emit(Op::TryBegin(index));
+            c.emit(Op::TryBegin(narrow(index)));
             let spec = TrySpec {
                 body: c.code.len(),
                 body_locals: c.statement_bindings(&attempt.body)?.into_parts().0,
@@ -148,7 +148,7 @@ impl<'x> Compiling<'_, 'x> {
                         && crate::ErrorClass::from_name(name).is_some()
                     {
                         Some((
-                            c.call_site(name, false).name,
+                            c.call_site(name, false).name as usize,
                             c.locals.get(c.work, name.as_str())?.copied(),
                         ))
                     } else {
@@ -157,6 +157,10 @@ impl<'x> Compiling<'_, 'x> {
                 } else {
                     None
                 };
+                let named = named.map(|named| {
+                    c.program.raises.push(named);
+                    narrow(c.program.raises.len() - 1)
+                });
                 c.emit(Op::RaiseStart(named, 0))
             };
             self.expr(value).await?;

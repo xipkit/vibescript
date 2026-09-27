@@ -42,10 +42,10 @@ pub(super) fn identifier(
         return Ok(Target::Plain(Invocation::NonCallable));
     }
     if let Some(&function) = program.names.get(name) {
-        return Ok(Target::Plain(Invocation::Function(function)));
+        return Ok(Target::Plain(Invocation::Function(narrow(function))));
     }
     if let Some(host) = program.hosts.iter().position(|host| host == name) {
-        return Ok(Target::Plain(Invocation::Host(host)));
+        return Ok(Target::Plain(Invocation::Host(narrow(host))));
     }
     if let Some(binding) = file_bindings::root_binding(program, ctx, storage, name)? {
         return Ok(binding.target());
@@ -88,7 +88,7 @@ pub(super) fn member(
     namespace: Option<usize>,
     instance: bool,
 ) -> Result<Target> {
-    let name = &program.members[site.name];
+    let name = &program.members[site.name as usize];
     ctx.work_bytes(name.len())?;
     if matches!(receiver.0, Kind::Namespace(_) | Kind::Instance(_)) {
         match namespaces::member(
@@ -106,15 +106,17 @@ pub(super) fn member(
         )? {
             namespaces::Member::Function(call) => return Ok(Target::Method(call)),
             namespaces::Member::Value(value) => return Ok(value_invocation(&value)),
-            namespaces::Member::IsType(_) => return Ok(Target::Member(Value::nil(), site.name)),
+            namespaces::Member::IsType(_) => {
+                return Ok(Target::Member(Value::nil(), site.name as usize));
+            }
             namespaces::Member::Missing => {}
         }
     } else if matches!(receiver.0, Kind::Enum(_) | Kind::EnumMember(_)) {
         if !site.scope && names::universal(name) {
-            return Ok(Target::Member(Value::nil(), site.name));
+            return Ok(Target::Member(Value::nil(), site.name as usize));
         }
         if !site.scope && matches!(name.as_str(), "to_s" | "inspect") {
-            return Ok(Target::Member(Value::nil(), site.name));
+            return Ok(Target::Member(Value::nil(), site.name as usize));
         }
         if let Some(value) = crate::enums::call(
             ctx,
@@ -136,16 +138,16 @@ pub(super) fn member(
         }
     }
     if matches!(receiver.0, Kind::Range(_)) && matches!(name.as_str(), "to_s" | "inspect") {
-        return Ok(Target::Member(Value::nil(), site.name));
+        return Ok(Target::Member(Value::nil(), site.name as usize));
     }
     if let Some(kind) = names::typed(&receiver, name) {
         if kind == "nil" {
-            return Ok(Target::Member(Value::nil(), site.name));
+            return Ok(Target::Member(Value::nil(), site.name as usize));
         }
-        return Ok(Target::Unbound(kind, site.name));
+        return Ok(Target::Unbound(kind, site.name as usize));
     }
     if names::universal(name) && !names::temporal_method(&receiver, name) {
-        return Ok(Target::Member(Value::nil(), site.name));
+        return Ok(Target::Member(Value::nil(), site.name as usize));
     }
     if matches!(receiver.0, Kind::Int(_) | Kind::Big(_))
         && matches!(
@@ -162,15 +164,15 @@ pub(super) fn member(
     ) {
         if names::temporal_method(&receiver, name) {
             if matches!(name.as_str(), "to_s" | "inspect" | "between?") {
-                return Ok(Target::Member(Value::nil(), site.name));
+                return Ok(Target::Member(Value::nil(), site.name as usize));
             }
-            return Ok(Target::Member(receiver, site.name));
+            return Ok(Target::Member(receiver, site.name as usize));
         }
         let (_, value) = members::call(ctx, CallSite { auto: true, ..site }, name, receiver, &[])?;
         return Ok(value_invocation(&value));
     }
     if names::universal(name) {
-        return Ok(Target::Member(Value::nil(), site.name));
+        return Ok(Target::Member(Value::nil(), site.name as usize));
     }
     let message = match names::Receiver::of(&receiver).unknown() {
         Some((wording, candidates)) => {
