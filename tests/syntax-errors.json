@@ -13191,7 +13191,7 @@
     "name": "begin_modifier_boundary_plain_ensure",
     "source": "def run(_: any)\nbegin\n1\nensure\n2\nend unless false\nend",
     "go_error": "parse error at 6:5: modifier unless is only supported after expression or assignment statements, or leaf control-flow statements\n  --> line 6, column 5\n 6 | end unless false\n   |     ^",
-    "error": "parse error at 6:5: unexpected token 'unless'"
+    "error": "parse error at 6:4: adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements"
   },
   {
     "name": "symbol_variable_boundary_instance_bare",
@@ -13461,7 +13461,8 @@
     "name": "assignment_arrow_value",
     "source": "h = {a: 1, b: {c: 2}}\narr = [1, [2]]\nt = [1]\nx = 1\ny = 2\nz = 3\ndef q(a: int = 0, *, k: int = 0) -> int\n  a\nend\nx -> 1\nx\n",
     "function": "__main__",
-    "go_error": "parse error at 10:4: lambda literals are not supported; executable code is not a value. Define a named function and call it, or attach a block to the call that runs it, as in `people.map { |person| person.name }`"
+    "go_error": "parse error at 10:4: lambda literals are not supported; executable code is not a value. Define a named function and call it, or attach a block to the call that runs it, as in `people.map { |person| person.name }`",
+    "error": "parse error at 10:2: adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements"
   },
   {
     "name": "assignment_empty_index",
@@ -14083,7 +14084,8 @@
   {
     "name": "parity_multiline_hash_call_target",
     "source": "def run\n  {\n    a: 1,\n    b: f}(\"x\"),\n    c: 2\n  }\nend\n",
-    "go_error": "parse error at 4:11: invalid destructuring assignment target"
+    "go_error": "parse error at 4:11: invalid destructuring assignment target",
+    "error": "parse error at 4:10: adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements"
   },
   {
     "name": "parity_keyword_property_assignment",
@@ -14164,101 +14166,101 @@
     "name": "block_brace_on_literal",
     "source": "def zero(&block: () -> int) -> int\nyield\nend\ndef one(x: int, &block: int -> int) -> int\nyield x\nend\ndef two(x: int,y: int, &block: (int, int) -> int) -> int\nyield x,y\nend\ndef twice(x: int, &block: int -> int) -> array<int>\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present() -> bool\nblock_given?\nend\ndef x() -> int\n4\nend\ndef f(a: any =yield()) -> any\na\nend\ndef run(input: any) -> any\n1 {2}\nend\n",
     "go_error": "attempted to call non-callable value",
-    "error": "parse error at 25:4: invalid hash pair: expected key like name: or \"name\":"
+    "error": "parse error at 25:2: adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements"
   },
   {
     "name": "block_do_on_literal",
     "source": "def zero(&block: () -> int) -> int\nyield\nend\ndef one(x: int, &block: int -> int) -> int\nyield x\nend\ndef two(x: int,y: int, &block: (int, int) -> int) -> int\nyield x,y\nend\ndef twice(x: int, &block: int -> int) -> array<int>\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present() -> bool\nblock_given?\nend\ndef x() -> int\n4\nend\ndef f(a: any =yield()) -> any\na\nend\ndef run(input: any) -> any\n1 { 2 }\nend\n",
     "go_error": "attempted to call non-callable value",
-    "error": "parse error at 25:5: invalid hash pair: expected key like name: or \"name\":"
+    "error": "parse error at 25:2: adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements"
   },
   {
     "name": "literals_percent_w_6_5",
     "source": "\ndef run(input: any) -> any\n[]{7}#\nend\n",
     "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %w##{7}#\n   | ^\n  at run (3:1)\n  at run (2:1)",
-    "error": "parse error at 3:4: invalid hash pair: expected key like name: or \"name\":"
+    "error": "parse error at 3:3: adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements"
   },
   {
     "name": "literals_percent_w_6_6",
     "source": "\ndef run(input: any) -> any\n[\"a\"]{1+2}b c#\nend\n",
     "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %w#a#{1+2}b c#\n   | ^\n  at run (3:1)\n  at run (2:1)",
-    "error": "parse error at 3:7: invalid hash pair: expected key like name: or \"name\":"
+    "error": "parse error at 3:6: adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements"
   },
   {
     "name": "literals_percent_w_6_7",
     "source": "\ndef run(input: any) -> any\n[]{\"}\"} x#\nend\n",
     "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %w##{\"}\"} x#\n   | ^\n  at run (3:1)\n  at run (2:1)",
-    "error": "parse error at 3:4: invalid hash pair: expected key like name: or \"name\":"
+    "error": "parse error at 3:3: adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements"
   },
   {
     "name": "literals_percent_W_6_5",
     "source": "\ndef run(input: any) -> any\n[]{7}#\nend\n",
     "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %W##{7}#\n   | ^\n  at run (3:1)\n  at run (2:1)",
-    "error": "parse error at 3:4: invalid hash pair: expected key like name: or \"name\":"
+    "error": "parse error at 3:3: adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements"
   },
   {
     "name": "literals_percent_W_6_6",
     "source": "\ndef run(input: any) -> any\n[\"a\"]{1+2}b c#\nend\n",
     "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %W#a#{1+2}b c#\n   | ^\n  at run (3:1)\n  at run (2:1)",
-    "error": "parse error at 3:7: invalid hash pair: expected key like name: or \"name\":"
+    "error": "parse error at 3:6: adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements"
   },
   {
     "name": "literals_percent_W_6_7",
     "source": "\ndef run(input: any) -> any\n[]{\"}\"} x#\nend\n",
     "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %W##{\"}\"} x#\n   | ^\n  at run (3:1)\n  at run (2:1)",
-    "error": "parse error at 3:4: invalid hash pair: expected key like name: or \"name\":"
+    "error": "parse error at 3:3: adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements"
   },
   {
     "name": "literals_percent_i_6_5",
     "source": "\ndef run(input: any) -> any\n[]{7}#\nend\n",
     "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %i##{7}#\n   | ^\n  at run (3:1)\n  at run (2:1)",
-    "error": "parse error at 3:4: invalid hash pair: expected key like name: or \"name\":"
+    "error": "parse error at 3:3: adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements"
   },
   {
     "name": "literals_percent_i_6_6",
     "source": "\ndef run(input: any) -> any\n[:a]{1+2}b c#\nend\n",
     "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %i#a#{1+2}b c#\n   | ^\n  at run (3:1)\n  at run (2:1)",
-    "error": "parse error at 3:6: invalid hash pair: expected key like name: or \"name\":"
+    "error": "parse error at 3:5: adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements"
   },
   {
     "name": "literals_percent_i_6_7",
     "source": "\ndef run(input: any) -> any\n[]{\"}\"} x#\nend\n",
     "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %i##{\"}\"} x#\n   | ^\n  at run (3:1)\n  at run (2:1)",
-    "error": "parse error at 3:4: invalid hash pair: expected key like name: or \"name\":"
+    "error": "parse error at 3:3: adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements"
   },
   {
     "name": "literals_percent_I_6_5",
     "source": "\ndef run(input: any) -> any\n[]{7}#\nend\n",
     "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %I##{7}#\n   | ^\n  at run (3:1)\n  at run (2:1)",
-    "error": "parse error at 3:4: invalid hash pair: expected key like name: or \"name\":"
+    "error": "parse error at 3:3: adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements"
   },
   {
     "name": "literals_percent_I_6_6",
     "source": "\ndef run(input: any) -> any\n[:a]{1+2}b c#\nend\n",
     "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %I#a#{1+2}b c#\n   | ^\n  at run (3:1)\n  at run (2:1)",
-    "error": "parse error at 3:6: invalid hash pair: expected key like name: or \"name\":"
+    "error": "parse error at 3:5: adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements"
   },
   {
     "name": "literals_percent_I_6_7",
     "source": "\ndef run(input: any) -> any\n[]{\"}\"} x#\nend\n",
     "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %I##{\"}\"} x#\n   | ^\n  at run (3:1)\n  at run (2:1)",
-    "error": "parse error at 3:4: invalid hash pair: expected key like name: or \"name\":"
+    "error": "parse error at 3:3: adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements"
   },
   {
     "name": "enums_call_20",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> any\nStatus{1//0}\nend\n",
     "go_error": "attempted to call non-callable value",
-    "error": "parse error at 10:8: invalid hash pair: expected key like name: or \"name\":"
+    "error": "parse error at 10:7: adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements"
   },
   {
     "name": "enums_call_21",
     "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input: any) -> Status\nStatus::Draft{1//0}\nend\n",
     "go_error": "attempted to call non-callable value",
-    "error": "parse error at 10:15: invalid hash pair: expected key like name: or \"name\":"
+    "error": "parse error at 10:14: adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements"
   },
   {
     "name": "block_do_double_attachment",
     "source": "def zero(&block: () -> int) -> int\nyield\nend\ndef one(x: int, &block: int -> int) -> int\nyield x\nend\ndef two(x: int,y: int, &block: (int, int) -> int) -> int\nyield x,y\nend\ndef twice(x: int, &block: int -> int) -> array<int>\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present() -> bool\nblock_given?\nend\ndef x() -> int\n4\nend\ndef f(a: any =yield()) -> any\na\nend\ndef run(input: any) -> int\nzero {3} { 4 }\nend\n",
-    "error": "parse error at 25:12: invalid hash pair: expected key like name: or \"name\":"
+    "error": "parse error at 25:9: adjacent expressions need a separator; insert an operator, a comma between arguments, or a newline (or `;`) between statements"
   }
 ]

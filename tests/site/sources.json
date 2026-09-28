@@ -645,7 +645,7 @@
     },
     {
       "path": "showcase/reliability/resilient_parse.vibe",
-      "sha256": "07151f755364a40b7b12ce5b908dbc8922a985a90e2a6ef462be8ae0f0359756"
+      "sha256": "c3a58f2ba379197aa2563316b4203a6c9ed36321dd7cc0036b13b308bfb96318"
     },
     {
       "path": "showcase/security/session_expiry.vibe",

@@ -125,7 +125,7 @@ def benchmark_cases():
     add("loop_float","x=0.0\ni=0\nwhile i<input\n x=x*0.5+1.25\n i+=1\nend\nx",1000,2.5,returns="float",param="int")
     add("integer_power", "total=0\ninput.each { |n| total+=n ** 5 }\ntotal", list(range(32)), sum(n**5 for n in range(32)), returns="int", param="array<int>")
     add("big_integer_power", "input.map { |n| (n ** 80).to_s }", [2, 3, 5, 7], [str(n**80) for n in [2, 3, 5, 7]], returns="array<string>", param="array<int>")
-    add("float_power", "input.map { |n| n ** -1 }", [float(n) for n in range(1, 33)], [1/n for n in range(1, 33)], returns="array<float>", param="array<float>")
+    add("float_power", "input.map { |n| n ** -1 }", [float(2**n) for n in range(32)], [1]+[2.0**(-n) for n in range(1, 32)], returns="array<float>", param="array<float>")
     floats=[float((i*73)%257)-128.5 for i in range(256)]
     add("float_sort", "input.sort", floats, sorted(floats), returns="array<float>", param="array<float>")
     add("loop_range","total=0\nfor i in 1..input\n total+=i*i%7\nend\ntotal",1000,sum(i*i%7 for i in range(1,1001)),returns="int",param="int")

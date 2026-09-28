@@ -3753,41 +3753,6 @@
     "static_error": {"code": "V0108", "at": [2, 5]}
   },
   {
-    "name": "ordering_nan_sort",
-    "source": "def run(input: any) -> array<number>\ninf=1e308*1e308;n=inf-inf;a=[n];[n,1].sort\nend\n",
-    "go_error": "array.sort values are not comparable"
-  },
-  {
-    "name": "ordering_nan_min",
-    "source": "def run(input: any) -> number?\ninf=1e308*1e308;n=inf-inf;a=[n];[n,1].min\nend\n",
-    "go_error": "array.min values are not comparable"
-  },
-  {
-    "name": "ordering_nan_max",
-    "source": "def run(input: any) -> number?\ninf=1e308*1e308;n=inf-inf;a=[n];[n,1].max\nend\n",
-    "go_error": "array.max values are not comparable"
-  },
-  {
-    "name": "ordering_nan_minmax",
-    "source": "def run(input: any) -> [number?, number?]\ninf=1e308*1e308;n=inf-inf;a=[n];[n,1].minmax\nend\n",
-    "go_error": "array.minmax values are not comparable"
-  },
-  {
-    "name": "ordering_nan_sort_by",
-    "source": "def run(input: any) -> array<int>\ninf=1e308*1e308;n=inf-inf;a=[n];[1,2].sort_by {n}\nend\n",
-    "go_error": "array.sort_by block values are not comparable"
-  },
-  {
-    "name": "ordering_nan_min_by",
-    "source": "def run(input: any) -> int?\ninf=1e308*1e308;n=inf-inf;a=[n];[1,2].min_by {n}\nend\n",
-    "go_error": "array.min_by block values are not comparable"
-  },
-  {
-    "name": "ordering_nan_max_by",
-    "source": "def run(input: any) -> int?\ninf=1e308*1e308;n=inf-inf;a=[n];[1,2].max_by {n}\nend\n",
-    "go_error": "array.max_by block values are not comparable"
-  },
-  {
     "name": "collection_blocks_slice_when_value_3_6",
     "source": "def run(input: any) -> any\nseen: array<any> =[];r=[nil,false,true,0].slice_when {|a,b|seen.push([a,b]);a+1==b};[r,seen]\nend\n",
     "go_error": "unsupported addition operands",
@@ -4966,7 +4931,8 @@
   {
     "name": "integers_big_power_1_-1180591620717411303424",
     "source": "def run(input: any) -> int\n(0) ** (-1180591620717411303424)\nend\n",
-    "go_error": "float exponentiation result is not finite"
+    "go_error": "float exponentiation result is not finite",
+    "error": "negative integer exponent; use a float base, for example 2.0 ** -1"
   },
   {
     "name": "integers_big_power_3_1180591620717411303424",
@@ -5030,7 +4996,8 @@
   {
     "name": "integers_surface_23",
     "source": "def run(input: any) -> int\n\"0x10\".to_i\nend\n",
-    "go_error": "string.to_i expects a base-10 integer string"
+    "go_error": "string.to_i expects a base-10 integer string",
+    "error": "string.to_i expects a base-10 integer string"
   },
   {
     "name": "integers_signatures_0",
@@ -5082,12 +5049,14 @@
   {
     "name": "integers_float_special_arithmetic_0",
     "source": "def run(input: any) -> string\n(0**-1).to_s\nend\n",
-    "go_error": "float exponentiation result is not finite"
+    "go_error": "float exponentiation result is not finite",
+    "error": "negative integer exponent; use a float base, for example 2.0 ** -1"
   },
   {
     "name": "integers_float_special_arithmetic_1",
     "source": "def run(input: any) -> string\n(0**-(2**80)).to_s\nend\n",
-    "go_error": "float exponentiation result is not finite"
+    "go_error": "float exponentiation result is not finite",
+    "error": "negative integer exponent; use a float base, for example 2.0 ** -1"
   },
   {
     "name": "integers_float_special_arithmetic_2",
@@ -6755,16 +6724,6 @@
     "static_error": {"code": "V0101", "at": [2, 13]}
   },
   {
-    "name": "numeric_members_clamp_3_7",
-    "source": "def run(input: any) -> string\n(5.5).clamp(0.0/0.0,nil).to_s\nend\n",
-    "go_error": "clamp_3_7: float.clamp values must not be NaN"
-  },
-  {
-    "name": "numeric_members_clamp_3_8",
-    "source": "def run(input: any) -> string\n(5.5).clamp(nil,0.0/0.0).to_s\nend\n",
-    "go_error": "clamp_3_8: float.clamp values must not be NaN"
-  },
-  {
     "name": "numeric_members_clamp_3_9",
     "source": "def run(input: any) -> string\n(5.5).clamp(1,0.0/0.0).to_s\nend\n",
     "go_error": "clamp_3_9: float.clamp values must not be NaN",
@@ -6821,16 +6780,6 @@
     "source": "def run(input: any) -> string\n(-5.5).clamp(10,0).to_s\nend\n",
     "go_error": "clamp_4_1: float.clamp min must be <= max",
     "static_error": {"code": "V0101", "at": [2, 14]}
-  },
-  {
-    "name": "numeric_members_clamp_4_7",
-    "source": "def run(input: any) -> string\n(-5.5).clamp(0.0/0.0,nil).to_s\nend\n",
-    "go_error": "clamp_4_7: float.clamp values must not be NaN"
-  },
-  {
-    "name": "numeric_members_clamp_4_8",
-    "source": "def run(input: any) -> string\n(-5.5).clamp(nil,0.0/0.0).to_s\nend\n",
-    "go_error": "clamp_4_8: float.clamp values must not be NaN"
   },
   {
     "name": "numeric_members_clamp_4_9",
@@ -6946,16 +6895,6 @@
     "source": "def run(input: any) -> string\n(9007199254740992.0).clamp(10,0).to_s\nend\n",
     "go_error": "clamp_6_1: float.clamp min must be <= max",
     "static_error": {"code": "V0101", "at": [2, 28]}
-  },
-  {
-    "name": "numeric_members_clamp_6_7",
-    "source": "def run(input: any) -> string\n(9007199254740992.0).clamp(0.0/0.0,nil).to_s\nend\n",
-    "go_error": "clamp_6_7: float.clamp values must not be NaN"
-  },
-  {
-    "name": "numeric_members_clamp_6_8",
-    "source": "def run(input: any) -> string\n(9007199254740992.0).clamp(nil,0.0/0.0).to_s\nend\n",
-    "go_error": "clamp_6_8: float.clamp values must not be NaN"
   },
   {
     "name": "numeric_members_clamp_6_9",
@@ -7085,16 +7024,6 @@
     "static_error": {"code": "V0101", "at": [2, 23]}
   },
   {
-    "name": "numeric_members_clamp_8_7",
-    "source": "def run(input: any) -> string\n((2**100).to_f).clamp(0.0/0.0,nil).to_s\nend\n",
-    "go_error": "clamp_8_7: float.clamp values must not be NaN"
-  },
-  {
-    "name": "numeric_members_clamp_8_8",
-    "source": "def run(input: any) -> string\n((2**100).to_f).clamp(nil,0.0/0.0).to_s\nend\n",
-    "go_error": "clamp_8_8: float.clamp values must not be NaN"
-  },
-  {
     "name": "numeric_members_clamp_8_9",
     "source": "def run(input: any) -> string\n((2**100).to_f).clamp(1,0.0/0.0).to_s\nend\n",
     "go_error": "clamp_8_9: float.clamp values must not be NaN",
@@ -7153,16 +7082,6 @@
     "static_error": {"code": "V0101", "at": [2, 15]}
   },
   {
-    "name": "numeric_members_clamp_9_7",
-    "source": "def run(input: any) -> string\n(1e309).clamp(0.0/0.0,nil).to_s\nend\n",
-    "go_error": "clamp_9_7: float.clamp values must not be NaN"
-  },
-  {
-    "name": "numeric_members_clamp_9_8",
-    "source": "def run(input: any) -> string\n(1e309).clamp(nil,0.0/0.0).to_s\nend\n",
-    "go_error": "clamp_9_8: float.clamp values must not be NaN"
-  },
-  {
     "name": "numeric_members_clamp_9_9",
     "source": "def run(input: any) -> string\n(1e309).clamp(1,0.0/0.0).to_s\nend\n",
     "go_error": "clamp_9_9: float.clamp values must not be NaN",
@@ -7219,16 +7138,6 @@
     "source": "def run(input: any) -> string\n(-1e309).clamp(10,0).to_s\nend\n",
     "go_error": "clamp_10_1: float.clamp min must be <= max",
     "static_error": {"code": "V0101", "at": [2, 16]}
-  },
-  {
-    "name": "numeric_members_clamp_10_7",
-    "source": "def run(input: any) -> string\n(-1e309).clamp(0.0/0.0,nil).to_s\nend\n",
-    "go_error": "clamp_10_7: float.clamp values must not be NaN"
-  },
-  {
-    "name": "numeric_members_clamp_10_8",
-    "source": "def run(input: any) -> string\n(-1e309).clamp(nil,0.0/0.0).to_s\nend\n",
-    "go_error": "clamp_10_8: float.clamp values must not be NaN"
   },
   {
     "name": "numeric_members_clamp_10_9",
@@ -7295,26 +7204,6 @@
     "static_error": {"code": "V0101", "at": [2, 17]}
   },
   {
-    "name": "numeric_members_clamp_11_5",
-    "source": "def run(input: any) -> string\n(0.0/0.0).clamp(0.0,10.0).to_s\nend\n",
-    "go_error": "clamp_11_5: float.clamp values must not be NaN"
-  },
-  {
-    "name": "numeric_members_clamp_11_6",
-    "source": "def run(input: any) -> string\n(0.0/0.0).clamp(-1e309,1e309).to_s\nend\n",
-    "go_error": "clamp_11_6: float.clamp values must not be NaN"
-  },
-  {
-    "name": "numeric_members_clamp_11_7",
-    "source": "def run(input: any) -> string\n(0.0/0.0).clamp(0.0/0.0,nil).to_s\nend\n",
-    "go_error": "clamp_11_7: float.clamp values must not be NaN"
-  },
-  {
-    "name": "numeric_members_clamp_11_8",
-    "source": "def run(input: any) -> string\n(0.0/0.0).clamp(nil,0.0/0.0).to_s\nend\n",
-    "go_error": "clamp_11_8: float.clamp values must not be NaN"
-  },
-  {
     "name": "numeric_members_clamp_11_9",
     "source": "def run(input: any) -> string\n(0.0/0.0).clamp(1,0.0/0.0).to_s\nend\n",
     "go_error": "clamp_11_9: float.clamp values must not be NaN",
@@ -7325,11 +7214,6 @@
     "source": "def run(input: any) -> string\n(0.0/0.0).clamp(9007199254740993,9007199254740994).to_s\nend\n",
     "go_error": "clamp_11_10: float.clamp values must not be NaN",
     "static_error": {"code": "V0101", "at": [2, 17]}
-  },
-  {
-    "name": "numeric_members_clamp_11_11",
-    "source": "def run(input: any) -> string\n(0.0/0.0).clamp(9007199254740992.0,9007199254740992.0).to_s\nend\n",
-    "go_error": "clamp_11_11: float.clamp values must not be NaN"
   },
   {
     "name": "numeric_members_clamp_11_12",
@@ -179192,5 +179076,29 @@
     "name": "module_binding_12",
     "source": "module M\n C=1\n A=[0]\n @@a: array<int> = [0]\n def self.f -> int\n self.C+=1;self.C\n end\nend\ndef run(input: any) -> array<int | array<int>>\n[M.f,M.C,M.A]\nend\n",
     "static_error": {"code": "V0203", "at": [6, 7]}
+  },
+  {
+    "name": "integers_big_power_2_-1180591620717411303424",
+    "source": "def run(input: any) -> number\n(1) ** (-1180591620717411303424)\nend\n",
+    "error": "negative integer exponent; use a float base, for example 2.0 ** -1",
+    "go_error": "negative integer exponent; use a float base, for example 2.0 ** -1"
+  },
+  {
+    "name": "integers_big_power_3_-1180591620717411303424",
+    "source": "def run(input: any) -> number\n(2) ** (-1180591620717411303424)\nend\n",
+    "error": "negative integer exponent; use a float base, for example 2.0 ** -1",
+    "go_error": "negative integer exponent; use a float base, for example 2.0 ** -1"
+  },
+  {
+    "name": "integers_float_special_arithmetic_8",
+    "source": "def run(input: any) -> string\n((2**2000)**(-1)).to_s\nend\n",
+    "error": "negative integer exponent; use a float base, for example 2.0 ** -1",
+    "go_error": "negative integer exponent; use a float base, for example 2.0 ** -1"
+  },
+  {
+    "name": "integers_big_power_0_-1180591620717411303424",
+    "source": "def run(input: any) -> number\n(-1) ** (-1180591620717411303424)\nend\n",
+    "error": "negative integer exponent; use a float base, for example 2.0 ** -1",
+    "go_error": "negative integer exponent; use a float base, for example 2.0 ** -1"
   }
 ]

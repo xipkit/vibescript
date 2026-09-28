@@ -4802,7 +4802,7 @@
       "infinity_label": "Infinity",
       "is_finite": true,
       "nan_detected": true,
-      "incomparable_is_nil": true
+      "nan_sorts_first": true
     }
   },
   {

@@ -14,7 +14,7 @@ def safe_divide(a: int, b: int) -> int?
   (a // b) rescue nil
 end
 
-def run -> { divide_guarded: int?, divide_ok: int?, incomparable_is_nil: bool, infinity_label: string, is_finite: bool, known: int, nan_detected: bool, unknown: int }
+def run -> { divide_guarded: int?, divide_ok: int?, nan_sorts_first: bool, infinity_label: string, is_finite: bool, known: int, nan_detected: bool, unknown: int }
   prices = { small: 5, large: 9 }
   infinity = 1.0 / 0.0
   not_a_number = 0.0 / 0.0
@@ -27,6 +27,6 @@ def run -> { divide_guarded: int?, divide_ok: int?, incomparable_is_nil: bool, i
     infinity_label: infinity.to_s,
     is_finite: (3.0 / 4.0).finite?,
     nan_detected: not_a_number.nan?,
-    incomparable_is_nil: (not_a_number <=> 1.0) == nil
+    nan_sorts_first: (not_a_number <=> 1.0) == -1
   }
 end
