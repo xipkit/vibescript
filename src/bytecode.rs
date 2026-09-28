@@ -14,6 +14,7 @@ mod calls;
 mod errors;
 mod loops;
 mod namespaces;
+mod numeric;
 mod regex;
 mod typing;
 
@@ -93,10 +94,10 @@ pub(crate) enum Op {
     Pop,
     Dup,
     Unary(Operator),
-    Binary(Operator),
+    Binary(Operator, bool),
     /// The flag marks an append whose enclosing loop result is unused.
     Shovel(CallSite, bool),
-    AddStore(u32),
+    AddStore(u32, bool),
     Array(u32),
     TextStart,
     TextPart,
@@ -1386,7 +1387,7 @@ impl Compiler<'_> {
     fn binary(&mut self, op: &str) -> Result<usize> {
         let operator = Operator::new(op)
             .ok_or_else(|| syntax::unsupported(self.work, "unsupported operator"))?;
-        Ok(self.emit(Op::Binary(operator)))
+        Ok(self.emit(Op::Binary(operator, false)))
     }
     fn patch(&mut self, pos: usize, target: usize) {
         match &mut self.code[pos] {
@@ -2356,7 +2357,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     self.assignment_rhs(binding_target, &[rhs]).await?;
                     let mut c = self.c();
                     if let Some(op) = binary {
-                        c.binary(op)?;
+                        c.number_binary(op, target, rhs)?;
                     }
                     c.emit(Op::StoreGlobal(narrow(global)));
                     return Ok(());
@@ -2391,7 +2392,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     if let Node::Binary("+", left, right) = &rhs.node {
                         self.assignment_rhs(binding_target, &[left, right]).await?;
                         let mut c = self.c();
-                        let instruction = c.emit(Op::AddStore(narrow(slot)));
+                        let instruction = c.number_store(slot, left, right);
                         c.locations[instruction] = rhs.offset;
                         return Ok(());
                     }
@@ -2402,11 +2403,11 @@ impl<'a, 'x> Compiling<'a, 'x> {
                 self.assignment_rhs(binding_target, &[rhs]).await?;
                 let mut c = self.c();
                 if binary == Some("+") && fused {
-                    c.emit(Op::AddStore(narrow(slot)));
+                    c.number_store(slot, target, rhs);
                     return Ok(());
                 }
                 if let Some(op) = binary {
-                    c.binary(op)?;
+                    c.number_binary(op, target, rhs)?;
                 }
                 if typed {
                     c.check_local(name)?;
@@ -2448,7 +2449,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     } else {
                         self.assignment_rhs(binding_target, &[rhs]).await?;
                         let mut c = self.c();
-                        let operator = c.binary(binary.unwrap())?;
+                        let operator = c.number_binary(binary.unwrap(), target, rhs)?;
                         let store = c.emit(Op::AddressStore);
                         c.locations[operator] = target.offset;
                         c.locations[store] = target.offset;
@@ -2716,7 +2717,7 @@ impl<'a, 'x> Compiling<'a, 'x> {
                     c.patch(jump, end);
                 } else {
                     self.expr(b).await?;
-                    self.c().binary(op)?;
+                    self.c().number_binary(op, a, b)?;
                 }
             }
             Node::Call(name, args, _) if name == "block_given?" => {

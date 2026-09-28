@@ -122,8 +122,9 @@ pub(crate) struct Facts {
     bases: HashMap<usize, Option<crate::members::direct::Base>>,
     /// Whether each expression's value is plain: it can hold no host method
     /// or exported function, which only values of type `any`, capabilities
-    /// and required modules can. The runtime skips its scan for them.
-    plain: HashMap<usize, bool>,
+    /// and required modules can. The runtime skips its scan for them. Also
+    /// records a single numeric type, when proved, for arithmetic dispatch.
+    values: HashMap<usize, ValueFact>,
     /// Whether every parameter of each block is plain.
     blocks: HashMap<usize, bool>,
     /// For each member call whose receiver is always an instance of one
@@ -135,6 +136,19 @@ pub(crate) struct Facts {
     /// variable before it is assigned ([`construction`]). The compiler moves
     /// definitions, so their offset names them.
     results: std::collections::HashSet<u32>,
+}
+
+/// A numeric type proved by the checker. Integers may use compact or big storage.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Number {
+    Int,
+    Float,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct ValueFact {
+    plain: bool,
+    number: Option<Number>,
 }
 
 impl Facts {
@@ -149,8 +163,15 @@ impl Facts {
         }
     }
 
-    fn record_plain(&mut self, expr: &crate::syntax::Expr, plain: bool) {
-        *self.plain.entry(key(expr)).or_insert(plain) &= plain;
+    fn record_value(&mut self, expr: &crate::syntax::Expr, plain: bool, number: Option<Number>) {
+        let recorded = self
+            .values
+            .entry(key(expr))
+            .or_insert(ValueFact { plain, number });
+        recorded.plain &= plain;
+        if recorded.number != number {
+            recorded.number = None;
+        }
     }
 
     fn record_class(&mut self, call: &crate::syntax::Expr, class: Option<String>) {
@@ -178,7 +199,12 @@ impl Facts {
 
     /// Whether `expr`'s value is plain; not when the checker did not see it.
     pub(crate) fn plain(&self, expr: &crate::syntax::Expr) -> bool {
-        self.plain.get(&key(expr)).copied().unwrap_or(false)
+        self.values.get(&key(expr)).is_some_and(|fact| fact.plain)
+    }
+
+    /// The numeric type every check of `expr` proved, if any.
+    pub(crate) fn number(&self, expr: &crate::syntax::Expr) -> Option<Number> {
+        self.values.get(&key(expr)).and_then(|fact| fact.number)
     }
 
     /// The class whose method `call` always calls, if one was recorded.

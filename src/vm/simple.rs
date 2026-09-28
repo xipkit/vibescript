@@ -119,8 +119,8 @@ pub(super) fn run(
                 address::refresh(ctx, slot, value, &mut storage.addresses.data, &[])?;
                 store(storage, slot, copy(value));
             }
-            Op::AddStore(n) => {
-                if !plain_operand(stack) {
+            Op::AddStore(n, number) => {
+                if !number && !plain_operand(stack) {
                     return Ok(());
                 }
                 let Some(slot) = local(ctx, outer, function, frame, storage, n as usize, shadowed)?
@@ -146,8 +146,8 @@ pub(super) fn run(
                 store(storage, slot, copy(&value));
                 push(ctx, stack, value)?;
             }
-            Op::Binary(op) => {
-                if !plain_operand(stack) {
+            Op::Binary(op, number) => {
+                if !number && !plain_operand(stack) {
                     return Ok(());
                 }
                 step(ctx, frame)?;

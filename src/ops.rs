@@ -107,6 +107,10 @@ pub(crate) fn immediate(
             Operator::LessEqual => Some(Value::boolean(a <= b)),
             Operator::Greater => Some(Value::boolean(a > b)),
             Operator::GreaterEqual => Some(Value::boolean(a >= b)),
+            Operator::Compare => {
+                ctx.charge(1)?;
+                Some(Value::int(a.cmp(b) as i64))
+            }
             Operator::Equal | Operator::NotEqual => {
                 // Equality charges one step per compared pair.
                 ctx.charge(1)?;
@@ -125,6 +129,10 @@ pub(crate) fn immediate(
             Operator::LessEqual => Some(Value::boolean(a <= b)),
             Operator::Greater => Some(Value::boolean(a > b)),
             Operator::GreaterEqual => Some(Value::boolean(a >= b)),
+            Operator::Compare => {
+                ctx.charge(1)?;
+                Some(Value::int(float_order(*a, *b) as i64))
+            }
             Operator::Equal | Operator::NotEqual => {
                 ctx.charge(1)?;
                 Some(Value::boolean((a == b) == (op == Operator::Equal)))
