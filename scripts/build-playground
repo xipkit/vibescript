@@ -28,7 +28,9 @@ def main():
     # version; artifacts compiled without these remaps are never reused.
     wrapper = ROOT / "scripts/rustc-remap"
     env["VIBESCRIPT_REMAP_ROOT"] = str(ROOT)
-    env["VIBESCRIPT_INNER_WRAPPER"] = os.environ.get("RUSTC_WRAPPER") or os.environ.get("CARGO_BUILD_RUSTC_WRAPPER", "")
+    # As in Cargo, a set but empty RUSTC_WRAPPER disables a configured wrapper.
+    inner = os.environ["RUSTC_WRAPPER"] if "RUSTC_WRAPPER" in os.environ else os.environ.get("CARGO_BUILD_RUSTC_WRAPPER", "")
+    env["VIBESCRIPT_INNER_WRAPPER"] = inner
     env["RUSTC_WRAPPER"] = str(wrapper)
     target_dir = ROOT / "target" / f"playground-{hashlib.sha256(wrapper.read_bytes()).hexdigest()[:12]}"
     toolchain = args.toolchain or (TOOLCHAIN if TOOLCHAIN.exists() else None)
