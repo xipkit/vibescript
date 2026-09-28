@@ -116,9 +116,15 @@ Loops whose last result is returned keep that result and the original update.
 
 ## Typed arithmetic
 
-The simple loop applies arithmetic and comparisons to two compact integers or two floats inline, checking their tags, and falls back to the general operator for big integers, instances and other operands; integer overflow promotes to a big integer there. Scalar operations keep the bytecode operator code through execution, and only overloads and general operations recover its spelling. Operand pushes stay inline, while literal hashing and rare argument/context errors stay outside instruction dispatch. These choices reduce dispatch work, but do not guarantee that unrelated changes leave the interpreter's machine-code layout or timing unchanged.
+The checker records when both operands have the same numeric type. Binary operations and fused addition stores carry that proof and skip the dynamic operator-overload probe. Unions and unchecked expressions retain the probe. The arithmetic implementation stays shared: compact integers and floats run inline, while big integers, overflow promotion and other operands use the general operator. Storage tags still matter because an `int` can use either compact or big storage. Scalar three-way comparisons retain their comparison charge and use the existing float total order, including NaN and signed zero.
 
-The simple loop consumes a boolean comparison directly in a following conditional branch or loop test. It also binds plain block arguments straight to their shadowed slots when the prologue has no intervening check or destructuring. Both paths charge each original instruction separately, preserving its location, quota boundary and checkpoint cadence. Big integers, overflow promotion, floating-point arithmetic and comparisons still use the existing operator implementation. `Op` remains 16 bytes.
+The simple loop consumes a boolean comparison directly in a following conditional branch or loop test, including the duplicate/branch/pop sequence used by short-circuit expressions. That sequence needs no temporary stack growth: the comparison already removed two operands. Each original instruction still charges separately, preserving its location, quota boundary and checkpoint cadence. Plain block arguments also bind straight to their shadowed slots when the prologue has no intervening check or destructuring. `Op` remains 16 bytes.
+
+## Dispatch layout
+
+Addressed updates use one `Extended` opcode and a separate payload table. A small outlined dispatcher selects a separate non-inlined helper for each update. Their large temporaries stay outside the selector and the hot loop. Decoding these payloads for the general interpreter also stays out of line, so another outlined operation does not add a hot dispatch tag or expand either interpreter's opcode match. The frequent local-address setup stays inline: outlining it added a call on every array update and regressed push loops. Rare local-value reads and abandoned loop-builder cleanup also run outside that frame. Scalar constants retain their import charge while copying directly. There is no additional unsafe code or architecture-specific dispatch.
+
+Machine-code placement can still affect timing. [Round 6](../benchmarks/vm-round-6.md) measures native code size and stack reservation on both architectures, and adds and removes an unused outlined opcode as an M4 layout control. Future changes still need paired measurements; source-level separation alone is not a performance guarantee.
 
 ## Accounting
 
